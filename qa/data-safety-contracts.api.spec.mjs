@@ -15,8 +15,15 @@ import {
 
 const require = createRequire(import.meta.url);
 const appStateHandler = require("../api/app-state.js");
+const TEST_USER_ID = "00000000-0000-4000-8000-000000000001";
+const TEST_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000101";
+const TEST_CLUB_ID = "00000000-0000-4000-8000-000000000201";
+const TEST_TEAM_ID = "00000000-0000-4000-8000-000000000301";
 
 const supabaseEnvKeys = [
+  "APP_STATE_DATABASE_MODE",
+  "APP_STATE_LEGACY_GLOBAL_ORGANIZATION_ID",
+  "APP_STATE_LEGACY_READ_FALLBACK_ENABLED",
   "SUPABASE_URL",
   "SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
@@ -95,11 +102,11 @@ function createAppStateStorageEntry(key, value, overrides = {}) {
     schema: "footballscience-app-state-v1",
     key,
     moduleId: dataSafetyRegistry.getByKey(key)?.moduleId || "",
-    organizationId: "org-existing",
+    organizationId: TEST_ORGANIZATION_ID,
     mergePolicy: dataSafetyRegistry.getByKey(key)?.mergePolicy || "",
     value: typeof value === "string" ? value : JSON.stringify(value),
     updatedAt: "2026-05-07T00:00:00.000Z",
-    updatedBy: "coach-existing",
+    updatedBy: TEST_USER_ID,
     revision: 1,
     ...overrides,
   };
@@ -107,7 +114,7 @@ function createAppStateStorageEntry(key, value, overrides = {}) {
 
 function createMockPlatformUser(role = "coach") {
   return {
-    id: "coach-1",
+    id: TEST_USER_ID,
     email: "coach@example.com",
     user_metadata: {
       firstName: "QA",
@@ -115,6 +122,7 @@ function createMockPlatformUser(role = "coach") {
       username: "qa.coach",
     },
     app_metadata: {
+      organizationId: TEST_ORGANIZATION_ID,
       role,
       status: "active",
     },
@@ -122,7 +130,34 @@ function createMockPlatformUser(role = "coach") {
   };
 }
 
+function appStatePath(key) {
+  return `organizations/${TEST_ORGANIZATION_ID}/${key}.json`;
+}
+
+function configureAppStateDatabaseEnv() {
+  process.env.APP_STATE_DATABASE_MODE = "database";
+  process.env.APP_STATE_LEGACY_GLOBAL_ORGANIZATION_ID = TEST_ORGANIZATION_ID;
+}
+
+function toDatabaseRow(entry = {}, applied) {
+  const row = {
+    organization_id: entry.organizationId,
+    state_key: entry.key,
+    module_id: entry.moduleId,
+    merge_policy: entry.mergePolicy,
+    revision: entry.revision,
+    value: entry.value,
+    removed: Boolean(entry.removed),
+    updated_by: entry.updatedBy,
+    updated_at: entry.updatedAt,
+    value_hash: entry.hash || "a".repeat(64),
+    metadata: entry.metadata || {},
+  };
+  return applied === undefined ? row : { ...row, applied };
+}
+
 function createAppStateFetchMock(initialObjects = {}, role = "coach") {
+  configureAppStateDatabaseEnv();
   const objects = new Map(Object.entries(initialObjects));
   const writes = [];
   const user = createMockPlatformUser(role);
@@ -135,8 +170,112 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
       return new Response(JSON.stringify(user), { status: 200 });
     }
 
-    if (requestUrl.includes("/auth/v1/admin/users/coach-1")) {
+    if (requestUrl.includes(`/auth/v1/admin/users/${TEST_USER_ID}`)) {
       return new Response(JSON.stringify(user), { status: 200 });
+    }
+
+    const parsedUrl = new URL(requestUrl);
+    if (parsedUrl.pathname === "/rest/v1/platform_user_profiles") {
+      return new Response(JSON.stringify([{
+        user_id: TEST_USER_ID,
+        primary_organization_id: TEST_ORGANIZATION_ID,
+        primary_club_id: TEST_CLUB_ID,
+        primary_team_id: TEST_TEAM_ID,
+        email: user.email,
+        status: "active",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_memberships") {
+      return new Response(JSON.stringify([{
+        id: "00000000-0000-4000-8000-000000000401",
+        organization_id: TEST_ORGANIZATION_ID,
+        club_id: TEST_CLUB_ID,
+        team_id: TEST_TEAM_ID,
+        user_id: TEST_USER_ID,
+        role,
+        scope: "team",
+        status: "active",
+        relationship: "staff",
+        accepted_at: "2026-05-07T00:00:00.000Z",
+        created_at: "2026-05-07T00:00:00.000Z",
+        updated_at: "2026-05-07T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_module_migration_checkpoints") {
+      return new Response("[]", { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_organizations") {
+      return new Response(JSON.stringify([{
+        id: TEST_ORGANIZATION_ID,
+        slug: "qa-club",
+        name: "QA Club",
+        status: "active",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_clubs") {
+      return new Response(JSON.stringify([{
+        id: TEST_CLUB_ID,
+        organization_id: TEST_ORGANIZATION_ID,
+        slug: "qa-club",
+        name: "QA Club",
+        status: "active",
+        updated_at: "2026-05-07T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_teams") {
+      return new Response(JSON.stringify([{
+        id: TEST_TEAM_ID,
+        organization_id: TEST_ORGANIZATION_ID,
+        club_id: TEST_CLUB_ID,
+        slug: "qa-first-team",
+        name: "QA First Team",
+        status: "active",
+        updated_at: "2026-05-07T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_app_state_tenant_migrations") {
+      return new Response(JSON.stringify([{
+        id: "00000000-0000-4000-8000-000000000501",
+        status: "completed",
+        plan_sha256: "a".repeat(64),
+        completed_at: "2026-05-07T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_app_state_records" && method === "GET") {
+      const stateKeyFilter = String(parsedUrl.searchParams.get("state_key") || "");
+      const keys = stateKeyFilter.startsWith("in.(") && stateKeyFilter.endsWith(")")
+        ? stateKeyFilter.slice(4, -1).split(",").map((key) => key.trim()).filter(Boolean)
+        : [stateKeyFilter.replace(/^eq\./, "")].filter(Boolean);
+      const entries = keys
+        .map((key) => objects.get(appStatePath(key)))
+        .filter(Boolean)
+        .map((entry) => toDatabaseRow(entry));
+      return new Response(JSON.stringify(entries), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/rpc/write_platform_app_state_record" && method === "POST") {
+      const body = JSON.parse(String(options.body || "{}"));
+      const objectPath = appStatePath(body.p_state_key);
+      const current = objects.get(objectPath);
+      if (Number(body.p_expected_revision || 0) !== Number(current?.revision || 0)) {
+        return new Response(JSON.stringify(current ? [toDatabaseRow(current, false)] : []), { status: 200 });
+      }
+      const entry = {
+        schema: "footballscience-app-state-v1",
+        key: body.p_state_key,
+        moduleId: body.p_module_id,
+        organizationId: body.p_organization_id,
+        mergePolicy: body.p_merge_policy,
+        revision: Number(body.p_next_revision),
+        value: body.p_value,
+        removed: Boolean(body.p_removed),
+        updatedBy: body.p_updated_by,
+        updatedAt: "2026-05-07T00:01:00.000Z",
+        hash: body.p_value_hash,
+        metadata: body.p_metadata || {},
+      };
+      objects.set(objectPath, entry);
+      writes.push({ method: entry.removed ? "DELETE" : "POST", objectPath, entry });
+      return new Response(JSON.stringify([toDatabaseRow(entry, true)]), { status: 200 });
     }
 
     if (requestUrl.endsWith("/storage/v1/bucket/footballscience-app-state")) {
@@ -213,7 +352,7 @@ test("central app-state rejects executable user content before writing module st
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
   const key = "football-schedule-v1";
-  const path = `global/${key}.json`;
+  const path = appStatePath(key);
   const storage = createAppStateFetchMock();
   global.fetch = storage.fetchMock;
 
@@ -250,7 +389,7 @@ test("central app-state rejects prototype pollution keys before writing module s
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
   const key = "football-schedule-v1";
-  const path = `global/${key}.json`;
+  const path = appStatePath(key);
   const storage = createAppStateFetchMock();
   global.fetch = storage.fetchMock;
 
@@ -285,10 +424,10 @@ test("central app-state increments revision and stamps module safety metadata", 
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
   const key = "football-schedule-v1";
-  const path = `global/${key}.json`;
+  const path = appStatePath(key);
   const storage = createAppStateFetchMock({
     [path]: createAppStateStorageEntry(key, { events: [{ id: "existing", title: "Existing" }] }, { revision: 2 }),
-  });
+  }, "admin");
   global.fetch = storage.fetchMock;
 
   try {
@@ -312,12 +451,12 @@ test("central app-state increments revision and stamps module safety metadata", 
       ok: true,
       key,
       revision: 3,
-      organizationId: "org-existing",
+      organizationId: TEST_ORGANIZATION_ID,
       moduleId: "schedule",
     });
     expect(response.payload.metadata).toMatchObject({
       revision: 3,
-      organizationId: "org-existing",
+      organizationId: TEST_ORGANIZATION_ID,
       moduleId: "schedule",
       mergePolicy: "revision-guarded-last-write",
     });
@@ -325,11 +464,28 @@ test("central app-state increments revision and stamps module safety metadata", 
     expect(scheduleWrite.entry).toMatchObject({
       key,
       revision: 3,
-      organizationId: "org-existing",
+      organizationId: TEST_ORGANIZATION_ID,
       moduleId: "schedule",
-      sourceOfTruth: SERVER_SOURCE_OF_TRUTH,
-      localPersistence: LOCAL_CACHE_ONLY,
-      savePipeline: "central-app-state",
+      mergePolicy: "revision-guarded-last-write",
+      updatedBy: TEST_USER_ID,
+    });
+    expect(scheduleWrite.entry.hash).toMatch(/^[a-f0-9]{64}$/);
+
+    const freshRead = await callHandler(appStateHandler, {
+      method: "GET",
+      url: `/api/app-state?fresh=1&keys=${encodeURIComponent(key)}`,
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+    });
+    expect(freshRead.status).toBe(200);
+    expect(freshRead.payload.entries[key]).toBe(JSON.stringify({ events: [{ id: "new", title: "New" }] }));
+    expect(freshRead.payload.metadata[key]).toMatchObject({
+      revision: 3,
+      organizationId: TEST_ORGANIZATION_ID,
+      moduleId: "schedule",
+      mergePolicy: "revision-guarded-last-write",
+      hash: scheduleWrite.entry.hash,
     });
   } finally {
     global.fetch = originalFetch;
@@ -346,7 +502,7 @@ test("central app-state rejects stale versioned writes before overwriting newer 
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
   const key = "football-schedule-v1";
-  const path = `global/${key}.json`;
+  const path = appStatePath(key);
   const storage = createAppStateFetchMock({
     [path]: createAppStateStorageEntry(key, { events: [{ id: "newer", title: "Newer central value" }] }, { revision: 5 }),
   });
@@ -391,7 +547,7 @@ test("central app-state rejects unversioned writes once module data exists", asy
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
   const key = "football-schedule-v1";
-  const path = `global/${key}.json`;
+  const path = appStatePath(key);
   const storage = createAppStateFetchMock({
     [path]: createAppStateStorageEntry(key, { events: [{ id: "safe", title: "Central value" }] }, { revision: 5 }),
   });
@@ -434,18 +590,18 @@ test("central app-state lets Player Profiles editors update only their own team 
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
   const key = "football-platform-structure-v1";
-  const path = `global/${key}.json`;
+  const path = appStatePath(key);
   const previousStructure = {
     version: 1,
-    activeClubId: "club-ncc",
-    activeTeamId: "team-ncc-first",
-    clubs: [{ id: "club-ncc", name: "North Carolina Courage", shortName: "NCC", status: "active" }],
+    activeClubId: TEST_CLUB_ID,
+    activeTeamId: TEST_TEAM_ID,
+    clubs: [{ id: TEST_CLUB_ID, name: "QA Club", shortName: "QA", status: "active" }],
     teams: [
       {
-        id: "team-ncc-first",
-        clubId: "club-ncc",
-        name: "North Carolina Courage",
-        shortName: "NCC",
+        id: TEST_TEAM_ID,
+        clubId: TEST_CLUB_ID,
+        name: "QA First Team",
+        shortName: "QA",
         logoUrl: "data:image/webp;base64,b2xk",
         level: "First Team",
         season: "2026",
@@ -493,7 +649,7 @@ test("central app-state lets Player Profiles editors update only their own team 
     const structureWrite = storage.writes.find((write) => write.objectPath === path);
     const writtenStructure = JSON.parse(structureWrite.entry.value);
     expect(writtenStructure.teams[0].logoUrl).toBe(svgLogo);
-    expect(writtenStructure.teams[0].name).toBe("North Carolina Courage");
+    expect(writtenStructure.teams[0].name).toBe("QA First Team");
     expect(writtenStructure.clubs).toEqual(previousStructure.clubs);
   } finally {
     global.fetch = originalFetch;
@@ -510,18 +666,18 @@ test("central app-state rejects delegated platform structure changes beyond team
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
   const key = "football-platform-structure-v1";
-  const path = `global/${key}.json`;
+  const path = appStatePath(key);
   const previousStructure = {
     version: 1,
-    activeClubId: "club-ncc",
-    activeTeamId: "team-ncc-first",
-    clubs: [{ id: "club-ncc", name: "North Carolina Courage", shortName: "NCC", status: "active" }],
+    activeClubId: TEST_CLUB_ID,
+    activeTeamId: TEST_TEAM_ID,
+    clubs: [{ id: TEST_CLUB_ID, name: "QA Club", shortName: "QA", status: "active" }],
     teams: [
       {
-        id: "team-ncc-first",
-        clubId: "club-ncc",
-        name: "North Carolina Courage",
-        shortName: "NCC",
+        id: TEST_TEAM_ID,
+        clubId: TEST_CLUB_ID,
+        name: "QA First Team",
+        shortName: "QA",
         logoUrl: "data:image/webp;base64,b2xk",
         level: "First Team",
         season: "2026",
@@ -574,7 +730,7 @@ test("central app-state rejects unversioned deletes once module data exists", as
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
   const key = "football-schedule-v1";
-  const path = `global/${key}.json`;
+  const path = appStatePath(key);
   const storage = createAppStateFetchMock({
     [path]: createAppStateStorageEntry(key, { events: [{ id: "safe", title: "Central value" }] }, { revision: 5 }),
   });
@@ -613,7 +769,7 @@ test("central app-state blocks empty Medical saves from wiping clinical history"
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
   const key = "football-medical-team-v1";
-  const path = `global/${key}.json`;
+  const path = appStatePath(key);
   const existingMedicalState = {
     selectedDate: "2026-05-15",
     players: [{ id: "player-1", name: "Protected Player" }],
@@ -673,7 +829,7 @@ test("central app-state merges stale Medical saves without dropping availability
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
   const key = "football-medical-team-v1";
-  const path = `global/${key}.json`;
+  const path = appStatePath(key);
   const existingMedicalState = {
     selectedDate: "2026-05-16",
     selectedPlayerId: "player-1",

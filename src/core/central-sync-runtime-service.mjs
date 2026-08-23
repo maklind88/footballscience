@@ -9,14 +9,17 @@ export function createCentralSyncRuntimeService(deps = {}) {
     hashString = (value) => String(value ?? "").length.toString(36),
     isProtectedStorageKey = () => false,
     isSessionPlannerAutosaveKey = () => false,
+    isCentralStateTransitionFenceActive = () => false,
     mergeDashboardPresentationStatePreservingLocalEdits = (_currentValue, syncedValue) => syncedValue,
     mergePeriodizationStatePreservingLocalUi = (_currentValue, syncedValue) => syncedValue,
     mergeScheduleStatePreservingLocalUi = (_currentValue, syncedValue) => syncedValue,
     mutateManifest = () => ({}),
+    mutateManifestWithResult = (mutator) => ({ manifest: mutateManifest(mutator), persisted: true }),
     queueStatusRefresh = () => {},
     queueSnapshot = () => {},
     rawGetItem = () => null,
     rawSetItem = () => {},
+    readManifest = () => ({}),
     retryConflictStorageKeys = [],
     dashboardPresentationStorageKey = "",
     getSessionPlannerLocalUiState = () => ({ state: {} }),
@@ -30,6 +33,10 @@ export function createCentralSyncRuntimeService(deps = {}) {
   } = deps;
 
   let centralStateWriteTimer = null;
+  let centralStateWriteFlushInFlight = false;
+  let centralStateManifestReader = null;
+  let centralStateManifestRetryRequested = false;
+  let centralStateWriteGeneration = 0;
   const centralStateWriteQueue = new Map();
   const centralStateWriteSuppressionKeys = new Set();
   let sessionPlannerCentralSyncNoticeAt = 0;
@@ -42,6 +49,42 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function getCentralStateBridge() { return win.footballScienceCentralState ?? null; }
 
+  function getCentralStatePrincipalScope(user = getCurrentUser()) {
+    const principal = user && typeof user === "object" ? user : {};
+    if (!String(principal.id || "")) {
+      return "";
+    }
+    return [
+      principal.id,
+      principal.organizationId || "legacy-unscoped",
+      principal.clubId,
+      principal.teamId,
+      String(principal.role || "").trim().toLowerCase(),
+      String(principal.status || "").trim().toLowerCase(),
+    ]
+      .map((value) => String(value || ""))
+      .join(":");
+  }
+
+  function getCentralStatePrincipalEpoch(bridge = getCentralStateBridge()) {
+    const epoch = Number(bridge?.getStatus?.()?.principalEpoch);
+    return Number.isInteger(epoch) && epoch >= 0 ? epoch : null;
+  }
+
+  function isCentralStateWriteForCurrentPrincipal(write = {}) {
+    const currentScope = getCentralStatePrincipalScope();
+    const currentEpoch = getCentralStatePrincipalEpoch();
+    return Boolean(
+      currentScope &&
+      write.principalScope === currentScope &&
+      (
+        write.principalEpoch === null ||
+        write.principalEpoch === undefined ||
+        currentEpoch === write.principalEpoch
+      )
+    );
+  }
+
   function getCentralStateMetadataForKey(key) {
     const metadata = getCentralStateBridge()?.getStatus?.()?.metadata;
     const entry = metadata?.[String(key || "")];
@@ -53,8 +96,34 @@ export function createCentralSyncRuntimeService(deps = {}) {
     return Number.isInteger(revision) && revision >= 0 ? revision : 0;
   }
 
+  function getCentralStateBridgeHydrationState(bridge = getCentralStateBridge()) {
+    const status = bridge?.getStatus?.() || {};
+    if (status.hydrating === true) {
+      return "active";
+    }
+    if (String(status.hydrationError || "").trim()) {
+      return "failed";
+    }
+    const hydrated = typeof bridge?.isHydrated === "function" ? Boolean(bridge.isHydrated()) : true;
+    return hydrated ? "ready" : "pending";
+  }
+
   function isCentralStateBridgeHydrated(bridge = getCentralStateBridge()) {
-    return typeof bridge?.isHydrated === "function" ? Boolean(bridge.isHydrated()) : true;
+    return getCentralStateBridgeHydrationState(bridge) === "ready";
+  }
+
+  function canWriteCentralStateKey(key, bridge = getCentralStateBridge()) {
+    return typeof bridge?.canWriteKey === "function" && bridge.canWriteKey(String(key || "")) === true;
+  }
+
+  function canAutomaticallyRetryCentralStateKey(key, bridge = getCentralStateBridge()) {
+    return (
+      canWriteCentralStateKey(key, bridge) &&
+      (
+        typeof bridge?.canAutoRetryKey !== "function" ||
+        bridge.canAutoRetryKey(String(key || "")) === true
+      )
+    );
   }
 
   function getCentralStateWriteBaseRevision(write = {}) {
@@ -77,18 +146,150 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function createCentralBackedStorageError() { return new Error("Central sync is not ready."); }
 
-  function setCentralSyncPendingState(key, isPending = false, isRemoved = false) {
+  function createCentralManifestGeneration(entry = {}, value = null) {
+    return {
+      principalScope: String(entry.principalScope || ""),
+      hash: String(entry.hash || ""),
+      writes: Number(entry.writes || 0),
+      updatedAt: String(entry.updatedAt || ""),
+      deletedAt: String(entry.deletedAt || ""),
+      value: typeof value === "string" ? value : null,
+    };
+  }
+
+  function matchesCentralManifestGeneration(entry = {}, value = null, expected = null) {
+    if (!expected) {
+      return false;
+    }
+    const current = createCentralManifestGeneration(entry, value);
+    return (
+      current.principalScope === expected.principalScope &&
+      current.hash === expected.hash &&
+      current.writes === expected.writes &&
+      current.updatedAt === expected.updatedAt &&
+      current.deletedAt === expected.deletedAt &&
+      current.value === expected.value
+    );
+  }
+
+  function isCentralStateWriteGenerationCurrent(write = {}) {
+    if (!write.manifestGeneration) {
+      return false;
+    }
+    const currentEntry = readManifest()?.entries?.[String(write.key || "")] || {};
+    return Boolean(
+      currentEntry.pendingCentralSync &&
+      matchesCentralManifestGeneration(currentEntry, rawGetItem(write.key), write.manifestGeneration)
+    );
+  }
+
+  function isVerifiedCentralStateAcknowledgement(write = {}, result = {}, baseRevision = 0) {
+    if (result?.localDev === true) {
+      return true;
+    }
+    const acknowledgedRevision = getCentralSyncResultRevision(result);
+    return Boolean(
+      String(result?.key || "") === String(write.key || "") &&
+      acknowledgedRevision > Number(baseRevision || 0)
+    );
+  }
+
+  function setCentralSyncPendingState(key, isPending = false, isRemoved = false, principalScope = "", options = {}) {
     const normalizedKey = String(key || "");
-    mutateManifest((manifest) => {
+    const normalizedPrincipalScope = String(principalScope || "");
+    let changed = false;
+    let generation = null;
+    const mutation = mutateManifestWithResult((manifest) => {
       const currentEntry = manifest.entries[normalizedKey] || {};
+      if (
+        !isPending &&
+        normalizedPrincipalScope &&
+        String(currentEntry.principalScope || "") !== normalizedPrincipalScope
+      ) {
+        return;
+      }
+      if (
+        !isPending &&
+        !matchesCentralManifestGeneration(
+          currentEntry,
+          typeof options.expectedValue === "string" ? options.expectedValue : rawGetItem(normalizedKey),
+          options.expectedGeneration
+        )
+      ) {
+        return;
+      }
       manifest.entries[normalizedKey] = {
         ...(currentEntry?.label ? currentEntry : { label: getStorageLabel(normalizedKey), writes: 0, size: 0, hash: "", updatedAt: "", deletedAt: "" }),
         ...currentEntry,
+        ...(isPending && options.recordWrite ? {
+          label: String(options.recordWrite.label || getStorageLabel(normalizedKey)),
+          updatedAt: String(options.recordWrite.updatedAt || getDataSafetyNow()),
+          size: Number(options.recordWrite.size) || 0,
+          hash: String(options.recordWrite.hash || hashString(options.value ?? "")),
+          writes: Number(currentEntry.writes || 0) + 1,
+        } : {}),
         pendingCentralSync: Boolean(isPending),
+        principalScope: isPending ? normalizedPrincipalScope : String(currentEntry.principalScope || normalizedPrincipalScope),
         deletedAt: isRemoved ? getDataSafetyNow() : currentEntry.deletedAt || "",
       };
+      if (isPending && options.recordWrite) {
+        manifest.lastSavedAt = String(options.recordWrite.updatedAt || getDataSafetyNow());
+        manifest.lastKey = normalizedKey;
+        manifest.lastError = "";
+      }
+      if (!isPending && normalizedPrincipalScope && manifest.principalPending?.[normalizedPrincipalScope]?.[normalizedKey]) {
+        delete manifest.principalPending[normalizedPrincipalScope][normalizedKey];
+        if (!Object.keys(manifest.principalPending[normalizedPrincipalScope]).length) {
+          delete manifest.principalPending[normalizedPrincipalScope];
+        }
+      }
+      manifest.activePrincipalScope = normalizedPrincipalScope || String(manifest.activePrincipalScope || "");
+      changed = true;
+      if (isPending) {
+        generation = createCentralManifestGeneration(
+          manifest.entries[normalizedKey],
+          typeof options.value === "string" ? options.value : rawGetItem(normalizedKey)
+        );
+      }
     });
-    queueStatusRefresh();
+    if (!mutation.persisted) {
+      return isPending ? null : false;
+    }
+    if (changed) {
+      queueStatusRefresh();
+    }
+    return isPending ? generation : changed;
+  }
+
+  function acknowledgeCentralStateWrite(write = {}) {
+    if (!isCentralStateWriteForCurrentPrincipal(write)) {
+      return false;
+    }
+    const queuedWrite = centralStateWriteQueue.get(String(write.key || ""));
+    if (
+      queuedWrite &&
+      (
+        queuedWrite.principalScope !== write.principalScope ||
+        Number(queuedWrite.generation) > Number(write.generation)
+      )
+    ) {
+      return false;
+    }
+    return setCentralSyncPendingState(write.key, false, write.removed, write.principalScope, {
+      expectedGeneration: write.manifestGeneration,
+    });
+  }
+
+  function getNewerQueuedCentralStateWrite(write = {}) {
+    const queuedWrite = centralStateWriteQueue.get(String(write.key || ""));
+    if (
+      !queuedWrite ||
+      queuedWrite.principalScope !== write.principalScope ||
+      Number(queuedWrite.generation) <= Number(write.generation)
+    ) {
+      return null;
+    }
+    return queuedWrite;
   }
 
   function queueCentralStateStatus(error = "") {
@@ -104,7 +305,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
   }
 
   function hasPendingCentralStateWrites(readManifest) {
-    if (centralStateWriteTimer || centralStateWriteQueue.size) {
+    if (centralStateWriteTimer || centralStateWriteFlushInFlight || centralStateWriteQueue.size) {
       return true;
     }
     const manifest = typeof readManifest === "function" ? readManifest() : {};
@@ -112,21 +313,73 @@ export function createCentralSyncRuntimeService(deps = {}) {
   }
 
   function retryCentral(readManifest) {
-    if (centralStateWriteTimer || centralStateWriteQueue.size || win.__footballScienceCentralHydrating || !getCurrentUser() || !getCentralStateBridge()?.syncKey) return;
+    const bridge = getCentralStateBridge();
+    if (typeof readManifest === "function") {
+      centralStateManifestReader = readManifest;
+    }
+    if (centralStateWriteTimer || centralStateWriteFlushInFlight) {
+      centralStateManifestRetryRequested = true;
+      return;
+    }
+    if (win.__footballScienceCentralHydrating) {
+      centralStateManifestRetryRequested = true;
+      centralStateWriteTimer = win.setTimeout(() => {
+        centralStateWriteTimer = null;
+        retryCentral(centralStateManifestReader);
+      }, centralStateHydrationRetryMs);
+      return;
+    }
+    if (centralStateWriteQueue.size) {
+      centralStateManifestRetryRequested = true;
+      centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
+      return;
+    }
+    const principalScope = getCentralStatePrincipalScope();
+    if (!principalScope || !bridge?.syncKey) return;
+    centralStateManifestRetryRequested = false;
     const manifest = typeof readManifest === "function" ? readManifest() : {};
     for (const [key, entry] of Object.entries(manifest.entries || {})) {
       const value = rawGetItem(key);
-      if (entry?.pendingCentralSync && (entry.deletedAt || value !== null)) queueCentralStateWrite(key, value ?? "", { removed: !!entry.deletedAt });
+      if (
+        entry?.pendingCentralSync &&
+        entry.principalScope === principalScope &&
+        canAutomaticallyRetryCentralStateKey(key, bridge) &&
+        (entry.deletedAt || value !== null)
+      ) {
+        queueCentralStateWrite(key, value ?? "", {
+          removed: !!entry.deletedAt,
+          automaticRetry: true,
+        });
+      }
     }
   }
 
   function applyCentralSyncedStateValue(write = {}, syncedValue) {
     const key = String(write.key || "");
     if (!key || write.removed || typeof syncedValue !== "string") {
-      return;
+      return false;
     }
-    if (centralStateWriteQueue.has(key) || rawGetItem(key) !== write.value || syncedValue === write.value) {
-      return;
+    const queuedWrite = centralStateWriteQueue.get(key);
+    const currentValue = rawGetItem(key);
+    const hasNewerQueuedWrite = Boolean(
+      queuedWrite &&
+      queuedWrite.principalScope === write.principalScope &&
+      Number(queuedWrite.generation) > Number(write.generation)
+    );
+    const canRestoreConflictGeneration =
+      typeof write.conflictHydratedValue === "string" &&
+      currentValue === write.conflictHydratedValue;
+    const generationBound = Boolean(write.manifestGeneration);
+    if (
+      !isCentralStateWriteForCurrentPrincipal(write) ||
+      (generationBound && !isCentralStateWriteGenerationCurrent(write)) ||
+      hasNewerQueuedWrite ||
+      (currentValue !== write.value && !canRestoreConflictGeneration)
+    ) {
+      return false;
+    }
+    if (syncedValue === currentValue) {
+      return true;
     }
     const valueToApply =
       key === scheduleStorageKey
@@ -136,28 +389,93 @@ export function createCentralSyncRuntimeService(deps = {}) {
           : key === dashboardPresentationStorageKey
             ? mergeDashboardPresentationStatePreservingLocalEdits(rawGetItem(key), syncedValue)
             : syncedValue;
-    win.__footballScienceCentralHydrating = true;
-    try {
-      rawSetItem(key, valueToApply);
-    } finally {
-      win.__footballScienceCentralHydrating = false;
+    if (valueToApply === currentValue) {
+      return true;
     }
-    mutateManifest((manifest) => {
+    // A pending generation and its manifest live in separate localStorage keys.
+    // Never overwrite that generation with a differing acknowledgement because
+    // a cross-tab write can make a rollback unsafe. Fresh hydration reconciles it.
+    if (generationBound) {
+      return false;
+    }
+    let manifestUpdated = false;
+    let nextManifestGeneration = null;
+    let previousManifestGeneration = null;
+    const mutationResult = mutateManifestWithResult((manifest) => {
       const currentEntry = manifest.entries[key] || {};
+      previousManifestGeneration = createCentralManifestGeneration(currentEntry, currentValue);
+      if (
+        generationBound &&
+        !matchesCentralManifestGeneration(currentEntry, currentValue, write.manifestGeneration)
+      ) {
+        return;
+      }
+      win.__footballScienceCentralHydrating = true;
+      try {
+        rawSetItem(key, valueToApply);
+      } finally {
+        win.__footballScienceCentralHydrating = false;
+      }
+      if (rawGetItem(key) !== valueToApply) {
+        return;
+      }
       manifest.entries[key] = {
         ...(currentEntry?.label ? currentEntry : { label: getStorageLabel(key), writes: 0 }),
         ...currentEntry,
         updatedAt: getDataSafetyNow(),
         size: valueToApply.length,
         hash: hashString(valueToApply),
-        pendingCentralSync: false,
+        pendingCentralSync: generationBound,
       };
+      if (generationBound) {
+        nextManifestGeneration = createCentralManifestGeneration(manifest.entries[key], valueToApply);
+      }
+      manifestUpdated = true;
     });
+    const restorePreviousValueIfGenerationIsUnchanged = () => {
+      const persistedEntry = readManifest()?.entries?.[key] || {};
+      if (
+        rawGetItem(key) !== valueToApply ||
+        !matchesCentralManifestGeneration(
+          persistedEntry,
+          currentValue,
+          previousManifestGeneration
+        )
+      ) {
+        return false;
+      }
+      win.__footballScienceCentralHydrating = true;
+      try {
+        rawSetItem(key, currentValue);
+      } finally {
+        win.__footballScienceCentralHydrating = false;
+      }
+      return rawGetItem(key) === currentValue;
+    };
+    if (!manifestUpdated || mutationResult?.persisted !== true) {
+      if (manifestUpdated) restorePreviousValueIfGenerationIsUnchanged();
+      return false;
+    }
+    const persistedEntry = readManifest()?.entries?.[key] || {};
+    if (
+      rawGetItem(key) !== valueToApply ||
+      (
+        generationBound &&
+        !matchesCentralManifestGeneration(persistedEntry, valueToApply, nextManifestGeneration)
+      )
+    ) {
+      restorePreviousValueIfGenerationIsUnchanged();
+      return false;
+    }
+    if (generationBound) {
+      write.manifestGeneration = nextManifestGeneration;
+    }
     queueSnapshot("central-merge");
     handleSyncedStateValue(key, valueToApply);
+    return true;
   }
 
-  function persistCentralStateServerRevision(key, result = {}) {
+  function persistCentralStateServerRevision(key, result = {}, expectedGeneration = null) {
     const revision = getCentralSyncResultRevision(result);
     if (!Number.isInteger(revision) || revision <= 0) {
       return;
@@ -168,6 +486,16 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     mutateManifest((manifest) => {
       const currentEntry = manifest.entries[normalizedKey] || {};
+      if (
+        expectedGeneration &&
+        !matchesCentralManifestGeneration(
+          currentEntry,
+          rawGetItem(normalizedKey),
+          expectedGeneration
+        )
+      ) {
+        return;
+      }
       const currentRevision = Number(currentEntry.serverRevision);
       const serverRevision =
         Number.isInteger(currentRevision) && currentRevision > revision ? currentRevision : revision;
@@ -186,6 +514,35 @@ export function createCentralSyncRuntimeService(deps = {}) {
         serverRevision,
       };
     });
+  }
+
+  function advanceQueuedWriteBaseRevision(write = {}, result = {}) {
+    const queuedWrite = centralStateWriteQueue.get(String(write.key || ""));
+    const acknowledgedRevision = getCentralSyncResultRevision(result);
+    if (
+      !queuedWrite ||
+      queuedWrite.principalScope !== write.principalScope ||
+      Number(queuedWrite.generation) <= Number(write.generation) ||
+      !acknowledgedRevision
+    ) {
+      return;
+    }
+    queuedWrite.baseRevision = Math.max(Number(queuedWrite.baseRevision) || 0, acknowledgedRevision);
+  }
+
+  function bindConflictHydratedValueToNewerWrite(write = {}, hydratedServerValue) {
+    if (typeof hydratedServerValue !== "string") {
+      return;
+    }
+    const queuedWrite = centralStateWriteQueue.get(String(write.key || ""));
+    if (
+      !queuedWrite ||
+      queuedWrite.principalScope !== write.principalScope ||
+      Number(queuedWrite.generation) <= Number(write.generation)
+    ) {
+      return;
+    }
+    queuedWrite.conflictHydratedValue = hydratedServerValue;
   }
 
   function getCentralSyncResultValue(result = {}) {
@@ -217,7 +574,11 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function shouldRetryCentralStateWriteAfterConflict(write = {}) {
     const key = String(write.key || "");
-    const retryableKeys = new Set([sessionPlannerStorageKey, ...retryConflictStorageKeys].filter(Boolean));
+    const retryableKeys = new Set([
+      scheduleStorageKey,
+      sessionPlannerStorageKey,
+      ...retryConflictStorageKeys,
+    ].filter(Boolean));
     return retryableKeys.has(key) && !write.removed && Number(write.retryCount || 0) <= 0;
   }
 
@@ -231,12 +592,33 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     const retryResult = await bridge.syncKey(write.key, write.value, {
       removed: false,
+      automaticRetry: write.automaticRetry,
       baseRevision: retryBaseRevision,
+      isGenerationCurrent: () =>
+        isCentralStateWriteForCurrentPrincipal(write) &&
+        isCentralStateWriteGenerationCurrent(write),
     });
     if (!retryResult?.ok) {
       return retryResult || null;
     }
-    applyCentralSyncedStateValue(write, retryResult.value);
+    if (!isVerifiedCentralStateAcknowledgement(write, retryResult, retryBaseRevision)) {
+      return {
+        ok: false,
+        status: 409,
+        conflict: true,
+        reason: "Central sync acknowledgement did not match the queued write.",
+      };
+    }
+    if (
+      !isCentralStateWriteForCurrentPrincipal(write) ||
+      !isCentralStateWriteGenerationCurrent(write) ||
+      (
+        typeof retryResult.value === "string" &&
+        !applyCentralSyncedStateValue(write, retryResult.value)
+      )
+    ) {
+      return { ok: false, status: 409, conflict: true, reason: "A newer local generation is pending." };
+    }
     if (String(write.key || "") === sessionPlannerStorageKey && retryResult?.merged) {
       showSessionPlannerCentralSyncNotice("Session synced with the latest team changes.");
     }
@@ -256,109 +638,317 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function queueCentralStateWrite(key, value, options = {}) {
     if (win.__footballScienceCentralHydrating) {
-      return;
+      return true;
     }
     const normalizedKey = String(key || "");
     if (!isProtectedStorageKey(normalizedKey)) {
-      return;
+      return true;
     }
     const bridge = getCentralStateBridge();
-    if (typeof bridge?.isCentralKey === "function" && !bridge.isCentralKey(normalizedKey)) {
-      return;
+    if (isCentralStateTransitionFenceActive()) {
+      queueCentralStateStatus("Local save is paused while account data is being isolated safely.");
+      reportSyncStatus(normalizedKey, "issue", "Save paused");
+      return false;
     }
-    if (!getCurrentUser() || !bridge?.syncKey) {
+    if (typeof bridge?.isCentralKey === "function" && !bridge.isCentralKey(normalizedKey)) {
+      return true;
+    }
+    const principalScope = getCentralStatePrincipalScope();
+    if (!principalScope || !bridge?.syncKey) {
       queueCentralStateStatus("Central sync unavailable.");
       reportSyncStatus(normalizedKey, "issue", "Central sync unavailable.");
-      return;
+      return false;
+    }
+    const textValue = String(value ?? "");
+    const rawValueBeforePending = rawGetItem(normalizedKey);
+    const manifestGeneration = setCentralSyncPendingState(
+      normalizedKey,
+      true,
+      Boolean(options.removed),
+      principalScope,
+      { value: textValue, recordWrite: options.recordWrite }
+    );
+    if (!manifestGeneration) {
+      reportSyncStatus(normalizedKey, "issue", "Local save generation could not be recorded safely.");
+      return false;
+    }
+    if (isCentralStateTransitionFenceActive()) {
+      setCentralSyncPendingState(normalizedKey, false, Boolean(options.removed), principalScope, {
+        expectedGeneration: manifestGeneration,
+        expectedValue: textValue,
+      });
+      queueCentralStateStatus("Local save is paused while account data is being isolated safely.");
+      reportSyncStatus(normalizedKey, "issue", "Save paused");
+      return false;
+    }
+    if (typeof options.rawWrite === "function") {
+      try {
+        options.rawWrite();
+      } catch {
+        if (rawGetItem(normalizedKey) === rawValueBeforePending) {
+          setCentralSyncPendingState(normalizedKey, false, Boolean(options.removed), principalScope, {
+            expectedGeneration: manifestGeneration,
+            expectedValue: textValue,
+          });
+        }
+        reportSyncStatus(normalizedKey, "issue", "Local save could not be persisted safely.");
+        return false;
+      }
+      const persistedRawValue = rawGetItem(normalizedKey);
+      const rawPersisted = options.removed ? persistedRawValue === null : persistedRawValue === textValue;
+      if (!rawPersisted) {
+        if (rawGetItem(normalizedKey) === rawValueBeforePending) {
+          setCentralSyncPendingState(normalizedKey, false, Boolean(options.removed), principalScope, {
+            expectedGeneration: manifestGeneration,
+            expectedValue: textValue,
+          });
+        }
+        reportSyncStatus(normalizedKey, "issue", "Local save could not be verified safely.");
+        return false;
+      }
+    }
+    const automaticRetry = Boolean(options.automaticRetry);
+    if (automaticRetry && !canAutomaticallyRetryCentralStateKey(normalizedKey, bridge)) {
+      return true;
     }
     reportSyncStatus(normalizedKey, "saving", "Saving");
-    setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed));
+    centralStateWriteGeneration += 1;
     centralStateWriteQueue.set(normalizedKey, {
       key: normalizedKey,
-      value: String(value ?? ""),
+      value: textValue,
       removed: Boolean(options.removed),
+      automaticRetry,
+      principalScope,
+      principalEpoch: getCentralStatePrincipalEpoch(bridge),
+      generation: centralStateWriteGeneration,
+      manifestGeneration,
+      networkRetryCount: 0,
       baseRevision: isCentralStateBridgeHydrated(bridge) ? getCentralStateRevisionForKey(normalizedKey) : null,
     });
     if (centralStateWriteTimer) {
       win.clearTimeout(centralStateWriteTimer);
     }
     centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
+    return true;
   }
 
   async function flushCentralStateWrites() {
     centralStateWriteTimer = null;
     const bridge = getCentralStateBridge();
-    if (!bridge?.syncKey || !centralStateWriteQueue.size) {
+    if (centralStateWriteFlushInFlight || !bridge?.syncKey || !centralStateWriteQueue.size) {
       return;
     }
-    if (!isCentralStateBridgeHydrated(bridge)) {
-      queueCentralStateStatus("Central sync is loading.");
+    if (isCentralStateTransitionFenceActive()) {
+      queueCentralStateStatus("Central sync is paused while account data is being isolated safely.");
       if (!centralStateWriteTimer) {
         centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, centralStateHydrationRetryMs);
       }
       return;
     }
+    const hydrationState = getCentralStateBridgeHydrationState(bridge);
+    if (hydrationState !== "ready") {
+      const hydrationError = String(bridge?.getStatus?.()?.hydrationError || "").trim();
+      const message = hydrationState === "failed"
+        ? hydrationError || "Central sync could not load. Your changes remain pending."
+        : "Central sync is loading.";
+      queueCentralStateStatus(message);
+      if (hydrationState === "failed") {
+        centralStateWriteQueue.forEach((write) => {
+          reportSyncStatus(write.key, "issue", message);
+        });
+      } else if (!centralStateWriteTimer) {
+        centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, centralStateHydrationRetryMs);
+      }
+      return;
+    }
     const writes = Array.from(centralStateWriteQueue.values());
-    const touchedSessionPlannerAutosave = writes.some((write) => isSessionPlannerAutosaveKey(write.key));
+    let acknowledgedSessionPlannerAutosave = false;
+    let hadExplicitPermissionDenial = false;
+    let hadUnresolvedWrite = false;
+    let shouldRescheduleQueuedWrites = true;
+    let queuedWriteRescheduleDelayMs = 120;
     centralStateWriteQueue.clear();
-    for (let index = 0; index < writes.length; index += 1) {
-      const write = writes[index];
-      const result = await bridge.syncKey(write.key, write.value, {
-        removed: write.removed,
-        baseRevision: getCentralStateWriteBaseRevision(write),
-      });
-      if (!result?.ok) {
-        if (result?.conflict || result?.status === 409) {
-          const retryResult = await retryCentralStateWriteAfterConflict(write, result, bridge);
-          if (retryResult?.ok) {
-            setCentralSyncPendingState(write.key, false, write.removed);
-            persistCentralStateServerRevision(write.key, retryResult);
-            queueCentralStateStatus("");
-            reportSyncStatus(write.key, "saved", "Saved");
-            continue;
-          }
-          if (write.key !== sessionPlannerStorageKey) {
-            const hydrated = await bridge.hydrate?.({ forceApply: true }).catch(() => false);
-            if (hydrated) {
-              setCentralSyncPendingState(write.key, false, write.removed);
-              persistCentralStateServerRevision(write.key, {
-                revision: getCentralStateRevisionForKey(write.key),
-              });
-              if (rawGetItem(write.key) === write.value) {
-                queueCentralStateStatus("");
-                reportSyncStatus(write.key, "saved", "Saved");
-                continue;
-              }
-            }
-          } else {
-            setCentralSyncPendingState(write.key, false, write.removed);
-          }
-          queueCentralStateStatus(result?.reason || "Central newer.");
-          registerSessionPlannerCentralSyncConflict(write, result);
-          reportSyncStatus(write.key, "issue", "Sync needs attention");
+    centralStateWriteFlushInFlight = true;
+    try {
+      for (let index = 0; index < writes.length; index += 1) {
+        const write = writes[index];
+        if (Number(write.networkRetryCount) > 1) {
           continue;
         }
-        for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {
-          const retryWrite = writes[retryIndex];
-          centralStateWriteQueue.set(retryWrite.key, retryWrite);
+        if (!isCentralStateWriteForCurrentPrincipal(write)) {
+          continue;
         }
-        queueCentralStateStatus(result?.reason || "Sync failed.");
-        reportSyncStatus(write.key, "issue", result?.reason || "Sync failed.");
-        return;
+        if (isCentralStateTransitionFenceActive()) {
+          centralStateWriteQueue.set(write.key, write);
+          shouldRescheduleQueuedWrites = true;
+          queuedWriteRescheduleDelayMs = centralStateHydrationRetryMs;
+          return;
+        }
+        if (write.automaticRetry && !canAutomaticallyRetryCentralStateKey(write.key, bridge)) {
+          continue;
+        }
+        if (!isCentralStateWriteGenerationCurrent(write)) {
+          continue;
+        }
+        const baseRevision = getCentralStateWriteBaseRevision(write);
+        const result = await bridge.syncKey(write.key, write.value, {
+          removed: write.removed,
+          automaticRetry: write.automaticRetry,
+          baseRevision,
+          isGenerationCurrent: () =>
+            isCentralStateWriteForCurrentPrincipal(write) &&
+            isCentralStateWriteGenerationCurrent(write),
+        });
+        if (!isCentralStateWriteForCurrentPrincipal(write)) {
+          continue;
+        }
+        const generationCurrent = isCentralStateWriteGenerationCurrent(write);
+        if (!generationCurrent) {
+          continue;
+        }
+        if (result?.ok && !isVerifiedCentralStateAcknowledgement(write, result, baseRevision)) {
+          const reason = "Central sync acknowledgement did not match the queued write.";
+          queueCentralStateStatus(reason);
+          reportSyncStatus(write.key, "issue", reason);
+          hadUnresolvedWrite = true;
+          continue;
+        }
+        if (result?.ok) {
+          advanceQueuedWriteBaseRevision(write, result);
+          if (!generationCurrent) {
+            continue;
+          }
+        }
+        if (!result?.ok) {
+          if (result?.status === 403) {
+            hadUnresolvedWrite = true;
+            if (!write.automaticRetry) {
+              hadExplicitPermissionDenial = true;
+              const reason = result?.reason || "You do not have permission to save this data.";
+              queueCentralStateStatus(reason);
+              reportSyncStatus(write.key, "issue", reason);
+            }
+            continue;
+          }
+          if (result?.conflict || result?.status === 409) {
+            const retryResult = generationCurrent
+              ? await retryCentralStateWriteAfterConflict(write, result, bridge)
+              : null;
+            if (retryResult?.ok) {
+              if (!isCentralStateWriteGenerationCurrent(write)) {
+                continue;
+              }
+              const acknowledgedCurrentWrite = acknowledgeCentralStateWrite(write);
+              persistCentralStateServerRevision(write.key, retryResult, write.manifestGeneration);
+              advanceQueuedWriteBaseRevision(write, retryResult);
+              if (acknowledgedCurrentWrite) {
+                queueCentralStateStatus("");
+                reportSyncStatus(write.key, "saved", "Saved");
+                acknowledgedSessionPlannerAutosave ||= isSessionPlannerAutosaveKey(write.key);
+              }
+              continue;
+            }
+            if (write.key !== sessionPlannerStorageKey) {
+              const hydrationResult = await bridge.hydrate?.({
+                forceApply: true,
+                returnEntries: true,
+                isGenerationCurrent: () =>
+                  isCentralStateWriteForCurrentPrincipal(write) &&
+                  isCentralStateWriteGenerationCurrent(write),
+              }).catch(() => false);
+              if (hydrationResult === true || hydrationResult?.ok) {
+                const hydratedGenerationCurrent = isCentralStateWriteGenerationCurrent(write);
+                const hydratedNewerQueuedWrite = getNewerQueuedCentralStateWrite(write);
+                if (!hydratedGenerationCurrent && !hydratedNewerQueuedWrite) {
+                  continue;
+                }
+                const hydratedMetadata = hydrationResult?.metadata?.[write.key] || {
+                  revision: getCentralStateRevisionForKey(write.key),
+                };
+                if (hydratedGenerationCurrent) {
+                  persistCentralStateServerRevision(write.key, hydratedMetadata, write.manifestGeneration);
+                }
+                advanceQueuedWriteBaseRevision(write, hydratedMetadata);
+                const hydratedServerValue = hydrationResult?.entries?.[write.key];
+                bindConflictHydratedValueToNewerWrite(write, hydratedServerValue);
+                if (
+                  hydratedGenerationCurrent &&
+                  typeof hydratedServerValue === "string" &&
+                  hydratedServerValue === write.value
+                ) {
+                  const acknowledgedCurrentWrite = acknowledgeCentralStateWrite(write);
+                  if (!acknowledgedCurrentWrite) {
+                    continue;
+                  }
+                  queueCentralStateStatus("");
+                  reportSyncStatus(write.key, "saved", "Saved");
+                  continue;
+                }
+              }
+            }
+            queueCentralStateStatus(result?.reason || "Central newer.");
+            registerSessionPlannerCentralSyncConflict(write, result);
+            reportSyncStatus(write.key, "issue", "Sync needs attention");
+            hadUnresolvedWrite = true;
+            continue;
+          }
+          for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {
+            const retryWrite = writes[retryIndex];
+            if (retryIndex === index) {
+              retryWrite.networkRetryCount = Number(retryWrite.networkRetryCount || 0) + 1;
+            }
+            const queuedWrite = centralStateWriteQueue.get(retryWrite.key);
+            if (!queuedWrite || Number(queuedWrite.generation) <= Number(retryWrite.generation)) {
+              centralStateWriteQueue.set(retryWrite.key, retryWrite);
+            }
+          }
+          shouldRescheduleQueuedWrites = Array.from(centralStateWriteQueue.values())
+            .some((queuedWrite) => Number(queuedWrite.networkRetryCount || 0) <= 1);
+          queuedWriteRescheduleDelayMs = 1000;
+          queueCentralStateStatus(result?.reason || "Sync failed.");
+          reportSyncStatus(write.key, "issue", result?.reason || "Sync failed.");
+          hadUnresolvedWrite = true;
+          return;
+        }
+        if (
+          typeof result.value === "string" &&
+          !applyCentralSyncedStateValue(write, result.value)
+        ) {
+          const reason = "Central sync could not persist the local acknowledgement safely.";
+          queueCentralStateStatus(reason);
+          reportSyncStatus(write.key, "issue", reason);
+          hadUnresolvedWrite = true;
+          continue;
+        }
+        if (!isCentralStateWriteGenerationCurrent(write)) {
+          continue;
+        }
+        persistCentralStateServerRevision(write.key, result, write.manifestGeneration);
+        if (result?.merged && write.key === sessionPlannerStorageKey && getActiveWorkspaceId() === "session-planner") {
+          showSessionPlannerToast("Central sync merged.", "warning");
+        }
+        const acknowledgedCurrentWrite = acknowledgeCentralStateWrite(write);
+        if (acknowledgedCurrentWrite && !isSessionPlannerAutosaveKey(write.key)) {
+          reportSyncStatus(write.key, "saved", "Saved");
+        }
+        acknowledgedSessionPlannerAutosave ||= acknowledgedCurrentWrite && isSessionPlannerAutosaveKey(write.key);
       }
-      persistCentralStateServerRevision(write.key, result);
-      applyCentralSyncedStateValue(write, result.value);
-      if (result?.merged && write.key === sessionPlannerStorageKey && getActiveWorkspaceId() === "session-planner") {
-        showSessionPlannerToast("Central sync merged.", "warning");
+      if (!hadExplicitPermissionDenial && !hadUnresolvedWrite && !centralStateWriteQueue.size) {
+        queueCentralStateStatus("");
       }
-      setCentralSyncPendingState(write.key, false, write.removed);
-      if (!isSessionPlannerAutosaveKey(write.key)) {
-        reportSyncStatus(write.key, "saved", "Saved");
+      if (acknowledgedSessionPlannerAutosave && !hadExplicitPermissionDenial && !centralStateWriteQueue.size) {
+        reportSyncStatus(sessionPlannerStorageKey, "saved", "Saved");
       }
-    }
-    queueCentralStateStatus("");
-    if (touchedSessionPlannerAutosave) {
-      reportSyncStatus(sessionPlannerStorageKey, "saved", "Saved");
+    } finally {
+      centralStateWriteFlushInFlight = false;
+      const retryManifestAfterFlush = centralStateManifestRetryRequested;
+      centralStateManifestRetryRequested = false;
+      if (retryManifestAfterFlush && centralStateManifestReader) {
+        retryCentral(centralStateManifestReader);
+      }
+      if (shouldRescheduleQueuedWrites && centralStateWriteQueue.size && !centralStateWriteTimer) {
+        centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, queuedWriteRescheduleDelayMs);
+      }
     }
   }
 

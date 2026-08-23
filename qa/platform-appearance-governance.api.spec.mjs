@@ -24,8 +24,13 @@ const supabaseEnvKeys = [
   "SUPABASE_PUBLISHABLE_KEY",
   "SUPABASE_SECRET_KEY",
   "SUPABASE_SERVICE_ROLE",
+  "APP_STATE_DATABASE_MODE",
 ];
-const appearancePath = `global/${PLATFORM_APPEARANCE_STORAGE_KEY}.json`;
+const TEST_USER_ID = "00000000-0000-4000-8000-000000009901";
+const TEST_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000101";
+const TEST_CLUB_ID = "00000000-0000-4000-8000-000000000201";
+const TEST_TEAM_ID = "00000000-0000-4000-8000-000000000301";
+const appearancePath = `organizations/${TEST_ORGANIZATION_ID}/${PLATFORM_APPEARANCE_STORAGE_KEY}.json`;
 
 function snapshotEnv(keys) {
   return Object.fromEntries(keys.map((key) => [key, process.env[key]]));
@@ -88,7 +93,7 @@ async function callHandler(handler, req = {}) {
 
 function createMockPlatformUser(role = "coach") {
   return {
-    id: "actor-1",
+    id: TEST_USER_ID,
     email: `${role}@example.com`,
     user_metadata: {
       firstName: "QA",
@@ -107,12 +112,152 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
   const objects = new Map(Object.entries(initialObjects));
   const writes = [];
   const user = createMockPlatformUser(role);
+
+  const toDatabaseRow = (entry = {}, applied) => {
+    const row = {
+      organization_id: String(entry.organizationId || TEST_ORGANIZATION_ID),
+      state_key: String(entry.key || ""),
+      module_id: String(entry.moduleId || dataSafetyRegistry.getByKey(entry.key)?.moduleId || ""),
+      merge_policy: String(entry.mergePolicy || dataSafetyRegistry.getByKey(entry.key)?.mergePolicy || "replace"),
+      revision: Number(entry.revision) || 0,
+      value: String(entry.value ?? ""),
+      removed: Boolean(entry.removed),
+      updated_by: String(entry.updatedBy || TEST_USER_ID),
+      updated_at: String(entry.updatedAt || "2026-05-17T00:00:00.000Z"),
+      value_hash: String(entry.hash || "a".repeat(64)),
+      metadata: entry.metadata && typeof entry.metadata === "object" ? entry.metadata : {},
+    };
+    return applied === undefined ? row : { ...row, applied };
+  };
+
+  const seedDatabaseEntry = (key, source = {}) => {
+    const objectPath = `organizations/${TEST_ORGANIZATION_ID}/${key}.json`;
+    if (objects.has(objectPath)) return;
+    objects.set(objectPath, {
+      schema: "footballscience-app-state-v1",
+      key,
+      organizationId: TEST_ORGANIZATION_ID,
+      moduleId: source.moduleId || dataSafetyRegistry.getByKey(key)?.moduleId || "",
+      mergePolicy: source.mergePolicy || dataSafetyRegistry.getByKey(key)?.mergePolicy || "replace",
+      revision: Number(source.revision) || 1,
+      value: typeof source.value === "string" ? source.value : String(source ?? ""),
+      removed: Boolean(source.removed),
+      updatedBy: source.updatedBy || TEST_USER_ID,
+      updatedAt: source.updatedAt || "2026-05-17T00:00:00.000Z",
+      hash: source.hash || "a".repeat(64),
+      metadata: source.metadata || {},
+    });
+  };
+
+  Object.entries(initialObjects).forEach(([objectPath, source]) => {
+    const match = /^organizations\/([^/]+)\/(.+)\.json$/.exec(objectPath);
+    if (!match || decodeURIComponent(match[1]) !== TEST_ORGANIZATION_ID) return;
+    seedDatabaseEntry(decodeURIComponent(match[2]), source);
+  });
+
   const fetchMock = async (url, options = {}) => {
     const requestUrl = String(url);
     const method = String(options.method || "GET").toUpperCase();
 
-    if (requestUrl.endsWith("/auth/v1/user") || requestUrl.includes("/auth/v1/admin/users/actor-1")) {
+    if (requestUrl.endsWith("/auth/v1/user") || requestUrl.includes(`/auth/v1/admin/users/${TEST_USER_ID}`)) {
       return new Response(JSON.stringify(user), { status: 200 });
+    }
+
+    const parsedUrl = new URL(requestUrl);
+    if (parsedUrl.pathname === "/rest/v1/platform_user_profiles") {
+      return new Response(JSON.stringify([{
+        user_id: TEST_USER_ID,
+        primary_organization_id: TEST_ORGANIZATION_ID,
+        primary_club_id: TEST_CLUB_ID,
+        primary_team_id: TEST_TEAM_ID,
+        email: user.email,
+        status: "active",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_memberships") {
+      return new Response(JSON.stringify([{
+        id: "00000000-0000-4000-8000-000000000401",
+        organization_id: TEST_ORGANIZATION_ID,
+        club_id: TEST_CLUB_ID,
+        team_id: TEST_TEAM_ID,
+        user_id: TEST_USER_ID,
+        role,
+        scope: "team",
+        status: "active",
+        relationship: "staff",
+        accepted_at: "2026-05-17T00:00:00.000Z",
+        created_at: "2026-05-17T00:00:00.000Z",
+        updated_at: "2026-05-17T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_organizations") {
+      return new Response(JSON.stringify([{
+        id: TEST_ORGANIZATION_ID,
+        slug: "qa-org",
+        name: "QA Organization",
+        status: "active",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_clubs") {
+      return new Response(JSON.stringify([{
+        id: TEST_CLUB_ID,
+        organization_id: TEST_ORGANIZATION_ID,
+        slug: "qa-club",
+        name: "QA Club",
+        status: "active",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_teams") {
+      return new Response(JSON.stringify([{
+        id: TEST_TEAM_ID,
+        organization_id: TEST_ORGANIZATION_ID,
+        club_id: TEST_CLUB_ID,
+        slug: "qa-team",
+        name: "QA Team",
+        status: "active",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_module_migration_checkpoints") {
+      return new Response(JSON.stringify([]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_app_state_records" && method === "GET") {
+      const organizationId = String(parsedUrl.searchParams.get("organization_id") || "").replace(/^eq\./, "");
+      const keyFilter = String(parsedUrl.searchParams.get("state_key") || "");
+      const keys = keyFilter.startsWith("in.(") && keyFilter.endsWith(")")
+        ? keyFilter.slice(4, -1).split(",").map((key) => key.trim()).filter(Boolean)
+        : [keyFilter.replace(/^eq\./, "")].filter(Boolean);
+      const rows = Array.from(objects.values())
+        .filter((entry) => String(entry.organizationId || "") === organizationId)
+        .filter((entry) => !keys.length || keys.includes(entry.key))
+        .map((entry) => toDatabaseRow(entry));
+      return new Response(JSON.stringify(rows), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/rpc/write_platform_app_state_record" && method === "POST") {
+      const body = JSON.parse(String(options.body || "{}"));
+      const key = String(body.p_state_key || "");
+      const organizationId = String(body.p_organization_id || TEST_ORGANIZATION_ID);
+      const objectPath = `organizations/${organizationId}/${key}.json`;
+      const current = objects.get(objectPath);
+      if (Number(body.p_expected_revision || 0) !== Number(current?.revision || 0)) {
+        return new Response(JSON.stringify(current ? [toDatabaseRow(current, false)] : []), { status: 200 });
+      }
+      const entry = {
+        schema: "footballscience-app-state-v1",
+        key,
+        organizationId,
+        moduleId: String(body.p_module_id || dataSafetyRegistry.getByKey(key)?.moduleId || ""),
+        mergePolicy: String(body.p_merge_policy || dataSafetyRegistry.getByKey(key)?.mergePolicy || "replace"),
+        revision: Number(body.p_next_revision) || Number(current?.revision || 0) + 1,
+        value: String(body.p_value ?? ""),
+        removed: Boolean(body.p_removed),
+        updatedBy: String(body.p_updated_by || TEST_USER_ID),
+        updatedAt: "2026-05-17T00:01:00.000Z",
+        hash: String(body.p_value_hash || "a".repeat(64)),
+        metadata: body.p_metadata && typeof body.p_metadata === "object" ? body.p_metadata : {},
+      };
+      objects.set(objectPath, entry);
+      writes.push({ method: entry.removed ? "DELETE" : "POST", objectPath, entry });
+      return new Response(JSON.stringify([toDatabaseRow(entry, true)]), { status: 200 });
     }
 
     if (requestUrl.endsWith("/storage/v1/bucket/footballscience-app-state")) {
@@ -225,6 +370,7 @@ test("app-state blocks non-admin Platform Appearance writes and stores sanitized
   process.env.SUPABASE_URL = "https://example.supabase.co";
   process.env.SUPABASE_ANON_KEY = "anon-test-key";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  process.env.APP_STATE_DATABASE_MODE = "database";
 
   try {
     const coachStorage = createAppStateFetchMock({}, "coach");

@@ -16,7 +16,10 @@ const rpcFixMigrationUrl = new URL(
 );
 
 const scheduleKey = "football-schedule-v1";
-const schedulePath = `global/${scheduleKey}.json`;
+const coachId = "00000000-0000-4000-8000-000000000001";
+const organizationId = "00000000-0000-4000-8000-000000000101";
+const membershipId = "00000000-0000-4000-8000-000000000201";
+const schedulePath = `organizations/${organizationId}/${scheduleKey}.json`;
 const envKeys = [
   "APP_STATE_DATABASE_MODE",
   "SUPABASE_URL",
@@ -122,13 +125,63 @@ function createConsistencyFetchMock(initialEntry) {
     const requestUrl = String(url);
     const method = String(options.method || "GET").toUpperCase();
 
-    if (requestUrl.endsWith("/auth/v1/user") || requestUrl.includes("/auth/v1/admin/users/coach-1")) {
+    if (requestUrl.endsWith("/auth/v1/user") || requestUrl.includes(`/auth/v1/admin/users/${coachId}`)) {
       return new Response(JSON.stringify({
-        id: "coach-1",
+        id: coachId,
         email: "coach@example.com",
         user_metadata: { firstName: "QA", lastName: "Coach" },
         app_metadata: { role: "coach", status: "active" },
       }), { status: 200 });
+    }
+
+    if (requestUrl.includes("/rest/v1/platform_memberships?")) {
+      return new Response(JSON.stringify([{
+        id: membershipId,
+        organization_id: organizationId,
+        club_id: null,
+        team_id: null,
+        user_id: coachId,
+        role: "coach",
+        scope: "organization",
+        status: "active",
+        relationship: "staff",
+        accepted_at: "2026-08-01T00:00:00.000Z",
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+
+    if (requestUrl.includes("/rest/v1/platform_user_profiles?")) {
+      return new Response(JSON.stringify([{
+        user_id: coachId,
+        primary_organization_id: organizationId,
+        primary_club_id: null,
+        primary_team_id: null,
+        email: "coach@example.com",
+        status: "active",
+      }]), { status: 200 });
+    }
+
+    if (requestUrl.includes("/rest/v1/platform_module_migration_checkpoints?")) {
+      return new Response("[]", { status: 200 });
+    }
+
+    if (requestUrl.includes("/rest/v1/platform_organizations?")) {
+      return new Response(JSON.stringify([{
+        id: organizationId,
+        slug: "qa-club",
+        name: "QA Club",
+        status: "active",
+      }]), { status: 200 });
+    }
+
+    if (requestUrl.includes("/rest/v1/platform_app_state_tenant_migrations?")) {
+      return new Response(JSON.stringify([{
+        id: "00000000-0000-4000-8000-000000000301",
+        status: "completed",
+        plan_sha256: "a".repeat(64),
+        completed_at: "2026-08-01T00:00:00.000Z",
+      }]), { status: 200 });
     }
 
     if (requestUrl.includes("/rest/v1/platform_app_state_records?")) {
@@ -248,7 +301,7 @@ test("successful database write is immediately visible even when Storage still s
 
   const oldValue = JSON.stringify({ events: [{ id: "old", title: "Old training" }] });
   const initialEntry = {
-    organizationId: "global",
+    organizationId,
     key: scheduleKey,
     moduleId: "schedule",
     mergePolicy: "replace",
@@ -298,7 +351,7 @@ test("database reads can be restricted to approved central state keys", async ()
 
   const value = JSON.stringify({ events: [{ id: "current", title: "Current team training" }] });
   const mock = createConsistencyFetchMock({
-    organizationId: "global",
+    organizationId,
     key: scheduleKey,
     moduleId: "schedule",
     mergePolicy: "replace",
@@ -321,10 +374,16 @@ test("database reads can be restricted to approved central state keys", async ()
     expect(response.status).toBe(200);
     expect(response.payload.entries).toEqual({ [scheduleKey]: value });
     expect(response.payload.metadata[scheduleKey].revision).toBe(11);
-    expect(mock.databaseReads).toHaveLength(1);
-    const readUrl = new URL(mock.databaseReads[0]);
-    expect(readUrl.searchParams.get("state_key")).toContain(scheduleKey);
-    expect(readUrl.searchParams.get("state_key")).toContain("football-workspace-hub-v3");
+    expect(mock.databaseReads).toHaveLength(3);
+    const readStateKeyFilters = mock.databaseReads.map((url) => (
+      new URL(url).searchParams.get("state_key")
+    ));
+    expect(readStateKeyFilters[0]).toContain(scheduleKey);
+    expect(readStateKeyFilters[0]).toContain("football-workspace-hub-v3");
+    expect(readStateKeyFilters.slice(1)).toEqual(expect.arrayContaining([
+      "eq.football-workspace-hub-v3",
+      "eq.football-transfer-room-v1",
+    ]));
 
     const unrelatedResponse = await callHandler({
       method: "GET",

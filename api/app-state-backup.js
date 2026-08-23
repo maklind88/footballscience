@@ -7,12 +7,18 @@ const {
   sendJson,
 } = require("./_lib/supabase-admin.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
+const { resolvePlatformActorScope } = require("./_lib/platform-identity.js");
+const {
+  isAppStateDatabaseEnabled,
+  listAppStateRecords,
+  readAppStateRecord,
+  writeAppStateRecord,
+} = require("./_lib/app-state-records-database.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 
 const STATE_BUCKET = "footballscience-app-state";
-const STATE_PREFIX = "global";
 const BACKUP_PREFIX = "backups/app-state";
-const LATEST_BACKUP_PATH = `${BACKUP_PREFIX}/latest.json`;
+const BACKUP_ORGANIZATION_ENV = "APP_STATE_BACKUP_ORGANIZATION_ID";
 const CENTRAL_STATE_KEYS = new Set(dataSafetyRegistry.keys());
 const PLAYER_PROFILES_KEY = "football-player-profiles-v1";
 const PLAYER_PROFILE_AUDIT_FIELDS = new Map([
@@ -120,66 +126,112 @@ async function ensureStateBucket() {
   return created;
 }
 
-function objectPathForKey(key) {
-  return `${STATE_PREFIX}/${encodeURIComponent(key)}.json`;
+function requireOrganizationId(value) {
+  const organizationId = String(value || "").trim();
+  if (!organizationId) {
+    throw new Error("Canonical backup tenant scope is required.");
+  }
+  return organizationId;
 }
 
-async function readStateObject(key) {
-  const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${objectPathForKey(key)}`, {
-    method: "GET",
-    raw: true,
-    contentType: "",
-  });
+function isActiveCanonicalStatus(value = "") {
+  return String(value || "").trim().toLowerCase() === "active";
+}
 
+function findCanonicalTenantSummary(items = [], id = "") {
+  const normalizedId = String(id || "").trim();
+  if (!normalizedId || !Array.isArray(items)) {
+    return null;
+  }
+  return items.find((item) => String(item?.id || "").trim() === normalizedId) || null;
+}
+
+function isActiveTenantSummary(summary = null) {
+  return Boolean(summary && isActiveCanonicalStatus(summary.status));
+}
+
+function tenantBackupPrefix(organizationId) {
+  return `${BACKUP_PREFIX}/organizations/${encodeURIComponent(requireOrganizationId(organizationId))}`;
+}
+
+function latestBackupPath(organizationId) {
+  return `${tenantBackupPrefix(organizationId)}/latest.json`;
+}
+
+function objectPathForKey(key, organizationId) {
+  return `organizations/${encodeURIComponent(requireOrganizationId(organizationId))}/${encodeURIComponent(key)}.json`;
+}
+
+async function readStateObject(key, organizationId) {
+  if (!isAppStateDatabaseEnabled()) {
+    throw new Error("Tenant-scoped app-state backup requires database mode.");
+  }
+  const result = await readAppStateRecord(key, requireOrganizationId(organizationId));
   if (!result.ok) {
-    return null;
+    throw new Error(result.reason || `Central state could not be read for ${key}.`);
   }
-
-  try {
-    const parsed = JSON.parse(result.payload);
-    return parsed?.key && !parsed.removed ? parsed : null;
-  } catch {
-    return null;
-  }
+  return result.entry?.key && !result.entry.removed ? result.entry : null;
 }
 
 async function writeStateObject(entry) {
-  const path = objectPathForKey(entry.key);
+  const organizationId = requireOrganizationId(entry?.organizationId);
+  if (!isAppStateDatabaseEnabled()) {
+    return { ok: false, status: 503, reason: "Tenant-scoped app-state repair requires database mode." };
+  }
+  const databaseResult = await writeAppStateRecord(
+    { ...entry, organizationId },
+    Math.max(0, Number(entry?.revision || 1) - 1)
+  );
+  if (!databaseResult.ok) {
+    return databaseResult;
+  }
+  const persistedEntry = { ...entry, ...(databaseResult.entry || {}), organizationId };
+  const path = objectPathForKey(entry.key, organizationId);
   const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
     method: "PUT",
     headers: {
       "x-upsert": "true",
       "Cache-Control": "no-store",
     },
-    body: JSON.stringify(entry),
+    body: JSON.stringify(persistedEntry),
   });
 
   if (!result.ok && result.status === 404) {
-    return storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
+    const fallback = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
       method: "POST",
       headers: {
         "x-upsert": "true",
         "Cache-Control": "no-store",
       },
-      body: JSON.stringify(entry),
+      body: JSON.stringify(persistedEntry),
     });
+    return { ok: true, entry: persistedEntry, backupOk: Boolean(fallback.ok) };
   }
 
-  return result;
+  return { ok: true, entry: persistedEntry, backupOk: Boolean(result.ok) };
 }
 
 function hashText(value) {
   return createHash("sha256").update(String(value ?? ""), "utf8").digest("hex");
 }
 
-async function collectCentralStateBackupEntries() {
+async function collectCentralStateBackupEntries(organizationId) {
+  const tenantId = requireOrganizationId(organizationId);
+  if (!isAppStateDatabaseEnabled()) {
+    throw new Error("Tenant-scoped app-state backup requires database mode.");
+  }
+  const databaseResult = await listAppStateRecords(tenantId, Array.from(CENTRAL_STATE_KEYS));
+  if (!databaseResult.ok) {
+    throw new Error(databaseResult.reason || "Tenant app-state records could not be listed.");
+  }
+  const recordsByKey = new Map(
+    (databaseResult.entries || []).filter((entry) => entry?.key).map((entry) => [entry.key, entry])
+  );
   const entries = {};
   const manifest = {};
-
-  await Promise.all(
-    Array.from(CENTRAL_STATE_KEYS).map(async (key) => {
-      const entry = await readStateObject(key);
-      if (!entry?.key) {
+  Array.from(CENTRAL_STATE_KEYS).forEach((key) => {
+      const entry = recordsByKey.get(key) || null;
+      if (!entry?.key || entry.removed) {
         manifest[key] = { present: false };
         return;
       }
@@ -189,7 +241,7 @@ async function collectCentralStateBackupEntries() {
       manifest[entry.key] = {
         present: true,
         moduleId: dataSafetyRegistry.getByKey(entry.key)?.moduleId || "",
-        organizationId: entry.organizationId || "global",
+        organizationId: tenantId,
         revision: Number.isInteger(Number(entry.revision)) ? Number(entry.revision) : 0,
         mergePolicy: entry.mergePolicy || dataSafetyRegistry.getByKey(entry.key)?.mergePolicy || "",
         updatedAt: entry.updatedAt || "",
@@ -197,18 +249,19 @@ async function collectCentralStateBackupEntries() {
         bytes: Buffer.byteLength(value, "utf8"),
         sha256: hashText(value),
       };
-    })
-  );
+    });
 
   return { entries, manifest };
 }
 
-function createBackupEnvelope({ actor, entries, manifest }) {
+function createBackupEnvelope({ actor, organizationId, entries, manifest }) {
+  const tenantId = requireOrganizationId(organizationId);
   const createdAt = new Date().toISOString();
   const core = {
     schema: "footballscience-app-state-backup-v1",
     createdAt,
     source: "api/app-state-backup",
+    organizationId: tenantId,
     actor: {
       id: actor?.id || "vercel-cron",
       role: actor?.role || "system",
@@ -280,12 +333,13 @@ async function readBackupObject(path) {
   return { ok: true, status: result.status, payload };
 }
 
-function isSafeBackupPath(path) {
+function isSafeBackupPath(path, organizationId) {
   const normalized = String(path || "");
+  const prefix = `${tenantBackupPrefix(organizationId)}/`;
   return (
-    normalized.startsWith(`${BACKUP_PREFIX}/`) &&
+    normalized.startsWith(prefix) &&
     normalized.endsWith(".json") &&
-    normalized !== LATEST_BACKUP_PATH &&
+    normalized !== latestBackupPath(organizationId) &&
     !normalized.includes("..") &&
     !normalized.includes("?") &&
     !normalized.includes("#") &&
@@ -293,7 +347,8 @@ function isSafeBackupPath(path) {
   );
 }
 
-function summarizeBackupStatus(pointer, backup) {
+function summarizeBackupStatus(pointer, backup, organizationId) {
+  const tenantId = requireOrganizationId(organizationId);
   const { contentSha256, ...backupCore } = backup;
   const computedSha256 = hashText(JSON.stringify(backupCore));
   const createdAtMs = Date.parse(pointer.createdAt || backup.createdAt || "");
@@ -321,6 +376,8 @@ function summarizeBackupStatus(pointer, backup) {
     backupMatchesPointer:
       pointer.schema === "footballscience-app-state-backup-pointer-v1" &&
       backup.schema === "footballscience-app-state-backup-v1" &&
+      pointer.organizationId === tenantId &&
+      backup.organizationId === tenantId &&
       pointer.createdAt === backup.createdAt &&
       Number(pointer.entryCount) === Number(backup.entryCount) &&
       pointer.contentSha256 === contentSha256 &&
@@ -355,7 +412,7 @@ function summarizeBackupManifest(rawManifest) {
     manifest[key] = {
       present,
       moduleId: String(entry.moduleId || contract?.moduleId || ""),
-      organizationId: String(entry.organizationId || contract?.defaultOrganizationId || "global"),
+      organizationId: String(entry.organizationId || ""),
       revision: Number.isInteger(Number(entry.revision)) ? Number(entry.revision) : 0,
       mergePolicy: String(entry.mergePolicy || contract?.mergePolicy || ""),
       updatedAt: String(entry.updatedAt || ""),
@@ -876,7 +933,7 @@ function createRepairedStateEntry(currentEntry = {}, repairedState = {}, actor =
     schema: "footballscience-app-state-v1",
     key: PLAYER_PROFILES_KEY,
     moduleId: currentEntry.moduleId || contract?.moduleId || "squad",
-    organizationId: currentEntry.organizationId || contract?.defaultOrganizationId || "global",
+    organizationId: currentEntry.organizationId || actor?.organizationId || "",
     mergePolicy: currentEntry.mergePolicy || contract?.mergePolicy || "server-merge",
     value,
     removed: false,
@@ -887,8 +944,8 @@ function createRepairedStateEntry(currentEntry = {}, repairedState = {}, actor =
   };
 }
 
-async function createSquadStatusAuditSummary() {
-  const currentEntry = await readStateObject(PLAYER_PROFILES_KEY);
+async function createSquadStatusAuditSummary(organizationId) {
+  const currentEntry = await readStateObject(PLAYER_PROFILES_KEY, organizationId);
   const currentState = parseStateValue(currentEntry);
   const currentSummary = {
     key: PLAYER_PROFILES_KEY,
@@ -900,7 +957,7 @@ async function createSquadStatusAuditSummary() {
     ...summarizePlayerProfileAuditState(currentState || {}),
   };
 
-  const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
+  const pointerResult = await readBackupObject(latestBackupPath(organizationId));
   if (!pointerResult.ok) {
     return {
       current: currentSummary,
@@ -936,7 +993,7 @@ async function createSquadStatusAuditSummary() {
     squadStatusDifferenceCount: 0,
   };
 
-  if (isSafeBackupPath(pointer.path)) {
+  if (isSafeBackupPath(pointer.path, organizationId)) {
     const backupResult = await readBackupObject(pointer.path);
     if (backupResult.ok) {
       const backup = backupResult.payload || {};
@@ -946,7 +1003,7 @@ async function createSquadStatusAuditSummary() {
         present: true,
         hasPlayerProfilesEntry: Boolean(backupState),
         path: String(pointer.path || ""),
-        backupMatchesPointer: summarizeBackupStatus(pointer, backup).backupMatchesPointer,
+        backupMatchesPointer: summarizeBackupStatus(pointer, backup, organizationId).backupMatchesPointer,
         ...summarizePlayerProfileAuditState(backupState || {}),
       };
       backupComparison = comparePlayerProfileAuditStates(currentState || {}, backupState || {});
@@ -965,8 +1022,8 @@ async function createSquadStatusAuditSummary() {
   };
 }
 
-async function createSquadStatusRepairDryRunSummary() {
-  const currentEntry = await readStateObject(PLAYER_PROFILES_KEY);
+async function createSquadStatusRepairDryRunSummary(organizationId) {
+  const currentEntry = await readStateObject(PLAYER_PROFILES_KEY, organizationId);
   const currentState = parseStateValue(currentEntry);
   const currentValue = String(currentEntry?.value || "");
   const currentGuard = {
@@ -979,7 +1036,7 @@ async function createSquadStatusRepairDryRunSummary() {
     valueBytes: currentValue ? Buffer.byteLength(currentValue, "utf8") : 0,
   };
 
-  const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
+  const pointerResult = await readBackupObject(latestBackupPath(organizationId));
   let backupGuard = {
     present: false,
     hasPlayerProfilesEntry: false,
@@ -1003,11 +1060,11 @@ async function createSquadStatusRepairDryRunSummary() {
       pointerContentSha256: String(pointer.contentSha256 || ""),
     };
 
-    if (isSafeBackupPath(pointer.path)) {
+    if (isSafeBackupPath(pointer.path, organizationId)) {
       const backupResult = await readBackupObject(pointer.path);
       if (backupResult.ok) {
         const backup = backupResult.payload || {};
-        const statusSummary = summarizeBackupStatus(pointer, backup);
+        const statusSummary = summarizeBackupStatus(pointer, backup, organizationId);
         backupState = parseBackupEntryValue(backup, PLAYER_PROFILES_KEY);
         const manifestEntry = backup?.manifest?.[PLAYER_PROFILES_KEY] || {};
         backupGuard = {
@@ -1255,11 +1312,11 @@ function createSquadStatusRepairGuardSnapshot(summary = {}) {
   };
 }
 
-async function createSquadStatusRepairPreWriteSnapshot(actor) {
-  const backupSource = await collectCentralStateBackupEntries();
-  const envelope = createBackupEnvelope({ actor, ...backupSource });
+async function createSquadStatusRepairPreWriteSnapshot(actor, organizationId) {
+  const backupSource = await collectCentralStateBackupEntries(organizationId);
+  const envelope = createBackupEnvelope({ actor, organizationId, ...backupSource });
   const timestamp = envelope.createdAt.replace(/[:.]/g, "-");
-  const snapshotPath = `${BACKUP_PREFIX}/repair-snapshots/squad-status/${timestamp}-${envelope.contentSha256.slice(0, 12)}.json`;
+  const snapshotPath = `${tenantBackupPrefix(organizationId)}/repair-snapshots/squad-status/${timestamp}-${envelope.contentSha256.slice(0, 12)}.json`;
   const result = await writeBackupObject(snapshotPath, envelope, false);
   if (!result.ok) {
     return {
@@ -1278,13 +1335,13 @@ async function createSquadStatusRepairPreWriteSnapshot(actor) {
   };
 }
 
-async function loadSquadStatusRepairExecutionContext() {
-  const currentEntry = await readStateObject(PLAYER_PROFILES_KEY);
+async function loadSquadStatusRepairExecutionContext(organizationId) {
+  const currentEntry = await readStateObject(PLAYER_PROFILES_KEY, organizationId);
   const currentState = parseStateValue(currentEntry);
-  const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
+  const pointerResult = await readBackupObject(latestBackupPath(organizationId));
   let backupState = null;
 
-  if (pointerResult.ok && isSafeBackupPath(pointerResult.payload?.path)) {
+  if (pointerResult.ok && isSafeBackupPath(pointerResult.payload?.path, organizationId)) {
     const backupResult = await readBackupObject(pointerResult.payload.path);
     if (backupResult.ok) {
       backupState = parseBackupEntryValue(backupResult.payload || {}, PLAYER_PROFILES_KEY);
@@ -1298,14 +1355,14 @@ async function loadSquadStatusRepairExecutionContext() {
   };
 }
 
-async function sendSquadStatusRepairExecute(req, res, actor) {
+async function sendSquadStatusRepairExecute(req, res, actor, organizationId) {
   const body = await readRequestJson(req);
   if (!body) {
     return sendJson(res, 400, { ok: false, reason: "Request body must be valid JSON." });
   }
 
   const guards = normalizeSquadStatusRepairExecuteGuards(body);
-  const initialSummary = await createSquadStatusRepairDryRunSummary();
+  const initialSummary = await createSquadStatusRepairDryRunSummary(organizationId);
   const initialGuardFailures = validateSquadStatusRepairExecuteGuards(initialSummary, guards);
   if (initialGuardFailures.length) {
     return sendJson(res, 409, {
@@ -1319,7 +1376,7 @@ async function sendSquadStatusRepairExecute(req, res, actor) {
     });
   }
 
-  const snapshot = await createSquadStatusRepairPreWriteSnapshot(actor);
+  const snapshot = await createSquadStatusRepairPreWriteSnapshot(actor, organizationId);
   if (!snapshot.ok) {
     return sendJson(res, 500, {
       ok: false,
@@ -1330,7 +1387,7 @@ async function sendSquadStatusRepairExecute(req, res, actor) {
     });
   }
 
-  const preWriteSummary = await createSquadStatusRepairDryRunSummary();
+  const preWriteSummary = await createSquadStatusRepairDryRunSummary(organizationId);
   const preWriteGuardFailures = validateSquadStatusRepairExecuteGuards(preWriteSummary, guards);
   if (preWriteGuardFailures.length) {
     return sendJson(res, 409, {
@@ -1345,7 +1402,7 @@ async function sendSquadStatusRepairExecute(req, res, actor) {
     });
   }
 
-  const context = await loadSquadStatusRepairExecutionContext();
+  const context = await loadSquadStatusRepairExecutionContext(organizationId);
   if (!context.currentEntry?.key || !context.currentState || !context.backupState) {
     return sendJson(res, 409, {
       ok: false,
@@ -1399,9 +1456,9 @@ async function sendSquadStatusRepairExecute(req, res, actor) {
     });
   }
 
-  const afterEntry = await readStateObject(PLAYER_PROFILES_KEY);
+  const afterEntry = await readStateObject(PLAYER_PROFILES_KEY, organizationId);
   const afterValue = String(afterEntry?.value || "");
-  const afterSummary = await createSquadStatusRepairDryRunSummary();
+  const afterSummary = await createSquadStatusRepairDryRunSummary(organizationId);
   const afterFieldCounts = afterSummary.repairDryRun?.fieldCounts || {};
   const postWriteCandidateCount = Number(afterSummary.repairDryRun?.candidateCount || 0);
   const postWriteFieldCount = Number(afterSummary.repairDryRun?.totalFieldCount || 0);
@@ -1461,7 +1518,19 @@ async function authorizeBackupRequest(req) {
   const cronSecret = String(process.env.CRON_SECRET || "").trim();
 
   if (cronSecret && authorization === `Bearer ${cronSecret}`) {
-    return { ok: true, actor: { id: "vercel-cron", role: "admin", email: "" } };
+    const organizationId = String(process.env[BACKUP_ORGANIZATION_ENV] || "").trim();
+    if (!organizationId) {
+      return {
+        ok: false,
+        status: 503,
+        reason: `${BACKUP_ORGANIZATION_ENV} is required for tenant-scoped cron backups.`,
+      };
+    }
+    return {
+      ok: true,
+      organizationId,
+      actor: { id: "vercel-cron", role: "admin", email: "", organizationId },
+    };
   }
 
   const actor = await getCurrentActor(authorization);
@@ -1469,11 +1538,48 @@ async function authorizeBackupRequest(req) {
     return { ok: false, status: 401, reason: "Admin sign-in or Vercel cron secret required." };
   }
 
-  if (actor.role !== "admin") {
+  const identity = await resolvePlatformActorScope(actor);
+  if (!identity.ok) {
+    return identity;
+  }
+  const primaryMembership = identity.scope?.primary || null;
+  const profile = identity.actor?.profile || null;
+  const organizationId = String(
+    primaryMembership?.organizationId || profile?.primaryOrganizationId || ""
+  ).trim();
+  const canonicalRole = String(identity.actor?.role || "guest").trim().toLowerCase();
+  const actorStatus = String(identity.actor?.status || "").trim().toLowerCase();
+  const profileStatus = String(profile?.status || "").trim().toLowerCase();
+  const canonicalOrganization = primaryMembership?.organization ||
+    findCanonicalTenantSummary(identity.scope?.organizations, organizationId);
+  const canonicalClub = primaryMembership?.club ||
+    findCanonicalTenantSummary(identity.scope?.clubs, primaryMembership?.clubId || profile?.primaryClubId);
+  const canonicalTeam = primaryMembership?.team ||
+    findCanonicalTenantSummary(identity.scope?.teams, primaryMembership?.teamId || profile?.primaryTeamId);
+  if (!organizationId) {
+    return { ok: false, status: 403, reason: "Canonical backup tenant scope is required." };
+  }
+  if (!isActiveCanonicalStatus(actorStatus) || !isActiveCanonicalStatus(profileStatus)) {
+    return { ok: false, status: 403, reason: "This account is not active." };
+  }
+  if (!isActiveTenantSummary(canonicalOrganization)) {
+    return { ok: false, status: 403, reason: "The canonical organization is not active." };
+  }
+  if (canonicalClub && !isActiveTenantSummary(canonicalClub)) {
+    return { ok: false, status: 403, reason: "The canonical club is not active." };
+  }
+  if (canonicalTeam && !isActiveTenantSummary(canonicalTeam)) {
+    return { ok: false, status: 403, reason: "The canonical team is not active." };
+  }
+  if (canonicalRole !== "admin") {
     return { ok: false, status: 403, reason: "Admin access required." };
   }
 
-  return { ok: true, actor };
+  return {
+    ok: true,
+    organizationId,
+    actor: { ...actor, role: canonicalRole, organizationId },
+  };
 }
 
 function isBackupStatusRequest(req) {
@@ -1521,8 +1627,8 @@ function isSquadStatusRepairExecuteRequest(req) {
   }
 }
 
-async function sendBackupStatus(res) {
-  const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
+async function sendBackupStatus(res, organizationId) {
+  const pointerResult = await readBackupObject(latestBackupPath(organizationId));
   if (!pointerResult.ok) {
     return sendJson(res, pointerResult.status === 404 ? 404 : 500, {
       ok: false,
@@ -1531,7 +1637,7 @@ async function sendBackupStatus(res) {
   }
 
   const pointer = pointerResult.payload || {};
-  if (!isSafeBackupPath(pointer.path)) {
+  if (!isSafeBackupPath(pointer.path, organizationId)) {
     return sendJson(res, 409, { ok: false, reason: "Latest app-state backup pointer contains an invalid path." });
   }
 
@@ -1543,7 +1649,7 @@ async function sendBackupStatus(res) {
     });
   }
 
-  const summary = summarizeBackupStatus(pointer, backupResult.payload || {});
+  const summary = summarizeBackupStatus(pointer, backupResult.payload || {}, organizationId);
   if (!summary.backupMatchesPointer) {
     return sendJson(res, 409, {
       ok: false,
@@ -1558,8 +1664,8 @@ async function sendBackupStatus(res) {
   });
 }
 
-async function sendBackupRestoreDrill(res) {
-  const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
+async function sendBackupRestoreDrill(res, organizationId) {
+  const pointerResult = await readBackupObject(latestBackupPath(organizationId));
   if (!pointerResult.ok) {
     return sendJson(res, pointerResult.status === 404 ? 404 : 500, {
       ok: false,
@@ -1568,7 +1674,7 @@ async function sendBackupRestoreDrill(res) {
   }
 
   const pointer = pointerResult.payload || {};
-  if (!isSafeBackupPath(pointer.path)) {
+  if (!isSafeBackupPath(pointer.path, organizationId)) {
     return sendJson(res, 409, { ok: false, reason: "Latest app-state backup pointer contains an invalid path." });
   }
 
@@ -1581,7 +1687,7 @@ async function sendBackupRestoreDrill(res) {
   }
 
   const backup = backupResult.payload || {};
-  const summary = summarizeBackupStatus(pointer, backup);
+  const summary = summarizeBackupStatus(pointer, backup, organizationId);
   const restoreDrill = createRestoreDrillSummary(backup, summary);
   if (!restoreDrill.restorable) {
     return sendJson(res, 409, {
@@ -1603,8 +1709,8 @@ async function sendBackupRestoreDrill(res) {
   });
 }
 
-async function sendSquadStatusAudit(res) {
-  const summary = await createSquadStatusAuditSummary();
+async function sendSquadStatusAudit(res, organizationId) {
+  const summary = await createSquadStatusAuditSummary(organizationId);
   return sendJson(res, 200, {
     ok: true,
     schema: "footballscience-squad-status-audit-v1",
@@ -1615,8 +1721,8 @@ async function sendSquadStatusAudit(res) {
   });
 }
 
-async function sendSquadStatusRepairDryRun(res) {
-  const summary = await createSquadStatusRepairDryRunSummary();
+async function sendSquadStatusRepairDryRun(res, organizationId) {
+  const summary = await createSquadStatusRepairDryRunSummary(organizationId);
   return sendJson(res, 200, {
     ok: true,
     schema: "footballscience-squad-status-repair-dry-run-v1",
@@ -1665,26 +1771,27 @@ module.exports = async (req, res) => {
   if (!security.ok) {
     return;
   }
+  const organizationId = authorization.organizationId;
 
   try {
     if (backupStatusRequest) {
-      return sendBackupStatus(res);
+      return sendBackupStatus(res, organizationId);
     }
 
     if (restoreDrillRequest) {
-      return sendBackupRestoreDrill(res);
+      return sendBackupRestoreDrill(res, organizationId);
     }
 
     if (squadStatusAuditRequest) {
-      return sendSquadStatusAudit(res);
+      return sendSquadStatusAudit(res, organizationId);
     }
 
     if (squadStatusRepairDryRunRequest) {
-      return sendSquadStatusRepairDryRun(res);
+      return sendSquadStatusRepairDryRun(res, organizationId);
     }
 
     if (squadStatusRepairExecuteRequest) {
-      return sendSquadStatusRepairExecute(req, res, authorization.actor);
+      return sendSquadStatusRepairExecute(req, res, authorization.actor, organizationId);
     }
 
     const bucket = await ensureStateBucket();
@@ -1692,12 +1799,12 @@ module.exports = async (req, res) => {
       return sendJson(res, 500, { ok: false, reason: bucket.reason || "Central app-state bucket is not available." });
     }
 
-    const backupSource = await collectCentralStateBackupEntries();
-    const envelope = createBackupEnvelope({ actor: authorization.actor, ...backupSource });
+    const backupSource = await collectCentralStateBackupEntries(organizationId);
+    const envelope = createBackupEnvelope({ actor: authorization.actor, organizationId, ...backupSource });
     const timestamp = envelope.createdAt.replace(/[:.]/g, "-");
     const day = envelope.createdAt.slice(0, 10);
-    const backupPath = `${BACKUP_PREFIX}/${day}/${timestamp}-${envelope.contentSha256.slice(0, 12)}.json`;
-    const latestPath = LATEST_BACKUP_PATH;
+    const backupPath = `${tenantBackupPrefix(organizationId)}/${day}/${timestamp}-${envelope.contentSha256.slice(0, 12)}.json`;
+    const latestPath = latestBackupPath(organizationId);
 
     const backupResult = await writeBackupObject(backupPath, envelope, false);
     if (!backupResult.ok) {
@@ -1706,6 +1813,7 @@ module.exports = async (req, res) => {
 
     const latest = {
       schema: "footballscience-app-state-backup-pointer-v1",
+      organizationId,
       createdAt: envelope.createdAt,
       path: backupPath,
       entryCount: envelope.entryCount,

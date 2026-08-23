@@ -21,11 +21,13 @@ function createServiceHarness(options = {}) {
   const timers = new Map();
   let timerId = 0;
   let hydrated = options.hydrated !== false;
+  let hydrating = Boolean(options.hydrating);
   let revision = Number.isInteger(Number(options.revision)) ? Number(options.revision) : 7;
   let syncResultIndex = 0;
   const win = {
     footballScienceCentralState: {
       getStatus: () => ({
+        hydrating,
         metadata: {
           "football-schedule-v1": { revision },
           "football-dashboard-presentation-mode-v1": { revision },
@@ -113,6 +115,9 @@ function createServiceHarness(options = {}) {
     service,
     setHydrated: (nextValue) => {
       hydrated = Boolean(nextValue);
+    },
+    setHydrating: (nextValue) => {
+      hydrating = Boolean(nextValue);
     },
     setRevision: (nextRevision) => {
       revision = Number(nextRevision) || 0;
@@ -567,6 +572,37 @@ test("central sync runtime waits for hydration before flushing queued writes", a
     },
   ]);
   expect(harness.manifest.lastCentralError).toBe("");
+});
+
+test("central sync runtime waits for refresh hydration and uses its acknowledged revision", async () => {
+  const harness = createServiceHarness({ hydrated: true, hydrating: true, revision: 2 });
+
+  harness.service.queueCentralStateWrite("football-schedule-v1", "{\"events\":[\"B\"]}");
+  const initialFlush = Array.from(harness.timers.values())[0];
+  expect(typeof initialFlush).toBe("function");
+  await initialFlush();
+
+  expect(harness.syncCalls).toEqual([]);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: true,
+  });
+
+  harness.setRevision(3);
+  harness.setHydrating(false);
+  const retryFlush = Array.from(harness.timers.values()).at(-1);
+  expect(typeof retryFlush).toBe("function");
+  await retryFlush();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key: "football-schedule-v1",
+      value: "{\"events\":[\"B\"]}",
+      options: { removed: false, baseRevision: 3 },
+    },
+  ]);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: false,
+  });
 });
 
 test("central sync runtime keeps chat and workspace rendering outside the service", () => {

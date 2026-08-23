@@ -443,14 +443,113 @@ test("authorized Medical hydration writes pending data exactly once and clears p
   }
 });
 
+test("Medical hydration acknowledges shared data when only local view fields differ", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const centralMedicalState = {
+    players: [{ id: "player-1", name: "QA Player" }],
+    records: [],
+    injuryPlans: [{
+      id: "shared-plan-1",
+      playerId: "player-1",
+      injuryType: "Shared plan",
+      updatedAt: "2026-08-23T10:00:00.000Z",
+    }],
+  };
+  const centralMedicalValue = JSON.stringify(centralMedicalState);
+  const allSyncBodies = [];
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: { [medicalTeamStateKey]: centralMedicalValue },
+    metadataEntries: {
+      [medicalTeamStateKey]: {
+        ...createMetadata(2, centralMedicalValue),
+        moduleId: "medical-team",
+        mergePolicy: "record-timestamp-merge",
+      },
+    },
+    writeAccess: { [medicalTeamStateKey]: true },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "medical-local-view-ack", {
+    allSyncBodies,
+  });
+
+  try {
+    await tab.page.waitForTimeout(250);
+    const stableSharedMedicalValue = await tab.page.evaluate(({ key, localUiFields }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      localUiFields.forEach((field) => delete state[field]);
+      return JSON.stringify(state);
+    }, {
+      key: medicalTeamStateKey,
+      localUiFields: ["selectedDate", "selectedPlayerId"],
+    });
+    centralStore.entries[medicalTeamStateKey] = stableSharedMedicalValue;
+    centralStore.metadataEntries[medicalTeamStateKey] = {
+      ...createMetadata(3, stableSharedMedicalValue),
+      moduleId: "medical-team",
+      mergePolicy: "record-timestamp-merge",
+    };
+    allSyncBodies.length = 0;
+
+    await tab.page.evaluate(async ({ key, manifestKey, value }) => {
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, value);
+        window.localStorage.setItem(manifestKey, JSON.stringify({
+          version: 1,
+          entries: {
+            [key]: {
+              label: "Medical Room",
+              hash: "local-view-only-hash",
+              writes: 1,
+              updatedAt: "2026-08-23T10:01:00.000Z",
+              pendingCentralSync: true,
+            },
+          },
+        }));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      await window.footballScienceCentralState.hydrate({ forceApply: true });
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      value: JSON.stringify({
+        ...JSON.parse(stableSharedMedicalValue),
+        selectedDate: "2026-08-24",
+        selectedPlayerId: "player-1",
+      }),
+    });
+
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(0);
+    expect(await tab.page.evaluate(({ key, manifestKey }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+        selectedDate: state.selectedDate,
+        selectedPlayerId: state.selectedPlayerId,
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      pendingCentralSync: false,
+      selectedDate: "2026-08-24",
+      selectedPlayerId: "player-1",
+    });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
 test("Medical hydration acknowledgement never clears a newer pending local write", async ({ browser, baseURL }) => {
   let resolveFirstWrite;
   let resolveSecondWrite;
   const firstWriteGate = new Promise((resolve) => { resolveFirstWrite = resolve; });
   const secondWriteGate = new Promise((resolve) => { resolveSecondWrite = resolve; });
   let medicalWriteCount = 0;
+  const medicalResponseStatuses = [];
 
-  const { allSyncBodies, tab } = await bootPendingMedicalHydration(browser, baseURL, "true", {
+  const { allSyncBodies, centralStore, tab } = await bootPendingMedicalHydration(browser, baseURL, "true", {
     stagePendingAfterBoot: true,
     appStateWriteHandler: async ({ body, centralStore, route }) => {
       if (body.key !== medicalTeamStateKey) {
@@ -464,6 +563,20 @@ test("Medical hydration acknowledgement never clears a newer pending local write
       }
       const value = String(body.value || "");
       const currentRevision = Number(centralStore.metadataEntries?.[medicalTeamStateKey]?.revision) || 0;
+      const baseRevision = Number(body?.metadata?.baseRevision ?? body?.baseRevision);
+      if (baseRevision !== currentRevision) {
+        medicalResponseStatuses.push(409);
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: false,
+            reason: "Stale medical-team data was not saved because the central state is already newer.",
+            currentRevision,
+          }),
+        });
+        return true;
+      }
       const metadata = {
         ...createMetadata(currentRevision + 1, value),
         moduleId: "medical-team",
@@ -474,6 +587,7 @@ test("Medical hydration acknowledgement never clears a newer pending local write
         ...(centralStore.metadataEntries || {}),
         [medicalTeamStateKey]: metadata,
       };
+      medicalResponseStatuses.push(200);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -539,6 +653,9 @@ test("Medical hydration acknowledgement never clears a newer pending local write
       writes: 2,
     });
 
+    await tab.page.waitForTimeout(350);
+    expect(medicalWriteCount).toBe(1);
+
     resolveFirstWrite();
     await expect.poll(() => medicalWriteCount).toBe(2);
 
@@ -563,10 +680,17 @@ test("Medical hydration acknowledgement never clears a newer pending local write
 
     const medicalWrites = allSyncBodies.filter((body) => body.key === medicalTeamStateKey);
     expect(medicalWrites).toHaveLength(2);
+    expect(medicalWrites.map((body) => Number(body?.metadata?.baseRevision ?? body?.baseRevision)))
+      .toEqual([2, 3]);
+    expect(medicalResponseStatuses).toEqual([200, 200]);
     expect(JSON.parse(medicalWrites[0].value).injuryPlans.map((plan) => plan.id).sort())
       .toEqual(["pending-plan-1"]);
     expect(JSON.parse(medicalWrites[1].value).injuryPlans.map((plan) => plan.id).sort())
       .toEqual(["pending-plan-1", "pending-plan-2"]);
+    expect(JSON.parse(centralStore.entries[medicalTeamStateKey]).injuryPlans.map((plan) => plan.id).sort())
+      .toEqual(["pending-plan-1", "pending-plan-2"]);
+    await tab.page.waitForTimeout(350);
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(2);
   } finally {
     resolveFirstWrite?.();
     resolveSecondWrite?.();

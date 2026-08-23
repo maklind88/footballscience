@@ -56,7 +56,9 @@ export function createCentralSyncRuntimeService(deps = {}) {
   }
 
   function isCentralStateBridgeHydrated(bridge = getCentralStateBridge()) {
-    return typeof bridge?.isHydrated === "function" ? Boolean(bridge.isHydrated()) : true;
+    const hydrated = typeof bridge?.isHydrated === "function" ? Boolean(bridge.isHydrated()) : true;
+    const hydrating = bridge?.getStatus?.()?.hydrating === true;
+    return hydrated && !hydrating;
   }
 
   function canWriteCentralStateKey(key, bridge = getCentralStateBridge()) {

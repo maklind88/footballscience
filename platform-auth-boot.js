@@ -805,10 +805,12 @@ async function getActiveAccessToken() {
     const localPendingHash = String(pendingEntry.hash || "").trim();
     const localValue = window.localStorage.getItem(key);
     const hasLocalValue = localValue !== null;
+    const localUiFields = key === MEDICAL_TEAM_STATE_KEY ? MEDICAL_LOCAL_UI_FIELDS : [];
     const centralMatchesLocal =
       typeof centralValue === "string" &&
       hasLocalValue &&
-      centralValue === localValue;
+      normalizeCentralPendingSyncValue(centralValue, localUiFields) ===
+        normalizeCentralPendingSyncValue(localValue, localUiFields);
     return centralMatchesLocal || Boolean(centralHash && localPendingHash && centralHash === localPendingHash);
   }
   function getCentralPendingSyncGenerationToken(entry = {}) {

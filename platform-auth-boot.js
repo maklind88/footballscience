@@ -12,6 +12,7 @@
   const DEFAULT_CLUB_ID = "club-ncc";
   const DEFAULT_TEAM_ID = "team-ncc-first";
   const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
+  const AUTH_SERVER_SESSION_INSTALL_TIMEOUT_MS = 5000;
   const API_CLIENT_CONFIG = "/api/client-config";
   const API_ADMIN_USERS = "/api/admin-users";
   const API_AUTH_LOGIN = "/api/client-config";
@@ -88,6 +89,8 @@
     "football-simulator-sequence-v1",
     "football-simulator-sequence-library-v2",
   ]);
+  const nativeLocalStorageGetItem = window.Storage?.prototype?.getItem;
+  const nativeLocalStorageSetItem = window.Storage?.prototype?.setItem;
   const nativeLocalStorageRemoveItem = window.Storage?.prototype?.removeItem;
   const centralStateValues = new Map();
   const CENTRAL_STATE_LARGE_READ_KEYS = new Set([
@@ -135,12 +138,186 @@
   }
   function getCentralStatePrincipalScope(user = {}) {
     const principal = user && typeof user === "object" ? user : {};
+    if (!String(principal.id || "")) {
+      return "";
+    }
     return [principal.id, principal.clubId, principal.teamId]
       .map((value) => String(value || ""))
       .join(":");
   }
+  function readCentralStatePrincipalManifest() {
+    try {
+      const raw = nativeLocalStorageGetItem?.call(window.localStorage, DATA_SAFETY_MANIFEST_KEY);
+      const manifest = raw ? JSON.parse(raw) : {};
+      return {
+        ...manifest,
+        entries: manifest?.entries && typeof manifest.entries === "object" ? manifest.entries : {},
+        principalPending: manifest?.principalPending && typeof manifest.principalPending === "object"
+          ? manifest.principalPending
+          : {},
+      };
+    } catch {
+      return null;
+    }
+  }
+  function writeCentralStatePrincipalManifest(manifest = {}) {
+    try {
+      nativeLocalStorageSetItem?.call(
+        window.localStorage,
+        DATA_SAFETY_MANIFEST_KEY,
+        JSON.stringify(manifest)
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  function getCentralStateRawCacheValue(key) {
+    const cachedValue = getCentralCachedValue(key);
+    if (typeof cachedValue === "string") {
+      return cachedValue;
+    }
+    return nativeLocalStorageGetItem?.call(window.localStorage, key) ?? null;
+  }
+  function resetCentralStateForPrincipalTransition() {
+    centralStateValues.clear();
+    centralState.hydrated = false;
+    centralState.hydrating = false;
+    centralState.hydrationError = "";
+    centralState.lastError = "";
+    centralState.metadata = {};
+    centralState.writeAccess = {};
+    resetCentralStateReconcileRequirements();
+  }
+  function transitionCentralStatePrincipal(nextUser = null) {
+    const manifest = readCentralStatePrincipalManifest();
+    if (!manifest) {
+      centralState.lastError = "Local pending data could not be read safely.";
+      return false;
+    }
+    const currentScope = getCentralStatePrincipalScope(authState.currentUser);
+    const previousScope = String(manifest.activePrincipalScope || currentScope || "");
+    let nextScope = getCentralStatePrincipalScope(nextUser);
+    const nextPrincipalId = String(nextUser?.id || "");
+    if (
+      nextPrincipalId &&
+      previousScope.startsWith(`${nextPrincipalId}:`) &&
+      !String(nextUser?.clubId || "") &&
+      !String(nextUser?.teamId || "")
+    ) {
+      nextScope = previousScope;
+    }
+    const scopeChanged = previousScope !== nextScope;
+    const quarantinedByScope = { ...manifest.principalPending };
+    const quarantineKeys = new Set();
+    for (const key of CENTRAL_STATE_KEYS) {
+      const entry = manifest.entries[key];
+      const entryOwnerScope = String(entry?.principalScope || "");
+      const mustQuarantine = Boolean(
+        entry?.pendingCentralSync &&
+        (
+          scopeChanged ||
+          !entryOwnerScope ||
+          entryOwnerScope !== nextScope
+        )
+      );
+      if (mustQuarantine) {
+        const ownerScope = entryOwnerScope || "legacy-unscoped";
+        const value = entry.deletedAt ? null : getCentralStateRawCacheValue(key);
+        quarantinedByScope[ownerScope] = { ...(quarantinedByScope[ownerScope] || {}) };
+        quarantinedByScope[ownerScope][key] = {
+          entry: { ...entry, principalScope: ownerScope },
+          value: typeof value === "string" ? value : null,
+        };
+        quarantineKeys.add(key);
+      }
+    }
+
+    const durableQuarantineManifest = {
+      ...manifest,
+      principalPending: quarantinedByScope,
+    };
+    if (quarantineKeys.size && !writeCentralStatePrincipalManifest(durableQuarantineManifest)) {
+      centralState.lastError = "Local pending data could not be isolated safely.";
+      return false;
+    }
+
+    const nextEntries = { ...manifest.entries };
+    const previousRawValues = new Map();
+    for (const key of CENTRAL_STATE_KEYS) {
+      if (scopeChanged || quarantineKeys.has(key)) {
+        delete nextEntries[key];
+      }
+      if (scopeChanged || quarantineKeys.has(key)) {
+        previousRawValues.set(key, getCentralStateRawCacheValue(key));
+        nativeLocalStorageRemoveItem?.call(window.localStorage, key);
+        removeCentralCachedValue(key);
+      }
+    }
+    if (scopeChanged) {
+      centralStateValues.clear();
+    }
+
+    const restoredPending = nextScope ? quarantinedByScope[nextScope] : null;
+    if (restoredPending && typeof restoredPending === "object") {
+      Object.entries(restoredPending).forEach(([key, record]) => {
+        if (!CENTRAL_STATE_KEYS.has(key) || !record?.entry?.pendingCentralSync) {
+          return;
+        }
+        const restoredEntry = { ...record.entry, principalScope: nextScope };
+        try {
+          if (!restoredEntry.deletedAt && typeof record.value === "string") {
+            nativeLocalStorageSetItem?.call(window.localStorage, key, record.value);
+            setCentralCachedValue(key, record.value);
+          }
+          nextEntries[key] = restoredEntry;
+          delete restoredPending[key];
+        } catch {
+          delete nextEntries[key];
+          nativeLocalStorageRemoveItem?.call(window.localStorage, key);
+          removeCentralCachedValue(key);
+        }
+      });
+      if (!Object.keys(restoredPending).length) {
+        delete quarantinedByScope[nextScope];
+      }
+    }
+    Object.keys(quarantinedByScope).forEach((scope) => {
+      if (!Object.keys(quarantinedByScope[scope] || {}).length) {
+        delete quarantinedByScope[scope];
+      }
+    });
+    const transitionedManifest = {
+      ...durableQuarantineManifest,
+      entries: nextEntries,
+      principalPending: quarantinedByScope,
+      activePrincipalScope: nextScope,
+    };
+    if (!writeCentralStatePrincipalManifest(transitionedManifest)) {
+      previousRawValues.forEach((value, key) => {
+        if (typeof value !== "string") {
+          nativeLocalStorageRemoveItem?.call(window.localStorage, key);
+          removeCentralCachedValue(key);
+          return;
+        }
+        try {
+          nativeLocalStorageSetItem?.call(window.localStorage, key, value);
+          setCentralCachedValue(key, value);
+        } catch {}
+      });
+      centralState.lastError = "Local pending data could not be isolated safely.";
+      return false;
+    }
+    if (scopeChanged) {
+      resetCentralStateForPrincipalTransition();
+    }
+    return true;
+  }
   let authRefreshTokenPromise = null;
   let authSessionReadPromise = null;
+  const rejectedAuthAccessTokens = new Set();
+  let rejectedAuthSessionCleanup = null;
+  let authSessionInstallGeneration = 0;
   let currentUserProfileRefreshPromise = null;
   let currentUserProfileRefreshUserId = "";
   let userCacheRefreshPromise = null;
@@ -475,6 +652,9 @@
     }
   }
 async function getActiveAccessToken() {
+  if (rejectedAuthSessionCleanup) {
+    return null;
+  }
   if (authState.session?.access_token) {
     return authState.session.access_token;
   }
@@ -487,10 +667,15 @@ async function getActiveAccessToken() {
     if (!session?.access_token) {
       return null;
     }
-    authState.session = session;
-    if (!authState.currentUser?.id || authState.currentUser.id !== session.user?.id) {
-      setCurrentUserFromSession(session.user || null);
+    if (rejectedAuthAccessTokens.has(session.access_token)) {
+      return null;
     }
+    if (!authState.currentUser?.id || authState.currentUser.id !== session.user?.id) {
+      if (!setCurrentUserFromSession(session.user || null)) {
+        return null;
+      }
+    }
+    authState.session = session;
     return session.access_token;
   } catch (error) {
     console.warn("Supabase session read timed out; using cached session when available.", error);
@@ -501,6 +686,9 @@ async function getActiveAccessToken() {
     return String(token || "").length > MAX_AUTH_ACCESS_TOKEN_LENGTH;
   }
   async function refreshAccessToken() {
+    if (rejectedAuthSessionCleanup) {
+      return null;
+    }
     if (!authState.supabase) {
       return null;
     }
@@ -521,10 +709,15 @@ async function getActiveAccessToken() {
       if (!refreshedSession?.access_token) {
         return null;
       }
-      authState.session = refreshedSession;
-      if (!authState.currentUser?.id || authState.currentUser.id !== refreshedSession.user?.id) {
-        setCurrentUserFromSession(refreshedSession.user || null);
+      if (rejectedAuthAccessTokens.has(refreshedSession.access_token)) {
+        return null;
       }
+      if (!authState.currentUser?.id || authState.currentUser.id !== refreshedSession.user?.id) {
+        if (!setCurrentUserFromSession(refreshedSession.user || null)) {
+          return null;
+        }
+      }
+      authState.session = refreshedSession;
       return refreshedSession.access_token;
     } catch {
       return null;
@@ -809,7 +1002,10 @@ async function getActiveAccessToken() {
     return doesCentralStateAcknowledgePending(key, pendingEntry, metadataEntry, centralValue);
   }
   function doesCentralStateAcknowledgePending(key, pendingEntry = {}, metadataEntry = {}, centralValue = "") {
-    if (!pendingEntry?.pendingCentralSync) {
+    if (
+      !pendingEntry?.pendingCentralSync ||
+      String(pendingEntry.principalScope || "") !== getCentralStatePrincipalScope(authState.currentUser)
+    ) {
       return false;
     }
     const centralHash = String(metadataEntry.hash || "").trim();
@@ -830,6 +1026,7 @@ async function getActiveAccessToken() {
       writes: Object.prototype.hasOwnProperty.call(entry, "writes") ? Number(entry.writes) : null,
       updatedAt: Object.prototype.hasOwnProperty.call(entry, "updatedAt") ? String(entry.updatedAt || "") : null,
       deletedAt: Object.prototype.hasOwnProperty.call(entry, "deletedAt") ? String(entry.deletedAt || "") : null,
+      principalScope: Object.prototype.hasOwnProperty.call(entry, "principalScope") ? String(entry.principalScope || "") : null,
     });
   }
   function hashCentralPendingSyncValue(value) {
@@ -883,6 +1080,7 @@ async function getActiveAccessToken() {
       const localValue = window.localStorage.getItem(key);
       if (
         !entry?.pendingCentralSync ||
+        String(entry.principalScope || "") !== getCentralStatePrincipalScope(authState.currentUser) ||
         !expectation ||
         getCentralPendingSyncGenerationToken(entry) !== expectation.generationToken ||
         normalizeCentralPendingSyncValue(localValue, expectation.localUiFields) !== expectation.value
@@ -900,6 +1098,13 @@ async function getActiveAccessToken() {
       }
       manifest.lastCentralError = "";
       manifest.lastCentralSyncedAt = new Date().toISOString();
+      const principalScope = String(entry.principalScope || "");
+      if (principalScope && manifest.principalPending?.[principalScope]?.[key]) {
+        delete manifest.principalPending[principalScope][key];
+        if (!Object.keys(manifest.principalPending[principalScope]).length) {
+          delete manifest.principalPending[principalScope];
+        }
+      }
       window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
       return true;
     } catch {
@@ -1538,7 +1743,12 @@ async function getActiveAccessToken() {
         }
       }
       Object.entries(normalizedEntries).forEach(([key, value]) => {
-        const pendingEntry = pendingEntries[key] || {};
+        const candidatePendingEntry = pendingEntries[key] || {};
+        const pendingEntry =
+          !candidatePendingEntry.pendingCentralSync ||
+          candidatePendingEntry.principalScope === getCentralStatePrincipalScope(authState.currentUser)
+            ? candidatePendingEntry
+            : {};
         const metadataEntry = incomingMetadata[key] || {};
         const canWriteEntry = canWriteCentralStateKey(key, options.writeAccess);
         const acknowledgesPending = doesCentralStateAcknowledgePending(key, pendingEntry, metadataEntry, value);
@@ -1846,18 +2056,20 @@ async function getActiveAccessToken() {
         response.payload?.metadata?.revision ?? response.payload?.revision
       );
       if (
-        hasReconcileRequirement &&
+        !Number.isInteger(acknowledgedRevision) ||
+        acknowledgedRevision <= baseRevision ||
         (
-          !Number.isInteger(acknowledgedRevision) ||
-          acknowledgedRevision <= 0 ||
-          (
-            Number.isInteger(requiredReconcileRevision) &&
-            requiredReconcileRevision > 0 &&
-            acknowledgedRevision < requiredReconcileRevision
-          )
+          response.payload?.key !== undefined &&
+          String(response.payload.key || "") !== String(key || "")
+        ) ||
+        (
+          hasReconcileRequirement &&
+          Number.isInteger(requiredReconcileRevision) &&
+          requiredReconcileRevision > 0 &&
+          acknowledgedRevision < requiredReconcileRevision
         )
       ) {
-        const reason = "Central sync acknowledgement was older than the required fresh revision.";
+        const reason = "Central sync acknowledgement did not prove a newer durable revision.";
         centralState.lastError = reason;
         return {
           ok: false,
@@ -1906,15 +2118,21 @@ async function getActiveAccessToken() {
     if (!normalizedUser.id) {
       return null;
     }
+    const shouldSetCurrent = options.setCurrent || authState.currentUser?.id === normalizedUser.id;
+    if (shouldSetCurrent && !transitionCentralStatePrincipal(normalizedUser)) {
+      return null;
+    }
     const existingIndex = authState.users.findIndex((candidate) => candidate.id === normalizedUser.id);
     if (existingIndex >= 0) {
       authState.users[existingIndex] = { ...normalizeAuthUser(authState.users[existingIndex]), ...normalizedUser };
     } else {
       authState.users = [normalizedUser, ...authState.users];
     }
-    if (options.setCurrent || authState.currentUser?.id === normalizedUser.id) {
+    if (shouldSetCurrent) {
       authState.currentUser = { ...(authState.currentUser || {}), ...normalizedUser };
-      notifyAuthChange(authState.currentUser);
+      if (options.notify !== false) {
+        notifyAuthChange(authState.currentUser);
+      }
     }
     return normalizedUser;
   }
@@ -1928,13 +2146,18 @@ async function getActiveAccessToken() {
       timeoutMs: 9000,
     });
     if (response.ok && Array.isArray(response.payload?.users)) {
-      authState.users = response.payload.users.map((user) => normalizeAuthUser(user)).filter((user) => user.id);
-      authState.roles = Array.isArray(response.payload.roles) ? response.payload.roles : authState.roles;
-      const refreshedCurrentUser = authState.users.find((user) => user.id === authState.currentUser?.id);
+      const nextUsers = response.payload.users.map((user) => normalizeAuthUser(user)).filter((user) => user.id);
+      const nextRoles = Array.isArray(response.payload.roles) ? response.payload.roles : authState.roles;
+      const refreshedCurrentUser = nextUsers.find((user) => user.id === authState.currentUser?.id);
       if (refreshedCurrentUser) {
+        if (!transitionCentralStatePrincipal(refreshedCurrentUser)) {
+          return false;
+        }
         authState.currentUser = refreshedCurrentUser;
         notifyAuthChange(refreshedCurrentUser);
       }
+      authState.users = nextUsers;
+      authState.roles = nextRoles;
       return true;
     }
     if (!authState.users.length && authState.currentUser) {
@@ -1948,7 +2171,7 @@ async function getActiveAccessToken() {
       userCacheRefreshPromise = null;
     }
   }
-  async function refreshCurrentUserProfile(sessionUserId = "") {
+  async function refreshCurrentUserProfile(sessionUserId = "", options = {}) {
     const normalizedSessionUserId = String(sessionUserId || "");
     if (currentUserProfileRefreshPromise && currentUserProfileRefreshUserId === normalizedSessionUserId) {
       return currentUserProfileRefreshPromise;
@@ -1967,7 +2190,9 @@ async function getActiveAccessToken() {
     if (sessionUserId && nextUser.id !== sessionUserId) {
       return null;
     }
-    setCurrentUserFromSession(nextUser);
+    if (!setCurrentUserFromSession(nextUser, { notify: options.notify !== false })) {
+      return null;
+    }
     return authState.currentUser;
     })();
     try {
@@ -1992,7 +2217,10 @@ async function getActiveAccessToken() {
       if (runId !== postAuthHydrationRunId || authState.session?.access_token !== queuedSession.access_token) {
         return;
       }
-      await refreshCurrentUserProfile(sessionUserId).catch(() => null);
+      const refreshedProfile = await refreshCurrentUserProfile(sessionUserId).catch(() => null);
+      if (!refreshedProfile) {
+        return;
+      }
       if (runId !== postAuthHydrationRunId || authState.session?.access_token !== queuedSession.access_token) {
         return;
       }
@@ -2017,26 +2245,21 @@ async function getActiveAccessToken() {
     if (!nextUser) {
       return;
     }
-    if (getCentralStatePrincipalScope(authState.currentUser) !== getCentralStatePrincipalScope(nextUser)) {
-      resetCentralStateReconcileRequirements();
+    if (!transitionCentralStatePrincipal(nextUser)) {
+      return;
     }
     authState.currentUser = nextUser;
     notifyAuthChange(nextUser);
   }
-  function setCurrentUserFromSession(sessionUser) {
+  function setCurrentUserFromSession(sessionUser, options = {}) {
     const nextUser = normalizeAuthUser(sessionUser);
     if (!nextUser.id) {
-      resetCentralStateReconcileRequirements();
+      transitionCentralStatePrincipal(null);
       authState.currentUser = null;
       notifyAuthChange(null);
-      return;
+      return true;
     }
-    if (
-      getCentralStatePrincipalScope(authState.currentUser) !== getCentralStatePrincipalScope(nextUser)
-    ) {
-      resetCentralStateReconcileRequirements();
-    }
-    mergeAuthUser(nextUser, { setCurrent: true });
+    return Boolean(mergeAuthUser(nextUser, { setCurrent: true, notify: options.notify !== false }));
   }
   function isPausedAccount(user) {
     return String(user?.status || "").trim().toLowerCase() === "paused";
@@ -2046,22 +2269,34 @@ async function getActiveAccessToken() {
     const nextSessionUser = session?.user || null;
     const waitForCentral = options.waitForCentral !== false;
     const waitForProfile = options.waitForProfile !== false;
+    const queuePostAuth = options.queuePostAuth !== false;
+    const notifyWhenReady = options.notify !== false;
     if (!nextSession || !nextSessionUser) {
-      resetCentralStateReconcileRequirements();
+      transitionCentralStatePrincipal(null);
       authState.currentUser = null;
       authState.session = null;
       authState.users = [];
       notifyAuthChange(null);
       return null;
     }
-    authState.session = nextSession;
     const sessionUserId = nextSessionUser.id;
-    setCurrentUserFromSession(nextSessionUser);
+    if (!setCurrentUserFromSession(nextSessionUser, { notify: false })) {
+      return null;
+    }
+    authState.session = nextSession;
     if (waitForProfile) {
-      await refreshCurrentUserProfile(sessionUserId);
+      const refreshedProfile = await refreshCurrentUserProfile(sessionUserId, { notify: false });
+      if (!refreshedProfile) {
+        return null;
+      }
     }
     if (!waitForCentral) {
-      queuePostAuthHydration(nextSession);
+      if (queuePostAuth) {
+        queuePostAuthHydration(nextSession);
+      }
+      if (notifyWhenReady) {
+        notifyAuthChange(authState.currentUser);
+      }
       return authState.currentUser;
     }
     try {
@@ -2081,12 +2316,41 @@ async function getActiveAccessToken() {
       authState.currentUser = null;
       authState.users = [];
       notifyAuthChange(null);
-    } else if (authState.currentUser.id) {
+    } else if (authState.currentUser.id && notifyWhenReady) {
       notifyAuthChange(authState.currentUser);
     }
     return authState.currentUser;
   }
+  function rejectDelayedAuthSessionInstall(accessToken, setSessionPromise) {
+    const rejectedToken = String(accessToken || "");
+    if (!rejectedToken) {
+      return;
+    }
+    const cleanupGeneration = ++authSessionInstallGeneration;
+    rejectedAuthAccessTokens.add(rejectedToken);
+    rejectedAuthSessionCleanup = {
+      generation: cleanupGeneration,
+      token: rejectedToken,
+    };
+    Promise.resolve(setSessionPromise).then(
+      async () => {
+        await signOut({ scope: "local" });
+        if (rejectedAuthSessionCleanup?.generation === cleanupGeneration) {
+          rejectedAuthSessionCleanup = null;
+        }
+      },
+      async () => {
+        await signOut({ scope: "local" });
+        if (rejectedAuthSessionCleanup?.generation === cleanupGeneration) {
+          rejectedAuthSessionCleanup = null;
+        }
+      }
+    );
+  }
   async function signInWithIdentifier(identifier, password) {
+    if (rejectedAuthSessionCleanup) {
+      return { ok: false, reason: "A previous local session is still being cleaned up. Try again shortly." };
+    }
     if (authState.devMode) return signInWithDevAuth(identifier, password);
     if (!authState.supabase) return { ok: false, reason: "Authentication is not ready. Open footballscience.xyz." };
     const cleanIdentifier = String(identifier || "").trim().toLowerCase();
@@ -2113,7 +2377,15 @@ async function getActiveAccessToken() {
           if (directResult.error) {
             loginResponse.payload = { reason: directResult.error.message || proxyReason || "Invalid username or password." };
           } else if (directResult.data?.session) {
-            await hydrateCurrentUser(directResult.data.session, { waitForCentral: false, waitForProfile: true });
+            const hydratedUser = await hydrateCurrentUser(
+              directResult.data.session,
+              { waitForCentral: false, waitForProfile: true }
+            );
+            if (!hydratedUser) {
+              rejectedAuthAccessTokens.add(String(directResult.data.session.access_token || ""));
+              await signOut({ scope: "local" });
+              return { ok: false, reason: "Local pending data could not be isolated safely. Reload and sign in again." };
+            }
             if (isPausedAccount(authState.currentUser)) { await signOut(); return { ok: false, reason: "This account is paused. Contact an admin." }; }
             return { ok: true };
           }
@@ -2126,15 +2398,43 @@ async function getActiveAccessToken() {
       }
       const session = loginResponse.payload?.session || null;
       if (!session?.access_token || !session?.refresh_token) return { ok: false, reason: "Could not start a session." };
-      authState.session = session;
-      withTimeout(
-        authState.supabase.auth.setSession({access_token:session.access_token,refresh_token:session.refresh_token}),
-        5000,
-        "Supabase local session save took too long."
-      ).catch((error) => {
-        console.warn("Supabase local session save failed after server login.", error);
+      const hydratedUser = await hydrateCurrentUser(session, {
+        waitForCentral: false,
+        waitForProfile: true,
+        queuePostAuth: false,
+        notify: false,
       });
-      await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: true });
+      if (!hydratedUser) {
+        if (authState.session?.access_token === session.access_token) {
+          rejectedAuthAccessTokens.add(String(session.access_token || ""));
+          await signOut({ remote: false });
+        }
+        return { ok: false, reason: "Local pending data could not be isolated safely. Reload and sign in again." };
+      }
+      const setSessionPromise = authState.supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      });
+      let setSessionResult = null;
+      try {
+        setSessionResult = await withTimeout(
+          setSessionPromise,
+          AUTH_SERVER_SESSION_INSTALL_TIMEOUT_MS,
+          "Supabase local session save took too long."
+        );
+      } catch (error) {
+        rejectDelayedAuthSessionInstall(session.access_token, setSessionPromise);
+        await signOut({ remote: false });
+        console.warn("Supabase local session save failed after server login.", error);
+        return { ok: false, reason: "The local session could not be saved safely. Sign in again." };
+      }
+      if (!setSessionResult || setSessionResult.error) {
+        rejectedAuthAccessTokens.add(String(session.access_token || ""));
+        await signOut({ scope: "local" });
+        return { ok: false, reason: "The local session could not be saved safely. Reload and sign in again." };
+      }
+      notifyAuthChange(authState.currentUser);
+      queuePostAuthHydration(session);
       if (isPausedAccount(authState.currentUser)) { await signOut(); return { ok: false, reason: "This account is paused. Contact an admin." }; }
       return { ok: true };
     } catch (error) {
@@ -2527,10 +2827,10 @@ async function getActiveAccessToken() {
     };
   }
   function clearAuthState() {
+    transitionCentralStatePrincipal(null);
     authState.currentUser = null;
     authState.session = null;
     authState.users = [];
-    resetCentralStateReconcileRequirements();
     notifyAuthChange(null);
   }
   function clearStoredAuthArtifacts() {
@@ -2572,12 +2872,13 @@ async function getActiveAccessToken() {
   }
   async function signOut(options = {}) {
     const shouldSignOutRemote = options.remote !== false && authState.supabase && !authState.isSigningOut;
+    const remoteScope = options.scope === "local" ? "local" : "global";
     const remoteSignOut = shouldSignOutRemote
       ? (async () => {
           authState.isSigningOut = true;
           try {
             const { error } = await withTimeout(
-              authState.supabase.auth.signOut({ scope: "global" }),
+              authState.supabase.auth.signOut({ scope: remoteScope }),
               5000,
               "Sign out took too long."
             );
@@ -2608,11 +2909,7 @@ async function getActiveAccessToken() {
       return;
     }
     showLogin();
-    remoteSignOut.catch((error) => {
-      if (error) {
-        console.warn("Sign out cleanup failed:", error);
-      }
-    });
+    await remoteSignOut;
   }
   function setProfileMenuOpen(isOpen) {
     const profileMenuButton = document.getElementById("profileMenuButton");
@@ -2705,8 +3002,12 @@ async function getActiveAccessToken() {
       return;
     }
     if (data?.session) {
-      authState.session = data.session;
-      await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: true });
+      const hydratedUser = await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: true });
+      if (!hydratedUser) {
+        rejectedAuthAccessTokens.add(String(data.session.access_token || ""));
+        await signOut({ scope: "local" });
+        return false;
+      }
       const expiresAtMs = Number(data.session.expires_at || 0) * 1000;
       if (expiresAtMs && expiresAtMs - Date.now() < 60 * 1000) {
         refreshAccessToken().catch(() => null);
@@ -2714,7 +3015,9 @@ async function getActiveAccessToken() {
       if (isPausedAccount(authState.currentUser)) {
         await signOut();
       }
+      return true;
     }
+    return false;
   }
   async function bootAuth() {
     if (isLocalFileHost()) {
@@ -2914,17 +3217,25 @@ async function getActiveAccessToken() {
     setLoginBusy(false);
     authState.supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
+        const sessionToken = String(session.access_token || "");
+        if (rejectedAuthSessionCleanup || rejectedAuthAccessTokens.has(sessionToken)) {
+          await signOut({ scope: "local" });
+          showLogin();
+          return;
+        }
         if (authState.session?.access_token === session.access_token && authState.currentUser?.id) {
           queuePostAuthHydration(session);
           showPlatform(authState.currentUser);
           return;
         }
-        await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: true });
-        if (authState.currentUser) {
-          showPlatform(authState.currentUser);
-        } else {
+        const hydratedUser = await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: true });
+        if (!hydratedUser) {
+          rejectedAuthAccessTokens.add(sessionToken);
+          await signOut({ scope: "local" });
           showLogin();
+          return;
         }
+        showPlatform(hydratedUser);
         return;
       }
       if (event === "SIGNED_OUT") {
@@ -2956,10 +3267,10 @@ async function getActiveAccessToken() {
     getCurrentUser: () => authState.currentUser,
     setCurrentUser: setCurrentUserById,
     clearCurrentUser: () => {
+      transitionCentralStatePrincipal(null);
       authState.currentUser = null;
       authState.users = [];
       authState.session = null;
-      resetCentralStateReconcileRequirements();
       if (authState.devMode) {
         writeDevAuthSession("");
       }

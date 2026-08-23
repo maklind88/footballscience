@@ -9,6 +9,7 @@ const medicalTeamStateKey = "football-medical-team-v1";
 const playerProfilesStateKey = "football-player-profiles-v1";
 const platformStructureStateKey = "football-platform-structure-v1";
 const dataSafetyManifestKey = "football-data-safety-v1";
+const qaPrincipalScope = "qa-user-1:club-ncc:team-ncc-first";
 const qaUser = {
   id: "qa-user-1",
   email: "qa@footballscience.test",
@@ -48,6 +49,24 @@ function createMetadata(revision, value) {
   };
 }
 
+function createSecondaryQaSession() {
+  return {
+    access_token: "qa-b-access-token",
+    refresh_token: "qa-b-refresh-token",
+    user: {
+      id: "qa-user-2",
+      email: "qa-2@footballscience.test",
+      user_metadata: {
+        firstName: "Second",
+        lastName: "Coach",
+        clubId: "club-b",
+        teamId: "team-b",
+      },
+      app_metadata: { role: "coach", status: "active" },
+    },
+  };
+}
+
 function reverseObjectKeyOrder(value) {
   if (Array.isArray(value)) {
     return value.map(reverseObjectKeyOrder);
@@ -69,15 +88,61 @@ function createFakeSupabaseScript(sessionUser = qaUser) {
 
   return `
     window.__qaSession = ${JSON.stringify(session)};
+    window.__qaAuthStateCallbacks = [];
+    window.__qaSetSessionCalls = [];
+    window.__qaSignOutScopes = [];
     window.supabase = {
       createClient() {
         return {
           auth: {
-            getSession: async () => ({ data: { session: window.__qaSession }, error: null }),
+            getSession: async () => {
+              if (window.__qaGetSessionDelayMs) {
+                await new Promise((resolve) => window.setTimeout(resolve, window.__qaGetSessionDelayMs));
+              }
+              return {
+                data: { session: window.__qaGetSessionResolvedSession || window.__qaSession },
+                error: null,
+              };
+            },
             refreshSession: async () => ({ data: { session: window.__qaSession }, error: null }),
             signInWithPassword: async () => ({ data: { session: window.__qaSession }, error: null }),
-            signOut: async () => ({ error: null }),
-            onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+            setSession: async (tokens) => {
+              window.__qaSetSessionCalls.push({ ...tokens });
+              if (window.__qaStartDelayedGetSessionDuringSetSession) {
+                window.platformAuthStore.clearCurrentUser();
+                window.__qaLateGetSessionTokenPromise = window.platformAuthStore.getAccessToken();
+              }
+              if (window.__qaSetSessionDelayMs) {
+                await new Promise((resolve) => window.setTimeout(resolve, window.__qaSetSessionDelayMs));
+              }
+              if (window.__qaSetSessionError) {
+                return { data: { session: null }, error: { message: window.__qaSetSessionError } };
+              }
+              if (window.__qaSetSessionResolvedSession) {
+                window.__qaSession = window.__qaSetSessionResolvedSession;
+                for (const callback of window.__qaAuthStateCallbacks) {
+                  await callback("SIGNED_IN", window.__qaSession);
+                }
+                if (typeof window.__qaAfterSetSessionAuthEvent === "function") {
+                  await window.__qaAfterSetSessionAuthEvent();
+                }
+              }
+              return { data: { session: window.__qaSession }, error: null };
+            },
+            signOut: async (options = {}) => {
+              window.__qaSignOutScopes.push(options.scope || "global");
+              window.__qaSignOutPending = true;
+              if (window.__qaSignOutDelayMs) {
+                await new Promise((resolve) => window.setTimeout(resolve, window.__qaSignOutDelayMs));
+              }
+              window.__qaSession = null;
+              window.__qaSignOutPending = false;
+              return { error: null };
+            },
+            onAuthStateChange: (callback) => {
+              window.__qaAuthStateCallbacks.push(callback);
+              return { data: { subscription: { unsubscribe() {} } } };
+            },
           },
         };
       },
@@ -90,6 +155,18 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
   const profileUser = options.profileUser || qaUser;
   const appStateGetUrls = Array.isArray(options.appStateGetUrls) ? options.appStateGetUrls : [];
   const allSyncBodies = Array.isArray(options.allSyncBodies) ? options.allSyncBodies : [];
+  const appStateRequests = Array.isArray(options.appStateRequests) ? options.appStateRequests : [];
+  const authLoginRequests = Array.isArray(options.authLoginRequests) ? options.authLoginRequests : [];
+
+  if (options.authLoginSession) {
+    await context.route("**/api/auth/login", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, session: options.authLoginSession }),
+      });
+    });
+  }
 
   await context.route("**/npm/@supabase/supabase-js@2/**", async (route) => {
     await route.fulfill({
@@ -100,6 +177,15 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
   });
 
   await context.route("**/api/client-config", async (route) => {
+    if (route.request().method().toUpperCase() === "POST" && options.authLoginSession) {
+      authLoginRequests.push(JSON.parse(route.request().postData() || "{}"));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, session: options.authLoginSession }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -114,11 +200,14 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
 
   await context.route("**/api/admin-users**", async (route) => {
     const url = new URL(route.request().url());
+    const authorization = route.request().headers().authorization || "";
+    const profileForRequest = Object.entries(options.profileUsersByAccessToken || {})
+      .find(([token]) => authorization.includes(token))?.[1] || profileUser;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(url.searchParams.has("me")
-        ? { ok: true, user: profileUser }
+        ? { ok: true, user: profileForRequest }
         : { ok: true, users: [profileUser], roles: ["admin", "coach", "analyst", "performance", "medical", "guest"] }),
     });
   });
@@ -173,6 +262,10 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
 
     const body = JSON.parse(request.postData() || "{}");
     allSyncBodies.push(body);
+    appStateRequests.push({
+      authorization: request.headers().authorization || "",
+      body,
+    });
     if (typeof options.appStateWriteHandler === "function") {
       const handled = await options.appStateWriteHandler({
         body,
@@ -269,10 +362,18 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
   const context = await browser.newContext();
   await installCentralRevisionRoutes(context, centralStore, syncBodies, options);
   await context.route("**/platform-auth-boot.js*", async (route) => {
+    const requestedTimeout = Number(options.authSetSessionTimeoutMs);
+    let source = readFileSync(new URL("../platform-auth-boot.js", import.meta.url), "utf8");
+    if (Number.isFinite(requestedTimeout) && requestedTimeout > 0) {
+      source = source.replace(
+        "const AUTH_SERVER_SESSION_INSTALL_TIMEOUT_MS = 5000;",
+        `const AUTH_SERVER_SESSION_INSTALL_TIMEOUT_MS = ${Math.floor(requestedTimeout)};`
+      );
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/javascript",
-      body: readFileSync(new URL("../platform-auth-boot.js", import.meta.url), "utf8"),
+      body: source,
     });
   });
   await context.route("**/src/core/central-sync-runtime-service.mjs*", async (route) => {
@@ -292,6 +393,10 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
   const targetUrl = new URL(baseURL || "http://127.0.0.1:4173/");
   targetUrl.searchParams.set("qaTab", tabName);
   await page.goto(targetUrl.toString(), { waitUntil: "domcontentloaded" });
+  if (options.expectAuthFailure) {
+    await expect(page.locator("#loginScreen")).toBeVisible();
+    return { context, page };
+  }
   await expect(page.locator("#hubShell")).toBeVisible();
   await page.waitForFunction(
     () => Boolean(window.footballScienceDataSafety && window.footballScienceCentralState?.isHydrated?.()),
@@ -303,6 +408,880 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
     .toContain("Original central sequence");
   return { context, page };
 }
+
+test("pending central data is quarantined across principals and restored only to its owner", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const allSyncBodies = [];
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "principal-pending-quarantine", { allSyncBodies });
+  const principalB = {
+    id: "qa-user-2",
+    email: "qa-2@footballscience.test",
+    firstName: "Second",
+    lastName: "Coach",
+    role: "coach",
+    clubId: "club-b",
+    teamId: "team-b",
+  };
+  const valueA = JSON.stringify({ injuryPlans: [{ id: "private-plan-a" }] });
+
+  try {
+    const afterB = await tab.page.evaluate(({ key, manifestKey, principalB, principalScope, valueA }) => {
+      const principalA = window.platformAuthStore.getCurrentUser();
+      window.__qaPrincipalA = principalA;
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, valueA);
+        const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+        manifest.activePrincipalScope = principalScope;
+        manifest.entries = manifest.entries || {};
+        manifest.entries[key] = {
+          label: "Medical Room",
+          hash: "private-plan-a-hash",
+          writes: 4,
+          updatedAt: "2026-08-23T12:00:00.000Z",
+          pendingCentralSync: true,
+          principalScope,
+          serverRevision: 2,
+        };
+        window.localStorage.setItem(manifestKey, JSON.stringify(manifest));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      window.platformAuthStore.writeUsers([principalA, principalB]);
+      window.platformAuthStore.setCurrentUser(principalB.id);
+      const afterBManifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        activeScope: afterBManifest.activePrincipalScope,
+        currentUserId: window.platformAuthStore.getCurrentUser()?.id,
+        exposedValue: window.localStorage.getItem(key),
+        quarantinedValue: afterBManifest.principalPending?.[principalScope]?.[key]?.value,
+      };
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalB,
+      principalScope: qaPrincipalScope,
+      valueA,
+    });
+
+    expect(afterB).toEqual({
+      activeScope: "qa-user-2:club-b:team-b",
+      currentUserId: "qa-user-2",
+      exposedValue: null,
+      quarantinedValue: valueA,
+    });
+    await tab.page.waitForTimeout(250);
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey).some((body) => (
+      String(body.value || "").includes("private-plan-a")
+    ))).toBe(false);
+
+    const afterA = await tab.page.evaluate(({ key, manifestKey }) => {
+      window.platformAuthStore.setCurrentUser(window.__qaPrincipalA.id);
+      const afterAManifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        activeScope: afterAManifest.activePrincipalScope,
+        currentUserId: window.platformAuthStore.getCurrentUser()?.id,
+        pending: afterAManifest.entries?.[key]?.pendingCentralSync,
+        principalScope: afterAManifest.entries?.[key]?.principalScope,
+        restoredValue: window.localStorage.getItem(key),
+      };
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+    });
+
+    expect(afterA).toEqual({
+      activeScope: qaPrincipalScope,
+      currentUserId: qaUser.id,
+      pending: true,
+      principalScope: qaPrincipalScope,
+      restoredValue: valueA,
+    });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("legacy unscoped pending data is quarantined and never adopted for automatic sync", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const allSyncBodies = [];
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "legacy-unscoped-quarantine", { allSyncBodies });
+  const legacyValue = JSON.stringify({ injuryPlans: [{ id: "legacy-private-plan" }] });
+  const principalB = {
+    id: "qa-user-2",
+    email: "qa-2@footballscience.test",
+    firstName: "Second",
+    lastName: "Coach",
+    role: "coach",
+    clubId: "club-b",
+    teamId: "team-b",
+  };
+
+  try {
+    const result = await tab.page.evaluate(({ key, legacyValue, manifestKey, principalB, principalScope }) => {
+      const currentUser = window.platformAuthStore.getCurrentUser();
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, legacyValue);
+        window.localStorage.setItem(manifestKey, JSON.stringify({
+          version: 1,
+          activePrincipalScope: principalScope,
+          entries: {
+            [key]: {
+              label: "Medical Room",
+              pendingCentralSync: true,
+              writes: 1,
+            },
+          },
+        }));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      window.platformAuthStore.writeUsers([currentUser, principalB]);
+      window.platformAuthStore.setCurrentUser(principalB.id);
+      const afterB = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      window.platformAuthStore.setCurrentUser(currentUser.id);
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        activeEntry: manifest.entries?.[key] || null,
+        afterBActiveEntry: afterB.entries?.[key] || null,
+        afterBLegacyValue: afterB.principalPending?.["legacy-unscoped"]?.[key]?.value,
+        exposedValue: window.localStorage.getItem(key),
+        legacyValue: manifest.principalPending?.["legacy-unscoped"]?.[key]?.value,
+      };
+    }, {
+      key: medicalTeamStateKey,
+      legacyValue,
+      manifestKey: dataSafetyManifestKey,
+      principalB,
+      principalScope: qaPrincipalScope,
+    });
+
+    expect(result.afterBActiveEntry).toBeNull();
+    expect(result.afterBLegacyValue).toBe(legacyValue);
+    expect(result.legacyValue).toBe(legacyValue);
+    expect(result.activeEntry).toBeNull();
+    expect(result.exposedValue).toBeNull();
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey).some((body) => (
+      String(body.value || "").includes("legacy-private-plan")
+    ))).toBe(false);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+for (const manifestWritesBeforeFailure of [0, 1]) {
+  test(`principal transition fails closed when manifest write ${manifestWritesBeforeFailure + 1} fails`, async ({ browser, baseURL }) => {
+    const initialValue = createStateValue("Original central sequence");
+    const allSyncBodies = [];
+    const tab = await bootCentralPage(browser, baseURL, {
+      value: initialValue,
+      metadata: createMetadata(1, initialValue),
+    }, [], `principal-quota-${manifestWritesBeforeFailure}`, {
+      allSyncBodies,
+      initScript: ({ manifestKey }) => {
+        const originalSetItem = window.Storage.prototype.setItem;
+        window.__qaManifestWritesBeforeFailure = -1;
+        window.Storage.prototype.setItem = function failSelectedManifestWrite(key, value) {
+          if (key === manifestKey && window.__qaManifestWritesBeforeFailure >= 0) {
+            if (window.__qaManifestWritesBeforeFailure === 0) {
+              throw new DOMException("Quota exceeded", "QuotaExceededError");
+            }
+            window.__qaManifestWritesBeforeFailure -= 1;
+          }
+          return originalSetItem.call(this, key, value);
+        };
+      },
+      initArg: { manifestKey: dataSafetyManifestKey },
+    });
+    const principalB = {
+      id: "qa-user-2",
+      email: "qa-2@footballscience.test",
+      role: "coach",
+      clubId: "club-b",
+      teamId: "team-b",
+    };
+    const valueA = JSON.stringify({ injuryPlans: [{ id: "must-survive" }] });
+
+    try {
+      const result = await tab.page.evaluate(({
+        key,
+        manifestKey,
+        manifestWritesBeforeFailure,
+        principalB,
+        principalScope,
+        valueA,
+      }) => {
+        const principalA = window.platformAuthStore.getCurrentUser();
+        window.__footballScienceCentralHydrating = true;
+        try {
+          window.localStorage.setItem(key, valueA);
+          const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+          manifest.activePrincipalScope = principalScope;
+          manifest.entries[key] = {
+            label: "Medical Room",
+            pendingCentralSync: true,
+            principalScope,
+            writes: 3,
+          };
+          window.localStorage.setItem(manifestKey, JSON.stringify(manifest));
+        } finally {
+          window.__footballScienceCentralHydrating = false;
+        }
+        window.platformAuthStore.writeUsers([principalA, principalB]);
+        window.__qaManifestWritesBeforeFailure = manifestWritesBeforeFailure;
+        window.platformAuthStore.setCurrentUser(principalB.id);
+        window.__qaManifestWritesBeforeFailure = -1;
+        const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+        return {
+          activeScope: manifest.activePrincipalScope,
+          currentUserId: window.platformAuthStore.getCurrentUser()?.id,
+          pending: manifest.entries?.[key]?.pendingCentralSync,
+          value: window.localStorage.getItem(key),
+        };
+      }, {
+        key: medicalTeamStateKey,
+        manifestKey: dataSafetyManifestKey,
+        manifestWritesBeforeFailure,
+        principalB,
+        principalScope: qaPrincipalScope,
+        valueA,
+      });
+
+      expect(result).toEqual({
+        activeScope: qaPrincipalScope,
+        currentUserId: qaUser.id,
+        pending: true,
+        value: valueA,
+      });
+    } finally {
+      await closeCentralStateContext(tab.context);
+    }
+  });
+}
+
+test("failed phase-two principal transition removes another principal's restored cache value", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const allSyncBodies = [];
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "principal-phase-two-cache-rollback", {
+    allSyncBodies,
+    initScript: ({ manifestKey }) => {
+      const originalSetItem = window.Storage.prototype.setItem;
+      window.__qaManifestWritesBeforeFailure = -1;
+      window.Storage.prototype.setItem = function failSelectedManifestWrite(key, value) {
+        if (key === manifestKey && window.__qaManifestWritesBeforeFailure >= 0) {
+          if (window.__qaManifestWritesBeforeFailure === 0) {
+            throw new DOMException("Quota exceeded", "QuotaExceededError");
+          }
+          window.__qaManifestWritesBeforeFailure -= 1;
+        }
+        return originalSetItem.call(this, key, value);
+      };
+    },
+    initArg: { manifestKey: dataSafetyManifestKey },
+  });
+  const principalB = {
+    id: "qa-user-2",
+    email: "qa-2@footballscience.test",
+    role: "coach",
+    clubId: "club-b",
+    teamId: "team-b",
+  };
+  const principalBScope = "qa-user-2:club-b:team-b";
+  const valueA = JSON.stringify({ events: [{ id: "owner-a-schedule" }] });
+  const valueB = JSON.stringify({ injuryPlans: [{ id: "owner-b-medical" }] });
+
+  try {
+    const result = await tab.page.evaluate(({
+      manifestKey,
+      medicalKey,
+      principalB,
+      principalBScope,
+      principalScope,
+      scheduleKey,
+      valueA,
+      valueB,
+    }) => {
+      const principalA = window.platformAuthStore.getCurrentUser();
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(scheduleKey, valueA);
+        window.localStorage.removeItem(medicalKey);
+        const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+        manifest.activePrincipalScope = principalScope;
+        manifest.entries = {
+          ...(manifest.entries || {}),
+          [scheduleKey]: {
+            label: "Schedule",
+            pendingCentralSync: true,
+            principalScope,
+            writes: 4,
+          },
+        };
+        delete manifest.entries[medicalKey];
+        manifest.principalPending = {
+          ...(manifest.principalPending || {}),
+          [principalBScope]: {
+            [medicalKey]: {
+              entry: {
+                label: "Medical Room",
+                pendingCentralSync: true,
+                principalScope: principalBScope,
+                writes: 3,
+              },
+              value: valueB,
+            },
+          },
+        };
+        window.localStorage.setItem(manifestKey, JSON.stringify(manifest));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      window.platformAuthStore.writeUsers([principalA, principalB]);
+      window.__qaManifestWritesBeforeFailure = 1;
+      window.platformAuthStore.setCurrentUser(principalB.id);
+      window.__qaManifestWritesBeforeFailure = -1;
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        activeScope: manifest.activePrincipalScope,
+        currentUserId: window.platformAuthStore.getCurrentUser()?.id,
+        medicalValue: window.localStorage.getItem(medicalKey),
+        quarantinedMedicalValue: manifest.principalPending?.[principalBScope]?.[medicalKey]?.value,
+        scheduleValue: window.localStorage.getItem(scheduleKey),
+      };
+    }, {
+      manifestKey: dataSafetyManifestKey,
+      medicalKey: medicalTeamStateKey,
+      principalB,
+      principalBScope,
+      principalScope: qaPrincipalScope,
+      scheduleKey: scheduleStateKey,
+      valueA,
+      valueB,
+    });
+
+    expect(result).toEqual({
+      activeScope: qaPrincipalScope,
+      currentUserId: qaUser.id,
+      medicalValue: null,
+      quarantinedMedicalValue: valueB,
+      scheduleValue: valueA,
+    });
+    expect(allSyncBodies.some((body) => String(body.value || "").includes("owner-b-medical"))).toBe(false);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("token refresh never commits a new principal session when pending-data quarantine fails", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const allSyncBodies = [];
+  const appStateRequests = [];
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "token-refresh-quarantine-failure", {
+    allSyncBodies,
+    appStateRequests,
+    initScript: ({ manifestKey }) => {
+      const originalSetItem = window.Storage.prototype.setItem;
+      window.__qaManifestWritesBeforeFailure = -1;
+      window.Storage.prototype.setItem = function failSelectedManifestWrite(key, value) {
+        if (key === manifestKey && window.__qaManifestWritesBeforeFailure >= 0) {
+          if (window.__qaManifestWritesBeforeFailure === 0) {
+            throw new DOMException("Quota exceeded", "QuotaExceededError");
+          }
+          window.__qaManifestWritesBeforeFailure -= 1;
+        }
+        return originalSetItem.call(this, key, value);
+      };
+    },
+    initArg: { manifestKey: dataSafetyManifestKey },
+  });
+  const valueA = JSON.stringify({ injuryPlans: [{ id: "token-owner-a" }] });
+
+  try {
+    const result = await tab.page.evaluate(({ key, manifestKey, principalScope, valueA }) => {
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, valueA);
+        const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+        manifest.activePrincipalScope = principalScope;
+        manifest.entries[key] = {
+          label: "Medical Room",
+          pendingCentralSync: true,
+          principalScope,
+          writes: 5,
+        };
+        window.localStorage.setItem(manifestKey, JSON.stringify(manifest));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      window.__qaSession = {
+        access_token: "qa-b-access-token",
+        user: {
+          id: "qa-user-2",
+          email: "qa-2@footballscience.test",
+          user_metadata: {
+            firstName: "Second",
+            lastName: "Coach",
+            clubId: "club-b",
+            teamId: "team-b",
+          },
+          app_metadata: { role: "coach", status: "active" },
+        },
+      };
+      window.__qaManifestWritesBeforeFailure = 0;
+      return window.platformAuthStore.refreshAccessToken().then(async (refreshedToken) => {
+        window.__qaManifestWritesBeforeFailure = -1;
+        return {
+          activeToken: await window.platformAuthStore.getAccessToken(),
+          currentUserId: window.platformAuthStore.getCurrentUser()?.id,
+          pendingValue: window.localStorage.getItem(key),
+          refreshedToken,
+          userIds: window.platformAuthStore.getUsers().map((user) => user.id),
+        };
+      });
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+      valueA,
+    });
+
+    expect(result).toEqual({
+      activeToken: "qa-access-token",
+      currentUserId: qaUser.id,
+      pendingValue: valueA,
+      refreshedToken: null,
+      userIds: [qaUser.id],
+    });
+    expect(appStateRequests.some((request) => request.authorization.includes("qa-b-access-token"))).toBe(false);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("server login never installs a new SDK session when principal transition fails", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const sessionB = createSecondaryQaSession();
+  const appStateRequests = [];
+  const authLoginRequests = [];
+  const valueA = JSON.stringify({ injuryPlans: [{ id: "server-login-owner-a" }] });
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "server-login-quarantine-failure", {
+    appStateRequests,
+    authLoginRequests,
+    authLoginSession: sessionB,
+    initScript: ({ manifestKey }) => {
+      const originalSetItem = window.Storage.prototype.setItem;
+      window.__qaFailNextManifestWrite = false;
+      window.Storage.prototype.setItem = function failNextManifestWrite(key, value) {
+        if (key === manifestKey && window.__qaFailNextManifestWrite) {
+          window.__qaFailNextManifestWrite = false;
+          throw new DOMException("Quota exceeded", "QuotaExceededError");
+        }
+        return originalSetItem.call(this, key, value);
+      };
+    },
+    initArg: { manifestKey: dataSafetyManifestKey },
+  });
+
+  try {
+    await tab.page.evaluate(({ key, manifestKey, principalScope, valueA }) => {
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, valueA);
+        const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+        manifest.activePrincipalScope = principalScope;
+        manifest.entries[key] = {
+          label: "Medical Room",
+          pendingCentralSync: true,
+          principalScope,
+          writes: 6,
+        };
+        window.localStorage.setItem(manifestKey, JSON.stringify(manifest));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      window.__qaFailNextManifestWrite = true;
+      document.getElementById("loginUsername").value = "qa-2@footballscience.test";
+      document.getElementById("loginPassword").value = "test-password";
+      document.getElementById("loginForm").requestSubmit();
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+      valueA,
+    });
+
+    await expect(tab.page.locator("#loginError")).toContainText("Local pending data could not be isolated safely");
+    const result = await tab.page.evaluate(async ({ key, manifestKey }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        activeToken: await window.platformAuthStore.getAccessToken(),
+        currentUserId: window.platformAuthStore.getCurrentUser()?.id,
+        pending: manifest.entries?.[key]?.pendingCentralSync,
+        pendingValue: window.localStorage.getItem(key),
+        sdkSessionUserId: window.__qaSession?.user?.id || "",
+        setSessionCalls: window.__qaSetSessionCalls.length,
+        signOutScopes: [...window.__qaSignOutScopes],
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey });
+
+    expect(result).toEqual({
+      activeToken: "qa-access-token",
+      currentUserId: qaUser.id,
+      pending: true,
+      pendingValue: valueA,
+      sdkSessionUserId: qaUser.id,
+      setSessionCalls: 0,
+      signOutScopes: [],
+    });
+    expect(authLoginRequests).toHaveLength(1);
+    expect(appStateRequests.some((request) => request.authorization.includes(sessionB.access_token))).toBe(false);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("late server session installation is rejected after a bounded timeout", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const sessionB = createSecondaryQaSession();
+  const appStateRequests = [];
+  const authLoginRequests = [];
+  const valueA = JSON.stringify({ injuryPlans: [{ id: "late-session-owner-a" }] });
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "late-server-session-rejection", {
+    appStateRequests,
+    authLoginRequests,
+    authLoginSession: sessionB,
+    authSetSessionTimeoutMs: 25,
+    profileUsersByAccessToken: { [sessionB.access_token]: sessionB.user },
+  });
+
+  try {
+    await tab.page.evaluate(({ key, manifestKey, principalScope, sessionB, valueA }) => {
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, valueA);
+        const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+        manifest.activePrincipalScope = principalScope;
+        manifest.entries[key] = {
+          label: "Medical Room",
+          pendingCentralSync: true,
+          principalScope,
+          writes: 7,
+        };
+        window.localStorage.setItem(manifestKey, JSON.stringify(manifest));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      window.__qaSetSessionDelayMs = 100;
+      window.__qaSetSessionResolvedSession = sessionB;
+      window.__qaGetSessionDelayMs = 150;
+      window.__qaGetSessionResolvedSession = sessionB;
+      window.__qaStartDelayedGetSessionDuringSetSession = true;
+      window.__qaLoginErrorMessages = [];
+      const loginError = document.getElementById("loginError");
+      new MutationObserver(() => {
+        const message = String(loginError?.textContent || "").trim();
+        if (message) {
+          window.__qaLoginErrorMessages.push(message);
+        }
+      }).observe(loginError, { childList: true, characterData: true, subtree: true });
+      window.__qaAfterSetSessionAuthEvent = async () => {
+        document.getElementById("loginUsername").value = "qa-3@footballscience.test";
+        document.getElementById("loginPassword").value = "test-password";
+        document.getElementById("loginForm").dispatchEvent(new Event("submit", {
+          bubbles: true,
+          cancelable: true,
+        }));
+        await new Promise((resolve) => window.setTimeout(resolve, 25));
+      };
+      document.getElementById("loginUsername").value = "qa-2@footballscience.test";
+      document.getElementById("loginPassword").value = "test-password";
+      document.getElementById("loginForm").requestSubmit();
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+      sessionB,
+      valueA,
+    });
+
+    await expect.poll(() => tab.page.evaluate(() => ({
+      currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+      sdkSessionUserId: window.__qaSession?.user?.id || "",
+      setSessionCalls: window.__qaSetSessionCalls.length,
+      signOutPending: Boolean(window.__qaSignOutPending),
+      visiblePrincipalId: window.platformSession?.id || "",
+    }))).toEqual({
+      currentUserId: "",
+      sdkSessionUserId: "",
+      setSessionCalls: 1,
+      signOutPending: false,
+      visiblePrincipalId: "",
+    });
+    const finalState = await tab.page.evaluate(async (manifestKey) => {
+      const lateToken = await window.__qaLateGetSessionTokenPromise;
+      return {
+        currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+        lateToken,
+        loginErrorMessages: [...window.__qaLoginErrorMessages],
+        manifest: JSON.parse(window.localStorage.getItem(manifestKey) || "{}"),
+        sdkSessionUserId: window.__qaSession?.user?.id || "",
+        signOutScopes: [...window.__qaSignOutScopes],
+      };
+    }, dataSafetyManifestKey);
+    const manifest = finalState.manifest;
+    expect(manifest.principalPending?.[qaPrincipalScope]?.[medicalTeamStateKey]?.value).toBe(valueA);
+    expect(finalState.signOutScopes.length).toBeGreaterThanOrEqual(1);
+    expect(finalState.signOutScopes.every((scope) => scope === "local")).toBe(true);
+    expect(finalState.lateToken).toBeNull();
+    expect(finalState.currentUserId).toBe("");
+    expect(finalState.sdkSessionUserId).toBe("");
+    expect(finalState.loginErrorMessages.some((message) => message.includes("local session could not be saved safely"))).toBe(true);
+    expect(finalState.loginErrorMessages.some((message) => message.includes("still being cleaned up"))).toBe(true);
+    expect(authLoginRequests).toHaveLength(1);
+    expect(appStateRequests.some((request) => request.authorization.includes(sessionB.access_token))).toBe(false);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("existing SDK session failure signs out locally and quarantines the previous principal", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const sessionB = createSecondaryQaSession();
+  const appStateRequests = [];
+  const valueA = JSON.stringify({ injuryPlans: [{ id: "existing-session-owner-a" }] });
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "existing-session-quarantine-failure", {
+    appStateRequests,
+    expectAuthFailure: true,
+    sessionUser: sessionB.user,
+    initScript: ({ key, manifestKey, principalScope, valueA }) => {
+      const originalSetItem = window.Storage.prototype.setItem;
+      window.localStorage.setItem(key, valueA);
+      window.localStorage.setItem(manifestKey, JSON.stringify({
+        version: 1,
+        activePrincipalScope: principalScope,
+        entries: {
+          [key]: {
+            label: "Medical Room",
+            pendingCentralSync: true,
+            principalScope,
+            writes: 7,
+          },
+        },
+      }));
+      window.__qaSignOutDelayMs = 50;
+      window.__qaFailNextManifestWrite = true;
+      window.Storage.prototype.setItem = function failNextManifestWrite(storageKey, value) {
+        if (storageKey === manifestKey && window.__qaFailNextManifestWrite) {
+          window.__qaFailNextManifestWrite = false;
+          throw new DOMException("Quota exceeded", "QuotaExceededError");
+        }
+        return originalSetItem.call(this, storageKey, value);
+      };
+    },
+    initArg: {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+      valueA,
+    },
+  });
+
+  try {
+    await tab.page.evaluate(() => window.platformAuthReadyPromise);
+    const result = await tab.page.evaluate(({ key, manifestKey, principalScope }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+        quarantinedValue: manifest.principalPending?.[principalScope]?.[key]?.value || "",
+        sdkSessionUserId: window.__qaSession?.user?.id || "",
+        signOutPending: Boolean(window.__qaSignOutPending),
+        signOutScopes: [...window.__qaSignOutScopes],
+      };
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+    });
+
+    expect(result).toEqual({
+      currentUserId: "",
+      quarantinedValue: valueA,
+      sdkSessionUserId: "",
+      signOutPending: false,
+      signOutScopes: ["local"],
+    });
+    expect(appStateRequests.some((request) => request.authorization.includes(sessionB.access_token))).toBe(false);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("auth state change failure cannot show the previous principal under the new SDK session", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const sessionB = createSecondaryQaSession();
+  const appStateRequests = [];
+  const valueA = JSON.stringify({ injuryPlans: [{ id: "auth-event-owner-a" }] });
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "auth-event-quarantine-failure", {
+    appStateRequests,
+    initScript: ({ manifestKey }) => {
+      const originalSetItem = window.Storage.prototype.setItem;
+      window.__qaFailNextManifestWrite = false;
+      window.Storage.prototype.setItem = function failNextManifestWrite(key, value) {
+        if (key === manifestKey && window.__qaFailNextManifestWrite) {
+          window.__qaFailNextManifestWrite = false;
+          throw new DOMException("Quota exceeded", "QuotaExceededError");
+        }
+        return originalSetItem.call(this, key, value);
+      };
+    },
+    initArg: { manifestKey: dataSafetyManifestKey },
+  });
+
+  try {
+    const result = await tab.page.evaluate(async ({ key, manifestKey, principalScope, sessionB, valueA }) => {
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, valueA);
+        const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+        manifest.activePrincipalScope = principalScope;
+        manifest.entries[key] = {
+          label: "Medical Room",
+          pendingCentralSync: true,
+          principalScope,
+          writes: 8,
+        };
+        window.localStorage.setItem(manifestKey, JSON.stringify(manifest));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      window.__qaSession = sessionB;
+      window.__qaSignOutDelayMs = 50;
+      window.__qaFailNextManifestWrite = true;
+      await window.__qaAuthStateCallbacks[0]("SIGNED_IN", sessionB);
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+        quarantinedValue: manifest.principalPending?.[principalScope]?.[key]?.value || "",
+        sdkSessionUserId: window.__qaSession?.user?.id || "",
+        signOutPending: Boolean(window.__qaSignOutPending),
+        signOutScopes: [...window.__qaSignOutScopes],
+      };
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+      sessionB,
+      valueA,
+    });
+
+    expect(result).toEqual({
+      currentUserId: "",
+      quarantinedValue: valueA,
+      sdkSessionUserId: "",
+      signOutPending: false,
+      signOutScopes: ["local"],
+    });
+    expect(appStateRequests.some((request) => request.authorization.includes(sessionB.access_token))).toBe(false);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("central writes require a matching key and a strictly advancing durable revision", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const scheduleValue = JSON.stringify({ events: [] });
+  let acknowledgementMode = "passthrough";
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: { [scheduleStateKey]: scheduleValue },
+    metadataEntries: { [scheduleStateKey]: createMetadata(4, scheduleValue) },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "strict-central-ack", {
+    appStateWriteHandler: async ({ body, route }) => {
+      if (body.key !== scheduleStateKey) {
+        return false;
+      }
+      if (acknowledgementMode === "passthrough") {
+        return false;
+      }
+      const baseRevision = Number(body?.metadata?.baseRevision ?? body?.baseRevision);
+      const payload = {
+        ok: true,
+        key: acknowledgementMode === "wrong-key" ? medicalTeamStateKey : scheduleStateKey,
+        value: String(body.value || ""),
+      };
+      if (acknowledgementMode === "equal") {
+        payload.revision = baseRevision;
+        payload.metadata = { revision: baseRevision };
+      } else if (acknowledgementMode === "lower") {
+        payload.revision = Math.max(0, baseRevision - 1);
+        payload.metadata = { revision: Math.max(0, baseRevision - 1) };
+      } else if (acknowledgementMode === "wrong-key" || acknowledgementMode === "valid") {
+        payload.revision = baseRevision + 1;
+        payload.metadata = { revision: baseRevision + 1 };
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(payload),
+      });
+      return true;
+    },
+  });
+
+  try {
+    const baseRevision = await tab.page.evaluate((key) => (
+      window.footballScienceCentralState.getStatus().metadata[key]?.revision
+    ), scheduleStateKey);
+    for (const mode of ["missing", "equal", "lower", "wrong-key"]) {
+      acknowledgementMode = mode;
+      const result = await tab.page.evaluate(({ baseRevision, key, value }) => (
+        window.footballScienceCentralState.syncKey(key, value, { baseRevision })
+      ), { baseRevision, key: scheduleStateKey, value: JSON.stringify({ events: [{ id: mode }] }) });
+      expect(result).toMatchObject({ ok: false, status: 409, conflict: true });
+      expect(await tab.page.evaluate((key) => (
+        window.footballScienceCentralState.getStatus().metadata[key]?.revision
+      ), scheduleStateKey)).toBe(baseRevision);
+    }
+
+    acknowledgementMode = "valid";
+    const validResult = await tab.page.evaluate(({ baseRevision, key, value }) => (
+      window.footballScienceCentralState.syncKey(key, value, { baseRevision })
+    ), { baseRevision, key: scheduleStateKey, value: JSON.stringify({ events: [{ id: "valid" }] }) });
+    expect(validResult).toMatchObject({ ok: true, key: scheduleStateKey, revision: baseRevision + 1 });
+    expect(await tab.page.evaluate((key) => (
+      window.footballScienceCentralState.getStatus().metadata[key]?.revision
+    ), scheduleStateKey)).toBe(baseRevision + 1);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
 
 test("fresh server profile restores admin access when the stored Supabase session has a stale role", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");
@@ -389,18 +1368,20 @@ async function bootPendingMedicalHydration(browser, baseURL, accessMode, options
     sessionUser: coachUser,
     profileUser: coachUser,
     allSyncBodies,
-    initScript: ({ key, value, manifestKey, stagePendingOnBoot }) => {
+    initScript: ({ key, value, manifestKey, principalScope, stagePendingOnBoot }) => {
       if (!stagePendingOnBoot) {
         return;
       }
       window.localStorage.setItem(key, value);
       window.localStorage.setItem(manifestKey, JSON.stringify({
         version: 1,
+        activePrincipalScope: principalScope,
         entries: {
           [key]: {
             label: "Medical Room",
             updatedAt: "2026-08-23T10:00:00.000Z",
             pendingCentralSync: true,
+            principalScope,
           },
         },
       }));
@@ -409,6 +1390,7 @@ async function bootPendingMedicalHydration(browser, baseURL, accessMode, options
       key: medicalTeamStateKey,
       value: JSON.stringify(localMedicalState),
       manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
       stagePendingOnBoot: !options.stagePendingAfterBoot,
     },
   });
@@ -520,12 +1502,13 @@ test("Medical hydration acknowledges shared data when only local view fields dif
     };
     allSyncBodies.length = 0;
 
-    await tab.page.evaluate(async ({ key, manifestKey, value }) => {
+    await tab.page.evaluate(async ({ key, manifestKey, principalScope, value }) => {
       window.__footballScienceCentralHydrating = true;
       try {
         window.localStorage.setItem(key, value);
         window.localStorage.setItem(manifestKey, JSON.stringify({
           version: 1,
+          activePrincipalScope: principalScope,
           entries: {
             [key]: {
               label: "Medical Room",
@@ -533,6 +1516,7 @@ test("Medical hydration acknowledges shared data when only local view fields dif
               writes: 1,
               updatedAt: "2026-08-23T10:01:00.000Z",
               pendingCentralSync: true,
+              principalScope,
             },
           },
         }));
@@ -543,6 +1527,7 @@ test("Medical hydration acknowledges shared data when only local view fields dif
     }, {
       key: medicalTeamStateKey,
       manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
       value: JSON.stringify({
         ...reverseObjectKeyOrder(JSON.parse(stableSharedMedicalValue)),
         selectedDate: "2026-08-24",
@@ -573,7 +1558,7 @@ test("Medical hydration acknowledges shared data when only local view fields dif
 
     centralStore.writeAccess[medicalTeamStateKey] = false;
     allSyncBodies.length = 0;
-    await tab.page.evaluate(async ({ key, manifestKey }) => {
+    await tab.page.evaluate(async ({ key, manifestKey, principalScope }) => {
       const state = JSON.parse(window.localStorage.getItem(key) || "{}");
       state.injuryPlans = [
         ...(state.injuryPlans || []),
@@ -589,6 +1574,7 @@ test("Medical hydration acknowledges shared data when only local view fields dif
         window.localStorage.setItem(key, JSON.stringify(state));
         window.localStorage.setItem(manifestKey, JSON.stringify({
           version: 1,
+          activePrincipalScope: principalScope,
           entries: {
             [key]: {
               label: "Medical Room",
@@ -596,6 +1582,7 @@ test("Medical hydration acknowledges shared data when only local view fields dif
               writes: 2,
               updatedAt: "2026-08-23T10:02:00.000Z",
               pendingCentralSync: true,
+              principalScope,
             },
           },
         }));
@@ -603,7 +1590,11 @@ test("Medical hydration acknowledges shared data when only local view fields dif
         window.__footballScienceCentralHydrating = false;
       }
       await window.footballScienceCentralState.hydrate({ forceApply: true });
-    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey });
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+    });
 
     expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(0);
     expect(await tab.page.evaluate(({ key, manifestKey }) => {
@@ -832,7 +1823,7 @@ test("Medical hydration cache restoration never overwrites a newer pending gener
       moduleId: "medical-team",
       mergePolicy: "record-timestamp-merge",
     };
-    await tab.page.evaluate(async ({ key, manifestKey }) => {
+    await tab.page.evaluate(async ({ key, manifestKey, principalScope }) => {
       const initialState = JSON.parse(window.footballScienceDataSafety.collect()[key] || "{}");
       initialState.injuryPlans = [{
         id: "pending-plan-a",
@@ -847,6 +1838,7 @@ test("Medical hydration cache restoration never overwrites a newer pending gener
         window.footballScienceCentralState.setCachedValue(key, pendingValue);
         window.localStorage.setItem(manifestKey, JSON.stringify({
           version: 1,
+          activePrincipalScope: principalScope,
           entries: {
             [key]: {
               label: "Medical Room",
@@ -856,6 +1848,7 @@ test("Medical hydration cache restoration never overwrites a newer pending gener
               updatedAt: "2026-08-23T10:00:00.000Z",
               deletedAt: "",
               pendingCentralSync: true,
+              principalScope,
               serverRevision: 2,
             },
           },
@@ -890,6 +1883,7 @@ test("Medical hydration cache restoration never overwrites a newer pending gener
           window.footballScienceCentralState.setCachedValue(key, newerValue);
           patchedSetItem.call(this, manifestKey, JSON.stringify({
             version: 1,
+            activePrincipalScope: principalScope,
             entries: {
               [key]: {
                 label: "Medical Room",
@@ -899,6 +1893,7 @@ test("Medical hydration cache restoration never overwrites a newer pending gener
                 updatedAt: "2026-08-23T10:01:00.000Z",
                 deletedAt: "",
                 pendingCentralSync: true,
+                principalScope,
                 serverRevision: 7,
               },
             },
@@ -911,7 +1906,11 @@ test("Medical hydration cache restoration never overwrites a newer pending gener
       } finally {
         window.Storage.prototype.setItem = patchedSetItem;
       }
-    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey });
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+    });
 
     expect(await tab.page.evaluate(({ key, manifestKey }) => {
       const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
@@ -1053,11 +2052,18 @@ test("empty central state never seeds platform structure for delegated Player Pr
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "delegated-structure-seed-guard", {
     allSyncBodies,
-    initScript: ({ revisionKey, revisionValue, structureKey }) => {
+    initScript: ({ manifestKey, principalScope, revisionKey, revisionValue, structureKey }) => {
       window.localStorage.setItem(revisionKey, revisionValue);
       window.localStorage.setItem(structureKey, JSON.stringify({ clubs: [{ id: "club-1", name: "QA FC" }] }));
+      window.localStorage.setItem(manifestKey, JSON.stringify({
+        version: 1,
+        activePrincipalScope: principalScope,
+        entries: {},
+      }));
     },
     initArg: {
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
       revisionKey: revisionStateKey,
       revisionValue: initialValue,
       structureKey: platformStructureStateKey,
@@ -1131,12 +2137,13 @@ test("central hydration does not overwrite pending local Session Planner data wi
   };
   const localValue = JSON.stringify(localSessionPlannerState);
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "session-pending-local", {
-    initScript: ({ key, value, manifestKey }) => {
+    initScript: ({ key, value, manifestKey, principalScope }) => {
       window.localStorage.setItem(key, value);
       window.localStorage.setItem(
         manifestKey,
         JSON.stringify({
           version: 1,
+          activePrincipalScope: principalScope,
           entries: {
             [key]: {
               label: "Session Planner",
@@ -1145,12 +2152,18 @@ test("central hydration does not overwrite pending local Session Planner data wi
               size: value.length,
               writes: 1,
               pendingCentralSync: true,
+              principalScope,
             },
           },
         })
       );
     },
-    initArg: { key: sessionPlannerStateKey, value: localValue, manifestKey: dataSafetyManifestKey },
+    initArg: {
+      key: sessionPlannerStateKey,
+      value: localValue,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+    },
   });
 
   try {
@@ -1184,25 +2197,32 @@ test("central hydration preserves local value when central revision is stale aga
     metadata: createMetadata(2, staleCentralValue),
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "revision-guard-stale", {
-    initScript: ({ key, value, manifestKey }) => {
+    initScript: ({ key, value, manifestKey, principalScope }) => {
       window.localStorage.setItem(key, value);
       window.localStorage.setItem(
         manifestKey,
         JSON.stringify({
           version: 1,
+          activePrincipalScope: principalScope,
           entries: {
             [key]: {
               label: "Simulator Sequence",
               updatedAt: "2026-05-07T12:10:00.000Z",
               hash: "hash-local-value",
               writes: 1,
+              principalScope,
               serverRevision: 4,
             },
           },
         })
       );
     },
-    initArg: { key: revisionStateKey, value: localValue, manifestKey: dataSafetyManifestKey },
+    initArg: {
+      key: revisionStateKey,
+      value: localValue,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+    },
   });
 
   try {
@@ -1305,12 +2325,13 @@ test("fresh Session Planner hydration recovers from a higher stale browser revis
   };
   const localValue = JSON.stringify(localSessionPlannerState);
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "session-stale-browser-revision", {
-    initScript: ({ key, value, manifestKey }) => {
+    initScript: ({ key, value, manifestKey, principalScope }) => {
       window.localStorage.setItem(key, value);
       window.localStorage.setItem(
         manifestKey,
         JSON.stringify({
           version: 1,
+          activePrincipalScope: principalScope,
           entries: {
             [key]: {
               label: "Session Planner",
@@ -1320,12 +2341,18 @@ test("fresh Session Planner hydration recovers from a higher stale browser revis
               writes: 1,
               serverRevision: 1407,
               pendingCentralSync: false,
+              principalScope,
             },
           },
         })
       );
     },
-    initArg: { key: sessionPlannerStateKey, value: localValue, manifestKey: dataSafetyManifestKey },
+    initArg: {
+      key: sessionPlannerStateKey,
+      value: localValue,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+    },
   });
 
   try {
@@ -1568,11 +2595,18 @@ test("central hydration keeps Session Planner and Medical view dates local while
     },
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "local-view-dates", {
-    initScript: ({ sessionKey, sessionValue, medicalKey, medicalValue }) => {
+    initScript: ({ manifestKey, principalScope, sessionKey, sessionValue, medicalKey, medicalValue }) => {
       window.localStorage.setItem(sessionKey, sessionValue);
       window.localStorage.setItem(medicalKey, medicalValue);
+      window.localStorage.setItem(manifestKey, JSON.stringify({
+        version: 1,
+        activePrincipalScope: principalScope,
+        entries: {},
+      }));
     },
     initArg: {
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
       sessionKey: sessionPlannerStateKey,
       sessionValue: JSON.stringify(localSessionPlannerState),
       medicalKey: medicalTeamStateKey,
@@ -1709,16 +2743,18 @@ test("Medical hydration cannot replace a locally confirmed newer recommendation 
     },
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "medical-stale-revision-guard", {
-    initScript: ({ key, value, manifestKey }) => {
+    initScript: ({ key, value, manifestKey, principalScope }) => {
       window.localStorage.setItem(key, value);
       window.localStorage.setItem(
         manifestKey,
         JSON.stringify({
           lastCentralError: "Stale medical data needs attention.",
+          activePrincipalScope: principalScope,
           entries: {
             [key]: {
               label: "Medical Room",
               pendingCentralSync: false,
+              principalScope,
               serverRevision: 5,
               updatedAt: "2026-07-20T10:05:00.000Z",
             },
@@ -1730,6 +2766,7 @@ test("Medical hydration cannot replace a locally confirmed newer recommendation 
       key: medicalTeamStateKey,
       value: JSON.stringify(localMedicalState),
       manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
     },
   });
 
@@ -1793,12 +2830,13 @@ test("central hydration acknowledges matching pending values across different ha
     },
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "pending-value-ack", {
-    initScript: ({ key, value, manifestKey }) => {
+    initScript: ({ key, value, manifestKey, principalScope }) => {
       window.localStorage.setItem(key, value);
       window.localStorage.setItem(
         manifestKey,
         JSON.stringify({
           version: 1,
+          activePrincipalScope: principalScope,
           entries: {
             [key]: {
               label: "Simulator Sequence",
@@ -1806,12 +2844,18 @@ test("central hydration acknowledges matching pending values across different ha
               hash: "fnv-local-hash",
               writes: 1,
               pendingCentralSync: true,
+              principalScope,
             },
           },
         })
       );
     },
-    initArg: { key: revisionStateKey, value: matchingValue, manifestKey: dataSafetyManifestKey },
+    initArg: {
+      key: revisionStateKey,
+      value: matchingValue,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+    },
   });
 
   try {
@@ -1931,10 +2975,20 @@ test("central Schedule hydration preserves the local selected day", async ({ bro
     },
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "schedule-local-date", {
-    initScript: ({ key, value }) => {
+    initScript: ({ key, manifestKey, principalScope, value }) => {
       window.localStorage.setItem(key, value);
+      window.localStorage.setItem(manifestKey, JSON.stringify({
+        version: 1,
+        activePrincipalScope: principalScope,
+        entries: {},
+      }));
     },
-    initArg: { key: scheduleStateKey, value: JSON.stringify(localScheduleState) },
+    initArg: {
+      key: scheduleStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+      value: JSON.stringify(localScheduleState),
+    },
   });
 
   try {
@@ -2025,10 +3079,20 @@ test("central Periodization hydration preserves the local selected day", async (
     },
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "periodization-local-date", {
-    initScript: ({ key, value }) => {
+    initScript: ({ key, manifestKey, principalScope, value }) => {
       window.localStorage.setItem(key, value);
+      window.localStorage.setItem(manifestKey, JSON.stringify({
+        version: 1,
+        activePrincipalScope: principalScope,
+        entries: {},
+      }));
     },
-    initArg: { key: periodizationStateKey, value: JSON.stringify(localPeriodizationState) },
+    initArg: {
+      key: periodizationStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+      value: JSON.stringify(localPeriodizationState),
+    },
   });
 
   try {
@@ -2144,22 +3208,28 @@ test("central Medical hydration preserves pending local availability plans", asy
     },
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "medical-pending-plan", {
-    initScript: ({ key, value }) => {
+    initScript: ({ key, principalScope, value }) => {
       window.localStorage.setItem(key, value);
       window.localStorage.setItem(
         "football-data-safety-v1",
         JSON.stringify({
+          activePrincipalScope: principalScope,
           entries: {
             [key]: {
               label: "Medical Room",
               pendingCentralSync: true,
+              principalScope,
               updatedAt: "2026-05-07T12:05:30.000Z",
             },
           },
         })
       );
     },
-    initArg: { key: medicalTeamStateKey, value: JSON.stringify(localMedicalState) },
+    initArg: {
+      key: medicalTeamStateKey,
+      principalScope: qaPrincipalScope,
+      value: JSON.stringify(localMedicalState),
+    },
   });
 
   try {
@@ -2270,12 +3340,13 @@ test("failed Medical hydration writeback preserves the pending generation until 
     allSyncBodies.length = 0;
     testWritebackActive = true;
 
-    const firstHydrationResult = await tab.page.evaluate(async ({ key, manifestKey, value }) => {
+    const firstHydrationResult = await tab.page.evaluate(async ({ key, manifestKey, principalScope, value }) => {
       window.__footballScienceCentralHydrating = true;
       try {
         window.localStorage.setItem(key, value);
         window.localStorage.setItem(manifestKey, JSON.stringify({
           version: 1,
+          activePrincipalScope: principalScope,
           entries: {
             [key]: {
               label: "Medical Room",
@@ -2284,6 +3355,7 @@ test("failed Medical hydration writeback preserves the pending generation until 
               updatedAt: "2026-05-07T12:05:30.000Z",
               deletedAt: "",
               pendingCentralSync: true,
+              principalScope,
               serverRevision: 3,
             },
           },
@@ -2295,6 +3367,7 @@ test("failed Medical hydration writeback preserves the pending generation until 
     }, {
       key: medicalTeamStateKey,
       manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
       value: JSON.stringify(testLocalMedicalState),
     });
 

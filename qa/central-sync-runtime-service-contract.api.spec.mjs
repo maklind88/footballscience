@@ -25,6 +25,7 @@ function createServiceHarness(options = {}) {
   let lastError = String(options.lastError || "");
   let hydrationError = String(options.hydrationError || "");
   let revision = Number.isInteger(Number(options.revision)) ? Number(options.revision) : 7;
+  let currentUser = options.currentUser ?? { id: "coach-1", clubId: "club-1", teamId: "team-1" };
   let syncResultIndex = 0;
   const win = {
     footballScienceCentralState: {
@@ -81,7 +82,7 @@ function createServiceHarness(options = {}) {
   };
   const service = createCentralSyncRuntimeService({
     getActiveWorkspaceId: () => options.activeWorkspaceId || "session-planner",
-    getCurrentUser: () => options.currentUser ?? { id: "coach-1" },
+    getCurrentUser: () => currentUser,
     getDataSafetyNow: () => "2026-06-08T12:00:00.000Z",
     getStorageLabel: (key) => `Label ${key}`,
     handleSyncedStateValue: (key, value) => handledKeys.push({ key, value }),
@@ -127,6 +128,9 @@ function createServiceHarness(options = {}) {
     },
     setHydrationError: (nextValue) => {
       hydrationError = String(nextValue || "");
+    },
+    setCurrentUser: (nextUser) => {
+      currentUser = nextUser;
     },
     setLastError: (nextValue) => {
       lastError = String(nextValue || "");
@@ -203,6 +207,7 @@ test("central sync runtime keeps reconcile-blocked automatic retries pending unt
   harness.manifest.entries[key] = {
     label: "Medical Room",
     pendingCentralSync: true,
+    principalScope: "coach-1:club-1:team-1",
     serverRevision: 7,
   };
 
@@ -230,6 +235,7 @@ test("central sync runtime stops an automatic retry when access is revoked befor
   harness.manifest.entries[key] = {
     label: "Medical Room",
     pendingCentralSync: true,
+    principalScope: "coach-1:club-1:team-1",
   };
 
   harness.service.retryCentral(() => harness.manifest);
@@ -238,6 +244,57 @@ test("central sync runtime stops an automatic retry when access is revoked befor
 
   expect(harness.syncCalls).toEqual([]);
   expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+});
+
+test("central sync runtime rechecks automatic retry eligibility immediately before send", async () => {
+  const key = "football-medical-team-v1";
+  const autoRetryAccess = { [key]: true };
+  const harness = createServiceHarness({ autoRetryAccess });
+  harness.rawValues.set(key, "{\"injuryPlans\":[{\"id\":\"pending-b\"}]}");
+  harness.manifest.entries[key] = {
+    label: "Medical Room",
+    pendingCentralSync: true,
+    principalScope: "coach-1:club-1:team-1",
+    serverRevision: 7,
+  };
+
+  harness.service.retryCentral(() => harness.manifest);
+  autoRetryAccess[key] = false;
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([]);
+  expect(harness.manifest.entries[key]).toMatchObject({
+    pendingCentralSync: true,
+    principalScope: "coach-1:club-1:team-1",
+    serverRevision: 7,
+  });
+});
+
+test("central sync runtime never sends or acknowledges a queued generation under another principal", async () => {
+  const key = "football-medical-team-v1";
+  let resolveWrite;
+  const deferredWrite = new Promise((resolve) => { resolveWrite = resolve; });
+  const harness = createServiceHarness({
+    syncKey: async () => deferredWrite,
+  });
+  const value = "{\"injuryPlans\":[{\"id\":\"principal-a\"}]}";
+
+  harness.service.queueCentralStateWrite(key, value);
+  const flush = harness.service.flushCentralStateWrites();
+  await expect.poll(() => harness.syncCalls.length).toBe(1);
+  harness.setCurrentUser({ id: "coach-2", clubId: "club-2", teamId: "team-2" });
+  resolveWrite({ ok: true, key, value, revision: 8 });
+  await flush;
+
+  expect(harness.manifest.entries[key]).toMatchObject({
+    pendingCentralSync: true,
+    principalScope: "coach-1:club-1:team-1",
+  });
+  expect(harness.syncStatuses).not.toContainEqual([key, "saved", "Saved"]);
+
+  harness.service.retryCentral(() => harness.manifest);
+  await harness.service.flushCentralStateWrites();
+  expect(harness.syncCalls).toHaveLength(1);
 });
 
 test("central sync runtime sends an explicit write to the backend even when cached access is false", async () => {
@@ -326,6 +383,107 @@ test("central sync runtime drains a newer queued generation after an in-flight a
   });
 });
 
+test("central sync runtime schedules one bounded drain when A fails while B is already queued", async () => {
+  const key = "football-schedule-v1";
+  let resolveFirstWrite;
+  const firstWrite = new Promise((resolve) => { resolveFirstWrite = resolve; });
+  const harness = createServiceHarness({
+    syncKey: async ({ value, syncCalls }) => {
+      if (syncCalls.length === 1) {
+        return firstWrite;
+      }
+      return { ok: true, key, value, revision: 8 };
+    },
+  });
+
+  harness.service.queueCentralStateWrite(key, "A");
+  const firstFlush = harness.service.flushCentralStateWrites();
+  await expect.poll(() => harness.syncCalls.length).toBe(1);
+  harness.service.queueCentralStateWrite(key, "B");
+  const bTimer = Array.from(harness.timers.values()).at(-1);
+  await bTimer();
+
+  resolveFirstWrite({ ok: false, status: 0, reason: "Network unavailable." });
+  await firstFlush;
+
+  const retryTimer = Array.from(harness.timers.values()).at(-1);
+  expect(typeof retryTimer).toBe("function");
+  expect(harness.timers.size).toBeGreaterThanOrEqual(2);
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+
+  await retryTimer();
+  expect(harness.syncCalls.map(({ value }) => value)).toEqual(["A", "B"]);
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: false });
+});
+
+test("central sync runtime gives B its own bounded attempt after A exhausts two network attempts", async () => {
+  const keyA = "football-schedule-v1";
+  const keyB = "football-medical-team-v1";
+  let aAttempts = 0;
+  const harness = createServiceHarness({
+    syncKey: async ({ key, value }) => {
+      if (key === keyA) {
+        aAttempts += 1;
+        return { ok: false, status: 0, reason: `Network failure ${aAttempts}` };
+      }
+      return { ok: true, key, value, revision: 8 };
+    },
+  });
+
+  harness.service.queueCentralStateWrite(keyA, "A");
+  harness.service.queueCentralStateWrite(keyB, "B");
+  await harness.service.flushCentralStateWrites();
+  const retryA = Array.from(harness.timers.values()).at(-1);
+  await retryA();
+  const drainB = Array.from(harness.timers.values()).at(-1);
+  await drainB();
+
+  expect(harness.syncCalls.filter((call) => call.key).map(({ key }) => key)).toEqual([keyA, keyA, keyB]);
+  expect(harness.manifest.entries[keyA]).toMatchObject({ pendingCentralSync: true });
+  expect(harness.manifest.entries[keyB]).toMatchObject({ pendingCentralSync: false });
+});
+
+test("central sync runtime keeps manifest retry intent sticky until A, B, and C are drained", async () => {
+  const activeKey = "football-schedule-v1";
+  const pendingKey = "football-medical-team-v1";
+  let resolveA;
+  const aWrite = new Promise((resolve) => { resolveA = resolve; });
+  const harness = createServiceHarness({
+    syncKey: async ({ key, value, syncCalls }) => {
+      if (syncCalls.length === 1) {
+        return aWrite;
+      }
+      return { ok: true, key, value, revision: key === activeKey ? 9 : 8 };
+    },
+  });
+  harness.rawValues.set(pendingKey, "C");
+  harness.manifest.entries[pendingKey] = {
+    label: "Medical Room",
+    pendingCentralSync: true,
+    principalScope: "coach-1:club-1:team-1",
+  };
+
+  harness.service.queueCentralStateWrite(activeKey, "A");
+  const aFlush = harness.service.flushCentralStateWrites();
+  await expect.poll(() => harness.syncCalls.length).toBe(1);
+  harness.service.queueCentralStateWrite(activeKey, "B");
+  harness.service.retryCentral(() => harness.manifest);
+
+  resolveA({ ok: true, key: activeKey, value: "A", revision: 8 });
+  await aFlush;
+  const bFlush = Array.from(harness.timers.values()).at(-1);
+  await bFlush();
+  const cFlush = Array.from(harness.timers.values()).at(-1);
+  await cFlush();
+
+  expect(harness.syncCalls.filter((call) => call.key).map(({ key, value }) => [key, value])).toEqual([
+    [activeKey, "A"],
+    [activeKey, "B"],
+    [pendingKey, "C"],
+  ]);
+  expect(harness.manifest.entries[pendingKey]).toMatchObject({ pendingCentralSync: false });
+});
+
 test("central sync runtime revisits a ready-event manifest retry after an unrelated write finishes", async () => {
   const activeKey = "football-schedule-v1";
   const pendingKey = "football-medical-team-v1";
@@ -343,6 +501,7 @@ test("central sync runtime revisits a ready-event manifest retry after an unrela
   harness.manifest.entries[pendingKey] = {
     label: "Medical Room",
     pendingCentralSync: true,
+    principalScope: "coach-1:club-1:team-1",
   };
 
   harness.service.queueCentralStateWrite(activeKey, "{\"events\":[]}");
@@ -474,7 +633,10 @@ test("central sync runtime keeps a newer generation pending across mismatched 40
       entries: { [key]: staleServerValue },
       metadata: { [key]: { revision: 10 } },
     },
-    onHydrate: ({ setRevision }) => setRevision(10),
+    onHydrate: ({ rawValues, setRevision }) => {
+      rawValues.set(key, staleServerValue);
+      setRevision(10);
+    },
     syncKey: async ({ value }) => {
       postCount += 1;
       if (postCount === 1) {
@@ -513,6 +675,52 @@ test("central sync runtime keeps a newer generation pending across mismatched 40
     pendingCentralSync: false,
     serverRevision: 11,
   });
+  expect(harness.rawValues.get(key)).toBe(`schedule:${secondValue}`);
+});
+
+test("central sync runtime never lets B acknowledgement overwrite a newer local C generation", async () => {
+  const key = "football-medical-team-v1";
+  const serverValue = "SERVER";
+  let resolveA;
+  let resolveB;
+  const aWrite = new Promise((resolve) => { resolveA = resolve; });
+  const bWrite = new Promise((resolve) => { resolveB = resolve; });
+  let postCount = 0;
+  const harness = createServiceHarness({
+    hydratePayload: {
+      ok: true,
+      entries: { [key]: serverValue },
+      metadata: { [key]: { revision: 10 } },
+    },
+    onHydrate: ({ rawValues, setRevision }) => {
+      rawValues.set(key, serverValue);
+      setRevision(10);
+    },
+    syncKey: async () => {
+      postCount += 1;
+      return postCount === 1 ? aWrite : bWrite;
+    },
+  });
+
+  harness.rawValues.set(key, "A");
+  harness.service.queueCentralStateWrite(key, "A");
+  const aFlush = harness.service.flushCentralStateWrites();
+  await expect.poll(() => postCount).toBe(1);
+  harness.rawValues.set(key, "B");
+  harness.service.queueCentralStateWrite(key, "B");
+  resolveA({ ok: false, conflict: true, status: 409, currentRevision: 10 });
+  await aFlush;
+
+  const bFlushCallback = Array.from(harness.timers.values()).at(-1);
+  const bFlush = bFlushCallback();
+  await expect.poll(() => postCount).toBe(2);
+  harness.rawValues.set(key, "C");
+  harness.service.queueCentralStateWrite(key, "C");
+  resolveB({ ok: true, key, value: "B", revision: 11 });
+  await bFlush;
+
+  expect(harness.rawValues.get(key)).toBe("C");
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
 });
 
 test("central sync runtime retries presentation mode conflicts so quick deletes do not restore old objects", async () => {
@@ -587,7 +795,11 @@ test("central sync runtime applies newer server values through the injected rend
   const harness = createServiceHarness();
   harness.rawValues.set("football-schedule-v1", "local");
 
-  harness.service.applyCentralSyncedStateValue({ key: "football-schedule-v1", value: "local" }, "server");
+  harness.service.applyCentralSyncedStateValue({
+    key: "football-schedule-v1",
+    value: "local",
+    principalScope: "coach-1:club-1:team-1",
+  }, "server");
 
   expect(harness.rawValues.get("football-schedule-v1")).toBe("schedule:server");
   expect(harness.snapshots).toEqual(["central-merge"]);
@@ -604,7 +816,11 @@ test("central sync runtime merges presentation mode values before applying serve
   harness.rawValues.set("football-dashboard-presentation-mode-v1", "local-presentation");
 
   harness.service.applyCentralSyncedStateValue(
-    { key: "football-dashboard-presentation-mode-v1", value: "local-presentation" },
+    {
+      key: "football-dashboard-presentation-mode-v1",
+      value: "local-presentation",
+      principalScope: "coach-1:club-1:team-1",
+    },
     "server-presentation"
   );
 

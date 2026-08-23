@@ -321,10 +321,16 @@ test("database reads can be restricted to approved central state keys", async ()
     expect(response.status).toBe(200);
     expect(response.payload.entries).toEqual({ [scheduleKey]: value });
     expect(response.payload.metadata[scheduleKey].revision).toBe(11);
-    expect(mock.databaseReads).toHaveLength(1);
-    const readUrl = new URL(mock.databaseReads[0]);
-    expect(readUrl.searchParams.get("state_key")).toContain(scheduleKey);
-    expect(readUrl.searchParams.get("state_key")).toContain("football-workspace-hub-v3");
+    expect(mock.databaseReads).toHaveLength(3);
+    const readStateKeyFilters = mock.databaseReads.map((url) => (
+      new URL(url).searchParams.get("state_key")
+    ));
+    expect(readStateKeyFilters[0]).toContain(scheduleKey);
+    expect(readStateKeyFilters[0]).toContain("football-workspace-hub-v3");
+    expect(readStateKeyFilters.slice(1)).toEqual(expect.arrayContaining([
+      "eq.football-workspace-hub-v3",
+      "eq.football-transfer-room-v1",
+    ]));
 
     const unrelatedResponse = await callHandler({
       method: "GET",

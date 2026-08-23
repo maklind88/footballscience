@@ -670,7 +670,7 @@ test("platform auth boot hydrates central state in bounded read batches", () => 
   expect(source).not.toContain("const statePath = options.forceApply || options.fresh");
 });
 
-test("platform auth boot resets transient reconcile guards across principal and auth lifecycle changes", () => {
+test("platform auth boot routes principal lifecycle changes through the fail-closed transition boundary", () => {
   const { readFileSync } = require("node:fs");
   const path = require("node:path");
   const source = readFileSync(path.join(process.cwd(), "platform-auth-boot.js"), "utf8");
@@ -680,23 +680,33 @@ test("platform auth boot resets transient reconcile guards across principal and 
   );
 
   expect(source).toContain("function resetCentralStateReconcileRequirements()");
+  expect(source).toContain("function transitionCentralStatePrincipal(nextUser = null)");
+  expect(source).toContain("if (scopeChanged) {\n      resetCentralStateForPrincipalTransition();\n    }");
   expect(functionBody("setCurrentUserById", "setCurrentUserFromSession")).toContain(
-    "getCentralStatePrincipalScope(authState.currentUser) !== getCentralStatePrincipalScope(nextUser)"
-  );
-  expect(functionBody("setCurrentUserById", "setCurrentUserFromSession")).toContain(
-    "resetCentralStateReconcileRequirements();"
+    "if (!transitionCentralStatePrincipal(nextUser))"
   );
   expect(functionBody("setCurrentUserFromSession", "isPausedAccount")).toContain(
-    "resetCentralStateReconcileRequirements();"
+    "transitionCentralStatePrincipal(null);"
+  );
+  expect(functionBody("setCurrentUserFromSession", "isPausedAccount")).toContain(
+    "mergeAuthUser(nextUser, { setCurrent: true"
+  );
+  const mergeUserBody = functionBody("mergeAuthUser", "refreshUserCache");
+  expect(mergeUserBody).toContain("if (shouldSetCurrent && !transitionCentralStatePrincipal(normalizedUser))");
+  expect(mergeUserBody.indexOf("transitionCentralStatePrincipal(normalizedUser)")).toBeLessThan(
+    mergeUserBody.indexOf("authState.users.findIndex")
+  );
+  expect(functionBody("refreshUserCache", "refreshCurrentUserProfile")).toContain(
+    "if (!transitionCentralStatePrincipal(refreshedCurrentUser))"
   );
   expect(functionBody("hydrateCurrentUser", "signInWithIdentifier")).toContain(
     "if (!nextSession || !nextSessionUser)"
   );
   expect(functionBody("hydrateCurrentUser", "signInWithIdentifier")).toContain(
-    "resetCentralStateReconcileRequirements();"
+    "transitionCentralStatePrincipal(null);"
   );
   expect(functionBody("clearAuthState", "clearStoredAuthArtifacts")).toContain(
-    "resetCentralStateReconcileRequirements();"
+    "transitionCentralStatePrincipal(null);"
   );
   expect(functionBody("hydrateCentralState", "syncCentralStateKey")).toContain(
     "centralState.localDev = true;"
@@ -704,7 +714,7 @@ test("platform auth boot resets transient reconcile guards across principal and 
   expect(functionBody("hydrateCentralState", "syncCentralStateKey")).toContain(
     "resetCentralStateReconcileRequirements();"
   );
-  expect(source).toMatch(/clearCurrentUser:\s*\(\)\s*=>\s*\{[\s\S]*?resetCentralStateReconcileRequirements\(\);/);
+  expect(source).toMatch(/clearCurrentUser:\s*\(\)\s*=>\s*\{[\s\S]*?transitionCentralStatePrincipal\(null\);/);
 });
 
 test("current actor lookup avoids duplicate admin fetches and reuses a brief validated token cache", async () => {

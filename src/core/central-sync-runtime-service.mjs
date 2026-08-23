@@ -379,16 +379,22 @@ export function createCentralSyncRuntimeService(deps = {}) {
               continue;
             }
             if (write.key !== sessionPlannerStorageKey) {
-              const hydrated = await bridge.hydrate?.({ forceApply: true }).catch(() => false);
-              if (hydrated) {
-                const acknowledgedCurrentWrite = acknowledgeCentralStateWrite(write);
-                persistCentralStateServerRevision(write.key, {
+              const hydrationResult = await bridge.hydrate?.({
+                forceApply: true,
+                returnEntries: true,
+              }).catch(() => false);
+              if (hydrationResult === true || hydrationResult?.ok) {
+                const hydratedMetadata = hydrationResult?.metadata?.[write.key] || {
                   revision: getCentralStateRevisionForKey(write.key),
-                });
-                advanceQueuedWriteBaseRevision(write, {
-                  revision: getCentralStateRevisionForKey(write.key),
-                });
-                if (acknowledgedCurrentWrite && rawGetItem(write.key) === write.value) {
+                };
+                persistCentralStateServerRevision(write.key, hydratedMetadata);
+                advanceQueuedWriteBaseRevision(write, hydratedMetadata);
+                const hydratedServerValue = hydrationResult?.entries?.[write.key];
+                if (typeof hydratedServerValue === "string" && hydratedServerValue === write.value) {
+                  const acknowledgedCurrentWrite = acknowledgeCentralStateWrite(write);
+                  if (!acknowledgedCurrentWrite) {
+                    continue;
+                  }
                   queueCentralStateStatus("");
                   reportSyncStatus(write.key, "saved", "Saved");
                   continue;

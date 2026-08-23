@@ -1531,7 +1531,9 @@ async function getActiveAccessToken() {
           detail: { entries: collectCentralLocalStateEntries(), localDev: true },
         })
       );
-      return true;
+      return options.returnEntries
+        ? { ok: true, entries: collectCentralLocalStateEntries(), metadata: {}, localDev: true }
+        : true;
     }
     if (centralState.hydrating || !authState.session?.access_token) {
       return centralState.hydrated;
@@ -1590,7 +1592,7 @@ async function getActiveAccessToken() {
           detail: { entries: hasCentralEntries ? entries : collectCentralLocalStateEntries() },
         })
       );
-      return true;
+      return options.returnEntries ? { ok: true, entries, metadata } : true;
     } catch (error) {
       centralState.lastError = error?.message || "Central load failed.";
       return false;

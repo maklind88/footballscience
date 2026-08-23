@@ -56,6 +56,9 @@ function createServiceHarness(options = {}) {
             revision = Number(nextRevision) || 0;
           },
         });
+        if (options.hydratePayload !== undefined) {
+          return options.hydratePayload;
+        }
         return options.hydrateResult !== false;
       },
     },
@@ -342,6 +345,11 @@ test("central sync runtime reconciles a non-session conflict before clearing pen
   const value = "{\"events\":[{\"id\":\"training-1\"}]}";
   const harness = createServiceHarness({
     syncResult: { ok: false, conflict: true, status: 409, currentRevision: 10 },
+    hydratePayload: {
+      ok: true,
+      entries: { "football-schedule-v1": value },
+      metadata: { "football-schedule-v1": { revision: 10 } },
+    },
     onHydrate: ({ setRevision }) => {
       setRevision(10);
     },
@@ -359,7 +367,7 @@ test("central sync runtime reconciles a non-session conflict before clearing pen
     },
     {
       hydrate: true,
-      options: { forceApply: true },
+      options: { forceApply: true, returnEntries: true },
     },
   ]);
   expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
@@ -367,6 +375,63 @@ test("central sync runtime reconciles a non-session conflict before clearing pen
     serverRevision: 10,
   });
   expect(harness.autosaveStatuses).toContainEqual(["football-schedule-v1", "saved", "Saved"]);
+});
+
+test("central sync runtime keeps a newer generation pending across mismatched 409 hydration", async () => {
+  const key = "football-schedule-v1";
+  const firstValue = "{\"events\":[{\"id\":\"training-a\"}]}";
+  const secondValue = "{\"events\":[{\"id\":\"training-b\"}]}";
+  const staleServerValue = "{\"events\":[{\"id\":\"server-old\"}]}";
+  let resolveFirstWrite;
+  let postCount = 0;
+  const firstWrite = new Promise((resolve) => {
+    resolveFirstWrite = resolve;
+  });
+  const harness = createServiceHarness({
+    hydratePayload: {
+      ok: true,
+      entries: { [key]: staleServerValue },
+      metadata: { [key]: { revision: 10 } },
+    },
+    onHydrate: ({ setRevision }) => setRevision(10),
+    syncKey: async ({ value }) => {
+      postCount += 1;
+      if (postCount === 1) {
+        return firstWrite;
+      }
+      return { ok: true, value, revision: 11 };
+    },
+  });
+
+  harness.rawValues.set(key, firstValue);
+  harness.service.queueCentralStateWrite(key, firstValue);
+  const firstFlush = harness.service.flushCentralStateWrites();
+  await expect.poll(() => postCount).toBe(1);
+
+  harness.rawValues.set(key, secondValue);
+  harness.service.queueCentralStateWrite(key, secondValue);
+  resolveFirstWrite({ ok: false, conflict: true, status: 409, currentRevision: 10 });
+  await firstFlush;
+
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+  expect(harness.syncStatuses).not.toContainEqual([key, "saved", "Saved"]);
+
+  const followUpFlush = Array.from(harness.timers.values()).at(-1);
+  expect(typeof followUpFlush).toBe("function");
+  await followUpFlush();
+
+  expect(harness.syncCalls.filter((call) => call.key === key)).toEqual([
+    { key, value: firstValue, options: { removed: false, baseRevision: 7 } },
+    { key, value: secondValue, options: { removed: false, baseRevision: 10 } },
+  ]);
+  expect(harness.syncCalls).toContainEqual({
+    hydrate: true,
+    options: { forceApply: true, returnEntries: true },
+  });
+  expect(harness.manifest.entries[key]).toMatchObject({
+    pendingCentralSync: false,
+    serverRevision: 11,
+  });
 });
 
 test("central sync runtime retries presentation mode conflicts so quick deletes do not restore old objects", async () => {

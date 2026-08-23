@@ -665,6 +665,7 @@ test("platform auth boot hydrates central state in bounded read batches", () => 
   expect(source).toContain('accessMode: index === 0 ? "fresh" : "none"');
   expect(source).toContain("Object.assign(combined.payload.seedAccess, response.payload?.seedAccess || {});");
   expect(source).toContain("filterCentralStateWriteEntries(collectCentralLocalStateEntries(), seedAccess)");
+  expect(source).toContain("return options.returnEntries ? { ok: true, entries, metadata } : true;");
   expect(source).toContain("const response = await readCentralStateBatches(options);");
   expect(source).not.toContain("const statePath = options.forceApply || options.fresh");
 });
@@ -1310,6 +1311,17 @@ test("app-state returns fresh full access contracts without allowing delegated s
       [transferRoomKey]: false,
     });
     expect(freshAccessResponse.payload.writeAccess).toHaveProperty(scheduleKey);
+
+    const laterBatchResponse = await callHandler(freshHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${gameplanKey}&access=none`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(laterBatchResponse.status).toBe(200);
+    expect(laterBatchResponse.payload.entries).not.toHaveProperty(gameplanKey);
+    expect(laterBatchResponse.payload.metadata).not.toHaveProperty(gameplanKey);
+    expect(laterBatchResponse.payload).not.toHaveProperty("writeAccess");
+    expect(laterBatchResponse.payload).not.toHaveProperty("seedAccess");
 
     const noAccessResponse = await callHandler(freshHandler, {
       method: "GET",

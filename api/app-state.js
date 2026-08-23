@@ -3666,9 +3666,7 @@ module.exports = async (req, res) => {
         bypassSnapshot: shouldBypassStateReadSnapshot(req),
         keys: readKeys,
       });
-      const accessEntries = accessMode === "fresh"
-        ? await getFreshStateAccessEntries(stateObjects.entries)
-        : stateObjects.entries;
+      const accessEntries = await getFreshStateAccessEntries(stateObjects.entries);
       const actorEntries = filterStateEntriesForActor(actor, stateObjects.entries, accessEntries);
       const entries = requestedKeys === null
         ? actorEntries

@@ -34,6 +34,7 @@ function createServiceHarness(options = {}) {
       }),
       isCentralKey: () => true,
       isHydrated: () => hydrated,
+      canWriteKey: (key) => options.writeAccess?.[key] !== false,
       syncKey: async (key, value, syncOptions) => {
         syncCalls.push({ key, value, options: syncOptions });
         if (Array.isArray(options.syncResults)) {
@@ -151,6 +152,83 @@ test("central sync runtime queues protected writes with revision metadata and fl
     serverRevision: 12,
   });
   expect(harness.autosaveStatuses).toContainEqual(["football-session-planner-v1", "saved", "Saved"]);
+});
+
+test("central sync runtime keeps unauthorized automatic pending retries local without queueing a POST", async () => {
+  const key = "football-medical-team-v1";
+  const harness = createServiceHarness({ writeAccess: { [key]: false } });
+  harness.rawValues.set(key, "{\"injuryPlans\":[{\"id\":\"pending-plan\"}]}");
+  harness.manifest.entries[key] = {
+    label: "Medical Room",
+    pendingCentralSync: true,
+  };
+
+  harness.service.retryCentral(() => harness.manifest);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([]);
+  expect(harness.timers.size).toBe(0);
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+  expect(harness.manifest.lastCentralError).toBe("");
+});
+
+test("central sync runtime stops an automatic retry when access is revoked before flush", async () => {
+  const key = "football-medical-team-v1";
+  const writeAccess = { [key]: true };
+  const harness = createServiceHarness({ writeAccess });
+  harness.rawValues.set(key, "{\"injuryPlans\":[]}");
+  harness.manifest.entries[key] = {
+    label: "Medical Room",
+    pendingCentralSync: true,
+  };
+
+  harness.service.retryCentral(() => harness.manifest);
+  writeAccess[key] = false;
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([]);
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+});
+
+test("central sync runtime sends an explicit write to the backend even when cached access is false", async () => {
+  const key = "football-schedule-v1";
+  const harness = createServiceHarness({
+    writeAccess: { [key]: false },
+    syncResult: { ok: true, value: "{\"events\":[]}", revision: 8 },
+  });
+
+  harness.service.queueCentralStateWrite(key, "{\"events\":[]}");
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key,
+      value: "{\"events\":[]}",
+      options: { removed: false, baseRevision: 7 },
+    },
+  ]);
+  expect(harness.manifest.entries[key]).toMatchObject({
+    pendingCentralSync: false,
+    serverRevision: 8,
+  });
+});
+
+test("central sync runtime does not retry a permission-denied write loop", async () => {
+  const key = "football-medical-team-v1";
+  const reason = "You do not have edit access for medical-team.";
+  const harness = createServiceHarness({
+    syncResult: { ok: false, status: 403, reason },
+  });
+
+  harness.service.queueCentralStateWrite(key, "{\"injuryPlans\":[]}");
+  await harness.service.flushCentralStateWrites();
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toHaveLength(1);
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+  expect(harness.manifest.lastCentralError).toBe(reason);
+  expect(harness.syncStatuses).toContainEqual([key, "issue", reason]);
+  expect(harness.syncStatuses).not.toContainEqual([key, "saved", "Saved"]);
 });
 
 test("central sync runtime reports saving and server-confirmed status for Set Pieces", async () => {

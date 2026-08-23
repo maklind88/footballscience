@@ -6,6 +6,7 @@ const scheduleStateKey = "football-schedule-v1";
 const sessionPlannerStateKey = "football-session-planner-v3";
 const medicalTeamStateKey = "football-medical-team-v1";
 const playerProfilesStateKey = "football-player-profiles-v1";
+const platformStructureStateKey = "football-platform-structure-v1";
 const dataSafetyManifestKey = "football-data-safety-v1";
 const qaUser = {
   id: "qa-user-1",
@@ -122,30 +123,79 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
 
     if (method === "GET") {
       appStateGetUrls.push(request.url());
-      const entries = { [revisionStateKey]: centralStore.value, ...(centralStore.entries || {}) };
+      const requestUrl = new URL(request.url());
+      const accessMode = requestUrl.searchParams.get("access") || "requested";
+      const entries = centralStore.emptyCentralState
+        ? {}
+        : { [revisionStateKey]: centralStore.value, ...(centralStore.entries || {}) };
+      const metadata = centralStore.emptyCentralState
+        ? {}
+        : { [revisionStateKey]: centralStore.metadata, ...(centralStore.metadataEntries || {}) };
+      const includeAccess = accessMode !== "none" && !centralStore.omitWriteAccess;
+      const defaultAccess = Object.fromEntries(Object.keys(entries).map((key) => [key, true]));
+      const payload = {
+        ok: true,
+        entries,
+        metadata,
+        updatedAt: new Date().toISOString(),
+      };
+      if (includeAccess) {
+        payload.writeAccess = {
+          ...defaultAccess,
+          ...(centralStore.writeAccess || {}),
+        };
+        payload.seedAccess = {
+          ...defaultAccess,
+          ...(centralStore.seedAccess || centralStore.writeAccess || {}),
+        };
+      }
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          ok: true,
-          entries,
-          metadata: { [revisionStateKey]: centralStore.metadata, ...(centralStore.metadataEntries || {}) },
-          writeAccess: {
-            ...Object.fromEntries(Object.keys(entries).map((key) => [key, true])),
-            ...(centralStore.writeAccess || {}),
-          },
-          updatedAt: new Date().toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
       return;
     }
 
     const body = JSON.parse(request.postData() || "{}");
     allSyncBodies.push(body);
+    if (body.entries && typeof body.entries === "object") {
+      const results = Object.keys(body.entries).map((key, index) => ({
+        key,
+        revision: index + 1,
+        metadata: createMetadata(index + 1, String(body.entries[key] || "")),
+      }));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, keys: Object.keys(body.entries), results }),
+      });
+      return;
+    }
     if (body.key !== revisionStateKey) {
       const value = String(body.value || "");
       const baseRevision = Number(body?.metadata?.baseRevision ?? body?.baseRevision);
       const revision = Number.isInteger(baseRevision) && baseRevision >= 0 ? baseRevision + 1 : 1;
+      if (Array.isArray(centralStore.rejectWriteKeys) && centralStore.rejectWriteKeys.includes(body.key)) {
+        await route.fulfill({
+          status: 403,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: false, reason: `You do not have edit access for ${body.key}.` }),
+        });
+        return;
+      }
+      const nextMetadata = {
+        revision,
+        updatedAt: new Date().toISOString(),
+        updatedBy: qaUser.id,
+        organizationId: "org-qa",
+        moduleId: "qa-ignored",
+        mergePolicy: "revision-guarded-last-write",
+        hash: `ignored-${value.length}`,
+        size: value.length,
+      };
+      centralStore.entries = { ...(centralStore.entries || {}), [body.key]: value };
+      centralStore.metadataEntries = { ...(centralStore.metadataEntries || {}), [body.key]: nextMetadata };
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -154,16 +204,7 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
           key: body.key || "",
           value,
           revision,
-          metadata: {
-            revision,
-            updatedAt: new Date().toISOString(),
-            updatedBy: qaUser.id,
-            organizationId: "org-qa",
-            moduleId: "qa-ignored",
-            mergePolicy: "revision-guarded-last-write",
-            hash: `ignored-${value.length}`,
-            size: value.length,
-          },
+          metadata: nextMetadata,
         }),
       });
       return;
@@ -266,12 +307,22 @@ test("fresh server profile restores admin access when the stored Supabase sessio
   }
 });
 
-test("coach central hydration stays ready without unauthorized Medical writeback retries", async ({ browser, baseURL }) => {
+async function bootPendingMedicalHydration(browser, baseURL, accessMode, options = {}) {
   const initialValue = createStateValue("Original central sequence");
   const centralMedicalState = {
     players: [{ id: "player-1", name: "QA Player" }],
     records: [],
     injuryPlans: [],
+  };
+  const localMedicalState = {
+    ...centralMedicalState,
+    selectedDate: "2026-08-23",
+    injuryPlans: [{
+      id: "pending-plan-1",
+      playerId: "player-1",
+      injuryType: "Pending local plan",
+      updatedAt: "2026-08-23T10:00:00.000Z",
+    }],
   };
   const centralMedicalValue = JSON.stringify(centralMedicalState);
   const centralStore = {
@@ -285,51 +336,162 @@ test("coach central hydration stays ready without unauthorized Medical writeback
         mergePolicy: "record-timestamp-merge",
       },
     },
-    writeAccess: { [medicalTeamStateKey]: false },
+    ...(accessMode === "missing"
+      ? { omitWriteAccess: true }
+      : { writeAccess: { [medicalTeamStateKey]: accessMode === "true" } }),
+    ...(options.rejectWrite ? { rejectWriteKeys: [medicalTeamStateKey] } : {}),
   };
   const coachUser = {
     ...qaUser,
     app_metadata: { role: "coach", status: "active" },
   };
   const allSyncBodies = [];
-  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "coach-medical-read-only-hydration", {
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], `coach-medical-${accessMode}-hydration`, {
     sessionUser: coachUser,
     profileUser: coachUser,
     allSyncBodies,
-    initScript: ({ key }) => {
-      window.localStorage.setItem(key, JSON.stringify({
-        players: [{
-          id: "player-1",
-          name: "QA Player",
-          photoUrl: "https://images.example.test/player-1.jpg",
-        }],
-        records: [],
-        injuryPlans: [],
+    initScript: ({ key, value, manifestKey }) => {
+      window.localStorage.setItem(key, value);
+      window.localStorage.setItem(manifestKey, JSON.stringify({
+        version: 1,
+        entries: {
+          [key]: {
+            label: "Medical Room",
+            updatedAt: "2026-08-23T10:00:00.000Z",
+            pendingCentralSync: true,
+          },
+        },
       }));
     },
-    initArg: { key: medicalTeamStateKey },
+    initArg: {
+      key: medicalTeamStateKey,
+      value: JSON.stringify(localMedicalState),
+      manifestKey: dataSafetyManifestKey,
+    },
+  });
+  return { allSyncBodies, centralStore, tab };
+}
+
+for (const accessMode of ["false", "missing"]) {
+  test(`coach central hydration keeps pending Medical data when write access is ${accessMode}`, async ({ browser, baseURL }) => {
+    const { allSyncBodies, tab } = await bootPendingMedicalHydration(browser, baseURL, accessMode);
+
+    try {
+      await tab.page.evaluate(async () => {
+        await window.footballScienceCentralState.hydrate({ forceApply: true });
+        await window.footballScienceCentralState.hydrate({ forceApply: true });
+      });
+
+      expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(0);
+      expect(await tab.page.evaluate(({ key, manifestKey }) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+        return {
+          hydrated: window.footballScienceCentralState.getStatus().hydrated,
+          lastError: window.footballScienceCentralState.getStatus().lastError || "",
+          pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+          planIds: (state.injuryPlans || []).map((plan) => plan.id),
+        };
+      }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+        hydrated: true,
+        lastError: "",
+        pendingCentralSync: true,
+        planIds: ["pending-plan-1"],
+      });
+    } finally {
+      await closeCentralStateContext(tab.context);
+    }
+  });
+}
+
+test("authorized Medical hydration writes pending data exactly once and clears pending after 200", async ({ browser, baseURL }) => {
+  const { allSyncBodies, tab } = await bootPendingMedicalHydration(browser, baseURL, "true");
+
+  try {
+    await tab.page.evaluate(async () => {
+      await window.footballScienceCentralState.hydrate({ forceApply: true });
+    });
+
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(1);
+    expect(await tab.page.evaluate(({ key, manifestKey }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+        lastError: window.footballScienceCentralState.getStatus().lastError || "",
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      pendingCentralSync: false,
+      lastError: "",
+    });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("permission revoke race keeps pending Medical data without blocking hydration", async ({ browser, baseURL }) => {
+  const { allSyncBodies, centralStore, tab } = await bootPendingMedicalHydration(browser, baseURL, "true", {
+    rejectWrite: true,
   });
 
   try {
-    await expect
-      .poll(() => tab.page.evaluate(() => {
-        const status = window.footballScienceCentralState.getStatus();
-        return {
-          hydrated: status.hydrated,
-          hydrating: status.hydrating,
-          lastError: status.lastError || "",
-        };
-      }))
-      .toEqual({ hydrated: true, hydrating: false, lastError: "" });
-
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(1);
+    centralStore.writeAccess[medicalTeamStateKey] = false;
     await tab.page.evaluate(async () => {
       await window.footballScienceCentralState.hydrate({ forceApply: true });
-      await window.footballScienceCentralState.hydrate({ forceApply: true });
     });
-    await tab.page.waitForTimeout(500);
 
-    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(0);
-    expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().lastError || "")).toBe("");
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(1);
+    expect(await tab.page.evaluate(({ key, manifestKey }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        hydrated: window.footballScienceCentralState.getStatus().hydrated,
+        lastError: window.footballScienceCentralState.getStatus().lastError || "",
+        pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      hydrated: true,
+      lastError: "",
+      pendingCentralSync: true,
+    });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("empty central state never seeds platform structure for delegated Player Profiles editors", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const allSyncBodies = [];
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    emptyCentralState: true,
+    writeAccess: {
+      [revisionStateKey]: true,
+      [platformStructureStateKey]: true,
+    },
+    seedAccess: {
+      [revisionStateKey]: true,
+      [platformStructureStateKey]: false,
+    },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "delegated-structure-seed-guard", {
+    allSyncBodies,
+    initScript: ({ revisionKey, revisionValue, structureKey }) => {
+      window.localStorage.setItem(revisionKey, revisionValue);
+      window.localStorage.setItem(structureKey, JSON.stringify({ clubs: [{ id: "club-1", name: "QA FC" }] }));
+    },
+    initArg: {
+      revisionKey: revisionStateKey,
+      revisionValue: initialValue,
+      structureKey: platformStructureStateKey,
+    },
+  });
+
+  try {
+    const seedBody = allSyncBodies.find((body) => body.entries && typeof body.entries === "object");
+    expect(seedBody).toBeTruthy();
+    expect(seedBody.entries[revisionStateKey]).toBe(initialValue);
+    expect(seedBody.entries).not.toHaveProperty(platformStructureStateKey);
   } finally {
     await closeCentralStateContext(tab.context);
   }

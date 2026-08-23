@@ -259,6 +259,12 @@ function getRequestedStateKeys(req = {}) {
   ));
 }
 
+function getStateAccessMode(req = {}) {
+  const url = new URL(req.url || "/", "http://localhost");
+  const mode = String(url.searchParams.get("access") || "").trim().toLowerCase();
+  return ["fresh", "none"].includes(mode) ? mode : "requested";
+}
+
 function selectStateListResultKeys(result = {}, keys = []) {
   const keySet = new Set(keys);
   return {
@@ -3103,6 +3109,32 @@ function canActorAttemptStateWrite(actor, key, entries = {}, accessConfig = {}) 
   return workspaceId ? canActorEditWorkspace(actor, workspaceId, accessConfig) : true;
 }
 
+function canActorSeedState(actor, key, entries = {}, accessConfig = {}) {
+  const role = normalizeActorRole(actor);
+  if (role === "admin") {
+    return true;
+  }
+
+  if (ADMIN_ONLY_STATE_KEYS.has(key)) {
+    return false;
+  }
+
+  if (key === WORKSPACE_HUB_KEY) {
+    return true;
+  }
+
+  if (key === PLATFORM_STRUCTURE_KEY) {
+    return role === "club-admin";
+  }
+
+  if (key === TRANSFER_ROOM_KEY) {
+    return TRANSFER_ROOM_ACCESS_ADMIN_ROLES.has(role);
+  }
+
+  const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
+  return workspaceId ? canActorEditWorkspace(actor, workspaceId, accessConfig) : true;
+}
+
 function getStateWriteAccessForActor(actor, keys = [], entries = {}) {
   const accessConfig = getWorkspaceAccessConfigFromHubValue(entries[WORKSPACE_HUB_KEY]);
   return Array.from(new Set(keys)).reduce((writeAccess, key) => {
@@ -3112,6 +3144,36 @@ function getStateWriteAccessForActor(actor, keys = [], entries = {}) {
     }
     return writeAccess;
   }, {});
+}
+
+function getStateSeedAccessForActor(actor, keys = [], entries = {}) {
+  const accessConfig = getWorkspaceAccessConfigFromHubValue(entries[WORKSPACE_HUB_KEY]);
+  return Array.from(new Set(keys)).reduce((seedAccess, key) => {
+    const normalizedKey = sanitizeStateKey(key);
+    if (normalizedKey) {
+      seedAccess[normalizedKey] = canActorSeedState(actor, normalizedKey, entries, accessConfig);
+    }
+    return seedAccess;
+  }, {});
+}
+
+async function getFreshStateAccessEntries(entries = {}) {
+  const [workspaceHubEntry, transferRoomEntry] = await Promise.all([
+    readStateObject(WORKSPACE_HUB_KEY, { fresh: true }),
+    readStateObject(TRANSFER_ROOM_KEY, { fresh: true }),
+  ]);
+  const accessEntries = { ...entries };
+  if (workspaceHubEntry?.key && !workspaceHubEntry.removed) {
+    accessEntries[WORKSPACE_HUB_KEY] = workspaceHubEntry.value || "";
+  } else {
+    delete accessEntries[WORKSPACE_HUB_KEY];
+  }
+  if (transferRoomEntry?.key && !transferRoomEntry.removed) {
+    accessEntries[TRANSFER_ROOM_KEY] = transferRoomEntry.value || "";
+  } else {
+    delete accessEntries[TRANSFER_ROOM_KEY];
+  }
+  return accessEntries;
 }
 
 function filterStateEntriesForActor(actor, entries = {}) {
@@ -3596,6 +3658,7 @@ module.exports = async (req, res) => {
   try {
     if (req.method === "GET") {
       const requestedKeys = getRequestedStateKeys(req);
+      const accessMode = getStateAccessMode(req);
       const readKeys = requestedKeys === null
         ? null
         : Array.from(new Set([...requestedKeys, WORKSPACE_HUB_KEY]));
@@ -3607,12 +3670,22 @@ module.exports = async (req, res) => {
       const entries = requestedKeys === null
         ? actorEntries
         : selectStateListResultKeys({ entries: actorEntries }, requestedKeys).entries;
-      const writeAccessKeys = requestedKeys === null ? Array.from(CENTRAL_STATE_KEYS) : requestedKeys;
+      const accessEntries = accessMode === "fresh"
+        ? await getFreshStateAccessEntries(stateObjects.entries)
+        : stateObjects.entries;
+      const accessKeys = accessMode === "fresh"
+        ? Array.from(CENTRAL_STATE_KEYS)
+        : requestedKeys === null
+          ? Array.from(CENTRAL_STATE_KEYS)
+          : requestedKeys;
       return sendJson(res, 200, {
         ok: true,
         entries,
         metadata: filterStateMetadataForEntries(stateObjects.metadata, entries),
-        writeAccess: getStateWriteAccessForActor(actor, writeAccessKeys, stateObjects.entries),
+        ...(accessMode === "none" ? {} : {
+          writeAccess: getStateWriteAccessForActor(actor, accessKeys, accessEntries),
+          seedAccess: getStateSeedAccessForActor(actor, accessKeys, accessEntries),
+        }),
         updatedAt: new Date().toISOString(),
       });
     }

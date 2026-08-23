@@ -117,6 +117,10 @@ const medicalTeamPath = `global/${medicalTeamKey}.json`;
 const transferRoomKey = "football-transfer-room-v1";
 const transferRoomPath = `global/${transferRoomKey}.json`;
 const scheduleKey = "football-schedule-v1";
+const platformStructureKey = "football-platform-structure-v1";
+const platformStructurePath = `global/${platformStructureKey}.json`;
+const platformAppearanceKey = "football-platform-appearance-v1";
+const platformAppearancePath = `global/${platformAppearanceKey}.json`;
 const appStateReadSnapshotPath = "global/__app-state-read-snapshot-v1.json";
 
 function createAppStateStorageEntry(key, value, updatedAt = "2026-05-07T00:00:00.000Z") {
@@ -654,8 +658,11 @@ test("platform auth boot hydrates central state in bounded read batches", () => 
   expect(source).toContain("const CENTRAL_STATE_READ_BATCH_SIZE = 8;");
   expect(source).toContain("function buildCentralStateReadBatches()");
   expect(source).toContain("async function readCentralStateBatches(options = {})");
-  expect(source).toContain("Promise.all(buildCentralStateReadBatches().map((keys)");
+  expect(source).toContain("Promise.all(buildCentralStateReadBatches().map((keys, index)");
   expect(source).toContain('query.set("keys", keys.join(","));');
+  expect(source).toContain('accessMode: index === 0 ? "fresh" : "none"');
+  expect(source).toContain("Object.assign(combined.payload.seedAccess, response.payload?.seedAccess || {});");
+  expect(source).toContain("filterCentralStateWriteEntries(collectCentralLocalStateEntries(), seedAccess)");
   expect(source).toContain("const response = await readCentralStateBatches(options);");
   expect(source).not.toContain("const statePath = options.forceApply || options.fresh");
 });
@@ -1205,6 +1212,93 @@ test("app-state reports effective Medical write access for each actor", async ()
     expect(medicalResponse.payload.writeAccess).toMatchObject({
       [medicalTeamKey]: true,
     });
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state returns fresh full access contracts without allowing delegated structure seed", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const editableHubState = {
+    workspaceAccess: {
+      "medical-team": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+      "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+    },
+  };
+  const revokedHubState = {
+    workspaceAccess: {
+      "medical-team": { view: ["admin"], edit: ["admin"] },
+      "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+    },
+  };
+  const transferRoomState = {
+    activeTeamId: "team-ncc-first",
+    teams: [{ id: "team-ncc-first", name: "North Carolina Courage" }],
+    accessByTeam: { "team-ncc-first": { userIds: ["coach-1"] } },
+  };
+  const storage = createAppStateFetchMock({
+    [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, editableHubState),
+    [medicalTeamPath]: createAppStateStorageEntry(medicalTeamKey, { players: [], records: [], injuryPlans: [] }),
+    [playerProfilesPath]: createAppStateStorageEntry(playerProfilesKey, { players: [] }),
+    [platformStructurePath]: createAppStateStorageEntry(platformStructureKey, { clubs: [] }),
+    [platformAppearancePath]: createAppStateStorageEntry(platformAppearanceKey, { mode: "auto" }),
+    [transferRoomPath]: createAppStateStorageEntry(transferRoomKey, transferRoomState),
+  }, "coach");
+  global.fetch = storage.fetchMock;
+  const freshHandler = loadFreshAppStateHandler();
+
+  try {
+    const cachedResponse = await callHandler(freshHandler, {
+      method: "GET",
+      url: "/api/app-state",
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(cachedResponse.status).toBe(200);
+    expect(cachedResponse.payload.writeAccess[medicalTeamKey]).toBe(true);
+
+    storage.objects.set(workspaceHubPath, createAppStateStorageEntry(
+      workspaceHubKey,
+      revokedHubState,
+      "2026-08-23T12:05:00.000Z"
+    ));
+    const freshAccessResponse = await callHandler(freshHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${medicalTeamKey}&access=fresh`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+
+    expect(freshAccessResponse.status).toBe(200);
+    expect(freshAccessResponse.payload.writeAccess).toMatchObject({
+      [medicalTeamKey]: false,
+      [platformStructureKey]: true,
+      [platformAppearanceKey]: false,
+      [workspaceHubKey]: true,
+      [transferRoomKey]: true,
+    });
+    expect(freshAccessResponse.payload.seedAccess).toMatchObject({
+      [medicalTeamKey]: false,
+      [platformStructureKey]: false,
+      [platformAppearanceKey]: false,
+      [workspaceHubKey]: true,
+      [transferRoomKey]: false,
+    });
+    expect(freshAccessResponse.payload.writeAccess).toHaveProperty(scheduleKey);
+
+    const noAccessResponse = await callHandler(freshHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${medicalTeamKey}&access=none`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(noAccessResponse.status).toBe(200);
+    expect(noAccessResponse.payload).not.toHaveProperty("writeAccess");
+    expect(noAccessResponse.payload).not.toHaveProperty("seedAccess");
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

@@ -126,6 +126,7 @@
     lastSyncedAt: "",
     localDev: false,
     metadata: {},
+    writeAccess: {},
   };
   let authRefreshTokenPromise = null;
   let authSessionReadPromise = null;
@@ -624,14 +625,20 @@ async function getActiveAccessToken() {
   function buildCentralStateReadPath(keys = [], options = {}) {
     const query = new URLSearchParams();
     query.set("keys", keys.join(","));
+    if (options.accessMode) {
+      query.set("access", options.accessMode);
+    }
     if (options.forceApply || options.fresh) {
       query.set("fresh", "1");
     }
     return `${API_APP_STATE}?${query.toString()}`;
   }
   async function readCentralStateBatches(options = {}) {
-    const responses = await Promise.all(buildCentralStateReadBatches().map((keys) =>
-      apiRequest(buildCentralStateReadPath(keys, options), {
+    const responses = await Promise.all(buildCentralStateReadBatches().map((keys, index) =>
+      apiRequest(buildCentralStateReadPath(keys, {
+        ...options,
+        accessMode: index === 0 ? "fresh" : "none",
+      }), {
         method: "GET",
         timeoutMs: 10000,
         headers: options.forceApply || options.fresh ? { "x-footballscience-fresh-state": "1" } : undefined,
@@ -641,12 +648,15 @@ async function getActiveAccessToken() {
     if (failedResponse) {
       return failedResponse;
     }
-    return responses.reduce((combined, response) => {
+    return responses.reduce((combined, response, index) => {
       Object.assign(combined.payload.entries, response.payload?.entries || {});
       Object.assign(combined.payload.metadata, response.payload?.metadata || {});
-      Object.assign(combined.payload.writeAccess, response.payload?.writeAccess || {});
+      if (index === 0) {
+        Object.assign(combined.payload.writeAccess, response.payload?.writeAccess || {});
+        Object.assign(combined.payload.seedAccess, response.payload?.seedAccess || {});
+      }
       return combined;
-    }, { ok: true, status: 200, payload: { entries: {}, metadata: {}, writeAccess: {} } });
+    }, { ok: true, status: 200, payload: { entries: {}, metadata: {}, writeAccess: {}, seedAccess: {} } });
   }
   function canWriteCentralStateKey(key, writeAccess = {}) {
     return writeAccess?.[key] === true;
@@ -785,8 +795,16 @@ async function getActiveAccessToken() {
     if (!pendingEntry?.pendingCentralSync) {
       return true;
     }
+    return doesCentralStateAcknowledgePending(key, pendingEntry, metadataEntry, centralValue);
+  }
+  function doesCentralStateAcknowledgePending(key, pendingEntry = {}, metadataEntry = {}, centralValue = "") {
+    if (!pendingEntry?.pendingCentralSync) {
+      return false;
+    }
     const centralHash = String(metadataEntry.hash || "").trim();
     const localPendingHash = String(pendingEntry.hash || "").trim();
+    const localValue = window.localStorage.getItem(key);
+    const hasLocalValue = localValue !== null;
     const centralMatchesLocal =
       typeof centralValue === "string" &&
       hasLocalValue &&
@@ -1419,7 +1437,7 @@ async function getActiveAccessToken() {
         if (!shouldApplyCentralStateEntry(key, pendingEntry, metadataEntry, value, options)) {
           return;
         }
-        if (pendingEntry?.pendingCentralSync) {
+        if (doesCentralStateAcknowledgePending(key, pendingEntry, metadataEntry, value)) {
           resolvedPendingKeys.push([key, metadataEntry]);
         }
         let valueToApply = value;
@@ -1456,16 +1474,18 @@ async function getActiveAccessToken() {
             mergedValue.value,
             MEDICAL_LOCAL_UI_FIELDS
           ).value;
-          if (mergedValue.changed && canWriteEntry) {
+          const sharedValueToApply = stripCentralStateLocalUiFields(valueToApply, MEDICAL_LOCAL_UI_FIELDS);
+          if (mergedValue.changed && canWriteEntry && sharedValueToApply !== sharedValue) {
             if (shouldPreserveLocalMedical) {
               requiredWriteBackEntries.push([
                 key,
-                stripCentralStateLocalUiFields(valueToApply, MEDICAL_LOCAL_UI_FIELDS),
+                sharedValueToApply,
+                pendingEntry,
               ]);
             } else {
               writeBackEntries.push([
                 key,
-                stripCentralStateLocalUiFields(valueToApply, MEDICAL_LOCAL_UI_FIELDS),
+                sharedValueToApply,
               ]);
             }
           }
@@ -1478,17 +1498,24 @@ async function getActiveAccessToken() {
     }
     centralState.metadata = nextMetadata;
     persistCentralHydrationRevisions(hydratedRevisionEntries, options);
-    for (const [key, value] of requiredWriteBackEntries) {
-      const result = await syncCentralStateKey(key, value);
+    for (const [key, value, pendingEntry] of requiredWriteBackEntries) {
+      const result = await syncCentralStateKey(key, value, { hydrationWriteback: true });
+      if (result?.status === 403) {
+        continue;
+      }
       if (!result?.ok) {
         throw new Error(result?.reason || "Recovered Medical data could not be synced centrally.");
       }
-      persistCentralHydrationRevisions([[key, result.metadata || { revision: result.revision }, {}]]);
+      const acknowledgedMetadata = result.metadata || { revision: result.revision };
+      persistCentralHydrationRevisions([[key, acknowledgedMetadata, {}]]);
+      if (pendingEntry?.pendingCentralSync) {
+        clearCentralPendingSyncFlag(key, acknowledgedMetadata);
+      }
     }
     resolvedPendingKeys.forEach(([key, metadataEntry]) => clearCentralPendingSyncFlag(key, metadataEntry));
     clearResolvedCentralHydrationError();
     writeBackEntries.forEach(([key, value]) => {
-      syncCentralStateKey(key, value).catch(() => {});
+      syncCentralStateKey(key, value, { hydrationWriteback: true }).catch(() => {});
     });
   }
   async function hydrateCentralState(options = {}) {
@@ -1511,6 +1538,7 @@ async function getActiveAccessToken() {
     }
     centralState.hydrating = true;
     centralState.lastError = "";
+    centralState.writeAccess = {};
     try {
       centralState.localDev = false;
       const response = await readCentralStateBatches(options);
@@ -1527,11 +1555,15 @@ async function getActiveAccessToken() {
       const writeAccess = response.payload?.writeAccess && typeof response.payload.writeAccess === "object"
         ? response.payload.writeAccess
         : {};
+      centralState.writeAccess = { ...writeAccess };
+      const seedAccess = response.payload?.seedAccess && typeof response.payload.seedAccess === "object"
+        ? response.payload.seedAccess
+        : {};
       const hasCentralEntries = Object.keys(entries).length > 0;
       if (hasCentralEntries) {
         await applyCentralStateEntries(entries, metadata, { ...options, writeAccess });
       } else {
-        const localEntries = filterCentralStateWriteEntries(collectCentralLocalStateEntries(), writeAccess);
+        const localEntries = filterCentralStateWriteEntries(collectCentralLocalStateEntries(), seedAccess);
         if (Object.keys(localEntries).length) {
           const seedResponse = await apiRequest(API_APP_STATE, {
             method: "POST",
@@ -1600,13 +1632,19 @@ async function getActiveAccessToken() {
         }),
       });
       if (!response.ok) {
-        centralState.lastError = response.payload?.reason || "Sync failed.";
+        const reason = response.payload?.reason || "Sync failed.";
+        if (response.status === 403) {
+          centralState.writeAccess = { ...centralState.writeAccess, [key]: false };
+        }
+        if (!(options.hydrationWriteback && response.status === 403)) {
+          centralState.lastError = reason;
+        }
         return {
           ok: false,
           status: response.status,
           conflict: response.status === 409,
           currentRevision: response.payload?.currentRevision,
-          reason: centralState.lastError,
+          reason,
         };
       }
       centralState.lastError = "";
@@ -2697,7 +2735,7 @@ async function getActiveAccessToken() {
     isAdmin: () => ["admin", "club-admin", "team-admin"].includes(normalizeRoleForAuth(authState.currentUser?.role, "")),
     roles: authState.roles,
   };
-  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getCachedValue:getCentralCachedValue,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState})};
+  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,canWriteKey:(key)=>authState.devMode||centralState.writeAccess?.[String(key||"")]===true,getCachedValue:getCentralCachedValue,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState})};
   window.footballScienceAudit={record:recordAuditEvent};
   window.footballScienceMedicalDatabase={record:recordMedicalDatabaseEvent};
   window.platformAuthReadyPromise=bootAuth();

@@ -3176,8 +3176,8 @@ async function getFreshStateAccessEntries(entries = {}) {
   return accessEntries;
 }
 
-function filterStateEntriesForActor(actor, entries = {}) {
-  const accessConfig = getWorkspaceAccessConfigFromHubValue(entries[WORKSPACE_HUB_KEY]);
+function filterStateEntriesForActor(actor, entries = {}, accessEntries = entries) {
+  const accessConfig = getWorkspaceAccessConfigFromHubValue(accessEntries[WORKSPACE_HUB_KEY]);
   return Object.entries(entries).reduce((filtered, [key, value]) => {
     if (key === WORKSPACE_HUB_KEY) {
       filtered[key] = sanitizeWorkspaceHubRead(value, accessConfig);
@@ -3185,7 +3185,7 @@ function filterStateEntriesForActor(actor, entries = {}) {
     }
 
     if (key === TRANSFER_ROOM_KEY) {
-      if (canActorViewTransferRoom(actor, value)) {
+      if (canActorViewTransferRoom(actor, accessEntries[TRANSFER_ROOM_KEY])) {
         filtered[key] = value;
       }
       return filtered;
@@ -3666,13 +3666,13 @@ module.exports = async (req, res) => {
         bypassSnapshot: shouldBypassStateReadSnapshot(req),
         keys: readKeys,
       });
-      const actorEntries = filterStateEntriesForActor(actor, stateObjects.entries);
-      const entries = requestedKeys === null
-        ? actorEntries
-        : selectStateListResultKeys({ entries: actorEntries }, requestedKeys).entries;
       const accessEntries = accessMode === "fresh"
         ? await getFreshStateAccessEntries(stateObjects.entries)
         : stateObjects.entries;
+      const actorEntries = filterStateEntriesForActor(actor, stateObjects.entries, accessEntries);
+      const entries = requestedKeys === null
+        ? actorEntries
+        : selectStateListResultKeys({ entries: actorEntries }, requestedKeys).entries;
       const accessKeys = accessMode === "fresh"
         ? Array.from(CENTRAL_STATE_KEYS)
         : requestedKeys === null

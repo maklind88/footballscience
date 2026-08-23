@@ -37,6 +37,9 @@ function createServiceHarness(options = {}) {
       canWriteKey: (key) => options.writeAccess?.[key] !== false,
       syncKey: async (key, value, syncOptions) => {
         syncCalls.push({ key, value, options: syncOptions });
+        if (typeof options.syncKey === "function") {
+          return options.syncKey({ key, value, syncOptions, syncCalls });
+        }
         if (Array.isArray(options.syncResults)) {
           const result = options.syncResults[Math.min(syncResultIndex, options.syncResults.length - 1)];
           syncResultIndex += 1;
@@ -229,6 +232,51 @@ test("central sync runtime does not retry a permission-denied write loop", async
   expect(harness.manifest.lastCentralError).toBe(reason);
   expect(harness.syncStatuses).toContainEqual([key, "issue", reason]);
   expect(harness.syncStatuses).not.toContainEqual([key, "saved", "Saved"]);
+});
+
+test("central sync runtime drains a newer queued generation after an in-flight acknowledgement", async () => {
+  const key = "football-schedule-v1";
+  const firstValue = "{\"events\":[{\"id\":\"training-a\"}]}";
+  const secondValue = "{\"events\":[{\"id\":\"training-b\"}]}";
+  let resolveFirstWrite;
+  const firstWrite = new Promise((resolve) => {
+    resolveFirstWrite = resolve;
+  });
+  const harness = createServiceHarness({
+    syncKey: async ({ value, syncCalls }) => {
+      if (syncCalls.length === 1) {
+        return firstWrite;
+      }
+      return { ok: true, value, revision: 9 };
+    },
+  });
+
+  harness.service.queueCentralStateWrite(key, firstValue);
+  const firstFlush = harness.service.flushCentralStateWrites();
+  await expect.poll(() => harness.syncCalls.length).toBe(1);
+
+  harness.service.queueCentralStateWrite(key, secondValue);
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+
+  resolveFirstWrite({ ok: true, value: firstValue, revision: 8 });
+  await firstFlush;
+
+  expect(harness.syncCalls).toHaveLength(1);
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+  expect(harness.syncStatuses).not.toContainEqual([key, "saved", "Saved"]);
+
+  const followUpFlush = Array.from(harness.timers.values()).at(-1);
+  expect(typeof followUpFlush).toBe("function");
+  await followUpFlush();
+
+  expect(harness.syncCalls).toEqual([
+    { key, value: firstValue, options: { removed: false, baseRevision: 7 } },
+    { key, value: secondValue, options: { removed: false, baseRevision: 8 } },
+  ]);
+  expect(harness.manifest.entries[key]).toMatchObject({
+    pendingCentralSync: false,
+    serverRevision: 9,
+  });
 });
 
 test("central sync runtime reports saving and server-confirmed status for Set Pieces", async () => {

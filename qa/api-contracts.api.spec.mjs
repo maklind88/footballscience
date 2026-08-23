@@ -117,6 +117,8 @@ const medicalTeamPath = `global/${medicalTeamKey}.json`;
 const transferRoomKey = "football-transfer-room-v1";
 const transferRoomPath = `global/${transferRoomKey}.json`;
 const scheduleKey = "football-schedule-v1";
+const gameplanKey = "football-gameplan-v1";
+const gameplanPath = `global/${gameplanKey}.json`;
 const platformStructureKey = "football-platform-structure-v1";
 const platformStructurePath = `global/${platformStructureKey}.json`;
 const platformAppearanceKey = "football-platform-appearance-v1";
@@ -1230,12 +1232,14 @@ test("app-state returns fresh full access contracts without allowing delegated s
     workspaceAccess: {
       "medical-team": { view: ["admin", "coach"], edit: ["admin", "coach"] },
       "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+      gameplan: { view: ["admin", "coach"], edit: ["admin", "coach"] },
     },
   };
   const revokedHubState = {
     workspaceAccess: {
       "medical-team": { view: ["admin"], edit: ["admin"] },
       "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+      gameplan: { view: ["admin"], edit: ["admin"] },
     },
   };
   const transferRoomState = {
@@ -1246,6 +1250,7 @@ test("app-state returns fresh full access contracts without allowing delegated s
   const storage = createAppStateFetchMock({
     [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, editableHubState),
     [medicalTeamPath]: createAppStateStorageEntry(medicalTeamKey, { players: [], records: [], injuryPlans: [] }),
+    [gameplanPath]: createAppStateStorageEntry(gameplanKey, { phases: [] }),
     [playerProfilesPath]: createAppStateStorageEntry(playerProfilesKey, { players: [] }),
     [platformStructurePath]: createAppStateStorageEntry(platformStructureKey, { clubs: [] }),
     [platformAppearancePath]: createAppStateStorageEntry(platformAppearanceKey, { mode: "auto" }),
@@ -1263,6 +1268,17 @@ test("app-state returns fresh full access contracts without allowing delegated s
     expect(cachedResponse.status).toBe(200);
     expect(cachedResponse.payload.writeAccess[medicalTeamKey]).toBe(true);
 
+    const freshAllowResponse = await callHandler(freshHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${medicalTeamKey},${gameplanKey}&access=fresh`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(freshAllowResponse.status).toBe(200);
+    expect(freshAllowResponse.payload.entries).toHaveProperty(gameplanKey);
+    expect(freshAllowResponse.payload.metadata).toHaveProperty(gameplanKey);
+    expect(freshAllowResponse.payload.writeAccess[gameplanKey]).toBe(true);
+    expect(freshAllowResponse.payload.seedAccess[gameplanKey]).toBe(true);
+
     storage.objects.set(workspaceHubPath, createAppStateStorageEntry(
       workspaceHubKey,
       revokedHubState,
@@ -1270,11 +1286,15 @@ test("app-state returns fresh full access contracts without allowing delegated s
     ));
     const freshAccessResponse = await callHandler(freshHandler, {
       method: "GET",
-      url: `/api/app-state?keys=${medicalTeamKey}&access=fresh`,
+      url: `/api/app-state?keys=${medicalTeamKey},${gameplanKey}&access=fresh`,
       headers: { authorization: "Bearer test-access-token" },
     });
 
     expect(freshAccessResponse.status).toBe(200);
+    expect(freshAccessResponse.payload.entries).not.toHaveProperty(gameplanKey);
+    expect(freshAccessResponse.payload.metadata).not.toHaveProperty(gameplanKey);
+    expect(freshAccessResponse.payload.writeAccess[gameplanKey]).toBe(false);
+    expect(freshAccessResponse.payload.seedAccess[gameplanKey]).toBe(false);
     expect(freshAccessResponse.payload.writeAccess).toMatchObject({
       [medicalTeamKey]: false,
       [platformStructureKey]: true,

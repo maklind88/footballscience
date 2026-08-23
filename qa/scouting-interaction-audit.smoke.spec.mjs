@@ -172,47 +172,67 @@ async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
   ).toBeEnabled({ timeout: 15_000 });
 }
 
-async function startScoutingDatabaseLoad(page) {
-  const statusHandle = await page.waitForFunction(
-    () => {
-      const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
-      const isVisible = (node) => {
-        if (!node) {
-          return false;
-        }
-        const rect = node.getBoundingClientRect();
-        const style = window.getComputedStyle(node);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-      };
-      const hasRows = Array.from(workspace?.querySelectorAll("[data-open-scouting-record]") || []).some(
-        (node) => !node.disabled && isVisible(node)
-      );
-      if (hasRows) {
-        return "loaded";
+async function readScoutingDatabaseLoadState(page) {
+  return page.evaluate(() => {
+    const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
+    const isVisible = (node) => {
+      if (!node) {
+        return false;
       }
-      if (isVisible(workspace?.querySelector(":is(.scouting-database-progress, .scouting-database-loader)"))) {
-        return "loading";
-      }
-      const loadTrigger = Array.from(
-        workspace?.querySelectorAll("[data-scouting-load-database], [data-scouting-retry-database]") || []
-      ).find((node) => !node.disabled && isVisible(node));
-      if (!loadTrigger) {
-        return "";
-      }
-      loadTrigger.click();
-      return "clicked";
-    },
-    null,
-    { timeout: interactionBudget(15_000) }
-  );
-  try {
-    const status = await statusHandle.jsonValue();
-    expect(["clicked", "loading", "loaded"]).toContain(status);
-  } finally {
-    if (typeof statusHandle.dispose === "function") {
-      await statusHandle.dispose();
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    };
+    const hasRows = Array.from(workspace?.querySelectorAll("[data-open-scouting-record]") || []).some(
+      (node) => !node.disabled && isVisible(node)
+    );
+    if (hasRows) {
+      return "loaded";
     }
+    if (isVisible(workspace?.querySelector(":is(.scouting-database-progress, .scouting-database-loader)"))) {
+      return "loading";
+    }
+    const loadTrigger = Array.from(
+      workspace?.querySelectorAll("[data-scouting-load-database], [data-scouting-retry-database]") || []
+    ).find((node) => !node.disabled && isVisible(node));
+    return loadTrigger ? "startable" : "waiting";
+  });
+}
+
+async function startScoutingDatabaseLoad(page) {
+  let state = "waiting";
+  await expect
+    .poll(
+      async () => {
+        state = await readScoutingDatabaseLoadState(page);
+        return state;
+      },
+      {
+        message: "Scouting database never became loaded, loading, or explicitly startable",
+        timeout: interactionBudget(15_000),
+      }
+    )
+    .toMatch(/^(loaded|loading|startable)$/);
+
+  if (state !== "startable") {
+    return;
   }
+
+  const loadTrigger = page
+    .locator(
+      '[data-workspace-view="scouting"].is-active [data-scouting-load-database]:visible, [data-workspace-view="scouting"].is-active [data-scouting-retry-database]:visible'
+    )
+    .first();
+  await expect(loadTrigger).toBeVisible();
+  await expect(loadTrigger).toBeEnabled();
+  await loadTrigger.click();
+
+  await expect
+    .poll(() => readScoutingDatabaseLoadState(page), {
+      message: "Scouting database did not enter loading or loaded after the explicit load click",
+      timeout: interactionBudget(5_000),
+    })
+    .toMatch(/^(loading|loaded)$/);
 }
 
 async function ensureDatabaseRows(page, results) {

@@ -823,9 +823,29 @@ async function getActiveAccessToken() {
   }
   function normalizeCentralPendingSyncValue(value, localUiFields = []) {
     const normalizedValue = String(value ?? "");
-    return localUiFields.length
+    const sharedValue = localUiFields.length
       ? stripCentralStateLocalUiFields(normalizedValue, localUiFields)
       : normalizedValue;
+    if (!localUiFields.length) {
+      return sharedValue;
+    }
+    try {
+      return JSON.stringify(sortCentralPendingSyncValue(JSON.parse(sharedValue)));
+    } catch {
+      return sharedValue;
+    }
+  }
+  function sortCentralPendingSyncValue(value) {
+    if (Array.isArray(value)) {
+      return value.map(sortCentralPendingSyncValue);
+    }
+    if (!value || typeof value !== "object") {
+      return value;
+    }
+    return Object.keys(value).sort().reduce((sorted, key) => {
+      sorted[key] = sortCentralPendingSyncValue(value[key]);
+      return sorted;
+    }, {});
   }
   function captureCentralPendingSyncExpectation(key, value, localUiFields = []) {
     const entry = readCentralSyncManifestEntries()[key] || {};
@@ -860,6 +880,28 @@ async function getActiveAccessToken() {
       }
       manifest.lastCentralError = "";
       manifest.lastCentralSyncedAt = new Date().toISOString();
+      window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  function preserveCentralPendingSyncEntryAfterHydrationCache(key, pendingEntry = {}) {
+    if (!pendingEntry?.pendingCentralSync) {
+      return false;
+    }
+    try {
+      const raw = window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY);
+      const manifest = raw ? JSON.parse(raw) : null;
+      if (!manifest?.entries || typeof manifest.entries !== "object") {
+        return false;
+      }
+      const currentEntry = manifest.entries[key] || {};
+      manifest.entries[key] = {
+        ...currentEntry,
+        ...pendingEntry,
+        pendingCentralSync: true,
+      };
       window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
       return true;
     } catch {
@@ -1519,6 +1561,7 @@ async function getActiveAccessToken() {
           }
         }
         cacheCentralStateValue(key, valueToApply);
+        preserveCentralPendingSyncEntryAfterHydrationCache(key, pendingEntry);
         if (acknowledgesPending) {
           resolvedPendingKeys.push([
             key,

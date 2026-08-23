@@ -22,12 +22,14 @@ function createServiceHarness(options = {}) {
   let timerId = 0;
   let hydrated = options.hydrated !== false;
   let hydrating = Boolean(options.hydrating);
+  let hydrationError = String(options.hydrationError || "");
   let revision = Number.isInteger(Number(options.revision)) ? Number(options.revision) : 7;
   let syncResultIndex = 0;
   const win = {
     footballScienceCentralState: {
       getStatus: () => ({
         hydrating,
+        lastError: hydrationError,
         metadata: {
           "football-schedule-v1": { revision },
           "football-dashboard-presentation-mode-v1": { revision },
@@ -118,6 +120,9 @@ function createServiceHarness(options = {}) {
     },
     setHydrating: (nextValue) => {
       hydrating = Boolean(nextValue);
+    },
+    setHydrationError: (nextValue) => {
+      hydrationError = String(nextValue || "");
     },
     setRevision: (nextRevision) => {
       revision = Number(nextRevision) || 0;
@@ -592,6 +597,47 @@ test("central sync runtime waits for refresh hydration and uses its acknowledged
   const retryFlush = Array.from(harness.timers.values()).at(-1);
   expect(typeof retryFlush).toBe("function");
   await retryFlush();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key: "football-schedule-v1",
+      value: "{\"events\":[\"B\"]}",
+      options: { removed: false, baseRevision: 3 },
+    },
+  ]);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: false,
+  });
+});
+
+test("central sync runtime stops retry timers after terminal hydration failure and drains after recovery", async () => {
+  const harness = createServiceHarness({
+    hydrated: false,
+    hydrationError: "Central app data could not be loaded.",
+    revision: 2,
+  });
+
+  harness.service.queueCentralStateWrite("football-schedule-v1", "{\"events\":[\"B\"]}");
+  const failedFlush = Array.from(harness.timers.values())[0];
+  expect(typeof failedFlush).toBe("function");
+  await failedFlush();
+
+  expect(harness.syncCalls).toEqual([]);
+  expect(harness.timers).toHaveProperty("size", 1);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: true,
+  });
+  expect(harness.manifest.lastCentralError).toBe("Central app data could not be loaded.");
+  expect(harness.syncStatuses).toContainEqual([
+    "football-schedule-v1",
+    "issue",
+    "Central app data could not be loaded.",
+  ]);
+
+  harness.setHydrationError("");
+  harness.setHydrated(true);
+  harness.setRevision(3);
+  await harness.service.flushCentralStateWrites();
 
   expect(harness.syncCalls).toEqual([
     {

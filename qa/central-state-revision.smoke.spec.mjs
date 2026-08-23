@@ -47,6 +47,19 @@ function createMetadata(revision, value) {
   };
 }
 
+function reverseObjectKeyOrder(value) {
+  if (Array.isArray(value)) {
+    return value.map(reverseObjectKeyOrder);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  return Object.keys(value).reverse().reduce((reversed, key) => {
+    reversed[key] = reverseObjectKeyOrder(value[key]);
+    return reversed;
+  }, {});
+}
+
 function createFakeSupabaseScript(sessionUser = qaUser) {
   const session = {
     access_token: "qa-access-token",
@@ -516,13 +529,15 @@ test("Medical hydration acknowledges shared data when only local view fields dif
       key: medicalTeamStateKey,
       manifestKey: dataSafetyManifestKey,
       value: JSON.stringify({
-        ...JSON.parse(stableSharedMedicalValue),
+        ...reverseObjectKeyOrder(JSON.parse(stableSharedMedicalValue)),
         selectedDate: "2026-08-24",
         selectedPlayerId: "player-1",
       }),
     });
 
-    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(0);
+    const initialMedicalWrites = allSyncBodies.filter((body) => body.key === medicalTeamStateKey);
+    expect(initialMedicalWrites.length).toBeLessThanOrEqual(1);
+    expect(JSON.parse(centralStore.entries[medicalTeamStateKey])).toEqual(JSON.parse(stableSharedMedicalValue));
     expect(await tab.page.evaluate(({ key, manifestKey }) => {
       const state = JSON.parse(window.localStorage.getItem(key) || "{}");
       const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
@@ -535,6 +550,57 @@ test("Medical hydration acknowledges shared data when only local view fields dif
       pendingCentralSync: false,
       selectedDate: "2026-08-24",
       selectedPlayerId: "player-1",
+    });
+    await tab.page.waitForTimeout(350);
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ forceApply: true }));
+    await tab.page.waitForTimeout(250);
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(initialMedicalWrites.length);
+
+    centralStore.writeAccess[medicalTeamStateKey] = false;
+    allSyncBodies.length = 0;
+    await tab.page.evaluate(async ({ key, manifestKey }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      state.injuryPlans = [
+        ...(state.injuryPlans || []),
+        {
+          id: "local-shared-difference",
+          playerId: "player-1",
+          injuryType: "Pending shared difference",
+          updatedAt: "2026-08-23T10:02:00.000Z",
+        },
+      ];
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, JSON.stringify(state));
+        window.localStorage.setItem(manifestKey, JSON.stringify({
+          version: 1,
+          entries: {
+            [key]: {
+              label: "Medical Room",
+              hash: "real-shared-difference-hash",
+              writes: 2,
+              updatedAt: "2026-08-23T10:02:00.000Z",
+              pendingCentralSync: true,
+            },
+          },
+        }));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      await window.footballScienceCentralState.hydrate({ forceApply: true });
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey });
+
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(0);
+    expect(await tab.page.evaluate(({ key, manifestKey }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+        planIds: (state.injuryPlans || []).map((plan) => plan.id),
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      pendingCentralSync: true,
+      planIds: expect.arrayContaining(["local-shared-difference"]),
     });
   } finally {
     await closeCentralStateContext(tab.context);
@@ -1871,6 +1937,165 @@ test("central Medical hydration preserves pending local availability plans", asy
         selectedDate: "2026-05-17",
         planIds: ["plan-central", "plan-local"],
       });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("failed Medical hydration writeback preserves the pending generation until a real acknowledgement", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const centralMedicalState = {
+    players: [{ id: "player-1", name: "QA Player", updatedAt: "2026-05-07T12:04:00.000Z" }],
+    records: [],
+    injuryPlans: [{
+      id: "plan-central",
+      playerId: "player-1",
+      injuryType: "Central plan",
+      updatedAt: "2026-05-07T12:04:00.000Z",
+    }],
+  };
+  const localMedicalState = {
+    ...centralMedicalState,
+    selectedDate: "2026-05-17",
+    selectedPlayerId: "player-1",
+    injuryPlans: [{
+      id: "plan-local",
+      playerId: "player-1",
+      injuryType: "Pending local plan",
+      updatedAt: "2026-05-07T12:05:00.000Z",
+    }],
+  };
+  const centralMedicalValue = JSON.stringify(centralMedicalState);
+  const allSyncBodies = [];
+  let testWritebackActive = false;
+  let medicalWriteAttempts = 0;
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: { [medicalTeamStateKey]: centralMedicalValue },
+    metadataEntries: {
+      [medicalTeamStateKey]: {
+        ...createMetadata(4, centralMedicalValue),
+        moduleId: "medical-team",
+        mergePolicy: "record-timestamp-merge",
+      },
+    },
+    writeAccess: { [medicalTeamStateKey]: true },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "medical-writeback-recovery", {
+    allSyncBodies,
+    appStateWriteHandler: async ({ body, route }) => {
+      if (!testWritebackActive || body.key !== medicalTeamStateKey) {
+        return false;
+      }
+      medicalWriteAttempts += 1;
+      if (medicalWriteAttempts !== 1) {
+        return false;
+      }
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: false, reason: "Injected Medical writeback failure." }),
+      });
+      return true;
+    },
+  });
+
+  try {
+    await tab.page.waitForTimeout(250);
+    const stableMedicalState = await tab.page.evaluate((key) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      delete state.selectedDate;
+      delete state.selectedPlayerId;
+      return state;
+    }, medicalTeamStateKey);
+    const testCentralMedicalState = {
+      ...stableMedicalState,
+      injuryPlans: centralMedicalState.injuryPlans,
+    };
+    const testLocalMedicalState = {
+      ...stableMedicalState,
+      selectedDate: localMedicalState.selectedDate,
+      selectedPlayerId: localMedicalState.selectedPlayerId,
+      injuryPlans: localMedicalState.injuryPlans,
+    };
+    const testCentralMedicalValue = JSON.stringify(testCentralMedicalState);
+    centralStore.entries[medicalTeamStateKey] = testCentralMedicalValue;
+    centralStore.metadataEntries[medicalTeamStateKey] = {
+      ...createMetadata(4, testCentralMedicalValue),
+      moduleId: "medical-team",
+      mergePolicy: "record-timestamp-merge",
+    };
+    allSyncBodies.length = 0;
+    testWritebackActive = true;
+
+    const firstHydrationResult = await tab.page.evaluate(async ({ key, manifestKey, value }) => {
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, value);
+        window.localStorage.setItem(manifestKey, JSON.stringify({
+          version: 1,
+          entries: {
+            [key]: {
+              label: "Medical Room",
+              hash: "pending-medical-generation-a",
+              writes: 7,
+              updatedAt: "2026-05-07T12:05:30.000Z",
+              deletedAt: "",
+              pendingCentralSync: true,
+              serverRevision: 3,
+            },
+          },
+        }));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      return window.footballScienceCentralState.hydrate({ forceApply: true });
+    }, {
+      key: medicalTeamStateKey,
+      manifestKey: dataSafetyManifestKey,
+      value: JSON.stringify(testLocalMedicalState),
+    });
+
+    expect(firstHydrationResult).toBe(false);
+    expect(medicalWriteAttempts).toBe(1);
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(1);
+    expect(await tab.page.evaluate(({ key, manifestKey }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      const entry = manifest.entries?.[key] || {};
+      return {
+        pendingCentralSync: entry.pendingCentralSync,
+        hash: entry.hash,
+        writes: entry.writes,
+        updatedAt: entry.updatedAt,
+        planIds: (state.injuryPlans || []).map((plan) => plan.id).sort(),
+        lastError: window.footballScienceCentralState.getStatus().lastError,
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      pendingCentralSync: true,
+      hash: "pending-medical-generation-a",
+      writes: 7,
+      updatedAt: "2026-05-07T12:05:30.000Z",
+      planIds: ["plan-central", "plan-local"],
+      lastError: "Injected Medical writeback failure.",
+    });
+
+    const retryResult = await tab.page.evaluate(() =>
+      window.footballScienceCentralState.hydrate({ forceApply: true })
+    );
+    expect(retryResult).toBe(true);
+    expect(medicalWriteAttempts).toBe(2);
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(2);
+    const finalPendingEntry = await tab.page.evaluate(({ key, manifestKey }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return manifest.entries?.[key] || null;
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey });
+    expect(finalPendingEntry).toMatchObject({
+      pendingCentralSync: false,
+      hash: "pending-medical-generation-a",
+      writes: 7,
+    });
   } finally {
     await closeCentralStateContext(tab.context);
   }

@@ -55,10 +55,20 @@ export function createCentralSyncRuntimeService(deps = {}) {
     return Number.isInteger(revision) && revision >= 0 ? revision : 0;
   }
 
-  function isCentralStateBridgeHydrated(bridge = getCentralStateBridge()) {
+  function getCentralStateBridgeHydrationState(bridge = getCentralStateBridge()) {
+    const status = bridge?.getStatus?.() || {};
+    if (status.hydrating === true) {
+      return "active";
+    }
+    if (String(status.lastError || "").trim()) {
+      return "failed";
+    }
     const hydrated = typeof bridge?.isHydrated === "function" ? Boolean(bridge.isHydrated()) : true;
-    const hydrating = bridge?.getStatus?.()?.hydrating === true;
-    return hydrated && !hydrating;
+    return hydrated ? "ready" : "pending";
+  }
+
+  function isCentralStateBridgeHydrated(bridge = getCentralStateBridge()) {
+    return getCentralStateBridgeHydrationState(bridge) === "ready";
   }
 
   function canWriteCentralStateKey(key, bridge = getCentralStateBridge()) {
@@ -334,9 +344,18 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (centralStateWriteFlushInFlight || !bridge?.syncKey || !centralStateWriteQueue.size) {
       return;
     }
-    if (!isCentralStateBridgeHydrated(bridge)) {
-      queueCentralStateStatus("Central sync is loading.");
-      if (!centralStateWriteTimer) {
+    const hydrationState = getCentralStateBridgeHydrationState(bridge);
+    if (hydrationState !== "ready") {
+      const hydrationError = String(bridge?.getStatus?.()?.lastError || "").trim();
+      const message = hydrationState === "failed"
+        ? hydrationError || "Central sync could not load. Your changes remain pending."
+        : "Central sync is loading.";
+      queueCentralStateStatus(message);
+      if (hydrationState === "failed") {
+        centralStateWriteQueue.forEach((write) => {
+          reportSyncStatus(write.key, "issue", message);
+        });
+      } else if (!centralStateWriteTimer) {
         centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, centralStateHydrationRetryMs);
       }
       return;

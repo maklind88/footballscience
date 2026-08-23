@@ -57,7 +57,7 @@ body.is-dark-mode #gameplanWorkspace .gp-command-days article > div span {
 
 @media (max-width: 900px) {
   #gameplanWorkspace .gameplan-shell.is-command-hq {
-    padding: 14px 14px 36px;
+    padding: 14px 14px calc(104px + env(safe-area-inset-bottom));
   }
 
   #gameplanWorkspace .gp-command-primary-grid {
@@ -76,7 +76,7 @@ body.is-dark-mode #gameplanWorkspace .gp-command-days article > div span {
 
 @media (max-width: 620px) {
   #gameplanWorkspace .gameplan-shell.is-command-hq {
-    padding: 10px 10px 28px;
+    padding: 10px 10px calc(104px + env(safe-area-inset-bottom));
   }
 
   #gameplanWorkspace .gp-command-identity h1 {

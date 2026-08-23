@@ -488,7 +488,8 @@ test("Periodization day view reads planned exercise names from Session Planner b
 
   const panel = renderer.renderDayPanel("2026-05-08", { isOverlay: true, mode: "view" });
 
-  expect(panel).toContain("Mobility Prep");
+  expect(panel).not.toContain("Mobility Prep");
+  expect(panel).not.toContain("Warm Up");
   expect(panel).toContain("Passing Gates");
   expect(panel).toContain("Manual Periodization Block");
   expect(panel).toContain("Finishing Waves");

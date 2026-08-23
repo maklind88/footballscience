@@ -845,7 +845,6 @@ ${renderActionIcon("pencil")}
     const pitchLabel = getPitchLabel(day.pitchSize);
     const microcycleModel = getMicrocycleModel(getWeekDatesForDate(date));
     const trainingBlocks = [
-      ["Warm Up", day.warmUp],
       ["Block 1", day.block1],
       ["Block 2", day.block2],
       ["Block 3", day.block3],

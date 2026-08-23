@@ -1,0 +1,81 @@
+.periodization-day-view-hero {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  align-items: stretch;
+}
+
+.periodization-day-view-hero > div {
+  min-width: 0;
+  overflow: hidden;
+  align-content: start;
+  gap: 0.5rem;
+  padding: 0.88rem 0.95rem;
+}
+
+.periodization-day-view-hero > div > span {
+  line-height: 1;
+}
+
+.periodization-day-view-hero strong {
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.periodization-view-load .periodization-load-meter.is-large {
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.periodization-view-load .periodization-load-meter.is-large .periodization-load-gauge {
+  width: 3.65rem;
+  height: 2rem;
+}
+
+.periodization-view-load .periodization-load-meter.is-large .periodization-load-needle {
+  height: 1.52rem;
+}
+
+.periodization-view-load .periodization-load-meter.is-large .periodization-load-label {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.05;
+  letter-spacing: 0;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+
+.periodization-view-pitch strong {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  line-height: 1.08;
+}
+
+.periodization-view-pitch .periodization-pitch-icon {
+  flex: 0 0 auto;
+}
+
+.periodization-view-microcycle {
+  grid-template-rows: auto auto minmax(0, auto);
+}
+
+.periodization-view-microcycle strong {
+  font-size: 1.08rem;
+  white-space: normal;
+}
+
+.periodization-view-microcycle .periodization-microcycle-load-rail {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 760px) {
+  .periodization-day-view-hero {
+    grid-template-columns: 1fr;
+  }
+}

@@ -332,6 +332,12 @@ test("Gameplan deletion is confirmed, archived, and keeps the next plan stable",
     window.localStorage.setItem(
       "football-schedule-v1",
       JSON.stringify({
+        importVersion: "ncc-2026-numbers-v1",
+        selectedYear: 2026,
+        selectedMonthIndex: 7,
+        selectedDate: "2026-08-22",
+        viewMode: "month",
+        overviewSpan: 6,
         events: [
           { id: "delete-match-1", date: "2026-08-22", type: "match", title: "First Opponent" },
           { id: "delete-match-2", date: "2026-08-29", type: "match", title: "Next Opponent" },

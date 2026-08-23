@@ -380,6 +380,18 @@ test("modular core skeleton exposes only explicitly approved production assets",
     "src/modules/set-pieces-room/set-pieces-present-responsive.css",
     "src/modules/presentation-mode/presentation-mode-set-pieces.css",
     "src/modules/home/home-schedule-preview.css",
+    "src/modules/medical/medical-clinical-foundation.css",
+    "src/modules/medical/medical-clinical-roster.css",
+    "src/modules/medical/medical-clinical-operations.css",
+    "src/modules/medical/medical-clinical-modal.css",
+    "src/modules/medical/medical-clinical-profile.css",
+    "src/modules/medical/medical-clinical-plan.css",
+    "src/modules/medical/medical-clinical-foundation.css",
+    "src/modules/medical/medical-clinical-roster.css",
+    "src/modules/medical/medical-clinical-operations.css",
+    "src/modules/medical/medical-clinical-modal.css",
+    "src/modules/medical/medical-clinical-profile.css",
+    "src/modules/medical/medical-clinical-plan.css",
   ]);
 });
 

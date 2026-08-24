@@ -90,6 +90,7 @@
   ]);
   const nativeLocalStorageRemoveItem = window.Storage?.prototype?.removeItem;
   const centralStateValues = new Map();
+  const centralStateValueMetadata = new Map();
   const CENTRAL_STATE_LARGE_READ_KEYS = new Set([
     SESSION_PLANNER_STATE_KEY,
     MEDICAL_TEAM_STATE_KEY,
@@ -683,16 +684,36 @@ async function getActiveAccessToken() {
     const normalizedKey = String(key || "");
     return centralStateValues.has(normalizedKey) ? centralStateValues.get(normalizedKey) : undefined;
   }
-  function setCentralCachedValue(key, value) {
+  function getCentralCachedValueInfo(key) {
+    const normalizedKey = String(key || "");
+    if (!centralStateValues.has(normalizedKey)) {
+      return { value: undefined, source: "", durable: false, serverBacked: false };
+    }
+    return {
+      value: centralStateValues.get(normalizedKey),
+      source: "local-write",
+      durable: true,
+      serverBacked: false,
+      ...(centralStateValueMetadata.get(normalizedKey) || {}),
+    };
+  }
+  function setCentralCachedValue(key, value, options = {}) {
     const normalizedKey = String(key || "");
     if (!isCentralStateKey(normalizedKey) || typeof value !== "string") {
       return false;
     }
     centralStateValues.set(normalizedKey, value);
+    centralStateValueMetadata.set(normalizedKey, {
+      source: options.source || "local-write",
+      durable: options.durable !== false,
+      serverBacked: Boolean(options.serverBacked),
+    });
     return true;
   }
   function removeCentralCachedValue(key) {
-    return centralStateValues.delete(String(key || ""));
+    const normalizedKey = String(key || "");
+    centralStateValueMetadata.delete(normalizedKey);
+    return centralStateValues.delete(normalizedKey);
   }
   function setCentralCacheFallbackState(key, isFallback) {
     const fallbackKeys = new Set(centralState.cacheFallbackKeys || []);
@@ -704,9 +725,9 @@ async function getActiveAccessToken() {
     centralState.cacheFallbackKeys = Array.from(fallbackKeys);
   }
   function cacheCentralStateValue(key, value) {
-    setCentralCachedValue(key, value);
     try {
       window.localStorage.setItem(key, value);
+      setCentralCachedValue(key, value, { source: "central-hydration", durable: true, serverBacked: true });
       setCentralCacheFallbackState(key, false);
       return true;
     } catch (error) {
@@ -716,6 +737,7 @@ async function getActiveAccessToken() {
       try {
         nativeLocalStorageRemoveItem?.call(window.localStorage, key);
       } catch {}
+      setCentralCachedValue(key, value, { source: "central-hydration", durable: false, serverBacked: true });
       setCentralCacheFallbackState(key, true);
       return false;
     }
@@ -2681,7 +2703,7 @@ async function getActiveAccessToken() {
     isAdmin: () => ["admin", "club-admin", "team-admin"].includes(normalizeRoleForAuth(authState.currentUser?.role, "")),
     roles: authState.roles,
   };
-  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getCachedValue:getCentralCachedValue,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState})};
+  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getCachedValue:getCentralCachedValue,getCachedValueInfo:getCentralCachedValueInfo,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState})};
   window.footballScienceAudit={record:recordAuditEvent};
   window.footballScienceMedicalDatabase={record:recordMedicalDatabaseEvent};
   window.platformAuthReadyPromise=bootAuth();

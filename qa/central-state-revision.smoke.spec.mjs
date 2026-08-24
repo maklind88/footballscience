@@ -569,16 +569,29 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
     },
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "session-quota-fallback", {
-    initScript: ({ key }) => {
+    initScript: ({ key, staleValue }) => {
       const originalSetItem = Storage.prototype.setItem;
+      originalSetItem.call(window.localStorage, key, staleValue);
       Storage.prototype.setItem = function quotaAwareSetItem(storageKey, value) {
-        if (String(storageKey) === key && String(value).includes("Big Sided Games")) {
+        if (String(storageKey) === key) {
           throw new DOMException(`Setting ${key} exceeded the quota.`, "QuotaExceededError");
         }
         return originalSetItem.call(this, storageKey, value);
       };
     },
-    initArg: { key: sessionPlannerStateKey },
+    initArg: {
+      key: sessionPlannerStateKey,
+      staleValue: JSON.stringify({
+        selectedDate: "2026-07-20",
+        sessions: {
+          "2026-07-20": {
+            date: "2026-07-20",
+            title: "Stale local session",
+            blocks: [{ id: "stale-block-1", title: "Stale Local Block", minutes: 10 }],
+          },
+        },
+      }),
+    },
   });
 
   try {
@@ -586,8 +599,14 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
       .poll(() => tab.page.evaluate((key) => {
         const state = JSON.parse(window.localStorage.getItem(key) || "{}");
         const status = window.footballScienceCentralState.getStatus();
+        const backup = window.footballScienceDataSafety.createBackup("quota-hydration");
+        const cachedInfo = window.footballScienceCentralState.getCachedValueInfo(key);
         return {
           blockTitles: (state.sessions?.["2026-07-21"]?.blocks || []).map((block) => block.title),
+          backupHasKey: Object.prototype.hasOwnProperty.call(backup.storage || {}, key),
+          cacheDurable: cachedInfo.durable,
+          cacheServerBacked: cachedInfo.serverBacked,
+          cacheSource: cachedInfo.source,
           fallbackKeys: status.cacheFallbackKeys || [],
           hydrated: status.hydrated,
           lastError: status.lastError || "",
@@ -595,9 +614,79 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
       }, sessionPlannerStateKey))
       .toEqual({
         blockTitles: ["1v1 Def/Off", "Possession", "German Possession", "Big Sided Games"],
+        backupHasKey: false,
+        cacheDurable: false,
+        cacheServerBacked: true,
+        cacheSource: "central-hydration",
         fallbackKeys: [sessionPlannerStateKey],
         hydrated: true,
         lastError: "",
+      });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("large Player Profiles central hydration stays server-backed when localStorage quota is full", async ({ browser, baseURL }) => {
+  const centralPlayerProfilesState = {
+    players: [
+      {
+        id: "player-large-1",
+        name: "Large Server Player",
+        position: "CM",
+        profileImageUrl: "",
+      },
+    ],
+  };
+  const centralValue = JSON.stringify(centralPlayerProfilesState);
+  const centralStore = {
+    value: createStateValue("Original central sequence"),
+    metadata: createMetadata(1, createStateValue("Original central sequence")),
+    entries: { [playerProfilesStateKey]: centralValue },
+    metadataEntries: {
+      [playerProfilesStateKey]: { ...createMetadata(118, centralValue), moduleId: "player-profiles" },
+    },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "player-profiles-quota-fallback", {
+    initScript: ({ key }) => {
+      const originalSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function quotaAwareSetItem(storageKey, value) {
+        if (String(storageKey) === key) {
+          throw new DOMException(`Setting ${key} exceeded the quota.`, "QuotaExceededError");
+        }
+        return originalSetItem.call(this, storageKey, value);
+      };
+    },
+    initArg: { key: playerProfilesStateKey },
+  });
+
+  try {
+    await expect
+      .poll(() => tab.page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        const status = window.footballScienceCentralState.getStatus();
+        const backup = window.footballScienceDataSafety.createBackup("player-profiles-quota-hydration");
+        const cachedInfo = window.footballScienceCentralState.getCachedValueInfo(key);
+        return {
+          backupHasKey: Object.prototype.hasOwnProperty.call(backup.storage || {}, key),
+          cacheDurable: cachedInfo.durable,
+          cacheServerBacked: cachedInfo.serverBacked,
+          cacheSource: cachedInfo.source,
+          fallbackKeys: status.cacheFallbackKeys || [],
+          hydrated: status.hydrated,
+          lastError: status.lastError || "",
+          playerName: state.players?.[0]?.name || "",
+        };
+      }, playerProfilesStateKey))
+      .toEqual({
+        backupHasKey: false,
+        cacheDurable: false,
+        cacheServerBacked: true,
+        cacheSource: "central-hydration",
+        fallbackKeys: [playerProfilesStateKey],
+        hydrated: true,
+        lastError: "",
+        playerName: "Large Server Player",
       });
   } finally {
     await closeCentralStateContext(tab.context);

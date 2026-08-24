@@ -64,6 +64,16 @@ export function createDataSafetyRuntimeService(deps = {}) {
     return typeof value === "string" ? value : null;
   }
 
+  function getCentralCachedValueInfo(key) {
+    const bridge = getCentralStateBridge();
+    if (typeof bridge?.getCachedValueInfo === "function") {
+      const info = bridge.getCachedValueInfo(String(key || ""));
+      return info && typeof info === "object" ? info : {};
+    }
+    const value = bridge?.getCachedValue?.(String(key || ""));
+    return typeof value === "string" ? { value, source: "legacy", durable: true } : {};
+  }
+
   function setCentralCachedValue(key, value) {
     return Boolean(getCentralStateBridge()?.setCachedValue?.(String(key || ""), String(value ?? "")));
   }
@@ -104,12 +114,16 @@ export function createDataSafetyRuntimeService(deps = {}) {
       nativeSetItem.call(storage, normalizedKey, normalizedValue);
       if (isProtectedStorageKey(normalizedKey)) setCentralCachedValue(normalizedKey, normalizedValue);
     } catch (error) {
-      if (!isProtectedStorageKey(normalizedKey) || !isStorageQuotaError(error) || !setCentralCachedValue(normalizedKey, normalizedValue)) {
-        throw error;
+      if (isProtectedStorageKey(normalizedKey) && isStorageQuotaError(error)) {
+        const cachedInfo = getCentralCachedValueInfo(normalizedKey);
+        if (!(cachedInfo.serverBacked && cachedInfo.durable === false)) {
+          removeCentralCachedValue(normalizedKey);
+        }
+        try {
+          nativeRemoveItem?.call(storage, normalizedKey);
+        } catch {}
       }
-      try {
-        nativeRemoveItem?.call(storage, normalizedKey);
-      } catch {}
+      throw error;
     }
   }
 
@@ -241,7 +255,13 @@ export function createDataSafetyRuntimeService(deps = {}) {
       if (isProtectedStorageKey(key)) keys.add(key);
     }
     keys.forEach((key) => {
-      const value = rawGetItem(key);
+      const value = isProtectedStorageKey(key)
+        ? (nativeGetItem ? nativeGetItem.call(storage, key) : null)
+        : rawGetItem(key);
+      const cachedInfo = isProtectedStorageKey(key) ? getCentralCachedValueInfo(key) : {};
+      if (value === null && cachedInfo?.value !== undefined && cachedInfo.durable !== true) {
+        return;
+      }
       if (value !== null) data[key] = value;
     });
     return data;

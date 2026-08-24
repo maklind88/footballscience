@@ -55,6 +55,7 @@ function createHarness(options = {}) {
   const StorageConstructor = createFakeStorageConstructor(options);
   const localStorage = new StorageConstructor();
   const centralCache = new Map(Object.entries(options.centralCache || {}));
+  const centralCacheInfo = new Map(Object.entries(options.centralCacheInfo || {}));
   const timers = new Map();
   const queuedWrites = [];
   let timerId = 0;
@@ -67,11 +68,29 @@ function createHarness(options = {}) {
     },
     footballScienceCentralState: {
       getCachedValue: (key) => centralCache.get(String(key)),
-      setCachedValue: (key, value) => {
+      getCachedValueInfo: (key) => {
+        const normalizedKey = String(key);
+        if (!centralCache.has(normalizedKey)) return { value: undefined, source: "", durable: false };
+        return {
+          value: centralCache.get(normalizedKey),
+          source: "local-write",
+          durable: true,
+          ...(centralCacheInfo.get(normalizedKey) || {}),
+        };
+      },
+      setCachedValue: (key, value, info = {}) => {
         centralCache.set(String(key), String(value));
+        centralCacheInfo.set(String(key), {
+          source: info.source || "local-write",
+          durable: info.durable !== false,
+          serverBacked: Boolean(info.serverBacked),
+        });
         return true;
       },
-      removeCachedValue: (key) => centralCache.delete(String(key)),
+      removeCachedValue: (key) => {
+        centralCacheInfo.delete(String(key));
+        return centralCache.delete(String(key));
+      },
       getStatus: () => options.centralStatus || {},
     },
     setTimeout: (callback, delay) => {
@@ -125,7 +144,7 @@ function createHarness(options = {}) {
     getCentralStateWriteSuppressionKeys: () => options.suppressionKeys || new Set(),
     queueCentralStateWrite: (...args) => queuedWrites.push(args),
   });
-  return { centralCache, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
+  return { centralCache, centralCacheInfo, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
 
 test("data safety runtime service owns protected storage body outside app-runtime", () => {
@@ -167,21 +186,22 @@ test("data safety runtime service preserves protected localStorage write trackin
   expect(timers.size).toBeGreaterThan(0);
 });
 
-test("data safety runtime service falls back to central memory when browser cache quota is full", () => {
+test("data safety runtime service fails closed when protected browser cache quota is full", () => {
   const key = "football-medical-team-v1";
   const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
   const { centralCache, localStorage, queuedWrites, service } = createHarness({ quotaKey: key });
 
   service.install();
-  expect(() => localStorage.setItem(key, value)).not.toThrow();
+  expect(() => localStorage.setItem(key, value)).toThrow("exceeded the quota");
 
   expect(localStorage.values.has(key)).toBe(false);
-  expect(centralCache.get(key)).toBe(value);
-  expect(localStorage.getItem(key)).toBe(value);
-  expect(service.rawGetItem(key)).toBe(value);
-  expect(service.createBackupEnvelope("quota-fallback").storage[key]).toBe(value);
-  expect(queuedWrites).toContainEqual([key, value, {}]);
-  expect(service.status.lastError).toBe("");
+  expect(centralCache.has(key)).toBe(false);
+  expect(localStorage.getItem(key)).toBe(null);
+  expect(service.rawGetItem(key)).toBe(null);
+  expect(service.createBackupEnvelope("quota-fallback").storage[key]).toBeUndefined();
+  expect(queuedWrites).toEqual([]);
+  expect(service.status.lastError).toContain("exceeded the quota");
+  expect(service.readManifest().lastError).toContain("exceeded the quota");
 });
 
 test("data safety runtime service blocks protected writes until central sync is ready", () => {
@@ -194,6 +214,39 @@ test("data safety runtime service blocks protected writes until central sync is 
   expect(queuedWrites).toEqual([]);
   expect(service.status.lastError).toBe("Central sync is not ready.");
   expect(service.readManifest().lastError).toBe("Central sync is not ready.");
+});
+
+test("data safety runtime service reads server-backed hydration cache without exporting it as local backup", () => {
+  const key = "football-medical-team-v1";
+  const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
+  const { localStorage, service } = createHarness({
+    centralCache: { [key]: value },
+    centralCacheInfo: {
+      [key]: { source: "central-hydration", durable: false, serverBacked: true },
+    },
+  });
+
+  service.install();
+
+  expect(localStorage.getItem(key)).toBe(value);
+  expect(service.rawGetItem(key)).toBe(value);
+  expect(service.createBackupEnvelope("server-backed-cache").storage[key]).toBeUndefined();
+});
+
+test("data safety runtime service records protected removals as central tombstones", () => {
+  const { localStorage, queuedWrites, service } = createHarness();
+
+  service.install();
+  localStorage.setItem("football-schedule-v1", "{\"events\":[]}");
+  queuedWrites.length = 0;
+
+  localStorage.removeItem("football-schedule-v1");
+
+  expect(localStorage.getItem("football-schedule-v1")).toBe(null);
+  expect(queuedWrites).toEqual([["football-schedule-v1", "", { removed: true }]]);
+  expect(service.readManifest().entries["football-schedule-v1"]).toMatchObject({
+    deletedAt: expect.any(String),
+  });
 });
 
 test("data safety runtime service preserves legacy migration and queued snapshot flushing", () => {

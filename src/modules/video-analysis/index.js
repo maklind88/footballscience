@@ -113,6 +113,7 @@ import { createVideoAnalysisCollaborationRuntime } from "./video-analysis.collab
 import { createVideoLibraryController } from "./video-analysis.library-controller.js";
 import { createVideoAnalysisStore } from "./video-analysis.store.js";
 import { createVideoAnalysisTimelineWorkspaceRuntime } from "./video-analysis.timeline-workspace-runtime.js";
+import { createVideoAnalysisTrackingRuntime } from "./video-analysis.tracking-runtime.js";
 
 let runtime = null;
 let videoLibraryController = null;
@@ -182,6 +183,11 @@ function createRuntime(context = {}) {
     loadClips,
     loadTimelineWorkspace: timelineWorkspaceRuntime.load,
   });
+  const trackingRuntime = createVideoAnalysisTrackingRuntime({
+    context,
+    getRuntime: () => runtime,
+    getVideoElement: () => videoElement(runtime?.context || context),
+  });
   return {
     context,
     store,
@@ -196,6 +202,8 @@ function createRuntime(context = {}) {
     timelineWorkspaceRuntime,
     collaboration: collaborationRuntime.service,
     collaborationRuntime,
+    tracking: trackingRuntime.repository,
+    trackingRuntime,
     videos: createVideoRepository(context),
     unsubscribe: null,
     keydownBound: false,
@@ -4779,6 +4787,9 @@ export function handlePointerDown(event, context = {}) {
     const presentation = state.presentation?.current;
     const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
     if (!item) return false;
+    if (state.presentation?.tracking?.mode === "tracking") {
+      return run.trackingRuntime.controller.startInteraction(event, drawingSurface);
+    }
     return drawingControls(context).startInteraction(event, drawingSurface);
   }
   return timelineController(context).handlePointerDown(event);
@@ -4786,11 +4797,13 @@ export function handlePointerDown(event, context = {}) {
 
 export function handlePointerMove(event, context = {}) {
   if (updateCodePipInteraction(event, context)) return true;
+  if (runtime?.trackingRuntime?.controller.updateInteraction(event)) return true;
   return drawingControls(context).updateInteraction(event);
 }
 
 export function handlePointerUp(event, context = {}) {
   if (finishCodePipInteraction(event, context)) return true;
+  if (runtime?.trackingRuntime?.controller.finishInteraction(event)) return true;
   return drawingControls(context).finishInteraction(event);
 }
 
@@ -4803,6 +4816,7 @@ export function handleClick(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (run.trackingRuntime.controller.handleClick(event)) return true;
   if (workspaceTimelineController(context).handleClick(event)) return true;
   const roomTab = target.closest("[data-video-analysis-room-tab]");
   if (roomTab) {
@@ -6291,6 +6305,7 @@ export function handleChange(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (run.trackingRuntime.controller.handleChange(event)) return true;
   if (workspaceTimelineController(context).handleChange(event)) return true;
   const fileInput = target.closest("[data-video-analysis-file]");
   if (fileInput?.files?.[0]) {

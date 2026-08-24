@@ -1,0 +1,316 @@
+.video-analysis-telestration-mode,
+.video-analysis-tracking-toolbar,
+.video-analysis-tracking-commands,
+.video-analysis-tracking-range,
+.video-analysis-tracking-graphics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.video-analysis-telestration-mode button,
+.video-analysis-tracking-toolbar button,
+.video-analysis-tracking-commands button,
+.video-analysis-tracking-review button,
+.video-analysis-tracking-graphics button {
+  min-height: 34px;
+  border: 1px solid #cbd5ce;
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: #203129;
+  background: #fff;
+}
+
+.video-analysis-telestration-mode button.is-active,
+.video-analysis-tracking-toolbar button.is-active {
+  border-color: #1f5c3d;
+  color: #fff;
+  background: #1f5c3d;
+}
+
+.video-analysis-draw-tool-grid.is-hidden {
+  display: none;
+}
+
+.video-analysis-tracking-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.video-analysis-track-box {
+  position: absolute;
+  box-sizing: border-box;
+  min-width: 20px;
+  min-height: 28px;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 3px;
+  padding: 0;
+  background: rgba(22, 101, 52, 0.12);
+  box-shadow: 0 0 0 1px rgba(11, 53, 31, 0.8);
+  pointer-events: auto;
+}
+
+.video-analysis-track-box span {
+  position: absolute;
+  left: -2px;
+  bottom: 100%;
+  max-width: 140px;
+  overflow: hidden;
+  padding: 2px 5px;
+  color: #fff;
+  background: #153d28;
+  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-track-box.is-selected {
+  border-color: #f7d154;
+  box-shadow: 0 0 0 2px #153d28;
+}
+
+.video-analysis-track-box.is-low-confidence {
+  border-style: dashed;
+  border-color: #ef4444;
+}
+
+.video-analysis-track-prompt {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px dashed #f7d154;
+  background: rgba(247, 209, 84, 0.08);
+}
+
+.video-analysis-track-prompt span {
+  position: absolute;
+  left: -2px;
+  top: -22px;
+  padding: 2px 5px;
+  color: #17201b;
+  background: #f7d154;
+  font-size: 10px;
+}
+
+.video-analysis-dynamic-anchor {
+  --tracking-color: #f7d154;
+  position: absolute;
+  width: 8%;
+  aspect-ratio: 1;
+  border: 3px solid var(--tracking-color);
+  border-radius: 50%;
+  transform: translate(-50%, -76%);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+}
+
+.video-analysis-dynamic-anchor.is-spotlight {
+  width: 14%;
+  border-width: 2px;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.36);
+}
+
+.video-analysis-dynamic-anchor.is-label {
+  width: auto;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 4px;
+  padding: 4px 7px;
+  color: #17201b;
+  background: var(--tracking-color);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.video-analysis-dynamic-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.video-analysis-dynamic-svg line,
+.video-analysis-dynamic-svg polyline {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.video-analysis-dynamic-distance {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 4px;
+  padding: 3px 6px;
+  color: #17201b;
+  background: #f7d154;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.video-analysis-dynamic-gap {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.video-analysis-tracking-side {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.video-analysis-tracking-side label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: #53635b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.video-analysis-tracking-side input,
+.video-analysis-tracking-side select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #d4ddd7;
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: #17201b;
+  background: #fff;
+}
+
+.video-analysis-tracking-range > label {
+  flex: 1 1 90px;
+}
+
+.video-analysis-tracking-progress {
+  position: relative;
+  height: 22px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #e7ece9;
+}
+
+.video-analysis-tracking-progress span {
+  display: block;
+  height: 100%;
+  background: #2f855a;
+}
+
+.video-analysis-tracking-progress small {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #17201b;
+  font-size: 10px;
+}
+
+.video-analysis-tracking-list {
+  display: grid;
+  gap: 6px;
+  max-height: 200px;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video-analysis-tracking-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #dbe2dd;
+  border-radius: 6px;
+  padding: 7px;
+  background: #fff;
+}
+
+.video-analysis-tracking-list li.is-selected {
+  border-color: #2f855a;
+}
+
+.video-analysis-tracking-list button {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+}
+
+.video-analysis-tracking-list strong,
+.video-analysis-tracking-list span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-tracking-list em {
+  border-radius: 4px;
+  padding: 3px 5px;
+  color: #526158;
+  background: #eef2ef;
+  font-size: 9px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.video-analysis-tracking-list em.is-verified {
+  color: #165c37;
+  background: #dff2e6;
+}
+
+.video-analysis-tracking-review {
+  display: grid;
+  gap: 5px;
+  border-left: 3px solid #d6a91f;
+  padding: 8px 10px;
+  background: #fff9e8;
+}
+
+.video-analysis-tracking-review span {
+  color: #5f665f;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.video-analysis-tracking-graphics {
+  justify-content: space-between;
+}
+
+@media (max-width: 760px) {
+  .video-analysis-tracking-toolbar,
+  .video-analysis-telestration-mode {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .video-analysis-tracking-toolbar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .video-analysis-tracking-toolbar button {
+    min-width: 0;
+    padding-inline: 4px;
+    font-size: 10px;
+  }
+}

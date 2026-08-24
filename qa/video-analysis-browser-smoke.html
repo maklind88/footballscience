@@ -92,6 +92,8 @@
       let savedTimelines = [];
       let collaborationSession = null;
       let collaborationParticipants = [];
+      let savedObjectTracks = [];
+      let savedDynamicGraphics = [];
       const smokeParams = new URLSearchParams(window.location.search);
       if (smokeParams.get("elite") === "1") {
         savedTimelines = [
@@ -250,6 +252,45 @@
             operations: [],
             nextCursor: new Date().toISOString(),
           });
+        }
+        if (action === "tracking-workspace") {
+          return Response.json({
+            ok: true,
+            schema: "footballscience-video-analysis-elite-v1",
+            objectTracks: savedObjectTracks,
+            dynamicGraphics: savedDynamicGraphics,
+            samplesStoredLocally: true,
+          });
+        }
+        if (action === "save-object-track") {
+          const input = body.objectTrack || {};
+          const existing = savedObjectTracks.find((track) => track.id === input.id);
+          const objectTrack = {
+            ...(existing || {}),
+            ...input,
+            id: existing?.id || "4a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            revision: Number(existing?.revision || 0) + 1,
+          };
+          if (existing) Object.assign(existing, objectTrack);
+          else savedObjectTracks.push(objectTrack);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-elite-v1", objectTrack, samplesStoredLocally: true });
+        }
+        if (action === "save-track-correction") {
+          return Response.json({
+            ok: true,
+            schema: "footballscience-video-analysis-elite-v1",
+            correction: { id: "correction-1", ...(body.correction || {}) },
+          });
+        }
+        if (action === "save-dynamic-graphic") {
+          const input = body.dynamicGraphic || {};
+          const dynamicGraphic = {
+            ...input,
+            id: "5a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            revision: 1,
+          };
+          savedDynamicGraphics.push(dynamicGraphic);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-elite-v1", dynamicGraphic });
         }
         if (action === "save-coding-template") {
           savedCodingTemplate = {

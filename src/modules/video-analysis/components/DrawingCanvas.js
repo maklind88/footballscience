@@ -5,6 +5,11 @@ import {
 import { layerStyle } from "../services/presentationLayerGeometryService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml } from "./renderHelpers.js";
+import {
+  renderTrackingSidebar,
+  renderTrackingStage,
+  renderTrackingToolbar,
+} from "./TrackingTelestration.js";
 
 const toolBadges = Object.freeze({
   arrow: "AR",
@@ -89,6 +94,7 @@ export function renderDrawingCanvas(state = {}) {
   const selectedLayer = layers.find((layer) => layer.id === selectedLayerId) || null;
   const previewLayer = state.presentation?.drawingInteraction?.previewLayer || null;
   const hasVideo = Boolean(state.videoRef?.objectUrl);
+  const trackingMode = state.presentation?.tracking?.mode || "static";
   return `
     <section class="video-analysis-drawing-builder" aria-label="Drawing layers">
       <div class="video-analysis-drawing-builder__stage">
@@ -104,14 +110,20 @@ export function renderDrawingCanvas(state = {}) {
             <button type="button" data-video-analysis-presentation-mode="builder">Done</button>
           </div>
         </div>
-        <div class="video-analysis-draw-tool-grid video-analysis-draw-tool-grid--stage">
-          ${presentationDrawingTools.map((tool) => renderTool(tool, activeTool)).join("")}
+        <div class="video-analysis-telestration-mode" role="group" aria-label="Telestration mode">
+          <button type="button" class="${trackingMode === "static" ? "is-active" : ""}" data-video-analysis-tracking-mode="static">Draw</button>
+          <button type="button" class="${trackingMode === "tracking" ? "is-active" : ""}" data-video-analysis-tracking-mode="tracking">Auto follow</button>
         </div>
+        <div class="video-analysis-draw-tool-grid video-analysis-draw-tool-grid--stage${trackingMode === "static" ? "" : " is-hidden"}">
+          ${trackingMode === "static" ? presentationDrawingTools.map((tool) => renderTool(tool, activeTool)).join("") : ""}
+        </div>
+        ${renderTrackingToolbar(state)}
         <div class="video-analysis-drawing-canvas is-${escapeHtml(activeTool)}" data-video-analysis-drawing-surface>
           ${hasVideo ? `<video class="video-analysis-drawing-video" data-video-analysis-video src="${escapeHtml(state.videoRef.objectUrl)}" controls playsinline preload="metadata"></video>` : ""}
           <span class="video-analysis-drawing-field-lines"></span>
           ${layers.map((layer) => renderOverlayLayer(layer, selectedLayerId)).join("")}
           ${renderPreviewLayer(previewLayer)}
+          ${renderTrackingStage(state, item)}
           <strong>${escapeHtml(activeTool)}</strong>
           <small>${escapeHtml(item ? (hasVideo ? "Direct telestration layer" : "Local video source needed") : "No clip selected")}</small>
           ${!hasVideo ? `<button type="button" class="video-analysis-drawing-link-video" data-video-analysis-load>Link local video</button>` : ""}
@@ -121,6 +133,7 @@ export function renderDrawingCanvas(state = {}) {
         </div>
       </div>
       <aside class="video-analysis-drawing-side" aria-label="Drawing tools and layers">
+        ${trackingMode === "tracking" ? renderTrackingSidebar(state, item) : `
         <div>
           <p class="video-analysis-kicker">Layer controls</p>
           <h3>${escapeHtml(layers.length ? `${layers.length} saved layers` : "Prepare first drawing")}</h3>
@@ -138,6 +151,7 @@ export function renderDrawingCanvas(state = {}) {
         <ol class="video-analysis-drawing-layer-list">
           ${layers.length ? layers.map(renderLayer).join("") : `<li class="video-analysis-muted">No saved layers on this clip.</li>`}
         </ol>
+        `}
       </aside>
     </section>
   `;

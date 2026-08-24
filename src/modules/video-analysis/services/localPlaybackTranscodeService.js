@@ -4,7 +4,7 @@ import { getLocalVideoFile } from "./localVideoBridgeService.js";
 const defaultBridgeUrl = "http://127.0.0.1:47831";
 const bridgeSessions = new Map();
 
-function bridgeBaseUrl(win = window) {
+export function localVideoBridgeBaseUrl(win = window) {
   return String(win.FOOTBALL_SCIENCE_LOCAL_VIDEO_BRIDGE_URL || defaultBridgeUrl).replace(/\/+$/, "");
 }
 
@@ -63,7 +63,7 @@ export async function createPlayableLocalCopy(reference = {}, win = window) {
     throw new Error("Reload the original local file before preparing a playable copy.");
   }
 
-  const baseUrl = bridgeBaseUrl(win);
+  const baseUrl = localVideoBridgeBaseUrl(win);
   let health;
   try {
     health = await fetchWithTimeout(`${baseUrl}/health`, {}, 1500);

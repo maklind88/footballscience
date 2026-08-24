@@ -33,6 +33,8 @@ Optional limits and policy:
 - `FS_LOCAL_VIDEO_MAX_CACHE_BYTES`: total cache quota.
 - `FS_LOCAL_VIDEO_MAX_CONCURRENT_JOBS`: processing concurrency, capped at four.
 - `FS_LOCAL_VIDEO_MAX_QUEUED_JOBS`: bounded waiting queue.
+- `FS_LOCAL_VIDEO_MAX_TRACKING_DURATION_MS`: maximum range for one tracking job.
+- `FS_TRACKING_ENGINE_PATH`: approved local executable implementing the tracking provider protocol.
 
 ## Endpoints
 
@@ -40,11 +42,15 @@ Optional limits and policy:
 - `POST /session`
 - `GET /capabilities`
 - `POST /jobs/prepare-playback`
+- `POST /jobs/track-object`
 - `GET /jobs/:id`
 - `DELETE /jobs/:id`
 - `POST /transcode`
 - `GET /playback/:id/playback.mp4`
+- `GET /tracking/:id/track.json`
 
 `POST /transcode` remains the synchronous compatibility route and now runs through the same protected job queue. New clients should prefer the asynchronous job route.
 
 The server only binds to loopback. Raw match video and generated media stay on the device unless an authorized user explicitly exports or shares a portable package.
+
+Object tracking uses a provider boundary instead of embedding an unreviewable model in the web app. The provider receives an input path, a bounded prompt request, and an output path under the `football-science-tracking-v1` protocol. It writes normalized track JSON and may stream JSON progress lines. Without an approved provider, the capability is hidden and analysts can still add reviewed manual keyframes.

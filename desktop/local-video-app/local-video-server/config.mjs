@@ -38,6 +38,10 @@ export function createLocalVideoServerConfig(env = process.env, options = {}) {
     maxCacheBytes: positiveInteger(env.FS_LOCAL_VIDEO_MAX_CACHE_BYTES, 200 * gibibyte),
     maxConcurrentJobs: Math.min(4, positiveInteger(env.FS_LOCAL_VIDEO_MAX_CONCURRENT_JOBS, 1)),
     maxQueuedJobs: Math.min(32, positiveInteger(env.FS_LOCAL_VIDEO_MAX_QUEUED_JOBS, 8)),
+    maxTrackingDurationMs: Math.min(
+      20 * 60 * 1000,
+      positiveInteger(env.FS_LOCAL_VIDEO_MAX_TRACKING_DURATION_MS, 2 * 60 * 1000),
+    ),
     completedJobRetentionMs: positiveInteger(
       env.FS_LOCAL_VIDEO_JOB_RETENTION_MS,
       24 * 60 * 60 * 1000,

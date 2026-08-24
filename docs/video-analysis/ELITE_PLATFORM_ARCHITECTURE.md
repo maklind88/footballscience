@@ -57,6 +57,7 @@ Large tracking arrays must not be copied into generic application state or one u
 - A track owns time-bounded segments, points, detection confidence, identity confidence, occlusion, engine provenance, and correction history.
 - Dynamic graphics bind to track anchors over an explicit time range. Distance, unit hull, unit line, trail, and movement curve graphics are spatial layers, not static drawing records.
 - Low-confidence or discontinuous sections are visible and require correction before verification.
+- The current vertical slice supports manual prompt/keyframes, review and correction, track-bound highlights, metadata-only central persistence, and a secure local provider protocol. Automatic inference is capability-gated until an approved model/provider package is installed; dense samples remain local.
 
 ### Pitch Calibration And Spatial Analysis
 
@@ -107,7 +108,7 @@ Each phase must ship behind capability checks, preserve old records, pass module
 | Elite foundation | Implemented in candidate branch | Domain models, secure local job engine, geometry and sync contracts |
 | Workstation operations | Implemented in candidate branch | Multiple persisted timelines, row colors/order/locks, clip move/copy, save/undo, exclusive coding groups |
 | Collaborative coding foundation | Implemented in candidate branch | Participant heartbeat, append-only operation log, clip/timeline revisions, reconnect polling, private Realtime adapter held behind approval |
-| Tracking and dynamic telestration | Domain foundation only | Runtime, review UI, local inference adapter, and correction workflow remain |
+| Tracking and dynamic telestration | Implemented vertical slice in candidate branch | Prompt/keyframe UX, review/correction, identity and confidence gates, track-bound graphics, secure local provider jobs, metadata-only API; approved provider packaging and local artifact restoration remain |
 | Spatial analysis | Domain foundation only | Calibration UI, confidence gates, overlays, and charts remain |
 | Media production | Secure job foundation only | Multi-angle UI, capture/replay, proxy/export orchestration remain |
 | Intelligence and portable sharing | Planned | Matrix drilldown, query compiler, reports, package format and encrypted delivery remain |

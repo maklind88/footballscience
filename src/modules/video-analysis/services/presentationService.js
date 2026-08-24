@@ -76,6 +76,15 @@ export function createInitialPresentationWorkspace() {
     drawingRedoStack: [],
     drawingInteraction: null,
     selectedDrawingLayerId: "",
+    tracking: {
+      mode: "static",
+      tool: "highlight",
+      selectedTrackIds: [],
+      prompt: null,
+      interaction: null,
+      job: null,
+      error: "",
+    },
     thumbnails: {},
     thumbnailCache: { count: 0, bytes: 0, maxItems: 600, maxBytes: 35 * 1024 * 1024 },
     presenterIndex: 0,
@@ -212,6 +221,12 @@ export function normalizePresentationItem(item = {}, index = 0) {
     clip: item.clip || null,
     drawings: Array.isArray(item.drawings || item.drawingLayers || item.drawing_layers)
       ? (item.drawings || item.drawingLayers || item.drawing_layers).map(normalizeDrawingLayer)
+      : [],
+    objectTracks: Array.isArray(item.objectTracks || item.object_tracks)
+      ? (item.objectTracks || item.object_tracks)
+      : [],
+    dynamicGraphics: Array.isArray(item.dynamicGraphics || item.dynamic_graphics)
+      ? (item.dynamicGraphics || item.dynamic_graphics)
       : [],
   };
 }

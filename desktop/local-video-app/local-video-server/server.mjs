@@ -1,10 +1,11 @@
-import { createReadStream, promises as fs } from "node:fs";
+import { promises as fs } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inspectCache, pruneCache, removeCacheEntry } from "./cache-manager.mjs";
 import { createLocalVideoServerConfig, isAllowedOrigin } from "./config.mjs";
 import { createFfmpegEngine } from "./ffmpeg-engine.mjs";
+import { createPlaybackAssetHandler } from "./playback-asset-handler.mjs";
 import { createProcessingJobManager } from "./processing-job-manager.mjs";
 import { receiveRequestFile } from "./request-upload.mjs";
 import {
@@ -14,6 +15,8 @@ import {
   requestOrigin,
   sessionTokenFromRequest,
 } from "./security.mjs";
+import { createTrackingEngineAdapter } from "./tracking-engine-adapter.mjs";
+import { createTrackingJobHandler } from "./tracking-job-handler.mjs";
 
 function safeFileName(value = "match-video") {
   let decoded = String(value || "match-video");
@@ -48,21 +51,6 @@ function sendJson(request, response, config, statusCode, payload, headers = {}) 
   response.end(JSON.stringify(payload));
 }
 
-function parseRange(rangeHeader = "", size = 0) {
-  const match = String(rangeHeader || "").match(/^bytes=(\d*)-(\d*)$/);
-  if (!match) return null;
-  const [, rawStart, rawEnd] = match;
-  if (!rawStart && !rawEnd) return null;
-  if (!rawStart) {
-    const suffix = Math.max(0, Number(rawEnd || 0));
-    return { start: Math.max(0, size - suffix), end: size - 1 };
-  }
-  const start = Number(rawStart);
-  const end = rawEnd ? Number(rawEnd) : size - 1;
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= size) return null;
-  return { start, end: Math.min(end, size - 1) };
-}
-
 function statusCodeForError(error) {
   if (Number.isInteger(error?.statusCode)) return error.statusCode;
   if (error?.code === "ENOENT") return 503;
@@ -80,6 +68,7 @@ function publicErrorMessage(error) {
 export function createLocalVideoServer(options = {}) {
   const config = options.config || createLocalVideoServerConfig();
   const engine = options.engine || createFfmpegEngine(options.ffmpeg || {});
+  const trackingEngine = options.trackingEngine || createTrackingEngineAdapter(options.tracking || {});
   const sessions = createBridgeSessionStore({ ttlMs: config.sessionTtlMs });
   const assets = createAssetAccessStore({ ttlMs: config.assetTtlMs });
   const jobs = createProcessingJobManager({
@@ -124,6 +113,29 @@ export function createLocalVideoServer(options = {}) {
     }
     return session;
   }
+
+  const handlePlayback = createPlaybackAssetHandler({
+    assets,
+    config,
+    corsHeaders,
+    isAllowedOrigin,
+    requestOrigin,
+    sendJson,
+  });
+  const tracking = createTrackingJobHandler({
+    assets,
+    authorizeSession,
+    baseUrl,
+    config,
+    corsHeaders,
+    jobOwners,
+    jobs,
+    publicErrorMessage,
+    requestOrigin,
+    sendJson,
+    statusCodeForError,
+    trackingEngine,
+  });
 
   async function createPlaybackJob(request, response) {
     const session = authorizeSession(request, response);
@@ -188,51 +200,6 @@ export function createLocalVideoServer(options = {}) {
     }
   }
 
-  async function handlePlayback(request, url, response) {
-    const match = url.pathname.match(/^\/playback\/([a-f0-9-]+)\/playback\.mp4$/i);
-    if (!match) {
-      sendJson(request, response, config, 404, { ok: false, error: "Playback file not found." });
-      return;
-    }
-    const assetId = match[1];
-    const accessToken = url.searchParams.get("access") || "";
-    const origin = requestOrigin(request);
-    if ((origin && !isAllowedOrigin(origin, config)) || !assets.validate(assetId, accessToken, origin)) {
-      sendJson(request, response, config, 401, { ok: false, error: "Playback access expired." });
-      return;
-    }
-    const playbackPath = path.join(config.cacheDir, assetId, "playback.mp4");
-    try {
-      const stat = await fs.stat(playbackPath);
-      const baseHeaders = corsHeaders(request, config, {
-        "accept-ranges": "bytes",
-        "cache-control": "private, max-age=3600",
-        "content-type": "video/mp4",
-      });
-      const range = parseRange(request.headers.range, stat.size);
-      if (request.headers.range && !range) {
-        response.writeHead(416, { ...baseHeaders, "content-range": `bytes */${stat.size}` });
-        response.end();
-        return;
-      }
-      if (range) {
-        response.writeHead(206, {
-          ...baseHeaders,
-          "content-length": range.end - range.start + 1,
-          "content-range": `bytes ${range.start}-${range.end}/${stat.size}`,
-        });
-        if (request.method === "HEAD") response.end();
-        else createReadStream(playbackPath, { start: range.start, end: range.end }).pipe(response);
-        return;
-      }
-      response.writeHead(200, { ...baseHeaders, "content-length": stat.size });
-      if (request.method === "HEAD") response.end();
-      else createReadStream(playbackPath).pipe(response);
-    } catch {
-      sendJson(request, response, config, 404, { ok: false, error: "Playback file not found." });
-    }
-  }
-
   server = createServer(async (request, response) => {
     const url = new URL(request.url || "/", baseUrl());
     if (rejectUntrustedOrigin(request, response)) return;
@@ -269,7 +236,13 @@ export function createLocalVideoServer(options = {}) {
       sendJson(request, response, config, 200, {
         ok: true,
         apiVersion: 2,
-        capabilities: ["prepare-playback", "byte-range-playback", "progress", "cancel"],
+        capabilities: [
+          "prepare-playback",
+          "byte-range-playback",
+          "progress",
+          "cancel",
+          ...(trackingEngine.available() ? ["track-object"] : []),
+        ],
         limits: {
           maxInputBytes: config.maxInputBytes,
           maxCacheBytes: config.maxCacheBytes,
@@ -282,6 +255,16 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "POST" && url.pathname === "/jobs/prepare-playback") {
       const jobId = await createPlaybackJob(request, response);
+      if (!jobId) return;
+      sendJson(request, response, config, 202, {
+        ok: true,
+        job: jobs.get(jobId),
+        statusUrl: `${baseUrl()}/jobs/${jobId}`,
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/jobs/track-object") {
+      const jobId = await tracking.createJob(request, response);
       if (!jobId) return;
       sendJson(request, response, config, 202, {
         ok: true,
@@ -326,6 +309,9 @@ export function createLocalVideoServer(options = {}) {
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/playback/")) {
       await handlePlayback(request, url, response);
       return;
+    }
+    if (request.method === "GET" && url.pathname.startsWith("/tracking/")) {
+      if (await tracking.handleArtifact(request, url, response)) return;
     }
     sendJson(request, response, config, 404, { ok: false, error: "Route not found." });
   });

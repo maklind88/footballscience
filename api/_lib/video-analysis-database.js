@@ -51,6 +51,12 @@ const {
   saveTimeline,
 } = require("./video-analysis-workstation-database.js");
 const {
+  listTrackingWorkspace,
+  saveDynamicGraphic,
+  saveObjectTrack,
+  saveTrackCorrection,
+} = require("./video-analysis-tracking-database.js");
+const {
   attachClipSharingState,
   buildClipSharingMetadata,
   canActorMutateClip,
@@ -896,7 +902,7 @@ function statusPayload(actor) {
     scope: actorScope(actor),
     storesVideoFiles: false,
     precision: "milliseconds",
-    workstation: ["templates", "hotkeys", "multiple-timelines", "timeline-row-operations", "descriptors", "matrix-find", "review-sections", "presentation-builder", "drawing-layers", "audited-collaboration"],
+    workstation: ["templates", "hotkeys", "multiple-timelines", "timeline-row-operations", "descriptors", "matrix-find", "review-sections", "presentation-builder", "drawing-layers", "audited-collaboration", "object-tracking", "dynamic-graphics"],
   };
 }
 
@@ -923,8 +929,10 @@ async function handleVideoAnalysisRequest(req, res, actor) {
               ? await listTimelines(query, actor)
               : action === "timeline-operations"
                 ? await listTimelineOperations(query, actor)
-                : action === "collaboration-state"
+              : action === "collaboration-state"
                   ? await getCollaborationState(query, actor)
+                  : action === "tracking-workspace"
+                    ? await listTrackingWorkspace(query, actor)
             : await listClips(query, actor);
     return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
   }
@@ -971,8 +979,14 @@ async function handleVideoAnalysisRequest(req, res, actor) {
                                           ? await startCollaborationSession(body.collaborationSession || body.session || body, actor)
                                           : action === "join-collaboration-session"
                                             ? await joinCollaborationSession(body.collaborationSession || body.session || body, actor)
-                                            : action === "leave-collaboration-session"
+                                          : action === "leave-collaboration-session"
                                               ? await leaveCollaborationSession(body.collaborationSession || body.session || body, actor)
+                                              : action === "save-object-track"
+                                                ? await saveObjectTrack(body.objectTrack || body.track || body, actor)
+                                                : action === "save-track-correction"
+                                                  ? await saveTrackCorrection(body.correction || body, actor)
+                                                  : action === "save-dynamic-graphic"
+                                                    ? await saveDynamicGraphic(body.dynamicGraphic || body.graphic || body, actor)
                                       : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }

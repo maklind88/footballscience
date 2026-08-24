@@ -1,5 +1,7 @@
 # Football Science Video Analysis - Coding Workstation v2
 
+> Historical baseline: Workstation V2 is implemented and now extended by `ELITE_PLATFORM_ARCHITECTURE.md`. Items marked out of scope below were V2 boundaries, not current FS Player boundaries.
+
 Status: implementation owner draft  
 Principle: Video local. Knowledge central.
 

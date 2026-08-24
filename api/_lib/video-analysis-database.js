@@ -61,6 +61,11 @@ const {
   savePitchCalibration,
 } = require("./video-analysis-spatial-database.js");
 const {
+  listMediaWorkspace,
+  saveExportManifest,
+  saveMediaAngle,
+} = require("./video-analysis-media-database.js");
+const {
   attachClipSharingState,
   buildClipSharingMetadata,
   canActorMutateClip,
@@ -906,7 +911,7 @@ function statusPayload(actor) {
     scope: actorScope(actor),
     storesVideoFiles: false,
     precision: "milliseconds",
-    workstation: ["templates", "hotkeys", "multiple-timelines", "timeline-row-operations", "descriptors", "matrix-find", "review-sections", "presentation-builder", "drawing-layers", "audited-collaboration", "object-tracking", "dynamic-graphics", "pitch-calibration", "spatial-analysis"],
+    workstation: ["templates", "hotkeys", "multiple-timelines", "timeline-row-operations", "descriptors", "matrix-find", "review-sections", "presentation-builder", "drawing-layers", "audited-collaboration", "object-tracking", "dynamic-graphics", "pitch-calibration", "spatial-analysis", "multi-angle", "replay", "local-render-export"],
   };
 }
 
@@ -939,6 +944,8 @@ async function handleVideoAnalysisRequest(req, res, actor) {
                     ? await listTrackingWorkspace(query, actor)
                     : action === "pitch-calibration" || action === "spatial-workspace"
                       ? await listPitchCalibration(query, actor)
+                      : action === "media-workspace"
+                        ? await listMediaWorkspace(query, actor)
             : await listClips(query, actor);
     return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
   }
@@ -995,6 +1002,10 @@ async function handleVideoAnalysisRequest(req, res, actor) {
                                                     ? await saveDynamicGraphic(body.dynamicGraphic || body.graphic || body, actor)
                                                     : action === "save-pitch-calibration"
                                                       ? await savePitchCalibration(body.calibration || body, actor)
+                                                      : action === "save-media-angle"
+                                                        ? await saveMediaAngle(body.angle || body.mediaAngle || body, actor)
+                                                        : action === "save-export-manifest"
+                                                          ? await saveExportManifest(body.exportManifest || body.manifest || body, actor)
                                       : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }

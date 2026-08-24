@@ -110,7 +110,7 @@ Each phase must ship behind capability checks, preserve old records, pass module
 | Collaborative coding foundation | Implemented in candidate branch | Participant heartbeat, append-only operation log, clip/timeline revisions, reconnect polling, private Realtime adapter held behind approval |
 | Tracking and dynamic telestration | Implemented vertical slice in candidate branch | Prompt/keyframe UX, review/correction, identity and confidence gates, track-bound graphics, secure local provider jobs, metadata-only API; approved provider packaging and local artifact restoration remain |
 | Spatial analysis | Implemented vertical slice in candidate branch | Manual pitch-plane calibration, server-recomputed confidence/RMS, perspective overlay, true-metre pair and unit metrics, continuity-aware curves, and track-bound distance/unit/path layers; automatic camera recalibration remains |
-| Media production | Secure job foundation only | Multi-angle UI, capture/replay, proxy/export orchestration remain |
+| Media production | Implemented vertical slice in candidate branch | Multi-angle source workspace, offset/drift synchronization, synchronized compare playback, bounded replay ranges, local H.264/AAC MP4 render jobs, progress/cancel/download, expiring artifact access, output checksums, and metadata-only export records; graphics burn-in, live capture, proxy cache, and portable delivery remain |
 | Intelligence and portable sharing | Planned | Matrix drilldown, query compiler, reports, package format and encrypted delivery remain |
 
 ## Elite Acceptance Standard
@@ -123,3 +123,11 @@ Each phase must ship behind capability checks, preserve old records, pass module
 - Multi-angle playback remains synchronized through long clips and can be corrected at reference points.
 - Export is deterministic, cancellable, resumable at job level, and produces a verifiable local artifact.
 - Shared review works either through fingerprint reconnection or an explicit portable package.
+
+## Media Production Security Boundary
+
+- Browser state may contain session-only `blob:` or loopback playback URLs, but they are rejected by central media contracts and never persisted.
+- `/api/video-analysis` stores camera synchronization metadata and immutable export evidence only: source IDs, match-time range, preset, layer summary, byte size, and SHA-256 hashes.
+- The local loopback engine receives source bytes only after an explicit analyst action, enforces origin plus expiring session capability, bounds input/range/queue/concurrency, writes atomically, and serves results through expiring access tokens.
+- A completed render is not yet a portable share. Sharing requires a separately authorized package/export flow with explicit recipient access and expiry.
+- The current render trims and encodes the selected source angle. Presentation graphics remain metadata until the graphics-compositing milestone; the UI and manifest must not imply that unburned layers are present in the rendered pixels.

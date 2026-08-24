@@ -699,7 +699,22 @@
   }
 
   #analysisRoomWorkspace .video-analysis-player-transport {
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     min-height: 0;
+  }
+
+  #analysisRoomWorkspace .video-analysis-player-time {
+    min-width: 0;
+  }
+
+  #analysisRoomWorkspace .video-analysis-player-controls {
+    justify-self: start;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  #analysisRoomWorkspace .video-analysis-player-view-actions {
+    justify-self: start;
   }
 }

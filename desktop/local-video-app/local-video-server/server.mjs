@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { inspectCache, pruneCache, removeCacheEntry } from "./cache-manager.mjs";
 import { createLocalVideoServerConfig, isAllowedOrigin } from "./config.mjs";
 import { createFfmpegEngine } from "./ffmpeg-engine.mjs";
+import { createMediaExportJobHandler } from "./media-export-job-handler.mjs";
 import { createPlaybackAssetHandler } from "./playback-asset-handler.mjs";
 import { createProcessingJobManager } from "./processing-job-manager.mjs";
 import { receiveRequestFile } from "./request-upload.mjs";
@@ -136,6 +137,21 @@ export function createLocalVideoServer(options = {}) {
     statusCodeForError,
     trackingEngine,
   });
+  const mediaExport = createMediaExportJobHandler({
+    assets,
+    authorizeSession,
+    baseUrl,
+    config,
+    corsHeaders,
+    engine,
+    isAllowedOrigin,
+    jobOwners,
+    jobs,
+    publicErrorMessage,
+    requestOrigin,
+    sendJson,
+    statusCodeForError,
+  });
 
   async function createPlaybackJob(request, response) {
     const session = authorizeSession(request, response);
@@ -241,6 +257,7 @@ export function createLocalVideoServer(options = {}) {
           "byte-range-playback",
           "progress",
           "cancel",
+          "render-export",
           ...(trackingEngine.available() ? ["track-object"] : []),
         ],
         limits: {
@@ -265,6 +282,16 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "POST" && url.pathname === "/jobs/track-object") {
       const jobId = await tracking.createJob(request, response);
+      if (!jobId) return;
+      sendJson(request, response, config, 202, {
+        ok: true,
+        job: jobs.get(jobId),
+        statusUrl: `${baseUrl()}/jobs/${jobId}`,
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/jobs/render-export") {
+      const jobId = await mediaExport.createJob(request, response);
       if (!jobId) return;
       sendJson(request, response, config, 202, {
         ok: true,
@@ -312,6 +339,9 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "GET" && url.pathname.startsWith("/tracking/")) {
       if (await tracking.handleArtifact(request, url, response)) return;
+    }
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/exports/")) {
+      if (await mediaExport.handleArtifact(request, url, response)) return;
     }
     sendJson(request, response, config, 404, { ok: false, error: "Route not found." });
   });

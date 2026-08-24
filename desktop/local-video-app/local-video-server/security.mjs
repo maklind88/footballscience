@@ -30,8 +30,10 @@ export function corsHeaders(request = {}, config = {}, extra = {}) {
     "access-control-allow-headers": [
       "content-type",
       "x-football-science-file-name",
+      "x-football-science-export-spec",
       "x-football-science-prepare-mode",
       "x-football-science-session",
+      "x-football-science-tracking-prompt",
       "range",
     ].join(","),
     "access-control-allow-private-network": "true",
@@ -118,4 +120,3 @@ export function createAssetAccessStore(options = {}) {
 export function sessionTokenFromRequest(request = {}) {
   return String(request.headers?.["x-football-science-session"] || "").trim();
 }
-

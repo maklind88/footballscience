@@ -95,6 +95,10 @@
       let savedObjectTracks = [];
       let savedDynamicGraphics = [];
       let savedCalibration = null;
+      let savedMediaAngles = Array.isArray(window.__videoAnalysisSmokeMediaAngles)
+        ? window.__videoAnalysisSmokeMediaAngles.map((angle) => ({ ...angle }))
+        : [];
+      let savedExportManifests = [];
       const smokeParams = new URLSearchParams(window.location.search);
       if (smokeParams.get("elite") === "1") {
         savedTimelines = [
@@ -265,6 +269,36 @@
         }
         if (action === "pitch-calibration" || action === "spatial-workspace") {
           return Response.json({ ok: true, schema: "footballscience-video-analysis-elite-v1", calibration: savedCalibration });
+        }
+        if (action === "media-workspace") {
+          return Response.json({
+            ok: true,
+            schema: "footballscience-video-analysis-media-v1",
+            angles: savedMediaAngles,
+            exports: savedExportManifests,
+            storesVideoFiles: false,
+            artifactAccess: "device-local",
+          });
+        }
+        if (action === "save-media-angle") {
+          const input = body.angle || {};
+          const existing = savedMediaAngles.find((angle) => angle.id === input.id);
+          const angle = {
+            ...(existing || {}),
+            ...input,
+            id: existing?.id || input.id || "4a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            revision: Number(existing?.revision || 0) + 1,
+            status: input.status === "active" ? "available" : input.status || "available",
+          };
+          if (existing) Object.assign(existing, angle);
+          else savedMediaAngles.push(angle);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-media-v1", angle });
+        }
+        if (action === "save-export-manifest") {
+          const input = body.exportManifest || {};
+          const exportManifest = { ...input, id: "5a4e615e-f3e7-4fc7-bb70-a02db63c9152" };
+          savedExportManifests.unshift(exportManifest);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-media-v1", exportManifest });
         }
         if (action === "save-pitch-calibration") {
           const input = body.calibration || {};

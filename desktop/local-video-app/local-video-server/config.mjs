@@ -42,6 +42,10 @@ export function createLocalVideoServerConfig(env = process.env, options = {}) {
       20 * 60 * 1000,
       positiveInteger(env.FS_LOCAL_VIDEO_MAX_TRACKING_DURATION_MS, 2 * 60 * 1000),
     ),
+    maxExportDurationMs: Math.min(
+      3 * 60 * 60 * 1000,
+      positiveInteger(env.FS_LOCAL_VIDEO_MAX_EXPORT_DURATION_MS, 2 * 60 * 60 * 1000),
+    ),
     completedJobRetentionMs: positiveInteger(
       env.FS_LOCAL_VIDEO_JOB_RETENTION_MS,
       24 * 60 * 60 * 1000,

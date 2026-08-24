@@ -1,5 +1,7 @@
 import { formatVideoTime } from "../services/videoPlaybackService.js";
+import { activeMediaAngle, activeMediaReference } from "../services/mediaProductionService.js";
 import { getTimelineDurationMs } from "../timeline/timeline.service.js";
+import { renderMediaSecondaryFeeds } from "./MediaProductionPanel.js";
 import { escapeHtml } from "./renderHelpers.js";
 
 const PLAYBACK_RATES = [0.5, 1, 1.5, 2, 3];
@@ -15,7 +17,8 @@ function formatPlaybackRate(rate = 1) {
 }
 
 export function renderVideoPlayer(state = {}) {
-  const ref = state.videoRef;
+  const ref = activeMediaReference(state) || state.videoRef;
+  const activeAngle = activeMediaAngle(state);
   const hasVideo = Boolean(ref?.objectUrl);
   const localStatus = String(state.localFileStatus || (hasVideo ? "restored" : "none"));
   const hasLinkedMetadata = Boolean(
@@ -28,6 +31,7 @@ export function renderVideoPlayer(state = {}) {
   const compatibility = ref?.playbackCompatibility || {};
   const needsPrepare = Boolean(
     hasVideo
+    && activeAngle?.primary
     && !preparedPlayback
     && (
       state.bridgeFallbackRecommended
@@ -63,7 +67,7 @@ export function renderVideoPlayer(state = {}) {
     : compatibility.container
       ? compatibility.container.toUpperCase()
       : "";
-  const title = ref?.displayName || state.match?.title || state.pendingScheduleLink?.title || "No match video loaded";
+  const title = activeAngle?.label || ref?.displayName || state.match?.title || state.pendingScheduleLink?.title || "No match video loaded";
   const currentMs = Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
   const durationMs = Math.max(0, Math.round(Number(ref?.durationMs || 0)), Math.round(Number(getTimelineDurationMs(state) || 0)));
   const codeModeActive = state.fsPlayer?.mode === "code";
@@ -83,10 +87,10 @@ export function renderVideoPlayer(state = {}) {
           ${needsPrepare || showPrepared ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-prepare-playback ${needsPrepare ? "" : "disabled"} title="Prepare browser-safe playback copy">${showPrepared ? "Prepared" : "Prepare"}</button>` : ""}
         </div>
       </div>
-      <div class="video-analysis-video-frame" data-video-analysis-video-shuttle>
+      <div class="video-analysis-video-frame${state.mediaProduction?.viewMode === "compare" ? " is-media-compare" : ""}" data-video-analysis-video-shuttle>
         ${
           hasVideo
-            ? `<video class="video-analysis-video" data-video-analysis-video src="${escapeHtml(ref.objectUrl)}" playsinline preload="metadata" tabindex="-1"></video>`
+            ? `<div class="video-analysis-media-primary-feed"><video class="video-analysis-video" data-video-analysis-video src="${escapeHtml(ref.objectUrl)}" playsinline preload="metadata" tabindex="-1"></video><span>${escapeHtml(activeAngle?.label || "Primary")}</span></div>${renderMediaSecondaryFeeds(state)}`
             : `<div class="video-analysis-empty-video">
                 <button type="button" class="video-analysis-empty-video__button" ${emptyActionAttribute}>
                   ${emptyActionLabel}

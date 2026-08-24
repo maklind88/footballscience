@@ -116,5 +116,53 @@ export function createFfmpegEngine(options = {}) {
       }
       return { mode, mediaInfo };
     },
+    async renderExport(inputPath, outputPath, specification = {}, runOptions = {}) {
+      const startMs = Math.max(0, Math.round(Number(specification.startMs) || 0));
+      const endMs = Math.max(startMs + 1, Math.round(Number(specification.endMs) || startMs + 5000));
+      const durationMs = endMs - startMs;
+      const height = [720, 1080, 2160].includes(Number(specification.height))
+        ? Number(specification.height)
+        : 1080;
+      const temporaryOutputPath = `${outputPath}.partial.mp4`;
+      const args = [
+        "-y",
+        "-hide_banner",
+        "-progress", "pipe:1",
+        "-nostats",
+        "-i", inputPath,
+        "-ss", (startMs / 1000).toFixed(3),
+        "-t", (durationMs / 1000).toFixed(3),
+        "-map", "0:v:0",
+        "-map", "0:a:0?",
+        "-vf", `scale=-2:min(${height}\\,ih)`,
+        "-c:v", "libx264",
+        "-preset", "medium",
+        "-crf", String(Math.max(14, Math.min(28, Math.round(Number(specification.crf) || 18)))),
+        "-profile:v", "high",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-movflags", "+faststart",
+        "-metadata", `title=${String(specification.title || "Football Science export").slice(0, 180)}`,
+        temporaryOutputPath,
+      ];
+      try {
+        await run(args, {
+          ...runOptions,
+          onProgress(progress = {}) {
+            const processedMs = Math.max(0, Number(progress.processedMs) || 0);
+            runOptions.onProgress?.({
+              ...progress,
+              ratio: Math.min(0.98, processedMs / Math.max(1, durationMs)),
+            });
+          },
+        });
+        await fs.rename(temporaryOutputPath, outputPath);
+      } catch (error) {
+        await fs.rm(temporaryOutputPath, { force: true });
+        throw error;
+      }
+      return { startMs, endMs, durationMs, height, codec: "h264", container: "mp4" };
+    },
   };
 }

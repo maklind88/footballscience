@@ -5,6 +5,7 @@ import { renderClipLibrary } from "./components/ClipLibrary.js";
 import { renderClipList } from "./components/ClipList.js";
 import { renderCodingTemplateBuilder } from "./components/CodingTemplateBuilder.js";
 import { renderPresentationModule } from "./components/PresentationModule.js";
+import { renderMediaProductionPanel } from "./components/MediaProductionPanel.js";
 import { renderTagFilterOverlay } from "./components/TagFilterOverlay.js";
 import { renderTimeline } from "./components/Timeline.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
@@ -81,6 +82,13 @@ import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
 import {
+  activeMediaAngle,
+  activeMediaReference,
+  activeVideoTimeFromMatchMs,
+  matchTimeFromActiveVideoMs,
+} from "./services/mediaProductionService.js";
+import { updateActiveMediaDurationState } from "./services/mediaPlaybackStateService.js";
+import {
   browserFileAccessCapabilities,
   buildLocalVideoHandleIdentity,
   isPreparedPlaybackUrl,
@@ -115,6 +123,7 @@ import { createVideoAnalysisStore } from "./video-analysis.store.js";
 import { createVideoAnalysisTimelineWorkspaceRuntime } from "./video-analysis.timeline-workspace-runtime.js";
 import { createVideoAnalysisTrackingRuntime } from "./video-analysis.tracking-runtime.js";
 import { createVideoAnalysisSpatialRuntime } from "./video-analysis.spatial-runtime.js";
+import { createVideoAnalysisMediaRuntime } from "./video-analysis.media-runtime.js";
 
 let runtime = null;
 let videoLibraryController = null;
@@ -194,6 +203,14 @@ function createRuntime(context = {}) {
     getRuntime: () => runtime,
     getVideoElement: () => videoElement(runtime?.context || context),
   });
+  const mediaRuntime = createVideoAnalysisMediaRuntime({
+    context,
+    getRuntime: () => runtime,
+    getRoot: () => getRoot(runtime?.context || context),
+    getVideoElement: () => videoElement(runtime?.context || context),
+    getCurrentMatchMs: () => currentPlayheadMs(runtime?.context || context, runtime?.store.getState() || {}),
+    seekToMatchMs: (matchMs) => timelineController(runtime?.context || context).seekToMs(matchMs, { commit: true }),
+  });
   return {
     context,
     store,
@@ -212,6 +229,8 @@ function createRuntime(context = {}) {
     trackingRuntime,
     spatial: spatialRuntime.repository,
     spatialRuntime,
+    mediaProduction: mediaRuntime.repository,
+    mediaRuntime,
     videos: createVideoRepository(context),
     unsubscribe: null,
     keydownBound: false,
@@ -262,6 +281,8 @@ function timelineController(context = {}) {
       getState: () => runtime?.store.getState() || {},
       getVideoElement: () => videoElement(runtime?.context || context),
       getWindow: () => runtime?.context?.win || context.win || window,
+      videoToTimelineMs: (videoMs, state) => matchTimeFromActiveVideoMs(state, videoMs),
+      timelineToVideoMs: (timelineMs, state) => activeVideoTimeFromMatchMs(state, timelineMs),
       updateState: (updater) => runtime?.store.update(updater),
     });
   }
@@ -507,6 +528,7 @@ function renderFsPlayerWorkspace(displayState = {}) {
       <section class="video-analysis-fs-player-main">
         <section class="video-analysis-fs-player-deck"${codeModeActive ? ` data-video-analysis-code-pip="video"` : ""}${pipStyle}>
           ${renderVideoPlayer(displayState)}
+          ${renderMediaProductionPanel(displayState)}
           ${codeModeActive ? renderCodePipResizeHandles("video panel") : ""}
         </section>
         <section class="video-analysis-fs-player-timeline"${codeModeActive ? ` data-video-analysis-code-pip="timeline"` : ""}${timelinePipStyle}>
@@ -558,14 +580,10 @@ function updateVideoDuration(durationMs = 0) {
   const safeDurationMs = Math.round(Number(durationMs || 0));
   if (!Number.isFinite(safeDurationMs) || safeDurationMs <= 0) return;
   const state = runtime?.store.getState();
-  const currentDurationMs = Math.round(Number(state?.videoRef?.durationMs || 0));
-  if (!state?.videoRef || currentDurationMs === safeDurationMs) return;
-  runtime?.store.update((current) => {
-    return {
-      ...current,
-      videoRef: { ...current.videoRef, durationMs: safeDurationMs },
-    };
-  });
+  const activeReference = activeMediaReference(state || {});
+  const currentDurationMs = Math.round(Number(activeReference?.durationMs || 0));
+  if (!activeReference || currentDurationMs === safeDurationMs) return;
+  runtime?.store.update((current) => updateActiveMediaDurationState(current, safeDurationMs));
 }
 
 function isAbortError(error) {
@@ -586,13 +604,25 @@ function updateVideoDurationFromElement(video) {
 
 function markNativePlaybackReady(video) {
   const state = runtime?.store.getState();
-  if (!state?.videoRef || video?.error) return;
+  const reference = activeMediaReference(state || {});
+  const angle = activeMediaAngle(state || {});
+  if (!reference || video?.error) return;
   if (!isCurrentVideoElement(video)) return;
   if (state.playbackPreparation?.active || state.status === "preparing-playback") return;
-  const preparedPlayback = isPreparedPlaybackUrl(state.videoRef.objectUrl);
+  const preparedPlayback = isPreparedPlaybackUrl(reference.objectUrl);
   const nextStatus = preparedPlayback ? "prepared" : "native-ready";
-  if (state.nativePlaybackReady && state.localFileStatus === nextStatus && !state.error) return;
   updateVideoDurationFromElement(video);
+  if (angle && !angle.primary) {
+    runtime?.store.update((current) => ({
+      ...current,
+      status: "ready",
+      error: "",
+      mediaProduction: { ...(current.mediaProduction || {}), error: "" },
+    }));
+    runtime?.mediaRuntime?.controller.syncSecondaryVideos(video);
+    return;
+  }
+  if (state.nativePlaybackReady && state.localFileStatus === nextStatus && !state.error) return;
   runtime?.store.update((current) => ({
     ...current,
     status: "ready",
@@ -611,9 +641,18 @@ function setVideoPlaybackError(video) {
   const state = runtime?.store.getState();
   if (!isCurrentVideoElement(video)) return;
   if (shouldPreservePlaybackPreparation(state)) return;
-  const message = state?.videoRef?.playbackCompatibility?.warning || describeVideoPlaybackError(video, state?.videoRef);
+  const reference = activeMediaReference(state || {}) || state?.videoRef;
+  const angle = activeMediaAngle(state || {});
+  const message = reference?.playbackCompatibility?.warning || describeVideoPlaybackError(video, reference);
   if (!message) return;
   if (state?.status === "error" && state.error === message) return;
+  if (angle && !angle.primary) {
+    runtime?.store.update((current) => ({
+      ...current,
+      mediaProduction: { ...(current.mediaProduction || {}), error: message },
+    }));
+    return;
+  }
   runtime?.store.setState({
     status: "error",
     message: "",
@@ -1178,8 +1217,9 @@ function toggleFsPlayerCodeMode(context = {}) {
 function nudgePlayer(context = {}, deltaMs = 0) {
   const video = videoElement(context);
   if (!video) return false;
-  const nextMs = Math.max(0, getVideoCurrentMs(video) + Math.round(Number(deltaMs || 0)));
-  seekVideoToMs(video, nextMs);
+  const state = ensureRuntime(context).store.getState();
+  const nextMs = Math.max(0, matchTimeFromActiveVideoMs(state, getVideoCurrentMs(video)) + Math.round(Number(deltaMs || 0)));
+  timelineController(context).seekToMs(nextMs, { commit: false });
   ensureRuntime(context).store.update((state) => ({
     ...state,
     timeline: {
@@ -1198,7 +1238,7 @@ function videoShuttleDurationMs(state = {}, video = null) {
 
 function videoShuttleCurrentMs(state = {}, video = null) {
   const videoMs = getVideoCurrentMs(video);
-  if (videoMs > 0 || Number(video?.readyState || 0) > 0) return videoMs;
+  if (videoMs > 0 || Number(video?.readyState || 0) > 0) return matchTimeFromActiveVideoMs(state, videoMs);
   return Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
 }
 
@@ -1247,7 +1287,8 @@ function videoShuttleSpeedFromDelta(deltaPx = 0) {
 }
 
 function commitVideoShuttlePlayhead(context = {}, video = null) {
-  const currentMs = getVideoCurrentMs(video);
+  const state = ensureRuntime(context).store.getState();
+  const currentMs = matchTimeFromActiveVideoMs(state, getVideoCurrentMs(video));
   ensureRuntime(context).store.update((state) => ({
     ...state,
     timeline: {
@@ -2234,7 +2275,7 @@ function shouldParkPaintedVideoForPaint(previousVideo, state = {}) {
   if (!previousVideo.classList?.contains("video-analysis-video")) return false;
   if (state.view !== "workspace" || activeAnalysisRoomTab(state) !== "fs-player") return false;
   if (state.fsPlayer?.mode !== "code" && state.fsPlayer?.fullscreen !== true) return false;
-  const nextSrc = String(state.videoRef?.objectUrl || "");
+  const nextSrc = String(activeMediaReference(state)?.objectUrl || state.videoRef?.objectUrl || "");
   return Boolean(nextSrc && videoSourceOf(previousVideo) === nextSrc);
 }
 
@@ -2305,16 +2346,33 @@ function bindVideoRuntimeHandlers(video, context = {}) {
   const effectiveContext = runtime?.context || context;
   video.ontimeupdate = () => {
     timelineController(effectiveContext).handleVideoTimeUpdate(video);
+    runtime?.mediaRuntime?.controller.handleVideoTimeUpdate(video);
   };
-  video.onloadedmetadata = () => markNativePlaybackReady(video);
-  video.oncanplay = () => markNativePlaybackReady(video);
-  video.onplay = () => syncPlaybackControls(effectiveContext, video, true);
+  video.onloadedmetadata = () => {
+    markNativePlaybackReady(video);
+    runtime?.mediaRuntime?.controller.syncSecondaryVideos(video);
+  };
+  video.oncanplay = () => {
+    markNativePlaybackReady(video);
+    runtime?.mediaRuntime?.controller.syncSecondaryVideos(video);
+  };
+  video.onplay = () => {
+    syncPlaybackControls(effectiveContext, video, true);
+    runtime?.mediaRuntime?.controller.syncSecondaryVideos(video);
+  };
   video.onplaying = () => {
     markNativePlaybackReady(video);
     syncPlaybackControls(effectiveContext, video, true);
+    runtime?.mediaRuntime?.controller.syncSecondaryVideos(video);
   };
-  video.onpause = () => syncPlaybackControls(effectiveContext, video, false);
-  video.onended = () => syncPlaybackControls(effectiveContext, video, false);
+  video.onpause = () => {
+    syncPlaybackControls(effectiveContext, video, false);
+    runtime?.mediaRuntime?.controller.syncSecondaryVideos(video);
+  };
+  video.onended = () => {
+    syncPlaybackControls(effectiveContext, video, false);
+    runtime?.mediaRuntime?.controller.syncSecondaryVideos(video);
+  };
   video.onerror = () => setVideoPlaybackError(video);
 }
 
@@ -2324,7 +2382,7 @@ function currentPlayheadMs(context = {}, state = {}) {
   if (!video) return timelineMs;
   const videoMs = getVideoCurrentMs(video);
   const videoReady = Number(video.readyState || 0) > 0 || videoMs > 0;
-  return videoReady ? videoMs : timelineMs;
+  return videoReady ? matchTimeFromActiveVideoMs(state, videoMs) : timelineMs;
 }
 
 function findTimelineCategoryClips(state = {}, laneMode = "", label = "") {
@@ -4825,6 +4883,7 @@ export function handleClick(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (run.mediaRuntime.controller.handleClick(event)) return true;
   if (run.spatialRuntime.controller.handleClick(event)) return true;
   if (run.trackingRuntime.controller.handleClick(event)) return true;
   if (workspaceTimelineController(context).handleClick(event)) return true;
@@ -5340,7 +5399,7 @@ export function handleClick(event, context = {}) {
   }
   const markButton = target.closest("[data-video-analysis-mark]");
   if (markButton) {
-    const currentMs = getVideoCurrentMs(videoElement(context));
+    const currentMs = currentPlayheadMs(context, run.store.getState());
     run.store.update((state) => ({
       ...state,
       draft: {
@@ -6315,6 +6374,7 @@ export function handleChange(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (run.mediaRuntime.controller.handleChange(event)) return true;
   if (run.spatialRuntime.controller.handleChange(event)) return true;
   if (run.trackingRuntime.controller.handleChange(event)) return true;
   if (workspaceTimelineController(context).handleChange(event)) return true;
@@ -6563,7 +6623,7 @@ export function handleKeydown(event, context = {}) {
   if (!fsPlayerShortcutsActive) return false;
   return handleVideoAnalysisShortcut(event, {
     applyCodeButton: (buttonId) => applyCodeButton(buttonId, context),
-    getCurrentMs: () => getVideoCurrentMs(videoElement(context)),
+    getCurrentMs: () => currentPlayheadMs(context, run.store.getState()),
     getState: run.store.getState,
     root,
     saveDraftClip: () => saveDraftClip(context),

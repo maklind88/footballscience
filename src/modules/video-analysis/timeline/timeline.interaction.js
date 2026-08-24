@@ -86,11 +86,22 @@ export function createTimelineScrubController(options = {}) {
     syncScrubTimes(safeMs, safeDuration, Boolean(session && session.type !== "pan"));
   }
 
+  function videoTimelineMs(videoElement) {
+    const rawMs = getVideoCurrentMs(videoElement);
+    const converted = options.videoToTimelineMs?.(rawMs, state());
+    return Number.isFinite(Number(converted)) ? Math.max(0, Math.round(Number(converted))) : rawMs;
+  }
+
+  function timelineVideoMs(timelineMs = 0) {
+    const converted = options.timelineToVideoMs?.(timelineMs, state());
+    return Number.isFinite(Number(converted)) ? Math.max(0, Math.round(Number(converted))) : timelineMs;
+  }
+
   function seekToMs(ms = 0, { commit = false } = {}) {
     lockScrollPosition();
     const durationMs = getTimelineDurationMs(state());
     const safeMs = Math.min(durationMs, Math.max(0, Math.round(Number(ms || 0))));
-    seekVideoToMs(options.getVideoElement?.(), safeMs);
+    seekVideoToMs(options.getVideoElement?.(), timelineVideoMs(safeMs));
     syncPlayheads(safeMs, durationMs);
     if (commit) {
       options.updateState?.((current) => ({
@@ -151,7 +162,7 @@ export function createTimelineScrubController(options = {}) {
     session.scrollContainer?.classList?.remove("is-panning");
     if (!wasPan) {
       lockScrollPosition();
-      syncScrubTimes(getVideoCurrentMs(options.getVideoElement?.()), getTimelineDurationMs(state()), false);
+      syncScrubTimes(videoTimelineMs(options.getVideoElement?.()), getTimelineDurationMs(state()), false);
     }
     clearPendingFrame();
     session = null;
@@ -258,7 +269,7 @@ export function createTimelineScrubController(options = {}) {
   }
 
   function handleVideoTimeUpdate(videoElement) {
-    syncPlayheads(getVideoCurrentMs(videoElement), getTimelineDurationMs(state()));
+    syncPlayheads(videoTimelineMs(videoElement), getTimelineDurationMs(state()));
   }
 
   function zoomTimeline(event = {}, scrollContainer) {

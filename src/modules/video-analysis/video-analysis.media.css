@@ -1,0 +1,404 @@
+#analysisRoomWorkspace .video-analysis-media-production {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f5f7f6;
+  background: #101815;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production > header {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production button,
+#analysisRoomWorkspace .video-analysis-media-production input,
+#analysisRoomWorkspace .video-analysis-media-production select {
+  min-width: 0;
+  min-height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  font: inherit;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production button {
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production__toggle {
+  display: grid;
+  grid-template-columns: 32px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 0;
+  border: 0 !important;
+  background: transparent !important;
+  text-align: left;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production__toggle > span {
+  display: grid;
+  width: 32px;
+  height: 26px;
+  place-items: center;
+  border-radius: 5px;
+  color: #08120e;
+  background: #f1cf66;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production__toggle strong {
+  font-size: 12px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production__toggle small {
+  overflow: hidden;
+  color: #9fb0a8;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production nav,
+#analysisRoomWorkspace .video-analysis-media-view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+#analysisRoomWorkspace .video-analysis-media-production nav button,
+#analysisRoomWorkspace .video-analysis-media-view-toggle button {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production nav button.is-active,
+#analysisRoomWorkspace .video-analysis-media-view-toggle button.is-active {
+  color: #102019;
+  background: #edf2ef;
+}
+
+#analysisRoomWorkspace .video-analysis-media-production__body {
+  padding: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#analysisRoomWorkspace .video-analysis-media-angles-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  gap: 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle-strip {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle {
+  position: relative;
+  flex: 0 0 min(190px, 42vw);
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle > button:first-child {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 24px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 1px 7px;
+  align-items: center;
+  padding: 5px 30px 5px 6px;
+  text-align: left;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle > button:first-child > span {
+  display: grid;
+  grid-row: 1 / 3;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  color: #102019;
+  background: #b8c9c0;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle strong,
+#analysisRoomWorkspace .video-analysis-media-angle small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle strong {
+  font-size: 11px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle small {
+  color: #9fb0a8;
+  font-size: 9px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle.is-active > button:first-child {
+  border-color: #e7c65f;
+  box-shadow: inset 0 0 0 1px #e7c65f;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle.is-active > button:first-child > span {
+  background: #f1cf66;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle__reconnect {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  min-height: 24px !important;
+  padding: 0;
+  font-size: 16px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle-add,
+#analysisRoomWorkspace .video-analysis-media-angle-editor,
+#analysisRoomWorkspace .video-analysis-media-export-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
+  gap: 6px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle-add {
+  grid-template-columns: minmax(140px, 1fr) minmax(100px, 0.45fr) auto;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle-add label,
+#analysisRoomWorkspace .video-analysis-media-angle-editor label,
+#analysisRoomWorkspace .video-analysis-media-export-fields label {
+  display: grid;
+  gap: 3px;
+  color: #9fb0a8;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-media-angle-add input,
+#analysisRoomWorkspace .video-analysis-media-angle-add select,
+#analysisRoomWorkspace .video-analysis-media-angle-editor input,
+#analysisRoomWorkspace .video-analysis-media-angle-editor select,
+#analysisRoomWorkspace .video-analysis-media-export-fields input,
+#analysisRoomWorkspace .video-analysis-media-export-fields select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 7px;
+  color: #f5f7f6;
+  text-transform: none;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-panel,
+#analysisRoomWorkspace .video-analysis-media-export-panel {
+  display: grid;
+  gap: 9px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-range,
+#analysisRoomWorkspace .video-analysis-media-export-summary {
+  display: grid;
+  grid-template-columns: auto minmax(30px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-range span,
+#analysisRoomWorkspace .video-analysis-media-export-summary span {
+  display: grid;
+  gap: 2px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-range small,
+#analysisRoomWorkspace .video-analysis-media-export-summary small {
+  color: #8fa198;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-range strong,
+#analysisRoomWorkspace .video-analysis-media-export-summary strong {
+  font-size: 13px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-range i {
+  height: 1px;
+  background: #6b7d74;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-range em {
+  color: #f1cf66;
+  font-size: 11px;
+  font-style: normal;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-actions,
+#analysisRoomWorkspace .video-analysis-media-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-actions button,
+#analysisRoomWorkspace .video-analysis-media-export-actions button,
+#analysisRoomWorkspace .video-analysis-media-angle-add > button {
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-primary {
+  border-color: #f1cf66 !important;
+  color: #102019 !important;
+  background: #f1cf66 !important;
+  font-weight: 800 !important;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-actions button.is-active {
+  border-color: #56b795;
+  color: #102019;
+  background: #76c8aa;
+}
+
+#analysisRoomWorkspace .video-analysis-media-export-fields {
+  grid-template-columns: minmax(180px, 1fr) minmax(140px, 0.4fr);
+}
+
+#analysisRoomWorkspace .video-analysis-media-export-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 7px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#analysisRoomWorkspace .video-analysis-media-export-progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+#analysisRoomWorkspace .video-analysis-media-export-progress span {
+  display: block;
+  height: 100%;
+  background: #f1cf66;
+}
+
+#analysisRoomWorkspace .video-analysis-media-export-actions code {
+  align-self: center;
+  color: #9fb0a8;
+  font-size: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-warning {
+  margin: 8px 0 0;
+  color: #f0bc70;
+  font-size: 11px;
+}
+
+#analysisRoomWorkspace .video-analysis-video-frame {
+  position: relative;
+}
+
+#analysisRoomWorkspace .video-analysis-media-primary-feed {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-media-primary-feed > span,
+#analysisRoomWorkspace .video-analysis-media-secondary-feed > span {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: #f7f8f7;
+  background: rgba(0, 0, 0, 0.68);
+  font-size: 9px;
+  pointer-events: none;
+}
+
+#analysisRoomWorkspace .video-analysis-video-frame.is-media-compare {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 2px;
+  background: #020403;
+}
+
+#analysisRoomWorkspace .video-analysis-media-secondary-feed {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #050908;
+}
+
+#analysisRoomWorkspace .video-analysis-media-secondary-feed video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (max-width: 760px) {
+  #analysisRoomWorkspace .video-analysis-media-production > header,
+  #analysisRoomWorkspace .video-analysis-media-angles-panel {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  #analysisRoomWorkspace .video-analysis-media-production > header {
+    flex-direction: column;
+  }
+
+  #analysisRoomWorkspace .video-analysis-media-production nav {
+    width: 100%;
+  }
+
+  #analysisRoomWorkspace .video-analysis-media-production nav button {
+    flex: 1;
+  }
+
+  #analysisRoomWorkspace .video-analysis-media-angle-add,
+  #analysisRoomWorkspace .video-analysis-media-angle-editor,
+  #analysisRoomWorkspace .video-analysis-media-export-fields,
+  #analysisRoomWorkspace .video-analysis-media-export-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #analysisRoomWorkspace .video-analysis-media-view-toggle {
+    justify-self: stretch;
+  }
+
+  #analysisRoomWorkspace .video-analysis-media-view-toggle button {
+    flex: 1;
+  }
+
+  #analysisRoomWorkspace .video-analysis-video-frame.is-media-compare {
+    grid-template-columns: 1fr;
+  }
+}

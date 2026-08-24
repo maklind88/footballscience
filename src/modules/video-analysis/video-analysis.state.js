@@ -6,6 +6,7 @@ import { createDefaultCodingTemplate } from "./services/codingTemplateService.js
 import { createInitialPresentationWorkspace } from "./services/presentationService.js";
 import { createReviewSections } from "./services/reviewSessionService.js";
 import { createDefaultTimelineWorkspace } from "./domain/timelineWorkspace.model.js";
+import { createInitialMediaProductionState } from "./services/mediaProductionService.js";
 
 const nonSquadRosterTypes = new Set([
   "academy",
@@ -156,6 +157,7 @@ export function createInitialVideoAnalysisState(context = {}) {
       codeWindowPip: null,
       codeModeLayoutVersion: 0,
     },
+    mediaProduction: createInitialMediaProductionState(),
     matrix: {
       mode: "phase-outcome",
       selectedRow: "",

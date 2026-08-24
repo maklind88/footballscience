@@ -162,9 +162,9 @@ function renderElement(element = {}, options = {}) {
   if (element.kind === "opponent") {
     return `<g ${common}>
       <circle r="2.7" class="spr-element-hit"></circle>
-      <circle r="1.5" class="spr-opponent-token"></circle>
-      ${element.showNumber === false ? "" : `<text y=".42">${escapeSetPieceHtml(element.label || "1")}</text>`}
-      ${selected ? '<circle r="1.88" class="spr-selection-ring"></circle>' : ""}
+      <circle r="1.32" class="spr-opponent-token"></circle>
+      ${element.showNumber === false ? "" : `<text y=".37">${escapeSetPieceHtml(element.label || "1")}</text>`}
+      ${selected ? '<circle r="1.66" class="spr-selection-ring"></circle>' : ""}
     </g>`;
   }
   if (element.kind === "ball") {

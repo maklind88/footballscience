@@ -179,7 +179,7 @@
 .spr-opponent-token {
   fill: var(--spr-opponent-fill);
   stroke: var(--spr-opponent-stroke);
-  stroke-width: .42;
+  stroke-width: .36;
   vector-effect: non-scaling-stroke;
 }
 
@@ -213,7 +213,7 @@
 
 .spr-board-element.is-opponent text {
   fill: var(--spr-opponent-text);
-  font-size: 1.2px;
+  font-size: 1.05px;
 }
 
 .spr-element-layer.hide-labels text {

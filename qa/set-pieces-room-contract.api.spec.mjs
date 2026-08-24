@@ -846,6 +846,7 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(initialsMarkup).not.toContain('class="spr-home-avatar-photo"');
   expect(initialsMarkup).toContain('<circle r="2.2" class="spr-selection-ring"></circle>');
   expect(markup).toContain("is-opponent");
+  expect(markup).toContain('<circle r="1.32" class="spr-opponent-token"></circle>');
   expect(markup).toContain(">4</text>");
   expect(markup).toContain("is-run");
   expect(markup).toContain("Q ");
@@ -1183,9 +1184,9 @@ test("opponent numbers and colors are normalized, persisted and optional on the 
   expect(legacyOpponent).toMatchObject({ label: "2", showNumber: true, opponentColor: "red" });
   expect(markup).toContain("is-opponent-color-blue");
   expect(markup).toContain("is-opponent-color-red");
-  expect(markup).toContain('<circle r="1.5" class="spr-opponent-token"></circle>');
+  expect(markup).toContain('<circle r="1.32" class="spr-opponent-token"></circle>');
   expect(markup).toContain('<circle r="2.7" class="spr-element-hit"></circle>');
-  expect(markup).toContain('<circle r="1.88" class="spr-selection-ring"></circle>');
+  expect(markup).toContain('<circle r="1.66" class="spr-selection-ring"></circle>');
   expect(markup).not.toContain(">99</text>");
   expect(inspectorMarkup).toContain('role="radiogroup" aria-label="Opponent color"');
   expect(inspectorMarkup).toMatch(/value="blue" data-set-piece-element-field="opponentColor"[^>]*checked/);

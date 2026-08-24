@@ -37,6 +37,13 @@
   box-shadow: 0 5px 18px rgba(0, 0, 0, .045);
 }
 
+.dashboard-presentation-band .dashboard-birthday-strip {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  justify-self: stretch;
+  align-self: start;
+}
+
 .dashboard-presentation-card::before {
   content: none;
 }
@@ -175,6 +182,11 @@
     grid-row: 1;
   }
 
+  .dashboard-presentation-band .dashboard-birthday-strip {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
   .dashboard-presentation-visual {
     grid-column: 1;
     grid-row: 1;
@@ -212,6 +224,11 @@
 }
 
 @media (min-width: 720px) and (max-width: 1099px) {
+  .dashboard-presentation-band .dashboard-birthday-strip {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
   .dashboard-schedule-preview {
     grid-column: 1 / -1;
   }

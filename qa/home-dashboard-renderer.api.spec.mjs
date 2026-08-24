@@ -59,6 +59,8 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(rendered).toContain("Upcoming birthdays");
   expect(rendered).toContain("Ada Midfielder");
   expect(rendered).toContain('data-open-workspace="player-profiles"');
+  expect(rendered).toMatch(/data-dashboard-presentation-type="team"[\s\S]*dashboard-birthday-strip[\s\S]*data-dashboard-presentation-type="technical"/);
+  expect(rendered).toMatch(/dashboard-birthday-strip[\s\S]*dashboardSchedulePreview/);
 
   const ranked = renderer.getDashboardTopPriorityTasks(context, 3);
   expect(ranked).toHaveLength(3);

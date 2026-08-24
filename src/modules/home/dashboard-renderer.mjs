@@ -125,7 +125,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
-  function renderPresentationModeCard() {
+  function renderPresentationModeCard(birthdayStripMarkup = "") {
     const cards = [
       {
         type: "team",
@@ -143,7 +143,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
       <section class="dashboard-presentation-band" aria-label="Presentation Mode">
         ${cards
           .map(
-            (card) => `
+            (card, index) => `
         <article class="dashboard-panel dashboard-presentation-card is-${escapeHtml(card.type)}" data-dashboard-presentation-card data-dashboard-presentation-type="${escapeHtml(card.type)}">
           <div class="dashboard-presentation-visual" aria-hidden="true">
             <svg viewBox="0 0 24 24">${card.icon}</svg>
@@ -156,6 +156,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             <button type="button" data-dashboard-open-presentation>Open</button>
           </div>
         </article>
+        ${index === 0 ? birthdayStripMarkup : ""}
             `
           )
           .join("")}
@@ -396,7 +397,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     return `
     <section class="dashboard-workspace-layout dashboard-home-ops dashboard-home-density-${escapeHtml(homeAppearance.density)} dashboard-home-theme-${escapeHtml(homeAppearance.theme)}" aria-label="Home dashboard">
       <section class="dashboard-home-grid" aria-label="Coach workspace">
-        ${renderPresentationModeCard(context)}
+        ${renderPresentationModeCard(birthdayStripMarkup)}
         ${
           workQueueMarkup
             ? `
@@ -406,7 +407,6 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             `
             : ""
         }
-        ${birthdayStripMarkup}
       </section>
     </section>
   `;

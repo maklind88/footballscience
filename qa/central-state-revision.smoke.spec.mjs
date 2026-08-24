@@ -207,11 +207,19 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
   targetUrl.searchParams.set("qaTab", tabName);
   await page.goto(targetUrl.toString(), { waitUntil: "domcontentloaded" });
   await expect(page.locator("#hubShell")).toBeVisible();
-  await page.waitForFunction(
-    () => Boolean(window.footballScienceDataSafety && window.footballScienceCentralState?.isHydrated?.()),
-    null,
-    { timeout: 15_000 }
-  );
+  if (options.waitForHydration !== false) {
+    await page.waitForFunction(
+      () => Boolean(window.footballScienceDataSafety && window.footballScienceCentralState?.isHydrated?.()),
+      null,
+      { timeout: 15_000 }
+    );
+  } else {
+    await page.waitForFunction(
+      () => Boolean(window.footballScienceDataSafety && window.footballScienceCentralState),
+      null,
+      { timeout: 15_000 }
+    );
+  }
   await expect
     .poll(() => page.evaluate((key) => window.localStorage.getItem(key) || "", revisionStateKey), { timeout: 10_000 })
     .toContain("Original central sequence");
@@ -542,7 +550,7 @@ test("fresh Session Planner hydration recovers from a higher stale browser revis
   }
 });
 
-test("Session Planner hydration stays server-backed when localStorage quota is full", async ({ browser, baseURL }) => {
+test("Session Planner hydration fails closed when localStorage quota is full", async ({ browser, baseURL }) => {
   const centralSessionPlannerState = {
     selectedDate: "2026-07-21",
     sessions: {
@@ -569,6 +577,7 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
     },
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "session-quota-fallback", {
+    waitForHydration: false,
     initScript: ({ key }) => {
       const originalSetItem = Storage.prototype.setItem;
       Storage.prototype.setItem = function quotaAwareSetItem(storageKey, value) {
@@ -586,18 +595,23 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
       .poll(() => tab.page.evaluate((key) => {
         const state = JSON.parse(window.localStorage.getItem(key) || "{}");
         const status = window.footballScienceCentralState.getStatus();
+        const backup = window.footballScienceDataSafety.createBackup("quota-hydration");
         return {
           blockTitles: (state.sessions?.["2026-07-21"]?.blocks || []).map((block) => block.title),
+          backupHasKey: Object.prototype.hasOwnProperty.call(backup.storage || {}, key),
+          cachedValueType: typeof window.footballScienceCentralState.getCachedValue(key),
           fallbackKeys: status.cacheFallbackKeys || [],
           hydrated: status.hydrated,
           lastError: status.lastError || "",
         };
       }, sessionPlannerStateKey))
       .toEqual({
-        blockTitles: ["1v1 Def/Off", "Possession", "German Possession", "Big Sided Games"],
-        fallbackKeys: [sessionPlannerStateKey],
-        hydrated: true,
-        lastError: "",
+        blockTitles: [],
+        backupHasKey: false,
+        cachedValueType: "undefined",
+        fallbackKeys: [],
+        hydrated: false,
+        lastError: `Setting ${sessionPlannerStateKey} exceeded the quota.`,
       });
   } finally {
     await closeCentralStateContext(tab.context);

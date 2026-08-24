@@ -670,15 +670,6 @@ async function getActiveAccessToken() {
       manifestServerRevision > centralRevision
     );
   }
-  function isStorageQuotaError(error) {
-    return (
-      error?.name === "QuotaExceededError" ||
-      error?.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
-      Number(error?.code) === 22 ||
-      Number(error?.code) === 1014 ||
-      /quota/i.test(String(error?.message || ""))
-    );
-  }
   function getCentralCachedValue(key) {
     const normalizedKey = String(key || "");
     return centralStateValues.has(normalizedKey) ? centralStateValues.get(normalizedKey) : undefined;
@@ -694,31 +685,15 @@ async function getActiveAccessToken() {
   function removeCentralCachedValue(key) {
     return centralStateValues.delete(String(key || ""));
   }
-  function setCentralCacheFallbackState(key, isFallback) {
-    const fallbackKeys = new Set(centralState.cacheFallbackKeys || []);
-    if (isFallback) {
-      fallbackKeys.add(key);
-    } else {
-      fallbackKeys.delete(key);
-    }
-    centralState.cacheFallbackKeys = Array.from(fallbackKeys);
-  }
   function cacheCentralStateValue(key, value) {
-    setCentralCachedValue(key, value);
     try {
       window.localStorage.setItem(key, value);
-      setCentralCacheFallbackState(key, false);
-      return true;
     } catch (error) {
-      if (!isStorageQuotaError(error)) {
-        throw error;
-      }
-      try {
-        nativeLocalStorageRemoveItem?.call(window.localStorage, key);
-      } catch {}
-      setCentralCacheFallbackState(key, true);
-      return false;
+      removeCentralCachedValue(key);
+      throw error;
     }
+    setCentralCachedValue(key, value);
+    return true;
   }
   function shouldRecoverMedicalCentralState(key, pendingEntry = {}, metadataEntry = {}, options = {}) {
     return (

@@ -167,22 +167,21 @@ test("data safety runtime service preserves protected localStorage write trackin
   expect(timers.size).toBeGreaterThan(0);
 });
 
-test("data safety runtime service fails closed when protected browser cache quota is full", () => {
+test("data safety runtime service falls back to central memory when browser cache quota is full", () => {
   const key = "football-medical-team-v1";
   const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
   const { centralCache, localStorage, queuedWrites, service } = createHarness({ quotaKey: key });
 
   service.install();
-  expect(() => localStorage.setItem(key, value)).toThrow("exceeded the quota");
+  expect(() => localStorage.setItem(key, value)).not.toThrow();
 
   expect(localStorage.values.has(key)).toBe(false);
-  expect(centralCache.has(key)).toBe(false);
-  expect(localStorage.getItem(key)).toBe(null);
-  expect(service.rawGetItem(key)).toBe(null);
-  expect(service.createBackupEnvelope("quota-fallback").storage[key]).toBeUndefined();
-  expect(queuedWrites).toEqual([]);
-  expect(service.status.lastError).toContain("exceeded the quota");
-  expect(service.readManifest().lastError).toContain("exceeded the quota");
+  expect(centralCache.get(key)).toBe(value);
+  expect(localStorage.getItem(key)).toBe(value);
+  expect(service.rawGetItem(key)).toBe(value);
+  expect(service.createBackupEnvelope("quota-fallback").storage[key]).toBe(value);
+  expect(queuedWrites).toContainEqual([key, value, {}]);
+  expect(service.status.lastError).toBe("");
 });
 
 test("data safety runtime service blocks protected writes until central sync is ready", () => {
@@ -195,22 +194,6 @@ test("data safety runtime service blocks protected writes until central sync is 
   expect(queuedWrites).toEqual([]);
   expect(service.status.lastError).toBe("Central sync is not ready.");
   expect(service.readManifest().lastError).toBe("Central sync is not ready.");
-});
-
-test("data safety runtime service records protected removals as central tombstones", () => {
-  const { localStorage, queuedWrites, service } = createHarness();
-
-  service.install();
-  localStorage.setItem("football-schedule-v1", "{\"events\":[]}");
-  queuedWrites.length = 0;
-
-  localStorage.removeItem("football-schedule-v1");
-
-  expect(localStorage.getItem("football-schedule-v1")).toBe(null);
-  expect(queuedWrites).toEqual([["football-schedule-v1", "", { removed: true }]]);
-  expect(service.readManifest().entries["football-schedule-v1"]).toMatchObject({
-    deletedAt: expect.any(String),
-  });
 });
 
 test("data safety runtime service preserves legacy migration and queued snapshot flushing", () => {

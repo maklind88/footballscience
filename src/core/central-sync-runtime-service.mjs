@@ -85,7 +85,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         ...(currentEntry?.label ? currentEntry : { label: getStorageLabel(normalizedKey), writes: 0, size: 0, hash: "", updatedAt: "", deletedAt: "" }),
         ...currentEntry,
         pendingCentralSync: Boolean(isPending),
-        deletedAt: isRemoved ? getDataSafetyNow() : "",
+        deletedAt: isRemoved ? getDataSafetyNow() : currentEntry.deletedAt || "",
       };
     });
     queueStatusRefresh();

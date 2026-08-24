@@ -49,6 +49,16 @@ export function createDataSafetyRuntimeService(deps = {}) {
     }
   }
 
+  function isStorageQuotaError(error) {
+    return (
+      error?.name === "QuotaExceededError" ||
+      error?.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+      Number(error?.code) === 22 ||
+      Number(error?.code) === 1014 ||
+      /quota/i.test(String(error?.message || ""))
+    );
+  }
+
   function getCentralCachedValue(key) {
     const value = getCentralStateBridge()?.getCachedValue?.(String(key || ""));
     return typeof value === "string" ? value : null;
@@ -90,8 +100,17 @@ export function createDataSafetyRuntimeService(deps = {}) {
     if (!storage || !nativeSetItem) return;
     const normalizedKey = String(key || "");
     const normalizedValue = String(value ?? "");
-    nativeSetItem.call(storage, normalizedKey, normalizedValue);
-    if (isProtectedStorageKey(normalizedKey)) setCentralCachedValue(normalizedKey, normalizedValue);
+    try {
+      nativeSetItem.call(storage, normalizedKey, normalizedValue);
+      if (isProtectedStorageKey(normalizedKey)) setCentralCachedValue(normalizedKey, normalizedValue);
+    } catch (error) {
+      if (!isProtectedStorageKey(normalizedKey) || !isStorageQuotaError(error) || !setCentralCachedValue(normalizedKey, normalizedValue)) {
+        throw error;
+      }
+      try {
+        nativeRemoveItem?.call(storage, normalizedKey);
+      } catch {}
+    }
   }
 
   function rawRemoveItem(key) {

@@ -72,77 +72,6 @@ Apply previewed import
 `;
   }
 
-  function renderBirthdayCalendar(calendar = {}) {
-    const items = Array.isArray(calendar.items) ? calendar.items : [];
-    const nextItem = calendar.next || items[0] || null;
-    const thisMonthCount = Math.max(0, Number(calendar.thisMonthCount) || 0);
-    const missingBirthDateCount = Math.max(0, Number(calendar.missingBirthDateCount) || 0);
-    const trackedCount = Math.max(0, Number(calendar.trackedCount) || 0);
-    const withBirthDateCount = Math.max(0, Number(calendar.withBirthDateCount) || items.length);
-    const renderAgeLabel = (item = {}) => {
-      const age = Number(item.turningAge);
-      return Number.isFinite(age) && age > 0 ? `Turns ${age}` : "Age not set";
-    };
-    const renderBirthdayItem = (item = {}, index = 0) => {
-      const playerId = String(item.id || "").trim();
-      const meta = [renderAgeLabel(item), item.relativeLabel].filter(Boolean).join(" - ");
-      return `
-        <button
-          type="button"
-          class="squad-birthday-item${index === 0 ? " is-next" : ""}"
-          data-player-profile-select="${escapeHtml(playerId)}"
-          aria-label="Open ${escapeHtml(item.name || "player")} birthday profile"
-          ${playerId ? "" : "disabled"}
-        >
-          <span class="squad-birthday-date">${escapeHtml(item.dateLabel || item.nextBirthday || "")}</span>
-          <span class="squad-birthday-player">
-            <strong>${escapeHtml(item.name || "Player")}</strong>
-            <small>${escapeHtml([item.number ? `#${item.number}` : "", item.primaryRole].filter(Boolean).join(" - "))}</small>
-          </span>
-          <span class="squad-birthday-meta">${escapeHtml(meta)}</span>
-        </button>
-      `;
-    };
-    const emptyText = trackedCount
-      ? "Add birth dates in player profiles to build the calendar."
-      : "Add players with birth dates to start the calendar.";
-    return `
-<section class="squad-birthday-calendar" aria-label="Player birthday calendar">
-  <header class="squad-birthday-calendar-head">
-    <span class="squad-birthday-calendar-mark" aria-hidden="true">BD</span>
-    <div>
-      <p>Birthday Calendar</p>
-      <h2>Upcoming player birthdays</h2>
-    </div>
-    <div class="squad-birthday-calendar-stats" aria-label="Birthday calendar summary">
-      <span>${escapeHtml(String(thisMonthCount))} this month</span>
-      <span>${escapeHtml(String(missingBirthDateCount))} missing dates</span>
-    </div>
-  </header>
-  ${
-    nextItem
-      ? `<div class="squad-birthday-calendar-body">
-          <article class="squad-birthday-next">
-            <span>Next</span>
-            <strong>${escapeHtml(nextItem.name || "Player")}</strong>
-            <small>${escapeHtml([nextItem.dateLabel, renderAgeLabel(nextItem), nextItem.relativeLabel].filter(Boolean).join(" - "))}</small>
-          </article>
-          <div class="squad-birthday-list">
-            ${items.map((item, index) => renderBirthdayItem(item, index)).join("")}
-          </div>
-        </div>`
-      : `<div class="squad-birthday-calendar-empty">
-          <strong>No birthdays to show</strong>
-          <span>${escapeHtml(emptyText)}</span>
-        </div>`
-  }
-  <footer class="squad-birthday-calendar-foot">
-    <span>${escapeHtml(String(withBirthDateCount))}/${escapeHtml(String(trackedCount))} player profiles include a birth date.</span>
-  </footer>
-</section>
-`;
-  }
-
   function renderWorkspace(context = {}) {
     return `
 <div class="squad-board-shell">
@@ -184,7 +113,6 @@ ${context.rosterFilterOptionsMarkup || ""}
 </header>
 ${context.messageMarkup || ""}
 ${context.pendingImportMarkup || ""}
-${context.birthdayCalendarMarkup || ""}
 <section class="squad-workspace-layout squad-workspace-layout-list-first">
 <main class="squad-list-panel" aria-label="Squad overview">
 ${context.rosterSectionsMarkup || ""}
@@ -197,7 +125,6 @@ ${context.newPlayerModalMarkup || ""}
   }
 
   return {
-    renderBirthdayCalendar,
     renderMessage,
     renderPendingImport,
     renderWorkspace,

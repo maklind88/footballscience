@@ -257,6 +257,67 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
+  function renderBirthdayAgeLabel(item = {}) {
+    const age = Number(item.turningAge);
+    return Number.isFinite(age) && age > 0 ? `Turns ${age}` : "";
+  }
+
+  function renderBirthdayNewsItem(item = {}) {
+    const detail = [item.number ? `#${item.number}` : "", item.primaryRole].filter(Boolean).join(" - ");
+    const meta = [renderBirthdayAgeLabel(item), item.relativeLabel].filter(Boolean).join(" - ");
+    return `
+      <div class="dashboard-birthday-item">
+        <span class="dashboard-birthday-date">${escapeHtml(item.dateLabel || item.nextBirthday || "")}</span>
+        <span class="dashboard-birthday-copy">
+          <strong>${escapeHtml(item.name || "Player")}</strong>
+          <small>${escapeHtml(detail || meta || "Player profile")}</small>
+        </span>
+        <span class="dashboard-birthday-meta">${escapeHtml(meta)}</span>
+      </div>
+    `;
+  }
+
+  function renderBirthdayNewsCard(context) {
+    const calendar = context.birthdayCalendar || {};
+    const items = Array.isArray(calendar.items) ? calendar.items : [];
+    const thisMonthCount = Math.max(0, Number(calendar.thisMonthCount) || 0);
+    const trackedCount = Math.max(0, Number(calendar.trackedCount) || 0);
+    const withBirthDateCount = Math.max(0, Number(calendar.withBirthDateCount) || items.length);
+    const missingBirthDateCount = Math.max(0, Number(calendar.missingBirthDateCount) || 0);
+    const emptyText = trackedCount
+      ? "Add birth dates in player profiles to show upcoming birthdays."
+      : "Add players with birth dates to show upcoming birthdays.";
+
+    return `
+    <article class="dashboard-panel dashboard-birthday-card" aria-label="Upcoming player birthdays">
+      <header class="dashboard-panel-head">
+        <div>
+          <p class="dashboard-card-kicker">Birthday Calendar</p>
+          <h2>Upcoming birthdays</h2>
+        </div>
+        <span class="dashboard-panel-count">${escapeHtml(String(thisMonthCount))} this month</span>
+      </header>
+      ${
+        items.length
+          ? `<div class="dashboard-birthday-list">${items.map(renderBirthdayNewsItem).join("")}</div>`
+          : `<div class="dashboard-birthday-empty" role="note">
+              <strong>No birthdays to show</strong>
+              <span>${escapeHtml(emptyText)}</span>
+            </div>`
+      }
+      <footer class="dashboard-birthday-footer">
+        <span>${escapeHtml(String(withBirthDateCount))}/${escapeHtml(String(trackedCount))} profiles with dates</span>
+        ${
+          missingBirthDateCount
+            ? `<span>${escapeHtml(String(missingBirthDateCount))} missing dates</span>`
+            : ""
+        }
+        <button type="button" class="secondary dashboard-link-button" data-open-workspace="player-profiles">Squad profiles</button>
+      </footer>
+    </article>
+  `;
+  }
+
   function renderHomeSection(section, context, staffOptions, appearanceConfig) {
     if (section.id === "topTasks") {
       return renderTopTasksRow(context, appearanceConfig);
@@ -325,6 +386,11 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           </section>
         `
       : "";
+    const birthdayStripMarkup = `
+          <section class="dashboard-birthday-strip" aria-label="Player birthday news">
+            ${renderBirthdayNewsCard(context)}
+          </section>
+        `;
     const workQueueMarkup = `${mainSections}${operationSectionsMarkup}`;
 
     return `
@@ -340,6 +406,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             `
             : ""
         }
+        ${birthdayStripMarkup}
       </section>
     </section>
   `;
@@ -351,6 +418,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     renderTopTasksRow,
     renderTodoCommand,
     renderAlertsCard,
+    renderBirthdayNewsCard,
     renderTutorialModal,
     getDashboardTopPriorityTasks,
     renderTopTaskRow,

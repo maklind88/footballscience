@@ -24,13 +24,23 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     createEmptySession = (dateValue = getTodayValue()) => ({ date: dateValue, blocks: [] }),
     ensureMedicalState = () => {},
     ensurePeriodizationState = () => {},
+    ensurePlayerProfilesState = () => {},
     formatScheduleDateValue = defaultFormatScheduleDateValue,
     getMedicalRecords = () => [],
     getPeriodizationDay = () => ({}),
+    getPlayerProfilesState = () => ({ players: [] }),
     getScheduleEventsForDate = () => [],
     getScheduleMainEvent = () => null,
     getScheduleState = () => ({ events: [] }),
     getSessionPlannerState = () => ({ sessions: {} }),
+    getUpcomingPlayerProfileBirthdays = () => ({
+      items: [],
+      next: null,
+      trackedCount: 0,
+      withBirthDateCount: 0,
+      missingBirthDateCount: 0,
+      thisMonthCount: 0,
+    }),
     isScheduleSessionEvent = () => false,
     parseScheduleDateValue = defaultParseScheduleDateValue,
     scheduleEventTypes = {},
@@ -276,6 +286,17 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     return alerts.slice(0, 4);
   }
 
+  function getBirthdayCalendar(todayValue = getTodayValue()) {
+    ensurePlayerProfilesState();
+    const profileState = getPlayerProfilesState() || {};
+    const players = Array.isArray(profileState.players) ? profileState.players : [];
+    return getUpcomingPlayerProfileBirthdays(players, {
+      referenceDate: todayValue,
+      includeTemporary: false,
+      limit: 3,
+    });
+  }
+
   function getHomeContext(currentUser, users, tasks) {
     const todayValue = getTodayValue();
     getScheduleState();
@@ -307,6 +328,7 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
         selectedPass: selectedPresentationPass,
       },
       microcycle,
+      birthdayCalendar: getBirthdayCalendar(todayValue),
       personalOpenTasks: taskQueues.personalOpenTasks,
       myOpenTasks: taskQueues.myOpenTasks,
       delegatedOpenTasks: taskQueues.delegatedOpenTasks,
@@ -318,6 +340,7 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
   return {
     formatDateLabel,
     getAlerts,
+    getBirthdayCalendar,
     getHomeContext,
     getLoadTone,
     getMedicalAlert,

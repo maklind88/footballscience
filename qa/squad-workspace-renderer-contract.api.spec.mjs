@@ -26,32 +26,7 @@ test("Squad workspace renderer owns message and pending import markup", () => {
 });
 
 test("Squad workspace renderer owns squad shell and filter controls", () => {
-  const birthdayCalendarMarkup = renderer.renderBirthdayCalendar({
-    items: [
-      {
-        id: "p8",
-        name: "Ada Midfielder",
-        number: "8",
-        primaryRole: "8",
-        dateLabel: "Jul 24",
-        relativeLabel: "In 2 days",
-        turningAge: 25,
-      },
-    ],
-    next: {
-      id: "p8",
-      name: "Ada Midfielder",
-      dateLabel: "Jul 24",
-      relativeLabel: "In 2 days",
-      turningAge: 25,
-    },
-    thisMonthCount: 1,
-    trackedCount: 2,
-    withBirthDateCount: 1,
-    missingBirthDateCount: 1,
-  });
   const markup = renderer.renderWorkspace({
-    birthdayCalendarMarkup,
     canEdit: false,
     messageMarkup: '<div data-message></div>',
     newPlayerModalMarkup: '<section data-new-player></section>',
@@ -71,9 +46,7 @@ test("Squad workspace renderer owns squad shell and filter controls", () => {
   expect(markup).toContain('value="Mak"');
   expect(markup).toContain("data-player-profile-new-open");
   expect(markup).toContain("disabled");
-  expect(markup).toContain("Birthday Calendar");
-  expect(markup).toContain("Ada Midfielder");
-  expect(markup).toContain('data-player-profile-select="p8"');
   expect(markup).toContain("data-roster");
   expect(markup).toContain("data-player-modal");
+  expect(markup).not.toContain("Birthday Calendar");
 });

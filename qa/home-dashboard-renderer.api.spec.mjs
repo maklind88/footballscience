@@ -32,6 +32,23 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
     alerts: [
       { title: "Medical", detail: "Vitals check", tone: "info", focus: "task" },
     ],
+    birthdayCalendar: {
+      items: [
+        {
+          id: "p8",
+          name: "Ada Midfielder",
+          number: "8",
+          primaryRole: "8",
+          dateLabel: "Jul 24",
+          relativeLabel: "In 2 days",
+          turningAge: 25,
+        },
+      ],
+      thisMonthCount: 1,
+      trackedCount: 2,
+      withBirthDateCount: 1,
+      missingBirthDateCount: 1,
+    },
     todayValue: "2026-01-01",
   };
 
@@ -39,6 +56,9 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(rendered).toContain("Top 3");
   expect(rendered).toContain("Coach To-Do");
   expect(rendered).toContain("Player / Team Alerts");
+  expect(rendered).toContain("Upcoming birthdays");
+  expect(rendered).toContain("Ada Midfielder");
+  expect(rendered).toContain('data-open-workspace="player-profiles"');
 
   const ranked = renderer.getDashboardTopPriorityTasks(context, 3);
   expect(ranked).toHaveLength(3);
@@ -46,6 +66,42 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(ranked.map((task) => task.id)).toContain("1");
   expect(ranked.map((task) => task.id)).toContain("4");
   expect(ranked.map((task) => task.id)).toContain("2");
+});
+
+test("home dashboard renderer owns the compact birthday news card", () => {
+  const renderer = createDashboardHomeCardsRenderer({
+    escapeHtml: (value) => String(value ?? ""),
+    renderTaskList: () => "<div></div>",
+    resolveUserLabel: renderTestUserLabel,
+  });
+
+  const rendered = renderer.renderBirthdayNewsCard({
+    birthdayCalendar: {
+      items: [
+        {
+          id: "p8",
+          name: "Ada Midfielder",
+          number: "8",
+          primaryRole: "8",
+          dateLabel: "Jul 24",
+          relativeLabel: "Tomorrow",
+          turningAge: 25,
+        },
+      ],
+      thisMonthCount: 1,
+      trackedCount: 2,
+      withBirthDateCount: 1,
+      missingBirthDateCount: 1,
+    },
+  });
+
+  expect(rendered).toContain("Birthday Calendar");
+  expect(rendered).toContain("Upcoming birthdays");
+  expect(rendered).toContain("Ada Midfielder");
+  expect(rendered).toContain("#8");
+  expect(rendered).toContain("Turns 25 - Tomorrow");
+  expect(rendered).toContain("1 missing dates");
+  expect(rendered).toContain('data-open-workspace="player-profiles"');
 });
 
 test("home dashboard renderer applies safe same-type appearance rules", () => {

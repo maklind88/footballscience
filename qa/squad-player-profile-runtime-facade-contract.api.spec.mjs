@@ -179,14 +179,6 @@ function createHarness() {
     getSessionPlannerPlayerProfileContracts: () => [],
     getSquadChangeSummary: (type, player = {}) => `${type}:${player.name || ""}`,
     getTemporaryRosterTypeFromPlayerSource: () => "training",
-    getUpcomingPlayerProfileBirthdays: (players = []) => ({
-      items: players.filter((player) => player.birthDate).map((player) => ({ id: player.id, name: player.name })),
-      next: players.find((player) => player.birthDate) || null,
-      trackedCount: players.length,
-      withBirthDateCount: players.filter((player) => player.birthDate).length,
-      missingBirthDateCount: players.filter((player) => !player.birthDate).length,
-      thisMonthCount: 1,
-    }),
     isCurrentPlatformUserAdmin: () => true,
     isMedicalItemArchived: (item = {}) => Boolean(item.archivedAt),
     isTemporaryPlayerProfile: () => false,
@@ -248,10 +240,9 @@ function createHarness() {
       renderStatusChip: (statusKey) => `status=${statusKey}`,
     },
     squadWorkspaceRenderer: {
-      renderBirthdayCalendar: (calendar = {}) => `birthdays=${(calendar.items || []).map((item) => item.name).join(",")}`,
       renderPendingImport: () => "",
-      renderWorkspace: ({ birthdayCalendarMarkup, canEdit, messageMarkup, newPlayerModalMarkup, rosterSectionsMarkup, teamName }) =>
-        `team=${teamName};edit=${canEdit};${messageMarkup};${birthdayCalendarMarkup};${newPlayerModalMarkup};${rosterSectionsMarkup}`,
+      renderWorkspace: ({ canEdit, messageMarkup, newPlayerModalMarkup, rosterSectionsMarkup, teamName }) =>
+        `team=${teamName};edit=${canEdit};${messageMarkup};${newPlayerModalMarkup};${rosterSectionsMarkup}`,
     },
     ui,
     upsertMedicalPlayers: (players) => medicalUpserts.push(players),
@@ -323,7 +314,6 @@ test("Squad player profile runtime facade preserves workspace render and edit-sa
   harness.facade.renderPlayerProfilesWorkspace({ status: "success", lines: ["Saved"] });
   expect(harness.ui.playerProfilesWorkspace.innerHTML).toContain("team=North Carolina Courage");
   expect(harness.ui.playerProfilesWorkspace.innerHTML).toContain("message=Saved");
-  expect(harness.ui.playerProfilesWorkspace.innerHTML).toContain("birthdays=Ada Midfielder");
   expect(harness.ui.playerProfilesWorkspace.innerHTML).toContain("roster=Ada Midfielder");
   expect(harness.timers).toHaveLength(1);
   expect(harness.rosterRenderCalls[0]?.summaries).toMatchObject({

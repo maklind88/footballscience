@@ -26,16 +26,19 @@ function createSelectors(overrides = {}) {
   return createDashboardHomeContextSelectors({
     cloneSession: (session = {}) => ({ ...session, blocks: Array.isArray(session.blocks) ? [...session.blocks] : [] }),
     createEmptySession: (dateValue = "2026-06-01") => ({ date: dateValue, blocks: [] }),
+    ensurePlayerProfilesState: overrides.ensurePlayerProfilesState || (() => {}),
     formatScheduleDateValue: (value) => {
       const date = value instanceof Date ? value : new Date(value);
       return date.toISOString().slice(0, 10);
     },
     getMedicalRecords: () => medicalRecords,
     getPeriodizationDay: (dateValue) => periodizationDays[dateValue] || {},
+    getPlayerProfilesState: () => overrides.playerProfilesState || { players: [] },
     getScheduleEventsForDate: (dateValue) => scheduleState.events.filter((event) => event.date === dateValue),
     getScheduleMainEvent: (events = []) => events.find((event) => event.type === "match") || events[0] || null,
     getScheduleState: () => scheduleState,
     getSessionPlannerState: () => sessionPlannerState,
+    getUpcomingPlayerProfileBirthdays: overrides.getUpcomingPlayerProfileBirthdays || (() => ({ items: [], next: null })),
     isScheduleSessionEvent: (event) => event?.type === "training",
     parseScheduleDateValue: (value) => new Date(`${value}T00:00:00.000Z`),
     scheduleEventTypes: {
@@ -64,7 +67,24 @@ test("Home dashboard context selectors rank events, sessions, microcycle, and al
 });
 
 test("Home dashboard context selectors build the complete Home render context", () => {
-  const selectors = createSelectors({ medicalRecords: [] });
+  let birthdayStateEnsured = false;
+  const selectors = createSelectors({
+    medicalRecords: [],
+    ensurePlayerProfilesState: () => {
+      birthdayStateEnsured = true;
+    },
+    playerProfilesState: {
+      players: [{ id: "p8", name: "Ada Midfielder", birthDate: "2001-07-24" }],
+    },
+    getUpcomingPlayerProfileBirthdays: (players = [], options = {}) => ({
+      items: players.map((player) => ({ id: player.id, name: player.name, referenceDate: options.referenceDate })),
+      next: players[0] || null,
+      trackedCount: players.length,
+      withBirthDateCount: players.length,
+      missingBirthDateCount: 0,
+      thisMonthCount: 1,
+    }),
+  });
   const context = selectors.getHomeContext(
     { id: "coach-1" },
     [{ id: "coach-1" }, { id: "coach-2" }],
@@ -81,4 +101,8 @@ test("Home dashboard context selectors build the complete Home render context", 
   expect(context.delegatedOpenTasks.map((task) => task.id)).toEqual(["delegated"]);
   expect(context.alerts.map((alert) => alert.title)).toContain("Staff follow-up");
   expect(context.alerts.find((alert) => alert.title === "Medical availability")?.tone).toBe("monitor");
+  expect(birthdayStateEnsured).toBe(true);
+  expect(context.birthdayCalendar.items).toEqual([
+    expect.objectContaining({ id: "p8", name: "Ada Midfielder", referenceDate: context.todayValue }),
+  ]);
 });

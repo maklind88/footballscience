@@ -25,6 +25,9 @@ import {
 } from "./timeline.selectors.js";
 import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { timelineSelectedClipIds } from "../services/clipEditingService.js";
+import { activeAnalysisTimeline, normalizeTimelineWorkspace } from "../domain/timelineWorkspace.model.js";
+import { timelineWorkspaceLanes } from "../services/timelineWorkspaceService.js";
+import { renderTimelineWorkspaceControls } from "./timeline.workspace.renderer.js";
 
 function outcomeClass(outcome = "") {
   const value = String(outcome || "neutral").trim().toLowerCase();
@@ -93,6 +96,7 @@ function renderLaneSelector(activeLaneMode = "phase", clipCount = 0, modeCounts 
     <label class="video-analysis-timeline-view-select">
       <span>Timeline</span>
       <select data-video-analysis-timeline-lane-select aria-label="Timeline view">
+        ${activeLaneMode === "workspace" ? `<option value="workspace" selected>Custom (${escapeHtml(clipCount)})</option>` : ""}
         ${TIMELINE_LANE_MODES.map((mode) => `
           <option value="${escapeHtml(mode.id)}"${activeLaneMode === mode.id ? " selected" : ""}>${escapeHtml(formatTimelineModeLabel(mode, modeCounts, activeLaneMode, clipCount))}</option>
         `).join("")}
@@ -185,14 +189,14 @@ function selectedTimelineClip(clips = [], timeline = {}, selectedClipId = "") {
   return clips.find((clip) => String(clip.id || "") === selectedId) || null;
 }
 
-function renderClipBlock(clip = {}, window = {}, laneMode = "phase", selectedClipIds = new Set(), clipNumber = 1, categorySelected = false, button = null, density = {}, row = 0) {
+function renderClipBlock(clip = {}, window = {}, laneMode = "phase", selectedClipIds = new Set(), clipNumber = 1, categorySelected = false, button = null, density = {}, row = 0, rowColor = "") {
   const startMs = getClipStartMs(clip);
   const endMs = getClipEndMs(clip);
   const outcome = clip.outcome || "Neutral";
   const selected = selectedClipIds.has(String(clip.id || ""));
   const primaryLabel = getClipPrimaryLabel(clip, laneMode);
   const secondaryLabel = getClipSecondaryLabel(clip);
-  const buttonColor = safeHexColor(button?.color);
+  const buttonColor = safeHexColor(button?.color) || safeHexColor(rowColor);
   const buttonLabel = button?.label || "";
   const miniGameLabels = clipMiniGamePrincipleLabels(clip);
   const miniGameText = miniGameLabels.length
@@ -247,7 +251,7 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
       ? `${visibleClips.length}/${lane.clips.length}`
       : String(lane.clips.length);
     return `
-      <div class="video-analysis-lane${isActiveCategory(timeline, laneMode, lane.label) ? " is-selected" : ""}">
+      <div class="video-analysis-lane${isActiveCategory(timeline, laneMode, lane.label) ? " is-selected" : ""}"${safeHexColor(lane.color) ? ` style="--video-analysis-lane-color:${escapeHtml(safeHexColor(lane.color))};"` : ""}>
         <button
           type="button"
           class="video-analysis-lane__label"
@@ -276,7 +280,8 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
             isActiveCategory(timeline, laneMode, lane.label),
             findClipButton(clip, buttonLookup),
             density,
-            row
+            row,
+            lane.color
           )).join("")}
         </div>
       </div>
@@ -352,11 +357,22 @@ export function renderTimeline(state = {}) {
   const allClips = Array.isArray(state.allClips) ? state.allClips : clips;
   const totalMs = getTimelineDurationMs({ ...state, clips: allClips.length ? allClips : clips });
   const timeline = state.timeline || {};
-  const laneMode = normalizeTimelineLaneMode(timeline.laneMode);
+  const configuredLaneMode = normalizeTimelineLaneMode(timeline.laneMode);
+  const timelineWorkspace = normalizeTimelineWorkspace(state.timelineWorkspace);
+  const activeWorkspaceTimeline = activeAnalysisTimeline(timelineWorkspace);
+  const useWorkspaceRows = Boolean(activeWorkspaceTimeline?.rows?.length);
+  const laneMode = useWorkspaceRows ? "workspace" : configuredLaneMode;
   const zoom = normalizeTimelineZoom(timeline.zoom);
-  const timelineIndex = buildTimelineIndex(clips, laneMode);
+  const generatedTimelineIndex = buildTimelineIndex(clips, configuredLaneMode);
+  const workspaceLanes = useWorkspaceRows ? timelineWorkspaceLanes(timelineWorkspace, clips) : [];
+  const timelineIndex = useWorkspaceRows ? {
+    lanes: workspaceLanes,
+    clipCount: new Set(workspaceLanes.flatMap((lane) => lane.clips.map((clip) => clip.id))).size,
+    laneCount: workspaceLanes.length,
+    maxClipsInLane: workspaceLanes.reduce((maximum, lane) => Math.max(maximum, lane.clips.length), 0),
+  } : generatedTimelineIndex;
   const lanes = timelineIndex.lanes;
-  const laneModeCounts = buildTimelineLaneModeCounts(clips);
+  const laneModeCounts = useWorkspaceRows ? {} : buildTimelineLaneModeCounts(clips);
   const density = getTimelineDensity(timelineIndex, totalMs);
   const selectedLane = selectedTimelineLane(lanes, laneMode, timeline);
   const buttonLookup = buildTemplateButtonLookup(state.template || {});
@@ -376,6 +392,7 @@ export function renderTimeline(state = {}) {
       data-video-analysis-timeline-density="${density.isDense ? "dense" : "normal"}"
       data-video-analysis-timeline-clip-count="${escapeHtml(density.clipCount)}"
     >
+      ${renderTimelineWorkspaceControls(timelineWorkspace, Boolean(state.canEdit), selectedClips.length)}
       ${renderTimelineWindowControls(timelineWindow, timeline, selectedClips.length, Boolean(state.canEdit))}
       <div class="video-analysis-timeline-scroll" data-video-analysis-timeline-pan>
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(canvasZoom)}">

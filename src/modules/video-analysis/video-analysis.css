@@ -1,5 +1,6 @@
 @import url("./video-analysis.apple.css");
 @import url("./video-analysis.presentation.css");
+@import url("./video-analysis.timeline-workspace.css");
 
 #analysisRoomWorkspace {
   min-width: 0;

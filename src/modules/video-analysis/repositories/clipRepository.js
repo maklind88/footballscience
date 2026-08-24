@@ -14,6 +14,10 @@ async function requestJson(url, options = {}, getAuthToken = () => "") {
 
 export function createClipRepository(context = {}) {
   const getAuthToken = context.getAuthToken || (() => "");
+  const withCollaboration = (payload = {}) => ({
+    ...payload,
+    ...(context.getCollaborationContext?.() || {}),
+  });
   return {
     list(filters = {}) {
       return requestJson(buildVideoAnalysisApiUrl("clips", filters), { method: "GET" }, getAuthToken);
@@ -31,42 +35,42 @@ export function createClipRepository(context = {}) {
     save(clip = {}) {
       return requestJson(
         buildVideoAnalysisApiUrl("save-clip"),
-        { method: "POST", body: JSON.stringify({ action: "save-clip", clip }) },
+        { method: "POST", body: JSON.stringify({ action: "save-clip", clip: withCollaboration(clip) }) },
         getAuthToken
       );
     },
     trim(clip = {}) {
       return requestJson(
         buildVideoAnalysisApiUrl("trim-clip"),
-        { method: "PATCH", body: JSON.stringify({ action: "trim-clip", clip }) },
+        { method: "PATCH", body: JSON.stringify({ action: "trim-clip", clip: withCollaboration(clip) }) },
         getAuthToken
       );
     },
     share(id, visibility = "team") {
       return requestJson(
         buildVideoAnalysisApiUrl("share-clip"),
-        { method: "PATCH", body: JSON.stringify({ action: "share-clip", clip: { id, visibility } }) },
+        { method: "PATCH", body: JSON.stringify({ action: "share-clip", clip: withCollaboration({ id, visibility }) }) },
         getAuthToken
       );
     },
     archive(id) {
       return requestJson(
         buildVideoAnalysisApiUrl("archive-clip"),
-        { method: "PATCH", body: JSON.stringify({ action: "archive-clip", id }) },
+        { method: "PATCH", body: JSON.stringify({ action: "archive-clip", ...withCollaboration({ id }) }) },
         getAuthToken
       );
     },
     archiveMany(ids = []) {
       return requestJson(
         buildVideoAnalysisApiUrl("archive-clips"),
-        { method: "PATCH", body: JSON.stringify({ action: "archive-clips", ids }) },
+        { method: "PATCH", body: JSON.stringify({ action: "archive-clips", ...withCollaboration({ ids }) }) },
         getAuthToken
       );
     },
     restoreMany(ids = []) {
       return requestJson(
         buildVideoAnalysisApiUrl("restore-clips"),
-        { method: "PATCH", body: JSON.stringify({ action: "restore-clips", ids }) },
+        { method: "PATCH", body: JSON.stringify({ action: "restore-clips", ...withCollaboration({ ids }) }) },
         getAuthToken
       );
     },

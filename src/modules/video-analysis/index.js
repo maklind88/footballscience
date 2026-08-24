@@ -16,6 +16,7 @@ import { createPresentationController } from "./controllers/presentationControll
 import { createPresenterController } from "./controllers/presenterController.js";
 import { createThumbnailController } from "./controllers/thumbnailController.js";
 import { normalizeClipInstance } from "./domain/clipInstance.model.js";
+import { normalizeTimelineWorkspace } from "./domain/timelineWorkspace.model.js";
 import { createCodingTemplateRepository } from "./repositories/codingTemplateRepository.js";
 import { createClipRepository } from "./repositories/clipRepository.js";
 import { createPlaylistRepository } from "./repositories/playlistRepository.js";
@@ -108,8 +109,10 @@ import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVid
 import { createTimelineScrubController } from "./timeline/timeline.interaction.js";
 import { findScheduleCandidate } from "./services/videoLibraryService.js";
 import { bindPaintedVideoControls, bindRootEventFallback, eventElement } from "./video-analysis.dom-events.js";
+import { createVideoAnalysisCollaborationRuntime } from "./video-analysis.collaboration-runtime.js";
 import { createVideoLibraryController } from "./video-analysis.library-controller.js";
 import { createVideoAnalysisStore } from "./video-analysis.store.js";
+import { createVideoAnalysisTimelineWorkspaceRuntime } from "./video-analysis.timeline-workspace-runtime.js";
 
 let runtime = null;
 let videoLibraryController = null;
@@ -165,13 +168,34 @@ function getRoot(context = {}) {
 
 function createRuntime(context = {}) {
   const store = createVideoAnalysisStore(context);
+  let collaborationRuntime = null;
+  const timelineWorkspaceRuntime = createVideoAnalysisTimelineWorkspaceRuntime({
+    context,
+    getRuntime: () => runtime,
+    getCollaborationRuntime: () => collaborationRuntime,
+    shouldLoadMetadata,
+  });
+  collaborationRuntime = createVideoAnalysisCollaborationRuntime({
+    context,
+    repository: timelineWorkspaceRuntime.repository,
+    getRuntime: () => runtime,
+    loadClips,
+    loadTimelineWorkspace: timelineWorkspaceRuntime.load,
+  });
   return {
     context,
     store,
     templates: createCodingTemplateRepository(context),
-    clips: createClipRepository(context),
+    clips: createClipRepository({
+      ...context,
+      getCollaborationContext: collaborationRuntime.operationContext,
+    }),
     playlists: createPlaylistRepository(context),
     presentations: createPresentationRepository(context),
+    timelines: timelineWorkspaceRuntime.repository,
+    timelineWorkspaceRuntime,
+    collaboration: collaborationRuntime.service,
+    collaborationRuntime,
     videos: createVideoRepository(context),
     unsubscribe: null,
     keydownBound: false,
@@ -226,6 +250,10 @@ function timelineController(context = {}) {
     });
   }
   return timelineScrubController;
+}
+
+function workspaceTimelineController(context = {}) {
+  return ensureRuntime(context).timelineWorkspaceRuntime.controller;
 }
 
 function drawingControls(context = {}) {
@@ -1806,6 +1834,8 @@ function paint(root, state) {
       </section>
     </section>
   `;
+  const timelineWorkspaceEditor = root.querySelector("[data-video-analysis-workspace-editor]");
+  if (timelineWorkspaceEditor) root.appendChild(timelineWorkspaceEditor);
   bindPaintedVideoControls(root, {
     handleFileSelection,
     openLocalVideoPicker,
@@ -1900,6 +1930,7 @@ async function loadClips(nextFilters = null) {
     error: preservePlaybackPreparation ? state.error : "",
   });
   try {
+    await run.timelineWorkspaceRuntime.load({ matchId: state.match?.id || state.videoRef?.matchId || "" });
     let clips = [];
     for (let offset = 0; offset < CLIP_WORKSPACE_LIMIT; offset += CLIP_PAGE_LIMIT) {
       const payload = await run.clips.list({
@@ -2517,7 +2548,13 @@ async function commitClipTrim(payload = {}, context = {}) {
   if (!clipId) return false;
   return enqueueClipTrimCommit(clipId, async () => {
     try {
-      const result = await run.clips.trim({ id: clipId, startMs: payload.startMs, endMs: payload.endMs });
+      const sourceClip = run.store.getState().clips.find((clip) => clip.id === clipId);
+      const result = await run.clips.trim({
+        id: clipId,
+        startMs: payload.startMs,
+        endMs: payload.endMs,
+        expectedRevision: sourceClip?.revision || null,
+      });
       const savedClip = normalizeClipInstance(result.clip || {});
       const startMs = savedClip.startMs ?? payload.startMs;
       const endMs = savedClip.endMs ?? payload.endMs;
@@ -2862,7 +2899,9 @@ async function undoTimelineAction(context = {}) {
       });
       selectedClipIds = uniqueClipIds([entry.clipId]);
     } else if (entry.type === "edit") {
-      await run.clips.save(toApiClipPayload(entry.before || {}));
+      const undoPayload = toApiClipPayload(entry.before || {});
+      delete undoPayload.expectedRevision;
+      await run.clips.save(undoPayload);
       selectedClipIds = uniqueClipIds([entry.clipId]);
     } else {
       throw new Error("This timeline action cannot be undone.");
@@ -3447,6 +3486,7 @@ export function render(context = {}) {
 
 export function resetVideoAnalysisRuntimeForTests() {
   clearToastDismissTimer(runtime);
+  void runtime?.collaborationRuntime?.dispose?.();
   runtime?.unsubscribe?.();
   runtime?.workspaceObserver?.disconnect?.();
   runtime?.context?.doc?.documentElement?.classList?.remove?.(
@@ -4763,6 +4803,7 @@ export function handleClick(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (workspaceTimelineController(context).handleClick(event)) return true;
   const roomTab = target.closest("[data-video-analysis-room-tab]");
   if (roomTab) {
     const tabId = roomTab.dataset.videoAnalysisRoomTab;
@@ -5990,6 +6031,7 @@ export function handleInput(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (workspaceTimelineController(context).handleInput(event)) return true;
   const libraryFilter = target.closest("[data-video-analysis-library-filter]");
   if (libraryFilter) {
     const key = libraryFilter.dataset.videoAnalysisLibraryFilter;
@@ -6249,6 +6291,7 @@ export function handleChange(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (workspaceTimelineController(context).handleChange(event)) return true;
   const fileInput = target.closest("[data-video-analysis-file]");
   if (fileInput?.files?.[0]) {
     handleFileSelection(fileInput.files[0], context);

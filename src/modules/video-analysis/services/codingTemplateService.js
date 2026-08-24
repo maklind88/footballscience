@@ -2,6 +2,7 @@ import { videoAnalysisOutcomes } from "../constants/outcomes.js";
 import { videoAnalysisSubPhases } from "../constants/subPhases.js";
 import { groupCodingTemplateButtons, rebuildTemplateFromGroups } from "./codingTemplateLayoutService.js";
 import { withPhaseForSubPhase } from "./footballLanguageService.js";
+import { clearExclusiveCodingValues } from "./exclusiveCodingLinkService.js";
 
 export {
   groupCodingTemplateButtons,
@@ -136,6 +137,7 @@ function button(id, type, label, value, hotkey = "", group = type, options = {})
     appliesLabel: options.appliesLabel ?? settings.appliesLabel,
     targetField: canonicalCodingTargetField(options.targetField || type),
     instantEnabled: options.instantEnabled !== false,
+    exclusiveGroupKey: String(options.exclusiveGroupKey || options.exclusive_group_key || "").trim(),
     sortOrder: Number(options.sortOrder ?? 0),
   };
 }
@@ -313,7 +315,8 @@ export function findButtonByHotkey(template = {}, key = "") {
 export function applyCodingButtonToDraft(draft = {}, template = {}, button = {}) {
   const targetField = canonicalCodingTargetField(button?.targetField || button?.type);
   if (!targetField) return draft;
-  const nextDraft = { ...draft, [targetField]: button.value };
+  const exclusive = clearExclusiveCodingValues(draft, template, button);
+  const nextDraft = { ...exclusive.draft, [targetField]: button.value };
   if (targetField === "subPhase") {
     Object.assign(nextDraft, withPhaseForSubPhase(nextDraft));
   }

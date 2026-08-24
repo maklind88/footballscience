@@ -19,6 +19,7 @@ export function normalizeClipInstance(value = {}) {
     : {};
   return {
     id: String(value.id || ""),
+    revision: Math.max(1, Math.round(Number(value.revision) || 1)),
     matchId: String(value.matchId || value.match_id || ""),
     videoId: String(value.videoId || value.video_id || ""),
     matchTitle: String(value.matchTitle || value.match_title || value.match?.title || ""),

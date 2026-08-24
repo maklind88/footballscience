@@ -29,7 +29,7 @@ This document supersedes the scope boundaries in `WORKSTATION_V2_SPEC.md`. That 
 | Track identity, review status, corrections, summaries | Video Analysis API | Postgres metadata |
 | Calibration matrices and quality | Video Analysis API | Postgres metadata |
 | Rendered exports | Local media engine | Device filesystem until explicit share/export |
-| Presence, cursors, active coding state | Collaboration channel | Supabase Realtime Broadcast/Presence |
+| Presence, cursors, active coding state | Collaboration transport | Authenticated API heartbeat/polling; private Realtime only after separate policy approval |
 
 Large tracking arrays must not be copied into generic application state or one unbounded JSON column. They are chunked by track and time range; central records carry identity, review state, hashes, summaries, and local artifact references.
 
@@ -41,6 +41,8 @@ Large tracking arrays must not be copied into generic application state or one u
 - Exclusive groups guarantee that mutually exclusive labels cannot coexist on the same coding event while independent MG Principles remain repeatable.
 - Batch operations are commands over explicit clip IDs and return an inverse command for undo.
 - Multi-analyst coding uses idempotency keys, expected revisions, server ordering, presence, and conflict feedback. A generic CRDT is not used for clip intervals because deterministic domain commands are easier to audit and undo.
+- The first collaboration transport uses the authenticated Video Analysis API with 1.2-second operation polling and 10-second participant heartbeats. It is tenant-scoped, replayable, and requires no new direct client grants.
+- A private Supabase Broadcast/Presence adapter is available behind the transport boundary, but remains disabled until its exact `realtime.messages` membership policies receive a dedicated security approval. Public Realtime channels are never used for analysis data.
 
 ### Timeline Workspace
 
@@ -98,6 +100,18 @@ Portable packages are deliberate exports. They do not weaken the local-first def
 
 Each phase must ship behind capability checks, preserve old records, pass module contracts and risk-relevant browser flows, and have a rollback path before the next phase begins.
 
+## Implementation Status
+
+| Slice | Status | Evidence |
+| --- | --- | --- |
+| Elite foundation | Implemented in candidate branch | Domain models, secure local job engine, geometry and sync contracts |
+| Workstation operations | Implemented in candidate branch | Multiple persisted timelines, row colors/order/locks, clip move/copy, save/undo, exclusive coding groups |
+| Collaborative coding foundation | Implemented in candidate branch | Participant heartbeat, append-only operation log, clip/timeline revisions, reconnect polling, private Realtime adapter held behind approval |
+| Tracking and dynamic telestration | Domain foundation only | Runtime, review UI, local inference adapter, and correction workflow remain |
+| Spatial analysis | Domain foundation only | Calibration UI, confidence gates, overlays, and charts remain |
+| Media production | Secure job foundation only | Multi-angle UI, capture/replay, proxy/export orchestration remain |
+| Intelligence and portable sharing | Planned | Matrix drilldown, query compiler, reports, package format and encrypted delivery remain |
+
 ## Elite Acceptance Standard
 
 - A professional analyst can code without the mouse and batch-correct mistakes without data loss.
@@ -108,4 +122,3 @@ Each phase must ship behind capability checks, preserve old records, pass module
 - Multi-angle playback remains synchronized through long clips and can be corrected at reference points.
 - Export is deterministic, cancellable, resumable at job level, and produces a verifiable local artifact.
 - Shared review works either through fingerprint reconnection or an explicit portable package.
-

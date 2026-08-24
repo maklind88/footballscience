@@ -89,7 +89,32 @@
         shareTargets: [],
       };
       let savedCodingTemplate = null;
+      let savedTimelines = [];
+      let collaborationSession = null;
+      let collaborationParticipants = [];
       const smokeParams = new URLSearchParams(window.location.search);
+      if (smokeParams.get("elite") === "1") {
+        savedTimelines = [
+          {
+            id: "9a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            matchId: matches[0].id,
+            title: "Team analysis",
+            revision: 3,
+            isDefault: true,
+            rows: [
+              { id: "8a4e615e-f3e7-4fc7-bb70-a02db63c0001", label: "High press", kind: "coding", color: "#be123c", clipIds: ["clip-1"], sortOrder: 0 },
+              { id: "8a4e615e-f3e7-4fc7-bb70-a02db63c0002", label: "Build up", kind: "coding", color: "#2563eb", clipIds: [], sortOrder: 1 },
+            ],
+          },
+          {
+            id: "6a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            matchId: matches[0].id,
+            title: "Opponent",
+            revision: 1,
+            rows: [],
+          },
+        ];
+      }
       if (smokeParams.has("workspace")) {
         const root = document.getElementById("analysisRoomWorkspace");
         const workspaceView = document.createElement("section");
@@ -170,6 +195,62 @@
             templates: savedCodingTemplate ? [savedCodingTemplate] : [],
           });
         }
+        if (action === "timelines") {
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-elite-v1", timelines: savedTimelines });
+        }
+        if (action === "save-timeline") {
+          const input = body.timeline || {};
+          const existing = savedTimelines.find((timeline) => timeline.id === input.id);
+          const timeline = {
+            ...(existing || {}),
+            ...input,
+            id: existing?.id || "9a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            revision: Number(existing?.revision || 0) + 1,
+            rows: (input.rows || []).map((row, index) => ({
+              ...row,
+              id: row.id.startsWith?.("row-") ? `8a4e615e-f3e7-4fc7-bb70-a02db63c${index.toString().padStart(4, "0")}` : row.id,
+              revision: 1,
+            })),
+          };
+          if (existing) Object.assign(existing, timeline);
+          else savedTimelines.push(timeline);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-elite-v1", timeline });
+        }
+        if (action === "start-collaboration-session") {
+          collaborationSession = collaborationSession || {
+            id: "7a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            match_id: body.collaborationSession?.matchId || matches[0].id,
+            timeline_id: body.collaborationSession?.timelineId || null,
+            title: body.collaborationSession?.title || "Live analysis",
+            status: "active",
+          };
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-elite-v1", collaborationSession });
+        }
+        if (action === "join-collaboration-session") {
+          const input = body.collaborationSession || {};
+          collaborationParticipants = [{
+            id: "participant-1",
+            actor_id: "smoke-analyst",
+            actor_name: input.actorName || "Smoke Analyst",
+            client_id: input.clientId,
+            last_seen_at: new Date().toISOString(),
+          }];
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-elite-v1", collaborationSession, participant: collaborationParticipants[0] });
+        }
+        if (action === "leave-collaboration-session") {
+          collaborationParticipants = [];
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-elite-v1", left: true });
+        }
+        if (action === "collaboration-state") {
+          return Response.json({
+            ok: true,
+            schema: "footballscience-video-analysis-elite-v1",
+            collaborationSession,
+            participants: collaborationParticipants,
+            operations: [],
+            nextCursor: new Date().toISOString(),
+          });
+        }
         if (action === "save-coding-template") {
           savedCodingTemplate = {
             id: "coding-template-1",
@@ -233,6 +314,7 @@
           const clip = {
             ...(existingClip || {}),
             id: input.id || `clip-${clips.length + 1}`,
+            revision: Number(existingClip?.revision || 0) + 1,
             match_id: input.matchId || input.match_id || matches[0].id,
             video_id: input.videoId || input.video_id || matches[0].latest_video.id,
             start_ms: input.startMs ?? input.start_ms ?? 0,
@@ -343,6 +425,8 @@
         win: window,
         allowVideoAnalysisMetadataLoad: true,
         getAuthToken: () => "smoke-token",
+        currentUser: { id: "smoke-analyst", name: "Smoke Analyst" },
+        formatUserName: (user) => user?.name || "Smoke Analyst",
         canEdit: () => true,
         videoAnalysisInitialState: initialStateFromQuery,
         getScheduleState: () => ({

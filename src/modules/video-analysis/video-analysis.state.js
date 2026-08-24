@@ -5,6 +5,7 @@ import { defaultVideoAnalysisSubPhase } from "./constants/subPhases.js";
 import { createDefaultCodingTemplate } from "./services/codingTemplateService.js";
 import { createInitialPresentationWorkspace } from "./services/presentationService.js";
 import { createReviewSections } from "./services/reviewSessionService.js";
+import { createDefaultTimelineWorkspace } from "./domain/timelineWorkspace.model.js";
 
 const nonSquadRosterTypes = new Set([
   "academy",
@@ -146,6 +147,7 @@ export function createInitialVideoAnalysisState(context = {}) {
         menuY: 0,
       },
     },
+    timelineWorkspace: createDefaultTimelineWorkspace(),
     fsPlayer: {
       mode: "standard",
       fullscreen: false,

@@ -37,6 +37,20 @@ const {
 const { upsertClipBankItem } = require("./idp-database.js");
 const { saveReviewSession } = require("./video-analysis-review-database.js");
 const {
+  getCollaborationState,
+  joinCollaborationSession,
+  leaveCollaborationSession,
+  recordClipAnalysisOperation,
+  recordClipBatchOperation,
+  recordClipLifecycleOperation,
+  startCollaborationSession,
+} = require("./video-analysis-collaboration-database.js");
+const {
+  listTimelineOperations,
+  listTimelines,
+  saveTimeline,
+} = require("./video-analysis-workstation-database.js");
+const {
   attachClipSharingState,
   buildClipSharingMetadata,
   canActorMutateClip,
@@ -204,6 +218,9 @@ function normalizeClipPayload(payload = {}, actor = {}) {
   const clip = {
     ...scope,
     id: normalizeUuid(payload.id),
+    expectedRevision: Math.max(0, Math.round(Number(payload.expectedRevision ?? payload.expected_revision) || 0)) || null,
+    collaborationSessionId: normalizeUuid(payload.collaborationSessionId || payload.collaboration_session_id) || null,
+    clientId: normalizeText(payload.clientId || payload.client_id, 160) || null,
     matchId,
     videoId,
     startMs,
@@ -522,6 +539,9 @@ async function saveClip(payload, actor) {
   const scope = { organizationId: clip.organizationId, teamId: clip.teamId };
   const existing = clip.id ? await findClipById(scope, clip.id) : null;
   if (clip.id && !existing) return { ok: false, status: 404, reason: "Clip could not be found." };
+  if (existing && clip.expectedRevision && Number(existing.revision || 1) !== clip.expectedRevision) {
+    return { ok: false, status: 409, reason: "Clip revision conflict. Reload the clip before saving again." };
+  }
   if (existing && !canActorMutateClip(existing, actor)) {
     return { ok: false, status: 403, reason: "Private clips can only be changed by their owner." };
   }
@@ -546,13 +566,20 @@ async function saveClip(payload, actor) {
     post_roll_ms: clip.postRollMs,
     metadata,
     created_by: existing?.created_by || clip.actorId,
+    revision: existing ? Number(existing.revision || 1) + 1 : 1,
+    updated_by: clip.actorId || null,
   };
   const patchParams = buildTeamParams(scope);
   patchParams.set("id", `eq.${clip.id}`);
+  if (existing && clip.expectedRevision) patchParams.set("revision", `eq.${clip.expectedRevision}`);
   const clipResult = clip.id ? await patchRows("video_clip_instances", patchParams, row) : await insertRow("video_clip_instances", row);
   if (!clipResult.ok) return clipResult;
   const saved = clipResult.payload?.[0];
-  if (!saved?.id) return { ok: false, status: 500, reason: "Clip could not be saved." };
+  if (!saved?.id) {
+    return existing && clip.expectedRevision
+      ? { ok: false, status: 409, reason: "Clip revision conflict. Reload the clip before saving again." }
+      : { ok: false, status: 500, reason: "Clip could not be saved." };
+  }
   if (existing) {
     const relationsReplaced = await replaceClipRelationRows(scope, saved.id);
     if (!relationsReplaced.ok) return relationsReplaced;
@@ -611,7 +638,16 @@ async function saveClip(payload, actor) {
   if (failed) return failed;
   const idpClipBank = await syncClipPlayersToIdp(clip, saved, actor);
   const [withRelations] = await attachClipRelations([saved], { organizationId: clip.organizationId, teamId: clip.teamId });
-  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations, idpClipBank } };
+  const auditResult = await recordClipAnalysisOperation(clip, existing, saved, actor);
+  return {
+    ok: true,
+    payload: {
+      schema: VIDEO_ANALYSIS_SCHEMA,
+      clip: withRelations,
+      idpClipBank,
+      operationRecorded: auditResult.ok,
+    },
+  };
 }
 
 async function trimClip(payload, actor) {
@@ -620,6 +656,7 @@ async function trimClip(payload, actor) {
   const id = normalizeUuid(payload.id || payload.clipId || payload.clip_id);
   const startMs = asMs(payload.startMs ?? payload.start_ms);
   const endMs = asMs(payload.endMs ?? payload.end_ms);
+  const expectedRevision = Math.max(0, Math.round(Number(payload.expectedRevision ?? payload.expected_revision) || 0)) || null;
   if (!id) return { ok: false, status: 400, reason: "clip id is required." };
   if (endMs <= startMs) return { ok: false, status: 400, reason: "Clip end_ms must be greater than start_ms." };
 
@@ -631,17 +668,32 @@ async function trimClip(payload, actor) {
   if (!canActorMutateClip(existing, actor)) {
     return { ok: false, status: 403, reason: "Private clips can only be changed by their owner." };
   }
-  const result = await patchRows("video_clip_instances", params, { start_ms: startMs, end_ms: endMs });
+  if (expectedRevision && Number(existing.revision || 1) !== expectedRevision) {
+    return { ok: false, status: 409, reason: "Clip revision conflict. Reload the clip before trimming again." };
+  }
+  if (expectedRevision) params.set("revision", `eq.${expectedRevision}`);
+  const result = await patchRows("video_clip_instances", params, {
+    start_ms: startMs,
+    end_ms: endMs,
+    revision: Number(existing.revision || 1) + 1,
+    updated_by: scope.actorId || null,
+  });
   if (!result.ok) return result;
   const saved = result.payload?.[0];
-  if (!saved?.id) return { ok: false, status: 404, reason: "Clip could not be found." };
+  if (!saved?.id) {
+    return expectedRevision
+      ? { ok: false, status: 409, reason: "Clip revision conflict. Reload the clip before trimming again." }
+      : { ok: false, status: 404, reason: "Clip could not be found." };
+  }
   const [withRelations] = await attachClipRelations([saved], scope);
-  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations } };
+  const auditResult = await recordClipLifecycleOperation("clip.trim", payload, existing, saved, actor);
+  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations, operationRecorded: auditResult.ok } };
 }
 
 async function archiveClip(payload, actor) {
   const scope = actorScope(actor);
   const id = normalizeUuid(payload.id || payload.clipId || payload.clip_id);
+  const expectedRevision = Math.max(0, Math.round(Number(payload.expectedRevision ?? payload.expected_revision) || 0)) || null;
   if (!id) return { ok: false, status: 400, reason: "clip id is required." };
   const params = buildTeamParams(scope);
   params.set("id", `eq.${id}`);
@@ -650,8 +702,25 @@ async function archiveClip(payload, actor) {
   if (!canActorMutateClip(existing, actor)) {
     return { ok: false, status: 403, reason: "Private clips can only be changed by their owner." };
   }
-  const result = await patchRows("video_clip_instances", params, { status: "archived", archived_at: new Date().toISOString() });
-  return result.ok ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: result.payload?.[0] || null } } : result;
+  if (expectedRevision && Number(existing.revision || 1) !== expectedRevision) {
+    return { ok: false, status: 409, reason: "Clip revision conflict. Reload the clip before archiving it." };
+  }
+  if (expectedRevision) params.set("revision", `eq.${expectedRevision}`);
+  const result = await patchRows("video_clip_instances", params, {
+    status: "archived",
+    archived_at: new Date().toISOString(),
+    revision: Number(existing.revision || 1) + 1,
+    updated_by: scope.actorId || null,
+  });
+  if (!result.ok) return result;
+  const saved = result.payload?.[0] || null;
+  if (!saved && expectedRevision) {
+    return { ok: false, status: 409, reason: "Clip revision conflict. Reload the clip before archiving it." };
+  }
+  const auditResult = saved
+    ? await recordClipLifecycleOperation("clip.archive", payload, existing, saved, actor)
+    : { ok: false };
+  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: saved, operationRecorded: auditResult.ok } };
 }
 
 function chunkValues(values = [], size = 100) {
@@ -697,11 +766,19 @@ async function archiveClips(payload, actor) {
   for (const chunk of chunkValues(ids, 100)) {
     const params = buildTeamParams(scope);
     params.set("id", `in.(${chunk.join(",")})`);
-    const result = await patchRows("video_clip_instances", params, { status: "archived", archived_at: archivedAt });
+    const result = await patchRows("video_clip_instances", params, {
+      status: "archived",
+      archived_at: archivedAt,
+      updated_by: scope.actorId || null,
+    });
     if (!result.ok) return result;
     archived.push(...rowList(result));
   }
-  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, archivedIds: ids, clips: archived } };
+  const auditResult = await recordClipBatchOperation("clip.archive-batch", payload, existingRows, actor);
+  return {
+    ok: true,
+    payload: { schema: VIDEO_ANALYSIS_SCHEMA, archivedIds: ids, clips: archived, operationRecorded: auditResult.ok },
+  };
 }
 
 async function restoreClips(payload, actor) {
@@ -724,11 +801,19 @@ async function restoreClips(payload, actor) {
   for (const chunk of chunkValues(ids, 100)) {
     const params = buildTeamParams(scope);
     params.set("id", `in.(${chunk.join(",")})`);
-    const result = await patchRows("video_clip_instances", params, { status: "active", archived_at: null });
+    const result = await patchRows("video_clip_instances", params, {
+      status: "active",
+      archived_at: null,
+      updated_by: scope.actorId || null,
+    });
     if (!result.ok) return result;
     restored.push(...rowList(result));
   }
-  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, restoredIds: ids, clips: restored } };
+  const auditResult = await recordClipBatchOperation("clip.restore-batch", payload, existingRows, actor);
+  return {
+    ok: true,
+    payload: { schema: VIDEO_ANALYSIS_SCHEMA, restoredIds: ids, clips: restored, operationRecorded: auditResult.ok },
+  };
 }
 
 async function shareClip(payload, actor) {
@@ -750,10 +835,29 @@ async function shareClip(payload, actor) {
   });
   const params = buildTeamParams(scope);
   params.set("id", `eq.${id}`);
-  const result = await patchRows("video_clip_instances", params, { metadata });
+  const expectedRevision = Math.max(0, Math.round(Number(payload.expectedRevision ?? payload.expected_revision) || 0)) || null;
+  if (expectedRevision && Number(existing.revision || 1) !== expectedRevision) {
+    return { ok: false, status: 409, reason: "Clip revision conflict. Reload the clip before sharing it." };
+  }
+  if (expectedRevision) params.set("revision", `eq.${expectedRevision}`);
+  const result = await patchRows("video_clip_instances", params, {
+    metadata,
+    revision: Number(existing.revision || 1) + 1,
+    updated_by: scope.actorId || null,
+  });
   if (!result.ok) return result;
-  const [withRelations] = await attachClipRelations(result.payload || [], scope);
-  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations || null } };
+  const saved = result.payload?.[0] || null;
+  if (!saved && expectedRevision) {
+    return { ok: false, status: 409, reason: "Clip revision conflict. Reload the clip before sharing it." };
+  }
+  const [withRelations] = await attachClipRelations(saved ? [saved] : [], scope);
+  const auditResult = saved
+    ? await recordClipLifecycleOperation("clip.share", payload, existing, saved, actor)
+    : { ok: false };
+  return {
+    ok: true,
+    payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations || null, operationRecorded: auditResult.ok },
+  };
 }
 
 async function listSavedSearches(query, actor) {
@@ -792,7 +896,7 @@ function statusPayload(actor) {
     scope: actorScope(actor),
     storesVideoFiles: false,
     precision: "milliseconds",
-    workstation: ["templates", "hotkeys", "timeline-lanes", "descriptors", "matrix-find", "review-sections", "presentation-builder", "drawing-layers"],
+    workstation: ["templates", "hotkeys", "multiple-timelines", "timeline-row-operations", "descriptors", "matrix-find", "review-sections", "presentation-builder", "drawing-layers", "audited-collaboration"],
   };
 }
 
@@ -815,6 +919,12 @@ async function handleVideoAnalysisRequest(req, res, actor) {
                 ? await listClips(query, actor)
           : action === "coding-templates"
             ? await listCodingTemplates(query, actor)
+            : action === "timelines"
+              ? await listTimelines(query, actor)
+              : action === "timeline-operations"
+                ? await listTimelineOperations(query, actor)
+                : action === "collaboration-state"
+                  ? await getCollaborationState(query, actor)
             : await listClips(query, actor);
     return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
   }
@@ -855,6 +965,14 @@ async function handleVideoAnalysisRequest(req, res, actor) {
                                     ? await saveReviewSession(body.reviewSession || body, actor)
                                     : action === "save-coding-template"
                                       ? await saveCodingTemplate(body.template || body, actor)
+                                      : action === "save-timeline"
+                                        ? await saveTimeline(body.timeline || body, actor)
+                                        : action === "start-collaboration-session"
+                                          ? await startCollaborationSession(body.collaborationSession || body.session || body, actor)
+                                          : action === "join-collaboration-session"
+                                            ? await joinCollaborationSession(body.collaborationSession || body.session || body, actor)
+                                            : action === "leave-collaboration-session"
+                                              ? await leaveCollaborationSession(body.collaborationSession || body.session || body, actor)
                                       : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }

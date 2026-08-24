@@ -356,6 +356,7 @@ export function applyCodingButtonToClip(clip = {}, button = {}, players = []) {
 export function toApiClipPayload(clip = {}) {
   return {
     id: clip.id,
+    expectedRevision: clip.id ? Math.max(1, Math.round(Number(clip.revision) || 1)) : null,
     matchId: clip.matchId,
     videoId: clip.videoId,
     startMs: clip.startMs,

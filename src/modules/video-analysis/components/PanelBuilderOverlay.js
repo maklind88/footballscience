@@ -255,6 +255,7 @@ function renderButtonInspector(state = {}, selectedButton = null) {
         <label>Behavior<select data-video-analysis-button-field="${escapeHtml(selectedButton.id)}:buttonBehavior">${behaviorOptionList(selectedButton.buttonBehavior || "create_tag")}</select></label>
         <label>Applies to<select data-video-analysis-button-field="${escapeHtml(selectedButton.id)}:targetField">${targetFieldOptionList(selectedButton.targetField || selectedButton.type || "tags")}</select></label>
         <label>Hotkey<input type="text" maxlength="12" data-video-analysis-button-field="${escapeHtml(selectedButton.id)}:hotkey" value="${escapeHtml(selectedButton.hotkey || "")}"></label>
+        <label>Exclusive group<input type="text" maxlength="120" data-video-analysis-button-field="${escapeHtml(selectedButton.id)}:exclusiveGroupKey" value="${escapeHtml(selectedButton.exclusiveGroupKey || "")}" placeholder="Optional group key"></label>
       </div>
       ${issues.length ? `<div class="video-analysis-hotkey-warning">${issues.map((issue) => `<span>${escapeHtml(issue.message)}</span>`).join("")}</div>` : ""}
       <div class="video-analysis-color-presets" aria-label="Color presets">

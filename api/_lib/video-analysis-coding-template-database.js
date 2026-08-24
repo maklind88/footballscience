@@ -56,6 +56,7 @@ const BUTTON_BEHAVIOR_COLUMNS = Object.freeze([
   "default_duration_ms",
   "start_offset_ms",
   "end_offset_ms",
+  "exclusive_group_key",
 ]);
 
 function rowList(result) {
@@ -117,6 +118,7 @@ function normalizeCodingButtonPayload(button = {}, index = 0) {
     startOffsetMs: asSignedMs(button.startOffsetMs ?? button.start_offset_ms, 0),
     endOffsetMs: Math.max(100, asSignedMs(button.endOffsetMs ?? button.end_offset_ms, defaultDurationMs)),
     instantEnabled: button.instantEnabled !== false && button.instant_enabled !== false,
+    exclusiveGroupKey: normalizeText(button.exclusiveGroupKey || button.exclusive_group_key, 120) || null,
     groupSortOrder: asSortOrder(button.groupSortOrder ?? button.group_sort_order ?? button.metadata?.groupSortOrder ?? button.metadata?.group_sort_order, index),
     sortOrder: asSortOrder(button.sortOrder ?? button.sort_order, index),
   };
@@ -132,7 +134,7 @@ function normalizeCodingButtonLinkPayload(link = {}) {
     sourceType: normalizeCodingButtonType(link.sourceType || link.source_type || "custom"),
     targetValue,
     targetType: normalizeCodingButtonType(link.targetType || link.target_type || "custom"),
-    linkType: ["activates", "suggests", "requires"].includes(linkType) ? linkType : "activates",
+    linkType: ["activates", "suggests", "requires", "excludes"].includes(linkType) ? linkType : "activates",
   };
 }
 
@@ -230,6 +232,7 @@ function mapButtonRow(row = {}) {
     appliesLabel: row.applies_label ?? metadata.appliesLabel ?? false,
     targetField,
     instantEnabled: row.instant_enabled !== false,
+    exclusiveGroupKey: row.exclusive_group_key || metadata.exclusiveGroupKey || "",
     groupSortOrder: asSortOrder(metadata.groupSortOrder ?? metadata.group_sort_order, 0),
     sortOrder: asSortOrder(row.sort_order, 0),
   };
@@ -367,6 +370,7 @@ function buttonRow(button = {}, template = {}, templateId = "") {
     color: button.color,
     sort_order: button.sortOrder,
     instant_enabled: button.instantEnabled,
+    exclusive_group_key: button.exclusiveGroupKey,
     status: "active",
     created_by: template.actorId,
     group_id: button.groupId,
@@ -390,6 +394,7 @@ function buttonRow(button = {}, template = {}, templateId = "") {
       defaultDurationMs: button.defaultDurationMs,
       startOffsetMs: button.startOffsetMs,
       endOffsetMs: button.endOffsetMs,
+      exclusiveGroupKey: button.exclusiveGroupKey,
     },
   };
 }

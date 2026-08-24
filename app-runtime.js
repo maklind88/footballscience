@@ -601,6 +601,7 @@ formatScheduleDateValue,
 getMedicalRecords: () => medicalState?.records ?? [],
 getPeriodizationDay,
 getPlayerProfilesState: () => playerProfilesState || readPlayerProfilesState(),
+getPresentationState: () => readDashboardJson(dashboardPresentationStorageKey, {}),
 getScheduleEventsForDate,
 getScheduleMainEvent,
 getScheduleState: () => {

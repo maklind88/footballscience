@@ -3,6 +3,7 @@ import {
   getHomeAppearanceSections,
   getHomeSectionAppearance,
 } from "../../core/appearance-governance.mjs";
+import { renderHomeUpcomingLineupCard } from "./upcoming-lineup-card.mjs";
 
 export function createDashboardHomeCardsRenderer(dependencies = {}) {
   const {
@@ -125,7 +126,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
-  function renderPresentationModeCard(birthdayStripMarkup = "") {
+  function renderPresentationModeCard(birthdayStripMarkup = "", upcomingLineupMarkup = "") {
     const cards = [
       {
         type: "team",
@@ -157,6 +158,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           </div>
         </article>
         ${index === 0 ? birthdayStripMarkup : ""}
+        ${index === 1 ? upcomingLineupMarkup : ""}
             `
           )
           .join("")}
@@ -464,12 +466,13 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             ${renderBirthdayNewsCard(context)}
           </section>
         `;
+    const upcomingLineupMarkup = renderHomeUpcomingLineupCard(context, escapeHtml);
     const workQueueMarkup = `${mainSections}${operationSectionsMarkup}`;
 
     return `
     <section class="dashboard-workspace-layout dashboard-home-ops dashboard-home-density-${escapeHtml(homeAppearance.density)} dashboard-home-theme-${escapeHtml(homeAppearance.theme)}" aria-label="Home dashboard">
       <section class="dashboard-home-grid" aria-label="Coach workspace">
-        ${renderPresentationModeCard(birthdayStripMarkup)}
+        ${renderPresentationModeCard(birthdayStripMarkup, upcomingLineupMarkup)}
         ${
           workQueueMarkup
             ? `

@@ -1,4 +1,5 @@
 import { selectHomeTaskQueues } from "./tasks.mjs";
+import { selectHomeUpcomingLineup } from "./upcoming-lineup-card.mjs";
 
 function addCalendarDays(date, days) {
   const nextDate = new Date(date);
@@ -29,6 +30,7 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     getMedicalRecords = () => [],
     getPeriodizationDay = () => ({}),
     getPlayerProfilesState = () => ({ players: [] }),
+    getPresentationState = () => ({}),
     getScheduleEventsForDate = () => [],
     getScheduleMainEvent = () => null,
     getScheduleState = () => ({ events: [] }),
@@ -297,6 +299,21 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     });
   }
 
+  function getUpcomingMatchLineup(todayValue = getTodayValue(), nextMatch = null) {
+    const scheduleMatches = getUpcomingEvents(todayValue, ["match"]);
+    const match = nextMatch || scheduleMatches[0] || null;
+    ensurePlayerProfilesState();
+    const profileState = getPlayerProfilesState() || {};
+    return selectHomeUpcomingLineup({
+      nextMatch: match,
+      scheduleMatches,
+      presentationState: getPresentationState() || {},
+      players: Array.isArray(profileState.players) ? profileState.players : [],
+      dateLabel: match?.date ? formatDateLabel(match.date, "short") : "",
+      relativeLabel: match?.date ? getRelativeDateLabel(match.date, todayValue) : "",
+    });
+  }
+
   function getHomeContext(currentUser, users, tasks) {
     const todayValue = getTodayValue();
     getScheduleState();
@@ -328,6 +345,7 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
         selectedPass: selectedPresentationPass,
       },
       microcycle,
+      upcomingLineup: getUpcomingMatchLineup(todayValue, nextMatch),
       birthdayCalendar: getBirthdayCalendar(todayValue),
       personalOpenTasks: taskQueues.personalOpenTasks,
       myOpenTasks: taskQueues.myOpenTasks,
@@ -354,5 +372,6 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     getSessionTotalMinutes,
     getTodayValue,
     getUpcomingEvents,
+    getUpcomingMatchLineup,
   };
 }

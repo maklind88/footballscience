@@ -6,6 +6,7 @@ const sessionPlannerKey = "football-session-planner-v3";
 const sessionPlannerLibraryKey = "football-session-exercise-library-v1";
 const medicalKey = "football-medical-team-v1";
 const playerProfilesKey = "football-player-profiles-v1";
+const presentationKey = "football-dashboard-presentation-mode-v1";
 const workspaceHubKey = "football-workspace-hub-v3";
 const workspaceLastActiveKey = "football-workspace-last-active-local-v1";
 const qaSessionPlannerTrainingDate = "2026-05-19";
@@ -2881,7 +2882,16 @@ test("Schedule Today anchors Planner to the real current date", async ({ page })
 });
 
 test("Home places compact meeting cards side by side beside the calendar and opens selected day details", async ({ page }) => {
-  await page.addInitScript(({ key }) => {
+  const lineupSlotIds = ["gk", "lb", "lcb", "rcb", "rb", "lcm", "cm", "rcm", "lw", "st", "rw"];
+  const lineupPlayers = lineupSlotIds.map((slotId, index) => ({
+    id: `home-lineup-${index + 1}`,
+    name: `${slotId.toUpperCase()} Player`,
+    number: String(index + 1),
+  }));
+  const lineupAssignments = Object.fromEntries(
+    lineupSlotIds.map((slotId, index) => [slotId, lineupPlayers[index].id])
+  );
+  await page.addInitScript(({ key, profilesKey, presentationStorageKey, players, assignments }) => {
     const realDate = Date;
     const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
     class FixedDate extends realDate {
@@ -2906,11 +2916,41 @@ test("Home places compact meeting cards side by side beside the calendar and ope
         overviewSpan: 6,
         importVersion: "ncc-2026-numbers-v1",
         events: [
-          { id: "home-schedule-match", date: "2026-05-16", type: "match", title: "Home Match" },
+          { id: "home-schedule-match", date: "2026-05-16", time: "19:00", type: "match", title: "NCC - Boston" },
         ],
       })
     );
-  }, { key: scheduleKey });
+    window.localStorage.setItem(
+      profilesKey,
+      JSON.stringify({
+        rosterVersion: "qa-home-lineup-v1",
+        schemaVersion: 3,
+        selectedPlayerId: players[0].id,
+        players,
+        removedPlayerIds: [],
+      })
+    );
+    window.localStorage.setItem(
+      presentationStorageKey,
+      JSON.stringify({
+        decks: {
+          "2026-05-14": {
+            updatedAt: "2026-05-14T15:00:00.000Z",
+            infoSlides: [
+              { layout: "starting-xi", formation: "4-3-3", lineup: assignments },
+              { layout: "match-squad", matchSquadPlayerIds: players.map((player) => player.id) },
+            ],
+          },
+        },
+      })
+    );
+  }, {
+    key: scheduleKey,
+    profilesKey: playerProfilesKey,
+    presentationStorageKey: presentationKey,
+    players: lineupPlayers,
+    assignments: lineupAssignments,
+  });
 
   await bootApp(page);
   await openWorkspace(page, "home");
@@ -2919,19 +2959,23 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await expect(presentationBand.locator(".dashboard-presentation-card")).toHaveCount(2);
   await expect(presentationBand.locator("#dashboardSchedulePreview")).toBeVisible();
   const layoutBoxes = await presentationBand
-    .locator(":scope > .dashboard-presentation-card, :scope > .dashboard-schedule-preview")
+    .locator(":scope > .dashboard-presentation-card, :scope > .dashboard-upcoming-lineup-card, :scope > .dashboard-schedule-preview")
     .evaluateAll((columns) =>
       columns.map((column) => {
         const rect = column.getBoundingClientRect();
         return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
       })
     );
-  expect(layoutBoxes).toHaveLength(3);
-  const [teamMeeting, technicalMeeting, calendarBox] = layoutBoxes;
+  expect(layoutBoxes).toHaveLength(4);
+  const [teamMeeting, technicalMeeting, lineupCard, calendarBox] = layoutBoxes;
   expect(Math.abs(teamMeeting.y - technicalMeeting.y)).toBeLessThanOrEqual(1);
   expect(Math.abs(teamMeeting.width - technicalMeeting.width)).toBeLessThanOrEqual(1);
   expect(technicalMeeting.x).toBeGreaterThan(teamMeeting.x + teamMeeting.width);
   expect(calendarBox.x).toBeGreaterThan(technicalMeeting.x + technicalMeeting.width);
+  expect(Math.abs(lineupCard.x - technicalMeeting.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(lineupCard.width - technicalMeeting.width)).toBeLessThanOrEqual(1);
+  expect(lineupCard.y).toBeGreaterThanOrEqual(technicalMeeting.y + technicalMeeting.height);
+  expect(Math.abs(lineupCard.y + lineupCard.height - (calendarBox.y + calendarBox.height))).toBeLessThanOrEqual(1.5);
   expect(calendarBox.height).toBeGreaterThan(teamMeeting.height * 1.9);
   expect(teamMeeting.width).toBeGreaterThan(260);
   expect(teamMeeting.width).toBeLessThan(calendarBox.width * 1.45);
@@ -2976,6 +3020,21 @@ test("Home places compact meeting cards side by side beside the calendar and ope
     expect(box.buttonLeft).toBeGreaterThan(box.cardLeft);
     expect(box.buttonRight).toBeLessThanOrEqual(box.cardRight - 1);
   }
+  const lineupPanel = presentationBand.locator(".dashboard-upcoming-lineup-card");
+  await expect(lineupPanel).toContainText("NCC - Boston");
+  await expect(lineupPanel).toContainText("11/11");
+  await expect(lineupPanel).toContainText("4-3-3");
+  await expect(lineupPanel.locator(".dashboard-lineup-slot.has-player")).toHaveCount(11);
+  const lineupContainment = await lineupPanel.evaluate((panel) => {
+    const pitch = panel.querySelector(".dashboard-lineup-pitch")?.getBoundingClientRect();
+    const slots = Array.from(panel.querySelectorAll(".dashboard-lineup-slot")).map((slot) => slot.getBoundingClientRect());
+    return {
+      slotsInside: slots.every((slot) =>
+        pitch && slot.left >= pitch.left - 1 && slot.right <= pitch.right + 1 && slot.top >= pitch.top - 1 && slot.bottom <= pitch.bottom + 1
+      ),
+    };
+  });
+  expect(lineupContainment.slotsInside).toBe(true);
   const calendarDaySize = await presentationBand.locator(".dashboard-schedule-day").first().evaluate((day) => {
     const rect = day.getBoundingClientRect();
     return { width: rect.width, height: rect.height };
@@ -2999,7 +3058,7 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await calendar.locator('[data-dashboard-select-schedule-date="2026-05-16"]').click();
   await expect(page.locator('[data-workspace-view="home"].is-active')).toBeVisible();
   await expect(calendar.locator("#dashboardScheduleDayTitle")).toHaveText("Saturday 16 May");
-  await expect(calendar.locator(".dashboard-schedule-day-event")).toContainText("Home Match");
+  await expect(calendar.locator(".dashboard-schedule-day-event")).toContainText("NCC - Boston");
   await calendar.locator('[data-dashboard-open-schedule-date="2026-05-16"]').click();
 
   await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
@@ -3007,6 +3066,10 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await expect(page.locator("#schedulePlannerViewButton")).toHaveCount(0);
   await expect(page.locator("#schedulePlannerGrid")).toBeVisible();
   await expect(page.locator('.schedule-planner-day.is-selected[data-schedule-date="2026-05-16"]')).toBeVisible();
+
+  await openWorkspace(page, "home");
+  await page.locator(".dashboard-upcoming-lineup-card [data-open-workspace='gameplan']").click();
+  await expect(page.locator('[data-workspace-view="gameplan"].is-active')).toBeVisible();
 });
 
 test("Schedule Planner copies and pastes selected days with command shortcuts", async ({ page }) => {

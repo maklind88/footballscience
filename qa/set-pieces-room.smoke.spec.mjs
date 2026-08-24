@@ -1163,6 +1163,14 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
   expect(portrait.board.width).toBeGreaterThanOrEqual(portrait.viewport.width - 18);
   expect(portrait.overflow.width).toBeLessThanOrEqual(0);
   expect(portrait.overflow.height).toBeLessThanOrEqual(0);
+
+  if (await page.evaluate(() => document.fullscreenElement !== null)) {
+    await page.evaluate(() => document.exitFullscreen());
+  } else {
+    await page.keyboard.press("Escape");
+  }
+  await expect(shell).toHaveClass(/is-editing/);
+  await expect(shell.getByRole("button", { name: "Edit", exact: true })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async ({ page }) => {

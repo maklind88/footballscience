@@ -53,6 +53,7 @@ export function createSetPiecesRoomController(options = {}) {
   let bound = false;
   let boardClipboard = null;
   let boardPasteCount = 0;
+  let preservePresentationAfterFullscreenExit = false;
 
   function hasDismissedOnboarding() {
     try {
@@ -519,6 +520,7 @@ export function createSetPiecesRoomController(options = {}) {
     ui.libraryFiltersOpen = false;
     ui.libraryOpen = false;
     if (!nextPresentationMode && documentRef?.fullscreenElement === root) {
+      preservePresentationAfterFullscreenExit = false;
       documentRef.exitFullscreen?.().catch?.(() => {});
     }
     render();
@@ -527,6 +529,7 @@ export function createSetPiecesRoomController(options = {}) {
   function requestPresentationFullscreen() {
     const request = root?.requestFullscreen;
     if (documentRef?.fullscreenElement === root || documentRef?.fullscreenEnabled !== true || typeof request !== "function") return;
+    preservePresentationAfterFullscreenExit = false;
     request.call(root)?.catch?.(() => setNotice("Fullscreen is not available in this browser.", "warning"));
   }
 
@@ -538,7 +541,10 @@ export function createSetPiecesRoomController(options = {}) {
   function toggleFullscreen() {
     if (!ui.presentationMode) return;
     if (documentRef?.fullscreenElement === root) {
-      documentRef.exitFullscreen?.().catch?.(() => {});
+      preservePresentationAfterFullscreenExit = true;
+      documentRef.exitFullscreen?.().catch?.(() => {
+        preservePresentationAfterFullscreenExit = false;
+      });
       return;
     }
     requestPresentationFullscreen();
@@ -555,9 +561,13 @@ export function createSetPiecesRoomController(options = {}) {
       scheduledFor: play.scheduledFor,
     });
     if (documentRef?.fullscreenElement === root) {
+      preservePresentationAfterFullscreenExit = true;
       const exit = documentRef.exitFullscreen?.();
       if (typeof exit?.then === "function") {
-        exit.then(openTeamMeeting, openTeamMeeting);
+        exit.then(openTeamMeeting, () => {
+          preservePresentationAfterFullscreenExit = false;
+          openTeamMeeting();
+        });
         return;
       }
     }
@@ -998,7 +1008,16 @@ export function createSetPiecesRoomController(options = {}) {
       boardInteractions.handleKeyDown(event);
     });
     documentRef.addEventListener("fullscreenchange", () => {
-      if (ui.presentationMode) render();
+      if (!ui.presentationMode) {
+        preservePresentationAfterFullscreenExit = false;
+        return;
+      }
+      if (documentRef?.fullscreenElement === root || preservePresentationAfterFullscreenExit) {
+        preservePresentationAfterFullscreenExit = false;
+        render();
+        return;
+      }
+      setWorkspaceMode(false);
     });
   }
 

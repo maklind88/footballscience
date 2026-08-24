@@ -840,10 +840,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       options.render();
     }
     if (key === "escape") {
-      options.playback.stop();
-      options.ui.presentationMode = false;
-      options.ui.activeTool = "select";
-      options.render();
+      options.setPresentationMode(false);
     }
   }
 

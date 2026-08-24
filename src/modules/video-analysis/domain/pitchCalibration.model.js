@@ -28,6 +28,10 @@ export function normalizeHomography(value) {
 }
 
 export function normalizeCalibrationFrame(value = {}, fallbackIndex = 0) {
+  value = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const controlPoints = (Array.isArray(value.controlPoints || value.control_points)
+    ? value.controlPoints || value.control_points
+    : []).filter((point) => point && typeof point === "object").map((point) => ({ ...point }));
   const atMs = Math.max(0, Math.round(finiteNumber(value.atMs ?? value.at_ms, 0)));
   const validFromMs = Math.max(0, Math.round(finiteNumber(value.validFromMs ?? value.valid_from_ms, atMs)));
   const validToMs = Math.max(
@@ -50,15 +54,18 @@ export function normalizeCalibrationFrame(value = {}, fallbackIndex = 0) {
     rmsErrorM: Math.max(0, finiteNumber(value.rmsErrorM ?? value.rms_error_m, 0)),
     controlPointCount: Math.max(0, Math.round(finiteNumber(
       value.controlPointCount ?? value.control_point_count,
-      0,
+      controlPoints.length,
     ))),
+    controlPoints,
   };
 }
 
 export function normalizePitchCalibration(value = {}) {
+  value = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const status = stringValue(value.status).toLowerCase();
   const source = stringValue(value.source).toLowerCase();
-  const frames = (value.frames || value.keyframes || [])
+  const frameValues = value.frames || value.keyframes;
+  const frames = (Array.isArray(frameValues) ? frameValues : [])
     .map(normalizeCalibrationFrame)
     .filter((frame) => frame.imageToPitchMatrix)
     .sort((first, second) => first.atMs - second.atMs);
@@ -94,4 +101,3 @@ export function calibrationReadiness(value = {}) {
     confidence: calibration.confidence,
   };
 }
-

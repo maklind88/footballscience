@@ -4,6 +4,11 @@ import { resolveDynamicGraphics } from "../services/dynamicGraphicRenderService.
 import { trackingPointAt } from "../services/trackingGeometryService.js";
 import { trackingReviewSummary } from "../services/trackingReviewService.js";
 import { escapeHtml } from "./renderHelpers.js";
+import {
+  renderAnalysisPanelTabs,
+  renderSpatialSidebar,
+  renderSpatialStage,
+} from "./SpatialAnalysisPanel.js";
 
 const trackingTools = Object.freeze([
   { id: "highlight", label: "Highlight" },
@@ -64,6 +69,9 @@ function renderResolvedGraphic(graphic = {}) {
   if (["trail", "movement-curve"].includes(graphic.type)) {
     return `<svg class="video-analysis-dynamic-svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"><polyline points="${escapeHtml(pathPoints(graphic.points))}" style="stroke:${color}"></polyline></svg>`;
   }
+  if (graphic.type === "unit-hull") {
+    return `<svg class="video-analysis-dynamic-svg is-unit-hull" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"><polygon points="${escapeHtml(pathPoints(graphic.anchors))}" style="stroke:${color};fill:${color}"></polygon></svg>`;
+  }
   if (["distance", "unit-line"].includes(graphic.type)) {
     const [first, second] = graphic.anchors;
     const label = Number.isFinite(graphic.distanceM) ? `${graphic.distanceM.toFixed(1)} m` : "Calibrate pitch";
@@ -87,14 +95,16 @@ export function renderTrackingStage(state = {}, item = null) {
   const { tracks, graphics } = currentItemTracking(item);
   const atMs = playheadMs(state);
   const selectedTrackIds = state.presentation?.tracking?.selectedTrackIds || [];
+  const spatialCapture = Boolean(state.presentation?.spatial?.captureLandmarkId);
   const resolved = resolveDynamicGraphics(graphics, tracks, atMs, {
-    calibration: state.presentation?.tracking?.calibration || null,
+    calibration: state.presentation?.spatial?.calibration || null,
   });
   return `
-    <div class="video-analysis-tracking-stage" data-video-analysis-tracking-stage>
+    <div class="video-analysis-tracking-stage${spatialCapture ? " is-spatial-capturing" : ""}" data-video-analysis-tracking-stage>
       ${tracks.map((track) => renderTrackBox(track, atMs, selectedTrackIds)).join("")}
       ${resolved.map(renderResolvedGraphic).join("")}
       ${renderPrompt(state.presentation?.tracking?.prompt)}
+      ${renderSpatialStage(state)}
     </div>
   `;
 }
@@ -128,6 +138,9 @@ function renderTrackRow(track = {}, selectedTrackIds = []) {
 export function renderTrackingSidebar(state = {}, item = null) {
   const tracking = state.presentation?.tracking || {};
   if (tracking.mode === "static") return "";
+  if (state.presentation?.spatial?.panel === "spatial") {
+    return `${renderAnalysisPanelTabs(state)}${renderSpatialSidebar(state, item)}`;
+  }
   const { tracks, graphics } = currentItemTracking(item || {});
   const selectedTrackIds = tracking.selectedTrackIds || [];
   const primaryTrack = tracks.find((track) => track.id === selectedTrackIds[0]) || null;
@@ -135,7 +148,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
   const clip = item?.clip || {};
   const startSeconds = ((tracking.prompt?.startMs ?? item?.startMs ?? clip.startMs ?? clip.start_ms ?? 0) / 1000).toFixed(1);
   const endSeconds = ((tracking.prompt?.endMs ?? item?.endMs ?? clip.endMs ?? clip.end_ms ?? 0) / 1000).toFixed(1);
-  return `
+  return `${renderAnalysisPanelTabs(state)}
     <div class="video-analysis-tracking-side">
       <div>
         <p class="video-analysis-kicker">Object tracking</p>

@@ -105,6 +105,14 @@ test("elite spatial foundation projects tracks to true metres and builds unit me
     endMs: 1000,
     stepMs: 500,
   }).map((entry) => entry.distanceM)).toEqual([10.5, 10.5, 10.5]);
+  expect(spatial.movementCurve(first, calibration, {
+    startMs: 0,
+    endMs: 1000,
+    stepMs: 500,
+  })).toMatchObject({
+    distanceM: 10.5,
+    sampleCount: 3,
+  });
 });
 
 test("dynamic graphics declare whether tracking bindings are complete", async () => {

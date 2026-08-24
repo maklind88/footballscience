@@ -94,6 +94,7 @@
       let collaborationParticipants = [];
       let savedObjectTracks = [];
       let savedDynamicGraphics = [];
+      let savedCalibration = null;
       const smokeParams = new URLSearchParams(window.location.search);
       if (smokeParams.get("elite") === "1") {
         savedTimelines = [
@@ -262,13 +263,30 @@
             samplesStoredLocally: true,
           });
         }
+        if (action === "pitch-calibration" || action === "spatial-workspace") {
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-elite-v1", calibration: savedCalibration });
+        }
+        if (action === "save-pitch-calibration") {
+          const input = body.calibration || {};
+          savedCalibration = {
+            ...input,
+            id: input.id || "6a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            revision: Number(input.revision || 0) + 1,
+            frames: (input.frames || []).map((frame) => ({
+              ...frame,
+              id: frame.id || "6a4e615e-f3e7-4fc7-bb70-a02db63c0001",
+              revision: Number(frame.revision || 0) + 1,
+            })),
+          };
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-elite-v1", calibration: savedCalibration });
+        }
         if (action === "save-object-track") {
           const input = body.objectTrack || {};
           const existing = savedObjectTracks.find((track) => track.id === input.id);
           const objectTrack = {
             ...(existing || {}),
             ...input,
-            id: existing?.id || "4a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            id: existing?.id || crypto.randomUUID(),
             revision: Number(existing?.revision || 0) + 1,
           };
           if (existing) Object.assign(existing, objectTrack);
@@ -286,7 +304,7 @@
           const input = body.dynamicGraphic || {};
           const dynamicGraphic = {
             ...input,
-            id: "5a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            id: crypto.randomUUID(),
             revision: 1,
           };
           savedDynamicGraphics.push(dynamicGraphic);

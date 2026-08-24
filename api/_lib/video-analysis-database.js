@@ -57,6 +57,10 @@ const {
   saveTrackCorrection,
 } = require("./video-analysis-tracking-database.js");
 const {
+  listPitchCalibration,
+  savePitchCalibration,
+} = require("./video-analysis-spatial-database.js");
+const {
   attachClipSharingState,
   buildClipSharingMetadata,
   canActorMutateClip,
@@ -902,7 +906,7 @@ function statusPayload(actor) {
     scope: actorScope(actor),
     storesVideoFiles: false,
     precision: "milliseconds",
-    workstation: ["templates", "hotkeys", "multiple-timelines", "timeline-row-operations", "descriptors", "matrix-find", "review-sections", "presentation-builder", "drawing-layers", "audited-collaboration", "object-tracking", "dynamic-graphics"],
+    workstation: ["templates", "hotkeys", "multiple-timelines", "timeline-row-operations", "descriptors", "matrix-find", "review-sections", "presentation-builder", "drawing-layers", "audited-collaboration", "object-tracking", "dynamic-graphics", "pitch-calibration", "spatial-analysis"],
   };
 }
 
@@ -933,6 +937,8 @@ async function handleVideoAnalysisRequest(req, res, actor) {
                   ? await getCollaborationState(query, actor)
                   : action === "tracking-workspace"
                     ? await listTrackingWorkspace(query, actor)
+                    : action === "pitch-calibration" || action === "spatial-workspace"
+                      ? await listPitchCalibration(query, actor)
             : await listClips(query, actor);
     return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
   }
@@ -987,6 +993,8 @@ async function handleVideoAnalysisRequest(req, res, actor) {
                                                   ? await saveTrackCorrection(body.correction || body, actor)
                                                   : action === "save-dynamic-graphic"
                                                     ? await saveDynamicGraphic(body.dynamicGraphic || body.graphic || body, actor)
+                                                    : action === "save-pitch-calibration"
+                                                      ? await savePitchCalibration(body.calibration || body, actor)
                                       : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }

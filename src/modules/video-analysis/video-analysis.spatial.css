@@ -1,0 +1,370 @@
+.video-analysis-analysis-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 3px;
+  border: 1px solid #d5dfd8;
+  border-radius: 6px;
+  background: #f4f7f5;
+}
+
+.video-analysis-analysis-tabs button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 4px;
+  color: #33443a;
+  background: transparent;
+  font-weight: 700;
+}
+
+.video-analysis-analysis-tabs button.is-active {
+  color: #fff;
+  background: #185c3c;
+}
+
+.video-analysis-spatial-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.video-analysis-spatial-stage.is-capturing {
+  cursor: crosshair;
+  pointer-events: auto;
+}
+
+.video-analysis-tracking-stage.is-spatial-capturing {
+  z-index: 7;
+}
+
+.video-analysis-spatial-stage svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.video-analysis-spatial-stage svg polyline {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.82);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.video-analysis-spatial-stage.is-draft svg polyline {
+  stroke: rgba(247, 209, 84, 0.72);
+  stroke-dasharray: 8 6;
+}
+
+.video-analysis-calibration-point {
+  position: absolute;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #102a1c;
+  background: #f7d154;
+  box-shadow: 0 0 0 2px #102a1c;
+  font-size: 11px;
+  font-weight: 800;
+  transform: translate(-50%, -50%);
+}
+
+.video-analysis-calibration-capture {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  max-width: calc(100% - 24px);
+  padding: 6px 10px;
+  border-radius: 4px;
+  color: #102a1c;
+  background: #f7d154;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.video-analysis-spatial-side {
+  display: grid;
+  gap: 12px;
+}
+
+.video-analysis-spatial-side label {
+  display: grid;
+  gap: 5px;
+  color: #405047;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.video-analysis-spatial-side input,
+.video-analysis-spatial-side select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  box-sizing: border-box;
+  border: 1px solid #cad6ce;
+  border-radius: 5px;
+  padding: 7px 9px;
+  color: #17201b;
+  background: #fff;
+  font: inherit;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.video-analysis-spatial-heading,
+.video-analysis-spatial-quality,
+.video-analysis-spatial-actions,
+.video-analysis-spatial-layer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.video-analysis-spatial-heading {
+  justify-content: space-between;
+}
+
+.video-analysis-spatial-heading h3,
+.video-analysis-spatial-measures h3 {
+  margin: 2px 0 0;
+  font-size: 16px;
+}
+
+.video-analysis-spatial-heading > span {
+  border: 1px solid #cad6ce;
+  border-radius: 4px;
+  padding: 3px 6px;
+  color: #5a6860;
+  background: #f4f7f5;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.video-analysis-spatial-heading > span.is-calibrated,
+.video-analysis-spatial-heading > span.is-verified {
+  border-color: #5fa37e;
+  color: #145334;
+  background: #edf8f1;
+}
+
+.video-analysis-spatial-dimensions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.video-analysis-spatial-primary {
+  min-height: 38px;
+  border-color: #185c3c;
+  color: #fff;
+  background: #185c3c;
+  font-weight: 800;
+}
+
+.video-analysis-spatial-quality {
+  flex-wrap: wrap;
+  padding: 9px 0;
+  border-top: 1px solid #e3e9e5;
+  border-bottom: 1px solid #e3e9e5;
+  color: #536158;
+  font-size: 11px;
+}
+
+.video-analysis-spatial-quality strong {
+  margin-right: auto;
+  color: #17201b;
+}
+
+.video-analysis-calibration-points,
+.video-analysis-spatial-tracks {
+  display: grid;
+  gap: 5px;
+  max-height: 190px;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video-analysis-calibration-points li,
+.video-analysis-spatial-tracks li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.video-analysis-calibration-points li > span {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-calibration-points b {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  border-radius: 50%;
+  color: #102a1c;
+  background: #f7d154;
+  font-size: 10px;
+}
+
+.video-analysis-calibration-points button {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  padding: 0;
+  font-size: 18px;
+}
+
+.video-analysis-spatial-actions,
+.video-analysis-spatial-layer-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.video-analysis-spatial-actions button,
+.video-analysis-spatial-layer-actions button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px;
+  white-space: normal;
+}
+
+.video-analysis-spatial-measures {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #d8e1db;
+}
+
+.video-analysis-spatial-measures > p {
+  margin: 0;
+  color: #5b6860;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.video-analysis-spatial-tracks li > button {
+  width: 30px;
+  min-height: 30px;
+  padding: 4px;
+}
+
+.video-analysis-spatial-tracks .video-analysis-spatial-track {
+  width: auto;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-spatial-tracks button.is-active,
+.video-analysis-spatial-track.is-selected {
+  border-color: #185c3c;
+  color: #fff;
+  background: #185c3c;
+}
+
+.video-analysis-spatial-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.video-analysis-spatial-metric-grid span {
+  display: grid;
+  min-height: 52px;
+  align-content: center;
+  gap: 3px;
+  border-left: 3px solid #f7d154;
+  padding: 6px 8px;
+  background: #f6f8f7;
+}
+
+.video-analysis-spatial-metric-grid small {
+  color: #637068;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.video-analysis-spatial-metric-grid strong {
+  font-size: 13px;
+}
+
+.video-analysis-spatial-chart {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.video-analysis-spatial-chart svg {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 70px;
+  border-bottom: 1px solid #d8e1db;
+  background: #f6f8f7;
+}
+
+.video-analysis-spatial-chart line {
+  stroke: #cbd6cf;
+  stroke-width: 1;
+}
+
+.video-analysis-spatial-chart polyline {
+  fill: none;
+  stroke: #2c9baa;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.video-analysis-spatial-chart span {
+  color: #627068;
+  font-size: 10px;
+}
+
+.video-analysis-spatial-chart span:last-child {
+  text-align: right;
+}
+
+.video-analysis-spatial-layer-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.video-analysis-dynamic-svg.is-unit-hull polygon {
+  fill-opacity: 0.14;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+}
+
+@media (max-width: 760px) {
+  .video-analysis-spatial-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .video-analysis-spatial-layer-actions,
+  .video-analysis-spatial-metric-grid {
+    grid-template-columns: 1fr;
+  }
+}

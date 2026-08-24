@@ -109,7 +109,7 @@ Each phase must ship behind capability checks, preserve old records, pass module
 | Workstation operations | Implemented in candidate branch | Multiple persisted timelines, row colors/order/locks, clip move/copy, save/undo, exclusive coding groups |
 | Collaborative coding foundation | Implemented in candidate branch | Participant heartbeat, append-only operation log, clip/timeline revisions, reconnect polling, private Realtime adapter held behind approval |
 | Tracking and dynamic telestration | Implemented vertical slice in candidate branch | Prompt/keyframe UX, review/correction, identity and confidence gates, track-bound graphics, secure local provider jobs, metadata-only API; approved provider packaging and local artifact restoration remain |
-| Spatial analysis | Domain foundation only | Calibration UI, confidence gates, overlays, and charts remain |
+| Spatial analysis | Implemented vertical slice in candidate branch | Manual pitch-plane calibration, server-recomputed confidence/RMS, perspective overlay, true-metre pair and unit metrics, continuity-aware curves, and track-bound distance/unit/path layers; automatic camera recalibration remains |
 | Media production | Secure job foundation only | Multi-angle UI, capture/replay, proxy/export orchestration remain |
 | Intelligence and portable sharing | Planned | Matrix drilldown, query compiler, reports, package format and encrypted delivery remain |
 

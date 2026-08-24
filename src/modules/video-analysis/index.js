@@ -114,6 +114,7 @@ import { createVideoLibraryController } from "./video-analysis.library-controlle
 import { createVideoAnalysisStore } from "./video-analysis.store.js";
 import { createVideoAnalysisTimelineWorkspaceRuntime } from "./video-analysis.timeline-workspace-runtime.js";
 import { createVideoAnalysisTrackingRuntime } from "./video-analysis.tracking-runtime.js";
+import { createVideoAnalysisSpatialRuntime } from "./video-analysis.spatial-runtime.js";
 
 let runtime = null;
 let videoLibraryController = null;
@@ -188,6 +189,11 @@ function createRuntime(context = {}) {
     getRuntime: () => runtime,
     getVideoElement: () => videoElement(runtime?.context || context),
   });
+  const spatialRuntime = createVideoAnalysisSpatialRuntime({
+    context,
+    getRuntime: () => runtime,
+    getVideoElement: () => videoElement(runtime?.context || context),
+  });
   return {
     context,
     store,
@@ -204,6 +210,8 @@ function createRuntime(context = {}) {
     collaborationRuntime,
     tracking: trackingRuntime.repository,
     trackingRuntime,
+    spatial: spatialRuntime.repository,
+    spatialRuntime,
     videos: createVideoRepository(context),
     unsubscribe: null,
     keydownBound: false,
@@ -4788,6 +4796,7 @@ export function handlePointerDown(event, context = {}) {
     const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
     if (!item) return false;
     if (state.presentation?.tracking?.mode === "tracking") {
+      if (run.spatialRuntime.controller.startInteraction(event, drawingSurface)) return true;
       return run.trackingRuntime.controller.startInteraction(event, drawingSurface);
     }
     return drawingControls(context).startInteraction(event, drawingSurface);
@@ -4816,6 +4825,7 @@ export function handleClick(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (run.spatialRuntime.controller.handleClick(event)) return true;
   if (run.trackingRuntime.controller.handleClick(event)) return true;
   if (workspaceTimelineController(context).handleClick(event)) return true;
   const roomTab = target.closest("[data-video-analysis-room-tab]");
@@ -6305,6 +6315,7 @@ export function handleChange(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (run.spatialRuntime.controller.handleChange(event)) return true;
   if (run.trackingRuntime.controller.handleChange(event)) return true;
   if (workspaceTimelineController(context).handleChange(event)) return true;
   const fileInput = target.closest("[data-video-analysis-file]");

@@ -20,6 +20,25 @@ function tracksById(tracks = []) {
   }));
 }
 
+function convexHull(points = []) {
+  const sorted = points.slice().sort((first, second) => first.x - second.x || first.y - second.y);
+  if (sorted.length < 3) return sorted;
+  const cross = (origin, first, second) => (
+    ((first.x - origin.x) * (second.y - origin.y)) - ((first.y - origin.y) * (second.x - origin.x))
+  );
+  const lower = [];
+  for (const point of sorted) {
+    while (lower.length >= 2 && cross(lower.at(-2), lower.at(-1), point) <= 0) lower.pop();
+    lower.push(point);
+  }
+  const upper = [];
+  for (const point of sorted.slice().reverse()) {
+    while (upper.length >= 2 && cross(upper.at(-2), upper.at(-1), point) <= 0) upper.pop();
+    upper.push(point);
+  }
+  return lower.slice(0, -1).concat(upper.slice(0, -1));
+}
+
 function trailPoints(track = {}, atMs = 0, durationMs = 2000, options = {}) {
   const points = [];
   const startMs = Math.max(track.startMs || 0, atMs - durationMs);
@@ -53,6 +72,12 @@ export function resolveDynamicGraphic(graphicValue = {}, trackValues = [], atMs 
     confidence: Math.min(...anchors.filter(Boolean).map((anchor) => anchor.confidence ?? 1)),
   };
   if (["circle", "spotlight", "label"].includes(graphic.type)) return { ...base, anchor: anchors[0] };
+  if (graphic.type === "unit-hull") {
+    const available = anchors.filter(Boolean);
+    return available.length >= 3
+      ? { ...base, anchors: convexHull(available) }
+      : { ...base, available: false, reason: "tracking-gap" };
+  }
   if (["trail", "movement-curve"].includes(graphic.type)) {
     const points = trailPoints(bindings[0].track, targetMs, graphic.trailDurationMs, {
       minimumConfidence: graphic.confidenceThreshold,

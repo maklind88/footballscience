@@ -160,3 +160,77 @@ test("media production remains contained on mobile", async ({ page }, testInfo) 
   expect(geometry.overflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath("media-production-mobile.png"), fullPage: true });
 });
+
+test("live capture streams to a local file and links a match-synchronized angle", async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    const chunks = [];
+    const tracks = [{
+      addEventListener() {},
+      stop() {},
+    }];
+    const stream = {
+      getTracks: () => tracks,
+      getVideoTracks: () => tracks,
+    };
+    class FakeMediaRecorder extends EventTarget {
+      static isTypeSupported(value) { return value.startsWith("video/webm"); }
+      constructor(input, options = {}) {
+        super();
+        this.input = input;
+        this.mimeType = options.mimeType || "video/webm";
+        this.state = "inactive";
+      }
+      start() { this.state = "recording"; }
+      requestData() {
+        this.dispatchEvent(new MessageEvent("dataavailable", {
+          data: new Blob(["captured-frame-data"], { type: "video/webm" }),
+        }));
+      }
+      stop() {
+        if (this.state === "inactive") return;
+        this.state = "inactive";
+        queueMicrotask(() => this.dispatchEvent(new Event("stop")));
+      }
+    }
+    Object.defineProperty(window, "MediaRecorder", { configurable: true, value: FakeMediaRecorder });
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getDisplayMedia: async () => stream,
+        getUserMedia: async () => stream,
+      },
+    });
+    Object.defineProperty(window, "showSaveFilePicker", {
+      configurable: true,
+      value: async () => ({
+        async createWritable() {
+          return {
+            async write(blob) { chunks.push(blob); },
+            async close() {},
+            async abort() {},
+          };
+        },
+        async getFile() {
+          return new File(chunks, "live-screen.webm", { type: "video/webm", lastModified: 1_786_000_000_000 });
+        },
+      }),
+    });
+  });
+  await openMediaWorkspace(page);
+  await page.locator('[data-video-analysis-media-action="toggle"]').click();
+  await page.locator('[data-video-analysis-media-panel="capture"]').click();
+  await page.locator('[data-video-analysis-capture-action="prepare-screen"]').click();
+  await expect(page.locator(".video-analysis-media-capture-status")).toContainText("Ready to start");
+  await page.locator('[data-video-analysis-capture-action="start"]').click();
+  await expect(page.locator(".video-analysis-media-capture-status")).toContainText("Recording");
+  await page.screenshot({ path: testInfo.outputPath("media-capture-recording.png"), fullPage: true });
+  await page.locator('[data-video-analysis-capture-action="stop"]').click();
+  await expect(page.locator(".video-analysis-media-capture-status")).toContainText("Angle ready");
+  await page.locator('[data-video-analysis-media-panel="angles"]').click();
+  await expect(page.locator(".video-analysis-media-angle")).toHaveCount(3);
+  await expect.poll(() => page.evaluate(() => {
+    const requests = window.__videoAnalysisRequests || [];
+    const request = requests.findLast?.((entry) => entry.action === "save-media-angle" && entry.body?.angle?.metadata?.capturedLocally);
+    return request?.body?.angle?.syncOffsetMs;
+  })).toBe(-12_000);
+});

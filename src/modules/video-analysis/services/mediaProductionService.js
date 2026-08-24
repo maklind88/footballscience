@@ -28,6 +28,15 @@ export function createInitialMediaProductionState() {
     activeAngleId: "",
     viewMode: "single",
     replay: { inMs: null, outMs: null, loop: false },
+    capture: {
+      status: "idle",
+      mode: "screen",
+      startedAtMatchMs: null,
+      elapsedMs: 0,
+      bytesWritten: 0,
+      fileName: "",
+      error: "",
+    },
     export: {
       id: "",
       title: "Football Science review",

@@ -2,6 +2,7 @@
 @import url("./video-analysis.presentation.css");
 @import url("./video-analysis.timeline-workspace.css");
 @import url("./video-analysis.media.css");
+@import url("./video-analysis.capture.css");
 
 #analysisRoomWorkspace {
   min-width: 0;

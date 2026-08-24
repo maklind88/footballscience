@@ -3563,6 +3563,7 @@ export function render(context = {}) {
 export function resetVideoAnalysisRuntimeForTests() {
   clearToastDismissTimer(runtime);
   void runtime?.collaborationRuntime?.dispose?.();
+  void runtime?.mediaRuntime?.dispose?.();
   runtime?.unsubscribe?.();
   runtime?.workspaceObserver?.disconnect?.();
   runtime?.context?.doc?.documentElement?.classList?.remove?.(

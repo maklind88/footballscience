@@ -1,0 +1,95 @@
+#analysisRoomWorkspace .video-analysis-media-capture-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-media-capture-status {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: #15211b;
+}
+
+#analysisRoomWorkspace .video-analysis-media-capture-status > span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #63726a;
+  box-shadow: 0 0 0 3px rgba(99, 114, 106, 0.16);
+}
+
+#analysisRoomWorkspace .video-analysis-media-capture-status.is-recording > span {
+  background: #f05252;
+  box-shadow: 0 0 0 3px rgba(240, 82, 82, 0.2);
+  animation: video-analysis-capture-pulse 1.4s ease-in-out infinite;
+}
+
+#analysisRoomWorkspace .video-analysis-media-capture-status strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #f5f7f6;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-media-capture-status small {
+  color: #a9b8b0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+#analysisRoomWorkspace .video-analysis-media-capture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-capture-actions button {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-capture-stop {
+  border-color: #f06d6d;
+  color: #ffffff;
+  background: #a92f35;
+  font-weight: 800;
+}
+
+#analysisRoomWorkspace .video-analysis-media-capture-panel > code {
+  min-width: 0;
+  overflow: hidden;
+  color: #9fb0a8;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes video-analysis-capture-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #analysisRoomWorkspace .video-analysis-media-capture-status.is-recording > span {
+    animation: none;
+  }
+}
+
+@media (max-width: 760px) {
+  #analysisRoomWorkspace .video-analysis-media-capture-status {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  #analysisRoomWorkspace .video-analysis-media-capture-status small:last-child {
+    grid-column: 2 / -1;
+  }
+}

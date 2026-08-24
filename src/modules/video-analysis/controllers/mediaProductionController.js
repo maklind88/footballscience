@@ -120,7 +120,7 @@ export function createMediaProductionController(options = {}) {
     return normalizeMediaAngle(payload.angle || angle);
   }
 
-  async function connectAngleFile(file, targetId = "") {
+  async function connectAngleFile(file, targetId = "", overrides = {}) {
     if (!file) return false;
     const before = getState();
     const matchMs = options.getCurrentMatchMs?.() ?? before.timeline?.playheadMs ?? 0;
@@ -143,8 +143,8 @@ export function createMediaProductionController(options = {}) {
         seekAfterPaint(matchMs);
         return true;
       }
-      const role = before.mediaProduction?.newAngleRole || "tactical";
-      const label = before.mediaProduction?.newAngleLabel || reference.displayName.replace(/\.[^.]+$/, "");
+      const role = overrides.role || before.mediaProduction?.newAngleRole || "tactical";
+      const label = overrides.label || before.mediaProduction?.newAngleLabel || reference.displayName.replace(/\.[^.]+$/, "");
       let source = null;
       try { source = await options.createLocalSource(mediaSourcePayload(reference, before)); } catch { source = null; }
       let angle = normalizeMediaAngle({
@@ -156,9 +156,10 @@ export function createMediaProductionController(options = {}) {
         role,
         localVideoIdentifier: reference.localVideoIdentifier,
         durationMs: reference.durationMs,
+        syncOffsetMs: Number(overrides.syncOffsetMs) || 0,
         status: "available",
         syncConfidence: 0,
-        metadata: { sourceId: source?.source?.id || "", deviceLocal: true },
+        metadata: { sourceId: source?.source?.id || "", deviceLocal: true, ...(overrides.metadata || {}) },
       });
       try { angle = await persistAngle(angle); } catch { /* Local angle remains usable. */ }
       updateState((state) => {
@@ -393,5 +394,5 @@ export function createMediaProductionController(options = {}) {
     return true;
   }
 
-  return { handleChange, handleClick, handleVideoTimeUpdate, initialize, syncSecondaryVideos };
+  return { connectAngleFile, handleChange, handleClick, handleVideoTimeUpdate, initialize, syncSecondaryVideos };
 }

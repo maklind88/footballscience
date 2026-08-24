@@ -69,6 +69,7 @@ Large tracking arrays must not be copied into generic application state or one u
 ### Media Engine
 
 - The local engine owns probe, remux, transcode, angle synchronization, proxy generation, capture fragments, replay buffers, tracking inference, and rendered export.
+- Browser live capture uses two explicit analyst gestures: first reserve a device-local file, then grant screen or camera access. MediaRecorder chunks stream progressively to that file and never accumulate as a central upload or long-lived in-memory recording.
 - All operations use the same bounded job lifecycle: receive, queue, run, report progress, cancel, complete, expire.
 - Multi-angle time is represented as match time plus per-angle offset and clock drift correction.
 - Export manifests pin source fingerprints, angle synchronization, clip ranges, drawing/tracking revisions, codec settings, and output hash.
@@ -110,7 +111,7 @@ Each phase must ship behind capability checks, preserve old records, pass module
 | Collaborative coding foundation | Implemented in candidate branch | Participant heartbeat, append-only operation log, clip/timeline revisions, reconnect polling, private Realtime adapter held behind approval |
 | Tracking and dynamic telestration | Implemented vertical slice in candidate branch | Prompt/keyframe UX, review/correction, identity and confidence gates, track-bound graphics, secure local provider jobs, metadata-only API; approved provider packaging and local artifact restoration remain |
 | Spatial analysis | Implemented vertical slice in candidate branch | Manual pitch-plane calibration, server-recomputed confidence/RMS, perspective overlay, true-metre pair and unit metrics, continuity-aware curves, and track-bound distance/unit/path layers; automatic camera recalibration remains |
-| Media production | Implemented vertical slice in candidate branch | Multi-angle source workspace, offset/drift synchronization, synchronized compare playback, bounded replay ranges, checksummed drawing/tracking overlay compilation, local H.264/AAC MP4 compositing, progress/cancel/download, expiring artifact access, output checksums, and metadata-only export records; live capture, proxy cache, automatic camera recalibration, and cloud-delivered portable packages remain |
+| Media production | Implemented vertical slice in candidate branch | Multi-angle source workspace, offset/drift synchronization, synchronized compare playback, bounded replay ranges, progressive device-local screen/camera capture, match-time capture alignment, checksummed drawing/tracking overlay compilation, local H.264/AAC MP4 compositing, progress/cancel/download, expiring artifact access, output checksums, and metadata-only export records; proxy cache, automatic camera recalibration, and cloud-delivered portable packages remain |
 | Intelligence and portable sharing | Planned | Matrix drilldown, query compiler, reports, package format and encrypted delivery remain |
 
 ## Elite Acceptance Standard
@@ -131,4 +132,5 @@ Each phase must ship behind capability checks, preserve old records, pass module
 - The local loopback engine receives source bytes only after an explicit analyst action, enforces origin plus expiring session capability, bounds input/range/queue/concurrency, writes atomically, and serves results through expiring access tokens.
 - A completed render is not yet a portable share. Sharing requires a separately authorized package/export flow with explicit recipient access and expiry.
 - Supported static drawings and confidence-qualified dynamic graphics are compiled into a bounded, checksummed ASS overlay and burned into the local MP4. Tracking discontinuities intentionally produce visible gaps rather than fabricated motion.
+- Live capture requires progressive File System Access. Cancelling before or during media permission aborts the reserved file, stops late streams, and cannot publish a partial camera angle; completed captures are linked with their match-time offset and remain device-local.
 - The downloadable MP4 plus checksum manifest is a device-local portable review artifact: its recipient does not need the original source file. Hosted delivery, recipient authorization, expiry, and optional encryption remain a separate explicit-sharing milestone.

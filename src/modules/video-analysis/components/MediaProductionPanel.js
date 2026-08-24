@@ -103,6 +103,59 @@ function renderReplayPanel(state = {}) {
   `;
 }
 
+function captureSize(bytes = 0) {
+  const value = Math.max(0, Number(bytes) || 0);
+  if (value >= 1024 ** 3) return `${(value / (1024 ** 3)).toFixed(1)} GB`;
+  if (value >= 1024 ** 2) return `${(value / (1024 ** 2)).toFixed(1)} MB`;
+  return value ? `${Math.round(value / 1024)} KB` : "0 KB";
+}
+
+function renderCapturePanel(state = {}) {
+  const capture = state.mediaProduction?.capture || {};
+  const recording = capture.status === "recording";
+  const armed = capture.status === "armed";
+  const busy = ["requesting-file", "requesting", "stopping", "finalizing"].includes(capture.status);
+  const unsupported = capture.capabilities && !capture.capabilities.supported;
+  const status = recording
+    ? "Recording"
+    : capture.status === "requesting-file"
+      ? "Choose local file"
+      : capture.status === "armed"
+        ? "Ready to start"
+        : capture.status === "requesting"
+      ? "Waiting for permission"
+      : capture.status === "stopping" || capture.status === "finalizing"
+        ? "Finalizing local file"
+        : capture.status === "ready"
+          ? "Angle ready"
+          : capture.status === "error"
+            ? "Capture failed"
+            : "Ready";
+  return `
+    <div class="video-analysis-media-capture-panel">
+      <div class="video-analysis-media-capture-status${recording ? " is-recording" : ""}">
+        <span aria-hidden="true"></span>
+        <strong>${escapeHtml(status)}</strong>
+        <small>${escapeHtml(formatVideoTime(capture.elapsedMs || 0))}</small>
+        <small>${escapeHtml(captureSize(capture.bytesWritten))}</small>
+      </div>
+      <div class="video-analysis-media-capture-actions">
+        ${recording
+          ? `<button type="button" class="video-analysis-media-capture-stop" data-video-analysis-capture-action="stop">Stop recording</button>`
+          : armed
+            ? `<button type="button" class="video-analysis-media-primary" data-video-analysis-capture-action="start">Start ${capture.mode === "camera" ? "camera" : "screen"} capture</button>`
+          : `
+            <button type="button" class="video-analysis-media-primary" data-video-analysis-capture-action="prepare-screen" ${busy || unsupported ? "disabled" : ""}>Capture screen</button>
+            <button type="button" data-video-analysis-capture-action="prepare-camera" ${busy || unsupported ? "disabled" : ""}>Capture camera</button>
+          `}
+        ${busy || armed ? `<button type="button" data-video-analysis-capture-action="cancel">Cancel</button>` : ""}
+      </div>
+      ${capture.fileName ? `<code>${escapeHtml(capture.fileName)}</code>` : ""}
+      ${capture.error ? `<p class="video-analysis-error">${escapeHtml(capture.error)}</p>` : ""}
+    </div>
+  `;
+}
+
 function exportStatus(mediaExport = {}) {
   if (mediaExport.status === "rendering") return `${Math.round(Number(mediaExport.progress || 0) * 100)}% ${mediaExport.stage || "rendering"}`;
   if (mediaExport.status === "ready") return "MP4 ready";
@@ -156,6 +209,7 @@ function renderExportPanel(state = {}) {
 function renderPanelBody(state = {}) {
   const panel = state.mediaProduction?.panel || "angles";
   if (panel === "replay") return renderReplayPanel(state);
+  if (panel === "capture") return renderCapturePanel(state);
   if (panel === "export") return renderExportPanel(state);
   return renderAnglesPanel(state);
 }
@@ -189,7 +243,7 @@ export function renderMediaProductionPanel(state = {}) {
           <small>${escapeHtml(`${connected}/${angles.length} cameras / ${reference?.objectUrl ? active?.label || "Primary" : "reconnect"}`)}</small>
         </button>
         <nav aria-label="Media production" ${media.panelOpen ? "" : "hidden"}>
-          ${["angles", "replay", "export"].map((panel) => `<button type="button" class="${media.panel === panel ? "is-active" : ""}" data-video-analysis-media-panel="${panel}" aria-pressed="${media.panel === panel}">${panel[0].toUpperCase()}${panel.slice(1)}</button>`).join("")}
+          ${["angles", "capture", "replay", "export"].map((panel) => `<button type="button" class="${media.panel === panel ? "is-active" : ""}" data-video-analysis-media-panel="${panel}" aria-pressed="${media.panel === panel}">${panel[0].toUpperCase()}${panel.slice(1)}</button>`).join("")}
         </nav>
       </header>
       ${media.panelOpen ? `<div class="video-analysis-media-production__body">${renderPanelBody(state)}${media.error ? `<p class="video-analysis-media-warning">${escapeHtml(media.error)}</p>` : ""}</div>` : ""}

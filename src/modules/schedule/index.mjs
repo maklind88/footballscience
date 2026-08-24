@@ -5,5 +5,6 @@ export * from "./schedule-controller.mjs";
 export * from "./schedule-home-month-renderer.mjs";
 export * from "./schedule-renderer.mjs";
 export * from "./schedule-runtime-selectors.mjs";
+export * from "./schedule-selection.mjs";
 export * from "./schedule-selectors.mjs";
 export * from "./schedule-state.mjs";

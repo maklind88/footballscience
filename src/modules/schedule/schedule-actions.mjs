@@ -2,7 +2,6 @@ import {
   cloneScheduleEvent,
   formatScheduleDateValue,
   getScheduleEventDedupKey,
-  getUniqueScheduleEvents,
   normalizeScheduleDayNotes,
   parseScheduleDateValue,
   scheduleOverviewSpanOptions,
@@ -78,6 +77,16 @@ export function createScheduleEventClipboard(event) {
     : null;
 }
 
+export function createScheduleEventsClipboard(events = []) {
+  const copiedEvents = events.map(cloneScheduleEvent);
+  return copiedEvents.length
+    ? {
+        kind: "events",
+        events: copiedEvents,
+      }
+    : null;
+}
+
 export function createScheduleDayClipboard(events = []) {
   const copiedEvents = events.map(cloneScheduleEvent);
   return copiedEvents.length
@@ -88,35 +97,48 @@ export function createScheduleDayClipboard(events = []) {
     : null;
 }
 
-export function pasteScheduleClipboard(state, clipboard) {
+export function getScheduleClipboardReplacementCount(state, clipboard, dateValue = state?.selectedDate) {
+  if (!state || clipboard?.kind !== "day" || !dateValue) {
+    return 0;
+  }
+  return state.events.filter((event) => event.date === dateValue).length;
+}
+
+export function pasteScheduleClipboard(state, clipboard, options = {}) {
   if (!state || !clipboard?.events?.length) {
     return state;
   }
 
   const date = state.selectedDate;
+  if (getScheduleClipboardReplacementCount(state, clipboard, date) && options.allowRemoval !== true) {
+    return state;
+  }
   if (clipboard.kind === "day") {
     state.events = state.events.filter((event) => event.date !== date);
   }
-  state.events.push(
-    ...clipboard.events.map((event) =>
-      cloneScheduleEvent({
-        ...event,
-        id: "",
-        date,
-      })
-    )
-  );
-  state.events = getUniqueScheduleEvents(state.events);
+  clipboard.events.forEach((event) => {
+    const copiedEvent = cloneScheduleEvent({
+      ...event,
+      id: "",
+      date,
+    });
+    if (!state.events.some((item) => getScheduleEventDedupKey(item) === getScheduleEventDedupKey(copiedEvent))) {
+      state.events.push(copiedEvent);
+    }
+  });
   return state;
 }
 
-export function setScheduleDayNote(state, dateValue, note) {
+export function setScheduleDayNote(state, dateValue, note, options = {}) {
   if (!state || !dateValue) {
     return false;
   }
   const normalizedNotes = normalizeScheduleDayNotes(state.dayNotes);
   const normalizedNote = String(note ?? "").replace(/\r\n?/g, "\n").trim();
   const previousNote = normalizedNotes[dateValue] || "";
+  if (previousNote && !normalizedNote && options.allowRemoval !== true) {
+    return false;
+  }
   if (normalizedNote) {
     normalizedNotes[dateValue] = normalizedNote;
   } else {
@@ -126,7 +148,26 @@ export function setScheduleDayNote(state, dateValue, note) {
   return previousNote !== (normalizedNotes[dateValue] || "");
 }
 
-export function moveScheduleEventToDate(state, eventId, dateValue) {
+export function getScheduleEventMoveConflict(state, eventId, dateValue) {
+  if (!state || !eventId || !dateValue) {
+    return null;
+  }
+  const event = state.events.find((item) => item.id === eventId);
+  if (!event) {
+    return null;
+  }
+  const targetDate = formatScheduleDateValue(parseScheduleDateValue(dateValue));
+  if (event.date === targetDate) {
+    return null;
+  }
+  const movedEvent = cloneScheduleEvent({ ...event, date: targetDate });
+  const duplicateEvent = state.events.find(
+    (item) => item.id !== eventId && getScheduleEventDedupKey(item) === getScheduleEventDedupKey(movedEvent)
+  );
+  return duplicateEvent ? { duplicateEvent, event, targetDate } : null;
+}
+
+export function moveScheduleEventToDate(state, eventId, dateValue, options = {}) {
   if (!state || !eventId || !dateValue) {
     return { changed: false, eventId: "" };
   }
@@ -140,18 +181,23 @@ export function moveScheduleEventToDate(state, eventId, dateValue) {
     return { changed: false, eventId };
   }
 
-  const movedEvent = cloneScheduleEvent({ ...event, date: targetDate });
-  const duplicateEvent = state.events.find(
-    (item) => item.id !== eventId && getScheduleEventDedupKey(item) === getScheduleEventDedupKey(movedEvent)
-  );
-  if (duplicateEvent) {
+  const conflict = getScheduleEventMoveConflict(state, eventId, targetDate);
+  if (conflict && options.allowDuplicateRemoval !== true) {
+    return {
+      changed: false,
+      confirmationRequired: true,
+      duplicateEventId: conflict.duplicateEvent.id,
+      eventId,
+    };
+  }
+  if (conflict) {
     state.events = state.events.filter((item) => item.id !== eventId);
     state.selectedDate = targetDate;
-    return { changed: true, eventId: duplicateEvent.id };
+    return { changed: true, eventId: conflict.duplicateEvent.id };
   }
 
+  const movedEvent = cloneScheduleEvent({ ...event, date: targetDate });
   state.events = state.events.map((item) => (item.id === eventId ? movedEvent : item));
-  state.events = getUniqueScheduleEvents(state.events);
   state.selectedDate = targetDate;
   return { changed: true, eventId: movedEvent.id };
 }
@@ -171,20 +217,65 @@ export function startScheduleEventEdit(state, eventId) {
   return event;
 }
 
-export function removeScheduleEventById(state, eventId) {
-  if (!state) {
-    return state;
-  }
-  state.events = state.events.filter((item) => item.id !== eventId);
+export function removeScheduleEventById(state, eventId, options = {}) {
+  removeScheduleEventsById(state, [eventId], options);
   return state;
 }
 
-export function upsertScheduleEventFromValues(state, values = {}, editingEventId = "") {
+export function removeScheduleEventsById(state, eventIds = [], options = {}) {
+  if (!state) {
+    return { changed: false, confirmationRequired: false, removedCount: 0 };
+  }
+  const values = eventIds instanceof Set || Array.isArray(eventIds) ? eventIds : [eventIds];
+  const ids = new Set(Array.from(values || [], (eventId) => String(eventId || "").trim()).filter(Boolean));
+  const removedCount = state.events.filter((item) => ids.has(item.id)).length;
+  if (!removedCount) {
+    return { changed: false, confirmationRequired: false, removedCount: 0 };
+  }
+  if (options.allowRemoval !== true) {
+    return { changed: false, confirmationRequired: true, removedCount: 0 };
+  }
+  state.events = state.events.filter((item) => !ids.has(item.id));
+  return { changed: true, confirmationRequired: false, removedCount };
+}
+
+export function getScheduleEventUpsertConflict(state, values = {}, editingEventId = "") {
+  if (!state || !editingEventId || !values.date || !values.title) {
+    return null;
+  }
+  const event = state.events.find((item) => item.id === editingEventId);
+  if (!event) {
+    return null;
+  }
+  const candidate = cloneScheduleEvent({
+    ...event,
+    date: formatScheduleDateValue(parseScheduleDateValue(values.date)),
+    time: values.time,
+    type: values.type,
+    title: values.title,
+    note: values.note,
+  });
+  const duplicateEvent = state.events.find(
+    (item) => item.id !== editingEventId && getScheduleEventDedupKey(item) === getScheduleEventDedupKey(candidate)
+  );
+  return duplicateEvent ? { duplicateEvent, event, candidate } : null;
+}
+
+export function upsertScheduleEventFromValues(state, values = {}, editingEventId = "", options = {}) {
   if (!state || !values.date || !values.title) {
     return { changed: false, editingEventId };
   }
 
   const date = parseScheduleDateValue(values.date);
+  const conflict = getScheduleEventUpsertConflict(state, values, editingEventId);
+  if (conflict && options.allowDuplicateRemoval !== true) {
+    return {
+      changed: false,
+      confirmationRequired: true,
+      duplicateEventId: conflict.duplicateEvent.id,
+      editingEventId,
+    };
+  }
   state.selectedYear = date.getFullYear();
   state.selectedMonthIndex = date.getMonth();
   state.selectedDate = formatScheduleDateValue(date);
@@ -198,16 +289,16 @@ export function upsertScheduleEventFromValues(state, values = {}, editingEventId
   };
 
   if (editingEventId) {
-    state.events = state.events.map((item) =>
-      item.id === editingEventId ? cloneScheduleEvent({ ...item, ...eventPayload }) : item
-    );
+    state.events = conflict
+      ? state.events.filter((item) => item.id !== editingEventId)
+      : state.events.map((item) =>
+          item.id === editingEventId ? cloneScheduleEvent({ ...item, ...eventPayload }) : item
+        );
   } else {
     const nextEvent = cloneScheduleEvent(eventPayload);
     if (!state.events.some((item) => getScheduleEventDedupKey(item) === getScheduleEventDedupKey(nextEvent))) {
       state.events.push(nextEvent);
     }
   }
-
-  state.events = getUniqueScheduleEvents(state.events);
   return { changed: true, editingEventId: "" };
 }

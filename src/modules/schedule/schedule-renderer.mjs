@@ -232,10 +232,12 @@ ${escapeHtml(eventType.label)}
     return getPlannerMonthCountForWidth(gridWidth || boardWidth || workspaceWidth);
   }
 
-  function renderPlannerEventChip(event, canEdit, isPlannerEditing = false, selectedPlannerEventId = "") {
+  function renderPlannerEventChip(event, canEdit, isPlannerEditing = false, selectedPlannerEventIds = []) {
     const eventType = scheduleEventTypes[event.type] ?? scheduleEventTypes.training;
     const eventMeta = [event.time, event.note].filter(Boolean).join(" · ");
-    const isSelected = event.id === selectedPlannerEventId;
+    const isSelected = selectedPlannerEventIds instanceof Set
+      ? selectedPlannerEventIds.has(event.id)
+      : selectedPlannerEventIds.includes?.(event.id);
     if (isPlannerEditing && canEdit) {
       return `
         <form class="schedule-planner-edit" data-schedule-planner-edit-event="${escapeHtml(event.id)}">
@@ -244,7 +246,7 @@ ${escapeHtml(eventType.label)}
       `;
     }
     return `
-      <button type="button" class="schedule-planner-event-chip is-${escapeHtml(eventType.tone)}${canEdit ? " can-drag" : ""}${isSelected ? " is-selected" : ""}" data-planner-event-id="${escapeHtml(event.id)}" aria-pressed="${isSelected ? "true" : "false"}" draggable="false" title="${escapeHtml(canEdit ? "Click to select. Drag to move. Double-click to edit." : event.title)}">
+      <button type="button" class="schedule-planner-event-chip is-${escapeHtml(eventType.tone)}${canEdit ? " can-drag" : ""}${isSelected ? " is-selected" : ""}" data-planner-event-id="${escapeHtml(event.id)}" aria-pressed="${isSelected ? "true" : "false"}" draggable="false" title="${escapeHtml(canEdit ? "Click to select. Cmd/Ctrl-click to select multiple. Drag to move. Double-click to edit." : event.title)}">
         <span>
           <strong>${escapeHtml(event.title)}</strong>
           ${eventMeta ? `<small>${escapeHtml(eventMeta)}</small>` : ""}
@@ -262,7 +264,7 @@ ${escapeHtml(eventType.label)}
     const events = getVisibleEvents(allEvents);
     const plannerEditingEventId = context.plannerEditingEventId || "";
     const plannerEditingDate = context.plannerEditingDate || "";
-    const selectedPlannerEventId = context.selectedPlannerEventId || "";
+    const selectedPlannerEventIds = context.selectedPlannerEventIds || (context.selectedPlannerEventId ? [context.selectedPlannerEventId] : []);
     const dayNote = state?.dayNotes?.[dateValue] || "";
     const mainTone = inferPlannerTone(events);
     const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
@@ -272,7 +274,7 @@ ${escapeHtml(eventType.label)}
     const eventMarkup = events.length
       ? events
           .map((event) =>
-            renderPlannerEventChip(event, canEdit, event.id === plannerEditingEventId, selectedPlannerEventId)
+            renderPlannerEventChip(event, canEdit, event.id === plannerEditingEventId, selectedPlannerEventIds)
           )
           .join("")
       : "";

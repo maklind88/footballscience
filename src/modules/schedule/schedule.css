@@ -351,7 +351,7 @@ body.is-dark-mode .platform-schedule-view .schedule-workspace.is-overview-view .
 .schedule-planner-event-chip.can-drag{cursor:grab;touch-action:none;user-select:none;-webkit-user-drag:none}
 .schedule-planner-event-chip.can-drag:active{cursor:grabbing}
 .schedule-planner-event-chip.is-dragging{opacity:.45;transform:scale(.98)}
-.schedule-planner-event-chip.is-selected{box-shadow:0 0 0 2px #1d1d1f1f,inset 0 0 0 1px #ffffffc9}
+.schedule-planner-event-chip.is-selected{border-color:#1d1d1f8f;box-shadow:inset 0 0 0 2px #1d1d1fb8,0 2px 6px #1d1d1f14}
 .schedule-planner-event-chip:focus-visible{outline:0;box-shadow:0 0 0 3px #0071e333}
 .schedule-planner-event-chip>span:first-child{min-width:0;display:grid;gap:.02rem}
 .schedule-planner-event-chip strong,.schedule-planner-event-chip small{min-width:0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -438,6 +438,7 @@ body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-meetin
 body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-travel{background:#be7d2342!important;color:#fef3c7!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-recovery{background:#2691963d!important;color:#ccfbf1!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-off{background:#94a3b824!important;color:#d5e3ec!important}
+body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-selected{border-color:#f8fafcbf!important;box-shadow:inset 0 0 0 2px #f8fafcd1,0 2px 6px #0006!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-add input,body.is-dark-mode .platform-schedule-view .schedule-planner-edit input{background:#060c12d6!important;border-color:var(--dark-line-strong)!important;color:var(--dark-text)!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-add input:focus,body.is-dark-mode .platform-schedule-view .schedule-planner-edit input:focus{border-color:#60a5fa73!important;box-shadow:0 0 0 3px #60a5fa2e!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-note-indicator{background:#0f172af0!important;border-color:var(--dark-line-strong)!important;color:var(--dark-text)!important}

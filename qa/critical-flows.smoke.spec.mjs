@@ -3067,6 +3067,8 @@ test("Schedule Planner copies and pastes selected days with command shortcuts", 
   });
 
   const targetDay = page.locator('.schedule-planner-day[data-schedule-date="2026-05-12"]');
+  await expect(targetDay).toContainText("Existing Target");
+  await confirmPlatformDialog(page);
   await expect(targetDay).toContainText("Copied Training");
   await expect(targetDay).toContainText("Copied Meeting");
   await expect(targetDay).not.toContainText("Existing Target");
@@ -3081,6 +3083,144 @@ test("Schedule Planner copies and pastes selected days with command shortcuts", 
       }, scheduleKey)
     )
     .toEqual(["Copied Meeting", "Copied Training"]);
+});
+
+test("Schedule Planner supports modifier multi-select and confirms every delete", async ({ page }) => {
+  await page.addInitScript(({ key }) => {
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-09",
+        viewMode: "planner",
+        overviewSpan: 3,
+        importVersion: "ncc-2026-numbers-v1",
+        dayNotes: { "2026-05-11": "Keep this note until deletion is confirmed" },
+        events: [
+          { id: "multi-first", date: "2026-05-09", time: "10:00", type: "training", title: "First plan" },
+          { id: "multi-second", date: "2026-05-10", time: "13:00", type: "meeting", title: "Second plan" },
+          { id: "multi-third", date: "2026-05-11", time: "15:00", type: "travel", title: "Third plan" },
+        ],
+      })
+    );
+  }, { key: scheduleKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "schedule");
+
+  const first = page.locator('[data-planner-event-id="multi-first"]');
+  const second = page.locator('[data-planner-event-id="multi-second"]');
+  const third = page.locator('[data-planner-event-id="multi-third"]');
+
+  await first.click();
+  await second.click({ modifiers: ["Meta"] });
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+  await expect(second).toHaveAttribute("aria-pressed", "true");
+
+  await third.evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }));
+  });
+  await expect(page.locator(".schedule-planner-event-chip.is-selected")).toHaveCount(3);
+
+  await second.click();
+  await expect(page.locator(".schedule-planner-event-chip.is-selected")).toHaveCount(1);
+  await expect(second).toHaveAttribute("aria-pressed", "true");
+
+  await first.click();
+  await second.click({ modifiers: ["Meta"] });
+  await expect(page.locator(".schedule-planner-event-chip.is-selected")).toHaveCount(2);
+  await page.evaluate(() => {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
+  });
+  await expect(page.locator("[data-schedule-feedback-portal]")).toContainText("Copied 2 plans");
+
+  await page.keyboard.press("Delete");
+  const deleteDialog = page.locator(".platform-confirm-dialog");
+  await expect(deleteDialog.locator("h2")).toHaveText("Delete 2 plans?");
+  await deleteDialog.locator("[data-platform-confirm-cancel]").last().click();
+  await expect(deleteDialog).toHaveCount(0);
+  await expect(first).toBeVisible();
+  await expect(second).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate((key) => JSON.parse(window.localStorage.getItem(key) || "{}").events?.map((event) => event.id), scheduleKey)
+    )
+    .toEqual(["multi-first", "multi-second", "multi-third"]);
+
+  await page.keyboard.press("Delete");
+  await confirmPlatformDialog(page, "Delete 2 plans?");
+  await expect(first).toHaveCount(0);
+  await expect(second).toHaveCount(0);
+  await expect(third).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate((key) => JSON.parse(window.localStorage.getItem(key) || "{}").events?.map((event) => event.id), scheduleKey)
+    )
+    .toEqual(["multi-third"]);
+
+  const noteDay = page.locator('.schedule-planner-date[data-schedule-date="2026-05-11"]');
+  await noteDay.click({ button: "right" });
+  await page.locator('.schedule-planner-context-menu [data-open-schedule-day-note="2026-05-11"]').click();
+  await page.locator('[data-clear-schedule-day-note="2026-05-11"]').click();
+  await expect(page.locator(".platform-confirm-dialog h2")).toHaveText("Clear note?");
+  await page.locator(".platform-confirm-dialog [data-platform-confirm-cancel]").last().click();
+  await expect(page.locator('[data-schedule-day-note="2026-05-11"]')).toHaveValue(
+    "Keep this note until deletion is confirmed"
+  );
+
+  await page.locator('[data-clear-schedule-day-note="2026-05-11"]').click();
+  await confirmPlatformDialog(page, "Clear note?");
+  await expect(page.locator('[data-schedule-planner-note-dialog="2026-05-11"]')).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate((key) => JSON.parse(window.localStorage.getItem(key) || "{}").dayNotes?.["2026-05-11"], scheduleKey)
+    )
+    .toBeUndefined();
+});
+
+test("Schedule Planner confirms a duplicate merge before edit removes a plan", async ({ page }) => {
+  await page.addInitScript(({ key }) => {
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-14",
+        viewMode: "planner",
+        overviewSpan: 3,
+        importVersion: "ncc-2026-numbers-v1",
+        events: [
+          { id: "merge-existing", date: "2026-05-14", time: "10:00", type: "training", title: "Training" },
+          { id: "merge-editing", date: "2026-05-14", time: "10:00", type: "meeting", title: "Meeting" },
+        ],
+      })
+    );
+  }, { key: scheduleKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "schedule");
+
+  await page.locator('[data-planner-event-id="merge-editing"]').dblclick();
+  const editor = page.locator('[data-schedule-planner-edit-event="merge-editing"] [name="plannerTitle"]');
+  await editor.fill("Training");
+  await editor.press("Enter");
+
+  const dialog = page.locator(".platform-confirm-dialog");
+  await expect(dialog.locator("h2")).toHaveText("Merge duplicate plans?");
+  await dialog.locator("[data-platform-confirm-cancel]").last().click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('[data-planner-event-id="merge-existing"]')).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate((key) => JSON.parse(window.localStorage.getItem(key) || "{}").events?.map((event) => event.id), scheduleKey)
+    )
+    .toEqual(["merge-existing", "merge-editing"]);
+
+  await editor.press("Enter");
+  await confirmPlatformDialog(page, "Merge duplicate plans?");
+  await expect(page.locator('[data-planner-event-id="merge-existing"]')).toBeVisible();
+  await expect(page.locator('[data-planner-event-id="merge-editing"]')).toHaveCount(0);
 });
 
 test("Schedule Planner migrates legacy state and removes duplicate plans", async ({ page }) => {

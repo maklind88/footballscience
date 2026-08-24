@@ -5,11 +5,14 @@ import { expect, test } from "@playwright/test";
 import {
   createDefaultScheduleState,
   createScheduleDayClipboard,
+  createScheduleEventSelection,
+  createScheduleEventsClipboard,
   createScheduleHomeMonthRenderer,
   createScheduleWorkspaceController,
   createScheduleWorkspaceRenderer,
   moveScheduleEventToDate,
   pasteScheduleClipboard,
+  removeScheduleEventsById,
   selectScheduleStateDate,
   setScheduleDayNote,
   setScheduleStateOverviewSpan,
@@ -153,7 +156,7 @@ function createFakeElement(dataset = {}) {
   };
 }
 
-test("Schedule controller owns date navigation and shortcut clipboard wiring", () => {
+test("Schedule controller owns date navigation and shortcut clipboard wiring", async () => {
   const state = createDefaultScheduleState(new Date(2026, 4, 7));
   state.viewMode = "planner";
   state.events = [{ id: "training", date: "2026-06-01", time: "10:00", type: "training", title: "Training" }];
@@ -210,7 +213,7 @@ test("Schedule controller owns date navigation and shortcut clipboard wiring", (
   });
 
   expect(pastePrevented).toBe(true);
-  expect(state.events.map((event) => event.date)).toEqual(["2026-06-01", "2026-06-02"]);
+  await expect.poll(() => state.events.map((event) => event.date)).toEqual(["2026-06-01", "2026-06-02"]);
 });
 
 test("Schedule controller remeasures planner width after the view becomes active", () => {
@@ -324,14 +327,47 @@ test("Schedule actions preserve navigation, copy paste, and upsert behavior", ()
   expect(state.events.find((event) => event.id === movedEventId)?.date).toBe("2026-05-10");
 
   const duplicateMoveResult = moveScheduleEventToDate(state, movedEventId, "2026-05-08");
-  expect(duplicateMoveResult.changed).toBe(true);
+  expect(duplicateMoveResult).toMatchObject({ changed: false, confirmationRequired: true });
+  expect(state.events).toHaveLength(2);
+  const confirmedDuplicateMoveResult = moveScheduleEventToDate(state, movedEventId, "2026-05-08", {
+    allowDuplicateRemoval: true,
+  });
+  expect(confirmedDuplicateMoveResult.changed).toBe(true);
   expect(state.events).toHaveLength(1);
   expect(state.events[0]).toMatchObject({ date: "2026-05-08", title: "Training" });
 
   expect(setScheduleDayNote(state, "2026-05-09", "Bus leaves after lunch")).toBe(true);
   expect(state.dayNotes["2026-05-09"]).toBe("Bus leaves after lunch");
-  expect(setScheduleDayNote(state, "2026-05-09", "")).toBe(true);
+  expect(setScheduleDayNote(state, "2026-05-09", "")).toBe(false);
+  expect(state.dayNotes["2026-05-09"]).toBe("Bus leaves after lunch");
+  expect(setScheduleDayNote(state, "2026-05-09", "", { allowRemoval: true })).toBe(true);
   expect(state.dayNotes["2026-05-09"]).toBeUndefined();
+
+  const selection = createScheduleEventSelection([state.events[0].id]);
+  selection.toggle("second-event");
+  expect(selection.values()).toEqual([state.events[0].id, "second-event"]);
+  selection.toggle(state.events[0].id);
+  expect(selection.values()).toEqual(["second-event"]);
+  selection.replace(state.events[0].id);
+  expect(selection.values()).toEqual([state.events[0].id]);
+
+  const multiClipboard = createScheduleEventsClipboard([
+    state.events[0],
+    { ...state.events[0], id: "second-event", title: "Meeting", type: "meeting" },
+  ]);
+  expect(multiClipboard).toMatchObject({ kind: "events" });
+  expect(multiClipboard.events).toHaveLength(2);
+
+  expect(removeScheduleEventsById(state, [state.events[0].id])).toMatchObject({
+    changed: false,
+    confirmationRequired: true,
+  });
+  expect(state.events).toHaveLength(1);
+  expect(removeScheduleEventsById(state, [state.events[0].id], { allowRemoval: true })).toMatchObject({
+    changed: true,
+    removedCount: 1,
+  });
+  expect(state.events).toHaveLength(0);
 
   shiftScheduleStateWindow(state, 6);
   expect(state.selectedDate).toBe("2026-11-01");

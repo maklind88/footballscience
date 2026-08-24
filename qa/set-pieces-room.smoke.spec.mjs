@@ -88,6 +88,11 @@ test("Set Pieces keeps analysis guides optional across edit and presentation", a
   await expect(shell.locator(".spr-pitch-corner-flag")).toHaveCount(4);
   await expect(shell.locator(".spr-pitch-corner-flag-pennant")).toHaveCount(4);
   await expect(shell.locator(".spr-pitch-guides")).toHaveCount(0);
+  await expect(shell.locator(".spr-arrow-marker.is-run path").first()).toHaveCSS("fill", "rgb(140, 100, 0)");
+  await expect(shell.locator(".spr-arrow-marker.is-pass path").first()).toHaveCSS("fill", "rgb(23, 105, 170)");
+  await expect(shell.locator(".spr-arrow-marker.is-dribble path").first()).toHaveCSS("fill", "rgb(19, 122, 75)");
+  await expect(shell.locator(".spr-arrow-marker.is-press path").first()).toHaveCSS("fill", "rgb(181, 71, 8)");
+  await expect(shell.locator(".spr-arrow-marker.is-mark path").first()).toHaveCSS("fill", "rgb(92, 77, 177)");
   await expect(shell.locator(".spr-phase-card svg rect").first()).toHaveCSS("fill", "rgb(255, 255, 255)");
   await expect(shell.locator(".spr-phase-card svg path").first()).toHaveCSS("stroke", "rgb(22, 22, 22)");
 
@@ -648,14 +653,19 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
     const hit = drawing.querySelector(".spr-drawing-hit");
     const markerId = shape?.getAttribute("marker-end")?.match(/#([^\)]+)/)?.[1];
     const marker = markerId ? document.getElementById(markerId) : null;
+    const markerPath = marker?.querySelector("path");
     return {
+      stroke: getComputedStyle(shape).stroke,
       strokeWidth: Number.parseFloat(getComputedStyle(shape).strokeWidth),
+      markerFill: markerPath ? getComputedStyle(markerPath).fill : "",
       markerWidth: Number(marker?.getAttribute("markerWidth") || 0),
       outlineStyle: getComputedStyle(drawing).outlineStyle,
       hitOpacity: getComputedStyle(hit).opacity,
       hitPointerEvents: getComputedStyle(hit).pointerEvents,
     };
   });
+  expect(routeVisualMetrics.stroke).toBe("rgb(140, 100, 0)");
+  expect(routeVisualMetrics.markerFill).toBe(routeVisualMetrics.stroke);
   expect(routeVisualMetrics.strokeWidth).toBeGreaterThanOrEqual(1.5);
   expect(routeVisualMetrics.markerWidth).toBeGreaterThanOrEqual(5);
   expect(routeVisualMetrics.outlineStyle).toBe("none");

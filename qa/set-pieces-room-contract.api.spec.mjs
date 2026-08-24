@@ -1227,3 +1227,20 @@ test("module implementation remains isolated from Session Planner tactical state
   expect(source).not.toContain("sessionPlanner");
   expect(source).not.toContain("football-session-planner-v3");
 });
+
+test("drawing tools keep a high-contrast whiteboard palette with matching arrowheads", () => {
+  const styles = readFileSync(new URL("../src/modules/set-pieces-room/set-pieces-board.css", import.meta.url), "utf8");
+  const routeColors = {
+    run: "#8c6400",
+    pass: "#1769aa",
+    dribble: "#137a4b",
+    press: "#b54708",
+    mark: "#5c4db1",
+  };
+
+  for (const [type, color] of Object.entries(routeColors)) {
+    expect(styles).toContain(`--spr-drawing-${type}: ${color};`);
+    expect(styles).toContain(`.spr-drawing.is-${type} { color: var(--spr-drawing-${type}); }`);
+    expect(styles).toContain(`.spr-arrow-marker.is-${type} path { fill: var(--spr-drawing-${type}); }`);
+  }
+});

@@ -2934,7 +2934,28 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   expect(calendarBox.x).toBeGreaterThan(technicalMeeting.x + technicalMeeting.width);
   expect(calendarBox.height).toBeGreaterThan(teamMeeting.height * 1.9);
   expect(teamMeeting.width).toBeGreaterThan(260);
+  expect(teamMeeting.width).toBeLessThan(calendarBox.width * 1.45);
+  expect(calendarBox.width).toBeGreaterThan(320);
   expect(calendarBox.width).toBeLessThanOrEqual(352);
+  const meetingTitleBoxes = await presentationBand
+    .locator(".dashboard-presentation-copy h2")
+    .evaluateAll((titles) =>
+      titles.map((title) => {
+        const styles = window.getComputedStyle(title);
+        return {
+          clientWidth: title.clientWidth,
+          scrollWidth: title.scrollWidth,
+          clientHeight: title.clientHeight,
+          lineHeight: parseFloat(styles.lineHeight),
+          whiteSpace: styles.whiteSpace,
+        };
+      })
+    );
+  for (const titleBox of meetingTitleBoxes) {
+    expect(titleBox.whiteSpace).toBe("nowrap");
+    expect(titleBox.scrollWidth).toBeLessThanOrEqual(titleBox.clientWidth + 1);
+    expect(titleBox.clientHeight).toBeLessThanOrEqual(titleBox.lineHeight * 1.35);
+  }
   const presentationButtonBoxes = await presentationBand
     .locator(".dashboard-presentation-card")
     .evaluateAll((cards) =>

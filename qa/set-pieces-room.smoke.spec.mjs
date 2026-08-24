@@ -74,15 +74,22 @@ test("Set Pieces keeps analysis guides optional across edit and presentation", a
   await page.getByRole("button", { name: "Create set piece" }).click();
 
   const shell = page.locator("[data-set-pieces-room]");
-  await expect(shell.locator(".spr-pitch-grass")).toBeVisible();
+  await expect(shell.locator(".spr-pitch-grass")).toHaveCount(0);
+  await expect(shell.locator(".spr-pitch-base")).toHaveCSS("fill", "rgb(255, 255, 255)");
+  await expect(shell.locator(".spr-pitch-markings")).toHaveCSS("stroke", "rgb(22, 22, 22)");
   await expect(shell.locator(".spr-pitch-goal")).toHaveCount(2);
   await expect(shell.locator(".spr-pitch-goal-net")).toHaveCount(2);
   await expect(shell.locator(".spr-pitch-goal-image")).toHaveCount(2);
+  await expect(shell.locator(".spr-pitch-goal-image").first()).toHaveCSS("filter", "brightness(0) drop-shadow(rgba(0, 0, 0, 0.2) 0px 0.1px 0.14px)");
+  await expect(shell.locator(".spr-pitch-goal-mesh")).toHaveCount(2);
+  await expect(shell.locator(".spr-pitch-goal-mouth").first()).toHaveCSS("opacity", "0");
   await expect(shell.locator(".spr-penalty-spot")).toHaveCount(2);
   await expect(shell.locator(".spr-penalty-spot").first()).toHaveAttribute("r", "0.4");
   await expect(shell.locator(".spr-pitch-corner-flag")).toHaveCount(4);
   await expect(shell.locator(".spr-pitch-corner-flag-pennant")).toHaveCount(4);
   await expect(shell.locator(".spr-pitch-guides")).toHaveCount(0);
+  await expect(shell.locator(".spr-phase-card svg rect").first()).toHaveCSS("fill", "rgb(255, 255, 255)");
+  await expect(shell.locator(".spr-phase-card svg path").first()).toHaveCSS("stroke", "rgb(22, 22, 22)");
 
   await shell.getByRole("button", { name: "Toggle details" }).click();
   const guides = shell.getByRole("checkbox", { name: /Analysis guides/ });
@@ -93,6 +100,8 @@ test("Set Pieces keeps analysis guides optional across edit and presentation", a
   await shell.getByRole("button", { name: "Present", exact: true }).click();
   await expect(shell).toHaveClass(/is-presenting/);
   await expect(shell.locator(".spr-pitch-guides")).toBeVisible();
+  await expect(shell.locator(".spr-present-phase-card svg rect").first()).toHaveCSS("fill", "rgb(255, 255, 255)");
+  await expect(shell.locator(".spr-present-phase-card svg path").first()).toHaveCSS("stroke", "rgb(22, 22, 22)");
 });
 
 test("Set Pieces pitch views behave like cameras without moving placed players", async ({ page }) => {

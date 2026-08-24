@@ -852,9 +852,8 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup).toContain("Q ");
   expect(markup).toContain('viewBox="-3.75 -6.25 75.5 45"');
   expect(markup).toContain('<rect x="-6.25" y="-3.75" width="117.5" height="75.5" class="spr-pitch-base"></rect>');
-  expect(markup).toContain('href="assets/set-pieces/pitch-grass-ad.jpg"');
-  expect(markup).toContain('x="14.75" y="-24.75" width="75.5" height="117.5"');
-  expect(markup).toContain('class="spr-pitch-grass"');
+  expect(markup).not.toContain('href="assets/set-pieces/pitch-grass-ad.jpg"');
+  expect(markup).not.toContain('class="spr-pitch-grass"');
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
   expect(markup).toContain('<circle cx="11" cy="34" r="0.4" class="spr-pitch-spot spr-penalty-spot spr-round-marking"></circle>');
   expect(markup).toContain('<circle cx="94" cy="34" r="0.4" class="spr-pitch-spot spr-penalty-spot spr-round-marking"></circle>');
@@ -866,6 +865,8 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup).toContain('class="spr-pitch-goal is-right-goal"');
   expect(markup.match(/class="spr-pitch-goal-net"/g)).toHaveLength(2);
   expect(markup.match(/class="spr-pitch-goal-image"/g)).toHaveLength(2);
+  expect(markup.match(/class="spr-pitch-goal-mesh"/g)).toHaveLength(2);
+  expect(markup.match(/class="spr-pitch-goal-net-edge"/g)).toHaveLength(2);
   expect(markup.match(/class="spr-pitch-goal-mouth"/g)).toHaveLength(2);
   expect(markup.match(/class="spr-pitch-goal-post spr-round-marking"/g)).toHaveLength(4);
   expect(markup.match(/href="assets\/set-pieces\/pitch-goal-reference.png"/g)).toHaveLength(2);
@@ -1106,7 +1107,7 @@ test("board instances own unique marker and avatar clip ids", () => {
   expect(first).toContain('id="workspace-board-arrow-run"');
   expect(first).toContain('marker-end="url(#workspace-board-arrow-run)"');
   expect(first).toContain('markerWidth="5" markerHeight="5"');
-  expect(first).toContain('href="assets/set-pieces/pitch-grass-ad.jpg"');
+  expect(first).not.toContain('href="assets/set-pieces/pitch-grass-ad.jpg"');
   expect(first).toContain('id="workspace-board-home-avatar-clip"');
   expect(second).toContain('id="meeting-board-arrow-run"');
   expect(second).toContain('id="meeting-board-home-avatar-clip"');

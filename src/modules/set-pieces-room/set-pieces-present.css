@@ -551,12 +551,12 @@
 }
 
 .spr-present-phase-card svg rect {
-  fill: #347f55;
+  fill: #fff;
 }
 
 .spr-present-phase-card svg path {
   fill: none;
-  stroke: #ffffffa8;
+  stroke: #161616;
   stroke-width: .8;
 }
 

@@ -629,12 +629,12 @@
 }
 
 .spr-phase-card svg rect {
-  fill: #347f55;
+  fill: #fff;
 }
 
 .spr-phase-card svg path {
   fill: none;
-  stroke: #ffffff9c;
+  stroke: #161616;
   stroke-width: .8;
 }
 

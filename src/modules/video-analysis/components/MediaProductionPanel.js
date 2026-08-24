@@ -6,6 +6,7 @@ import {
   mediaReferenceForAngle,
   normalizedReplayRange,
 } from "../services/mediaProductionService.js";
+import { selectedPresentationItem } from "../services/presentationService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml, optionList } from "./renderHelpers.js";
 
@@ -116,6 +117,16 @@ function renderExportPanel(state = {}) {
   const active = activeMediaAngle(state);
   const rendering = mediaExport.status === "rendering";
   const result = mediaExport.result || null;
+  const selectedItem = selectedPresentationItem(
+    state.presentation?.current,
+    state.presentation?.selectedItemId,
+    state.presentation?.selectedClipId,
+  );
+  const designLayerCount = (selectedItem?.drawings?.length || 0) + (selectedItem?.dynamicGraphics?.length || 0);
+  const renderedPrimitiveCount = Number(result?.manifest?.analysis?.compositePrimitiveCount) || 0;
+  const graphicsLabel = result
+    ? renderedPrimitiveCount ? `${renderedPrimitiveCount} primitives` : "Source only"
+    : designLayerCount ? `${designLayerCount} layers` : "Source only";
   return `
     <div class="video-analysis-media-export-panel">
       <div class="video-analysis-media-export-fields">
@@ -126,6 +137,7 @@ function renderExportPanel(state = {}) {
         <span><small>Angle</small><strong>${escapeHtml(active?.label || "Primary")}</strong></span>
         <span><small>Range</small><strong>${escapeHtml(`${formatVideoTime(range.startMs)} - ${formatVideoTime(range.endMs)}`)}</strong></span>
         <span><small>Status</small><strong>${escapeHtml(exportStatus(mediaExport))}</strong></span>
+        <span><small>Graphics</small><strong>${escapeHtml(graphicsLabel)}</strong></span>
       </div>
       ${rendering ? `<div class="video-analysis-media-export-progress"><span style="width:${Math.round(Number(mediaExport.progress || 0) * 100)}%"></span></div>` : ""}
       ${mediaExport.error ? `<p class="video-analysis-error">${escapeHtml(mediaExport.error)}</p>` : ""}
@@ -134,6 +146,7 @@ function renderExportPanel(state = {}) {
           ? `<button type="button" data-video-analysis-media-action="cancel-export">Cancel</button>`
           : `<button type="button" class="video-analysis-media-primary" data-video-analysis-media-action="render">Render MP4</button>`}
         <button type="button" data-video-analysis-media-action="download" ${result?.downloadUrl ? "" : "disabled"}>Download</button>
+        <button type="button" data-video-analysis-media-action="download-manifest" ${result?.manifestUrl ? "" : "disabled"}>Manifest</button>
         ${result?.sha256 ? `<code title="SHA-256">${escapeHtml(result.sha256.slice(0, 12))}</code>` : ""}
       </div>
     </div>

@@ -16,7 +16,9 @@ import {
 import { getVideoCurrentMs } from "../services/videoPlaybackService.js";
 import { eventElement } from "../video-analysis.dom-events.js";
 
-function currentPlayheadMs(getVideoElement = () => null, state = {}) {
+function currentPlayheadMs(getVideoElement = () => null, state = {}, getCurrentMatchMs = null) {
+  const matchMs = getCurrentMatchMs?.();
+  if (Number.isFinite(Number(matchMs))) return Math.max(0, Math.round(Number(matchMs)));
   const video = getVideoElement();
   const timelineMs = Math.max(0, Math.round(Number(state.timeline?.playheadMs ?? state.draft?.startMs ?? 0)));
   if (!video) return timelineMs;
@@ -37,7 +39,7 @@ function drawingLayerById(item = {}, layerId = "") {
   return (item.drawings || []).find((layer) => layer.id === layerId) || null;
 }
 
-function createDrawingLayer(state = {}, item = {}, getVideoElement = () => null, geometry = {}) {
+function createDrawingLayer(state = {}, item = {}, getVideoElement = () => null, geometry = {}, getCurrentMatchMs = null) {
   const draft = state.presentation?.drawingDraft || {};
   const tool = state.presentation?.drawingTool || "arrow";
   const presentation = state.presentation?.current || {};
@@ -45,7 +47,7 @@ function createDrawingLayer(state = {}, item = {}, getVideoElement = () => null,
     presentationId: presentation.id,
     presentationItemId: item.id,
     clipId: item.clipId,
-    timestampMs: currentPlayheadMs(getVideoElement, state),
+    timestampMs: currentPlayheadMs(getVideoElement, state, getCurrentMatchMs),
     durationMs: draft.durationSeconds ? Math.round(Number(draft.durationSeconds || 0) * 1000) : null,
     tool,
     text: draft.text || (tool === "text" ? "Coach point" : ""),
@@ -70,6 +72,7 @@ export function createDrawingController(options = {}) {
   const updateState = options.updateState || (() => {});
   const getRoot = options.getRoot || (() => null);
   const getVideoElement = options.getVideoElement || (() => null);
+  const getCurrentMatchMs = options.getCurrentMatchMs || null;
 
   function addLayerAtPoint(geometry = null) {
     updateState((state) => {
@@ -78,7 +81,7 @@ export function createDrawingController(options = {}) {
       if (!item) return state;
       const draft = state.presentation?.drawingDraft || {};
       const tool = state.presentation?.drawingTool || "arrow";
-      const layer = createDrawingLayer(state, item, getVideoElement, geometry || defaultDrawingGeometry(tool));
+      const layer = createDrawingLayer(state, item, getVideoElement, geometry || defaultDrawingGeometry(tool), getCurrentMatchMs);
       return {
         ...state,
         presentation: withUndoStack(state.presentation || {}, presentation, {

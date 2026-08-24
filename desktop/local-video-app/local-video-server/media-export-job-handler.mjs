@@ -47,6 +47,12 @@ function decodeSpecification(request = {}, maximumDurationMs = 2 * 60 * 60 * 100
     crf: Math.max(14, Math.min(28, Math.round(Number(value.crf) || 18))),
     sourceIdentifier: String(value.sourceIdentifier || "").slice(0, 240),
     angleId: String(value.angleId || "").slice(0, 120),
+    overlayAssetId: /^[a-f0-9-]{36}$/i.test(String(value.overlayAssetId || ""))
+      ? String(value.overlayAssetId)
+      : "",
+    overlaySha256: /^[a-f0-9]{64}$/i.test(String(value.overlaySha256 || ""))
+      ? String(value.overlaySha256).toLowerCase()
+      : "",
     analysis: {
       matchId: String(analysis.matchId || "").slice(0, 120),
       videoId: String(analysis.videoId || "").slice(0, 120),
@@ -60,6 +66,11 @@ function decodeSpecification(request = {}, maximumDurationMs = 2 * 60 * 60 * 100
       dynamicGraphicCount: Math.max(0, Math.min(10000, Math.round(Number(analysis.dynamicGraphicCount) || 0))),
       objectTrackCount: Math.max(0, Math.min(10000, Math.round(Number(analysis.objectTrackCount) || 0))),
       calibrationId: String(analysis.calibrationId || "").slice(0, 120),
+      compositePrimitiveCount: Math.max(0, Math.min(10000, Math.round(Number(analysis.compositePrimitiveCount) || 0))),
+      compositeMode: analysis.compositeMode === "burn-in" ? "burn-in" : "source-only",
+      overlaySha256: /^[a-f0-9]{64}$/i.test(String(analysis.overlaySha256 || ""))
+        ? String(analysis.overlaySha256).toLowerCase()
+        : "",
     },
     manifestSha256: /^[a-f0-9]{64}$/i.test(String(value.manifestSha256 || ""))
       ? String(value.manifestSha256).toLowerCase()
@@ -94,6 +105,12 @@ export function createMediaExportJobHandler(options = {}) {
     }
     try {
       const specification = decodeSpecification(request, options.config.maxExportDurationMs);
+      const overlay = specification.overlayAssetId
+        ? options.overlays?.take(specification.overlayAssetId, session.token, specification.overlaySha256)
+        : null;
+      if (specification.overlayAssetId && !overlay) {
+        throw Object.assign(new Error("The render overlay expired or failed its checksum."), { statusCode: 400 });
+      }
       const declaredBytes = Math.max(0, Number(request.headers["content-length"] || 0));
       await pruneCache(options.config.cacheDir, {
         maxBytes: options.config.maxCacheBytes,
@@ -112,23 +129,34 @@ export function createMediaExportJobHandler(options = {}) {
       const inputPath = path.join(workDir, `input-${job.metadata.fileName}`);
       const outputPath = path.join(workDir, "render.mp4");
       const manifestPath = path.join(workDir, "manifest.json");
+      const overlayPath = overlay ? path.join(workDir, "overlay.ass") : "";
       await receiveRequestFile(request, inputPath, {
         maxBytes: options.config.maxInputBytes,
         onProgress: (progress) => options.jobs.updateProgress(job.id, progress),
       });
+      if (overlayPath) await fs.writeFile(overlayPath, overlay.ass, { encoding: "utf8", mode: 0o600 });
       options.jobs.enqueue(job.id, async ({ signal, reportProgress }) => {
         try {
           reportProgress({ stage: "rendering", ratio: 0.2 });
-          const render = await options.engine.renderExport(inputPath, outputPath, specification, {
+          const render = await options.engine.renderExport(inputPath, outputPath, {
+            ...specification,
+            overlayPath,
+          }, {
             signal,
             onProgress: (progress) => reportProgress({ ...progress, stage: "rendering", ratio: Math.max(0.2, Number(progress.ratio) || 0.2) }),
           });
           await fs.rm(inputPath, { force: true });
+          if (overlayPath) await fs.rm(overlayPath, { force: true });
           reportProgress({ stage: "checksumming", ratio: 0.98 });
           const stat = await fs.stat(outputPath);
           const sha256 = await streamSha256(outputPath);
           const manifest = {
             ...specification,
+            composite: {
+              mode: overlay ? "burn-in" : "source-only",
+              primitiveCount: overlay?.specification?.primitives?.length || 0,
+              overlaySha256: overlay?.sha256 || "",
+            },
             renderedAt: new Date().toISOString(),
             output: { ...render, fileName: `${specification.title}.mp4`, sizeBytes: stat.size, sha256 },
           };
@@ -176,7 +204,9 @@ export function createMediaExportJobHandler(options = {}) {
       const headers = artifactHeaders(request, options, {
         "content-length": stat.size,
         "content-type": isVideo ? "video/mp4" : "application/json; charset=utf-8",
-        ...(isVideo ? { "content-disposition": `attachment; filename="football-science-${id}.mp4"` } : {}),
+        "content-disposition": isVideo
+          ? `attachment; filename="football-science-${id}.mp4"`
+          : `attachment; filename="football-science-${id}-manifest.json"`,
       });
       response.writeHead(200, headers);
       if (request.method === "HEAD") response.end();

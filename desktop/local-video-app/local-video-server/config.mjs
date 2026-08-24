@@ -46,6 +46,14 @@ export function createLocalVideoServerConfig(env = process.env, options = {}) {
       3 * 60 * 60 * 1000,
       positiveInteger(env.FS_LOCAL_VIDEO_MAX_EXPORT_DURATION_MS, 2 * 60 * 60 * 1000),
     ),
+    maxOverlayBytes: Math.min(
+      8 * 1024 * 1024,
+      positiveInteger(env.FS_LOCAL_VIDEO_MAX_OVERLAY_BYTES, 2 * 1024 * 1024),
+    ),
+    maxOverlayPrimitives: Math.min(
+      10_000,
+      positiveInteger(env.FS_LOCAL_VIDEO_MAX_OVERLAY_PRIMITIVES, 5000),
+    ),
     completedJobRetentionMs: positiveInteger(
       env.FS_LOCAL_VIDEO_JOB_RETENTION_MS,
       24 * 60 * 60 * 1000,

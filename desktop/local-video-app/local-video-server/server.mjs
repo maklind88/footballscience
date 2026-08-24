@@ -6,6 +6,7 @@ import { inspectCache, pruneCache, removeCacheEntry } from "./cache-manager.mjs"
 import { createLocalVideoServerConfig, isAllowedOrigin } from "./config.mjs";
 import { createFfmpegEngine } from "./ffmpeg-engine.mjs";
 import { createMediaExportJobHandler } from "./media-export-job-handler.mjs";
+import { createMediaOverlayStore } from "./media-overlay-store.mjs";
 import { createPlaybackAssetHandler } from "./playback-asset-handler.mjs";
 import { createProcessingJobManager } from "./processing-job-manager.mjs";
 import { receiveRequestFile } from "./request-upload.mjs";
@@ -72,6 +73,12 @@ export function createLocalVideoServer(options = {}) {
   const trackingEngine = options.trackingEngine || createTrackingEngineAdapter(options.tracking || {});
   const sessions = createBridgeSessionStore({ ttlMs: config.sessionTtlMs });
   const assets = createAssetAccessStore({ ttlMs: config.assetTtlMs });
+  const overlays = createMediaOverlayStore({
+    ttlMs: config.sessionTtlMs,
+    maxBytes: config.maxOverlayBytes,
+    maxPrimitives: config.maxOverlayPrimitives,
+    maxDurationMs: config.maxExportDurationMs,
+  });
   const jobs = createProcessingJobManager({
     concurrency: config.maxConcurrentJobs,
     retentionMs: config.completedJobRetentionMs,
@@ -147,6 +154,7 @@ export function createLocalVideoServer(options = {}) {
     isAllowedOrigin,
     jobOwners,
     jobs,
+    overlays,
     publicErrorMessage,
     requestOrigin,
     sendJson,
@@ -258,6 +266,7 @@ export function createLocalVideoServer(options = {}) {
           "progress",
           "cancel",
           "render-export",
+          "render-overlay",
           ...(trackingEngine.available() ? ["track-object"] : []),
         ],
         limits: {
@@ -265,6 +274,8 @@ export function createLocalVideoServer(options = {}) {
           maxCacheBytes: config.maxCacheBytes,
           maxConcurrentJobs: config.maxConcurrentJobs,
           maxQueuedJobs: config.maxQueuedJobs,
+          maxOverlayBytes: config.maxOverlayBytes,
+          maxOverlayPrimitives: config.maxOverlayPrimitives,
         },
         usage: { cacheBytes: cache.sizeBytes, ...jobs.stats() },
       });
@@ -298,6 +309,20 @@ export function createLocalVideoServer(options = {}) {
         job: jobs.get(jobId),
         statusUrl: `${baseUrl()}/jobs/${jobId}`,
       });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/assets/render-overlay") {
+      const session = authorizeSession(request, response);
+      if (!session) return;
+      try {
+        const overlay = await overlays.create(request, session.token);
+        sendJson(request, response, config, 201, { ok: true, overlay });
+      } catch (error) {
+        sendJson(request, response, config, statusCodeForError(error), {
+          ok: false,
+          error: publicErrorMessage(error),
+        });
+      }
       return;
     }
     if (request.method === "POST" && url.pathname === "/transcode") {

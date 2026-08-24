@@ -56,13 +56,32 @@ async function pollJob(statusUrl, sessionToken, options = {}) {
   throw new Error("Local export timed out before rendering completed.");
 }
 
+async function uploadRenderOverlay(baseUrl, sessionToken, overlaySpec, options = {}) {
+  if (!overlaySpec?.primitives?.length) return null;
+  const fetcher = options.fetcher || fetch;
+  const sha256 = await manifestSha256(overlaySpec, options.cryptoApi || globalThis.crypto);
+  const response = await fetcher(`${baseUrl}/assets/render-overlay`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-football-science-session": sessionToken,
+    },
+    body: JSON.stringify(overlaySpec),
+    signal: options.signal,
+  });
+  const payload = await responseJson(response);
+  if (!response.ok || !payload.overlay?.id) throw new Error(payload.error || "The graphics overlay could not be prepared.");
+  if (payload.overlay.sha256 !== sha256) throw new Error("The graphics overlay failed its local checksum verification.");
+  return payload.overlay;
+}
+
 export async function renderLocalMediaExport(options = {}) {
   const win = options.win || window;
   const fetcher = options.fetcher || win.fetch?.bind(win) || fetch;
   const file = getLocalVideoFile(options.videoRef);
   if (!file) throw new Error("Reconnect this angle's original local video before exporting.");
   const baseUrl = localVideoBridgeBaseUrl(win);
-  const session = await openLocalBridgeSession(baseUrl);
+  const session = await openLocalBridgeSession(baseUrl, { fetcher });
   const capabilities = await localCapabilities(baseUrl, session.sessionToken, {
     fetcher,
     signal: options.signal,
@@ -71,6 +90,15 @@ export async function renderLocalMediaExport(options = {}) {
     throw new Error("Update the Football Science local video app before rendering exports.");
   }
   const manifest = options.manifest || {};
+  const wantsOverlay = Boolean(options.overlaySpec?.primitives?.length);
+  if (wantsOverlay && !capabilities.includes("render-overlay")) {
+    throw new Error("Update the Football Science local video app before rendering graphics into video.");
+  }
+  const overlay = await uploadRenderOverlay(baseUrl, session.sessionToken, options.overlaySpec, {
+    cryptoApi: win.crypto || globalThis.crypto,
+    fetcher,
+    signal: options.signal,
+  });
   const specification = {
     exportId: manifest.exportId,
     title: manifest.title,
@@ -79,6 +107,8 @@ export async function renderLocalMediaExport(options = {}) {
     preset: manifest.preset,
     sourceIdentifier: manifest.source?.localVideoIdentifier,
     angleId: manifest.source?.angleId,
+    overlayAssetId: overlay?.id || "",
+    overlaySha256: overlay?.sha256 || "",
     manifestSha256: await manifestSha256(manifest, win.crypto || globalThis.crypto),
     analysis: {
       matchId: manifest.source?.matchId,
@@ -131,6 +161,17 @@ export function downloadLocalMediaExport(result = {}, win = window) {
   if (!anchor) return false;
   anchor.href = result.downloadUrl;
   anchor.download = result.fileName || "football-science-review.mp4";
+  anchor.rel = "noopener";
+  anchor.click();
+  return true;
+}
+
+export function downloadLocalMediaManifest(result = {}, win = window) {
+  if (!result.manifestUrl) return false;
+  const anchor = win.document?.createElement?.("a");
+  if (!anchor) return false;
+  anchor.href = result.manifestUrl;
+  anchor.download = String(result.fileName || "football-science-review.mp4").replace(/\.mp4$/i, "-manifest.json");
   anchor.rel = "noopener";
   anchor.click();
   return true;

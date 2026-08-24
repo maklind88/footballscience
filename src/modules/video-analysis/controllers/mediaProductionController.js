@@ -3,6 +3,7 @@ import { createLocalVideoReference, revokeLocalVideoReference } from "../service
 import {
   cancelLocalMediaExport,
   downloadLocalMediaExport,
+  downloadLocalMediaManifest,
   renderLocalMediaExport,
 } from "../services/localMediaExportService.js";
 import {
@@ -10,10 +11,12 @@ import {
   persistedMediaAnglePayload,
   replaceMediaAngle,
 } from "../services/mediaAnglePersistenceService.js";
+import { buildMediaOverlaySpec } from "../services/mediaOverlayExportService.js";
 import {
   activeMediaAngle,
   activeVideoTimeFromMatchMs,
   buildMediaExportManifest,
+  manifestSha256,
   mediaAnglesForState,
   mediaReferenceForAngle,
   normalizedReplayRange,
@@ -259,13 +262,32 @@ export function createMediaProductionController(options = {}) {
       return false;
     }
     const draft = state.mediaProduction?.export || {};
-    const manifest = buildMediaExportManifest(state, { title: draft.title, preset: draft.preset });
+    const draftManifest = buildMediaExportManifest(state, { title: draft.title, preset: draft.preset });
+    const overlaySpec = buildMediaOverlaySpec(state, {
+      range: draftManifest.range,
+      preset: draftManifest.preset,
+    });
+    let manifest = draftManifest;
     exportAbort = new AbortController();
     activeJob = null;
-    updateState((current) => mediaPatch(current, { export: { ...draft, id: manifest.exportId, status: "rendering", stage: "uploading", progress: 0.02, result: null, error: "" }, error: "" }));
+    updateState((current) => mediaPatch(current, { export: { ...draft, id: draftManifest.exportId, status: "rendering", stage: "compositing", progress: 0.01, result: null, error: "" }, error: "" }));
     try {
+      const overlaySha256 = overlaySpec.primitives.length
+        ? await manifestSha256(overlaySpec, win()?.crypto || globalThis.crypto)
+        : "";
+      manifest = {
+        ...draftManifest,
+        analysis: {
+          ...draftManifest.analysis,
+          compositeMode: overlaySpec.primitives.length ? "burn-in" : "source-only",
+          compositePrimitiveCount: overlaySpec.primitives.length,
+          overlaySha256,
+          overlayTruncated: overlaySpec.truncated,
+        },
+      };
       const result = await renderLocalMediaExport({
         manifest,
+        overlaySpec,
         videoRef: reference,
         win: win(),
         signal: exportAbort.signal,
@@ -345,6 +367,7 @@ export function createMediaProductionController(options = {}) {
     if (action === "render") { void renderExport(); return true; }
     if (action === "cancel-export") { void cancelExport(); return true; }
     if (action === "download") return downloadLocalMediaExport(getState().mediaProduction?.export?.result, win());
+    if (action === "download-manifest") return downloadLocalMediaManifest(getState().mediaProduction?.export?.result, win());
     return false;
   }
 

@@ -10,6 +10,7 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     getState: () => getRuntime()?.store.getState() || {},
     updateState: (updater) => getRuntime()?.store.update(updater),
     getVideoElement: options.getVideoElement,
+    getCurrentMatchMs: options.getCurrentMatchMs,
     trackObject: (request) => trackLocalObject({
       ...request,
       win: getRuntime()?.context?.win || context.win || window,

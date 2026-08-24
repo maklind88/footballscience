@@ -197,6 +197,7 @@ function createRuntime(context = {}) {
     context,
     getRuntime: () => runtime,
     getVideoElement: () => videoElement(runtime?.context || context),
+    getCurrentMatchMs: () => currentPlayheadMs(runtime?.context || context, runtime?.store.getState() || {}),
   });
   const spatialRuntime = createVideoAnalysisSpatialRuntime({
     context,
@@ -299,6 +300,7 @@ function drawingControls(context = {}) {
       getRoot: () => getRoot(runtime?.context || context),
       getState: () => runtime?.store.getState() || {},
       getVideoElement: () => videoElement(runtime?.context || context),
+      getCurrentMatchMs: () => currentPlayheadMs(runtime?.context || context, runtime?.store.getState() || {}),
       updateState: (updater) => runtime?.store.update(updater),
     });
   }

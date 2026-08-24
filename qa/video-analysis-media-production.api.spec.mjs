@@ -230,10 +230,12 @@ test("secure local media export renders a checksummed MP4 behind expiring access
     maxExportDurationMs: 60_000,
   };
   let receivedSpecification = null;
+  let receivedOverlayAss = "";
   const engine = {
     async renderExport(inputPath, outputPath, specification, options = {}) {
       expect(await fs.readFile(inputPath)).toEqual(sourceBytes);
       receivedSpecification = specification;
+      if (specification.overlayPath) receivedOverlayAss = await fs.readFile(specification.overlayPath, "utf8");
       options.onProgress?.({ stage: "rendering", processedMs: 2500, ratio: 0.5 });
       await fs.writeFile(outputPath, renderedBytes);
       return {
@@ -259,6 +261,31 @@ test("secure local media export renders a checksummed MP4 behind expiring access
     const headers = { origin, "x-football-science-session": session.sessionToken };
     const capabilities = await (await fetch(`${baseUrl}/capabilities`, { headers })).json();
     expect(capabilities.capabilities).toContain("render-export");
+    expect(capabilities.capabilities).toContain("render-overlay");
+
+    const overlaySpec = {
+      schema: "football-science-render-overlay-v1",
+      playRes: { width: 1920, height: 1080 },
+      range: { startMs: 1000, endMs: 6000 },
+      primitives: [{
+        id: "drawing-1",
+        type: "ellipse",
+        startMs: 0,
+        endMs: 5000,
+        center: { x: 0.5, y: 0.5 },
+        radiusX: 0.05,
+        radiusY: 0.08,
+        style: { color: "#f7d154", lineWidth: 4, opacity: 0.95, fillOpacity: 0.15 },
+      }],
+    };
+    const overlayResponse = await fetch(`${baseUrl}/assets/render-overlay`, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify(overlaySpec),
+    });
+    const overlay = (await overlayResponse.json()).overlay;
+    expect(overlayResponse.status).toBe(201);
+    expect(overlay).toMatchObject({ primitiveCount: 1 });
 
     const specification = {
       exportId: "export-local-1",
@@ -268,7 +295,10 @@ test("secure local media export renders a checksummed MP4 behind expiring access
       preset: "analysis-1080p",
       sourceIdentifier: "local-video-fingerprint",
       angleId: "angle-primary",
+      overlayAssetId: overlay.id,
+      overlaySha256: overlay.sha256,
       manifestSha256: "a".repeat(64),
+      analysis: { drawingLayerCount: 1, compositePrimitiveCount: 1, compositeMode: "burn-in", overlaySha256: overlay.sha256 },
     };
     const queuedResponse = await fetch(`${baseUrl}/jobs/render-export`, {
       method: "POST",
@@ -286,6 +316,9 @@ test("secure local media export renders a checksummed MP4 behind expiring access
     const completed = await (await fetch(queued.statusUrl, { headers })).json();
     expect(receivedSpecification).toMatchObject({ startMs: 1000, endMs: 6000, height: 1080 });
     expect(receivedSpecification).not.toHaveProperty("path");
+    expect(receivedSpecification.overlayPath).toMatch(/overlay\.ass$/);
+    expect(receivedOverlayAss).toContain("[Events]");
+    expect(receivedOverlayAss).toContain("Dialogue:");
     expect(completed.job.result).toMatchObject({
       fileName: "Pressing review.mp4",
       sizeBytes: renderedBytes.length,
@@ -301,7 +334,8 @@ test("secure local media export renders a checksummed MP4 behind expiring access
     expect(manifest).toMatchObject({
       schema: "football-science-local-export-v1",
       sourceIdentifier: "local-video-fingerprint",
-      analysis: { angleLabel: "", drawingLayerCount: 0 },
+      analysis: { angleLabel: "", drawingLayerCount: 1, compositePrimitiveCount: 1, compositeMode: "burn-in" },
+      composite: { mode: "burn-in", primitiveCount: 1, overlaySha256: overlay.sha256 },
       output: { sizeBytes: renderedBytes.length, codec: "h264", container: "mp4" },
     });
     expect(JSON.stringify(manifest)).not.toContain(cacheDir);

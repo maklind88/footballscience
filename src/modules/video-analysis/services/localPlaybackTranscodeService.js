@@ -8,11 +8,11 @@ export function localVideoBridgeBaseUrl(win = window) {
   return String(win.FOOTBALL_SCIENCE_LOCAL_VIDEO_BRIDGE_URL || defaultBridgeUrl).replace(/\/+$/, "");
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 1500) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 1500, fetcher = fetch) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await fetcher(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -29,10 +29,15 @@ function cachedBridgeSession(baseUrl) {
   return session;
 }
 
-export async function openLocalBridgeSession(baseUrl) {
+export async function openLocalBridgeSession(baseUrl, options = {}) {
   const cached = cachedBridgeSession(baseUrl);
   if (cached) return cached;
-  const response = await fetchWithTimeout(`${baseUrl}/session`, { method: "POST" }, 3000);
+  const response = await fetchWithTimeout(
+    `${baseUrl}/session`,
+    { method: "POST" },
+    3000,
+    options.fetcher || fetch,
+  );
   let payload = {};
   try {
     payload = await response.json();

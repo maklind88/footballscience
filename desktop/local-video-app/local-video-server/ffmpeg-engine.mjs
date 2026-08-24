@@ -8,6 +8,17 @@ function abortError() {
   return error;
 }
 
+function escapeFilterPath(value = "") {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/:/g, "\\:")
+    .replace(/,/g, "\\,")
+    .replace(/\[/g, "\\[")
+    .replace(/\]/g, "\\]")
+    .replace(/;/g, "\\;");
+}
+
 export function createFfmpegEngine(options = {}) {
   const ffmpegPath = options.ffmpegPath || process.env.FS_FFMPEG_PATH || ffmpegStaticPath || "ffmpeg";
 
@@ -123,6 +134,11 @@ export function createFfmpegEngine(options = {}) {
       const height = [720, 1080, 2160].includes(Number(specification.height))
         ? Number(specification.height)
         : 1080;
+      const composited = Boolean(specification.overlayPath);
+      const filters = [
+        `scale=-2:min(${height}\\,ih)`,
+        ...(composited ? [`ass=filename='${escapeFilterPath(specification.overlayPath)}'`] : []),
+      ];
       const temporaryOutputPath = `${outputPath}.partial.mp4`;
       const args = [
         "-y",
@@ -134,7 +150,7 @@ export function createFfmpegEngine(options = {}) {
         "-t", (durationMs / 1000).toFixed(3),
         "-map", "0:v:0",
         "-map", "0:a:0?",
-        "-vf", `scale=-2:min(${height}\\,ih)`,
+        "-vf", filters.join(","),
         "-c:v", "libx264",
         "-preset", "medium",
         "-crf", String(Math.max(14, Math.min(28, Math.round(Number(specification.crf) || 18)))),
@@ -162,7 +178,7 @@ export function createFfmpegEngine(options = {}) {
         await fs.rm(temporaryOutputPath, { force: true });
         throw error;
       }
-      return { startMs, endMs, durationMs, height, codec: "h264", container: "mp4" };
+      return { startMs, endMs, durationMs, height, codec: "h264", container: "mp4", composited };
     },
   };
 }

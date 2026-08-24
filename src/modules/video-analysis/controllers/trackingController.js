@@ -71,7 +71,9 @@ function itemRange(item = {}) {
   return { startMs, endMs };
 }
 
-function currentAtMs(getVideoElement, state = {}) {
+function currentAtMs(getVideoElement, state = {}, getCurrentMatchMs = null) {
+  const matchMs = getCurrentMatchMs?.();
+  if (Number.isFinite(Number(matchMs))) return Math.max(0, Math.round(Number(matchMs)));
   const video = getVideoElement?.();
   return video ? getVideoCurrentMs(video) : Math.max(0, Number(state.timeline?.playheadMs) || 0);
 }
@@ -80,6 +82,7 @@ export function createTrackingController(options = {}) {
   const getState = options.getState || (() => ({}));
   const updateState = options.updateState || (() => {});
   const getVideoElement = options.getVideoElement || (() => null);
+  const getCurrentMatchMs = options.getCurrentMatchMs || null;
   let activeInteraction = null;
 
   function setMode(mode = "static") {
@@ -333,7 +336,7 @@ export function createTrackingController(options = {}) {
       const trackId = state.presentation?.tracking?.selectedTrackIds?.[0] || "";
       const track = (item?.objectTracks || []).find((entry) => entry.id === trackId);
       if (track && item) {
-        const atMs = currentAtMs(getVideoElement, state);
+        const atMs = currentAtMs(getVideoElement, state, getCurrentMatchMs);
         const corrected = applyManualTrackingCorrection(track, { ...prompt, atMs });
         updateState((currentState) => {
           const liveItem = selectedItem(currentState);

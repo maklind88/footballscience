@@ -690,6 +690,9 @@ async function getActiveAccessToken() {
       window.localStorage.setItem(key, value);
     } catch (error) {
       removeCentralCachedValue(key);
+      try {
+        nativeLocalStorageRemoveItem?.call(window.localStorage, key);
+      } catch {}
       throw error;
     }
     setCentralCachedValue(key, value);

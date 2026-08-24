@@ -578,8 +578,9 @@ test("Session Planner hydration fails closed when localStorage quota is full", a
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "session-quota-fallback", {
     waitForHydration: false,
-    initScript: ({ key }) => {
+    initScript: ({ key, staleValue }) => {
       const originalSetItem = Storage.prototype.setItem;
+      originalSetItem.call(window.localStorage, key, staleValue);
       Storage.prototype.setItem = function quotaAwareSetItem(storageKey, value) {
         if (String(storageKey) === key && String(value).includes("Big Sided Games")) {
           throw new DOMException(`Setting ${key} exceeded the quota.`, "QuotaExceededError");
@@ -587,7 +588,19 @@ test("Session Planner hydration fails closed when localStorage quota is full", a
         return originalSetItem.call(this, storageKey, value);
       };
     },
-    initArg: { key: sessionPlannerStateKey },
+    initArg: {
+      key: sessionPlannerStateKey,
+      staleValue: JSON.stringify({
+        selectedDate: "2026-07-20",
+        sessions: {
+          "2026-07-20": {
+            date: "2026-07-20",
+            title: "Stale local session",
+            blocks: [{ id: "stale-block-1", title: "Stale Local Block", minutes: 10 }],
+          },
+        },
+      }),
+    },
   });
 
   try {
@@ -597,6 +610,7 @@ test("Session Planner hydration fails closed when localStorage quota is full", a
         const status = window.footballScienceCentralState.getStatus();
         const backup = window.footballScienceDataSafety.createBackup("quota-hydration");
         return {
+          rawValue: window.localStorage.getItem(key),
           blockTitles: (state.sessions?.["2026-07-21"]?.blocks || []).map((block) => block.title),
           backupHasKey: Object.prototype.hasOwnProperty.call(backup.storage || {}, key),
           cachedValueType: typeof window.footballScienceCentralState.getCachedValue(key),
@@ -606,6 +620,7 @@ test("Session Planner hydration fails closed when localStorage quota is full", a
         };
       }, sessionPlannerStateKey))
       .toEqual({
+        rawValue: null,
         blockTitles: [],
         backupHasKey: false,
         cachedValueType: "undefined",

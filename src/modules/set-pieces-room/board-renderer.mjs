@@ -333,7 +333,7 @@ export function renderSetPieceBoard(options = {}) {
     </defs>
     <g class="spr-pitch-content"${pitchTransform ? ` transform="${pitchTransform}"` : ""}>
       <rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}" class="spr-pitch-base"></rect>
-      <image href="assets/set-pieces/pitch-grass-reference.jpg" x="${pitchGrassImage.x}" y="${pitchGrassImage.y}" width="${pitchGrassImage.width}" height="${pitchGrassImage.height}" transform="rotate(90 52.5 34)" preserveAspectRatio="xMidYMid slice" class="spr-pitch-grass"></image>
+      <image href="assets/set-pieces/pitch-grass-ad.jpg" x="${pitchGrassImage.x}" y="${pitchGrassImage.y}" width="${pitchGrassImage.width}" height="${pitchGrassImage.height}" transform="rotate(90 52.5 34)" preserveAspectRatio="xMidYMid slice" class="spr-pitch-grass"></image>
       ${renderPitchMarkings()}
       ${options.showPitchGuides ? renderPitchGuides() : ""}
       <g class="spr-ghost-layer">${ghosts}</g>

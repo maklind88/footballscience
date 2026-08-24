@@ -851,7 +851,7 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup).toContain("Q ");
   expect(markup).toContain('viewBox="-3.75 -6.25 75.5 45"');
   expect(markup).toContain('<rect x="-6.25" y="-3.75" width="117.5" height="75.5" class="spr-pitch-base"></rect>');
-  expect(markup).toContain('href="assets/set-pieces/pitch-grass-reference.jpg"');
+  expect(markup).toContain('href="assets/set-pieces/pitch-grass-ad.jpg"');
   expect(markup).toContain('x="14.75" y="-24.75" width="75.5" height="117.5"');
   expect(markup).toContain('class="spr-pitch-grass"');
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
@@ -1105,7 +1105,7 @@ test("board instances own unique marker and avatar clip ids", () => {
   expect(first).toContain('id="workspace-board-arrow-run"');
   expect(first).toContain('marker-end="url(#workspace-board-arrow-run)"');
   expect(first).toContain('markerWidth="5" markerHeight="5"');
-  expect(first).toContain('href="assets/set-pieces/pitch-grass-reference.jpg"');
+  expect(first).toContain('href="assets/set-pieces/pitch-grass-ad.jpg"');
   expect(first).toContain('id="workspace-board-home-avatar-clip"');
   expect(second).toContain('id="meeting-board-arrow-run"');
   expect(second).toContain('id="meeting-board-home-avatar-clip"');

@@ -58,7 +58,7 @@
 }
 
 .spr-pitch-goal-image {
-  filter: brightness(0) drop-shadow(0 .1px .14px #0003);
+  filter: grayscale(1) brightness(.15) drop-shadow(0 .1px .14px #0003);
   opacity: .98;
   pointer-events: none;
 }
@@ -126,21 +126,21 @@
 }
 
 .spr-home-token {
-  fill: #153d64;
-  stroke: #f7fbff;
+  fill: #141414;
+  stroke: #141414;
   stroke-width: .4;
   vector-effect: non-scaling-stroke;
 }
 
 .spr-home-avatar-frame {
-  fill: #edf4f1;
-  stroke: #fff;
+  fill: #141414;
+  stroke: #141414;
   stroke-width: .34;
   vector-effect: non-scaling-stroke;
 }
 
 .spr-home-avatar-fallback {
-  fill: #153d64;
+  fill: #141414;
 }
 
 .spr-home-avatar-photo {
@@ -160,9 +160,9 @@
 }
 
 .spr-board-element.is-opponent {
-  --spr-opponent-fill: #f8f6ef;
-  --spr-opponent-stroke: #a93842;
-  --spr-opponent-text: #8c2630;
+  --spr-opponent-fill: #b42335;
+  --spr-opponent-stroke: #761522;
+  --spr-opponent-text: #fff;
 }
 
 .spr-board-element.is-opponent-color-blue { --spr-opponent-fill: #e8f3fc; --spr-opponent-stroke: #2f73ab; --spr-opponent-text: #194e78; }

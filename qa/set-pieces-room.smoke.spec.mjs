@@ -80,7 +80,7 @@ test("Set Pieces keeps analysis guides optional across edit and presentation", a
   await expect(shell.locator(".spr-pitch-goal")).toHaveCount(2);
   await expect(shell.locator(".spr-pitch-goal-net")).toHaveCount(2);
   await expect(shell.locator(".spr-pitch-goal-image")).toHaveCount(2);
-  await expect(shell.locator(".spr-pitch-goal-image").first()).toHaveCSS("filter", "brightness(0) drop-shadow(rgba(0, 0, 0, 0.2) 0px 0.1px 0.14px)");
+  await expect(shell.locator(".spr-pitch-goal-image").first()).toHaveCSS("filter", "grayscale(1) brightness(0.15) drop-shadow(rgba(0, 0, 0, 0.2) 0px 0.1px 0.14px)");
   await expect(shell.locator(".spr-pitch-goal-mesh")).toHaveCount(2);
   await expect(shell.locator(".spr-pitch-goal-mouth").first()).toHaveCSS("opacity", "0");
   await expect(shell.locator(".spr-penalty-spot")).toHaveCount(2);
@@ -565,6 +565,11 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.mouse.click(box.x + box.width * 0.55, box.y + box.height * 0.4);
   await expect(page.locator(".spr-inspector")).toBeHidden();
   const opponentMarker = page.locator(".spr-board-element.is-opponent:not(.is-ghost)");
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost) .spr-home-avatar-frame")).toHaveCSS("fill", "rgb(20, 20, 20)");
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost) .spr-home-avatar-frame")).toHaveCSS("stroke", "rgb(20, 20, 20)");
+  await expect(opponentMarker.locator(".spr-opponent-token")).toHaveCSS("fill", "rgb(180, 35, 53)");
+  await expect(opponentMarker.locator(".spr-opponent-token")).toHaveCSS("stroke", "rgb(118, 21, 34)");
+  await expect(opponentMarker.locator("text")).toHaveCSS("fill", "rgb(255, 255, 255)");
   const opponentMarkerBox = await opponentMarker.locator(".spr-opponent-token").boundingBox();
   const ownMarkerBox = await page.locator(".spr-board-element.is-home-player:not(.is-ghost) .spr-home-avatar-frame").boundingBox();
   expect(opponentMarkerBox).not.toBeNull();

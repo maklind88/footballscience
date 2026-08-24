@@ -105,7 +105,7 @@
   font-weight: 800;
 }
 
-.spr-opponent-color-options .is-red { --spr-opponent-swatch: #f8f6ef; --spr-opponent-swatch-border: #a93842; --spr-opponent-swatch-text: #8c2630; }
+.spr-opponent-color-options .is-red { --spr-opponent-swatch: #b42335; --spr-opponent-swatch-border: #761522; --spr-opponent-swatch-text: #fff; }
 .spr-opponent-color-options .is-blue { --spr-opponent-swatch: #e8f3fc; --spr-opponent-swatch-border: #2f73ab; --spr-opponent-swatch-text: #194e78; }
 .spr-opponent-color-options .is-yellow { --spr-opponent-swatch: #fff1ad; --spr-opponent-swatch-border: #a97900; --spr-opponent-swatch-text: #604500; }
 .spr-opponent-color-options .is-white { --spr-opponent-swatch: #fff; --spr-opponent-swatch-border: #44534f; --spr-opponent-swatch-text: #17211e; }

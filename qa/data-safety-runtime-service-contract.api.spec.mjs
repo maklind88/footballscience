@@ -20,14 +20,23 @@ function createFakeStorageConstructor(options = {}) {
     return this.values.has(normalizedKey) ? this.values.get(normalizedKey) : null;
   };
   FakeStorage.prototype.setItem = function setItem(key, value) {
+    if (String(key) === "football-data-safety-v1" && options.failManifestWrites === true) {
+      throw new Error("Manifest persistence failed.");
+    }
     if (String(key) === options.quotaKey) {
       const error = new Error(`Setting ${String(key)} exceeded the quota.`);
       error.name = "QuotaExceededError";
       throw error;
     }
+    if (String(key) === String(options.failRawSetKey || "")) {
+      throw new Error("Raw set failed.");
+    }
     this.values.set(String(key), String(value));
   };
   FakeStorage.prototype.removeItem = function removeItem(key) {
+    if (String(key) === String(options.failRawRemoveKey || "")) {
+      throw new Error("Raw remove failed.");
+    }
     this.values.delete(String(key));
   };
   FakeStorage.prototype.clear = function clear() {
@@ -123,7 +132,46 @@ function createHarness(options = {}) {
     createCentralBackedStorageError: () => new Error("Central sync is not ready."),
     getCentralStateBridge: () => win.footballScienceCentralState,
     getCentralStateWriteSuppressionKeys: () => options.suppressionKeys || new Set(),
-    queueCentralStateWrite: (...args) => queuedWrites.push(args),
+    queueCentralStateWrite: (...args) => {
+      queuedWrites.push(args);
+      const [key, value, writeOptions = {}] = args;
+      const normalizedKey = String(key);
+      let previousEntry = null;
+      const mutation = service.mutateManifestWithResult((manifest) => {
+        previousEntry = manifest.entries[normalizedKey] || null;
+        const recordWrite = writeOptions.recordWrite || {};
+        manifest.lastSavedAt = String(recordWrite.updatedAt || "");
+        manifest.lastKey = normalizedKey;
+        manifest.lastError = "";
+        manifest.entries[normalizedKey] = {
+          ...(previousEntry || {}),
+          ...recordWrite,
+          writes: Number(previousEntry?.writes || 0) + 1,
+          deletedAt: writeOptions.removed ? String(recordWrite.updatedAt || "") : "",
+          pendingCentralSync: true,
+          principalScope: "user-1:org-1:club-1:team-1:coach:active",
+        };
+      });
+      if (!mutation.persisted) return false;
+      try {
+        if (typeof writeOptions.rawWrite === "function") writeOptions.rawWrite();
+      } catch {
+        service.mutateManifestWithResult((manifest) => {
+          if (previousEntry) manifest.entries[normalizedKey] = previousEntry;
+          else delete manifest.entries[normalizedKey];
+        });
+        return false;
+      }
+      const currentValue = service.rawGetItem(normalizedKey);
+      if (writeOptions.removed ? currentValue !== null : currentValue !== String(value ?? "")) {
+        service.mutateManifestWithResult((manifest) => {
+          if (previousEntry) manifest.entries[normalizedKey] = previousEntry;
+          else delete manifest.entries[normalizedKey];
+        });
+        return false;
+      }
+      return true;
+    },
   });
   return { centralCache, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
@@ -158,7 +206,13 @@ test("data safety runtime service preserves protected localStorage write trackin
     size: 13,
     writes: 1,
   });
-  expect(queuedWrites).toContainEqual(["football-schedule-v1", "{\"events\":[]}", {}]);
+  expect(queuedWrites).toContainEqual([
+    "football-schedule-v1",
+    "{\"events\":[]}",
+    expect.objectContaining({
+      recordWrite: expect.objectContaining({ label: "Schedule", size: 13 }),
+    }),
+  ]);
   expect(service.createBackupEnvelope("manual").summary).toMatchObject({
     keyCount: 1,
     totalBytes: 13,
@@ -167,21 +221,75 @@ test("data safety runtime service preserves protected localStorage write trackin
   expect(timers.size).toBeGreaterThan(0);
 });
 
-test("data safety runtime service falls back to central memory when browser cache quota is full", () => {
+test("data safety runtime service applies hydration cache values without rewriting the pending generation", () => {
   const key = "football-medical-team-v1";
-  const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
-  const { centralCache, localStorage, queuedWrites, service } = createHarness({ quotaKey: key });
+  const localValue = JSON.stringify({ injuryPlans: [{ id: "pending-a" }] });
+  const hydratedValue = JSON.stringify({ injuryPlans: [{ id: "central" }, { id: "pending-a" }] });
+  const { localStorage, queuedWrites, service, win } = createHarness();
 
   service.install();
-  expect(() => localStorage.setItem(key, value)).not.toThrow();
+  localStorage.setItem(key, localValue);
+  service.mutateManifestWithResult((manifest) => {
+    manifest.entries[key] = {
+      ...manifest.entries[key],
+      hash: "pending-generation-a",
+      serverRevision: 7,
+      updatedAt: "2026-08-23T12:00:00.000Z",
+      writes: 4,
+    };
+  });
+  const expectedEntry = structuredClone(service.readManifest().entries[key]);
+  const queuedBeforeHydration = queuedWrites.length;
+
+  win.__footballScienceCentralHydrating = true;
+  try {
+    localStorage.setItem(key, hydratedValue);
+  } finally {
+    win.__footballScienceCentralHydrating = false;
+  }
+
+  expect(service.rawGetItem(key)).toBe(hydratedValue);
+  expect(queuedWrites).toHaveLength(queuedBeforeHydration);
+  expect(service.readManifest().entries[key]).toEqual(expectedEntry);
+});
+
+test("data safety runtime service rejects normal protected writes when browser cache quota prevents durable raw persistence", () => {
+  const key = "football-medical-team-v1";
+  const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
+  const { centralCache, localStorage, service } = createHarness({ quotaKey: key });
+
+  service.install();
+  expect(() => localStorage.setItem(key, value)).toThrow(
+    "The local save was rejected because its recovery record could not be persisted safely."
+  );
+
+  expect(localStorage.values.has(key)).toBe(false);
+  expect(centralCache.has(key)).toBe(false);
+  expect(localStorage.getItem(key)).toBe(null);
+  expect(service.rawGetItem(key)).toBe(null);
+  expect(service.createBackupEnvelope("quota-fail-closed").storage[key]).toBeUndefined();
+  expect(service.readManifest().entries[key]?.pendingCentralSync).not.toBe(true);
+});
+
+test("data safety runtime service only uses transient central memory during hydration quota fallback", () => {
+  const key = "football-medical-team-v1";
+  const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
+  const { centralCache, localStorage, queuedWrites, service, win } = createHarness({ quotaKey: key });
+
+  service.install();
+  const queuedBeforeHydration = queuedWrites.length;
+  win.__footballScienceCentralHydrating = true;
+  try {
+    expect(() => localStorage.setItem(key, value)).not.toThrow();
+  } finally {
+    win.__footballScienceCentralHydrating = false;
+  }
 
   expect(localStorage.values.has(key)).toBe(false);
   expect(centralCache.get(key)).toBe(value);
   expect(localStorage.getItem(key)).toBe(value);
   expect(service.rawGetItem(key)).toBe(value);
-  expect(service.createBackupEnvelope("quota-fallback").storage[key]).toBe(value);
-  expect(queuedWrites).toContainEqual([key, value, {}]);
-  expect(service.status.lastError).toBe("");
+  expect(queuedWrites).toHaveLength(queuedBeforeHydration);
 });
 
 test("data safety runtime service blocks protected writes until central sync is ready", () => {
@@ -194,6 +302,95 @@ test("data safety runtime service blocks protected writes until central sync is 
   expect(queuedWrites).toEqual([]);
   expect(service.status.lastError).toBe("Central sync is not ready.");
   expect(service.readManifest().lastError).toBe("Central sync is not ready.");
+});
+
+test("data safety runtime service rejects a protected write before raw data changes when the recovery manifest cannot persist", () => {
+  const options = {};
+  const { localStorage, service } = createHarness(options);
+
+  service.install();
+  options.failManifestWrites = true;
+
+  expect(() => localStorage.setItem("football-schedule-v1", "{\"events\":[{\"id\":\"new\"}]}"))
+    .toThrow("The local save was rejected because its recovery record could not be persisted safely.");
+  expect(localStorage.values.has("football-schedule-v1")).toBe(false);
+  expect(service.rawGetItem("football-schedule-v1")).toBe(null);
+});
+
+test("data safety runtime service rolls back pending metadata when raw set fails after manifest persistence", () => {
+  const options = {};
+  const { localStorage, service } = createHarness(options);
+  const key = "football-schedule-v1";
+
+  service.install();
+  options.failRawSetKey = key;
+
+  expect(() => localStorage.setItem(key, "{\"events\":[{\"id\":\"raw-fail\"}]}")).toThrow(
+    "The local save was rejected because its recovery record could not be persisted safely."
+  );
+  expect(localStorage.values.has(key)).toBe(false);
+  expect(service.rawGetItem(key)).toBe(null);
+  expect(service.readManifest().entries[key]?.pendingCentralSync).not.toBe(true);
+});
+
+test("data safety runtime service rolls back pending metadata when raw delete fails after manifest persistence", () => {
+  const options = {};
+  const { localStorage, service } = createHarness(options);
+  const key = "football-schedule-v1";
+  const value = "{\"events\":[{\"id\":\"delete-survives\"}]}";
+
+  localStorage.setItem(key, value);
+  service.install();
+  options.failRawRemoveKey = key;
+
+  expect(() => localStorage.removeItem(key)).toThrow(
+    "The local save was rejected because its recovery record could not be persisted safely."
+  );
+  expect(service.rawGetItem(key)).toBe(value);
+  expect(service.readManifest().entries[key]?.pendingCentralSync).not.toBe(true);
+});
+
+test("data safety runtime service clear restores earlier protected raw data when a later tombstone fails", () => {
+  const options = {};
+  const { localStorage, queuedWrites, service } = createHarness(options);
+  const scheduleValue = "{\"events\":[{\"id\":\"clear-survives\"}]}";
+  const medicalValue = "{\"players\":[{\"id\":\"medical-survives\"}]}";
+
+  localStorage.setItem("football-schedule-v1", scheduleValue);
+  localStorage.setItem("football-medical-team-v1", medicalValue);
+  service.install();
+  const queuedBeforeClear = queuedWrites.length;
+  options.failRawRemoveKey = "football-medical-team-v1";
+
+  expect(() => localStorage.clear()).toThrow(
+    "The local save was rejected because its recovery record could not be persisted safely."
+  );
+  expect(service.rawGetItem("football-schedule-v1")).toBe(scheduleValue);
+  expect(service.rawGetItem("football-medical-team-v1")).toBe(medicalValue);
+  expect(queuedWrites.slice(queuedBeforeClear).map(([key, value, writeOptions]) => [key, value, Boolean(writeOptions.removed)])).toEqual([
+    ["football-schedule-v1", "", true],
+    ["football-medical-team-v1", "", true],
+    ["football-schedule-v1", scheduleValue, false],
+  ]);
+  expect(service.readManifest().entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: true,
+    deletedAt: "",
+  });
+});
+
+test("data safety runtime service rejects a protected delete before raw data changes when the recovery manifest cannot persist", () => {
+  const options = {};
+  const { localStorage, service } = createHarness(options);
+  const key = "football-schedule-v1";
+  const value = "{\"events\":[{\"id\":\"must-survive\"}]}";
+
+  localStorage.setItem(key, value);
+  service.install();
+  options.failManifestWrites = true;
+
+  expect(() => localStorage.removeItem(key))
+    .toThrow("The local save was rejected because its recovery record could not be persisted safely.");
+  expect(service.rawGetItem(key)).toBe(value);
 });
 
 test("data safety runtime service preserves legacy migration and queued snapshot flushing", () => {

@@ -31,6 +31,7 @@
     "platform:identity:backfill": "node scripts/platform-identity-backfill.mjs",
     "platform:identity:snapshot": "node scripts/platform-identity-snapshot.mjs",
     "platform:identity:backfill:env": "node scripts/verify-platform-identity-backfill-env.mjs",
+    "platform:app-state:tenant-migrate": "node scripts/app-state-tenant-migration.mjs",
     "verify:staging-env": "node scripts/verify-staging-env.mjs",
     "release:ci-env": "node scripts/verify-ci-release-env.mjs",
     "release:incident-alert": "node scripts/create-incident-alert.mjs",

@@ -50,7 +50,7 @@ function createHarness() {
       isCentralKey: (key) => String(key || "").startsWith("football-"),
       syncKey: async (key, value, options) => {
         syncCalls.push({ key, value, options });
-        return { ok: true, value };
+        return { ok: true, key, value, revision: Number(options?.baseRevision || 0) + 1 };
       },
     },
     setTimeout: (callback, delay) => {
@@ -104,7 +104,12 @@ function createHarness() {
     storageKeys,
     formatDataSafetyTime: (value) => (value ? "now" : ""),
     getActiveWorkspaceId: () => "schedule",
-    getCurrentPlatformUser: () => ({ id: "coach-1" }),
+    getCurrentPlatformUser: () => ({
+      id: "coach-1",
+      organizationId: "org-1",
+      role: "coach",
+      status: "active",
+    }),
     handleSyncedStateValue: (key, value) => handledKeys.push({ key, value }),
     isSessionPlannerAutosaveKey: (key) => key === storageKeys.sessionPlannerStorageKey,
     mergePeriodizationStatePreservingLocalUi: (_currentValue, syncedValue) => `periodization:${syncedValue}`,
@@ -151,7 +156,12 @@ test("central runtime facade preserves protected write tracking and central sync
     {
       key: "football-schedule-v1",
       value: "{\"events\":[]}",
-      options: { removed: false, baseRevision: 12 },
+      options: {
+        removed: false,
+        automaticRetry: false,
+        baseRevision: 12,
+        isGenerationCurrent: expect.any(Function),
+      },
     },
   ]);
   expect(facade.readDataSafetyManifest().entries["football-schedule-v1"]).toMatchObject({

@@ -2002,15 +2002,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         <path d="M7.2 10h9.6M7.2 13.2h5.8"></path>
       </svg>
     `;
-    const railToggleMarkup = isOpen
-      ? `
-        <button type="button" class="dashboard-chat-rail-toggle platform-nav-item is-active" data-dashboard-chat-widget-toggle aria-expanded="true" aria-controls="dashboardChatWidgetRoot" aria-label="${escapeHtml(`Close ${widgetDialogLabel}`)}" title="${escapeHtml(`Close ${widgetDialogLabel}`)}">
-          <span class="platform-nav-icon dashboard-chat-rail-toggle-icon" aria-hidden="true">${chatNavIconMarkup}</span>
-          <span class="platform-nav-text">Messages</span>
-          ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">${escapeHtml(launcherUnreadDisplay)}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
-        </button>
-      `
-      : "";
     const headerTitleLabel = mobileConversationOpen ? activeThreadLabel : "Chats";
     const headerSubLabel = mobileConversationOpen
       ? activeThreadSubLabel
@@ -2029,7 +2020,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       activeThreadId,
       replyDraft: replyState.replyDraft,
       html: `
-      ${railToggleMarkup}
     <aside${widgetDialogAttributes} class="dashboard-chat-widget${isOpen ? " is-open" : ""}${mobileConversationOpen ? " is-mobile-conversation" : " is-mobile-inbox"}">
       ${
         isOpen

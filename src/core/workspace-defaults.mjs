@@ -181,6 +181,7 @@ export const platformSidebarPrimaryOrder = [
   "periodization",
   "medical-team",
   "session-planner",
+  "set-pieces-room",
   "idp",
   "scouting",
   "analysis-room",
@@ -191,7 +192,6 @@ export const platformSidebarMoreOrder = [
   "transfer-room",
   "staff",
   "admin",
-  "set-pieces-room",
 ];
 
 export const placeholderWorkspaceContent = {};

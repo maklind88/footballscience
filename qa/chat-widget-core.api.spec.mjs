@@ -1334,8 +1334,7 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-surface-suppressed .dashboard-chat-widget-root");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-video-analysis-fs-player-code-mode .dashboard-chat-widget-root");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-video-analysis-fs-player-fullscreen .dashboard-chat-widget-root");
-  expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-open .dashboard-chat-rail-toggle");
-  expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-open .dashboard-chat-rail-toggle .dashboard-chat-rail-toggle-icon svg");
+  expect(dashboardChatLauncherCss).not.toContain("dashboard-chat-rail-toggle");
   expect(appRuntimeSource).toContain("createDashboardChatLauncherRuntime");
   expect(appRuntimeSource).toContain("football-dashboard-chat-launcher-position-v1");
   expect(dashboardChatCss).not.toContain("right:calc(.7rem + 3.14rem + .38rem + env(safe-area-inset-right))!important");
@@ -1385,11 +1384,7 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(openResult.html).toContain('aria-modal="false"');
   expect(openResult.html).toContain('aria-keyshortcuts="Escape"');
   expect(openResult.html).toContain('aria-label="Team Chat panel"');
-  expect(openResult.html).toContain('class="dashboard-chat-rail-toggle platform-nav-item is-active"');
-  expect(openResult.html).toContain('class="platform-nav-icon dashboard-chat-rail-toggle-icon"');
-  expect(openResult.html).toContain('<span class="platform-nav-text">Messages</span>');
-  expect(openResult.html).toContain('aria-expanded="true" aria-controls="dashboardChatWidgetRoot" aria-label="Close Team Chat panel"');
-  expect(openResult.html).toContain('title="Close Team Chat panel"');
+  expect(openResult.html).not.toContain("dashboard-chat-rail-toggle");
   expect(openResult.html).toContain('class="dashboard-chat-widget-close"');
   expect(openResult.html).toContain('aria-controls="dashboardChatWidgetRoot"');
   expect(openResult.html).toMatch(/class="dashboard-chat-widget-close"[\s\S]*aria-expanded="true"[\s\S]*aria-controls="dashboardChatWidgetRoot"[\s\S]*aria-label="Close Team Chat panel"[\s\S]*title="Close Team Chat panel"/);

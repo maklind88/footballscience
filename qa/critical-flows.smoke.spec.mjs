@@ -624,6 +624,8 @@ test("Chat launcher shows unread chat until the thread is opened", async ({ page
 
   await bootApp(page);
 
+  await expect(page.locator('#workspaceList > .platform-nav-item[data-open-workspace="set-pieces-room"]')).toBeVisible();
+  await expect(page.locator('.platform-nav-more-menu [data-open-workspace="set-pieces-room"]')).toHaveCount(0);
   await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toContainText("1", { timeout: 8_000 });
   await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
   expect(serverMessages[0].readBy.includes(qaChatCurrentUserId)).toBe(false);
@@ -631,10 +633,7 @@ test("Chat launcher shows unread chat until the thread is opened", async ({ page
   await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
   await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
   const railToggle = page.locator(".dashboard-chat-rail-toggle");
-  await expect(railToggle).toBeVisible();
-  await expect(railToggle).toHaveClass(/platform-nav-item/);
-  await expect(railToggle).toHaveClass(/is-active/);
-  await expect(railToggle).toHaveAttribute("aria-expanded", "true");
+  await expect(railToggle).toHaveCount(0);
   await expect
     .poll(() => serverMessages[0].readBy.includes(qaChatCurrentUserId), { timeout: 5_000 })
     .toBe(true);
@@ -642,7 +641,7 @@ test("Chat launcher shows unread chat until the thread is opened", async ({ page
   await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toHaveCount(0);
   await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
 
-  await railToggle.click();
+  await page.locator(".dashboard-chat-widget-close").click();
   await expect(page.locator(".dashboard-chat-widget.is-open")).toHaveCount(0);
   await expect(page.locator(".dashboard-chat-launcher")).toBeVisible();
   await page.reload({ waitUntil: "domcontentloaded" });

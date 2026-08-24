@@ -25,10 +25,12 @@ test("Workspace defaults expose stable hub workspaces and navigation order", () 
     "periodization",
     "medical-team",
     "session-planner",
+    "set-pieces-room",
     "idp",
     "scouting",
     "analysis-room",
   ]);
+  expect(platformSidebarMoreOrder).not.toContain("set-pieces-room");
   expect(platformSidebarMoreOrder).not.toContain("analysis-room");
   expect(platformSidebarMoreOrder).toContain("admin");
   expect(placeholderWorkspaceContent).toEqual({});

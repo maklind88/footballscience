@@ -2880,7 +2880,7 @@ test("Schedule Today anchors Planner to the real current date", async ({ page })
     });
 });
 
-test("Home stacks compact meeting cards beside the calendar and opens selected day details", async ({ page }) => {
+test("Home places compact meeting cards side by side beside the calendar and opens selected day details", async ({ page }) => {
   await page.addInitScript(({ key }) => {
     const realDate = Date;
     const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
@@ -2928,13 +2928,33 @@ test("Home stacks compact meeting cards beside the calendar and opens selected d
     );
   expect(layoutBoxes).toHaveLength(3);
   const [teamMeeting, technicalMeeting, calendarBox] = layoutBoxes;
-  expect(Math.abs(teamMeeting.x - technicalMeeting.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(teamMeeting.y - technicalMeeting.y)).toBeLessThanOrEqual(1);
   expect(Math.abs(teamMeeting.width - technicalMeeting.width)).toBeLessThanOrEqual(1);
-  expect(technicalMeeting.y).toBeGreaterThan(teamMeeting.y + teamMeeting.height);
-  expect(calendarBox.x).toBeGreaterThan(teamMeeting.x + teamMeeting.width);
+  expect(technicalMeeting.x).toBeGreaterThan(teamMeeting.x + teamMeeting.width);
+  expect(calendarBox.x).toBeGreaterThan(technicalMeeting.x + technicalMeeting.width);
   expect(calendarBox.height).toBeGreaterThan(teamMeeting.height * 1.9);
-  expect(teamMeeting.width).toBeGreaterThan(calendarBox.width * 1.8);
+  expect(teamMeeting.width).toBeGreaterThan(260);
   expect(calendarBox.width).toBeLessThanOrEqual(352);
+  const presentationButtonBoxes = await presentationBand
+    .locator(".dashboard-presentation-card")
+    .evaluateAll((cards) =>
+      cards.map((card) => {
+        const cardRect = card.getBoundingClientRect();
+        const buttonRect = card.querySelector("[data-dashboard-open-presentation]")?.getBoundingClientRect();
+        return {
+          cardLeft: cardRect.left,
+          cardRight: cardRect.right,
+          buttonLeft: buttonRect?.left ?? 0,
+          buttonRight: buttonRect?.right ?? 0,
+          buttonWidth: buttonRect?.width ?? 0,
+        };
+      })
+    );
+  for (const box of presentationButtonBoxes) {
+    expect(box.buttonWidth).toBeGreaterThan(48);
+    expect(box.buttonLeft).toBeGreaterThan(box.cardLeft);
+    expect(box.buttonRight).toBeLessThanOrEqual(box.cardRight - 1);
+  }
   const calendarDaySize = await presentationBand.locator(".dashboard-schedule-day").first().evaluate((day) => {
     const rect = day.getBoundingClientRect();
     return { width: rect.width, height: rect.height };

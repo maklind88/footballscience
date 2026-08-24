@@ -258,22 +258,93 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
-  function renderBirthdayAgeLabel(item = {}) {
+  function getBirthdayInitials(item = {}) {
+    return (
+      String(item.name || "Player")
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((part) => part[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase() || "P"
+    );
+  }
+
+  function renderBirthdayAvatar(item = {}, className = "dashboard-birthday-avatar") {
+    const photoUrl = String(item.photoUrl || "").trim();
+    const safeClassName = escapeHtml(className);
+    const initials = escapeHtml(getBirthdayInitials(item));
+    return `
+      <span class="${safeClassName}${photoUrl ? " has-photo" : " is-initials"}" aria-label="${escapeHtml(`${item.name || "Player"} profile image`)}">
+        ${
+          photoUrl
+            ? `<img src="${escapeHtml(photoUrl)}" alt="" loading="lazy" onerror="this.hidden=true;this.closest('.dashboard-birthday-avatar')?.classList.remove('has-photo');this.closest('.dashboard-birthday-avatar')?.classList.add('is-initials');">`
+            : `<strong>${initials}</strong>`
+        }
+        ${photoUrl ? `<strong>${initials}</strong>` : ""}
+      </span>
+    `;
+  }
+
+  function renderBirthdayCountdown(item = {}) {
+    const daysUntil = Math.max(0, Number(item.daysUntil) || 0);
+    const targetDate = String(item.nextBirthday || "").trim();
+    if (!targetDate) return "";
+    return `
+      <div
+        class="dashboard-birthday-countdown"
+        data-dashboard-birthday-countdown
+        data-dashboard-birthday-target="${escapeHtml(targetDate)}"
+        aria-label="${escapeHtml(`Countdown to ${item.name || "the next player"} birthday`)}"
+      >
+        <span><strong data-dashboard-birthday-unit="days">${escapeHtml(String(daysUntil))}</strong><small>Days</small></span>
+        <span><strong data-dashboard-birthday-unit="hours">--</strong><small>Hours</small></span>
+        <span><strong data-dashboard-birthday-unit="minutes">--</strong><small>Min</small></span>
+        <span><strong data-dashboard-birthday-unit="seconds">--</strong><small>Sec</small></span>
+      </div>
+    `;
+  }
+
+  function renderBirthdaySpotlight(item = {}) {
+    const detail = [item.number ? `#${item.number}` : "", item.primaryRole].filter(Boolean).join(" - ");
     const age = Number(item.turningAge);
-    return Number.isFinite(age) && age > 0 ? `Turns ${age}` : "";
+    const ageLabel = Number.isFinite(age) && age > 0 ? String(age) : "--";
+    const dateLabel = item.dateLabel || item.nextBirthday || "";
+    return `
+      <section class="dashboard-birthday-spotlight" aria-label="${escapeHtml(`${item.name || "Player"} birthday spotlight`)}">
+        <div class="dashboard-birthday-hero">
+          ${renderBirthdayAvatar(item, "dashboard-birthday-avatar dashboard-birthday-avatar-large")}
+          <span class="dashboard-birthday-cake" aria-hidden="true">🎂</span>
+        </div>
+        <div class="dashboard-birthday-spotlight-copy">
+          <p>Next birthday</p>
+          <h3>${escapeHtml(item.name || "Player")}</h3>
+          <small>${escapeHtml([detail, dateLabel].filter(Boolean).join(" - "))}</small>
+        </div>
+        <div class="dashboard-birthday-age" aria-label="${escapeHtml(`${item.name || "Player"} turns ${ageLabel}`)}">
+          <strong>${escapeHtml(ageLabel)}</strong>
+          <small>turns</small>
+        </div>
+      </section>
+      ${renderBirthdayCountdown(item)}
+    `;
   }
 
   function renderBirthdayNewsItem(item = {}) {
     const detail = [item.number ? `#${item.number}` : "", item.primaryRole].filter(Boolean).join(" - ");
-    const meta = [renderBirthdayAgeLabel(item), item.relativeLabel].filter(Boolean).join(" - ");
+    const age = Number(item.turningAge);
+    const timing = [item.dateLabel, item.relativeLabel].filter(Boolean).join(" - ");
     return `
       <div class="dashboard-birthday-item">
-        <span class="dashboard-birthday-date">${escapeHtml(item.dateLabel || item.nextBirthday || "")}</span>
+        ${renderBirthdayAvatar(item)}
         <span class="dashboard-birthday-copy">
           <strong>${escapeHtml(item.name || "Player")}</strong>
-          <small>${escapeHtml(detail || meta || "Player profile")}</small>
+          <small>${escapeHtml(detail || item.dateLabel || "Player profile")}</small>
         </span>
-        <span class="dashboard-birthday-meta">${escapeHtml(meta)}</span>
+        <span class="dashboard-birthday-meta">
+          <strong>${Number.isFinite(age) && age > 0 ? escapeHtml(String(age)) : ""}</strong>
+          <small>${escapeHtml(timing)}</small>
+        </span>
       </div>
     `;
   }
@@ -283,8 +354,15 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     const items = Array.isArray(calendar.items) ? calendar.items : [];
     const thisMonthCount = Math.max(0, Number(calendar.thisMonthCount) || 0);
     const trackedCount = Math.max(0, Number(calendar.trackedCount) || 0);
-    const withBirthDateCount = Math.max(0, Number(calendar.withBirthDateCount) || items.length);
-    const missingBirthDateCount = Math.max(0, Number(calendar.missingBirthDateCount) || 0);
+    const nextBirthday = calendar.next || items[0] || null;
+    const getBirthdayItemKey = (item = {}) => {
+      const birthdayItem = item || {};
+      return `${birthdayItem.id || ""}|${birthdayItem.nextBirthday || ""}|${birthdayItem.name || ""}`;
+    };
+    const nextBirthdayKey = getBirthdayItemKey(nextBirthday);
+    const nextItems = nextBirthday
+      ? items.filter((item) => item !== nextBirthday && getBirthdayItemKey(item) !== nextBirthdayKey).slice(0, 1)
+      : [];
     const emptyText = trackedCount
       ? "Add birth dates in player profiles to show upcoming birthdays."
       : "Add players with birth dates to show upcoming birthdays.";
@@ -299,22 +377,16 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
         <span class="dashboard-panel-count">${escapeHtml(String(thisMonthCount))} this month</span>
       </header>
       ${
-        items.length
-          ? `<div class="dashboard-birthday-list">${items.map(renderBirthdayNewsItem).join("")}</div>`
+        nextBirthday
+          ? `
+            ${renderBirthdaySpotlight(nextBirthday)}
+            ${nextItems.length ? `<div class="dashboard-birthday-list">${nextItems.map(renderBirthdayNewsItem).join("")}</div>` : ""}
+          `
           : `<div class="dashboard-birthday-empty" role="note">
               <strong>No birthdays to show</strong>
               <span>${escapeHtml(emptyText)}</span>
             </div>`
       }
-      <footer class="dashboard-birthday-footer">
-        <span>${escapeHtml(String(withBirthDateCount))}/${escapeHtml(String(trackedCount))} profiles with dates</span>
-        ${
-          missingBirthDateCount
-            ? `<span>${escapeHtml(String(missingBirthDateCount))} missing dates</span>`
-            : ""
-        }
-        <button type="button" class="secondary dashboard-link-button" data-open-workspace="player-profiles">Squad profiles</button>
-      </footer>
     </article>
   `;
   }

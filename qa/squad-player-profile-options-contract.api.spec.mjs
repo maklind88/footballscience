@@ -58,7 +58,7 @@ test("Squad player profile helpers own normalization, validation, and display co
   expect(helpers.getPlayerProfileDisplayAgeValue({ id: "p1", name: "Mak Player", number: "9", position: "Midfielder" }, new Date("2026-06-01T00:00:00Z"))).toBe("26");
   const birthdayCalendar = helpers.getUpcomingPlayerProfileBirthdays(
     [
-      { id: "today", name: "Today Player", birthDate: "2000-07-22", countsInSquad: true },
+      { id: "today", name: "Today Player", birthDate: "2000-07-22", countsInSquad: true, photoUrl: "https://example.com/today.jpg" },
       { id: "tomorrow", name: "Tomorrow Player", birthDate: "1999-07-23", countsInSquad: true },
       { id: "next-month", name: "Next Month Player", birthDate: "2001-08-01", countsInSquad: true },
       { id: "missing", name: "Missing Date", countsInSquad: true },
@@ -67,7 +67,7 @@ test("Squad player profile helpers own normalization, validation, and display co
     { referenceDate: "2026-07-22", limit: 3 }
   );
   expect(birthdayCalendar.items.map((item) => item.name)).toEqual(["Today Player", "Tomorrow Player", "Next Month Player"]);
-  expect(birthdayCalendar.items[0]).toMatchObject({ relativeLabel: "Today", turningAge: 26, dateLabel: "Jul 22" });
+  expect(birthdayCalendar.items[0]).toMatchObject({ relativeLabel: "Today", turningAge: 26, dateLabel: "Jul 22", photoUrl: "https://example.com/today.jpg" });
   expect(birthdayCalendar.items[1]).toMatchObject({ relativeLabel: "Tomorrow", turningAge: 27 });
   expect(birthdayCalendar.thisMonthCount).toBe(2);
   expect(birthdayCalendar.todayCount).toBe(1);

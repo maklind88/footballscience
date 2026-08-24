@@ -42,6 +42,8 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
           dateLabel: "Jul 24",
           relativeLabel: "In 2 days",
           turningAge: 25,
+          nextBirthday: "2026-07-24",
+          photoUrl: "https://example.com/ada.jpg",
         },
       ],
       thisMonthCount: 1,
@@ -58,7 +60,8 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(rendered).toContain("Player / Team Alerts");
   expect(rendered).toContain("Upcoming birthdays");
   expect(rendered).toContain("Ada Midfielder");
-  expect(rendered).toContain('data-open-workspace="player-profiles"');
+  expect(rendered).toContain("dashboard-birthday-spotlight");
+  expect(rendered).toContain("dashboard-birthday-countdown");
   expect(rendered).toMatch(/data-dashboard-presentation-type="team"[\s\S]*dashboard-birthday-strip[\s\S]*data-dashboard-presentation-type="technical"/);
   expect(rendered).toMatch(/dashboard-birthday-strip[\s\S]*dashboardSchedulePreview/);
 
@@ -88,6 +91,8 @@ test("home dashboard renderer owns the compact birthday news card", () => {
           dateLabel: "Jul 24",
           relativeLabel: "Tomorrow",
           turningAge: 25,
+          nextBirthday: "2026-07-24",
+          photoUrl: "https://example.com/ada.jpg",
         },
       ],
       thisMonthCount: 1,
@@ -100,10 +105,16 @@ test("home dashboard renderer owns the compact birthday news card", () => {
   expect(rendered).toContain("Birthday Calendar");
   expect(rendered).toContain("Upcoming birthdays");
   expect(rendered).toContain("Ada Midfielder");
+  expect(rendered).toContain("dashboard-birthday-spotlight");
+  expect(rendered).toContain("dashboard-birthday-cake");
+  expect(rendered).toContain('src="https://example.com/ada.jpg"');
+  expect(rendered).toContain('data-dashboard-birthday-countdown');
+  expect(rendered).toContain('data-dashboard-birthday-unit="seconds"');
   expect(rendered).toContain("#8");
-  expect(rendered).toContain("Turns 25 - Tomorrow");
-  expect(rendered).toContain("1 missing dates");
-  expect(rendered).toContain('data-open-workspace="player-profiles"');
+  expect(rendered).toContain(">25</strong>");
+  expect(rendered).not.toContain("1 missing dates");
+  expect(rendered).not.toContain("Squad profiles");
+  expect(rendered).not.toContain('data-open-workspace="player-profiles"');
 });
 
 test("home dashboard renderer applies safe same-type appearance rules", () => {

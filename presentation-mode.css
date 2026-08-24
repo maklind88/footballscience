@@ -39,9 +39,10 @@
 
 .dashboard-presentation-band .dashboard-birthday-strip {
   width: 100%;
+  height: 100%;
   grid-template-columns: minmax(0, 1fr);
   justify-self: stretch;
-  align-self: start;
+  align-self: stretch;
 }
 
 .dashboard-presentation-card::before {

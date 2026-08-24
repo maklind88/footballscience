@@ -181,6 +181,15 @@ export function createPlayerProfileAgeHelpers(options = {}) {
           name: String(player.name || player.displayName || "Player").trim(),
           number: String(player.number || player.shirtNumber || "").trim(),
           primaryRole: String(player.primaryRole || player.role || player.position || "").trim(),
+          photoUrl: String(
+            player.photoUrl ||
+              player.photo_url ||
+              player.imageUrl ||
+              player.image_url ||
+              player.profileImageUrl ||
+              player.profile_image_url ||
+              ""
+          ).trim(),
           birthDate: birthParts.value,
           nextBirthday: nextBirthday.value,
           dateLabel: formatBirthdayMonthDay(nextBirthday.month, nextBirthday.day),

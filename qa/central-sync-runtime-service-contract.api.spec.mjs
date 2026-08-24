@@ -311,6 +311,63 @@ test("central sync runtime keeps a non-session conflict pending when fresh hydra
   ]);
 });
 
+test("central sync runtime retries pending tombstones even when local raw value is gone", async () => {
+  const harness = createServiceHarness({ syncResult: { ok: true, value: "", revision: 12 } });
+  harness.manifest.entries["football-schedule-v1"] = {
+    label: "Schedule",
+    pendingCentralSync: true,
+    deletedAt: "2026-06-08T11:59:00.000Z",
+  };
+
+  harness.service.retryCentral(() => harness.manifest);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key: "football-schedule-v1",
+      value: "",
+      options: { removed: true, baseRevision: 7 },
+    },
+  ]);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: false,
+    deletedAt: "2026-06-08T12:00:00.000Z",
+    serverRevision: 12,
+  });
+});
+
+test("central sync runtime clears tombstone intent when a later set resurrects the key", async () => {
+  const value = "{\"events\":[{\"id\":\"training-2\"}]}";
+  const harness = createServiceHarness({ syncResult: { ok: true, value, revision: 13 } });
+  harness.manifest.entries["football-schedule-v1"] = {
+    label: "Schedule",
+    pendingCentralSync: true,
+    deletedAt: "2026-06-08T11:59:00.000Z",
+  };
+  harness.rawValues.set("football-schedule-v1", value);
+
+  harness.service.queueCentralStateWrite("football-schedule-v1", value);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: true,
+    deletedAt: "",
+  });
+
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key: "football-schedule-v1",
+      value,
+      options: { removed: false, baseRevision: 7 },
+    },
+  ]);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: false,
+    deletedAt: "",
+    serverRevision: 13,
+  });
+});
+
 test("central sync runtime applies newer server values through the injected render boundary", () => {
   const harness = createServiceHarness();
   harness.rawValues.set("football-schedule-v1", "local");

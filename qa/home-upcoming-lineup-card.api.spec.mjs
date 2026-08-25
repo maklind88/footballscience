@@ -61,7 +61,9 @@ test("Home links the next match squad and Starting XI to their Presentation sour
 
   const html = renderHomeUpcomingLineupCard({ upcomingLineup: model }, (value) => String(value ?? ""));
   expect(html).toContain('aria-label="Upcoming match selection"');
-  expect(html).toContain("NCC - Boston");
+  expect(html).toContain("<h2>NCC - Boston</h2>");
+  expect(html).not.toContain("<h2>Team Selection</h2>");
+  expect(html).not.toContain("<strong>NCC - Boston</strong>");
   expect(html).toContain("11 selected");
   expect(html).toContain("11/11");
   expect(html).toContain('data-match-selection-target="match-squad"');

@@ -354,7 +354,11 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           <p class="dashboard-card-kicker">Birthday Calendar</p>
           <h2>Upcoming birthdays</h2>
         </div>
-        <span class="dashboard-panel-count">${escapeHtml(String(thisMonthCount))} this month</span>
+        ${
+          thisMonthCount > 0
+            ? `<span class="dashboard-panel-count">${escapeHtml(String(thisMonthCount))} this month</span>`
+            : ""
+        }
       </header>
       ${
         nextBirthday

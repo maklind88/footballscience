@@ -60,6 +60,7 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(rendered).toContain("Player / Team Alerts");
   expect(rendered).toContain("Upcoming birthdays");
   expect(rendered).toContain("Ada Midfielder");
+  expect(rendered).toContain("1 this month");
   expect(rendered).toContain("dashboard-birthday-spotlight");
   expect(rendered).toContain("Jul 24 · In 2 days");
   expect(rendered).not.toContain("dashboard-birthday-countdown");
@@ -98,7 +99,7 @@ test("home dashboard renderer owns the compact birthday news card", () => {
           photoUrl: "https://example.com/ada.jpg",
         },
       ],
-      thisMonthCount: 1,
+      thisMonthCount: 0,
       trackedCount: 2,
       withBirthDateCount: 1,
       missingBirthDateCount: 1,
@@ -107,6 +108,8 @@ test("home dashboard renderer owns the compact birthday news card", () => {
 
   expect(rendered).toContain("Birthday Calendar");
   expect(rendered).toContain("Upcoming birthdays");
+  expect(rendered).not.toContain("0 this month");
+  expect(rendered).not.toContain("dashboard-panel-count");
   expect(rendered).toContain("Ada Midfielder");
   expect(rendered).toContain("dashboard-birthday-spotlight");
   expect(rendered).toContain("dashboard-birthday-cake");

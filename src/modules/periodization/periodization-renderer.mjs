@@ -886,6 +886,7 @@ ${renderActionIcon("pencil")}
           renderViewItem("Season Phase", renderViewValue(day.seasonPhase)),
           renderViewItem("Session Type", renderViewValue(day.sessionType)),
           renderViewItem("Match Day", escapeHtml(matchDayLabel)),
+          renderViewItem("Nutrition Plan", renderViewValue(day.nutritionPlan)),
         ])}
         ${renderViewSection("Preparation", [
           renderViewItem("Pre-Training Video", renderViewValue(day.preTrainingVideo)),
@@ -950,6 +951,7 @@ ${renderActionIcon("pencil")}
             ${renderSelectField("Day Schedule", "daySchedule", day.daySchedule, periodizationOptionLibrary.daySchedule)}
             ${renderSelectField("Match Day", "matchDay", day.matchDay, periodizationOptionLibrary.matchDay)}
             ${renderSelectField("Session Type", "sessionType", day.sessionType, periodizationOptionLibrary.sessionType)}
+            ${renderTextField("Nutrition Plan", "nutritionPlan", day.nutritionPlan, "", "")}
             ${renderSelectField("Physical Load", "physicalLoad", day.physicalLoad, periodizationOptionLibrary.physicalLoad, `is-load-${getLoadTone(day.physicalLoad)}`)}
             ${renderSelectField("Pitch Size", "pitchSize", day.pitchSize, periodizationOptionLibrary.pitchSize)}
           </div>

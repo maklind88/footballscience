@@ -16,7 +16,7 @@ export const periodizationMonthNames = Object.freeze([
 export const periodizationYear = 2026;
 export const periodizationFieldUpdatedAtKey = "fieldUpdatedAt";
 export const periodizationScalarFields = Object.freeze(
-  "seasonPhase|daySchedule|matchDay|sessionType|physicalLoad|pitchSize|preTrainingVideo|preTrainingNotes|psychologicalFocus|psychologicalNotes|mainFocus|gkFocus|warmUp|block1|block2|block3|block4|sessionNotes|sessionPlanLink|sessionVideoLink|sessionGpsReportLink".split(
+  "seasonPhase|daySchedule|matchDay|sessionType|nutritionPlan|physicalLoad|pitchSize|preTrainingVideo|preTrainingNotes|psychologicalFocus|psychologicalNotes|mainFocus|gkFocus|warmUp|block1|block2|block3|block4|sessionNotes|sessionPlanLink|sessionVideoLink|sessionGpsReportLink".split(
     "|"
   )
 );

@@ -13,6 +13,7 @@ import {
   periodizationFieldUpdatedAtKey,
   periodizationMultiFields,
   periodizationOptionLibrary,
+  periodizationScalarFields,
   periodizationYear,
 } from "../src/modules/periodization/index.mjs";
 
@@ -382,8 +383,14 @@ test("Periodization state keeps the current default calendar and option contract
   });
   expect(periodizationOptionLibrary.matchPhases).toContain("In Possession");
   expect(periodizationOptionLibrary.subPhases).toContain("Build Up");
+  expect(periodizationScalarFields).toContain("nutritionPlan");
   expect(periodizationMultiFields.has("teamPrinciples")).toBe(true);
   expect(normalizePeriodizationMultiValue(["Build Up", "Build Up", " High Press "])).toEqual(["Build Up", "High Press"]);
+  expect(
+    createPeriodizationStateAdapter({ formatDateValue, parseDateValue }).normalizePeriodizationDay({
+      nutritionPlan: "High carb dinner + hydration",
+    }).nutritionPlan
+  ).toBe("High carb dinner + hydration");
 });
 
 test("Periodization renderer keeps the day card and overlay contract", () => {
@@ -399,6 +406,7 @@ test("Periodization renderer keeps the day card and overlay contract", () => {
       pitchSize: "SSG",
       preTrainingVideo: "Training Prep",
       matchDay: "Match Day -2",
+      nutritionPlan: "High carb dinner + hydration",
       matchPhases: ["In Possession"],
       subPhases: ["Build Up"],
       teamPrinciples: ["Progress quickly once pressure is broken"],
@@ -418,6 +426,9 @@ test("Periodization renderer keeps the day card and overlay contract", () => {
   const panel = renderer.renderDayPanel("2026-05-08", { isOverlay: true, mode: "edit" });
   expect(panel).toContain("periodization-day-panel");
   expect(panel).toContain('data-periodization-field="physicalLoad"');
+  expect(panel).toContain('data-periodization-field="nutritionPlan"');
+  expect(panel).toContain("Nutrition Plan");
+  expect(panel).toContain("High carb dinner + hydration");
   expect(panel).toContain('data-periodization-multi-field="teamPrinciples"');
 });
 

@@ -1,8 +1,22 @@
+function getTeamInitials(teamName = "") {
+  return (
+    String(teamName || "Medical")
+      .trim()
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 3)
+      .toUpperCase() || "MED"
+  );
+}
+
 export function createMedicalWorkspaceRuntimeRenderer(deps = {}) {
   const getWorkspace = typeof deps.getWorkspace === "function" ? deps.getWorkspace : () => null;
   const ensureState = typeof deps.ensureState === "function" ? deps.ensureState : () => {};
   const escapeHtml = typeof deps.escapeHtml === "function" ? deps.escapeHtml : (value) => String(value ?? "");
   const getHeroTeamName = typeof deps.getHeroTeamName === "function" ? deps.getHeroTeamName : () => "";
+  const getHeroTeamLogoUrl =
+    typeof deps.getHeroTeamLogoUrl === "function" ? deps.getHeroTeamLogoUrl : () => "";
   const getAccessLabel = typeof deps.getAccessLabel === "function" ? deps.getAccessLabel : () => "";
   const canViewPrivateDetails =
     typeof deps.canViewPrivateDetails === "function" ? deps.canViewPrivateDetails : () => false;
@@ -31,17 +45,27 @@ export function createMedicalWorkspaceRuntimeRenderer(deps = {}) {
     }
     return withEnsuredState(() => {
       const teamName = getHeroTeamName();
+      const teamLogoUrl = getHeroTeamLogoUrl();
+      const accessLabel = getAccessLabel();
       const operationsTab = normalizeOperationsTab(getOperationsTab());
       setOperationsTab(operationsTab);
       const showAvailabilityWorkspace = !canViewPrivateDetails() || operationsTab === "availability";
       workspace.innerHTML = `
 <div class="medical-shell">
 <header class="medical-hero">
-<div>
-<p class="placeholder-tag">Medical Team</p>
-<h1>${escapeHtml(teamName)}</h1>
+<div class="medical-hero-lockup">
+<span class="medical-team-mark${teamLogoUrl ? " has-logo" : " is-initials"}" role="img" aria-label="${escapeHtml(`${teamName} logo`)}">
+${teamLogoUrl
+  ? `<img src="${escapeHtml(teamLogoUrl)}" alt="">`
+  : `<strong aria-hidden="true">${escapeHtml(getTeamInitials(teamName))}</strong>`}
+</span>
+<div class="medical-hero-copy">
+<p>Medical</p>
+<h1>Medical Room</h1>
+<span class="medical-team-name">${escapeHtml(teamName)}</span>
 </div>
-<div class="medical-access-chip">${escapeHtml(getAccessLabel())}</div>
+</div>
+${accessLabel ? `<div class="medical-access-chip">${escapeHtml(accessLabel)}</div>` : ""}
 </header>
 ${renderOperationsTopMenu()}
 ${

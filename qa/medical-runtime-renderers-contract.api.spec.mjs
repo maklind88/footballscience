@@ -60,6 +60,7 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
     ensureState: () => {},
     escapeHtml: (value) => String(value).replaceAll("<", "&lt;"),
     getAccessLabel: () => "Private",
+    getHeroTeamLogoUrl: () => "assets/team-logos/test-team.svg",
     getHeroTeamName: () => "First Team",
     getOperationsTab: () => "availability",
     getWorkspace: () => workspace,
@@ -88,8 +89,9 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
   renderer.renderMedicalTeamWorkspace("Saved.");
 
   expect(typeof createMedicalWorkspaceRuntimeRenderer).toBe("function");
-  expect(workspace.innerHTML).toContain("Medical Team");
+  expect(workspace.innerHTML).toContain("Medical Room");
   expect(workspace.innerHTML).toContain("First Team");
+  expect(workspace.innerHTML).toContain("assets/team-logos/test-team.svg");
   expect(workspace.innerHTML).toContain("<main>Saved.</main>");
   expect(batchCalls).toBe(1);
   expect(renderedInsideBatch).toBe(true);

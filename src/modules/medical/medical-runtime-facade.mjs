@@ -31,6 +31,10 @@ export function createMedicalRuntimeFacade(deps = {}) {
 
   function getMedicalAccessLabel(...args) { return method(activitySelectors, "getMedicalAccessLabel", ...args); }
   function getMedicalHeroTeamName(...args) { return method(activitySelectors, "getMedicalHeroTeamName", ...args); }
+  function getMedicalHeroTeamLogoUrl() {
+    const team = deps.getPlatformTeamDisplayTeam?.(deps.getCurrentUser?.(), deps.getPlatformStructureState?.());
+    return deps.getPlatformTeamLogoUrl?.(team) || "";
+  }
   function getSelectedMedicalPlayer(...args) { return method(activitySelectors, "getSelectedMedicalPlayer", ...args); }
   function getActiveMedicalPlayers(...args) { return method(activitySelectors, "getActiveMedicalPlayers", ...args); }
   function isMedicalPlayerVisibleForDate(...args) { return method(activitySelectors, "isMedicalPlayerVisibleForDate", ...args); }
@@ -236,6 +240,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     ensureState: deps.ensureMedicalState,
     escapeHtml: deps.escapeHtml,
     getAccessLabel: getMedicalAccessLabel,
+    getHeroTeamLogoUrl: getMedicalHeroTeamLogoUrl,
     getHeroTeamName: getMedicalHeroTeamName,
     getOperationsTab: deps.getMedicalOperationsTab,
     getWorkspace: deps.getWorkspace,

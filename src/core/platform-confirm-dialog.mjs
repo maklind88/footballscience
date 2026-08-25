@@ -21,6 +21,9 @@ function normalizeConfirmConfig(input = {}, options = {}) {
     cancelLabel: source.cancelLabel || "Cancel",
     confirmLabel: source.confirmLabel || (tone === "danger" ? "Delete" : "Confirm"),
     eyebrow: source.eyebrow || "Confirmation",
+    logoInitials: String(source.logoInitials || "").trim(),
+    logoLabel: String(source.logoLabel || "").trim(),
+    logoUrl: String(source.logoUrl || "").trim(),
     message: source.message || "This action cannot be undone.",
     title: source.title || "Are you sure?",
     tone,
@@ -63,7 +66,54 @@ function focusableElements(dialog) {
   ).filter((element) => !element.disabled && element.getAttribute("aria-hidden") !== "true");
 }
 
-function createConfirmMarkup(config, ids) {
+function resolveConfirmIdentity(config, doc) {
+  const clubMark = doc?.getElementById?.("dashboardClubMark");
+  const clubLogo = doc?.getElementById?.("dashboardClubLogoImage");
+  const clubInitials = doc?.getElementById?.("dashboardClubLogoInitials");
+  const renderedLogoUrl = clubLogo && !clubLogo.hidden
+    ? String(clubLogo.currentSrc || clubLogo.getAttribute?.("src") || "").trim()
+    : "";
+  const initials = String(config.logoInitials || clubInitials?.textContent || "FS")
+    .trim()
+    .slice(0, 4)
+    .toUpperCase() || "FS";
+  return {
+    initials,
+    label: config.logoLabel || clubMark?.getAttribute?.("aria-label") || "Club logo",
+    logoUrl: config.logoUrl || renderedLogoUrl,
+  };
+}
+
+function createConfirmIdentityMarkup(identity) {
+  const hasLogo = Boolean(identity.logoUrl);
+  return `
+    <span
+      class="platform-confirm-mark ${hasLogo ? "has-logo" : "is-fallback"}"
+      data-platform-confirm-club-mark
+      title="${escapeHtml(identity.label)}"
+    >
+      ${hasLogo ? `<img class="platform-confirm-logo" data-platform-confirm-logo src="${escapeHtml(identity.logoUrl)}" alt="" />` : ""}
+      <strong class="platform-confirm-mark-fallback" data-platform-confirm-logo-fallback ${hasLogo ? "hidden" : ""}>
+        ${escapeHtml(identity.initials)}
+      </strong>
+    </span>
+  `;
+}
+
+function bindConfirmIdentityFallback(layer) {
+  const logo = layer?.querySelector?.("[data-platform-confirm-logo]");
+  if (!logo) return;
+  logo.addEventListener("error", () => {
+    const mark = layer.querySelector("[data-platform-confirm-club-mark]");
+    const fallback = layer.querySelector("[data-platform-confirm-logo-fallback]");
+    logo.hidden = true;
+    mark?.classList?.remove("has-logo");
+    mark?.classList?.add("is-fallback");
+    if (fallback) fallback.hidden = false;
+  }, { once: true });
+}
+
+function createConfirmMarkup(config, ids, identity) {
   return `
     <article
       class="platform-confirm-dialog"
@@ -78,10 +128,7 @@ function createConfirmMarkup(config, ids) {
         <span aria-hidden="true">×</span>
       </button>
       <div class="platform-confirm-identity" aria-hidden="true">
-        <span class="platform-confirm-mark">
-          <span class="platform-confirm-mark-dot"></span>
-          <span class="platform-confirm-mark-stem"></span>
-        </span>
+        ${createConfirmIdentityMarkup(identity)}
       </div>
       <div class="platform-confirm-copy">
         <span class="platform-confirm-eyebrow">${escapeHtml(config.eyebrow)}</span>
@@ -120,7 +167,8 @@ export function confirmPlatformAction(input = {}, options = {}) {
   layer.innerHTML = createConfirmMarkup(config, {
     title: `${uid}-title`,
     message: `${uid}-message`,
-  });
+  }, resolveConfirmIdentity(config, doc));
+  bindConfirmIdentityFallback(layer);
 
   return new Promise((resolve) => {
     const dialog = layer.querySelector(".platform-confirm-dialog");

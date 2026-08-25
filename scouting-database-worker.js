@@ -29,8 +29,9 @@ let loadedPreviewScriptUrl = "";
 let optionCache = null;
 let metricIndexCache = null;
 let metricPercentileCache = new Map();
-let searchCorpusCache = new Map();
+let searchNameSignatureCache = new Map();
 let filteredRecordCache = new Map();
+let dedupedRecordCache = new Map();
 let recordByIdCache = { database: null, byId: new Map() };
 
 function normalizeText(value = "", limit = 120) {
@@ -52,25 +53,15 @@ function getPersonNameSignature(value = "") {
   const normalized = normalizePersonNameForMatch(value);
   const tokens = normalized.split(" ").filter(Boolean);
   if (!tokens.length) {
-    return { normalized: "", firstInitial: "", surname: "" };
+    return { normalized: "", firstInitial: "", surname: "", tokenCount: 0 };
   }
   const firstToken = tokens[0] || "";
   return {
     normalized,
     firstInitial: firstToken.slice(0, 1),
     surname: tokens[tokens.length - 1] || "",
+    tokenCount: tokens.length,
   };
-}
-
-function getInitialSurnameAlias(value = "") {
-  const signature = getPersonNameSignature(value);
-  return signature.firstInitial && signature.surname ? `${signature.firstInitial} ${signature.surname}` : "";
-}
-
-function areNamesInitialSurnameMatch(firstName = "", secondName = "") {
-  const first = getPersonNameSignature(firstName);
-  const second = getPersonNameSignature(secondName);
-  return Boolean(first.firstInitial && first.surname && first.firstInitial === second.firstInitial && first.surname === second.surname);
 }
 
 function normalizeLeague(value = "") {
@@ -317,7 +308,7 @@ function attachMergedSeasonRecords(representativeRecord, records = []) {
   return next;
 }
 
-function dedupeScoutingPlayerRecords(records = [], query = {}) {
+function dedupeScoutingPlayerRecords(records = [], query = {}, options = {}) {
   const standaloneRecords = [];
   const bucketsByIdentity = new Map();
 
@@ -351,7 +342,12 @@ function dedupeScoutingPlayerRecords(records = [], query = {}) {
     buckets.forEach((bucket) => {
       const representativeRecord = chooseRepresentativeSeasonRecord(bucket.records, query);
       if (representativeRecord) {
-        representativeRecords.push(attachMergedSeasonRecords(representativeRecord, bucket.records));
+        if (options.attachMergedSeasons === false) {
+          options.seasonRecordsByRepresentative?.set(representativeRecord, bucket.records);
+          representativeRecords.push(representativeRecord);
+        } else {
+          representativeRecords.push(attachMergedSeasonRecords(representativeRecord, bucket.records));
+        }
       }
     });
   });
@@ -510,30 +506,55 @@ function getMetricPercentile(record, metricId) {
   return Math.max(1, Math.min(99, percentile));
 }
 
-function buildSearchCorpus(record) {
+function getSearchNameSignature(record) {
   const recordId = getRecordId(record);
-  if (recordId && searchCorpusCache.has(recordId)) {
-    return searchCorpusCache.get(recordId);
+  if (recordId && searchNameSignatureCache.has(recordId)) {
+    return searchNameSignatureCache.get(recordId);
   }
-  const corpus = [
-    getRecordName(record),
-    normalizePersonNameForMatch(getRecordName(record)),
-    getInitialSurnameAlias(getRecordName(record)),
-    getRecordTeam(record),
-    getRecordLeague(record),
-    getRecordSeason(record),
-    getRecordPosition(record),
-    normalizeText(getRecordValue(record, recordIndex.birthCountry), 120),
-    normalizeText(getRecordValue(record, recordIndex.passportCountry), 120),
-    getRecordId(record),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+  const signature = getPersonNameSignature(getRecordName(record));
   if (recordId) {
-    searchCorpusCache.set(recordId, corpus);
+    searchNameSignatureCache.set(recordId, signature);
   }
-  return corpus;
+  return signature;
+}
+
+function searchValueIncludes(value, query) {
+  return String(value ?? "").toLowerCase().includes(query);
+}
+
+function recordMatchesSearchQuery(record, query) {
+  const searchQuery = query.query;
+  const playerName = getRecordValue(record, recordIndex.player);
+  if (
+    searchValueIncludes(playerName, searchQuery) ||
+    searchValueIncludes(
+      getRecordValue(record, recordIndex.teamWithinTimeframe) || getRecordValue(record, recordIndex.team),
+      searchQuery
+    ) ||
+    searchValueIncludes(getRecordValue(record, recordIndex.league), searchQuery) ||
+    searchValueIncludes(getRecordValue(record, recordIndex.season), searchQuery) ||
+    searchValueIncludes(getRecordValue(record, recordIndex.position), searchQuery) ||
+    searchValueIncludes(getRecordValue(record, recordIndex.birthCountry), searchQuery) ||
+    searchValueIncludes(getRecordValue(record, recordIndex.passportCountry), searchQuery) ||
+    searchValueIncludes(getRecordValue(record, recordIndex.id), searchQuery)
+  ) {
+    return true;
+  }
+  const queryNameSignature = query.queryNameSignature;
+  if (queryNameSignature?.tokenCount < 2 && !/[^\x00-\x7F]/.test(String(playerName || ""))) {
+    return false;
+  }
+  const recordNameSignature = getSearchNameSignature(record);
+  if (queryNameSignature?.normalized && recordNameSignature.normalized.includes(queryNameSignature.normalized)) {
+    return true;
+  }
+  return Boolean(
+    queryNameSignature?.tokenCount >= 2 &&
+      queryNameSignature.firstInitial &&
+      queryNameSignature.surname &&
+      queryNameSignature.firstInitial === recordNameSignature.firstInitial &&
+      queryNameSignature.surname === recordNameSignature.surname
+  );
 }
 
 function buildOptions(records = []) {
@@ -577,8 +598,9 @@ function activateDatabase(database, scriptUrl) {
   optionCache = null;
   metricIndexCache = null;
   metricPercentileCache = new Map();
-  searchCorpusCache = new Map();
+  searchNameSignatureCache = new Map();
   filteredRecordCache = new Map();
+  dedupedRecordCache = new Map();
   recordByIdCache = { database: null, byId: new Map() };
   return loadedDatabase;
 }
@@ -588,7 +610,7 @@ function primeDatabaseIndexes(database = loadedDatabase, options = {}) {
   if (!records.length) {
     return;
   }
-  if (options.recordsById !== false) {
+  if (options.recordsById === true) {
     const byId = new Map();
     for (const record of records) {
       const recordId = getRecordId(record);
@@ -598,12 +620,12 @@ function primeDatabaseIndexes(database = loadedDatabase, options = {}) {
     }
     recordByIdCache = { database, byId };
   }
-  if (options.options !== false) {
+  if (options.options === true) {
     buildOptions(records);
   }
-  if (options.search !== false) {
+  if (options.search === true) {
     for (const record of records) {
-      buildSearchCorpus(record);
+      getSearchNameSignature(record);
     }
   }
 }
@@ -675,9 +697,11 @@ async function loadPreviewDatabaseFromScript(scriptUrl = "scouting-import-previe
 
 async function loadDatabase(scriptUrl = "scouting-import-data.js", options = {}) {
   const normalizedScriptUrl = String(scriptUrl || "scouting-import-data.js");
-  const primeOptions = options.prime && typeof options.prime === "object" ? options.prime : {};
+  const primeOptions = options.prime && typeof options.prime === "object" ? options.prime : null;
   if (loadedFullDatabase && loadedFullScriptUrl === normalizedScriptUrl) {
-    return activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
+    const activeDatabase = activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
+    if (primeOptions) primeDatabaseIndexes(activeDatabase, primeOptions);
+    return activeDatabase;
   }
 
   if (!loadedFullDatabaseLoad || loadedFullDatabaseLoad.scriptUrl !== normalizedScriptUrl) {
@@ -692,7 +716,7 @@ async function loadDatabase(scriptUrl = "scouting-import-data.js", options = {})
   try {
     const database = await activeLoad.promise;
     const activeDatabase = activateDatabase(database, normalizedScriptUrl);
-    primeDatabaseIndexes(activeDatabase, primeOptions);
+    if (primeOptions) primeDatabaseIndexes(activeDatabase, primeOptions);
     return activeDatabase;
   } finally {
     if (loadedFullDatabaseLoad === activeLoad) {
@@ -707,11 +731,12 @@ async function loadPreviewDatabase(scriptUrl = "scouting-import-preview-data.js"
     return activateDatabase(loadedPreviewDatabase, loadedPreviewScriptUrl);
   }
   const database = await loadPreviewDatabaseFromScript(normalizedScriptUrl);
-  primeDatabaseIndexes(database, { recordsById: false });
+  primeDatabaseIndexes(database, { options: true });
   return database;
 }
 
 function normalizeQuery(query = {}) {
+  const searchQuery = normalizeText(query.query, 120).toLowerCase();
   const limit = Math.max(1, Math.min(250, Math.floor(normalizeNumber(query.limit, 50))));
   const offset = Math.max(0, Math.floor(normalizeNumber(query.offset, 0)));
   const metricIds = String(
@@ -722,7 +747,8 @@ function normalizeQuery(query = {}) {
     .filter((item) => item && item !== "all")
     .slice(0, 20);
   return {
-    query: normalizeText(query.query, 120).toLowerCase(),
+    query: searchQuery,
+    queryNameSignature: searchQuery ? getPersonNameSignature(searchQuery) : null,
     league: normalizeLeague(query.league || "all") || "all",
     team: normalizeText(query.team || "all", 160) || "all",
     season: normalizeText(query.season || "all", 80) || "all",
@@ -751,24 +777,30 @@ function recordMatchesQuery(record, query) {
   if (query.season && query.season !== "all" && getRecordSeason(record) !== query.season) {
     return false;
   }
-  if (!positionMatchesFilter(record, query.position)) {
+  if (query.position && query.position !== "ALL" && !positionMatchesFilter(record, query.position)) {
     return false;
   }
-  const minutes = getRecordMinutes(record);
-  if (query.minMinutes > 0 && minutes < query.minMinutes) {
-    return false;
+  if (query.minMinutes > 0 || query.maxMinutes > 0) {
+    const minutes = getRecordMinutes(record);
+    if (query.minMinutes > 0 && minutes < query.minMinutes) {
+      return false;
+    }
+    if (query.maxMinutes > 0 && minutes > query.maxMinutes) {
+      return false;
+    }
   }
-  if (query.maxMinutes > 0 && minutes > query.maxMinutes) {
-    return false;
+  const hasMinAge = Number.isFinite(query.minAge) && query.minAge > 0;
+  const hasMaxAge = Number.isFinite(query.maxAge) && query.maxAge > 0;
+  if (hasMinAge || hasMaxAge) {
+    const age = getRecordAge(record);
+    if (hasMinAge && (!Number.isFinite(age) || age < query.minAge)) {
+      return false;
+    }
+    if (hasMaxAge && (!Number.isFinite(age) || age > query.maxAge)) {
+      return false;
+    }
   }
-  const age = getRecordAge(record);
-  if (Number.isFinite(query.minAge) && query.minAge > 0 && (!Number.isFinite(age) || age < query.minAge)) {
-    return false;
-  }
-  if (Number.isFinite(query.maxAge) && query.maxAge > 0 && (!Number.isFinite(age) || age > query.maxAge)) {
-    return false;
-  }
-  if (query.query && !buildSearchCorpus(record).includes(query.query) && !areNamesInitialSurnameMatch(query.query, getRecordName(record))) {
+  if (query.query && !recordMatchesSearchQuery(record, query)) {
     return false;
   }
   if (query.metricIds.length && Number.isFinite(query.metricMin) && query.metricMin > 0) {
@@ -858,14 +890,38 @@ function getFilteredSortedRecords(records, query) {
   return filteredRecords;
 }
 
+function getDedupedRecordEntry(records, query) {
+  const cacheKey = getFilteredRecordCacheKey(query);
+  if (dedupedRecordCache.has(cacheKey)) {
+    return dedupedRecordCache.get(cacheKey);
+  }
+  const seasonRecordsByRepresentative = new Map();
+  const dedupedRecords = dedupeScoutingPlayerRecords(records, query, {
+    attachMergedSeasons: false,
+    seasonRecordsByRepresentative,
+  });
+  if (dedupedRecordCache.size > 12) {
+    dedupedRecordCache.clear();
+  }
+  const entry = { records: dedupedRecords, seasonRecordsByRepresentative };
+  dedupedRecordCache.set(cacheKey, entry);
+  return entry;
+}
+
 function getDatabasePage(query = {}) {
   const database = loadedDatabase;
   const records = Array.isArray(database?.records) ? database.records : [];
   const normalizedQuery = normalizeQuery(query);
   const filteredSeasonRecords = getFilteredSortedRecords(records, normalizedQuery);
-  const filteredRecords = dedupeScoutingPlayerRecords(filteredSeasonRecords, normalizedQuery);
+  const dedupedEntry = getDedupedRecordEntry(filteredSeasonRecords, normalizedQuery);
+  const filteredRecords = dedupedEntry.records;
   const total = filteredRecords.length;
-  const pageRecords = filteredRecords.slice(normalizedQuery.offset, normalizedQuery.offset + normalizedQuery.limit);
+  const pageRecords = filteredRecords
+    .slice(normalizedQuery.offset, normalizedQuery.offset + normalizedQuery.limit)
+    .map((record) => {
+      const seasonRecords = dedupedEntry.seasonRecordsByRepresentative.get(record);
+      return seasonRecords ? attachMergedSeasonRecords(record, seasonRecords) : record;
+    });
   const nextOffset = normalizedQuery.offset + pageRecords.length;
   const hasMore = nextOffset < total;
   return {
@@ -893,7 +949,7 @@ function getRecordsByIds(recordIds = []) {
     return [];
   }
   if (recordByIdCache.database !== loadedDatabase) {
-    primeDatabaseIndexes(loadedDatabase, { options: false, search: false });
+    primeDatabaseIndexes(loadedDatabase, { recordsById: true });
   }
   const matches = [];
   for (const recordId of wantedIds) {
@@ -923,7 +979,7 @@ async function handleWorkerMessage(event) {
       return;
     }
     if (event.data.type === "preload") {
-      await loadDatabase(fullScriptUrl, { prime: { options: true, search: true } });
+      await loadDatabase(fullScriptUrl, { prime: { recordsById: false, options: true, search: false } });
       self.postMessage({
         type: "preloaded",
         requestId,
@@ -931,7 +987,7 @@ async function handleWorkerMessage(event) {
       return;
     }
     if (event.data.type === "recordsByIds") {
-      await loadDatabase(fullScriptUrl, { prime: { options: false, search: false } });
+      await loadDatabase(fullScriptUrl, { prime: { recordsById: true, options: false, search: false } });
       self.postMessage({
         type: "records",
         requestId,

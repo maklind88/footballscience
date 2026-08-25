@@ -17,6 +17,7 @@ from openpyxl import load_workbook
 DEFAULT_OUTPUT = Path("scouting-import-data.js")
 PREVIEW_OUTPUT_NAME = "scouting-import-preview-data.js"
 MANIFEST_OUTPUT_NAME = "scouting-import-manifest.js"
+PROFILE_OUTPUT_NAME = "scouting-import-nwsl-profile-data.js"
 ISOLATED_SHEET_NAME = "NWSL (Statsbomb)"
 ISOLATED_OUTPUT_NAME = "scouting-statsbomb-data.js"
 PREVIEW_RECORD_LIMIT = 50
@@ -233,7 +234,39 @@ def build_preview_payload(payload, output):
     }
 
 
-def build_manifest_payload(payload, preview_payload, output, preview_output, isolated_output, isolated_payload):
+def build_profile_payload(payload):
+    league_index = payload["recordColumns"].index("league")
+    records = [
+        record
+        for record in payload["records"]
+        if clean_text(record[league_index], 160).lower() == "nwsl"
+    ]
+    if not records:
+        raise ValueError("The Scouting source contains no NWSL records for player profiles.")
+    return {
+        "schema": "football-science-scouting-profile-import",
+        "version": f"{payload['version']}-profile-nwsl-{len(records)}",
+        "parentVersion": payload["version"],
+        "source": payload["source"],
+        "datasetScope": {"league": "NWSL"},
+        "metricEncoding": payload["metricEncoding"],
+        "recordColumns": payload["recordColumns"],
+        "metrics": payload["metrics"],
+        "totalRecords": len(payload["records"]),
+        "records": records,
+    }
+
+
+def build_manifest_payload(
+    payload,
+    preview_payload,
+    profile_payload,
+    output,
+    preview_output,
+    profile_output,
+    isolated_output,
+    isolated_payload,
+):
     return {
         "schema": "football-science-scouting-import-manifest",
         "version": payload["version"],
@@ -250,6 +283,15 @@ def build_manifest_payload(payload, preview_payload, output, preview_output, iso
             "version": preview_payload["version"],
             "records": len(preview_payload["records"]),
             "metrics": len(preview_payload["metrics"]),
+        },
+        "profile": {
+            "script": profile_output.name,
+            "schema": profile_payload["schema"],
+            "version": profile_payload["version"],
+            "parentVersion": profile_payload["parentVersion"],
+            "league": profile_payload["datasetScope"]["league"],
+            "records": len(profile_payload["records"]),
+            "metrics": len(profile_payload["metrics"]),
         },
         "isolatedSources": [
             {
@@ -274,6 +316,7 @@ def main():
     output = Path(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_OUTPUT
     preview_output = output.with_name(PREVIEW_OUTPUT_NAME)
     manifest_output = output.with_name(MANIFEST_OUTPUT_NAME)
+    profile_output = output.with_name(PROFILE_OUTPUT_NAME)
     isolated_output = output.with_name(ISOLATED_OUTPUT_NAME)
     workbook = load_workbook(source, read_only=True, data_only=True)
     workbook_hash = source_sha256(source)
@@ -422,21 +465,26 @@ def main():
         record[-1] = [metric_values.get(metric_id) for metric_id in metric_ids]
 
     preview_payload = build_preview_payload(payload, output)
+    profile_payload = build_profile_payload(payload)
     manifest_payload = build_manifest_payload(
         payload,
         preview_payload,
+        profile_payload,
         output,
         preview_output,
+        profile_output,
         isolated_output,
         isolated_payload,
     )
 
     write_scouting_database_payload(output, payload)
     write_javascript_payload(preview_output, "window.__footballScienceScoutingPreviewDatabase=", preview_payload)
+    write_javascript_payload(profile_output, "window.__footballScienceNwslScoutingProfileDatabase=", profile_payload)
     write_javascript_payload(manifest_output, "self.__footballScienceScoutingDatabaseManifest=", manifest_payload)
     write_javascript_payload(isolated_output, "self.__footballScienceNwslStatsbombDatabase=", isolated_payload)
     print(
         f"Wrote {output} with {len(records)} records and {len(metric_defs)} metrics; "
+        f"profiled {len(profile_payload['records'])} NWSL records in {profile_output}; "
         f"isolated {len(isolated_payload['records'])} StatsBomb records in {isolated_output}."
     )
 

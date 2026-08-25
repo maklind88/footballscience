@@ -333,6 +333,47 @@ test("Squad scouting profile helpers own record matching, metrics, and percentil
   expect(helpers.getPlayerProfileScoutingPercentile(database.records[0], "turnovers", "lower")).toBeGreaterThan(50);
 });
 
+test("Squad scouting profile helpers reuse player matches and percentile distributions", () => {
+  let playerReads = 0;
+  let metricReads = 0;
+  const records = [0.8, 0.5, 0.2].map((shots, index) => {
+    const record = {
+      league: "NWSL",
+      position: "CF",
+      season: "2026",
+      minutes: 900 + index,
+    };
+    Object.defineProperty(record, "player", {
+      get() {
+        playerReads += 1;
+        return index === 0 ? "Mak Lind" : `Peer ${index}`;
+      },
+    });
+    Object.defineProperty(record, "metrics", {
+      get() {
+        metricReads += 1;
+        return { shots };
+      },
+    });
+    return record;
+  });
+  const database = { metrics: [{ id: "shots" }], records };
+  const helpers = createSquadScoutingProfileHelpers({
+    getDatabase: () => database,
+    recordIndex: profileRecordIndex,
+  });
+
+  helpers.getPlayerProfileNwslScoutingRecords({ name: "Mak Lind" });
+  const playerReadsAfterFirstLookup = playerReads;
+  helpers.getPlayerProfileNwslScoutingRecords({ name: "Mak Lind" });
+  expect(playerReads).toBe(playerReadsAfterFirstLookup);
+
+  helpers.getPlayerProfileScoutingPercentile(records[0], "shots");
+  const metricReadsAfterFirstPercentile = metricReads;
+  helpers.getPlayerProfileScoutingPercentile(records[0], "shots");
+  expect(metricReads - metricReadsAfterFirstPercentile).toBe(1);
+});
+
 test("Squad scouting profile helpers default player radar records to the latest available season", () => {
   const database = {
     metrics: [{ id: "shots" }],

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
 import { createScoutingDatabaseFilterService } from "../src/modules/scouting/scouting-database-filter-service.mjs";
+import { handleScoutingDatabaseInput } from "../src/modules/scouting/scouting-database.mjs";
 
 function createFilterHarness({ records = [], filters = {}, source = "local", cache = { key: "", records: [] } } = {}) {
   let currentCache = cache;
@@ -88,6 +89,35 @@ test("Scouting database filter service owns filter body outside scouting-workspa
   expect(serviceSource).not.toContain("writeScoutingState");
   expect(serviceSource).not.toContain("sendScoutingApiAction");
   expect(serviceSource).not.toContain("localStorage");
+});
+
+test("Scouting team search updates bounded suggestions without filtering on every keystroke", () => {
+  let suggestionInput = null;
+  let filterWrites = 0;
+  const teamInput = {
+    dataset: { scoutingFilter: "team" },
+    type: "search",
+    value: "North",
+    closest(selector) {
+      return selector === "[data-scouting-team-filter]" || selector === "[data-scouting-filter]" ? this : null;
+    },
+  };
+
+  const handled = handleScoutingDatabaseInput(
+    { target: teamInput },
+    {
+      setDatabaseFilter: () => {
+        filterWrites += 1;
+      },
+      updateTeamFilterSuggestions: (input) => {
+        suggestionInput = input;
+      },
+    }
+  );
+
+  expect(handled).toBe(true);
+  expect(suggestionInput).toBe(teamInput);
+  expect(filterWrites).toBe(0);
 });
 
 test("Scouting database filter service preserves simple local filtering and cache behavior", () => {

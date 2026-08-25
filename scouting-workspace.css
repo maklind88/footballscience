@@ -2035,6 +2035,7 @@ letter-spacing: 0;
 text-transform: uppercase;
 }
 .scouting-database-search input,
+.scouting-database-quick-filters input,
 .scouting-database-quick-filters select,
 .scouting-database-advanced-filters input,
 .scouting-database-advanced-filters select,
@@ -5721,6 +5722,7 @@ body.is-dark-mode .scouting-list-menu button:hover{
 background: rgba(239, 68, 68, 0.16);
 }
 body.is-dark-mode .scouting-database-search input,
+body.is-dark-mode .scouting-database-quick-filters input,
 body.is-dark-mode .scouting-database-quick-filters select,
 body.is-dark-mode .scouting-database-advanced-filters,
 body.is-dark-mode .scouting-database-advanced-filters input,

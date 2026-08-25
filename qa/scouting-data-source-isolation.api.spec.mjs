@@ -21,6 +21,9 @@ function readJavascriptPayload(relativePath) {
   if (relativePath === "scouting-import-preview-data.js") {
     return context.window.__footballScienceScoutingPreviewDatabase;
   }
+  if (relativePath === "scouting-import-nwsl-profile-data.js") {
+    return context.window.__footballScienceNwslScoutingProfileDatabase;
+  }
   if (relativePath === "scouting-import-manifest.js") {
     return context.self.__footballScienceScoutingDatabaseManifest;
   }
@@ -47,6 +50,7 @@ test("the standard scouting database excludes the isolated StatsBomb source", ()
 test("the full database, preview, and manifest stay version aligned", () => {
   const database = readJavascriptPayload("scouting-import-data.js");
   const preview = readJavascriptPayload("scouting-import-preview-data.js");
+  const profile = readJavascriptPayload("scouting-import-nwsl-profile-data.js");
   const manifest = readJavascriptPayload("scouting-import-manifest.js");
 
   expect(manifest.full).toMatchObject({
@@ -61,8 +65,37 @@ test("the full database, preview, and manifest stay version aligned", () => {
     records: preview.records.length,
     metrics: preview.metrics.length,
   });
+  expect(manifest.profile).toMatchObject({
+    script: "scouting-import-nwsl-profile-data.js",
+    schema: profile.schema,
+    version: profile.version,
+    parentVersion: database.version,
+    league: "NWSL",
+    records: profile.records.length,
+    metrics: profile.metrics.length,
+  });
   expect(preview.totalRecords).toBe(database.records.length);
   expect(preview.records).toEqual(database.records.slice(0, preview.records.length));
+});
+
+test("the Squad profile payload contains only the canonical NWSL rows", () => {
+  const database = readJavascriptPayload("scouting-import-data.js");
+  const profile = readJavascriptPayload("scouting-import-nwsl-profile-data.js");
+  const leagueIndex = database.recordColumns.indexOf("league");
+  const expectedRecords = database.records.filter((record) => record[leagueIndex] === "NWSL");
+
+  expect(profile).toMatchObject({
+    schema: "football-science-scouting-profile-import",
+    parentVersion: database.version,
+    datasetScope: { league: "NWSL" },
+    totalRecords: database.records.length,
+  });
+  expect(profile.records).toHaveLength(1_400);
+  expect(profile.metrics).toEqual(database.metrics);
+  expect(profile.records).toEqual(expectedRecords);
+  expect(readProjectFile("scouting-import-nwsl-profile-data.js").length).toBeLessThan(
+    readProjectFile("scouting-import-data.js").length / 10
+  );
 });
 
 test("the bundled scouting database remains stable when the active database changes", () => {

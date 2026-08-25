@@ -31,6 +31,14 @@ test("Squad Scouting runtime lets an imported Excel cache override the bundled f
   expect(runtimeSource.indexOf("win.localStorage?.getItem(playerProfileScoutingDatabaseStorageKey)")).toBeLessThan(runtimeSource.indexOf("win.__footballScienceScoutingDatabase"));
 });
 
+test("Squad Scouting runtime loads the NWSL profile payload instead of the full player database", () => {
+  const runtimeSource = readProjectFile("src/modules/squad/squad-scouting-runtime.mjs");
+
+  expect(runtimeSource).toContain("win.__footballScienceNwslScoutingProfileDatabase");
+  expect(runtimeSource).toContain('loadScript("scouting-import-nwsl-profile", "scouting-import-nwsl-profile-data.js"');
+  expect(runtimeSource).not.toContain('loadScript("scouting-import-data", "scouting-import-data.js"');
+});
+
 test("Squad Scouting runtime stays read-only and does not own Squad writes", () => {
   const runtimeSource = readProjectFile("src/modules/squad/squad-scouting-runtime.mjs");
 

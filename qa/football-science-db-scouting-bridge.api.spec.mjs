@@ -61,6 +61,86 @@ test("Scouting worker parses generated data as JSON before using script executio
   expect(parsed.records[0][0]).toBe("p1");
 });
 
+test("Scouting worker primes expensive indexes only when explicitly requested", () => {
+  const worker = readFileSync(resolve(projectRoot, "scouting-database-worker.js"), "utf8");
+  const sandbox = loadScoutingWorkerSandbox();
+  let recordIdReads = 0;
+  const record = [];
+  Object.defineProperty(record, 0, {
+    get() {
+      recordIdReads += 1;
+      return "player-1";
+    },
+  });
+  const database = { records: [record], metrics: [] };
+
+  sandbox.primeDatabaseIndexes(database);
+  expect(recordIdReads).toBe(0);
+  sandbox.primeDatabaseIndexes(database, { recordsById: true });
+  expect(recordIdReads).toBeGreaterThan(0);
+  expect(worker).toContain("options.recordsById === true");
+  expect(worker).toContain("options.options === true");
+  expect(worker).toContain("options.search === true");
+});
+
+test("Scouting worker reuses normalized name signatures during full database search", () => {
+  const worker = readFileSync(resolve(projectRoot, "scouting-database-worker.js"), "utf8");
+  const sandbox = loadScoutingWorkerSandbox();
+  let inactiveNumericFilterReads = 0;
+  const record = [
+    "player-1",
+    "K. Sheridan",
+    "North Carolina Courage",
+    "",
+    "NWSL",
+    "2026",
+    "GK",
+    30,
+    15,
+    1_338,
+    "Canada",
+    "Canada",
+    175,
+    70,
+    [],
+  ];
+  Object.defineProperty(record, 7, {
+    get() {
+      inactiveNumericFilterReads += 1;
+      return 30;
+    },
+  });
+  Object.defineProperty(record, 9, {
+    get() {
+      inactiveNumericFilterReads += 1;
+      return 1_338;
+    },
+  });
+  const accentedRecord = [...record];
+  accentedRecord[0] = "player-2";
+  accentedRecord[1] = "Élodie Dupont";
+  inactiveNumericFilterReads = 0;
+
+  expect(sandbox.recordMatchesQuery(record, sandbox.normalizeQuery({ query: "Katelyn Sheridan" }))).toBe(true);
+  expect(sandbox.recordMatchesQuery(record, sandbox.normalizeQuery({ query: "Sher" }))).toBe(true);
+  expect(sandbox.recordMatchesQuery(accentedRecord, sandbox.normalizeQuery({ query: "Elodie" }))).toBe(true);
+  expect(sandbox.recordMatchesQuery(record, sandbox.normalizeQuery({ query: "Jane Doe" }))).toBe(false);
+  expect(inactiveNumericFilterReads).toBe(0);
+  expect(worker).toContain("queryNameSignature: searchQuery ? getPersonNameSignature(searchQuery) : null");
+  expect(worker).toContain("function recordMatchesSearchQuery(record, query)");
+  expect(worker).not.toContain("function buildSearchCorpus(record)");
+  expect(worker).not.toContain("areNamesInitialSurnameMatch(query.query");
+});
+
+test("Scouting worker materializes merged seasons only for the visible page and caches dedupe", () => {
+  const worker = readFileSync(resolve(projectRoot, "scouting-database-worker.js"), "utf8");
+
+  expect(worker).toContain("let dedupedRecordCache = new Map()");
+  expect(worker).toContain("function getDedupedRecordEntry(records, query)");
+  expect(worker).toContain("attachMergedSeasons: false");
+  expect(worker.indexOf(".slice(normalizedQuery.offset")).toBeLessThan(worker.indexOf("attachMergedSeasonRecords(record, seasonRecords)"));
+});
+
 test("Scouting database keeps source enrichment behind one visual player database", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
   const client = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-client.mjs"), "utf8");

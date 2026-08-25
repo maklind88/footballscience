@@ -235,7 +235,7 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `purpose`: Shadow XI planning, player database scouting, favorites/lists, reports, and opposition scouting.
 - `data`: `football-scouting-v1`
 - `permissions`: platform/club/team admin, coach, scout, and analyst view/edit; platform admin owns module administration.
-- `import`: `scouting-import-data.js` is generated from the real Wyscout Excel source and lazy-loaded by Scouting.
+- `import`: `scouting-import-data.js` is generated from the real Wyscout Excel source and lazy-loaded by Scouting. Squad/IDP player profiles use the generated NWSL-only `scouting-import-nwsl-profile-data.js` projection so profile spiders never parse the full multi-league payload on the main thread.
 - `events`: scouting favorite toggled, scouting list updated, Shadow XI slot assigned, scouting report created.
 - `qa`: protected by central state, permission matrix, and migration contracts.
 - `migration`: move through app-state first, then dual-read / dual-write into `scouting_players`, `scouting_player_metrics`, `scouting_lists`, `scouting_shadow_xi`, and `scouting_reports`.

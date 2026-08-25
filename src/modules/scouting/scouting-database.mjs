@@ -329,6 +329,11 @@ export function handleScoutingDatabaseInput(event, deps = {}) {
     deps.refreshDatabaseSurface({ controls: true });
     return true;
   }
+  const teamFilterInput = target.closest("[data-scouting-team-filter]");
+  if (teamFilterInput) {
+    deps.updateTeamFilterSuggestions?.(teamFilterInput);
+    return true;
+  }
   const filterInput = target.closest("[data-scouting-filter]");
   if (!filterInput || filterInput.dataset.scoutingFilter === "query") {
     return false;

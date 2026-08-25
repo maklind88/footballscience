@@ -116,6 +116,8 @@ export function createSquadScoutingRuntime(deps = {}) {
   }
 
   function getBundledPlayerProfileScoutingDatabase() {
+    const profileDatabase = win.__footballScienceNwslScoutingProfileDatabase;
+    if (isPlayerProfileScoutingDatabase(profileDatabase)) return profileDatabase;
     const bundledDatabase = win.__footballScienceBundledScoutingDatabase;
     if (isPlayerProfileScoutingDatabase(bundledDatabase)) return bundledDatabase;
     const activeDatabase = win.__footballScienceScoutingDatabase;
@@ -137,8 +139,8 @@ export function createSquadScoutingRuntime(deps = {}) {
       return;
     }
     databaseLoadPromise = platformModuleLoader
-      .loadScript("scouting-import-data", "scouting-import-data.js", {
-        id: "scoutingImportDataScript",
+      .loadScript("scouting-import-nwsl-profile", "scouting-import-nwsl-profile-data.js", {
+        id: "scoutingImportNwslProfileDataScript",
         required: false,
         async: true,
       })

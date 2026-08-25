@@ -10758,10 +10758,17 @@ function renderScoutingDatabaseControls() {
         </label>
         <label>
           <span>Team</span>
-          <select data-scouting-filter="team">
-            <option value="all">All teams</option>
-            ${(options.teams || []).map((team) => `<option value="${escapeHtml(team)}" ${filters.team === team ? "selected" : ""}>${escapeHtml(team)}</option>`).join("")}
-          </select>
+          <input
+            type="search"
+            value="${escapeHtml(filters.team === "all" ? "" : filters.team)}"
+            list="scouting-team-filter-options"
+            placeholder="Search team"
+            autocomplete="off"
+            spellcheck="false"
+            data-scouting-filter="team"
+            data-scouting-team-filter
+          />
+          <datalist id="scouting-team-filter-options" data-scouting-team-filter-options></datalist>
         </label>
         <label>
           <span>Position</span>
@@ -10894,6 +10901,29 @@ function renderScoutingDatabaseControls() {
       </div>
     </div>
   `;
+}
+function updateScoutingTeamFilterSuggestions(input) {
+  const suggestions = input?.list || ui.scoutingWorkspace?.querySelector("[data-scouting-team-filter-options]");
+  if (!suggestions) {
+    return;
+  }
+  const query = normalizeScoutingText(input?.value, 160).toLowerCase();
+  const teams = getScoutingDatabaseOptions().teams || [];
+  const matchingTeams = teams
+    .filter((team) => !query || String(team).toLowerCase().includes(query))
+    .sort((first, second) => {
+      const firstStartsWith = String(first).toLowerCase().startsWith(query);
+      const secondStartsWith = String(second).toLowerCase().startsWith(query);
+      return Number(secondStartsWith) - Number(firstStartsWith) || String(first).localeCompare(String(second));
+    })
+    .slice(0, 80);
+  const fragment = document.createDocumentFragment();
+  matchingTeams.forEach((team) => {
+    const option = document.createElement("option");
+    option.value = team;
+    fragment.append(option);
+  });
+  suggestions.replaceChildren(fragment);
 }
 function renderScoutingImportPanel() {
   if (!canEditScoutingWorkspace()) {
@@ -13367,6 +13397,7 @@ function getScoutingEventDeps() {
       }
     },
     updateRangeFilterDisplay: updateScoutingRangeFilterDisplay,
+    updateTeamFilterSuggestions: updateScoutingTeamFilterSuggestions,
     updateTarget: updateScoutingTarget,
   };
   return scoutingEventDeps;

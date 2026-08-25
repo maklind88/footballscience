@@ -2,6 +2,17 @@ export function createSquadScoutingProfileHelpers(options = {}) {
   const getDatabase = typeof options.getDatabase === "function" ? options.getDatabase : () => null;
   const recordIndex = options.recordIndex || {};
   let metricIndexCache = { database: null, byId: new Map() };
+  let playerRecordCache = { database: null, byName: new Map() };
+  let percentileCache = { database: null, cohorts: new Map(), values: new Map() };
+
+  function ensureDatabaseCaches(database) {
+    if (playerRecordCache.database !== database) {
+      playerRecordCache = { database, byName: new Map() };
+    }
+    if (percentileCache.database !== database) {
+      percentileCache = { database, cohorts: new Map(), values: new Map() };
+    }
+  }
 
   function normalizePlayerProfileScoutingText(value) {
     return String(value ?? "")
@@ -31,7 +42,8 @@ export function createSquadScoutingProfileHelpers(options = {}) {
   }
 
   function getPlayerProfileScoutingMetric(database, metricId) {
-    return (database?.metrics || []).find((metric) => metric.id === metricId) || null;
+    const index = getPlayerProfileScoutingMetricIndex(database, metricId);
+    return index >= 0 ? database.metrics[index] || null : null;
   }
 
   function getPlayerProfileScoutingMetricIndex(database, metricId) {
@@ -100,9 +112,15 @@ export function createSquadScoutingProfileHelpers(options = {}) {
     const database = getDatabase();
     const playerName = normalizePlayerProfileScoutingText(player?.name || player?.playerName);
     if (!database || !playerName) return [];
-    return database.records
+    ensureDatabaseCaches(database);
+    const cached = playerRecordCache.byName.get(playerName);
+    if (cached) return cached;
+    const records = database.records
       .filter((record) => isPlayerProfileNwslScoutingRecord(record))
       .filter((record) => doPlayerProfileScoutingNamesMatch(playerName, record?.[recordIndex.player]));
+    if (playerRecordCache.byName.size >= 200) playerRecordCache.byName.clear();
+    playerRecordCache.byName.set(playerName, records);
+    return records;
   }
 
   function sortPlayerProfileScoutingRecords(first, second) {
@@ -132,7 +150,7 @@ export function createSquadScoutingProfileHelpers(options = {}) {
   }
 
   function findPlayerProfileNwslScoutingRecord(player, options = {}) {
-    const candidates = getPlayerProfileNwslScoutingRecords(player).sort(sortPlayerProfileScoutingRecords);
+    const candidates = [...getPlayerProfileNwslScoutingRecords(player)].sort(sortPlayerProfileScoutingRecords);
     if (!candidates.length) return null;
     const selectedSeason = String(options.selectedSeason || "").trim();
     if (selectedSeason) {
@@ -151,17 +169,28 @@ export function createSquadScoutingProfileHelpers(options = {}) {
     if (!database || !metric || !Number.isFinite(value)) return null;
     const group = getPlayerProfileScoutingPositionGroup(record);
     const recordSeason = getPlayerProfileScoutingSeason(record);
-    const values = database.records
-      .filter(
+    ensureDatabaseCaches(database);
+    const cohortKey = `${group}\u001f${recordSeason}`;
+    let cohort = percentileCache.cohorts.get(cohortKey);
+    if (!cohort) {
+      cohort = database.records.filter(
         (candidate) =>
           isPlayerProfileNwslScoutingRecord(candidate) &&
           getPlayerProfileScoutingPositionGroup(candidate) === group &&
           (!recordSeason || getPlayerProfileScoutingSeason(candidate) === recordSeason) &&
           getPlayerProfileScoutingMinutes(candidate) >= 300
-      )
-      .map((candidate) => getPlayerProfileScoutingMetricValue(candidate, metricId))
-      .filter((candidateValue) => Number.isFinite(candidateValue))
-      .sort((a, b) => a - b);
+      );
+      percentileCache.cohorts.set(cohortKey, cohort);
+    }
+    const valuesKey = `${cohortKey}\u001f${metricId}`;
+    let values = percentileCache.values.get(valuesKey);
+    if (!values) {
+      values = cohort
+        .map((candidate) => getPlayerProfileScoutingMetricValue(candidate, metricId))
+        .filter((candidateValue) => Number.isFinite(candidateValue))
+        .sort((a, b) => a - b);
+      percentileCache.values.set(valuesKey, values);
+    }
     if (values.length < 2) return 50;
     let low = 0;
     let high = values.length;

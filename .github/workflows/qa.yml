@@ -7,18 +7,5 @@ on:
       - main
 
 jobs:
-  qa:
-    runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v1.59.1-noble
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run release:preflight
-      - run: npm run security:audit
-      - run: npm run qa
+  full-qa:
+    uses: ./.github/workflows/full-qa.yml

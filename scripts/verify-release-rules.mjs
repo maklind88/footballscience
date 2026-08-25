@@ -53,6 +53,9 @@ requirePackageScript("release:monitor", "npm run release:monitor-postdeploy && n
 requirePackageScript("release:incident-alert", "node scripts/create-incident-alert.mjs");
 requirePackageScript("release:incident-readiness", "node scripts/verify-incident-readiness.mjs");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
+requirePackageScript("qa", "npm run qa:static && npm run qa:playwright");
+requirePackageScript("qa:static", "npm run verify:local-isolation && npm run check && npm run release:rules && npm run release:incident-readiness && npm run storage:guard && npm run security:platform && npm run platform:readiness && npm run qa:supabase && npm run qa:perf && npm run architecture:budgets");
+requirePackageScript("qa:playwright", "playwright test --config=qa/playwright.config.mjs");
 requirePackageScript("release:traffic", "node scripts/verify-vercel-release-traffic.mjs");
 requirePackageScript("release:staging-isolation", "node scripts/verify-staging-live-isolation.mjs");
 requirePackageScript("release:staging-isolation:repair", "node scripts/verify-staging-live-isolation.mjs --repair");
@@ -155,15 +158,27 @@ requireText("qa/production.live.spec.mjs", "production peer accounts prove DM un
 requireText("qa/production.live.spec.mjs", "ensureLivePeerCredentials", "live smoke must support dynamic two-account chat proof when peer secrets are absent");
 requireText("scripts/verify-live-qa-env.mjs", "LIVE_QA_REQUIRE_PEER_CHAT", "live QA environment verifier must support mandatory peer chat smoke");
 
+requireText(".github/workflows/full-qa.yml", "workflow_call:", "full QA must be a reusable exact-commit workflow");
+requireText(".github/workflows/full-qa.yml", "npm run qa:static", "full QA must retain every static, security, storage, migration, and architecture gate");
+requireText(".github/workflows/full-qa.yml", "npm run security:audit", "full QA must retain the dependency security audit");
+requireText(".github/workflows/full-qa.yml", "shard: [1, 2, 3, 4]", "full Playwright coverage must run across four isolated shards");
+requireText(".github/workflows/full-qa.yml", "npm run qa:playwright -- --shard=${{ matrix.shard }}/4", "each Playwright shard must use the canonical suite and cover its assigned quarter");
+forbidText(".github/workflows/full-qa.yml", "continue-on-error", "no full QA shard may be optional");
+requireText(".github/workflows/qa.yml", "uses: ./.github/workflows/full-qa.yml", "pull requests and main must run the shared full QA workflow");
+
 requireText(".github/workflows/staging-deploy.yml", "branches:", "staging must deploy from the staging branch");
 requireText(".github/workflows/staging-deploy.yml", "- staging", "staging branch must remain explicit");
-requireText(".github/workflows/staging-deploy.yml", "npm run qa", "staging must run full QA");
+requireText(".github/workflows/staging-deploy.yml", "uses: ./.github/workflows/full-qa.yml", "staging must run the shared full QA workflow");
+requireText(".github/workflows/staging-deploy.yml", "needs: full-qa", "staging deploy must wait for every full QA shard");
 requireText(".github/workflows/staging-deploy.yml", "npm run qa:staging:required", "staging must prove authenticated smoke");
 requireText(".github/workflows/staging-deploy.yml", "npm run release:vercel-token", "staging must fail closed when the Vercel token is invalid");
 requireText(".github/workflows/staging-deploy.yml", "api.vercel.com/v2/deployments", "staging alias should use the API path that works for subdomains");
 
 requireText(".github/workflows/production-deploy.yml", "workflow_dispatch:", "production deploy must be manually triggered by deploy tooling");
 forbidText(".github/workflows/production-deploy.yml", "workflow_run:", "production deploy must not auto-run after every main QA success");
+requireText(".github/workflows/production-deploy.yml", "uses: ./.github/workflows/full-qa.yml", "production must run the shared full QA workflow");
+requireText(".github/workflows/production-deploy.yml", "needs: full-qa", "production deploy must wait for every full QA shard");
+requireText(".github/workflows/production-deploy.yml", "npm run release:preflight", "production must retain release preflight after parallel QA");
 requireText(".github/workflows/production-deploy.yml", "npm run release:safety", "production deploy must keep the safety gate");
 requireText(".github/workflows/production-deploy.yml", "npm run qa:staging:required", "production deploy must verify staging first");
 requireText(".github/workflows/production-deploy.yml", "npm run release:vercel-token", "production must fail closed when the Vercel token is invalid");

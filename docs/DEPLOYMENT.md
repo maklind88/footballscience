@@ -117,9 +117,9 @@ This verifies the live domain, `app.js`, `/api/client-config`, and that `/api/ap
 
 ## CI Gate
 
-GitHub Actions runs `npm run qa` on pushes to `main` and pull requests through `.github/workflows/qa.yml`.
+GitHub Actions runs the complete `npm run qa` coverage on pushes to `main`, pull requests, staging deploys, and safe production deploys through the reusable `.github/workflows/full-qa.yml` workflow. Static/security gates run in one job while the complete Playwright suite is split across four isolated shards. Every shard is required; this changes wall-clock time, not test coverage.
 
-The same workflow also runs:
+The reusable workflow also runs:
 
 - `npm run release:preflight`
 - `npm run security:audit`

@@ -28,7 +28,8 @@ test("production incident alerts create issue-backed alerts for failed release w
 
   expect(packageJson.scripts["release:incident-alert"]).toBe("node scripts/create-incident-alert.mjs");
   expect(packageJson.scripts["release:incident-readiness"]).toBe("node scripts/verify-incident-readiness.mjs");
-  expect(packageJson.scripts["qa"]).toContain("npm run release:incident-readiness");
+  expect(packageJson.scripts["qa"]).toContain("npm run qa:static");
+  expect(packageJson.scripts["qa:static"]).toContain("npm run release:incident-readiness");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/incident-alert-contracts.api.spec.mjs");
 
   expect(workflow).toContain("workflow_run:");

@@ -14,7 +14,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  full-qa:
+    uses: ./.github/workflows/full-qa.yml
+
   deploy:
+    needs: full-qa
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
@@ -36,7 +40,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run qa
 
       - name: Check staging deploy config
         id: staging-env

@@ -11,7 +11,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  full-qa:
+    uses: ./.github/workflows/full-qa.yml
+
   deploy:
+    needs: full-qa
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
@@ -55,8 +59,8 @@ jobs:
       - run: npm run release:ci-env
       - run: npm run release:vercel-token
 
-      - name: Verify release gate
-        run: npm run release:gate
+      - name: Verify release preflight after full QA
+        run: npm run release:preflight
 
       - name: Verify production safety gate
         run: npm run release:safety

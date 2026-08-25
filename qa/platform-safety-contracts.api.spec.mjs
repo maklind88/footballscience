@@ -247,6 +247,7 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   const vercelConfig = readJson("vercel.json");
   const liveSpec = readProjectFile("qa/production.live.spec.mjs");
   const qaWorkflow = readProjectFile(".github/workflows/qa.yml");
+  const fullQaWorkflow = readProjectFile(".github/workflows/full-qa.yml");
   const performanceBudget = readProjectFile("scripts/performance-budget.mjs");
   const vercelIgnoreBuild = readProjectFile("scripts/vercel-ignore-build.mjs");
   const storagePolicy = readProjectFile("scripts/verify-storage-key-policy.mjs");
@@ -264,10 +265,12 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(indexHtml).toContain("/_vercel/speed-insights/script.js");
   expect(indexHtml).toContain("location.protocol !== \"https:\"");
   expect(indexHtml).toContain("localHosts.has(location.hostname)");
-  expect(packageJson.scripts["qa"]).toContain("npm run qa:perf");
-  expect(packageJson.scripts["qa"]).toContain("npm run storage:guard");
-  expect(packageJson.scripts["qa"]).toContain("npm run security:platform");
-  expect(packageJson.scripts["qa"]).toContain("npm run release:incident-readiness");
+  expect(packageJson.scripts["qa"]).toContain("npm run qa:static");
+  expect(packageJson.scripts["qa"]).toContain("npm run qa:playwright");
+  expect(packageJson.scripts["qa:static"]).toContain("npm run qa:perf");
+  expect(packageJson.scripts["qa:static"]).toContain("npm run storage:guard");
+  expect(packageJson.scripts["qa:static"]).toContain("npm run security:platform");
+  expect(packageJson.scripts["qa:static"]).toContain("npm run release:incident-readiness");
   expect(packageJson.scripts["storage:guard"]).toBe("node scripts/verify-storage-key-policy.mjs");
   expect(packageJson.scripts["security:platform"]).toBe("node scripts/verify-platform-security.mjs");
   expect(packageJson.scripts["release:incident-alert"]).toBe("node scripts/create-incident-alert.mjs");
@@ -319,7 +322,12 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(incidentReadiness).toContain("Incident readiness verification: ok");
   expect(productionDeployWorkflow).toContain("workflow_dispatch:");
   expect(productionDeployWorkflow).not.toContain("workflow_run:");
-  expect(productionDeployWorkflow).toContain("npm run release:gate");
+  expect(productionDeployWorkflow).toContain("uses: ./.github/workflows/full-qa.yml");
+  expect(productionDeployWorkflow).toContain("needs: full-qa");
+  expect(productionDeployWorkflow).toContain("npm run release:preflight");
+  expect(productionDeployWorkflow).toContain("npm run release:safety");
+  expect(fullQaWorkflow).toContain("npm run qa:static");
+  expect(fullQaWorkflow).toContain("npm run qa:playwright -- --shard=${{ matrix.shard }}/4");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("Live app.js hash does not match this release");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("RELEASE_ALLOW_LIVE_HASH_MISMATCH");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("crypto.createHash");
@@ -351,8 +359,10 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
       }),
     ])
   );
-  expect(qaWorkflow).toContain("node-version: 24");
-  expect(qaWorkflow).toContain("npm run qa");
+  expect(qaWorkflow).toContain("uses: ./.github/workflows/full-qa.yml");
+  expect(fullQaWorkflow).toContain("node-version: 24");
+  expect(fullQaWorkflow).toContain("npm run qa:static");
+  expect(fullQaWorkflow).toContain("npm run qa:playwright");
 });
 
 test("modular core skeleton exposes only explicitly approved production assets", () => {

@@ -48,6 +48,34 @@ test("safe ship release automation owns the staging to production flow", () => {
   expect(shipSource).toContain('"release:postdeploy"');
 });
 
+test("full QA keeps complete coverage while running Playwright in four isolated shards", () => {
+  const packageJson = readJson("package.json");
+  const fullQa = readProjectFile(".github/workflows/full-qa.yml");
+  const qaWorkflow = readProjectFile(".github/workflows/qa.yml");
+  const stagingWorkflow = readProjectFile(".github/workflows/staging-deploy.yml");
+  const productionWorkflow = readProjectFile(".github/workflows/production-deploy.yml");
+
+  expect(packageJson.scripts.qa).toBe("npm run qa:static && npm run qa:playwright");
+  expect(packageJson.scripts["qa:static"]).toContain("npm run security:platform");
+  expect(packageJson.scripts["qa:static"]).toContain("npm run qa:supabase");
+  expect(packageJson.scripts["qa:static"]).toContain("npm run architecture:budgets");
+  expect(packageJson.scripts["qa:playwright"]).toBe("playwright test --config=qa/playwright.config.mjs");
+  expect(fullQa).toContain("workflow_call:");
+  expect(fullQa).toContain("npm run release:preflight");
+  expect(fullQa).toContain("npm run security:audit");
+  expect(fullQa).toContain("npm run qa:static");
+  expect(fullQa).toContain("shard: [1, 2, 3, 4]");
+  expect(fullQa).toContain("npm run qa:playwright -- --shard=${{ matrix.shard }}/4");
+  expect(fullQa).not.toContain("continue-on-error");
+  expect(qaWorkflow).toContain("uses: ./.github/workflows/full-qa.yml");
+  for (const workflow of [stagingWorkflow, productionWorkflow]) {
+    expect(workflow).toContain("uses: ./.github/workflows/full-qa.yml");
+    expect(workflow).toContain("needs: full-qa");
+  }
+  expect(productionWorkflow).toContain("npm run release:preflight");
+  expect(productionWorkflow).toContain("npm run release:safety");
+});
+
 test("release automation keeps staging and live environments isolated", () => {
   const packageJson = readJson("package.json");
   const isolationSource = readProjectFile("scripts/verify-staging-live-isolation.mjs");

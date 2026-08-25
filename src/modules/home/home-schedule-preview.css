@@ -1,19 +1,35 @@
 .platform-home-hero {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  gap: clamp(0.85rem, 1.4vw, 1.1rem);
+  padding: clamp(0.78rem, 1.35vw, 1rem) clamp(1rem, 2.1vw, 1.35rem);
 }
 
 .platform-home-hero > div:first-child {
   align-self: center;
+  display: grid;
+  gap: 0.22rem;
   min-width: 0;
+  transform: translateY(-0.04rem);
+}
+
+.platform-home-hero .workspace-date,
+.platform-home-hero .workspace-heading,
+.platform-home-hero .dashboard-welcome {
+  margin: 0;
 }
 
 .platform-home-hero .workspace-heading {
   overflow-wrap: anywhere;
+  line-height: 1.03;
+}
+
+.platform-home-hero .dashboard-welcome {
+  line-height: 1.2;
 }
 
 .platform-home-club-mark {
-  width: clamp(6rem, 8vw, 7.5rem);
+  width: clamp(5.15rem, 6.7vw, 6.25rem);
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -559,10 +575,11 @@ body.is-dark-mode .platform-home-club-mark {
 @media (max-width: 680px) {
   .platform-home-hero {
     gap: 0.75rem;
+    padding: 0.72rem 0.82rem;
   }
 
   .platform-home-club-mark {
-    width: 4.8rem;
+    width: 4.35rem;
   }
 
   .dashboard-schedule-preview {

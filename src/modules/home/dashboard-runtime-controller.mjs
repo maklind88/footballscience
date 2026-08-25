@@ -290,9 +290,12 @@ export function createDashboardRuntimeController(dependencies = {}) {
 
   function showNewsModal() {
     modalAfterClose = null;
-    closeModal(false);
     if (documentRef.body?.dataset.activeWorkspace && documentRef.body.dataset.activeWorkspace !== "home") {
       return;
+    }
+    const root = getElement("dashboardModalRoot");
+    if (!root || root.hidden) {
+      closeModal(false);
     }
     const newsSeenMap = getNewsSeenMap();
     const user = getCurrentUser();

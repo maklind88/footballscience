@@ -173,6 +173,19 @@ export function releaseReleaseLock({ lockDir = getReleaseLockDir(), token } = {}
   return true;
 }
 
+function signalExitCode(signal) {
+  switch (signal) {
+    case "SIGHUP":
+      return 129;
+    case "SIGINT":
+      return 130;
+    case "SIGTERM":
+      return 143;
+    default:
+      return 1;
+  }
+}
+
 export async function withReleaseLock(options, callback) {
   const lock = acquireReleaseLock({ ...options, wait: options?.wait !== false });
   let released = false;
@@ -183,7 +196,7 @@ export async function withReleaseLock(options, callback) {
   };
   const signalHandler = (signal) => {
     release();
-    process.exit(signal === "SIGINT" ? 130 : 143);
+    process.exit(signalExitCode(signal));
   };
 
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {

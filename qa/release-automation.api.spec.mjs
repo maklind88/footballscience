@@ -287,36 +287,43 @@ test("machine release lock makes a second process wait until the owner exits", a
 });
 
 
-test("machine release lock releases its own token on SIGTERM", async () => {
-  const tempDir = makeTempDir("footballscience-release-lock-signal-");
-  const lockDir = path.join(tempDir, "release.lock");
+test("machine release lock maps signals and releases its own token", async () => {
+  const signalCases = [
+    ["SIGHUP", 129],
+    ["SIGTERM", 143],
+  ];
   const moduleUrl = pathToFileURL(path.join(rootDir, "scripts/lib/release-lock.mjs")).href;
-  const readyFile = path.join(tempDir, "ready.txt");
-  try {
-    const childSource = `
-      import fs from "node:fs";
-      import { withReleaseLock } from ${JSON.stringify(moduleUrl)};
-      await withReleaseLock({ lockDir: process.env.TEST_LOCK_DIR, rootDir: process.cwd(), branch: "codex/signal", sha: "signal", command: "signal release" }, async () => {
-        fs.writeFileSync(process.env.TEST_READY_FILE, "ready");
-        await new Promise(() => { setInterval(() => {}, 1_000); });
+
+  for (const [signal, exitCode] of signalCases) {
+    const tempDir = makeTempDir("footballscience-release-lock-signal-");
+    const lockDir = path.join(tempDir, "release.lock");
+    const readyFile = path.join(tempDir, "ready.txt");
+    try {
+      const childSource = `
+        import fs from "node:fs";
+        import { withReleaseLock } from ${JSON.stringify(moduleUrl)};
+        await withReleaseLock({ lockDir: process.env.TEST_LOCK_DIR, rootDir: process.cwd(), branch: process.env.TEST_BRANCH, sha: "signal", command: "signal release" }, async () => {
+          fs.writeFileSync(process.env.TEST_READY_FILE, "ready");
+          await new Promise(() => { setInterval(() => {}, 1_000); });
+        });
+      `;
+      const child = spawn(process.execPath, ["--input-type=module", "-e", childSource], {
+        cwd: rootDir,
+        env: { ...process.env, TEST_LOCK_DIR: lockDir, TEST_READY_FILE: readyFile, TEST_BRANCH: `codex/${signal.toLowerCase()}` },
+        stdio: ["ignore", "ignore", "pipe"],
       });
-    `;
-    const child = spawn(process.execPath, ["--input-type=module", "-e", childSource], {
-      cwd: rootDir,
-      env: { ...process.env, TEST_LOCK_DIR: lockDir, TEST_READY_FILE: readyFile },
-      stdio: ["ignore", "ignore", "pipe"],
-    });
-    const deadline = Date.now() + 3_000;
-    while (!fs.existsSync(readyFile) && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      const deadline = Date.now() + 3_000;
+      while (!fs.existsSync(readyFile) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(readReleaseLockOwner(lockDir)).toMatchObject({ branch: `codex/${signal.toLowerCase()}` });
+      process.kill(child.pid, signal);
+      const result = await collectExit(child, 5_000);
+      expect(result).toMatchObject({ code: exitCode, signal: null });
+      expect(fs.existsSync(lockDir)).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
     }
-    expect(readReleaseLockOwner(lockDir)).toMatchObject({ branch: "codex/signal" });
-    process.kill(child.pid, "SIGTERM");
-    const result = await collectExit(child, 5_000);
-    expect(result).toMatchObject({ code: 143, signal: null });
-    expect(fs.existsSync(lockDir)).toBe(false);
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 

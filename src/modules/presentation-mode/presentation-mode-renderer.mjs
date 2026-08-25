@@ -659,9 +659,10 @@ export function createPresentationModeRenderer(options = {}) {
   }
 
   function renderToolPopover(label = "", body = "", attributes = "", options = {}) {
+    const accessibleLabel = options.ariaLabel || label;
     return `
       <details class="presentation-tool-popover" ${attributes}>
-        <summary class="presentation-keynote-tool">
+        <summary class="presentation-keynote-tool" title="${escapeHtml(options.title || label)}" aria-label="${escapeHtml(accessibleLabel)}">
           ${renderToolbarIcon(options.icon || "tool", options.iconLabel || "")}
           <span>${escapeHtml(label)}</span>
         </summary>
@@ -813,8 +814,40 @@ export function createPresentationModeRenderer(options = {}) {
         ${renderStyleMenu(style)}
         <span class="presentation-toolbar-separator" aria-hidden="true"></span>
         ${renderToolbarButton("Duplicate", "duplicate", "data-presentation-duplicate-info data-presentation-active-info-only disabled title=\"Duplicate slide\" aria-label=\"Duplicate slide\"", { utility: true })}
+        ${renderSendSlideMenu(model, slide)}
       </section>
     `;
+  }
+
+  function renderSendSlideMenu(model = {}, slide = {}) {
+    if (!slide?.infoSlide?.id) {
+      return "";
+    }
+    return renderToolPopover(
+      "Send",
+      `
+        <div class="presentation-send-slide-panel">
+          <header>
+            <strong>Copy to date</strong>
+            <small>Original remains on ${escapeHtml(model.dateLabel || model.dateValue)}.</small>
+          </header>
+          <label>
+            <span>Destination</span>
+            <input
+              type="date"
+              value="${escapeHtml(model.sendDateValue || "")}"
+              data-presentation-send-date
+              aria-label="Destination date"
+            />
+          </label>
+          <button type="button" class="presentation-send-slide-action" data-presentation-send-slide>
+            Copy &amp; open
+          </button>
+        </div>
+      `,
+      "data-presentation-send-slide-menu",
+      { icon: "send" }
+    );
   }
 
   function renderContextMenu(model = {}) {

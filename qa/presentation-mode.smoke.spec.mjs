@@ -1496,3 +1496,65 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     chipsVisible: true,
   });
 });
+
+test("Presentation Mode sends a complete custom slide to another date without removing the original", async ({ page }) => {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await dismissDashboardModal(page);
+  await page
+    .locator('[data-dashboard-presentation-card][data-dashboard-presentation-type="team"] [data-dashboard-open-presentation]')
+    .click();
+
+  const presentation = page.locator("[data-presentation-mode-shell]");
+  await expect(presentation).toBeVisible();
+  await expect(presentation.locator("[data-presentation-send-slide-menu]")).toHaveCount(0);
+  const sourceDate = await presentation.locator("[data-presentation-date-input]").inputValue();
+  const [sourceYear, sourceMonth, sourceDay] = sourceDate.split("-").map(Number);
+  const targetDate = new Date(Date.UTC(sourceYear, sourceMonth - 1, sourceDay + 1)).toISOString().slice(0, 10);
+  await presentation.locator(".presentation-pass-controls [data-presentation-add-info-menu]").click();
+  page.once("dialog", async (dialog) => {
+    await dialog.accept("Opponent briefing");
+  });
+  await presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="bullets"]').click();
+  const sourceSlide = presentation.locator(".presentation-slide-info");
+  await expect(sourceSlide.locator(".presentation-info-title")).toHaveValue("Opponent briefing");
+  const sourceSlideId = await sourceSlide.getAttribute("data-presentation-slide-id");
+  expect(sourceSlideId).toBeTruthy();
+
+  const sendMenu = presentation.locator("[data-presentation-send-slide-menu]");
+  await expect(sendMenu).toBeVisible();
+  await sendMenu.locator("summary").click();
+  await expect(sendMenu.locator(".presentation-send-slide-panel")).toBeVisible();
+  await sendMenu.locator("[data-presentation-send-date]").fill(targetDate);
+  await sendMenu.locator("[data-presentation-send-slide]").click();
+
+  await expect(presentation.locator("[data-presentation-date-input]")).toHaveValue(targetDate);
+  await expect(presentation.locator(".presentation-info-title")).toHaveValue("Opponent briefing");
+  await page.waitForFunction(
+    ({ key, targetDate: copiedDate }) => {
+      const store = JSON.parse(window.localStorage.getItem(key) || "{}");
+      return Boolean(store.decks?.[copiedDate]?.infoSlides?.some((slide) => slide.title === "Opponent briefing"));
+    },
+    { key: presentationKey, targetDate }
+  );
+
+  const savedCopy = await page.evaluate(
+    ({ key, sourceDate: originalDate, targetDate: copiedDate }) => {
+      const store = JSON.parse(window.localStorage.getItem(key) || "{}");
+      const sourceDeck = store.decks?.[originalDate] || {};
+      const targetDeck = store.decks?.[copiedDate] || {};
+      const copiedSlide = targetDeck.infoSlides?.find((slide) => slide.title === "Opponent briefing");
+      const copiedSlideId = copiedSlide?.id || "";
+      return {
+        copiedSlideId,
+        copiedBody: copiedSlide?.body || "",
+        sourceSlideIds: (sourceDeck.infoSlides || []).map((slide) => slide.id),
+      };
+    },
+    { key: presentationKey, sourceDate, targetDate }
+  );
+  expect(savedCopy.copiedSlideId).not.toBe("");
+  expect(savedCopy.copiedSlideId).not.toBe(sourceSlideId);
+  expect(savedCopy.sourceSlideIds, JSON.stringify(savedCopy)).toContain(sourceSlideId);
+  expect(savedCopy.copiedBody).toContain("First point");
+});

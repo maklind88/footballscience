@@ -2959,13 +2959,23 @@ test("Home places compact meeting cards side by side beside the calendar and ope
             updatedAt: "2026-05-01T15:00:00.000Z",
             infoSlides: [
               { layout: "starting-xi", formation: "4-3-3", lineup: assignments },
+            ],
+          },
+          "2026-05-02": {
+            updatedAt: "2026-05-02T08:00:00.000Z",
+            infoSlides: [
               { layout: "match-squad", matchSquadPlayerIds: players.map((player) => player.id) },
             ],
           },
-          "2026-05-14": {
-            updatedAt: "2026-05-14T15:00:00.000Z",
+          "2026-05-15": {
+            updatedAt: "2026-05-15T15:00:00.000Z",
             infoSlides: [
               { layout: "starting-xi", formation: "4-3-3", lineup: assignments },
+            ],
+          },
+          "2026-05-16": {
+            updatedAt: "2026-05-16T08:00:00.000Z",
+            infoSlides: [
               { layout: "match-squad", matchSquadPlayerIds: players.map((player) => player.id) },
             ],
           },
@@ -3077,6 +3087,12 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await expect(lineupPanel.locator(".dashboard-lineup-pitch, .dashboard-lineup-slot")).toHaveCount(0);
   await expect(lineupPanel).not.toContainText("Avery Stone");
   await expect(lineupPanel.locator(".dashboard-match-selection-actions [data-dashboard-open-match-selection]")).toHaveCount(2);
+  await expect(
+    lineupPanel.locator('.dashboard-match-selection-actions [data-match-selection-target="match-squad"]')
+  ).toHaveAttribute("data-match-selection-date", "2026-05-16");
+  await expect(
+    lineupPanel.locator('.dashboard-match-selection-actions [data-match-selection-target="starting-xi"]')
+  ).toHaveAttribute("data-match-selection-date", "2026-05-15");
   const calendarDaySize = await presentationBand.locator(".dashboard-schedule-day").first().evaluate((day) => {
     const rect = day.getBoundingClientRect();
     return { width: rect.width, height: rect.height };
@@ -3127,6 +3143,7 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await expect(presentation).toBeVisible();
   await expect(presentation.locator(".presentation-lineup-layout")).toBeVisible();
   await expect(presentation).toContainText("Starting XI vs NCC - Boston");
+  await expect(presentation.locator("[data-presentation-date-input]")).toHaveValue("2026-05-15");
 });
 
 test("Schedule Planner copies and pastes selected days with command shortcuts", async ({ page }) => {

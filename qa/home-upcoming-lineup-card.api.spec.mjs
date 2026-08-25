@@ -102,6 +102,35 @@ test("Home routes separately saved squad and lineup selections to the correct me
   expect(model.routes.startingXi).toEqual({ dateValue: "2026-09-05", meetingType: "technical", target: "starting-xi" });
 });
 
+test("Home creates the match squad on matchday and Starting XI on MD-1", () => {
+  const nextMatch = { id: "match-angel-city", date: "2026-08-26", type: "match", title: "NCC - Angel City" };
+  const emptyModel = selectHomeUpcomingLineup({ nextMatch, scheduleMatches: [nextMatch], players });
+
+  expect(emptyModel.routes.matchSquad).toEqual({ dateValue: "2026-08-26", meetingType: "team", target: "match-squad" });
+  expect(emptyModel.routes.startingXi).toEqual({ dateValue: "2026-08-25", meetingType: "team", target: "starting-xi" });
+
+  const squadOnlyModel = selectHomeUpcomingLineup({
+    nextMatch,
+    scheduleMatches: [nextMatch],
+    players,
+    presentationState: {
+      decks: {
+        "2026-08-26": {
+          infoSlides: [{ layout: "match-squad", matchSquadPlayerIds: players.map((player) => player.id) }],
+        },
+      },
+    },
+  });
+  expect(squadOnlyModel.routes.matchSquad.dateValue).toBe("2026-08-26");
+  expect(squadOnlyModel.routes.startingXi.dateValue).toBe("2026-08-25");
+
+  const html = renderHomeUpcomingLineupCard({ upcomingLineup: emptyModel }, (value) => String(value ?? ""));
+  expect(html).toContain("matchday squad");
+  expect(html).toContain("MD-1");
+  expect(html).toContain('data-match-selection-date="2026-08-26"');
+  expect(html).toContain('data-match-selection-date="2026-08-25"');
+});
+
 test("Home keeps Schedule and saved match history available when no future match exists", () => {
   const historyItem = {
     title: "NCC - Portland",

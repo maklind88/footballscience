@@ -9,6 +9,7 @@ import {
 import { createSetPiecesPlaybackController } from "../set-pieces-room/playback-controller.mjs";
 import { renderSetPiecePlaybackFrame, updateSetPiecePlaybackView } from "../set-pieces-room/playback-view.mjs";
 import { renderPresentationSetPieceBoard } from "./presentation-mode-set-pieces.mjs";
+import { copyPresentationSlideToDeck } from "./presentation-slide-transfer.mjs";
 import {
   normalizePresentationLineupAssignments,
   normalizePresentationLineupFormation,
@@ -1634,6 +1635,7 @@ export function createPresentationModeController(dependencies = {}) {
       sessionTheme: session.theme || periodization.mainFocus || "",
       sessionTitle: title,
       trainingTitle,
+      sendDateValue: addDaysToDateValue(dateValue, 1),
       shapeDrawTool: state.shapeDrawTool,
       slideIndex: state.slideIndex,
       slides,
@@ -1991,6 +1993,75 @@ export function createPresentationModeController(dependencies = {}) {
         slideOrder: normalizeSlideOrder([...currentSlideIds.filter((slideId) => slideId !== nextId), nextId]),
       };
     });
+  }
+
+  function getResolvedSlideOrderForDate(deck = {}, dateValue = "") {
+    const session = getSessionForDate(dateValue) || { blocks: [] };
+    const blocks = Array.isArray(session.blocks) ? session.blocks : [];
+    const naturalSlideIds = [
+      "cover",
+      ...deck.infoSlides.map((slide) => slide.id).filter(Boolean),
+      "overview",
+      ...blocks.map((block, index) => block.id || `block-${index + 1}`),
+    ];
+    const naturalSlideIdSet = new Set(naturalSlideIds);
+    const orderedSlideIds = normalizeSlideOrder(deck.slideOrder).filter((slideId) => naturalSlideIdSet.has(slideId));
+    const orderedSlideIdSet = new Set(orderedSlideIds);
+    naturalSlideIds.forEach((slideId) => {
+      if (!orderedSlideIdSet.has(slideId)) {
+        orderedSlideIds.push(slideId);
+      }
+    });
+    return orderedSlideIds;
+  }
+
+  function copyActiveSlideToDate(targetDateValue = "") {
+    const targetDate = normalizeDateValue(targetDateValue, "");
+    const sourceDate = state.dateValue;
+    const meetingType = state.meetingType;
+    const activeSlide = buildModel().slides[state.slideIndex] || null;
+    const sourceSlideId = String(activeSlide?.infoSlide?.id || "").trim();
+    if (!targetDate || targetDate === sourceDate || !sourceSlideId) {
+      return { copiedSlideId: "", dateValue: targetDate, ok: false };
+    }
+
+    const store = readStore();
+    const sourceDeck = getDeckFromStore(store, sourceDate, meetingType);
+    const targetDeck = getDeckFromStore(store, targetDate, meetingType);
+    const timestamp = Date.now();
+    const copied = copyPresentationSlideToDeck({
+      sourceDeck,
+      targetDeck,
+      sourceSlideId,
+      targetDateValue: targetDate,
+      targetSlideOrder: getResolvedSlideOrderForDate(targetDeck, targetDate),
+      timestamp,
+    });
+    if (!copied.copiedSlideId) {
+      return { copiedSlideId: "", dateValue: targetDate, ok: false };
+    }
+
+    writeStore(
+      writeDeckToStore(
+        store,
+        targetDate,
+        normalizeDeck(
+          {
+            ...copied.deck,
+            updatedAt: new Date(timestamp).toISOString(),
+          },
+          targetDate,
+          meetingType
+        ),
+        meetingType
+      )
+    );
+    open(targetDate, meetingType);
+    const copiedSlideIndex = buildModel().slides.findIndex((slide) => slide.id === copied.copiedSlideId);
+    if (copiedSlideIndex >= 0) {
+      goToSlide(copiedSlideIndex);
+    }
+    return { copiedSlideId: copied.copiedSlideId, dateValue: targetDate, ok: true };
   }
 
   function open(dateValue = "", meetingType = "team", options = {}) {
@@ -4448,6 +4519,22 @@ export function createPresentationModeController(dependencies = {}) {
         }
       });
     }
+    const sendSlideButton = event.target.closest("[data-presentation-send-slide]");
+    if (sendSlideButton) {
+      const sendMenu = sendSlideButton.closest?.("[data-presentation-send-slide-menu]");
+      const sendDateInput = sendMenu?.querySelector?.("[data-presentation-send-date]");
+      const targetDate = normalizeDateValue(sendDateInput?.value || "", "");
+      if (!targetDate || targetDate === state.dateValue) {
+        sendDateInput?.setCustomValidity?.(
+          targetDate === state.dateValue ? "Choose a different date." : "Choose a date."
+        );
+        sendDateInput?.reportValidity?.();
+        return;
+      }
+      sendDateInput?.setCustomValidity?.("");
+      copyActiveSlideToDate(targetDate);
+      return;
+    }
     const symbolButton = event.target.closest("[data-presentation-insert-symbol]");
     if (symbolButton) {
       addSymbolTextBox(symbolButton.dataset.presentationInsertSymbol);
@@ -5053,6 +5140,7 @@ export function createPresentationModeController(dependencies = {}) {
     bindInteractions,
     buildModel,
     close,
+    copyActiveSlideToDate,
     getDeckForDate,
     getSetPieceReferenceUsage,
     open,

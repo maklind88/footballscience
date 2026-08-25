@@ -4,6 +4,14 @@ function cleanText(value = "") {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
+function addDaysToDateValue(dateValue = "", dayOffset = 0) {
+  const normalizedDate = cleanText(dateValue);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) return "";
+  const [year, month, day] = normalizedDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + Number(dayOffset || 0)));
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+}
+
 function normalizeMeetingType(value = "") {
   return cleanText(value).toLowerCase() === "technical" ? "technical" : "team";
 }
@@ -17,15 +25,16 @@ function getSelectionStatus(count = 0, expectedCount = 0, hasSelection = false) 
 function getSelectionRoute(lineup = {}, match = {}, target = "starting-xi") {
   const isMatchSquad = target === "match-squad";
   const ownDate = isMatchSquad ? lineup.matchSquadSourceDate : lineup.startingXiSourceDate;
-  const pairedDate = isMatchSquad ? lineup.startingXiSourceDate : lineup.matchSquadSourceDate;
   const ownMeetingType = isMatchSquad
     ? lineup.matchSquadSourceMeetingType
     : lineup.startingXiSourceMeetingType;
   const pairedMeetingType = isMatchSquad
     ? lineup.startingXiSourceMeetingType
     : lineup.matchSquadSourceMeetingType;
+  const matchDate = cleanText(match?.date);
+  const creationDate = isMatchSquad ? matchDate : addDaysToDateValue(matchDate, -1);
   return {
-    dateValue: cleanText(ownDate || pairedDate || match?.date),
+    dateValue: cleanText(ownDate || creationDate),
     meetingType: normalizeMeetingType(ownMeetingType || pairedMeetingType || lineup.sourceMeetingType),
     target,
   };
@@ -195,12 +204,12 @@ export function renderHomeUpcomingLineupCard(context = {}, escapeHtml = String) 
         ? `
           <div class="dashboard-match-gateway-summary">
             <strong>${escapeHtml(lineup.title)}</strong>
-            <span>Prepare the squad and starting lineup in Presentation Mode.</span>
+            <span>Prepare the matchday squad and MD-1 lineup in Presentation Mode.</span>
           </div>
           <nav class="dashboard-match-selection-actions" aria-label="${escapeHtml(`${lineup.title} team selection`)}">
             ${renderSelectionButton({
               label: "Match squad",
-              detail: "Select the players available for matchday",
+              detail: "Select the matchday squad",
               statusLabel: getMatchSquadLabel(lineup),
               status: lineup.matchSquadStatus,
               route: lineup.routes?.matchSquad,
@@ -209,7 +218,7 @@ export function renderHomeUpcomingLineupCard(context = {}, escapeHtml = String) 
             })}
             ${renderSelectionButton({
               label: "Starting XI",
-              detail: lineup.hasStartingXi ? lineup.formationLabel : "Choose the starting formation and players",
+              detail: lineup.hasStartingXi ? `${lineup.formationLabel} · MD-1` : "Prepare the lineup on MD-1",
               statusLabel: getStartingXiLabel(lineup),
               status: lineup.startingXiStatus,
               route: lineup.routes?.startingXi,

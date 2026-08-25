@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   createPresentationModeController,
   createPresentationModeRenderer,
+  copyPresentationSlideToDeck,
   dashboardPresentationStorageKey,
   isReadablePresentationTextColor,
   mergeDashboardPresentationStatePreservingLocalEdits,
@@ -164,6 +165,12 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(controlHtml).toContain("Bullets");
   expect(controlHtml).toContain("data-presentation-delete-slide");
   expect(controlHtml).toContain("Only custom slides can be deleted");
+  expect(controlHtml).not.toContain("data-presentation-send-slide-menu");
+  const sendControlHtml = renderer.renderControlBar({ ...model, slideIndex: 1 });
+  expect(sendControlHtml).toContain("data-presentation-send-slide-menu");
+  expect(sendControlHtml).toContain("data-presentation-send-date");
+  expect(sendControlHtml).toContain("Copy &amp; open");
+  expect(sendControlHtml).toContain(`value="${model.sendDateValue}"`);
   expect(controlHtml).not.toContain("data-presentation-toggle-editor");
   expect(controlHtml).not.toContain(">Edit<");
   expect(controlHtml).not.toContain(model.sessionTitle);
@@ -641,6 +648,48 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   }));
   expect(storage.get(dashboardPresentationStorageKey).decks["2026-06-02"].infoSlides).toEqual([]);
   expect(controller.buildModel().slides.map((slide) => slide.type)).toEqual(["cover", "overview", "block"]);
+});
+
+test("Presentation Mode copies a complete custom slide to another date without changing either deck", () => {
+  const sourceDeck = {
+    infoSlides: [{ id: "source-slide", layout: "starting-xi", title: "Starting XI", formation: "4-3-3", lineup: { gk: "p1" } }],
+    slideStyles: { "source-slide": { theme: "matchday", accentColor: "#22c55e" } },
+    shapes: { "source-slide": [{ id: "shape-1", type: "rect", x: 10, y: 12 }] },
+    textBoxes: { "source-slide": [{ id: "note-1", text: "Press high" }] },
+    textFieldStyles: { "source-slide": { "info.title": { fontSize: 64 } } },
+    textOverrides: { "source-slide": { "info.title": "Final XI" } },
+    textOverrideUpdatedAt: { "source-slide": { "info.title": "2026-08-24T18:00:00.000Z" } },
+  };
+  const targetDeck = {
+    infoSlides: [{ id: "target-info", layout: "bullets", title: "MD-1 notes" }],
+    slideOrder: ["cover", "target-info", "overview"],
+    slideStyles: { "target-info": { theme: "whiteboard" } },
+  };
+  const sourceSnapshot = structuredClone(sourceDeck);
+  const targetSnapshot = structuredClone(targetDeck);
+
+  const result = copyPresentationSlideToDeck({
+    sourceDeck,
+    targetDeck,
+    sourceSlideId: "source-slide",
+    targetDateValue: "2026-08-25",
+    targetSlideOrder: targetDeck.slideOrder,
+    timestamp: 1787594400000,
+  });
+
+  expect(result.copiedSlideId).toBe("info-2026-08-25-starting-xi-1787594400000");
+  expect(sourceDeck).toEqual(sourceSnapshot);
+  expect(targetDeck).toEqual(targetSnapshot);
+  expect(result.deck.infoSlides.map((slide) => slide.id)).toEqual(["target-info", result.copiedSlideId]);
+  expect(result.deck.slideOrder).toEqual(["cover", "target-info", "overview", result.copiedSlideId]);
+  expect(result.deck.infoSlides[1]).toMatchObject({ layout: "starting-xi", title: "Starting XI", formation: "4-3-3" });
+  expect(result.deck.slideStyles["target-info"]).toEqual({ theme: "whiteboard" });
+  expect(result.deck.slideStyles[result.copiedSlideId]).toEqual(sourceDeck.slideStyles["source-slide"]);
+  expect(result.deck.shapes[result.copiedSlideId]).toEqual(sourceDeck.shapes["source-slide"]);
+  expect(result.deck.textBoxes[result.copiedSlideId]).toEqual(sourceDeck.textBoxes["source-slide"]);
+  expect(result.deck.textFieldStyles[result.copiedSlideId]).toEqual(sourceDeck.textFieldStyles["source-slide"]);
+  expect(result.deck.textOverrides[result.copiedSlideId]).toEqual(sourceDeck.textOverrides["source-slide"]);
+  expect(result.deck.textOverrideUpdatedAt[result.copiedSlideId]).toEqual(sourceDeck.textOverrideUpdatedAt["source-slide"]);
 });
 
 test("Presentation Mode renders separate Match Squad and Starting XI custom slides", () => {

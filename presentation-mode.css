@@ -1417,6 +1417,10 @@ body.is-presentation-mode-open {
   scrollbar-width: none;
 }
 
+.presentation-control-edit-slot .presentation-text-toolbar > * {
+  flex: 0 0 auto;
+}
+
 .presentation-control-edit-slot .presentation-text-toolbar::-webkit-scrollbar {
   display: none;
 }
@@ -1511,7 +1515,9 @@ body.is-presentation-mode-open {
 .presentation-keynote-icon.is-style::before,
 .presentation-keynote-icon.is-style::after,
 .presentation-keynote-icon.is-duplicate::before,
-.presentation-keynote-icon.is-duplicate::after {
+.presentation-keynote-icon.is-duplicate::after,
+.presentation-keynote-icon.is-send::before,
+.presentation-keynote-icon.is-send::after {
   content: "";
   position: absolute;
   display: block;
@@ -1609,6 +1615,26 @@ body.is-presentation-mode-open {
   border: 1.5px solid currentColor;
   border-radius: 4px;
   background: rgba(8, 15, 20, .82);
+}
+
+.presentation-keynote-icon.is-send::before {
+  left: .1rem;
+  top: .08rem;
+  width: .82rem;
+  height: .88rem;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  box-shadow: inset 0 .24rem 0 rgba(226, 232, 240, .18);
+}
+
+.presentation-keynote-icon.is-send::after {
+  right: .02rem;
+  bottom: .06rem;
+  width: .54rem;
+  height: .54rem;
+  border-top: 1.7px solid currentColor;
+  border-right: 1.7px solid currentColor;
+  transform: rotate(45deg);
 }
 
 .presentation-keynote-icon.is-image::before,
@@ -1710,6 +1736,65 @@ body.is-presentation-mode-open {
 
 .presentation-tool-popover[data-presentation-style-menu] .presentation-tool-popover-panel {
   width: min(20rem, calc(100vw - 1.4rem));
+}
+
+.presentation-tool-popover[data-presentation-send-slide-menu] .presentation-tool-popover-panel {
+  width: min(18rem, calc(100vw - 1.4rem));
+}
+
+.presentation-send-slide-panel {
+  display: grid;
+  gap: .58rem;
+}
+
+.presentation-send-slide-panel header {
+  display: grid;
+  gap: .12rem;
+}
+
+.presentation-send-slide-panel header strong {
+  color: #f8fafc;
+  font-size: .84rem;
+  font-weight: 920;
+}
+
+.presentation-send-slide-panel header small {
+  color: rgba(203, 213, 225, .68);
+  font-size: .66rem;
+  font-weight: 720;
+  line-height: 1.25;
+}
+
+.presentation-send-slide-panel label {
+  display: grid;
+  gap: .24rem;
+}
+
+.presentation-send-slide-panel label > span {
+  color: rgba(226, 232, 240, .72);
+  font-size: .64rem;
+  font-weight: 820;
+  text-transform: none;
+}
+
+.presentation-send-slide-panel input[type="date"] {
+  width: 100%;
+  color-scheme: dark;
+  font-variant-numeric: tabular-nums;
+}
+
+.presentation-send-slide-panel .presentation-send-slide-action {
+  width: 100%;
+  min-height: 2.42rem;
+  color: #052e1b;
+  border-color: #86efac;
+  background: #86efac;
+}
+
+.presentation-send-slide-panel .presentation-send-slide-action:hover,
+.presentation-send-slide-panel .presentation-send-slide-action:focus-visible {
+  border-color: #bbf7d0;
+  background: #bbf7d0;
 }
 
 .presentation-color-panel {
@@ -4605,6 +4690,33 @@ body.is-presentation-info-media-resizing {
   width: auto;
   display: flex;
   transform: translateX(-50%);
+}
+
+@media (min-width: 1181px) and (max-width: 1420px) {
+  .presentation-control-edit-slot .presentation-text-toolbar {
+    gap: 0;
+    padding-inline: .12rem;
+  }
+
+  .presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool {
+    width: 2.15rem;
+    min-width: 2.15rem;
+    padding-inline: .12rem;
+  }
+
+  .presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool > span:not(.presentation-keynote-icon) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .presentation-control-edit-slot .presentation-toolbar-separator {
+    display: none;
+  }
 }
 
 @media (max-width: 1180px) {

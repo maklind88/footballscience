@@ -3,6 +3,7 @@ import fs from "node:fs";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { withReleaseLock } from "./lib/release-lock.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const canonicalVercelProjectName = "footballscience";
@@ -50,7 +51,7 @@ Options:
   --stage-all              Stage every current change in this worktree.
   --commit, -m TEXT        Commit staged changes with TEXT after validation passes.
   --push                   Push the current branch after validation/commit.
-  --deploy                 fast mode deploys directly to production after push; safe mode uses staging -> production.
+  --deploy                 fast mode fast-forwards origin/main to this SHA, deploys production, then verifies live; safe mode uses staging -> production.
   --mode auto|fast|safe    auto chooses safe for API/data/security/module changes.
   (quick/full are aliases: quick=fast, full=safe)
   fast mode runs the minimum live safety gate, pushes main, deploys Vercel production, and verifies live.
@@ -300,6 +301,29 @@ function syncReleaseBranchWithMain() {
   return true;
 }
 
+function publishFastReleaseToMain() {
+  requireCleanWorkingTree("Fast production deploy");
+  run("git", ["fetch", "origin"]);
+
+  const branch = currentBranch();
+  if (branch !== "main" && !branch.startsWith("codex/")) {
+    throw new Error(`Fast production deploy from a non-main branch requires an isolated codex/* branch, not ${branch}.`);
+  }
+
+  const sha = git(["rev-parse", "HEAD"]);
+  const originMain = git(["rev-parse", "origin/main"]);
+  const mergeBase = git(["merge-base", "origin/main", "HEAD"]);
+  if (mergeBase !== originMain) {
+    throw new Error("Fast production deploy requires HEAD to contain the current origin/main. Rebase first.");
+  }
+
+  run("git", ["push", "origin", "HEAD:main"]);
+  run("git", ["fetch", "origin", "main"]);
+  const publishedMain = git(["rev-parse", "origin/main"]);
+  if (publishedMain !== sha) throw new Error("origin/main did not fast-forward to the release SHA; production deploy stopped.");
+  console.log(`- main: fast-forwarded to ${sha.slice(0, 12)}`);
+}
+
 function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
@@ -384,18 +408,7 @@ function deployDirectProduction() {
   run("npm", ["run", "release:postdeploy"]);
 }
 
-async function main() {
-  const args = process.argv.slice(2);
-  const options = parseArgs(args);
-  if (options.help) {
-    printHelp();
-    return;
-  }
-  if (!args.length) {
-    printHelp();
-    return;
-  }
-
+async function runRelease(options) {
   console.log("Safe Ship release automation");
   console.log(`- root: ${rootDir}`);
 
@@ -439,6 +452,7 @@ async function main() {
     verifyVercelReleaseTraffic();
     verifyStagingLiveIsolation();
     if (mode === "fast") {
+      publishFastReleaseToMain();
       deployDirectProduction();
     } else {
       deployThroughGithub(options);
@@ -450,6 +464,26 @@ async function main() {
   console.log(`- commit: ${options.commitMessage ? git(["rev-parse", "--short", "HEAD"]) : "not requested"}`);
   console.log(`- push: ${options.push ? "done" : "not requested"}`);
   console.log(`- deploy: ${options.deploy ? "done" : "not requested"}`);
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const options = parseArgs(args);
+  if (options.help) {
+    printHelp();
+    return;
+  }
+  if (!args.length) {
+    printHelp();
+    return;
+  }
+
+  if (options.deploy) {
+    await withReleaseLock({ rootDir, command: ["node", "scripts/release-ship.mjs", ...args].join(" ") }, () => runRelease(options));
+    return;
+  }
+
+  await runRelease(options);
 }
 
 main().catch((error) => {

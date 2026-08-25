@@ -30,8 +30,9 @@ function listRuns(workflow) {
 }
 
 if (process.env.RELEASE_SKIP_TRAFFIC_GUARD === "1") {
-  console.log("Vercel release traffic guard: skipped by RELEASE_SKIP_TRAFFIC_GUARD=1");
-  process.exit(0);
+  console.error("Vercel release traffic guard: RELEASE_SKIP_TRAFFIC_GUARD=1 is not allowed for normal releases.");
+  console.error("- Use the machine-wide release lock and traffic guard, or create a reviewed emergency procedure.");
+  process.exit(1);
 }
 
 const activeRuns = [];

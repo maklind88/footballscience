@@ -107,6 +107,22 @@ requireText("scripts/release-ship.mjs", "requireCanonicalVercelProjectLink", "fa
 requireText("scripts/release-ship.mjs", "footballscience", "fast deploys must target the canonical Vercel project");
 requireText("scripts/release-auto.mjs", "requireCanonicalVercelProjectLink", "legacy deploys must fail closed when a worktree is linked to the wrong Vercel project");
 requireText("scripts/release-auto.mjs", "release:staging-isolation:repair", "legacy deploys must repair staging/live alias drift after direct production deploys");
+requireText("scripts/lib/release-lock.mjs", "footballscience-release-lock-v1", "local release tooling must use a stable machine-wide lock schema");
+requireText("scripts/lib/release-lock.mjs", "fs.mkdirSync(lockDir", "release lock acquisition must be atomic across worktrees");
+requireText("scripts/lib/release-lock.mjs", "isProcessAlive", "release lock stale handling must only remove locks owned by dead processes");
+requireText("scripts/release-ship.mjs", "withReleaseLock", "deploy commands must hold the machine-wide release lock before validation and through postdeploy");
+requireText("scripts/release-ship.mjs", "publishFastReleaseToMain", "fast deploys must publish the exact release SHA to origin/main before production deploy");
+requireText("scripts/release-ship.mjs", "origin/main did not fast-forward to the release SHA", "fast deploys must fail if main does not match the deployed SHA");
+requireText("scripts/quick-ui-deploy.mjs", "withReleaseLock", "Fast UI deploy must hold the machine-wide release lock");
+requireText("scripts/quick-ui-deploy.mjs", "branchName.startsWith(\"codex/\")", "Fast UI deploy must support isolated codex/* release branches");
+requireText("scripts/quick-ui-deploy.mjs", "origin/main did not fast-forward to the exact release SHA", "Fast UI deploy must fail if production would diverge from main");
+requireText("scripts/release-auto.mjs", "withReleaseLock", "legacy production deploys must not bypass the machine-wide release lock");
+requireText("scripts/verify-vercel-release-traffic.mjs", "RELEASE_SKIP_TRAFFIC_GUARD=1 is not allowed", "traffic guard skip must fail closed unless a reviewed emergency flow exists");
+forbidText("scripts/verify-vercel-release-traffic.mjs", "skipped by RELEASE_SKIP_TRAFFIC_GUARD=1", "traffic guard must not silently skip normal release protection");
+for (const workflow of [".github/workflows/staging-deploy.yml", ".github/workflows/production-deploy.yml", ".github/workflows/production-rollback.yml"]) {
+  requireText(workflow, "group: footballscience-production-edge-release", "staging, production, and rollback must share one release concurrency group");
+  requireText(workflow, "cancel-in-progress: false", "release workflows must wait instead of cancelling an active valid release");
+}
 requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verification: ok", "incident alerting must stay testable");
 requireText("scripts/platform-identity-backfill.mjs", "BACKFILL_PLATFORM_IDENTITY", "platform identity backfill must require explicit apply confirmation");
 requireText("scripts/platform-identity-backfill.mjs", "--expected-plan-sha256", "platform identity apply must require a reviewed deterministic plan");
@@ -177,6 +193,49 @@ requireText(".github/workflows/production-rollback.yml", "vars.LIVE_QA_REQUIRE_P
 requireText(".github/workflows/production-rollback.yml", "npm run release:postdeploy", "rollback must verify the live domain");
 requireText(".github/workflows/production-rollback.yml", "npm run qa:live:required", "rollback must run authenticated live smoke");
 requireText(".github/workflows/production-rollback.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "rollback verification must prove the live QA account still has admin access");
+
+
+function verifyDistributedSpecialistGovernance() {
+  const activeGovernanceFiles = [
+    "AGENTS.md",
+    "docs/AI_HANDOFF.md",
+    "docs/LIVE_FIRST_WORKFLOW.md",
+    "docs/DEPLOYMENT.md",
+    "docs/CURRENT_OPERATING_PLAN.md",
+    "docs/CODEX_TEAM_ROSTER.md",
+  ];
+  const oldDeployOnlyText = "Deploy only when I say";
+  const centralOwnerPhrases = [
+    "must request a release slot",
+    "requires a release slot",
+    "must wait for central deploy approval",
+  ];
+
+  for (const file of activeGovernanceFiles) {
+    forbidText(file, oldDeployOnlyText, "governance must not require explicit Deploy wording when clear live product intent exists");
+    for (const phrase of centralOwnerPhrases) {
+      forbidText(file, phrase, "governance must not reintroduce a central deploy owner or routine release-slot bottleneck");
+    }
+  }
+
+  const starterDir = path.join(rootDir, "docs", "chat-starters");
+  const starterFiles = fs.existsSync(starterDir)
+    ? fs.readdirSync(starterDir).filter((name) => name.endsWith(".md")).map((name) => path.join("docs", "chat-starters", name))
+    : [];
+  for (const file of starterFiles) {
+    const content = read(file);
+    for (const phrase of centralOwnerPhrases) {
+      if (content.includes(phrase)) {
+        failures.push(`${file} must not contain ${JSON.stringify(phrase)} (chat starters must not reintroduce central release ownership).`);
+      }
+    }
+    if (content.includes("Release Ownership Agreement") && content.includes(oldDeployOnlyText)) {
+      failures.push(`${file} must not contain ${JSON.stringify(oldDeployOnlyText)} after adopting the Release Ownership Agreement.`);
+    }
+  }
+}
+
+verifyDistributedSpecialistGovernance();
 
 if (failures.length) {
   console.error("Release rules verification failed:");

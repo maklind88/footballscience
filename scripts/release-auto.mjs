@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { withReleaseLock } from "./lib/release-lock.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const canonicalVercelProjectName = "footballscience";
@@ -179,13 +180,7 @@ function requireCanonicalVercelProjectLink() {
   console.log(`- vercel project: ${projectName}`);
 }
 
-async function main() {
-  const options = parseArgs(process.argv.slice(2));
-  if (options.help) {
-    printHelp();
-    return;
-  }
-
+async function runRelease(options) {
   console.log("Stable release automation");
   console.log(`- root: ${rootDir}`);
 
@@ -230,6 +225,22 @@ async function main() {
   if (!options.commitMessage && !options.push && !options.deploy) {
     printHelp();
   }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const options = parseArgs(args);
+  if (options.help) {
+    printHelp();
+    return;
+  }
+
+  if (options.deploy) {
+    await withReleaseLock({ rootDir, command: ["node", "scripts/release-auto.mjs", ...args].join(" ") }, () => runRelease(options));
+    return;
+  }
+
+  await runRelease(options);
 }
 
 main().catch((error) => {

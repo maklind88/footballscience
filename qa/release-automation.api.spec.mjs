@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { acquireReleaseLock, readReleaseLockOwner, releaseReleaseLock } from "../scripts/lib/release-lock.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -65,4 +68,135 @@ test("release automation keeps staging and live environments isolated", () => {
   expect(quickDeploy).toContain("release:staging-isolation:repair");
   expect(productionDeployWorkflow).toContain("npm run release:staging-isolation:repair");
   expect(rollbackWorkflow).toContain("npm run release:staging-isolation:repair");
+});
+
+
+function makeTempDir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function waitForExit(child) {
+  return new Promise((resolve, reject) => {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`child exited with ${code}: ${stderr}`));
+    });
+  });
+}
+
+test("machine release lock is atomic, token-scoped, and stale-aware", () => {
+  const tempDir = makeTempDir("footballscience-release-lock-unit-");
+  const lockDir = path.join(tempDir, "release.lock");
+
+  try {
+    const lock = acquireReleaseLock({ lockDir, wait: false, rootDir, branch: "codex/test", sha: "abc123", command: "unit release" });
+    expect(readReleaseLockOwner(lockDir)).toMatchObject({
+      schema: "footballscience-release-lock-v1",
+      pid: process.pid,
+      worktree: rootDir,
+      branch: "codex/test",
+      sha: "abc123",
+      command: "unit release",
+    });
+    expect(() => acquireReleaseLock({ lockDir, wait: false, rootDir })).toThrow(/Another release is already active/);
+    expect(releaseReleaseLock({ lockDir, token: "wrong-token" })).toBe(false);
+    expect(fs.existsSync(lockDir)).toBe(true);
+    lock.release();
+    expect(fs.existsSync(lockDir)).toBe(false);
+
+    fs.mkdirSync(lockDir);
+    fs.writeFileSync(
+      path.join(lockDir, "owner.json"),
+      `${JSON.stringify({
+        schema: "footballscience-release-lock-v1",
+        token: "stale-token",
+        pid: 999_999_999,
+        acquiredAt: "2026-01-01T00:00:00.000Z",
+        worktree: rootDir,
+        branch: "main",
+        sha: "deadbeef",
+        command: "stale release",
+      })}\n`,
+    );
+    const replacement = acquireReleaseLock({ lockDir, wait: false, rootDir, branch: "codex/replacement", sha: "def456" });
+    expect(readReleaseLockOwner(lockDir)).toMatchObject({ branch: "codex/replacement", sha: "def456" });
+    replacement.release();
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("machine release lock makes a second process wait until the owner exits", async () => {
+  const tempDir = makeTempDir("footballscience-release-lock-process-");
+  const lockDir = path.join(tempDir, "release.lock");
+  const readyFile = path.join(tempDir, "child-ready.txt");
+  const moduleUrl = pathToFileURL(path.join(rootDir, "scripts/lib/release-lock.mjs")).href;
+
+  const parent = acquireReleaseLock({ lockDir, wait: false, rootDir, branch: "codex/parent", sha: "parent" });
+  try {
+    const childSource = `
+      import fs from "node:fs";
+      import { acquireReleaseLock } from ${JSON.stringify(moduleUrl)};
+      const lock = acquireReleaseLock({ lockDir: process.env.TEST_LOCK_DIR, wait: true, pollMs: 25, statusMs: 10_000, timeoutMs: 3_000, rootDir: process.cwd(), branch: "codex/child", sha: "child", command: "child release" });
+      fs.writeFileSync(process.env.TEST_READY_FILE, "ready");
+      lock.release();
+    `;
+    const child = spawn(process.execPath, ["--input-type=module", "-e", childSource], {
+      cwd: rootDir,
+      env: { ...process.env, TEST_LOCK_DIR: lockDir, TEST_READY_FILE: readyFile },
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(fs.existsSync(readyFile)).toBe(false);
+    parent.release();
+    await waitForExit(child);
+    expect(fs.readFileSync(readyFile, "utf8")).toBe("ready");
+  } finally {
+    parent.release();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("release deploy paths use the lock and publish the exact SHA to main before production", () => {
+  const shipSource = readProjectFile("scripts/release-ship.mjs");
+  const quickDeploy = readProjectFile("scripts/quick-ui-deploy.mjs");
+  const releaseAuto = readProjectFile("scripts/release-auto.mjs");
+  const trafficGuard = readProjectFile("scripts/verify-vercel-release-traffic.mjs");
+  const stagingWorkflow = readProjectFile(".github/workflows/staging-deploy.yml");
+  const productionWorkflow = readProjectFile(".github/workflows/production-deploy.yml");
+  const rollbackWorkflow = readProjectFile(".github/workflows/production-rollback.yml");
+
+  expect(shipSource).toContain("withReleaseLock");
+  expect(shipSource).toContain("publishFastReleaseToMain");
+  expect(shipSource).toContain('"merge-base"');
+  expect(shipSource).toContain('"HEAD:main"');
+  expect(shipSource).toContain("origin/main did not fast-forward to the release SHA");
+  expect(quickDeploy).toContain("withReleaseLock");
+  expect(quickDeploy).toContain('branchName.startsWith("codex/")');
+  expect(quickDeploy).toContain('"HEAD:main"');
+  expect(quickDeploy).toContain("origin/main did not fast-forward to the exact release SHA");
+  expect(releaseAuto).toContain("withReleaseLock");
+  expect(trafficGuard).toContain("RELEASE_SKIP_TRAFFIC_GUARD=1 is not allowed");
+  expect(trafficGuard).not.toContain("skipped by RELEASE_SKIP_TRAFFIC_GUARD=1");
+
+  for (const workflow of [stagingWorkflow, productionWorkflow, rollbackWorkflow]) {
+    expect(workflow).toContain("group: footballscience-production-edge-release");
+    expect(workflow).toContain("cancel-in-progress: false");
+  }
+});
+
+test("release rules contain distributed governance regression guards", () => {
+  const releaseRules = readProjectFile("scripts/verify-release-rules.mjs");
+
+  expect(releaseRules).toContain("verifyDistributedSpecialistGovernance");
+  expect(releaseRules).toContain("Deploy only when I say");
+  expect(releaseRules).toContain("must request a release slot");
+  expect(releaseRules).toContain("must wait for central deploy approval");
+  expect(releaseRules).toContain("Release Ownership Agreement");
 });

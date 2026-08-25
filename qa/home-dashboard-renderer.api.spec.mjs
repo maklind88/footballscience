@@ -380,6 +380,8 @@ test("home dashboard renderer avoids an empty work queue wrapper for presentatio
   const rendered = renderer.render(context, "", appearance);
 
   expect(rendered).toContain('class="dashboard-presentation-band"');
+  expect(rendered).toContain('data-dashboard-presentation-stack="team"');
+  expect(rendered).toContain('data-dashboard-presentation-stack="technical"');
   expect(rendered).toContain('data-dashboard-presentation-type="team"');
   expect(rendered).toContain('data-dashboard-presentation-type="technical"');
   expect(rendered).toContain('id="dashboardSchedulePreview"');

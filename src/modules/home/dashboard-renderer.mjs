@@ -145,20 +145,22 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
         ${cards
           .map(
             (card, index) => `
-        <article class="dashboard-panel dashboard-presentation-card is-${escapeHtml(card.type)}" data-dashboard-presentation-card data-dashboard-presentation-type="${escapeHtml(card.type)}">
-          <div class="dashboard-presentation-visual" aria-hidden="true">
-            <svg viewBox="0 0 24 24">${card.icon}</svg>
-          </div>
-          <div class="dashboard-presentation-copy">
-            <p class="dashboard-card-kicker">Presentation Mode</p>
-            <h2>${escapeHtml(card.title)}</h2>
-          </div>
-          <div class="dashboard-presentation-action">
-            <button type="button" data-dashboard-open-presentation>Open</button>
-          </div>
-        </article>
-        ${index === 0 ? birthdayStripMarkup : ""}
-        ${index === 1 ? upcomingLineupMarkup : ""}
+        <div class="dashboard-presentation-stack is-${escapeHtml(card.type)}" data-dashboard-presentation-stack="${escapeHtml(card.type)}">
+          <article class="dashboard-panel dashboard-presentation-card is-${escapeHtml(card.type)}" data-dashboard-presentation-card data-dashboard-presentation-type="${escapeHtml(card.type)}">
+            <div class="dashboard-presentation-visual" aria-hidden="true">
+              <svg viewBox="0 0 24 24">${card.icon}</svg>
+            </div>
+            <div class="dashboard-presentation-copy">
+              <p class="dashboard-card-kicker">Presentation Mode</p>
+              <h2>${escapeHtml(card.title)}</h2>
+            </div>
+            <div class="dashboard-presentation-action">
+              <button type="button" data-dashboard-open-presentation>Open</button>
+            </div>
+          </article>
+          ${index === 0 ? birthdayStripMarkup : ""}
+          ${index === 1 ? upcomingLineupMarkup : ""}
+        </div>
             `
           )
           .join("")}

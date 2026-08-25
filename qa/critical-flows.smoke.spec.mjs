@@ -3018,7 +3018,7 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-dashboard-birthday-modal]")).toHaveCount(0);
   const layoutBoxes = await presentationBand
-    .locator(":scope > .dashboard-presentation-card, :scope > .dashboard-upcoming-lineup-card, :scope > .dashboard-schedule-preview")
+    .locator(":scope > .dashboard-presentation-stack > .dashboard-presentation-card, :scope > .dashboard-presentation-stack > .dashboard-upcoming-lineup-card, :scope > .dashboard-schedule-preview")
     .evaluateAll((columns) =>
       columns.map((column) => {
         const rect = column.getBoundingClientRect();
@@ -3040,6 +3040,13 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   expect(teamMeeting.width).toBeLessThan(calendarBox.width * 1.45);
   expect(calendarBox.width).toBeGreaterThan(320);
   expect(calendarBox.width).toBeLessThanOrEqual(352);
+  const stableHomeCardLocator = presentationBand.locator(
+    ".dashboard-presentation-stack > .dashboard-presentation-card, .dashboard-presentation-stack > .dashboard-birthday-strip .dashboard-birthday-card, .dashboard-presentation-stack > .dashboard-upcoming-lineup-card"
+  );
+  const stableHomeCardHeightsBefore = await stableHomeCardLocator.evaluateAll((cards) =>
+    cards.map((card) => card.getBoundingClientRect().height)
+  );
+  expect(stableHomeCardHeightsBefore).toHaveLength(4);
   const meetingTitleBoxes = await presentationBand
     .locator(".dashboard-presentation-copy h2")
     .evaluateAll((titles) =>
@@ -3118,6 +3125,17 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await calendar.locator("[data-dashboard-schedule-today]").click();
   await expect(calendar.locator("h2")).toHaveText("May");
   await expect(calendar.locator("#dashboardScheduleDayTitle")).toHaveText("Saturday 9 May");
+  const expandedCalendarHeight = await calendar.evaluate((element) => element.getBoundingClientRect().height);
+  const stableHomeCardHeightsAfter = await stableHomeCardLocator.evaluateAll((cards) =>
+    cards.map((card) => card.getBoundingClientRect().height)
+  );
+  expect(expandedCalendarHeight).toBeGreaterThan(calendarBox.height + 60);
+  stableHomeCardHeightsAfter.forEach((height, index) => {
+    expect(Math.abs(height - stableHomeCardHeightsBefore[index])).toBeLessThanOrEqual(1.5);
+  });
+  await expect
+    .poll(() => calendar.locator(".dashboard-schedule-day-panel").evaluate((panel) => window.getComputedStyle(panel).opacity))
+    .toBe("1");
 
   await calendar.locator('[data-dashboard-select-schedule-date="2026-05-16"]').click();
   await expect(page.locator('[data-workspace-view="home"].is-active')).toBeVisible();
@@ -3179,6 +3197,7 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await expect(presentation.locator(".presentation-lineup-layout")).toBeVisible();
   await expect(presentation).toContainText("Starting XI vs NCC - Orlando");
   await presentation.getByRole("button", { name: "Close presentation" }).click();
+  await homeLineupPanel.locator(".dashboard-match-history summary").click();
 
   await homeLineupPanel
     .locator('.dashboard-match-selection-actions [data-match-selection-target="starting-xi"]')

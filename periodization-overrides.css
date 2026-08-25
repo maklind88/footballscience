@@ -23,24 +23,34 @@
 }
 
 .periodization-view-load .periodization-load-meter.is-large {
-  width: 100%;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.5rem;
+  width: min(100%, 12rem);
+  min-height: 3.6rem;
+  justify-self: center;
+  justify-content: center;
+  grid-template-columns: auto minmax(0, auto);
+  gap: 0.68rem;
+  align-items: center;
 }
 
 .periodization-view-load .periodization-load-meter.is-large .periodization-load-gauge {
-  width: 3.65rem;
-  height: 2rem;
+  width: clamp(4.8rem, 6vw, 5.35rem);
+  height: clamp(2.58rem, 3.05vw, 2.88rem);
 }
 
 .periodization-view-load .periodization-load-meter.is-large .periodization-load-needle {
-  height: 1.52rem;
+  height: clamp(2rem, 2.35vw, 2.25rem);
+}
+
+.periodization-view-load .periodization-load-meter.is-large .periodization-load-pin {
+  width: 0.62rem;
+  height: 0.62rem;
+  bottom: -0.19rem;
 }
 
 .periodization-view-load .periodization-load-meter.is-large .periodization-load-label {
   min-width: 0;
   color: var(--ink);
-  font-size: 0.92rem;
+  font-size: 0.98rem;
   line-height: 1.05;
   letter-spacing: 0;
   text-transform: none;
@@ -49,14 +59,26 @@
 
 .periodization-view-pitch strong {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.5rem;
-  font-size: 1.1rem;
+  width: min(100%, 12rem);
+  min-height: 3.6rem;
+  justify-self: center;
+  justify-content: center;
+  align-items: center;
+  grid-template-columns: auto minmax(0, auto);
+  gap: 0.68rem;
+  font-size: 1.12rem;
   line-height: 1.08;
 }
 
 .periodization-view-pitch .periodization-pitch-icon {
-  flex: 0 0 auto;
+  width: clamp(4.9rem, 6vw, 5.45rem);
+  height: clamp(2.9rem, 3.45vw, 3.2rem);
+  flex: 0 0 clamp(4.9rem, 6vw, 5.45rem);
+}
+
+.periodization-view-pitch .periodization-pitch-icon::after {
+  width: 1rem;
+  height: 1rem;
 }
 
 .periodization-view-microcycle {

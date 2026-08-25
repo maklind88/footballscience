@@ -4371,13 +4371,23 @@ test("Medical workspace uses responsive width without clipping recommendations",
     const view = document.querySelector(".platform-medical-view");
     const shell = document.querySelector("#medicalTeamWorkspace .medical-shell");
     const rosterPanel = document.querySelector("#medicalTeamWorkspace .medical-roster-panel");
-    if (!view || !shell || !rosterPanel) return null;
+    const dateStrip = document.querySelector("#medicalTeamWorkspace .medical-date-strip");
+    if (!view || !shell || !rosterPanel || !dateStrip) return null;
     const viewRect = view.getBoundingClientRect();
     const shellRect = shell.getBoundingClientRect();
     const panelRect = rosterPanel.getBoundingClientRect();
     const quickRows = Array.from(document.querySelectorAll("#medicalTeamWorkspace .medical-quick-rec-row"));
     return {
       balancedMargins: Math.abs(shellRect.left - viewRect.left - (viewRect.right - shellRect.right)) <= 2,
+      dateControlOrder: Array.from(dateStrip.children)
+        .slice(0, 4)
+        .map((element) => {
+          if (element.matches("[data-medical-date-picker]")) return "date";
+          if (element.matches('[data-medical-shift-date="-1"]')) return "previous";
+          if (element.matches("[data-medical-today]")) return "today";
+          if (element.matches('[data-medical-shift-date="1"]')) return "next";
+          return "unknown";
+        }),
       hasRecommendationRows: quickRows.length > 0,
       noPageOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
       quickRowsFit: quickRows.every((row) => {
@@ -4390,11 +4400,18 @@ test("Medical workspace uses responsive width without clipping recommendations",
   });
   expect(medicalLayout).toMatchObject({
     balancedMargins: true,
+    dateControlOrder: ["date", "previous", "today", "next"],
     hasRecommendationRows: true,
     noPageOverflow: true,
     quickRowsFit: true,
   });
   expect(medicalLayout?.widthRatio).toBeGreaterThan((medicalLayout?.viewportWidth || 0) <= 760 ? 0.92 : 0.96);
+
+  const medicalDatePicker = page.locator("[data-medical-date-picker]");
+  await page.locator('[data-medical-shift-date="-1"]').click();
+  await expect(medicalDatePicker).toHaveValue("2026-05-15");
+  await page.locator('[data-medical-shift-date="1"]').click();
+  await expect(medicalDatePicker).toHaveValue("2026-05-16");
 });
 
 test("Medical recommendation edits persist after refresh", async ({ page }) => {

@@ -47,8 +47,8 @@ export function createMedicalRosterRenderer({
     const todayValue = formatScheduleDateValue(new Date());
     return `
 <section class="medical-date-strip" aria-label="Medical recommendation dates">
-<button type="button" class="medical-icon-button" data-medical-shift-date="-1" aria-label="Previous day">&larr;</button>
 <input type="date" value="${escapeHtml(selectedDate)}" data-medical-date-picker aria-label="Selected medical date" />
+<button type="button" class="medical-icon-button" data-medical-shift-date="-1" aria-label="Previous day">&larr;</button>
 <button type="button" class="medical-today-button" data-medical-today>Today</button>
 <button type="button" class="medical-icon-button" data-medical-shift-date="1" aria-label="Next day">&rarr;</button>
 <div class="medical-window-days">

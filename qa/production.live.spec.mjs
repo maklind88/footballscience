@@ -465,6 +465,25 @@ async function removeScheduleEventIfPresent(page, title) {
   await expect(page.locator("#schedulePlannerGrid")).not.toContainText(title);
 }
 
+async function findEmptySchedulePlannerDay(page, maxWindowShifts = 24) {
+  for (let attempt = 0; attempt <= maxWindowShifts; attempt += 1) {
+    const emptyDay = page.locator(".schedule-planner-day:not(.has-events)").first();
+    if ((await emptyDay.count()) > 0) {
+      return emptyDay;
+    }
+
+    const firstVisibleDate = await page.locator(".schedule-planner-day").first().getAttribute("data-schedule-date");
+    await page.locator("#scheduleNextMonthButton").click();
+    await expect
+      .poll(() => page.locator(".schedule-planner-day").first().getAttribute("data-schedule-date"), {
+        timeout: 15_000,
+      })
+      .not.toBe(firstVisibleDate);
+  }
+
+  throw new Error(`No empty schedule day was found after ${maxWindowShifts} planner window shifts.`);
+}
+
 test("production admin account can open Access & Users", async ({ page }) => {
   test.skip(!expectsAdminCredentials, "This live smoke account is not expected to have admin access.");
 
@@ -721,7 +740,7 @@ test("production test account can save and reload a schedule record", async ({ p
   try {
     await openWorkspace(page, "schedule");
     await page.locator("#scheduleTodayButton").click();
-    const targetDay = page.locator(".schedule-planner-day:not(.has-events)").first();
+    const targetDay = await findEmptySchedulePlannerDay(page);
     const targetDate = await targetDay.getAttribute("data-schedule-date");
     expect(targetDate).toBeTruthy();
     await targetDay.dblclick();

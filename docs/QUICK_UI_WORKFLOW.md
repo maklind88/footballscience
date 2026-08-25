@@ -1,6 +1,6 @@
 # Quick UI Workflow
 
-Current operating model: `distributed-specialist-v3` (2026-08-24).
+Current operating model: `distributed-specialist-v4` (2026-08-25).
 
 This workflow exists so small visible changes can move quickly while Football Science is under heavy development.
 
@@ -51,7 +51,7 @@ There is no permanent central Live/deploy owner. The specialist chat that owns t
 
 Product intent and cross-chat delegations do not activate `npm run deploy`, `npm run deploy:ui`, staging, main integration, or production release work.
 
-Only one full release command should run at a time. `npm run deploy`, `npm run deploy:ui`, and `npm run deploy:safe` must acquire the shared Football Science release lock before validation and hold it through production verification. A second specialist waits automatically with visible owner/status information. Targeted development checks can still run in parallel in isolated worktrees.
+The owning chat runs `npm run deploy`, `npm run deploy:ui`, or `npm run deploy:safe` directly after the user's command. There is no local cross-chat lock or manual slot; exact-SHA Git guards and GitHub's shared production-edge queue protect publication while targeted development checks continue in isolated worktrees.
 
 ## Marked Live Changes
 

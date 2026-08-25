@@ -1,6 +1,6 @@
 # Working Agreement
 
-Operating model version: `distributed-specialist-v3` (2026-08-24). `AGENTS.md` and `docs/CURRENT_OPERATING_PLAN.md` are the canonical governance sources if older historical wording conflicts.
+Operating model version: `distributed-specialist-v4` (2026-08-25). `AGENTS.md` and `docs/CURRENT_OPERATING_PLAN.md` are the canonical governance sources if older historical wording conflicts.
 
 ## Current Deploy Agreement
 
@@ -48,7 +48,7 @@ This section follows User-Controlled Release Authorization in `AGENTS.md` and ov
 - Avoid two chats editing or deploying the same module at the same time.
 - If parallel work exists, use branches or worktrees and do not deploy a bundle that accidentally includes another chat's unfinished changes.
 - If production deploy would include unrelated work, stop and explain the coordination needed instead of forcing the deploy.
-- Full release commands use the shared Football Science release lock. A second release waits automatically; targeted development checks may continue in isolated worktrees.
+- Each owning chat runs its own release command after the user's direct instruction. Exact-SHA guards and GitHub's automatic production-edge queue protect publication; targeted development checks may continue in isolated worktrees.
 
 ## What Good Looks Like
 

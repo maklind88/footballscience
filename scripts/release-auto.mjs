@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { withReleaseLock } from "./lib/release-lock.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const canonicalVercelProjectName = "footballscience";
@@ -236,8 +235,7 @@ async function main() {
   }
 
   if (options.deploy) {
-    await withReleaseLock({ rootDir, command: ["node", "scripts/release-auto.mjs", ...args].join(" ") }, () => runRelease(options));
-    return;
+    throw new Error("release:auto no longer deploys. Use npm run deploy or npm run deploy:safe so exact-SHA and GitHub release guards apply.");
   }
 
   await runRelease(options);

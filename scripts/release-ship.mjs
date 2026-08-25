@@ -3,7 +3,6 @@ import fs from "node:fs";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { withReleaseLock } from "./lib/release-lock.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const canonicalVercelProjectName = "footballscience";
@@ -475,11 +474,6 @@ async function main() {
   }
   if (!args.length) {
     printHelp();
-    return;
-  }
-
-  if (options.deploy) {
-    await withReleaseLock({ rootDir, command: ["node", "scripts/release-ship.mjs", ...args].join(" ") }, () => runRelease(options));
     return;
   }
 

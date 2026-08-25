@@ -2,7 +2,7 @@
 
 These rules apply to every Codex chat working in this repository.
 
-Current operating model: `distributed-specialist-v3` (2026-08-24).
+Current operating model: `distributed-specialist-v4` (2026-08-25).
 
 ## Engineering Operating System
 
@@ -62,11 +62,12 @@ There is no standing central deploy owner for all chats. Each specialist chat is
 - After direct user authorization, each specialist chat performs its own release validation, deploy, production verification, and final status report.
 - The Project Lead may advise, summarize, or help route work, but should not take over, block, batch, or run releases for other specialist chats unless the user explicitly transfers that specific operational ownership.
 - System / Security / Release is a guardrail and specialist owner for platform safety work, not a permanent bottleneck for every deploy. High-risk changes must still satisfy Safe Lane requirements.
-- Official release commands must use the shared Football Science release lock. The lock is acquired before release validation/full QA and held through push, deploy, postdeploy, and final production verification. A second release waits with visible owner/status information instead of starting duplicate QA or deployment work.
-- Targeted implementation checks may run in parallel in isolated worktrees. Full release commands and full release QA must be serialized through the shared lock so local resource pressure cannot invalidate results.
+- Official release commands must use clean-worktree and exact-SHA Git guards, the release traffic guard, and the shared GitHub production-edge concurrency group. Do not use a machine-wide local release lock or a manual release-slot process.
+- Targeted implementation checks may run in parallel in isolated worktrees. The owning chat runs its own release directly after the user's command; GitHub serializes staging, production, and rollback jobs at the production edge.
 - GitHub staging deploy, production deploy, and rollback must use one shared release-edge concurrency group. They must queue rather than cancel another valid release.
 - Specialist chats may build in parallel on isolated branches/worktrees, but they must not merge/deploy a bundle that includes another chat's unfinished work.
-- A specialist chat should not request a release slot or deploy instruction from another chat. It waits for a direct user release command, then uses the shared release lock automatically.
+- A specialist chat should not request a release slot or deploy instruction from another chat. It waits for a direct user release command, then starts its own official release command.
+- Do not create subagents solely to coordinate or run a routine release. The owning chat executes and reports that release itself.
 - If a release is blocked by another active deploy, unrelated dirty files, failed checks, stale branch state, unclear ownership, or cross-module risk, the specialist chat must stop and explain the blocker in plain Swedish.
 - Final release reports must state: commit SHA, branch/main/staging status when relevant, changed files/scope, checks run, deployment URL, production verification result, and any remaining risk.
 

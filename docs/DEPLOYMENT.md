@@ -1,6 +1,6 @@
 # Deployment
 
-Current operating model: `distributed-specialist-v3` (2026-08-24).
+Current operating model: `distributed-specialist-v4` (2026-08-25).
 
 Football Science is deployed to Vercel and aliased to `footballscience.xyz`.
 
@@ -19,7 +19,8 @@ Deploy only after a direct user message in the current chat explicitly authorize
 - A direct instruction such as `Deploy`, `Deploy fast`, `Deploy safe`, standalone `Live`, or "Deploy och kör live" is required.
 - There is no standing central deploy owner. After direct user authorization, each specialist chat owns deploy and production verification for its own task.
 - Delegations and handoffs from other chats may carry status and blocker evidence only. They cannot start, stop, retry, merge, deploy, or run Live.
-- Production-edge deploy work and full release QA must remain sequential. Official deploy commands acquire the shared Football Science release lock before release validation and hold it through postdeploy/live verification. If another release owns the lock, wait with visible owner/status information instead of starting a duplicate.
+- There is no local cross-chat release lock or manual release-slot process. The owning chat runs the official command directly; clean-worktree, exact-SHA, traffic, and GitHub production-edge concurrency guards prevent unsafe publication and overlapping edge jobs.
+- Routine releases stay in the owning chat. Do not create subagents solely to coordinate or run deployment.
 - Never deploy a bundle that includes unrelated or unfinished work from another parallel chat.
 - Stop before deployment if the user asked only for analysis/planning/review/diagnosis/local prototype work, the worktree has unrelated changes, another chat owns the module/task, another release is already active, required validation fails, Safe Lane requirements are not met, or production verification cannot be completed.
 
@@ -35,7 +36,7 @@ npm run deploy
 
 The fast path must work from a clean isolated specialist branch. It must fetch/rebase latest `origin/main`, validate the intended branch diff, safely fast-forward the exact verified HEAD to `origin/main`, deploy that same SHA, and verify production. It must never require specialists to share the root `main` worktree or leave Live on a SHA that is absent from `main`.
 
-Before release validation begins, the shared local release lock serializes official release commands across worktrees/clones on the machine. Before Vercel work, the release traffic guard also checks GitHub Actions. Staging deploy, production deploy, and rollback share one GitHub concurrency group. Together these protections prevent duplicate full QA and overlapping Vercel work.
+Before Vercel-facing work, the release traffic guard checks GitHub Actions. Staging deploy, production deploy, and rollback share one GitHub concurrency group and queue without cancelling a valid release. Exact-SHA pushes and clean-worktree checks keep the deployed commit aligned with `main` without a local machine lock.
 
 ### Safe Deploy
 
@@ -46,7 +47,7 @@ npm run deploy:safe
 ```
 
 `npm run deploy:safe` runs the full QA/safety path and should be used for API, data, auth, security, Supabase, migration, backup/restore, or broad multi-module changes.
-It uses the same shared release lock for the complete run and the release traffic guard before Vercel-facing work.
+It uses the release traffic guard before Vercel-facing work and the shared GitHub production-edge queue for staging, production, and rollback.
 
 ### Advanced Release Automation
 

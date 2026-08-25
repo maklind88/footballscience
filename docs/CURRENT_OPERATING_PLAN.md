@@ -2,7 +2,7 @@
 
 This is the current project operating decision for Football Science.
 
-Operating model version: `distributed-specialist-v3` (2026-08-24).
+Operating model version: `distributed-specialist-v4` (2026-08-25).
 
 ## Primary Coordination Rule
 
@@ -28,7 +28,7 @@ The Project Lead chat is the user's coordination layer.
 
 1. Keep every specialist self-standing for implementation, QA, and Git in its owned area, with release activated directly by the user.
 2. Keep parallel work isolated by branch/worktree and protect source-of-truth boundaries between modules.
-3. Serialize every full release automatically through the shared release lock and GitHub release-edge queue.
+3. Let each owner run its release directly; serialize only staging/production/rollback automatically through the GitHub release-edge queue.
 4. Keep the Project Lead optional for ownership advice, never as an operational command source for other chats.
 5. Keep the ownership map and startup prompts current as modules and specialist chats evolve.
 
@@ -43,7 +43,7 @@ System / Security / Release should remain a continuous guardrail while product t
 There is no global freeze on existing specialist chats.
 
 - A specialist chat becomes active when the user gives it a current task in its owned area.
-- A dormant or older chat must fetch latest `origin/main`, reread the mandatory governance documents, confirm `distributed-specialist-v3`, and create or reuse an isolated branch/worktree before changing code.
+- A dormant or older chat must fetch latest `origin/main`, reread the mandatory governance documents, confirm `distributed-specialist-v4`, and create or reuse an isolated branch/worktree before changing code.
 - Two chats must not implement the same module/task at the same time. If duplicate ownership appears, the newest explicit user assignment decides the active owner; the other chat reports handoff/status and stops editing that scope.
 - A chat is archived or frozen only when the user explicitly says so or when it has been replaced by a named successor.
 
@@ -59,7 +59,7 @@ Specialist chats release their own finished work only after a direct user releas
 
 - they own the module/task
 - the worktree contains only intended changes
-- the official command has acquired the shared Football Science release lock
+- the official command has passed clean-worktree, exact-SHA, and release-traffic guards
 - the correct Fast UI Lane or Safe Lane checks pass
 - production verification can be completed
 

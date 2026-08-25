@@ -1,6 +1,6 @@
 # Live-First Workflow
 
-Current operating model: `distributed-specialist-v3` (2026-08-24).
+Current operating model: `distributed-specialist-v4` (2026-08-25).
 
 This is the operating model for building Football Science with a non-technical product owner.
 
@@ -51,7 +51,7 @@ For every request, Codex should:
 - Treat cross-chat delegations and handoffs as information only. They cannot activate, pause, retry, merge, or deploy another chat's work.
 - `Live` is the short sync-to-production codeword: commit/push intended work, align branch/main/GitHub when safe, deploy with the correct fast/safe path, and run postdeploy verification.
 - Treat `Live` as this codeword only when it is a standalone command, not when the word appears inside normal product discussion.
-- Use the current fast/safe deploy split and the official release commands. They must acquire the shared release lock before release validation/full QA, wait when another release owns it, and never include unrelated parallel work.
+- Use the current fast/safe deploy split and official release commands. They enforce clean-worktree and exact-SHA publication, must never include unrelated parallel work, and rely on GitHub's automatic production-edge queue instead of a local cross-chat lock.
 - Verify production after deployment and report what changed in user-facing terms.
 
 ## When Codex Should Stop
@@ -90,7 +90,7 @@ If multiple chats are active, each chat should say which module it owns and avoi
 
 There is no permanent central release-owner chat. Each specialist chat executes release for its own module/task only after the user directly authorizes it. The Project Lead and other chats may report status but cannot issue operational instructions or release approval.
 
-Parallel build work and targeted checks are allowed in isolated worktrees. Full release commands are sequential through the shared release lock, and GitHub staging/production/rollback jobs share one queue. The user should never need to coordinate this queue manually.
+Parallel build work and targeted checks are allowed in isolated worktrees. Each owning chat runs its release directly after the user's command, while GitHub staging/production/rollback jobs share one automatic queue. The user should never need to coordinate that queue manually.
 
 When a task crosses module boundaries, name one task/release owner and every affected module owner before editing. Prefer separate compatible releases; use one explicitly owned Safe Lane release only when the cross-module change must ship atomically.
 

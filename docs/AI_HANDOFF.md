@@ -2,7 +2,7 @@
 
 Read this file first when starting a new thread on Football Science.
 
-Current operating model: `distributed-specialist-v3` (2026-08-24). Confirm this version in the startup report after reading the required documents.
+Current operating model: `distributed-specialist-v4` (2026-08-25). Confirm this version in the startup report after reading the required documents.
 
 Also read `AGENTS.md`, `docs/LIVE_FIRST_WORKFLOW.md`, `docs/QUICK_UI_WORKFLOW.md`, `docs/CODEX_TEAM_ROSTER.md`, and `docs/CURRENT_OPERATING_PLAN.md`. Read `docs/PLATFORM_SCALE_PROGRAM.md` when working on multi-tenant identity, app-state migrations, `app.js` extraction, Chat server-first, or Scouting server-first. The durable working model is live-first and distributed by specialist area: the user describes the desired product outcome on `https://footballscience.xyz`, and the responsible specialist chat owns the technical implementation path, QA, and GitHub preparation for its own module/task. Deploy and Live work start only after a direct user instruction in that same chat.
 
@@ -34,7 +34,7 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
 - Work one module at a time, but keep architecture future-proof.
 - Prefer implementation over long theory when the request is clear.
 - Parallel chats are allowed only by separated module ownership. Do not touch Team Chat in a non-chat thread when the user says chat is handled elsewhere.
-- Parallel chats may build and run targeted checks at the same time on isolated branches/worktrees. Official full release commands must acquire the shared Football Science release lock before release validation/full QA and hold it through production verification. A second release waits instead of starting duplicate QA or deployment work.
+- Parallel chats may build and run targeted checks at the same time on isolated branches/worktrees. The owning chat runs its official release directly after the user's command; exact-SHA Git guards and GitHub's shared production-edge queue prevent conflicting publication without a local cross-chat lock.
 - Cross-module work must name one task/release owner and the affected module owners. Prefer separate compatible commits; use one explicitly owned Safe Lane release when the change must be atomic.
 - Keep the architecture size targets from `AGENTS.md` in mind: `app.js` should trend toward a thin shell, new module files should usually stay under 500 lines, and new work should land in clear module boundaries rather than growing legacy globals.
 
@@ -150,7 +150,7 @@ Before final response after code changes:
 - Treat `Live` as a release codeword only when it is a standalone command, not when the word appears inside ordinary product discussion.
 - Use `npm run deploy` for routine fast releases unless the change is risky.
 - Use `npm run deploy:safe` for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
-- Use the official release commands so the shared release lock, branch/main synchronization, staging/live isolation, and production verification cannot be bypassed.
+- Use the official release commands so branch/main synchronization, GitHub production-edge concurrency, staging/live isolation, and production verification cannot be bypassed.
 - If deploying, verify live `app.js` hash or visible behavior on `footballscience.xyz`.
 
 ## Deployment Note

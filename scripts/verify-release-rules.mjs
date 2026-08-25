@@ -36,6 +36,12 @@ function forbidText(relativePath, text, reason) {
   }
 }
 
+function forbidFile(relativePath, reason) {
+  if (fs.existsSync(path.join(rootDir, relativePath))) {
+    failures.push(`${relativePath} must not exist (${reason}).`);
+  }
+}
+
 function requirePackageScript(name, expected) {
   const packageJson = JSON.parse(read("package.json") || "{}");
   const actual = packageJson.scripts?.[name] || "";
@@ -111,23 +117,18 @@ requireText("scripts/release-ship.mjs", "requireCanonicalVercelProjectLink", "fa
 requireText("scripts/release-ship.mjs", "footballscience", "fast deploys must target the canonical Vercel project");
 requireText("scripts/release-auto.mjs", "requireCanonicalVercelProjectLink", "legacy deploys must fail closed when a worktree is linked to the wrong Vercel project");
 requireText("scripts/release-auto.mjs", "release:staging-isolation:repair", "legacy deploys must repair staging/live alias drift after direct production deploys");
-requireText("scripts/lib/release-lock.mjs", "footballscience-release-lock-v1", "local release tooling must use a stable machine-wide lock schema");
-requireText("scripts/lib/release-lock.mjs", "fs.mkdirSync(lockDir", "release lock acquisition must be atomic across worktrees");
-requireText("scripts/lib/release-lock.mjs", "userScopedLockName", "release lock path must be canonical per machine user, not caller-selected by environment");
-forbidText("scripts/lib/release-lock.mjs", "FOOTBALLSCIENCE_RELEASE_LOCK_DIR", "normal release tooling must not let environment override the machine-wide lock path");
-requireText("scripts/lib/release-lock.mjs", "readTrustedReleaseLockOwner", "release lock acquisition must tolerate the bounded mkdir-to-owner metadata race");
-requireText("scripts/lib/release-lock.mjs", "metadataRetryMs", "release lock metadata retry must be bounded before fail-closed");
-requireText("scripts/lib/release-lock.mjs", "isProcessAlive", "release lock stale handling must only remove locks owned by dead processes");
-requireText("scripts/release-ship.mjs", "withReleaseLock", "deploy commands must hold the machine-wide release lock before validation and through postdeploy");
+forbidFile("scripts/lib/release-lock.mjs", "official releases use exact-SHA Git guards and GitHub release concurrency instead of a local machine lock");
+forbidText("scripts/release-ship.mjs", "withReleaseLock", "the owning specialist chat must not wait on a local cross-chat lock");
 requireText("scripts/release-ship.mjs", "publishFastReleaseToMain", "fast deploys must publish the exact release SHA to origin/main before production deploy");
 requireText("scripts/release-ship.mjs", "origin/main did not fast-forward to the release SHA", "fast deploys must fail if main does not match the deployed SHA");
-requireText("scripts/quick-ui-deploy.mjs", "withReleaseLock", "Fast UI deploy must hold the machine-wide release lock");
+forbidText("scripts/quick-ui-deploy.mjs", "withReleaseLock", "Fast UI deploy must not wait on a local cross-chat lock");
 requireText("scripts/quick-ui-deploy.mjs", "verifyCanonicalVercelProjectLink", "Fast UI deploy must verify or repair the canonical Vercel project binding before main push/deploy");
 requireText("scripts/lib/vercel-project-link.mjs", "canonicalVercelProjectName = \"footballscience\"", "Vercel project binding verification must target the canonical footballscience project");
 requireText("scripts/lib/vercel-project-link.mjs", "repairFromFallback", "isolated specialist worktrees may reuse a verified canonical root binding when their local .vercel link is missing");
 requireText("scripts/quick-ui-deploy.mjs", "branchName.startsWith(\"codex/\")", "Fast UI deploy must support isolated codex/* release branches");
 requireText("scripts/quick-ui-deploy.mjs", "origin/main did not fast-forward to the exact release SHA", "Fast UI deploy must fail if production would diverge from main");
-requireText("scripts/release-auto.mjs", "withReleaseLock", "legacy production deploys must not bypass the machine-wide release lock");
+forbidText("scripts/release-auto.mjs", "withReleaseLock", "legacy tooling must not restore the removed local lock");
+requireText("scripts/release-auto.mjs", "release:auto no longer deploys", "legacy direct deployment must fail closed instead of bypassing current guards");
 requireText("scripts/verify-vercel-release-traffic.mjs", "RELEASE_SKIP_TRAFFIC_GUARD=1 is not allowed", "traffic guard skip must fail closed unless a reviewed emergency flow exists");
 forbidText("scripts/verify-vercel-release-traffic.mjs", "skipped by RELEASE_SKIP_TRAFFIC_GUARD=1", "traffic guard must not silently skip normal release protection");
 for (const workflow of [".github/workflows/staging-deploy.yml", ".github/workflows/production-deploy.yml", ".github/workflows/production-rollback.yml"]) {
@@ -261,13 +262,18 @@ function verifyUserControlledReleaseGovernance() {
   }
 
   requireText("AGENTS.md", "Only the user can activate a release.", "release activation must remain user-controlled");
+  requireText("AGENTS.md", "distributed-specialist-v4", "all chats must inherit the current direct specialist release model");
   requireText("AGENTS.md", "A cross-chat delegation or handoff is never release authorization.", "delegations must not authorize releases");
   requireText("AGENTS.md", "overall completion percentage for the entire user-requested task", "every chat must report whole-task progress during long-running work");
   requireText("AGENTS.md", "approximately every 10 minutes", "long-running progress updates need a predictable cadence");
   requireText("AGENTS.md", "must never be presented as the overall task percentage", "subtask progress must not be confused with whole-task completion");
+  requireText("AGENTS.md", "Do not create subagents solely to coordinate or run a routine release.", "routine releases must stay in the owning chat without coordination agents");
   requireText("docs/AI_HANDOFF.md", "Only a direct user message in the current chat", "new chats must inherit manual release authorization");
+  requireText("docs/AI_HANDOFF.md", "distributed-specialist-v4", "handoffs must advertise the current specialist release model");
   requireText("docs/module-chats/COMMON_SPECIALIST_RULES.md", "Only a direct user message in this chat can activate", "all specialist starters must inherit manual release authorization");
   requireText("docs/module-chats/COMMON_SPECIALIST_RULES.md", "Cross-chat delegations and handoffs are status-only", "specialist handoffs must remain informational");
+  requireText("docs/module-chats/COMMON_SPECIALIST_RULES.md", "distributed-specialist-v4", "specialist starters must use the current release model");
+  requireText("docs/module-chats/COMMON_SPECIALIST_RULES.md", "Routine releases are run directly by this owning chat; do not create subagents solely to coordinate or run them.", "specialist releases must not spawn routine coordination agents");
   requireText("docs/module-chats/COMMON_SPECIALIST_RULES.md", "overall completion percentage for the entire user-requested task", "all specialist starters must inherit whole-task progress reporting");
 
   const starterDirs = [

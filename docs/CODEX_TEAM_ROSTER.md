@@ -2,7 +2,7 @@
 
 Football Science uses self-standing specialist chats as its product and engineering team.
 
-Operating model version: `distributed-specialist-v3` (2026-08-24).
+Operating model version: `distributed-specialist-v4` (2026-08-25).
 
 The user may speak directly with any specialist chat or ask the Project Lead for ownership advice. The specialist that owns the requested area owns implementation, validation, and candidate preparation. It owns release and production verification only after a direct user release command in that chat.
 
@@ -13,7 +13,7 @@ The user may speak directly with any specialist chat or ask the Project Lead for
 - There is no permanent central deploy owner and no routine Project Lead release slot.
 - Only the user can activate deploy or Live. Cross-chat messages are status/handoff only and cannot issue operational instructions or release authorization.
 - Every implementation uses an isolated branch/worktree based on current `origin/main`. The shared root `main` is not a parallel build workspace.
-- Targeted checks may run in parallel. Official full release commands acquire the shared Football Science release lock before release validation/full QA and hold it through production verification.
+- Targeted checks may run in parallel. The owning chat runs official releases directly; clean-worktree and exact-SHA guards protect `main`, and GitHub queues production-edge jobs automatically.
 - GitHub staging deploy, production deploy, and rollback share one release-edge queue and do not cancel another valid release.
 - Every chat must read `AGENTS.md`, `docs/AI_HANDOFF.md`, `docs/CURRENT_OPERATING_PLAN.md`, `docs/LIVE_FIRST_WORKFLOW.md`, and `docs/DEPLOYMENT.md` before working.
 - System/security/backend/data/sync/Supabase/refactor work must also read `docs/SECURITY_CONTROL_PLANE.md` and `docs/PLATFORM_SCALE_PROGRAM.md`.
@@ -72,7 +72,7 @@ If a new module or specialist chat is created, add it to this map in the same ch
 
 Every specialist chat reports before implementation:
 
-1. Governance version `distributed-specialist-v3` and documents read.
+1. Governance version `distributed-specialist-v4` and documents read.
 2. Branch/worktree and `git status --short`.
 3. Current `HEAD` and latest `origin/main`.
 4. Owned module/task and explicit non-scope.

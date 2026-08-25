@@ -2,7 +2,6 @@ import { execFileSync, spawnSync } from "node:child_process";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { withReleaseLock } from "./lib/release-lock.mjs";
 import { verifyCanonicalVercelProjectLink } from "./lib/vercel-project-link.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -126,7 +125,7 @@ async function main() {
     return;
   }
 
-  await withReleaseLock({ rootDir, command: ["node", "scripts/quick-ui-deploy.mjs", ...args].join(" ") }, runQuickUiDeploy);
+  await runQuickUiDeploy();
 }
 
 main().catch((error) => {

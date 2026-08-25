@@ -383,6 +383,7 @@ const dashboardChatWidgetStateStorageKey = "football-dashboard-chat-widget-state
 const dashboardChatLauncherPositionStorageKey = "football-dashboard-chat-launcher-position-v1";
 const dashboardChatWidgetNotificationCursorStorageKey = "football-dashboard-chat-widget-notification-cursor-v1";
 const dashboardChatWidgetNotificationStateStorageKey = "football-dashboard-chat-widget-notification-state-v1";
+const dashboardChatRecentEmojisStorageKey = "football-dashboard-chat-recent-emojis-v1";
 const dashboardChatTeamThreadId = "team";
 const dashboardChatMaxMessageLength = 1600;
 const dashboardChatGroupNameMinLength = 2;
@@ -1221,6 +1222,7 @@ let dashboardChatMessageSearchQuery = "";
 let dashboardChatMessageSearchActiveIndex = 0;
 let dashboardChatModerationOpen = false;
 let dashboardChatDetailsOpen = false;
+let dashboardChatDetailsTab = "people";
 let dashboardChatMobileConversationOpen = true;
 let dashboardChatThreadFilter = "all";
 let dashboardChatModerationFilters = { action: "all", userId: "", threadId: "", from: "", to: "" };
@@ -3190,6 +3192,11 @@ const {
   getDashboardChatMessageSearchActiveIndex: () => dashboardChatMessageSearchActiveIndex,
   getDashboardChatModerationOpen: () => dashboardChatModerationOpen,
   getDashboardChatDetailsOpen: () => dashboardChatDetailsOpen,
+  getDashboardChatDetailsTab: () => dashboardChatDetailsTab,
+  getDashboardChatRecentEmojis: () => {
+    const emojis = readDashboardJson(dashboardChatRecentEmojisStorageKey, []);
+    return Array.isArray(emojis) ? emojis.filter((emoji) => typeof emoji === "string" && emoji.trim()).slice(0, 14) : [];
+  },
   getDashboardChatMobileConversationOpen: () => dashboardChatMobileConversationOpen,
   getDashboardChatComposerAttachmentDraft: () => dashboardChatComposerAttachmentDraft,
   getDashboardChatGroupCreatorOpen: () => dashboardChatGroupCreatorOpen,
@@ -3585,7 +3592,15 @@ platformNavigationController.hideTopIconTooltip();
 }
 });
 dashboardRuntimeController.bindInteractions();
-function closeChatMenus(x = null) { ui.dashboardChatWidgetRoot?.querySelectorAll(".dashboard-chat-message-menu[open], .dashboard-chat-message-reaction-menu[open]").forEach((menu) => { if (menu !== x) menu.removeAttribute("open"); }); }
+function closeChatMenus(x = null) {
+  ui.dashboardChatWidgetRoot
+    ?.querySelectorAll(".dashboard-chat-message-menu[open], .dashboard-chat-message-reaction-menu[open], .dashboard-chat-more-menu[open], .dashboard-chat-thread-filter-more[open]")
+    .forEach((menu) => {
+      if (menu !== x) {
+        menu.removeAttribute("open");
+      }
+    });
+}
 let dashboardChatPushActionInFlight = false;
 let dashboardChatPushActionObserver = null;
 function findDashboardChatActionTarget(event, selector) {
@@ -3756,6 +3771,7 @@ setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
 setDashboardChatConfirmAction(null);
 dashboardChatDetailsOpen = false;
+dashboardChatDetailsTab = "people";
 setDashboardChatGroupCreatorOpen(false, { render: false });
 dashboardChatCreatorMode = "group";
 dashboardChatThreadSettingsDialog = null;
@@ -3827,6 +3843,19 @@ ui.dashboardChatWidgetRoot?.addEventListener("pointerup", () => {
 ui.dashboardChatWidgetRoot?.addEventListener("pointercancel", () => {
   dashboardChatGroupCreatorPointerDownInsideCard = false;
 });
+ui.dashboardChatWidgetRoot?.addEventListener("toggle", (event) => {
+  const menu = event.target.closest?.(".dashboard-chat-message-menu, .dashboard-chat-message-reaction-menu, .dashboard-chat-more-menu, .dashboard-chat-thread-filter-more");
+  if (!menu) {
+    return;
+  }
+  if (menu.open) {
+    closeChatMenus(menu);
+    return;
+  }
+  if (menu.matches(".dashboard-chat-message-menu, .dashboard-chat-message-reaction-menu")) {
+    win.setTimeout(() => renderDashboardChatWidget(), 0);
+  }
+}, true);
 function insertDashboardChatComposerEmoji(nextEmoji = "") {
   const emoji = String(nextEmoji || "").trim();
   if (!emoji) {
@@ -3849,6 +3878,11 @@ function insertDashboardChatComposerEmoji(nextEmoji = "") {
   if (!emojiValue) {
     return;
   }
+  const recentEmojis = readDashboardJson(dashboardChatRecentEmojisStorageKey, []);
+  writeDashboardJson(
+    dashboardChatRecentEmojisStorageKey,
+    [emojiValue, ...(Array.isArray(recentEmojis) ? recentEmojis : []).filter((item) => item !== emojiValue)].slice(0, 14)
+  );
   input.value = `${currentValue.slice(0, safeStart)}${emojiValue}${currentValue.slice(safeEnd)}`;
   const nextCursor = safeStart + emojiValue.length;
   input.setSelectionRange?.(nextCursor, nextCursor);
@@ -3864,9 +3898,86 @@ function insertDashboardChatComposerEmoji(nextEmoji = "") {
   }
   input.focus({ preventScroll: true });
 }
+function resizeDashboardChatComposer(input = null) {
+  if (!input) {
+    return;
+  }
+  input.style.height = "auto";
+  input.style.height = `${Math.min(Math.max(input.scrollHeight || 0, 41), 136)}px`;
+  input.style.overflowY = (input.scrollHeight || 0) > 136 ? "auto" : "hidden";
+}
+function getDashboardChatMentionContext(input = null) {
+  if (!input) {
+    return null;
+  }
+  const value = String(input.value || "");
+  const cursor = Number.isFinite(input.selectionStart) ? Number(input.selectionStart) : value.length;
+  const match = value.slice(0, cursor).match(/@([a-zA-Z0-9._-]{0,64})$/);
+  if (!match) {
+    return null;
+  }
+  const start = cursor - match[0].length;
+  const previousCharacter = start > 0 ? value[start - 1] : "";
+  if (previousCharacter && !/\s|\(|\[|\{/.test(previousCharacter)) {
+    return null;
+  }
+  return { cursor, start, query: String(match[1] || "").toLowerCase() };
+}
+function refreshDashboardChatMentionPicker(input = null) {
+  const picker = input?.closest("[data-dashboard-chat-form]")?.querySelector("[data-dashboard-chat-mention-picker]");
+  const context = getDashboardChatMentionContext(input);
+  if (!picker || !context) {
+    if (picker) {
+      picker.hidden = true;
+    }
+    return;
+  }
+  let visibleCount = 0;
+  picker.querySelectorAll("[data-dashboard-chat-mention-option]").forEach((option) => {
+    const matches = !context.query || String(option.dataset.dashboardChatMentionSearch || "").includes(context.query);
+    option.hidden = !matches || visibleCount >= 6;
+    option.classList.remove("is-active");
+    if (!option.hidden) {
+      visibleCount += 1;
+    }
+  });
+  const firstVisibleOption = picker.querySelector("[data-dashboard-chat-mention-option]:not([hidden])");
+  firstVisibleOption?.classList.add("is-active");
+  picker.hidden = visibleCount === 0;
+}
+function insertDashboardChatMention(option = null) {
+  const input = ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]");
+  const context = getDashboardChatMentionContext(input);
+  const token = String(option?.dataset?.dashboardChatMentionToken || "").trim();
+  if (!input || !context || !token) {
+    return false;
+  }
+  const value = String(input.value || "");
+  const replacement = `@${token} `;
+  input.value = `${value.slice(0, context.start)}${replacement}${value.slice(context.cursor)}`;
+  const nextCursor = context.start + replacement.length;
+  input.setSelectionRange?.(nextCursor, nextCursor);
+  input.closest("[data-dashboard-chat-form]")?.querySelector("[data-dashboard-chat-mention-picker]")?.setAttribute("hidden", "");
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.focus({ preventScroll: true });
+  return true;
+}
 ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
-const activeMenu = findDashboardChatActionTarget(event, ".dashboard-chat-message-menu, .dashboard-chat-message-reaction-menu");
+const activeMenu = findDashboardChatActionTarget(event, ".dashboard-chat-message-menu, .dashboard-chat-message-reaction-menu, .dashboard-chat-more-menu, .dashboard-chat-thread-filter-more");
 closeChatMenus(activeMenu);
+if (activeMenu && !event.target.closest("summary")) {
+activeMenu.removeAttribute("open");
+}
+const visibleMentionPicker = ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-mention-picker]:not([hidden])");
+if (visibleMentionPicker && !event.target.closest("[data-dashboard-chat-input], [data-dashboard-chat-mention-picker]")) {
+visibleMentionPicker.hidden = true;
+}
+const mentionOption = event.target.closest("[data-dashboard-chat-mention-option]");
+if (mentionOption) {
+event.preventDefault();
+insertDashboardChatMention(mentionOption);
+return;
+}
 const toastDismissButton = event.target.closest("[data-dashboard-chat-toast-dismiss]");
 if (toastDismissButton && !toastDismissButton.hidden) {
 event.preventDefault();
@@ -3918,12 +4029,38 @@ return;
 const detailsToggleButton = event.target.closest("[data-dashboard-chat-details-toggle]");
 if (detailsToggleButton) {
 dashboardChatDetailsOpen = !dashboardChatDetailsOpen;
+dashboardChatDetailsTab = "people";
+renderDashboardChatWidget();
+return;
+}
+const detailsTabButton = event.target.closest("[data-dashboard-chat-details-tab]");
+if (detailsTabButton) {
+const requestedTab = String(detailsTabButton.dataset.dashboardChatDetailsTab || "").trim();
+dashboardChatDetailsTab = ["people", "shared", "settings"].includes(requestedTab) ? requestedTab : "people";
+dashboardChatDetailsOpen = true;
+renderDashboardChatWidget();
+return;
+}
+const openSharedButton = event.target.closest("[data-dashboard-chat-open-shared]");
+if (openSharedButton) {
+openSharedButton.closest("details")?.removeAttribute("open");
+dashboardChatDetailsTab = "shared";
+dashboardChatDetailsOpen = true;
+renderDashboardChatWidget();
+return;
+}
+const openSettingsButton = event.target.closest("[data-dashboard-chat-open-settings]");
+if (openSettingsButton) {
+openSettingsButton.closest("details")?.removeAttribute("open");
+dashboardChatDetailsTab = "settings";
+dashboardChatDetailsOpen = true;
 renderDashboardChatWidget();
 return;
 }
 const detailsCloseButton = event.target.closest("[data-dashboard-chat-details-close]");
 if (detailsCloseButton) {
 dashboardChatDetailsOpen = false;
+dashboardChatDetailsTab = "people";
 renderDashboardChatWidget();
 return;
 }
@@ -3950,6 +4087,7 @@ const mobileBackButton = event.target.closest("[data-dashboard-chat-mobile-back]
 if (mobileBackButton) {
 dashboardChatMobileConversationOpen = false;
 dashboardChatDetailsOpen = false;
+dashboardChatDetailsTab = "people";
 renderDashboardChatWidget();
 return;
 }
@@ -4423,6 +4561,7 @@ setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
 dashboardChatMessageSearchQuery = "";
 dashboardChatDetailsOpen = false;
+dashboardChatDetailsTab = "people";
 setDashboardChatGroupCreatorOpen(false, { render: false });
 dashboardChatCreatorMode = "group";
 dashboardChatMobileConversationOpen = true;
@@ -4533,6 +4672,8 @@ ui.dashboardChatWidgetRoot?.addEventListener("input", (event) => {
 const chatInput = event.target.closest("[data-dashboard-chat-input]");
 if (chatInput) {
 markDashboardPresenceActivity();
+resizeDashboardChatComposer(chatInput);
+refreshDashboardChatMentionPicker(chatInput);
 const countElement = chatInput.closest("[data-dashboard-chat-form]")?.querySelector("[data-dashboard-chat-character-count]");
 if (countElement) {
 countElement.textContent = `${String(chatInput.value || "").length}/${dashboardChatMaxMessageLength}`;
@@ -4599,6 +4740,14 @@ threadButton.hidden = Boolean(query) && !searchableText.toLowerCase().includes(q
 });
 });
 ui.dashboardChatWidgetRoot?.addEventListener("focusout", (event) => {
+const chatInput = event.target.closest("[data-dashboard-chat-input]");
+if (chatInput) {
+const composerForm = chatInput.closest("[data-dashboard-chat-form]");
+if (!composerForm?.contains(event.relatedTarget)) {
+composerForm?.querySelector("[data-dashboard-chat-mention-picker]")?.setAttribute("hidden", "");
+}
+return;
+}
 const groupNameInput = event.target.closest("[data-dashboard-chat-group-name-input]");
 const groupAvatarInput = event.target.closest("[data-dashboard-chat-group-avatar-input]");
 if (!groupNameInput && !groupAvatarInput) {
@@ -4614,6 +4763,29 @@ targetInput.value = normalizedValue;
 syncDashboardChatGroupCreateForm(targetInput.closest("[data-dashboard-chat-group-create-form]"));
 });
 ui.dashboardChatWidgetRoot?.addEventListener("keydown", (event) => {
+const chatInput = event.target.closest?.("[data-dashboard-chat-input]");
+const mentionPicker = chatInput?.closest("[data-dashboard-chat-form]")?.querySelector("[data-dashboard-chat-mention-picker]:not([hidden])");
+if (mentionPicker) {
+const visibleOptions = Array.from(mentionPicker.querySelectorAll("[data-dashboard-chat-mention-option]:not([hidden])"));
+const activeIndex = Math.max(0, visibleOptions.findIndex((option) => option.classList.contains("is-active")));
+if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+event.preventDefault();
+visibleOptions.forEach((option) => option.classList.remove("is-active"));
+const direction = event.key === "ArrowDown" ? 1 : -1;
+visibleOptions[(activeIndex + direction + visibleOptions.length) % visibleOptions.length]?.classList.add("is-active");
+return;
+}
+if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+event.preventDefault();
+insertDashboardChatMention(visibleOptions[activeIndex] || visibleOptions[0]);
+return;
+}
+if (event.key === "Escape") {
+event.preventDefault();
+mentionPicker.hidden = true;
+return;
+}
+}
 if (event.key === "Escape") {
 event.preventDefault();
 event.stopPropagation();
@@ -4628,12 +4800,12 @@ return;
 closeDashboardChatWidgetPanel();
 return;
 }
-if (!event.target.matches("[data-dashboard-chat-input]")) {
+if (!chatInput) {
 return;
 }
 if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
 event.preventDefault();
-event.target.form?.requestSubmit();
+chatInput.form?.requestSubmit();
 }
 });
 ui.dashboardChatWidgetRoot?.addEventListener("submit", async (event) => {

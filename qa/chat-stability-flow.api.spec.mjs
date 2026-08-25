@@ -25,7 +25,9 @@ const chatWidgetRuntimeSource = readFileSync(path.join(__dirname, "../src/module
 const chatThreadRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-thread-runtime.mjs"), "utf8");
 const chatThreadSettingsSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-thread-settings.mjs"), "utf8");
 const rendererSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-widget-renderer.mjs"), "utf8");
+const detailsRendererSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-details-renderer.mjs"), "utf8");
 const chatCssSource = readFileSync(path.join(__dirname, "../dashboard-chat.css"), "utf8");
+const chatExperienceCssSource = readFileSync(path.join(__dirname, "../dashboard-chat-experience.css"), "utf8");
 const attachmentPreviewSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-attachment-preview.mjs"), "utf8");
 const chatApiSource = readFileSync(path.join(__dirname, "../api/chat.js"), "utf8");
 const databaseSource = readFileSync(path.join(__dirname, "../api/_lib/chat-database.js"), "utf8");
@@ -267,6 +269,37 @@ test("chat thread labels prefer real participants and group names over generic A
   expect(directThread.label).not.toContain(remoteTechnicalId);
   expect(directThread.participant).toMatchObject({ id: "staff-emma", userId: remoteTechnicalId, firstName: "Emma", lastName: "Thomson" });
   expect(groupThread.label).toBe("Goalkeeper Unit");
+});
+
+test("database UUID direct threads resolve snake-case participant profiles to full names", () => {
+  const currentUser = { id: "coach-qa", firstName: "Casey", lastName: "Coach", status: "active" };
+  const teammate = { id: "staff-emma", firstName: "Emma", lastName: "Thomson", email: "emma.thomson@example.com", status: "active" };
+  const databaseThreadId = "3a5d6f44-8b1c-45fa-a7c0-2b6837d83c38";
+  const runtime = createDashboardChatThreadRuntime({
+    getCurrentPlatformUser: () => currentUser,
+    getPlatformUsers: () => [currentUser, teammate],
+    getDashboardChatApiThreads: () => [{
+      threadId: databaseThreadId,
+      type: "DM",
+      title: "550e8400-e29b-41d4-a716-446655440000",
+      messageCount: 1,
+      participants: [
+        { user_id: currentUser.id, participant_role: "member" },
+        { user_id: teammate.id, participant_role: "member", profile: { first_name: "Emma", last_name: "Thomson" } },
+      ],
+    }],
+    normalizeDashboardChatThreadId: (value, fallback = "team") => String(value || fallback || "team").trim(),
+    isSameDashboardUser: (first, second) => String(first?.id || first?.userId || first?.user_id || "") === String(second?.id || second?.userId || second?.user_id || ""),
+    formatUserName: (user = {}) => [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(" ") || user.id || user.user_id,
+  });
+
+  const thread = runtime.getDashboardChatThreadData(databaseThreadId);
+  const directThreads = runtime.getDashboardChatThreadList().filter((candidate) => candidate.type === "dm");
+
+  expect(thread.label).toBe("Emma Thomson");
+  expect(thread.label).not.toContain(databaseThreadId);
+  expect(thread.participant).toMatchObject({ id: teammate.id, firstName: "Emma", lastName: "Thomson" });
+  expect(directThreads.some((candidate) => candidate.threadId === databaseThreadId)).toBe(true);
 });
 
 test("chat unread badges keep API unread when local history cache is stale", () => {
@@ -1057,13 +1090,13 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
 
   expect(rendererSource).toContain("data-dashboard-chat-message-retry");
   expect(rendererSource).toContain("data-dashboard-chat-mobile-back");
-  expect(rendererSource).toContain("data-dashboard-chat-participant-action");
-  expect(rendererSource).toContain("dashboard-chat-moderation-filters");
-  expect(rendererSource).toContain("dashboard-chat-attachment-library");
+  expect(detailsRendererSource).toContain("data-dashboard-chat-participant-action");
+  expect(detailsRendererSource).toContain("renderAttachmentLibrary(messages, activeThreadId)");
+  expect(detailsRendererSource).toContain("dashboard-chat-assistant-section");
   expect(rendererSource).toContain("dashboard-chat-search-hit");
-  expect(rendererSource).toContain("dashboard-chat-search-nav");
+  expect(detailsRendererSource).toContain("dashboard-chat-search-nav");
   expect(rendererSource).toContain("dashboard-chat-more-menu");
-  expect(rendererSource).toContain("dashboard-chat-support-diagnostics");
+  expect(rendererSource).not.toContain("dashboard-chat-support-diagnostics");
   expect(rendererSource).toContain("is-active-search-match");
   expect(rendererSource).toContain("is-first-unread");
   expect(rendererSource).toContain("groupedWithNext");
@@ -1082,6 +1115,9 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatCssSource).toContain("dashboard-chat-attachment-preview-empty");
   expect(chatCssSource).toContain("dashboard-chat-widget.is-mobile-conversation");
   expect(chatCssSource).toContain("Chat owner stabilization pass");
+  expect(chatExperienceCssSource).toContain("dashboard-chat-details-tabs");
+  expect(chatExperienceCssSource).toContain("dashboard-chat-mention-picker");
+  expect(chatExperienceCssSource).toContain("100dvh");
 
   expect(attachmentPreviewSource).toContain("data-chat-attachment-preview-previous");
   expect(attachmentPreviewSource).toContain("data-chat-attachment-preview-next");
@@ -1892,6 +1928,55 @@ test("chat API runtime hydrates active thread from legacy state payload without 
   expect(hydratedThreadIds.has("team")).toBe(true);
 });
 
+test("modern chat thread payload ignores messages from unrelated conversations", () => {
+  const mergeCalls = [];
+  let apiThreads = [];
+  const runtime = createDashboardChatApiRuntime({
+    dashboardChatTeamThreadId: "team",
+    normalizeDashboardChatThreadId: (threadId, fallback = "team") => String(threadId || fallback || "team"),
+    getDashboardApiThreads: () => apiThreads,
+    setDashboardApiThreads: (nextThreads = []) => {
+      apiThreads = nextThreads;
+    },
+    normalizeDashboardApiThread: (thread = {}) => ({
+      ...thread,
+      threadId: thread.threadId || thread.id,
+    }),
+    mergeDashboardChatApiMessages: (messages, options) => {
+      mergeCalls.push({ messages, options });
+      return messages;
+    },
+    renderDashboardChatWidget: () => {},
+  });
+
+  runtime.applyDashboardChatApiPayload(
+    {
+      threads: [
+        { id: "team", threadId: "team", type: "team" },
+        { id: "dm:coach-qa:teammate-qa", threadId: "dm:coach-qa:teammate-qa", type: "dm" },
+      ],
+      messages: [
+        { id: "team-message", threadId: "team", text: "Team only", userId: coachActor.id },
+        {
+          id: "dm-message",
+          threadId: "dm:coach-qa:teammate-qa",
+          text: "Private only",
+          userId: teammateActor.id,
+        },
+      ],
+    },
+    { threadId: "team", replaceThread: true }
+  );
+
+  expect(mergeCalls).toHaveLength(1);
+  expect(mergeCalls[0]).toEqual(
+    expect.objectContaining({
+      messages: [expect.objectContaining({ id: "team-message", threadId: "team" })],
+      options: expect.objectContaining({ replaceThreadId: "team" }),
+    })
+  );
+});
+
 test("chat API runtime preserves cached history when payload is smaller than reported history", async () => {
   const hydratedThreadIds = new Set();
   let pagination = {};
@@ -2558,6 +2643,7 @@ test("notification toast writes the exact API message cursor once", () => {
   });
 
   runtime.syncDashboardChatWidgetNotificationCursor();
+  cursor.threads[threadId].userId = "legacy-sender-id";
   runtime.syncDashboardChatWidgetNotificationCursor();
 
   expect(toastElement.hidden).toBe(false);

@@ -439,7 +439,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       : Array.isArray(legacyState?.messages)
         ? legacyState.messages
         : [];
-    if (!isDashboardChatLegacyStatePayload(payload) || !options.threadId || options.search) {
+    if (!options.threadId || options.search) {
       return sourceMessages;
     }
 

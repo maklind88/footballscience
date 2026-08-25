@@ -1,3 +1,8 @@
+import {
+  resolveDashboardChatParticipantName,
+  resolveDashboardChatThreadIdentity,
+} from "./chat-identity.mjs";
+
 export function createDashboardChatThreadRuntime(dependencies = {}) {
   const {
     dashboardChatAdvancedThreadTemplates = [],
@@ -61,74 +66,6 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     );
   }
 
-  function isGenericDashboardChatParticipantLabel(value = "") {
-    const normalized = String(value || "").trim().toLowerCase();
-    return !normalized || ["unknown", "unknown user", "staff", "direct message", "private chat"].includes(normalized);
-  }
-
-  function isTechnicalDashboardChatIdentityValue(value = "") {
-    const normalized = String(value || "").trim();
-    if (!normalized) {
-      return true;
-    }
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized)) {
-      return true;
-    }
-    if (/^[a-z0-9_-]{18,}$/i.test(normalized) && /\d/.test(normalized)) {
-      return true;
-    }
-    return false;
-  }
-
-  function getDashboardChatParticipantDisplayName(participant = null) {
-    if (!participant) {
-      return "";
-    }
-    const profile =
-      [participant.profile, participant.user, participant.userProfile, participant.user_profile, participant.metadata?.profile, participant.metadata]
-        .find((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)) || {};
-    const composedName = [
-      participant.firstName || participant.first_name || profile.firstName || profile.first_name,
-      participant.lastName || participant.last_name || profile.lastName || profile.last_name,
-    ]
-      .map((part) => String(part || "").trim())
-      .filter(Boolean)
-      .join(" ");
-    if (composedName) {
-      return composedName;
-    }
-    const explicitName = String(
-      participant.name ||
-        participant.fullName ||
-        participant.full_name ||
-        participant.displayName ||
-        participant.display_name ||
-        profile.name ||
-        profile.fullName ||
-        profile.full_name ||
-        profile.displayName ||
-        profile.display_name ||
-        ""
-    ).trim();
-    if (explicitName && !isGenericDashboardChatParticipantLabel(explicitName) && !isTechnicalDashboardChatIdentityValue(explicitName)) {
-      return explicitName;
-    }
-    const formattedName = String(formatUserName(participant) || "").trim();
-    if (
-      formattedName &&
-      !isGenericDashboardChatParticipantLabel(formattedName) &&
-      !isTechnicalDashboardChatIdentityValue(formattedName)
-    ) {
-      return formattedName;
-    }
-    const email = String(participant.email || profile.email || "").trim();
-    if (email && !isTechnicalDashboardChatIdentityValue(email.split("@", 1)[0] || email)) {
-      return email;
-    }
-    const username = String(participant.username || participant.userName || profile.username || profile.userName || "").trim();
-    return isTechnicalDashboardChatIdentityValue(username) ? "" : username;
-  }
-
   function getDashboardChatThreadData(
     threadId,
     currentUser = getCurrentPlatformUser(),
@@ -161,7 +98,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     const apiThread = apiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
     const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
     const lastMessage = getDashboardChatNewestThreadMessage(threadMessages) || apiLastMessage;
-    const effectiveUnreadCount = Math.max(unreadCount, Number(apiThread?.unreadCount || 0) || 0);
+    const effectiveUnreadCount = apiThread ? Number(apiThread.unreadCount ?? apiThread.unread_count ?? 0) || 0 : unreadCount;
     const hasMessageActivity = Boolean(threadMessages.length || apiLastMessage || Number(apiThread?.messageCount || 0) > 0);
     const threadSettings = dashboardChatThreadSettings && dashboardChatThreadSettings.merge
       ? dashboardChatThreadSettings.merge(normalizedThreadId, apiThread?.settings || {})
@@ -175,20 +112,21 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       : getDashboardChatEmptyThreadActivityMs(apiThread, threadSettings);
 
     const managedTemplate = advancedThreadTemplates.find((template) => template.key === normalizedThreadId);
-    const isDirectThread = !isTeamThread && !isManagedThread && normalizedThreadId.startsWith("dm:");
-    const fallbackThreadLabel = formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users);
+    const apiThreadType = String(apiThread?.type || apiThread?.threadType || apiThread?.thread_type || "").trim().toLowerCase();
+    const isDirectThread = !isTeamThread && !isManagedThread && (apiThreadType === "dm" || normalizedThreadId.startsWith("dm:"));
     const apiThreadTitle = String(apiThread?.title || "").trim();
     const shouldUseComputedLabel = isTeamThread || isDirectThread || isGenericDashboardChatThreadTitle(apiThreadTitle);
 
     const apiParticipants = Array.isArray(apiThread?.participants) ? apiThread.participants : [];
     const resolvedApiParticipants = apiParticipants
       .map((participant) => {
-        const userId = String(participant.userId || participant.id || "").trim();
+        const userId = String(participant.userId || participant.user_id || participant.id || participant.profile?.id || "").trim();
         const platformUser =
           users.find((user) => user.id === userId) ||
+          users.find((user) => participant.email && String(user.email || "").toLowerCase() === String(participant.email).toLowerCase()) ||
           users.find((user) => isSameDashboardUser(user, participant)) ||
           null;
-        const participantDisplayName = getDashboardChatParticipantDisplayName(platformUser || participant);
+        const participantDisplayName = resolveDashboardChatParticipantName(platformUser || participant, formatUserName);
         return {
           ...(platformUser || { id: userId, name: participantDisplayName, firstName: "", lastName: "" }),
           ...participant,
@@ -197,8 +135,8 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
           name: participantDisplayName || participant.name || participant.fullName || participant.full_name || platformUser?.name || "",
           firstName: platformUser?.firstName || platformUser?.first_name || participant.firstName || participant.first_name || "",
           lastName: platformUser?.lastName || platformUser?.last_name || participant.lastName || participant.last_name || "",
-          chatParticipantRole: participant.participantRole || participant.role || "member",
-          lastReadAt: participant.lastReadAt || "",
+          chatParticipantRole: participant.participantRole || participant.participant_role || participant.role || "member",
+          lastReadAt: participant.lastReadAt || participant.last_read_at || "",
         };
       })
       .filter((participant) => participant.id);
@@ -217,7 +155,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
         ""
     ).trim().toLowerCase();
     const currentUserRole = String(currentUser?.role || "").trim().toLowerCase();
-    const isGroupLikeThread = apiThread?.type === "group" || isGroupThread;
+    const isGroupLikeThread = apiThreadType === "group" || isGroupThread;
     const canManageParticipants = Boolean(
       apiThread?.permissions?.canManageParticipants ||
         (isGroupLikeThread &&
@@ -231,16 +169,27 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       ...(apiThread?.permissions || {}),
       ...(canManageParticipants ? { canManageParticipants: true } : {}),
     };
-    const directParticipantLabel = isDirectThread
-      ? getDashboardChatParticipantDisplayName(threadParticipants.find((participant) => !isSameDashboardUser(participant, currentUser)) || null)
-      : "";
-    const computedThreadLabel = directParticipantLabel || fallbackThreadLabel;
+    const resolvedThreadType = apiThreadType || (isGroupThread ? "group" : isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm");
+    const computedThreadLabel = resolveDashboardChatThreadIdentity({
+      threadId: normalizedThreadId,
+      type: resolvedThreadType,
+      isTeamThread,
+      teamTitle: getDashboardChatTeamChatTitle(),
+      customTitle: isDirectThread ? "" : threadSettings.customTitle,
+      apiTitle: apiThreadTitle,
+      currentUser,
+      participants: threadParticipants,
+      messages: threadMessages.length ? threadMessages : apiLastMessage ? [apiLastMessage] : [],
+      users,
+      isSameUser: isSameDashboardUser,
+      formatUserName,
+    });
 
     return {
       threadId: normalizedThreadId,
-      label: threadSettings.customTitle || (shouldUseComputedLabel ? computedThreadLabel : apiThreadTitle),
+      label: shouldUseComputedLabel || resolvedThreadType === "dm" ? computedThreadLabel : apiThreadTitle,
       isTeamThread,
-      type: apiThread?.type || (isGroupThread ? "group" : isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm"),
+      type: resolvedThreadType,
       participant: threadParticipants.find((participant) => !isSameDashboardUser(participant, currentUser)) || threadParticipants[0] || null,
       participants: threadParticipants,
       permissions,
@@ -286,7 +235,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
         ...advancedThreadTemplates.map((template) => template.key),
         ...selectedGroupThreadIds,
         ...apiThreads
-          .filter((thread) => thread.threadId !== dashboardChatTeamThreadId && !String(thread.threadId).startsWith("dm:"))
+          .filter((thread) => thread.threadId !== dashboardChatTeamThreadId && String(thread.type || "").toLowerCase() !== "dm" && !String(thread.threadId).startsWith("dm:"))
           .map((thread) => thread.threadId),
       ])
     );
@@ -295,7 +244,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     const directThreadIds = Array.from(
       new Set([
         ...activeUsers.map((user) => createDashboardChatThreadId(currentUser.id, user.id)),
-        ...apiThreads.filter((thread) => String(thread.threadId || "").startsWith("dm:")).map((thread) => thread.threadId),
+        ...apiThreads.filter((thread) => String(thread.type || "").toLowerCase() === "dm" || String(thread.threadId || "").startsWith("dm:")).map((thread) => thread.threadId),
         ...messages
           .map((message) => message.threadId)
           .filter((threadId) => String(threadId || "").startsWith("dm:")),

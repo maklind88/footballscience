@@ -1052,6 +1052,133 @@ test("Chat delivery checks and emoji composer follow the WhatsApp baseline", asy
   await expect(page.locator(".dashboard-chat-emoji-menu")).not.toHaveAttribute("open", "");
 });
 
+test("Chat compose send preserves drafts, mentions and mobile composer bounds", async ({ page }) => {
+  const directThreadId = "dm:dev-user-mak:qa-chat-ceri";
+  const now = new Date().toISOString();
+  const serverMessages = [
+    {
+      id: "qa-chat-draft-team",
+      userId: "qa-chat-ceri",
+      threadId: "team",
+      text: "Team draft test anchor",
+      createdAt: now,
+      deliveredAt: now,
+      readBy: [qaChatCurrentUserId],
+      mentionedUserIds: [],
+      author: { id: "qa-chat-ceri", firstName: "Ceri", lastName: "Bowley", role: "scout", status: "active" },
+    },
+    {
+      id: "qa-chat-draft-direct",
+      userId: "qa-chat-ceri",
+      threadId: directThreadId,
+      text: "Direct draft test anchor",
+      createdAt: new Date(Date.parse(now) - 1000).toISOString(),
+      deliveredAt: now,
+      readBy: [qaChatCurrentUserId],
+      mentionedUserIds: [],
+      author: { id: "qa-chat-ceri", firstName: "Ceri", lastName: "Bowley", role: "scout", status: "active" },
+    },
+  ];
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    await fulfillQaChatPayload(route, serverMessages, {
+      threadIds: ["team", directThreadId],
+      threadOptions: {
+        [directThreadId]: {
+          title: "Direct message",
+          participants: [
+            { userId: qaChatCurrentUserId, participantRole: "member" },
+            { userId: "qa-chat-ceri", participantRole: "member", firstName: "Ceri", lastName: "Bowley" },
+          ],
+        },
+      },
+    });
+  });
+
+  await bootApp(page);
+  await page.evaluate(() => {
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    window.platformAuthStore.writeUsers?.([
+      {
+        ...currentUser,
+        id: "dev-user-mak",
+        firstName: currentUser.firstName || "Mak",
+        lastName: currentUser.lastName || "Lind",
+        role: "team-admin",
+        status: "active",
+      },
+      {
+        id: "qa-chat-ceri",
+        firstName: "Ceri",
+        lastName: "Bowley",
+        role: "scout",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
+    ]);
+    window.platformAuthStore.setCurrentUser?.("dev-user-mak");
+  });
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+
+  const composer = page.locator("[data-dashboard-chat-input]");
+  await composer.fill("Team conversation draft");
+  await page.locator(`[data-dashboard-chat-thread="${directThreadId}"]`).click();
+  await expect(composer).toHaveValue("");
+  await composer.fill("Direct conversation draft");
+  await page.locator('[data-dashboard-chat-thread="team"]').click();
+  await expect(composer).toHaveValue("Team conversation draft");
+  await page.locator(`[data-dashboard-chat-thread="${directThreadId}"]`).click();
+  await expect(composer).toHaveValue("Direct conversation draft");
+
+  await page.locator('[data-dashboard-chat-thread="team"]').click();
+  await composer.fill("@Ce");
+  const mentionPicker = page.locator("[data-dashboard-chat-mention-picker]");
+  await expect(mentionPicker).toBeVisible();
+  await expect(mentionPicker.locator("[data-dashboard-chat-mention-option]:visible").first()).toContainText("Ceri Bowley");
+  await composer.press("Enter");
+  await expect(composer).toHaveValue(/^@Ceri\.Bowley /);
+
+  await page.locator(".dashboard-chat-emoji-menu summary").click();
+  await page.locator('[data-dashboard-chat-emoji="⚽"]').click();
+  await expect(composer).toHaveValue(/⚽$/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileBounds = await page.locator(".dashboard-chat-widget.is-open").evaluate((widget) => {
+    const root = widget.closest(".dashboard-chat-widget-root");
+    const form = widget.querySelector("[data-dashboard-chat-form]");
+    const textarea = widget.querySelector("[data-dashboard-chat-input]");
+    const rootRect = root?.getBoundingClientRect();
+    const rootStyles = root ? window.getComputedStyle(root) : null;
+    const widgetRect = widget.getBoundingClientRect();
+    const formRect = form?.getBoundingClientRect();
+    const textareaRect = textarea?.getBoundingClientRect();
+    return {
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      rootTop: rootRect?.top || 0,
+      rootBottom: rootRect?.bottom || 0,
+      rootHeight: rootRect?.height || 0,
+      rootStyleHeight: rootStyles?.height || "",
+      rootStyleTop: rootStyles?.top || "",
+      rootStyleBottom: rootStyles?.bottom || "",
+      widgetLeft: widgetRect.left,
+      widgetRight: widgetRect.right,
+      widgetBottom: widgetRect.bottom,
+      formTop: formRect?.top || 0,
+      formBottom: formRect?.bottom || 0,
+      textareaBottom: textareaRect?.bottom || 0,
+    };
+  });
+  expect(mobileBounds.widgetLeft).toBeGreaterThanOrEqual(0);
+  expect(mobileBounds.widgetRight).toBeLessThanOrEqual(mobileBounds.viewportWidth + 1);
+  expect(mobileBounds.widgetBottom, JSON.stringify(mobileBounds)).toBeLessThanOrEqual(mobileBounds.viewportHeight + 1);
+  expect(mobileBounds.formTop).toBeGreaterThanOrEqual(0);
+  expect(mobileBounds.formBottom).toBeLessThanOrEqual(mobileBounds.viewportHeight + 1);
+  expect(mobileBounds.textareaBottom).toBeLessThanOrEqual(mobileBounds.viewportHeight + 1);
+});
+
 test("Chat message grouping hover keeps message geometry stable", async ({ page }) => {
   const nowMs = Date.now();
   const serverMessages = Array.from({ length: 18 }, (_, index) => {
@@ -2075,6 +2202,7 @@ test("Chat group settings can rename, set avatar, and delete a group", async ({ 
   await expect(detailsToggle).toBeVisible();
   await detailsToggle.click();
   await expect(page.locator(".dashboard-chat-details-panel")).toBeVisible();
+  await page.locator('[data-dashboard-chat-details-tab="settings"]').click();
   await page.locator('[data-dashboard-chat-thread-setting="rename"]').click();
   const settingsDialog = page.locator(".dashboard-chat-settings-dialog");
   await expect(settingsDialog).toBeVisible();
@@ -2458,6 +2586,7 @@ test("Chat thread click keeps long histories scrollable during background sync",
   await expect
     .poll(async () => (await readThreadViewState()).visibleText, { timeout: 7_000 })
     .toContain("QA long team thread message 80");
+  await expect(page.locator("[data-dashboard-chat-list] [data-dashboard-chat-message-card]")).toHaveCount(80);
 
   await expect
     .poll(
@@ -2514,6 +2643,7 @@ test("Chat thread click keeps long histories scrollable during background sync",
   await expect
     .poll(async () => (await readThreadViewState()).visibleText, { timeout: 7_000 })
     .toContain("QA long DM thread message 55");
+  await expect(page.locator("[data-dashboard-chat-list] [data-dashboard-chat-message-card]")).toHaveCount(55);
 
   const directState = await readThreadViewState();
   expect(directState.scrollTop).toBeGreaterThan(0);

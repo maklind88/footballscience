@@ -17,7 +17,6 @@ export function createMedicalWorkspaceRuntimeRenderer(deps = {}) {
   const getHeroTeamName = typeof deps.getHeroTeamName === "function" ? deps.getHeroTeamName : () => "";
   const getHeroTeamLogoUrl =
     typeof deps.getHeroTeamLogoUrl === "function" ? deps.getHeroTeamLogoUrl : () => "";
-  const getAccessLabel = typeof deps.getAccessLabel === "function" ? deps.getAccessLabel : () => "";
   const canViewPrivateDetails =
     typeof deps.canViewPrivateDetails === "function" ? deps.canViewPrivateDetails : () => false;
   const normalizeOperationsTab =
@@ -46,7 +45,6 @@ export function createMedicalWorkspaceRuntimeRenderer(deps = {}) {
     return withEnsuredState(() => {
       const teamName = getHeroTeamName();
       const teamLogoUrl = getHeroTeamLogoUrl();
-      const accessLabel = getAccessLabel();
       const operationsTab = normalizeOperationsTab(getOperationsTab());
       setOperationsTab(operationsTab);
       const showAvailabilityWorkspace = !canViewPrivateDetails() || operationsTab === "availability";
@@ -65,7 +63,6 @@ ${teamLogoUrl
 <span class="medical-team-name">${escapeHtml(teamName)}</span>
 </div>
 </div>
-${accessLabel ? `<div class="medical-access-chip">${escapeHtml(accessLabel)}</div>` : ""}
 </header>
 ${renderOperationsTopMenu()}
 ${

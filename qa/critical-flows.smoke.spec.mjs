@@ -4369,6 +4369,7 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
   await openWorkspace(page, "medical-team");
   await expect(page.locator(".medical-hero h1")).toHaveText("Medical Room");
   await expect(page.locator(".medical-team-name")).toHaveText("North Carolina Courage");
+  await expect(page.locator(".medical-access-chip")).toHaveCount(0);
   await expect(page.locator(".medical-hero-meta")).toHaveCount(0);
 
   await page.locator("[data-medical-roster-row]:visible .medical-roster-player-cell").first().click();

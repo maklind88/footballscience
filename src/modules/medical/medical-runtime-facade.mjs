@@ -239,7 +239,6 @@ export function createMedicalRuntimeFacade(deps = {}) {
     canViewPrivateDetails: deps.canViewPrivateMedicalDetails,
     ensureState: deps.ensureMedicalState,
     escapeHtml: deps.escapeHtml,
-    getAccessLabel: getMedicalAccessLabel,
     getHeroTeamLogoUrl: getMedicalHeroTeamLogoUrl,
     getHeroTeamName: getMedicalHeroTeamName,
     getOperationsTab: deps.getMedicalOperationsTab,

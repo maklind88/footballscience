@@ -124,20 +124,6 @@
   white-space: nowrap;
 }
 
-#medicalTeamWorkspace .medical-access-chip {
-  min-height: 1.9rem;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 0.65rem;
-  border: 1px solid var(--medical-line);
-  border-radius: 4px;
-  color: var(--medical-muted);
-  background: var(--medical-surface-muted);
-  font-size: 0.7rem;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
 #medicalTeamWorkspace .medical-ops-top-menu {
   min-width: 0;
   padding: 0;
@@ -436,10 +422,6 @@ body.is-dark-mode #medicalTeamWorkspace {
   #medicalTeamWorkspace .medical-team-mark {
     width: 3rem;
     height: 3rem;
-  }
-
-  #medicalTeamWorkspace .medical-access-chip {
-    margin-left: 3.625rem;
   }
 
   #medicalTeamWorkspace .medical-metrics-grid {

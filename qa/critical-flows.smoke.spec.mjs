@@ -3086,7 +3086,10 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await expect(lineupPanel).toContainText("4-3-3");
   await expect(lineupPanel.locator(".dashboard-lineup-pitch, .dashboard-lineup-slot")).toHaveCount(0);
   await expect(lineupPanel).not.toContainText("Avery Stone");
-  await expect(lineupPanel.locator(".dashboard-match-gateway-head h2")).toHaveText("NCC - Boston");
+  await expect(lineupPanel.locator(".dashboard-match-gateway-head h2")).toHaveText(
+    "NCC - Boston (Sat 16 May · 19:00)"
+  );
+  await expect(lineupPanel.locator(".dashboard-match-gateway-head > span")).toHaveCount(0);
   await expect(lineupPanel.locator(".dashboard-match-gateway-summary")).toHaveCount(0);
   await expect(lineupPanel).not.toContainText("Prepare the matchday squad");
   await expect(lineupPanel.locator(".dashboard-match-selection-actions [data-dashboard-open-match-selection]")).toHaveCount(2);
@@ -3159,10 +3162,16 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   expect(historyLayout.labelsFit).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileHistoryLayout = await measureHistoryLayout();
+  const mobileMatchHeadingFits = await homeLineupPanel.locator(".dashboard-match-gateway-head h2").evaluate((heading) => {
+    const headingRect = heading.getBoundingClientRect();
+    const cardRect = heading.closest(".dashboard-upcoming-lineup-card")?.getBoundingClientRect();
+    return Boolean(cardRect && headingRect.left >= cardRect.left && headingRect.right <= cardRect.right);
+  });
   expect(Math.abs(mobileHistoryLayout.firstTop - mobileHistoryLayout.secondTop)).toBeLessThanOrEqual(1);
   expect(Math.abs(mobileHistoryLayout.firstRight - mobileHistoryLayout.secondLeft)).toBeLessThanOrEqual(1);
   expect(Math.min(...mobileHistoryLayout.actionWidths)).toBeGreaterThan(120);
   expect(mobileHistoryLayout.labelsFit).toBe(true);
+  expect(mobileMatchHeadingFits).toBe(true);
   await page.setViewportSize({ width: 1280, height: 720 });
   await pastMatch.locator('[data-match-selection-target="starting-xi"]').click();
   const presentation = page.locator("#presentationModeRoot");

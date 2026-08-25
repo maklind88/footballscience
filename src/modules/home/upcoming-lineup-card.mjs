@@ -194,15 +194,19 @@ function renderHistoryMenu(history = [], escapeHtml = String) {
 export function renderHomeUpcomingLineupCard(context = {}, escapeHtml = String) {
   const lineup = context.upcomingLineup || selectHomeUpcomingLineup();
   const history = Array.isArray(lineup.history) ? lineup.history : [];
+  const matchMeta = cleanText(lineup.meta || lineup.dateValue);
 
   return `
     <article class="dashboard-panel dashboard-upcoming-lineup-card" aria-label="Upcoming match selection">
       <header class="dashboard-match-gateway-head">
         <div>
           <p class="dashboard-card-kicker">Next Match</p>
-          <h2>${escapeHtml(lineup.hasMatch ? lineup.title : "Team Selection")}</h2>
+          <h2>${escapeHtml(lineup.hasMatch ? lineup.title : "Team Selection")}${
+            lineup.hasMatch && matchMeta
+              ? ` <span class="dashboard-match-gateway-date">(${escapeHtml(matchMeta)})</span>`
+              : ""
+          }</h2>
         </div>
-        ${lineup.hasMatch ? `<span>${escapeHtml(lineup.meta || lineup.dateValue)}</span>` : ""}
       </header>
       ${lineup.hasMatch
         ? `

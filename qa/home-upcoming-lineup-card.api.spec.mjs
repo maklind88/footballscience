@@ -61,7 +61,9 @@ test("Home links the next match squad and Starting XI to their Presentation sour
 
   const html = renderHomeUpcomingLineupCard({ upcomingLineup: model }, (value) => String(value ?? ""));
   expect(html).toContain('aria-label="Upcoming match selection"');
-  expect(html).toContain("<h2>NCC - Boston</h2>");
+  expect(html).toContain(
+    '<h2>NCC - Boston <span class="dashboard-match-gateway-date">(Sat 29 Aug · 19:00)</span></h2>'
+  );
   expect(html).not.toContain("<h2>Team Selection</h2>");
   expect(html).not.toContain("<strong>NCC - Boston</strong>");
   expect(html).not.toContain("dashboard-match-gateway-summary");

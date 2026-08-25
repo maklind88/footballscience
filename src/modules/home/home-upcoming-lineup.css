@@ -15,6 +15,7 @@
 }
 
 .dashboard-match-gateway-head,
+.dashboard-match-gateway-head > div,
 .dashboard-match-gateway-empty,
 .dashboard-match-selection-copy,
 .dashboard-match-history-item header {
@@ -36,6 +37,7 @@
 }
 
 .dashboard-match-gateway-head > div {
+  width: 100%;
   gap: .12rem;
 }
 
@@ -58,15 +60,11 @@
   line-height: 1.05;
 }
 
-.dashboard-match-gateway-head > span {
-  max-width: 48%;
-  overflow: hidden;
+.dashboard-match-gateway-date {
   color: #6e6e73;
-  font-size: .64rem;
-  font-weight: 750;
+  font-size: .68rem;
+  font-weight: 700;
   line-height: 1.2;
-  text-align: right;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -371,7 +369,7 @@ body.is-dark-mode .dashboard-match-history-item header strong {
   color: #f5f5f7;
 }
 
-body.is-dark-mode .dashboard-match-gateway-head > span,
+body.is-dark-mode .dashboard-match-gateway-date,
 body.is-dark-mode .dashboard-match-gateway-empty span,
 body.is-dark-mode .dashboard-match-selection-copy small,
 body.is-dark-mode .dashboard-match-selection-state,

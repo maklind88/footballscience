@@ -306,3 +306,51 @@
 #medicalTeamWorkspace .medical-temporary-player-head p {
   border-radius: 4px;
 }
+
+@media (max-width: 820px) {
+  #medicalTeamWorkspace .medical-section-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #medicalTeamWorkspace .medical-roster-tools {
+    grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.6fr);
+  }
+
+  #medicalTeamWorkspace .medical-roster-list-head {
+    display: none;
+  }
+
+  #medicalTeamWorkspace .medical-roster-row {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.55rem;
+    padding-block: 0.7rem;
+  }
+
+  #medicalTeamWorkspace .medical-row-comment {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  #medicalTeamWorkspace .medical-roster-tools {
+    grid-template-columns: 1fr;
+  }
+
+  #medicalTeamWorkspace .medical-position-group-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  #medicalTeamWorkspace .medical-position-group-head p {
+    text-align: left;
+  }
+
+  #medicalTeamWorkspace .medical-quick-rec-row,
+  #medicalTeamWorkspace .medical-quick-rec-row.has-clear {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

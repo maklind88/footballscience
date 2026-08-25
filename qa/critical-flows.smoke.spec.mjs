@@ -4353,6 +4353,50 @@ test("Session Planner player board tidy selected keeps nearby player tokens read
     });
 });
 
+test("Medical workspace uses responsive width without clipping recommendations", async ({ page }) => {
+  await page.addInitScript(({ storageKey }) => {
+    const current = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        ...current,
+        selectedDate: "2026-05-16",
+      })
+    );
+  }, { storageKey: medicalKey });
+  await bootApp(page);
+  await openWorkspace(page, "medical-team");
+  await expect(page.locator("#medicalTeamWorkspace .medical-quick-rec-row").first()).toBeVisible();
+  const medicalLayout = await page.evaluate(() => {
+    const view = document.querySelector(".platform-medical-view");
+    const shell = document.querySelector("#medicalTeamWorkspace .medical-shell");
+    const rosterPanel = document.querySelector("#medicalTeamWorkspace .medical-roster-panel");
+    if (!view || !shell || !rosterPanel) return null;
+    const viewRect = view.getBoundingClientRect();
+    const shellRect = shell.getBoundingClientRect();
+    const panelRect = rosterPanel.getBoundingClientRect();
+    const quickRows = Array.from(document.querySelectorAll("#medicalTeamWorkspace .medical-quick-rec-row"));
+    return {
+      balancedMargins: Math.abs(shellRect.left - viewRect.left - (viewRect.right - shellRect.right)) <= 2,
+      hasRecommendationRows: quickRows.length > 0,
+      noPageOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      quickRowsFit: quickRows.every((row) => {
+        const rect = row.getBoundingClientRect();
+        return rect.left >= panelRect.left - 1 && rect.right <= panelRect.right + 1;
+      }),
+      viewportWidth: window.innerWidth,
+      widthRatio: shellRect.width / viewRect.width,
+    };
+  });
+  expect(medicalLayout).toMatchObject({
+    balancedMargins: true,
+    hasRecommendationRows: true,
+    noPageOverflow: true,
+    quickRowsFit: true,
+  });
+  expect(medicalLayout?.widthRatio).toBeGreaterThan((medicalLayout?.viewportWidth || 0) <= 760 ? 0.92 : 0.96);
+});
+
 test("Medical recommendation edits persist after refresh", async ({ page }) => {
   const comment = `QA Medical ${Date.now()}`;
   await page.addInitScript(({ storageKey }) => {

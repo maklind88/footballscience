@@ -1,3 +1,7 @@
+.platform-content > .platform-medical-view {
+  padding: 0;
+}
+
 #medicalTeamWorkspace {
   --medical-canvas: #f3f5f4;
   --medical-surface: #ffffff;
@@ -12,11 +16,16 @@
   --medical-danger-soft: #f6e9e7;
   --medical-warning: #8a6118;
   --medical-warning-soft: #f7f0df;
+  width: 100%;
+  min-width: 0;
+  padding: clamp(0.75rem, 1.1vw, 1rem);
+  overflow-x: hidden;
   color: var(--medical-ink);
 }
 
 #medicalTeamWorkspace .medical-shell {
-  width: min(1480px, 100%);
+  width: 100%;
+  max-width: 112rem;
   margin: 0 auto;
   display: grid;
   gap: 0.75rem;
@@ -378,29 +387,6 @@ body.is-dark-mode #medicalTeamWorkspace {
   #medicalTeamWorkspace .medical-window-days {
     grid-column: 1 / -1;
   }
-
-  #medicalTeamWorkspace .medical-section-head {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  #medicalTeamWorkspace .medical-roster-tools {
-    grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.6fr);
-  }
-
-  #medicalTeamWorkspace .medical-roster-list-head {
-    display: none;
-  }
-
-  #medicalTeamWorkspace .medical-roster-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.55rem;
-    padding-block: 0.7rem;
-  }
-
-  #medicalTeamWorkspace .medical-row-comment {
-    margin-left: 0;
-  }
 }
 
 @media (max-width: 560px) {
@@ -442,22 +428,4 @@ body.is-dark-mode #medicalTeamWorkspace {
     border-bottom: 0;
   }
 
-  #medicalTeamWorkspace .medical-roster-tools {
-    grid-template-columns: 1fr;
-  }
-
-  #medicalTeamWorkspace .medical-position-group-head {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-
-  #medicalTeamWorkspace .medical-position-group-head p {
-    text-align: left;
-  }
-
-  #medicalTeamWorkspace .medical-quick-rec-row,
-  #medicalTeamWorkspace .medical-quick-rec-row.has-clear {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }

@@ -68,6 +68,7 @@ test("Home dashboard context selectors rank events, sessions, microcycle, and al
 
 test("Home dashboard context selectors build the complete Home render context", () => {
   let birthdayStateEnsured = false;
+  let birthdayOptions = null;
   const selectors = createSelectors({
     medicalRecords: [],
     ensurePlayerProfilesState: () => {
@@ -76,14 +77,17 @@ test("Home dashboard context selectors build the complete Home render context", 
     playerProfilesState: {
       players: [{ id: "p8", name: "Ada Midfielder", birthDate: "2001-07-24" }],
     },
-    getUpcomingPlayerProfileBirthdays: (players = [], options = {}) => ({
-      items: players.map((player) => ({ id: player.id, name: player.name, referenceDate: options.referenceDate })),
-      next: players[0] || null,
-      trackedCount: players.length,
-      withBirthDateCount: players.length,
-      missingBirthDateCount: 0,
-      thisMonthCount: 1,
-    }),
+    getUpcomingPlayerProfileBirthdays: (players = [], options = {}) => {
+      birthdayOptions = options;
+      return {
+        items: players.map((player) => ({ id: player.id, name: player.name, referenceDate: options.referenceDate })),
+        next: players[0] || null,
+        trackedCount: players.length,
+        withBirthDateCount: players.length,
+        missingBirthDateCount: 0,
+        thisMonthCount: 1,
+      };
+    },
   });
   const context = selectors.getHomeContext(
     { id: "coach-1" },
@@ -102,6 +106,7 @@ test("Home dashboard context selectors build the complete Home render context", 
   expect(context.alerts.map((alert) => alert.title)).toContain("Staff follow-up");
   expect(context.alerts.find((alert) => alert.title === "Medical availability")?.tone).toBe("monitor");
   expect(birthdayStateEnsured).toBe(true);
+  expect(birthdayOptions).toMatchObject({ referenceDate: context.todayValue, includeTemporary: false, limit: 12 });
   expect(context.birthdayCalendar.items).toEqual([
     expect.objectContaining({ id: "p8", name: "Ada Midfielder", referenceDate: context.todayValue }),
   ]);

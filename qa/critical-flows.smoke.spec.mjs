@@ -2885,10 +2885,28 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   const lineupSlotIds = ["gk", "lb", "lcb", "rcb", "rb", "lcm", "cm", "rcm", "lw", "st", "rw"];
   const lineupPlayers = lineupSlotIds.map((slotId, index) => ({
     id: `home-lineup-${index + 1}`,
-    name: index === 0 ? "Avery Stone" : `${slotId.toUpperCase()} Player`,
+    name:
+      index === 0
+        ? "Avery Stone"
+        : index === 1
+          ? "Blake River"
+          : index === 2
+            ? "Casey Vale"
+            : index === 3
+              ? "Drew Lane"
+              : `${slotId.toUpperCase()} Player`,
     number: String(index + 1),
     primaryRole: index === 0 ? "Goalkeeper" : "",
-    birthDate: index === 0 ? "2001-05-12" : "",
+    birthDate:
+      index === 0
+        ? "2001-05-12"
+        : index === 1
+          ? "2000-05-14"
+          : index === 2
+            ? "2003-05-18"
+            : index === 3
+              ? "1999-06-02"
+              : "",
   }));
   const lineupAssignments = Object.fromEntries(
     lineupSlotIds.map((slotId, index) => [slotId, lineupPlayers[index].id])
@@ -2967,6 +2985,20 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await expect(birthdaySpotlight).not.toContainText("#1");
   await expect(birthdaySpotlight).not.toContainText("Goalkeeper");
   await expect(birthdayCard.locator("[data-dashboard-birthday-countdown]")).toHaveCount(0);
+  await expect(birthdayCard.locator(".dashboard-birthday-item")).toHaveCount(2);
+  await expect(birthdayCard).toContainText("Blake River");
+  await expect(birthdayCard).toContainText("Casey Vale");
+  await expect(birthdayCard).not.toContainText("Drew Lane");
+  await expect(birthdayCard.locator("[data-dashboard-open-birthday-calendar]")).toBeVisible();
+  await birthdayCard.locator("[data-dashboard-open-birthday-calendar]").click();
+  const birthdayModal = page.locator("[data-dashboard-birthday-modal]");
+  await expect(birthdayModal).toBeVisible();
+  await expect(birthdayModal).toContainText("Avery Stone");
+  await expect(birthdayModal).toContainText("Blake River");
+  await expect(birthdayModal).toContainText("Casey Vale");
+  await expect(birthdayModal).toContainText("Drew Lane");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-dashboard-birthday-modal]")).toHaveCount(0);
   const layoutBoxes = await presentationBand
     .locator(":scope > .dashboard-presentation-card, :scope > .dashboard-upcoming-lineup-card, :scope > .dashboard-schedule-preview")
     .evaluateAll((columns) =>

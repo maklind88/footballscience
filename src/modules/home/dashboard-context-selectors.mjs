@@ -295,7 +295,7 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     return getUpcomingPlayerProfileBirthdays(players, {
       referenceDate: todayValue,
       includeTemporary: false,
-      limit: 3,
+      limit: 12,
     });
   }
 

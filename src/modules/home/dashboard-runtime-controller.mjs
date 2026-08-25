@@ -301,6 +301,22 @@ export function createDashboardRuntimeController(dependencies = {}) {
     }
   }
 
+  function showBirthdayCalendarModal() {
+    if (documentRef.body?.dataset.activeWorkspace && documentRef.body.dataset.activeWorkspace !== "home") {
+      return;
+    }
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      return;
+    }
+    const root = getModalRoot();
+    const users = getUsers().filter((user) => user.status === "active");
+    const context = getHomeContext(currentUser, users, readTasks());
+    root.innerHTML = homeCardsRenderer.renderBirthdayCalendarModal(context);
+    root.hidden = false;
+    root.querySelector("[data-dashboard-modal-close]")?.focus();
+  }
+
   function maybeShowNewsModal() {
     const user = getCurrentUser();
     if (!user || hasSeenNews(user.id)) {
@@ -404,6 +420,10 @@ export function createDashboardRuntimeController(dependencies = {}) {
     }
     if (event.target.closest("[data-dashboard-action='open-tutorial']")) {
       showTutorialModal();
+      return true;
+    }
+    if (event.target.closest("[data-dashboard-open-birthday-calendar]")) {
+      showBirthdayCalendarModal();
       return true;
     }
     const schedulePreviousButton = event.target.closest("[data-dashboard-schedule-prev]");
@@ -566,6 +586,10 @@ export function createDashboardRuntimeController(dependencies = {}) {
       return false;
     }
     const user = getCurrentUser();
+    if (modalRoot.querySelector("[data-dashboard-birthday-modal]") && event.target.closest("[data-dashboard-modal-close]")) {
+      closeModal();
+      return true;
+    }
     if (event.target.closest("[data-dashboard-tutorial-never]")) {
       saveTutorialPreference(user?.id, false);
       closeModal();
@@ -605,6 +629,9 @@ export function createDashboardRuntimeController(dependencies = {}) {
     const user = getCurrentUser();
     if (modalRoot.querySelector("#dashboardTutorialShowNext")) {
       saveTutorialPreference(user?.id, Boolean(modalRoot.querySelector("#dashboardTutorialShowNext")?.checked));
+    } else if (modalRoot.querySelector("[data-dashboard-birthday-modal]")) {
+      closeModal();
+      return true;
     } else {
       markNewsSeen(user?.id);
     }
@@ -637,6 +664,7 @@ export function createDashboardRuntimeController(dependencies = {}) {
     renderCards,
     saveTutorialPreference,
     scheduleLoginPopups,
+    showBirthdayCalendarModal,
     showTutorialModal,
     updateTask,
     writeAppearanceState,

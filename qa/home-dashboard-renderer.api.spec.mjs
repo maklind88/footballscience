@@ -45,10 +45,34 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
           nextBirthday: "2026-07-24",
           photoUrl: "https://example.com/ada.jpg",
         },
+        {
+          id: "p9",
+          name: "Bea Defender",
+          dateLabel: "Jul 25",
+          relativeLabel: "In 3 days",
+          turningAge: 26,
+          nextBirthday: "2026-07-25",
+        },
+        {
+          id: "p10",
+          name: "Clea Striker",
+          dateLabel: "Jul 28",
+          relativeLabel: "In 6 days",
+          turningAge: 22,
+          nextBirthday: "2026-07-28",
+        },
+        {
+          id: "p11",
+          name: "Daria Winger",
+          dateLabel: "Aug 2",
+          relativeLabel: "In 11 days",
+          turningAge: 24,
+          nextBirthday: "2026-08-02",
+        },
       ],
-      thisMonthCount: 1,
-      trackedCount: 2,
-      withBirthDateCount: 1,
+      thisMonthCount: 3,
+      trackedCount: 4,
+      withBirthDateCount: 4,
       missingBirthDateCount: 1,
     },
     todayValue: "2026-01-01",
@@ -60,7 +84,11 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(rendered).toContain("Player / Team Alerts");
   expect(rendered).toContain("Upcoming birthdays");
   expect(rendered).toContain("Ada Midfielder");
-  expect(rendered).toContain("1 this month");
+  expect(rendered).toContain("Bea Defender");
+  expect(rendered).toContain("Clea Striker");
+  expect(rendered).not.toContain("Daria Winger");
+  expect(rendered).toContain("3 this month");
+  expect(rendered).toContain("data-dashboard-open-birthday-calendar");
   expect(rendered).toContain("dashboard-birthday-spotlight");
   expect(rendered).toContain("Jul 24 · In 2 days");
   expect(rendered).not.toContain("dashboard-birthday-countdown");
@@ -98,10 +126,40 @@ test("home dashboard renderer owns the compact birthday news card", () => {
           nextBirthday: "2026-07-24",
           photoUrl: "https://example.com/ada.jpg",
         },
+        {
+          id: "p9",
+          name: "Bea Defender",
+          number: "4",
+          primaryRole: "Centre back",
+          dateLabel: "Jul 25",
+          relativeLabel: "In 2 days",
+          turningAge: 26,
+          nextBirthday: "2026-07-25",
+        },
+        {
+          id: "p10",
+          name: "Clea Striker",
+          number: "9",
+          primaryRole: "Forward",
+          dateLabel: "Jul 28",
+          relativeLabel: "In 5 days",
+          turningAge: 22,
+          nextBirthday: "2026-07-28",
+        },
+        {
+          id: "p11",
+          name: "Daria Winger",
+          number: "11",
+          primaryRole: "Winger",
+          dateLabel: "Aug 2",
+          relativeLabel: "In 10 days",
+          turningAge: 24,
+          nextBirthday: "2026-08-02",
+        },
       ],
       thisMonthCount: 0,
-      trackedCount: 2,
-      withBirthDateCount: 1,
+      trackedCount: 4,
+      withBirthDateCount: 4,
       missingBirthDateCount: 1,
     },
   });
@@ -111,6 +169,10 @@ test("home dashboard renderer owns the compact birthday news card", () => {
   expect(rendered).not.toContain("0 this month");
   expect(rendered).not.toContain("dashboard-panel-count");
   expect(rendered).toContain("Ada Midfielder");
+  expect(rendered).toContain("Bea Defender");
+  expect(rendered).toContain("Clea Striker");
+  expect(rendered).not.toContain("Daria Winger");
+  expect(rendered.match(/dashboard-birthday-item/g) || []).toHaveLength(2);
   expect(rendered).toContain("dashboard-birthday-spotlight");
   expect(rendered).toContain("dashboard-birthday-cake");
   expect(rendered).toContain('src="https://example.com/ada.jpg"');
@@ -123,6 +185,73 @@ test("home dashboard renderer owns the compact birthday news card", () => {
   expect(rendered).not.toContain("1 missing dates");
   expect(rendered).not.toContain("Squad profiles");
   expect(rendered).not.toContain('data-open-workspace="player-profiles"');
+  expect(rendered).toContain("data-dashboard-open-birthday-calendar");
+});
+
+test("home dashboard renderer owns the birthday calendar modal", () => {
+  const renderer = createDashboardHomeCardsRenderer({
+    escapeHtml: (value) => String(value ?? ""),
+    renderTaskList: () => "<div></div>",
+    resolveUserLabel: renderTestUserLabel,
+  });
+
+  const rendered = renderer.renderBirthdayCalendarModal({
+    birthdayCalendar: {
+      items: [
+        {
+          id: "p8",
+          name: "Ada Midfielder",
+          number: "88",
+          primaryRole: "Central midfield",
+          dateLabel: "Jul 24",
+          relativeLabel: "Tomorrow",
+          turningAge: 25,
+          nextBirthday: "2026-07-24",
+          photoUrl: "https://example.com/ada.jpg",
+        },
+        {
+          id: "p9",
+          name: "Bea Defender",
+          number: "4",
+          primaryRole: "Centre back",
+          dateLabel: "Jul 25",
+          relativeLabel: "In 2 days",
+          turningAge: 26,
+          nextBirthday: "2026-07-25",
+        },
+        {
+          id: "p10",
+          name: "Clea Striker",
+          number: "9",
+          primaryRole: "Forward",
+          dateLabel: "Jul 28",
+          relativeLabel: "In 5 days",
+          turningAge: 22,
+          nextBirthday: "2026-07-28",
+        },
+        {
+          id: "p11",
+          name: "Daria Winger",
+          number: "11",
+          primaryRole: "Winger",
+          dateLabel: "Aug 2",
+          relativeLabel: "In 10 days",
+          turningAge: 24,
+          nextBirthday: "2026-08-02",
+        },
+      ],
+    },
+  });
+
+  expect(rendered).toContain('data-dashboard-birthday-modal');
+  expect(rendered).toContain('aria-labelledby="dashboardBirthdayCalendarTitle"');
+  expect(rendered).toContain("4 upcoming birthdays");
+  expect(rendered).toContain("Ada Midfielder");
+  expect(rendered).toContain("Bea Defender");
+  expect(rendered).toContain("Clea Striker");
+  expect(rendered).toContain("Daria Winger");
+  expect(rendered).toContain("#11 · Winger");
+  expect(rendered).toContain("data-dashboard-modal-close");
 });
 
 test("home dashboard renderer applies safe same-type appearance rules", () => {

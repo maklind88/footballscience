@@ -288,6 +288,35 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     `;
   }
 
+  function getBirthdayItemKey(item = {}) {
+    const birthdayItem = item || {};
+    return `${birthdayItem.id || ""}|${birthdayItem.nextBirthday || ""}|${birthdayItem.name || ""}`;
+  }
+
+  function getBirthdayCalendarItems(calendar = {}, limit = 20) {
+    const items = Array.isArray(calendar.items) ? calendar.items : [];
+    const nextBirthday = calendar.next || items[0] || null;
+    const seen = new Set();
+    const birthdayItems = [];
+    const addItem = (item) => {
+      if (!item) {
+        return;
+      }
+      const key = getBirthdayItemKey(item);
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      birthdayItems.push(item);
+    };
+    const matchingNextItem = nextBirthday
+      ? items.find((item) => getBirthdayItemKey(item) === getBirthdayItemKey(nextBirthday))
+      : null;
+    addItem(matchingNextItem || nextBirthday);
+    items.forEach(addItem);
+    return birthdayItems.slice(0, limit);
+  }
+
   function renderBirthdaySpotlight(item = {}) {
     const age = Number(item.turningAge);
     const ageLabel = Number.isFinite(age) && age > 0 ? String(age) : "--";
@@ -331,18 +360,20 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
 
   function renderBirthdayNewsCard(context) {
     const calendar = context.birthdayCalendar || {};
-    const items = Array.isArray(calendar.items) ? calendar.items : [];
+    const birthdayItems = getBirthdayCalendarItems(calendar, 12);
+    const previewItems = birthdayItems.slice(0, 3);
     const thisMonthCount = Math.max(0, Number(calendar.thisMonthCount) || 0);
     const trackedCount = Math.max(0, Number(calendar.trackedCount) || 0);
-    const nextBirthday = calendar.next || items[0] || null;
-    const getBirthdayItemKey = (item = {}) => {
-      const birthdayItem = item || {};
-      return `${birthdayItem.id || ""}|${birthdayItem.nextBirthday || ""}|${birthdayItem.name || ""}`;
-    };
-    const nextBirthdayKey = getBirthdayItemKey(nextBirthday);
-    const nextItems = nextBirthday
-      ? items.filter((item) => item !== nextBirthday && getBirthdayItemKey(item) !== nextBirthdayKey).slice(0, 1)
-      : [];
+    const nextBirthday = previewItems[0] || null;
+    const nextItems = previewItems.slice(1);
+    const headActions = [
+      thisMonthCount > 0
+        ? `<span class="dashboard-panel-count">${escapeHtml(String(thisMonthCount))} this month</span>`
+        : "",
+      birthdayItems.length > previewItems.length
+        ? `<button type="button" class="dashboard-birthday-view-all" data-dashboard-open-birthday-calendar>View all</button>`
+        : "",
+    ].filter(Boolean).join("");
     const emptyText = trackedCount
       ? "Add birth dates in player profiles to show upcoming birthdays."
       : "Add players with birth dates to show upcoming birthdays.";
@@ -354,11 +385,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           <p class="dashboard-card-kicker">Birthday Calendar</p>
           <h2>Upcoming birthdays</h2>
         </div>
-        ${
-          thisMonthCount > 0
-            ? `<span class="dashboard-panel-count">${escapeHtml(String(thisMonthCount))} this month</span>`
-            : ""
-        }
+        ${headActions ? `<div class="dashboard-birthday-head-actions">${headActions}</div>` : ""}
       </header>
       ${
         nextBirthday
@@ -372,6 +399,61 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             </div>`
       }
     </article>
+  `;
+  }
+
+  function renderBirthdayModalItem(item = {}) {
+    const age = Number(item.turningAge);
+    const dateLabel = item.dateLabel || item.nextBirthday || "Upcoming";
+    const detail = [
+      item.number ? `#${item.number}` : "",
+      item.primaryRole || "",
+    ].filter(Boolean).join(" · ");
+    return `
+      <div class="dashboard-birthday-modal-item">
+        <span class="dashboard-birthday-modal-date">${escapeHtml(dateLabel)}</span>
+        ${renderBirthdayAvatar(item, "dashboard-birthday-avatar dashboard-birthday-modal-avatar")}
+        <span class="dashboard-birthday-modal-copy">
+          <strong>${escapeHtml(item.name || "Player")}</strong>
+          <small>${escapeHtml(detail || item.relativeLabel || "Birthday")}</small>
+        </span>
+        <span class="dashboard-birthday-modal-age">
+          <strong>${Number.isFinite(age) && age > 0 ? escapeHtml(String(age)) : "--"}</strong>
+          <small>${escapeHtml(item.relativeLabel || "Upcoming")}</small>
+        </span>
+      </div>
+    `;
+  }
+
+  function renderBirthdayCalendarModal(context = {}) {
+    const calendar = context.birthdayCalendar || {};
+    const birthdayItems = getBirthdayCalendarItems(calendar, 12);
+    return `
+    <div class="dashboard-modal-backdrop" data-dashboard-modal-close></div>
+    <section
+      class="dashboard-modal-card dashboard-birthday-modal-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dashboardBirthdayCalendarTitle"
+      data-dashboard-birthday-modal
+    >
+      <header class="dashboard-modal-head">
+        <div>
+          <p class="dashboard-modal-kicker">Birthday Calendar</p>
+          <h2 id="dashboardBirthdayCalendarTitle">Upcoming birthdays</h2>
+          <small>${escapeHtml(birthdayItems.length ? `${birthdayItems.length} upcoming birthdays` : "No birthdays to show")}</small>
+        </div>
+        <button type="button" class="dashboard-modal-close" data-dashboard-modal-close aria-label="Close birthdays">x</button>
+      </header>
+      ${
+        birthdayItems.length
+          ? `<div class="dashboard-birthday-modal-list">${birthdayItems.map(renderBirthdayModalItem).join("")}</div>`
+          : `<div class="dashboard-birthday-empty" role="note">
+              <strong>No birthdays to show</strong>
+              <span>Add birth dates in player profiles to show upcoming birthdays.</span>
+            </div>`
+      }
+    </section>
   `;
   }
 
@@ -476,6 +558,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     renderTodoCommand,
     renderAlertsCard,
     renderBirthdayNewsCard,
+    renderBirthdayCalendarModal,
     renderTutorialModal,
     getDashboardTopPriorityTasks,
     renderTopTaskRow,

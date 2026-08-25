@@ -2,7 +2,7 @@
 
 Use these prompts to start focused Codex chats without carrying the full old context.
 
-Operating model: `distributed-specialist-v2` (2026-08-24). Every specialist owns its own module work and, when the product intent requires Live, its own release. Full release commands serialize automatically through the shared release lock.
+Operating model: `distributed-specialist-v3` (2026-08-24). Every specialist owns its own module work. Only a direct user message in that chat can activate deploy or Live; full release commands then serialize automatically through the shared release lock.
 
 ## Recommended Threads
 

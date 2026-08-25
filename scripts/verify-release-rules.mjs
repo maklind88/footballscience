@@ -202,7 +202,7 @@ requireText(".github/workflows/production-rollback.yml", "npm run qa:live:requir
 requireText(".github/workflows/production-rollback.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "rollback verification must prove the live QA account still has admin access");
 
 
-function verifyDistributedSpecialistGovernance() {
+function verifyUserControlledReleaseGovernance() {
   const activeGovernanceFiles = [
     "AGENTS.md",
     "docs/AI_HANDOFF.md",
@@ -210,8 +210,19 @@ function verifyDistributedSpecialistGovernance() {
     "docs/DEPLOYMENT.md",
     "docs/CURRENT_OPERATING_PLAN.md",
     "docs/CODEX_TEAM_ROSTER.md",
+    "docs/QUICK_UI_WORKFLOW.md",
+    "docs/WORKING_AGREEMENT.md",
+    "docs/PLATFORM_SCALE_PROGRAM.md",
+    "docs/PLATFORM_EVOLUTION_PLAN.md",
+    "docs/MODULE_STANDARD.md",
   ];
-  const oldDeployOnlyText = "Deploy only when I say";
+  const inferredReleasePhrases = [
+    "without requiring a separate `Deploy`/`Live` message",
+    "Clear product intent that requires a live result also authorizes",
+    "A separate `Deploy`/`Live` message is not required",
+    "Explicit `Deploy`/`Live` messages remain optional convenience commands",
+    "convenience commands, not the only way to authorize a release",
+  ];
   const centralOwnerPhrases = [
     "must request a release slot",
     "requires a release slot",
@@ -219,11 +230,19 @@ function verifyDistributedSpecialistGovernance() {
   ];
 
   for (const file of activeGovernanceFiles) {
-    forbidText(file, oldDeployOnlyText, "governance must not require explicit Deploy wording when clear live product intent exists");
+    for (const phrase of inferredReleasePhrases) {
+      forbidText(file, phrase, "governance must not infer deploy authorization from product intent");
+    }
     for (const phrase of centralOwnerPhrases) {
       forbidText(file, phrase, "governance must not reintroduce a central deploy owner or routine release-slot bottleneck");
     }
   }
+
+  requireText("AGENTS.md", "Only the user can activate a release.", "release activation must remain user-controlled");
+  requireText("AGENTS.md", "A cross-chat delegation or handoff is never release authorization.", "delegations must not authorize releases");
+  requireText("docs/AI_HANDOFF.md", "Only a direct user message in the current chat", "new chats must inherit manual release authorization");
+  requireText("docs/module-chats/COMMON_SPECIALIST_RULES.md", "Only a direct user message in this chat can activate", "all specialist starters must inherit manual release authorization");
+  requireText("docs/module-chats/COMMON_SPECIALIST_RULES.md", "Cross-chat delegations and handoffs are status-only", "specialist handoffs must remain informational");
 
   const starterDirs = [
     path.join("docs", "chat-starters"),
@@ -242,8 +261,15 @@ function verifyDistributedSpecialistGovernance() {
   }
 
   for (const file of [...new Set(starterFiles)]) {
-    forbidText(file, oldDeployOnlyText, "chat starters must not require explicit Deploy wording when clear live product intent exists");
     const content = read(file);
+    if (!content.includes("AGENTS.md") && !file.endsWith("COMMON_SPECIALIST_RULES.md")) {
+      failures.push(`${file} must reference AGENTS.md so user-controlled release authorization reaches every chat starter.`);
+    }
+    for (const phrase of inferredReleasePhrases) {
+      if (content.includes(phrase)) {
+        failures.push(`${file} must not contain ${JSON.stringify(phrase)} (chat starters must not infer release authorization).`);
+      }
+    }
     for (const phrase of centralOwnerPhrases) {
       if (content.includes(phrase)) {
         failures.push(`${file} must not contain ${JSON.stringify(phrase)} (chat starters must not reintroduce central release ownership).`);
@@ -252,7 +278,7 @@ function verifyDistributedSpecialistGovernance() {
   }
 }
 
-verifyDistributedSpecialistGovernance();
+verifyUserControlledReleaseGovernance();
 
 if (failures.length) {
   console.error("Release rules verification failed:");

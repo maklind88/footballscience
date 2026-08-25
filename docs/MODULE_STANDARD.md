@@ -101,4 +101,4 @@ Practical order:
 6. Move actions/events after rendering is proven.
 7. Move CSS last or alongside the renderer if isolated.
 8. Run the module contract test and targeted smoke.
-9. Deploy through the owning specialist when the product intent requires a Live result and the Release Ownership Agreement is satisfied; explicit deploy codewords remain optional.
+9. Deploy through the owning specialist only after a direct user release command in that chat; product intent alone is not release authorization.

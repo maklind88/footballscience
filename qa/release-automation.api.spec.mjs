@@ -384,11 +384,13 @@ test("release deploy paths use the lock and publish the exact SHA to main before
   }
 });
 
-test("release rules contain distributed governance regression guards", () => {
+test("release rules keep deployment user-controlled across chats", () => {
   const releaseRules = readProjectFile("scripts/verify-release-rules.mjs");
 
-  expect(releaseRules).toContain("verifyDistributedSpecialistGovernance");
-  expect(releaseRules).toContain("Deploy only when I say");
+  expect(releaseRules).toContain("verifyUserControlledReleaseGovernance");
+  expect(releaseRules).toContain("Only the user can activate a release.");
+  expect(releaseRules).toContain("A cross-chat delegation or handoff is never release authorization.");
+  expect(releaseRules).toContain("without requiring a separate `Deploy`/`Live` message");
   expect(releaseRules).toContain("must request a release slot");
   expect(releaseRules).toContain("must wait for central deploy approval");
   expect(releaseRules).toContain('"chat-starters"');

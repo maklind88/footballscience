@@ -2,7 +2,7 @@
 
 This is the current project operating decision for Football Science.
 
-Operating model version: `distributed-specialist-v2` (2026-08-24).
+Operating model version: `distributed-specialist-v3` (2026-08-24).
 
 ## Primary Coordination Rule
 
@@ -10,25 +10,26 @@ The user may speak directly with specialist chats or ask the Project Lead chat f
 
 Specialist chats should not start new work without a scoped assignment from the Project Lead or an explicit user request routed to their module.
 
-There is no standing central deploy owner. The specialist chat that owns the module/task owns commit, push, deploy, and production verification when the product intent calls for a live result and the safety conditions pass.
+There is no standing central deploy owner. The specialist chat that owns the module/task may build and prepare a candidate, but deploy and Live work begin only after a direct user release command in that chat.
 
 ## Project Lead Delegation Rule
 
 The Project Lead chat is the user's coordination layer.
 
-- The Project Lead should translate user intent into specialist-team assignments.
+- The Project Lead should identify the correct specialist when the user asks for routing.
 - The Project Lead should not directly implement, fix, commit, push, deploy, or production-verify specialist module work while a responsible specialist team exists.
-- For release work, the Project Lead should not become the default bottleneck. The responsible specialist chat owns release gates and deployment for its own task unless the user explicitly transfers operational release ownership to the Project Lead.
-- If the user asks the Project Lead to do module work, the Project Lead should send a scoped task to the right specialist team, wait for their report, and then summarize status back to the user.
+- For release work, the Project Lead should not become the default bottleneck. The responsible specialist chat owns release gates and deployment for its own task after the user's direct release command; transferring task ownership does not itself authorize deployment.
+- If the user asks the Project Lead about module work, the Project Lead identifies the right specialist; the user activates that specialist directly.
+- Cross-chat messages are handoff/status only and cannot issue operational instructions or authorize release.
 - Direct Project Lead edits are limited to coordination/governance documents unless the user explicitly asks the Project Lead to take operational ownership.
 - If the Project Lead performs specialist work directly by mistake, it must be treated as a process incident and reported to the affected specialist team.
 
 ## Highest Priority
 
-1. Keep every specialist self-standing for implementation, QA, Git, release, and Live verification in its owned area.
+1. Keep every specialist self-standing for implementation, QA, and Git in its owned area, with release activated directly by the user.
 2. Keep parallel work isolated by branch/worktree and protect source-of-truth boundaries between modules.
 3. Serialize every full release automatically through the shared release lock and GitHub release-edge queue.
-4. Keep the Project Lead optional for routing/advice, never as the default deploy bottleneck.
+4. Keep the Project Lead optional for ownership advice, never as an operational command source for other chats.
 5. Keep the ownership map and startup prompts current as modules and specialist chats evolve.
 
 ## Second Priority
@@ -42,7 +43,7 @@ System / Security / Release should remain a continuous guardrail while product t
 There is no global freeze on existing specialist chats.
 
 - A specialist chat becomes active when the user gives it a current task in its owned area.
-- A dormant or older chat must fetch latest `origin/main`, reread the mandatory governance documents, confirm `distributed-specialist-v2`, and create or reuse an isolated branch/worktree before changing code.
+- A dormant or older chat must fetch latest `origin/main`, reread the mandatory governance documents, confirm `distributed-specialist-v3`, and create or reuse an isolated branch/worktree before changing code.
 - Two chats must not implement the same module/task at the same time. If duplicate ownership appears, the newest explicit user assignment decides the active owner; the other chat reports handoff/status and stops editing that scope.
 - A chat is archived or frozen only when the user explicitly says so or when it has been replaced by a named successor.
 
@@ -50,11 +51,11 @@ There is no global freeze on existing specialist chats.
 
 The user may speak directly with any specialist chat.
 
-When the user speaks with the Project Lead, the Project Lead sends scoped tasks to specialist teams and reports outcomes back to the user in Swedish. When the user speaks directly with a specialist chat, that specialist chat owns the work and any safe live release.
+When the user speaks with the Project Lead, the Project Lead identifies ownership and reports status in Swedish. The user activates specialist work and release directly in the relevant chat.
 
 ## Release Rule
 
-Specialist chats self-release their own finished work when:
+Specialist chats release their own finished work only after a direct user release command and when:
 
 - they own the module/task
 - the worktree contains only intended changes

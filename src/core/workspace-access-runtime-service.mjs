@@ -161,7 +161,7 @@ const mergedWorkspace = {
 ...fallback,
 ...workspace,
 };
-if (["session-planner", "player-profiles"].includes(defaultWorkspace.id)) {
+if (defaultWorkspace.id === "session-planner" || defaultWorkspace.id === "player-profiles") {
 mergedWorkspace.kind = defaultWorkspace.kind;
 mergedWorkspace.status = defaultWorkspace.status;
 }

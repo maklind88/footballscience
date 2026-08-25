@@ -249,7 +249,7 @@ export const moduleStandardContracts = Object.freeze([
       "src/core/leaderboard-surface-runtime.mjs",
       "src/modules/home/leaderboard-home-mount.mjs",
       "src/modules/leaderboard",
-      "supabase/migrations/20260825002506_leaderboard_foundation.sql",
+      "supabase/migrations/20260825181453_leaderboard_foundation.sql",
     ],
     cssFiles: ["src/modules/leaderboard/leaderboard.css"],
     testFiles: [

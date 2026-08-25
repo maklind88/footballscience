@@ -100,4 +100,3 @@ export function dynamicGraphicReadiness(value = {}) {
     minimumBindings,
   };
 }
-

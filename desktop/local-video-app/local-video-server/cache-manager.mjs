@@ -57,4 +57,3 @@ export async function pruneCache(cacheDir, options = {}) {
 export async function removeCacheEntry(cacheDir, id) {
   await fs.rm(path.join(cacheDir, String(id || "")), { recursive: true, force: true });
 }
-

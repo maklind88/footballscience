@@ -192,4 +192,3 @@ export function movementCurve(track = {}, calibration = {}, options = {}) {
     sampleCount: points.length,
   };
 }
-

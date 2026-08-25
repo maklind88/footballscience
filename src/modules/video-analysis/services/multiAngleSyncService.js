@@ -39,4 +39,3 @@ export function correctedAngleSync(angleValue = {}, referenceMatchTimeMs = 0, ob
     syncConfidence: Math.max(angle.syncConfidence, 0.8),
   };
 }
-

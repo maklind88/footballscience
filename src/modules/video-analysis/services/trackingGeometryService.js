@@ -84,4 +84,3 @@ export function trackingMovementInImage(track = {}, startMs = 0, endMs = 0, step
   }
   return { distance, sampleCount: points.length };
 }
-

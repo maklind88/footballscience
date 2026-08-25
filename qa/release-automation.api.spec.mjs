@@ -48,7 +48,7 @@ test("safe ship release automation owns the staging to production flow", () => {
   expect(shipSource).toContain('"release:postdeploy"');
 });
 
-test("full QA keeps complete coverage while running Playwright in four isolated shards", () => {
+test("full QA keeps complete coverage while balancing API and browser tests", () => {
   const packageJson = readJson("package.json");
   const fullQa = readProjectFile(".github/workflows/full-qa.yml");
   const qaWorkflow = readProjectFile(".github/workflows/qa.yml");
@@ -60,12 +60,16 @@ test("full QA keeps complete coverage while running Playwright in four isolated 
   expect(packageJson.scripts["qa:static"]).toContain("npm run qa:supabase");
   expect(packageJson.scripts["qa:static"]).toContain("npm run architecture:budgets");
   expect(packageJson.scripts["qa:playwright"]).toBe("playwright test --config=qa/playwright.config.mjs");
+  expect(packageJson.scripts["qa:playwright:ci"]).toBe("playwright test --config=qa/playwright.ci.config.mjs");
   expect(fullQa).toContain("workflow_call:");
   expect(fullQa).toContain("npm run release:preflight");
   expect(fullQa).toContain("npm run security:audit");
   expect(fullQa).toContain("npm run qa:static");
-  expect(fullQa).toContain("shard: [1, 2, 3, 4]");
-  expect(fullQa).toContain("npm run qa:playwright -- --shard=${{ matrix.shard }}/4");
+  expect(fullQa).toContain("project: api-contracts");
+  expect(fullQa.match(/name: Browser shard [1-4] of 4/g)).toHaveLength(4);
+  expect(fullQa).toContain("project: chromium");
+  expect(fullQa).toContain("npm run qa:playwright:ci -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.total }}");
+  expect(readProjectFile("qa/playwright.ci.config.mjs")).toContain("fullyParallel: true");
   expect(fullQa).not.toContain("continue-on-error");
   expect(qaWorkflow).toContain("uses: ./.github/workflows/full-qa.yml");
   for (const workflow of [stagingWorkflow, productionWorkflow]) {

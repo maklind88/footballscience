@@ -56,6 +56,7 @@ requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
 requirePackageScript("qa", "npm run qa:static && npm run qa:playwright");
 requirePackageScript("qa:static", "npm run verify:local-isolation && npm run check && npm run release:rules && npm run release:incident-readiness && npm run storage:guard && npm run security:platform && npm run platform:readiness && npm run qa:supabase && npm run qa:perf && npm run architecture:budgets");
 requirePackageScript("qa:playwright", "playwright test --config=qa/playwright.config.mjs");
+requirePackageScript("qa:playwright:ci", "playwright test --config=qa/playwright.ci.config.mjs");
 requirePackageScript("release:traffic", "node scripts/verify-vercel-release-traffic.mjs");
 requirePackageScript("release:staging-isolation", "node scripts/verify-staging-live-isolation.mjs");
 requirePackageScript("release:staging-isolation:repair", "node scripts/verify-staging-live-isolation.mjs --repair");
@@ -161,8 +162,14 @@ requireText("scripts/verify-live-qa-env.mjs", "LIVE_QA_REQUIRE_PEER_CHAT", "live
 requireText(".github/workflows/full-qa.yml", "workflow_call:", "full QA must be a reusable exact-commit workflow");
 requireText(".github/workflows/full-qa.yml", "npm run qa:static", "full QA must retain every static, security, storage, migration, and architecture gate");
 requireText(".github/workflows/full-qa.yml", "npm run security:audit", "full QA must retain the dependency security audit");
-requireText(".github/workflows/full-qa.yml", "shard: [1, 2, 3, 4]", "full Playwright coverage must run across four isolated shards");
-requireText(".github/workflows/full-qa.yml", "npm run qa:playwright -- --shard=${{ matrix.shard }}/4", "each Playwright shard must use the canonical suite and cover its assigned quarter");
+requireText("qa/playwright.ci.config.mjs", "baseConfig", "CI Playwright must extend the canonical local configuration");
+requireText("qa/playwright.ci.config.mjs", "fullyParallel: true", "CI Playwright must split long browser files at test level");
+requireText(".github/workflows/full-qa.yml", "project: api-contracts", "full QA must run every API contract in a dedicated job");
+for (const shard of [1, 2, 3, 4]) {
+  requireText(".github/workflows/full-qa.yml", `name: Browser shard ${shard} of 4`, `browser shard ${shard} must remain required`);
+}
+requireText(".github/workflows/full-qa.yml", "project: chromium", "full browser coverage must use the canonical Chromium project");
+requireText(".github/workflows/full-qa.yml", "npm run qa:playwright:ci -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.total }}", "each CI shard must use the canonical project and assigned test range");
 forbidText(".github/workflows/full-qa.yml", "continue-on-error", "no full QA shard may be optional");
 requireText(".github/workflows/qa.yml", "uses: ./.github/workflows/full-qa.yml", "pull requests and main must run the shared full QA workflow");
 

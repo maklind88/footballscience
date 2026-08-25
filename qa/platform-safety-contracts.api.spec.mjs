@@ -327,7 +327,7 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(productionDeployWorkflow).toContain("npm run release:preflight");
   expect(productionDeployWorkflow).toContain("npm run release:safety");
   expect(fullQaWorkflow).toContain("npm run qa:static");
-  expect(fullQaWorkflow).toContain("npm run qa:playwright -- --shard=${{ matrix.shard }}/4");
+  expect(fullQaWorkflow).toContain("npm run qa:playwright:ci -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.total }}");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("Live app.js hash does not match this release");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("RELEASE_ALLOW_LIVE_HASH_MISMATCH");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("crypto.createHash");
@@ -362,7 +362,7 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(qaWorkflow).toContain("uses: ./.github/workflows/full-qa.yml");
   expect(fullQaWorkflow).toContain("node-version: 24");
   expect(fullQaWorkflow).toContain("npm run qa:static");
-  expect(fullQaWorkflow).toContain("npm run qa:playwright");
+  expect(fullQaWorkflow).toContain("npm run qa:playwright:ci");
 });
 
 test("modular core skeleton exposes only explicitly approved production assets", () => {

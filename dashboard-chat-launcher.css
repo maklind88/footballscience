@@ -68,7 +68,7 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
   display: none !important;
 }
 
-html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher > *:not(.dashboard-chat-header-badge):not(.dashboard-chat-launcher-icon):not(.dashboard-chat-launcher-dot) {
+html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher > *:not(.dashboard-chat-header-badge):not(.dashboard-chat-launcher-icon) {
   display: none !important;
 }
 
@@ -103,41 +103,30 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread {
   position: absolute !important;
-  top: auto !important;
-  right: -0.22rem !important;
-  bottom: -0.1rem !important;
-  min-width: 1.08rem !important;
-  max-width: 1.58rem !important;
-  height: 1.08rem !important;
-  min-height: 1.08rem !important;
+  top: -0.3rem !important;
+  right: -0.3rem !important;
+  bottom: auto !important;
+  min-width: 1.3rem !important;
+  max-width: 1.95rem !important;
+  height: 1.3rem !important;
+  min-height: 1.3rem !important;
   display: inline-grid !important;
   place-items: center !important;
-  padding: 0 0.28rem !important;
-  border: 2px solid #ffffff !important;
+  padding: 0 0.34rem !important;
+  border: 2.5px solid #ffffff !important;
   border-radius: 999px !important;
-  background: #2563eb !important;
+  background: #ef4444 !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.32) !important;
-  font-size: 0.58rem !important;
-  font-weight: 900 !important;
+  box-shadow: 0 7px 18px rgba(220, 38, 38, 0.42) !important;
+  font-size: 0.68rem !important;
+  font-weight: 950 !important;
   line-height: 1 !important;
   letter-spacing: 0 !important;
   pointer-events: none !important;
 }
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-dot {
-  position: absolute !important;
-  top: 0.98rem !important;
-  right: 0.78rem !important;
-  bottom: auto !important;
-  width: 0.32rem !important;
-  height: 0.32rem !important;
-  display: block !important;
-  border: 0 !important;
-  border-radius: 999px !important;
-  background: #8dd7c1 !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.54) !important;
-  pointer-events: none !important;
+  display: none !important;
 }
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher.is-dashboard-chat-launcher-dragging {

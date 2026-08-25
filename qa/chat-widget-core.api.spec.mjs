@@ -1302,7 +1302,7 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(result.html).toContain('aria-label="Open Team Chat, 1 unread chat message"');
   expect(result.html).toContain('title="Open Team Chat, 1 unread chat message"');
   expect(result.html).toContain("dashboard-chat-header-badge is-unread");
-  expect(result.html).toContain("dashboard-chat-launcher-dot");
+  expect(result.html).not.toContain("dashboard-chat-launcher-dot");
   expect(result.html).toContain('<span class="dashboard-chat-launcher-icon" aria-hidden="true">');
   expect(result.html).not.toContain("dashboard-chat-launcher-copy");
   expect(result.html).toContain('<svg viewBox="0 0 24 24" focusable="false">');
@@ -1324,10 +1324,14 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon svg");
   expect(dashboardChatLauncherCss).toContain("stroke-width: 2 !important;");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
-  expect(dashboardChatLauncherCss).toContain("bottom: -0.1rem !important;");
-  expect(dashboardChatLauncherCss).toContain("top: 0.98rem !important;");
-  expect(dashboardChatLauncherCss).toContain("right: 0.78rem !important;");
-  expect(dashboardChatLauncherCss).toContain("background: #8dd7c1 !important;");
+  expect(dashboardChatLauncherCss).toContain("top: -0.3rem !important;");
+  expect(dashboardChatLauncherCss).toContain("right: -0.3rem !important;");
+  expect(dashboardChatLauncherCss).toContain("bottom: auto !important;");
+  expect(dashboardChatLauncherCss).toContain("min-width: 1.3rem !important;");
+  expect(dashboardChatLauncherCss).toContain("background: #ef4444 !important;");
+  expect(dashboardChatLauncherCss).toContain("font-size: 0.68rem !important;");
+  expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-dot");
+  expect(dashboardChatLauncherCss).toContain("display: none !important;");
   expect(dashboardChatLauncherCss).toContain("bottom: auto !important;");
   expect(dashboardChatLauncherCss).toContain("cursor: grab !important;");
   expect(dashboardChatLauncherCss).toContain("touch-action: none !important;");
@@ -1352,7 +1356,7 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
 
   expect(calmResult.html).toContain('aria-label="Open Team Chat"');
   expect(calmResult.html).toContain('title="Open Team Chat"');
-  expect(calmResult.html).toContain("dashboard-chat-launcher-dot");
+  expect(calmResult.html).not.toContain("dashboard-chat-launcher-dot");
   expect(calmResult.html).not.toContain("dashboard-chat-header-badge is-unread");
   expect(calmResult.html).not.toContain("unread chat message");
 

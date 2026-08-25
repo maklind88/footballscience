@@ -3,6 +3,7 @@ import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { withReleaseLock } from "./lib/release-lock.mjs";
+import { verifyCanonicalVercelProjectLink } from "./lib/vercel-project-link.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -102,6 +103,9 @@ async function runQuickUiDeploy() {
     run("git", ["rebase", "origin/main"]);
     run("git", ["push", "--force-with-lease", "origin", `HEAD:${branchName}`]);
   }
+
+  const projectLink = verifyCanonicalVercelProjectLink({ rootDir, repairFromFallback: true });
+  console.log(`- vercel project: ${projectLink.projectName}${projectLink.repaired ? " (reused canonical binding)" : ""}`);
 
   run("npm", ["run", "quick:ui", "--", "--from", "origin/main"]);
   const releaseSha = capture("git", ["rev-parse", "HEAD"]);

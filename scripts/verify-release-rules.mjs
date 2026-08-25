@@ -109,11 +109,18 @@ requireText("scripts/release-auto.mjs", "requireCanonicalVercelProjectLink", "le
 requireText("scripts/release-auto.mjs", "release:staging-isolation:repair", "legacy deploys must repair staging/live alias drift after direct production deploys");
 requireText("scripts/lib/release-lock.mjs", "footballscience-release-lock-v1", "local release tooling must use a stable machine-wide lock schema");
 requireText("scripts/lib/release-lock.mjs", "fs.mkdirSync(lockDir", "release lock acquisition must be atomic across worktrees");
+requireText("scripts/lib/release-lock.mjs", "userScopedLockName", "release lock path must be canonical per machine user, not caller-selected by environment");
+forbidText("scripts/lib/release-lock.mjs", "FOOTBALLSCIENCE_RELEASE_LOCK_DIR", "normal release tooling must not let environment override the machine-wide lock path");
+requireText("scripts/lib/release-lock.mjs", "readTrustedReleaseLockOwner", "release lock acquisition must tolerate the bounded mkdir-to-owner metadata race");
+requireText("scripts/lib/release-lock.mjs", "metadataRetryMs", "release lock metadata retry must be bounded before fail-closed");
 requireText("scripts/lib/release-lock.mjs", "isProcessAlive", "release lock stale handling must only remove locks owned by dead processes");
 requireText("scripts/release-ship.mjs", "withReleaseLock", "deploy commands must hold the machine-wide release lock before validation and through postdeploy");
 requireText("scripts/release-ship.mjs", "publishFastReleaseToMain", "fast deploys must publish the exact release SHA to origin/main before production deploy");
 requireText("scripts/release-ship.mjs", "origin/main did not fast-forward to the release SHA", "fast deploys must fail if main does not match the deployed SHA");
 requireText("scripts/quick-ui-deploy.mjs", "withReleaseLock", "Fast UI deploy must hold the machine-wide release lock");
+requireText("scripts/quick-ui-deploy.mjs", "verifyCanonicalVercelProjectLink", "Fast UI deploy must verify or repair the canonical Vercel project binding before main push/deploy");
+requireText("scripts/lib/vercel-project-link.mjs", "canonicalVercelProjectName = \"footballscience\"", "Vercel project binding verification must target the canonical footballscience project");
+requireText("scripts/lib/vercel-project-link.mjs", "repairFromFallback", "isolated specialist worktrees may reuse a verified canonical root binding when their local .vercel link is missing");
 requireText("scripts/quick-ui-deploy.mjs", "branchName.startsWith(\"codex/\")", "Fast UI deploy must support isolated codex/* release branches");
 requireText("scripts/quick-ui-deploy.mjs", "origin/main did not fast-forward to the exact release SHA", "Fast UI deploy must fail if production would diverge from main");
 requireText("scripts/release-auto.mjs", "withReleaseLock", "legacy production deploys must not bypass the machine-wide release lock");
@@ -218,19 +225,29 @@ function verifyDistributedSpecialistGovernance() {
     }
   }
 
-  const starterDir = path.join(rootDir, "docs", "chat-starters");
-  const starterFiles = fs.existsSync(starterDir)
-    ? fs.readdirSync(starterDir).filter((name) => name.endsWith(".md")).map((name) => path.join("docs", "chat-starters", name))
-    : [];
-  for (const file of starterFiles) {
+  const starterDirs = [
+    path.join("docs", "chat-starters"),
+    path.join("docs", "module-chats"),
+  ];
+  const starterFiles = [];
+  for (const commonRulesPath of ["COMMON_SPECIALIST_RULES.md", path.join("docs", "chat-starters", "COMMON_SPECIALIST_RULES.md"), path.join("docs", "module-chats", "COMMON_SPECIALIST_RULES.md")]) {
+    if (fs.existsSync(path.join(rootDir, commonRulesPath))) starterFiles.push(commonRulesPath);
+  }
+  for (const dir of starterDirs) {
+    const fullDir = path.join(rootDir, dir);
+    if (!fs.existsSync(fullDir)) continue;
+    for (const name of fs.readdirSync(fullDir)) {
+      if (name.endsWith(".md")) starterFiles.push(path.join(dir, name));
+    }
+  }
+
+  for (const file of [...new Set(starterFiles)]) {
+    forbidText(file, oldDeployOnlyText, "chat starters must not require explicit Deploy wording when clear live product intent exists");
     const content = read(file);
     for (const phrase of centralOwnerPhrases) {
       if (content.includes(phrase)) {
         failures.push(`${file} must not contain ${JSON.stringify(phrase)} (chat starters must not reintroduce central release ownership).`);
       }
-    }
-    if (content.includes("Release Ownership Agreement") && content.includes(oldDeployOnlyText)) {
-      failures.push(`${file} must not contain ${JSON.stringify(oldDeployOnlyText)} after adopting the Release Ownership Agreement.`);
     }
   }
 }

@@ -8,6 +8,8 @@ import { execFileSync } from "node:child_process";
 const lockSchema = "footballscience-release-lock-v1";
 const defaultPollMs = 5_000;
 const defaultStatusMs = 30_000;
+const defaultMetadataRetryMs = 1_500;
+const defaultMetadataPollMs = 25;
 
 function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -29,8 +31,13 @@ function currentCommand() {
   return [process.argv[1] || "node", ...process.argv.slice(2)].join(" ").trim();
 }
 
+function userScopedLockName() {
+  const uid = typeof process.getuid === "function" ? process.getuid() : os.userInfo().username;
+  return `footballscience-release-${uid}.lock`;
+}
+
 export function getReleaseLockDir() {
-  return path.resolve(process.env.FOOTBALLSCIENCE_RELEASE_LOCK_DIR || path.join(os.tmpdir(), "footballscience-release.lock"));
+  return path.join(os.tmpdir(), userScopedLockName());
 }
 
 export function isProcessAlive(pid) {
@@ -55,9 +62,29 @@ export function readReleaseLockOwner(lockDir = getReleaseLockDir()) {
   return owner;
 }
 
+function readTrustedReleaseLockOwner(lockDir, options = {}) {
+  const retryMs = Number(options.metadataRetryMs ?? defaultMetadataRetryMs);
+  const pollMs = Number(options.metadataPollMs ?? defaultMetadataPollMs);
+  const deadline = Date.now() + Math.max(0, retryMs);
+  let lastError;
+
+  while (true) {
+    try {
+      return readReleaseLockOwner(lockDir);
+    } catch (error) {
+      lastError = error;
+      if (Date.now() >= deadline) break;
+      sleep(pollMs);
+    }
+  }
+
+  throw new Error(`Release lock exists but cannot be trusted after metadata retry: ${lastError?.message || "unknown error"}`);
+}
+
 function writeReleaseLockOwner(lockDir, owner) {
   const ownerPath = path.join(lockDir, "owner.json");
-  fs.writeFileSync(ownerPath, `${JSON.stringify(owner, null, 2)}\n`, { mode: 0o600 });
+  fs.writeFileSync(ownerPath, `${JSON.stringify(owner, null, 2)}
+`, { mode: 0o600 });
 }
 
 function describeOwner(owner) {
@@ -116,13 +143,7 @@ export function acquireReleaseLock(options = {}) {
       if (error?.code !== "EEXIST") throw error;
     }
 
-    let currentOwner;
-    try {
-      currentOwner = readReleaseLockOwner(lockDir);
-    } catch (error) {
-      throw new Error(`Release lock exists but cannot be trusted: ${error.message}`);
-    }
-
+    const currentOwner = readTrustedReleaseLockOwner(lockDir, options);
     if (removeStaleLock(lockDir, currentOwner)) continue;
     if (!wait) {
       throw new Error(`Another release is already active: ${describeOwner(currentOwner)}`);

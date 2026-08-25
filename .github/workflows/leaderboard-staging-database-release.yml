@@ -1,0 +1,187 @@
+name: Leaderboard Staging Database Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_main_sha:
+        description: Full immutable main SHA to plan and apply
+        required: true
+        type: string
+      confirmation:
+        description: APPLY_LEADERBOARD_STAGING_20260825181453_ followed by the full main SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: footballscience-leaderboard-staging-database
+  cancel-in-progress: false
+
+env:
+  SUPABASE_CLI_VERSION: 2.115.0
+  SUPABASE_CLI_SHA256: ff099608ce758b625532ef03a61f4c9520b995e94ff6cd5480dc0428cad64cb3
+  SUPABASE_CLI_SHIM_SHA256: 5986d84e4c7e251126f7579c686b302b3527bc4b2ac1517963930eb0780d3867
+  SUPABASE_CLI_GO_SHA256: c507c71c331ee9b4dd87b6ec6cc8a6e4f312a642ff0f9e44931129053c534eef
+  SUPABASE_CLI_ARCHIVE: supabase_2.115.0_linux_amd64.tar.gz
+  SUPABASE_CA_SHA256: 700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7
+
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: leaderboard-staging-database
+    outputs:
+      plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
+      artifact_sha256: ${{ steps.plan.outputs.artifact_sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Refresh trusted main reference
+        run: git fetch --no-tags origin main
+      - name: Install checksum-verified Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          chmod 0700 "${RUNNER_TEMP}"
+          cli_dir="${RUNNER_TEMP}/supabase-cli"
+          supabase_home="${RUNNER_TEMP}/supabase-home"
+          archive="${RUNNER_TEMP}/${SUPABASE_CLI_ARCHIVE}"
+          ca_path="${GITHUB_WORKSPACE}/scripts/certs/supabase-prod-ca-2021.crt"
+          mkdir -m 0700 "${cli_dir}" "${supabase_home}"
+          printf '%s  %s\n' "${SUPABASE_CA_SHA256}" "${ca_path}" | sha256sum --check --strict
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            "https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/${SUPABASE_CLI_ARCHIVE}" \
+            --output "${archive}"
+          printf '%s  %s\n' "${SUPABASE_CLI_SHA256}" "${archive}" | sha256sum --check --strict
+          tar --extract --gzip --file "${archive}" --directory "${cli_dir}" supabase supabase-go
+          printf '%s  %s\n' "${SUPABASE_CLI_SHIM_SHA256}" "${cli_dir}/supabase" | sha256sum --check --strict
+          printf '%s  %s\n' "${SUPABASE_CLI_GO_SHA256}" "${cli_dir}/supabase-go" | sha256sum --check --strict
+          chmod 0555 "${cli_dir}/supabase" "${cli_dir}/supabase-go"
+          export SUPABASE_HOME="${supabase_home}"
+          export SUPABASE_TELEMETRY_DISABLED=1
+          export SUPABASE_NO_UPDATE_NOTIFIER=1
+          export DO_NOT_TRACK=1
+          test "$("${cli_dir}/supabase" --version)" = "${SUPABASE_CLI_VERSION}"
+          {
+            printf 'SUPABASE_CLI_PATH=%s\n' "${cli_dir}/supabase"
+            printf 'SUPABASE_HOME=%s\n' "${supabase_home}"
+            printf 'SUPABASE_TELEMETRY_DISABLED=1\n'
+            printf 'SUPABASE_NO_UPDATE_NOTIFIER=1\n'
+            printf 'DO_NOT_TRACK=1\n'
+            printf 'LEADERBOARD_SUPABASE_CA_PATH=%s\n' "${ca_path}"
+          } >> "${GITHUB_ENV}"
+      - name: Verify pinned Supabase CLI syntax before remote commands
+        run: |
+          "${SUPABASE_CLI_PATH}" migration fetch --help
+          "${SUPABASE_CLI_PATH}" db push --help
+      - name: Verify release script syntax
+        run: node --check scripts/leaderboard-staging-database-release.mjs
+      - name: Produce exact read-only staging plan
+        id: plan
+        env:
+          EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}
+          LEADERBOARD_PLAN_ARTIFACT_PATH: ${{ runner.temp }}/leaderboard-staging-plan/plan.json
+          STAGING_SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+        run: node scripts/leaderboard-staging-database-release.mjs --mode plan
+      - name: Upload immutable plan artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: leaderboard-staging-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/leaderboard-staging-plan/plan.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+          overwrite: false
+          include-hidden-files: false
+
+  apply:
+    needs: plan
+    if: github.ref == 'refs/heads/main' && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: leaderboard-staging-database
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Refresh trusted main reference
+        run: git fetch --no-tags origin main
+      - name: Install checksum-verified Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          chmod 0700 "${RUNNER_TEMP}"
+          cli_dir="${RUNNER_TEMP}/supabase-cli"
+          supabase_home="${RUNNER_TEMP}/supabase-home"
+          archive="${RUNNER_TEMP}/${SUPABASE_CLI_ARCHIVE}"
+          ca_path="${GITHUB_WORKSPACE}/scripts/certs/supabase-prod-ca-2021.crt"
+          mkdir -m 0700 "${cli_dir}" "${supabase_home}"
+          printf '%s  %s\n' "${SUPABASE_CA_SHA256}" "${ca_path}" | sha256sum --check --strict
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            "https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/${SUPABASE_CLI_ARCHIVE}" \
+            --output "${archive}"
+          printf '%s  %s\n' "${SUPABASE_CLI_SHA256}" "${archive}" | sha256sum --check --strict
+          tar --extract --gzip --file "${archive}" --directory "${cli_dir}" supabase supabase-go
+          printf '%s  %s\n' "${SUPABASE_CLI_SHIM_SHA256}" "${cli_dir}/supabase" | sha256sum --check --strict
+          printf '%s  %s\n' "${SUPABASE_CLI_GO_SHA256}" "${cli_dir}/supabase-go" | sha256sum --check --strict
+          chmod 0555 "${cli_dir}/supabase" "${cli_dir}/supabase-go"
+          export SUPABASE_HOME="${supabase_home}"
+          export SUPABASE_TELEMETRY_DISABLED=1
+          export SUPABASE_NO_UPDATE_NOTIFIER=1
+          export DO_NOT_TRACK=1
+          test "$("${cli_dir}/supabase" --version)" = "${SUPABASE_CLI_VERSION}"
+          {
+            printf 'SUPABASE_CLI_PATH=%s\n' "${cli_dir}/supabase"
+            printf 'SUPABASE_HOME=%s\n' "${supabase_home}"
+            printf 'SUPABASE_TELEMETRY_DISABLED=1\n'
+            printf 'SUPABASE_NO_UPDATE_NOTIFIER=1\n'
+            printf 'DO_NOT_TRACK=1\n'
+            printf 'LEADERBOARD_SUPABASE_CA_PATH=%s\n' "${ca_path}"
+          } >> "${GITHUB_ENV}"
+      - name: Verify pinned Supabase CLI syntax before remote commands
+        run: |
+          "${SUPABASE_CLI_PATH}" migration fetch --help
+          "${SUPABASE_CLI_PATH}" db push --help
+          "${SUPABASE_CLI_PATH}" db lint --help
+      - name: Verify release script syntax
+        run: node --check scripts/leaderboard-staging-database-release.mjs
+      - name: Download this run's immutable plan artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: leaderboard-staging-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/leaderboard-staging-plan
+      - name: Normalize downloaded plan artifact permissions
+        env:
+          LEADERBOARD_PLAN_ARTIFACT_PATH: ${{ runner.temp }}/leaderboard-staging-plan/plan.json
+        run: |
+          set -euo pipefail
+          chmod 0700 "$(dirname "${LEADERBOARD_PLAN_ARTIFACT_PATH}")"
+          chmod 0600 "${LEADERBOARD_PLAN_ARTIFACT_PATH}"
+      - name: Re-plan, apply only the planned migration, and verify
+        id: apply
+        env:
+          EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}
+          EXPECTED_PLAN_SHA256: ${{ needs.plan.outputs.plan_sha256 }}
+          EXPECTED_ARTIFACT_SHA256: ${{ needs.plan.outputs.artifact_sha256 }}
+          LEADERBOARD_PLAN_ARTIFACT_PATH: ${{ runner.temp }}/leaderboard-staging-plan/plan.json
+          LEADERBOARD_STAGING_APPLY_CONFIRMATION: ${{ inputs.confirmation }}
+          STAGING_SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+        run: node scripts/leaderboard-staging-database-release.mjs --mode apply

@@ -69,6 +69,8 @@ test("staging release locks the exact remote history and Leaderboard bytes", () 
     md5: parserProof.md5,
   });
   expect(releaseContract.projectRef).not.toBe("bustidorxevacosqhkcz");
+  expect(releaseContract.poolerHost).toBe("aws-1-us-east-1.pooler.supabase.com");
+  expect(releaseContract.poolerPort).toBe(5432);
 });
 
 test("fetched history verifier rejects extra, forbidden, or byte-drifted files", () => {
@@ -168,6 +170,8 @@ test("staging workflow preserves one protected immutable plan-to-apply lane", ()
 
   expect(workflow).toContain("workflow_dispatch:");
   expect(workflow).not.toMatch(/\n\s*push:/);
+  expect(workflow).not.toMatch(/pooler[_-]?host/i);
+  expect(workflow).not.toMatch(/pooler[_-]?port/i);
   expect(workflow).toContain("group: footballscience-leaderboard-staging-database");
   expect(workflow).toContain("cancel-in-progress: false");
   expect(workflow.match(/environment:\n\s+name: leaderboard-staging-database/g)).toHaveLength(2);
@@ -257,9 +261,24 @@ test("staging workflow preserves one protected immutable plan-to-apply lane", ()
 test("database child processes keep the password out of argv and require verified TLS", () => {
   const password = "ContractOnly-A9z-0123456789abcdef";
   const previousUnrelated = process.env.LEADERBOARD_UNRELATED_SECRET;
+  const poolerOverrides = {
+    INPUT_POOLER_HOST: "override.invalid",
+    PGHOST: "override.invalid",
+    PGPORT: "6543",
+    STAGING_SUPABASE_POOLER_HOST: "override.invalid",
+    STAGING_SUPABASE_POOLER_PORT: "6543",
+    SUPABASE_POOLER_HOST: "override.invalid",
+  };
+  const previousOverrides = Object.fromEntries(
+    Object.keys(poolerOverrides).map((key) => [key, process.env[key]]),
+  );
   process.env.LEADERBOARD_UNRELATED_SECRET = "must-not-inherit";
+  Object.assign(process.env, poolerOverrides);
   try {
     const connection = makeConnection(password);
+    const cliUrl = new URL(connection.cliTarget);
+    expect(cliUrl.hostname).toBe("aws-1-us-east-1.pooler.supabase.com");
+    expect(cliUrl.port).toBe("5432");
     expect(connection.cliTarget).toContain(releaseContract.projectRef);
     expect(connection.cliTarget).toContain("sslmode=verify-full");
     expect(connection.cliTarget).not.toContain(password);
@@ -268,9 +287,18 @@ test("database child processes keep the password out of argv and require verifie
     expect(connection.env.PGPASSWORD).toBe(password);
     expect(connection.env.PGSSLMODE).toBe("verify-full");
     expect(connection.env.PGSSLROOTCERT).toMatch(/supabase-prod-ca-2021\.crt$/);
+    expect(connection.env.PGHOST).toBeUndefined();
+    expect(connection.env.PGPORT).toBeUndefined();
     expect(connection.env.LEADERBOARD_UNRELATED_SECRET).toBeUndefined();
     expect(connection.psqlArgs.join(" ")).not.toContain(password);
     expect(connection.psqlArgs).toContain("--no-password");
+    expect(connection.psqlArgs).toEqual(expect.arrayContaining([
+      "--host", "aws-1-us-east-1.pooler.supabase.com", "--port", "5432",
+    ]));
+    for (const override of Object.values(poolerOverrides)) {
+      expect(connection.cliTarget).not.toContain(override);
+      expect(connection.psqlArgs).not.toContain(override);
+    }
     expect(assertNoSensitiveCommandArgs(["db", "push", "--db-url", connection.cliTarget], connection.secrets)).toBe(true);
     expect(() => assertNoSensitiveCommandArgs([releaseContract.productionProjectRef], connection.secrets)).toThrow(/Production project ref/);
     expect(() => assertNoSensitiveCommandArgs([`postgresql://user:${password}@db.invalid/postgres`], connection.secrets)).toThrow(/credential/i);
@@ -291,6 +319,10 @@ test("database child processes keep the password out of argv and require verifie
   } finally {
     if (previousUnrelated === undefined) delete process.env.LEADERBOARD_UNRELATED_SECRET;
     else process.env.LEADERBOARD_UNRELATED_SECRET = previousUnrelated;
+    for (const [key, value] of Object.entries(previousOverrides)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   }
 });
 

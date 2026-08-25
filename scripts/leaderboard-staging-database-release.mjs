@@ -32,7 +32,7 @@ export const releaseContract = Object.freeze({
   repository: "maklind88/footballscience",
   projectRef: "pokrksgempkuraueglpu",
   productionProjectRef: "bustidorxevacosqhkcz",
-  poolerHost: "aws-0-us-east-1.pooler.supabase.com",
+  poolerHost: "aws-1-us-east-1.pooler.supabase.com",
   poolerPort: 5432,
   database: "postgres",
   cliVersion: "2.115.0",

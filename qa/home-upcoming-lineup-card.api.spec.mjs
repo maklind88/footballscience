@@ -12,7 +12,7 @@ const players = formationSlots.map((slot, index) => ({
 }));
 const lineupAssignments = Object.fromEntries(formationSlots.map((slot, index) => [slot, players[index].id]));
 
-test("Home resolves the next match Starting XI from Presentation without creating a second data source", () => {
+test("Home links the next match squad and Starting XI to their Presentation source without exposing the lineup", () => {
   const nextMatch = {
     id: "match-boston",
     date: "2026-08-29",
@@ -46,29 +46,86 @@ test("Home resolves the next match Starting XI from Presentation without creatin
     meta: "Sat 29 Aug · 19:00",
     formationLabel: "4-3-3",
     selectedCount: 11,
+    startingXiCount: 11,
+    matchSquadCount: 11,
+    hasStartingXi: true,
+    hasMatchSquad: true,
     status: "ready",
     source: "Presentation",
     sourceDate: "2026-08-27",
+    routes: {
+      matchSquad: { dateValue: "2026-08-27", meetingType: "team", target: "match-squad" },
+      startingXi: { dateValue: "2026-08-27", meetingType: "team", target: "starting-xi" },
+    },
   });
-  expect(model.slots).toHaveLength(11);
-  expect(model.slots.find((slot) => slot.id === "gk")?.player?.name).toBe("GK Player");
 
   const html = renderHomeUpcomingLineupCard({ upcomingLineup: model }, (value) => String(value ?? ""));
-  expect(html).toContain('aria-label="Upcoming match starting eleven"');
+  expect(html).toContain('aria-label="Upcoming match selection"');
   expect(html).toContain("NCC - Boston");
+  expect(html).toContain("11 selected");
   expect(html).toContain("11/11");
-  expect(html).toContain("GK Player, GK");
-  expect(html).toContain('data-open-workspace="gameplan"');
+  expect(html).toContain('data-match-selection-target="match-squad"');
+  expect(html).toContain('data-match-selection-target="starting-xi"');
+  expect(html).toContain('data-match-selection-date="2026-08-27"');
+  expect(html).not.toContain("GK Player");
+  expect(html).not.toContain("dashboard-lineup-pitch");
+  expect(html).not.toContain('data-open-workspace="gameplan"');
 });
 
-test("Home keeps the Starting XI card useful when no match is scheduled", () => {
-  const model = selectHomeUpcomingLineup();
+test("Home routes separately saved squad and lineup selections to the correct meeting decks", () => {
+  const nextMatch = { id: "match-gotham", date: "2026-09-06", type: "match", title: "NCC - Gotham" };
+  const model = selectHomeUpcomingLineup({
+    nextMatch,
+    scheduleMatches: [nextMatch],
+    players,
+    presentationState: {
+      decks: {
+        "2026-09-04": {
+          updatedAt: "2026-09-04T09:00:00.000Z",
+          infoSlides: [{ layout: "match-squad", matchSquadPlayerIds: players.slice(0, 7).map((player) => player.id) }],
+        },
+      },
+      meetingDecks: {
+        technical: {
+          "2026-09-05": {
+            updatedAt: "2026-09-05T14:00:00.000Z",
+            infoSlides: [{ layout: "starting-xi", formation: "4-3-3", lineup: lineupAssignments }],
+          },
+        },
+      },
+    },
+  });
+
+  expect(model.matchSquadCount).toBe(7);
+  expect(model.startingXiCount).toBe(11);
+  expect(model.routes.matchSquad).toEqual({ dateValue: "2026-09-04", meetingType: "team", target: "match-squad" });
+  expect(model.routes.startingXi).toEqual({ dateValue: "2026-09-05", meetingType: "technical", target: "starting-xi" });
+});
+
+test("Home keeps Schedule and saved match history available when no future match exists", () => {
+  const historyItem = {
+    title: "NCC - Portland",
+    meta: "Sat 22 Aug · 18:00",
+    formationLabel: "4-3-3",
+    startingXiCount: 11,
+    matchSquadCount: 18,
+    hasStartingXi: true,
+    hasMatchSquad: true,
+    startingXiStatus: "ready",
+    matchSquadStatus: "partial",
+    routes: {
+      matchSquad: { dateValue: "2026-08-20", meetingType: "team", target: "match-squad" },
+      startingXi: { dateValue: "2026-08-20", meetingType: "team", target: "starting-xi" },
+    },
+  };
+  const model = selectHomeUpcomingLineup({ history: [historyItem] });
   const html = renderHomeUpcomingLineupCard({ upcomingLineup: model }, (value) => String(value ?? ""));
 
   expect(model).toMatchObject({ hasMatch: false, selectedCount: 0, status: "missing" });
-  expect(model.slots).toHaveLength(11);
   expect(html).toContain("No upcoming match");
-  expect(html).toContain("Schedule a match to prepare the lineup");
+  expect(html).toContain("Previous matches");
+  expect(html).toContain("NCC - Portland");
+  expect(html).toContain('data-match-selection-create="false"');
   expect(html).toContain('data-open-workspace="schedule"');
   expect(html).not.toContain('data-open-workspace="gameplan"');
 });

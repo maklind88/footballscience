@@ -94,7 +94,8 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(rendered).not.toContain("dashboard-birthday-countdown");
   expect(rendered).toMatch(/data-dashboard-presentation-type="team"[\s\S]*dashboard-birthday-strip[\s\S]*data-dashboard-presentation-type="technical"/);
   expect(rendered).toMatch(/data-dashboard-presentation-type="technical"[\s\S]*dashboard-upcoming-lineup-card/);
-  expect(rendered).toContain('aria-label="Upcoming match starting eleven"');
+  expect(rendered).toContain('aria-label="Upcoming match selection"');
+  expect(rendered).not.toContain("dashboard-lineup-pitch");
   expect(rendered).toMatch(/dashboard-birthday-strip[\s\S]*dashboardSchedulePreview/);
 
   const ranked = renderer.getDashboardTopPriorityTasks(context, 3);
@@ -330,6 +331,7 @@ test("home dashboard renderer avoids an empty work queue wrapper for presentatio
   expect(rendered).toMatch(/dashboard-presentation-band[\s\S]*dashboardSchedulePreview/);
   expect(rendered).toContain("Team Meeting");
   expect(rendered).toContain("Technical Staff Meeting");
+  expect(rendered).toContain("Team Selection");
   expect(rendered).toContain("Starting XI");
   expect(rendered).toContain('class="dashboard-panel dashboard-upcoming-lineup-card"');
   expect(rendered).not.toContain("data-dashboard-presentation-date");

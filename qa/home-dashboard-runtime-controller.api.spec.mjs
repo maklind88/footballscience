@@ -17,7 +17,13 @@ function createStorageHarness() {
 
 function createRuntime(overrides = {}) {
   const harness = createStorageHarness();
-  const dashboardGrid = { innerHTML: "" };
+  const dashboardListeners = {};
+  const dashboardGrid = {
+    innerHTML: "",
+    addEventListener: (type, listener) => {
+      dashboardListeners[type] = listener;
+    },
+  };
   const dashboardSchedulePreview = { innerHTML: "" };
   const dashboardClubName = { textContent: "" };
   const dashboardClubMark = { setAttribute: (name, value) => calls.clubMark.push([name, value]) };
@@ -29,6 +35,7 @@ function createRuntime(overrides = {}) {
     syncChatNotificationCursor: 0,
   };
   const controller = createDashboardRuntimeController({
+    documentRef: { addEventListener: () => {} },
     win: { setTimeout: (callback) => callback(), confirm: () => true },
     getElement: (id) => ({
       dashboardClubName,
@@ -88,6 +95,7 @@ function createRuntime(overrides = {}) {
     dashboardClubLogoInitials,
     dashboardClubName,
     dashboardGrid,
+    dashboardListeners,
     dashboardSchedulePreview,
     storage: harness.storage,
   };
@@ -182,4 +190,27 @@ test("Home dashboard runtime keeps tutorial/news and appearance storage scoped t
 
   const appearance = controller.writeAppearanceState({ theme: "auto" });
   expect(appearance).toMatchObject({ theme: "auto", meta: { updatedBy: "coach-1" } });
+});
+
+test("Home dashboard runtime opens the exact Presentation Mode selection target", () => {
+  const presentationCalls = [];
+  const { controller, dashboardListeners } = createRuntime({
+    openPresentationMode: (...args) => presentationCalls.push(args),
+  });
+  controller.bindInteractions();
+
+  const target = {
+    dataset: {
+      matchSelectionDate: "2026-08-24",
+      matchSelectionMeetingType: "technical",
+      matchSelectionTarget: "starting-xi",
+      matchSelectionCreate: "true",
+    },
+    closest: (selector) => (selector === "[data-dashboard-open-match-selection]" ? target : null),
+  };
+  dashboardListeners.click({ target });
+
+  expect(presentationCalls).toEqual([
+    ["2026-08-24", "technical", { slideType: "starting-xi", createIfMissing: true }],
+  ]);
 });

@@ -690,8 +690,8 @@ sessionPlannerState.selectedDate = dateValue;
 writeSessionPlannerState();
 }
 },
-openPresentationMode: (dateValue, meetingType = "team") => {
-presentationModeController?.open(dateValue, meetingType);
+openPresentationMode: (dateValue, meetingType = "team", options = {}) => {
+presentationModeController?.open(dateValue, meetingType, options);
 },
 createSessionDate: (dateValue) => {
 if (!canEditSessionPlanner()) {
@@ -2258,7 +2258,7 @@ getPlatformUsers,
 formatUserName,
 getPlayerProfilesState: () => playerProfilesState,
 getPlayerProfilesStateForGameplan: () => playerProfilesState || readPlayerProfilesState(),
-openPresentationMode: (dateValue, meetingType = "team") => presentationModeController?.open(dateValue, meetingType),
+openPresentationMode: (dateValue, meetingType = "team", options = {}) => presentationModeController?.open(dateValue, meetingType, options),
 getPlayerProfilesStateForTransferRoom: () => playerProfilesState || readPlayerProfilesState(),
 renderPlayerProfileScoutingSpider,
 getSafeWorkspaceId,

@@ -4,19 +4,31 @@ function cleanText(value = "") {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
-function getPlayerInitials(name = "") {
-  return cleanText(name)
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0] || "")
-    .join("")
-    .toUpperCase() || "-";
+function normalizeMeetingType(value = "") {
+  return cleanText(value).toLowerCase() === "technical" ? "technical" : "team";
 }
 
-function getPlayerShortName(name = "", fallback = "") {
-  const parts = cleanText(name).split(" ").filter(Boolean);
-  return parts.at(-1) || cleanText(fallback) || "Position";
+function getSelectionStatus(count = 0, expectedCount = 0, hasSelection = false) {
+  if (!hasSelection) return "missing";
+  if (expectedCount && count >= expectedCount) return "ready";
+  return count ? "partial" : "empty";
+}
+
+function getSelectionRoute(lineup = {}, match = {}, target = "starting-xi") {
+  const isMatchSquad = target === "match-squad";
+  const ownDate = isMatchSquad ? lineup.matchSquadSourceDate : lineup.startingXiSourceDate;
+  const pairedDate = isMatchSquad ? lineup.startingXiSourceDate : lineup.matchSquadSourceDate;
+  const ownMeetingType = isMatchSquad
+    ? lineup.matchSquadSourceMeetingType
+    : lineup.startingXiSourceMeetingType;
+  const pairedMeetingType = isMatchSquad
+    ? lineup.startingXiSourceMeetingType
+    : lineup.matchSquadSourceMeetingType;
+  return {
+    dateValue: cleanText(ownDate || pairedDate || match?.date),
+    meetingType: normalizeMeetingType(ownMeetingType || pairedMeetingType || lineup.sourceMeetingType),
+    target,
+  };
 }
 
 export function selectHomeUpcomingLineup({
@@ -26,6 +38,7 @@ export function selectHomeUpcomingLineup({
   players = [],
   dateLabel = "",
   relativeLabel = "",
+  history = [],
 } = {}) {
   const match = nextMatch && typeof nextMatch === "object" ? nextMatch : null;
   const lineup = resolveGameplanPresentationLineup({
@@ -40,7 +53,8 @@ export function selectHomeUpcomingLineup({
       : { lineup: {} },
     players,
   });
-  const selectedCount = lineup.startingPlayerIds.length;
+  const startingXiCount = lineup.startingPlayerIds.length;
+  const matchSquadCount = lineup.matchSquadPlayerIds.length;
   const matchTitle = cleanText(match?.title || match?.opponent || "Upcoming match");
   const matchMeta = [relativeLabel || dateLabel, cleanText(match?.time)].filter(Boolean).join(" · ");
 
@@ -51,79 +65,168 @@ export function selectHomeUpcomingLineup({
     title: matchTitle,
     meta: matchMeta,
     formationLabel: lineup.formationLabel || "4-3-3",
-    selectedCount,
-    status: selectedCount === 11 ? "ready" : selectedCount ? "partial" : "missing",
+    selectedCount: startingXiCount,
+    startingXiCount,
+    matchSquadCount,
+    hasStartingXi: Boolean(lineup.hasStartingXi),
+    hasMatchSquad: Boolean(lineup.hasMatchSquad),
+    status: getSelectionStatus(startingXiCount, 11, Boolean(lineup.hasStartingXi)),
+    startingXiStatus: getSelectionStatus(startingXiCount, 11, Boolean(lineup.hasStartingXi)),
+    matchSquadStatus: getSelectionStatus(matchSquadCount, 0, Boolean(lineup.hasMatchSquad)),
     source: lineup.source || "Presentation",
-    sourceDate: lineup.sourceDate || "",
-    slots: lineup.slots.map((slot) => ({
-      id: cleanText(slot.id),
-      label: cleanText(slot.label),
-      x: Math.max(9, Math.min(91, Number(slot.x) || 50)),
-      y: Math.max(12, Math.min(84, Number(slot.y) || 50)),
-      player: slot.player
-        ? {
-            id: cleanText(slot.player.id),
-            name: cleanText(slot.player.name || "Player"),
-            number: cleanText(slot.player.number),
-          }
-        : null,
-    })),
+    sourceDate: lineup.startingXiSourceDate || lineup.matchSquadSourceDate || lineup.sourceDate || "",
+    sourceMeetingType: normalizeMeetingType(
+      lineup.startingXiSourceMeetingType || lineup.matchSquadSourceMeetingType || lineup.sourceMeetingType
+    ),
+    routes: {
+      matchSquad: getSelectionRoute(lineup, match, "match-squad"),
+      startingXi: getSelectionRoute(lineup, match, "starting-xi"),
+    },
+    history: Array.isArray(history) ? history : [],
   };
 }
 
-function renderLineupSlot(slot = {}, escapeHtml = String) {
-  const player = slot.player || null;
-  const marker = player?.number ? `#${player.number}` : player ? getPlayerInitials(player.name) : slot.label;
-  const shortName = player ? getPlayerShortName(player.name, slot.label) : slot.label;
-  const accessibleLabel = player ? `${player.name}, ${slot.label}` : `${slot.label}, not selected`;
+function getMatchSquadLabel(lineup = {}) {
+  if (!lineup.hasMatchSquad) return "Select squad";
+  return lineup.matchSquadCount === 1 ? "1 selected" : `${lineup.matchSquadCount} selected`;
+}
 
+function getStartingXiLabel(lineup = {}) {
+  return lineup.hasStartingXi ? `${lineup.startingXiCount}/11` : "Select lineup";
+}
+
+function renderSelectionButton({
+  label = "",
+  detail = "",
+  statusLabel = "",
+  status = "missing",
+  route = {},
+  createIfMissing = false,
+  escapeHtml = String,
+} = {}) {
   return `
-    <span
-      class="dashboard-lineup-slot${player ? " has-player" : ""}"
-      style="--lineup-x:${slot.x}%;--lineup-y:${slot.y}%"
-      aria-label="${escapeHtml(accessibleLabel)}"
+    <button
+      type="button"
+      class="dashboard-match-selection-row is-${escapeHtml(status)}"
+      data-dashboard-open-match-selection
+      data-match-selection-date="${escapeHtml(route.dateValue || "")}"
+      data-match-selection-meeting-type="${escapeHtml(route.meetingType || "team")}"
+      data-match-selection-target="${escapeHtml(route.target || "")}"
+      data-match-selection-create="${createIfMissing ? "true" : "false"}"
     >
-      <strong>${escapeHtml(marker)}</strong>
-      ${player ? `<small>${escapeHtml(shortName)}</small>` : ""}
-    </span>
+      <span class="dashboard-match-selection-copy">
+        <strong>${escapeHtml(label)}</strong>
+        <small>${escapeHtml(detail)}</small>
+      </span>
+      <span class="dashboard-match-selection-state">${escapeHtml(statusLabel)}</span>
+      <span class="dashboard-match-selection-chevron" aria-hidden="true">&#8250;</span>
+    </button>
+  `;
+}
+
+function renderHistoryItem(item = {}, escapeHtml = String) {
+  const actions = [];
+  if (item.hasMatchSquad) {
+    actions.push(
+      renderSelectionButton({
+        label: "Match squad",
+        detail: item.matchSquadCount === 1 ? "1 player" : `${item.matchSquadCount} players`,
+        statusLabel: "Open",
+        status: item.matchSquadStatus,
+        route: item.routes?.matchSquad,
+        escapeHtml,
+      })
+    );
+  }
+  if (item.hasStartingXi) {
+    actions.push(
+      renderSelectionButton({
+        label: "Starting XI",
+        detail: item.formationLabel || "Lineup",
+        statusLabel: `${item.startingXiCount}/11`,
+        status: item.startingXiStatus,
+        route: item.routes?.startingXi,
+        escapeHtml,
+      })
+    );
+  }
+  return `
+    <section class="dashboard-match-history-item" aria-label="${escapeHtml(item.title || "Previous match")}">
+      <header>
+        <strong>${escapeHtml(item.title || "Previous match")}</strong>
+        <span>${escapeHtml(item.meta || item.dateLabel || "")}</span>
+      </header>
+      <div>${actions.join("")}</div>
+    </section>
+  `;
+}
+
+function renderHistoryMenu(history = [], escapeHtml = String) {
+  return `
+    <details class="dashboard-match-history">
+      <summary>
+        <span>Previous matches</span>
+        <small>${history.length ? history.length : "None saved"}</small>
+        <span aria-hidden="true">&#8250;</span>
+      </summary>
+      <div class="dashboard-match-history-menu">
+        ${history.length
+          ? history.map((item) => renderHistoryItem(item, escapeHtml)).join("")
+          : '<p role="note">Saved squads and lineups will appear here after matchday.</p>'}
+      </div>
+    </details>
   `;
 }
 
 export function renderHomeUpcomingLineupCard(context = {}, escapeHtml = String) {
   const lineup = context.upcomingLineup || selectHomeUpcomingLineup();
-  const statusLabel = lineup.hasMatch ? `${lineup.selectedCount}/11` : "-";
-  const stateLabel = lineup.status === "ready" ? "Ready" : lineup.status === "partial" ? "In progress" : "Not selected";
-  const pitchLabel = lineup.hasMatch
-    ? `${lineup.title}, ${lineup.formationLabel}, ${lineup.selectedCount} of 11 players selected`
-    : "No upcoming match scheduled";
+  const history = Array.isArray(lineup.history) ? lineup.history : [];
 
   return `
-    <article class="dashboard-panel dashboard-upcoming-lineup-card" aria-label="Upcoming match starting eleven">
-      <header class="dashboard-lineup-head">
+    <article class="dashboard-panel dashboard-upcoming-lineup-card" aria-label="Upcoming match selection">
+      <header class="dashboard-match-gateway-head">
         <div>
           <p class="dashboard-card-kicker">Next Match</p>
-          <h2>Starting XI</h2>
+          <h2>Team Selection</h2>
         </div>
-        <span class="dashboard-lineup-count is-${escapeHtml(lineup.status)}">${escapeHtml(statusLabel)}</span>
+        ${lineup.hasMatch ? `<span>${escapeHtml(lineup.meta || lineup.dateValue)}</span>` : ""}
       </header>
-      <div class="dashboard-lineup-match">
-        <div>
-          <strong>${escapeHtml(lineup.hasMatch ? lineup.title : "No upcoming match")}</strong>
-          <span>${escapeHtml(lineup.hasMatch ? lineup.meta : "Schedule a match to prepare the lineup")}</span>
-        </div>
-        <span>${escapeHtml(lineup.formationLabel)}</span>
-      </div>
-      <div class="dashboard-lineup-pitch" role="img" aria-label="${escapeHtml(pitchLabel)}">
-        <span class="dashboard-lineup-halfway" aria-hidden="true"></span>
-        <span class="dashboard-lineup-circle" aria-hidden="true"></span>
-        <span class="dashboard-lineup-box" aria-hidden="true"></span>
-        ${lineup.slots.map((slot) => renderLineupSlot(slot, escapeHtml)).join("")}
-      </div>
-      <footer class="dashboard-lineup-footer">
-        <span>${escapeHtml(lineup.hasMatch ? `${stateLabel} · ${lineup.source}` : "Schedule")}</span>
-        <button type="button" class="secondary dashboard-link-button" data-open-workspace="${lineup.hasMatch ? "gameplan" : "schedule"}">
-          ${lineup.hasMatch ? "Open gameplan" : "Open schedule"}
-        </button>
+      ${lineup.hasMatch
+        ? `
+          <div class="dashboard-match-gateway-summary">
+            <strong>${escapeHtml(lineup.title)}</strong>
+            <span>Prepare the squad and starting lineup in Presentation Mode.</span>
+          </div>
+          <nav class="dashboard-match-selection-actions" aria-label="${escapeHtml(`${lineup.title} team selection`)}">
+            ${renderSelectionButton({
+              label: "Match squad",
+              detail: "Select the players available for matchday",
+              statusLabel: getMatchSquadLabel(lineup),
+              status: lineup.matchSquadStatus,
+              route: lineup.routes?.matchSquad,
+              createIfMissing: true,
+              escapeHtml,
+            })}
+            ${renderSelectionButton({
+              label: "Starting XI",
+              detail: lineup.hasStartingXi ? lineup.formationLabel : "Choose the starting formation and players",
+              statusLabel: getStartingXiLabel(lineup),
+              status: lineup.startingXiStatus,
+              route: lineup.routes?.startingXi,
+              createIfMissing: true,
+              escapeHtml,
+            })}
+          </nav>
+        `
+        : `
+          <div class="dashboard-match-gateway-empty">
+            <strong>No upcoming match</strong>
+            <span>Add the next fixture in Schedule to prepare its squad and Starting XI.</span>
+            <button type="button" class="secondary dashboard-link-button" data-open-workspace="schedule">Open schedule</button>
+          </div>
+        `}
+      <footer class="dashboard-match-gateway-footer">
+        ${renderHistoryMenu(history, escapeHtml)}
       </footer>
     </article>
   `;

@@ -1960,7 +1960,40 @@ export function createPresentationModeController(dependencies = {}) {
     return true;
   }
 
-  function open(dateValue = "", meetingType = "team") {
+  function normalizeOpenSlideType(value = "") {
+    const slideType = String(value || "").trim().toLowerCase();
+    return ["match-squad", "starting-xi"].includes(slideType) ? slideType : "";
+  }
+
+  function findOpenSlideIndex(model = {}, slideType = "") {
+    const targetType = slideType === "starting-xi" ? "lineup" : slideType;
+    return model.slides.findIndex((slide) => slide.type === targetType);
+  }
+
+  function createOpenTargetSlide(slideType = "") {
+    const templateDefaults = getSlideTemplateDefaults(slideType);
+    const nextId = `info-${state.dateValue}-${slideType}-${Date.now()}`;
+    const currentSlideIds = buildModel().slides.map((slide) => slide.id).filter(Boolean);
+    writeDeckForDate(state.dateValue, (deck) => {
+      const nextSlide = normalizeInfoSlide(
+        {
+          ...templateDefaults,
+          id: nextId,
+          title: getNewSlideDefaultTitle(templateDefaults.layout, templateDefaults),
+        },
+        0,
+        state.dateValue,
+        state.meetingType
+      );
+      return {
+        ...deck,
+        infoSlides: [...deck.infoSlides, nextSlide],
+        slideOrder: normalizeSlideOrder([...currentSlideIds.filter((slideId) => slideId !== nextId), nextId]),
+      };
+    });
+  }
+
+  function open(dateValue = "", meetingType = "team", options = {}) {
     setPiecePlayback.stop({ resetFrame: false });
     fullscreenIntent = false;
     state.activeShapeTarget = null;
@@ -1982,6 +2015,15 @@ export function createPresentationModeController(dependencies = {}) {
     state.editorOpen = false;
     state.isOpen = true;
     resetUndoHistory();
+    const slideType = normalizeOpenSlideType(options.slideType);
+    if (slideType) {
+      let slideIndex = findOpenSlideIndex(buildModel(), slideType);
+      if (slideIndex < 0 && options.createIfMissing === true) {
+        createOpenTargetSlide(slideType);
+        slideIndex = findOpenSlideIndex(buildModel(), slideType);
+      }
+      state.slideIndex = slideIndex >= 0 ? slideIndex : 0;
+    }
     render();
     ensureRoot().querySelector("[data-presentation-stage]")?.focus?.();
   }

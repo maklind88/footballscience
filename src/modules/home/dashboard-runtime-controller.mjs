@@ -522,6 +522,16 @@ export function createDashboardRuntimeController(dependencies = {}) {
       openPresentationMode(dateValue, meetingType);
       return true;
     }
+    const matchSelectionButton = event.target.closest("[data-dashboard-open-match-selection]");
+    if (matchSelectionButton) {
+      const dateValue = matchSelectionButton.dataset.matchSelectionDate || getTodayValue();
+      const meetingType = matchSelectionButton.dataset.matchSelectionMeetingType || "team";
+      openPresentationMode(dateValue, meetingType, {
+        slideType: matchSelectionButton.dataset.matchSelectionTarget || "",
+        createIfMissing: matchSelectionButton.dataset.matchSelectionCreate === "true",
+      });
+      return true;
+    }
     const createSessionDateButton = event.target.closest("[data-dashboard-create-session-date]");
     if (createSessionDateButton) {
       createSessionDate(createSessionDateButton.dataset.dashboardCreateSessionDate || getTodayValue());

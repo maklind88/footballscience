@@ -94,6 +94,27 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
       });
   }
 
+  function getScheduleMatches() {
+    const state = getScheduleState();
+    return [...(state.events ?? [])]
+      .filter((event) => event.type === "match" && event.date)
+      .sort((first, second) =>
+        `${first.date || ""} ${first.time || ""}`.localeCompare(`${second.date || ""} ${second.time || ""}`)
+      );
+  }
+
+  function isCompletedMatch(event = {}, todayValue = getTodayValue()) {
+    const status = String(event.status || event.state || "").trim().toLowerCase();
+    if (["completed", "finished", "final", "played"].includes(status)) {
+      return true;
+    }
+    return Boolean(event.date && event.date < todayValue);
+  }
+
+  function getUpcomingMatchEvents(todayValue = getTodayValue()) {
+    return getScheduleMatches().filter((event) => event.date >= todayValue && !isCompletedMatch(event, todayValue));
+  }
+
   function getSessionForDate(dateValue) {
     const state = getSessionPlannerState();
     return state.sessions?.[dateValue] ?? createEmptySession(dateValue);
@@ -300,17 +321,33 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
   }
 
   function getUpcomingMatchLineup(todayValue = getTodayValue(), nextMatch = null) {
-    const scheduleMatches = getUpcomingEvents(todayValue, ["match"]);
-    const match = nextMatch || scheduleMatches[0] || null;
+    const scheduleMatches = getScheduleMatches();
+    const match = nextMatch || getUpcomingMatchEvents(todayValue)[0] || null;
     ensurePlayerProfilesState();
     const profileState = getPlayerProfilesState() || {};
+    const presentationState = getPresentationState() || {};
+    const players = Array.isArray(profileState.players) ? profileState.players : [];
+    const history = scheduleMatches
+      .filter((event) => isCompletedMatch(event, todayValue))
+      .sort((first, second) => `${second.date} ${second.time || ""}`.localeCompare(`${first.date} ${first.time || ""}`))
+      .map((event) =>
+        selectHomeUpcomingLineup({
+          nextMatch: event,
+          scheduleMatches,
+          presentationState,
+          players,
+          dateLabel: formatDateLabel(event.date, "short"),
+        })
+      )
+      .filter((item) => item.hasStartingXi || item.hasMatchSquad);
     return selectHomeUpcomingLineup({
       nextMatch: match,
       scheduleMatches,
-      presentationState: getPresentationState() || {},
-      players: Array.isArray(profileState.players) ? profileState.players : [],
+      presentationState,
+      players,
       dateLabel: match?.date ? formatDateLabel(match.date, "short") : "",
       relativeLabel: match?.date ? getRelativeDateLabel(match.date, todayValue) : "",
+      history,
     });
   }
 
@@ -322,7 +359,7 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     const todayMainEvent = getScheduleMainEvent(todayEvents) ?? null;
     const todayPeriodization = getPeriodizationDay(todayValue);
     const nextEvent = getUpcomingEvents(todayValue)[0] ?? null;
-    const nextMatch = getUpcomingEvents(todayValue, ["match"])[0] ?? null;
+    const nextMatch = getUpcomingMatchEvents(todayValue)[0] ?? null;
     const nextSession = getNextSession(todayValue);
     const microcycle = getMicrocycle(todayValue);
     const presentationPasses = getPresentationPasses(todayValue);
@@ -366,12 +403,15 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     getNextSession,
     getPresentationPasses,
     getRelativeDateLabel,
+    getScheduleMatches,
     getScheduleState,
     getSessionForDate,
     getSessionPlannerState,
     getSessionTotalMinutes,
     getTodayValue,
     getUpcomingEvents,
+    getUpcomingMatchEvents,
     getUpcomingMatchLineup,
+    isCompletedMatch,
   };
 }

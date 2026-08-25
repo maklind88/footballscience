@@ -34,6 +34,7 @@ function createSelectors(overrides = {}) {
     getMedicalRecords: () => medicalRecords,
     getPeriodizationDay: (dateValue) => periodizationDays[dateValue] || {},
     getPlayerProfilesState: () => overrides.playerProfilesState || { players: [] },
+    getPresentationState: () => overrides.presentationState || {},
     getScheduleEventsForDate: (dateValue) => scheduleState.events.filter((event) => event.date === dateValue),
     getScheduleMainEvent: (events = []) => events.find((event) => event.type === "match") || events[0] || null,
     getScheduleState: () => scheduleState,
@@ -57,6 +58,7 @@ test("Home dashboard context selectors rank events, sessions, microcycle, and al
   expect(selectors.getRelativeDateLabel("2026-06-02", "2026-06-01")).toBe("Tomorrow");
   expect(selectors.getUpcomingEvents("2026-06-01").map((event) => event.id)).toEqual(["off-1", "training-2", "match-1"]);
   expect(selectors.getUpcomingEvents("2026-06-01", ["match"]).map((event) => event.id)).toEqual(["match-1"]);
+  expect(selectors.getUpcomingMatchEvents("2026-06-01").map((event) => event.id)).toEqual(["match-1"]);
 
   const nextSession = selectors.getNextSession("2026-06-01");
   expect(nextSession.date).toBe("2026-06-02");
@@ -110,4 +112,55 @@ test("Home dashboard context selectors build the complete Home render context", 
   expect(context.birthdayCalendar.items).toEqual([
     expect.objectContaining({ id: "p8", name: "Ada Midfielder", referenceDate: context.todayValue }),
   ]);
+});
+
+test("Home moves past matches out of the upcoming slot while preserving saved squad and lineup history", () => {
+  const selectors = createSelectors({
+    scheduleState: {
+      events: [
+        { id: "match-old", date: "2026-05-30", type: "match", time: "18:00", title: "NCC - Portland" },
+        { id: "match-next", date: "2026-06-03", type: "match", time: "19:00", title: "NCC - Gotham" },
+      ],
+    },
+    playerProfilesState: {
+      players: [{ id: "p1", name: "Ada Keeper" }],
+    },
+    presentationState: {
+      decks: {
+        "2026-05-29": {
+          updatedAt: "2026-05-29T15:00:00.000Z",
+          infoSlides: [
+            { layout: "match-squad", matchSquadPlayerIds: ["p1"] },
+            { layout: "starting-xi", formation: "4-3-3", lineup: { gk: "p1" } },
+          ],
+        },
+        "2026-06-02": {
+          updatedAt: "2026-06-02T15:00:00.000Z",
+          infoSlides: [{ layout: "match-squad", matchSquadPlayerIds: ["p1"] }],
+        },
+      },
+    },
+  });
+
+  expect(selectors.isCompletedMatch({ date: "2026-05-30" }, "2026-06-01")).toBe(true);
+  expect(selectors.getUpcomingMatchEvents("2026-06-01").map((event) => event.id)).toEqual(["match-next"]);
+
+  const selection = selectors.getUpcomingMatchLineup("2026-06-01");
+  expect(selection).toMatchObject({
+    matchId: "match-next",
+    title: "NCC - Gotham",
+    hasMatchSquad: true,
+    hasStartingXi: false,
+  });
+  expect(selection.history).toHaveLength(1);
+  expect(selection.history[0]).toMatchObject({
+    matchId: "match-old",
+    title: "NCC - Portland",
+    hasMatchSquad: true,
+    hasStartingXi: true,
+    routes: {
+      matchSquad: { dateValue: "2026-05-29", meetingType: "team", target: "match-squad" },
+      startingXi: { dateValue: "2026-05-29", meetingType: "team", target: "starting-xi" },
+    },
+  });
 });

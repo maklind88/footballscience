@@ -2936,6 +2936,7 @@ test("Home places compact meeting cards side by side beside the calendar and ope
         overviewSpan: 6,
         importVersion: "ncc-2026-numbers-v1",
         events: [
+          { id: "home-schedule-past-match", date: "2026-05-02", time: "18:00", type: "match", title: "NCC - Orlando" },
           { id: "home-schedule-match", date: "2026-05-16", time: "19:00", type: "match", title: "NCC - Boston" },
         ],
       })
@@ -2954,6 +2955,13 @@ test("Home places compact meeting cards side by side beside the calendar and ope
       presentationStorageKey,
       JSON.stringify({
         decks: {
+          "2026-05-01": {
+            updatedAt: "2026-05-01T15:00:00.000Z",
+            infoSlides: [
+              { layout: "starting-xi", formation: "4-3-3", lineup: assignments },
+              { layout: "match-squad", matchSquadPlayerIds: players.map((player) => player.id) },
+            ],
+          },
           "2026-05-14": {
             updatedAt: "2026-05-14T15:00:00.000Z",
             infoSlides: [
@@ -3063,19 +3071,12 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   }
   const lineupPanel = presentationBand.locator(".dashboard-upcoming-lineup-card");
   await expect(lineupPanel).toContainText("NCC - Boston");
+  await expect(lineupPanel).toContainText("11 selected");
   await expect(lineupPanel).toContainText("11/11");
   await expect(lineupPanel).toContainText("4-3-3");
-  await expect(lineupPanel.locator(".dashboard-lineup-slot.has-player")).toHaveCount(11);
-  const lineupContainment = await lineupPanel.evaluate((panel) => {
-    const pitch = panel.querySelector(".dashboard-lineup-pitch")?.getBoundingClientRect();
-    const slots = Array.from(panel.querySelectorAll(".dashboard-lineup-slot")).map((slot) => slot.getBoundingClientRect());
-    return {
-      slotsInside: slots.every((slot) =>
-        pitch && slot.left >= pitch.left - 1 && slot.right <= pitch.right + 1 && slot.top >= pitch.top - 1 && slot.bottom <= pitch.bottom + 1
-      ),
-    };
-  });
-  expect(lineupContainment.slotsInside).toBe(true);
+  await expect(lineupPanel.locator(".dashboard-lineup-pitch, .dashboard-lineup-slot")).toHaveCount(0);
+  await expect(lineupPanel).not.toContainText("Avery Stone");
+  await expect(lineupPanel.locator(".dashboard-match-selection-actions [data-dashboard-open-match-selection]")).toHaveCount(2);
   const calendarDaySize = await presentationBand.locator(".dashboard-schedule-day").first().evaluate((day) => {
     const rect = day.getBoundingClientRect();
     return { width: rect.width, height: rect.height };
@@ -3109,8 +3110,23 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await expect(page.locator('.schedule-planner-day.is-selected[data-schedule-date="2026-05-16"]')).toBeVisible();
 
   await openWorkspace(page, "home");
-  await page.locator(".dashboard-upcoming-lineup-card [data-open-workspace='gameplan']").click();
-  await expect(page.locator('[data-workspace-view="gameplan"].is-active')).toBeVisible();
+  const homeLineupPanel = page.locator(".dashboard-upcoming-lineup-card");
+  await homeLineupPanel.locator(".dashboard-match-history summary").click();
+  const pastMatch = homeLineupPanel.locator(".dashboard-match-history-item", { hasText: "NCC - Orlando" });
+  await expect(pastMatch).toBeVisible();
+  await pastMatch.locator('[data-match-selection-target="starting-xi"]').click();
+  const presentation = page.locator("#presentationModeRoot");
+  await expect(presentation).toBeVisible();
+  await expect(presentation.locator(".presentation-lineup-layout")).toBeVisible();
+  await expect(presentation).toContainText("Starting XI vs NCC - Orlando");
+  await presentation.getByRole("button", { name: "Close presentation" }).click();
+
+  await homeLineupPanel
+    .locator('.dashboard-match-selection-actions [data-match-selection-target="starting-xi"]')
+    .click();
+  await expect(presentation).toBeVisible();
+  await expect(presentation.locator(".presentation-lineup-layout")).toBeVisible();
+  await expect(presentation).toContainText("Starting XI vs NCC - Boston");
 });
 
 test("Schedule Planner copies and pastes selected days with command shortcuts", async ({ page }) => {

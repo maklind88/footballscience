@@ -753,6 +753,22 @@ test("Presentation Mode renders separate Match Squad and Starting XI custom slid
   expect(lineupHtml.match(/class="presentation-lineup-slot/g)).toHaveLength(11);
   expect(renderer.renderLineupSlide({ ...model, presenting: true }, lineupSlide)).not.toContain("data-presentation-lineup-player");
   expect(renderer.renderControlBar({ ...model, slideIndex: lineupSlide.index })).toContain("Delete current slide");
+
+  controller.open("2026-06-03", "team", { slideType: "starting-xi" });
+  const targetedLineupModel = controller.buildModel();
+  expect(targetedLineupModel.slides[targetedLineupModel.slideIndex]?.type).toBe("lineup");
+
+  controller.open("2026-06-03", "team", { slideType: "match-squad" });
+  const targetedSquadModel = controller.buildModel();
+  expect(targetedSquadModel.slides[targetedSquadModel.slideIndex]?.type).toBe("match-squad");
+
+  controller.open("2026-06-05", "team", { slideType: "starting-xi", createIfMissing: true });
+  const createdLineupModel = controller.buildModel();
+  expect(createdLineupModel.slides[createdLineupModel.slideIndex]?.type).toBe("lineup");
+  expect(storage.get(dashboardPresentationStorageKey).decks["2026-06-05"].infoSlides.filter((slide) => slide.layout === "starting-xi")).toHaveLength(1);
+
+  controller.open("2026-06-05", "team", { slideType: "starting-xi", createIfMissing: true });
+  expect(storage.get(dashboardPresentationStorageKey).decks["2026-06-05"].infoSlides.filter((slide) => slide.layout === "starting-xi")).toHaveLength(1);
 });
 
 test("Presentation Mode keeps Technical Staff Meeting decks separate from Team Meeting", () => {

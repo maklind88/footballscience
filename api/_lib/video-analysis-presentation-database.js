@@ -15,7 +15,7 @@ const {
 const VIDEO_ANALYSIS_SCHEMA = "footballscience-video-analysis-v2";
 const PRESENTATION_PURPOSES = new Set(["team-meeting", "unit-meeting", "player-review", "analysis", "custom"]);
 const SECTION_TYPES = new Set(["opening", "team", "unit", "player", "phase", "set-piece", "custom"]);
-const DRAWING_TOOLS = new Set(["arrow", "circle", "spotlight", "text", "freeze", "zoom"]);
+const DRAWING_TOOLS = new Set(["freehand", "arrow", "circle", "spotlight", "text", "freeze", "zoom"]);
 const SHARE_TARGET_TYPES = new Set(["team", "role", "group", "player", "user"]);
 const SHARE_ACCESS_LEVELS = new Set(["view", "present", "edit"]);
 const COLLECTION_VISIBILITY = new Set(["coach-analyst", "team", "private", "custom", "player-safe"]);
@@ -81,6 +81,22 @@ function normalizeObject(value = {}) {
 
 function normalizeArray(value = []) {
   return Array.isArray(value) ? value : [];
+}
+
+function drawingCoordinate(value, fallback = 50) {
+  const number = Number(value);
+  return Math.max(0, Math.min(100, Number.isFinite(number) ? number : fallback));
+}
+
+function normalizeDrawingGeometry(tool = "arrow", value = {}) {
+  const geometry = normalizeObject(value);
+  if (tool !== "freehand") return geometry;
+  return {
+    points: normalizeArray(geometry.points).slice(0, 256).map((point = {}) => ({
+      x: drawingCoordinate(point.x),
+      y: drawingCoordinate(point.y),
+    })),
+  };
 }
 
 function normalizeFreezePoints(value = []) {
@@ -164,6 +180,7 @@ function normalizePresentationItem(item = {}, index = 0) {
 
 function normalizeDrawingLayer(layer = {}, index = 0) {
   const clipId = normalizeUuid(layer.clipId || layer.clip_instance_id || layer.clipInstanceId);
+  const tool = normalizeDrawingTool(layer.tool);
   return {
     id: normalizeUuid(layer.id || layer.layerId || layer.layer_id),
     presentationId: normalizeUuid(layer.presentationId || layer.presentation_id),
@@ -173,8 +190,8 @@ function normalizeDrawingLayer(layer = {}, index = 0) {
     durationMs: layer.durationMs === undefined && layer.duration_ms === undefined
       ? null
       : asMs(layer.durationMs ?? layer.duration_ms, 0),
-    tool: normalizeDrawingTool(layer.tool),
-    geometry: normalizeObject(layer.geometry || layer.geometryJson || layer.geometry_json),
+    tool,
+    geometry: normalizeDrawingGeometry(tool, layer.geometry || layer.geometryJson || layer.geometry_json),
     style: normalizeObject(layer.style || layer.styleJson || layer.style_json),
     text: normalizeNote(layer.text || layer.layerText || layer.layer_text, 500) || null,
     sortOrder: normalizeSortOrder(layer.sortOrder ?? layer.sort_order, index),

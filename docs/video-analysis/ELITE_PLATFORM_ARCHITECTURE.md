@@ -57,7 +57,8 @@ Large tracking arrays must not be copied into generic application state or one u
 - A track owns time-bounded segments, points, detection confidence, identity confidence, occlusion, engine provenance, and correction history.
 - Dynamic graphics bind to track anchors over an explicit time range. Distance, unit hull, unit line, trail, and movement curve graphics are spatial layers, not static drawing records.
 - Low-confidence or discontinuous sections are visible and require correction before verification.
-- The current vertical slice supports manual prompt/keyframes, review and correction, track-bound highlights, metadata-only central persistence, and a secure local provider protocol. Automatic inference is capability-gated until an approved model/provider package is installed; dense samples remain local.
+- The tracking workflow supports manual prompt/keyframes, review and correction, track-bound highlights, metadata-only central persistence, and a secure local provider protocol.
+- The approved SAM 2.1 provider has a pinned manifest, checksum-verifying installer, isolated runtime, capability preflight, forward/backward propagation, and bounded artifact validation. Model assets are installed explicitly on the analyst device and are never bundled into the web deployment; dense samples remain local.
 
 ### Pitch Calibration And Spatial Analysis
 
@@ -106,13 +107,28 @@ Each phase must ship behind capability checks, preserve old records, pass module
 
 | Slice | Status | Evidence |
 | --- | --- | --- |
-| Elite foundation | Implemented in candidate branch | Domain models, secure local job engine, geometry and sync contracts |
-| Workstation operations | Implemented in candidate branch | Multiple persisted timelines, row colors/order/locks, clip move/copy, save/undo, exclusive coding groups |
-| Collaborative coding foundation | Implemented in candidate branch | Participant heartbeat, append-only operation log, clip/timeline revisions, reconnect polling, private Realtime adapter held behind approval |
-| Tracking and dynamic telestration | Implemented vertical slice in candidate branch | Prompt/keyframe UX, review/correction, identity and confidence gates, track-bound graphics, secure local provider jobs, metadata-only API; approved provider packaging and local artifact restoration remain |
-| Spatial analysis | Implemented vertical slice in candidate branch | Manual pitch-plane calibration, server-recomputed confidence/RMS, perspective overlay, true-metre pair and unit metrics, continuity-aware curves, and track-bound distance/unit/path layers; automatic camera recalibration remains |
-| Media production | Implemented vertical slice in candidate branch | Multi-angle source workspace, offset/drift synchronization, synchronized compare playback, progressive device-local screen/camera capture, content-addressed scrub proxies, byte-range playback, exact bounded replay buffers, match-time-preserving source swaps, checksummed drawing/tracking overlay compilation, local H.264/AAC MP4 compositing, progress/cancel/download, expiring artifact access, output checksums, and metadata-only export records; automatic camera recalibration and cloud-delivered portable packages remain |
-| Intelligence and portable sharing | Planned | Matrix drilldown, query compiler, reports, package format and encrypted delivery remain |
+| Elite foundation | Implemented in candidate branch | Domain models, secure loopback job engine, metre-safe geometry, angle synchronization, and multi-timeline contracts |
+| Coding and collaboration | Implemented in candidate branch | Exclusive coding groups, repeatable MG Principles, batch commands, analyst presence, audited operation replay, optimistic revisions, and recoverable conflicts |
+| Timeline workspace | Implemented in candidate branch | Multiple persisted timelines, true millisecond scale, overview/focus zoom, overlap stacking, row colors/order/locks, clip move/copy/merge/delete, and undo |
+| Presentation and export | Implemented in candidate branch | Presentation builder, freehand/arrow/circle/spotlight/text/freeze/zoom layers, track-bound graphics, deterministic overlay compilation, and burned-in H.264/AAC MP4 export |
+| Tracking and dynamic telestration | Implemented in candidate branch | Prompt/keyframe UX, identity continuity, confidence and occlusion gates, manual correction, track-bound graphics, secure local jobs, and pinned SAM 2.1 installer/runtime |
+| Spatial analysis | Implemented in candidate branch | Manual pitch-plane calibration, server-recomputed confidence/RMS, perspective overlay, true-metre pair and unit metrics, movement curves, and track-bound distance/unit/path layers |
+| Media production | Implemented in candidate branch | Multi-angle workspace, offset/drift sync, compare playback, progressive device-local capture, content-addressed proxies, byte-range playback, bounded replay buffers, source swaps, rendering, progress/cancel/download, and output checksums |
+| Search and intelligence | Implemented in candidate branch | Visible natural-language query compilation, advanced two-dimensional matrix, metric drilldown, cohort comparison, stable evidence snapshots, and generated analysis reports |
+| Portable sharing | Implemented in candidate branch | Explicit private publishing, checksum verification, presentation share targets, recipient authorization, short-lived playback/download capabilities, revoke, and playback without the original local source |
+
+## Product Coverage
+
+| Requested area | Delivered behavior | Primary verification |
+| --- | --- | --- |
+| Coding | Exclusive links, repeatable independent principles, batch operations, keyboard coding, multi-analyst attribution/presence/replay | `qa/video-analysis-elite-workstation.api.spec.mjs`, `qa/video-analysis-elite-workstation.smoke.spec.mjs` |
+| Timeline | Multiple timelines, row operations/colors/order, true time scale, zoom/focus, overlap lanes, move/copy/merge/delete and undo | `qa/video-analysis-module-contract.api.spec.mjs`, `qa/video-analysis-playback.smoke.spec.mjs` |
+| Search | Advanced matrix, clip drilldown, natural-language interpretation, cohort comparison and report output | `qa/video-analysis-clip-intelligence.api.spec.mjs`, `qa/video-analysis-clip-intelligence.smoke.spec.mjs` |
+| Presentation | Freehand and structured drawings, dynamic tracked layers, presenter workflow and rendered video export | `qa/video-analysis-freehand-telestration.api.spec.mjs`, `qa/video-analysis-tracking-telestration.smoke.spec.mjs`, `qa/video-analysis-media-composite.api.spec.mjs` |
+| Media | Multi-angle synchronization, compare playback, live local capture, scrub proxies, replay and cancellable export | `qa/video-analysis-media-production.api.spec.mjs`, `qa/video-analysis-media-production.smoke.spec.mjs`, `qa/video-analysis-media-capture.api.spec.mjs`, `qa/video-analysis-media-proxy.api.spec.mjs` |
+| Tracking | Automatic local SAM 2.1 tracking, identity continuity, confidence/occlusion visibility, correction and track-bound highlights | `qa/video-analysis-sam2-provider.api.spec.mjs`, `qa/video-analysis-tracking-telestration.api.spec.mjs` |
+| Spatial analysis | Pitch calibration, real metres, pair/unit measures, gaps and continuity-aware movement curves | `qa/video-analysis-spatial-workbench.api.spec.mjs`, `qa/video-analysis-spatial-workbench.smoke.spec.mjs` |
+| Sharing | Metadata reconnection plus private portable reviews that authorized recipients can stream or download without the source file | `qa/video-analysis-portable-media.api.spec.mjs`, `qa/video-analysis-media-production.smoke.spec.mjs` |
 
 ## Elite Acceptance Standard
 
@@ -130,8 +146,8 @@ Each phase must ship behind capability checks, preserve old records, pass module
 - Browser state may contain session-only `blob:` or loopback playback URLs, but they are rejected by central media contracts and never persisted.
 - `/api/video-analysis` stores camera synchronization metadata and immutable export evidence only: source IDs, match-time range, preset, layer summary, byte size, and SHA-256 hashes.
 - The local loopback engine receives source bytes only after an explicit analyst action, enforces origin plus expiring session capability, bounds input/range/queue/concurrency, writes atomically, and serves results through expiring access tokens.
-- A completed render is not yet a portable share. Sharing requires a separately authorized package/export flow with explicit recipient access and expiry.
+- A completed render is not a portable share until the analyst explicitly publishes it through the separately authorized package flow with presentation-derived recipient access.
 - Supported static drawings and confidence-qualified dynamic graphics are compiled into a bounded, checksummed ASS overlay and burned into the local MP4. Tracking discontinuities intentionally produce visible gaps rather than fabricated motion.
 - Live capture requires progressive File System Access. Cancelling before or during media permission aborts the reserved file, stops late streams, and cannot publish a partial camera angle; completed captures are linked with their match-time offset and remain device-local.
 - Scrub proxies are content-addressed by streaming source SHA-256 plus profile, generated with bounded resolution and keyframe cadence, reused inside the quota-managed device cache, and served with expiring byte-range access. Replay buffers are short re-encoded segments derived from an authorized proxy, never a second source upload, and their temporary video clock is explicitly mapped back to match time.
-- The downloadable MP4 plus checksum manifest is a device-local portable review artifact: its recipient does not need the original source file. Hosted delivery, recipient authorization, expiry, and optional encryption remain a separate explicit-sharing milestone.
+- The downloadable MP4 plus checksum manifest is first a device-local artifact. Explicit publishing verifies the artifact in the local companion, uploads it to a private content path, preserves recipient authorization in metadata, and returns only short-lived playback/download capabilities. The recipient does not need the original source file, and the publisher can revoke the review.

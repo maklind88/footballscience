@@ -74,6 +74,38 @@
   box-shadow: 0 0 0 3px rgba(244, 208, 111, 0.38), 0 14px 30px rgba(0, 0, 0, 0.26);
 }
 
+#analysisRoomWorkspace .video-analysis-drawing-freehand {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  touch-action: none;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-freehand polyline {
+  fill: none;
+  stroke: var(--drawing-color, #f4d06f);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: stroke;
+  cursor: move;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-freehand.is-selected polyline {
+  stroke: #fff;
+  filter: drop-shadow(0 0 4px rgba(244, 208, 111, 0.9));
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-freehand.is-draft polyline {
+  opacity: 0.74;
+  pointer-events: none;
+  stroke-dasharray: 7 5;
+}
+
 #analysisRoomWorkspace .video-analysis-drawing-overlay i {
   position: absolute;
   width: 16px;
@@ -107,4 +139,3 @@
   gap: 8px;
   padding: 0 10px 10px;
 }
-

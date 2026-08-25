@@ -7,6 +7,7 @@ import {
   updateDrawingLayerInItem,
 } from "../services/presentationService.js";
 import {
+  appendFreehandPoint,
   defaultDrawingGeometry,
   geometryFromDrag,
   moveGeometry,
@@ -52,7 +53,10 @@ function createDrawingLayer(state = {}, item = {}, getVideoElement = () => null,
     tool,
     text: draft.text || (tool === "text" ? "Coach point" : ""),
     geometry,
-    style: { color: tool === "spotlight" ? "#ffffff" : "#f4d06f" },
+    style: {
+      color: tool === "spotlight" ? "#ffffff" : "#f4d06f",
+      ...(tool === "freehand" ? { lineWidth: 5 } : {}),
+    },
   });
 }
 
@@ -73,6 +77,27 @@ export function createDrawingController(options = {}) {
   const getRoot = options.getRoot || (() => null);
   const getVideoElement = options.getVideoElement || (() => null);
   const getCurrentMatchMs = options.getCurrentMatchMs || null;
+  let clearPointerCompletion = null;
+
+  function bindPointerCompletion(surface = null, pointerId = null) {
+    clearPointerCompletion?.();
+    const ownerWindow = surface?.ownerDocument?.defaultView;
+    const finish = (pointerEvent) => {
+      if (pointerId != null && pointerEvent.pointerId !== pointerId) return;
+      finishInteraction(pointerEvent);
+    };
+    surface?.addEventListener?.("pointerup", finish);
+    surface?.addEventListener?.("pointercancel", finish);
+    ownerWindow?.addEventListener?.("pointerup", finish, true);
+    ownerWindow?.addEventListener?.("pointercancel", finish, true);
+    clearPointerCompletion = () => {
+      surface?.removeEventListener?.("pointerup", finish);
+      surface?.removeEventListener?.("pointercancel", finish);
+      ownerWindow?.removeEventListener?.("pointerup", finish, true);
+      ownerWindow?.removeEventListener?.("pointercancel", finish, true);
+      clearPointerCompletion = null;
+    };
+  }
 
   function addLayerAtPoint(geometry = null) {
     updateState((state) => {
@@ -199,6 +224,7 @@ export function createDrawingController(options = {}) {
     const layerId = resizeLayerId || layerTarget?.dataset?.videoAnalysisDrawingLayer || "";
     const layer = drawingLayerById(item, layerId);
     event.preventDefault?.();
+    bindPointerCompletion(surface, event.pointerId);
     surface?.setPointerCapture?.(event.pointerId);
     if (layer) {
       updateState((current) => ({
@@ -221,7 +247,7 @@ export function createDrawingController(options = {}) {
       return true;
     }
     const tool = state.presentation?.drawingTool || "arrow";
-    const geometry = defaultDrawingGeometry(tool, point);
+    const geometry = tool === "freehand" ? { points: [point] } : defaultDrawingGeometry(tool, point);
     const previewLayer = createDrawingLayer(state, item, getVideoElement, geometry);
     updateState((current) => ({
       ...current,
@@ -255,7 +281,9 @@ export function createDrawingController(options = {}) {
       const item = selectedPresentationItem(presentation, liveInteraction.itemId, "");
       if (!item) return current;
       if (liveInteraction.type === "create") {
-        const geometry = geometryFromDrag(liveInteraction.tool, liveInteraction.start, point);
+        const geometry = liveInteraction.tool === "freehand"
+          ? appendFreehandPoint(liveInteraction.previewLayer?.geometry || { points: [liveInteraction.start] }, point)
+          : geometryFromDrag(liveInteraction.tool, liveInteraction.start, point);
         return {
           ...current,
           presentation: {
@@ -293,7 +321,11 @@ export function createDrawingController(options = {}) {
   function finishInteraction(event) {
     const state = getState();
     const interaction = state.presentation?.drawingInteraction;
-    if (!interaction) return false;
+    if (!interaction) {
+      clearPointerCompletion?.();
+      return false;
+    }
+    clearPointerCompletion?.();
     const surface = getRoot()?.querySelector("[data-video-analysis-drawing-surface]");
     const point = pointerPercent(event, surface);
     event.preventDefault?.();
@@ -308,7 +340,15 @@ export function createDrawingController(options = {}) {
         };
       }
       if (liveInteraction.type === "create") {
-        const geometry = geometryFromDrag(liveInteraction.tool, liveInteraction.start, point);
+        const geometry = liveInteraction.tool === "freehand"
+          ? appendFreehandPoint(liveInteraction.previewLayer?.geometry || { points: [liveInteraction.start] }, point)
+          : geometryFromDrag(liveInteraction.tool, liveInteraction.start, point);
+        if (liveInteraction.tool === "freehand" && geometry.points.length < 2) {
+          return {
+            ...current,
+            presentation: { ...(current.presentation || {}), drawingInteraction: null },
+          };
+        }
         const layer = createDrawingLayer(current, item, getVideoElement, geometry);
         return {
           ...current,

@@ -60,6 +60,12 @@ function drawingPrimitive(layerValue = {}, range = {}) {
     ...window,
     style: primitiveStyle(layer.style),
   };
+  if (layer.tool === "freehand") {
+    const points = (Array.isArray(geometry.points) ? geometry.points : [])
+      .slice(0, 256)
+      .map((entry) => percentPoint(entry.x, entry.y));
+    return points.length >= 2 ? { ...base, type: "line", points } : null;
+  }
   if (layer.tool === "arrow") {
     return {
       ...base,

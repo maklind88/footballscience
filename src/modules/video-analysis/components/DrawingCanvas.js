@@ -2,7 +2,7 @@ import {
   presentationDrawingTools,
   selectedPresentationItem,
 } from "../services/presentationService.js";
-import { layerStyle } from "../services/presentationLayerGeometryService.js";
+import { layerStyle, normalizeFreehandPoints } from "../services/presentationLayerGeometryService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml } from "./renderHelpers.js";
 import {
@@ -12,6 +12,7 @@ import {
 } from "./TrackingTelestration.js";
 
 const toolBadges = Object.freeze({
+  freehand: "FH",
   arrow: "AR",
   circle: "CI",
   spotlight: "SP",
@@ -19,6 +20,31 @@ const toolBadges = Object.freeze({
   freeze: "FR",
   zoom: "ZO",
 });
+
+function drawingColor(value = "") {
+  return /^#[a-f0-9]{6}$/i.test(String(value || "")) ? String(value).toLowerCase() : "#f4d06f";
+}
+
+function freehandPath(geometry = {}) {
+  return normalizeFreehandPoints(geometry.points)
+    .map((point) => `${Math.round(point.x * 10)},${Math.round(point.y * 10)}`)
+    .join(" ");
+}
+
+function renderFreehandLayer(layer = {}, options = {}) {
+  const points = freehandPath(layer.geometry || {});
+  if (!points) return "";
+  const selected = Boolean(options.selected);
+  const draft = Boolean(options.draft);
+  const layerId = draft ? "" : ` data-video-analysis-drawing-layer="${escapeHtml(layer.id)}"`;
+  return `
+    <svg class="video-analysis-drawing-freehand${selected ? " is-selected" : ""}${draft ? " is-draft" : ""}"
+      viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"
+      style="--drawing-color:${drawingColor(layer.style?.color)}"${layerId}>
+      <polyline points="${escapeHtml(points)}" vector-effect="non-scaling-stroke"></polyline>
+    </svg>
+  `;
+}
 
 function renderTool(tool = {}, activeTool = "arrow") {
   const active = tool.id === activeTool;
@@ -50,6 +76,7 @@ function renderOverlayLayer(layer = {}, selectedLayerId = "") {
   const text = layer.text || tool;
   const geometry = layer.geometry || layer.geometryJson || layer.geometry_json || {};
   const selected = layer.id === selectedLayerId;
+  if (tool === "freehand") return renderFreehandLayer({ ...layer, geometry }, { selected });
   return `
     <span class="video-analysis-drawing-overlay is-${escapeHtml(tool)}${selected ? " is-selected" : ""}"
       style="${escapeHtml(layerStyle(tool, geometry))}"
@@ -70,6 +97,7 @@ function renderOverlayLayer(layer = {}, selectedLayerId = "") {
 function renderPreviewLayer(layer = null) {
   if (!layer) return "";
   const tool = layer.tool || "arrow";
+  if (tool === "freehand") return renderFreehandLayer(layer, { draft: true });
   return `<span class="video-analysis-drawing-overlay is-${escapeHtml(tool)} is-draft" style="${escapeHtml(layerStyle(tool, layer.geometry || {}))}">${escapeHtml(layer.text || tool)}</span>`;
 }
 

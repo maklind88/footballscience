@@ -1,3 +1,5 @@
+import { normalizeDrawingGeometry } from "./presentationLayerGeometryService.js";
+
 export const presentationModes = Object.freeze([
   { id: "overview", label: "Library" },
   { id: "builder", label: "Build" },
@@ -6,6 +8,7 @@ export const presentationModes = Object.freeze([
 ]);
 
 export const presentationDrawingTools = Object.freeze([
+  { id: "freehand", label: "Freehand" },
   { id: "arrow", label: "Arrow" },
   { id: "circle", label: "Circle" },
   { id: "spotlight", label: "Spotlight" },
@@ -246,6 +249,7 @@ export function normalizePresentationItem(item = {}, index = 0) {
 }
 
 export function normalizeDrawingLayer(layer = {}, index = 0) {
+  const tool = normalizePresentationDrawingTool(layer.tool);
   return {
     id: stringValue(layer.id) || localId("drawing"),
     presentationId: stringValue(layer.presentationId || layer.presentation_id),
@@ -253,8 +257,8 @@ export function normalizeDrawingLayer(layer = {}, index = 0) {
     clipId: stringValue(layer.clipId || layer.clip_instance_id || layer.clipInstanceId),
     timestampMs: numberValue(layer.timestampMs ?? layer.timestamp_ms, 0),
     durationMs: layer.durationMs ?? layer.duration_ms ?? null,
-    tool: normalizePresentationDrawingTool(layer.tool),
-    geometry: layer.geometry || layer.geometryJson || layer.geometry_json || {},
+    tool,
+    geometry: normalizeDrawingGeometry(tool, layer.geometry || layer.geometryJson || layer.geometry_json || {}),
     style: layer.style || layer.styleJson || layer.style_json || {},
     text: stringValue(layer.text || layer.layerText || layer.layer_text),
     sortOrder: numberValue(layer.sortOrder ?? layer.sort_order, index),

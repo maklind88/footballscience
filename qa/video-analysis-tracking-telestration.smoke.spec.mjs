@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 const matchId = "2a4e615e-f3e7-4fc7-bb70-a02db63c9152";
 const videoId = "26c70a43-5ee1-43f7-9e56-8e1c1be3a725";
 
-async function openTrackingWorkspace(page) {
+async function openDrawingWorkspace(page) {
   await page.addInitScript(({ currentMatchId, currentVideoId }) => {
     window.__videoAnalysisInitialState = {
       view: "workspace",
@@ -27,6 +27,10 @@ async function openTrackingWorkspace(page) {
   await page.locator("[data-video-analysis-presentation-add]").first().click();
   await page.getByRole("tab", { name: "Telestrate" }).click();
   await expect(page.locator(".video-analysis-drawing-builder")).toBeVisible();
+}
+
+async function openTrackingWorkspace(page) {
+  await openDrawingWorkspace(page);
   await page.locator('[data-video-analysis-tracking-mode="tracking"]').click();
   await expect(page.locator(".video-analysis-tracking-side")).toBeVisible();
 }
@@ -49,6 +53,20 @@ async function createTrackedHighlight(page) {
   await expect(page.locator(".video-analysis-dynamic-anchor.is-circle")).toBeVisible();
 }
 
+async function drawFreehandPath(page) {
+  await page.locator('[data-video-analysis-draw-tool="freehand"]').click();
+  const surface = page.locator("[data-video-analysis-drawing-surface]");
+  await surface.scrollIntoViewIfNeeded();
+  const box = await surface.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.move(box.x + (box.width * 0.18), box.y + (box.height * 0.38));
+  await page.mouse.down();
+  await page.mouse.move(box.x + (box.width * 0.42), box.y + (box.height * 0.24), { steps: 8 });
+  await page.mouse.move(box.x + (box.width * 0.68), box.y + (box.height * 0.52), { steps: 8 });
+  await page.mouse.up();
+  return page.locator(".video-analysis-drawing-freehand:not(.is-draft) polyline");
+}
+
 test("tracking telestration follows a selected player and persists metadata", async ({ page }, testInfo) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -59,6 +77,49 @@ test("tracking telestration follows a selected player and persists metadata", as
   await expect.poll(() => page.evaluate(() => (window.__videoAnalysisRequests || []).some((request) => request.action === "save-dynamic-graphic"))).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("tracking-telestration-desktop.png"), fullPage: true });
   expect(pageErrors).toEqual([]);
+});
+
+test("freehand telestration draws, undoes, redoes and persists a bounded path", async ({ page }, testInfo) => {
+  await openDrawingWorkspace(page);
+  const path = await drawFreehandPath(page);
+  await expect(path).toBeVisible();
+  expect((await path.getAttribute("points"))?.trim().split(/\s+/).length).toBeGreaterThan(4);
+  await expect(page.locator(".video-analysis-drawing-layer-list")).toContainText("freehand");
+
+  await page.locator("[data-video-analysis-drawing-undo]").click();
+  await expect(page.locator(".video-analysis-drawing-freehand:not(.is-draft)")).toHaveCount(0);
+  await page.locator("[data-video-analysis-drawing-redo]").click();
+  await expect(page.locator(".video-analysis-drawing-freehand:not(.is-draft)")).toHaveCount(1);
+  await page.locator(".video-analysis-drawing-settings summary").click();
+  await page.locator("[data-video-analysis-drawing-save]").click();
+  await expect.poll(() => page.evaluate(() => (
+    [...(window.__videoAnalysisRequests || [])].reverse().find((request) => request.action === "save-drawing-layer")?.body?.drawingLayer || null
+  ))).toMatchObject({ tool: "freehand" });
+  const savedPointCount = await page.evaluate(() => (
+    [...(window.__videoAnalysisRequests || [])].reverse().find((request) => request.action === "save-drawing-layer")?.body?.drawingLayer?.geometry?.points?.length || 0
+  ));
+  expect(savedPointCount).toBeGreaterThan(4);
+  expect(savedPointCount).toBeLessThanOrEqual(256);
+  await page.screenshot({ path: testInfo.outputPath("freehand-telestration-desktop.png"), fullPage: true });
+});
+
+test("freehand controls and saved path stay contained on mobile", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openDrawingWorkspace(page);
+  await expect(await drawFreehandPath(page)).toBeVisible();
+  const geometry = await page.locator(".video-analysis-drawing-builder").evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: window.innerWidth,
+      overflow: document.documentElement.scrollWidth - window.innerWidth,
+    };
+  });
+  expect(geometry.left).toBeGreaterThanOrEqual(0);
+  expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+  expect(geometry.overflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("freehand-telestration-mobile.png"), fullPage: true });
 });
 
 test("tracking controls and overlays stay contained on mobile", async ({ page }, testInfo) => {

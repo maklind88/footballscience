@@ -1,16 +1,19 @@
 # Working Agreement
 
+Operating model version: `distributed-specialist-v2` (2026-08-24). `AGENTS.md` and `docs/CURRENT_OPERATING_PLAN.md` are the canonical governance sources if older historical wording conflicts.
+
 ## Current Deploy Agreement
 
-This section overrides any older release wording below.
+This section follows the Release Ownership Agreement in `AGENTS.md` and overrides older historical wording in this file.
 
-- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone codeword `Live`.
+- The specialist chat that owns the module/task owns its release when the user's product intent calls for a Live result and all safety conditions pass. A separate `Deploy`/`Live` message is not required for clear Live bugs or visible product outcomes.
+- `Deploy`, `Deploy fast`, `Deploy safe`, and standalone `Live` remain convenience commands.
 - `Deploy` and `Deploy fast` use `npm run deploy` unless the change is risky.
 - `Deploy safe` uses `npm run deploy:safe`.
 - `Live` is the short sync-to-production codeword: commit/push intended work, align the branch/main/GitHub state when safe, deploy with the correct fast/safe path, run postdeploy verification, and report the release status.
 - Treat `Live` as this codeword only when it is a standalone command, not when it appears inside ordinary discussion.
 - Do not ask the user which deploy path to use when the intent is clear.
-- Do not auto-deploy just because work is finished.
+- Do not deploy merely because work is finished when the user requested analysis, planning, review, diagnosis, or local-only work.
 - Use fast deploy for normal UI/UX/content/CSS/frontend polish and narrow low-risk fixes.
 - Use safe deploy for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
 - Stop before deploy if the release would include unrelated or unfinished work from another chat.
@@ -21,7 +24,7 @@ This section overrides any older release wording below.
 - Treat `https://footballscience.xyz` as the product truth the user evaluates. Local files, previews, branches, and staging are engineering tools, not what the user should need to reason about.
 - Do not ask the user to choose technical details when a safe engineering decision can be made from project context.
 - Do not ask the user which deploy path to use when the user's wording maps to the Current Deploy Agreement.
-- Do not auto-deploy just because work is finished.
+- Infer a Live release only when the requested outcome naturally requires production and the current specialist owns that area.
 - If the user gives a technical instruction that would weaken safety, interpret the underlying product goal and choose the safer path.
 - Build one thing properly before moving to the next.
 - Keep the platform flexible and modular.
@@ -44,6 +47,7 @@ This section overrides any older release wording below.
 - Avoid two chats editing or deploying the same module at the same time.
 - If parallel work exists, use branches or worktrees and do not deploy a bundle that accidentally includes another chat's unfinished changes.
 - If production deploy would include unrelated work, stop and explain the coordination needed instead of forcing the deploy.
+- Full release commands use the shared Football Science release lock. A second release waits automatically; targeted development checks may continue in isolated worktrees.
 
 ## What Good Looks Like
 

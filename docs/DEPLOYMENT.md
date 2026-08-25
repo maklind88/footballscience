@@ -1,5 +1,7 @@
 # Deployment
 
+Current operating model: `distributed-specialist-v2` (2026-08-24).
+
 Football Science is deployed to Vercel and aliased to `footballscience.xyz`.
 
 ## Deploy
@@ -16,7 +18,7 @@ Deploy when the user's product intent calls for a live result, the current speci
 - Treat `Live` as the codeword only when it is a standalone command, not when the word appears inside normal discussion.
 - Codex should infer release ownership for Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users when they belong to the current chat's module/task. Phrases like "Ta detta hela vägen", "Gör klart till live", "Du äger release för detta", and "Fixa och publicera när det är säkert" still clarify ownership but are not required.
 - There is no standing central deploy owner. Each specialist chat owns its own commit, push, deploy, and production verification when it owns the task.
-- Production-edge deploy work must remain sequential. Before starting Vercel-facing deploy work, check for active staging deploy, production deploy, rollback, and local release processes; wait and report if another release is already active.
+- Production-edge deploy work and full release QA must remain sequential. Official deploy commands acquire the shared Football Science release lock before release validation and hold it through postdeploy/live verification. If another release owns the lock, wait with visible owner/status information instead of starting a duplicate.
 - Never deploy a bundle that includes unrelated or unfinished work from another parallel chat.
 - Stop before deployment if the user asked only for analysis/planning/review/diagnosis/local prototype work, the worktree has unrelated changes, another chat owns the module/task, another release is already active, required validation fails, Safe Lane requirements are not met, or production verification cannot be completed.
 
@@ -29,7 +31,10 @@ npm run deploy
 ```
 
 `npm run deploy` runs the fast release ship path: local isolation, syntax/check gates, release rules, storage guard, platform security, push, production Vercel deploy, and postdeploy verification.
-Before it calls Vercel, the release traffic guard checks GitHub Actions and stops if staging deploy, production deploy, or rollback is already active. This prevents parallel Codex chats from burning Vercel API/build/deploy limits at the same time.
+
+The fast path must work from a clean isolated specialist branch. It must fetch/rebase latest `origin/main`, validate the intended branch diff, safely fast-forward the exact verified HEAD to `origin/main`, deploy that same SHA, and verify production. It must never require specialists to share the root `main` worktree or leave Live on a SHA that is absent from `main`.
+
+Before release validation begins, the shared local release lock serializes official release commands across worktrees/clones on the machine. Before Vercel work, the release traffic guard also checks GitHub Actions. Staging deploy, production deploy, and rollback share one GitHub concurrency group. Together these protections prevent duplicate full QA and overlapping Vercel work.
 
 ### Safe Deploy
 
@@ -40,7 +45,7 @@ npm run deploy:safe
 ```
 
 `npm run deploy:safe` runs the full QA/safety path and should be used for API, data, auth, security, Supabase, migration, backup/restore, or broad multi-module changes.
-It uses the same release traffic guard before starting Vercel-facing deploy work.
+It uses the same shared release lock for the complete run and the release traffic guard before Vercel-facing work.
 
 ### Advanced Release Automation
 

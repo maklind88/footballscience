@@ -2,6 +2,8 @@
 
 These rules apply to every Codex chat working in this repository.
 
+Current operating model: `distributed-specialist-v2` (2026-08-24).
+
 ## Engineering Operating System
 
 Every Codex chat working in this repository must follow `docs/ENGINEERING_OPERATING_SYSTEM.md` for non-trivial technical, product, architecture, release, reliability, security, QA, UX, database, and platform decisions.
@@ -45,11 +47,19 @@ There is no standing central deploy owner for all chats. Each specialist chat is
 - Each specialist chat must perform its own implementation, validation, commit, push, deploy, production verification, and final status report.
 - The Project Lead may advise, summarize, or help route work, but should not take over, block, batch, or run releases for other specialist chats unless the user explicitly transfers that specific operational ownership.
 - System / Security / Release is a guardrail and specialist owner for platform safety work, not a permanent bottleneck for every deploy. High-risk changes must still satisfy Safe Lane requirements.
-- Releases should be sequential at the Vercel/GitHub production edge: before starting Vercel-facing deploy work, each chat must check that no staging deploy, production deploy, rollback, or local release process is already active. If another release is active, wait and report instead of starting a duplicate.
+- Official release commands must use the shared Football Science release lock. The lock is acquired before release validation/full QA and held through push, deploy, postdeploy, and final production verification. A second release waits with visible owner/status information instead of starting duplicate QA or deployment work.
+- Targeted implementation checks may run in parallel in isolated worktrees. Full release commands and full release QA must be serialized through the shared lock so local resource pressure cannot invalidate results.
+- GitHub staging deploy, production deploy, and rollback must use one shared release-edge concurrency group. They must queue rather than cancel another valid release.
 - Specialist chats may build in parallel on isolated branches/worktrees, but they must not merge/deploy a bundle that includes another chat's unfinished work.
 - A specialist chat should not request a "release slot" from the Project Lead as the normal path. It should self-release when it owns the task, the worktree is clean, the right lane is chosen, checks pass, release traffic is clear, and production verification can be completed.
 - If a release is blocked by another active deploy, unrelated dirty files, failed checks, stale branch state, unclear ownership, or cross-module risk, the specialist chat must stop and explain the blocker in plain Swedish.
 - Final release reports must state: commit SHA, branch/main/staging status when relevant, changed files/scope, checks run, deployment URL, production verification result, and any remaining risk.
+
+### Cross-Module Tasks
+
+- A task that touches more than one owned module must name one task/release owner and the affected module owners before code changes begin.
+- Prefer separate compatible commits and sequential specialist releases. If the change must be atomic across modules, one explicitly named specialist owns the combined Safe Lane release and the other owners review their boundaries.
+- A consuming module may read another module's public contract, but it must not silently take ownership of that module's source data, writes, permissions, or business rules.
 
 ## Release Ownership Agreement
 
@@ -118,7 +128,7 @@ This section exists because the platform is under heavy active product developme
 - Fast UI validation should be intentionally small: prefer `npm run quick:ui`, which runs `git diff --check`, syntax for changed JS files, and path-risk detection. Add one targeted browser/smoke check only when the visual change needs proof.
 - When the worktree is clean and you need to validate committed Fast UI work, `npm run quick:ui -- --from <ref>` compares `<ref>...HEAD` instead of only unstaged/staged files.
 - If the user says `Deploy` or `Deploy fast` after a clean committed Fast UI change, prefer `npm run deploy:ui`. It deploys through Vercel CLI after `quick:ui`, pushes `main`, checks release traffic, verifies staging/live isolation, repairs staging alias drift after the direct production deploy, and runs production postdeploy verification while GitHub QA can continue in the background.
-- `npm run deploy:ui` is only for a clean committed Fast UI change already on `main`; it fetches/rebases `origin/main` before push/deploy and should stop if the worktree is dirty or the branch is not `main`.
+- `npm run deploy:ui` is for a clean committed Fast UI change on `main` or an isolated `codex/*` specialist branch. It fetches/rebases `origin/main`, validates the branch diff, safely fast-forwards the exact verified SHA to `origin/main`, and deploys that same SHA; it must stop for a dirty worktree, unsupported branch, stale base, or main/SHA mismatch.
 - Use the **Safe Lane** only for auth/login, permissions, central app-state/data, Supabase/API, backup/restore, migrations, secrets, security, broad multi-module behavior, or anything that could lose/leak user data or take Live down.
 - Do not ask the user which lane to use when the request is clear. Codex owns this classification.
 - Never remove hard protections for data loss, secret leakage, tenant isolation, or Live availability. Reduce process overhead for UI work, not the core safety rails that protect users.
@@ -208,7 +218,7 @@ If the current branch contains unrelated or unfinished work from another chat, s
 
 ## Required Release Order
 
-Use this order for finished work. Only push/deploy when the user asks for deploy or when the task specifically requires GitHub publication.
+Use this order for finished work. Push/deploy when the user explicitly asks or when the product intent clearly requires the owned result to be available on Live under the Release Ownership Agreement.
 
 For **Fast UI Lane** changes, this order is intentionally lighter:
 

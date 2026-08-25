@@ -1,5 +1,7 @@
 # Quick UI Workflow
 
+Current operating model: `distributed-specialist-v2` (2026-08-24).
+
 This workflow exists so small visible changes can move quickly while Football Science is under heavy development.
 
 ## When To Use
@@ -33,12 +35,12 @@ npm run deploy:ui
 
 Deploys a clean committed UI-only change quickly:
 
-- requires `main`
-- rebases from `origin/main`
+- supports a clean isolated specialist branch
+- rebases from latest `origin/main`
 - runs `npm run quick:ui`
-- pushes `main`
+- safely fast-forwards the exact verified SHA to `origin/main`
 - checks active release traffic
-- deploys production through Vercel CLI
+- deploys that same SHA through Vercel CLI
 - runs production postdeploy verification
 
 GitHub QA can continue in the background for these small UI deploys.
@@ -47,7 +49,7 @@ GitHub QA can continue in the background for these small UI deploys.
 
 There is no permanent central Live/deploy owner. The specialist chat that owns the UI task also owns commit, push, deploy, and production verification when the product intent calls for a live result.
 
-Only one production-edge deploy should run at a time. Before starting `npm run deploy`, `npm run deploy:ui`, or Vercel-facing release work, check that no staging deploy, production deploy, rollback, or local release process is already active. If another release is active, wait and report instead of starting a duplicate.
+Only one full release command should run at a time. `npm run deploy`, `npm run deploy:ui`, and `npm run deploy:safe` must acquire the shared Football Science release lock before validation and hold it through production verification. A second specialist waits automatically with visible owner/status information. Targeted development checks can still run in parallel in isolated worktrees.
 
 ## Marked Live Changes
 

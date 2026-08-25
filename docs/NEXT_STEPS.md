@@ -2,7 +2,7 @@
 
 ## Highest Priority
 
-- Use the live-first workflow in `AGENTS.md` and `docs/LIVE_FIRST_WORKFLOW.md`: the user describes the desired live outcome, Codex handles implementation, QA, GitHub, deployment discipline, and production verification.
+- Use the distributed live-first workflow in `AGENTS.md` and `docs/LIVE_FIRST_WORKFLOW.md`: the user describes the desired live outcome and the responsible specialist owns implementation, QA, GitHub, deployment, and production verification for its area.
 - Use `docs/PLATFORM_SCALE_PROGRAM.md` for the long-running scale program: multi-tenant identity, app-state migrations, `app.js` extraction, Chat server-first, and Scouting server-first.
 - Keep parallel Codex chats separated by module ownership so unfinished work does not leak into production releases.
 - Keep improving Session Planner and Tacticalboard.

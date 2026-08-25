@@ -68,7 +68,7 @@ This analysis does not make the source safe to import. A later provider import r
 3. Stable player and team ID crosswalks to Football Science DB.
 4. Versioned source artifact and import-run metadata.
 5. Staging validation, preview, explicit publish, audit, and rollback.
-6. Safe Lane and an assigned release slot.
+6. A Scouting-owned Safe Lane release through the shared automatic release lock; no central release slot is required.
 
 Official package: <https://github.com/statsbomb/statsbombpy>
 

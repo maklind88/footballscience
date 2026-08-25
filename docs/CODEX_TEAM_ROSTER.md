@@ -1,211 +1,92 @@
 # Codex Team Roster
 
-Football Science uses Codex chats as a coordinated product and engineering team.
+Football Science uses self-standing specialist chats as its product and engineering team.
 
-The user may speak directly with specialist chats or ask the Project Lead chat for routing/advice. Each specialist chat must be able to stand on its own for its module/task, including release when the work is ready and safe.
+Operating model version: `distributed-specialist-v2` (2026-08-24).
+
+The user may speak directly with any specialist chat or ask the Project Lead for routing/advice. The specialist that owns the requested area owns implementation, validation, commit, push, release, production verification, and final reporting when the product intent requires a Live result.
 
 ## Operating Model
 
-- One chat owns one module or responsibility area.
-- There is no permanent central deploy owner. The specialist chat that owns the module/task owns its own release end to end.
-- Only one production-edge release may run at a time. Specialist chats must self-check active staging deploy, production deploy, rollback, and local release processes before starting Vercel-facing deploy work.
-- Specialist chats should not work freely across the platform.
-- Free exploration is allowed for strategy and analysis, but code changes require clear ownership.
-- Every chat must read `AGENTS.md`, `docs/AI_HANDOFF.md`, `docs/CURRENT_OPERATING_PLAN.md`, `docs/LIVE_FIRST_WORKFLOW.md`, and `docs/DEPLOYMENT.md` before doing work.
+- One primary specialist owns each module or responsibility area.
+- Existing specialist chats are active when the user gives them a current task. There is no global legacy-chat freeze.
+- There is no permanent central deploy owner and no routine Project Lead release slot.
+- Every implementation uses an isolated branch/worktree based on current `origin/main`. The shared root `main` is not a parallel build workspace.
+- Targeted checks may run in parallel. Official full release commands acquire the shared Football Science release lock before release validation/full QA and hold it through production verification.
+- GitHub staging deploy, production deploy, and rollback share one release-edge queue and do not cancel another valid release.
+- Every chat must read `AGENTS.md`, `docs/AI_HANDOFF.md`, `docs/CURRENT_OPERATING_PLAN.md`, `docs/LIVE_FIRST_WORKFLOW.md`, and `docs/DEPLOYMENT.md` before working.
 - System/security/backend/data/sync/Supabase/refactor work must also read `docs/SECURITY_CONTROL_PLANE.md` and `docs/PLATFORM_SCALE_PROGRAM.md`.
-- If a chat sees unrelated local changes, another module owner, failed checks, Safe Lane risk, or another active release, it must stop and report in Swedish.
-- Product-intent release ownership applies only when the current chat owns the task, the worktree contains only intended changes, no other production-edge release is active, checks pass, and production verification can be completed.
+- If a chat finds duplicate ownership, unrelated changes, failed checks, stale branch state, or an unsafe cross-module boundary, it stops that scope and reports in Swedish.
 
-## Project Lead
+## Ownership Map
 
-Primary user-facing coordinator.
+| Specialist chat | Primary ownership | Important boundary |
+| --- | --- | --- |
+| Project Lead / Coordinator | Routing, priorities, governance, ownership questions, portfolio status | Does not implement or release another specialist's module unless the user explicitly transfers that task |
+| System / Security / Release | Release tooling, CI/CD, rollback, incidents, auth/security controls, tenant isolation, central sync, backups, migrations, platform identity | Guardrail for all teams, but not the default executor of their releases |
+| Platform Shell / Design System | Navigation, shared loading, platform chrome, shared UI foundations | Does not take over module behavior or module-owned data |
+| Home / Dashboard | Home workspace, staff dashboard, tasks, alerts, Home-only cards and flows | Does not own global Chat or source data from Schedule, Medical, Squad, or Gameplan |
+| My Team / Staff Directory | Team/staff directory, membership presentation and staff-facing profile summaries | Admin/Auth owns credentials, role/permission changes and account lifecycle; Squad Room owns player roster records |
+| Meddelande / Chat | Staff Chat UI, `/api/chat`, `chat_*`, unread, receipts, reactions, attachments, presence, notifications | Home and shell may expose entry points but do not own Chat state |
+| Schedule | Calendar, events, daily/season planning, Schedule persistence | Periodization and Sessions consume public Schedule contracts without owning its writes |
+| Periodization | Macrocycle, microcycle, training-day planning and its Sessions bridge | Does not own Schedule events or Session exercise content |
+| Sessions | Session Planner, session blocks, session state and session workflow | Does not own Tacticalboard drawing internals or Exercise Library records |
+| Tacticalboard | Session exercise board, drawing tools, pitch objects and board interaction | Must preserve Sessions integration and existing saved board data |
+| Exercise Library | Exercise records, folders, tags, archive/restore, versions and library workflows | Folder operations never delete or overwrite exercise ownership |
+| Squad Room | Squad roster, player profiles, temporary players, position/order display and Squad-owned status presentation | Medical owns clinical clearance; Scouting owns recruitment data; IDP owns development records |
+| IDP | Player development goals, interventions, reviews, evidence links, milestones and Player Board | References Squad identity and FS Player clips without duplicating either source of truth |
+| FS Player / Video Analysis | Video coding, clips, timelines, media, tracking, spatial analysis and analysis presentation assets | Does not own Squad identity, IDP plans, recruitment scouting, or global Presentation Mode shell |
+| Scouting / Football Science DB | Recruitment Scouting, Shadow XI, lists, reports, provider imports, global player identity and FSDB | Does not own Squad membership, IDP plans, Medical data, or FS Player video coding |
+| Medical Room | Clinical availability, cases, rehabilitation workflow, Return to Play clearance, sanitized handover and medical audit | Coaches receive sanitized recommendations; private medical details and clearance decisions remain Medical-owned |
+| RTP Library / Programs | Return-to-play exercise catalog, profiles, protocols, programs and content mappings | Does not own patient cases, private Medical notes, availability percentages or clinical clearance decisions |
+| Performance Room | GPS/load/performance workflows, performance datasets and performance analysis | Does not redefine Medical clearance or Periodization planning ownership |
+| Analysis Room | Own-team match review, observations and feedback into coaching work | Recruitment belongs to Scouting; detailed video coding belongs to FS Player |
+| Gameplan | Match-week plan, staff roles, player briefs, matchday decisions and delivery receipts | Reads other modules through contracts; player-facing content must stay audience-safe |
+| Set Pieces Room | Attacking/defensive restart plans, variants, phases, board semantics and playback | Separate from Session Tacticalboard and Presentation Mode delivery shell |
+| Presentation Mode | Full-screen/read-only delivery surfaces across approved module content | Owns presentation behavior, not the underlying Schedule, Session, Medical, Gameplan, Set Pieces, or FS Player records |
+| Leaderboard | Points, competitions, monthly tables, rankings and leaderboard rules | Does not silently derive or write another module's protected records |
+| Profile / Account | Personal profile, account menu, settings, profile image and logout | Admin/Auth owns account administration and permission changes |
+| Admin / Auth | Users, roles, permissions, account administration and Supabase-backed auth flows | Security-sensitive work is Safe Lane and must preserve server-side self-protection |
+| Game Simulator | Simulator experience, engine, controls, tutorial and simulator runtime | Broad engine/autopilot restructuring needs an explicitly scoped task and Safe Lane |
 
-Responsibilities:
+If a new module or specialist chat is created, add it to this map in the same change. A missing row does not grant free ownership; the user or Project Lead must name the owner before implementation.
 
-- Receive product wishes from the user.
-- Decide which specialist chat owns the work.
-- Send precise implementation instructions to specialist chats.
-- Track module ownership and collision risk.
-- Ask the user fewer technical questions and make safe engineering decisions from project context.
-- Keep the user informed in plain Swedish.
-- Advise on release order only when the user asks or when there is an active collision/blocker.
+## Cross-Module Work
 
-Hard rules:
+- Name one task/release owner and every affected module owner before editing.
+- Prefer separate compatible commits and sequential specialist releases.
+- If the change must be atomic, one explicitly named specialist owns a combined Safe Lane release after the other owners review their boundaries.
+- A consumer may read another module's public contract but must not copy or replace its source data, writes, permissions, or business rules.
 
-- The Project Lead coordinates and delegates by default.
-- The Project Lead must not directly implement, fix, commit, push, deploy, or production-verify specialist module work while an active specialist chat owns that module.
-- If the user asks the Project Lead to fix or make a specialist module live, the Project Lead should route the task to the responsible specialist chat. The specialist chat then owns release and should not wait for central deploy approval once safety conditions pass.
-- The Project Lead may edit governance/process docs for coordination clarity.
-- The Project Lead may take operational ownership only when the user explicitly transfers ownership or an urgent incident requires it.
-- If the Project Lead bypasses this delegation model, record it as a process incident and notify the affected specialist team.
+## Non-Negotiable Protections
 
-## System / Security / Release
+- Preserve saved user data and never reset, seed over, hard-delete, or replace protected records unless the user explicitly requests that exact destructive action.
+- Keep auth, permissions, tenant isolation, central sync, backups, migrations, and live data in the Safe Lane.
+- Keep private Medical details sanitized outside Medical-owned views.
+- Keep global Scouting/FSDB provider data reviewed and server-first; do not leak local imports or credentials.
+- Keep profile images in approved storage URLs, never inline image data in auth metadata.
+- Keep new UI and code inside the smallest appropriate module boundary; do not grow legacy global files casually.
 
-Owns production safety and platform control for its own platform/security tasks. It is a guardrail, not the default deploy bottleneck for every specialist release.
+## Standard Specialist Startup
 
-Responsibilities:
+Every specialist chat reports before implementation:
 
-- Release rules, deploy discipline, rollback readiness, and incident response patterns.
-- Security control plane.
-- Auth, permissions, tenant isolation, Supabase/API safety.
-- Central sync, app-state, backups, restore, migrations.
-- QA/release gates, rollback, incident readiness.
-- Platform Scale Program governance.
-
-Must not start broad refactor, Phase 2, risky backend/data work, or another team's release without a clear task.
-
-## Sessions / Tacticalboard / Exercise Library
-
-Owns:
-
-- Session Planner.
-- Tacticalboard.
-- Player Board.
-- Exercise Library.
-- Session-related renderers/state/actions.
-
-Hard rules:
-
-- Preserve every existing exercise built by the user.
-- Never reset, seed over, hard-delete, or replace saved exercise data unless the user explicitly requests that exact destructive action.
-- Prefer archive/soft-delete, append/merge migrations, and backup-aware changes.
-
-## Profile / Account / Admin Auth
-
-Owns:
-
-- Profile.
-- Account menu.
-- Settings and logout.
-- Admin user/account flows.
-- User role/status management UI.
-- Supabase-backed profile/account behavior.
-
-Hard rules:
-
-- Profile image uploads use Supabase Storage URLs, never inline `data:image/...` in auth metadata.
-- Admin self-protection must remain server-side.
-- Account/auth work is Safe Lane unless it is only visual polish.
-
-## Home / Dashboard
-
-Owns:
-
-- Home workspace.
-- Staff room/dashboard surface.
-- Personal To-Do and delegated task UI.
-- First-login/news popup behavior when scoped to Home.
-
-Hard rules:
-
-- Avoid fake dashboard content.
-- Keep Home visually quiet, operational, and premium.
-- Do not own global chat state unless explicitly assigned.
-
-## Schedule / Periodization
-
-Owns:
-
-- Schedule calendar.
-- Periodization views.
-- Day/week/month planning surfaces.
-- Schedule/Periodization bridge into Sessions.
-
-Hard rules:
-
-- Preserve saved schedule and periodization data.
-- Admin edit/view-only behavior must remain intact.
-
-## Scouting / Football Science DB
-
-Owns:
-
-- Scouting workspace.
-- Shadow XI, lists, reports, filters, player profiles.
-- Football Science DB and player identity/provider foundations.
-- Scouting imports and server-first scouting rollout.
-
-Hard rules:
-
-- Do not ship global player data as frontend blobs.
-- Preserve `football-scouting-v1` until server-first paths are proven.
-- Import/provider files must stay reviewed and should not leak local data.
-
-## Medical Team
-
-Owns:
-
-- Medical Team availability workflow.
-- Coach-safe medical views.
-- Governance panel and medical handover UI.
-- Medical-to-Session availability bridge.
-
-Hard rules:
-
-- Protect private medical details.
-- Coach/read-only payloads must stay sanitized.
-- Medical writes/audit/governance are Safe Lane.
-
-## Game Simulator
-
-Owns:
-
-- Game Simulator tutorial/explanation surface.
-- Fullscreen simulator experience.
-- Simulator controls/runtime when explicitly assigned.
-
-Hard rules:
-
-- Simulator/autopilot extraction is Phase 2-style work and needs explicit approval.
-- Stop simulation when leaving the workspace.
-
-## Platform Shell / Design System
-
-Owns:
-
-- Navigation shell.
-- Shared module loading.
-- Shared design system patterns.
-- Global layout and platform chrome.
-
-Hard rules:
-
-- Do not grow `app.js` or global CSS without need.
-- Repeated UI patterns should move into module files or dedicated stylesheets.
-
-## Analysis / Gameplan
-
-Owns:
-
-- Analysis Room direction.
-- Gameplan/match-week planning.
-- Staff/player brief workflows.
-- Matchday preparation surfaces.
-
-Hard rules:
-
-- Do not mix recruitment scouting into Analysis Room.
-- Player Brief audience/security must remain player-safe.
-
-## Standard Specialist Chat Startup
-
-Every specialist chat should start by reporting:
-
-1. Documents read.
-2. Branch and git status.
-3. Whether HEAD matches `origin/main`.
-4. Owned module/responsibility.
-5. What it will not touch.
-6. Relevant checks for its module.
-7. Whether the current task requires a live release, and if so which lane it will use.
+1. Governance version `distributed-specialist-v2` and documents read.
+2. Branch/worktree and `git status --short`.
+3. Current `HEAD` and latest `origin/main`.
+4. Owned module/task and explicit non-scope.
+5. Whether another chat appears to own overlapping work.
+6. Relevant focused checks.
+7. Whether the requested outcome naturally requires Live.
+8. Fast UI Lane or Safe Lane classification when release is expected.
 
 ## Standard Report Back
 
-After work, every chat reports:
+After implementation, every specialist reports:
 
-- Files changed.
-- What changed.
-- Why it changed.
-- Checks/tests run.
-- Whether work is local, committed, pushed, deployed, and/or production-verified.
-- Risks or follow-up recommendations.
+- Exact files/scope changed and why.
+- Checks/tests run and their results.
+- Commit SHA and branch/upstream state.
+- Whether the work is local, committed, pushed, deployed, and production-verified.
+- For a release: `main`/`staging` relationship when relevant, deployment URL, Live verification, and remaining risk.
+- Any cross-module handoff still required.

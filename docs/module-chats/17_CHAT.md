@@ -21,7 +21,13 @@ Riktning:
 - Nya features ska inte byggas forran aktiv miljo har verifierad chat-migration, attachment storage, realtime och `npm run qa:chat`.
 
 Borja med att lasa:
+AGENTS.md
 docs/AI_HANDOFF.md
+docs/CURRENT_OPERATING_PLAN.md
+docs/CODEX_TEAM_ROSTER.md
+docs/LIVE_FIRST_WORKFLOW.md
+docs/DEPLOYMENT.md
+docs/module-chats/COMMON_SPECIALIST_RULES.md
 docs/MODULE_CONTRACTS.md
 docs/MODULES.md
 docs/CHAT_API_CONTRACT.md

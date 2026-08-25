@@ -121,7 +121,7 @@ For each stage:
 
 1. Add tests first or in the same commit.
 2. Keep old data paths active.
-3. Deploy only when requested, using the current fast/safe deploy agreement.
+3. Let the owning specialist release when the product intent requires Live, using the current fast/safe agreement and shared release lock.
 4. Require QA to pass before any production deploy.
 5. Verify production endpoints.
 6. Keep rollback simple: revert code first, restore data only if a migration actually changed production data.

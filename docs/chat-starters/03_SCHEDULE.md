@@ -12,7 +12,13 @@ Focus for this chat:
 Schedule calendar and multi-month overview.
 
 Before editing, read:
+AGENTS.md
 docs/AI_HANDOFF.md
+docs/CURRENT_OPERATING_PLAN.md
+docs/CODEX_TEAM_ROSTER.md
+docs/LIVE_FIRST_WORKFLOW.md
+docs/DEPLOYMENT.md
+docs/module-chats/COMMON_SPECIALIST_RULES.md
 docs/MODULES.md
 docs/NEXT_STEPS.md
 docs/QA_CHECKLIST.md

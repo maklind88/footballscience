@@ -1,6 +1,6 @@
-# Deployment + QA Starter
+# System / Security / Release Guardrails Starter
 
-Paste this into a new Codex chat when deploying or verifying live behavior.
+Legacy starter kept for compatibility. Use it for shared release tooling and security guardrails, not as a central deploy desk.
 
 ```text
 We are continuing Football Science.
@@ -9,21 +9,26 @@ Project path:
 /Users/maklind/Documents/New project
 
 Focus for this chat:
-Deployment, Vercel, live site verification, and QA.
+System security, shared release tooling, CI/CD, Vercel protections, rollback, backups, and platform-wide QA guardrails.
 
 Before doing anything, read:
 AGENTS.md
 docs/AI_HANDOFF.md
+docs/CURRENT_OPERATING_PLAN.md
+docs/CODEX_TEAM_ROSTER.md
+docs/LIVE_FIRST_WORKFLOW.md
 docs/DEPLOYMENT.md
+docs/SECURITY_CONTROL_PLANE.md
+docs/PLATFORM_SCALE_PROGRAM.md
+docs/module-chats/COMMON_SPECIALIST_RULES.md
 docs/QA_CHECKLIST.md
 
 Important:
-- Live domain is footballscience.xyz.
-- Deploy means fast deploy with npm run deploy unless the change is risky.
-- Deploy safe means the full safe deploy path with npm run deploy:safe.
-- Do not say the live site is updated until deployment and live behavior/assets are verified.
-- If local and live differ, check deployed app.js hash and browser localStorage/cache.
-- Session Planner storage key is currently football-session-planner-v3.
+- Every specialist owns its own release. Do not become a central queue or manually run normal releases for other teams.
+- Own and improve shared release locks, traffic guards, workflow concurrency, staging/live isolation, rollback, backup, auth, and security gates.
+- For a task in this chat's own system/security scope, own implementation and Safe Lane release end to end.
+- Do not edit product modules merely because they use the shared release tools.
+- Never weaken data, auth, tenant, secret, backup, or Live-availability protections to gain speed.
 
-After reading, continue with my next instruction.
+After reading, confirm the exact system/security scope and continue with my next instruction.
 ```

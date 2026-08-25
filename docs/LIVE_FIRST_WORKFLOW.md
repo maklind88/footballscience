@@ -1,5 +1,7 @@
 # Live-First Workflow
 
+Current operating model: `distributed-specialist-v2` (2026-08-24).
+
 This is the operating model for building Football Science with a non-technical product owner.
 
 ## Core Rule
@@ -48,7 +50,7 @@ For every request, Codex should:
 - Codex should infer release ownership for Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users when they belong to the current chat's module/task. Explicit phrases such as "Ta detta hela vägen", "Gör klart till live", "Du äger release för detta", or "Fixa och publicera när det är säkert" still clarify ownership but are not required.
 - `Live` is the short sync-to-production codeword: commit/push intended work, align branch/main/GitHub when safe, deploy with the correct fast/safe path, and run postdeploy verification.
 - Treat `Live` as this codeword only when it is a standalone command, not when the word appears inside normal product discussion.
-- Use the current fast/safe deploy split, check that no other staging deploy, production deploy, rollback, or local release process is active, and never include unrelated parallel work.
+- Use the current fast/safe deploy split and the official release commands. They must acquire the shared release lock before release validation/full QA, wait when another release owns it, and never include unrelated parallel work.
 - Verify production after deployment and report what changed in user-facing terms.
 
 ## When Codex Should Stop
@@ -86,7 +88,9 @@ If multiple chats are active, each chat should say which module it owns and avoi
 
 There is no permanent central release-owner chat. Each specialist chat should own release for its own module/task. The Project Lead can advise or route work when asked, but normal specialist releases should not wait for Project Lead approval or a release slot.
 
-Parallel build work is allowed; production-edge release work is sequential. Each chat must check active GitHub staging/production/rollback workflows and local release processes before starting Vercel-facing deploy work, and must wait/report if another release is already running.
+Parallel build work and targeted checks are allowed in isolated worktrees. Full release commands are sequential through the shared release lock, and GitHub staging/production/rollback jobs share one queue. The user should never need to coordinate this queue manually.
+
+When a task crosses module boundaries, name one task/release owner and every affected module owner before editing. Prefer separate compatible releases; use one explicitly owned Safe Lane release only when the cross-module change must ship atomically.
 
 ## Release Discipline
 

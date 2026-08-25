@@ -65,7 +65,6 @@ export function createDashboardRuntimeController(dependencies = {}) {
   } = dependencies;
 
   let modalAfterClose = null;
-  let birthdayCountdownTimer = 0;
   let popupsScheduledForUserId = null;
   let schedulePreviewMonthValue = "";
   let schedulePreviewSelectedDate = "";
@@ -193,70 +192,6 @@ export function createDashboardRuntimeController(dependencies = {}) {
   function getTodayValue() { return homeContextSelectors.getTodayValue(); }
   function getSessionTotalMinutes(session) { return homeContextSelectors.getSessionTotalMinutes(session); }
   function getHomeContext(currentUser, users, tasks) { return homeContextSelectors.getHomeContext(currentUser, users, tasks); }
-
-  function stopBirthdayCountdownTimer() {
-    if (!birthdayCountdownTimer) return;
-    if (typeof win.clearInterval === "function") {
-      win.clearInterval(birthdayCountdownTimer);
-    }
-    birthdayCountdownTimer = 0;
-  }
-
-  function getBirthdayCountdownTarget(value = "") {
-    const cleanValue = String(value || "").trim();
-    const match = cleanValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (match) {
-      return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0, 0).getTime();
-    }
-    const parsed = Date.parse(cleanValue);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  function writeBirthdayCountdownUnit(root, unit, value) {
-    const node = root?.querySelector?.(`[data-dashboard-birthday-unit="${unit}"]`);
-    if (node) {
-      node.textContent = unit === "days" ? String(value) : String(value).padStart(2, "0");
-    }
-  }
-
-  function getBirthdayCountdownNodes() {
-    const grid = getUi().dashboardGrid;
-    if (typeof grid?.querySelectorAll !== "function") {
-      return [];
-    }
-    return [...grid.querySelectorAll("[data-dashboard-birthday-countdown]")];
-  }
-
-  function updateBirthdayCountdowns() {
-    const countdowns = getBirthdayCountdownNodes();
-    if (!countdowns.length) {
-      stopBirthdayCountdownTimer();
-      return;
-    }
-    const now = Date.now();
-    countdowns.forEach((countdown) => {
-      const target = getBirthdayCountdownTarget(countdown.dataset.dashboardBirthdayTarget);
-      const remainingMs = Math.max(0, target - now);
-      const totalSeconds = Math.floor(remainingMs / 1000);
-      const days = Math.floor(totalSeconds / 86400);
-      const hours = Math.floor((totalSeconds % 86400) / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      const seconds = totalSeconds % 60;
-      writeBirthdayCountdownUnit(countdown, "days", days);
-      writeBirthdayCountdownUnit(countdown, "hours", hours);
-      writeBirthdayCountdownUnit(countdown, "minutes", minutes);
-      writeBirthdayCountdownUnit(countdown, "seconds", seconds);
-    });
-  }
-
-  function startBirthdayCountdownTimer() {
-    stopBirthdayCountdownTimer();
-    updateBirthdayCountdowns();
-    if (!getBirthdayCountdownNodes().length || typeof win.setInterval !== "function") {
-      return;
-    }
-    birthdayCountdownTimer = win.setInterval(updateBirthdayCountdowns, 1000);
-  }
 
   function readAppearanceState() {
     return normalizeAppearanceConfig(readAppearanceRaw(appearanceStorageKey) || {});
@@ -418,12 +353,10 @@ export function createDashboardRuntimeController(dependencies = {}) {
     const ui = getUi();
     const schedulePreview = getElement("dashboardSchedulePreview") || ui.dashboardSchedulePreview;
     if (!ui.dashboardGrid) {
-      stopBirthdayCountdownTimer();
       return;
     }
     const currentUser = getCurrentUser();
     if (!currentUser) {
-      stopBirthdayCountdownTimer();
       ui.dashboardGrid.innerHTML = "";
       if (schedulePreview) {
         schedulePreview.innerHTML = "";
@@ -440,7 +373,6 @@ export function createDashboardRuntimeController(dependencies = {}) {
           `<option value="${escapeHtml(user.id)}" ${user.id === currentUser.id ? "selected" : ""}>${escapeHtml(formatUserName(user))}</option>`
       )
       .join("");
-    stopBirthdayCountdownTimer();
     ui.dashboardGrid.innerHTML = `${homeCardsRenderer.render(context, staffOptions, appearance)}`;
     const renderedSchedulePreview = getElement("dashboardSchedulePreview") || schedulePreview;
     if (renderedSchedulePreview) {
@@ -449,7 +381,6 @@ export function createDashboardRuntimeController(dependencies = {}) {
         todayValue: context.todayValue || homeContextSelectors?.getTodayValue?.(),
       });
     }
-    startBirthdayCountdownTimer();
     syncChatNotificationCursor();
   }
 

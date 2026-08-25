@@ -2885,8 +2885,10 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   const lineupSlotIds = ["gk", "lb", "lcb", "rcb", "rb", "lcm", "cm", "rcm", "lw", "st", "rw"];
   const lineupPlayers = lineupSlotIds.map((slotId, index) => ({
     id: `home-lineup-${index + 1}`,
-    name: `${slotId.toUpperCase()} Player`,
+    name: index === 0 ? "Avery Stone" : `${slotId.toUpperCase()} Player`,
     number: String(index + 1),
+    primaryRole: index === 0 ? "Goalkeeper" : "",
+    birthDate: index === 0 ? "2001-05-12" : "",
   }));
   const lineupAssignments = Object.fromEntries(
     lineupSlotIds.map((slotId, index) => [slotId, lineupPlayers[index].id])
@@ -2958,6 +2960,13 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   const presentationBand = page.locator(".dashboard-presentation-band");
   await expect(presentationBand.locator(".dashboard-presentation-card")).toHaveCount(2);
   await expect(presentationBand.locator("#dashboardSchedulePreview")).toBeVisible();
+  const birthdayCard = presentationBand.locator(".dashboard-birthday-card");
+  const birthdaySpotlight = birthdayCard.locator(".dashboard-birthday-spotlight");
+  await expect(birthdaySpotlight).toContainText("Avery Stone");
+  await expect(birthdaySpotlight).toContainText("May 12 · In 3 days");
+  await expect(birthdaySpotlight).not.toContainText("#1");
+  await expect(birthdaySpotlight).not.toContainText("Goalkeeper");
+  await expect(birthdayCard.locator("[data-dashboard-birthday-countdown]")).toHaveCount(0);
   const layoutBoxes = await presentationBand
     .locator(":scope > .dashboard-presentation-card, :scope > .dashboard-upcoming-lineup-card, :scope > .dashboard-schedule-preview")
     .evaluateAll((columns) =>

@@ -288,30 +288,11 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     `;
   }
 
-  function renderBirthdayCountdown(item = {}) {
-    const daysUntil = Math.max(0, Number(item.daysUntil) || 0);
-    const targetDate = String(item.nextBirthday || "").trim();
-    if (!targetDate) return "";
-    return `
-      <div
-        class="dashboard-birthday-countdown"
-        data-dashboard-birthday-countdown
-        data-dashboard-birthday-target="${escapeHtml(targetDate)}"
-        aria-label="${escapeHtml(`Countdown to ${item.name || "the next player"} birthday`)}"
-      >
-        <span><strong data-dashboard-birthday-unit="days">${escapeHtml(String(daysUntil))}</strong><small>Days</small></span>
-        <span><strong data-dashboard-birthday-unit="hours">--</strong><small>Hours</small></span>
-        <span><strong data-dashboard-birthday-unit="minutes">--</strong><small>Min</small></span>
-        <span><strong data-dashboard-birthday-unit="seconds">--</strong><small>Sec</small></span>
-      </div>
-    `;
-  }
-
   function renderBirthdaySpotlight(item = {}) {
-    const detail = [item.number ? `#${item.number}` : "", item.primaryRole].filter(Boolean).join(" - ");
     const age = Number(item.turningAge);
     const ageLabel = Number.isFinite(age) && age > 0 ? String(age) : "--";
     const dateLabel = item.dateLabel || item.nextBirthday || "";
+    const timing = [dateLabel, item.relativeLabel].filter(Boolean).join(" · ");
     return `
       <section class="dashboard-birthday-spotlight" aria-label="${escapeHtml(`${item.name || "Player"} birthday spotlight`)}">
         <div class="dashboard-birthday-hero">
@@ -321,31 +302,28 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
         <div class="dashboard-birthday-spotlight-copy">
           <p>Next birthday</p>
           <h3>${escapeHtml(item.name || "Player")}</h3>
-          <small>${escapeHtml([detail, dateLabel].filter(Boolean).join(" - "))}</small>
+          <small>${escapeHtml(timing)}</small>
         </div>
         <div class="dashboard-birthday-age" aria-label="${escapeHtml(`${item.name || "Player"} turns ${ageLabel}`)}">
           <strong>${escapeHtml(ageLabel)}</strong>
           <small>turns</small>
         </div>
       </section>
-      ${renderBirthdayCountdown(item)}
     `;
   }
 
   function renderBirthdayNewsItem(item = {}) {
-    const detail = [item.number ? `#${item.number}` : "", item.primaryRole].filter(Boolean).join(" - ");
     const age = Number(item.turningAge);
-    const timing = [item.dateLabel, item.relativeLabel].filter(Boolean).join(" - ");
     return `
       <div class="dashboard-birthday-item">
         ${renderBirthdayAvatar(item)}
         <span class="dashboard-birthday-copy">
           <strong>${escapeHtml(item.name || "Player")}</strong>
-          <small>${escapeHtml(detail || item.dateLabel || "Player profile")}</small>
+          <small>${escapeHtml(item.dateLabel || item.nextBirthday || "Upcoming birthday")}</small>
         </span>
         <span class="dashboard-birthday-meta">
           <strong>${Number.isFinite(age) && age > 0 ? escapeHtml(String(age)) : ""}</strong>
-          <small>${escapeHtml(timing)}</small>
+          <small>${escapeHtml(item.relativeLabel || "")}</small>
         </span>
       </div>
     `;

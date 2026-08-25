@@ -61,7 +61,8 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(rendered).toContain("Upcoming birthdays");
   expect(rendered).toContain("Ada Midfielder");
   expect(rendered).toContain("dashboard-birthday-spotlight");
-  expect(rendered).toContain("dashboard-birthday-countdown");
+  expect(rendered).toContain("Jul 24 · In 2 days");
+  expect(rendered).not.toContain("dashboard-birthday-countdown");
   expect(rendered).toMatch(/data-dashboard-presentation-type="team"[\s\S]*dashboard-birthday-strip[\s\S]*data-dashboard-presentation-type="technical"/);
   expect(rendered).toMatch(/data-dashboard-presentation-type="technical"[\s\S]*dashboard-upcoming-lineup-card/);
   expect(rendered).toContain('aria-label="Upcoming match starting eleven"');
@@ -88,8 +89,8 @@ test("home dashboard renderer owns the compact birthday news card", () => {
         {
           id: "p8",
           name: "Ada Midfielder",
-          number: "8",
-          primaryRole: "8",
+          number: "88",
+          primaryRole: "Central midfield",
           dateLabel: "Jul 24",
           relativeLabel: "Tomorrow",
           turningAge: 25,
@@ -110,9 +111,11 @@ test("home dashboard renderer owns the compact birthday news card", () => {
   expect(rendered).toContain("dashboard-birthday-spotlight");
   expect(rendered).toContain("dashboard-birthday-cake");
   expect(rendered).toContain('src="https://example.com/ada.jpg"');
-  expect(rendered).toContain('data-dashboard-birthday-countdown');
-  expect(rendered).toContain('data-dashboard-birthday-unit="seconds"');
-  expect(rendered).toContain("#8");
+  expect(rendered).toContain("Jul 24 · Tomorrow");
+  expect(rendered).not.toContain('data-dashboard-birthday-countdown');
+  expect(rendered).not.toContain('data-dashboard-birthday-unit="seconds"');
+  expect(rendered).not.toContain("#88");
+  expect(rendered).not.toContain("Central midfield");
   expect(rendered).toContain(">25</strong>");
   expect(rendered).not.toContain("1 missing dates");
   expect(rendered).not.toContain("Squad profiles");

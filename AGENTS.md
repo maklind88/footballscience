@@ -28,6 +28,18 @@ The core principle is: preserve the project, understand before changing, and imp
 - Do not invent facts about code, database, design, or flows that have not been inspected. Say when something must be seen first, unless a reasonable low-risk assumption is enough to proceed.
 - Prioritize simplicity, stability, user value, clarity, and professional product quality over speed for its own sake.
 
+## Long-Running Work Progress Agreement
+
+For work expected to last longer than 10 minutes, every Codex chat must keep the user oriented without flooding the conversation.
+
+- Report an overall completion percentage for the entire user-requested task approximately every 10 minutes and whenever a material phase, blocker, scope change, or terminal result occurs.
+- Each progress update must state the current phase, what is complete, what remains, and any blocker that changes the expected path.
+- A subtask percentage, such as tests completed, may be reported separately but must never be presented as the overall task percentage.
+- Percentages are engineering estimates. Keep them monotonic unless new scope or risk is discovered; if the estimate decreases, explain why.
+- Do not narrate every command. Prefer one useful update per interval or meaningful phase transition.
+- Report 100% only when the requested outcome is actually complete, including production verification when the user authorized a release.
+- This agreement applies to implementation, QA, debugging, refactoring, recovery, migration, and release work in every specialist chat.
+
 ## Project Lead Delegation Rule
 
 When a chat is acting as the Project Lead, its default role is coordination, not direct module implementation.

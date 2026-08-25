@@ -13,4 +13,5 @@ These rules apply to every Football Science specialist chat:
 - Never include another specialist's unfinished files or silently take ownership of another module's source data, writes, permissions, or business rules.
 - For a cross-module task, name one task/release owner and every affected module owner before editing. Use a combined Safe Lane release only when the change must ship atomically.
 - Stop fail-closed for unrelated dirty files, stale branch state, failed required checks, unclear ownership, data/security risk without Safe Lane coverage, or a release lock that cannot be proven safe.
+- For work longer than 10 minutes, report the overall completion percentage for the entire user-requested task approximately every 10 minutes or at a material phase change. Keep test/subtask progress separate from total task progress and state what is complete, what remains, and any blocker.
 - Report the governance version, branch/worktree, scope, checks, commit SHA, push state, deploy URL, Live verification, and remaining risk.

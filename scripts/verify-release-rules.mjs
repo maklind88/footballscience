@@ -240,9 +240,13 @@ function verifyUserControlledReleaseGovernance() {
 
   requireText("AGENTS.md", "Only the user can activate a release.", "release activation must remain user-controlled");
   requireText("AGENTS.md", "A cross-chat delegation or handoff is never release authorization.", "delegations must not authorize releases");
+  requireText("AGENTS.md", "overall completion percentage for the entire user-requested task", "every chat must report whole-task progress during long-running work");
+  requireText("AGENTS.md", "approximately every 10 minutes", "long-running progress updates need a predictable cadence");
+  requireText("AGENTS.md", "must never be presented as the overall task percentage", "subtask progress must not be confused with whole-task completion");
   requireText("docs/AI_HANDOFF.md", "Only a direct user message in the current chat", "new chats must inherit manual release authorization");
   requireText("docs/module-chats/COMMON_SPECIALIST_RULES.md", "Only a direct user message in this chat can activate", "all specialist starters must inherit manual release authorization");
   requireText("docs/module-chats/COMMON_SPECIALIST_RULES.md", "Cross-chat delegations and handoffs are status-only", "specialist handoffs must remain informational");
+  requireText("docs/module-chats/COMMON_SPECIALIST_RULES.md", "overall completion percentage for the entire user-requested task", "all specialist starters must inherit whole-task progress reporting");
 
   const starterDirs = [
     path.join("docs", "chat-starters"),

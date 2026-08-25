@@ -396,4 +396,7 @@ test("release rules keep deployment user-controlled across chats", () => {
   expect(releaseRules).toContain('"chat-starters"');
   expect(releaseRules).toContain('"module-chats"');
   expect(releaseRules).toContain("COMMON_SPECIALIST_RULES.md");
+  expect(releaseRules).toContain("overall completion percentage for the entire user-requested task");
+  expect(releaseRules).toContain("approximately every 10 minutes");
+  expect(releaseRules).toContain("must never be presented as the overall task percentage");
 });

@@ -13,6 +13,47 @@
   gap: .55rem;
 }
 
+.dashboard-birthday-age {
+  gap: .04rem;
+  min-width: 3.35rem;
+  padding: .28rem .38rem;
+}
+
+.dashboard-birthday-age small,
+.dashboard-birthday-age span {
+  color: rgba(255, 255, 255, .78);
+  font-size: .5rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.dashboard-birthday-age span {
+  letter-spacing: .02em;
+}
+
+.dashboard-birthday-meta {
+  min-width: 4.95rem;
+  max-width: 5.45rem;
+}
+
+.dashboard-birthday-meta strong,
+.dashboard-birthday-modal-age strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-birthday-meta strong {
+  font-size: .74rem;
+  font-weight: 950;
+}
+
+.dashboard-birthday-meta small {
+  font-size: .66rem;
+}
+
 .dashboard-birthday-card .dashboard-panel-head > div {
   min-width: 0;
 }
@@ -201,9 +242,18 @@ body.is-dark-mode .dashboard-birthday-modal-age small {
   color: #b9e3ce;
 }
 
+body.is-dark-mode .dashboard-birthday-age small,
+body.is-dark-mode .dashboard-birthday-age span {
+  color: #cbd5e1;
+}
+
 @media (max-width: 760px) {
   .dashboard-birthday-head-actions {
     justify-content: flex-start;
+  }
+
+  .dashboard-birthday-age {
+    grid-template-columns: auto auto auto;
   }
 
   .dashboard-birthday-modal-item {

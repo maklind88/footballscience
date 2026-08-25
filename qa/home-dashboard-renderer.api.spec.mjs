@@ -91,6 +91,9 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(rendered).toContain("data-dashboard-open-birthday-calendar");
   expect(rendered).toContain("dashboard-birthday-spotlight");
   expect(rendered).toContain("Jul 24 · In 2 days");
+  expect(rendered).toContain("<span>years</span>");
+  expect(rendered).toContain("26 years");
+  expect(rendered).toContain("(In 3 days)");
   expect(rendered).not.toContain("dashboard-birthday-countdown");
   expect(rendered).toMatch(/data-dashboard-presentation-type="team"[\s\S]*dashboard-birthday-strip[\s\S]*data-dashboard-presentation-type="technical"/);
   expect(rendered).toMatch(/data-dashboard-presentation-type="technical"[\s\S]*dashboard-upcoming-lineup-card/);
@@ -183,6 +186,11 @@ test("home dashboard renderer owns the compact birthday news card", () => {
   expect(rendered).not.toContain("#88");
   expect(rendered).not.toContain("Central midfield");
   expect(rendered).toContain(">25</strong>");
+  expect(rendered).toContain("<span>years</span>");
+  expect(rendered).toContain("26 years");
+  expect(rendered).toContain("(In 2 days)");
+  expect(rendered).toContain("22 years");
+  expect(rendered).toContain("(In 5 days)");
   expect(rendered).not.toContain("1 missing dates");
   expect(rendered).not.toContain("Squad profiles");
   expect(rendered).not.toContain('data-open-workspace="player-profiles"');
@@ -252,6 +260,8 @@ test("home dashboard renderer owns the birthday calendar modal", () => {
   expect(rendered).toContain("Clea Striker");
   expect(rendered).toContain("Daria Winger");
   expect(rendered).toContain("#11 · Winger");
+  expect(rendered).toContain("24 years");
+  expect(rendered).toContain("(In 10 days)");
   expect(rendered).toContain("data-dashboard-modal-close");
 });
 

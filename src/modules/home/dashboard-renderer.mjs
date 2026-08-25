@@ -317,9 +317,23 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     return birthdayItems.slice(0, limit);
   }
 
+  function getBirthdayAgeText(item = {}, fallback = "") {
+    const age = Number(item.turningAge);
+    if (!Number.isFinite(age) || age <= 0) {
+      return fallback;
+    }
+    return `${age} ${age === 1 ? "year" : "years"}`;
+  }
+
+  function getBirthdayRelativeText(item = {}) {
+    const relativeLabel = String(item.relativeLabel || "").trim();
+    return relativeLabel ? `(${relativeLabel})` : "";
+  }
+
   function renderBirthdaySpotlight(item = {}) {
     const age = Number(item.turningAge);
     const ageLabel = Number.isFinite(age) && age > 0 ? String(age) : "--";
+    const ageUnit = age === 1 ? "year" : "years";
     const dateLabel = item.dateLabel || item.nextBirthday || "";
     const timing = [dateLabel, item.relativeLabel].filter(Boolean).join(" · ");
     return `
@@ -334,15 +348,17 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           <small>${escapeHtml(timing)}</small>
         </div>
         <div class="dashboard-birthday-age" aria-label="${escapeHtml(`${item.name || "Player"} turns ${ageLabel}`)}">
-          <strong>${escapeHtml(ageLabel)}</strong>
           <small>turns</small>
+          <strong>${escapeHtml(ageLabel)}</strong>
+          <span>${escapeHtml(ageUnit)}</span>
         </div>
       </section>
     `;
   }
 
   function renderBirthdayNewsItem(item = {}) {
-    const age = Number(item.turningAge);
+    const ageText = getBirthdayAgeText(item);
+    const relativeText = getBirthdayRelativeText(item);
     return `
       <div class="dashboard-birthday-item">
         ${renderBirthdayAvatar(item)}
@@ -351,8 +367,8 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           <small>${escapeHtml(item.dateLabel || item.nextBirthday || "Upcoming birthday")}</small>
         </span>
         <span class="dashboard-birthday-meta">
-          <strong>${Number.isFinite(age) && age > 0 ? escapeHtml(String(age)) : ""}</strong>
-          <small>${escapeHtml(item.relativeLabel || "")}</small>
+          <strong>${escapeHtml(ageText)}</strong>
+          <small>${escapeHtml(relativeText)}</small>
         </span>
       </div>
     `;
@@ -403,8 +419,9 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   }
 
   function renderBirthdayModalItem(item = {}) {
-    const age = Number(item.turningAge);
     const dateLabel = item.dateLabel || item.nextBirthday || "Upcoming";
+    const ageText = getBirthdayAgeText(item, "--");
+    const relativeText = getBirthdayRelativeText(item) || "Upcoming";
     const detail = [
       item.number ? `#${item.number}` : "",
       item.primaryRole || "",
@@ -418,8 +435,8 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           <small>${escapeHtml(detail || item.relativeLabel || "Birthday")}</small>
         </span>
         <span class="dashboard-birthday-modal-age">
-          <strong>${Number.isFinite(age) && age > 0 ? escapeHtml(String(age)) : "--"}</strong>
-          <small>${escapeHtml(item.relativeLabel || "Upcoming")}</small>
+          <strong>${escapeHtml(ageText)}</strong>
+          <small>${escapeHtml(relativeText)}</small>
         </span>
       </div>
     `;

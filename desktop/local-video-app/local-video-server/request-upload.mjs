@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createWriteStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { Transform } from "node:stream";
@@ -16,6 +17,7 @@ export async function receiveRequestFile(request, filePath, options = {}) {
   if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) throw inputTooLarge();
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   let receivedBytes = 0;
+  const hash = createHash("sha256");
   const limiter = new Transform({
     transform(chunk, encoding, callback) {
       receivedBytes += chunk.length;
@@ -23,6 +25,7 @@ export async function receiveRequestFile(request, filePath, options = {}) {
         callback(inputTooLarge());
         return;
       }
+      hash.update(chunk);
       options.onProgress?.({
         stage: "receiving",
         receivedBytes,
@@ -34,10 +37,9 @@ export async function receiveRequestFile(request, filePath, options = {}) {
   });
   try {
     await pipeline(request, limiter, createWriteStream(filePath, { flags: "wx" }));
-    return { receivedBytes };
+    return { receivedBytes, sha256: hash.digest("hex") };
   } catch (error) {
     await fs.rm(filePath, { force: true });
     throw error;
   }
 }
-

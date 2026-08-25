@@ -14,6 +14,10 @@ async function openMediaWorkspace(page) {
     }
     const primaryUrl = URL.createObjectURL(new Blob(["primary-video"], { type: "video/mp4" }));
     const tacticalUrl = URL.createObjectURL(new Blob(["tactical-video"], { type: "video/mp4" }));
+    const primaryProxyUrl = URL.createObjectURL(new Blob(["primary-proxy"], { type: "video/mp4" }));
+    const tacticalProxyUrl = URL.createObjectURL(new Blob(["tactical-proxy"], { type: "video/mp4" }));
+    const replayUrl = URL.createObjectURL(new Blob(["replay-buffer"], { type: "video/mp4" }));
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const angles = [
       {
         id: ids.primaryAngleId,
@@ -85,7 +89,36 @@ async function openMediaWorkspace(page) {
         activeAngleId: ids.primaryAngleId,
         viewMode: "compare",
         loadedMatchId: ids.matchId,
-        replay: { inMs: 1000, outMs: 6000, loop: false },
+        replay: {
+          inMs: 1000,
+          outMs: 6000,
+          loop: false,
+          buffer: {
+            status: "ready",
+            active: false,
+            angleId: ids.tacticalAngleId,
+            startMatchMs: 1000,
+            endMatchMs: 6000,
+            progress: 1,
+            result: { artifactId: "replay-local-1", replayUrl, expiresAt, durationMs: 5000, sizeBytes: 1_250_000 },
+            error: "",
+          },
+        },
+        proxy: {
+          preset: "scrub-540p",
+          byAngleId: {
+            [ids.primaryAngleId]: {
+              status: "ready",
+              enabled: false,
+              result: { artifactId: `proxy-${"a".repeat(40)}`, proxyUrl: primaryProxyUrl, expiresAt, preset: "scrub-540p", height: 540, fps: 25, keyframeSeconds: 1, sizeBytes: 8_250_000, sha256: "1".repeat(64), cacheHit: false },
+            },
+            [ids.tacticalAngleId]: {
+              status: "ready",
+              enabled: false,
+              result: { artifactId: `proxy-${"b".repeat(40)}`, proxyUrl: tacticalProxyUrl, expiresAt, preset: "scrub-540p", height: 540, fps: 25, keyframeSeconds: 1, sizeBytes: 7_900_000, sha256: "2".repeat(64), cacheHit: true },
+            },
+          },
+        },
         export: {
           id: "",
           title: "Pressing review",
@@ -125,11 +158,26 @@ test("media production switches synchronized cameras and edits replay/export sta
     return requests.findLast?.((request) => request.action === "save-media-angle")?.body?.angle?.syncOffsetMs || 0;
   })).toBe(3250);
 
+  await page.locator('[data-video-analysis-media-panel="proxy"]').click();
+  await expect(page.locator(".video-analysis-media-proxy-panel")).toContainText("Proxy ready");
+  await expect(page.locator(".video-analysis-media-proxy-metrics")).toContainText("540p / 25 fps");
+  await expect(page.locator(".video-analysis-media-proxy-fields")).toContainText("Reused");
+  await page.locator('[data-video-analysis-proxy-action="toggle"]').click();
+  await expect(page.locator('[data-video-analysis-proxy-action="toggle"]')).toHaveText("Use original");
+  await page.screenshot({ path: testInfo.outputPath("media-proxy-desktop.png"), fullPage: true });
+
   await page.locator('[data-video-analysis-media-panel="replay"]').click();
   await expect(page.locator(".video-analysis-media-replay-range")).toContainText("0:00:01");
   await expect(page.locator(".video-analysis-media-replay-range")).toContainText("0:00:06");
   await page.locator('[data-video-analysis-media-action="toggle-loop"]').click();
   await expect(page.locator('[data-video-analysis-media-action="toggle-loop"]')).toHaveClass(/is-active/);
+  await expect(page.locator(".video-analysis-media-replay-buffer")).toContainText("Buffer ready");
+  await expect(page.locator('[data-video-analysis-proxy-action="play-replay"]')).toBeEnabled();
+  await page.locator('[data-video-analysis-proxy-action="play-replay"]').click();
+  await expect(page.locator(".video-analysis-media-replay-buffer")).toHaveClass(/is-active/);
+  await expect(page.locator('[data-video-analysis-proxy-action="stop-replay"]')).toBeVisible();
+  await page.locator('[data-video-analysis-proxy-action="stop-replay"]').click();
+  await expect(page.locator(".video-analysis-media-replay-buffer")).not.toHaveClass(/is-active/);
 
   await page.locator('[data-video-analysis-media-panel="export"]').click();
   await expect(page.locator(".video-analysis-media-export-summary")).toContainText("Tactical wide");
@@ -144,6 +192,7 @@ test("media production remains contained on mobile", async ({ page }, testInfo) 
   await page.setViewportSize({ width: 390, height: 844 });
   await openMediaWorkspace(page);
   await page.locator('[data-video-analysis-media-action="toggle"]').click();
+  await page.locator('[data-video-analysis-media-panel="proxy"]').click();
   const geometry = await page.locator("[data-video-analysis-media-production]").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {

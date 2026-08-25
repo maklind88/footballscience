@@ -155,6 +155,11 @@ export function createProcessingJobManager(options = {}) {
       }
       return true;
     },
+    discard(id) {
+      const key = String(id || "");
+      if (active.has(key) || queue.some((entry) => entry.id === key)) return false;
+      return jobs.delete(key);
+    },
     activeIds() {
       return [...active.keys()];
     },
@@ -168,4 +173,3 @@ export function createProcessingJobManager(options = {}) {
     },
   };
 }
-

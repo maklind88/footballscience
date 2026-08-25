@@ -1,6 +1,6 @@
 # Local Video Server
 
-Device-local loopback processing engine for Football Science video playback preparation and future tracking, synchronization, replay, and export jobs.
+Device-local loopback processing engine for Football Science playback preparation, proxy generation, replay buffers, tracking, synchronization, and rendered exports.
 
 It binds to `127.0.0.1:47831`, accepts a selected local video from the web UI, creates a browser-playable MP4 copy with the bundled FFmpeg engine, and serves that copy back from the same local machine.
 
@@ -12,6 +12,8 @@ The preparation path is intentionally conservative:
 - Processing is serialized by default to protect CPU, memory, and thermals during live analysis.
 - Jobs expose status, progress, cancellation, and bounded retention.
 - Cache usage is quota-controlled and old inactive entries are removed before new work begins.
+- Scrub proxies are content-addressed with streaming SHA-256 and reused when the source and profile match.
+- Replay buffers are bounded, frame-accurate MP4 segments created from an authorized local proxy without re-uploading the source.
 
 The bridge is not an open localhost upload endpoint. Browser clients must originate from an approved Football Science or local development origin, open an ephemeral session, and send that session token with protected requests. Playback URLs use separate expiring capability tokens.
 
@@ -34,6 +36,7 @@ Optional limits and policy:
 - `FS_LOCAL_VIDEO_MAX_CONCURRENT_JOBS`: processing concurrency, capped at four.
 - `FS_LOCAL_VIDEO_MAX_QUEUED_JOBS`: bounded waiting queue.
 - `FS_LOCAL_VIDEO_MAX_TRACKING_DURATION_MS`: maximum range for one tracking job.
+- `FS_LOCAL_VIDEO_MAX_REPLAY_DURATION_MS`: maximum range for one replay buffer, capped at ten minutes.
 - `FS_TRACKING_ENGINE_PATH`: approved local executable implementing the tracking provider protocol.
 
 ## Endpoints
@@ -43,11 +46,17 @@ Optional limits and policy:
 - `GET /capabilities`
 - `POST /jobs/prepare-playback`
 - `POST /jobs/track-object`
+- `POST /jobs/create-proxy`
+- `POST /jobs/create-replay-buffer`
+- `POST /jobs/render-export`
 - `GET /jobs/:id`
 - `DELETE /jobs/:id`
 - `POST /transcode`
 - `GET /playback/:id/playback.mp4`
 - `GET /tracking/:id/track.json`
+- `GET /proxies/:id/proxy.mp4`
+- `GET /replays/:id/replay.mp4`
+- `GET /exports/:id/render.mp4`
 
 `POST /transcode` remains the synchronous compatibility route and now runs through the same protected job queue. New clients should prefer the asynchronous job route.
 

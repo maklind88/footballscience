@@ -9,7 +9,9 @@ import { createMediaExportJobHandler } from "./media-export-job-handler.mjs";
 import { createMediaOverlayStore } from "./media-overlay-store.mjs";
 import { createPlaybackAssetHandler } from "./playback-asset-handler.mjs";
 import { createProcessingJobManager } from "./processing-job-manager.mjs";
+import { createProxyJobHandler } from "./proxy-job-handler.mjs";
 import { receiveRequestFile } from "./request-upload.mjs";
+import { createReplayBufferJobHandler } from "./replay-buffer-job-handler.mjs";
 import {
   corsHeaders,
   createAssetAccessStore,
@@ -160,6 +162,36 @@ export function createLocalVideoServer(options = {}) {
     sendJson,
     statusCodeForError,
   });
+  const proxy = createProxyJobHandler({
+    assets,
+    authorizeSession,
+    baseUrl,
+    config,
+    corsHeaders,
+    engine,
+    isAllowedOrigin,
+    jobOwners,
+    jobs,
+    publicErrorMessage,
+    requestOrigin,
+    sendJson,
+    statusCodeForError,
+  });
+  const replayBuffer = createReplayBufferJobHandler({
+    assets,
+    authorizeSession,
+    baseUrl,
+    config,
+    corsHeaders,
+    engine,
+    isAllowedOrigin,
+    jobOwners,
+    jobs,
+    publicErrorMessage,
+    requestOrigin,
+    sendJson,
+    statusCodeForError,
+  });
 
   async function createPlaybackJob(request, response) {
     const session = authorizeSession(request, response);
@@ -267,6 +299,8 @@ export function createLocalVideoServer(options = {}) {
           "cancel",
           "render-export",
           "render-overlay",
+          "create-proxy",
+          "replay-buffer",
           ...(trackingEngine.available() ? ["track-object"] : []),
         ],
         limits: {
@@ -276,6 +310,7 @@ export function createLocalVideoServer(options = {}) {
           maxQueuedJobs: config.maxQueuedJobs,
           maxOverlayBytes: config.maxOverlayBytes,
           maxOverlayPrimitives: config.maxOverlayPrimitives,
+          maxReplayDurationMs: config.maxReplayDurationMs,
         },
         usage: { cacheBytes: cache.sizeBytes, ...jobs.stats() },
       });
@@ -303,6 +338,26 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "POST" && url.pathname === "/jobs/render-export") {
       const jobId = await mediaExport.createJob(request, response);
+      if (!jobId) return;
+      sendJson(request, response, config, 202, {
+        ok: true,
+        job: jobs.get(jobId),
+        statusUrl: `${baseUrl()}/jobs/${jobId}`,
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/jobs/create-proxy") {
+      const jobId = await proxy.createJob(request, response);
+      if (!jobId) return;
+      sendJson(request, response, config, 202, {
+        ok: true,
+        job: jobs.get(jobId),
+        statusUrl: `${baseUrl()}/jobs/${jobId}`,
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/jobs/create-replay-buffer") {
+      const jobId = await replayBuffer.createJob(request, response);
       if (!jobId) return;
       sendJson(request, response, config, 202, {
         ok: true,
@@ -367,6 +422,12 @@ export function createLocalVideoServer(options = {}) {
     }
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/exports/")) {
       if (await mediaExport.handleArtifact(request, url, response)) return;
+    }
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/proxies/")) {
+      if (await proxy.handleArtifact(request, url, response)) return;
+    }
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/replays/")) {
+      if (await replayBuffer.handleArtifact(request, url, response)) return;
     }
     sendJson(request, response, config, 404, { ok: false, error: "Route not found." });
   });

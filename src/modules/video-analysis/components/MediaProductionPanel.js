@@ -84,6 +84,20 @@ function replayTime(value) {
 function renderReplayPanel(state = {}) {
   const replay = normalizedReplayRange(state);
   const ready = replay.inMs != null && replay.outMs != null;
+  const buffer = replay.buffer || {};
+  const bufferProcessing = buffer.status === "processing";
+  const bufferReady = buffer.status === "ready" && buffer.startMatchMs === replay.inMs && buffer.endMatchMs === replay.outMs;
+  const bufferStatus = buffer.active
+    ? "Playing buffer"
+    : bufferProcessing
+      ? `${Math.round(Number(buffer.progress || 0) * 100)}% ${buffer.stage || "buffering"}`
+      : bufferReady
+        ? "Buffer ready"
+        : buffer.status === "stale"
+          ? "Range changed"
+          : buffer.status === "error"
+            ? "Buffer failed"
+            : "No buffer";
   return `
     <div class="video-analysis-media-replay-panel">
       <div class="video-analysis-media-replay-range">
@@ -97,8 +111,20 @@ function renderReplayPanel(state = {}) {
         <button type="button" data-video-analysis-media-action="mark-out">Set out</button>
         <button type="button" class="${replay.loop ? "is-active" : ""}" data-video-analysis-media-action="toggle-loop" aria-pressed="${replay.loop}">Loop</button>
         <button type="button" data-video-analysis-media-action="clear-replay" ${replay.inMs == null && replay.outMs == null ? "disabled" : ""}>Clear</button>
-        <button type="button" class="video-analysis-media-primary" data-video-analysis-media-action="play-replay" ${ready ? "" : "disabled"}>Replay</button>
+        <button type="button" data-video-analysis-media-action="play-replay" ${ready ? "" : "disabled"}>Play source</button>
+        ${bufferProcessing
+          ? `<button type="button" data-video-analysis-proxy-action="cancel-replay">Cancel buffer</button>`
+          : `<button type="button" data-video-analysis-proxy-action="prepare-replay" ${ready ? "" : "disabled"}>${bufferReady ? "Rebuild buffer" : "Prepare buffer"}</button>`}
+        ${buffer.active
+          ? `<button type="button" class="video-analysis-media-primary" data-video-analysis-proxy-action="stop-replay">Stop buffer</button>`
+          : `<button type="button" class="video-analysis-media-primary" data-video-analysis-proxy-action="play-replay" ${bufferReady ? "" : "disabled"}>Play buffer</button>`}
       </div>
+      <div class="video-analysis-media-replay-buffer${buffer.active ? " is-active" : ""}">
+        <span>${escapeHtml(bufferStatus)}</span>
+        <small>${escapeHtml(captureSize(buffer.result?.sizeBytes || 0))}</small>
+        ${bufferProcessing ? `<i><span style="width:${Math.round(Number(buffer.progress || 0) * 100)}%"></span></i>` : ""}
+      </div>
+      ${buffer.error ? `<p class="video-analysis-error">${escapeHtml(buffer.error)}</p>` : ""}
     </div>
   `;
 }
@@ -152,6 +178,52 @@ function renderCapturePanel(state = {}) {
       </div>
       ${capture.fileName ? `<code>${escapeHtml(capture.fileName)}</code>` : ""}
       ${capture.error ? `<p class="video-analysis-error">${escapeHtml(capture.error)}</p>` : ""}
+    </div>
+  `;
+}
+
+function renderProxyPanel(state = {}) {
+  const angle = activeMediaAngle(state);
+  const proxyState = state.mediaProduction?.proxy || {};
+  const proxy = proxyState.byAngleId?.[angle?.id] || {};
+  const processing = proxy.status === "processing";
+  const result = proxy.result || {};
+  const status = processing
+    ? `${Math.round(Number(proxy.progress || 0) * 100)}% ${proxy.stage || "processing"}`
+    : proxy.enabled
+      ? "Proxy active"
+      : proxy.status === "ready"
+        ? "Proxy ready"
+        : proxy.status === "expired"
+          ? "Access expired"
+          : proxy.status === "error"
+            ? "Proxy failed"
+            : "Ready";
+  return `
+    <div class="video-analysis-media-proxy-panel">
+      <div class="video-analysis-media-proxy-fields">
+        <label><span>Profile</span><select data-video-analysis-proxy-field="preset" ${processing ? "disabled" : ""}>
+          <option value="scrub-540p" ${proxyState.preset !== "review-720p" ? "selected" : ""}>Scrub 540p</option>
+          <option value="review-720p" ${proxyState.preset === "review-720p" ? "selected" : ""}>Review 720p</option>
+        </select></label>
+        <span><small>Angle</small><strong>${escapeHtml(angle?.label || "Primary")}</strong></span>
+        <span><small>Status</small><strong>${escapeHtml(status)}</strong></span>
+        <span><small>Cache</small><strong>${result.artifactId ? result.cacheHit ? "Reused" : "Device local" : "--"}</strong></span>
+      </div>
+      <div class="video-analysis-media-proxy-metrics">
+        <span><small>Frame</small><strong>${result.height ? `${result.height}p / ${result.fps || 25} fps` : "--"}</strong></span>
+        <span><small>Keyframes</small><strong>${result.keyframeSeconds ? `${result.keyframeSeconds} s` : "--"}</strong></span>
+        <span><small>Size</small><strong>${escapeHtml(captureSize(result.sizeBytes || 0))}</strong></span>
+        <span><small>Checksum</small><strong>${escapeHtml(result.sha256 ? result.sha256.slice(0, 12) : "--")}</strong></span>
+      </div>
+      ${processing ? `<div class="video-analysis-media-proxy-progress"><span style="width:${Math.round(Number(proxy.progress || 0) * 100)}%"></span></div>` : ""}
+      <div class="video-analysis-media-proxy-actions">
+        ${processing
+          ? `<button type="button" data-video-analysis-proxy-action="cancel-proxy">Cancel</button>`
+          : `<button type="button" class="video-analysis-media-primary" data-video-analysis-proxy-action="generate">${result.artifactId ? "Refresh proxy" : "Create proxy"}</button>`}
+        <button type="button" data-video-analysis-proxy-action="toggle" ${result.artifactId && !processing ? "" : "disabled"}>${proxy.enabled ? "Use original" : "Use proxy"}</button>
+      </div>
+      ${proxy.error ? `<p class="video-analysis-error">${escapeHtml(proxy.error)}</p>` : ""}
     </div>
   `;
 }
@@ -210,6 +282,7 @@ function renderPanelBody(state = {}) {
   const panel = state.mediaProduction?.panel || "angles";
   if (panel === "replay") return renderReplayPanel(state);
   if (panel === "capture") return renderCapturePanel(state);
+  if (panel === "proxy") return renderProxyPanel(state);
   if (panel === "export") return renderExportPanel(state);
   return renderAnglesPanel(state);
 }
@@ -243,7 +316,7 @@ export function renderMediaProductionPanel(state = {}) {
           <small>${escapeHtml(`${connected}/${angles.length} cameras / ${reference?.objectUrl ? active?.label || "Primary" : "reconnect"}`)}</small>
         </button>
         <nav aria-label="Media production" ${media.panelOpen ? "" : "hidden"}>
-          ${["angles", "capture", "replay", "export"].map((panel) => `<button type="button" class="${media.panel === panel ? "is-active" : ""}" data-video-analysis-media-panel="${panel}" aria-pressed="${media.panel === panel}">${panel[0].toUpperCase()}${panel.slice(1)}</button>`).join("")}
+          ${["angles", "capture", "proxy", "replay", "export"].map((panel) => `<button type="button" class="${media.panel === panel ? "is-active" : ""}" data-video-analysis-media-panel="${panel}" aria-pressed="${media.panel === panel}">${panel[0].toUpperCase()}${panel.slice(1)}</button>`).join("")}
         </nav>
       </header>
       ${media.panelOpen ? `<div class="video-analysis-media-production__body">${renderPanelBody(state)}${media.error ? `<p class="video-analysis-media-warning">${escapeHtml(media.error)}</p>` : ""}</div>` : ""}

@@ -1,0 +1,117 @@
+#analysisRoomWorkspace .video-analysis-media-proxy-panel {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-media-proxy-fields,
+#analysisRoomWorkspace .video-analysis-media-proxy-metrics {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-media-proxy-fields label,
+#analysisRoomWorkspace .video-analysis-media-proxy-fields > span,
+#analysisRoomWorkspace .video-analysis-media-proxy-metrics > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-media-proxy-fields label > span,
+#analysisRoomWorkspace .video-analysis-media-proxy-fields small,
+#analysisRoomWorkspace .video-analysis-media-proxy-metrics small {
+  color: #8fa198;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-media-proxy-fields select {
+  width: 100%;
+  padding: 0 7px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-proxy-fields strong,
+#analysisRoomWorkspace .video-analysis-media-proxy-metrics strong {
+  overflow: hidden;
+  color: #f5f7f6;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-media-proxy-metrics {
+  padding: 7px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#analysisRoomWorkspace .video-analysis-media-proxy-progress,
+#analysisRoomWorkspace .video-analysis-media-replay-buffer i {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+#analysisRoomWorkspace .video-analysis-media-proxy-progress > span,
+#analysisRoomWorkspace .video-analysis-media-replay-buffer i > span {
+  display: block;
+  height: 100%;
+  background: #f1cf66;
+}
+
+#analysisRoomWorkspace .video-analysis-media-proxy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-proxy-actions button {
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-buffer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: center;
+  min-width: 0;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9fb0a8;
+  font-size: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-buffer.is-active {
+  color: #f1cf66;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-buffer > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-buffer > small {
+  font-variant-numeric: tabular-nums;
+}
+
+#analysisRoomWorkspace .video-analysis-media-replay-buffer i {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  #analysisRoomWorkspace .video-analysis-media-proxy-fields,
+  #analysisRoomWorkspace .video-analysis-media-proxy-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #analysisRoomWorkspace .video-analysis-media-production nav button {
+    padding-inline: 6px;
+  }
+}

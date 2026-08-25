@@ -1,5 +1,6 @@
 import { createMediaCaptureController } from "./controllers/mediaCaptureController.js";
 import { createMediaProductionController } from "./controllers/mediaProductionController.js";
+import { createMediaProxyController } from "./controllers/mediaProxyController.js";
 import { createMediaProductionRepository } from "./repositories/mediaProductionRepository.js";
 import { createLocalMediaCaptureService } from "./services/localMediaCaptureService.js";
 
@@ -26,10 +27,26 @@ export function createVideoAnalysisMediaRuntime(options = {}) {
     getWindow: () => getRuntime()?.context?.win || context.win || window,
     updateState: (updater) => getRuntime()?.store.update(updater),
   });
+  const proxyController = createMediaProxyController({
+    getCurrentMatchMs: options.getCurrentMatchMs,
+    getState: () => getRuntime()?.store.getState() || {},
+    getVideoElement: options.getVideoElement,
+    getWindow: () => getRuntime()?.context?.win || context.win || window,
+    refreshPlayback: (matchMs, play) => {
+      const win = getRuntime()?.context?.win || context.win || window;
+      win.requestAnimationFrame?.(() => {
+        options.seekToMatchMs?.(matchMs);
+        const video = options.getVideoElement?.();
+        if (play) video?.play?.().catch?.(() => {});
+        productionController.syncSecondaryVideos(video);
+      });
+    },
+    updateState: (updater) => getRuntime()?.store.update(updater),
+  });
   const controller = {
-    handleChange: productionController.handleChange,
-    handleClick: (event) => captureController.handleClick(event) || productionController.handleClick(event),
-    handleVideoTimeUpdate: productionController.handleVideoTimeUpdate,
+    handleChange: (event) => proxyController.handleChange(event) || productionController.handleChange(event),
+    handleClick: (event) => captureController.handleClick(event) || proxyController.handleClick(event) || productionController.handleClick(event),
+    handleVideoTimeUpdate: (video) => proxyController.handleVideoTimeUpdate(video) || productionController.handleVideoTimeUpdate(video),
     initialize: (force) => {
       captureController.initialize();
       return productionController.initialize(force);
@@ -39,7 +56,8 @@ export function createVideoAnalysisMediaRuntime(options = {}) {
   return {
     captureController,
     controller,
-    dispose: () => captureController.dispose(),
+    dispose: () => Promise.all([captureController.dispose(), proxyController.dispose()]),
+    proxyController,
     repository,
   };
 }

@@ -27,7 +27,13 @@ export function createInitialMediaProductionState() {
     primaryAngleId: "",
     activeAngleId: "",
     viewMode: "single",
-    replay: { inMs: null, outMs: null, loop: false },
+    replay: {
+      inMs: null,
+      outMs: null,
+      loop: false,
+      buffer: { status: "idle", active: false, progress: 0, stage: "", result: null, error: "" },
+    },
+    proxy: { preset: "scrub-540p", byAngleId: {} },
     capture: {
       status: "idle",
       mode: "screen",
@@ -107,12 +113,36 @@ export function mediaReferenceForAngle(state = {}, angleValue = null) {
   const angle = angleValue ? normalizeMediaAngle(angleValue) : activeMediaAngle(state);
   if (!angle) return state.videoRef || null;
   const stored = state.mediaProduction?.angleRefs?.[angle.id] || null;
-  if (stored?.objectUrl) return stored;
   const primary = primaryMediaAngleForState(state);
-  if (angle.primary || angle.id === primary.id || (
+  const usesPrimaryReference = angle.primary || angle.id === primary.id || (
     angle.localVideoIdentifier && angle.localVideoIdentifier === state.videoRef?.localVideoIdentifier
-  )) return state.videoRef || stored;
-  return stored;
+  );
+  const reference = stored?.objectUrl
+    ? stored
+    : usesPrimaryReference ? state.videoRef || stored : stored;
+  if (!reference) return reference;
+  const buffer = state.mediaProduction?.replay?.buffer || {};
+  if (buffer.active && buffer.angleId === angle.id && buffer.result?.replayUrl) {
+    return {
+      ...reference,
+      objectUrl: buffer.result.replayUrl,
+      durationMs: Math.max(1, Number(buffer.result.durationMs) || buffer.endMatchMs - buffer.startMatchMs),
+      mimeType: "video/mp4",
+      extension: "mp4",
+      playbackWindow: { type: "replay-buffer", startMatchMs: buffer.startMatchMs, endMatchMs: buffer.endMatchMs },
+    };
+  }
+  const proxy = state.mediaProduction?.proxy?.byAngleId?.[angle.id] || {};
+  if (proxy.enabled && proxy.result?.proxyUrl) {
+    return {
+      ...reference,
+      objectUrl: proxy.result.proxyUrl,
+      mimeType: "video/mp4",
+      extension: "mp4",
+      playbackProxy: { artifactId: proxy.result.artifactId, preset: proxy.result.preset },
+    };
+  }
+  return reference;
 }
 
 export function activeMediaReference(state = {}) {
@@ -120,11 +150,23 @@ export function activeMediaReference(state = {}) {
 }
 
 export function matchTimeFromActiveVideoMs(state = {}, videoTimeMs = 0) {
+  const buffer = state.mediaProduction?.replay?.buffer || {};
+  if (buffer.active && buffer.angleId === activeMediaAngle(state)?.id) {
+    const startMs = boundedMs(buffer.startMatchMs);
+    const endMs = Math.max(startMs, boundedMs(buffer.endMatchMs, startMs));
+    return Math.min(endMs, startMs + boundedMs(videoTimeMs));
+  }
   const angle = activeMediaAngle(state);
   return angle ? angleTimeToMatchTime(videoTimeMs, angle) : boundedMs(videoTimeMs);
 }
 
 export function activeVideoTimeFromMatchMs(state = {}, matchTimeMs = 0) {
+  const buffer = state.mediaProduction?.replay?.buffer || {};
+  if (buffer.active && buffer.angleId === activeMediaAngle(state)?.id) {
+    const startMs = boundedMs(buffer.startMatchMs);
+    const endMs = Math.max(startMs, boundedMs(buffer.endMatchMs, startMs));
+    return Math.min(endMs - startMs, Math.max(0, boundedMs(matchTimeMs) - startMs));
+  }
   const angle = activeMediaAngle(state);
   return angle ? matchTimeToAngleTime(matchTimeMs, angle) : boundedMs(matchTimeMs);
 }
@@ -140,10 +182,19 @@ export function normalizedReplayRange(state = {}, patch = {}) {
   );
   const inMs = current.inMs == null ? null : Math.min(durationMs, boundedMs(current.inMs));
   const outMs = current.outMs == null ? null : Math.min(durationMs, boundedMs(current.outMs));
+  const normalizedInMs = outMs != null && inMs != null ? Math.min(inMs, Math.max(0, outMs - 1)) : inMs;
+  const normalizedOutMs = inMs != null && outMs != null ? Math.max(inMs + 1, outMs) : outMs;
+  const buffer = current.buffer || { status: "idle", active: false, progress: 0, stage: "", result: null, error: "" };
+  const rangeChanged = (Object.prototype.hasOwnProperty.call(patch, "inMs")
+    || Object.prototype.hasOwnProperty.call(patch, "outMs"))
+    && (buffer.startMatchMs !== normalizedInMs || buffer.endMatchMs !== normalizedOutMs);
   return {
-    inMs: outMs != null && inMs != null ? Math.min(inMs, Math.max(0, outMs - 1)) : inMs,
-    outMs: inMs != null && outMs != null ? Math.max(inMs + 1, outMs) : outMs,
+    inMs: normalizedInMs,
+    outMs: normalizedOutMs,
     loop: Boolean(current.loop),
+    buffer: rangeChanged
+      ? { ...buffer, status: buffer.result ? "stale" : "idle", active: false, error: "" }
+      : buffer,
   };
 }
 

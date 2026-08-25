@@ -180,5 +180,63 @@ export function createFfmpegEngine(options = {}) {
       }
       return { startMs, endMs, durationMs, height, codec: "h264", container: "mp4", composited };
     },
+    async createProxy(inputPath, outputPath, specification = {}, runOptions = {}) {
+      const height = specification.preset === "review-720p" ? 720 : 540;
+      const fps = 25;
+      const crf = specification.preset === "review-720p" ? 23 : 25;
+      const keyframeSeconds = specification.preset === "review-720p" ? 2 : 1;
+      const keyframeInterval = fps * keyframeSeconds;
+      const temporaryOutputPath = `${outputPath}.partial.mp4`;
+      const args = [
+        "-y", "-hide_banner", "-progress", "pipe:1", "-nostats",
+        "-i", inputPath,
+        "-map", "0:v:0", "-map", "0:a:0?",
+        "-vf", `scale=-2:min(${height}\\,ih),fps=${fps}`,
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", String(crf),
+        "-profile:v", "main", "-pix_fmt", "yuv420p",
+        "-g", String(keyframeInterval), "-keyint_min", String(keyframeInterval), "-sc_threshold", "0",
+        "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart",
+        temporaryOutputPath,
+      ];
+      try {
+        await run(args, runOptions);
+        await fs.rename(temporaryOutputPath, outputPath);
+      } catch (error) {
+        await fs.rm(temporaryOutputPath, { force: true });
+        throw error;
+      }
+      return { preset: specification.preset, height, fps, crf, keyframeSeconds, codec: "h264", container: "mp4" };
+    },
+    async createReplayBuffer(inputPath, outputPath, specification = {}, runOptions = {}) {
+      const startMs = Math.max(0, Math.round(Number(specification.startMs) || 0));
+      const endMs = Math.max(startMs + 1, Math.round(Number(specification.endMs) || startMs + 15_000));
+      const durationMs = endMs - startMs;
+      const temporaryOutputPath = `${outputPath}.partial.mp4`;
+      const args = [
+        "-y", "-hide_banner", "-progress", "pipe:1", "-nostats",
+        "-i", inputPath,
+        "-ss", (startMs / 1000).toFixed(3), "-t", (durationMs / 1000).toFixed(3),
+        "-map", "0:v:0", "-map", "0:a:0?",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+        "-profile:v", "main", "-pix_fmt", "yuv420p",
+        "-g", "25", "-keyint_min", "25", "-sc_threshold", "0",
+        "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart",
+        temporaryOutputPath,
+      ];
+      try {
+        await run(args, {
+          ...runOptions,
+          onProgress(progress = {}) {
+            const processedMs = Math.max(0, Number(progress.processedMs) || 0);
+            runOptions.onProgress?.({ ...progress, ratio: Math.min(0.98, processedMs / Math.max(1, durationMs)) });
+          },
+        });
+        await fs.rename(temporaryOutputPath, outputPath);
+      } catch (error) {
+        await fs.rm(temporaryOutputPath, { force: true });
+        throw error;
+      }
+      return { startMs, endMs, durationMs, codec: "h264", container: "mp4" };
+    },
   };
 }

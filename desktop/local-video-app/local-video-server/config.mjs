@@ -46,6 +46,10 @@ export function createLocalVideoServerConfig(env = process.env, options = {}) {
       3 * 60 * 60 * 1000,
       positiveInteger(env.FS_LOCAL_VIDEO_MAX_EXPORT_DURATION_MS, 2 * 60 * 60 * 1000),
     ),
+    maxReplayDurationMs: Math.min(
+      10 * 60 * 1000,
+      positiveInteger(env.FS_LOCAL_VIDEO_MAX_REPLAY_DURATION_MS, 2 * 60 * 1000),
+    ),
     maxOverlayBytes: Math.min(
       8 * 1024 * 1024,
       positiveInteger(env.FS_LOCAL_VIDEO_MAX_OVERLAY_BYTES, 2 * 1024 * 1024),

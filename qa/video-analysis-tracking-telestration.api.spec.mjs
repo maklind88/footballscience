@@ -196,6 +196,7 @@ test("local tracking readiness distinguishes installed, missing and offline prov
         }
         return Response.json({
           capabilities,
+          limits: { maxTrackingDurationMs: 90_000 },
           trackingProvider: {
             available: capabilities.includes("track-object"),
             engineName: "Football Science SAM 2.1 Player Tracker",
@@ -211,6 +212,7 @@ test("local tracking readiness distinguishes installed, missing and offline prov
     status: "ready",
     available: true,
     source: "approved-packaged",
+    maxDurationMs: 90_000,
   });
   await expect(localTracking.inspectLocalTrackingProvider(providerWindow(47912))).resolves.toMatchObject({
     status: "not-installed",
@@ -236,6 +238,84 @@ test("local tracking readiness distinguishes installed, missing and offline prov
   expect(sidebar).toContain("Provider not installed");
   expect(sidebar).toMatch(/data-video-analysis-tracking-action="run" disabled/);
   expect(sidebar).toMatch(/data-video-analysis-tracking-action="manual" >Manual keyframe/);
+});
+
+test("stale local tracking sources fall back once to the reconnected file", async () => {
+  const localVideo = await import(moduleUrl("src/modules/video-analysis/services/localVideoBridgeService.js"));
+  const localTracking = await import(moduleUrl("src/modules/video-analysis/services/localTrackingService.js"));
+  const sourceArtifactId = "11111111-1111-4111-8111-111111111111";
+  const requests = [];
+  const win = {
+    FOOTBALL_SCIENCE_LOCAL_VIDEO_BRIDGE_URL: "http://127.0.0.1:47924",
+    URL: { createObjectURL: () => "blob:tracking-source", revokeObjectURL: () => {} },
+    btoa: globalThis.btoa,
+    document: { createElement: () => ({ canPlayType: () => "probably" }) },
+    setTimeout,
+    fetch: async (url, options = {}) => {
+      const parsed = new URL(url);
+      if (parsed.pathname === "/session") {
+        return Response.json({ sessionToken: "tracking-session", expiresAt: "2099-01-01T00:00:00.000Z" }, { status: 201 });
+      }
+      if (parsed.pathname === "/capabilities") {
+        return Response.json({ capabilities: ["track-object"] });
+      }
+      if (parsed.pathname === "/jobs/track-object") {
+        requests.push(options);
+        if (options.headers["x-football-science-tracking-source-id"]) {
+          return Response.json({ error: "Source expired" }, { status: 404 });
+        }
+        return Response.json({ statusUrl: "http://127.0.0.1:47924/jobs/fresh" }, { status: 202 });
+      }
+      if (parsed.pathname === "/jobs/fresh") {
+        return Response.json({ job: { status: "succeeded", result: {
+          artifactId: "fresh-artifact",
+          sourceArtifactId: "fresh-source",
+          trackingUrl: "http://127.0.0.1:47924/tracking/fresh/track.json",
+        } } });
+      }
+      if (parsed.pathname === "/tracking/fresh/track.json") {
+        return Response.json({
+          id: "fresh-track",
+          entityType: "player",
+          startMs: 0,
+          endMs: 1000,
+          segments: [{ startMs: 0, endMs: 1000, points: [
+            { atMs: 0, x: 0.2, y: 0.4, width: 0.1, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+            { atMs: 1000, x: 0.3, y: 0.4, width: 0.1, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+          ] }],
+        });
+      }
+      return Response.json({ error: "Not found" }, { status: 404 });
+    },
+  };
+  const file = new File(["local-video"], "match.mp4", { type: "video/mp4", lastModified: 1 });
+  const videoRef = await localVideo.createLocalVideoReference(file, win);
+  try {
+    const track = await localTracking.trackLocalObject({
+      win,
+      videoRef,
+      clipId: "clip-1",
+      videoId: "video-1",
+      sourceArtifactId,
+      prompt: {
+        startMs: 0,
+        endMs: 1000,
+        promptAtMs: 0,
+        box: { left: 0.2, top: 0.3, width: 0.1, height: 0.2 },
+      },
+    });
+    expect(requests).toHaveLength(2);
+    expect(requests[0].headers["x-football-science-tracking-source-id"]).toBe(sourceArtifactId);
+    expect(requests[0].body).toBeUndefined();
+    expect(requests[1].headers).not.toHaveProperty("x-football-science-tracking-source-id");
+    expect(requests[1].body).toBe(file);
+    expect(track.metadata).toMatchObject({
+      localArtifactId: "fresh-artifact",
+      localSourceArtifactId: "fresh-source",
+    });
+  } finally {
+    localVideo.revokeLocalVideoReference(videoRef, win);
+  }
 });
 
 test("tracking progress maps local job snapshots and exposes stable elapsed-time telemetry", async () => {
@@ -272,6 +352,191 @@ test("tracking progress maps local job snapshots and exposes stable elapsed-time
   expect(stale.progress).toBe(0.64);
   expect(stale.elapsedMs).toBe(70_000);
   expect(progress.formatTrackingDuration(stale.elapsedMs)).toBe("1m 10s");
+});
+
+test("long tracking ranges chunk safely and merge continuations into one player identity", async () => {
+  const extension = await import(moduleUrl("src/modules/video-analysis/services/trackingExtensionService.js"));
+  const chunk = extension.initialTrackingPromptChunk({
+    startMs: 0,
+    endMs: 300_000,
+    promptAtMs: 150_000,
+    playerId: "player-8",
+    box: { left: 0.2, top: 0.2, width: 0.1, height: 0.25 },
+  });
+  expect(chunk).toMatchObject({ startMs: 90_000, endMs: 210_000, promptAtMs: 150_000 });
+  expect(chunk.endMs - chunk.startMs).toBe(120_000);
+
+  const base = {
+    id: "track-8",
+    clipId: "clip-1",
+    videoId: "video-1",
+    entityType: "player",
+    playerId: "player-8",
+    playerLabel: "Player 8",
+    status: "review",
+    startMs: 90_000,
+    endMs: 210_000,
+    engine: "sam2.1-hiera-tiny",
+    metadata: { localArtifactId: "artifact-a", localSourceArtifactId: "source-a" },
+    segments: [{ startMs: 90_000, endMs: 210_000, points: [
+      { atMs: 90_000, x: 0.2, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 210_000, x: 0.4, y: 0.4, width: 0.08, height: 0.2, confidence: 0.88, identityConfidence: 0.86 },
+    ] }],
+  };
+  expect(extension.trackingExtensionAvailability(base, { startMs: 0, endMs: 300_000 })).toMatchObject({
+    earlier: true,
+    later: true,
+    trackedStartMs: 90_000,
+    trackedEndMs: 210_000,
+  });
+  expect(extension.trackingExtensionPrompt(base, { startMs: 0, endMs: 300_000 }, "later")).toMatchObject({
+    startMs: 209_000,
+    endMs: 300_000,
+    promptAtMs: 210_000,
+    playerId: "player-8",
+  });
+
+  const continued = extension.mergeTrackingExtension(base, {
+    id: "provider-part-b",
+    clipId: "clip-1",
+    videoId: "video-1",
+    entityType: "player",
+    playerId: "player-8",
+    playerLabel: "Player 8",
+    status: "review",
+    startMs: 209_000,
+    endMs: 300_000,
+    engine: "sam2.1-hiera-tiny",
+    metadata: { localArtifactId: "artifact-b", localSourceArtifactId: "source-a" },
+    segments: [{ startMs: 209_000, endMs: 300_000, points: [
+      { atMs: 210_000, x: 0.405, y: 0.4, width: 0.08, height: 0.2, confidence: 0.91, identityConfidence: 0.9 },
+      { atMs: 300_000, x: 0.6, y: 0.42, width: 0.08, height: 0.2, confidence: 0.89, identityConfidence: 0.87 },
+    ] }],
+  }, "later");
+  expect(continued).toMatchObject({
+    id: "track-8",
+    playerId: "player-8",
+    startMs: 90_000,
+    endMs: 300_000,
+    status: "review",
+    metadata: {
+      localArtifactId: "artifact-b",
+      localArtifactIds: ["artifact-a", "artifact-b"],
+      localSourceArtifactId: "source-a",
+      extensionCount: 1,
+      lastExtensionDirection: "later",
+      lastExtensionAtMs: 210_000,
+    },
+  });
+  expect(continued.segments.flatMap((segment) => segment.points).map((point) => point.atMs)).toEqual([
+    90_000, 210_000, 300_000,
+  ]);
+  expect(continued.corrections.at(-1)).toMatchObject({ correctionType: "merge", startMs: 210_000 });
+  expect(() => extension.mergeTrackingExtension(base, {
+    ...continued,
+    id: "wrong-player",
+    playerId: "player-9",
+  }, "later")).toThrow(/different player identity/i);
+});
+
+test("tracking controller extends the selected player without duplicating its identity", async () => {
+  const { createTrackingController } = await import(moduleUrl("src/modules/video-analysis/controllers/trackingController.js"));
+  const baseTrack = {
+    id: "track-8",
+    clipId: "clip-1",
+    videoId: "video-1",
+    entityType: "player",
+    playerId: "player-8",
+    playerLabel: "Player 8",
+    status: "review",
+    startMs: 90_000,
+    endMs: 210_000,
+    metadata: {
+      localArtifactId: "artifact-a",
+      localSourceArtifactId: "source-a",
+      targetStartMs: 0,
+      targetEndMs: 300_000,
+    },
+    segments: [{ startMs: 90_000, endMs: 210_000, points: [
+      { atMs: 90_000, x: 0.2, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 210_000, x: 0.4, y: 0.4, width: 0.08, height: 0.2, confidence: 0.88, identityConfidence: 0.86 },
+    ] }],
+  };
+  const item = {
+    id: "item-1",
+    clipId: "clip-1",
+    startMs: 0,
+    endMs: 300_000,
+    clip: { id: "clip-1", videoId: "video-1", startMs: 0, endMs: 300_000 },
+    objectTracks: [baseTrack],
+    dynamicGraphics: [],
+  };
+  let request = null;
+  let correction = null;
+  let state = {
+    video: { id: "video-1" },
+    videoRef: { kind: "local-file", localFileKey: "video-1" },
+    presentation: {
+      current: { sections: [{ id: "section-1", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        mode: "tracking",
+        provider: { status: "ready", available: true, maxDurationMs: 120_000 },
+        selectedTrackIds: [baseTrack.id],
+        prompt: null,
+        job: null,
+        error: "",
+      },
+    },
+  };
+  const controller = createTrackingController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    trackObject: async (value) => {
+      request = value;
+      return {
+        id: "provider-continuation",
+        entityType: "player",
+        playerId: "player-8",
+        playerLabel: "Player 8",
+        status: "review",
+        startMs: 209_000,
+        endMs: 300_000,
+        metadata: { localArtifactId: "artifact-b", localSourceArtifactId: "source-a" },
+        segments: [{ startMs: 209_000, endMs: 300_000, points: [
+          { atMs: 210_000, x: 0.405, y: 0.4, width: 0.08, height: 0.2, confidence: 0.91, identityConfidence: 0.9 },
+          { atMs: 300_000, x: 0.6, y: 0.42, width: 0.08, height: 0.2, confidence: 0.89, identityConfidence: 0.87 },
+        ] }],
+      };
+    },
+    persistCorrection: async (value) => { correction = value; },
+  });
+  const event = {
+    target: {
+      nodeType: 1,
+      closest: (selector) => selector === "[data-video-analysis-tracking-action]"
+        ? { dataset: { videoAnalysisTrackingAction: "extend-later" } }
+        : null,
+    },
+  };
+
+  expect(controller.handleClick(event)).toBe(true);
+  await expect.poll(() => state.presentation.current.sections[0].items[0].objectTracks[0]?.metadata?.extensionCount).toBe(1);
+  const tracks = state.presentation.current.sections[0].items[0].objectTracks;
+  expect(tracks).toHaveLength(1);
+  expect(tracks[0]).toMatchObject({
+    id: "track-8",
+    playerId: "player-8",
+    startMs: 90_000,
+    endMs: 300_000,
+    metadata: { localArtifactIds: ["artifact-a", "artifact-b"], localSourceArtifactId: "source-a" },
+  });
+  expect(request).toMatchObject({
+    sourceArtifactId: "source-a",
+    prompt: { startMs: 209_000, endMs: 300_000, promptAtMs: 210_000, playerId: "player-8" },
+  });
+  expect(correction).toMatchObject({ objectTrackId: "track-8", atMs: 210_000, correctionType: "merge" });
+  expect(state.presentation.tracking.prompt).toMatchObject({ startMs: 0, endMs: 300_000, box: null });
 });
 
 test("tracking sidebar shows real job telemetry and completed provider provenance", async () => {
@@ -311,6 +576,25 @@ test("tracking sidebar shows real job telemetry and completed provider provenanc
   expect(sidebar).toContain('aria-valuenow="64"');
   expect(sidebar).toContain("64% | 1m 4s elapsed | ~36s left | 16/25 frames");
   expect(sidebar).toContain("SAM 2.1 Hiera Tiny | MPS | 12.5 fps");
+  const idleSidebar = renderTrackingSidebar({
+    players: [],
+    presentation: { tracking: {
+      mode: "tracking",
+      provider: { status: "ready", available: true },
+      selectedTrackIds: [track.id],
+      job: null,
+    } },
+  }, {
+    id: "item-1",
+    clipId: "clip-1",
+    startMs: 0,
+    endMs: 3000,
+    objectTracks: [track],
+    dynamicGraphics: [],
+  });
+  expect(idleSidebar).toContain("1s of 3s | Partial");
+  expect(idleSidebar).toMatch(/data-video-analysis-tracking-action="extend-earlier" disabled/);
+  expect(idleSidebar).toMatch(/data-video-analysis-tracking-action="extend-later" >Extend later/);
 });
 
 test("tracking metadata API rejects dense samples and migration remains service-role scoped", async () => {
@@ -350,10 +634,12 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     maxQueuedJobs: 2,
   };
   let receivedPrompt = null;
+  const receivedInputs = [];
   const trackingEngine = engineModule.createTrackingEngineAdapter({
     engineName: "qa-prompt-tracker",
-    runner: async ({ prompt, onProgress }) => {
+    runner: async ({ inputPath, prompt, onProgress }) => {
       receivedPrompt = prompt;
+      receivedInputs.push(await fs.readFile(inputPath, "utf8"));
       onProgress?.({ stage: "tracking", ratio: 0.7 });
       return {
         id: "track-local",
@@ -405,6 +691,7 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     const artifact = await (await fetch(completed.job.result.trackingUrl, { headers: { origin } })).json();
     expect(artifact.segments[0].points).toHaveLength(2);
     expect(completed.job.result).toMatchObject({ engine: "qa-prompt-tracker", pointCount: 2, segmentCount: 1 });
+    expect(completed.job.result.sourceArtifactId).toBe(completed.job.id);
     expect(receivedPrompt).toMatchObject({
       startMs: 0,
       endMs: 1000,
@@ -414,6 +701,44 @@ test("secure local tracking jobs expose provider capability and expiring artifac
       sourcePromptAtMs: 500,
     });
 
+    const continuationPrompt = Buffer.from(JSON.stringify({
+      startMs: 900,
+      endMs: 2000,
+      promptAtMs: 1000,
+      box: { left: 0.25, top: 0.3, width: 0.08, height: 0.2 },
+    })).toString("base64url");
+    const continuationResponse = await fetch(`${baseUrl}/jobs/track-object`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "x-football-science-file-name": "match.mp4",
+        "x-football-science-tracking-prompt": continuationPrompt,
+        "x-football-science-tracking-source-id": completed.job.id,
+      },
+    });
+    const continuation = await continuationResponse.json();
+    expect(continuationResponse.status).toBe(202);
+    await expect.poll(async () => (await (await fetch(continuation.statusUrl, { headers })).json()).job?.status).toBe("succeeded");
+    const continued = await (await fetch(continuation.statusUrl, { headers })).json();
+    expect(continued.job.result.sourceArtifactId).toBe(completed.job.id);
+    expect(receivedInputs).toEqual(["local-video", "local-video"]);
+    expect(await fs.readdir(path.join(cacheDir, continued.job.id))).toEqual(["track.json"]);
+
+    const secondSession = await (await fetch(`${baseUrl}/session`, { method: "POST", headers: { origin } })).json();
+    const retainedBeforeForeignReuse = localServer.jobs.stats().retained;
+    const foreignReuse = await fetch(`${baseUrl}/jobs/track-object`, {
+      method: "POST",
+      headers: {
+        origin,
+        "x-football-science-session": secondSession.sessionToken,
+        "x-football-science-file-name": "match.mp4",
+        "x-football-science-tracking-prompt": continuationPrompt,
+        "x-football-science-tracking-source-id": completed.job.id,
+      },
+    });
+    expect(foreignReuse.status).toBe(404);
+    expect(localServer.jobs.stats().retained).toBe(retainedBeforeForeignReuse);
+
     const retainedBeforeRejectedUpload = localServer.jobs.stats().retained;
     const rejectedUpload = await fetch(`${baseUrl}/jobs/track-object`, {
       method: "POST",
@@ -422,7 +747,7 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     });
     expect(rejectedUpload.status).toBe(413);
     expect(localServer.jobs.stats().retained).toBe(retainedBeforeRejectedUpload);
-    expect(await fs.readdir(cacheDir)).toEqual([completed.job.id]);
+    expect((await fs.readdir(cacheDir)).sort()).toEqual([completed.job.id, continued.job.id].sort());
   } finally {
     await localServer.close();
     await fs.rm(cacheDir, { recursive: true, force: true });

@@ -7,6 +7,36 @@ function safeFileName(value = "tracking-video") {
   return String(value || "tracking-video").replace(/[^a-zA-Z0-9._ -]+/g, "").slice(0, 120) || "tracking-video";
 }
 
+function requestedSourceId(request = {}) {
+  const value = String(request.headers?.["x-football-science-tracking-source-id"] || "").trim();
+  if (!value) return "";
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value)) {
+    throw Object.assign(new Error("The local tracking source reference is invalid."), { statusCode: 400 });
+  }
+  return value;
+}
+
+async function reusableSource(options = {}, sourceId = "", sessionToken = "") {
+  if (!sourceId) return null;
+  const job = options.jobs.get(sourceId);
+  if (!job || job.type !== "track-object" || job.status !== "succeeded"
+    || options.jobOwners.get(sourceId) !== sessionToken) {
+    throw Object.assign(new Error("The local tracking source is no longer available in this secure session."), { statusCode: 404 });
+  }
+  const fileName = safeFileName(job.metadata?.fileName);
+  const filePath = path.join(options.config.cacheDir, sourceId, `input-${fileName}`);
+  let stat;
+  try {
+    stat = await fs.lstat(filePath);
+  } catch {
+    throw Object.assign(new Error("The local tracking source must be reconnected."), { statusCode: 404 });
+  }
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw Object.assign(new Error("The local tracking source must be reconnected."), { statusCode: 404 });
+  }
+  return { id: sourceId, fileName, filePath };
+}
+
 function trackingPrompt(request = {}, maxDurationMs = 120_000) {
   const encoded = String(request.headers?.["x-football-science-tracking-prompt"] || "");
   if (!encoded || encoded.length > 8192) throw Object.assign(new Error("A bounded tracking prompt is required."), { statusCode: 400 });
@@ -75,14 +105,17 @@ export function createTrackingJobHandler(options = {}) {
     let job = null;
     try {
       const prompt = trackingPrompt(request, options.config.maxTrackingDurationMs);
-      const declaredBytes = Math.max(0, Number(request.headers["content-length"] || 0));
+      const sourceId = requestedSourceId(request);
+      const source = await reusableSource(options, sourceId, session.token);
+      const declaredBytes = source ? 0 : Math.max(0, Number(request.headers["content-length"] || 0));
       await pruneCache(options.config.cacheDir, {
         maxBytes: options.config.maxCacheBytes,
         reserveBytes: declaredBytes,
-        protectedIds: options.jobs.activeIds(),
+        protectedIds: [...options.jobs.activeIds(), ...(source ? [source.id] : [])],
       });
       job = options.jobs.create("track-object", {
-        fileName: safeFileName(request.headers["x-football-science-file-name"]),
+        fileName: source?.fileName || safeFileName(request.headers["x-football-science-file-name"]),
+        sourceArtifactId: source?.id || "",
         startMs: prompt.startMs,
         endMs: prompt.endMs,
         promptAtMs: prompt.promptAtMs,
@@ -93,10 +126,16 @@ export function createTrackingJobHandler(options = {}) {
       const workDir = path.join(options.config.cacheDir, job.id);
       const inputPath = path.join(workDir, `input-${job.metadata.fileName}`);
       const outputPath = path.join(workDir, "track.json");
-      await receiveRequestFile(request, inputPath, {
-        maxBytes: options.config.maxInputBytes,
-        onProgress: (progress) => options.jobs.updateProgress(job.id, progress),
-      });
+      if (source) {
+        await fs.mkdir(workDir, { recursive: true });
+        await fs.link(source.filePath, inputPath);
+        options.jobs.updateProgress(job.id, { stage: "reusing local source", ratio: 0.2 });
+      } else {
+        await receiveRequestFile(request, inputPath, {
+          maxBytes: options.config.maxInputBytes,
+          onProgress: (progress) => options.jobs.updateProgress(job.id, progress),
+        });
+      }
       options.jobs.enqueue(job.id, async ({ signal, reportProgress }) => {
         try {
           reportProgress({ stage: "tracking", ratio: 0.22 });
@@ -104,10 +143,11 @@ export function createTrackingJobHandler(options = {}) {
             signal,
             onProgress: (progress) => reportProgress({ ...progress, ratio: Math.max(0.22, Number(progress.ratio) || 0.22) }),
           });
-          await fs.rm(inputPath, { force: true });
+          if (source) await fs.rm(inputPath, { force: true });
           const access = options.assets.issue(job.id, session.origin);
           return {
             artifactId: job.id,
+            sourceArtifactId: source?.id || job.id,
             trackingUrl: `${options.baseUrl()}/tracking/${job.id}/track.json?access=${encodeURIComponent(access.token)}`,
             expiresAt: new Date(access.expiresAtMs).toISOString(),
             engine: result.engine,

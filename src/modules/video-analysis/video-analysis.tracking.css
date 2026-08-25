@@ -12,6 +12,7 @@
 .video-analysis-telestration-mode button,
 .video-analysis-tracking-toolbar button,
 .video-analysis-tracking-commands button,
+.video-analysis-tracking-continuation button,
 .video-analysis-tracking-review button,
 .video-analysis-tracking-graphics button {
   min-height: 34px;
@@ -375,6 +376,45 @@
   color: #526158;
   font-size: 10px;
   font-weight: 700;
+}
+
+.video-analysis-tracking-continuation {
+  display: grid;
+  gap: 7px;
+  border-left: 3px solid #258052;
+  padding: 8px 10px;
+  background: #edf8f1;
+}
+
+.video-analysis-tracking-continuation > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.video-analysis-tracking-continuation span {
+  overflow: hidden;
+  color: #526158;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-tracking-continuation__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.video-analysis-tracking-continuation__actions button {
+  min-width: 0;
+  padding-inline: 6px;
+  font-size: 10px;
+}
+
+.video-analysis-tracking-continuation__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .video-analysis-tracking-graphics {

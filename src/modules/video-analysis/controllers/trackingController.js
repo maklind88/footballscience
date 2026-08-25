@@ -5,6 +5,13 @@ import { selectedPresentationItem, updatePresentationItem } from "../services/pr
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
 import { normalizeTrackingJobProgress } from "../services/trackingProgressService.js";
 import {
+  initialTrackingPromptChunk,
+  mergeTrackingExtension,
+  trackingExtensionCorrection,
+  trackingExtensionPrompt,
+  trackingTargetRange,
+} from "../services/trackingExtensionService.js";
+import {
   applyManualTrackingCorrection,
   createManualPromptTrack,
   trackingMetadataPayload,
@@ -218,14 +225,23 @@ export function createTrackingController(options = {}) {
     return true;
   }
 
-  async function runTracking() {
+  async function runTracking(runOptions = {}) {
     const state = getState();
     const item = selectedItem(state);
-    const prompt = state.presentation?.tracking?.prompt;
-    if (!item || !prompt?.box || !options.trackObject) return false;
+    const requestedPrompt = runOptions.prompt || state.presentation?.tracking?.prompt;
+    const baseTrack = runOptions.baseTrack ? normalizeObjectTrack(runOptions.baseTrack) : null;
+    if (!item || !requestedPrompt?.box || !options.trackObject) return false;
+    const provider = state.presentation?.tracking?.provider || {};
+    const targetRange = baseTrack
+      ? trackingTargetRange(baseTrack, itemRange(item))
+      : { startMs: requestedPrompt.startMs, endMs: requestedPrompt.endMs };
+    const prompt = baseTrack
+      ? trackingPrompt(requestedPrompt)
+      : initialTrackingPromptChunk(requestedPrompt, { maxDurationMs: provider.maxDurationMs });
+    const direction = runOptions.direction === "earlier" ? "earlier" : "later";
     updateState((current) => trackingPatch(current, {
       job: normalizeTrackingJobProgress({
-        stage: "Preparing local tracking",
+        stage: baseTrack ? `Extending track ${direction}` : "Preparing local tracking",
         ratio: 0.02,
       }, {}, { nowMs: now() }),
       error: "",
@@ -236,6 +252,9 @@ export function createTrackingController(options = {}) {
         clipId: item.clipId,
         videoId: item.clip?.videoId || item.clip?.video_id || state.video?.id,
         prompt,
+        sourceArtifactId: baseTrack?.metadata?.localSourceArtifactId
+          || baseTrack?.metadata?.localArtifactId
+          || "",
         onProgress: (progress = {}) => updateState((current) => trackingPatch(current, {
           job: normalizeTrackingJobProgress(
             progress,
@@ -244,23 +263,38 @@ export function createTrackingController(options = {}) {
           ),
         })),
       });
-      track = normalizeObjectTrack({
+      const trackedPart = normalizeObjectTrack({
         ...track,
         clipId: item.clipId,
         videoId: item.clip?.videoId || item.clip?.video_id || state.video?.id,
-        playerId: prompt.playerId || track.playerId,
-        playerLabel: prompt.playerLabel || track.playerLabel,
+        playerId: baseTrack ? track.playerId || baseTrack.playerId : prompt.playerId || track.playerId,
+        playerLabel: baseTrack ? track.playerLabel || baseTrack.playerLabel : prompt.playerLabel || track.playerLabel,
         status: "review",
+        metadata: {
+          ...(track.metadata || {}),
+          targetStartMs: targetRange.startMs,
+          targetEndMs: targetRange.endMs,
+        },
       });
+      track = baseTrack ? mergeTrackingExtension(baseTrack, trackedPart, direction) : trackedPart;
       track = await persistTrack(track);
+      if (baseTrack && options.persistCorrection) {
+        try {
+          await options.persistCorrection(trackingExtensionCorrection(track, direction));
+        } catch {
+          // The merged local track remains reviewable if correction metadata is temporarily unavailable.
+        }
+      }
       updateState((current) => {
         const liveItem = selectedItem(current);
         if (!liveItem) return current;
-        const tracks = [...(liveItem.objectTracks || []).filter((entry) => entry.id !== track.id), track];
+        const tracks = [...(liveItem.objectTracks || []).filter((entry) => (
+          entry.id !== track.id && entry.id !== baseTrack?.id
+        )), track];
         return trackingPatch(replaceItem(current, liveItem.id, { objectTracks: tracks }), {
           selectedTrackIds: [track.id],
           captureMode: "",
-          prompt: { ...prompt, box: null },
+          prompt: { ...requestedPrompt, ...targetRange, box: null },
           job: null,
           error: "",
         });
@@ -270,6 +304,26 @@ export function createTrackingController(options = {}) {
       updateState((current) => trackingPatch(current, {
         job: null,
         error: error?.name === "AbortError" ? "" : error?.message || "Local tracking could not be completed.",
+      }));
+      return false;
+    }
+  }
+
+  async function extendSelectedTrack(direction = "later") {
+    const state = getState();
+    const item = selectedItem(state);
+    const trackId = state.presentation?.tracking?.selectedTrackIds?.[0] || "";
+    const track = (item?.objectTracks || []).find((entry) => entry.id === trackId);
+    if (!item || !track || state.presentation?.tracking?.provider?.status !== "ready") return false;
+    try {
+      const range = trackingTargetRange(track, itemRange(item));
+      const prompt = trackingExtensionPrompt(track, range, direction, {
+        maxDurationMs: state.presentation?.tracking?.provider?.maxDurationMs,
+      });
+      return await runTracking({ baseTrack: track, direction, prompt });
+    } catch (error) {
+      updateState((current) => trackingPatch(current, {
+        error: error?.message || "The object track could not be extended.",
       }));
       return false;
     }
@@ -411,6 +465,8 @@ export function createTrackingController(options = {}) {
     if (action === "correct") return beginCapture("correction", target);
     if (action === "manual") { void addManualTrack(); return true; }
     if (action === "run") { void runTracking(); return true; }
+    if (action === "extend-earlier") { void extendSelectedTrack("earlier"); return true; }
+    if (action === "extend-later") { void extendSelectedTrack("later"); return true; }
     if (action === "refresh-provider") { void refreshProvider(); return true; }
     if (action === "cancel") {
       const cancelled = trackingJob.cancel();

@@ -323,6 +323,7 @@ export function createLocalVideoServer(options = {}) {
           maxCacheBytes: config.maxCacheBytes,
           maxConcurrentJobs: config.maxConcurrentJobs,
           maxQueuedJobs: config.maxQueuedJobs,
+          maxTrackingDurationMs: config.maxTrackingDurationMs,
           maxOverlayBytes: config.maxOverlayBytes,
           maxOverlayPrimitives: config.maxOverlayPrimitives,
           maxReplayDurationMs: config.maxReplayDurationMs,

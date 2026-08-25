@@ -95,6 +95,7 @@ export async function inspectLocalTrackingProvider(win = window) {
       name: String(provider.engineName || "Football Science SAM 2.1 Player Tracker"),
       version: String(provider.engineVersion || ""),
       source: String(provider.source || "none"),
+      maxDurationMs: Math.max(1000, Math.min(20 * 60 * 1000, Number(payload.limits?.maxTrackingDurationMs) || 120_000)),
       error: "",
     };
   } catch (error) {
@@ -109,11 +110,34 @@ export async function inspectLocalTrackingProvider(win = window) {
   }
 }
 
+async function queueTrackingJob(options = {}) {
+  const headers = {
+    "content-type": options.file?.type || "application/octet-stream",
+    "x-football-science-file-name": encodeURIComponent(
+      options.file?.name || options.displayName || "match-video",
+    ),
+    "x-football-science-session": options.sessionToken,
+    "x-football-science-tracking-prompt": encodePrompt(options.prompt, options.win),
+  };
+  if (options.sourceArtifactId) {
+    headers["x-football-science-tracking-source-id"] = options.sourceArtifactId;
+  }
+  const request = {
+    method: "POST",
+    headers,
+    signal: options.signal,
+  };
+  if (!options.sourceArtifactId) request.body = options.file;
+  const response = await options.fetcher(`${options.baseUrl}/jobs/track-object`, request);
+  return { response, payload: await responseJson(response) };
+}
+
 export async function trackLocalObject(options = {}) {
   const win = options.win || window;
   const fetcher = win.fetch?.bind(win) || fetch;
   const file = getLocalVideoFile(options.videoRef);
-  if (!file) throw new Error("Reconnect the original local video before tracking a player.");
+  const requestedSourceId = String(options.sourceArtifactId || "").trim();
+  if (!file && !requestedSourceId) throw new Error("Reconnect the original local video before tracking a player.");
   const baseUrl = localVideoBridgeBaseUrl(win);
   const session = await openLocalBridgeSession(baseUrl, { fetcher });
   const capabilityResponse = await fetcher(`${baseUrl}/capabilities`, {
@@ -130,18 +154,21 @@ export async function trackLocalObject(options = {}) {
     clipId: options.clipId,
     videoId: options.videoId,
   };
-  const response = await fetcher(`${baseUrl}/jobs/track-object`, {
-    method: "POST",
-    headers: {
-      "content-type": file.type || "application/octet-stream",
-      "x-football-science-file-name": encodeURIComponent(file.name || options.videoRef?.displayName || "match-video"),
-      "x-football-science-session": session.sessionToken,
-      "x-football-science-tracking-prompt": encodePrompt(prompt, win),
-    },
-    body: file,
+  const request = {
+    baseUrl,
+    displayName: options.videoRef?.displayName,
+    fetcher,
+    file,
+    prompt,
+    sessionToken: session.sessionToken,
     signal: options.signal,
-  });
-  const queued = await responseJson(response);
+    sourceArtifactId: requestedSourceId,
+    win,
+  };
+  let { response, payload: queued } = await queueTrackingJob(request);
+  if (!response.ok && requestedSourceId && file && [404, 409, 410].includes(response.status)) {
+    ({ response, payload: queued } = await queueTrackingJob({ ...request, sourceArtifactId: "" }));
+  }
   if (!response.ok || !queued.statusUrl) throw new Error(queued.error || "The local tracking job could not be started.");
   const queuedJob = { statusUrl: queued.statusUrl, sessionToken: session.sessionToken };
   options.onQueued?.(queuedJob);
@@ -160,6 +187,7 @@ export async function trackLocalObject(options = {}) {
         ...(artifact.metadata || {}),
         localArtifactId: result.artifactId,
         localArtifactExpiresAt: result.expiresAt,
+        localSourceArtifactId: result.sourceArtifactId || requestedSourceId,
       },
     });
   } catch (error) {

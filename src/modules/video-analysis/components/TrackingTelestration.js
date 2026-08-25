@@ -1,6 +1,10 @@
 import { normalizeDynamicGraphic } from "../domain/dynamicGraphic.model.js";
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { resolveDynamicGraphics } from "../services/dynamicGraphicRenderService.js";
+import {
+  trackingExtensionAvailability,
+  trackingTargetRange,
+} from "../services/trackingExtensionService.js";
 import { trackingPointAt } from "../services/trackingGeometryService.js";
 import { formatTrackingDuration } from "../services/trackingProgressService.js";
 import { trackingReviewSummary } from "../services/trackingReviewService.js";
@@ -31,6 +35,13 @@ function currentItemTracking(item = {}) {
     tracks: (item.objectTracks || []).map(normalizeObjectTrack),
     graphics: (item.dynamicGraphics || []).map(normalizeDynamicGraphic),
   };
+}
+
+function itemRange(item = {}) {
+  const clip = item.clip || {};
+  const startMs = Math.max(0, Math.round(Number(item.startMs ?? clip.startMs ?? clip.start_ms) || 0));
+  const endMs = Math.max(startMs + 1, Math.round(Number(item.endMs ?? clip.endMs ?? clip.end_ms) || startMs + 5000));
+  return { startMs, endMs };
 }
 
 function renderTrackBox(track = {}, atMs = 0, selectedTrackIds = []) {
@@ -168,6 +179,28 @@ function renderTrackingProvenance(track = null) {
   return label ? `<small class="video-analysis-tracking-provenance">${escapeHtml(label)}</small>` : "";
 }
 
+function renderTrackingContinuation(track = null, item = null, options = {}) {
+  if (!track || !item) return "";
+  const availability = trackingExtensionAvailability(
+    track,
+    trackingTargetRange(track, itemRange(item)),
+  );
+  const disabled = Boolean(options.jobActive) || !options.providerReady;
+  const status = availability.earlier || availability.later ? "Partial" : "Complete";
+  return `
+    <div class="video-analysis-tracking-continuation">
+      <div>
+        <strong>Track span</strong>
+        <span>${escapeHtml(`${formatTrackingDuration(availability.trackedDurationMs)} of ${formatTrackingDuration(availability.targetDurationMs)} | ${status}`)}</span>
+      </div>
+      <div class="video-analysis-tracking-continuation__actions">
+        <button type="button" data-video-analysis-tracking-action="extend-earlier" ${availability.earlier && !disabled ? "" : "disabled"}>Extend earlier</button>
+        <button type="button" data-video-analysis-tracking-action="extend-later" ${availability.later && !disabled ? "" : "disabled"}>Extend later</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderTrackingProvider(provider = {}) {
   const requestedStatus = String(provider.status || "unchecked");
   const status = ["unchecked", "checking", "ready", "not-installed", "offline"].includes(requestedStatus)
@@ -233,6 +266,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
       <ol class="video-analysis-tracking-list">
         ${tracks.length ? tracks.map((track) => renderTrackRow(track, selectedTrackIds)).join("") : `<li class="video-analysis-muted">No tracked objects in this clip.</li>`}
       </ol>
+      ${renderTrackingContinuation(primaryTrack, item, { providerReady, jobActive: Boolean(tracking.job) })}
       ${review ? `
         <div class="video-analysis-tracking-review">
           <strong>${review.canVerify ? "Ready to verify" : "Review required"}</strong>

@@ -20,3 +20,5 @@ npm run fs-player:tracking:plan
 npm run fs-player:tracking:install -- --accept-license
 npm run fs-player:tracking:preflight
 ```
+
+The web release does not install model weights or accept the provider license on the analyst's behalf. FS Player checks the companion capability when Auto follow opens and enables `Track locally` only after preflight is ready; manual keyframes and corrections remain available otherwise.

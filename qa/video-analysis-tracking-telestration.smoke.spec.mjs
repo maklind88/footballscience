@@ -33,6 +33,7 @@ async function openTrackingWorkspace(page) {
   await openDrawingWorkspace(page);
   await page.locator('[data-video-analysis-tracking-mode="tracking"]').click();
   await expect(page.locator(".video-analysis-tracking-side")).toBeVisible();
+  await expect(page.locator(".video-analysis-tracking-provider")).toContainText("SAM 2.1");
 }
 
 async function createTrackedHighlight(page) {
@@ -46,9 +47,11 @@ async function createTrackedHighlight(page) {
   await page.mouse.move(box.x + (box.width * 0.43), box.y + (box.height * 0.62));
   await page.mouse.up();
   await expect(page.locator(".video-analysis-track-prompt")).toBeVisible();
+  await expect(page.locator('[data-video-analysis-tracking-action="run"]')).toBeEnabled();
   await page.locator('[data-video-analysis-tracking-action="manual"]').click();
   await expect(page.locator(".video-analysis-tracking-list li")).toHaveCount(1);
   await expect(page.locator(".video-analysis-track-box")).toBeVisible();
+  await expect(page.locator(".video-analysis-tracking-review")).toContainText("Add at least two tracking points");
   await page.locator('[data-video-analysis-tracking-action="add-graphic"]').click();
   await expect(page.locator(".video-analysis-dynamic-anchor.is-circle")).toBeVisible();
 }

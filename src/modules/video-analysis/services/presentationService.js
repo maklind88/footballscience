@@ -87,6 +87,14 @@ export function createInitialPresentationWorkspace() {
       interaction: null,
       job: null,
       error: "",
+      provider: {
+        status: "unchecked",
+        available: false,
+        name: "Local tracking companion",
+        version: "",
+        source: "none",
+        error: "",
+      },
     },
     spatial: {
       panel: "tracking",

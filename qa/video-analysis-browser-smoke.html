@@ -186,6 +186,21 @@
         const body = options.body ? JSON.parse(options.body) : {};
         window.__videoAnalysisRequests = window.__videoAnalysisRequests || [];
         window.__videoAnalysisRequests.push({ action, body });
+        if (parsed.origin === "http://127.0.0.1:47831" && parsed.pathname === "/session") {
+          return Response.json({ ok: true, sessionToken: "local-smoke-session", expiresAt: "2099-01-01T00:00:00.000Z" }, { status: 201 });
+        }
+        if (parsed.origin === "http://127.0.0.1:47831" && parsed.pathname === "/capabilities") {
+          return Response.json({
+            ok: true,
+            capabilities: ["track-object"],
+            trackingProvider: {
+              available: true,
+              engineName: "Football Science SAM 2.1 Player Tracker",
+              engineVersion: "1.0.0",
+              source: "approved-packaged",
+            },
+          });
+        }
         if (action === "status") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2" });
         if (action === "matches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", matches, scheduleCandidates });
         if (action === "clips") {

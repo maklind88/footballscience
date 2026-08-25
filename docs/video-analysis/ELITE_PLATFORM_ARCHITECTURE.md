@@ -59,6 +59,7 @@ Large tracking arrays must not be copied into generic application state or one u
 - Low-confidence or discontinuous sections are visible and require correction before verification.
 - The tracking workflow supports manual prompt/keyframes, review and correction, track-bound highlights, metadata-only central persistence, and a secure local provider protocol.
 - The approved SAM 2.1 provider has a pinned manifest, checksum-verifying installer, isolated runtime, capability preflight, forward/backward propagation, and bounded artifact validation. Model assets are installed explicitly on the analyst device and are never bundled into the web deployment; dense samples remain local.
+- The tracking sidebar checks the companion capability before enabling automatic tracking and distinguishes ready, provider-not-installed, and companion-offline states. Manual keyframes remain available without pretending that automatic inference ran.
 
 ### Pitch Calibration And Spatial Analysis
 
@@ -111,7 +112,7 @@ Each phase must ship behind capability checks, preserve old records, pass module
 | Coding and collaboration | Implemented in candidate branch | Exclusive coding groups, repeatable MG Principles, batch commands, analyst presence, audited operation replay, optimistic revisions, and recoverable conflicts |
 | Timeline workspace | Implemented in candidate branch | Multiple persisted timelines, true millisecond scale, overview/focus zoom, overlap stacking, row colors/order/locks, clip move/copy/merge/delete, and undo |
 | Presentation and export | Implemented in candidate branch | Presentation builder, freehand/arrow/circle/spotlight/text/freeze/zoom layers, track-bound graphics, deterministic overlay compilation, and burned-in H.264/AAC MP4 export |
-| Tracking and dynamic telestration | Implemented in candidate branch | Prompt/keyframe UX, identity continuity, confidence and occlusion gates, manual correction, track-bound graphics, secure local jobs, and pinned SAM 2.1 installer/runtime |
+| Tracking and dynamic telestration | Implemented in candidate branch | Prompt/keyframe UX, provider readiness, identity continuity, confidence and occlusion gates, manual correction, track-bound graphics, secure local jobs, and pinned SAM 2.1 installer/runtime |
 | Spatial analysis | Implemented in candidate branch | Manual pitch-plane calibration, server-recomputed confidence/RMS, perspective overlay, true-metre pair and unit metrics, movement curves, and track-bound distance/unit/path layers |
 | Media production | Implemented in candidate branch | Multi-angle workspace, offset/drift sync, compare playback, progressive device-local capture, content-addressed proxies, byte-range playback, bounded replay buffers, source swaps, rendering, progress/cancel/download, and output checksums |
 | Search and intelligence | Implemented in candidate branch | Visible natural-language query compilation, advanced two-dimensional matrix, metric drilldown, cohort comparison, stable evidence snapshots, and generated analysis reports |
@@ -129,6 +130,18 @@ Each phase must ship behind capability checks, preserve old records, pass module
 | Tracking | Automatic local SAM 2.1 tracking, identity continuity, confidence/occlusion visibility, correction and track-bound highlights | `qa/video-analysis-sam2-provider.api.spec.mjs`, `qa/video-analysis-tracking-telestration.api.spec.mjs` |
 | Spatial analysis | Pitch calibration, real metres, pair/unit measures, gaps and continuity-aware movement curves | `qa/video-analysis-spatial-workbench.api.spec.mjs`, `qa/video-analysis-spatial-workbench.smoke.spec.mjs` |
 | Sharing | Metadata reconnection plus private portable reviews that authorized recipients can stream or download without the source file | `qa/video-analysis-portable-media.api.spec.mjs`, `qa/video-analysis-media-production.smoke.spec.mjs` |
+
+## Local Tracking Activation
+
+Automatic tracking is intentionally a device capability, not a web-deployment side effect. A workstation is ready only when `npm run fs-player:tracking:preflight` reports `ok: true`. Installation requires an explicit Apache-2.0 acknowledgement and a supported Python 3.10-3.12 runtime:
+
+```bash
+npm run fs-player:tracking:plan
+npm run fs-player:tracking:install -- --accept-license --python /path/to/python3.12
+npm run fs-player:tracking:preflight
+```
+
+Until that preflight succeeds, FS Player shows the provider as unavailable, keeps `Track locally` disabled, and preserves manual keyframe/correction workflows. This is an operational provisioning prerequisite, not permission to upload match video or model samples.
 
 ## Elite Acceptance Standard
 

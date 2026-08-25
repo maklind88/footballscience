@@ -1,6 +1,6 @@
 import { createTrackingController } from "./controllers/trackingController.js";
 import { createTrackingRepository } from "./repositories/trackingRepository.js";
-import { trackLocalObject } from "./services/localTrackingService.js";
+import { inspectLocalTrackingProvider, trackLocalObject } from "./services/localTrackingService.js";
 import { activeMediaAngle, mediaReferenceForAngle } from "./services/mediaProductionService.js";
 import { matchTimeToAngleTime } from "./services/multiAngleSyncService.js";
 
@@ -35,6 +35,10 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     updateState: (updater) => getRuntime()?.store.update(updater),
     getVideoElement: options.getVideoElement,
     getCurrentMatchMs: options.getCurrentMatchMs,
+    inspectProvider: () => {
+      const runtime = getRuntime();
+      return inspectLocalTrackingProvider(runtime?.context?.win || context.win || window);
+    },
     trackObject: (request) => {
       const runtime = getRuntime();
       return trackLocalObject({

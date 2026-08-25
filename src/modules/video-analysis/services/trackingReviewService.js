@@ -164,6 +164,7 @@ export function trackingReviewSummary(trackValue = {}, options = {}) {
   const discontinuityCount = track.segments.filter((segment) => segment.discontinuityBefore).length;
   const issues = [];
   if (!track.playerId && !track.playerLabel) issues.push("Assign a player identity");
+  if (points.length < 2) issues.push("Add at least two tracking points");
   if (coverage.ratio < minimumCoverage) issues.push("Tracking coverage is incomplete");
   if (lowDetectionCount) issues.push(`${lowDetectionCount} low-confidence samples`);
   if (lowIdentityCount) issues.push(`${lowIdentityCount} identity checks required`);

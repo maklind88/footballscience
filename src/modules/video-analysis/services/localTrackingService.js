@@ -52,13 +52,47 @@ export async function cancelLocalTrackingJob(job = {}, win = window) {
   return response.ok;
 }
 
+export async function inspectLocalTrackingProvider(win = window) {
+  const fetcher = win.fetch?.bind(win) || fetch;
+  const baseUrl = localVideoBridgeBaseUrl(win);
+  try {
+    const session = await openLocalBridgeSession(baseUrl, { fetcher });
+    const response = await fetcher(`${baseUrl}/capabilities`, {
+      headers: { "x-football-science-session": session.sessionToken },
+    });
+    const payload = await responseJson(response);
+    if (!response.ok) throw new Error(payload.error || "The local processing service is not ready.");
+    const provider = payload.trackingProvider && typeof payload.trackingProvider === "object"
+      ? payload.trackingProvider
+      : {};
+    const available = (payload.capabilities || []).includes("track-object") && provider.available !== false;
+    return {
+      status: available ? "ready" : "not-installed",
+      available,
+      name: String(provider.engineName || "Football Science SAM 2.1 Player Tracker"),
+      version: String(provider.engineVersion || ""),
+      source: String(provider.source || "none"),
+      error: "",
+    };
+  } catch (error) {
+    return {
+      status: "offline",
+      available: false,
+      name: "Local tracking companion",
+      version: "",
+      source: "none",
+      error: error?.message || "The local tracking companion is offline.",
+    };
+  }
+}
+
 export async function trackLocalObject(options = {}) {
   const win = options.win || window;
   const fetcher = win.fetch?.bind(win) || fetch;
   const file = getLocalVideoFile(options.videoRef);
   if (!file) throw new Error("Reconnect the original local video before tracking a player.");
   const baseUrl = localVideoBridgeBaseUrl(win);
-  const session = await openLocalBridgeSession(baseUrl);
+  const session = await openLocalBridgeSession(baseUrl, { fetcher });
   const capabilityResponse = await fetcher(`${baseUrl}/capabilities`, {
     headers: { "x-football-science-session": session.sessionToken },
     signal: options.signal,

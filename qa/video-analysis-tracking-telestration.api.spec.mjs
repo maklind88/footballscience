@@ -44,7 +44,10 @@ test("manual tracking corrections preserve identity and enforce review before ve
     endMs: 3000,
     box: { left: 0.2, top: 0.3, width: 0.08, height: 0.18 },
   });
-  expect(review.trackingReviewSummary(first).canVerify).toBe(false);
+  expect(review.trackingReviewSummary(first)).toMatchObject({
+    canVerify: false,
+    issues: ["Add at least two tracking points"],
+  });
   const corrected = review.applyManualTrackingCorrection(first, {
     atMs: 3000,
     box: { left: 0.4, top: 0.32, width: 0.08, height: 0.18 },
@@ -177,6 +180,62 @@ test("local tracking exposes cancellation and clears an aborted job without a fa
   expect(activeSignal.aborted).toBe(true);
   await expect.poll(() => state.presentation.tracking.job).toBeNull();
   expect(state.presentation.tracking.error).toBe("");
+});
+
+test("local tracking readiness distinguishes installed, missing and offline providers", async () => {
+  const localTracking = await import(moduleUrl("src/modules/video-analysis/services/localTrackingService.js"));
+  function providerWindow(port, capabilities = [], offline = false) {
+    const baseUrl = `http://127.0.0.1:${port}`;
+    return {
+      FOOTBALL_SCIENCE_LOCAL_VIDEO_BRIDGE_URL: baseUrl,
+      fetch: async (url) => {
+        if (offline) throw new Error("Companion unavailable");
+        const parsed = new URL(url);
+        if (parsed.pathname === "/session") {
+          return Response.json({ sessionToken: `session-${port}`, expiresAt: "2099-01-01T00:00:00.000Z" }, { status: 201 });
+        }
+        return Response.json({
+          capabilities,
+          trackingProvider: {
+            available: capabilities.includes("track-object"),
+            engineName: "Football Science SAM 2.1 Player Tracker",
+            engineVersion: "1.0.0",
+            source: capabilities.includes("track-object") ? "approved-packaged" : "none",
+          },
+        });
+      },
+    };
+  }
+
+  await expect(localTracking.inspectLocalTrackingProvider(providerWindow(47911, ["track-object"]))).resolves.toMatchObject({
+    status: "ready",
+    available: true,
+    source: "approved-packaged",
+  });
+  await expect(localTracking.inspectLocalTrackingProvider(providerWindow(47912))).resolves.toMatchObject({
+    status: "not-installed",
+    available: false,
+  });
+  await expect(localTracking.inspectLocalTrackingProvider(providerWindow(47913, [], true))).resolves.toMatchObject({
+    status: "offline",
+    available: false,
+    error: "Companion unavailable",
+  });
+
+  const { renderTrackingSidebar } = await import(moduleUrl("src/modules/video-analysis/components/TrackingTelestration.js"));
+  const sidebar = renderTrackingSidebar({
+    players: [],
+    presentation: {
+      tracking: {
+        mode: "tracking",
+        provider: { status: "not-installed", available: false },
+        prompt: { startMs: 0, endMs: 1000, box: { left: 0.2, top: 0.2, width: 0.1, height: 0.2 } },
+      },
+    },
+  }, { id: "item-1", clipId: "clip-1", objectTracks: [], dynamicGraphics: [] });
+  expect(sidebar).toContain("Provider not installed");
+  expect(sidebar).toMatch(/data-video-analysis-tracking-action="run" disabled/);
+  expect(sidebar).toMatch(/data-video-analysis-tracking-action="manual" >Manual keyframe/);
 });
 
 test("tracking metadata API rejects dense samples and migration remains service-role scoped", async () => {

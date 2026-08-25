@@ -135,6 +135,28 @@ function renderTrackRow(track = {}, selectedTrackIds = []) {
   `;
 }
 
+function renderTrackingProvider(provider = {}) {
+  const requestedStatus = String(provider.status || "unchecked");
+  const status = ["unchecked", "checking", "ready", "not-installed", "offline"].includes(requestedStatus)
+    ? requestedStatus
+    : "unchecked";
+  const providerName = String(provider.name || "Local tracker").replace(/^Football Science\s+/i, "");
+  const label = status === "ready"
+    ? `${providerName}${provider.version ? ` ${provider.version}` : ""}`
+    : status === "not-installed"
+      ? "Provider not installed"
+      : status === "offline"
+        ? "Companion offline"
+        : "Checking local engine";
+  return `
+    <div class="video-analysis-tracking-provider is-${escapeHtml(status)}" title="${escapeHtml(provider.error || label)}">
+      <span>Local engine</span>
+      <strong>${escapeHtml(label)}</strong>
+      <button type="button" data-video-analysis-tracking-action="refresh-provider" ${status === "checking" ? "disabled" : ""}>Refresh</button>
+    </div>
+  `;
+}
+
 export function renderTrackingSidebar(state = {}, item = null) {
   const tracking = state.presentation?.tracking || {};
   if (tracking.mode === "static") return "";
@@ -143,6 +165,8 @@ export function renderTrackingSidebar(state = {}, item = null) {
   }
   const { tracks, graphics } = currentItemTracking(item || {});
   const selectedTrackIds = tracking.selectedTrackIds || [];
+  const provider = tracking.provider || {};
+  const providerReady = provider.status === "ready";
   const primaryTrack = tracks.find((track) => track.id === selectedTrackIds[0]) || null;
   const review = primaryTrack ? trackingReviewSummary(primaryTrack) : null;
   const clip = item?.clip || {};
@@ -154,6 +178,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
         <p class="video-analysis-kicker">Object tracking</p>
         <h3>${escapeHtml(primaryTrack ? primaryTrack.playerLabel || "Review track" : "Select a player")}</h3>
       </div>
+      ${renderTrackingProvider(provider)}
       <label>Player
         <select data-video-analysis-tracking-field="playerId">
           <option value="">Unassigned</option>
@@ -166,7 +191,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
       </div>
       <div class="video-analysis-tracking-commands">
         <button type="button" data-video-analysis-tracking-action="select-target">Select target</button>
-        <button type="button" data-video-analysis-tracking-action="run" ${tracking.prompt?.box ? "" : "disabled"}>Track locally</button>
+        <button type="button" data-video-analysis-tracking-action="run" ${tracking.prompt?.box && providerReady ? "" : "disabled"}>Track locally</button>
         <button type="button" data-video-analysis-tracking-action="manual" ${tracking.prompt?.box ? "" : "disabled"}>Manual keyframe</button>
         <button type="button" data-video-analysis-tracking-action="correct" ${primaryTrack ? "" : "disabled"}>Correct here</button>
       </div>

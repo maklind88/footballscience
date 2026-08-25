@@ -81,14 +81,44 @@ export function createTrackingController(options = {}) {
   const getCurrentMatchMs = options.getCurrentMatchMs || null;
   const trackingJob = createTrackingJobSession(options.trackObject);
   let activeInteraction = null;
+  let providerRefreshId = 0;
+
+  async function refreshProvider() {
+    if (!options.inspectProvider) return false;
+    const refreshId = ++providerRefreshId;
+    updateState((state) => trackingPatch(state, {
+      provider: {
+        ...(state.presentation?.tracking?.provider || {}),
+        status: "checking",
+        available: false,
+        error: "",
+      },
+    }));
+    let provider;
+    try {
+      provider = await options.inspectProvider();
+    } catch (error) {
+      provider = {
+        status: "offline",
+        available: false,
+        name: "Local tracking companion",
+        error: error?.message || "The local tracking companion is offline.",
+      };
+    }
+    if (refreshId !== providerRefreshId) return false;
+    updateState((state) => trackingPatch(state, { provider }));
+    return provider.available === true;
+  }
 
   function setMode(mode = "static") {
+    const nextMode = mode === "tracking" ? "tracking" : "static";
     updateState((state) => trackingPatch(state, {
-      mode: mode === "tracking" ? "tracking" : "static",
+      mode: nextMode,
       captureMode: "",
       interaction: null,
       error: "",
     }));
+    if (nextMode === "tracking") void refreshProvider();
     return true;
   }
 
@@ -375,6 +405,7 @@ export function createTrackingController(options = {}) {
     if (action === "correct") return beginCapture("correction", target);
     if (action === "manual") { void addManualTrack(); return true; }
     if (action === "run") { void runTracking(); return true; }
+    if (action === "refresh-provider") { void refreshProvider(); return true; }
     if (action === "cancel") {
       const cancelled = trackingJob.cancel();
       if (cancelled) updateState((state) => trackingPatch(state, { job: { ...(state.presentation?.tracking?.job || {}), stage: "Cancelling" } }));
@@ -394,6 +425,7 @@ export function createTrackingController(options = {}) {
     finishInteraction,
     handleChange,
     handleClick,
+    refreshProvider,
     startInteraction,
     updateInteraction,
   };

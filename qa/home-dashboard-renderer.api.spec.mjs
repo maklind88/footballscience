@@ -178,7 +178,7 @@ test("home dashboard renderer owns the compact birthday news card", () => {
   expect(rendered).not.toContain("Daria Winger");
   expect(rendered.match(/dashboard-birthday-item/g) || []).toHaveLength(2);
   expect(rendered).toContain("dashboard-birthday-spotlight");
-  expect(rendered).toContain("dashboard-birthday-cake");
+  expect(rendered).not.toContain("dashboard-birthday-cake");
   expect(rendered).toContain('src="https://example.com/ada.jpg"');
   expect(rendered).toContain("Jul 24 · Tomorrow");
   expect(rendered).not.toContain('data-dashboard-birthday-countdown');
@@ -195,6 +195,51 @@ test("home dashboard renderer owns the compact birthday news card", () => {
   expect(rendered).not.toContain("Squad profiles");
   expect(rendered).not.toContain('data-open-workspace="player-profiles"');
   expect(rendered).toContain("data-dashboard-open-birthday-calendar");
+});
+
+test("home dashboard makes a birthday today unmistakable without decorative badge UI", () => {
+  const renderer = createDashboardHomeCardsRenderer({
+    escapeHtml: (value) => String(value ?? ""),
+    renderTaskList: () => "<div></div>",
+    resolveUserLabel: renderTestUserLabel,
+  });
+
+  const rendered = renderer.renderBirthdayNewsCard({
+    birthdayCalendar: {
+      items: [
+        {
+          id: "p8",
+          name: "Evelyn Ijeh",
+          dateLabel: "Sep 12",
+          relativeLabel: "Today",
+          daysUntil: 0,
+          turningAge: 25,
+          nextBirthday: "2026-09-12",
+          photoUrl: "https://example.com/evelyn.jpg",
+        },
+        {
+          id: "p9",
+          name: "Maycee Bell",
+          dateLabel: "Sep 18",
+          relativeLabel: "In 6 days",
+          daysUntil: 6,
+          turningAge: 26,
+          nextBirthday: "2026-09-18",
+        },
+      ],
+      todayCount: 1,
+      thisMonthCount: 2,
+      trackedCount: 2,
+    },
+  });
+
+  expect(rendered).toContain("has-birthday-today");
+  expect(rendered).toContain("Birthday today");
+  expect(rendered).toContain("dashboard-birthday-spotlight is-today");
+  expect(rendered).toContain('aria-label="Evelyn Ijeh turns 25 today"');
+  expect(rendered).toContain("Sep 12 · Today");
+  expect(rendered).not.toContain("dashboard-birthday-cake");
+  expect(rendered).not.toContain("<small>turns</small>");
 });
 
 test("home dashboard renderer owns the birthday calendar modal", () => {

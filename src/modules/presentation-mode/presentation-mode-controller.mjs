@@ -10,6 +10,7 @@ import { createSetPiecesPlaybackController } from "../set-pieces-room/playback-c
 import { renderSetPiecePlaybackFrame, updateSetPiecePlaybackView } from "../set-pieces-room/playback-view.mjs";
 import { renderPresentationSetPieceBoard } from "./presentation-mode-set-pieces.mjs";
 import { copyPresentationSlideToDeck } from "./presentation-slide-transfer.mjs";
+import { createPresentationBirthdaySlide } from "./presentation-birthday-slide.mjs";
 import {
   normalizePresentationLineupAssignments,
   normalizePresentationLineupFormation,
@@ -841,6 +842,7 @@ export function createPresentationModeController(dependencies = {}) {
     getTeamLogoUrl = () => "",
     getSetPiecesState = () => ({ plays: [] }),
     getPlayerProfilesState = () => ({ players: [] }),
+    getBirthdayCalendar = () => ({ items: [], todayCount: 0 }),
     formatDateLabel = defaultFormatDateLabel,
     isEditableTarget = () => false,
     escapeHtml = defaultEscapeHtml,
@@ -1508,22 +1510,31 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function applySlideStyle(deck, slide, fallbackStyle = {}) {
-    const style = normalizePresentationSlideStyle(deck.slideStyles?.[slide.id], fallbackStyle);
+    const readOnly = slide.readOnly === true;
+    const style = normalizePresentationSlideStyle(readOnly ? slide.style : deck.slideStyles?.[slide.id], fallbackStyle);
     return {
       ...slide,
       accentColor: style.accentColor,
       style,
-      shapes: deck.shapes?.[slide.id] || [],
-      textBoxes: hydrateTextBoxesForRender(deck.textBoxes?.[slide.id] || []),
-      textFieldStyles: deck.textFieldStyles?.[slide.id] || {},
-      textOverrides: deck.textOverrides?.[slide.id] || {},
+      shapes: readOnly ? [] : deck.shapes?.[slide.id] || [],
+      textBoxes: readOnly ? [] : hydrateTextBoxesForRender(deck.textBoxes?.[slide.id] || []),
+      textFieldStyles: readOnly ? {} : deck.textFieldStyles?.[slide.id] || {},
+      textOverrides: readOnly ? {} : deck.textOverrides?.[slide.id] || {},
       infoSlide: slide.infoSlide ? hydrateInfoSlideForRender(slide.infoSlide) : slide.infoSlide,
     };
   }
 
-  function buildSlides(deck, session, dateValue, matchContext = null) {
+  function buildSlides(deck, session, dateValue, matchContext = null, birthdayCalendar = {}) {
     const blocks = Array.isArray(session?.blocks) ? session.blocks : [];
     const lineupPlayerOptions = getLineupPlayerOptions(dateValue);
+    const birthdaySlideDefinition = createPresentationBirthdaySlide({
+      birthdayCalendar,
+      dateValue,
+      meetingType: state.meetingType,
+    });
+    const birthdaySlide = birthdaySlideDefinition
+      ? applySlideStyle(deck, birthdaySlideDefinition, birthdaySlideDefinition.style)
+      : null;
     const naturalSlides = [
       applySlideStyle(deck, { id: "cover", type: "cover", label: "Cover" }, { accentColor: "#22c55e" }),
       ...deck.infoSlides.map((infoSlide, index) => {
@@ -1587,7 +1598,14 @@ export function createPresentationModeController(dependencies = {}) {
         orderedSlides.push(slide);
       }
     });
-    return orderedSlides.map((slide, index) => ({ ...slide, index }));
+    const resolvedSlides = birthdaySlide
+      ? orderedSlides.filter((slide) => slide.id !== birthdaySlide.id)
+      : orderedSlides;
+    if (birthdaySlide) {
+      const coverIndex = resolvedSlides.findIndex((slide) => slide.id === "cover");
+      resolvedSlides.splice(Math.max(0, coverIndex + 1), 0, birthdaySlide);
+    }
+    return resolvedSlides.map((slide, index) => ({ ...slide, index }));
   }
 
   function buildModel() {
@@ -1600,7 +1618,8 @@ export function createPresentationModeController(dependencies = {}) {
     const periodization = getPeriodizationDay(dateValue) || {};
     const blocks = Array.isArray(session.blocks) ? session.blocks : [];
     const matchContext = getNextMatchContext(dateValue);
-    const slides = buildSlides(deck, session, dateValue, matchContext);
+    const birthdayCalendar = meetingConfig.id === "team" ? getBirthdayCalendar(dateValue) || {} : {};
+    const slides = buildSlides(deck, session, dateValue, matchContext, birthdayCalendar);
     state.slideIndex = Math.min(Math.max(0, state.slideIndex), Math.max(0, slides.length - 1));
     const trainingTitle = String(session.title || getScheduledSessionTitle(dateValue) || event?.title || "Training Session").trim();
     const title = meetingConfig.coverTitle || trainingTitle;
@@ -1621,7 +1640,7 @@ export function createPresentationModeController(dependencies = {}) {
       activeShapeTarget: state.activeShapeTarget ? { ...state.activeShapeTarget } : null,
       activeTextTarget: state.activeTextTarget ? { ...state.activeTextTarget } : null,
       contextMenu: state.contextMenu ? { ...state.contextMenu } : null,
-      infoSlideCount: deck.infoSlides.length,
+      infoSlideCount: slides.filter((slide) => Boolean(slide.infoSlide)).length,
       loadLabel: periodization.physicalLoad || event?.type || "Not set",
       medicalRecommendations: getMedicalRecommendationsForDate(dateValue),
       matchContext,
@@ -2356,7 +2375,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     const currentSlide = buildModel().slides[state.slideIndex];
-    if (!currentSlide?.id) {
+    if (!currentSlide?.id || currentSlide.readOnly) {
       return;
     }
     writeDeckForDate(state.dateValue, (deck) => {
@@ -2622,7 +2641,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function addTextBox(options = {}) {
     const currentSlide = buildModel().slides[state.slideIndex];
-    if (!currentSlide?.id) {
+    if (!currentSlide?.id || currentSlide.readOnly) {
       return;
     }
     const kind = textBoxKinds.has(String(options.kind || "").trim()) ? String(options.kind).trim() : "text";
@@ -3049,7 +3068,7 @@ export function createPresentationModeController(dependencies = {}) {
   function addShape(type = "rect", bounds = null) {
     const safeType = normalizeShapeType(type);
     const currentSlide = buildModel().slides[state.slideIndex];
-    if (!currentSlide?.id) {
+    if (!currentSlide?.id || currentSlide.readOnly) {
       return;
     }
     const id = `shape-${Date.now()}`;
@@ -3464,7 +3483,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function deleteCurrentSlide() {
     const currentSlide = buildModel().slides[state.slideIndex];
-    if (!currentSlide?.infoSlide?.id) {
+    if (!currentSlide?.infoSlide?.id || currentSlide.readOnly) {
       return;
     }
     deleteInfoSlide(currentSlide.infoSlide.id);
@@ -3492,12 +3511,15 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const reorderedSlides = [...slides];
     const [movedSlide] = reorderedSlides.splice(from, 1);
+    if (movedSlide?.readOnly) {
+      return false;
+    }
     const to = insertAt > from ? insertAt - 1 : insertAt;
     reorderedSlides.splice(to, 0, movedSlide);
     const activeSlideId = slides[state.slideIndex]?.id || movedSlide?.id;
     writeDeckForDate(state.dateValue, (deck) => ({
       ...deck,
-      slideOrder: normalizeSlideOrder(reorderedSlides.map((slide) => slide.id)),
+      slideOrder: normalizeSlideOrder(reorderedSlides.filter((slide) => !slide.readOnly).map((slide) => slide.id)),
     }));
     const nextModel = buildModel();
     const nextActiveIndex = nextModel.slides.findIndex((slide) => slide.id === activeSlideId);
@@ -4364,6 +4386,10 @@ export function createPresentationModeController(dependencies = {}) {
     if (!target?.slideId) {
       return;
     }
+    const targetSlide = buildModel().slides.find((slide) => slide.id === target.slideId);
+    if (targetSlide?.readOnly) {
+      return;
+    }
     event.preventDefault?.();
     event.stopPropagation?.();
     if (target.targetType === "shape" && target.shapeId) {
@@ -4973,7 +4999,7 @@ export function createPresentationModeController(dependencies = {}) {
       return null;
     }
     const index = Number(tab.dataset.presentationSlideIndex);
-    if (!Number.isInteger(index)) {
+    if (!Number.isInteger(index) || buildModel().slides[index]?.readOnly) {
       return null;
     }
     return {
@@ -5023,7 +5049,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     const index = Number(tab.dataset.presentationSlideIndex);
-    if (!Number.isInteger(index)) {
+    if (!Number.isInteger(index) || buildModel().slides[index]?.readOnly) {
       return;
     }
     state.dragSlideIndex = index;

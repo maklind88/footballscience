@@ -330,25 +330,26 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     return relativeLabel ? `(${relativeLabel})` : "";
   }
 
+  function isBirthdayToday(item = {}) {
+    return Number(item.daysUntil) === 0 || String(item.relativeLabel || "").trim().toLowerCase() === "today";
+  }
+
   function renderBirthdaySpotlight(item = {}) {
     const age = Number(item.turningAge);
     const ageLabel = Number.isFinite(age) && age > 0 ? String(age) : "--";
     const ageUnit = age === 1 ? "year" : "years";
     const dateLabel = item.dateLabel || item.nextBirthday || "";
     const timing = [dateLabel, item.relativeLabel].filter(Boolean).join(" · ");
+    const birthdayToday = isBirthdayToday(item);
     return `
-      <section class="dashboard-birthday-spotlight" aria-label="${escapeHtml(`${item.name || "Player"} birthday spotlight`)}">
-        <div class="dashboard-birthday-hero">
-          ${renderBirthdayAvatar(item, "dashboard-birthday-avatar dashboard-birthday-avatar-large")}
-          <span class="dashboard-birthday-cake" aria-hidden="true">🎂</span>
-        </div>
+      <section class="dashboard-birthday-spotlight${birthdayToday ? " is-today" : ""}" aria-label="${escapeHtml(birthdayToday ? `${item.name || "Player"} birthday today` : `${item.name || "Player"} birthday spotlight`)}">
+        ${renderBirthdayAvatar(item, "dashboard-birthday-avatar dashboard-birthday-avatar-large")}
         <div class="dashboard-birthday-spotlight-copy">
-          <p>Next birthday</p>
+          <p>${birthdayToday ? "Birthday today" : "Next birthday"}</p>
           <h3>${escapeHtml(item.name || "Player")}</h3>
           <small>${escapeHtml(timing)}</small>
         </div>
-        <div class="dashboard-birthday-age" aria-label="${escapeHtml(`${item.name || "Player"} turns ${ageLabel}`)}">
-          <small>turns</small>
+        <div class="dashboard-birthday-age" aria-label="${escapeHtml(`${item.name || "Player"} turns ${ageLabel}${birthdayToday ? " today" : ""}`)}">
           <strong>${escapeHtml(ageLabel)}</strong>
           <span>${escapeHtml(ageUnit)}</span>
         </div>
@@ -377,8 +378,16 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   function renderBirthdayNewsCard(context) {
     const calendar = context.birthdayCalendar || {};
     const birthdayItems = getBirthdayCalendarItems(calendar, 12);
-    const previewItems = birthdayItems.slice(0, 3);
+    const birthdayToday = birthdayItems.find(isBirthdayToday) || null;
+    const orderedItems = birthdayToday
+      ? [birthdayToday, ...birthdayItems.filter((item) => getBirthdayItemKey(item) !== getBirthdayItemKey(birthdayToday))]
+      : birthdayItems;
+    const previewItems = orderedItems.slice(0, 3);
     const thisMonthCount = Math.max(0, Number(calendar.thisMonthCount) || 0);
+    const todayCount = Math.max(
+      birthdayItems.filter(isBirthdayToday).length,
+      Math.max(0, Number(calendar.todayCount) || 0)
+    );
     const trackedCount = Math.max(0, Number(calendar.trackedCount) || 0);
     const nextBirthday = previewItems[0] || null;
     const nextItems = previewItems.slice(1);
@@ -395,11 +404,11 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
       : "Add players with birth dates to show upcoming birthdays.";
 
     return `
-    <article class="dashboard-panel dashboard-birthday-card" aria-label="Upcoming player birthdays">
+    <article class="dashboard-panel dashboard-birthday-card${todayCount ? " has-birthday-today" : ""}" aria-label="${todayCount ? "Player birthdays today" : "Upcoming player birthdays"}">
       <header class="dashboard-panel-head">
         <div>
           <p class="dashboard-card-kicker">Birthday Calendar</p>
-          <h2>Upcoming birthdays</h2>
+          <h2>${todayCount === 1 ? "Birthday today" : todayCount > 1 ? "Birthdays today" : "Upcoming birthdays"}</h2>
         </div>
         ${headActions ? `<div class="dashboard-birthday-head-actions">${headActions}</div>` : ""}
       </header>

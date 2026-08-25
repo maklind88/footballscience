@@ -3189,6 +3189,111 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await expect(presentation.locator("[data-presentation-date-input]")).toHaveValue("2026-05-15");
 });
 
+test("Home highlights a birthday today and Team Meeting opens the generated birthday slide", async ({ page }) => {
+  await page.addInitScript(({ profilesKey }) => {
+    const realDate = Date;
+    const fixedNow = new realDate("2026-09-12T12:00:00-04:00").getTime();
+    class FixedDate extends realDate {
+      constructor(...args) {
+        super(...(args.length ? args : [fixedNow]));
+      }
+      static now() {
+        return fixedNow;
+      }
+    }
+    FixedDate.UTC = realDate.UTC;
+    FixedDate.parse = realDate.parse;
+    FixedDate.prototype = realDate.prototype;
+    window.Date = FixedDate;
+    window.localStorage.setItem(
+      profilesKey,
+      JSON.stringify({
+        rosterVersion: "qa-home-birthday-v1",
+        schemaVersion: 3,
+        selectedPlayerId: "birthday-player-1",
+        players: [
+          {
+            id: "birthday-player-1",
+            name: "Evelyn Ijeh",
+            birthDate: "2001-09-12",
+            countsInSquad: true,
+            rosterType: "squad",
+            rosterOrder: 1,
+          },
+        ],
+        removedPlayerIds: [],
+      })
+    );
+  }, { profilesKey: playerProfilesKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "home");
+
+  const birthdayCard = page.locator(".dashboard-birthday-card");
+  const spotlight = birthdayCard.locator(".dashboard-birthday-spotlight");
+  const age = spotlight.locator(".dashboard-birthday-age");
+  await expect(birthdayCard).toHaveClass(/has-birthday-today/);
+  await expect(birthdayCard).toContainText("Birthday today");
+  await expect(spotlight).toContainText("Evelyn Ijeh");
+  await expect(spotlight).toContainText("Sep 12 · Today");
+  await expect(age).toContainText("25");
+  await expect(page.locator(".dashboard-birthday-cake")).toHaveCount(0);
+  const spotlightStyles = await spotlight.evaluate((element) => {
+    const spotlightStyle = window.getComputedStyle(element);
+    const ageStyle = window.getComputedStyle(element.querySelector(".dashboard-birthday-age"));
+    return {
+      backgroundImage: spotlightStyle.backgroundImage,
+      ageBackgroundImage: ageStyle.backgroundImage,
+      ageBorderRadius: ageStyle.borderRadius,
+    };
+  });
+  expect(spotlightStyles.backgroundImage).toBe("none");
+  expect(spotlightStyles.ageBackgroundImage).toBe("none");
+  expect(spotlightStyles.ageBorderRadius).toBe("0px");
+
+  await page
+    .locator('.dashboard-presentation-card[data-dashboard-presentation-type="team"] [data-dashboard-open-presentation]')
+    .click();
+  const presentation = page.locator("#presentationModeRoot");
+  await expect(presentation).toBeVisible();
+  await expect(presentation.locator('[data-presentation-goto="1"]')).toContainText("Birthday");
+  await expect(presentation.locator('[data-presentation-goto="1"]')).toHaveAttribute("draggable", "false");
+  await presentation.locator('[data-presentation-goto="1"]').click();
+  const birthdaySlide = presentation.locator(".presentation-info-sheet.is-system-birthday");
+  await expect(birthdaySlide).toBeVisible();
+  await expect(birthdaySlide).toContainText("Happy Birthday, Evelyn Ijeh!");
+  await expect(birthdaySlide).toContainText("Evelyn Ijeh turns 25 today.");
+  await expect(birthdaySlide.locator('[contenteditable="true"]')).toHaveCount(0);
+  await expect(presentation.locator("[data-presentation-send-slide-menu]")).toHaveCount(0);
+  await expect(presentation.locator("[data-presentation-delete-slide]")).toBeDisabled();
+  await expect(presentation).not.toContainText("Generated from player profiles");
+  await birthdaySlide.click({ button: "right" });
+  await expect(presentation.locator("[data-presentation-context-menu]")).toHaveCount(0);
+  await presentation.getByRole("button", { name: "Close presentation" }).click();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileBounds = await spotlight.evaluate((element) => {
+    const card = element.getBoundingClientRect();
+    const ageBox = element.querySelector(".dashboard-birthday-age")?.getBoundingClientRect();
+    return {
+      cardLeft: card.left,
+      cardRight: card.right,
+      ageLeft: ageBox?.left || 0,
+      ageRight: ageBox?.right || 0,
+    };
+  });
+  expect(mobileBounds.ageLeft).toBeGreaterThan(mobileBounds.cardLeft);
+  expect(mobileBounds.ageRight).toBeLessThanOrEqual(mobileBounds.cardRight + 1);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page
+    .locator('.dashboard-presentation-card[data-dashboard-presentation-type="technical"] [data-dashboard-open-presentation]')
+    .click();
+  await expect(presentation).toBeVisible();
+  await expect(presentation.locator(".presentation-info-sheet.is-system-birthday")).toHaveCount(0);
+  await expect(presentation.locator(".presentation-slide-tabs")).not.toContainText("Birthday");
+});
+
 test("Schedule Planner copies and pastes selected days with command shortcuts", async ({ page }) => {
   await page.addInitScript(({ key }) => {
     window.localStorage.setItem(

@@ -390,7 +390,7 @@ export function createPresentationModeRenderer(options = {}) {
   }
 
   function getEditableAttributes(model = {}, slide = {}, field = "", options = {}) {
-    if (model.presenting || !slide.id || !field) {
+    if (model.presenting || slide.readOnly || !slide.id || !field) {
       return "";
     }
     return [
@@ -459,7 +459,7 @@ export function createPresentationModeRenderer(options = {}) {
   }
 
   function renderTextFieldControls(model = {}, slide = {}, field = "", options = {}) {
-    if (model.presenting || options.objectFrame === false || !slide.id || !field) {
+    if (model.presenting || slide.readOnly || options.objectFrame === false || !slide.id || !field) {
       return "";
     }
     const safeField = escapeHtml(field);
@@ -477,7 +477,7 @@ export function createPresentationModeRenderer(options = {}) {
     const editableAttributes = getEditableAttributes(model, slide, field, options);
     const value = getSlideText(slide, field, fallback);
     const styleAttribute = getTextFieldStyleAttribute(slide, field, options.style || {}, options.extraStyle || "");
-    const objectAttributes = !model.presenting && options.objectFrame !== false
+    const objectAttributes = !model.presenting && !slide.readOnly && options.objectFrame !== false
       ? `data-presentation-text-object="${escapeHtml(field)}"`
       : "";
     const mergedAttributes = mergeAttributes(attributes, styleAttribute, objectAttributes, editableAttributes);
@@ -491,7 +491,7 @@ export function createPresentationModeRenderer(options = {}) {
     }
     const editableAttributes = getEditableAttributes(model, slide, field, { ...options, multiline: true });
     const styleAttribute = getTextFieldStyleAttribute(slide, field, options.style || {}, options.extraStyle || "");
-    const objectAttributes = !model.presenting && options.objectFrame !== false
+    const objectAttributes = !model.presenting && !slide.readOnly && options.objectFrame !== false
       ? `data-presentation-text-object="${escapeHtml(field)}"`
       : "";
     const mergedAttributes = mergeAttributes(attributes, styleAttribute, objectAttributes, editableAttributes);
@@ -500,7 +500,8 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderControlBar(model = {}) {
     const slide = model.slides[model.slideIndex] || model.slides[0];
-    const canDeleteSlide = Boolean(slide?.infoSlide?.id);
+    const readOnlySlide = Boolean(slide?.readOnly);
+    const canDeleteSlide = Boolean(slide?.infoSlide?.id && !readOnlySlide);
     return `
       <header class="presentation-control-bar">
         <div class="presentation-control-brand">
@@ -513,8 +514,8 @@ export function createPresentationModeRenderer(options = {}) {
           ${renderTextToolbar(model)}
         </div>
         <div class="presentation-pass-controls">
-          ${renderInsertControl(model)}
-          ${renderThemeControl(slide)}
+          ${readOnlySlide ? "" : renderInsertControl(model)}
+          ${readOnlySlide ? "" : renderThemeControl(slide)}
           ${renderNewSlideControl(model)}
           <button type="button" class="presentation-tool-button" data-presentation-delete-slide ${canDeleteSlide ? "" : "disabled"} title="${canDeleteSlide ? "Delete current slide" : "Only custom slides can be deleted"}">Delete Slide</button>
           <div class="presentation-date-control">
@@ -804,6 +805,9 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderTextToolbar(model = {}) {
     const slide = model.slides?.[model.slideIndex] || model.slides?.[0] || {};
+    if (slide.readOnly) {
+      return "";
+    }
     const style = normalizePresentationSlideStyle(slide.style, { accentColor: slide.accentColor || model.accentColor });
     return `
       <section class="presentation-editor-strip presentation-text-toolbar" data-presentation-text-toolbar aria-label="Text tools">
@@ -820,7 +824,7 @@ export function createPresentationModeRenderer(options = {}) {
   }
 
   function renderSendSlideMenu(model = {}, slide = {}) {
-    if (!slide?.infoSlide?.id) {
+    if (!slide?.infoSlide?.id || slide.readOnly) {
       return "";
     }
     return renderToolPopover(
@@ -924,9 +928,9 @@ export function createPresentationModeRenderer(options = {}) {
                 data-presentation-goto="${index}"
                 data-presentation-slide-tab
                 data-presentation-slide-index="${index}"
-                draggable="true"
+                draggable="${slide.readOnly ? "false" : "true"}"
                 aria-label="${escapeHtml(`Go to ${slide.label}`)}"
-                title="${escapeHtml(`Drag to reorder ${slide.label}`)}"
+                title="${escapeHtml(slide.readOnly ? `${slide.label} is generated from player profiles` : `Drag to reorder ${slide.label}`)}"
               >
                 <span>${index + 1}</span>
                 <strong>${escapeHtml(slide.label)}</strong>
@@ -1091,7 +1095,7 @@ export function createPresentationModeRenderer(options = {}) {
     const dateLabel = slide.dateLabel || model.dateLabel;
     return `
       <section
-        class="presentation-slide presentation-slide-${escapeHtml(slide.type || "blank")} is-theme-${escapeHtml(style.theme)}"
+        class="presentation-slide presentation-slide-${escapeHtml(slide.type || "blank")} is-theme-${escapeHtml(style.theme)}${slide.systemKind ? ` is-system-${escapeHtml(slide.systemKind)}` : ""}"
         data-presentation-slide-id="${escapeHtml(slide.id)}"
         style="--presentation-accent: ${escapeHtml(style.accentColor)}; --presentation-slide-bg: ${escapeHtml(style.backgroundColor)}; --presentation-slide-glow: ${escapeHtml(style.glowColor)}; --presentation-slide-text: ${escapeHtml(style.textColor)};"
         aria-label="${escapeHtml(slide.label || "Presentation slide")}"
@@ -1194,7 +1198,7 @@ export function createPresentationModeRenderer(options = {}) {
         <figcaption class="presentation-info-media-caption">
           ${mediaKind === "video" ? `<span>${escapeHtml(hasMedia ? mediaName : "")}</span>` : ""}
           ${
-            model.presenting
+            model.presenting || infoSlide.systemGenerated
               ? ""
               : `<button
                   type="button"
@@ -1217,7 +1221,8 @@ export function createPresentationModeRenderer(options = {}) {
     });
     const accentColor = normalizeHexColor(slideStyle.accentColor, "#38bdf8");
     const textColor = normalizeHexColor(slideStyle.textColor, "#f8fafc");
-    const readonly = model.presenting ? "readonly" : "";
+    const readonly = model.presenting || slide.readOnly ? "readonly" : "";
+    const systemSlide = Boolean(slide.systemGenerated || infoSlide.systemGenerated);
     const frameSlide = {
       id: slide.id,
       type: "info",
@@ -1228,18 +1233,16 @@ export function createPresentationModeRenderer(options = {}) {
       textBoxes: slide.textBoxes,
       textFieldStyles: slide.textFieldStyles,
       textOverrides: slide.textOverrides,
+      readOnly: slide.readOnly,
+      systemGenerated: slide.systemGenerated,
     };
-    return renderSlideFrame(
-      model,
-      frameSlide,
-      `
-        <section
-          class="presentation-info-sheet is-layout-${escapeHtml(infoSlide.layout || "bullets")}"
-          style="--presentation-info-color: ${escapeHtml(textColor)}; --presentation-info-accent: ${escapeHtml(accentColor)}; ${escapeHtml(getInfoSizeStyle(infoSlide.fontSize))}"
-        >
-          <input
+    const titleValue = infoSlide.title || "Team Information";
+    const bodyValue = infoSlide.body || "";
+    const titleMarkup = systemSlide
+      ? `<h1 class="presentation-info-title">${escapeHtml(titleValue)}</h1>`
+      : `<input
             class="presentation-info-title"
-            value="${escapeHtml(infoSlide.title || "Team Information")}"
+            value="${escapeHtml(titleValue)}"
             data-presentation-info-field="title"
             data-presentation-info-id="${escapeHtml(infoSlide.id)}"
             data-presentation-slide-id="${escapeHtml(frameSlide.id)}"
@@ -1248,9 +1251,10 @@ export function createPresentationModeRenderer(options = {}) {
             aria-label="Info slide title"
             ${getTextFieldStyleAttribute(frameSlide, "info.title")}
             ${readonly}
-          />
-          <span class="presentation-info-rule" aria-hidden="true"></span>
-          <textarea
+          />`;
+    const bodyMarkup = systemSlide
+      ? `<p class="presentation-info-body">${escapeHtml(bodyValue).replaceAll("\n", "<br>")}</p>`
+      : `<textarea
             class="presentation-info-body"
             data-presentation-info-field="body"
             data-presentation-info-id="${escapeHtml(infoSlide.id)}"
@@ -1262,7 +1266,19 @@ export function createPresentationModeRenderer(options = {}) {
             spellcheck="true"
             ${getTextFieldStyleAttribute(frameSlide, "info.body")}
             ${readonly}
-          >${escapeHtml(infoSlide.body || "")}</textarea>
+          >${escapeHtml(bodyValue)}</textarea>`;
+    return renderSlideFrame(
+      model,
+      frameSlide,
+      `
+        <section
+          class="presentation-info-sheet is-layout-${escapeHtml(infoSlide.layout || "bullets")}${systemSlide ? ` is-system-generated is-system-${escapeHtml(infoSlide.systemKind || "slide")}` : ""}"
+          style="--presentation-info-color: ${escapeHtml(textColor)}; --presentation-info-accent: ${escapeHtml(accentColor)}; ${escapeHtml(getInfoSizeStyle(infoSlide.fontSize))}"
+        >
+          ${systemSlide ? `<span class="presentation-system-slide-kicker">Team moment</span>` : ""}
+          ${titleMarkup}
+          <span class="presentation-info-rule" aria-hidden="true"></span>
+          ${bodyMarkup}
           ${renderInfoSlideMedia(model, infoSlide)}
         </section>
       `

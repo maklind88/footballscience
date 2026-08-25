@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   createPresentationModeController,
+  createPresentationBirthdaySlide,
   createPresentationModeRenderer,
   copyPresentationSlideToDeck,
   dashboardPresentationStorageKey,
@@ -41,6 +42,109 @@ function createDocumentHarness() {
     },
   };
 }
+
+test("birthday slide builder is deterministic, date-bound and Team Meeting only", () => {
+  const birthdayCalendar = {
+    items: [
+      {
+        id: "p1",
+        name: "Evelyn Ijeh",
+        nextBirthday: "2026-09-12",
+        daysUntil: 0,
+        turningAge: 25,
+      },
+      {
+        id: "p2",
+        name: "Maycee Bell",
+        nextBirthday: "2026-09-12",
+        daysUntil: 0,
+        turningAge: 26,
+      },
+    ],
+  };
+
+  const slide = createPresentationBirthdaySlide({
+    birthdayCalendar,
+    dateValue: "2026-09-12",
+    meetingType: "team",
+  });
+
+  expect(slide.id).toBe("system-birthday-2026-09-12");
+  expect(slide.readOnly).toBe(true);
+  expect(slide.systemKind).toBe("birthday");
+  expect(slide.infoSlide.title).toBe("Happy Birthday!");
+  expect(slide.infoSlide.body).toContain("Evelyn Ijeh turns 25 today.");
+  expect(slide.infoSlide.body).toContain("Maycee Bell turns 26 today.");
+  expect(
+    createPresentationBirthdaySlide({ birthdayCalendar, dateValue: "2026-09-12", meetingType: "technical" })
+  ).toBeNull();
+  expect(
+    createPresentationBirthdaySlide({ birthdayCalendar, dateValue: "2026-09-13", meetingType: "team" })
+  ).toBeNull();
+});
+
+test("Team Meeting pins a read-only birthday slide after cover without persisting it", () => {
+  const storage = new Map();
+  const writes = [];
+  const birthdayCalendarReads = [];
+  const harness = createDocumentHarness();
+  const renderer = createPresentationModeRenderer({ escapeHtml: (value) => String(value ?? "") });
+  const controller = createPresentationModeController({
+    documentRef: harness.documentRef,
+    win: {},
+    renderer,
+    readJson: (key, fallback) => storage.get(key) || fallback,
+    writeJson: (key, value) => {
+      writes.push({ key, value });
+      storage.set(key, value);
+    },
+    getTodayValue: () => "2026-09-12",
+    getSessionForDate: () => ({ title: "Team Meeting", blocks: [] }),
+    getBirthdayCalendar: (dateValue) => {
+      birthdayCalendarReads.push(dateValue);
+      return {
+        items: [
+          {
+            id: "p1",
+            name: "Evelyn Ijeh",
+            nextBirthday: "2026-09-12",
+            daysUntil: 0,
+            turningAge: 25,
+          },
+        ],
+        todayCount: 1,
+      };
+    },
+  });
+
+  controller.open("2026-09-12", "team");
+  const model = controller.buildModel();
+  const birthdaySlide = model.slides[1];
+  const birthdayHtml = renderer.renderInfoSlide({ ...model, slideIndex: 1 }, birthdaySlide);
+  const birthdayControls = renderer.renderControlBar({ ...model, slideIndex: 1 });
+  const footerHtml = renderer.render({ ...model, slideIndex: 1 });
+
+  expect(model.slides[0].id).toBe("cover");
+  expect(birthdaySlide.id).toBe("system-birthday-2026-09-12");
+  expect(birthdaySlide.readOnly).toBe(true);
+  expect(birthdayHtml).toContain("Happy Birthday, Evelyn Ijeh!");
+  expect(birthdayHtml).toContain("Evelyn Ijeh turns 25 today.");
+  expect(birthdayHtml).toContain("is-system-birthday");
+  expect(birthdayHtml).not.toContain("data-presentation-info-field");
+  expect(birthdayHtml).not.toContain('contenteditable="true"');
+  expect(birthdayControls).not.toContain("Generated from player profiles");
+  expect(birthdayControls).not.toContain("data-presentation-send-slide-menu");
+  expect(birthdayControls).not.toContain("data-presentation-theme-menu");
+  expect(birthdayControls).toContain("data-presentation-delete-slide disabled");
+  expect(footerHtml).toContain('draggable="false"');
+  expect(writes).toHaveLength(0);
+
+  controller.open("2026-09-12", "technical");
+  const technicalOpenReadCount = birthdayCalendarReads.length;
+  expect(controller.buildModel().slides.some((slide) => slide.systemKind === "birthday")).toBe(false);
+  expect(birthdayCalendarReads).toHaveLength(technicalOpenReadCount);
+  expect(writes).toHaveLength(0);
+});
 
 test("Presentation Mode builds cover, info, overview and block slides from existing session data", () => {
   const storage = new Map();

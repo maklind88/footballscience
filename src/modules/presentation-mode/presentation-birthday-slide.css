@@ -1,0 +1,47 @@
+.presentation-slide.is-system-birthday {
+  background: var(--presentation-slide-bg, #fff8ed);
+  box-shadow: 0 24px 64px rgba(29, 29, 31, .2);
+}
+
+.presentation-info-sheet.is-system-birthday {
+  align-content: center;
+  grid-template-rows: auto auto auto auto;
+  max-width: 88%;
+  margin: 0 auto;
+}
+
+.presentation-system-slide-kicker {
+  margin: 0 0 clamp(.55rem, 1.2cqw, 1rem);
+  color: var(--presentation-info-accent, #b45309);
+  font-size: clamp(.7rem, 1.25cqw, 1.15rem);
+  font-weight: 850;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.presentation-info-sheet.is-system-birthday .presentation-info-title {
+  max-width: 14ch;
+  min-height: 0;
+  margin: 0;
+  color: var(--presentation-info-color, #1d1d1f);
+  font-size: clamp(3rem, 7.4cqw, 7rem);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: .94;
+}
+
+.presentation-info-sheet.is-system-birthday .presentation-info-rule {
+  width: clamp(4.8rem, 10cqw, 8rem);
+  margin-block: clamp(1rem, 2.4cqw, 2rem);
+}
+
+.presentation-info-sheet.is-system-birthday .presentation-info-body {
+  max-width: 27ch;
+  min-height: 0;
+  margin: 0;
+  color: color-mix(in srgb, var(--presentation-info-color, #1d1d1f) 76%, transparent);
+  font-size: clamp(1.35rem, 3cqw, 3rem);
+  font-weight: 750;
+  letter-spacing: 0;
+  line-height: 1.2;
+}

@@ -165,7 +165,11 @@ function renderHistoryItem(item = {}, escapeHtml = String) {
         <strong>${escapeHtml(item.title || "Previous match")}</strong>
         <span>${escapeHtml(item.meta || item.dateLabel || "")}</span>
       </header>
-      <div>${actions.join("")}</div>
+      <div
+        class="dashboard-match-history-actions"
+        role="group"
+        aria-label="${escapeHtml(`${item.title || "Previous match"} selections`)}"
+      >${actions.join("")}</div>
     </section>
   `;
 }

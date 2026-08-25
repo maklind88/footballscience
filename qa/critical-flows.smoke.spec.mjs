@@ -3133,6 +3133,37 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await homeLineupPanel.locator(".dashboard-match-history summary").click();
   const pastMatch = homeLineupPanel.locator(".dashboard-match-history-item", { hasText: "NCC - Orlando" });
   await expect(pastMatch).toBeVisible();
+  const historyActions = pastMatch.locator(".dashboard-match-history-actions > .dashboard-match-selection-row");
+  await expect(historyActions).toHaveCount(2);
+  const measureHistoryLayout = () => pastMatch.evaluate((item) => {
+    const header = item.querySelector("header")?.getBoundingClientRect();
+    const actionElements = Array.from(item.querySelectorAll(".dashboard-match-history-actions > .dashboard-match-selection-row"));
+    const actions = actionElements.map((action) => action.getBoundingClientRect());
+    return {
+      headerBottom: header?.bottom || 0,
+      firstTop: actions[0]?.top || 0,
+      secondTop: actions[1]?.top || 0,
+      firstRight: actions[0]?.right || 0,
+      secondLeft: actions[1]?.left || 0,
+      actionWidths: actions.map((action) => action.width),
+      labelsFit: actionElements.every((action) => {
+        const label = action.querySelector(".dashboard-match-selection-copy strong");
+        return !label || label.scrollWidth <= label.clientWidth;
+      }),
+    };
+  });
+  const historyLayout = await measureHistoryLayout();
+  expect(historyLayout.firstTop).toBeGreaterThanOrEqual(historyLayout.headerBottom - 1);
+  expect(Math.abs(historyLayout.firstTop - historyLayout.secondTop)).toBeLessThanOrEqual(1);
+  expect(Math.abs(historyLayout.firstRight - historyLayout.secondLeft)).toBeLessThanOrEqual(1);
+  expect(historyLayout.labelsFit).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileHistoryLayout = await measureHistoryLayout();
+  expect(Math.abs(mobileHistoryLayout.firstTop - mobileHistoryLayout.secondTop)).toBeLessThanOrEqual(1);
+  expect(Math.abs(mobileHistoryLayout.firstRight - mobileHistoryLayout.secondLeft)).toBeLessThanOrEqual(1);
+  expect(Math.min(...mobileHistoryLayout.actionWidths)).toBeGreaterThan(120);
+  expect(mobileHistoryLayout.labelsFit).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 720 });
   await pastMatch.locator('[data-match-selection-target="starting-xi"]').click();
   const presentation = page.locator("#presentationModeRoot");
   await expect(presentation).toBeVisible();

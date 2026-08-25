@@ -158,6 +158,9 @@ test("Home keeps Schedule and saved match history available when no future match
   expect(html).toContain("No upcoming match");
   expect(html).toContain("Previous matches");
   expect(html).toContain("NCC - Portland");
+  expect(html).toContain('class="dashboard-match-history-actions"');
+  expect(html).toContain('role="group"');
+  expect(html).toContain('aria-label="NCC - Portland selections"');
   expect(html).toContain('data-match-selection-create="false"');
   expect(html).toContain('data-open-workspace="schedule"');
   expect(html).not.toContain('data-open-workspace="gameplan"');

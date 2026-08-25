@@ -2159,21 +2159,32 @@ async function getActiveAccessToken() {
   }
   async function recordMedicalDatabaseEvent(event = {}) {
     if (authState.devMode) {
-      return { ok: true, localDev: true, stored: false };
+      return { ok: true, localDev: true, stored: false, canonicalStored: true };
     }
     const response = await apiRequest(API_MEDICAL, {
       method: "POST",
       body: JSON.stringify(event || {}),
-      timeoutMs: 9000,
+      timeoutMs: 15000,
     });
     if (!response.ok) {
-      return { ok: false, reason: response.payload?.reason || "Medical database event could not be saved." };
+      return {
+        ok: false,
+        stored: Boolean(response.payload?.stored),
+        canonicalStored: response.payload?.canonicalStored === true,
+        eventId: response.payload?.eventId || "",
+        processingStatus: response.payload?.processingStatus || "",
+        reason: response.payload?.reason || "Medical database event could not be saved.",
+      };
     }
     return {
       ok: true,
       stored: Boolean(response.payload?.stored),
+      canonicalStored: response.payload?.canonicalStored === true,
       enabled: response.payload?.enabled !== false,
       duplicate: Boolean(response.payload?.duplicate),
+      eventId: response.payload?.eventId || "",
+      processingStatus: response.payload?.processingStatus || "",
+      revision: Number(response.payload?.revision) || 0,
       payloadHash: response.payload?.payloadHash || "",
     };
   }

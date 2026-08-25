@@ -50,8 +50,37 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   const canEdit = actions.canEditMedicalTeam ?? (() => false);
   let lastRtpProfileTrigger = null;
 
-  const recordSync = (eventType, payload) => {
-    void actions.recordMedicalDatabaseSyncEvent?.(eventType, payload);
+  const recordSync = (eventType, payload) => Promise.resolve(
+    actions.recordMedicalDatabaseSyncEvent?.(eventType, payload) ?? { ok: false, stored: false }
+  ).catch((error) => ({ ok: false, stored: false, reason: error?.message || "" }));
+
+  const isCanonicalRecommendationConfirmed = (result = {}) => Boolean(
+    result.ok && (result.canonicalStored === true || result.enabled === false || result.localDev === true)
+  );
+
+  const recordCanonicalSync = async (eventType, payload) => {
+    const firstResult = await recordSync(eventType, payload);
+    if (isCanonicalRecommendationConfirmed(firstResult)) return firstResult;
+    return recordSync(eventType, payload);
+  };
+
+  const getRecommendationSyncFailureMessage = (result = {}, action = "Recommendation") => (
+    result.stored
+      ? `${action} is in the recovery journal, but central confirmation failed after retry. Do not re-enter it; notify an administrator.`
+      : `${action} could not be saved centrally after retry. Check the connection and try again.`
+  );
+
+  const syncArchivedRecommendationRecords = async (archivedRecords = []) => {
+    for (const archivedRecord of archivedRecords) {
+      const syncResult = await recordCanonicalSync("record-archived", {
+        playerId: archivedRecord.playerId,
+        recordId: archivedRecord.id,
+        archivedAt: archivedRecord.archivedAt,
+        idempotencyKey: `record-archived:${archivedRecord.id}:${archivedRecord.archivedAt || "archive"}`,
+      });
+      if (!isCanonicalRecommendationConfirmed(syncResult)) return syncResult;
+    }
+    return { ok: true, canonicalStored: true };
   };
 
   const filterMedicalRtpLibrary = ({ resetLimit = false } = {}) => {
@@ -845,15 +874,15 @@ ${renderRtpExerciseCards(profile, 3)}
         : result.archivedRecord
           ? [result.archivedRecord]
           : [];
-      archivedRecords.forEach((archivedRecord) => {
-        recordSync("record-archived", {
-          playerId: archivedRecord.playerId,
-          recordId: archivedRecord.id,
-          archivedAt: archivedRecord.archivedAt,
-          idempotencyKey: `record-archived:${archivedRecord.id}:${archivedRecord.archivedAt || "quick-clear"}`,
-        });
-      });
       const playerName = result.player?.name || "Player";
+      if (result.cleared && archivedRecords.length) {
+        renderWorkspace(`${playerName}: clearing recommendation...`);
+        const syncResult = await syncArchivedRecommendationRecords(archivedRecords);
+        if (!isCanonicalRecommendationConfirmed(syncResult)) {
+          renderWorkspace(getRecommendationSyncFailureMessage(syncResult, `${playerName}'s cleared recommendation`));
+          return;
+        }
+      }
       renderWorkspace(
         result.cleared
           ? `${playerName}: recommendation cleared.`
@@ -870,27 +899,32 @@ ${renderRtpExerciseCards(profile, 3)}
         quickRecommendationButton.dataset.medicalQuickRecommend,
         quickRecommendationButton.dataset.medicalQuickParticipation
       ) ?? {};
-      if (result.record) {
-        recordSync("recommendation-saved", {
-          playerId: result.record.playerId,
-          record: result.record,
-          idempotencyKey: `recommendation-saved:${result.record.id}`,
+      const playerName = result.player?.name || "Player";
+      const recordToConfirm = result.record || result.existingRecord || null;
+      if (recordToConfirm) {
+        renderWorkspace(`${playerName}: confirming ${recordToConfirm.participation}% recommendation...`);
+        const syncResult = await recordCanonicalSync("recommendation-saved", {
+          playerId: recordToConfirm.playerId,
+          record: recordToConfirm,
+          idempotencyKey: `recommendation-saved:${recordToConfirm.id}`,
         });
+        if (!isCanonicalRecommendationConfirmed(syncResult)) {
+          renderWorkspace(getRecommendationSyncFailureMessage(syncResult, `${playerName}'s recommendation`));
+          return;
+        }
       }
       const archivedRecords = Array.isArray(result.archivedRecords)
         ? result.archivedRecords
         : result.archivedRecord
           ? [result.archivedRecord]
           : [];
-      archivedRecords.forEach((archivedRecord) => {
-        recordSync("record-archived", {
-          playerId: archivedRecord.playerId,
-          recordId: archivedRecord.id,
-          archivedAt: archivedRecord.archivedAt,
-          idempotencyKey: `record-archived:${archivedRecord.id}:${archivedRecord.archivedAt || "quick-toggle"}`,
-        });
-      });
-      const playerName = result.player?.name || "Player";
+      if (archivedRecords.length) {
+        const archiveResult = await syncArchivedRecommendationRecords(archivedRecords);
+        if (!isCanonicalRecommendationConfirmed(archiveResult)) {
+          renderWorkspace(getRecommendationSyncFailureMessage(archiveResult, `${playerName}'s recommendation update`));
+          return;
+        }
+      }
       renderWorkspace(
         result.record
           ? `${playerName}: ${result.record.participation}% recommendation saved.`
@@ -1475,7 +1509,7 @@ ${renderRtpExerciseCards(profile, 3)}
     }
   };
 
-  const onSubmit = (event) => {
+  const onSubmit = async (event) => {
     const boardExerciseForm = event.target.closest("[data-medical-board-exercise-form]");
     if (boardExerciseForm) {
       event.preventDefault();
@@ -1595,12 +1629,17 @@ ${renderRtpExerciseCards(profile, 3)}
       }
       const result = actions.applyMedicalBulkRecommendation?.(actions.getPlatformFormValues?.(bulkRecommendationForm));
       if (result.savedCount) {
-        recordSync("bulk-recommendation-saved", {
+        renderWorkspace(`Saving ${result.savedCount} bulk recommendation${result.savedCount === 1 ? "" : "s"}...`);
+        const syncResult = await recordCanonicalSync("bulk-recommendation-saved", {
           records: result.records,
           recordIds: result.records.map((record) => record.id),
           date: result.records[0]?.date || getMedicalState(state).selectedDate,
           idempotencyKey: `bulk-recommendation-saved:${result.records.map((record) => record.id).join("|")}`,
         });
+        if (!isCanonicalRecommendationConfirmed(syncResult)) {
+          renderWorkspace(getRecommendationSyncFailureMessage(syncResult, "Bulk recommendations"));
+          return;
+        }
       }
       const skippedText = result.blockReason ? ` ${result.blockReason}` : result.blockedCount ? ` ${result.blockedCount} skipped for clearance: ${result.blockedNames.slice(0, 3).join(", ")}${result.blockedNames.length > 3 ? "..." : ""}.` : "";
       const bulkMessage = result.savedCount ? `${result.savedCount} bulk recommendation${result.savedCount === 1 ? "" : "s"} saved.${skippedText}` : result.blockReason || "No bulk recommendations saved.";
@@ -1648,7 +1687,18 @@ ${renderRtpExerciseCards(profile, 3)}
         return;
       }
       const record = actions.addMedicalRecord?.(values);
-      if (record) recordSync("recommendation-saved", { playerId: record.playerId, record, idempotencyKey: `recommendation-saved:${record.id}` });
+      if (record) {
+        renderWorkspace("Saving status centrally...");
+        const syncResult = await recordCanonicalSync("recommendation-saved", {
+          playerId: record.playerId,
+          record,
+          idempotencyKey: `recommendation-saved:${record.id}`,
+        });
+        if (!isCanonicalRecommendationConfirmed(syncResult)) {
+          renderWorkspace(getRecommendationSyncFailureMessage(syncResult, "Status"));
+          return;
+        }
+      }
       setStateValue(state, "MedicalPlayerModalOpen", false);
       renderWorkspace(record ? "Status saved." : "Status could not be saved.");
       return;

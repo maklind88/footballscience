@@ -241,6 +241,7 @@ test("Medical runtime operations service preserves filtering, bulk recommendatio
 
   const quickSame = harness.service.applyMedicalQuickRecommendation("p1", 75);
   expect(quickSame).toMatchObject({ unchanged: true, record: null });
+  expect(quickSame.existingRecord).toMatchObject({ playerId: "p1", participation: 75 });
 
   const quickClear = harness.service.clearMedicalQuickRecommendation("p1");
   expect(quickClear).toMatchObject({ cleared: true });

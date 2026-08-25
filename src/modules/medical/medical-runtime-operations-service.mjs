@@ -305,7 +305,7 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     const participation = normalizeMedicalParticipation(participationValue, 75);
     const currentRecord = getLatestMedicalRecord(player.id, dateValue);
     if (currentRecord && normalizeMedicalParticipation(currentRecord.participation, null) === participation) {
-      return { player, record: null, unchanged: true, blockReason: "" };
+      return { player, record: null, existingRecord: currentRecord, unchanged: true, blockReason: "" };
     }
     const status = getMedicalStatusForParticipation(participation);
     const blockReason = getMedicalRecommendationBlockReason(player.id, participation, dateValue);

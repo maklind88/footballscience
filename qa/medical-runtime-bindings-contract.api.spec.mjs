@@ -76,6 +76,7 @@ function createHarness({ canEdit = true, configureWorkspace = () => {}, win = { 
       cleared: true,
     },
     quickRecommendationResult: { player: { name: "Ada" }, record: { id: "r-quick", playerId: "p-1", participation: 100 } },
+    syncResult: { ok: true, stored: true, canonicalStored: true },
     rosterSearch: "",
     selectedPlayerId: "",
     statusFilter: "all",
@@ -171,7 +172,10 @@ function createHarness({ canEdit = true, configureWorkspace = () => {}, win = { 
       openMedicalPlayerModal: (playerId) => calls.push(`open:${playerId}`),
       parseMedicalRosterText: () => ({ players: [{ id: "p-3", name: "Roster Player" }], skippedLines: [] }),
       persistMedicalInjuryPlanDraftFromForm: () => calls.push("persist-draft"),
-      recordMedicalDatabaseSyncEvent: (eventType, payload) => calls.push(["sync", eventType, payload]),
+      recordMedicalDatabaseSyncEvent: (eventType, payload) => {
+        calls.push(["sync", eventType, payload]);
+        return mutable.syncResult;
+      },
       removeMedicalInjuryPlan: () => ({ id: "plan-1", playerId: "p-1", archivedAt: "now" }),
       removeMedicalPlayer: () => ({ id: "p-1", archivedAt: "now" }),
       removeMedicalRecord: () => ({ id: "r-1", playerId: "p-1", archivedAt: "now" }),
@@ -247,11 +251,30 @@ test("Medical runtime bindings preserve quick recommendation, clear, archive, an
   expect(calls).toContainEqual(["sync", "record-archived", expect.objectContaining({ recordId: "r-older", playerId: "p-1" })]);
   expect(calls).toContainEqual(["render", "Ada: recommendation cleared."]);
 
-  mutable.quickRecommendationResult = { player: { name: "Ada" }, record: null, unchanged: true };
+  mutable.quickRecommendationResult = {
+    player: { name: "Ada" },
+    record: null,
+    existingRecord: { id: "r-quick", playerId: "p-1", participation: 100 },
+    unchanged: true,
+  };
   await workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-quick-recommend]": { dataset: { medicalQuickRecommend: "full", medicalQuickParticipation: "100" } } },
   })));
   expect(calls).toContainEqual(["render", "Ada: recommendation already set."]);
+
+  mutable.syncResult = { ok: false, stored: true, canonicalStored: false };
+  mutable.quickRecommendationResult = { player: { name: "Ada" }, record: { id: "r-failed", playerId: "p-1", participation: 50 } };
+  await workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-quick-recommend]": { dataset: { medicalQuickRecommend: "modified", medicalQuickParticipation: "50" } } },
+  })));
+  expect(calls).toContainEqual([
+    "render",
+    "Ada's recommendation is in the recovery journal, but central confirmation failed after retry. Do not re-enter it; notify an administrator.",
+  ]);
+  expect(calls.filter((call) => (
+    Array.isArray(call) && call[0] === "sync" && call[2]?.record?.id === "r-failed"
+  ))).toHaveLength(2);
+  mutable.syncResult = { ok: true, stored: true, canonicalStored: true };
 
   await workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-delete-record]": { dataset: { medicalDeleteRecord: "r-1" } } },
@@ -1038,7 +1061,7 @@ test("Medical runtime bindings reveal restricted history rows in batches", () =>
   expect(showMoreButton.hidden).toBe(true);
 });
 
-test("Medical runtime bindings preserve roster search, filters, and protected submit writes", () => {
+test("Medical runtime bindings preserve roster search, filters, and protected submit writes", async () => {
   const { calls, mutable, workspace } = createHarness();
   const historyForm = {
     querySelector(selector) {
@@ -1090,7 +1113,7 @@ test("Medical runtime bindings preserve roster search, filters, and protected su
   expect(calls).toContainEqual(["sync", "player-added", expect.objectContaining({ playerId: "p-2" })]);
   expect(calls).toContain("reset-new-player");
 
-  workspace.listeners.submit(createEvent(createTarget({
+  await workspace.listeners.submit(createEvent(createTarget({
     closest: { "[data-medical-recommendation-form]": recommendationForm },
   })));
   expect(mutable.modalOpen).toBe(false);

@@ -4,9 +4,9 @@ This is the operating model for building Football Science with a non-technical p
 
 ## Core Rule
 
-The user owns the desired product outcome. Codex owns the technical path.
+The user owns the desired product outcome. The responsible specialist chat owns the technical path for its own module/task.
 
-The user should describe what they want to see, feel, or be able to do on the live platform. Codex should translate that into implementation, safety checks, GitHub, QA, deploy, and verification.
+The user should describe what they want to see, feel, or be able to do on the live platform. The specialist chat responsible for that area should translate the request into implementation, safety checks, GitHub, QA, deploy, and verification without waiting for a separate central deploy chat.
 
 ## Source Of Truth
 
@@ -44,11 +44,11 @@ For every request, Codex should:
 - Use feature flags, additive migrations, dual-read / dual-write, or shadow mode when changing data foundations.
 - Validate with focused tests plus the required release checks.
 - Commit and push intended files only.
-- Deploy when the product intent calls for a live result, the current chat owns the release, and all safety conditions pass. The user should not need to use a special deploy phrase for Codex to recognize this.
-- Codex should infer release ownership for Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users. Explicit phrases such as "Ta detta hela vägen", "Gör klart till live", "Du äger release för detta", or "Fixa och publicera när det är säkert" still clarify ownership but are not required.
+- Deploy when the product intent calls for a live result, the current specialist chat owns the module/task, and all safety conditions pass. The user should not need to use a special deploy phrase for Codex to recognize this.
+- Codex should infer release ownership for Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users when they belong to the current chat's module/task. Explicit phrases such as "Ta detta hela vägen", "Gör klart till live", "Du äger release för detta", or "Fixa och publicera när det är säkert" still clarify ownership but are not required.
 - `Live` is the short sync-to-production codeword: commit/push intended work, align branch/main/GitHub when safe, deploy with the correct fast/safe path, and run postdeploy verification.
 - Treat `Live` as this codeword only when it is a standalone command, not when the word appears inside normal product discussion.
-- Use the current fast/safe deploy split and never include unrelated parallel work.
+- Use the current fast/safe deploy split, check that no other staging deploy, production deploy, rollback, or local release process is active, and never include unrelated parallel work.
 - Verify production after deployment and report what changed in user-facing terms.
 
 ## When Codex Should Stop
@@ -57,6 +57,7 @@ Codex should stop and explain the blocker when:
 
 - The change risks live data loss.
 - A production deploy would include unrelated parallel work.
+- Another staging deploy, production deploy, rollback, or local release process is already active.
 - Required QA or release gates fail.
 - Live credentials or environment separation are missing for a high-risk release.
 - The user asks for something that conflicts with privacy, security, or existing protected data rules.
@@ -83,6 +84,10 @@ Avoid:
 
 If multiple chats are active, each chat should say which module it owns and avoid touching anything else. Codex should use branches/worktrees for isolation when needed.
 
+There is no permanent central release-owner chat. Each specialist chat should own release for its own module/task. The Project Lead can advise or route work when asked, but normal specialist releases should not wait for Project Lead approval or a release slot.
+
+Parallel build work is allowed; production-edge release work is sequential. Each chat must check active GitHub staging/production/rollback workflows and local release processes before starting Vercel-facing deploy work, and must wait/report if another release is already running.
+
 ## Release Discipline
 
 - Live changes must be treated as production releases, even for small UI tweaks.
@@ -90,7 +95,7 @@ If multiple chats are active, each chat should say which module it owns and avoi
 - `Deploy` and `Deploy fast` mean the everyday fast path: `npm run deploy`, unless the change is risky.
 - `Deploy safe` means the full safe path: `npm run deploy:safe`.
 - `Live` means run the full sync-to-production flow and then verify production.
-- Clear product intent that requires a live result also authorizes the appropriate deploy path, but only when the chat is the active release-owner, the worktree contains only intended changes, required checks pass, and production verification can be completed.
+- Clear product intent that requires a live result also authorizes the appropriate deploy path, but only when the chat owns the module/task, the worktree contains only intended changes, no other production-edge release is active, required checks pass, and production verification can be completed.
 - Staging should prove the same tree before production when the release includes risky or data-related work.
 - Do not deploy from a dirty working tree.
 - Do not bypass the selected deploy path's checks to make a deploy easier.

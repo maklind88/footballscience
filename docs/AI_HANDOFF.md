@@ -2,7 +2,7 @@
 
 Read this file first when starting a new thread on Football Science.
 
-Also read `AGENTS.md`, `docs/LIVE_FIRST_WORKFLOW.md`, `docs/QUICK_UI_WORKFLOW.md`, `docs/CODEX_TEAM_ROSTER.md`, and `docs/CURRENT_OPERATING_PLAN.md`. Read `docs/PLATFORM_SCALE_PROGRAM.md` when working on multi-tenant identity, app-state migrations, `app.js` extraction, Chat server-first, or Scouting server-first. The durable working model is live-first: the user describes the desired product outcome on `https://footballscience.xyz`, and Codex owns the technical implementation path, QA, GitHub, deploy discipline, and production verification.
+Also read `AGENTS.md`, `docs/LIVE_FIRST_WORKFLOW.md`, `docs/QUICK_UI_WORKFLOW.md`, `docs/CODEX_TEAM_ROSTER.md`, and `docs/CURRENT_OPERATING_PLAN.md`. Read `docs/PLATFORM_SCALE_PROGRAM.md` when working on multi-tenant identity, app-state migrations, `app.js` extraction, Chat server-first, or Scouting server-first. The durable working model is live-first and distributed by specialist area: the user describes the desired product outcome on `https://footballscience.xyz`, and the responsible specialist chat owns the technical implementation path, QA, GitHub, deploy discipline, and production verification for its own module/task.
 
 Architecture size targets are now project rules, not memory. Read `docs/ARCHITECTURE_SIZE_TARGETS.md` before adding/refactoring module code. Keep `app.js` at 1-50 lines with a hard guard above 100, keep `app-runtime.js` shrinking toward 1,500-3,000 lines, keep new module files around 500 lines or less, and run `npm run architecture:budgets` after architecture work.
 
@@ -19,8 +19,9 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
 - Live is the product truth. If the user is looking at `footballscience.xyz`, verify live behavior before assuming local state is enough.
 - Ask fewer technical questions. Decide implementation details yourself unless there is a real product, data-loss, security, or release-risk ambiguity.
 - Use the Fast UI Lane for narrow visible changes while the platform is under heavy development: make small text/layout/CSS/ordering/visibility fixes quickly with `npm run quick:ui` instead of the full safety gate. For clean committed UI-only work, `npm run deploy:ui` can push/deploy through Vercel CLI and then run production postdeploy verification while GitHub QA continues in the background. Keep the Safe Lane for auth, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, secrets, or anything that can lose/leak data or take Live down.
-- Keep Live/deploy ownership in the user's designated release-owner chat. Other chats may build modules, but should not sync, merge, or deploy Live unless the user explicitly transfers release ownership.
-- When the product intent clearly means "make the live product correct", Codex should infer release ownership and may implement, validate, commit, push, deploy, and verify production without requiring a separate `Deploy`/`Live` message, as long as the chat is the active release-owner, the worktree contains only intended changes, checks pass, and production verification can be completed. Examples include Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users.
+- There is no standing central Live/deploy owner for all chats. Each specialist chat owns commit, push, deploy, and production verification for the module/task it owns when the user intent calls for a live result.
+- When the product intent clearly means "make the live product correct", Codex should infer release ownership and may implement, validate, commit, push, deploy, and verify production without requiring a separate `Deploy`/`Live` message, as long as the chat owns the module/task, the worktree contains only intended changes, no other staging/production/rollback/local release process is active, checks pass, and production verification can be completed. Examples include Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users.
+- The Project Lead may advise or route work when asked, but should not be used as the normal deploy bottleneck. Specialist chats should self-release instead of requesting routine release slots from the Project Lead.
 - When the user marks an element on Live, go directly to the relevant selector/component/module and make same-type changes centrally rather than re-analyzing the whole platform.
 - Prefer extracting repeated UI into small module files over growing `app.js` and `styles.css`, but keep tiny legacy fixes narrow.
 - Do not prefix replies with release-status labels. When work/release state matters, explain it briefly in plain Swedish instead.
@@ -30,6 +31,7 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
 - Work one module at a time, but keep architecture future-proof.
 - Prefer implementation over long theory when the request is clear.
 - Parallel chats are allowed only by separated module ownership. Do not touch Team Chat in a non-chat thread when the user says chat is handled elsewhere.
+- Parallel chats may build at the same time on isolated branches/worktrees, but production releases must remain sequential. Before Vercel-facing deploy work, check active GitHub staging/production/rollback workflows and local release processes; wait and report if another release is already running.
 - Keep the architecture size targets from `AGENTS.md` in mind: `app.js` should trend toward a thin shell, new module files should usually stay under 500 lines, and new work should land in clear module boundaries rather than growing legacy globals.
 
 ## Current Codebase
@@ -139,7 +141,7 @@ Before final response after code changes:
 - Localhost/127.0.0.1 has a dev-auth fallback in `index.html` that auto-authenticates a local admin user (`mak`) without Supabase so browser testing can run against isolated localhost localStorage. This must stay local-only and never replace production Supabase auth.
 - Check relevant UI flows in browser when possible.
 - Do not deploy automatically just because code/design work is finished.
-- Deploy only when the user's product intent calls for a live result, the current chat owns the release, and all safety conditions pass. The codewords `Deploy`, `Deploy fast`, `Deploy safe`, and standalone `Live` still work as convenience commands.
+- Deploy only when the user's product intent calls for a live result, the current specialist chat owns the module/task, and all safety conditions pass. The codewords `Deploy`, `Deploy fast`, `Deploy safe`, and standalone `Live` still work as convenience commands.
 - `Live` means the full sync-to-production flow: commit/push intended work, align branch/main/GitHub when safe, deploy with the correct fast/safe path, and run postdeploy verification.
 - Treat `Live` as a release codeword only when it is a standalone command, not when the word appears inside ordinary product discussion.
 - Use `npm run deploy` for routine fast releases unless the change is risky.

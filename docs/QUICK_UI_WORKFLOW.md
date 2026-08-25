@@ -43,9 +43,11 @@ Deploys a clean committed UI-only change quickly:
 
 GitHub QA can continue in the background for these small UI deploys.
 
-## One Deploy Owner
+## Sequential Deploy Ownership
 
-Only one chat should own Live/deploy coordination at a time. Other chats may build isolated module work, but they should not sync, merge, or deploy Live unless they are explicitly acting as the deploy-owner chat.
+There is no permanent central Live/deploy owner. The specialist chat that owns the UI task also owns commit, push, deploy, and production verification when the product intent calls for a live result.
+
+Only one production-edge deploy should run at a time. Before starting `npm run deploy`, `npm run deploy:ui`, or Vercel-facing release work, check that no staging deploy, production deploy, rollback, or local release process is already active. If another release is active, wait and report instead of starting a duplicate.
 
 ## Marked Live Changes
 

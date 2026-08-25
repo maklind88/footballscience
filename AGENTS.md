@@ -32,16 +32,30 @@ When a chat is acting as the Project Lead, its default role is coordination, not
 
 - The Project Lead receives the user's product intent, decides the responsible specialist team, sends scoped instructions to that team, tracks status, and reports back to the user.
 - The Project Lead must not directly implement, fix, commit, push, deploy, or verify specialist module work when an active specialist team exists for that module.
-- For production-facing work, the Project Lead coordinates with System / Security / Release instead of running release gates or deployment directly.
+- For production-facing work, the Project Lead does not act as the central deploy owner. The responsible specialist chat owns its own release end to end, including validation, commit, push, deploy, and production verification.
 - The Project Lead may edit governance/process documents for coordination clarity, but should not touch product modules unless the user explicitly transfers operational ownership to the Project Lead.
-- If the user asks the Project Lead to "fix", "make live", "investigate", or "do" work that belongs to a specialist module, the Project Lead should route the task to the responsible specialist chat and explain that delegation in Swedish.
-- If the Project Lead accidentally performs specialist work directly, treat it as a process incident: stop, document what happened, notify the affected specialist team and System / Security / Release, and restore the delegation model for future work.
+- If the user asks the Project Lead to "fix", "make live", "investigate", or "do" work that belongs to a specialist module, the Project Lead should route the task to the responsible specialist chat and explain that delegation in Swedish. The specialist chat should not wait for a separate central deploy chat once it owns the task and the safety conditions pass.
+- If the Project Lead accidentally performs specialist work directly, treat it as a process incident: stop, document what happened, notify the affected specialist team, and restore the delegation model for future work.
+
+## Distributed Specialist Release Model
+
+There is no standing central deploy owner for all chats. Each specialist chat is expected to stand on its own for the module or task it owns.
+
+- The chat that owns a module/task also owns making finished work live when the user's product intent calls for a live result.
+- Each specialist chat must perform its own implementation, validation, commit, push, deploy, production verification, and final status report.
+- The Project Lead may advise, summarize, or help route work, but should not take over, block, batch, or run releases for other specialist chats unless the user explicitly transfers that specific operational ownership.
+- System / Security / Release is a guardrail and specialist owner for platform safety work, not a permanent bottleneck for every deploy. High-risk changes must still satisfy Safe Lane requirements.
+- Releases should be sequential at the Vercel/GitHub production edge: before starting Vercel-facing deploy work, each chat must check that no staging deploy, production deploy, rollback, or local release process is already active. If another release is active, wait and report instead of starting a duplicate.
+- Specialist chats may build in parallel on isolated branches/worktrees, but they must not merge/deploy a bundle that includes another chat's unfinished work.
+- A specialist chat should not request a "release slot" from the Project Lead as the normal path. It should self-release when it owns the task, the worktree is clean, the right lane is chosen, checks pass, release traffic is clear, and production verification can be completed.
+- If a release is blocked by another active deploy, unrelated dirty files, failed checks, stale branch state, unclear ownership, or cross-module risk, the specialist chat must stop and explain the blocker in plain Swedish.
+- Final release reports must state: commit SHA, branch/main/staging status when relevant, changed files/scope, checks run, deployment URL, production verification result, and any remaining risk.
 
 ## Release Ownership Agreement
 
 The user should not need to repeatedly ask for technical release steps or use special release phrases when the product intent is clear.
 
-Codex owns recognizing when a request naturally means "make the live product correct", and should infer release ownership when the user:
+Codex owns recognizing when a request naturally means "make the live product correct". Under the distributed specialist model, the responsible specialist chat should infer release ownership for its own module/task when the user:
 
 - reports a bug, regression, or broken behavior on Live/production
 - describes a desired visible change in the product they evaluate on `footballscience.xyz`
@@ -61,6 +75,7 @@ When release ownership is inferred or explicit, Codex may implement, validate, c
 - The chat is the active release-owner for the touched module or task.
 - The worktree contains only intended changes.
 - No unrelated or unfinished parallel-chat work would be included.
+- No other staging deploy, production deploy, rollback, or local release process is already active.
 - The change is correctly classified as Fast UI Lane or Safe Lane.
 - The required checks pass.
 - Production verification can be completed after deploy.
@@ -72,6 +87,7 @@ Codex must stop and explain in plain Swedish before deploying when:
 - The worktree is dirty with unrelated changes.
 - Another chat owns the module or release.
 - Any required validation fails.
+- Another release is already active at the staging/production edge.
 - The deploy would include unfinished work from another chat.
 
 The standalone codewords `Deploy`, `Deploy fast`, `Deploy safe`, and `Live` still work, but they are convenience commands, not the only way to authorize a release. Codex should use judgment from the product intent and the safety rules above.
@@ -91,7 +107,7 @@ This section works together with the Release Ownership Agreement above and overr
 - Safe deploy is for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
 - If deploy would include unrelated or unfinished work from another chat, stop and explain the coordination issue in plain Swedish.
 - Live QA login is allowed when credentials are available in the current chat or environment, but never write passwords, tokens, or secrets into source files or docs.
-- Live/deploy coordination should stay in the user's designated release-owner chat. Other chats may build isolated module work, but they should not sync, merge, or deploy Live unless the user explicitly transfers release ownership.
+- Live/deploy ownership belongs to the specialist chat that owns the task. There is no default central release-owner chat; do not wait for the Project Lead to run or approve normal module releases when the specialist chat already owns the work and the safety conditions pass.
 
 ## Current Speed Agreement
 
@@ -176,6 +192,7 @@ If the current branch contains unrelated or unfinished work from another chat, s
 - If the user gives a technical instruction that would weaken safety, interpret the underlying product goal and choose the safer path.
 - If the user says another chat owns a module, do not touch that module here unless the user explicitly redirects ownership.
 - Multiple Codex chats are allowed only when they own different modules or responsibilities. Use branches or worktrees to isolate parallel work, and never deploy a bundle that accidentally includes another chat's unfinished changes.
+- Each specialist chat is responsible for its own live outcome. The Project Lead can coordinate when asked, but should not become the deploy bottleneck for all teams.
 - When live behavior matters, verify live before assuming local state is enough.
 
 ## Stability First

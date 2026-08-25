@@ -8,15 +8,17 @@ From `/Users/maklind/Documents/New project`:
 
 ### Current Rule
 
-Deploy when the user's product intent calls for a live result, the current chat owns the release, and all safety conditions pass. The user should not need to use a special deploy phrase for Codex to recognize this.
+Deploy when the user's product intent calls for a live result, the current specialist chat owns the module/task, and all safety conditions pass. The user should not need to use a special deploy phrase for Codex to recognize this.
 
 - `Deploy` and `Deploy fast` use the everyday fast path unless the change is risky.
 - `Deploy safe` uses the full safe path for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
 - `Live` is the short sync-to-production codeword. It means commit/push intended work, align the release branch with `main` when safe, deploy with the correct fast/safe path for the risk level, run postdeploy verification, and report branch/GitHub/production status.
 - Treat `Live` as the codeword only when it is a standalone command, not when the word appears inside normal discussion.
-- Codex should infer release ownership for Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users. Phrases like "Ta detta hela vägen", "Gör klart till live", "Du äger release för detta", and "Fixa och publicera när det är säkert" still clarify ownership but are not required.
+- Codex should infer release ownership for Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users when they belong to the current chat's module/task. Phrases like "Ta detta hela vägen", "Gör klart till live", "Du äger release för detta", and "Fixa och publicera när det är säkert" still clarify ownership but are not required.
+- There is no standing central deploy owner. Each specialist chat owns its own commit, push, deploy, and production verification when it owns the task.
+- Production-edge deploy work must remain sequential. Before starting Vercel-facing deploy work, check for active staging deploy, production deploy, rollback, and local release processes; wait and report if another release is already active.
 - Never deploy a bundle that includes unrelated or unfinished work from another parallel chat.
-- Stop before deployment if the user asked only for analysis/planning/review/diagnosis/local prototype work, the worktree has unrelated changes, another chat owns the module/release, required validation fails, Safe Lane requirements are not met, or production verification cannot be completed.
+- Stop before deployment if the user asked only for analysis/planning/review/diagnosis/local prototype work, the worktree has unrelated changes, another chat owns the module/task, another release is already active, required validation fails, Safe Lane requirements are not met, or production verification cannot be completed.
 
 ### Everyday Fast Deploy
 

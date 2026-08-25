@@ -141,6 +141,89 @@ test("Scouting worker materializes merged seasons only for the visible page and 
   expect(worker.indexOf(".slice(normalizedQuery.offset")).toBeLessThan(worker.indexOf("attachMergedSeasonRecords(record, seasonRecords)"));
 });
 
+test("Scouting worker reuses immutable core metadata across identity passes", () => {
+  const workerSource = readFileSync(resolve(projectRoot, "scouting-database-worker.js"), "utf8");
+  const worker = loadScoutingWorkerSandbox();
+  let coreReads = 0;
+  const record = [
+    "player-1",
+    "K. Sheridan",
+    "North Carolina Courage",
+    "",
+    "NWSL",
+    "2026",
+    "GK",
+    30,
+    15,
+    1_338,
+    "Canada",
+    "Canada",
+    175,
+    70,
+    [],
+  ];
+  for (const index of [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
+    const value = record[index];
+    Object.defineProperty(record, index, {
+      configurable: true,
+      get() {
+        coreReads += 1;
+        return value;
+      },
+    });
+  }
+
+  const first = worker.getRecordMetadata(record);
+  const readsAfterFirstPass = coreReads;
+  expect(first).toMatchObject({
+    identityKey: "k sheridan::canada|canada::h175",
+    minutes: 1_338,
+    positionGroup: "GK",
+    seasonYear: 2026,
+  });
+
+  expect(worker.getRecordMetadata(record)).toBe(first);
+  expect(worker.getRecordIdentityBaseKey(record)).toBe(first.identityKey);
+  expect(worker.getRecordSeasonYear(record)).toBe(2026);
+  expect(coreReads).toBe(readsAfterFirstPass);
+  expect(workerSource).toContain("let recordMetadataCache = new WeakMap()");
+  expect(workerSource).toContain("recordMetadataCache = new WeakMap()");
+  expect(workerSource).toContain("const metadata = getRecordMetadata(record)");
+});
+
+test("Scouting worker preserves core and imported metric sort order through decorated sorting", () => {
+  const worker = loadScoutingWorkerSandbox();
+  const createRecord = ({ id, name, age, matches, minutes, metric }) => [
+    id,
+    name,
+    "North Carolina Courage",
+    "",
+    "NWSL",
+    "2026",
+    "CF",
+    age,
+    matches,
+    minutes,
+    "United States",
+    "United States",
+    170,
+    62,
+    [metric],
+  ];
+  const records = [
+    createRecord({ id: "ada", name: "Ada", age: 30, matches: 12, minutes: 900, metric: 72 }),
+    createRecord({ id: "bea", name: "Bea", age: 24, matches: 8, minutes: 1_200, metric: 61 }),
+    createRecord({ id: "cy", name: "Cy", age: 27, matches: 6, minutes: 600, metric: 89 }),
+  ];
+  worker.activateDatabase({ records, metrics: [{ id: "progressive-actions", direction: "higher" }] }, "sort-contract");
+
+  const idsFor = (metricId) => worker.sortRecordsByMetric(records, metricId).map((record) => record[0]);
+  expect(idsFor("minutes")).toEqual(["bea", "ada", "cy"]);
+  expect(idsFor("matches")).toEqual(["ada", "bea", "cy"]);
+  expect(idsFor("age")).toEqual(["bea", "cy", "ada"]);
+  expect(idsFor("progressive-actions")).toEqual(["cy", "ada", "bea"]);
+});
+
 test("Scouting database keeps source enrichment behind one visual player database", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
   const client = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-client.mjs"), "utf8");

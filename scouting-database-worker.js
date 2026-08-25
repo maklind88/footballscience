@@ -32,6 +32,7 @@ let metricPercentileCache = new Map();
 let searchNameSignatureCache = new Map();
 let filteredRecordCache = new Map();
 let dedupedRecordCache = new Map();
+let recordMetadataCache = new WeakMap();
 let recordByIdCache = { database: null, byId: new Map() };
 
 function normalizeText(value = "", limit = 120) {
@@ -110,7 +111,7 @@ function getRecordPosition(record) {
 }
 
 function getRecordAge(record) {
-  return normalizeNumber(getRecordValue(record, recordIndex.age), NaN);
+  return getRecordMetadata(record).age;
 }
 
 function normalizeIdentityPart(value = "", limit = 140) {
@@ -123,82 +124,48 @@ function normalizeIdentityPart(value = "", limit = 140) {
 }
 
 function getRecordSeasonYear(record) {
-  const season = getRecordSeason(record);
-  const years = season.match(/\d{4}/g);
-  if (!years || !years.length) return Number.NaN;
-  return Math.max(...years.map((year) => Number(year)).filter(Number.isFinite));
+  return getRecordMetadata(record).seasonYear;
 }
 
 function getRecordIdentityBaseKey(record) {
-  const playerName = normalizeIdentityPart(getRecordName(record));
-  if (!playerName) return "";
-
-  const countries = [
-    normalizeIdentityPart(getRecordValue(record, recordIndex.birthCountry), 60),
-    normalizeIdentityPart(getRecordValue(record, recordIndex.passportCountry), 60),
-  ]
-    .filter(Boolean)
-    .sort()
-    .join("|");
-
-  const height = normalizeNumber(getRecordValue(record, recordIndex.height), Number.NaN);
-  const heightKey = Number.isFinite(height) && height > 0 ? `h${Math.round(height)}` : "";
-
-  return [playerName, countries, heightKey].filter(Boolean).join("::");
+  return getRecordMetadata(record).identityKey;
 }
 
 function hasPlausibleSeasonAgeLink(firstRecord, nextRecord) {
-  const firstAge = getRecordAge(firstRecord);
-  const nextAge = getRecordAge(nextRecord);
-  const firstYear = getRecordSeasonYear(firstRecord);
-  const nextYear = getRecordSeasonYear(nextRecord);
+  const first = getRecordMetadata(firstRecord);
+  const next = getRecordMetadata(nextRecord);
 
   if (
-    !Number.isFinite(firstAge) ||
-    !Number.isFinite(nextAge) ||
-    !Number.isFinite(firstYear) ||
-    !Number.isFinite(nextYear)
+    !Number.isFinite(first.age) ||
+    !Number.isFinite(next.age) ||
+    !Number.isFinite(first.seasonYear) ||
+    !Number.isFinite(next.seasonYear)
   ) {
     return true;
   }
 
-  const ageDelta = nextAge - firstAge;
-  const seasonDelta = nextYear - firstYear;
+  const ageDelta = next.age - first.age;
+  const seasonDelta = next.seasonYear - first.seasonYear;
   return Math.abs(ageDelta - seasonDelta) <= 2;
 }
 
 function areRecordClubSeasonSignalsCompatible(firstRecord, nextRecord) {
-  const firstTeam = normalizeIdentityPart(getRecordTeam(firstRecord), 180);
-  const nextTeam = normalizeIdentityPart(getRecordTeam(nextRecord), 180);
-  if (!firstTeam || !nextTeam || firstTeam === nextTeam) {
+  const first = getRecordMetadata(firstRecord);
+  const next = getRecordMetadata(nextRecord);
+  if (!first.identityTeam || !next.identityTeam || first.identityTeam === next.identityTeam) {
     return true;
   }
-  const firstSeason = normalizeIdentityPart(getRecordSeason(firstRecord), 80);
-  const nextSeason = normalizeIdentityPart(getRecordSeason(nextRecord), 80);
-  if (firstSeason && nextSeason && firstSeason === nextSeason) {
-    const firstAge = getRecordAge(firstRecord);
-    const nextAge = getRecordAge(nextRecord);
-    if (Number.isFinite(firstAge) && Number.isFinite(nextAge) && Math.abs(firstAge - nextAge) > 1) {
+  if (first.identitySeason && next.identitySeason && first.identitySeason === next.identitySeason) {
+    if (Number.isFinite(first.age) && Number.isFinite(next.age) && Math.abs(first.age - next.age) > 1) {
       return false;
     }
   }
   return true;
 }
 
-function getRecordPositionGroup(record) {
-  const tokens = getPositionTokens(record);
-  if (tokens.some((token) => token.includes("GK"))) return "GK";
-  if (tokens.some((token) => ["CB", "RCB", "LCB"].includes(token))) return "CB";
-  if (tokens.some((token) => ["RB", "LB", "RWB", "LWB", "WB"].includes(token))) return "FB";
-  if (tokens.some((token) => ["DMF", "CMF", "RCMF", "LCMF", "AMF", "MF"].includes(token))) return "MID";
-  if (tokens.some((token) => ["RW", "LW", "RWF", "LWF", "WF", "W"].includes(token))) return "WING";
-  if (tokens.some((token) => ["CF", "ST", "FW"].includes(token))) return "CF";
-  return tokens[0] || "";
-}
-
 function areRecordPositionsCompatibleForWeakIdentity(firstRecord, nextRecord) {
-  const firstGroup = getRecordPositionGroup(firstRecord);
-  const nextGroup = getRecordPositionGroup(nextRecord);
+  const firstGroup = getRecordMetadata(firstRecord).positionGroup;
+  const nextGroup = getRecordMetadata(nextRecord).positionGroup;
   if (!firstGroup || !nextGroup || firstGroup === nextGroup) {
     return true;
   }
@@ -219,17 +186,18 @@ function areWorkerRecordsLikelySamePerson(firstRecord, nextRecord) {
 function chooseRepresentativeSeasonRecord(records = [], query = {}) {
   return records.reduce((bestRecord, candidateRecord) => {
     if (!bestRecord) return candidateRecord;
+    const best = getRecordMetadata(bestRecord);
+    const candidate = getRecordMetadata(candidateRecord);
 
     const selectedSeason = normalizeText(query.season, 80);
-    const bestSeasonMatch = selectedSeason && selectedSeason !== "all" && getRecordSeason(bestRecord) === selectedSeason;
-    const candidateSeasonMatch =
-      selectedSeason && selectedSeason !== "all" && getRecordSeason(candidateRecord) === selectedSeason;
+    const bestSeasonMatch = selectedSeason && selectedSeason !== "all" && best.season === selectedSeason;
+    const candidateSeasonMatch = selectedSeason && selectedSeason !== "all" && candidate.season === selectedSeason;
     if (bestSeasonMatch !== candidateSeasonMatch) {
       return candidateSeasonMatch ? candidateRecord : bestRecord;
     }
 
-    const bestYear = getRecordSeasonYear(bestRecord);
-    const candidateYear = getRecordSeasonYear(candidateRecord);
+    const bestYear = best.seasonYear;
+    const candidateYear = candidate.seasonYear;
     if (candidateYear !== bestYear && (Number.isFinite(candidateYear) || Number.isFinite(bestYear))) {
       if (!Number.isFinite(bestYear) || (Number.isFinite(candidateYear) && candidateYear > bestYear)) {
         return candidateRecord;
@@ -245,13 +213,13 @@ function chooseRepresentativeSeasonRecord(records = [], query = {}) {
       }
     }
 
-    const bestMinutes = getRecordMinutes(bestRecord);
-    const candidateMinutes = getRecordMinutes(candidateRecord);
+    const bestMinutes = best.minutes;
+    const candidateMinutes = candidate.minutes;
     if (candidateMinutes !== bestMinutes) {
       return candidateMinutes > bestMinutes ? candidateRecord : bestRecord;
     }
 
-    if (getRecordName(candidateRecord).localeCompare(getRecordName(bestRecord)) < 0) {
+    if (candidate.name.localeCompare(best.name) < 0) {
       return candidateRecord;
     }
     return bestRecord;
@@ -285,12 +253,14 @@ function sortMergedSeasonRecords(records = []) {
   return records
     .slice()
     .sort((first, second) => {
-      const firstYear = getRecordSeasonYear(first);
-      const secondYear = getRecordSeasonYear(second);
+      const firstMetadata = getRecordMetadata(first);
+      const secondMetadata = getRecordMetadata(second);
+      const firstYear = firstMetadata.seasonYear;
+      const secondYear = secondMetadata.seasonYear;
       const yearDelta =
         (Number.isFinite(secondYear) ? secondYear : Number.NEGATIVE_INFINITY) -
         (Number.isFinite(firstYear) ? firstYear : Number.NEGATIVE_INFINITY);
-      return yearDelta || getRecordMinutes(second) - getRecordMinutes(first) || getRecordName(first).localeCompare(getRecordName(second));
+      return yearDelta || secondMetadata.minutes - firstMetadata.minutes || firstMetadata.name.localeCompare(secondMetadata.name);
     });
 }
 
@@ -356,20 +326,95 @@ function dedupeScoutingPlayerRecords(records = [], query = {}, options = {}) {
 }
 
 function getRecordMatches(record) {
-  return normalizeNumber(getRecordValue(record, recordIndex.matches), 0);
+  return getRecordMetadata(record).matches;
 }
 
 function getRecordMinutes(record) {
-  return normalizeNumber(getRecordValue(record, recordIndex.minutes), 0);
+  return getRecordMetadata(record).minutes;
 }
 
-function getPositionTokens(recordOrPosition) {
-  const position = Array.isArray(recordOrPosition) ? getRecordPosition(recordOrPosition) : normalizeText(recordOrPosition, 120);
+function tokenizePosition(position = "") {
   return position
     .toUpperCase()
     .split(/[^A-Z0-9]+/)
     .map((token) => token.trim())
     .filter(Boolean);
+}
+
+function getPositionGroupFromTokens(tokens = []) {
+  if (!tokens.length) {
+    return "GEN";
+  }
+  if (tokens.some((token) => token === "GK" || token === "GOALKEEPER")) {
+    return "GK";
+  }
+  if (tokens.some((token) => token === "CB" || token.endsWith("CB"))) {
+    return "CB";
+  }
+  if (tokens.some((token) => ["RB", "LB", "RWB", "LWB"].includes(token))) {
+    return "FB";
+  }
+  if (tokens.some((token) => ["DM", "DMF", "CM", "CMF", "RCMF", "LCMF", "AM", "AMF"].includes(token) || token.endsWith("MF"))) {
+    return "MF";
+  }
+  if (tokens.some((token) => ["RW", "LW", "RWF", "LWF", "WF", "W"].includes(token))) {
+    return "W";
+  }
+  if (tokens.some((token) => ["CF", "ST", "FW", "F"].includes(token))) {
+    return "FW";
+  }
+  return tokens[0];
+}
+
+function getRecordMetadata(record) {
+  if (record && typeof record === "object" && recordMetadataCache.has(record)) {
+    return recordMetadataCache.get(record);
+  }
+  const name = getRecordName(record);
+  const team = getRecordTeam(record);
+  const league = getRecordLeague(record);
+  const season = getRecordSeason(record);
+  const position = getRecordPosition(record);
+  const positionTokens = tokenizePosition(position);
+  const age = normalizeNumber(getRecordValue(record, recordIndex.age), Number.NaN);
+  const matches = normalizeNumber(getRecordValue(record, recordIndex.matches), 0);
+  const minutes = normalizeNumber(getRecordValue(record, recordIndex.minutes), 0);
+  const years = season.match(/\d{4}/g);
+  const identityName = normalizeIdentityPart(name);
+  const countries = [
+    normalizeIdentityPart(getRecordValue(record, recordIndex.birthCountry), 60),
+    normalizeIdentityPart(getRecordValue(record, recordIndex.passportCountry), 60),
+  ]
+    .filter(Boolean)
+    .sort()
+    .join("|");
+  const height = normalizeNumber(getRecordValue(record, recordIndex.height), Number.NaN);
+  const heightKey = Number.isFinite(height) && height > 0 ? `h${Math.round(height)}` : "";
+  const metadata = {
+    age,
+    identityKey: identityName ? [identityName, countries, heightKey].filter(Boolean).join("::") : "",
+    identitySeason: normalizeIdentityPart(season, 80),
+    identityTeam: normalizeIdentityPart(team, 180),
+    league,
+    matches,
+    minutes,
+    name,
+    positionGroup: getPositionGroupFromTokens(positionTokens),
+    positionTokens,
+    season,
+    seasonYear: years?.length ? Math.max(...years.map((year) => Number(year)).filter(Number.isFinite)) : Number.NaN,
+    team,
+  };
+  if (record && typeof record === "object") {
+    recordMetadataCache.set(record, metadata);
+  }
+  return metadata;
+}
+
+function getPositionTokens(recordOrPosition) {
+  return Array.isArray(recordOrPosition)
+    ? getRecordMetadata(recordOrPosition).positionTokens
+    : tokenizePosition(normalizeText(recordOrPosition, 120));
 }
 
 function positionMatchesFilter(record, selectedPosition) {
@@ -439,29 +484,7 @@ function getMetricDirection(metricId) {
 }
 
 function getRecordPositionGroup(record) {
-  const tokens = getPositionTokens(record);
-  if (!tokens.length) {
-    return "GEN";
-  }
-  if (tokens.some((token) => token === "GK" || token === "GOALKEEPER")) {
-    return "GK";
-  }
-  if (tokens.some((token) => token === "CB" || token.endsWith("CB"))) {
-    return "CB";
-  }
-  if (tokens.some((token) => ["RB", "LB", "RWB", "LWB"].includes(token))) {
-    return "FB";
-  }
-  if (tokens.some((token) => ["DM", "DMF", "CM", "CMF", "RCMF", "LCMF", "AM", "AMF"].includes(token) || token.endsWith("MF"))) {
-    return "MF";
-  }
-  if (tokens.some((token) => ["RW", "LW", "RWF", "LWF", "WF", "W"].includes(token))) {
-    return "W";
-  }
-  if (tokens.some((token) => ["CF", "ST", "FW", "F"].includes(token))) {
-    return "FW";
-  }
-  return tokens[0];
+  return getRecordMetadata(record).positionGroup;
 }
 
 function getMetricPercentileValues(metricId, positionGroup) {
@@ -566,9 +589,8 @@ function buildOptions(records = []) {
   const seasons = new Set();
   const positions = new Set();
   records.forEach((record) => {
-    const league = getRecordLeague(record);
-    const team = getRecordTeam(record);
-    const season = getRecordSeason(record);
+    const metadata = getRecordMetadata(record);
+    const { league, team, season } = metadata;
     if (league) {
       leagues.add(league);
     }
@@ -578,7 +600,7 @@ function buildOptions(records = []) {
     if (season) {
       seasons.add(season);
     }
-    getPositionTokens(record).forEach((token) => positions.add(token));
+    metadata.positionTokens.forEach((token) => positions.add(token));
   });
   optionCache = {
     leagues: [...leagues].sort((a, b) => a.localeCompare(b)),
@@ -601,6 +623,7 @@ function activateDatabase(database, scriptUrl) {
   searchNameSignatureCache = new Map();
   filteredRecordCache = new Map();
   dedupedRecordCache = new Map();
+  recordMetadataCache = new WeakMap();
   recordByIdCache = { database: null, byId: new Map() };
   return loadedDatabase;
 }
@@ -809,48 +832,49 @@ function recordMatchesQuery(record, query) {
   return true;
 }
 
-function createRecordComparator(sortMetricId) {
+function sortRecordsByMetric(records = [], sortMetricId = "minutes") {
   const id = normalizeText(sortMetricId, 160).toLowerCase();
-  if (id === "age") {
-    return (a, b) => {
-      const ageA = getRecordAge(a);
-      const ageB = getRecordAge(b);
-      const safeAgeA = Number.isFinite(ageA) ? ageA : Number.MAX_SAFE_INTEGER;
-      const safeAgeB = Number.isFinite(ageB) ? ageB : Number.MAX_SAFE_INTEGER;
-      return safeAgeA - safeAgeB || getRecordMinutes(b) - getRecordMinutes(a) || getRecordName(a).localeCompare(getRecordName(b));
+  const mode = id === "age" ? "age" : id === "matches" || id === "matches-played" ? "matches" : !id || id === "minutes" ? "minutes" : "metric";
+  const entries = records.map((record) => {
+    const metadata = getRecordMetadata(record);
+    let primaryValue = metadata.minutes;
+    if (mode === "age") {
+      primaryValue = Number.isFinite(metadata.age) ? metadata.age : Number.MAX_SAFE_INTEGER;
+    } else if (mode === "matches") {
+      primaryValue = metadata.matches;
+    } else if (mode === "metric") {
+      const metricValue = getMetricValue(record, sortMetricId);
+      primaryValue = Number.isFinite(metricValue) ? metricValue : 0;
+    }
+    return {
+      minutes: metadata.minutes,
+      name: metadata.name,
+      primaryValue,
+      record,
     };
-  }
-  if (!id || id === "minutes") {
-    return (a, b) => getRecordMinutes(b) - getRecordMinutes(a) || getRecordName(a).localeCompare(getRecordName(b));
-  }
-  if (id === "matches" || id === "matches-played") {
-    return (a, b) =>
-      getRecordMatches(b) - getRecordMatches(a) ||
-      getRecordMinutes(b) - getRecordMinutes(a) ||
-      getRecordName(a).localeCompare(getRecordName(b));
-  }
-  return (a, b) => {
-    const valueA = getMetricValue(a, sortMetricId);
-    const valueB = getMetricValue(b, sortMetricId);
-    const safeValueA = Number.isFinite(valueA) ? valueA : 0;
-    const safeValueB = Number.isFinite(valueB) ? valueB : 0;
-    return safeValueB - safeValueA || getRecordMinutes(b) - getRecordMinutes(a) || getRecordName(a).localeCompare(getRecordName(b));
-  };
+  });
+  entries.sort((first, second) => {
+    const primaryDelta = mode === "age"
+      ? first.primaryValue - second.primaryValue
+      : second.primaryValue - first.primaryValue;
+    return primaryDelta || second.minutes - first.minutes || first.name.localeCompare(second.name);
+  });
+  return entries.map((entry) => entry.record);
 }
 
 function compareRepresentativeMetricValues(bestRecord, candidateRecord, sortMetricId) {
   const id = normalizeText(sortMetricId, 160).toLowerCase();
   if (id === "age") {
-    const bestAge = getRecordAge(bestRecord);
-    const candidateAge = getRecordAge(candidateRecord);
+    const bestAge = getRecordMetadata(bestRecord).age;
+    const candidateAge = getRecordMetadata(candidateRecord).age;
     const safeBestAge = Number.isFinite(bestAge) ? bestAge : Number.MAX_SAFE_INTEGER;
     const safeCandidateAge = Number.isFinite(candidateAge) ? candidateAge : Number.MAX_SAFE_INTEGER;
     return safeBestAge - safeCandidateAge;
   }
-  const bestValue = Number.isFinite(getMetricValue(bestRecord, sortMetricId)) ? getMetricValue(bestRecord, sortMetricId) : 0;
-  const candidateValue = Number.isFinite(getMetricValue(candidateRecord, sortMetricId))
-    ? getMetricValue(candidateRecord, sortMetricId)
-    : 0;
+  const bestMetricValue = getMetricValue(bestRecord, sortMetricId);
+  const candidateMetricValue = getMetricValue(candidateRecord, sortMetricId);
+  const bestValue = Number.isFinite(bestMetricValue) ? bestMetricValue : 0;
+  const candidateValue = Number.isFinite(candidateMetricValue) ? candidateMetricValue : 0;
   return candidateValue - bestValue;
 }
 
@@ -882,12 +906,12 @@ function getFilteredSortedRecords(records, query) {
       filteredRecords.push(record);
     }
   }
-  filteredRecords.sort(createRecordComparator(query.sortMetricId));
+  const sortedRecords = sortRecordsByMetric(filteredRecords, query.sortMetricId);
   if (filteredRecordCache.size > 12) {
     filteredRecordCache.clear();
   }
-  filteredRecordCache.set(cacheKey, filteredRecords);
-  return filteredRecords;
+  filteredRecordCache.set(cacheKey, sortedRecords);
+  return sortedRecords;
 }
 
 function getDedupedRecordEntry(records, query) {

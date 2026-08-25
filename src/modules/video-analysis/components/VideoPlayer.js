@@ -67,7 +67,9 @@ export function renderVideoPlayer(state = {}) {
     : compatibility.container
       ? compatibility.container.toUpperCase()
       : "";
-  const title = activeAngle?.label || ref?.displayName || state.match?.title || state.pendingScheduleLink?.title || "No match video loaded";
+  const title = state.mediaProduction?.portable?.playback?.asset?.title
+    || activeAngle?.label || ref?.displayName || state.match?.title || state.pendingScheduleLink?.title || "No match video loaded";
+  const portablePlayback = Boolean(state.mediaProduction?.portable?.playback?.active);
   const currentMs = Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
   const durationMs = Math.max(0, Math.round(Number(ref?.durationMs || 0)), Math.round(Number(getTimelineDurationMs(state) || 0)));
   const codeModeActive = state.fsPlayer?.mode === "code";
@@ -87,10 +89,10 @@ export function renderVideoPlayer(state = {}) {
           ${needsPrepare || showPrepared ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-prepare-playback ${needsPrepare ? "" : "disabled"} title="Prepare browser-safe playback copy">${showPrepared ? "Prepared" : "Prepare"}</button>` : ""}
         </div>
       </div>
-      <div class="video-analysis-video-frame${state.mediaProduction?.viewMode === "compare" ? " is-media-compare" : ""}" data-video-analysis-video-shuttle>
+      <div class="video-analysis-video-frame${state.mediaProduction?.viewMode === "compare" && !portablePlayback ? " is-media-compare" : ""}" data-video-analysis-video-shuttle>
         ${
           hasVideo
-            ? `<div class="video-analysis-media-primary-feed"><video class="video-analysis-video" data-video-analysis-video src="${escapeHtml(ref.objectUrl)}" playsinline preload="metadata" tabindex="-1"></video><span>${escapeHtml(activeAngle?.label || "Primary")}</span></div>${renderMediaSecondaryFeeds(state)}`
+            ? `<div class="video-analysis-media-primary-feed"><video class="video-analysis-video" data-video-analysis-video src="${escapeHtml(ref.objectUrl)}" playsinline preload="metadata" tabindex="-1"></video><span>${escapeHtml(portablePlayback ? "Shared review" : activeAngle?.label || "Primary")}</span></div>${renderMediaSecondaryFeeds(state)}`
             : `<div class="video-analysis-empty-video">
                 <button type="button" class="video-analysis-empty-video__button" ${emptyActionAttribute}>
                   ${emptyActionLabel}

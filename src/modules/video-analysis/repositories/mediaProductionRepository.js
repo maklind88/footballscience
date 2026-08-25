@@ -38,5 +38,40 @@ export function createMediaProductionRepository(context = {}) {
         getAuthToken,
       );
     },
+    portableMedia(matchId = "") {
+      return requestJson(
+        buildVideoAnalysisApiUrl("portable-media", { matchId }),
+        { method: "GET" },
+        getAuthToken,
+      );
+    },
+    reservePortableMedia(portableMedia = {}) {
+      return requestJson(
+        buildVideoAnalysisApiUrl("reserve-portable-media"),
+        { method: "POST", body: JSON.stringify({ action: "reserve-portable-media", portableMedia }) },
+        getAuthToken,
+      );
+    },
+    completePortableMedia(assetId = "") {
+      return requestJson(
+        buildVideoAnalysisApiUrl("complete-portable-media"),
+        { method: "POST", body: JSON.stringify({ action: "complete-portable-media", assetId }) },
+        getAuthToken,
+      );
+    },
+    openPortableMedia(assetId = "", download = false) {
+      return requestJson(
+        buildVideoAnalysisApiUrl("open-portable-media"),
+        { method: "POST", body: JSON.stringify({ action: "open-portable-media", assetId, download }) },
+        getAuthToken,
+      );
+    },
+    revokePortableMedia(assetId = "") {
+      return requestJson(
+        buildVideoAnalysisApiUrl("revoke-portable-media"),
+        { method: "POST", body: JSON.stringify({ action: "revoke-portable-media", assetId }) },
+        getAuthToken,
+      );
+    },
   };
 }

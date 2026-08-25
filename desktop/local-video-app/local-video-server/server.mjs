@@ -8,6 +8,8 @@ import { createFfmpegEngine } from "./ffmpeg-engine.mjs";
 import { createMediaExportJobHandler } from "./media-export-job-handler.mjs";
 import { createMediaOverlayStore } from "./media-overlay-store.mjs";
 import { createPlaybackAssetHandler } from "./playback-asset-handler.mjs";
+import { createPortableUploadClient } from "./portable-upload-client.mjs";
+import { createPortableUploadJobHandler } from "./portable-upload-job-handler.mjs";
 import { createProcessingJobManager } from "./processing-job-manager.mjs";
 import { createProxyJobHandler } from "./proxy-job-handler.mjs";
 import { receiveRequestFile } from "./request-upload.mjs";
@@ -73,6 +75,7 @@ export function createLocalVideoServer(options = {}) {
   const config = options.config || createLocalVideoServerConfig();
   const engine = options.engine || createFfmpegEngine(options.ffmpeg || {});
   const trackingEngine = options.trackingEngine || createTrackingEngineAdapter(options.tracking || {});
+  const portableUploader = options.portableUploader || createPortableUploadClient(options.portableUpload || {});
   const sessions = createBridgeSessionStore({ ttlMs: config.sessionTtlMs });
   const assets = createAssetAccessStore({ ttlMs: config.assetTtlMs });
   const overlays = createMediaOverlayStore({
@@ -192,6 +195,16 @@ export function createLocalVideoServer(options = {}) {
     sendJson,
     statusCodeForError,
   });
+  const portableUpload = createPortableUploadJobHandler({
+    authorizeSession,
+    config,
+    jobOwners,
+    jobs,
+    publicErrorMessage,
+    sendJson,
+    statusCodeForError,
+    uploader: portableUploader,
+  });
 
   async function createPlaybackJob(request, response) {
     const session = authorizeSession(request, response);
@@ -299,6 +312,7 @@ export function createLocalVideoServer(options = {}) {
           "cancel",
           "render-export",
           "render-overlay",
+          "publish-export",
           "create-proxy",
           "replay-buffer",
           ...(trackingEngine.available() ? ["track-object"] : []),
@@ -339,6 +353,16 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "POST" && url.pathname === "/jobs/render-export") {
       const jobId = await mediaExport.createJob(request, response);
+      if (!jobId) return;
+      sendJson(request, response, config, 202, {
+        ok: true,
+        job: jobs.get(jobId),
+        statusUrl: `${baseUrl()}/jobs/${jobId}`,
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/jobs/publish-export") {
+      const jobId = await portableUpload.createJob(request, response);
       if (!jobId) return;
       sendJson(request, response, config, 202, {
         ok: true,

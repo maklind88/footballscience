@@ -66,6 +66,13 @@ const {
   saveMediaAngle,
 } = require("./video-analysis-media-database.js");
 const {
+  completePortableMedia,
+  listPortableMedia,
+  openPortableMedia,
+  reservePortableMedia,
+  revokePortableMedia,
+} = require("./video-analysis-portable-database.js");
+const {
   attachClipSharingState,
   buildClipSharingMetadata,
   canActorMutateClip,
@@ -946,6 +953,8 @@ async function handleVideoAnalysisRequest(req, res, actor) {
                       ? await listPitchCalibration(query, actor)
                       : action === "media-workspace"
                         ? await listMediaWorkspace(query, actor)
+                        : action === "portable-media"
+                          ? await listPortableMedia(query, actor)
             : await listClips(query, actor);
     return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
   }
@@ -1006,6 +1015,14 @@ async function handleVideoAnalysisRequest(req, res, actor) {
                                                         ? await saveMediaAngle(body.angle || body.mediaAngle || body, actor)
                                                         : action === "save-export-manifest"
                                                           ? await saveExportManifest(body.exportManifest || body.manifest || body, actor)
+                                                          : action === "reserve-portable-media"
+                                                            ? await reservePortableMedia(body.portableMedia || body.asset || body, actor)
+                                                            : action === "complete-portable-media"
+                                                              ? await completePortableMedia(body, actor)
+                                                              : action === "open-portable-media"
+                                                                ? await openPortableMedia(body, actor)
+                                                                : action === "revoke-portable-media"
+                                                                  ? await revokePortableMedia(body, actor)
                                       : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }

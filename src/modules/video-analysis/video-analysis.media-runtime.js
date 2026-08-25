@@ -1,6 +1,7 @@
 import { createMediaCaptureController } from "./controllers/mediaCaptureController.js";
 import { createMediaProductionController } from "./controllers/mediaProductionController.js";
 import { createMediaProxyController } from "./controllers/mediaProxyController.js";
+import { createPortableMediaController } from "./controllers/portableMediaController.js";
 import { createMediaProductionRepository } from "./repositories/mediaProductionRepository.js";
 import { createLocalMediaCaptureService } from "./services/localMediaCaptureService.js";
 
@@ -17,6 +18,14 @@ export function createVideoAnalysisMediaRuntime(options = {}) {
     getCurrentMatchMs: options.getCurrentMatchMs,
     seekToMatchMs: options.seekToMatchMs,
     createLocalSource: (payload) => getRuntime()?.videos.createLocalVideoSource(payload),
+    repository,
+  });
+  const portableController = createPortableMediaController({
+    getState: () => getRuntime()?.store.getState() || {},
+    updateState: (updater) => getRuntime()?.store.update(updater),
+    getVideoElement: options.getVideoElement,
+    getWindow: () => getRuntime()?.context?.win || context.win || window,
+    seekToMatchMs: options.seekToMatchMs,
     repository,
   });
   const captureController = createMediaCaptureController({
@@ -45,18 +54,21 @@ export function createVideoAnalysisMediaRuntime(options = {}) {
   });
   const controller = {
     handleChange: (event) => proxyController.handleChange(event) || productionController.handleChange(event),
-    handleClick: (event) => captureController.handleClick(event) || proxyController.handleClick(event) || productionController.handleClick(event),
+    handleClick: (event) => portableController.handleClick(event) || captureController.handleClick(event) || proxyController.handleClick(event) || productionController.handleClick(event),
     handleVideoTimeUpdate: (video) => proxyController.handleVideoTimeUpdate(video) || productionController.handleVideoTimeUpdate(video),
-    initialize: (force) => {
+    initialize: async (force) => {
       captureController.initialize();
-      return productionController.initialize(force);
+      const productionReady = await productionController.initialize(force);
+      const portableReady = await portableController.initialize(force);
+      return productionReady || portableReady;
     },
     syncSecondaryVideos: productionController.syncSecondaryVideos,
   };
   return {
     captureController,
     controller,
-    dispose: () => Promise.all([captureController.dispose(), proxyController.dispose()]),
+    dispose: () => Promise.all([captureController.dispose(), portableController.dispose(), proxyController.dispose()]),
+    portableController,
     proxyController,
     repository,
   };

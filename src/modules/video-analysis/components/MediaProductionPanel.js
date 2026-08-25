@@ -236,12 +236,73 @@ function exportStatus(mediaExport = {}) {
   return "Ready to render";
 }
 
+function portableVisibility(asset = {}) {
+  if (asset.visibility === "team") return "Team";
+  if (asset.visibility === "targets") return `${asset.targetCount || 0} recipients`;
+  return "Private";
+}
+
+function portablePublishedAt(value = "") {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "Pending";
+  return new Date(timestamp).toISOString().slice(0, 16).replace("T", " ");
+}
+
+function renderPortableAsset(asset = {}, playback = null) {
+  const active = playback?.asset?.id === asset.id;
+  const range = asset.manifest?.range || {};
+  const rangeLabel = `${formatVideoTime(range.startMs || 0)} - ${formatVideoTime(range.endMs || 0)}`;
+  return `
+    <li class="video-analysis-portable-asset${active ? " is-active" : ""}">
+      <div>
+        <strong>${escapeHtml(asset.title || "Football Science review")}</strong>
+        <small>${escapeHtml(`${rangeLabel} / ${captureSize(asset.sizeBytes)} / ${portableVisibility(asset)}`)}</small>
+      </div>
+      <time datetime="${escapeHtml(asset.publishedAt || "")}">${escapeHtml(portablePublishedAt(asset.publishedAt))}</time>
+      <div class="video-analysis-portable-asset__actions">
+        <button type="button" class="${active ? "is-active" : ""}" data-video-analysis-portable-action="${active ? "close" : "open"}" data-video-analysis-portable-asset="${escapeHtml(asset.id)}">${active ? "Close" : "Play"}</button>
+        <button type="button" data-video-analysis-portable-action="download" data-video-analysis-portable-asset="${escapeHtml(asset.id)}" ${asset.canDownload ? "" : "disabled"}>Download</button>
+        ${asset.owner ? `<button type="button" class="video-analysis-portable-revoke" data-video-analysis-portable-action="revoke" data-video-analysis-portable-asset="${escapeHtml(asset.id)}">Revoke</button>` : ""}
+      </div>
+    </li>
+  `;
+}
+
+function renderSharePanel(state = {}) {
+  const portable = state.mediaProduction?.portable || {};
+  const publishing = portable.status === "publishing";
+  const loading = portable.status === "loading";
+  const assets = Array.isArray(portable.assets) ? portable.assets : [];
+  return `
+    <div class="video-analysis-portable-panel">
+      <div class="video-analysis-portable-toolbar">
+        <span><small>Portable reviews</small><strong>${assets.length}</strong></span>
+        <span><small>Status</small><strong>${escapeHtml(publishing ? portable.stage || "Publishing" : loading ? "Loading" : "Ready")}</strong></span>
+        <button type="button" data-video-analysis-portable-action="refresh" ${loading || publishing ? "disabled" : ""}>Refresh</button>
+      </div>
+      ${publishing ? `
+        <div class="video-analysis-portable-progress" aria-label="Publishing portable review">
+          <span style="width:${Math.round(Number(portable.progress || 0) * 100)}%"></span>
+        </div>
+        <button type="button" data-video-analysis-portable-action="cancel">Cancel publishing</button>
+      ` : ""}
+      ${portable.playback?.active ? `<div class="video-analysis-portable-now"><span>Playing</span><strong>${escapeHtml(portable.playback.asset?.title || "Portable review")}</strong><button type="button" data-video-analysis-portable-action="close">Close</button></div>` : ""}
+      ${assets.length
+        ? `<ol class="video-analysis-portable-list">${assets.map((asset) => renderPortableAsset(asset, portable.playback)).join("")}</ol>`
+        : loading ? "" : `<p class="video-analysis-portable-empty">No portable reviews published for this match.</p>`}
+      ${portable.error ? `<p class="video-analysis-error">${escapeHtml(portable.error)}</p>` : ""}
+    </div>
+  `;
+}
+
 function renderExportPanel(state = {}) {
   const mediaExport = state.mediaProduction?.export || {};
   const range = exportRangeForState(state);
   const active = activeMediaAngle(state);
   const rendering = mediaExport.status === "rendering";
   const result = mediaExport.result || null;
+  const portable = state.mediaProduction?.portable || {};
+  const publishing = portable.status === "publishing";
   const selectedItem = selectedPresentationItem(
     state.presentation?.current,
     state.presentation?.selectedItemId,
@@ -272,6 +333,9 @@ function renderExportPanel(state = {}) {
           : `<button type="button" class="video-analysis-media-primary" data-video-analysis-media-action="render">Render MP4</button>`}
         <button type="button" data-video-analysis-media-action="download" ${result?.downloadUrl ? "" : "disabled"}>Download</button>
         <button type="button" data-video-analysis-media-action="download-manifest" ${result?.manifestUrl ? "" : "disabled"}>Manifest</button>
+        ${publishing
+          ? `<button type="button" data-video-analysis-portable-action="cancel">Cancel publishing</button>`
+          : `<button type="button" data-video-analysis-portable-action="publish" ${result?.artifactId && result?.sha256 ? "" : "disabled"}>Publish review</button>`}
         ${result?.sha256 ? `<code title="SHA-256">${escapeHtml(result.sha256.slice(0, 12))}</code>` : ""}
       </div>
     </div>
@@ -284,11 +348,12 @@ function renderPanelBody(state = {}) {
   if (panel === "capture") return renderCapturePanel(state);
   if (panel === "proxy") return renderProxyPanel(state);
   if (panel === "export") return renderExportPanel(state);
+  if (panel === "share") return renderSharePanel(state);
   return renderAnglesPanel(state);
 }
 
 export function renderMediaSecondaryFeeds(state = {}) {
-  if (state.mediaProduction?.viewMode !== "compare") return "";
+  if (state.mediaProduction?.viewMode !== "compare" || state.mediaProduction?.portable?.playback?.active) return "";
   const active = activeMediaAngle(state);
   return connectedAngles(state).filter((angle) => angle.id !== active?.id).slice(0, 3).map((angle) => {
     const reference = mediaReferenceForAngle(state, angle);
@@ -316,7 +381,7 @@ export function renderMediaProductionPanel(state = {}) {
           <small>${escapeHtml(`${connected}/${angles.length} cameras / ${reference?.objectUrl ? active?.label || "Primary" : "reconnect"}`)}</small>
         </button>
         <nav aria-label="Media production" ${media.panelOpen ? "" : "hidden"}>
-          ${["angles", "capture", "proxy", "replay", "export"].map((panel) => `<button type="button" class="${media.panel === panel ? "is-active" : ""}" data-video-analysis-media-panel="${panel}" aria-pressed="${media.panel === panel}">${panel[0].toUpperCase()}${panel.slice(1)}</button>`).join("")}
+          ${["angles", "capture", "proxy", "replay", "export", "share"].map((panel) => `<button type="button" class="${media.panel === panel ? "is-active" : ""}" data-video-analysis-media-panel="${panel}" aria-pressed="${media.panel === panel}">${panel[0].toUpperCase()}${panel.slice(1)}</button>`).join("")}
         </nav>
       </header>
       ${media.panelOpen ? `<div class="video-analysis-media-production__body">${renderPanelBody(state)}${media.error ? `<p class="video-analysis-media-warning">${escapeHtml(media.error)}</p>` : ""}</div>` : ""}

@@ -53,6 +53,15 @@ export function createInitialMediaProductionState() {
       result: null,
       error: "",
     },
+    portable: {
+      status: "idle",
+      loadedMatchId: "",
+      stage: "",
+      progress: 0,
+      assets: [],
+      playback: null,
+      error: "",
+    },
     error: "",
   };
 }
@@ -110,6 +119,18 @@ export function activeMediaAngle(state = {}) {
 }
 
 export function mediaReferenceForAngle(state = {}, angleValue = null) {
+  const portable = state.mediaProduction?.portable?.playback || {};
+  if (portable.active && portable.url) {
+    return {
+      ...(state.videoRef || {}),
+      objectUrl: portable.url,
+      displayName: portable.asset?.title || "Portable review",
+      durationMs: Math.max(1, Number(portable.endMs) - Number(portable.startMs)),
+      mimeType: "video/mp4",
+      extension: "mp4",
+      playbackWindow: { type: "portable-review", startMatchMs: portable.startMs, endMatchMs: portable.endMs },
+    };
+  }
   const angle = angleValue ? normalizeMediaAngle(angleValue) : activeMediaAngle(state);
   if (!angle) return state.videoRef || null;
   const stored = state.mediaProduction?.angleRefs?.[angle.id] || null;
@@ -150,6 +171,12 @@ export function activeMediaReference(state = {}) {
 }
 
 export function matchTimeFromActiveVideoMs(state = {}, videoTimeMs = 0) {
+  const portable = state.mediaProduction?.portable?.playback || {};
+  if (portable.active) {
+    const startMs = boundedMs(portable.startMs);
+    const endMs = Math.max(startMs, boundedMs(portable.endMs, startMs));
+    return Math.min(endMs, startMs + boundedMs(videoTimeMs));
+  }
   const buffer = state.mediaProduction?.replay?.buffer || {};
   if (buffer.active && buffer.angleId === activeMediaAngle(state)?.id) {
     const startMs = boundedMs(buffer.startMatchMs);
@@ -161,6 +188,12 @@ export function matchTimeFromActiveVideoMs(state = {}, videoTimeMs = 0) {
 }
 
 export function activeVideoTimeFromMatchMs(state = {}, matchTimeMs = 0) {
+  const portable = state.mediaProduction?.portable?.playback || {};
+  if (portable.active) {
+    const startMs = boundedMs(portable.startMs);
+    const endMs = Math.max(startMs, boundedMs(portable.endMs, startMs));
+    return Math.min(endMs - startMs, Math.max(0, boundedMs(matchTimeMs) - startMs));
+  }
   const buffer = state.mediaProduction?.replay?.buffer || {};
   if (buffer.active && buffer.angleId === activeMediaAngle(state)?.id) {
     const startMs = boundedMs(buffer.startMatchMs);

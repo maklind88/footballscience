@@ -30,6 +30,7 @@ The server uses `ffmpeg-static` by default. Set `FS_FFMPEG_PATH` only when you n
 Optional limits and policy:
 
 - `FS_LOCAL_VIDEO_ALLOWED_ORIGINS`: comma-separated additional exact origins.
+- `FS_LOCAL_VIDEO_PORTABLE_STORAGE_HOSTS`: comma-separated additional exact HTTPS storage hosts for portable review publishing.
 - `FS_LOCAL_VIDEO_ALLOW_LOCAL_DEV=0`: disable localhost development origins.
 - `FS_LOCAL_VIDEO_MAX_INPUT_BYTES`: maximum accepted request body.
 - `FS_LOCAL_VIDEO_MAX_CACHE_BYTES`: total cache quota.

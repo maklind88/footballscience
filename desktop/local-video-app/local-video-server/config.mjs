@@ -19,6 +19,12 @@ function configuredOrigins(value = "") {
     .filter(Boolean);
 }
 
+function configuredHosts(value = "") {
+  return configuredOrigins(value)
+    .map((host) => host.toLowerCase())
+    .filter((host) => /^[a-z0-9.-]+$/.test(host));
+}
+
 export function createLocalVideoServerConfig(env = process.env, options = {}) {
   const homeDir = options.homeDir || os.homedir();
   return {
@@ -31,6 +37,7 @@ export function createLocalVideoServerConfig(env = process.env, options = {}) {
       ...productionOrigins,
       ...configuredOrigins(env.FS_LOCAL_VIDEO_ALLOWED_ORIGINS),
     ])],
+    portableStorageHosts: [...new Set(configuredHosts(env.FS_LOCAL_VIDEO_PORTABLE_STORAGE_HOSTS))],
     allowLocalDevelopmentOrigins: env.FS_LOCAL_VIDEO_ALLOW_LOCAL_DEV !== "0",
     sessionTtlMs: positiveInteger(env.FS_LOCAL_VIDEO_SESSION_TTL_MS, 12 * 60 * 60 * 1000),
     assetTtlMs: positiveInteger(env.FS_LOCAL_VIDEO_ASSET_TTL_MS, 24 * 60 * 60 * 1000),

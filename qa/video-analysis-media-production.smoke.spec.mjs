@@ -17,6 +17,7 @@ async function openMediaWorkspace(page) {
     const primaryProxyUrl = URL.createObjectURL(new Blob(["primary-proxy"], { type: "video/mp4" }));
     const tacticalProxyUrl = URL.createObjectURL(new Blob(["tactical-proxy"], { type: "video/mp4" }));
     const replayUrl = URL.createObjectURL(new Blob(["replay-buffer"], { type: "video/mp4" }));
+    const portablePlaybackUrl = URL.createObjectURL(new Blob(["portable-review"], { type: "video/mp4" }));
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const angles = [
       {
@@ -51,6 +52,25 @@ async function openMediaWorkspace(page) {
       },
     ];
     window.__videoAnalysisSmokeMediaAngles = angles;
+    window.__videoAnalysisSmokePortablePlaybackUrl = portablePlaybackUrl;
+    window.__videoAnalysisSmokePortableMedia = [{
+      id: "61c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+      matchId: ids.matchId,
+      title: "Pressing distances review",
+      fileName: "Pressing distances review.mp4",
+      mimeType: "video/mp4",
+      sizeBytes: 8_400_000,
+      sha256: "3".repeat(64),
+      manifestSha256: "4".repeat(64),
+      sourceManifestSha256: "5".repeat(64),
+      visibility: "team",
+      status: "ready",
+      owner: true,
+      canDownload: true,
+      targetCount: 1,
+      publishedAt: "2026-08-24T18:30:00.000Z",
+      manifest: { range: { startMs: 21_000, endMs: 36_000 } },
+    }];
     window.__videoAnalysisInitialState = {
       view: "workspace",
       activeAnalysisRoomTab: "fs-player",
@@ -129,6 +149,15 @@ async function openMediaWorkspace(page) {
           result: null,
           error: "",
         },
+        portable: {
+          status: "idle",
+          loadedMatchId: "",
+          stage: "",
+          progress: 0,
+          assets: [],
+          playback: null,
+          error: "",
+        },
         error: "",
       },
     };
@@ -184,6 +213,15 @@ test("media production switches synchronized cameras and edits replay/export sta
   await expect(page.locator(".video-analysis-media-export-summary")).toContainText("0:00:01 - 0:00:06");
   await page.locator('[data-video-analysis-media-field="export.preset"]').selectOption("master-2160p");
   await expect(page.locator('[data-video-analysis-media-field="export.preset"]')).toHaveValue("master-2160p");
+  await page.locator('[data-video-analysis-media-panel="share"]').click();
+  await expect(page.locator(".video-analysis-portable-list")).toContainText("Pressing distances review");
+  await page.locator('[data-video-analysis-portable-action="open"]').click();
+  await expect(page.locator(".video-analysis-player h2")).toHaveText("Pressing distances review");
+  await expect(page.locator(".video-analysis-video-frame")).not.toHaveClass(/is-media-compare/);
+  await expect(page.locator("[data-video-analysis-media-secondary]")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-portable-now")).toContainText("Playing");
+  await page.locator('.video-analysis-portable-now [data-video-analysis-portable-action="close"]').click();
+  await expect(page.locator(".video-analysis-video-frame")).toHaveClass(/is-media-compare/);
   await page.screenshot({ path: testInfo.outputPath("media-production-desktop.png"), fullPage: true });
   expect(pageErrors).toEqual([]);
 });
@@ -193,6 +231,9 @@ test("media production remains contained on mobile", async ({ page }, testInfo) 
   await openMediaWorkspace(page);
   await page.locator('[data-video-analysis-media-action="toggle"]').click();
   await page.locator('[data-video-analysis-media-panel="proxy"]').click();
+  await expect(page.locator(".video-analysis-media-proxy-panel")).toBeVisible();
+  await page.locator('[data-video-analysis-media-panel="share"]').click();
+  await expect(page.locator(".video-analysis-portable-list")).toContainText("Pressing distances review");
   const geometry = await page.locator("[data-video-analysis-media-production]").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {
@@ -207,7 +248,7 @@ test("media production remains contained on mobile", async ({ page }, testInfo) 
   expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth + 1);
   expect(geometry.width).toBeLessThanOrEqual(geometry.viewportWidth + 1);
   expect(geometry.overflow).toBeLessThanOrEqual(1);
-  await page.screenshot({ path: testInfo.outputPath("media-production-mobile.png"), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath("portable-reviews-mobile.png"), fullPage: true });
 });
 
 test("live capture streams to a local file and links a match-synchronized angle", async ({ page }, testInfo) => {

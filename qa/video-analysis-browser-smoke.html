@@ -99,6 +99,9 @@
         ? window.__videoAnalysisSmokeMediaAngles.map((angle) => ({ ...angle }))
         : [];
       let savedExportManifests = [];
+      let savedPortableMedia = Array.isArray(window.__videoAnalysisSmokePortableMedia)
+        ? window.__videoAnalysisSmokePortableMedia.map((asset) => ({ ...asset }))
+        : [];
       const smokeParams = new URLSearchParams(window.location.search);
       if (smokeParams.get("elite") === "1") {
         savedTimelines = [
@@ -279,6 +282,29 @@
             storesVideoFiles: false,
             artifactAccess: "device-local",
           });
+        }
+        if (action === "portable-media") {
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", assets: savedPortableMedia });
+        }
+        if (action === "open-portable-media") {
+          const asset = savedPortableMedia.find((entry) => entry.id === body.assetId);
+          if (!asset) return Response.json({ ok: false, reason: "Portable review not found." }, { status: 404 });
+          return Response.json({
+            ok: true,
+            schema: "footballscience-video-analysis-v2",
+            asset,
+            playback: {
+              url: window.__videoAnalysisSmokePortablePlaybackUrl,
+              expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+            },
+          });
+        }
+        if (action === "revoke-portable-media") {
+          const index = savedPortableMedia.findIndex((entry) => entry.id === body.assetId);
+          const [asset] = index >= 0 ? savedPortableMedia.splice(index, 1) : [];
+          return asset
+            ? Response.json({ ok: true, schema: "footballscience-video-analysis-v2", asset: { ...asset, status: "revoked" } })
+            : Response.json({ ok: false, reason: "Portable review not found." }, { status: 404 });
         }
         if (action === "save-media-angle") {
           const input = body.angle || {};

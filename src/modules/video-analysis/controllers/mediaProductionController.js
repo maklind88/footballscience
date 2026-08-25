@@ -286,7 +286,7 @@ export function createMediaProductionController(options = {}) {
           overlayTruncated: overlaySpec.truncated,
         },
       };
-      const result = await renderLocalMediaExport({
+      let result = await renderLocalMediaExport({
         manifest,
         overlaySpec,
         videoRef: reference,
@@ -299,7 +299,7 @@ export function createMediaProductionController(options = {}) {
       });
       let warning = "";
       try {
-        await options.repository.saveExportManifest({
+        const saved = await options.repository.saveExportManifest({
           matchId: manifest.source.matchId,
           videoId: manifest.source.videoId,
           sourceId: manifest.source.sourceId,
@@ -317,6 +317,7 @@ export function createMediaProductionController(options = {}) {
           renderedAt: new Date().toISOString(),
           layerSummary: manifest.analysis,
         });
+        result = { ...result, exportManifestId: saved?.exportManifest?.id || "" };
       } catch {
         warning = "Render complete. Central export metadata is pending sync.";
       }

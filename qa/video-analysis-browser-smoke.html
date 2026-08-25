@@ -195,6 +195,20 @@
           const pageClips = filteredClips.slice(offset, offset + limit);
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips: pageClips, pageSize: pageClips.length });
         }
+        if (action === "analysis-facts") {
+          const limit = Math.max(1, Number(parsed.searchParams.get("limit") || 500));
+          const offset = Math.max(0, Number(parsed.searchParams.get("offset") || 0));
+          const facts = clips.slice(offset, offset + limit);
+          return Response.json({
+            ok: true,
+            schema: "footballscience-video-analysis-v2",
+            facts,
+            pageSize: facts.length,
+            offset,
+            nextOffset: null,
+            hasMore: false,
+          });
+        }
         if (action === "saved-searches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearches: [] });
         if (action === "save-search") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearch: { id: "search-1", title: "Build Up Development" } });
         if (action === "save-review-session") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", reviewSession: { id: "review-1" } });

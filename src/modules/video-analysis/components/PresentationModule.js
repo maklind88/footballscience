@@ -13,6 +13,7 @@ import { renderPresentationOverview } from "./PresentationOverview.js";
 import { renderPresentationSources } from "./PresentationSources.js";
 import { renderPresenterMode } from "./PresenterMode.js";
 import { renderSelectedClipInspector } from "./SelectedClipInspector.js";
+import { renderAnalysisReportSummary } from "./AnalysisReportSummary.js";
 import { escapeHtml, optionList } from "./renderHelpers.js";
 
 function renderPresentationOption(presentation = {}, activeId = "") {
@@ -283,6 +284,7 @@ export function renderPresentationModule(state = {}) {
       </div>
       ${renderPresentationShareSettings(state, current)}
       ${presentationState.error ? `<div class="video-analysis-error" role="alert">${escapeHtml(presentationState.error)}</div>` : ""}
+      ${renderAnalysisReportSummary(current)}
       ${renderPresentationBody(state, activeMode)}
     </section>
   `;

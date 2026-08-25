@@ -9,8 +9,10 @@ import {
 } from "../services/clipLibraryService.js";
 import { isPlayerOnlyClip } from "../services/clipInstanceService.js";
 import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
+import { clipMatchesActiveVideo } from "../services/clipAnalysisFactService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { renderClipPreviewOverlay } from "./ClipLibraryPreview.js";
+import { renderClipIntelligence } from "./ClipIntelligence.js";
 import { escapeHtml, optionList } from "./renderHelpers.js";
 
 function primaryPlayerLabel(clip = {}) {
@@ -138,7 +140,7 @@ function renderComparison(state = {}, clips = []) {
             <strong>${escapeHtml(clipTitle(clip))}</strong>
             <small>${escapeHtml(`${primaryPlayerLabel(clip)} · ${clipOutcome(clip)}`)}</small>
             ${renderPrinciples(clip)}
-            <button type="button" data-video-analysis-clip-library-play="${escapeHtml(clip.id)}">Play</button>
+            ${renderClipSourceAction(clip, state)}
           </article>
         `).join("")}
       </div>
@@ -154,6 +156,14 @@ function renderPrinciples(clip = {}) {
       ${principles.map((principle) => `<em>${escapeHtml(principle)}</em>`).join("")}
     </span>
   `;
+}
+
+function renderClipSourceAction(clip = {}, state = {}) {
+  if (clipMatchesActiveVideo(clip, state)) {
+    return `<button type="button" data-video-analysis-clip-library-play="${escapeHtml(clip.id)}">Play</button>`;
+  }
+  const matchId = String(clip.matchId || clip.match_id || "").trim();
+  return `<button type="button" data-video-analysis-clip-library-open-source="${escapeHtml(matchId)}" ${matchId ? "" : "disabled"}>Source</button>`;
 }
 
 function formatSourceDate(value = "") {
@@ -215,7 +225,7 @@ function renderClip(clip = {}, state = {}) {
         </div>
       </div>
       <div class="video-analysis-clip-library-card__actions">
-        <button type="button" data-video-analysis-clip-library-play="${escapeHtml(clipId)}">Play</button>
+        ${renderClipSourceAction(clip, state)}
         <button type="button" data-video-analysis-review="${escapeHtml(clipId)}">Presentation</button>
       </div>
     </article>
@@ -274,6 +284,7 @@ export function renderClipLibrary(state = {}) {
         </div>
         ${renderSavedSearches(state.savedSearches || [])}
       </section>
+      ${renderClipIntelligence(state)}
       ${renderOrganizer(state)}
       ${renderComparison(state, previewClips)}
       <section class="video-analysis-clip-library-groups">

@@ -324,6 +324,13 @@ export function addClipToPresentation(presentation = {}, sectionId = "", clip = 
   };
 }
 
+export function addClipsToPresentation(presentation = {}, sectionId = "", clips = []) {
+  return (Array.isArray(clips) ? clips : []).reduce(
+    (current, clip) => addClipToPresentation(current, sectionId, clip),
+    presentation,
+  );
+}
+
 export function updatePresentationItem(presentation = {}, itemId = "", patch = {}) {
   return {
     ...presentation,

@@ -5,6 +5,8 @@
 @import url("./video-analysis.portable-media.css");
 @import url("./video-analysis.capture.css");
 @import url("./video-analysis.proxy.css");
+@import url("./video-analysis.intelligence.css");
+@import url("./video-analysis.analysis-report.css");
 
 #analysisRoomWorkspace {
   min-width: 0;

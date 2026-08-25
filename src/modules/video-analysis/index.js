@@ -1,6 +1,5 @@
 import { renderClipFilters } from "./components/ClipFilters.js";
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
-import { renderClipIntelligence } from "./components/ClipIntelligence.js";
 import { renderClipLibrary } from "./components/ClipLibrary.js";
 import { renderClipList } from "./components/ClipList.js";
 import { renderCodingTemplateBuilder } from "./components/CodingTemplateBuilder.js";
@@ -16,10 +15,12 @@ import { createDrawingController } from "./controllers/drawingController.js";
 import { createPresentationController } from "./controllers/presentationController.js";
 import { createPresenterController } from "./controllers/presenterController.js";
 import { createThumbnailController } from "./controllers/thumbnailController.js";
+import { createClipIntelligenceController } from "./controllers/clipIntelligenceController.js";
 import { normalizeClipInstance } from "./domain/clipInstance.model.js";
 import { normalizeTimelineWorkspace } from "./domain/timelineWorkspace.model.js";
 import { createCodingTemplateRepository } from "./repositories/codingTemplateRepository.js";
 import { createClipRepository } from "./repositories/clipRepository.js";
+import { createClipIntelligenceRepository } from "./repositories/clipIntelligenceRepository.js";
 import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
@@ -47,6 +48,8 @@ import {
 } from "./services/clipEditingService.js";
 import { buildClipLibraryClipOrder, clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
+import { clipsForIntelligenceState, resolveMatrixConfig } from "./services/clipAnalyticsService.js";
+import { clipMatchesActiveVideo } from "./services/clipAnalysisFactService.js";
 import { phaseForSubPhase } from "./services/footballLanguageService.js";
 import {
   clipMiniGamePrincipleIds,
@@ -98,6 +101,7 @@ import {
   restoreLocalVideoHandleForState,
 } from "./services/localVideoSessionService.js";
 import { addClipToReviewSection, buildReviewSessionPayload, removeClipFromReviewSection, updateReviewSectionNote } from "./services/reviewSessionService.js";
+import { createAnalysisReportPresentation } from "./services/analysisReportService.js";
 import {
   addClipToPresentation,
   addPresentationSection,
@@ -132,6 +136,7 @@ let drawingController = null;
 let presentationController = null;
 let presenterController = null;
 let thumbnailController = null;
+let clipIntelligenceController = null;
 const pickerMiniGamePrincipleIdSet = new Set(miniGamePrinciplePickerIds);
 const pickerMiniGamePrinciples = miniGamePrinciplePickerGroups.flatMap((group) => (
   group.principles.map((principle) => ({ ...principle, groupLabel: group.label }))
@@ -220,6 +225,7 @@ function createRuntime(context = {}) {
       ...context,
       getCollaborationContext: collaborationRuntime.operationContext,
     }),
+    intelligence: createClipIntelligenceRepository(context),
     playlists: createPlaylistRepository(context),
     presentations: createPresentationRepository(context),
     timelines: timelineWorkspaceRuntime.repository,
@@ -339,6 +345,18 @@ function presentationControls(context = {}) {
   }
   ensureRuntime(runtime?.context || context);
   return presentationController;
+}
+
+function intelligenceControls(context = {}) {
+  if (!clipIntelligenceController) {
+    clipIntelligenceController = createClipIntelligenceController({
+      getRuntime: () => runtime,
+      getWindow: () => runtime?.context?.win || context.win || window,
+      loadPresentationSources,
+    });
+  }
+  ensureRuntime(runtime?.context || context);
+  return clipIntelligenceController;
 }
 
 const analysisRoomTabs = Object.freeze([
@@ -1837,6 +1855,7 @@ function paint(root, state) {
   const focusedDraft = root.querySelector("[data-video-analysis-draft]:focus")?.dataset.videoAnalysisDraft || "";
   const focusedFilter = root.querySelector("[data-video-analysis-filter]:focus")?.dataset.videoAnalysisFilter || "";
   const focusedLibraryFilter = root.querySelector("[data-video-analysis-library-filter]:focus")?.dataset.videoAnalysisLibraryFilter || "";
+  const focusedIntelligenceQuery = Boolean(root.querySelector("[data-video-analysis-intelligence-query]:focus"));
   const focusedReviewNote = root.querySelector("[data-video-analysis-review-note]:focus")?.dataset.videoAnalysisReviewNote || "";
   const focusedButtonField = root.querySelector("[data-video-analysis-button-field]:focus")?.dataset.videoAnalysisButtonField || "";
   const focusedButtonMsField = root.querySelector("[data-video-analysis-button-ms-field]:focus")?.dataset.videoAnalysisButtonMsField || "";
@@ -1855,14 +1874,17 @@ function paint(root, state) {
   const focusedDrawingField = root.querySelector("[data-video-analysis-drawing-field]:focus")?.dataset.videoAnalysisDrawingField || "";
   const focusedMgPrincipleSearch = Boolean(root.querySelector("[data-video-analysis-mg-principle-search]:focus"));
   const selectionStart = root.ownerDocument?.activeElement?.selectionStart;
+  const activeTabId = activeAnalysisRoomTab(state);
+  const sourceClips = activeTabId === "match-report"
+    ? clipsForIntelligenceState({ ...state, allClips: state.clips })
+    : state.clips || [];
   const visibleClips = filterClipsForMatrix(
-    state.clips || [],
-    state.matrix?.mode,
+    sourceClips,
+    state.matrix || {},
     state.matrix?.selectedRow,
     state.matrix?.selectedColumn
   );
-  const displayState = { ...state, clips: visibleClips, allClips: state.clips };
-  const activeTabId = activeAnalysisRoomTab(state);
+  const displayState = { ...state, clips: visibleClips, allClips: sourceClips };
   syncFsPlayerGestureContainment(runtime?.context || {}, state);
   root.innerHTML = `
     <section class="analysis-room-shell">
@@ -1909,8 +1931,10 @@ function paint(root, state) {
     : focusedFilter
       ? root.querySelector(`[data-video-analysis-filter="${focusedFilter}"]`)
       : focusedLibraryFilter
-      ? root.querySelector(`[data-video-analysis-library-filter="${focusedLibraryFilter}"]`)
-      : focusedReviewNote
+        ? root.querySelector(`[data-video-analysis-library-filter="${focusedLibraryFilter}"]`)
+        : focusedIntelligenceQuery
+          ? root.querySelector("[data-video-analysis-intelligence-query]")
+          : focusedReviewNote
         ? root.querySelector(`[data-video-analysis-review-note="${focusedReviewNote}"]`)
         : focusedButtonField
           ? root.querySelector(`[data-video-analysis-button-field="${focusedButtonField}"]`)
@@ -2182,7 +2206,9 @@ function orderedSelectedClipLibraryClips(state = {}) {
   const selectedIds = new Set((Array.isArray(state.clipLibrary?.selectedClipIds) ? state.clipLibrary.selectedClipIds : [])
     .map((id) => String(id || ""))
     .filter(Boolean));
-  const source = Array.isArray(state.allClips) && state.allClips.length ? state.allClips : state.clips || [];
+  const source = state.intelligence?.active
+    ? clipsForIntelligenceState(state)
+    : (Array.isArray(state.allClips) && state.allClips.length ? state.allClips : state.clips || []);
   const orderedIds = buildClipLibraryClipOrder(source, state.clipLibrary?.groupBy || "subPhase");
   const byId = new Map(source.map((clip) => [String(clip.id || ""), clip]));
   const visible = orderedIds.filter((id) => selectedIds.has(id)).map((id) => byId.get(id)).filter(Boolean);
@@ -2194,24 +2220,11 @@ function orderedSelectedClipLibraryClips(state = {}) {
 }
 
 function presentationFromClipLibrarySelection(state = {}, kind = "playlist") {
+  if (kind === "report") {
+    return createAnalysisReportPresentation(state, currentClipsForReport(state));
+  }
   const clips = orderedSelectedClipLibraryClips(state);
   let current = createDefaultPresentation();
-  if (kind === "report") {
-    current = {
-      ...current,
-      title: "FS Player Analysis Report",
-      purpose: "analysis-report",
-      metadata: {
-        source: "clip-library-selection",
-        filters: { ...(state.filters || {}) },
-      },
-    };
-    for (const clip of clips) {
-      const sectionId = Array.isArray(clip.players) && clip.players.length ? "player-focus" : "team-focus";
-      current = addClipToPresentation(current, sectionId, clip);
-    }
-    return { current, activeSectionId: clips.some((clip) => Array.isArray(clip.players) && clip.players.length) ? "player-focus" : "team-focus", clips };
-  }
   current = {
     ...current,
     title: "FS Player Playlist",
@@ -2224,6 +2237,12 @@ function presentationFromClipLibrarySelection(state = {}, kind = "playlist") {
   current = updatePresentationSection(current, "opening", { title: "Playlist" });
   current = addClipsToPresentation(current, "opening", clips);
   return { current, activeSectionId: "opening", clips };
+}
+
+function currentClipsForReport(state = {}) {
+  return state.intelligence?.corpus?.length
+    ? state.intelligence.corpus
+    : (Array.isArray(state.allClips) && state.allClips.length ? state.allClips : state.clips || []);
 }
 
 function setupClipLibraryPreview(root, state = {}) {
@@ -3583,6 +3602,7 @@ export function resetVideoAnalysisRuntimeForTests() {
   presentationController = null;
   presenterController = null;
   thumbnailController = null;
+  clipIntelligenceController = null;
 }
 
 async function handleFileSelection(file, context = {}, options = {}) {
@@ -4889,6 +4909,7 @@ export function handleClick(event, context = {}) {
   if (run.mediaRuntime.controller.handleClick(event)) return true;
   if (run.spatialRuntime.controller.handleClick(event)) return true;
   if (run.trackingRuntime.controller.handleClick(event)) return true;
+  if (intelligenceControls(context).handleClick(event)) return true;
   if (workspaceTimelineController(context).handleClick(event)) return true;
   const roomTab = target.closest("[data-video-analysis-room-tab]");
   if (roomTab) {
@@ -5816,10 +5837,28 @@ export function handleClick(event, context = {}) {
   if (clipLibraryPlayButton) {
     const clipId = clipLibraryPlayButton.dataset.videoAnalysisClipLibraryPlay || "";
     run.store.update((state) => {
+      const clip = clipsForIntelligenceState(state).find((entry) => String(entry.id || "") === clipId);
+      if (!clipMatchesActiveVideo(clip, state)) {
+        return { ...state, message: "Open this clip source before playback." };
+      }
       return {
         ...state,
         ...clipLibraryPreviewPatch(state, [clipId], 0),
       };
+    });
+    return true;
+  }
+  const clipLibrarySourceButton = target.closest("[data-video-analysis-clip-library-open-source]");
+  if (clipLibrarySourceButton) {
+    const matchId = clipLibrarySourceButton.dataset.videoAnalysisClipLibraryOpenSource || "";
+    pauseFsPlayerPlayback(context);
+    const controller = libraryController();
+    controller.loadLibrary({ silent: true }).then(() => (
+      controller.openLibraryItem(`match:${matchId}`, context, { activeTab: "match-report" })
+    )).then((opened) => {
+      if (!opened) controller.openLibraryView(context);
+    }).catch((error) => {
+      run.store.setState({ error: error.message || "Could not open the clip source." });
     });
     return true;
   }
@@ -5830,17 +5869,21 @@ export function handleClick(event, context = {}) {
         .filter(Boolean));
       if (!selectedIds.size) return { ...state, message: "Select clips first." };
       const visibleClips = filterClipsForMatrix(
-        state.clips || [],
-        state.matrix?.mode,
+        clipsForIntelligenceState(state),
+        state.matrix || {},
         state.matrix?.selectedRow,
         state.matrix?.selectedColumn
       );
       const orderedVisibleIds = buildClipLibraryClipOrder(visibleClips, state.clipLibrary?.groupBy || "subPhase");
       const hiddenSelectedIds = [...selectedIds].filter((id) => !orderedVisibleIds.includes(id));
-      const queueIds = [...orderedVisibleIds.filter((id) => selectedIds.has(id)), ...hiddenSelectedIds];
+      const orderedIds = [...orderedVisibleIds.filter((id) => selectedIds.has(id)), ...hiddenSelectedIds];
+      const clipsById = new Map(clipsForIntelligenceState(state).map((clip) => [String(clip.id || ""), clip]));
+      const queueIds = orderedIds.filter((id) => clipMatchesActiveVideo(clipsById.get(id), state));
+      if (!queueIds.length) return { ...state, message: "Open a selected clip source before playback." };
       return {
         ...state,
         ...clipLibraryPreviewPatch(state, queueIds, 0),
+        message: queueIds.length < orderedIds.length ? `${queueIds.length} clips from the active source queued.` : state.message,
       };
     });
     return true;
@@ -6022,8 +6065,8 @@ export function handleClick(event, context = {}) {
     const value = clipLibraryAddGroupButton.dataset.videoAnalysisClipLibraryGroupValue || "";
     run.store.update((state) => {
       const visible = filterClipsForMatrix(
-        state.clips || [],
-        state.matrix?.mode,
+        clipsForIntelligenceState(state),
+        state.matrix || {},
         state.matrix?.selectedRow,
         state.matrix?.selectedColumn
       );
@@ -6069,9 +6112,18 @@ export function handleClick(event, context = {}) {
   }
   const matrixButton = target.closest("[data-video-analysis-matrix]");
   if (matrixButton) {
+    const mode = matrixButton.dataset.videoAnalysisMatrix;
+    const config = resolveMatrixConfig(mode);
     run.store.update((state) => ({
       ...state,
-      matrix: { mode: matrixButton.dataset.videoAnalysisMatrix, selectedRow: "", selectedColumn: "" },
+      matrix: {
+        ...(state.matrix || {}),
+        mode,
+        rowAxis: config.rowAxis,
+        columnAxis: config.columnAxis,
+        selectedRow: "",
+        selectedColumn: "",
+      },
     }));
     return true;
   }
@@ -6083,7 +6135,20 @@ export function handleClick(event, context = {}) {
   }
   if (target.closest("[data-video-analysis-save-search]")) {
     const state = run.store.getState();
-    const search = { title: savedSearchTitle(state.filters), search: { ...state.filters, matrix: state.matrix } };
+    const queryText = String(state.intelligence?.queryText || "").trim();
+    const search = {
+      title: (queryText || savedSearchTitle(state.filters)).slice(0, 180),
+      search: {
+        ...state.filters,
+        matrix: state.matrix,
+        intelligence: queryText ? {
+          queryText,
+          querySpec: state.intelligence?.querySpec || {},
+          cohortA: state.intelligence?.cohortA || null,
+          cohortB: state.intelligence?.cohortB || null,
+        } : null,
+      },
+    };
     run.clips.saveSearch(search).then((payload) => {
       run.store.update((current) => ({
         ...current,
@@ -6100,7 +6165,22 @@ export function handleClick(event, context = {}) {
     ));
     const searchJson = search?.search_json || search?.searchJson || search?.search || {};
     if (searchJson.matrix) run.store.update((state) => ({ ...state, matrix: searchJson.matrix }));
-    loadClips({ ...run.store.getState().filters, ...searchJson });
+    if (searchJson.intelligence?.queryText) {
+      run.store.update((state) => ({
+        ...state,
+        intelligence: {
+          ...(state.intelligence || {}),
+          queryText: searchJson.intelligence.queryText,
+          querySpec: searchJson.intelligence.querySpec || state.intelligence?.querySpec,
+          cohortA: searchJson.intelligence.cohortA || null,
+          cohortB: searchJson.intelligence.cohortB || null,
+        },
+      }));
+      intelligenceControls(context).runQuery();
+    } else {
+      const { matrix: ignoredMatrix, intelligence: ignoredIntelligence, ...savedFilters } = searchJson;
+      loadClips({ ...run.store.getState().filters, ...savedFilters });
+    }
     return true;
   }
   if (target.closest("[data-video-analysis-save-review]")) {
@@ -6117,6 +6197,7 @@ export function handleInput(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (intelligenceControls(context).handleInput(event)) return true;
   if (workspaceTimelineController(context).handleInput(event)) return true;
   const libraryFilter = target.closest("[data-video-analysis-library-filter]");
   if (libraryFilter) {
@@ -6380,6 +6461,7 @@ export function handleChange(event, context = {}) {
   if (run.mediaRuntime.controller.handleChange(event)) return true;
   if (run.spatialRuntime.controller.handleChange(event)) return true;
   if (run.trackingRuntime.controller.handleChange(event)) return true;
+  if (intelligenceControls(context).handleChange(event)) return true;
   if (workspaceTimelineController(context).handleChange(event)) return true;
   const fileInput = target.closest("[data-video-analysis-file]");
   if (fileInput?.files?.[0]) {

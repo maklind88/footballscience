@@ -72,6 +72,7 @@ const {
   reservePortableMedia,
   revokePortableMedia,
 } = require("./video-analysis-portable-database.js");
+const { listAnalysisFacts } = require("./video-analysis-intelligence-database.js");
 const {
   attachClipSharingState,
   buildClipSharingMetadata,
@@ -918,7 +919,7 @@ function statusPayload(actor) {
     scope: actorScope(actor),
     storesVideoFiles: false,
     precision: "milliseconds",
-    workstation: ["templates", "hotkeys", "multiple-timelines", "timeline-row-operations", "descriptors", "matrix-find", "review-sections", "presentation-builder", "drawing-layers", "audited-collaboration", "object-tracking", "dynamic-graphics", "pitch-calibration", "spatial-analysis", "multi-angle", "replay", "local-render-export"],
+    workstation: ["templates", "hotkeys", "multiple-timelines", "timeline-row-operations", "descriptors", "matrix-find", "natural-language-search", "cohort-comparison", "analysis-reports", "cross-match-analytics", "review-sections", "presentation-builder", "drawing-layers", "audited-collaboration", "object-tracking", "dynamic-graphics", "pitch-calibration", "spatial-analysis", "multi-angle", "replay", "local-render-export"],
   };
 }
 
@@ -933,6 +934,8 @@ async function handleVideoAnalysisRequest(req, res, actor) {
         ? await listMatches(query, actor)
         : action === "saved-searches"
           ? await listSavedSearches(query, actor)
+          : action === "analysis-facts"
+            ? await listAnalysisFacts(query, actor)
           : action === "presentations" || action === "list-presentations"
             ? await listPresentations(query, actor)
             : action === "presentation" || action === "get-presentation"

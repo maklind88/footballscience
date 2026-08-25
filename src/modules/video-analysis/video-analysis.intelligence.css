@@ -1,0 +1,428 @@
+#analysisRoomWorkspace .video-analysis-intelligence {
+  display: grid;
+  gap: 10px;
+  margin: 0 10px 10px;
+  border-top: 1px solid #d9e2dc;
+  border-bottom: 1px solid #d9e2dc;
+  padding: 12px 0;
+  overflow: hidden;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-header,
+#analysisRoomWorkspace .video-analysis-intelligence-modebar,
+#analysisRoomWorkspace .video-analysis-intelligence-actions,
+#analysisRoomWorkspace .video-analysis-intelligence-drilldown > header,
+#analysisRoomWorkspace .video-analysis-intelligence-comparison > header,
+#analysisRoomWorkspace .video-analysis-report-summary > header,
+#analysisRoomWorkspace .video-analysis-report-summary > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-header h3,
+#analysisRoomWorkspace .video-analysis-intelligence-header p,
+#analysisRoomWorkspace .video-analysis-intelligence-drilldown p,
+#analysisRoomWorkspace .video-analysis-intelligence-comparison p,
+#analysisRoomWorkspace .video-analysis-report-summary h2,
+#analysisRoomWorkspace .video-analysis-report-summary p {
+  margin: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-header h3 {
+  font-size: 16px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-status {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 7px;
+  min-width: 150px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-status > span {
+  grid-row: 1 / 3;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #23845a;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-status.is-loading > span {
+  animation: video-analysis-intelligence-pulse 1s ease-in-out infinite alternate;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-status strong,
+#analysisRoomWorkspace .video-analysis-intelligence-status small {
+  line-height: 1.1;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-status strong {
+  font-size: 12px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-status small {
+  color: #68736d;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-query {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) repeat(5, auto);
+  gap: 6px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-query input,
+#analysisRoomWorkspace .video-analysis-intelligence-query button,
+#analysisRoomWorkspace .video-analysis-intelligence-matrix-controls select,
+#analysisRoomWorkspace .video-analysis-intelligence-actions button,
+#analysisRoomWorkspace .video-analysis-report-summary > header button {
+  min-height: 34px;
+  border: 1px solid #c8d4cc;
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: #16231b;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-query input {
+  width: 100%;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-query .is-primary,
+#analysisRoomWorkspace .video-analysis-intelligence-actions .is-primary {
+  border-color: #154d36;
+  color: #fff;
+  background: #154d36;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-actions button:disabled {
+  opacity: 0.45;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-error {
+  margin: 0;
+  color: #a3352c;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-chips,
+#analysisRoomWorkspace .video-analysis-report-query {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-chips span,
+#analysisRoomWorkspace .video-analysis-report-query span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  border: 1px solid #d6e0d9;
+  border-radius: 8px;
+  padding: 3px 7px;
+  color: #27362d;
+  background: #f6f9f7;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-chips small,
+#analysisRoomWorkspace .video-analysis-report-query small {
+  color: #738078;
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-modebar {
+  align-items: end;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-matrix-controls {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-matrix-controls label {
+  display: grid;
+  gap: 3px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-matrix-controls label > span {
+  color: #6b766f;
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-matrix-controls select {
+  min-width: 110px;
+  padding-right: 24px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix {
+  display: grid;
+  grid-template-columns: minmax(128px, 180px) repeat(var(--matrix-columns), minmax(88px, 1fr));
+  width: max-content;
+  min-width: 100%;
+  max-height: 430px;
+  padding: 0;
+  overflow: auto;
+  gap: 1px;
+  background: #dce4df;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix__corner,
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix__column,
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix__row,
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix-cell {
+  min-width: 0;
+  min-height: 36px;
+  border: 0;
+  border-radius: 0;
+  padding: 7px 8px;
+  font-size: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix__corner,
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix__column {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  overflow: hidden;
+  color: #25332b;
+  background: #eef3f0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix__corner {
+  left: 0;
+  z-index: 4;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix__row {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  overflow: hidden;
+  background: #f4f7f5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix-cell {
+  color: #15271d;
+  background: rgb(35 132 90 / calc(0.035 + var(--matrix-intensity) * 0.42));
+  font-weight: 900;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix-cell:not(.has-value) {
+  background: #fff;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence .video-analysis-matrix-cell.is-active {
+  box-shadow: inset 0 0 0 2px #0f4f34;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-empty {
+  min-height: 80px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #cdd8d1;
+  color: #718078;
+  font-size: 12px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-drilldown,
+#analysisRoomWorkspace .video-analysis-intelligence-comparison {
+  min-width: 0;
+  border-top: 1px solid #dce4df;
+  padding-top: 9px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-drilldown > header > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-drilldown header span,
+#analysisRoomWorkspace .video-analysis-report-kpis span {
+  display: grid;
+  gap: 1px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-drilldown header small,
+#analysisRoomWorkspace .video-analysis-report-kpis small {
+  color: #6d7871;
+  font-size: 8px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-bars {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-bar,
+#analysisRoomWorkspace .video-analysis-report-distribution-row {
+  display: grid;
+  grid-template-columns: minmax(82px, 0.45fr) minmax(80px, 1fr) 28px;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-bar i,
+#analysisRoomWorkspace .video-analysis-report-distribution-row i {
+  height: 7px;
+  overflow: hidden;
+  background: #e5e9e6;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-bar b,
+#analysisRoomWorkspace .video-analysis-report-distribution-row b {
+  display: block;
+  width: var(--bar-size, var(--report-bar, 0%));
+  height: 100%;
+  background: #65736b;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-bar.is-positive b { background: #23845a; }
+#analysisRoomWorkspace .video-analysis-intelligence-bar.is-development b { background: #c8463c; }
+#analysisRoomWorkspace .video-analysis-intelligence-bar.is-neutral b { background: #59677a; }
+
+#analysisRoomWorkspace .video-analysis-intelligence-comparison > header > div {
+  min-width: 0;
+  width: 50%;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-comparison > header strong {
+  display: block;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-compare-table {
+  display: grid;
+  margin-top: 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-compare-row {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) 54px 54px 70px;
+  gap: 6px;
+  border-top: 1px solid #e4e9e6;
+  padding: 6px 0;
+  font-size: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-compare-row strong,
+#analysisRoomWorkspace .video-analysis-intelligence-compare-row em {
+  text-align: right;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-compare-row em {
+  color: #45564c;
+  font-style: normal;
+  font-weight: 850;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-compare-row.is-head {
+  color: #707c74;
+  font-size: 8px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-intelligence-actions {
+  justify-content: flex-end;
+  border-top: 1px solid #e0e7e2;
+  padding-top: 9px;
+}
+
+@keyframes video-analysis-intelligence-pulse {
+  from { opacity: 0.35; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 980px) {
+  #analysisRoomWorkspace .video-analysis-intelligence-query {
+    grid-template-columns: minmax(0, 1fr) repeat(2, auto);
+  }
+
+  #analysisRoomWorkspace .video-analysis-intelligence-query input {
+    grid-column: 1 / -1;
+  }
+
+  #analysisRoomWorkspace .video-analysis-intelligence-modebar,
+  #analysisRoomWorkspace .video-analysis-intelligence-lower {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  #analysisRoomWorkspace .video-analysis-intelligence-modebar {
+    display: grid;
+  }
+
+  #analysisRoomWorkspace .video-analysis-intelligence-matrix-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #analysisRoomWorkspace .video-analysis-intelligence-matrix-controls select {
+    width: 100%;
+    min-width: 0;
+  }
+
+}
+
+@media (max-width: 620px) {
+  #analysisRoomWorkspace .video-analysis-intelligence-header,
+  #analysisRoomWorkspace .video-analysis-intelligence-drilldown > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #analysisRoomWorkspace .video-analysis-intelligence-query {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #analysisRoomWorkspace .video-analysis-intelligence-query button {
+    width: 100%;
+  }
+
+  #analysisRoomWorkspace .video-analysis-intelligence-matrix-controls {
+    grid-template-columns: 1fr;
+  }
+
+  #analysisRoomWorkspace .video-analysis-intelligence-drilldown > header > div:last-child {
+    width: 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+}

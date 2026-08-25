@@ -7,6 +7,7 @@ import { createInitialPresentationWorkspace } from "./services/presentationServi
 import { createReviewSections } from "./services/reviewSessionService.js";
 import { createDefaultTimelineWorkspace } from "./domain/timelineWorkspace.model.js";
 import { createInitialMediaProductionState } from "./services/mediaProductionService.js";
+import { createInitialClipIntelligenceState } from "./services/clipAnalyticsService.js";
 
 const nonSquadRosterTypes = new Set([
   "academy",
@@ -97,6 +98,7 @@ export function createInitialVideoAnalysisState(context = {}) {
     },
     clips: [],
     savedSearches: [],
+    intelligence: createInitialClipIntelligenceState(),
     selectedClipId: "",
     clipLibrary: {
       groupBy: "subPhase",
@@ -160,6 +162,9 @@ export function createInitialVideoAnalysisState(context = {}) {
     mediaProduction: createInitialMediaProductionState(),
     matrix: {
       mode: "phase-outcome",
+      rowAxis: "phase",
+      columnAxis: "outcome",
+      metric: "count",
       selectedRow: "",
       selectedColumn: "",
     },

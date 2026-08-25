@@ -238,6 +238,81 @@ test("local tracking readiness distinguishes installed, missing and offline prov
   expect(sidebar).toMatch(/data-video-analysis-tracking-action="manual" >Manual keyframe/);
 });
 
+test("tracking progress maps local job snapshots and exposes stable elapsed-time telemetry", async () => {
+  const localTracking = await import(moduleUrl("src/modules/video-analysis/services/localTrackingService.js"));
+  const progress = await import(moduleUrl("src/modules/video-analysis/services/trackingProgressService.js"));
+  const startedAt = "2026-08-25T12:00:00.000Z";
+  expect(localTracking.normalizeLocalTrackingJobProgress({
+    status: "running",
+    stage: "Tracking player",
+    startedAt,
+    progress: { ratio: 0.64, processedFrames: 16, totalFrames: 25, device: "mps", sampleFps: 12.5 },
+  })).toEqual({
+    stage: "Tracking player",
+    ratio: 0.64,
+    startedAt,
+    processedFrames: 16,
+    totalFrames: 25,
+    device: "mps",
+    sampleFps: 12.5,
+  });
+  expect(localTracking.normalizeLocalTrackingJobProgress({ progress: 0.5 })).toMatchObject({ ratio: 0.5 });
+
+  const first = progress.normalizeTrackingJobProgress({
+    stage: "Tracking player",
+    ratio: 0.64,
+    startedAt,
+    processedFrames: 16,
+    totalFrames: 25,
+  }, {}, { nowMs: Date.parse(startedAt) + 64_000 });
+  expect(first).toMatchObject({ progress: 0.64, elapsedMs: 64_000, estimatedRemainingMs: 36_000 });
+  const stale = progress.normalizeTrackingJobProgress({ ratio: 0.4 }, first, {
+    nowMs: Date.parse(startedAt) + 70_000,
+  });
+  expect(stale.progress).toBe(0.64);
+  expect(stale.elapsedMs).toBe(70_000);
+  expect(progress.formatTrackingDuration(stale.elapsedMs)).toBe("1m 10s");
+});
+
+test("tracking sidebar shows real job telemetry and completed provider provenance", async () => {
+  const { renderTrackingSidebar } = await import(moduleUrl("src/modules/video-analysis/components/TrackingTelestration.js"));
+  const track = {
+    id: "track-local",
+    entityType: "player",
+    playerLabel: "Player 8",
+    status: "review",
+    startMs: 0,
+    endMs: 1000,
+    confidence: 0.91,
+    identityConfidence: 0.88,
+    metadata: { model: "SAM 2.1 Hiera Tiny", device: "mps", sampleFps: 12.5 },
+    segments: [{ startMs: 0, endMs: 1000, points: [
+      { atMs: 0, x: 0.2, y: 0.4, width: 0.1, height: 0.2, confidence: 0.91, identityConfidence: 0.88 },
+      { atMs: 1000, x: 0.3, y: 0.4, width: 0.1, height: 0.2, confidence: 0.9, identityConfidence: 0.87 },
+    ] }],
+  };
+  const sidebar = renderTrackingSidebar({
+    players: [],
+    presentation: { tracking: {
+      mode: "tracking",
+      provider: { status: "ready", available: true },
+      selectedTrackIds: [track.id],
+      job: {
+        stage: "Tracking player",
+        progress: 0.64,
+        elapsedMs: 64_000,
+        estimatedRemainingMs: 36_000,
+        processedFrames: 16,
+        totalFrames: 25,
+      },
+    } },
+  }, { id: "item-1", clipId: "clip-1", objectTracks: [track], dynamicGraphics: [] });
+  expect(sidebar).toContain('role="progressbar"');
+  expect(sidebar).toContain('aria-valuenow="64"');
+  expect(sidebar).toContain("64% | 1m 4s elapsed | ~36s left | 16/25 frames");
+  expect(sidebar).toContain("SAM 2.1 Hiera Tiny | MPS | 12.5 fps");
+});
+
 test("tracking metadata API rejects dense samples and migration remains service-role scoped", async () => {
   const database = require(path.join(rootDir, "api/_lib/video-analysis-tracking-database.js"));
   expect(() => database.normalizeTrackPayload({

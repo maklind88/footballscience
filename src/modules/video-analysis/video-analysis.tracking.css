@@ -247,35 +247,54 @@
 
 .video-analysis-tracking-progress {
   position: relative;
-  height: 22px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
   overflow: hidden;
   border-radius: 4px;
+  padding: 6px 7px 6px 9px;
   background: #e7ece9;
 }
 
-.video-analysis-tracking-progress span {
-  display: block;
-  height: 100%;
-  background: #2f855a;
+.video-analysis-tracking-progress__meter {
+  position: absolute;
+  inset: auto auto 0 0;
+  height: 3px;
+  background: #258052;
+  transition: width 180ms linear;
 }
 
-.video-analysis-tracking-progress small {
-  position: absolute;
-  inset: 0 56px 0 0;
+.video-analysis-tracking-progress__copy {
+  position: relative;
   display: grid;
-  place-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.video-analysis-tracking-progress__copy strong,
+.video-analysis-tracking-progress__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-tracking-progress__copy strong {
+  font-size: 11px;
+}
+
+.video-analysis-tracking-progress__copy small {
   color: #17201b;
   font-size: 10px;
 }
 
 .video-analysis-tracking-progress button {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  height: 18px;
+  position: relative;
+  min-height: 28px;
   border: 0;
   border-radius: 3px;
-  padding: 0 6px;
+  padding: 0 8px;
   color: #fff;
   background: #203129;
   font-size: 10px;
@@ -350,6 +369,12 @@
   color: #5f665f;
   font-size: 11px;
   line-height: 1.4;
+}
+
+.video-analysis-tracking-provenance {
+  color: #526158;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .video-analysis-tracking-graphics {

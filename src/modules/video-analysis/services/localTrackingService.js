@@ -21,6 +21,29 @@ function delay(milliseconds, win = window) {
   return new Promise((resolve) => win.setTimeout(resolve, milliseconds));
 }
 
+function optionalNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+export function normalizeLocalTrackingJobProgress(job = {}) {
+  const source = job.progress && typeof job.progress === "object"
+    ? job.progress
+    : { ratio: job.progress };
+  const ratio = Math.max(0, Math.min(1, optionalNumber(source.ratio) ?? 0));
+  const result = {
+    stage: String(job.stage || source.stage || job.status || "tracking").slice(0, 120),
+    ratio,
+    startedAt: String(job.startedAt || ""),
+  };
+  for (const key of ["processedFrames", "totalFrames", "sampleFps"]) {
+    const number = optionalNumber(source[key]);
+    if (number !== null) result[key] = number;
+  }
+  if (source.device) result.device = String(source.device).slice(0, 24);
+  return result;
+}
+
 async function pollTrackingJob(statusUrl, sessionToken, options = {}) {
   const win = options.win || window;
   const fetcher = win.fetch?.bind(win) || fetch;
@@ -34,7 +57,7 @@ async function pollTrackingJob(statusUrl, sessionToken, options = {}) {
     const payload = await responseJson(response);
     if (!response.ok) throw new Error(payload.error || "Could not read the local tracking job.");
     const job = payload.job || {};
-    options.onProgress?.({ stage: job.stage || job.status || "tracking", ratio: job.progress || 0 });
+    options.onProgress?.(normalizeLocalTrackingJobProgress(job));
     if (job.status === "succeeded") return job.result || {};
     if (["failed", "cancelled"].includes(job.status)) throw new Error(job.error || "Local tracking did not complete.");
     await delay(450, win);

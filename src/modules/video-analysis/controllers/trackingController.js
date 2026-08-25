@@ -3,6 +3,7 @@ import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { pointerPercent } from "../services/presentationLayerGeometryService.js";
 import { selectedPresentationItem, updatePresentationItem } from "../services/presentationService.js";
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
+import { normalizeTrackingJobProgress } from "../services/trackingProgressService.js";
 import {
   applyManualTrackingCorrection,
   createManualPromptTrack,
@@ -79,6 +80,7 @@ export function createTrackingController(options = {}) {
   const updateState = options.updateState || (() => {});
   const getVideoElement = options.getVideoElement || (() => null);
   const getCurrentMatchMs = options.getCurrentMatchMs || null;
+  const now = options.now || Date.now;
   const trackingJob = createTrackingJobSession(options.trackObject);
   let activeInteraction = null;
   let providerRefreshId = 0;
@@ -222,7 +224,10 @@ export function createTrackingController(options = {}) {
     const prompt = state.presentation?.tracking?.prompt;
     if (!item || !prompt?.box || !options.trackObject) return false;
     updateState((current) => trackingPatch(current, {
-      job: { stage: "Preparing local tracking", progress: 0.02 },
+      job: normalizeTrackingJobProgress({
+        stage: "Preparing local tracking",
+        ratio: 0.02,
+      }, {}, { nowMs: now() }),
       error: "",
     }));
     try {
@@ -232,10 +237,11 @@ export function createTrackingController(options = {}) {
         videoId: item.clip?.videoId || item.clip?.video_id || state.video?.id,
         prompt,
         onProgress: (progress = {}) => updateState((current) => trackingPatch(current, {
-          job: {
-            stage: progress.stage || "Tracking player",
-            progress: Math.max(0, Math.min(1, Number(progress.ratio) || 0)),
-          },
+          job: normalizeTrackingJobProgress(
+            progress,
+            current.presentation?.tracking?.job || {},
+            { nowMs: now() },
+          ),
         })),
       });
       track = normalizeObjectTrack({
@@ -408,7 +414,13 @@ export function createTrackingController(options = {}) {
     if (action === "refresh-provider") { void refreshProvider(); return true; }
     if (action === "cancel") {
       const cancelled = trackingJob.cancel();
-      if (cancelled) updateState((state) => trackingPatch(state, { job: { ...(state.presentation?.tracking?.job || {}), stage: "Cancelling" } }));
+      if (cancelled) updateState((state) => trackingPatch(state, {
+        job: normalizeTrackingJobProgress(
+          { stage: "Cancelling", ratio: state.presentation?.tracking?.job?.progress },
+          state.presentation?.tracking?.job || {},
+          { nowMs: now() },
+        ),
+      }));
       return cancelled;
     }
     if (action === "verify") { void verifySelectedTrack(); return true; }

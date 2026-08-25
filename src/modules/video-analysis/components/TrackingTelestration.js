@@ -2,6 +2,7 @@ import { normalizeDynamicGraphic } from "../domain/dynamicGraphic.model.js";
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { resolveDynamicGraphics } from "../services/dynamicGraphicRenderService.js";
 import { trackingPointAt } from "../services/trackingGeometryService.js";
+import { formatTrackingDuration } from "../services/trackingProgressService.js";
 import { trackingReviewSummary } from "../services/trackingReviewService.js";
 import { escapeHtml } from "./renderHelpers.js";
 import {
@@ -135,6 +136,38 @@ function renderTrackRow(track = {}, selectedTrackIds = []) {
   `;
 }
 
+function renderTrackingProgress(job = {}) {
+  const progress = Math.max(0, Math.min(1, Number(job.progress) || 0));
+  const percentage = Math.round(progress * 100);
+  const details = [`${percentage}%`, `${formatTrackingDuration(job.elapsedMs)} elapsed`];
+  if (Number.isFinite(job.estimatedRemainingMs) && job.estimatedRemainingMs > 0) {
+    details.push(`~${formatTrackingDuration(job.estimatedRemainingMs)} left`);
+  }
+  if (Number.isFinite(job.processedFrames) && Number.isFinite(job.totalFrames) && job.totalFrames > 0) {
+    details.push(`${job.processedFrames}/${job.totalFrames} frames`);
+  }
+  return `
+    <div class="video-analysis-tracking-progress" role="progressbar" aria-label="${escapeHtml(job.stage || "Tracking player")}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percentage}">
+      <span class="video-analysis-tracking-progress__meter" style="width:${percentage}%"></span>
+      <div class="video-analysis-tracking-progress__copy">
+        <strong>${escapeHtml(job.stage || "Tracking player")}</strong>
+        <small>${escapeHtml(details.join(" | "))}</small>
+      </div>
+      <button type="button" data-video-analysis-tracking-action="cancel">Cancel</button>
+    </div>
+  `;
+}
+
+function renderTrackingProvenance(track = null) {
+  if (!track) return "";
+  const metadata = track.metadata || {};
+  const parts = [metadata.model || track.engine];
+  if (metadata.device) parts.push(String(metadata.device).toUpperCase());
+  if (Number(metadata.sampleFps) > 0) parts.push(`${Number(metadata.sampleFps).toFixed(1)} fps`);
+  const label = parts.filter(Boolean).join(" | ");
+  return label ? `<small class="video-analysis-tracking-provenance">${escapeHtml(label)}</small>` : "";
+}
+
 function renderTrackingProvider(provider = {}) {
   const requestedStatus = String(provider.status || "unchecked");
   const status = ["unchecked", "checking", "ready", "not-installed", "offline"].includes(requestedStatus)
@@ -195,7 +228,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
         <button type="button" data-video-analysis-tracking-action="manual" ${tracking.prompt?.box ? "" : "disabled"}>Manual keyframe</button>
         <button type="button" data-video-analysis-tracking-action="correct" ${primaryTrack ? "" : "disabled"}>Correct here</button>
       </div>
-      ${tracking.job ? `<div class="video-analysis-tracking-progress"><span style="width:${Math.round((tracking.job.progress || 0) * 100)}%"></span><small>${escapeHtml(tracking.job.stage || "Tracking")}</small><button type="button" data-video-analysis-tracking-action="cancel">Cancel</button></div>` : ""}
+      ${tracking.job ? renderTrackingProgress(tracking.job) : ""}
       ${tracking.error ? `<p class="video-analysis-error">${escapeHtml(tracking.error)}</p>` : ""}
       <ol class="video-analysis-tracking-list">
         ${tracks.length ? tracks.map((track) => renderTrackRow(track, selectedTrackIds)).join("") : `<li class="video-analysis-muted">No tracked objects in this clip.</li>`}
@@ -204,6 +237,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
         <div class="video-analysis-tracking-review">
           <strong>${review.canVerify ? "Ready to verify" : "Review required"}</strong>
           <span>${escapeHtml(review.issues.join(" / ") || "Continuity and identity checks passed.")}</span>
+          ${renderTrackingProvenance(primaryTrack)}
           <button type="button" data-video-analysis-tracking-action="verify" ${review.canVerify ? "" : "disabled"}>Verify track</button>
         </div>
       ` : ""}

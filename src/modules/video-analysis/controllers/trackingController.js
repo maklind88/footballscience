@@ -1,11 +1,8 @@
 import { normalizeDynamicGraphic } from "../domain/dynamicGraphic.model.js";
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { pointerPercent } from "../services/presentationLayerGeometryService.js";
-import {
-  presentationQueue,
-  selectedPresentationItem,
-  updatePresentationItem,
-} from "../services/presentationService.js";
+import { selectedPresentationItem, updatePresentationItem } from "../services/presentationService.js";
+import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
 import {
   applyManualTrackingCorrection,
   createManualPromptTrack,
@@ -19,7 +16,6 @@ import { eventElement } from "../video-analysis.dom-events.js";
 function localId(prefix = "graphic") {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`;
 }
-
 function selectedItem(state = {}) {
   return selectedPresentationItem(
     state.presentation?.current,
@@ -83,6 +79,7 @@ export function createTrackingController(options = {}) {
   const updateState = options.updateState || (() => {});
   const getVideoElement = options.getVideoElement || (() => null);
   const getCurrentMatchMs = options.getCurrentMatchMs || null;
+  const trackingJob = createTrackingJobSession(options.trackObject);
   let activeInteraction = null;
 
   function setMode(mode = "static") {
@@ -143,9 +140,10 @@ export function createTrackingController(options = {}) {
         });
       }
       const milliseconds = Math.max(0, Math.round(Number(value) * 1000) || 0);
-      const prompt = field === "startSeconds"
+      const changed = field === "startSeconds"
         ? { ...existing, startMs: milliseconds, endMs: Math.max(milliseconds + 1, existing.endMs) }
         : { ...existing, endMs: Math.max(existing.startMs + 1, milliseconds) };
+      const prompt = trackingPrompt(changed);
       return trackingPatch(state, { prompt, error: "" });
     });
     return true;
@@ -198,7 +196,7 @@ export function createTrackingController(options = {}) {
       error: "",
     }));
     try {
-      let track = await options.trackObject({
+      let track = await trackingJob.run({
         videoRef: state.videoRef,
         clipId: item.clipId,
         videoId: item.clip?.videoId || item.clip?.video_id || state.video?.id,
@@ -235,7 +233,7 @@ export function createTrackingController(options = {}) {
     } catch (error) {
       updateState((current) => trackingPatch(current, {
         job: null,
-        error: error?.message || "Local tracking could not be completed.",
+        error: error?.name === "AbortError" ? "" : error?.message || "Local tracking could not be completed.",
       }));
       return false;
     }
@@ -331,7 +329,11 @@ export function createTrackingController(options = {}) {
     const state = getState();
     const item = selectedItem(state);
     const current = state.presentation?.tracking?.prompt || trackingPrompt(itemRange(item || {}));
-    const prompt = { ...current, box: promptBox(interaction.start, end) };
+    const prompt = {
+      ...current,
+      box: promptBox(interaction.start, end),
+      promptAtMs: currentAtMs(getVideoElement, state, getCurrentMatchMs),
+    };
     if (interaction.captureMode === "correction") {
       const trackId = state.presentation?.tracking?.selectedTrackIds?.[0] || "";
       const track = (item?.objectTracks || []).find((entry) => entry.id === trackId);
@@ -373,6 +375,11 @@ export function createTrackingController(options = {}) {
     if (action === "correct") return beginCapture("correction", target);
     if (action === "manual") { void addManualTrack(); return true; }
     if (action === "run") { void runTracking(); return true; }
+    if (action === "cancel") {
+      const cancelled = trackingJob.cancel();
+      if (cancelled) updateState((state) => trackingPatch(state, { job: { ...(state.presentation?.tracking?.job || {}), stage: "Cancelling" } }));
+      return cancelled;
+    }
     if (action === "verify") { void verifySelectedTrack(); return true; }
     if (action === "add-graphic") { void addGraphic(); return true; }
     return false;

@@ -42,6 +42,16 @@ async function pollTrackingJob(statusUrl, sessionToken, options = {}) {
   throw new Error("Local tracking timed out before the provider completed.");
 }
 
+export async function cancelLocalTrackingJob(job = {}, win = window) {
+  if (!job.statusUrl || !job.sessionToken) return false;
+  const fetcher = win.fetch?.bind(win) || fetch;
+  const response = await fetcher(job.statusUrl, {
+    method: "DELETE",
+    headers: { "x-football-science-session": job.sessionToken },
+  });
+  return response.ok;
+}
+
 export async function trackLocalObject(options = {}) {
   const win = options.win || window;
   const fetcher = win.fetch?.bind(win) || fetch;
@@ -76,23 +86,27 @@ export async function trackLocalObject(options = {}) {
   });
   const queued = await responseJson(response);
   if (!response.ok || !queued.statusUrl) throw new Error(queued.error || "The local tracking job could not be started.");
-  const result = await pollTrackingJob(queued.statusUrl, session.sessionToken, {
-    ...options,
-    win,
-  });
-  const artifactResponse = await fetcher(result.trackingUrl, { signal: options.signal });
-  const artifact = await responseJson(artifactResponse);
-  if (!artifactResponse.ok) throw new Error(artifact.error || "The local tracking artifact could not be opened.");
-  return normalizeObjectTrack({
-    ...artifact,
-    clipId: options.clipId,
-    videoId: options.videoId,
-    engine: result.engine || artifact.engine,
-    engineVersion: result.engineVersion || artifact.engineVersion,
-    metadata: {
-      ...(artifact.metadata || {}),
-      localArtifactId: result.artifactId,
-      localArtifactExpiresAt: result.expiresAt,
-    },
-  });
+  const queuedJob = { statusUrl: queued.statusUrl, sessionToken: session.sessionToken };
+  options.onQueued?.(queuedJob);
+  try {
+    const result = await pollTrackingJob(queued.statusUrl, session.sessionToken, { ...options, win });
+    const artifactResponse = await fetcher(result.trackingUrl, { signal: options.signal });
+    const artifact = await responseJson(artifactResponse);
+    if (!artifactResponse.ok) throw new Error(artifact.error || "The local tracking artifact could not be opened.");
+    return normalizeObjectTrack({
+      ...artifact,
+      clipId: options.clipId,
+      videoId: options.videoId,
+      engine: result.engine || artifact.engine,
+      engineVersion: result.engineVersion || artifact.engineVersion,
+      metadata: {
+        ...(artifact.metadata || {}),
+        localArtifactId: result.artifactId,
+        localArtifactExpiresAt: result.expiresAt,
+      },
+    });
+  } catch (error) {
+    if (options.signal?.aborted) await cancelLocalTrackingJob(queuedJob, win).catch(() => false);
+    throw error;
+  }
 }

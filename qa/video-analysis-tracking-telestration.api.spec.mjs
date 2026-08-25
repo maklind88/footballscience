@@ -117,6 +117,68 @@ test("idle tracking leaves pointer completion to drawing and timeline controller
   expect(result).not.toBeInstanceOf(Promise);
 });
 
+test("local tracking exposes cancellation and clears an aborted job without a false error", async () => {
+  const { createTrackingController } = await import(moduleUrl("src/modules/video-analysis/controllers/trackingController.js"));
+  const { renderTrackingSidebar } = await import(moduleUrl("src/modules/video-analysis/components/TrackingTelestration.js"));
+  const item = {
+    id: "item-1",
+    clipId: "clip-1",
+    clip: { id: "clip-1", videoId: "video-1", startMs: 0, endMs: 3000 },
+    objectTracks: [],
+    dynamicGraphics: [],
+  };
+  let activeSignal = null;
+  let state = {
+    video: { id: "video-1" },
+    videoRef: { kind: "local-file", localFileKey: "video-1" },
+    presentation: {
+      current: { sections: [{ id: "section-1", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        mode: "tracking",
+        tool: "highlight",
+        selectedTrackIds: [],
+        prompt: {
+          startMs: 0,
+          endMs: 3000,
+          promptAtMs: 1000,
+          box: { left: 0.2, top: 0.2, width: 0.1, height: 0.25 },
+        },
+        job: null,
+        error: "",
+      },
+    },
+  };
+  const controller = createTrackingController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    trackObject: ({ signal }) => new Promise((resolve, reject) => {
+      activeSignal = signal;
+      signal.addEventListener("abort", () => {
+        const error = new Error("Tracking was cancelled.");
+        error.name = "AbortError";
+        reject(error);
+      }, { once: true });
+    }),
+  });
+  const actionEvent = (action) => ({
+    target: {
+      nodeType: 1,
+      closest: (selector) => selector === "[data-video-analysis-tracking-action]"
+        ? { dataset: { videoAnalysisTrackingAction: action } }
+        : null,
+    },
+  });
+
+  expect(controller.handleClick(actionEvent("run"))).toBe(true);
+  expect(activeSignal?.aborted).toBe(false);
+  expect(renderTrackingSidebar(state, item)).toContain('data-video-analysis-tracking-action="cancel"');
+  expect(controller.handleClick(actionEvent("cancel"))).toBe(true);
+  expect(activeSignal.aborted).toBe(true);
+  await expect.poll(() => state.presentation.tracking.job).toBeNull();
+  expect(state.presentation.tracking.error).toBe("");
+});
+
 test("tracking metadata API rejects dense samples and migration remains service-role scoped", async () => {
   const database = require(path.join(rootDir, "api/_lib/video-analysis-tracking-database.js"));
   expect(() => database.normalizeTrackPayload({
@@ -153,9 +215,11 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     maxConcurrentJobs: 1,
     maxQueuedJobs: 2,
   };
+  let receivedPrompt = null;
   const trackingEngine = engineModule.createTrackingEngineAdapter({
     engineName: "qa-prompt-tracker",
     runner: async ({ prompt, onProgress }) => {
+      receivedPrompt = prompt;
       onProgress?.({ stage: "tracking", ratio: 0.7 });
       return {
         id: "track-local",
@@ -169,8 +233,8 @@ test("secure local tracking jobs expose provider capability and expiring artifac
           startMs: prompt.startMs,
           endMs: prompt.endMs,
           points: [
-            { atMs: prompt.startMs, x: 0.2, y: 0.4, groundX: 0.2, groundY: 0.5, confidence: 0.94, identityConfidence: 0.9 },
-            { atMs: prompt.endMs, x: 0.3, y: 0.4, groundX: 0.3, groundY: 0.5, confidence: 0.92, identityConfidence: 0.88 },
+            { atMs: prompt.startMs, x: 0.2, y: 0.4, width: 0.08, height: 0.2, groundX: 0.2, groundY: 0.5, confidence: 0.94, identityConfidence: 0.9 },
+            { atMs: prompt.endMs, x: 0.3, y: 0.4, width: 0.08, height: 0.2, groundX: 0.3, groundY: 0.5, confidence: 0.92, identityConfidence: 0.88 },
           ],
         }],
       };
@@ -192,6 +256,7 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     const prompt = Buffer.from(JSON.stringify({
       startMs: 0,
       endMs: 1000,
+      promptAtMs: 500,
       box: { left: 0.2, top: 0.3, width: 0.08, height: 0.2 },
     })).toString("base64url");
     const queuedResponse = await fetch(`${baseUrl}/jobs/track-object`, {
@@ -206,6 +271,24 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     const artifact = await (await fetch(completed.job.result.trackingUrl, { headers: { origin } })).json();
     expect(artifact.segments[0].points).toHaveLength(2);
     expect(completed.job.result).toMatchObject({ engine: "qa-prompt-tracker", pointCount: 2, segmentCount: 1 });
+    expect(receivedPrompt).toMatchObject({
+      startMs: 0,
+      endMs: 1000,
+      promptAtMs: 500,
+      sourceStartMs: 0,
+      sourceEndMs: 1000,
+      sourcePromptAtMs: 500,
+    });
+
+    const retainedBeforeRejectedUpload = localServer.jobs.stats().retained;
+    const rejectedUpload = await fetch(`${baseUrl}/jobs/track-object`, {
+      method: "POST",
+      headers: { ...headers, "x-football-science-file-name": "too-large.mp4", "x-football-science-tracking-prompt": prompt },
+      body: Buffer.alloc(config.maxInputBytes + 1),
+    });
+    expect(rejectedUpload.status).toBe(413);
+    expect(localServer.jobs.stats().retained).toBe(retainedBeforeRejectedUpload);
+    expect(await fs.readdir(cacheDir)).toEqual([completed.job.id]);
   } finally {
     await localServer.close();
     await fs.rm(cacheDir, { recursive: true, force: true });

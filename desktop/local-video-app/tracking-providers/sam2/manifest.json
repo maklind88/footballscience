@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "providerId": "sam2.1-hiera-tiny",
+  "providerVersion": "1.0.0",
+  "displayName": "Football Science SAM 2.1 Player Tracker",
+  "protocol": "football-science-tracking-v1",
+  "approval": {
+    "status": "approved-local-optional",
+    "redistributeUpstreamAssets": false,
+    "networkAtInference": false,
+    "reviewedAt": "2026-08-24"
+  },
+  "upstream": {
+    "repository": "https://github.com/facebookresearch/sam2",
+    "commit": "2b90b9f5ceec907a1c18123530e92e794ad901a4",
+    "sourceUrl": "https://codeload.github.com/facebookresearch/sam2/tar.gz/2b90b9f5ceec907a1c18123530e92e794ad901a4",
+    "sourceBytes": 55645345,
+    "sourceSha256": "1f2fbfad3ffa38110368abac76c6ef9df9c282a66d5c2807bc94abf4d2fb30f8",
+    "license": "Apache-2.0",
+    "licenseUrl": "https://github.com/facebookresearch/sam2/blob/2b90b9f5ceec907a1c18123530e92e794ad901a4/LICENSE"
+  },
+  "model": {
+    "displayName": "SAM 2.1 Hiera Tiny",
+    "config": "configs/sam2.1/sam2.1_hiera_t.yaml",
+    "fileName": "sam2.1_hiera_tiny.pt",
+    "checkpointUrl": "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt",
+    "checkpointBytes": 156008466,
+    "checkpointSha256": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69",
+    "parametersMillions": 38.9,
+    "license": "Apache-2.0"
+  },
+  "runtime": {
+    "pythonMinimum": "3.10",
+    "pythonMaximumExclusive": "3.13",
+    "sampleFps": 12.5,
+    "maximumSampleFps": 25,
+    "maximumFrames": 30000,
+    "maximumTrackingDurationMs": 1200000
+  }
+}

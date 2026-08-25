@@ -24,10 +24,17 @@ function normalizedBox(value = {}) {
 export function trackingPrompt(value = {}) {
   const box = normalizedBox(value.box || value);
   const startMs = Math.max(0, Math.round(Number(value.startMs ?? value.atMs) || 0));
+  const endMs = Math.max(startMs + 1, Math.round(Number(value.endMs) || startMs + 5000));
+  const requestedPromptAtMs = Number(value.promptAtMs ?? value.prompt_at_ms ?? value.atMs);
+  const promptAtMs = Math.min(
+    endMs,
+    Math.max(startMs, Math.round(Number.isFinite(requestedPromptAtMs) ? requestedPromptAtMs : startMs)),
+  );
   return {
     id: String(value.id || localId("prompt")),
     startMs,
-    endMs: Math.max(startMs + 1, Math.round(Number(value.endMs) || startMs + 5000)),
+    endMs,
+    promptAtMs,
     box,
     point: {
       x: box.left + (box.width / 2),
@@ -44,7 +51,7 @@ export function trackingPrompt(value = {}) {
 export function createManualPromptTrack(value = {}) {
   const prompt = trackingPrompt(value);
   const point = normalizeTrackingPoint({
-    atMs: prompt.startMs,
+    atMs: prompt.promptAtMs,
     x: prompt.point.x,
     y: prompt.point.y,
     width: prompt.box.width,

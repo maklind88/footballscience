@@ -1,5 +1,8 @@
 {
   "scripts": {
+    "fs-player:tracking:install": "node desktop/local-video-app/tracking-providers/sam2/install-provider.mjs",
+    "fs-player:tracking:plan": "node desktop/local-video-app/tracking-providers/sam2/install-provider.mjs --plan",
+    "fs-player:tracking:preflight": "node desktop/local-video-app/tracking-providers/sam2/preflight.mjs",
     "quick:ui": "node scripts/quick-ui-check.mjs",
     "theme:audit": "node scripts/verify-theme-foundation.mjs",
     "qa:theme": "npm run theme:audit && playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/theme-foundation-contract.api.spec.mjs && playwright test --config=qa/playwright.config.mjs --project=chromium qa/theme-dark-mode.smoke.spec.mjs",

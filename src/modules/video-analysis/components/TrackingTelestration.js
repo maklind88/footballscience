@@ -170,7 +170,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
         <button type="button" data-video-analysis-tracking-action="manual" ${tracking.prompt?.box ? "" : "disabled"}>Manual keyframe</button>
         <button type="button" data-video-analysis-tracking-action="correct" ${primaryTrack ? "" : "disabled"}>Correct here</button>
       </div>
-      ${tracking.job ? `<div class="video-analysis-tracking-progress"><span style="width:${Math.round((tracking.job.progress || 0) * 100)}%"></span><small>${escapeHtml(tracking.job.stage || "Tracking")}</small></div>` : ""}
+      ${tracking.job ? `<div class="video-analysis-tracking-progress"><span style="width:${Math.round((tracking.job.progress || 0) * 100)}%"></span><small>${escapeHtml(tracking.job.stage || "Tracking")}</small><button type="button" data-video-analysis-tracking-action="cancel">Cancel</button></div>` : ""}
       ${tracking.error ? `<p class="video-analysis-error">${escapeHtml(tracking.error)}</p>` : ""}
       <ol class="video-analysis-tracking-list">
         ${tracks.length ? tracks.map((track) => renderTrackRow(track, selectedTrackIds)).join("") : `<li class="video-analysis-muted">No tracked objects in this clip.</li>`}

@@ -215,10 +215,23 @@
 
 .video-analysis-tracking-progress small {
   position: absolute;
-  inset: 0;
+  inset: 0 56px 0 0;
   display: grid;
   place-items: center;
   color: #17201b;
+  font-size: 10px;
+}
+
+.video-analysis-tracking-progress button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  height: 18px;
+  border: 0;
+  border-radius: 3px;
+  padding: 0 6px;
+  color: #fff;
+  background: #203129;
   font-size: 10px;
 }
 

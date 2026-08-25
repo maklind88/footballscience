@@ -303,6 +303,7 @@ export function createLocalVideoServer(options = {}) {
           "replay-buffer",
           ...(trackingEngine.available() ? ["track-object"] : []),
         ],
+        trackingProvider: trackingEngine.info?.() || { available: trackingEngine.available() },
         limits: {
           maxInputBytes: config.maxInputBytes,
           maxCacheBytes: config.maxCacheBytes,

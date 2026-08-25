@@ -19,7 +19,8 @@ function trackingPrompt(request = {}, maxDurationMs = 120_000) {
   const box = value.box || {};
   const coordinates = [box.left, box.top, box.width, box.height].map(Number);
   if (!coordinates.every(Number.isFinite) || coordinates.some((entry) => entry < 0 || entry > 1)
-    || Number(box.width) <= 0 || Number(box.height) <= 0) {
+    || Number(box.width) <= 0 || Number(box.height) <= 0
+    || coordinates[0] + coordinates[2] > 1 || coordinates[1] + coordinates[3] > 1) {
     throw Object.assign(new Error("The tracking target must be inside the video frame."), { statusCode: 400 });
   }
   const startMs = Math.max(0, Math.round(Number(value.startMs) || 0));
@@ -27,7 +28,36 @@ function trackingPrompt(request = {}, maxDurationMs = 120_000) {
   if (endMs - startMs > maxDurationMs) {
     throw Object.assign(new Error("Track a shorter range before extending the object track."), { statusCode: 400 });
   }
-  return { ...value, startMs, endMs, box: { left: coordinates[0], top: coordinates[1], width: coordinates[2], height: coordinates[3] } };
+  const requestedPromptAtMs = Number(value.promptAtMs ?? value.prompt_at_ms ?? value.atMs);
+  const promptAtMs = Math.min(
+    endMs,
+    Math.max(startMs, Math.round(Number.isFinite(requestedPromptAtMs) ? requestedPromptAtMs : startMs)),
+  );
+  const sourceStartMs = Math.max(0, Math.round(Number(value.sourceStartMs ?? value.source_start_ms ?? startMs) || 0));
+  const sourceEndMs = Math.max(
+    sourceStartMs + 1,
+    Math.round(Number(value.sourceEndMs ?? value.source_end_ms ?? endMs) || sourceStartMs + (endMs - startMs)),
+  );
+  const requestedSourcePromptAtMs = Number(
+    value.sourcePromptAtMs ?? value.source_prompt_at_ms ?? sourceStartMs + (promptAtMs - startMs),
+  );
+  const sourcePromptAtMs = Math.min(
+    sourceEndMs,
+    Math.max(sourceStartMs, Math.round(Number.isFinite(requestedSourcePromptAtMs) ? requestedSourcePromptAtMs : sourceStartMs)),
+  );
+  if (sourceEndMs - sourceStartMs > maxDurationMs) {
+    throw Object.assign(new Error("The synchronized source range is too long for one tracking job."), { statusCode: 400 });
+  }
+  return {
+    ...value,
+    startMs,
+    endMs,
+    promptAtMs,
+    sourceStartMs,
+    sourceEndMs,
+    sourcePromptAtMs,
+    box: { left: coordinates[0], top: coordinates[1], width: coordinates[2], height: coordinates[3] },
+  };
 }
 
 export function createTrackingJobHandler(options = {}) {
@@ -42,6 +72,7 @@ export function createTrackingJobHandler(options = {}) {
       options.sendJson(request, response, options.config, 429, { ok: false, error: "The local processing queue is full." }, { "retry-after": "5" });
       return null;
     }
+    let job = null;
     try {
       const prompt = trackingPrompt(request, options.config.maxTrackingDurationMs);
       const declaredBytes = Math.max(0, Number(request.headers["content-length"] || 0));
@@ -50,10 +81,13 @@ export function createTrackingJobHandler(options = {}) {
         reserveBytes: declaredBytes,
         protectedIds: options.jobs.activeIds(),
       });
-      const job = options.jobs.create("track-object", {
+      job = options.jobs.create("track-object", {
         fileName: safeFileName(request.headers["x-football-science-file-name"]),
         startMs: prompt.startMs,
         endMs: prompt.endMs,
+        promptAtMs: prompt.promptAtMs,
+        sourceStartMs: prompt.sourceStartMs,
+        sourceEndMs: prompt.sourceEndMs,
       });
       options.jobOwners.set(job.id, session.token);
       const workDir = path.join(options.config.cacheDir, job.id);
@@ -88,6 +122,11 @@ export function createTrackingJobHandler(options = {}) {
       });
       return job.id;
     } catch (error) {
+      if (job?.id) {
+        options.jobs.discard(job.id);
+        options.jobOwners.delete(job.id);
+        await removeCacheEntry(options.config.cacheDir, job.id);
+      }
       options.sendJson(request, response, options.config, options.statusCodeForError(error), {
         ok: false,
         error: options.publicErrorMessage(error),

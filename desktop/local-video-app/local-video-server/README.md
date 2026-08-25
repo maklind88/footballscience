@@ -63,3 +63,27 @@ Optional limits and policy:
 The server only binds to loopback. Raw match video and generated media stay on the device unless an authorized user explicitly exports or shares a portable package.
 
 Object tracking uses a provider boundary instead of embedding an unreviewable model in the web app. The provider receives an input path, a bounded prompt request, and an output path under the `football-science-tracking-v1` protocol. It writes normalized track JSON and may stream JSON progress lines. Without an approved provider, the capability is hidden and analysts can still add reviewed manual keyframes.
+
+## Approved tracking provider
+
+The packaged optional provider uses the official Apache-2.0 SAM 2.1 Hiera Tiny source and checkpoint. Neither asset is stored in Git or deployed with the web app. Installation is explicit, device-local, hash-verified, and isolated from the system Python environment.
+
+Review the immutable asset plan first:
+
+```bash
+npm run fs-player:tracking:plan
+```
+
+Install after reviewing `tracking-providers/sam2/THIRD_PARTY_NOTICES.md`:
+
+```bash
+npm run fs-player:tracking:install -- --accept-license
+```
+
+Python 3.10, 3.11, or 3.12 is required. The installer finds a supported version without replacing the system Python. Verify the finished local installation with:
+
+```bash
+npm run fs-player:tracking:preflight
+```
+
+Inference performs no network calls. It samples only the bounded synchronized source range, tracks forward and backward from the analyst's exact prompt frame, and returns review-state metadata with detection confidence, identity confidence, and explicit continuity breaks. Match video and dense tracking points remain on the device.

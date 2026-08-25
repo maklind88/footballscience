@@ -202,9 +202,6 @@ export function renderHomeUpcomingLineupCard(context = {}, escapeHtml = String) 
       </header>
       ${lineup.hasMatch
         ? `
-          <div class="dashboard-match-gateway-summary">
-            <span>Prepare the matchday squad and MD-1 lineup in Presentation Mode.</span>
-          </div>
           <nav class="dashboard-match-selection-actions" aria-label="${escapeHtml(`${lineup.title} team selection`)}">
             ${renderSelectionButton({
               label: "Match squad",

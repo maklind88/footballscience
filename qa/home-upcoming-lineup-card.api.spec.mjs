@@ -64,6 +64,8 @@ test("Home links the next match squad and Starting XI to their Presentation sour
   expect(html).toContain("<h2>NCC - Boston</h2>");
   expect(html).not.toContain("<h2>Team Selection</h2>");
   expect(html).not.toContain("<strong>NCC - Boston</strong>");
+  expect(html).not.toContain("dashboard-match-gateway-summary");
+  expect(html).not.toContain("Prepare the matchday squad");
   expect(html).toContain("11 selected");
   expect(html).toContain("11/11");
   expect(html).toContain('data-match-selection-target="match-squad"');

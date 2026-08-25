@@ -4,7 +4,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: .62rem;
   padding: .82rem;
   overflow: visible;
@@ -15,7 +15,6 @@
 }
 
 .dashboard-match-gateway-head,
-.dashboard-match-gateway-summary,
 .dashboard-match-gateway-empty,
 .dashboard-match-selection-copy,
 .dashboard-match-history-item header {
@@ -30,22 +29,18 @@
 }
 
 .dashboard-match-gateway-head > div,
-.dashboard-match-gateway-summary,
 .dashboard-match-gateway-empty,
 .dashboard-match-selection-copy,
 .dashboard-match-history-item header {
   display: grid;
 }
 
-.dashboard-match-gateway-head > div,
-.dashboard-match-gateway-summary {
+.dashboard-match-gateway-head > div {
   gap: .12rem;
 }
 
 .dashboard-match-gateway-head h2,
 .dashboard-match-gateway-head p,
-.dashboard-match-gateway-summary strong,
-.dashboard-match-gateway-summary span,
 .dashboard-match-gateway-empty strong,
 .dashboard-match-gateway-empty span,
 .dashboard-match-selection-copy strong,
@@ -75,7 +70,6 @@
   white-space: nowrap;
 }
 
-.dashboard-match-gateway-summary strong,
 .dashboard-match-gateway-empty strong {
   overflow: hidden;
   color: #1d1d1f;
@@ -85,7 +79,6 @@
   white-space: nowrap;
 }
 
-.dashboard-match-gateway-summary span,
 .dashboard-match-gateway-empty span {
   color: #77777d;
   font-size: .67rem;
@@ -341,7 +334,6 @@ body.is-dark-mode .dashboard-upcoming-lineup-card {
 }
 
 body.is-dark-mode .dashboard-match-gateway-head h2,
-body.is-dark-mode .dashboard-match-gateway-summary strong,
 body.is-dark-mode .dashboard-match-gateway-empty strong,
 body.is-dark-mode .dashboard-match-selection-row,
 body.is-dark-mode .dashboard-match-history summary,
@@ -350,7 +342,6 @@ body.is-dark-mode .dashboard-match-history-item header strong {
 }
 
 body.is-dark-mode .dashboard-match-gateway-head > span,
-body.is-dark-mode .dashboard-match-gateway-summary span,
 body.is-dark-mode .dashboard-match-gateway-empty span,
 body.is-dark-mode .dashboard-match-selection-copy small,
 body.is-dark-mode .dashboard-match-selection-state,

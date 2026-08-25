@@ -3087,7 +3087,8 @@ test("Home places compact meeting cards side by side beside the calendar and ope
   await expect(lineupPanel.locator(".dashboard-lineup-pitch, .dashboard-lineup-slot")).toHaveCount(0);
   await expect(lineupPanel).not.toContainText("Avery Stone");
   await expect(lineupPanel.locator(".dashboard-match-gateway-head h2")).toHaveText("NCC - Boston");
-  await expect(lineupPanel.locator(".dashboard-match-gateway-summary strong")).toHaveCount(0);
+  await expect(lineupPanel.locator(".dashboard-match-gateway-summary")).toHaveCount(0);
+  await expect(lineupPanel).not.toContainText("Prepare the matchday squad");
   await expect(lineupPanel.locator(".dashboard-match-selection-actions [data-dashboard-open-match-selection]")).toHaveCount(2);
   await expect(
     lineupPanel.locator('.dashboard-match-selection-actions [data-match-selection-target="match-squad"]')

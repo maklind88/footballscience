@@ -21,6 +21,10 @@ The platform verifier fails when a new public table is added without tenant scop
 
 The browser can hide buttons, but it cannot be trusted to enforce security. Backend routes must check the central permission matrix, and database policies must keep rows scoped to the authenticated user's organization/team.
 
+Leaderboard is a stricter server-only data path. `/api/leaderboard` resolves fresh active `platform_memberships`, validates an optional active Platform team UUID against those rows, derives the effective role from memberships covering that exact team, and then applies the API permission guard. A missing selector is accepted only for one unambiguous active direct team membership. Every Leaderboard RPC repeats the active membership, role, organization, and team check inside its database transaction, closing the authorization race between API lookup and SQL execution. It never authorizes from editable profile/bootstrap metadata, display names, or an unvalidated client team selector. Player ids and the GET roster read model are rebuilt from the selected team's active server-side Squad roster; browser-cached Player Profiles cannot inject a player into zero-point rows or award selection. Ambiguous or missing Platform-to-Squad/player links fail closed.
+
+Its public tables have RLS enabled but no direct browser policies. `public`, `anon`, and `authenticated` have no table or RPC privileges; only `service_role` receives the minimum table grants and execution rights for `security invoker` RPCs. Point and audit rows are append-only, corrections are compensating transactions, and all write batches are atomic and idempotent. Reversal replay also compares a normalized event/reason request hash, and historical months are denied writes at SQL execution. Event activity exposes only the staff member's server-owned display name plus immutable player name/id snapshots and award values; it does not expose staff email, auth metadata, or roster metadata.
+
 ## Abuse Protection
 
 The API guard applies per-route, per-action rate limits and returns stable `X-RateLimit-*` headers. Login, chat, uploads, central app-state, backup, and restore endpoints have stricter limits than normal reads.
@@ -37,6 +41,7 @@ Backend route budgets mirror the same intent but stay identity-aware:
 - `/api/chat`: `read 60/min`, `write 60/min`.
 - `/api/push-subscriptions`: `read 30/min`, `write 20/min`, `delete 12/min`.
 - `/api/presence`: `read 30/min`, `write 20/min`.
+- `/api/leaderboard`: `read 90/min`, `write 30/min`.
 
 ## Observability
 

@@ -146,6 +146,31 @@ async function mockIdpApi(route) {
   });
 }
 
+async function mockLeaderboardApi(route) {
+  const request = route.request();
+  const url = new URL(request.url());
+  let month = url.searchParams.get("month") || "2026-08";
+  if (request.method().toUpperCase() === "POST") {
+    try {
+      const body = JSON.parse(request.postData() || "{}");
+      month = String(body.occurredOn || "").slice(0, 7) || month;
+    } catch {}
+  }
+  await route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      schema: "footballscience-leaderboard-v1",
+      month,
+      competition: null,
+      summary: { participantCount: 0, totalPoints: 0, eventCount: 0 },
+      roster: [],
+      standings: [],
+      events: [],
+    }),
+  });
+}
+
 async function dismissDashboardModal(page) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const closeButton = page
@@ -184,6 +209,7 @@ async function bootApp(page) {
     await dialog.dismiss().catch(() => {});
   });
   await page.route("**/api/idp**", mockIdpApi);
+  await page.route("**/api/leaderboard**", mockLeaderboardApi);
 
   await page.addInitScript(
     ({ key, ids }) => {

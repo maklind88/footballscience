@@ -13,6 +13,7 @@ const userId = "11111111-1111-4111-8111-111111111111";
 const organizationId = "22222222-2222-4222-8222-222222222222";
 const clubId = "33333333-3333-4333-8333-333333333333";
 const teamId = "44444444-4444-4444-8444-444444444444";
+const requestedTeamId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 function readProjectFile(relativePath) {
   return fs.readFileSync(path.join(rootDir, relativePath), "utf8");
@@ -186,11 +187,15 @@ test("platform identity database reads are scoped to the signed-in actor", async
     platform_module_migration_checkpoints: [],
     platform_organizations: [{ id: organizationId, slug: "ncc", name: "North Carolina Courage", status: "active" }],
     platform_clubs: [{ id: clubId, organization_id: organizationId, slug: "ncc-club", name: "NCC", status: "active" }],
-    platform_teams: [{ id: teamId, organization_id: organizationId, club_id: clubId, slug: "first", name: "First Team", status: "active" }],
+    platform_teams: [
+      { id: teamId, organization_id: organizationId, club_id: clubId, slug: "first", name: "First Team", status: "active" },
+      { id: requestedTeamId, organization_id: organizationId, club_id: clubId, slug: "second", name: "Second Team", status: "active" },
+    ],
   };
 
   try {
     const result = await platformIdentity.fetchPlatformIdentityRows(userId, {
+      requestedTeamId,
       fetchImpl: async (url) => {
         seenUrls.push(String(url));
         const tableName = new URL(url).pathname.split("/").pop();
@@ -208,6 +213,8 @@ test("platform identity database reads are scoped to the signed-in actor", async
     expect(membershipUrl).toContain(`user_id=eq.${userId}`);
     expect(membershipUrl).toContain("status=eq.active");
     expect(membershipUrl).toContain("deleted_at=is.null");
+    const teamUrl = new URL(seenUrls.find((url) => url.includes("/rest/v1/platform_teams?")));
+    expect(teamUrl.searchParams.get("id")).toBe(`in.(${teamId},${requestedTeamId})`);
   } finally {
     process.env.SUPABASE_URL = previousEnv.SUPABASE_URL;
     process.env.SUPABASE_SERVICE_ROLE_KEY = previousEnv.SUPABASE_SERVICE_ROLE_KEY;

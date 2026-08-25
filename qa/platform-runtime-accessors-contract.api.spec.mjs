@@ -12,6 +12,7 @@ import {
   platformRuntimeAccessorNames,
   readScheduleState,
   renderAdminWorkspace,
+  renderLeaderboardWorkspace,
   renderPlayerProfilesWorkspaceMessage,
   renderScoutingWorkspace,
   reloadCentralizedAppStateFromStorage,
@@ -30,6 +31,7 @@ test("platform runtime accessors own app-runtime pass-through names", () => {
   expect(platformRuntimeAccessorNames).toContain("canEditSessionPlanner");
   expect(platformRuntimeAccessorNames).toContain("readScheduleState");
   expect(platformRuntimeAccessorNames).toContain("renderScoutingWorkspace");
+  expect(platformRuntimeAccessorNames).toContain("renderLeaderboardWorkspace");
   expect(platformRuntimeAccessorNames).toContain("renderAdminWorkspace");
   expect(platformRuntimeAccessorNames).toContain("reloadCentralizedAppStateFromStorage");
   expect(app).toContain("platform-runtime-accessors.mjs");
@@ -84,6 +86,10 @@ test("platform runtime accessors forward to configured runtime services", () => 
         calls.push(["module", args, this]);
         return "scouting";
       },
+      renderLeaderboardWorkspace(...args) {
+        calls.push(["leaderboard", args, this]);
+        return "leaderboard";
+      },
     },
     scheduleRuntimeSelectors: {
       getEventsForDate(...args) {
@@ -118,6 +124,7 @@ test("platform runtime accessors forward to configured runtime services", () => 
   expect(canEditSessionPlanner("coach")).toBe(true);
   expect(readScheduleState()).toEqual({ schedule: true });
   expect(renderScoutingWorkspace()).toBe("scouting");
+  expect(renderLeaderboardWorkspace()).toBe("leaderboard");
   expect(getScheduleEventsForDate("2026-05-09")).toEqual(["event"]);
   expect(renderAdminWorkspace()).toBe("admin");
   expect(initializeWorkspaceHub()).toBe("shell");
@@ -129,13 +136,14 @@ test("platform runtime accessors forward to configured runtime services", () => 
     "access",
     "data",
     "module",
+    "leaderboard",
     "schedule-selectors",
     "admin",
     "shell",
     "central-reload",
   ]);
   expect(calls[1][2]).toBe(sources.squadWorkspaceRenderer);
-  expect(calls[6][1]).toEqual(["2026-05-09"]);
+  expect(calls[7][1]).toEqual(["2026-05-09"]);
 });
 
 test("platform runtime accessors preserve optional admin fallbacks", () => {

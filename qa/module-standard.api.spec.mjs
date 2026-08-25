@@ -42,6 +42,10 @@ test("legacy modules cannot be marked extracted before adapters and tests exist"
   expect(moduleStandardRegistry.require("schedule").migrationStatus).toBe(moduleMigrationStatuses.partialExtraction);
   expect(moduleStandardRegistry.require("periodization").migrationStatus).toBe(moduleMigrationStatuses.partialExtraction);
   expect(moduleStandardRegistry.require("scouting").migrationStatus).toBe(moduleMigrationStatuses.partialExtraction);
+  expect(moduleStandardRegistry.require("leaderboard")).toMatchObject({
+    migrationStatus: moduleMigrationStatuses.databasePrimary,
+    mountId: "leaderboardWorkspace",
+  });
 });
 
 test("extraction queue keeps the safest migration order explicit", () => {

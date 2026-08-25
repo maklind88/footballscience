@@ -121,6 +121,15 @@ export const defaultHubState = {
       icon: "☷",
     },
     {
+      id: "leaderboard",
+      kind: "leaderboard",
+      title: "Leaderboard",
+      meta: "Monthly competition",
+      description: "Award training points and follow the monthly team standings.",
+      status: "New",
+      icon: "♜",
+    },
+    {
       id: "idp",
       kind: "idp",
       title: "IDP",
@@ -166,6 +175,7 @@ export const topIconMenuOrder = [
   "session-planner",
   "idp",
   "player-profiles",
+  "leaderboard",
   "scouting",
   "transfer-room",
   "analysis-room",
@@ -177,6 +187,7 @@ export const topIconMenuOrder = [
 
 export const platformSidebarPrimaryOrder = [
   "player-profiles",
+  "leaderboard",
   "schedule",
   "periodization",
   "medical-team",

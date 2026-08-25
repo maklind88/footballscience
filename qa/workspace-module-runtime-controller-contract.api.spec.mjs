@@ -15,6 +15,8 @@ function createRuntime(overrides = {}) {
     gameplanRender: [],
     idpEvents: [],
     idpRender: [],
+    leaderboardEvents: [],
+    leaderboardRender: [],
     scoutingEvents: [],
     scoutingRender: [],
     analysisEvents: [],
@@ -36,6 +38,7 @@ function createRuntime(overrides = {}) {
     scoutingWorkspace: createRoot({ innerHTML: "" }),
     analysisRoomWorkspace: createRoot({ innerHTML: "" }),
     idpWorkspace: createRoot({ innerHTML: "" }),
+    leaderboardWorkspace: createRoot({ innerHTML: "" }),
     transferRoomWorkspace: createRoot({ innerHTML: "" }),
   };
   const createEventHandlers = (target) => ({
@@ -74,6 +77,12 @@ function createRuntime(overrides = {}) {
             ...createEventHandlers(calls.idpEvents),
           };
         }
+        if (id === "leaderboard") {
+          return {
+            render: (context) => calls.leaderboardRender.push(context),
+            ...createEventHandlers(calls.leaderboardEvents),
+          };
+        }
         return {
           render: (context) => calls.scoutingRender.push(context),
           ...createEventHandlers(calls.scoutingEvents),
@@ -84,9 +93,11 @@ function createRuntime(overrides = {}) {
     getUsers: () => [{ id: "u1" }, { id: "coach-2", firstName: "Alex", lastName: "Coach", role: "coach" }],
     getCurrentUser: () => ({ id: "u1", team: "First Team" }),
     formatUserName: (user = {}) => [user.firstName, user.lastName].filter(Boolean).join(" ") || user.id || "Staff",
+    getActivePlatformTeam: () => ({ id: "team-first", name: "First Team", shortName: "FT", logoUrl: "/team-logo.png" }),
     getPlatformTeamDisplayTeam: () => ({ id: "team-first", name: "First Team", shortName: "FT", logoUrl: "/team-logo.png" }),
     getPlatformTeamDisplayName: () => "First Team",
     getPlatformTeamLogoUrl: (team = {}) => team.logoUrl || "",
+    getUserTeamId: () => "team-first",
     getScheduleStateForGameplan: () => ({ events: [] }),
     getPlayerProfilesStateForGameplan: () => ({ players: [] }),
     getPlayerProfilesStateForVideoAnalysis: () => ({ players: [{ id: "p1", name: "Player One" }] }),
@@ -96,6 +107,7 @@ function createRuntime(overrides = {}) {
     canDeleteGameplan: () => true,
     canEditVideoAnalysis: () => true,
     canEditIdp: () => true,
+    canEditLeaderboard: () => true,
     getAuthToken: () => "token",
     suppressCentralWrites: (key) => calls.hydrated.push(`suppress:${key}`),
     unsuppressCentralWrites: (key) => calls.hydrated.push(`unsuppress:${key}`),
@@ -148,7 +160,7 @@ function createRuntime(overrides = {}) {
   return { calls, controller, ui };
 }
 
-test("workspace module runtime owns Gameplan, Scouting, and Video Analysis lazy render handoff", async () => {
+test("workspace module runtime owns lazy render handoff for extracted workspaces", async () => {
   const { calls, controller, ui } = createRuntime();
 
   controller.renderGameplanWorkspace();
@@ -193,12 +205,57 @@ test("workspace module runtime owns Gameplan, Scouting, and Video Analysis lazy 
   expect(calls.idpRender[0].canEdit()).toBe(true);
   expect(calls.idpRender[0].getPlayerProfilesState().players[0].id).toBe("p-idp");
   expect(calls.idpRender[0].renderPlayerProfileScoutingSpider({ name: "IDP Player" })).toBe("radar:IDP Player");
+
+  controller.renderLeaderboardWorkspace();
+  expect(ui.leaderboardWorkspace.innerHTML).toContain("Loading Leaderboard");
+  await flushPromises();
+  expect(calls.modules).toContain("leaderboard");
+  expect(calls.stylesheets).toContain("leaderboard");
+  expect(calls.leaderboardRender[0].team).toEqual({
+    id: "team-first",
+    name: "First Team",
+    shortName: "FT",
+    logoUrl: "/team-logo.png",
+  });
+  expect(calls.leaderboardRender[0].teamId).toBe("team-first");
+  expect(calls.leaderboardRender[0].getAuthToken()).toBe("token");
+  expect(calls.leaderboardRender[0].canEdit()).toBe(true);
+});
+
+test("Leaderboard follows active Team B instead of the user's primary Team A", async () => {
+  const teamAId = "44444444-4444-4444-8444-444444444444";
+  const teamBId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const { calls, controller } = createRuntime({
+    getCurrentUser: () => ({ id: "u1", teamId: teamAId, teamName: "Team A" }),
+    getUserTeamId: () => teamAId,
+    getPlatformTeamDisplayTeam: () => ({ id: teamAId, name: "Team A" }),
+    getActivePlatformTeam: () => ({ id: teamBId, name: "Team B", shortName: "TB", logoUrl: "/team-b.png" }),
+  });
+  controller.renderLeaderboardWorkspace();
+  await flushPromises();
+  expect(calls.leaderboardRender[0]).toMatchObject({
+    teamId: teamBId,
+    team: { id: teamBId, name: "Team B", shortName: "TB", logoUrl: "/team-b.png" },
+  });
+});
+
+test("Leaderboard does not transmit a profile/display team when no active team source exists", async () => {
+  const profileTeamId = "44444444-4444-4444-8444-444444444444";
+  const { calls, controller } = createRuntime({
+    getCurrentUser: () => ({ id: "u1", teamId: profileTeamId, teamName: "Profile Team" }),
+    getUserTeamId: () => profileTeamId,
+    getActivePlatformTeam: () => null,
+    getPlatformTeamDisplayTeam: () => ({ id: profileTeamId, name: "Profile Team" }),
+  });
+  controller.renderLeaderboardWorkspace();
+  await flushPromises();
+  expect(calls.leaderboardRender[0]).toMatchObject({ teamId: "", team: { id: "", name: "Profile Team" } });
 });
 
 test("workspace module runtime hydrates and preloads the correct module families", async () => {
   const { calls, controller } = createRuntime();
 
-  ["schedule", "periodization", "sessions", "medical", "squad", "scouting", "transfer"].forEach((workspaceId) => {
+  ["schedule", "periodization", "sessions", "medical", "squad", "leaderboard", "scouting", "transfer"].forEach((workspaceId) => {
     controller.hydrateWorkspaceModuleState(workspaceId);
   });
   expect(calls.hydrated).toEqual([
@@ -212,6 +269,7 @@ test("workspace module runtime hydrates and preloads the correct module families
   ]);
 
   controller.queueWorkspaceModulePreload("analysis-room");
+  controller.queueWorkspaceModulePreload("leaderboard");
   controller.queueWorkspaceModulePreload("simulator");
   controller.queueWorkspaceModulePreload("transfer");
   controller.preloadWorkspaceFromTrigger({ dataset: { openWorkspace: "scouting" } });
@@ -219,6 +277,7 @@ test("workspace module runtime hydrates and preloads the correct module families
 
   expect(calls.hydrated).not.toContain("game-simulator");
   expect(calls.modules).toContain("video-analysis");
+  expect(calls.modules).toContain("leaderboard");
   expect(calls.transferLoad).toBe(1);
 });
 
@@ -240,11 +299,13 @@ test("workspace module runtime owns lazy workspace event delegation", async () =
   await controller.loadGameplanModule();
   await controller.loadScoutingWorkspaceModule();
   await controller.loadVideoAnalysisModule();
+  await controller.loadLeaderboardModule();
 
   ui.gameplanWorkspace.handlers.click({ type: "click" });
   ui.scoutingWorkspace.handlers.input({ type: "input" });
   ui.analysisRoomWorkspace.handlers.change({ type: "change" });
   ui.transferRoomWorkspace.handlers.submit({ type: "submit" });
+  ui.leaderboardWorkspace.handlers.click({ type: "click" });
 
   expect(calls.gameplanEvents[0][0]).toBe("click");
   expect(calls.gameplanEvents[0][2].canEdit()).toBe(true);
@@ -254,4 +315,6 @@ test("workspace module runtime owns lazy workspace event delegation", async () =
   expect(calls.analysisEvents[0][2].ui.analysisRoomWorkspace).toBe(ui.analysisRoomWorkspace);
   expect(calls.transferEvents[0][0]).toBe("submit");
   expect(calls.transferEvents[0][2]).toEqual({ room: true });
+  expect(calls.leaderboardEvents[0][0]).toBe("click");
+  expect(calls.leaderboardEvents[0][2].teamId).toBe("team-first");
 });

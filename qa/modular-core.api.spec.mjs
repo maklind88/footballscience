@@ -30,6 +30,10 @@ test("modular core covers protected storage keys without loading the current UI"
   expect(registry.ownersForStorageKey("football-scouting-v1")).toEqual(["scouting"]);
   expect(platformModuleRegistry.ids()).toContain("session-planner");
   expect(platformModuleRegistry.ids()).toContain("scouting");
+  expect(platformModuleRegistry.require("leaderboard")).toMatchObject({
+    storageKeys: [],
+    futureTables: expect.arrayContaining(["leaderboard_competitions", "leaderboard_point_transactions"]),
+  });
 });
 
 test("migration order starts with low-risk modules and keeps deep planning modules later", () => {
@@ -38,6 +42,9 @@ test("migration order starts with low-risk modules and keeps deep planning modul
     platformModuleMigrationOrder.indexOf("exercise-library")
   );
   expect(platformModuleMigrationOrder.at(-1)).toBe("game-simulator");
+  expect(platformModuleMigrationOrder.indexOf("leaderboard")).toBeGreaterThan(
+    platformModuleMigrationOrder.indexOf("idp")
+  );
 });
 
 test("module permissions are explicit and conservative", () => {
@@ -46,6 +53,9 @@ test("module permissions are explicit and conservative", () => {
   expect(canViewModule("medical", "session-planner")).toBe(true);
   expect(canEditModule("medical", "session-planner")).toBe(false);
   expect(canEditModule("medical", "medical-team")).toBe(true);
+  expect(canViewModule("medical", "leaderboard")).toBe(true);
+  expect(canEditModule("medical", "leaderboard")).toBe(false);
+  expect(canEditModule("coach", "leaderboard")).toBe(true);
 });
 
 test("platform event bus supports safe subscribe, emit, and unsubscribe", () => {

@@ -53,6 +53,7 @@ export const defaultWorkspaceAccess = {
   "session-planner": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   idp: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
+  leaderboard: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "transfer-room": ["admin", "team-admin"],
   "analysis-room": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
@@ -71,6 +72,7 @@ export const defaultWorkspaceEditAccess = {
   "session-planner": ["admin", "club-admin", "team-admin", "coach"],
   idp: ["admin", "club-admin", "team-admin", "coach", "analyst", "performance"],
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
+  leaderboard: ["admin", "club-admin", "team-admin", "coach"],
   scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "transfer-room": ["admin", "team-admin"],
   "analysis-room": ["admin", "club-admin", "team-admin", "coach", "analyst"],
@@ -89,6 +91,10 @@ export const requiredWorkspaceAccess = {
   "player-profiles": {
     view: ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
     edit: ["admin", "club-admin", "team-admin", "coach", "scout"],
+  },
+  leaderboard: {
+    view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+    edit: ["admin", "club-admin", "team-admin", "coach"],
   },
   idp: {
     view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],

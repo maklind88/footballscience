@@ -208,7 +208,11 @@ async function fetchPlatformIdentityRows(actorId, options = {}) {
     ...rowIdSet(profiles.rows, "primary_organization_id"),
   ]);
   const clubIds = uniq([...rowIdSet(memberships.rows, "club_id"), ...rowIdSet(profiles.rows, "primary_club_id")]);
-  const teamIds = uniq([...rowIdSet(memberships.rows, "team_id"), ...rowIdSet(profiles.rows, "primary_team_id")]);
+  const teamIds = uniq([
+    ...rowIdSet(memberships.rows, "team_id"),
+    ...rowIdSet(profiles.rows, "primary_team_id"),
+    ...(isUuid(options.requestedTeamId) ? [options.requestedTeamId] : []),
+  ]);
 
   const [organizations, clubs, teams] = await Promise.all([
     fetchRowsByIds("platform_organizations", organizationIds, ORGANIZATION_SELECT, options),

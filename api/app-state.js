@@ -109,6 +109,7 @@ const PLATFORM_APPEARANCE_KEY = PLATFORM_APPEARANCE_STORAGE_KEY;
 const DEFAULT_WORKSPACE_ACCESS = {
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
+  leaderboard: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   "player-brief": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
   periodization: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
@@ -126,6 +127,7 @@ const DEFAULT_WORKSPACE_ACCESS = {
 const DEFAULT_WORKSPACE_EDIT_ACCESS = {
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach"],
+  leaderboard: ["admin", "club-admin", "team-admin", "coach"],
   gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "player-brief": ["admin"],
   periodization: ["admin", "club-admin", "team-admin", "coach", "performance"],
@@ -141,6 +143,10 @@ const DEFAULT_WORKSPACE_EDIT_ACCESS = {
   "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
 };
 const REQUIRED_WORKSPACE_ACCESS = {
+  leaderboard: {
+    view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+    edit: ["admin", "club-admin", "team-admin", "coach"],
+  },
   "session-planner": {
     view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
     edit: ["admin", "club-admin", "team-admin", "coach"],

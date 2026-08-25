@@ -237,6 +237,33 @@ export const moduleStandardContracts = Object.freeze([
     notes: "Product language is Squad while legacy workspace id remains player-profiles.",
   }),
   createModuleStandardContract({
+    id: "leaderboard",
+    label: "Leaderboard",
+    migrationStatus: moduleMigrationStatuses.databasePrimary,
+    mountId: "leaderboardWorkspace",
+    targetDir: "src/modules/leaderboard",
+    filePrefix: "leaderboard",
+    currentFiles: [
+      "api/leaderboard.js",
+      "api/_lib/leaderboard-database.js",
+      "src/modules/leaderboard",
+      "supabase/migrations/20260825002506_leaderboard_foundation.sql",
+    ],
+    cssFiles: ["src/modules/leaderboard/leaderboard.css"],
+    testFiles: [
+      "qa/leaderboard-database-schema.api.spec.mjs",
+      "qa/leaderboard-api.api.spec.mjs",
+      "qa/leaderboard-module-contract.api.spec.mjs",
+    ],
+    extractionOrder: 9.5,
+    riskLevel: "high",
+    migrationGuard: {
+      preserveCurrentWritePath: false,
+      centralSavePipelineRequired: false,
+    },
+    notes: "Database-primary monthly points ledger. Squad remains the player identity source; corrections append reversals instead of overwriting totals.",
+  }),
+  createModuleStandardContract({
     id: "medical-team",
     label: "Medical Team",
     migrationStatus: moduleMigrationStatuses.legacy,

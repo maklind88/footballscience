@@ -20,12 +20,11 @@ test("platform UI bindings keep DOM selectors outside the app shell", () => {
   expect(app).not.toContain("const ui = {");
   expect(bindings).toContain("dashboardChatWidgetRoot");
   expect(bindings).toContain("sessionPlannerWorkspace");
-  expect(bindings).toContain("leaderboardWorkspace");
-  expect(index).toContain('data-workspace-view="leaderboard"');
-  expect(index).toContain('id="leaderboardWorkspace"');
-  expect(index.indexOf('data-workspace-view="leaderboard"')).toBeGreaterThan(
-    index.indexOf('data-workspace-view="player-profiles"')
-  );
+  expect(bindings).toContain("leaderboardDialogHost");
+  expect(index).toContain('id="leaderboardDialogHost"');
+  expect(index).toContain('</main>\n    </div>\n    <div id="leaderboardDialogHost"');
+  expect(index).not.toContain('data-workspace-view="leaderboard"');
+  expect(index).not.toContain('id="leaderboardWorkspace"');
 });
 
 test("platform UI bindings preserve element ids and non-id selectors", () => {
@@ -56,7 +55,7 @@ test("platform UI bindings preserve element ids and non-id selectors", () => {
   expect(ui.platformInstallPromptHost).toEqual({ id: "platformInstallPromptHost" });
   expect(ui.platformInstallGuideHost).toEqual({ id: "platformInstallGuideHost" });
   expect(ui.sessionPlannerWorkspace).toEqual({ id: "sessionPlannerWorkspace" });
-  expect(ui.leaderboardWorkspace).toEqual({ id: "leaderboardWorkspace" });
+  expect(ui.leaderboardDialogHost).toEqual({ id: "leaderboardDialogHost" });
   expect(ui.scheduleOverviewSpanButtons).toEqual([{ selector: "[data-schedule-span]" }]);
   expect(lookedUpIds).toContain("pitchStage");
   expect(lookedUpIds).toContain("savedSequenceList");

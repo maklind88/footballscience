@@ -44,6 +44,36 @@ function sendJson(res, statusCode, payload) {
 
 function handleMockApi(req, res) {
   const parsedUrl = new URL(req.url || "/", `http://${host}:${port}`);
+  if (parsedUrl.pathname === "/api/leaderboard") {
+    if (String(req.method || "GET").toUpperCase() !== "GET") {
+      sendJson(res, 405, { ok: false, reason: "Leaderboard writes are not supported by the QA static server." });
+      return true;
+    }
+
+    const month = parsedUrl.searchParams.get("month") || "";
+    const teamId = parsedUrl.searchParams.get("teamId") || "";
+    if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)) {
+      sendJson(res, 400, { ok: false, reason: "month must use YYYY-MM format." });
+      return true;
+    }
+    if (teamId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(teamId)) {
+      sendJson(res, 400, { ok: false, reason: "teamId must be a valid UUID when provided." });
+      return true;
+    }
+
+    sendJson(res, 200, {
+      ok: true,
+      schema: "footballscience-leaderboard-v1",
+      month,
+      competition: null,
+      summary: { participantCount: 0, scoredPlayerCount: 0, totalPoints: 0, eventCount: 0, leaderGap: 0 },
+      roster: [],
+      standings: [],
+      events: [],
+    });
+    return true;
+  }
+
   if (parsedUrl.pathname === "/api/idp") {
     const action = parsedUrl.searchParams.get("action") || "dashboard";
     if (action === "dashboard") {

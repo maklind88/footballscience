@@ -337,7 +337,7 @@ test("Leaderboard staging smoke wiring is isolated, authenticated, reversible, a
   expect(packageJson.scripts["qa:staging:leaderboard:required"]).toBe("node scripts/run-leaderboard-staging-qa.mjs --required");
   expect(config).toContain("leaderboard\\.staging\\.spec\\.mjs");
   expect(config).not.toContain("footballscience.xyz");
-  expect(config).toContain('timezoneId: "UTC"');
+  expect(config).toContain('timezoneId: "Europe/Stockholm"');
   expect(config).toContain('trace: "off"');
   expect(config).toContain('video: "off"');
   expect(config).toContain('screenshot: "off"');

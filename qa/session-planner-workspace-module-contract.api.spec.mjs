@@ -52,6 +52,13 @@ test("Session Planner workspace renderer keeps shell, builder, tools, and histor
     block,
     historyContext,
     isAdmin: true,
+    leaderboardAwardAction: {
+      visible: true,
+      enabled: true,
+      command: { occurredOn: "2026-05-31", title: "Training" },
+      reason: "",
+      statusLabel: "",
+    },
     selectedDate: "2026-05-31",
     selectedDateLabel: "Sunday, 31 May",
     session: { blocks: [block] },
@@ -69,6 +76,31 @@ test("Session Planner workspace renderer keeps shell, builder, tools, and histor
   expect(html).toContain("data-session-restore-history");
   expect(html).toContain("data-print-overlay");
   expect(html).toContain('class="session-overview-title">Training</h2>');
+  expect(html).toContain("data-session-open-print");
+  expect(html).toContain("data-session-open-leaderboard-award");
+  expect(html).toContain('data-session-leaderboard-award-enabled="true"');
+  expect(html).toContain('data-session-leaderboard-award-date="2026-05-31"');
+  expect(html).toContain('data-session-leaderboard-award-title="Training"');
+  expect(html.indexOf("data-session-open-print")).toBeLessThan(html.indexOf("data-session-open-leaderboard-award"));
+
+  const closedMonthHtml = renderer.renderWorkspace({
+    leaderboardAwardAction: {
+      visible: true,
+      enabled: false,
+      command: null,
+      reason: "This Leaderboard month is closed. Points can only be awarded in the active month.",
+      statusLabel: "Month closed",
+    },
+  });
+  expect(closedMonthHtml).toContain("Award points · Month closed");
+  expect(closedMonthHtml).toContain('data-session-leaderboard-award-enabled="false"');
+  expect(closedMonthHtml).toContain("disabled");
+  expect(closedMonthHtml).not.toContain("data-session-leaderboard-award-date");
+
+  const futureSessionHtml = renderer.renderWorkspace({
+    leaderboardAwardAction: { visible: false, enabled: false, command: null, reason: "" },
+  });
+  expect(futureSessionHtml).not.toContain("data-session-open-leaderboard-award");
 
   const longTitleHtml = renderer.renderWorkspace({
     sessionTitle: "Training/IDP + Lift",

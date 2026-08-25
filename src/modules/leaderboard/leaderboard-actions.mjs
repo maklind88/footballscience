@@ -38,15 +38,41 @@ function getCanEdit(context = {}) {
 export function createLeaderboardActions({ store, api, context = {} } = {}) {
   const getNow = typeof context.getNow === "function" ? context.getNow : () => new Date();
 
-  async function loadMonth(month = store.getState().month) {
+  function getMonthCachePatch(month, patch = {}) {
+    const current = store.getState().monthCache?.[month] || {};
+    return { [month]: { ...current, ...patch } };
+  }
+
+  async function loadMonth(month = store.getState().month, options = {}) {
     const safeMonth = normalizeLeaderboardMonth(month, getLeaderboardMonthValue(getNow()));
-    store.setState({ month: safeMonth, status: "loading", requestError: "" });
+    const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
+    store.setState({
+      month: safeMonth,
+      status: "loading",
+      requestError: "",
+      monthCache: getMonthCachePatch(safeMonth, { status: "loading", error: "" }),
+    });
     try {
-      const payload = await api.loadMonth(safeMonth);
-      store.setState({ status: "ready", month: normalizeLeaderboardMonth(payload.month, safeMonth), data: normalizeResponse(payload, safeMonth), requestError: "" });
+      const payload = await api.loadMonth(safeMonth, { signal: options.signal });
+      if (!isCurrent()) return null;
+      const responseMonth = normalizeLeaderboardMonth(payload.month, safeMonth);
+      const data = normalizeResponse(payload, safeMonth);
+      store.setState({
+        status: "ready",
+        month: responseMonth,
+        data,
+        requestError: "",
+        monthCache: getMonthCachePatch(responseMonth, { status: "ready", data, error: "" }),
+      });
       return payload;
     } catch (error) {
-      store.setState({ status: "error", requestError: error?.message || "Leaderboard could not be loaded." });
+      if (!isCurrent() || error?.name === "AbortError") return null;
+      const message = error?.message || "Leaderboard could not be loaded.";
+      store.setState({
+        status: "error",
+        requestError: message,
+        monthCache: getMonthCachePatch(safeMonth, { status: "error", error: message }),
+      });
       throw error;
     }
   }
@@ -94,6 +120,7 @@ export function createLeaderboardActions({ store, api, context = {} } = {}) {
         month: data.month || state.month,
         status: "ready",
         data,
+        monthCache: getMonthCachePatch(data.month || state.month, { status: "ready", data, error: "" }),
         draft: createLeaderboardAwardDraft(getNow()),
         ui: {
           awardOpen: false,
@@ -140,6 +167,7 @@ export function createLeaderboardActions({ store, api, context = {} } = {}) {
         status: "ready",
         month: data.month || state.month,
         data,
+        monthCache: getMonthCachePatch(data.month || state.month, { status: "ready", data, error: "" }),
         ui: {
           reverseEventId: "",
           reverseReason: "",

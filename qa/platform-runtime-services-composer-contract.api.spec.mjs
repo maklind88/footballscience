@@ -26,9 +26,13 @@ test("platform runtime services composer owns platform-wide service wiring outsi
   expect(composerSource).toContain("createWorkspaceAccessRuntimeService({");
   expect(composerSource).toContain("createWorkspaceDataRuntimeService({");
   expect(composerSource).toContain("createWorkspaceModuleRuntimeController({");
-  expect(composerSource).toContain('canEditLeaderboard: () => canCurrentUserEditWorkspace("leaderboard")');
+  expect(composerSource).toContain('import { platformModules } from "./platform-contracts.mjs";');
+  expect(composerSource).not.toContain('from "./permissions.mjs"');
+  expect(composerSource).toContain('const leaderboardModuleContract = platformModules.find((moduleContract) => moduleContract.id === "leaderboard")');
+  expect(composerSource).toContain('canViewLeaderboard: () => currentUserHasLeaderboardRole("viewRoles")');
+  expect(composerSource).toContain('canEditLeaderboard: () => currentUserHasLeaderboardRole("editRoles")');
   expect(composerSource).toContain("getActivePlatformTeam: platformStructureRuntimeService.getActivePlatformTeam");
-  expect(composerSource).not.toContain("getPlayerProfilesStateForLeaderboard");
+  expect(composerSource).toContain("getPlayerProfilesStateForLeaderboard");
   expect(composerSource).toContain("createScheduleRuntimeSelectors({");
   expect(composerSource).toContain("createScheduleWorkspaceController({");
   expect(composerSource).toContain("createPlatformStructureRuntimeService({");

@@ -43,6 +43,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
   const sessionPlannerRuntimeServiceComposition = createSessionPlannerRuntimeServiceComposition({
     sessionPlannerBlockDeletionTombstoneKey: deps.sessionPlannerBlockDeletionTombstoneKey,
     sessionPlannerBlockFieldUpdatedAtKey: deps.sessionPlannerBlockFieldUpdatedAtKey,
+    canEditLeaderboard: deps.canEditLeaderboard,
     canEditSessionPlanner: deps.canEditSessionPlanner,
     canWriteCentralBackedCache: deps.canWriteCentralBackedCache,
     clamp: deps.clamp,
@@ -177,7 +178,6 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     if (activeViewId === "admin") deps.renderAdminWorkspace();
     if (activeViewId === "medical-team") deps.renderMedicalTeamWorkspace();
     if (activeViewId === "player-profiles") deps.renderPlayerProfilesWorkspace();
-    if (activeViewId === "leaderboard") deps.renderLeaderboardWorkspace();
     if (activeViewId === "idp") deps.renderIdpWorkspace();
     if (activeViewId === "scouting") deps.renderScoutingWorkspace();
     if (activeViewId === "gameplan") deps.renderGameplanWorkspace();
@@ -334,6 +334,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     syncGameSimulatorIntroState: deps.syncGameSimulatorIntroState,
     syncPlatformAutosaveStatusVisibility: deps.syncPlatformAutosaveStatusVisibility,
     syncPlatformUserFromAuth: deps.syncPlatformUserFromAuth,
+    unmountLeaderboardHome: deps.unmountLeaderboardHome,
     win: deps.win,
     workspaceHubDefaultActiveWorkspaceId: deps.workspaceHubDefaultActiveWorkspaceId,
     writeWorkspaceHubState: deps.writeWorkspaceHubState,

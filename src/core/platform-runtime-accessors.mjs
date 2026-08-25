@@ -107,24 +107,28 @@ export const platformRuntimeAccessorNames = Object.freeze([
   "canUserAccessTransferRoom",
   "canUserEditTransferRoom",
   "addTransferRoomTargetFromScoutingSnapshot",
+  "canEditLeaderboard",
+  "canViewLeaderboard",
   "getGameplanContext",
   "getIdpContext",
-  "getLeaderboardContext",
   "getScoutingAnalysisRoomContext",
   "getScoutingWorkspaceContext",
   "getTransferRoomWorkspaceContext",
   "hydrateWorkspaceModuleState",
   "loadGameplanModule",
   "loadIdpModule",
-  "loadLeaderboardModule",
+  "mountLeaderboardHome",
+  "openLeaderboardAward",
+  "openLeaderboardDialog",
+  "requestCloseLeaderboard",
   "loadScoutingWorkspaceModule",
   "loadTransferRoomWorkspaceModule",
   "renderAnalysisRoomWorkspace",
   "renderGameplanWorkspace",
   "renderIdpWorkspace",
-  "renderLeaderboardWorkspace",
   "renderScoutingWorkspace",
   "renderTransferRoomWorkspace",
+  "unmountLeaderboardHome",
   "renderPeriodizationWorkspace",
   "renderSessionPlannerPeriodizationOverlay",
   "renderSessionPlannerPeriodizationSummary",
@@ -306,24 +310,28 @@ export function syncTransferRoomLinkedState(...args) { return callAccessorSource
 export function canUserAccessTransferRoom(...args) { return callAccessorSource("workspaceDataRuntimeService", "canUserAccessTransferRoom", args); }
 export function canUserEditTransferRoom(...args) { return callAccessorSource("workspaceDataRuntimeService", "canUserEditTransferRoom", args); }
 export function addTransferRoomTargetFromScoutingSnapshot(...args) { return callAccessorSource("workspaceDataRuntimeService", "addTransferRoomTargetFromScoutingSnapshot", args); }
+export function canEditLeaderboard(...args) { return callAccessorSource("workspaceModuleRuntimeController", "canEditLeaderboard", args); }
+export function canViewLeaderboard(...args) { return callAccessorSource("workspaceModuleRuntimeController", "canViewLeaderboard", args); }
 export function getGameplanContext(...args) { return callAccessorSource("workspaceModuleRuntimeController", "getGameplanContext", args); }
 export function getIdpContext(...args) { return callAccessorSource("workspaceModuleRuntimeController", "getIdpContext", args); }
-export function getLeaderboardContext(...args) { return callAccessorSource("workspaceModuleRuntimeController", "getLeaderboardContext", args); }
 export function getScoutingAnalysisRoomContext(...args) { return callAccessorSource("workspaceModuleRuntimeController", "getScoutingAnalysisRoomContext", args); }
 export function getScoutingWorkspaceContext(...args) { return callAccessorSource("workspaceModuleRuntimeController", "getScoutingWorkspaceContext", args); }
 export function getTransferRoomWorkspaceContext(...args) { return callAccessorSource("workspaceModuleRuntimeController", "getTransferRoomWorkspaceContext", args); }
 export function hydrateWorkspaceModuleState(...args) { return callAccessorSource("workspaceModuleRuntimeController", "hydrateWorkspaceModuleState", args); }
 export function loadGameplanModule(...args) { return callAccessorSource("workspaceModuleRuntimeController", "loadGameplanModule", args); }
 export function loadIdpModule(...args) { return callAccessorSource("workspaceModuleRuntimeController", "loadIdpModule", args); }
-export function loadLeaderboardModule(...args) { return callAccessorSource("workspaceModuleRuntimeController", "loadLeaderboardModule", args); }
+export function mountLeaderboardHome(...args) { return callAccessorSource("workspaceModuleRuntimeController", "mountLeaderboardHome", args); }
+export function openLeaderboardAward(...args) { return callAccessorSource("workspaceModuleRuntimeController", "openLeaderboardAward", args); }
+export function openLeaderboardDialog(...args) { return callAccessorSource("workspaceModuleRuntimeController", "openLeaderboardDialog", args); }
+export function requestCloseLeaderboard(...args) { return callAccessorSource("workspaceModuleRuntimeController", "requestCloseLeaderboard", args); }
 export function loadScoutingWorkspaceModule(...args) { return callAccessorSource("workspaceModuleRuntimeController", "loadScoutingWorkspaceModule", args); }
 export function loadTransferRoomWorkspaceModule(...args) { return callAccessorSource("workspaceModuleRuntimeController", "loadTransferRoomWorkspaceModule", args); }
 export function renderAnalysisRoomWorkspace(...args) { return callAccessorSource("workspaceModuleRuntimeController", "renderAnalysisRoomWorkspace", args); }
 export function renderGameplanWorkspace(...args) { return callAccessorSource("workspaceModuleRuntimeController", "renderGameplanWorkspace", args); }
 export function renderIdpWorkspace(...args) { return callAccessorSource("workspaceModuleRuntimeController", "renderIdpWorkspace", args); }
-export function renderLeaderboardWorkspace(...args) { return callAccessorSource("workspaceModuleRuntimeController", "renderLeaderboardWorkspace", args); }
 export function renderScoutingWorkspace(...args) { return callAccessorSource("workspaceModuleRuntimeController", "renderScoutingWorkspace", args); }
 export function renderTransferRoomWorkspace(...args) { return callAccessorSource("workspaceModuleRuntimeController", "renderTransferRoomWorkspace", args); }
+export function unmountLeaderboardHome(...args) { return callAccessorSource("workspaceModuleRuntimeController", "unmountLeaderboardHome", args); }
 export function renderPeriodizationWorkspace(...args) { return callAccessorSource("periodizationRuntimeBindings", "renderPeriodizationWorkspace", args); }
 export function renderSessionPlannerPeriodizationOverlay(...args) { return callAccessorSource("periodizationRuntimeBindings", "renderSessionPlannerPeriodizationOverlay", args); }
 export function renderSessionPlannerPeriodizationSummary(...args) { return callAccessorSource("periodizationRuntimeBindings", "renderSessionPlannerPeriodizationSummary", args); }

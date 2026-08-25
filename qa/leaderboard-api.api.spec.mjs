@@ -187,8 +187,9 @@ test("fresh membership role and team scope override any apparent actor role", ()
   expect(resolved).toMatchObject({
     ok: true,
     actor: { id: actorId, role: "coach" },
-    tenant: { organizationId, clubId, teamId },
+    tenant: { organizationId, clubId, teamId, timezone: "UTC" },
   });
+  expect(contract.LEADERBOARD_TIMEZONE).toBe("UTC");
 
   const noMembership = scope.resolveLeaderboardActorContext(actorScope({ scope: { memberships: [] } }));
   expect(noMembership.ok).toBe(false);
@@ -343,6 +344,44 @@ test("different client ids cannot award the same mapped player twice", async () 
   expect(result).toMatchObject({ ok: false, status: 409 });
 });
 
+test("award RPC ignores ambient tenant timezone and sends the shared UTC contract", async () => {
+  let rpcBody = null;
+  const command = contract.normalizeLeaderboardCommand({
+    action: "award",
+    occurredOn: "2026-08-31",
+    title: "Month boundary winners",
+    idempotencyKey: "award:utc-boundary:1",
+    awards: [{ playerId: "legacy-player-1", points: 3, placement: 1 }],
+  }).command;
+  const result = await database.awardPoints({
+    actor: { id: actorId, role: "coach" },
+    tenant: { organizationId, clubId, teamId, timezone: "Europe/Stockholm" },
+  }, command, {
+    config: { url: "https://project.supabase.co", serviceRoleKey: "service-key" },
+    fetchImpl: async (url, options = {}) => {
+      const table = new URL(url).pathname.split("/").pop();
+      if (table === "platform_tenant_links") {
+        return jsonResponse([{ module_id: "squad", module_table: "squad_teams", module_record_id: squadTeamId, organization_id: organizationId, team_id: teamId, status: "active" }]);
+      }
+      if (table === "squad_teams") return jsonResponse([{ id: squadTeamId, organization_id: squadOrganizationId, club_id: clubId, name: "First Team", status: "active" }]);
+      if (table === "squad_roster_memberships") {
+        return jsonResponse([{ id: rosterId, organization_id: squadOrganizationId, team_id: squadTeamId, player_id: playerId, status: "active" }]);
+      }
+      if (table === "squad_players") {
+        return jsonResponse([{ id: playerId, organization_id: squadOrganizationId, display_name: "Ada Forward", status: "active", metadata: { legacyId: "legacy-player-1" } }]);
+      }
+      expect(table).toBe("leaderboard_award_batch");
+      rpcBody = JSON.parse(options.body);
+      return jsonResponse({ eventId: playerId, month: "2026-08", replayed: false });
+    },
+  });
+
+  expect(result.ok).toBe(true);
+  expect(rpcBody.p_timezone).toBe("UTC");
+  expect(rpcBody.p_month_start).toBe("2026-08-01");
+  expect(rpcBody.p_occurred_on).toBe("2026-08-31");
+});
+
 test("monthly response contract keeps the required stable shape", () => {
   const response = {
     headers: {},
@@ -454,8 +493,7 @@ test("Team B reversal write carries the freshly resolved tenant and request hash
   });
 });
 
-test("server workspace access defaults cannot normalize Leaderboard below its required roles", () => {
+test("server workspace access defaults do not expose Leaderboard as a configurable workspace", () => {
   const appState = readProjectFile("api/app-state.js");
-  expect(appState).toContain('leaderboard: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]');
-  expect(appState).toContain('edit: ["admin", "club-admin", "team-admin", "coach"]');
+  expect(appState).not.toContain("leaderboard:");
 });

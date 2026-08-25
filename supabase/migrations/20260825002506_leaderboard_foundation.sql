@@ -1,6 +1,4 @@
--- Football Science Leaderboard: database-first monthly competition ledger.
--- All browser access goes through the guarded server API. Point transactions,
--- participant snapshots, and audit rows are append-only.
+-- Football Science Leaderboard: guarded database-first monthly competition ledger with append-only audit history.
 create schema if not exists app_private;
 create unique index if not exists platform_clubs_id_org_leaderboard_uidx
   on public.platform_clubs (id, organization_id);
@@ -20,7 +18,7 @@ create table public.leaderboard_competitions (
   squad_organization_id uuid not null references public.squad_organizations(id) on delete restrict,
   squad_team_id uuid not null,
   month_start date not null,
-  timezone text not null default 'UTC' check (char_length(timezone) between 3 and 80 and timezone !~ '\s'),
+  timezone text not null default 'UTC' check (timezone = 'UTC'),
   status text not null default 'open' check (status in ('open', 'locked', 'archived')),
   scoring_rules jsonb not null default '{"version":1,"points":"integer"}'::jsonb,
   row_version integer not null default 1 check (row_version > 0),
@@ -231,8 +229,10 @@ begin
     array['admin','club-admin','team-admin','coach']) then
     raise exception 'Active Leaderboard manager membership is required.' using errcode = '42501'; end if;
   if p_request_hash is null or p_request_hash !~ '^[0-9a-f]{64}$' then raise exception 'Invalid request hash.' using errcode = '22023'; end if;
+  if p_timezone is distinct from 'UTC' then raise exception 'Leaderboard timezone must be UTC.' using errcode = '22023'; end if;
   if p_month_start <> date_trunc('month', p_month_start)::date
-    or p_occurred_on < p_month_start or p_occurred_on >= (p_month_start + interval '1 month')::date then
+    or p_occurred_on < p_month_start or p_occurred_on >= (p_month_start + interval '1 month')::date
+    or p_occurred_on > (current_timestamp at time zone 'UTC')::date then
     raise exception 'Award date must belong to the competition month.' using errcode = '22023';
   end if;
   if p_awards is null or jsonb_typeof(p_awards) <> 'array' then
@@ -253,7 +253,7 @@ begin
   if competition.organization_id <> p_organization_id
     or competition.club_id is distinct from p_club_id
     or competition.squad_organization_id <> p_squad_organization_id
-    or competition.squad_team_id <> p_squad_team_id then
+    or competition.squad_team_id <> p_squad_team_id or competition.timezone <> 'UTC' then
     raise exception 'Competition tenant mapping mismatch.' using errcode = '42501';
   end if;
   if exists (
@@ -279,7 +279,7 @@ begin
     end if;
     return jsonb_build_object('eventId', scoring_event.id, 'month', to_char(competition.month_start, 'YYYY-MM'), 'replayed', true);
   end if;
-  if p_month_start <> date_trunc('month', current_date)::date then
+  if p_month_start <> date_trunc('month', current_timestamp at time zone 'UTC')::date then
     raise exception 'Historical Leaderboard months are read-only.' using errcode = '55000'; end if;
   if competition.status <> 'open' then
     raise exception 'Competition is not open for scoring.' using errcode = '55000';
@@ -353,7 +353,7 @@ begin
     end if;
     return jsonb_build_object('eventId', scoring_event.id, 'month', to_char(competition.month_start, 'YYYY-MM'), 'replayed', true);
   end if;
-  if competition.month_start <> date_trunc('month', current_date)::date then
+  if competition.month_start <> date_trunc('month', current_timestamp at time zone 'UTC')::date then
     raise exception 'Historical Leaderboard months are read-only.' using errcode = '55000'; end if;
   if competition.status <> 'open' then raise exception 'Competition is not open.' using errcode = '55000'; end if;
 
@@ -451,7 +451,7 @@ begin
   ) activity on true where event.competition_id = competition.id;
 
   return jsonb_build_object(
-    'competition', jsonb_build_object('id', competition.id, 'month', to_char(competition.month_start, 'YYYY-MM'), 'status', case when competition.month_start < date_trunc('month', current_date)::date then 'completed' else competition.status end, 'timezone', competition.timezone, 'updatedAt', competition.updated_at),
+    'competition', jsonb_build_object('id', competition.id, 'month', to_char(competition.month_start, 'YYYY-MM'), 'status', case when competition.month_start < date_trunc('month', current_timestamp at time zone 'UTC')::date then 'completed' else competition.status end, 'timezone', competition.timezone, 'updatedAt', competition.updated_at),
     'summary', summary, 'standings', standings, 'events', events
   );
 end;

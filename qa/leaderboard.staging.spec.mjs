@@ -190,12 +190,14 @@ const test = base.extend({
 });
 
 async function openLeaderboard(page, month) {
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "schedule" } })));
+  await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
   const readResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.pathname === "/api/leaderboard" && response.request().method() === "GET";
   }, { timeout: 45_000 });
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "leaderboard" } })));
-  await expect(page.locator('[data-workspace-view="leaderboard"].is-active')).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "home" } })));
+  await expect(page.locator('[data-workspace-view="home"].is-active')).toBeVisible();
   const response = await readResponse;
   const url = new URL(response.url());
   expect(url.searchParams.get("teamId"), "Leaderboard UI must request the explicit active staging team.").toBe(qa.teamId);
@@ -203,7 +205,9 @@ async function openLeaderboard(page, month) {
   const payload = await response.json().catch(() => ({}));
   expect(response.ok(), `Leaderboard UI read failed with HTTP ${response.status()}.`).toBe(true);
   expect(payload.ok).toBe(true);
-  await expect(page.locator("[data-leaderboard-root]")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("#leaderboardSummary")).toBeVisible({ timeout: 30_000 });
+  await page.locator("[data-leaderboard-home-open]").click();
+  await expect(page.locator("[data-leaderboard-dialog-workspace] [data-leaderboard-root]")).toBeVisible({ timeout: 30_000 });
   return payload;
 }
 
@@ -358,7 +362,7 @@ test("authenticated staging coach can award, replay, inspect, and reverse Leader
 
     const uiRead = await openLeaderboard(page, month);
     expect(uiRead.roster.some((row) => row.playerId === player.playerId && row.displayName === player.displayName)).toBe(true);
-    await expect(page.locator("#leaderboardWorkspace")).toContainText(player.displayName);
+    await expect(page.locator("[data-leaderboard-dialog-workspace]")).toContainText(player.displayName);
     await page.locator("[data-leaderboard-open-award]").click();
     const dateInput = page.locator("[data-leaderboard-award-date]");
     await dateInput.fill(occurredOn);

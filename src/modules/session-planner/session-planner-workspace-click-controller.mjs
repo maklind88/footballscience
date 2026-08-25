@@ -9,6 +9,7 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     resolveCentralSyncConflict = () => {},
     setVisualPreviewOpen = () => {},
     setPrintOverlayOpen = () => {},
+    openLeaderboardAward = () => false,
     printCurrentSession = () => {},
     setTacticalboardOpen = () => {},
     updateTacticalPlayerNumber = () => {},
@@ -89,6 +90,8 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     clearLibraryFilter = () => {},
     updateLibraryArchiveView = () => {},
   } = deps;
+  let leaderboardAwardRequest = null;
+  let lastLeaderboardAwardRequestAt = 0;
 
   function closest(event, selector) {
     return event.target?.closest?.(selector) || null;
@@ -103,6 +106,35 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     if (!element) return false;
     callback(element);
     return true;
+  }
+
+  function requestLeaderboardAward(element) {
+    if (
+      !element ||
+      element.disabled ||
+      element.dataset?.sessionLeaderboardAwardEnabled !== "true" ||
+      leaderboardAwardRequest
+    ) {
+      return;
+    }
+    const occurredOn = String(element.dataset.sessionLeaderboardAwardDate ?? "").trim();
+    const title = String(element.dataset.sessionLeaderboardAwardTitle ?? "").replace(/\s+/g, " ").trim().slice(0, 160);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(occurredOn) || !title) return;
+
+    const requestedAt = Date.now();
+    if (requestedAt - lastLeaderboardAwardRequestAt < 600) return;
+    lastLeaderboardAwardRequestAt = requestedAt;
+    try {
+      leaderboardAwardRequest = Promise.resolve(
+        openLeaderboardAward({ occurredOn, title }, element)
+      )
+        .catch(() => false)
+        .finally(() => {
+          leaderboardAwardRequest = null;
+        });
+    } catch {
+      leaderboardAwardRequest = null;
+    }
   }
 
   function handleClick(event) {
@@ -170,6 +202,7 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     if (callIfClosest(event, "[data-session-open-tacticalboard]", () => setTacticalboardOpen(true))) return;
     if (callIfClosest(event, "[data-session-open-player-board]", () => setPlayerBoardOpen(true))) return;
     if (callIfClosest(event, "[data-session-open-print]", () => setPrintOverlayOpen(true))) return;
+    if (callIfClosest(event, "[data-session-open-leaderboard-award]", requestLeaderboardAward)) return;
     if (callIfClosest(event, "[data-session-toggle-history]", () => {
       const nextOpen = !getHistoryOpen();
       setHistoryOpen(nextOpen);

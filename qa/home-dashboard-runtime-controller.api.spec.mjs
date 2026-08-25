@@ -29,8 +29,12 @@ function createRuntime(overrides = {}) {
   const dashboardClubMark = { setAttribute: (name, value) => calls.clubMark.push([name, value]) };
   const dashboardClubLogoImage = { alt: "", hidden: true, removeAttribute: () => {} };
   const dashboardClubLogoInitials = { hidden: false, textContent: "" };
+  const leaderboardSummary = { id: "leaderboardSummary" };
+  const leaderboardDialogHost = { id: "leaderboardDialogHost" };
   const calls = {
     clubMark: [],
+    leaderboardLifecycle: [],
+    leaderboardMount: [],
     renderProfileWorkspace: [],
     syncChatNotificationCursor: 0,
   };
@@ -42,6 +46,8 @@ function createRuntime(overrides = {}) {
       dashboardClubMark,
       dashboardClubLogoImage,
       dashboardClubLogoInitials,
+      leaderboardSummary,
+      leaderboardDialogHost,
     })[id] || null,
     getUi: () => ({ dashboardGrid, dashboardSchedulePreview }),
     homeContextSelectors: {
@@ -86,6 +92,15 @@ function createRuntime(overrides = {}) {
     syncChatNotificationCursor: () => {
       calls.syncChatNotificationCursor += 1;
     },
+    canViewLeaderboard: () => false,
+    mountLeaderboardHome: (options) => {
+      calls.leaderboardLifecycle.push("mount");
+      calls.leaderboardMount.push(options);
+    },
+    unmountLeaderboardHome: () => {
+      calls.leaderboardLifecycle.push("unmount");
+      return true;
+    },
     ...overrides,
   });
   return {
@@ -97,6 +112,8 @@ function createRuntime(overrides = {}) {
     dashboardGrid,
     dashboardListeners,
     dashboardSchedulePreview,
+    leaderboardDialogHost,
+    leaderboardSummary,
     storage: harness.storage,
   };
 }
@@ -213,4 +230,43 @@ test("Home dashboard runtime opens the exact Presentation Mode selection target"
   expect(presentationCalls).toEqual([
     ["2026-08-24", "technical", { slideType: "starting-xi", createIfMissing: true }],
   ]);
+});
+
+test("Home dashboard runtime mounts Leaderboard for permitted staff and unmounts before every Home rerender", () => {
+  const { calls, controller, leaderboardDialogHost, leaderboardSummary } = createRuntime({
+    canViewLeaderboard: () => true,
+  });
+
+  controller.renderCards();
+
+  expect(calls.leaderboardLifecycle).toEqual(["unmount", "mount"]);
+  expect(calls.leaderboardMount).toEqual([{
+    leaderboardSummary,
+    leaderboardDialogHost,
+  }]);
+});
+
+test("Home dashboard runtime never mounts Leaderboard for users without module view permission", () => {
+  const { calls, controller } = createRuntime({ canViewLeaderboard: () => false });
+
+  controller.renderCards();
+
+  expect(calls.leaderboardLifecycle).toEqual(["unmount"]);
+  expect(calls.leaderboardMount).toEqual([]);
+});
+
+test("Home dashboard runtime preserves the mounted DOM while Leaderboard rejects unmount", () => {
+  const { calls, controller, dashboardGrid } = createRuntime({
+    canViewLeaderboard: () => true,
+    unmountLeaderboardHome: () => {
+      calls.leaderboardLifecycle.push("blocked-unmount");
+      return false;
+    },
+  });
+  dashboardGrid.innerHTML = "pending reversal";
+
+  expect(controller.renderCards()).toBe(false);
+  expect(dashboardGrid.innerHTML).toBe("pending reversal");
+  expect(calls.leaderboardLifecycle).toEqual(["blocked-unmount"]);
+  expect(calls.leaderboardMount).toEqual([]);
 });

@@ -82,14 +82,14 @@ export function renderLeaderboardAwardSheet({ state, players = [], bounds = {}, 
   const samePoints = draft.customPoints !== "" ? Number(draft.customPoints) || 0 : Number(draft.samePoints) || 0;
   const pending = state.ui.pendingAction === "award";
   return `
-    <div class="leaderboard-layer" data-leaderboard-close-award>
-      <section class="leaderboard-award-sheet" role="dialog" aria-modal="true" aria-labelledby="leaderboardAwardTitle" data-leaderboard-modal>
-        <form data-leaderboard-award-form novalidate>
+    <div class="leaderboard-layer" ${pending ? "" : "data-leaderboard-close-award"}>
+      <section class="leaderboard-award-sheet" role="dialog" aria-modal="true" aria-labelledby="leaderboardAwardTitle" data-leaderboard-modal tabindex="-1">
+        <form data-leaderboard-award-form novalidate aria-busy="${pending}">
           <header class="leaderboard-sheet-header">
             <div><p>Award event</p><h2 id="leaderboardAwardTitle">Award Points</h2></div>
-            <button type="button" class="leaderboard-icon-button" data-leaderboard-close-award aria-label="Close award points">×</button>
+            <button type="button" class="leaderboard-icon-button" data-leaderboard-close-award aria-label="Close award points" ${pending ? "disabled" : ""}>×</button>
           </header>
-          <div class="leaderboard-sheet-scroll">
+          <fieldset class="leaderboard-sheet-scroll leaderboard-award-fieldset" ${pending ? "disabled" : ""}>
             <section class="leaderboard-award-details" aria-label="Competition details">
               <label><span>Date</span><input type="date" min="${escapeLeaderboardHtml(bounds.min)}" max="${escapeLeaderboardHtml(bounds.max)}" value="${escapeLeaderboardHtml(draft.occurredOn)}" data-leaderboard-award-date data-leaderboard-focus-key="award-date" required /></label>
               <label class="is-wide"><span>Competition or activity</span><input type="text" maxlength="160" autocomplete="off" placeholder="e.g. 5v5 tournament" value="${escapeLeaderboardHtml(draft.title)}" data-leaderboard-award-title data-leaderboard-focus-key="award-title" required /></label>
@@ -113,11 +113,11 @@ export function renderLeaderboardAwardSheet({ state, players = [], bounds = {}, 
                   : `<div class="leaderboard-picker-empty"><strong>No players found</strong><span>Try another name, number or position.</span></div>`}
               </div>
             </section>
-          </div>
+          </fieldset>
           <footer class="leaderboard-sheet-footer">
             <div class="leaderboard-award-preview" aria-live="polite"><strong>${selectedCount}</strong> <span>player${selectedCount === 1 ? "" : "s"}</span><i></i><strong>${total}</strong> <span>points total</span></div>
             ${state.ui.draftError ? `<p class="leaderboard-form-error" role="alert">${escapeLeaderboardHtml(state.ui.draftError)}</p>` : ""}
-            <div class="leaderboard-sheet-actions"><button type="button" data-leaderboard-close-award>Cancel</button><button type="submit" class="is-primary" ${!canEdit || pending || !selectedCount ? "disabled" : ""}>${pending ? "Saving…" : "Save award"}</button></div>
+            <div class="leaderboard-sheet-actions"><button type="button" data-leaderboard-close-award ${pending ? "disabled" : ""}>Cancel</button><button type="submit" class="is-primary" ${!canEdit || pending || !selectedCount ? "disabled" : ""}>${pending ? "Saving…" : "Save award"}</button></div>
           </footer>
         </form>
       </section>

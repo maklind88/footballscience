@@ -161,11 +161,11 @@ const mergedWorkspace = {
 ...fallback,
 ...workspace,
 };
-if (["session-planner", "player-profiles", "leaderboard"].includes(defaultWorkspace.id)) {
+if (["session-planner", "player-profiles"].includes(defaultWorkspace.id)) {
 mergedWorkspace.kind = defaultWorkspace.kind;
 mergedWorkspace.status = defaultWorkspace.status;
 }
-if (defaultWorkspace.id === "player-profiles" || defaultWorkspace.id === "leaderboard") {
+if (defaultWorkspace.id === "player-profiles") {
 mergedWorkspace.title = defaultWorkspace.title;
 mergedWorkspace.meta = defaultWorkspace.meta;
 mergedWorkspace.description = defaultWorkspace.description;
@@ -317,9 +317,6 @@ return "medical-team";
 }
 if (workspace.kind === "player-profiles") {
 return "player-profiles";
-}
-if (workspace.kind === "leaderboard") {
-return "leaderboard";
 }
 if (workspace.kind === "idp") {
 return "idp";

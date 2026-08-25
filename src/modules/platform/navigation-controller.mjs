@@ -5,7 +5,6 @@ const topIconLabels = Object.freeze({
   "session-planner": "Sessions",
   idp: "IDP",
   "player-profiles": "Squad Room",
-  leaderboard: "Leaderboard",
   scouting: "Scouting",
   "transfer-room": "Transfers",
   "analysis-room": "Analysis",

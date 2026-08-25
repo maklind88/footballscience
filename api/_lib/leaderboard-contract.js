@@ -1,6 +1,7 @@
 const crypto = require("node:crypto");
 
 const LEADERBOARD_SCHEMA = "footballscience-leaderboard-v1";
+const LEADERBOARD_TIMEZONE = "UTC";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$/;
 const MAX_AWARDS = 100;
@@ -168,6 +169,7 @@ function canonicalReverseHash(command = {}) {
 
 module.exports = {
   LEADERBOARD_SCHEMA,
+  LEADERBOARD_TIMEZONE,
   canonicalAwardHash,
   canonicalReverseHash,
   isUuid,

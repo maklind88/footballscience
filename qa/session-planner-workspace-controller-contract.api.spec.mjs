@@ -2,7 +2,10 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createSessionPlannerWorkspaceController } from "../src/modules/session-planner/index.mjs";
+import {
+  createSessionPlannerLeaderboardAwardAction,
+  createSessionPlannerWorkspaceController,
+} from "../src/modules/session-planner/index.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -167,6 +170,81 @@ test("Session Planner workspace controller owns workspace UI flow without owning
   expect(appRuntimeComposer).toContain("runtimeStateService: sources.getSessionPlannerRuntimeStateService()");
   expect(accessors).toContain("function writeSessionPlannerState(...args)");
   expect(app).not.toContain("const previousDateControls = ui.sessionPlannerWorkspace.querySelector");
+});
+
+test("Session Planner Leaderboard shortcut eligibility stays date-, content-, and permission-bound", () => {
+  const getNow = () => new Date("2026-08-25T12:00:00.000Z");
+  const currentMonthAction = createSessionPlannerLeaderboardAwardAction({
+    canEdit: true,
+    getNow,
+    selectedDate: "2026-08-24",
+    session: { blocks: [{ id: "block-1" }] },
+    sessionTitle: "  Pressing\n  and transition  ",
+  });
+  expect(currentMonthAction).toEqual({
+    visible: true,
+    enabled: true,
+    command: {
+      occurredOn: "2026-08-24",
+      title: "Pressing and transition",
+    },
+    reason: "",
+    statusLabel: "",
+  });
+
+  expect(createSessionPlannerLeaderboardAwardAction({
+    canEdit: true,
+    getNow,
+    selectedDate: "2026-08-26",
+    session: { blocks: [{ id: "block-1" }] },
+  }).visible).toBe(false);
+  expect(createSessionPlannerLeaderboardAwardAction({
+    canEdit: true,
+    getNow,
+    selectedDate: "2026-08-24",
+    session: { blocks: [] },
+  }).visible).toBe(false);
+
+  const closedMonthAction = createSessionPlannerLeaderboardAwardAction({
+    canEdit: true,
+    getNow,
+    selectedDate: "2026-07-31",
+    session: { blocks: [{ id: "block-1" }] },
+  });
+  expect(closedMonthAction.enabled).toBe(false);
+  expect(closedMonthAction.command).toBeNull();
+  expect(closedMonthAction.statusLabel).toBe("Month closed");
+  expect(closedMonthAction.reason).toContain("active month");
+
+  const readOnlyAction = createSessionPlannerLeaderboardAwardAction({
+    canEdit: false,
+    getNow,
+    selectedDate: "2026-08-24",
+    session: { blocks: [{ id: "block-1" }] },
+  });
+  expect(readOnlyAction.enabled).toBe(false);
+  expect(readOnlyAction.command).toBeNull();
+  expect(readOnlyAction.statusLabel).toBe("Read only");
+});
+
+test("Session Planner Leaderboard shortcut uses the injected UTC clock at a Stockholm month boundary", () => {
+  const getNow = () => new Date("2026-08-31T22:30:00.000Z");
+  const august = createSessionPlannerLeaderboardAwardAction({
+    canEdit: true,
+    getNow,
+    selectedDate: "2026-08-31",
+    session: { blocks: [{ id: "block-1" }] },
+    sessionTitle: "Completed training",
+  });
+  const september = createSessionPlannerLeaderboardAwardAction({
+    canEdit: true,
+    getNow,
+    selectedDate: "2026-09-01",
+    session: { blocks: [{ id: "block-1" }] },
+  });
+
+  expect(august).toMatchObject({ enabled: true, command: { occurredOn: "2026-08-31" } });
+  expect(september.visible).toBe(false);
 });
 
 test("Session Planner date and block navigation stays read-only and keeps board history baselines current", () => {

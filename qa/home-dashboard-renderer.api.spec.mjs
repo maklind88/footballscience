@@ -100,6 +100,11 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(rendered).toContain('aria-label="Upcoming match selection"');
   expect(rendered).not.toContain("dashboard-lineup-pitch");
   expect(rendered).toMatch(/dashboard-birthday-strip[\s\S]*dashboardSchedulePreview/);
+  expect(rendered).not.toContain('id="leaderboardSummary"');
+
+  const renderedWithLeaderboard = renderer.render({ ...context, canViewLeaderboard: true });
+  expect(renderedWithLeaderboard).toContain('id="leaderboardSummary"');
+  expect(renderedWithLeaderboard).toContain("dashboard-leaderboard-loading");
 
   const ranked = renderer.getDashboardTopPriorityTasks(context, 3);
   expect(ranked).toHaveLength(3);

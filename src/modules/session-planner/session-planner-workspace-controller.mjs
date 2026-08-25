@@ -1,5 +1,66 @@
 import { createSessionPlannerPlayerBoardTidyHelpers } from "./session-planner-player-board-tidy-helpers.mjs";
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+import {
+  getLeaderboardTodayValue,
+  normalizeLeaderboardDate,
+} from "../leaderboard/leaderboard-helpers.mjs";
+
+const sessionPlannerLeaderboardClosedMonthReason =
+  "This Leaderboard month is closed. Points can only be awarded in the active month.";
+const sessionPlannerLeaderboardReadOnlyReason =
+  "Leaderboard is read-only for your account.";
+
+export function createSessionPlannerLeaderboardAwardAction({
+  canEdit = false,
+  getNow = () => new Date(),
+  selectedDate = "",
+  session = {},
+  sessionTitle = "Session",
+} = {}) {
+  const occurredOn = normalizeLeaderboardDate(selectedDate);
+  let today = "";
+  try {
+    today = getLeaderboardTodayValue(getNow());
+  } catch {
+    // A missing or stale clock must leave the cross-module shortcut fail-closed.
+  }
+  const hasBlocks = Array.isArray(session?.blocks) && session.blocks.length > 0;
+  if (!hasBlocks || !occurredOn || !today || occurredOn > today) {
+    return { visible: false, enabled: false, command: null, reason: "" };
+  }
+
+  if (occurredOn.slice(0, 7) !== today.slice(0, 7)) {
+    return {
+      visible: true,
+      enabled: false,
+      command: null,
+      reason: sessionPlannerLeaderboardClosedMonthReason,
+      statusLabel: "Month closed",
+    };
+  }
+
+  if (!canEdit) {
+    return {
+      visible: true,
+      enabled: false,
+      command: null,
+      reason: sessionPlannerLeaderboardReadOnlyReason,
+      statusLabel: "Read only",
+    };
+  }
+
+  const title = String(sessionTitle ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160) || "Session";
+  return {
+    visible: true,
+    enabled: true,
+    command: { occurredOn, title },
+    reason: "",
+    statusLabel: "",
+  };
+}
 
 export function createSessionPlannerWorkspaceController(deps = {}) {
   const {
@@ -8,6 +69,7 @@ export function createSessionPlannerWorkspaceController(deps = {}) {
     assignSessionPlannerPlayerBoardAutoFormationTeams,
     assignSessionPlannerPlayerBoardFormationSlots,
     buildSessionPlannerSelectionAssistant,
+    canEditLeaderboard = () => false,
     canEditSessionPlanner,
     clamp,
     cloneSessionPlannerLibraryExercise,
@@ -35,6 +97,7 @@ export function createSessionPlannerWorkspaceController(deps = {}) {
     getDefaultTacticalColor,
     getDefaultTacticalLineStyle,
     getElement,
+    getNow = () => new Date(),
     getPeriodizationDay,
     getPeriodizationMatchDayLabel,
     getPlatformAuthStore,
@@ -2730,6 +2793,19 @@ session.title && session.title.toLowerCase() !== "no session planned"
 ? session.title
 : getScheduledSessionTitleForDate(local.sessionPlannerState.selectedDate) || "Session";
 const sessionTotalMinutes = getDashboardSessionTotalMinutes(session);
+let canAwardLeaderboardPoints = false;
+try {
+canAwardLeaderboardPoints = Boolean(canEditLeaderboard());
+} catch {
+// Missing or stale runtime context must leave the cross-module shortcut fail-closed.
+}
+const leaderboardAwardAction = createSessionPlannerLeaderboardAwardAction({
+canEdit: canAwardLeaderboardPoints,
+getNow,
+selectedDate: local.sessionPlannerState.selectedDate,
+session,
+sessionTitle,
+});
 if (
 isCurrentPlatformUserAdmin() &&
 local.sessionPlannerHistoryOpen &&
@@ -2743,6 +2819,7 @@ addMenuOpen: local.sessionPlannerAddMenuOpen,
 block,
 historyContext: getSessionPlannerHistoryPanelContext(),
 isAdmin,
+leaderboardAwardAction,
 selectedDate: local.sessionPlannerState.selectedDate,
 selectedDateLabel,
 session,

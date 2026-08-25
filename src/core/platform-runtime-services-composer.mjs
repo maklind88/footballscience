@@ -5,6 +5,9 @@ import { createScheduleWorkspaceController } from "../modules/schedule/schedule-
 import { createScheduleRuntimeSelectors } from "../modules/schedule/schedule-runtime-selectors.mjs";
 import { createPlatformStructureRuntimeService } from "../modules/platform/platform-structure-runtime-service.mjs";
 import { createTransferRoomRuntime } from "../../transfer-room-runtime.js";
+import { platformModules } from "./platform-contracts.mjs";
+
+const leaderboardModuleContract = platformModules.find((moduleContract) => moduleContract.id === "leaderboard");
 
 export function createPlatformRuntimeServices(deps = {}) {
   const {
@@ -266,6 +269,11 @@ export function createPlatformRuntimeServices(deps = {}) {
       : [];
   }
 
+  function currentUserHasLeaderboardRole(roleListKey) {
+    const role = normalizePlatformRole(getCurrentPlatformUser()?.role, "guest");
+    return leaderboardModuleContract?.[roleListKey]?.includes(role) === true;
+  }
+
   const workspaceModuleRuntimeController = createWorkspaceModuleRuntimeController({
     ui,
     win,
@@ -284,6 +292,7 @@ export function createPlatformRuntimeServices(deps = {}) {
     openPresentationMode,
     getPlayerProfilesStateForVideoAnalysis: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
     getPlayerProfilesStateForIdp: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
+    getPlayerProfilesStateForLeaderboard: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
     getExerciseLibraryForIdp,
     renderPlayerProfileScoutingSpider: deps.renderPlayerProfileScoutingSpider,
     canEditGameplan: () => canCurrentUserEditWorkspace("gameplan"),
@@ -293,7 +302,8 @@ export function createPlatformRuntimeServices(deps = {}) {
     },
     canEditVideoAnalysis: () => canCurrentUserEditWorkspace("analysis-room"),
     canEditIdp: () => canCurrentUserEditWorkspace("idp"),
-    canEditLeaderboard: () => canCurrentUserEditWorkspace("leaderboard"),
+    canViewLeaderboard: () => currentUserHasLeaderboardRole("viewRoles"),
+    canEditLeaderboard: () => currentUserHasLeaderboardRole("editRoles"),
     getAuthToken: getPlatformApiAccessToken,
     getUserTeamId: platformStructureRuntimeService.getUserTeamId,
     suppressCentralWrites,

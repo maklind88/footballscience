@@ -24,6 +24,7 @@ export function createLeaderboardState(now = new Date()) {
     status: "idle",
     month,
     data: null,
+    monthCache: {},
     requestError: "",
     ui: {
       tab: "standings",
@@ -54,6 +55,7 @@ export function createLeaderboardStore(initialState = createLeaderboardState()) 
       ...state,
       ...patch,
       data: Object.prototype.hasOwnProperty.call(patch, "data") ? patch.data : state.data,
+      monthCache: patch.monthCache ? { ...state.monthCache, ...patch.monthCache } : state.monthCache,
       ui: patch.ui ? { ...state.ui, ...patch.ui } : state.ui,
       draft: patch.draft ? { ...state.draft, ...patch.draft } : state.draft,
     };

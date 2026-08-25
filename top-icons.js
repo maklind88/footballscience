@@ -8,7 +8,6 @@ periodization: '<path d="M21 12a9 9 0 0 0-15.5-6.2L3 8M3 3v5h5M3 12a9 9 0 0 0 15
 "session-planner": '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 5v14M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/>',
 "idp": '<circle cx="8" cy="7" r="3"/><path d="M4.5 21v-1.8a4.2 4.2 0 0 1 4.2-4.2H10"/><path d="M12.4 18.4 17 13.8l2 2 2.5-5.3-5.3 2.5 2 2-4.6 4.6"/><path d="M13 8.5h4.5M15.3 6.2v4.6"/>',
 "player-profiles": '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
-leaderboard: '<path d="M8 3h8v3.5A4 4 0 0 1 12 10.5 4 4 0 0 1 8 6.5V3Z"/><path d="M8 5H4v1.5A4.5 4.5 0 0 0 8.5 11M16 5h4v1.5a4.5 4.5 0 0 1-4.5 4.5M12 10.5V15M8.5 21h7M9.5 15h5l1 6h-7l1-6Z"/>',
 scouting: '<circle cx="11" cy="11" r="6"/><path d="m16 16 5 5M8.5 11h5M11 8.5v5"/>',
 "transfer-room": '<rect x="3.5" y="5" width="17" height="14" rx="2.2"/><path d="M7 9h10M7 13h6M16 14.5 19 17l-3 2.5"/>',
 "analysis-room": '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3M7.5 14.5l3-3 2.2 2.2 3.8-5"/>',

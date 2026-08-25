@@ -11,7 +11,7 @@ export default defineConfig({
   outputDir: "../test-results/leaderboard-staging",
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || process.env.STAGING_QA_BASE_URL || "http://127.0.0.1:9",
-    timezoneId: "UTC",
+    timezoneId: "Europe/Stockholm",
     screenshot: "off",
     trace: "off",
     video: "off",

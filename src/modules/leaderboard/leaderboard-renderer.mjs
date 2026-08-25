@@ -73,21 +73,27 @@ export function renderLeaderboardWorkspace(state = {}, context = {}) {
       : state.ui.tab === "activity"
         ? renderLeaderboardActivity(state.data || {}, context, canEdit)
         : renderStandings(state, context, canEdit);
+  const overlay = state.ui.reverseEventId
+    ? renderLeaderboardReverseDialog(state)
+    : state.ui.selectedPlayerId
+      ? renderLeaderboardPlayerDrawer(state, context)
+      : state.ui.awardOpen
+        ? renderLeaderboardAwardSheet({ state, players: getLeaderboardSquadPlayers(state.data || {}), bounds: getLeaderboardMonthBounds(state.month, context.getNow?.() || new Date()), canEdit })
+        : "";
+  const behindOverlay = overlay ? " inert aria-hidden=\"true\"" : "";
   return `
     <div class="leaderboard-shell" data-leaderboard-root>
-      <header class="leaderboard-command-bar">
+      <header class="leaderboard-command-bar"${behindOverlay}>
         ${renderLeaderboardTeamMark(context)}
         <div class="leaderboard-command-title"><p>Monthly competition</p><h1>${escapeLeaderboardHtml(teamName)} Leaderboard</h1></div>
         <div class="leaderboard-month-control" aria-label="Leaderboard month navigation"><button type="button" data-leaderboard-shift-month="-1" aria-label="Previous month" ${loading ? "disabled" : ""}>←</button><span><strong>${escapeLeaderboardHtml(monthLabel)}</strong><small class="is-${currentMonth ? "live" : "completed"}">${statusLabel}</small></span><button type="button" data-leaderboard-shift-month="1" aria-label="Next month" ${currentMonth || loading ? "disabled" : ""}>→</button><button type="button" data-leaderboard-today ${currentMonth || loading ? "disabled" : ""}>Today</button></div>
         ${canEdit ? `<button type="button" class="leaderboard-award-trigger" data-leaderboard-open-award ${state.status !== "ready" ? "disabled" : ""}><span aria-hidden="true">＋</span>Award Points</button>` : ""}
       </header>
-      ${!canEdit && state.status === "ready" ? `<div class="leaderboard-readonly" role="note"><strong>Read-only</strong><span>${currentMonth ? "You can follow the competition, but only team coaches and admins can award points." : "Completed months are historical records. Point awards and reversals are disabled."}</span></div>` : ""}
-      <nav class="leaderboard-tabs" aria-label="Leaderboard sections" role="tablist">${leaderboardTabs.map((tab) => `<button type="button" class="${state.ui.tab === tab.id ? "is-active" : ""}" data-leaderboard-tab="${tab.id}" aria-selected="${state.ui.tab === tab.id}" role="tab">${tab.label}</button>`).join("")}</nav>
-      <main class="leaderboard-content">${content}</main>
-      ${renderLeaderboardAwardSheet({ state, players: getLeaderboardSquadPlayers(state.data || {}), bounds: getLeaderboardMonthBounds(state.month, context.getNow?.() || new Date()), canEdit })}
-      ${renderLeaderboardPlayerDrawer(state, context)}
-      ${renderLeaderboardReverseDialog(state)}
-      ${renderLeaderboardNotice(state.ui.notice)}
+      ${!canEdit && state.status === "ready" ? `<div class="leaderboard-readonly" role="note"${behindOverlay}><strong>Read-only</strong><span>${currentMonth ? "You can follow the competition, but only team coaches and admins can award points." : "Completed months are historical records. Point awards and reversals are disabled."}</span></div>` : ""}
+      <nav class="leaderboard-tabs" aria-label="Leaderboard sections" role="tablist"${behindOverlay}>${leaderboardTabs.map((tab) => `<button type="button" class="${state.ui.tab === tab.id ? "is-active" : ""}" data-leaderboard-tab="${tab.id}" aria-selected="${state.ui.tab === tab.id}" role="tab">${tab.label}</button>`).join("")}</nav>
+      <main class="leaderboard-content"${behindOverlay}>${content}</main>
+      ${overlay}
+      ${overlay ? "" : renderLeaderboardNotice(state.ui.notice)}
     </div>
   `;
 }

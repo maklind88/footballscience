@@ -1,5 +1,5 @@
 const { buildSupabaseKeyHeaders, readConfig } = require("./supabase-admin.js");
-const { canonicalAwardHash, canonicalReverseHash, isUuid, monthStart, normalizeText } = require("./leaderboard-contract.js");
+const { LEADERBOARD_TIMEZONE, canonicalAwardHash, canonicalReverseHash, isUuid, monthStart, normalizeText } = require("./leaderboard-contract.js");
 
 const ALLOWED_SQUAD_LINK_MODULES = new Set(["squad", "player-profiles"]);
 
@@ -240,7 +240,7 @@ async function awardPoints(context, command, options = {}) {
     p_squad_organization_id: team.squadTeam.organizationId,
     p_squad_team_id: team.squadTeam.id,
     p_month_start: monthStart(command.month),
-    p_timezone: context.tenant.timezone,
+    p_timezone: LEADERBOARD_TIMEZONE,
     p_occurred_on: command.occurredOn,
     p_title: command.title,
     p_note: command.note,

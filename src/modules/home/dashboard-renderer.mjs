@@ -3,6 +3,7 @@ import {
   getHomeAppearanceSections,
   getHomeSectionAppearance,
 } from "../../core/appearance-governance.mjs";
+import { renderHomeLeaderboardMount } from "./leaderboard-home-mount.mjs";
 import { renderHomeUpcomingLineupCard } from "./upcoming-lineup-card.mjs";
 
 export function createDashboardHomeCardsRenderer(dependencies = {}) {
@@ -559,12 +560,14 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           </section>
         `;
     const upcomingLineupMarkup = renderHomeUpcomingLineupCard(context, escapeHtml);
+    const leaderboardMarkup = renderHomeLeaderboardMount({ visible: context.canViewLeaderboard });
     const workQueueMarkup = `${mainSections}${operationSectionsMarkup}`;
 
     return `
     <section class="dashboard-workspace-layout dashboard-home-ops dashboard-home-density-${escapeHtml(homeAppearance.density)} dashboard-home-theme-${escapeHtml(homeAppearance.theme)}" aria-label="Home dashboard">
       <section class="dashboard-home-grid" aria-label="Coach workspace">
         ${renderPresentationModeCard(birthdayStripMarkup, upcomingLineupMarkup)}
+        ${leaderboardMarkup}
         ${
           workQueueMarkup
             ? `

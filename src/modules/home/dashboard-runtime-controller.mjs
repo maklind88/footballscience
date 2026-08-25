@@ -62,6 +62,9 @@ export function createDashboardRuntimeController(dependencies = {}) {
     openPresentationMode = noop,
     createSessionDate = noop,
     openTacticalBoardDate = noop,
+    canViewLeaderboard = () => false,
+    mountLeaderboardHome = noop,
+    unmountLeaderboardHome = () => true,
   } = dependencies;
 
   let modalAfterClose = null;
@@ -371,6 +374,9 @@ export function createDashboardRuntimeController(dependencies = {}) {
   function renderCards() {
     const ui = getUi();
     const schedulePreview = getElement("dashboardSchedulePreview") || ui.dashboardSchedulePreview;
+    if (unmountLeaderboardHome() === false) {
+      return false;
+    }
     if (!ui.dashboardGrid) {
       return;
     }
@@ -384,7 +390,10 @@ export function createDashboardRuntimeController(dependencies = {}) {
     }
     syncHomeClubIdentity(currentUser);
     const users = getUsers().filter((user) => user.status === "active");
-    const context = getHomeContext(currentUser, users, readTasks());
+    const context = {
+      ...getHomeContext(currentUser, users, readTasks()),
+      canViewLeaderboard: Boolean(canViewLeaderboard()),
+    };
     const appearance = readAppearanceState();
     const staffOptions = users
       .map(
@@ -400,7 +409,14 @@ export function createDashboardRuntimeController(dependencies = {}) {
         todayValue: context.todayValue || homeContextSelectors?.getTodayValue?.(),
       });
     }
+    if (context.canViewLeaderboard) {
+      Promise.resolve(mountLeaderboardHome({
+        leaderboardSummary: getElement("leaderboardSummary"),
+        leaderboardDialogHost: getElement("leaderboardDialogHost"),
+      })).catch(noop);
+    }
     syncChatNotificationCursor();
+    return true;
   }
 
   function refreshSurfaces(profileMessage = "") {

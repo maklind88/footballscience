@@ -50,5 +50,7 @@ test("workspace runtime composer preserves runtime state assignment boundaries",
   expect(composerSource).toContain("renderStaffWorkspace");
   expect(composerSource).toContain("const renderWorkspaceByViewId = (activeViewId) =>");
   expect(composerSource).toContain('if (activeViewId === "session-planner") deps.renderSessionPlannerWorkspace();');
-  expect(composerSource).toContain('if (activeViewId === "leaderboard") deps.renderLeaderboardWorkspace();');
+  expect(composerSource).not.toContain('activeViewId === "leaderboard"');
+  expect(composerSource).toContain("unmountLeaderboardHome: deps.unmountLeaderboardHome");
+  expect(composerSource).toContain("canEditLeaderboard: deps.canEditLeaderboard");
 });

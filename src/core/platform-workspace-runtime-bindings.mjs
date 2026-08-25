@@ -252,6 +252,7 @@ export function bindPlatformWorkspaceRuntimeBindings(deps = {}) {
     getPlayerBadgeFromKeyboardEvent: actions.getSessionPlannerTacticalPlayerBadgeFromKeyboardEvent,
     getSelectedDate: sessionPlannerState.getSelectedDate,
     getMultiSelectOpenField: sessionPlannerState.getMultiSelectOpenField,
+    openLeaderboardAward: actions.openLeaderboardAward,
     setMultiSelectOpenField: sessionPlannerState.setMultiSelectOpenField,
   });
 

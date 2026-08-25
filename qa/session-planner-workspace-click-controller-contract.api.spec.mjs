@@ -43,7 +43,71 @@ test("Session Planner click controller owns workspace click routing outside app-
   expect(controllerSource).not.toContain("localStorage");
   expect(controllerSource).not.toContain("queueCentralStateWrite");
   expect(controllerSource).not.toContain("writeSessionPlannerState");
+  expect(controllerSource).not.toContain("sourceSessionId");
+  expect(controllerSource).not.toContain("fetch(");
   expect(indexSource).toContain('export * from "./session-planner-workspace-click-controller.mjs";');
+});
+
+test("Session Planner award shortcut forwards only date, title, and opener while blocking repeat or locked clicks", async () => {
+  const listeners = {};
+  const calls = [];
+  const printCalls = [];
+  let resolveOpen;
+  const openPending = new Promise((resolve) => {
+    resolveOpen = resolve;
+  });
+  const workspaceElement = {
+    addEventListener: (type, listener) => {
+      listeners[type] = listener;
+    },
+    removeEventListener: () => {},
+  };
+  bindSessionPlannerWorkspaceClickController({
+    workspaceElement,
+    setPrintOverlayOpen: (open) => printCalls.push(open),
+    openLeaderboardAward: (command, opener) => {
+      calls.push({ command, opener });
+      return openPending;
+    },
+  });
+
+  const opener = {
+    disabled: false,
+    dataset: {
+      sessionLeaderboardAwardEnabled: "true",
+      sessionLeaderboardAwardDate: "2026-08-24",
+      sessionLeaderboardAwardTitle: "  Pressing   and transition  ",
+    },
+  };
+  const click = createClick(createTarget({
+    closest: { "[data-session-open-leaderboard-award]": opener },
+  }));
+  listeners.click(click);
+  listeners.click(click);
+
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).toEqual({
+    command: { occurredOn: "2026-08-24", title: "Pressing and transition" },
+    opener,
+  });
+
+  listeners.click(createClick(createTarget({
+    closest: { "[data-session-open-print]": { dataset: {} } },
+  })));
+  expect(printCalls).toEqual([true]);
+
+  const lockedOpener = {
+    disabled: true,
+    dataset: { sessionLeaderboardAwardEnabled: "false" },
+  };
+  listeners.click(createClick(createTarget({
+    closest: { "[data-session-open-leaderboard-award]": lockedOpener },
+  })));
+  expect(calls).toHaveLength(1);
+
+  resolveOpen(true);
+  await openPending;
+  await Promise.resolve();
 });
 
 test("Session Planner click controller preserves suppress, overlay, and conflict behavior", () => {

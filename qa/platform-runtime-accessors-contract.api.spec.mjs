@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import {
+  canEditLeaderboard,
+  canViewLeaderboard,
   canEditSessionPlanner,
   cloneDefaultPlatformStructureState,
   configurePlatformRuntimeAccessors,
@@ -12,10 +14,12 @@ import {
   platformRuntimeAccessorNames,
   readScheduleState,
   renderAdminWorkspace,
-  renderLeaderboardWorkspace,
+  mountLeaderboardHome,
+  openLeaderboardAward,
   renderPlayerProfilesWorkspaceMessage,
   renderScoutingWorkspace,
   reloadCentralizedAppStateFromStorage,
+  unmountLeaderboardHome,
 } from "../src/core/platform-runtime-accessors.mjs";
 
 function readProjectFile(relativePath) {
@@ -31,7 +35,9 @@ test("platform runtime accessors own app-runtime pass-through names", () => {
   expect(platformRuntimeAccessorNames).toContain("canEditSessionPlanner");
   expect(platformRuntimeAccessorNames).toContain("readScheduleState");
   expect(platformRuntimeAccessorNames).toContain("renderScoutingWorkspace");
-  expect(platformRuntimeAccessorNames).toContain("renderLeaderboardWorkspace");
+  expect(platformRuntimeAccessorNames).toContain("mountLeaderboardHome");
+  expect(platformRuntimeAccessorNames).toContain("openLeaderboardAward");
+  expect(platformRuntimeAccessorNames).toContain("unmountLeaderboardHome");
   expect(platformRuntimeAccessorNames).toContain("renderAdminWorkspace");
   expect(platformRuntimeAccessorNames).toContain("reloadCentralizedAppStateFromStorage");
   expect(app).toContain("platform-runtime-accessors.mjs");
@@ -86,9 +92,25 @@ test("platform runtime accessors forward to configured runtime services", () => 
         calls.push(["module", args, this]);
         return "scouting";
       },
-      renderLeaderboardWorkspace(...args) {
-        calls.push(["leaderboard", args, this]);
-        return "leaderboard";
+      canEditLeaderboard(...args) {
+        calls.push(["leaderboard-edit", args, this]);
+        return true;
+      },
+      canViewLeaderboard(...args) {
+        calls.push(["leaderboard-view", args, this]);
+        return true;
+      },
+      mountLeaderboardHome(...args) {
+        calls.push(["leaderboard-mount", args, this]);
+        return "leaderboard-home";
+      },
+      openLeaderboardAward(...args) {
+        calls.push(["leaderboard-award", args, this]);
+        return true;
+      },
+      unmountLeaderboardHome(...args) {
+        calls.push(["leaderboard-unmount", args, this]);
+        return true;
       },
     },
     scheduleRuntimeSelectors: {
@@ -124,7 +146,11 @@ test("platform runtime accessors forward to configured runtime services", () => 
   expect(canEditSessionPlanner("coach")).toBe(true);
   expect(readScheduleState()).toEqual({ schedule: true });
   expect(renderScoutingWorkspace()).toBe("scouting");
-  expect(renderLeaderboardWorkspace()).toBe("leaderboard");
+  expect(canEditLeaderboard()).toBe(true);
+  expect(canViewLeaderboard()).toBe(true);
+  expect(mountLeaderboardHome({ root: true })).toBe("leaderboard-home");
+  expect(openLeaderboardAward({ occurredOn: "2026-08-25", title: "Training" })).toBe(true);
+  expect(unmountLeaderboardHome()).toBe(true);
   expect(getScheduleEventsForDate("2026-05-09")).toEqual(["event"]);
   expect(renderAdminWorkspace()).toBe("admin");
   expect(initializeWorkspaceHub()).toBe("shell");
@@ -136,14 +162,18 @@ test("platform runtime accessors forward to configured runtime services", () => 
     "access",
     "data",
     "module",
-    "leaderboard",
+    "leaderboard-edit",
+    "leaderboard-view",
+    "leaderboard-mount",
+    "leaderboard-award",
+    "leaderboard-unmount",
     "schedule-selectors",
     "admin",
     "shell",
     "central-reload",
   ]);
   expect(calls[1][2]).toBe(sources.squadWorkspaceRenderer);
-  expect(calls[7][1]).toEqual(["2026-05-09"]);
+  expect(calls[11][1]).toEqual(["2026-05-09"]);
 });
 
 test("platform runtime accessors preserve optional admin fallbacks", () => {

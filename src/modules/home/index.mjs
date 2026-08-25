@@ -3,6 +3,7 @@ export * from "./tasks-adapter.mjs";
 export * from "./dashboard-renderer.mjs";
 export * from "./dashboard-context-selectors.mjs";
 export * from "./dashboard-runtime-controller.mjs";
+export * from "./leaderboard-home-mount.mjs";
 export * from "./upcoming-lineup-card.mjs";
 export * from "./task-list-renderer.mjs";
 export * from "./chat.mjs";

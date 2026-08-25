@@ -20,7 +20,6 @@ const defaultHubState = {
     { id: "transfer-room", kind: "transfer-room", title: "Transfers" },
     { id: "session-planner", kind: "session", title: "Sessions", status: "Ready" },
     { id: "player-profiles", kind: "player-profiles", title: "Squad Room", meta: "Squad", description: "Players", status: "Ready" },
-    { id: "leaderboard", kind: "leaderboard", title: "Leaderboard", meta: "Monthly competition", description: "Points", status: "New" },
   ],
   workspaceAccess: {},
 };
@@ -63,18 +62,15 @@ function createService(overrides = {}) {
       "transfer-room": ["admin", "scout"],
       "session-planner": ["admin", "coach"],
       "player-profiles": ["admin", "coach"],
-      leaderboard: ["admin", "coach", "medical"],
     },
     defaultWorkspaceEditAccess: {
       schedule: ["admin", "coach"],
       "session-planner": ["admin", "coach"],
       "player-profiles": ["admin", "coach"],
-      leaderboard: ["admin", "coach"],
       "transfer-room": ["admin", "scout"],
     },
     requiredWorkspaceAccess: {
       admin: { view: ["admin"], edit: ["admin"] },
-      leaderboard: { view: ["admin", "coach", "medical"], edit: ["admin", "coach"] },
     },
     defaultRoles: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
     workspaceHubStorageKey: "workspace-hub-test",
@@ -116,7 +112,6 @@ test("Workspace access runtime preserves view and edit permission behavior", () 
   const schedule = service.getWorkspaceByIdFromPool("schedule");
   const admin = service.getWorkspaceByIdFromPool("admin");
   const transferRoom = service.getWorkspaceByIdFromPool("transfer-room");
-  const leaderboard = service.getWorkspaceByIdFromPool("leaderboard");
 
   expect(service.canUserAccessWorkspace(schedule, { role: "guest" })).toBe(true);
   expect(service.canUserEditWorkspace("schedule", { role: "guest" })).toBe(false);
@@ -126,9 +121,8 @@ test("Workspace access runtime preserves view and edit permission behavior", () 
   expect(service.canUserAccessWorkspace(transferRoom, { role: "coach" })).toBe(false);
   expect(service.canUserAccessWorkspace(transferRoom, { role: "scout" })).toBe(true);
   expect(service.canUserEditWorkspace("transfer-room", { role: "scout" })).toBe(true);
-  expect(service.canUserAccessWorkspace(leaderboard, { role: "medical" })).toBe(true);
-  expect(service.canUserEditWorkspace("leaderboard", { role: "medical" })).toBe(false);
-  expect(service.canUserEditWorkspace("leaderboard", { role: "coach" })).toBe(true);
+  expect(service.getWorkspaceByIdFromPool("leaderboard")).toBeNull();
+  expect(service.canUserEditWorkspace("leaderboard", { role: "coach" })).toBe(false);
 });
 
 test("Workspace access runtime normalizes access once per pool query", () => {
@@ -148,15 +142,18 @@ test("Workspace access runtime normalizes access once per pool query", () => {
 
   const accessibleWorkspaceIds = service.getAccessibleWorkspacePool().map((workspace) => workspace.id);
   expect(accessibleWorkspaceIds).toContain("player-profiles");
-  expect(accessibleWorkspaceIds).toContain("leaderboard");
+  expect(accessibleWorkspaceIds).not.toContain("leaderboard");
   expect(accessEntryReads).toBe(defaultHubState.workspaces.length);
 });
 
 test("Workspace access runtime repairs inaccessible state and preserves default workspace definitions", () => {
   const { service } = createService({ currentUser: { id: "guest-1", role: "guest" } });
   const repaired = service.repairWorkspaceState({
-    activeWorkspaceId: "admin",
-    workspaces: [{ id: "session-planner", kind: "custom", title: "Changed", hiddenFromNav: true }],
+    activeWorkspaceId: "leaderboard",
+    workspaces: [
+      { id: "session-planner", kind: "custom", title: "Changed", hiddenFromNav: true },
+      { id: "leaderboard", kind: "leaderboard", title: "Legacy Leaderboard" },
+    ],
     workspaceAccess: {
       schedule: { view: ["guest"], edit: ["guest"] },
     },
@@ -172,11 +169,7 @@ test("Workspace access runtime repairs inaccessible state and preserves default 
     meta: "Squad",
     description: "Players",
   });
-  expect(repaired.workspaces.find((workspace) => workspace.id === "leaderboard")).toMatchObject({
-    kind: "leaderboard",
-    title: "Leaderboard",
-    meta: "Monthly competition",
-  });
+  expect(repaired.workspaces.find((workspace) => workspace.id === "leaderboard")).toBeUndefined();
   expect(repaired.workspaceAccess.schedule.view).toContain("guest");
 });
 
@@ -195,6 +188,6 @@ test("Workspace access runtime preserves hub storage, remembered workspace, safe
   expect(service.getSafeWorkspaceId("schedule")).toBe("schedule");
   expect(service.getSafeWorkspaceId("admin")).toBeNull();
   expect(service.getWorkspaceViewId("session-planner")).toBe("session-planner");
-  expect(service.getWorkspaceViewId("leaderboard")).toBe("leaderboard");
+  expect(service.getWorkspaceViewId("leaderboard")).toBe("home");
   expect(service.getWorkspaceViewId("transfer-room")).toBe("home");
 });

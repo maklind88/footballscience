@@ -15,20 +15,15 @@ test("Workspace defaults expose stable hub workspaces and navigation order", () 
     kind: "idp",
     title: "IDP",
   });
-  expect(defaultHubState.workspaces.find((workspace) => workspace.id === "leaderboard")).toMatchObject({
-    kind: "leaderboard",
-    title: "Leaderboard",
-  });
   const workspaceIds = defaultHubState.workspaces.map((workspace) => workspace.id);
-  expect(workspaceIds.indexOf("leaderboard")).toBe(workspaceIds.indexOf("player-profiles") + 1);
+  expect(workspaceIds).not.toContain("leaderboard");
   expect(defaultHubState.workspaces.map((workspace) => workspace.id)).not.toContain("game-simulator");
   expect(topIconMenuOrder[0]).toBe("schedule");
   expect(topIconMenuOrder).toContain("idp");
-  expect(topIconMenuOrder.indexOf("leaderboard")).toBe(topIconMenuOrder.indexOf("player-profiles") + 1);
+  expect(topIconMenuOrder).not.toContain("leaderboard");
   expect(topIconMenuOrder).not.toContain("game-simulator");
   expect(platformSidebarPrimaryOrder).toEqual([
     "player-profiles",
-    "leaderboard",
     "schedule",
     "periodization",
     "medical-team",

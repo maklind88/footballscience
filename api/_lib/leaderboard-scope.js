@@ -1,4 +1,4 @@
-const { isUuid, normalizeText } = require("./leaderboard-contract.js");
+const { LEADERBOARD_TIMEZONE, isUuid, normalizeText } = require("./leaderboard-contract.js");
 
 const ROLE_ORDER = Object.freeze({
   admin: 1,
@@ -82,7 +82,7 @@ function resolveLeaderboardActorContext(platformScope = {}, requestedTeamId = ""
       organizationId: team.organizationId,
       clubId: isUuid(team.clubId) ? team.clubId : null,
       teamId: team.id,
-      timezone: "UTC",
+      timezone: LEADERBOARD_TIMEZONE,
     },
   };
 }

@@ -1,4 +1,4 @@
-import { createLeaderboardWorkspaceRuntime } from "./leaderboard-workspace-runtime.mjs";
+import { createLeaderboardSurfaceRuntime } from "./leaderboard-surface-runtime.mjs";
 
 export function createWorkspaceModuleRuntimeController(deps = {}) {
   const {
@@ -14,6 +14,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     getPlayerProfilesStateForGameplan = () => ({}),
     getPlayerProfilesStateForVideoAnalysis = getPlayerProfilesStateForGameplan,
     getPlayerProfilesStateForIdp = getPlayerProfilesStateForVideoAnalysis,
+    getPlayerProfilesStateForLeaderboard = getPlayerProfilesStateForVideoAnalysis,
     openPresentationMode = () => {},
     getExerciseLibraryForIdp = () => [],
     renderPlayerProfileScoutingSpider = () => "",
@@ -21,6 +22,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     canDeleteGameplan = () => false,
     canEditVideoAnalysis = () => false,
     canEditIdp = () => false,
+    canViewLeaderboard = () => false,
     canEditLeaderboard = () => false,
     getAuthToken = () => "",
     getUserTeamId = () => "",
@@ -59,7 +61,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
   let scoutingWorkspaceModulePromise = null;
   let scoutingWorkspaceModule = null;
   let scoutingMenuPreloadTimer = 0;
-  const leaderboardRuntime = createLeaderboardWorkspaceRuntime({
+  const leaderboardRuntime = createLeaderboardSurfaceRuntime({
     ui,
     win,
     platformModuleLoader,
@@ -71,6 +73,8 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     getPlatformTeamLogoUrl,
     getUserTeamId,
     getAuthToken,
+    getPlayerProfilesState: getPlayerProfilesStateForLeaderboard,
+    canView: canViewLeaderboard,
     canEdit: canEditLeaderboard,
   });
 
@@ -438,9 +442,6 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
       hydrateState.idp?.();
       return;
     }
-    if (viewId === "leaderboard") {
-      return;
-    }
     if (viewId === "scouting") {
       ensureScoutingState();
       return;
@@ -458,9 +459,6 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     }
     if (viewId === "idp") {
       loadIdpModule();
-    }
-    if (viewId === "leaderboard") {
-      leaderboardRuntime.loadModule();
     }
     if (viewId === "scouting") {
       loadScoutingWorkspaceModule();
@@ -516,14 +514,14 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
         idpModule?.[getWorkspaceModuleEventHandlerName(type)]?.(event, getIdpContext());
       });
     });
-    leaderboardRuntime.bindEvents();
   }
 
   return Object.freeze({
     bindWorkspaceModuleEvents,
+    canEditLeaderboard: leaderboardRuntime.canEdit,
+    canViewLeaderboard: leaderboardRuntime.canView,
     getGameplanContext,
     getIdpContext,
-    getLeaderboardContext: leaderboardRuntime.getContext,
     getScoutingAnalysisRoomContext,
     getScoutingWorkspaceContext,
     getVideoAnalysisContext,
@@ -531,7 +529,10 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     hydrateWorkspaceModuleState,
     loadGameplanModule,
     loadIdpModule,
-    loadLeaderboardModule: leaderboardRuntime.loadModule,
+    mountLeaderboardHome: leaderboardRuntime.mountHome,
+    openLeaderboardAward: leaderboardRuntime.openAward,
+    openLeaderboardDialog: leaderboardRuntime.openDialog,
+    requestCloseLeaderboard: leaderboardRuntime.requestClose,
     loadScoutingWorkspaceModule,
     loadTransferRoomWorkspaceModule,
     loadVideoAnalysisModule,
@@ -540,7 +541,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     renderAnalysisRoomWorkspace,
     renderGameplanWorkspace,
     renderIdpWorkspace,
-    renderLeaderboardWorkspace: leaderboardRuntime.render,
+    unmountLeaderboardHome: leaderboardRuntime.unmountHome,
     renderScoutingWorkspace,
     renderTransferRoomWorkspace,
   });

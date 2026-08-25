@@ -13,6 +13,7 @@ async function parseLeaderboardResponse(response) {
 
 export function createLeaderboardApiService(context = {}) {
   const getAuthToken = typeof context.getAuthToken === "function" ? context.getAuthToken : () => "";
+  const getAbortSignal = typeof context.getLeaderboardAbortSignal === "function" ? context.getLeaderboardAbortSignal : () => undefined;
   const fetchImpl = context.fetchImpl || globalThis.fetch;
 
   function getTeamId() {
@@ -24,6 +25,7 @@ export function createLeaderboardApiService(context = {}) {
     const token = await getAuthToken();
     const response = await fetchImpl(path, {
       method: options.method || "GET",
+      signal: options.signal || getAbortSignal(),
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -41,13 +43,13 @@ export function createLeaderboardApiService(context = {}) {
   }
 
   return Object.freeze({
-    loadMonth(month) {
+    loadMonth(month, options = {}) {
       const safeMonth = normalizeLeaderboardMonth(month);
       if (!safeMonth) return Promise.reject(new Error("A valid leaderboard month is required."));
       const teamId = getTeamId();
       const params = new URLSearchParams({ month: safeMonth });
       if (teamId) params.set("teamId", teamId);
-      return request(`${leaderboardApiPath}?${params.toString()}`);
+      return request(`${leaderboardApiPath}?${params.toString()}`, { signal: options.signal });
     },
     award(payload) {
       const teamId = getTeamId();

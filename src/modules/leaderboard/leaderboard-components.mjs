@@ -118,7 +118,7 @@ export function renderLeaderboardPlayerDrawer(state = {}, context = {}) {
   const events = getLeaderboardPlayerEvents(state.data || {}, playerId);
   return `
     <div class="leaderboard-layer leaderboard-drawer-layer" data-leaderboard-close-player>
-      <aside class="leaderboard-player-drawer" role="dialog" aria-modal="true" aria-labelledby="leaderboardPlayerTitle" data-leaderboard-modal>
+      <aside class="leaderboard-player-drawer" role="dialog" aria-modal="true" aria-labelledby="leaderboardPlayerTitle" data-leaderboard-modal tabindex="-1">
         <header class="leaderboard-sheet-header"><div><p>Monthly detail</p><h2 id="leaderboardPlayerTitle">${escapeLeaderboardHtml(player.name)}</h2></div><button type="button" class="leaderboard-icon-button" data-leaderboard-close-player aria-label="Close player detail">×</button></header>
         <section class="leaderboard-player-hero">${renderLeaderboardAvatar(player, "leaderboard-avatar leaderboard-player-hero-avatar")}<div><span>Rank</span><strong>${player.rank ? `#${player.rank}` : "Unranked"}</strong></div><div><span>Points</span><strong>${player.points || 0}</strong></div><div><span>Awards</span><strong>${player.awardCount || events.filter((event) => !event.reversedAt).length}</strong></div></section>
         <div class="leaderboard-player-history"><h3>Point history</h3>${events.length ? events.map((event) => {
@@ -138,8 +138,8 @@ export function renderLeaderboardReverseDialog(state = {}) {
   const pending = state.ui.pendingAction === "reverse";
   return `
     <div class="leaderboard-layer" ${pending ? "" : "data-leaderboard-close-reverse"}>
-      <section class="leaderboard-reverse-dialog" role="dialog" aria-modal="true" aria-labelledby="leaderboardReverseTitle" data-leaderboard-modal>
-        <form data-leaderboard-reverse-form>
+      <section class="leaderboard-reverse-dialog" role="dialog" aria-modal="true" aria-labelledby="leaderboardReverseTitle" data-leaderboard-modal tabindex="-1">
+        <form data-leaderboard-reverse-form aria-busy="${pending}">
           <header class="leaderboard-sheet-header"><div><p>Correction</p><h2 id="leaderboardReverseTitle">Reverse award?</h2></div><button type="button" class="leaderboard-icon-button" data-leaderboard-close-reverse aria-label="Close correction" ${pending ? "disabled" : ""}>×</button></header>
           <p>This removes <strong>${escapeLeaderboardHtml(event.title)}</strong> from the standings while retaining its audit record.</p>
           <label><span>Reason</span><textarea rows="3" maxlength="240" placeholder="Explain the correction" data-leaderboard-reverse-reason data-leaderboard-focus-key="reverse-reason" required ${pending ? "disabled" : ""}>${escapeLeaderboardHtml(state.ui.reverseReason)}</textarea></label>

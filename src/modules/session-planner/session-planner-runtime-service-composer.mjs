@@ -29,6 +29,7 @@ export function createSessionPlannerRuntimeServiceComposition(deps = {}) {
 
   const sessionPlannerRuntimeService = createSessionPlannerRuntimeService({
     blockHelpers: deps.sessionPlannerBlockHelpers,
+    canEditLeaderboard: deps.canEditLeaderboard,
     canEditSessionPlanner: deps.canEditSessionPlanner,
     canWriteCentralBackedCache: deps.canWriteCentralBackedCache,
     clamp: deps.clamp,

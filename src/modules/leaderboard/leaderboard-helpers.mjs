@@ -1,3 +1,5 @@
+export const LEADERBOARD_TIMEZONE = "UTC";
+
 export function normalizeLeaderboardText(value = "", maxLength = 240) {
   return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, maxLength);
 }
@@ -20,11 +22,11 @@ export function normalizeLeaderboardDate(value = "", fallback = "") {
   const clean = String(value || "").trim();
   if (!/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(clean)) return fallback;
   const [year, month, day] = clean.split("-").map(Number);
-  const parsed = new Date(`${clean}T12:00:00`);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
   return !Number.isNaN(parsed.getTime())
-    && parsed.getFullYear() === year
-    && parsed.getMonth() === month - 1
-    && parsed.getDate() === day
+    && parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day
     ? clean
     : fallback;
 }
@@ -36,9 +38,10 @@ export function normalizeLeaderboardTeamId(value = "") {
 
 export function getLeaderboardTodayValue(now = new Date()) {
   const date = now instanceof Date ? now : new Date(now);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -49,23 +52,23 @@ export function getLeaderboardMonthValue(now = new Date()) {
 export function shiftLeaderboardMonth(monthValue, delta = 0) {
   const month = normalizeLeaderboardMonth(monthValue, getLeaderboardMonthValue());
   const [year, monthNumber] = month.split("-").map(Number);
-  const date = new Date(year, monthNumber - 1 + Number(delta || 0), 1, 12);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  const date = new Date(Date.UTC(year, monthNumber - 1 + Number(delta || 0), 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 export function formatLeaderboardMonth(monthValue, locale = "en-GB") {
   const month = normalizeLeaderboardMonth(monthValue, getLeaderboardMonthValue());
   const [year, monthNumber] = month.split("-").map(Number);
-  return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(
-    new Date(year, monthNumber - 1, 1, 12),
+  return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: LEADERBOARD_TIMEZONE }).format(
+    new Date(Date.UTC(year, monthNumber - 1, 1)),
   );
 }
 
 export function formatLeaderboardDate(dateValue, locale = "en-GB") {
   const clean = normalizeLeaderboardDate(dateValue);
   if (!clean) return "Date unavailable";
-  return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }).format(
-    new Date(`${clean}T12:00:00`),
+  return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric", timeZone: LEADERBOARD_TIMEZONE }).format(
+    new Date(`${clean}T00:00:00.000Z`),
   );
 }
 

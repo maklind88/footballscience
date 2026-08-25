@@ -152,6 +152,10 @@ function createHarness(options = {}) {
     syncGameSimulatorIntroState: () => calls.push(["simulator-intro"]),
     syncPlatformAutosaveStatusVisibility: (workspaceId) => calls.push(["autosave", workspaceId]),
     syncPlatformUserFromAuth: () => ({ firstName: "Mak", name: "Mak Lind", role: "admin", title: "Coach" }),
+    unmountLeaderboardHome: () => {
+      calls.push(["unmount-leaderboard"]);
+      return options.leaderboardUnmountResult ?? true;
+    },
     win,
     workspaceHubDefaultActiveWorkspaceId: "home",
     writeWorkspaceHubState: () => calls.push(["write-hub"]),
@@ -213,6 +217,16 @@ test("workspace shell controller switches workspaces and preserves simulator/pro
   expect(harness.calls).toContainEqual(["preload", "schedule"]);
   expect(harness.calls).toContainEqual(["remember", "schedule"]);
   expect(harness.calls).toContainEqual(["write-hub"]);
+});
+
+test("workspace shell controller blocks leaving Home while Leaderboard rejects normal unmount", () => {
+  const harness = createHarness({ leaderboardUnmountResult: false });
+
+  expect(harness.controller.setActiveWorkspace("schedule")).toBe(false);
+  expect(harness.getHubState().activeWorkspaceId).toBe("home");
+  expect(harness.calls).toContainEqual(["unmount-leaderboard"]);
+  expect(harness.calls).not.toContainEqual(["remember", "schedule"]);
+  expect(harness.calls).not.toContainEqual(["write-hub"]);
 });
 
 test("workspace shell controller keeps browser back inside platform workspace history", () => {

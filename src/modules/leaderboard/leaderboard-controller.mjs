@@ -1,47 +1,35 @@
-import { createLeaderboardActions } from "./leaderboard-actions.mjs";
 import {
   createLeaderboardIdempotencyKey,
   getLeaderboardMonthValue,
+  normalizeLeaderboardDate,
+  normalizeLeaderboardText,
   shiftLeaderboardMonth,
 } from "./leaderboard-helpers.mjs";
 import { renderLeaderboardWorkspace } from "./leaderboard-renderer.mjs";
 import { getLeaderboardMonthBounds, isLeaderboardCurrentMonth } from "./leaderboard-selectors.mjs";
-import { createLeaderboardAwardDraft, createLeaderboardState, createLeaderboardStore } from "./leaderboard-state.mjs";
-import { createLeaderboardApiService } from "./services/leaderboard-api-service.mjs";
+import { createLeaderboardAwardDraft } from "./leaderboard-state.mjs";
+import {
+  ensureLeaderboardRuntime,
+  getActiveLeaderboardRuntime,
+  initializeLeaderboardRuntime,
+  onLeaderboardRuntimeDispose,
+  resetSharedLeaderboardRuntime,
+  runLeaderboardLoad,
+} from "./leaderboard-runtime.mjs";
 
-let runtime = null;
+let workspaceSurface = null;
 const keyboardDocuments = new WeakSet();
 
-function normalizeContext(context = {}) {
-  const team = context.team || null;
-  const currentUser = context.currentUser || null;
-  const teamId = context.scopeKey || context.teamId || team?.id || team?.teamId || team?.team_id || currentUser?.teamId || currentUser?.team_id || "unscoped-team";
-  const userId = currentUser?.id || currentUser?.userId || currentUser?.user_id || "anonymous-user";
-  return {
-    ui: context.ui || {},
-    win: context.win || globalThis,
-    team,
-    teamId: context.teamId || team?.id || "",
-    currentUser,
-    scopeSignature: `${String(teamId).trim()}::${String(userId).trim()}`,
-    teamName: context.teamName || team?.name || "",
-    teamLogoUrl: context.teamLogoUrl || context.logo || team?.logoUrl || team?.logo_url || "",
-    getAuthToken: typeof context.getAuthToken === "function" ? context.getAuthToken : () => "",
-    getNow: typeof context.getNow === "function" ? context.getNow : () => new Date(),
-    canEdit: typeof context.canEdit === "function" ? context.canEdit : () => Boolean(context.canEdit),
-    fetchImpl: context.fetchImpl,
-  };
-}
-
-function getRoot(activeRuntime = runtime) {
+function getRoot(activeRuntime = getActiveLeaderboardRuntime()) {
+  if (workspaceSurface?.runtime === activeRuntime) return workspaceSurface.root;
   return activeRuntime?.context?.ui?.leaderboardWorkspace || null;
 }
 
-function getDocument(activeRuntime = runtime) {
+function getDocument(activeRuntime = getActiveLeaderboardRuntime()) {
   return activeRuntime?.context?.win?.document || globalThis.document || null;
 }
 
-function canEdit(activeRuntime = runtime) {
+function canEdit(activeRuntime = getActiveLeaderboardRuntime()) {
   try {
     return Boolean(activeRuntime?.context?.canEdit?.());
   } catch {
@@ -49,7 +37,7 @@ function canEdit(activeRuntime = runtime) {
   }
 }
 
-function capturePaintState(activeRuntime = runtime) {
+function capturePaintState(activeRuntime = getActiveLeaderboardRuntime()) {
   const root = getRoot(activeRuntime);
   const active = getDocument(activeRuntime)?.activeElement;
   const focusKey = root?.contains?.(active) ? active?.dataset?.leaderboardFocusKey || "" : "";
@@ -61,19 +49,45 @@ function capturePaintState(activeRuntime = runtime) {
   };
 }
 
-function restorePaintState(activeRuntime = runtime, paintState = {}) {
+function getModalFocusables(modal) {
+  return [...(modal?.querySelectorAll?.("button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex='0']") || [])]
+    .filter((item) => !item.disabled && !item.matches?.(":disabled") && !item.closest?.("[inert]"));
+}
+
+function focusSafely(target) {
+  if (!target?.focus) return false;
+  try { target.focus({ preventScroll: true }); } catch { target.focus(); }
+  return true;
+}
+
+function ensureTopModalFocus(activeRuntime = getActiveLeaderboardRuntime()) {
+  const root = getRoot(activeRuntime);
+  const doc = getDocument(activeRuntime);
+  const modals = [...(root?.querySelectorAll?.("[data-leaderboard-modal]") || [])];
+  const modal = modals.at(-1);
+  if (!modal) return false;
+  const active = doc?.activeElement;
+  if (modal.contains?.(active) && !active?.disabled && !active?.matches?.(":disabled")) return true;
+  return focusSafely(getModalFocusables(modal)[0] || modal);
+}
+
+function restorePaintState(activeRuntime = getActiveLeaderboardRuntime(), paintState = {}) {
   const root = getRoot(activeRuntime);
   const sheetScroll = root?.querySelector?.(".leaderboard-sheet-scroll");
   if (sheetScroll && paintState.sheetScrollTop) sheetScroll.scrollTop = paintState.sheetScrollTop;
-  if (!paintState.focusKey) return;
-  const target = root?.querySelector?.(`[data-leaderboard-focus-key="${paintState.focusKey}"]`);
-  if (!target) return;
-  try { target.focus({ preventScroll: true }); } catch { target.focus?.(); }
-  if (paintState.selectionStart === null) return;
-  try { target.setSelectionRange?.(paintState.selectionStart, paintState.selectionEnd); } catch {}
+  const target = paintState.focusKey
+    ? root?.querySelector?.(`[data-leaderboard-focus-key="${paintState.focusKey}"]`)
+    : null;
+  if (target && !target.disabled && !target.matches?.(":disabled")) {
+    focusSafely(target);
+    if (paintState.selectionStart !== null) {
+      try { target.setSelectionRange?.(paintState.selectionStart, paintState.selectionEnd); } catch {}
+    }
+  }
+  ensureTopModalFocus(activeRuntime);
 }
 
-function paint(activeRuntime = runtime) {
+function paint(activeRuntime = getActiveLeaderboardRuntime()) {
   const root = getRoot(activeRuntime);
   if (!root) return;
   const paintState = capturePaintState(activeRuntime);
@@ -81,14 +95,14 @@ function paint(activeRuntime = runtime) {
   restorePaintState(activeRuntime, paintState);
 }
 
-function queueFocus(selector, activeRuntime = runtime) {
+function queueFocus(selector, activeRuntime = getActiveLeaderboardRuntime()) {
   const focus = () => getRoot(activeRuntime)?.querySelector?.(selector)?.focus?.();
   const win = activeRuntime?.context?.win || globalThis;
   if (typeof win.requestAnimationFrame === "function") win.requestAnimationFrame(focus);
   else focus();
 }
 
-function queueDatasetFocus(selector, datasetKey, value, activeRuntime = runtime) {
+function queueDatasetFocus(selector, datasetKey, value, activeRuntime = getActiveLeaderboardRuntime()) {
   const focus = () => {
     const candidates = Array.from(getRoot(activeRuntime)?.querySelectorAll?.(selector) || []);
     candidates.find((candidate) => candidate.dataset?.[datasetKey] === value)?.focus?.();
@@ -98,33 +112,30 @@ function queueDatasetFocus(selector, datasetKey, value, activeRuntime = runtime)
   else focus();
 }
 
-function ensureRuntime(context = {}) {
-  const nextContext = normalizeContext(context);
-  if (runtime) {
-    if (runtime.context.scopeSignature !== nextContext.scopeSignature) {
-      runtime = null;
-      return ensureRuntime(context);
-    }
-    Object.assign(runtime.context, nextContext);
-    return runtime;
-  }
-  const store = createLeaderboardStore(createLeaderboardState(nextContext.getNow()));
-  const api = createLeaderboardApiService(nextContext);
-  const actions = createLeaderboardActions({ store, api, context: nextContext });
-  runtime = { context: nextContext, store, api, actions, initialized: false, loadPromise: null };
-  store.subscribe(() => paint(runtime));
-  return runtime;
+function detachWorkspaceSurface(surface = workspaceSurface) {
+  if (!surface || workspaceSurface !== surface) return false;
+  workspaceSurface = null;
+  surface.unsubscribe?.();
+  surface.removeDisposeListener?.();
+  return true;
 }
 
-function runLoad(month, activeRuntime = runtime) {
-  if (!activeRuntime || activeRuntime.loadPromise) return activeRuntime?.loadPromise || Promise.resolve();
-  activeRuntime.loadPromise = activeRuntime.actions.loadMonth(month)
-    .catch(() => null)
-    .finally(() => { activeRuntime.loadPromise = null; });
-  return activeRuntime.loadPromise;
+function attachWorkspaceSurface(activeRuntime, root) {
+  if (!root) return;
+  if (workspaceSurface?.runtime === activeRuntime && workspaceSurface.root === root) return;
+  detachWorkspaceSurface();
+  const surface = { runtime: activeRuntime, root, unsubscribe: null, removeDisposeListener: null };
+  workspaceSurface = surface;
+  surface.unsubscribe = activeRuntime.store.subscribe(() => paint(activeRuntime));
+  surface.removeDisposeListener = onLeaderboardRuntimeDispose(activeRuntime, () => detachWorkspaceSurface(surface));
 }
 
-function resetDraftForMonth(month, activeRuntime = runtime) {
+export function unmountLeaderboardWorkspace(root = null) {
+  if (root && workspaceSurface?.root !== root) return false;
+  return detachWorkspaceSurface();
+}
+
+function resetDraftForMonth(month, activeRuntime = getActiveLeaderboardRuntime()) {
   const now = activeRuntime.context.getNow();
   const draft = createLeaderboardAwardDraft(now);
   const bounds = getLeaderboardMonthBounds(month, now);
@@ -132,15 +143,34 @@ function resetDraftForMonth(month, activeRuntime = runtime) {
   return draft;
 }
 
-function navigateMonth(month, activeRuntime = runtime) {
+export function navigateLeaderboardMonth(month, activeRuntime = getActiveLeaderboardRuntime(), options = {}) {
   const state = activeRuntime.store.getState();
-  if (state.ui.pendingAction || activeRuntime.loadPromise) return;
+  if (state.ui.pendingAction || (activeRuntime.loadPromise && !options.replace)) return false;
   activeRuntime.store.setState({
     month,
     draft: resetDraftForMonth(month, activeRuntime),
     ui: { awardOpen: false, selectedPlayerId: "", reverseEventId: "", draftError: "", notice: null },
   }, { notify: false });
-  runLoad(month, activeRuntime);
+  runLeaderboardLoad(month, activeRuntime, { replace: Boolean(options.replace) });
+  return true;
+}
+
+export function restoreLeaderboardCurrentMonth(activeRuntime = getActiveLeaderboardRuntime()) {
+  if (!activeRuntime) return false;
+  const state = activeRuntime.store.getState();
+  if (state.ui.pendingAction) return false;
+  const month = getLeaderboardMonthValue(activeRuntime.context.getNow());
+  const cached = state.monthCache?.[month] || null;
+  activeRuntime.store.setState({
+    month,
+    status: cached?.status === "ready" ? "ready" : "loading",
+    data: cached?.data || null,
+    requestError: cached?.error || "",
+    draft: resetDraftForMonth(month, activeRuntime),
+    ui: { awardOpen: false, selectedPlayerId: "", reverseEventId: "", reverseReason: "", reverseIdempotencyKey: "", draftError: "", notice: null },
+  });
+  if (cached?.status !== "ready") runLeaderboardLoad(month, activeRuntime, { replace: true });
+  return true;
 }
 
 function translateAssignments(assignments = {}, nextMode = "placements") {
@@ -151,7 +181,7 @@ function translateAssignments(assignments = {}, nextMode = "placements") {
   ]));
 }
 
-function closeTopOverlay(activeRuntime = runtime) {
+function closeTopOverlay(activeRuntime = getActiveLeaderboardRuntime()) {
   const state = activeRuntime?.store?.getState?.();
   if (!state) return false;
   if (state.ui.reverseEventId) {
@@ -164,6 +194,7 @@ function closeTopOverlay(activeRuntime = runtime) {
     activeRuntime.store.setState({ ui: { selectedPlayerId: "" } });
     queueDatasetFocus("[data-leaderboard-player-detail]", "leaderboardPlayerDetail", playerId, activeRuntime);
   } else if (state.ui.awardOpen) {
+    if (state.ui.pendingAction === "award") return false;
     activeRuntime.store.setState({ ui: { awardOpen: false, draftError: "" } });
     queueFocus("[data-leaderboard-open-award]", activeRuntime);
   }
@@ -171,48 +202,79 @@ function closeTopOverlay(activeRuntime = runtime) {
   return true;
 }
 
-function bindKeyboard(activeRuntime = runtime) {
+export function openLeaderboardPlayerDetail(playerId = "", activeRuntime = getActiveLeaderboardRuntime()) {
+  const safePlayerId = normalizeLeaderboardText(playerId, 120);
+  if (!activeRuntime || !safePlayerId) return false;
+  activeRuntime.store.setState({ ui: { selectedPlayerId: safePlayerId } });
+  queueFocus("button[data-leaderboard-close-player]", activeRuntime);
+  return true;
+}
+
+export function openLeaderboardAward(initial = {}, activeRuntime = getActiveLeaderboardRuntime()) {
+  if (!activeRuntime) return false;
+  const state = activeRuntime.store.getState();
+  const now = activeRuntime.context.getNow();
+  if (!canEdit(activeRuntime) || state.status !== "ready" || !isLeaderboardCurrentMonth(state.month, now)) return false;
+  const bounds = getLeaderboardMonthBounds(state.month, now);
+  const requestedDate = normalizeLeaderboardDate(initial.occurredOn);
+  const occurredOn = requestedDate >= bounds.min && requestedDate <= bounds.max
+    ? requestedDate
+    : state.draft.occurredOn < bounds.min || state.draft.occurredOn > bounds.max ? bounds.max : state.draft.occurredOn;
+  const draftPatch = { occurredOn };
+  if (Object.prototype.hasOwnProperty.call(initial, "title")) draftPatch.title = normalizeLeaderboardText(initial.title, 160);
+  activeRuntime.store.setState({ draft: draftPatch, ui: { awardOpen: true, draftError: "" } });
+  queueFocus("[data-leaderboard-award-title]", activeRuntime);
+  return true;
+}
+
+function bindKeyboard(activeRuntime = getActiveLeaderboardRuntime()) {
   const doc = getDocument(activeRuntime);
   if (!doc || typeof doc.addEventListener !== "function" || keyboardDocuments.has(doc)) return;
   keyboardDocuments.add(doc);
   doc.addEventListener("keydown", (event) => {
-    const root = getRoot(runtime);
-    if (!root?.contains?.(event.target)) return;
-    if (event.key === "Escape" && closeTopOverlay(runtime)) {
+    if (event.defaultPrevented) return;
+    const currentRuntime = getActiveLeaderboardRuntime();
+    const root = getRoot(currentRuntime);
+    const modals = [...(root?.querySelectorAll?.("[data-leaderboard-modal]") || [])];
+    const modal = modals.at(-1);
+    const targetInRoot = root?.contains?.(event.target);
+    if (!targetInRoot && !modal) return;
+    if (event.key === "Escape" && closeTopOverlay(currentRuntime)) {
       event.preventDefault();
       return;
     }
-    const playerRow = event.target?.closest?.("tr[data-leaderboard-player-detail]");
+    const playerRow = targetInRoot ? event.target?.closest?.("tr[data-leaderboard-player-detail]") : null;
     if (playerRow && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
-      runtime.store.setState({ ui: { selectedPlayerId: playerRow.dataset.leaderboardPlayerDetail || "" } });
-      queueFocus("button[data-leaderboard-close-player]", runtime);
+      openLeaderboardPlayerDetail(playerRow.dataset.leaderboardPlayerDetail || "", currentRuntime);
       return;
     }
-    const modal = event.target?.closest?.("[data-leaderboard-modal]");
     if (!modal || event.key !== "Tab") return;
-    const focusable = [...modal.querySelectorAll("button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex='0']")];
-    if (!focusable.length) return;
+    const focusable = getModalFocusables(modal);
+    if (!focusable.length) {
+      event.preventDefault();
+      focusSafely(modal);
+      return;
+    }
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
-    if (event.shiftKey && doc.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && doc.activeElement === last) { event.preventDefault(); first.focus(); }
+    if (!modal.contains?.(doc.activeElement)) { event.preventDefault(); focusSafely(event.shiftKey ? last : first); }
+    else if (event.shiftKey && doc.activeElement === first) { event.preventDefault(); focusSafely(last); }
+    else if (!event.shiftKey && doc.activeElement === last) { event.preventDefault(); focusSafely(first); }
   });
 }
 
 export function render(context = {}) {
-  const activeRuntime = ensureRuntime(context);
+  const activeRuntime = ensureLeaderboardRuntime(context);
+  attachWorkspaceSurface(activeRuntime, context.ui?.leaderboardWorkspace || activeRuntime.context.ui?.leaderboardWorkspace);
   paint(activeRuntime);
   bindKeyboard(activeRuntime);
-  if (!activeRuntime.initialized) {
-    activeRuntime.initialized = true;
-    runLoad(activeRuntime.store.getState().month, activeRuntime);
-  }
+  initializeLeaderboardRuntime(activeRuntime);
   return activeRuntime;
 }
 
 export function handleInput(event, context = null) {
-  const activeRuntime = context ? ensureRuntime(context) : runtime;
+  const activeRuntime = context ? ensureLeaderboardRuntime(context) : getActiveLeaderboardRuntime();
   const target = event?.target;
   if (!activeRuntime || !target) return;
   if (target.matches?.("[data-leaderboard-standings-search]")) activeRuntime.store.setState({ ui: { standingsSearch: target.value || "" } });
@@ -224,7 +286,7 @@ export function handleInput(event, context = null) {
 }
 
 export function handleChange(event, context = null) {
-  const activeRuntime = context ? ensureRuntime(context) : runtime;
+  const activeRuntime = context ? ensureLeaderboardRuntime(context) : getActiveLeaderboardRuntime();
   const target = event?.target;
   if (!activeRuntime || !target) return;
   if (target.matches?.("[data-leaderboard-award-date]")) activeRuntime.store.setState({ draft: { occurredOn: target.value || "" } }, { notify: false });
@@ -232,12 +294,17 @@ export function handleChange(event, context = null) {
 }
 
 export function handleClick(event, context = null) {
-  const activeRuntime = context ? ensureRuntime(context) : runtime;
+  const activeRuntime = context ? ensureLeaderboardRuntime(context) : getActiveLeaderboardRuntime();
   const target = event?.target;
   if (!activeRuntime || !target) return;
   const state = activeRuntime.store.getState();
   const closeAward = target.closest?.("button[data-leaderboard-close-award]") || target.matches?.(".leaderboard-layer[data-leaderboard-close-award]");
-  if (closeAward) { activeRuntime.store.setState({ ui: { awardOpen: false, draftError: "" } }); queueFocus("[data-leaderboard-open-award]", activeRuntime); return; }
+  if (closeAward) {
+    if (state.ui.pendingAction === "award") return;
+    activeRuntime.store.setState({ ui: { awardOpen: false, draftError: "" } });
+    queueFocus("[data-leaderboard-open-award]", activeRuntime);
+    return;
+  }
   const closePlayer = target.closest?.("button[data-leaderboard-close-player]") || target.matches?.(".leaderboard-layer[data-leaderboard-close-player]");
   if (closePlayer) { const playerId = state.ui.selectedPlayerId; activeRuntime.store.setState({ ui: { selectedPlayerId: "" } }); queueDatasetFocus("[data-leaderboard-player-detail]", "leaderboardPlayerDetail", playerId, activeRuntime); return; }
   const closeReverse = target.closest?.("button[data-leaderboard-close-reverse]") || target.matches?.(".leaderboard-layer[data-leaderboard-close-reverse]");
@@ -250,17 +317,13 @@ export function handleClick(event, context = null) {
   }
   const tab = target.closest?.("[data-leaderboard-tab]");
   if (tab) { activeRuntime.store.setState({ ui: { tab: tab.dataset.leaderboardTab === "activity" ? "activity" : "standings" } }); return; }
-  if (target.closest?.("[data-leaderboard-retry]")) { runLoad(state.month, activeRuntime); return; }
+  if (target.closest?.("[data-leaderboard-retry]")) { runLeaderboardLoad(state.month, activeRuntime, { replace: true }); return; }
   if (target.closest?.("[data-leaderboard-clear-search]")) { activeRuntime.store.setState({ ui: { standingsSearch: "" } }); return; }
   const shift = target.closest?.("[data-leaderboard-shift-month]");
-  if (shift) { navigateMonth(shiftLeaderboardMonth(state.month, Number(shift.dataset.leaderboardShiftMonth)), activeRuntime); return; }
-  if (target.closest?.("[data-leaderboard-today]")) { navigateMonth(getLeaderboardMonthValue(activeRuntime.context.getNow()), activeRuntime); return; }
+  if (shift) { navigateLeaderboardMonth(shiftLeaderboardMonth(state.month, Number(shift.dataset.leaderboardShiftMonth)), activeRuntime); return; }
+  if (target.closest?.("[data-leaderboard-today]")) { navigateLeaderboardMonth(getLeaderboardMonthValue(activeRuntime.context.getNow()), activeRuntime); return; }
   if (target.closest?.("[data-leaderboard-open-award]")) {
-    if (!canEdit(activeRuntime) || state.status !== "ready" || !isLeaderboardCurrentMonth(state.month, activeRuntime.context.getNow())) return;
-    const bounds = getLeaderboardMonthBounds(state.month, activeRuntime.context.getNow());
-    const occurredOn = state.draft.occurredOn < bounds.min || state.draft.occurredOn > bounds.max ? bounds.max : state.draft.occurredOn;
-    activeRuntime.store.setState({ draft: { occurredOn }, ui: { awardOpen: true, draftError: "" } });
-    queueFocus("[data-leaderboard-award-title]", activeRuntime);
+    openLeaderboardAward({}, activeRuntime);
     return;
   }
   const mode = target.closest?.("[data-leaderboard-award-mode]");
@@ -287,7 +350,7 @@ export function handleClick(event, context = null) {
   const points = target.closest?.("[data-leaderboard-same-points]");
   if (points) { activeRuntime.store.setState({ draft: { samePoints: Number(points.dataset.leaderboardSamePoints) || 1, customPoints: "" }, ui: { draftError: "" } }); return; }
   const player = target.closest?.("[data-leaderboard-player-detail]");
-  if (player) { activeRuntime.store.setState({ ui: { selectedPlayerId: player.dataset.leaderboardPlayerDetail || "" } }); queueFocus("button[data-leaderboard-close-player]", activeRuntime); return; }
+  if (player) { openLeaderboardPlayerDetail(player.dataset.leaderboardPlayerDetail || "", activeRuntime); return; }
   const reverse = target.closest?.("[data-leaderboard-open-reverse]");
   if (reverse) {
     if (!isLeaderboardCurrentMonth(state.month, activeRuntime.context.getNow())) return;
@@ -301,7 +364,7 @@ export function handleClick(event, context = null) {
 }
 
 export function handleSubmit(event, context = null) {
-  const activeRuntime = context ? ensureRuntime(context) : runtime;
+  const activeRuntime = context ? ensureLeaderboardRuntime(context) : getActiveLeaderboardRuntime();
   const form = event?.target;
   if (!activeRuntime || !form) return;
   if (form.matches?.("[data-leaderboard-award-form]")) { event.preventDefault?.(); activeRuntime.actions.awardPoints(); }
@@ -313,11 +376,12 @@ export function handleSubmit(event, context = null) {
 }
 
 export function getLeaderboardRuntimeState() {
-  return runtime?.store?.getState?.() || null;
+  return getActiveLeaderboardRuntime()?.store?.getState?.() || null;
 }
 
 export function resetLeaderboardRuntime() {
-  runtime = null;
+  detachWorkspaceSurface();
+  resetSharedLeaderboardRuntime();
 }
 
 export * from "./leaderboard-actions.mjs";

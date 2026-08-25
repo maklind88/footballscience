@@ -45,6 +45,7 @@ test("Session Planner runtime bindings own controller composition outside app-ru
   expect(bindingsSource).toContain("bindSessionPlannerWorkspaceInputChangeController({");
   expect(bindingsSource).toContain("bindSessionPlannerTacticalShortcutController({");
   expect(bindingsSource).toContain("bindSessionPlannerWorkspaceKeydownController({");
+  expect(bindingsSource).toContain("openLeaderboardAward,");
   expect(bindingsSource).not.toContain("localStorage");
   expect(bindingsSource).not.toContain("queueCentralStateWrite");
   expect(bindingsSource).not.toContain("writeSessionPlannerState");
@@ -85,6 +86,7 @@ test("Session Planner runtime bindings register workspace, window, and print lis
       undo: () => calls.push("undo"),
       redo: () => calls.push("redo"),
     },
+    openLeaderboardAward: (command, opener) => calls.push({ command, opener }),
     getPlayerBadgeFromKeyboardEvent: () => "",
   });
 
@@ -99,6 +101,25 @@ test("Session Planner runtime bindings register workspace, window, and print lis
   expect(typeof winListeners.copy).toBe("function");
   expect(typeof winListeners.paste).toBe("function");
   expect(typeof winListeners.afterprint).toBe("function");
+
+  const awardOpener = {
+    disabled: false,
+    dataset: {
+      sessionLeaderboardAwardEnabled: "true",
+      sessionLeaderboardAwardDate: "2026-08-24",
+      sessionLeaderboardAwardTitle: "Training",
+    },
+  };
+  workspaceListeners.click({
+    target: {
+      closest: (selector) => selector === "[data-session-open-leaderboard-award]" ? awardOpener : null,
+      matches: () => false,
+    },
+  });
+  expect(calls).toContainEqual({
+    command: { occurredOn: "2026-08-24", title: "Training" },
+    opener: awardOpener,
+  });
 
   winListeners.afterprint();
   expect(calls).toContain("afterprint");

@@ -41,6 +41,7 @@ export function createWorkspaceShellController(deps = {}) {
     syncGameSimulatorIntroState = () => {},
     syncPlatformAutosaveStatusVisibility = () => {},
     syncPlatformUserFromAuth = () => null,
+    unmountLeaderboardHome = () => true,
     win = globalThis,
     workspaceHubDefaultActiveWorkspaceId = "home",
     writeWorkspaceHubState = () => {},
@@ -135,6 +136,7 @@ export function createWorkspaceShellController(deps = {}) {
     if (activeWorkspace.id === "home") {
       markDashboardHomeSeenForCurrentUser();
     } else {
+      unmountLeaderboardHome();
       closeDashboardModal(false);
     }
     platformNavigationController.renderWorkspaceList?.();
@@ -164,6 +166,10 @@ export function createWorkspaceShellController(deps = {}) {
     const hubState = getHubState();
     const previousWorkspaceId = hubState?.activeWorkspaceId;
     const targetWorkspaceId = workspace.id;
+    if (previousWorkspaceId === "home" && targetWorkspaceId !== "home" && unmountLeaderboardHome() === false) {
+      if (options.skipHistory) replaceWorkspaceHistory(previousWorkspaceId);
+      return false;
+    }
     const scrollStability = win?.footballScienceOverlayStability;
     scrollStability?.captureWorkspace?.(previousWorkspaceId);
     scrollStability?.prepareWorkspaceRestore?.(targetWorkspaceId);
@@ -186,6 +192,7 @@ export function createWorkspaceShellController(deps = {}) {
     }
     renderWorkspaceChrome();
     scrollStability?.restoreWorkspace?.(targetWorkspaceId);
+    return true;
   }
 
   function initializeWorkspaceHub() {

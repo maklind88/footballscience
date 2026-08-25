@@ -393,6 +393,7 @@ test("modular core skeleton exposes only explicitly approved production assets",
     "src/modules/home/home-schedule-preview.css",
     "src/modules/home/home-birthday.css",
     "src/modules/home/home-upcoming-lineup.css",
+    "src/modules/home/home-leaderboard.css",
     "src/modules/medical/medical-clinical-foundation.css",
     "src/modules/medical/medical-clinical-roster.css",
     "src/modules/medical/medical-clinical-operations.css",
@@ -406,6 +407,28 @@ test("modular core skeleton exposes only explicitly approved production assets",
     "src/modules/medical/medical-clinical-profile.css",
     "src/modules/medical/medical-clinical-plan.css",
   ]);
+});
+
+test("QA static server exposes a bounded read-only Leaderboard fixture", async ({ request }) => {
+  const response = await request.get("/api/leaderboard?month=2026-08");
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toEqual({
+    ok: true,
+    schema: "footballscience-leaderboard-v1",
+    month: "2026-08",
+    competition: null,
+    summary: { participantCount: 0, scoredPlayerCount: 0, totalPoints: 0, eventCount: 0, leaderGap: 0 },
+    roster: [],
+    standings: [],
+    events: [],
+  });
+
+  const invalidMonth = await request.get("/api/leaderboard?month=August");
+  expect(invalidMonth.status()).toBe(400);
+  const write = await request.post("/api/leaderboard", { data: { action: "award" } });
+  expect(write.status()).toBe(405);
+  const unknownApi = await request.get("/api/not-a-real-qa-route");
+  expect(unknownApi.status()).toBe(404);
 });
 
 test("core module contracts are covered by dedicated QA", () => {

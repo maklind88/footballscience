@@ -48,6 +48,7 @@ function createHarness() {
     getAdminRuntimeBindingState: () => ({ selected: "admin-state" }),
     getMedicalRtpLibraryProfile: () => ({ id: "hamstring-strain" }),
     importFootballScienceDataBackupFile: (file) => calls.push(["import", file]),
+    openLeaderboardAward: (command, opener) => calls.push(["leaderboard-award", command, opener]),
     setProfileMenuOpen: (isOpen) => calls.push(["profile-menu", isOpen]),
   };
 
@@ -126,7 +127,10 @@ test("platform workspace runtime bindings preserve binding order and injected co
     }),
   })]);
   expect(calls).toContainEqual(["player-config", expect.objectContaining({ workspaceElement: { id: "players" } })]);
-  expect(calls).toContainEqual(["session-config", expect.objectContaining({ workspaceElement: { id: "session" } })]);
+  expect(calls).toContainEqual(["session-config", expect.objectContaining({
+    workspaceElement: { id: "session" },
+    openLeaderboardAward: expect.any(Function),
+  })]);
 });
 
 test("platform workspace runtime bindings preserve data-safety export and import controls", () => {

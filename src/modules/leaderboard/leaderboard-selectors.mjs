@@ -145,7 +145,7 @@ export function getLeaderboardMonthBounds(monthValue, now = new Date()) {
   const month = normalizeLeaderboardMonth(monthValue, getLeaderboardMonthValue(now));
   const [year, monthNumber] = month.split("-").map(Number);
   const first = `${month}-01`;
-  const lastDay = new Date(year, monthNumber, 0, 12).getDate();
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const monthEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
   const today = getLeaderboardTodayValue(now);
   return { min: first, max: month === today.slice(0, 7) ? today : monthEnd };

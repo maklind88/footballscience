@@ -210,11 +210,45 @@ export function createSessionPlannerWorkspaceRenderer({
   `;
   };
 
+  const renderLeaderboardAwardAction = (action = {}) => {
+    if (!action?.visible) return "";
+    const command = action.command && typeof action.command === "object" ? action.command : null;
+    const enabled = Boolean(action.enabled && command?.occurredOn && command?.title);
+    const reason = String(action.reason ?? "").trim();
+    const statusLabel = String(action.statusLabel ?? "").trim();
+    if (!enabled) {
+      const accessibleLabel = reason ? `Award points. ${reason}` : "Award points is unavailable.";
+      return `
+        <button
+          type="button"
+          class="session-print-open-button session-leaderboard-award-button"
+          data-session-open-leaderboard-award
+          data-session-leaderboard-award-enabled="false"
+          disabled
+          aria-disabled="true"
+          aria-label="${escapeHtml(accessibleLabel)}"
+          title="${escapeHtml(reason || accessibleLabel)}"
+        >Award points${statusLabel ? ` · ${escapeHtml(statusLabel)}` : ""}</button>
+      `;
+    }
+    return `
+      <button
+        type="button"
+        class="session-print-open-button session-leaderboard-award-button"
+        data-session-open-leaderboard-award
+        data-session-leaderboard-award-enabled="true"
+        data-session-leaderboard-award-date="${escapeHtml(command.occurredOn)}"
+        data-session-leaderboard-award-title="${escapeHtml(command.title)}"
+      >Award points</button>
+    `;
+  };
+
   const renderWorkspace = ({
     addMenuOpen = false,
     block = null,
     historyContext = {},
     isAdmin = false,
+    leaderboardAwardAction = {},
     selectedDate = "",
     selectedDateLabel = "",
     session = {},
@@ -257,6 +291,7 @@ export function createSessionPlannerWorkspaceRenderer({
           </div>
           <div class="session-card-actions">
             <button type="button" class="session-print-open-button" data-session-open-print>Print</button>
+            ${renderLeaderboardAwardAction(leaderboardAwardAction)}
             ${
               isAdmin
                 ? `

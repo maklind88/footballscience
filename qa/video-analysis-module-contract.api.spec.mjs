@@ -32,6 +32,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "api/_lib/video-analysis-portable-storage.js",
     "api/_lib/video-analysis-library-database.js",
     "src/modules/video-analysis/components/VideoPlayer.js",
+    "src/modules/video-analysis/components/AnalysisRoomShell.js",
     "src/modules/video-analysis/components/VideoLibrary.js",
     "src/modules/video-analysis/components/CodingPanel.js",
     "src/modules/video-analysis/components/Timeline.js",
@@ -99,6 +100,29 @@ test("video analysis module keeps the required isolated file structure", () => {
   ]) {
     expect(fs.existsSync(path.join(rootDir, relativePath)), relativePath).toBe(true);
   }
+});
+
+test("analysis room shell owns pure navigation and alternate workspace rendering", async () => {
+  const shellPath = "src/modules/video-analysis/components/AnalysisRoomShell.js";
+  const shellSource = read(shellPath);
+  const shell = await import(pathToFileURL(path.join(rootDir, shellPath)).href);
+  const header = shell.renderAnalysisRoomHeader({
+    teamName: "Team <script>alert(1)</script>",
+    team: { shortName: "FS" },
+  }, "fs-player");
+
+  expect(header).toContain("analysis-room-header");
+  expect(header).toContain('data-video-analysis-room-tab="fs-player"');
+  expect(header).toContain("Team &lt;script&gt;alert(1)&lt;/script&gt;");
+  expect(header).not.toContain("<script>");
+  expect(shell.activeAnalysisRoomTab({ view: "library" })).toBe("overview");
+  expect(shell.activeAnalysisRoomTab({ view: "workspace", activeAnalysisRoomTab: "presentation" })).toBe("presentation");
+  expect(shell.renderTeamPerformanceWorkspace()).toContain('sandbox="allow-scripts allow-modals allow-same-origin"');
+  expect(shellSource).not.toMatch(/fetch\(|supabase|\/api\/video-analysis/i);
+
+  const indexSource = read("src/modules/video-analysis/index.js");
+  expect(indexSource).toContain('from "./components/AnalysisRoomShell.js"');
+  expect(indexSource).not.toContain("const analysisRoomTabs");
 });
 
 test("video player stays playback-only and components avoid direct data access", () => {
@@ -1102,6 +1126,7 @@ test("coding template persistence stays behind repositories and API actions", ()
 
 test("analysis room tabs use icons without status labels", () => {
   const source = read("src/modules/video-analysis/index.js");
+  const shell = read("src/modules/video-analysis/components/AnalysisRoomShell.js");
   const presentation = read("src/modules/video-analysis/components/PresentationModule.js");
   const clipLibrary = read("src/modules/video-analysis/components/ClipLibrary.js");
   const clipLibraryPreview = read("src/modules/video-analysis/components/ClipLibraryPreview.js");
@@ -1115,21 +1140,21 @@ test("analysis room tabs use icons without status labels", () => {
   const presenter = read("src/modules/video-analysis/components/PresenterMode.js");
   const presentationRepository = read("src/modules/video-analysis/repositories/presentationRepository.js");
   const presentationService = read("src/modules/video-analysis/services/presentationService.js");
-  expect(source).toContain("analysis-room-tab-icon");
-  expect(source).toContain("FS Player");
-  expect(source).toContain("Team Performance");
-  expect(source).toContain('{ id: "team-performance", label: "Team Performance", icon: "numbers", disabled: true }');
-  expect(source).toContain("analysisRoomTabs.filter((tab) => tab.disabled !== true)");
-  expect(source).not.toContain('if (state.activeAnalysisRoomTab === "team-performance") return "team-performance";');
-  expect(source).toContain("TEAM_PERFORMANCE_DASHBOARD_URL");
-  expect(source).toContain("https://ncskunk-harris.github.io/Team_Match_Performance_Dashboard/");
-  expect(source).toContain('sandbox="allow-scripts allow-modals allow-same-origin"');
-  expect(source).toContain('referrerpolicy="no-referrer"');
-  expect(source).toContain("Presentation");
-  expect(source).toContain("Clip Library");
-  expect(source).toContain("renderClipLibrary");
+  expect(shell).toContain("analysis-room-tab-icon");
+  expect(shell).toContain("FS Player");
+  expect(shell).toContain("Team Performance");
+  expect(shell).toContain('{ id: "team-performance", label: "Team Performance", icon: "numbers", disabled: true }');
+  expect(shell).toContain("analysisRoomTabs.filter((tab) => tab.disabled !== true)");
+  expect(shell).not.toContain('if (state.activeAnalysisRoomTab === "team-performance") return "team-performance";');
+  expect(shell).toContain("TEAM_PERFORMANCE_DASHBOARD_URL");
+  expect(shell).toContain("https://ncskunk-harris.github.io/Team_Match_Performance_Dashboard/");
+  expect(shell).toContain('sandbox="allow-scripts allow-modals allow-same-origin"');
+  expect(shell).toContain('referrerpolicy="no-referrer"');
+  expect(shell).toContain("Presentation");
+  expect(shell).toContain("Clip Library");
+  expect(shell).toContain("renderClipLibrary");
   expect(source).toContain("clipMatchesLibraryGroup");
-  expect(source).not.toContain("Briefs");
+  expect(shell).not.toContain("Briefs");
   expect(source).not.toContain("renderPlaylistBuilder");
   expect(clipLibrary).toContain("data-video-analysis-clip-library");
   expect(clipLibrary).toContain("data-video-analysis-clip-library-group");

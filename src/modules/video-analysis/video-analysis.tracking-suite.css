@@ -179,6 +179,29 @@
   color: #26353c;
 }
 
+.video-analysis-benchmark-suite__storage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  border-top: 1px solid #e1e7e9;
+  padding-top: 7px;
+}
+
+.video-analysis-benchmark-suite__storage span {
+  overflow: hidden;
+  color: #426956;
+  font-size: 8px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-benchmark-suite__storage.is-error span {
+  color: #a12626;
+}
+
 .video-analysis-benchmark-suite__cases li.is-empty {
   justify-content: center;
   color: #738087;

@@ -100,6 +100,7 @@ export function createInitialPresentationWorkspace() {
         },
       },
       providerRuns: { byItemId: {}, downloadedAt: "", error: "" },
+      benchmarkStorage: { status: "waiting-source", lastSavedAt: "", error: "" },
       provider: {
         status: "unchecked",
         available: false,

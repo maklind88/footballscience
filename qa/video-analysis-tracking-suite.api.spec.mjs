@@ -272,6 +272,242 @@ test("provider run snapshots raw automatic output before analyst correction", as
   expect(() => runs.validateTrackingProviderRunArtifact(tampered)).toThrow(/unsupported field/i);
 });
 
+test("local benchmark workspace is versioned, bounded and tenant scoped", async () => {
+  const artifact = await groundTruthArtifact(0, ["transition"]);
+  const runService = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingProviderRunService.js",
+  ));
+  const workspaceService = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingBenchmarkWorkspaceService.js",
+  ));
+  const provider = {
+    providerId: "sam2.1-hiera-tiny",
+    providerVersion: "1.1.0",
+    protocol: "football-science-tracking-stage-v1",
+    stage: "segmentation",
+    capabilities: ["segment:selected-object", "propagate:selected-object"],
+    executionFingerprintSha256: "f".repeat(64),
+  };
+  const run = runService.createTrackingProviderRunArtifact({
+    id: "workspace-run-1",
+    provider,
+    sourceFingerprint: artifact.sourceFingerprint,
+    angleId: artifact.sourceEvidence.angleId,
+    frame: artifact.frame,
+    range: artifact.range,
+    tracks: automaticProviderTracks(artifact),
+    performance: { processingMs: 18_000, device: "mps" },
+  });
+  const scope = workspaceService.createTrackingBenchmarkWorkspaceScope({
+    organizationId: "org-1",
+    teamId: "team-1",
+    userId: "analyst-1",
+    matchId: "match-1",
+    videoId: "video-1",
+    localVideoIdentifier: "local-source-1",
+  });
+  const workspace = workspaceService.createTrackingBenchmarkWorkspaceArtifact({
+    scope,
+    groundTruth: {
+      byItemId: {
+        "item-1": {
+          itemId: "item-1",
+          status: "locked",
+          revision: 1,
+          selectedTrackIds: artifact.groundTruth.tracks.map((track) => track.id),
+          benchmarkTargetTrackId: artifact.reviewEvidence.selectedObjectTargetTrackId,
+          scenarioTags: artifact.reviewEvidence.scenarioTags,
+          sourceFingerprint: artifact.sourceFingerprint,
+          angleId: artifact.sourceEvidence.angleId,
+          frame: artifact.frame,
+          range: artifact.range,
+          attested: true,
+          exhaustiveSceneAttested: true,
+          lockedArtifact: artifact,
+          lockedAt: artifact.reviewEvidence.reviewedAt,
+          downloadedAt: "",
+          error: "transient error must not persist",
+        },
+      },
+      suite: {
+        id: "real-match-pilot",
+        revision: 1,
+        status: "draft",
+        cases: [artifact],
+        downloadedAt: "",
+        error: "transient suite error",
+      },
+    },
+    providerRuns: {
+      byItemId: { "item-1": [run] },
+      downloadedAt: "",
+      error: "transient run error",
+    },
+  }, { now: () => 1_800_000_040_000 });
+  expect(workspace).toMatchObject({
+    protocol: "football-science-tracking-benchmark-workspace-v1",
+    scope: { organizationId: "org-1", teamId: "team-1", userId: "analyst-1", sourceType: "match" },
+    groundTruth: { suite: { error: "", cases: [expect.objectContaining({ id: artifact.id })] } },
+    providerRuns: { error: "", byItemId: { "item-1": [expect.objectContaining({ id: run.id })] } },
+  });
+  expect(Object.isFrozen(workspace.groundTruth.byItemId["item-1"].lockedArtifact)).toBe(true);
+  expect(workspaceService.validateTrackingBenchmarkWorkspaceArtifact(workspace)).toEqual(workspace);
+  expect(await workspaceService.trackingBenchmarkWorkspaceContentFingerprint({
+    ...workspace,
+    benchmarkStorage: { status: "saving", error: "ignored" },
+  })).toBe(await workspaceService.trackingBenchmarkWorkspaceContentFingerprint(workspace));
+  expect(workspaceService.createTrackingBenchmarkWorkspaceScope({
+    organizationId: "org-1",
+    teamId: "team-1",
+    userId: "analyst-2",
+    matchId: "match-1",
+  }).id).not.toBe(scope.id);
+  expect(() => workspaceService.createTrackingBenchmarkWorkspaceScope({
+    organizationId: "org-1",
+    teamId: "team-1",
+    matchId: "match-1",
+  })).toThrow(/user id/i);
+  expect(() => workspaceService.createTrackingBenchmarkWorkspaceScope({
+    organizationId: "org-1",
+    teamId: "team-1",
+    userId: "analyst-1",
+    matchId: "/private/match.mp4",
+  })).toThrow(/match id/i);
+  const tampered = structuredClone(workspace);
+  tampered.videoUrl = "https://example.com/match.mp4";
+  expect(() => workspaceService.validateTrackingBenchmarkWorkspaceArtifact(tampered)).toThrow(/unsupported field/i);
+});
+
+test("benchmark persistence retries the exact failed scope before restoring another match", async () => {
+  const workspaceService = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingBenchmarkWorkspaceService.js",
+  ));
+  const { createTrackingBenchmarkPersistenceController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingBenchmarkPersistenceController.js",
+  ));
+  const draft = (trackId) => ({
+    itemId: "item-retry",
+    status: "draft",
+    revision: 1,
+    selectedTrackIds: [trackId],
+    benchmarkTargetTrackId: "",
+    scenarioTags: [],
+    sourceFingerprint: "",
+    angleId: "",
+    frame: { width: 1920, height: 1080 },
+    range: { startMs: 0, endMs: 60_000 },
+    attested: false,
+    exhaustiveSceneAttested: false,
+    lockedArtifact: null,
+    lockedAt: "",
+    downloadedAt: "",
+  });
+  const baseTracking = workspaceService.emptyTrackingBenchmarkWorkspaceContent();
+  let state = {
+    match: { id: "match-before-failure" },
+    video: { id: "video-before-failure", match_id: "match-before-failure" },
+    videoRef: { localVideoIdentifier: "source-before-failure" },
+    presentation: {
+      tracking: {
+        ...baseTracking,
+        benchmarkStorage: { status: "waiting-source", lastSavedAt: "", error: "" },
+      },
+    },
+  };
+  const listeners = new Set();
+  const store = {
+    getState: () => state,
+    update(updater) {
+      state = typeof updater === "function" ? updater(state) : { ...state, ...updater };
+      listeners.forEach((listener) => listener(state));
+      return state;
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+  const attemptedArtifacts = [];
+  const loadedScopes = [];
+  let rejectWrites = true;
+  let nowMs = 1_800_000_050_000;
+  const persistence = createTrackingBenchmarkPersistenceController({
+    getState: store.getState,
+    updateState: store.update,
+    getStore: () => store,
+    getContext: () => ({
+      currentUser: {
+        id: "analyst-retry",
+        organizationId: "org-retry",
+        teamId: "team-retry",
+      },
+    }),
+    loadWorkspace: async (scope) => {
+      loadedScopes.push(scope);
+      return null;
+    },
+    saveWorkspace: async (artifact) => {
+      attemptedArtifacts.push(artifact);
+      if (rejectWrites) throw new Error("Local benchmark disk is unavailable.");
+      return artifact;
+    },
+    now: () => nowMs++,
+    saveDelayMs: 0,
+  });
+
+  await persistence.restore();
+  persistence.start();
+  store.update((current) => ({
+    ...current,
+    presentation: {
+      ...current.presentation,
+      tracking: {
+        ...current.presentation.tracking,
+        groundTruth: {
+          ...current.presentation.tracking.groundTruth,
+          byItemId: { "item-retry": draft("track-before-failure") },
+        },
+      },
+    },
+  }));
+  await expect.poll(() => state.presentation.tracking.benchmarkStorage.status).toBe("error");
+
+  const nextTracking = workspaceService.emptyTrackingBenchmarkWorkspaceContent();
+  nextTracking.groundTruth.byItemId["item-retry"] = draft("track-from-next-match");
+  state = {
+    ...state,
+    match: { id: "match-after-failure" },
+    video: { id: "video-after-failure", match_id: "match-after-failure" },
+    videoRef: { localVideoIdentifier: "source-after-failure" },
+    presentation: {
+      ...state.presentation,
+      tracking: {
+        ...state.presentation.tracking,
+        ...nextTracking,
+      },
+    },
+  };
+  rejectWrites = false;
+  await persistence.retry();
+
+  expect(attemptedArtifacts).toHaveLength(2);
+  expect(attemptedArtifacts.map((entry) => entry.scope.matchId)).toEqual([
+    "match-before-failure",
+    "match-before-failure",
+  ]);
+  expect(attemptedArtifacts[1].groundTruth.byItemId["item-retry"].selectedTrackIds).toEqual([
+    "track-before-failure",
+  ]);
+  expect(JSON.stringify(attemptedArtifacts[1])).not.toContain("track-from-next-match");
+  expect(loadedScopes.map((scope) => scope.matchId)).toEqual([
+    "match-before-failure",
+    "match-after-failure",
+  ]);
+  expect(state.presentation.tracking.benchmarkStorage.status).toBe("ready");
+  expect(state.presentation.tracking.groundTruth.byItemId).toEqual({});
+  await persistence.dispose();
+});
+
 test("assembler binds raw provider runs to one selected target per unique real-match case", async () => {
   const { service, suite } = await readySuite();
   const groundTruthSuite = service.createGroundTruthSuiteArtifact(suite, {

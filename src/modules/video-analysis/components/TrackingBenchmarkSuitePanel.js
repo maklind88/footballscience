@@ -25,6 +25,18 @@ function caseLabel(artifact = {}) {
   return `${minutes(durationMs)} | ${shortFingerprint(artifact.sourceFingerprint)}`;
 }
 
+function benchmarkStorageLabel(value = {}) {
+  const labels = {
+    loading: "Restoring on-device workspace",
+    ready: "On-device workspace ready",
+    restored: "Restored from this device",
+    saving: "Saving on this device",
+    saved: "Protected on this device",
+    error: "On-device protection needs attention",
+  };
+  return labels[value.status] || "Connect a match source for on-device protection";
+}
+
 export function renderTrackingBenchmarkSuitePanel(state = {}) {
   const workspace = state.presentation?.tracking?.groundTruth || {};
   const suite = trackingGroundTruthSuiteEntry(workspace);
@@ -32,6 +44,7 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
   const covered = new Set(readiness.scenarioIds);
   const cases = suite.cases.slice().reverse().slice(0, 5);
   const providerRuns = trackingProviderRunWorkspaceEntry(state.presentation?.tracking?.providerRuns);
+  const benchmarkStorage = state.presentation?.tracking?.benchmarkStorage || {};
   let providerRunCount = 0;
   let providerRunError = "";
   try {
@@ -73,6 +86,11 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
         <span><strong>${providerRunCount}</strong> raw provider run${providerRunCount === 1 ? "" : "s"}</span>
         <button type="button" data-video-analysis-tracking-action="ground-truth-runs-download" ${providerRunCount ? "" : "disabled"}>Export runs</button>
       </div>
+      <div class="video-analysis-benchmark-suite__storage ${benchmarkStorage.status === "error" ? "is-error" : ""}" aria-live="polite">
+        <span>${escapeHtml(benchmarkStorageLabel(benchmarkStorage))}</span>
+        ${benchmarkStorage.status === "error" ? `<button type="button" data-video-analysis-tracking-action="retry-benchmark-storage">Retry</button>` : ""}
+      </div>
+      ${benchmarkStorage.error ? `<p class="video-analysis-benchmark-suite__error">${escapeHtml(benchmarkStorage.error)}</p>` : ""}
       ${providerRuns.error || providerRunError ? `<p class="video-analysis-benchmark-suite__error" aria-live="polite">${escapeHtml(providerRuns.error || providerRunError)}</p>` : ""}
       ${suite.error ? `<p class="video-analysis-benchmark-suite__error" aria-live="polite">${escapeHtml(suite.error)}</p>` : ""}
       <footer>

@@ -448,6 +448,7 @@ export function createTrackingController(options = {}) {
     if (action === "extend-later") { void continuation.extend("later"); return true; }
     if (action === "complete-range") { void continuation.complete(); return true; }
     if (action === "refresh-provider") { void providerRuns.refresh(); return true; }
+    if (action === "retry-benchmark-storage") { void options.retryBenchmarkStorage?.(); return true; }
     if (action === "cancel") {
       const cancelled = trackingJob.cancel();
       if (cancelled) updateState((state) => trackingPatch(state, {

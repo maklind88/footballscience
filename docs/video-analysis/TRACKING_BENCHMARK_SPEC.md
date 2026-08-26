@@ -13,7 +13,7 @@ The benchmark is local-first and provider-neutral. It evaluates normalized metad
 - Human-reviewed ground-truth points are the benchmark truth for the selected time range.
 - The provider run captured before any analyst correction is the prediction under test.
 - Ground truth and provider runs are exported as separate immutable artifacts. Their validated SHA-256 hashes are bound into the assembled benchmark and final provider evidence.
-- Ground truth and raw runs remain in the local FS Player workspace and are excluded from the centrally saved presentation payload. Per-item, total-run, and serialized-byte budgets fail visibly before local memory can grow without bound.
+- Ground truth and raw runs remain in the local FS Player workspace and are excluded from the centrally saved presentation payload. The working copy is restored from a versioned IndexedDB record scoped to the exact organization, team, authenticated user, and match source. Atomic debounced writes flush before a match switch, while per-item, total-run, and serialized-byte budgets fail visibly before one workspace can grow without bound.
 - The generated report contains metrics, thresholds, failed gates, and bounded worst-sample timestamps, but no track arrays or media references.
 
 ## Selected-Object Metrics
@@ -95,6 +95,8 @@ Tracking review is a local, append-only correction workflow rather than an autom
 Analysts can correct the box, assign or confirm player identity, and mark a frame occluded or visible. Identity confirmation affects the reviewed frame and does not silently raise confidence across the rest of the trajectory. The latest 20 local changes are reversible with undo and redo; correction audit records remain append-only. A monotonically increasing local revision prevents a late persistence response from overwriting a newer correction or undo.
 
 Every track change returns the track to review status and invalidates any unlocked frame-by-frame benchmark attestation. Locked ground-truth artifacts remain immutable. Verification is enabled only after the remaining continuity, detection, and identity gates pass.
+
+The on-device workspace is reload protection, not an external backup. Its status is visible beside the real-match suite, unrelated playhead updates do not rewrite it, and a different user or match scope cannot restore it. Clearing browser site data can still remove IndexedDB, so the exported ground-truth and provider-run suites remain the portable long-term evidence and the inputs to the checksum-bound assembler.
 
 ## Real Match Pilot
 

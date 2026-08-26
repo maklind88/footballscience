@@ -1,4 +1,5 @@
 import { createTrackingController } from "./controllers/trackingController.js";
+import { createTrackingBenchmarkPersistenceController } from "./controllers/trackingBenchmarkPersistenceController.js";
 import { createTrackingRepository } from "./repositories/trackingRepository.js";
 import {
   inspectLocalTrackingProvider,
@@ -38,6 +39,13 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
   const context = options.context || {};
   const getRuntime = options.getRuntime || (() => null);
   const repository = createTrackingRepository(context);
+  const persistence = createTrackingBenchmarkPersistenceController({
+    getState: () => getRuntime()?.store.getState() || {},
+    updateState: (updater) => getRuntime()?.store.update(updater),
+    getStore: () => getRuntime()?.store,
+    getContext: () => getRuntime()?.context || context,
+    getWindow: () => getRuntime()?.context?.win || context.win || window,
+  });
   const controller = createTrackingController({
     getState: () => getRuntime()?.store.getState() || {},
     updateState: (updater) => getRuntime()?.store.update(updater),
@@ -70,6 +78,7 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     persistTrack: (track) => repository.saveObjectTrack(track),
     persistCorrection: (correction) => repository.saveCorrection(correction),
     persistGraphic: (graphic) => repository.saveDynamicGraphic(graphic),
+    retryBenchmarkStorage: persistence.retry,
   });
-  return { controller, repository };
+  return { controller, persistence, repository };
 }

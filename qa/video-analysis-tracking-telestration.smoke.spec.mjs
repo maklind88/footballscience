@@ -160,6 +160,188 @@ async function mountContinuityReviewFixture(page) {
   });
 }
 
+test("tracking benchmark workspace restores and autosaves only inside its user scope", async ({ page }) => {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  const result = await page.evaluate(async () => {
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase("football-science-tracking-benchmarks");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(true);
+      request.onblocked = () => resolve(false);
+    });
+    const workspaceService = await import(
+      "/src/modules/video-analysis/services/trackingBenchmarkWorkspaceService.js"
+    );
+    const localStore = await import(
+      "/src/modules/video-analysis/services/localTrackingBenchmarkStore.js"
+    );
+    const { createTrackingBenchmarkPersistenceController } = await import(
+      "/src/modules/video-analysis/controllers/trackingBenchmarkPersistenceController.js"
+    );
+    const scopeValues = {
+      organizationId: "org-persistence",
+      teamId: "team-persistence",
+      userId: "analyst-persistence",
+      matchId: "match-persistence",
+      videoId: "video-persistence",
+      localVideoIdentifier: "source-persistence",
+    };
+    const content = workspaceService.emptyTrackingBenchmarkWorkspaceContent();
+    content.groundTruth.byItemId["item-persistence"] = {
+      itemId: "item-persistence",
+      status: "draft",
+      revision: 1,
+      selectedTrackIds: ["track-restored"],
+      benchmarkTargetTrackId: "",
+      scenarioTags: [],
+      sourceFingerprint: "",
+      angleId: "",
+      frame: { width: 1920, height: 1080 },
+      range: { startMs: 0, endMs: 60_000 },
+      attested: false,
+      exhaustiveSceneAttested: false,
+      lockedArtifact: null,
+      lockedAt: "",
+      downloadedAt: "",
+    };
+    const scope = workspaceService.createTrackingBenchmarkWorkspaceScope(scopeValues);
+    await localStore.saveLocalTrackingBenchmarkWorkspace(
+      workspaceService.createTrackingBenchmarkWorkspaceArtifact({ scope, ...content }, {
+        now: () => 1_800_000_000_000,
+      }),
+    );
+
+    let state = {
+      match: { id: scopeValues.matchId },
+      video: { id: scopeValues.videoId, match_id: scopeValues.matchId },
+      videoRef: { localVideoIdentifier: scopeValues.localVideoIdentifier },
+      presentation: {
+        tracking: {
+          ...workspaceService.emptyTrackingBenchmarkWorkspaceContent(),
+          benchmarkStorage: { status: "waiting-source", lastSavedAt: "", error: "" },
+        },
+      },
+    };
+    const listeners = new Set();
+    const store = {
+      getState: () => state,
+      update(updater) {
+        state = typeof updater === "function" ? updater(state) : { ...state, ...updater };
+        listeners.forEach((listener) => listener(state));
+        return state;
+      },
+      subscribe(listener) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+    let nowMs = 1_800_000_001_000;
+    const persistence = createTrackingBenchmarkPersistenceController({
+      getState: store.getState,
+      updateState: store.update,
+      getStore: () => store,
+      getContext: () => ({
+        currentUser: {
+          id: scopeValues.userId,
+          organizationId: scopeValues.organizationId,
+          teamId: scopeValues.teamId,
+        },
+      }),
+      getWindow: () => window,
+      now: () => nowMs++,
+      saveDelayMs: 10,
+    });
+    await persistence.restore();
+    persistence.start();
+    const restoredTrackIds = state.presentation.tracking.groundTruth
+      .byItemId["item-persistence"].selectedTrackIds.slice();
+    store.update((current) => ({
+      ...current,
+      presentation: {
+        ...current.presentation,
+        tracking: {
+          ...current.presentation.tracking,
+          groundTruth: {
+            ...current.presentation.tracking.groundTruth,
+            byItemId: {
+              ...current.presentation.tracking.groundTruth.byItemId,
+              "item-persistence": {
+                ...current.presentation.tracking.groundTruth.byItemId["item-persistence"],
+                selectedTrackIds: ["track-autosaved"],
+              },
+            },
+          },
+        },
+      },
+    }));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const saved = await localStore.getLocalTrackingBenchmarkWorkspace(scope);
+    const isolated = await localStore.getLocalTrackingBenchmarkWorkspace({
+      ...scopeValues,
+      userId: "other-analyst",
+    });
+    for (let index = 0; index < 40; index += 1) {
+      store.update((current) => ({
+        ...current,
+        timeline: { ...(current.timeline || {}), playheadMs: index * 100 },
+      }));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const afterUnrelatedUpdates = await localStore.getLocalTrackingBenchmarkWorkspace(scope);
+    store.update((current) => ({
+      ...current,
+      presentation: {
+        ...current.presentation,
+        tracking: {
+          ...current.presentation.tracking,
+          groundTruth: {
+            ...current.presentation.tracking.groundTruth,
+            byItemId: {
+              ...current.presentation.tracking.groundTruth.byItemId,
+              "item-persistence": {
+                ...current.presentation.tracking.groundTruth.byItemId["item-persistence"],
+                selectedTrackIds: ["track-before-switch"],
+              },
+            },
+          },
+        },
+      },
+    }));
+    store.update((current) => ({
+      ...current,
+      match: { id: "match-next" },
+      video: { id: "video-next", match_id: "match-next" },
+      videoRef: { localVideoIdentifier: "source-next" },
+    }));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const switchedFrom = await localStore.getLocalTrackingBenchmarkWorkspace(scope);
+    const storageStatus = state.presentation.tracking.benchmarkStorage.status;
+    const newWorkspaceItemCount = Object.keys(
+      state.presentation.tracking.groundTruth.byItemId,
+    ).length;
+    await persistence.dispose();
+    return {
+      flushedTrackIds: switchedFrom.groundTruth.byItemId["item-persistence"].selectedTrackIds,
+      isolated,
+      newWorkspaceItemCount,
+      restoredTrackIds,
+      savedTrackIds: saved.groundTruth.byItemId["item-persistence"].selectedTrackIds,
+      storageStatus,
+      unrelatedWriteSkipped: afterUnrelatedUpdates.updatedAt === saved.updatedAt,
+    };
+  });
+
+  expect(result).toEqual({
+    flushedTrackIds: ["track-before-switch"],
+    isolated: null,
+    newWorkspaceItemCount: 0,
+    restoredTrackIds: ["track-restored"],
+    savedTrackIds: ["track-autosaved"],
+    storageStatus: "ready",
+    unrelatedWriteSkipped: true,
+  });
+});
+
 test("tracking telestration follows a selected player and persists metadata", async ({ page }, testInfo) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));

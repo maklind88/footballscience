@@ -108,13 +108,16 @@ FS Player now creates the reference through the tracking sidebar:
 
 1. Track and correct players, the ball, and at least one referee across the benchmark range.
 2. Assign player identity and team side, then verify every reference track with no annotation gap above 500 ms. Locked trajectories are deterministically reduced to that cadence while preserving manual corrections and occlusion transitions.
-3. Add the verified tracks to `Benchmark reference` and refresh the exact source/frame evidence.
-4. Attest the frame-by-frame review and lock the reference.
-5. Download the immutable `football-science-ground-truth-v1` JSON for local benchmark custody.
+3. Add the verified tracks to `Benchmark reference`, refresh the exact source/frame evidence, and classify the football scenarios in the range.
+4. Attest the frame-by-frame review and lock the reference. The locked artifact is added to the local real-match suite automatically.
+5. Repeat with at least five reviewed ranges until the suite contains ten unique minutes and covers transition, crowded-box, occlusion, camera-motion/cut, set-piece, and compact-unit scenarios.
+6. Download individual immutable `football-science-ground-truth-v1` artifacts when needed, then export the completed `football-science-ground-truth-suite-v1` JSON for local benchmark custody.
 
 Locking creates a new revisioned snapshot. Later edits to live tracks do not mutate the locked reference. The artifact contains reviewed normalized trajectories, source fingerprint, frame/range, object identity, and bounded analyst evidence. Provider metadata, confidence values, correction authors, local paths, URLs, video, frames, and binary data are removed. Ground truth is not written through the central tracking repository.
 
-The locked artifact can be combined locally with a provider prediction to form a `multi-object` benchmark case and evaluated with the internal diagnostic plus `--trackeval`. Until this workflow has produced a representative reviewed suite from real matches, synthetic fixtures prove evaluator correctness but do not prove elite football performance.
+The suite treats time as unique only within each exact source fingerprint and camera angle. Overlapping ranges are merged before duration is counted, and relocking the same source, angle, and range replaces that case instead of inflating the evidence. Readiness is fail-closed when a case is malformed, sparse, unattested, missing required entities, below five cases, below ten unique minutes, or missing a required football scenario. Twenty unique minutes remains the recommended pilot ceiling rather than an approval shortcut.
+
+Each locked artifact can be combined locally with its matching provider prediction to form a `multi-object` benchmark case. The exported suite can then be transformed into one provider benchmark suite and evaluated with the internal diagnostic plus `--trackeval`; a missing provider run for any reference case fails the build. Until this workflow has produced a representative reviewed suite from real matches, synthetic fixtures prove evaluator correctness but do not prove elite football performance.
 
 ## Provider Boundary
 

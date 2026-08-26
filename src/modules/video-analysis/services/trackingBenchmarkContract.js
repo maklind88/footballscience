@@ -3,6 +3,7 @@ import { normalizeObjectTrack } from "../domain/tracking.model.js";
 export const TRACKING_BENCHMARK_SCHEMA_VERSION = 1;
 export const TRACKING_BENCHMARK_EVALUATOR_VERSION = "tracking-benchmark-v1";
 export const MAX_TRACKING_BENCHMARK_CASE_BYTES = 8 * 1024 * 1024;
+export const MAX_TRACKING_BENCHMARK_SUITE_BYTES = 64 * 1024 * 1024;
 
 const MAX_CASE_DURATION_MS = 30 * 60 * 1000;
 const MAX_TRACK_POINTS = 100_000;

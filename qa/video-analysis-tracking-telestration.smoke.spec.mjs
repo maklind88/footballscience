@@ -35,6 +35,8 @@ async function openTrackingWorkspace(page) {
   await expect(page.locator(".video-analysis-tracking-side")).toBeVisible();
   await expect(page.locator(".video-analysis-tracking-provider")).toContainText("SAM 2.1");
   await expect(page.locator(".video-analysis-ground-truth")).toBeVisible();
+  await expect(page.locator('[data-video-analysis-tracking-field="groundTruthScenario"]')).toHaveCount(7);
+  await expect(page.locator(".video-analysis-benchmark-suite")).toContainText("Real-match suite");
 }
 
 async function createTrackedHighlight(page) {
@@ -204,6 +206,18 @@ test("tracking controls and overlays stay contained on mobile", async ({ page },
   expect(geometry.left).toBeGreaterThanOrEqual(0);
   expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth + 1);
   expect(geometry.overflow).toBeLessThanOrEqual(1);
+  const suiteGeometry = await page.locator(".video-analysis-benchmark-suite").evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: window.innerWidth,
+      overflow: element.scrollWidth - element.clientWidth,
+    };
+  });
+  expect(suiteGeometry.left).toBeGreaterThanOrEqual(0);
+  expect(suiteGeometry.right).toBeLessThanOrEqual(suiteGeometry.viewportWidth + 1);
+  expect(suiteGeometry.overflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath("tracking-telestration-mobile.png"), fullPage: true });
 });
 

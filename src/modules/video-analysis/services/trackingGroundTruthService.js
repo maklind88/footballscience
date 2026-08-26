@@ -14,6 +14,7 @@ import {
   normalizeBenchmarkTracks,
 } from "./trackingBenchmarkContract.js";
 import { sampleTrackAt } from "./trackingBenchmarkMetrics.js";
+import { normalizeTrackingBenchmarkScenarios } from "./trackingBenchmarkScenarioService.js";
 
 export const TRACKING_GROUND_TRUTH_PROTOCOL = "football-science-ground-truth-v1";
 export const TRACKING_GROUND_TRUTH_REVIEW_PROTOCOL = "football-ground-truth-review-v1";
@@ -34,6 +35,7 @@ export function trackingGroundTruthEntry(workspace = {}, itemId = "") {
     status: "draft",
     revision: 1,
     selectedTrackIds: [],
+    scenarioTags: [],
     sourceFingerprint: "",
     frame: { width: 0, height: 0 },
     range: { startMs: 0, endMs: 1 },
@@ -321,6 +323,7 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
       attested: true,
       selectedTrackCount: readiness.selectedTrackCount,
       entityCounts: readiness.entityCounts,
+      scenarioTags: normalizeTrackingBenchmarkScenarios(value.scenarioTags),
     },
   };
   if (benchmarkSerializedBytes(artifact, "Ground-truth artifact") > MAX_TRACKING_BENCHMARK_CASE_BYTES) {
@@ -334,17 +337,45 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
 }
 
 export function groundTruthArtifactJson(artifact = {}) {
-  if (artifact.protocol !== TRACKING_GROUND_TRUTH_PROTOCOL) {
-    throw new TrackingGroundTruthError("The locked reference artifact is invalid.");
-  }
-  assertBenchmarkMetadataOnly(artifact);
-  return `${JSON.stringify(artifact, null, 2)}\n`;
+  return `${JSON.stringify(validateGroundTruthArtifact(artifact), null, 2)}\n`;
 }
 
-export function buildMultiObjectCaseFromGroundTruth(artifact = {}, options = {}) {
-  if (artifact.protocol !== TRACKING_GROUND_TRUTH_PROTOCOL || !artifact.groundTruth?.tracks?.length) {
-    throw new TrackingGroundTruthError("Lock a reviewed ground-truth artifact first.");
+export function validateGroundTruthArtifact(artifact = {}) {
+  if (artifact.protocol !== TRACKING_GROUND_TRUTH_PROTOCOL
+    || Number(artifact.version) !== TRACKING_BENCHMARK_SCHEMA_VERSION
+    || artifact.profileId !== TRACKING_GROUND_TRUTH_PROFILE
+    || artifact.sourceEvidence?.algorithm !== "sha256"
+    || artifact.sourceEvidence?.kind !== "exact-local-file-bytes"
+    || artifact.reviewEvidence?.kind !== "real-match"
+    || artifact.reviewEvidence?.protocol !== TRACKING_GROUND_TRUTH_REVIEW_PROTOCOL
+    || artifact.reviewEvidence?.attested !== true
+    || !artifact.groundTruth?.tracks?.length) {
+    throw new TrackingGroundTruthError("The locked reference artifact is invalid.");
   }
+  assertBenchmarkEnvelope(artifact, { label: "Ground-truth artifact" });
+  const range = normalizeBenchmarkRange(artifact.range);
+  const tracks = normalizeBenchmarkTracks(artifact.groundTruth.tracks, range, "ground-truth tracks");
+  const readiness = groundTruthReadiness({
+    tracks,
+    selectedTrackIds: tracks.map((track) => track.id),
+    sourceFingerprint: normalizeBenchmarkFingerprint(artifact.sourceFingerprint),
+    angleId: String(artifact.sourceEvidence?.angleId || ""),
+    frame: normalizeBenchmarkFrame(artifact.frame),
+    range,
+    reviewedBy: artifact.reviewEvidence?.reviewedBy,
+    attested: true,
+  });
+  if (!readiness.ready) {
+    throw new TrackingGroundTruthError(
+      readiness.issues.map((entry) => entry.message).join(" "),
+      "TRACKING_GROUND_TRUTH_CONTRACT_INVALID",
+    );
+  }
+  return artifact;
+}
+
+export function buildMultiObjectCaseFromGroundTruth(artifactValue = {}, options = {}) {
+  const artifact = validateGroundTruthArtifact(artifactValue);
   const range = normalizeBenchmarkRange(artifact.range);
   const sampleTimes = [...new Set(artifact.groundTruth.tracks.flatMap((track) => (
     track.segments.flatMap((segment) => segment.points.map((point) => point.atMs))

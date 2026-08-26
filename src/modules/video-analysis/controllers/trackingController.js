@@ -405,7 +405,8 @@ export function createTrackingController(options = {}) {
     if (tool) return setTool(tool.dataset.videoAnalysisTrackingTool);
     const track = target?.closest?.("[data-video-analysis-track-select]");
     if (track) return selectTrack(track.dataset.videoAnalysisTrackSelect);
-    const action = target?.closest?.("[data-video-analysis-tracking-action]")?.dataset?.videoAnalysisTrackingAction;
+    const actionElement = target?.closest?.("[data-video-analysis-tracking-action]");
+    const action = actionElement?.dataset?.videoAnalysisTrackingAction;
     if (!action) return false;
     if (action === "select-target") return beginCapture("prompt", target);
     if (action === "correct") return beginCapture("correction", target);
@@ -429,7 +430,7 @@ export function createTrackingController(options = {}) {
     if (action === "verify") { void verifySelectedTrack(); return true; }
     if (action === "add-graphic") { void addGraphic(); return true; }
     if (reviewController.handleAction(action)) return true;
-    if (groundTruth.handleAction(action)) return true;
+    if (groundTruth.handleAction(action, actionElement)) return true;
     return false;
   }
 

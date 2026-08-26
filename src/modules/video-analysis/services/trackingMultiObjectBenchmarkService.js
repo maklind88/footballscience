@@ -1,5 +1,6 @@
 import {
   MAX_TRACKING_BENCHMARK_CASE_BYTES,
+  MAX_TRACKING_BENCHMARK_SUITE_BYTES,
   TRACKING_BENCHMARK_EVALUATOR_VERSION,
   TRACKING_BENCHMARK_SCHEMA_VERSION,
   assertBenchmarkEnvelope,
@@ -252,7 +253,7 @@ export function evaluateMultiObjectTrackingBenchmarkCase(value = {}) {
 }
 
 export function evaluateMultiObjectTrackingBenchmarkSuite(value = {}) {
-  if (benchmarkSerializedBytes(value, "Benchmark suite") > MAX_TRACKING_BENCHMARK_CASE_BYTES * 4) {
+  if (benchmarkSerializedBytes(value, "Benchmark suite") > MAX_TRACKING_BENCHMARK_SUITE_BYTES) {
     benchmarkInvalid("Benchmark suite is too large.", "TRACKING_BENCHMARK_LIMIT");
   }
   assertBenchmarkMetadataOnly(value);

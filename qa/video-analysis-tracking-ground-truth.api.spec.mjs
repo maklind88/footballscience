@@ -398,6 +398,8 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     state.presentation.tracking.selectedTrackIds = [track.id];
     expect(controller.handleAction("ground-truth-toggle")).toBe(true);
   }
+  expect(controller.handleField("groundTruthScenario", { value: "transition", checked: true })).toBe(true);
+  expect(renderTrackingGroundTruthPanel(state, item)).toMatch(/value="transition"[^>]*checked/);
   expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
   tracks[0].metadata.angleId = "angle-2";
   const mismatchedPanel = renderTrackingGroundTruthPanel(state, item);
@@ -408,8 +410,15 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
   expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
     status: "locked",
     selectedTrackIds: tracks.map((track) => track.id),
-    lockedArtifact: { sourceFingerprint },
+    lockedArtifact: {
+      sourceFingerprint,
+      reviewEvidence: { scenarioTags: ["transition"] },
+    },
   });
+  expect(state.presentation.tracking.groundTruth.suite.cases).toHaveLength(1);
+  expect(state.presentation.tracking.groundTruth.suite.cases[0].id).toBe(
+    state.presentation.tracking.groundTruth.byItemId[item.id].lockedArtifact.id,
+  );
   expect(renderTrackingGroundTruthPanel(state, item)).toContain("Locked reference");
   expect(renderTrackingGroundTruthPanel(state, { ...item, id: "item-2" })).toContain("Review draft");
   expect(controller.handleAction("ground-truth-download")).toBe(true);
@@ -417,11 +426,17 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     expect.objectContaining({ href: "blob:ground-truth", download: expect.stringMatching(/^fs-player-gt-.*\.json$/) }),
     { revoked: "blob:ground-truth" },
   ]));
+  const caseId = state.presentation.tracking.groundTruth.suite.cases[0].id;
+  expect(controller.handleAction("ground-truth-suite-remove", {
+    dataset: { videoAnalysisGroundTruthCaseId: caseId },
+  })).toBe(true);
+  expect(state.presentation.tracking.groundTruth.suite.cases).toEqual([]);
   expect(controller.handleAction("ground-truth-new")).toBe(true);
   expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
     status: "draft",
     revision: 2,
     selectedTrackIds: [],
+    scenarioTags: [],
     lockedArtifact: null,
   });
 });

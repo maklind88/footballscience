@@ -89,6 +89,14 @@ export function createInitialPresentationWorkspace() {
       error: "",
       groundTruth: {
         byItemId: {},
+        suite: {
+          id: "real-match-pilot",
+          revision: 1,
+          status: "draft",
+          cases: [],
+          downloadedAt: "",
+          error: "",
+        },
       },
       provider: {
         status: "unchecked",

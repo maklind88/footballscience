@@ -5,6 +5,14 @@ import {
   trackingGroundTruthEntry,
 } from "../services/trackingGroundTruthService.js";
 import {
+  addGroundTruthSuiteCase,
+  createGroundTruthSuiteArtifact,
+  groundTruthSuiteArtifactJson,
+  normalizeTrackingBenchmarkScenarios,
+  removeGroundTruthSuiteCase,
+  trackingGroundTruthSuiteEntry,
+} from "../services/trackingGroundTruthSuiteService.js";
+import {
   patchTrackingState,
   selectedTrackingItem,
   trackingItemRange,
@@ -16,6 +24,8 @@ const groundTruthActions = new Set([
   "ground-truth-lock",
   "ground-truth-download",
   "ground-truth-new",
+  "ground-truth-suite-download",
+  "ground-truth-suite-remove",
 ]);
 
 function groundTruthState(state = {}, itemId = "") {
@@ -33,6 +43,28 @@ function patchGroundTruth(state = {}, itemId = "", patch = {}) {
       },
     },
   });
+}
+
+function patchGroundTruthSuite(state = {}, suite = {}) {
+  const workspace = state.presentation?.tracking?.groundTruth || {};
+  return patchTrackingState(state, {
+    groundTruth: { ...workspace, suite },
+  });
+}
+
+function downloadJson(win = null, json = "", fileName = "artifact.json") {
+  const anchor = win?.document?.createElement?.("a");
+  const BlobConstructor = win?.Blob || globalThis.Blob;
+  if (!anchor || !BlobConstructor || !win?.URL?.createObjectURL) return false;
+  const objectUrl = win.URL.createObjectURL(new BlobConstructor([json], { type: "application/json" }));
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  anchor.rel = "noopener";
+  win.document.body?.appendChild?.(anchor);
+  anchor.click();
+  anchor.remove?.();
+  win.setTimeout?.(() => win.URL.revokeObjectURL?.(objectUrl), 0);
+  return true;
 }
 
 export function trackingSourceFingerprint(state = {}) {
@@ -133,17 +165,25 @@ export function createTrackingGroundTruthController(options = {}) {
         ...context,
         tracks: item.objectTracks || [],
         selectedTrackIds: truth.selectedTrackIds || [],
+        scenarioTags: truth.scenarioTags || [],
         attested: truth.attested === true,
         reviewedBy: reviewerId(getReviewer()),
         revision: truth.revision || 1,
       }, { now });
-      updateState((current) => patchGroundTruth(current, item.id, {
-        ...context,
-        status: "locked",
-        lockedArtifact: artifact,
-        lockedAt: artifact.reviewEvidence.reviewedAt,
-        error: "",
-      }));
+      updateState((current) => {
+        const lockedState = patchGroundTruth(current, item.id, {
+          ...context,
+          status: "locked",
+          lockedArtifact: artifact,
+          lockedAt: artifact.reviewEvidence.reviewedAt,
+          error: "",
+        });
+        const workspace = lockedState.presentation?.tracking?.groundTruth || {};
+        return patchGroundTruthSuite(
+          lockedState,
+          addGroundTruthSuiteCase(trackingGroundTruthSuiteEntry(workspace), artifact),
+        );
+      });
       return true;
     } catch (error) {
       updateState((current) => patchGroundTruth(current, item.id, {
@@ -160,21 +200,44 @@ export function createTrackingGroundTruthController(options = {}) {
     const artifact = groundTruthState(state, itemId).lockedArtifact;
     if (!artifact) return false;
     const win = getWindow();
-    const anchor = win?.document?.createElement?.("a");
-    const BlobConstructor = win?.Blob || globalThis.Blob;
-    if (!anchor || !BlobConstructor || !win?.URL?.createObjectURL) return false;
-    const objectUrl = win.URL.createObjectURL(new BlobConstructor(
-      [groundTruthArtifactJson(artifact)],
-      { type: "application/json" },
-    ));
-    anchor.href = objectUrl;
-    anchor.download = `fs-player-${artifact.id}.json`;
-    anchor.rel = "noopener";
-    win.document.body?.appendChild?.(anchor);
-    anchor.click();
-    anchor.remove?.();
-    win.setTimeout?.(() => win.URL.revokeObjectURL?.(objectUrl), 0);
+    if (!downloadJson(win, groundTruthArtifactJson(artifact), `fs-player-${artifact.id}.json`)) return false;
     updateState((current) => patchGroundTruth(current, itemId, { downloadedAt: new Date(now()).toISOString(), error: "" }));
+    return true;
+  }
+
+  function downloadSuite() {
+    const state = getState();
+    const workspace = state.presentation?.tracking?.groundTruth || {};
+    const suite = trackingGroundTruthSuiteEntry(workspace);
+    try {
+      const artifact = createGroundTruthSuiteArtifact(suite, { now });
+      const win = getWindow();
+      if (!downloadJson(win, groundTruthSuiteArtifactJson(artifact), `fs-player-${artifact.id}.json`)) return false;
+      updateState((current) => patchGroundTruthSuite(current, {
+        ...suite,
+        status: "exported",
+        downloadedAt: artifact.createdAt,
+        error: "",
+      }));
+      return true;
+    } catch (error) {
+      updateState((current) => patchGroundTruthSuite(current, {
+        ...suite,
+        error: error?.message || "The real-match suite could not be exported.",
+      }));
+      return true;
+    }
+  }
+
+  function removeSuiteCase(caseId = "") {
+    if (!caseId) return false;
+    updateState((state) => {
+      const workspace = state.presentation?.tracking?.groundTruth || {};
+      return patchGroundTruthSuite(
+        state,
+        removeGroundTruthSuiteCase(trackingGroundTruthSuiteEntry(workspace), caseId),
+      );
+    });
     return true;
   }
 
@@ -188,6 +251,7 @@ export function createTrackingGroundTruthController(options = {}) {
       status: "draft",
       revision: Math.max(1, Math.round(Number(truth.revision) || 1)) + 1,
       selectedTrackIds: [],
+      scenarioTags: [],
       attested: false,
       lockedArtifact: null,
       lockedAt: "",
@@ -208,17 +272,38 @@ export function createTrackingGroundTruthController(options = {}) {
     return true;
   }
 
-  function handleAction(action = "") {
+  function setScenario(scenarioId = "", checked = false) {
+    const state = getState();
+    const itemId = selectedTrackingItem(state)?.id || "";
+    const truth = groundTruthState(state, itemId);
+    if (!itemId || truth.status === "locked") return false;
+    const selected = new Set(normalizeTrackingBenchmarkScenarios(truth.scenarioTags));
+    if (checked) selected.add(scenarioId);
+    else selected.delete(scenarioId);
+    updateState((current) => patchGroundTruth(current, itemId, {
+      scenarioTags: normalizeTrackingBenchmarkScenarios([...selected]),
+      error: "",
+    }));
+    return true;
+  }
+
+  function handleAction(action = "", element = null) {
     if (!groundTruthActions.has(action)) return false;
     if (action === "ground-truth-toggle") return toggleSelectedTrack();
     if (action === "ground-truth-refresh") return refreshContext();
     if (action === "ground-truth-lock") return lockReference();
     if (action === "ground-truth-download") return downloadReference();
+    if (action === "ground-truth-suite-download") return downloadSuite();
+    if (action === "ground-truth-suite-remove") {
+      return removeSuiteCase(element?.dataset?.videoAnalysisGroundTruthCaseId);
+    }
     return newDraft();
   }
 
   function handleField(field = "", element = {}) {
-    return field === "groundTruthAttested" ? setAttested(element.checked) : false;
+    if (field === "groundTruthAttested") return setAttested(element.checked);
+    if (field === "groundTruthScenario") return setScenario(element.value, element.checked);
+    return false;
   }
 
   return {

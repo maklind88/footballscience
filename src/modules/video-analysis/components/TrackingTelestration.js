@@ -10,6 +10,7 @@ import { formatTrackingDuration } from "../services/trackingProgressService.js";
 import { trackingReviewSummary } from "../services/trackingReviewService.js";
 import { escapeHtml } from "./renderHelpers.js";
 import { renderTrackingGroundTruthPanel } from "./TrackingGroundTruthPanel.js";
+import { renderTrackingBenchmarkSuitePanel } from "./TrackingBenchmarkSuitePanel.js";
 import { renderTrackingReviewPanel } from "./TrackingReviewPanel.js";
 import {
   renderAnalysisPanelTabs,
@@ -294,6 +295,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
       ${renderTrackingContinuation(primaryTrack, item, { providerReady, jobActive: Boolean(tracking.job) })}
       ${renderTrackingReviewPanel(state, primaryTrack)}
       ${renderTrackingGroundTruthPanel(state, item)}
+      ${renderTrackingBenchmarkSuitePanel(state)}
       <div class="video-analysis-tracking-graphics">
         <strong>${escapeHtml(`${graphics.length} dynamic graphics`)}</strong>
         <button type="button" data-video-analysis-tracking-action="add-graphic" ${selectedTrackIds.length ? "" : "disabled"}>Add ${escapeHtml(tracking.tool || "highlight")}</button>

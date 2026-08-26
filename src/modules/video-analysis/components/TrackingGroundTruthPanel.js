@@ -3,6 +3,7 @@ import {
   groundTruthReadiness,
   trackingGroundTruthEntry,
 } from "../services/trackingGroundTruthService.js";
+import { TRACKING_BENCHMARK_SCENARIOS } from "../services/trackingBenchmarkScenarioService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
 function groundTruthState(state = {}, itemId = "") {
@@ -82,6 +83,15 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
           <button type="button" data-video-analysis-tracking-action="ground-truth-toggle" ${primaryTrackId ? "" : "disabled"}>${primaryIncluded ? "Remove selected" : "Add selected"}</button>
           <button type="button" data-video-analysis-tracking-action="ground-truth-refresh">Refresh evidence</button>
         </div>
+        <fieldset class="video-analysis-ground-truth__scenarios">
+          <legend>Scenario coverage</legend>
+          ${TRACKING_BENCHMARK_SCENARIOS.map((scenario) => `
+            <label>
+              <input type="checkbox" value="${escapeHtml(scenario.id)}" data-video-analysis-tracking-field="groundTruthScenario" ${(truth.scenarioTags || []).includes(scenario.id) ? "checked" : ""}>
+              <span>${escapeHtml(scenario.label)}</span>
+            </label>
+          `).join("")}
+        </fieldset>
         <label class="video-analysis-ground-truth__attestation">
           <input type="checkbox" data-video-analysis-tracking-field="groundTruthAttested" ${truth.attested ? "checked" : ""}>
           <span>Frame-by-frame review complete</span>

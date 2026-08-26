@@ -135,6 +135,50 @@
   flex: 1 1 0;
 }
 
+.video-analysis-ground-truth__scenarios {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 7px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  border-block: 1px solid #e3e9e5;
+  padding: 7px 0;
+}
+
+.video-analysis-ground-truth__scenarios legend {
+  grid-column: 1 / -1;
+  padding: 0;
+  color: #69766f;
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.video-analysis-tracking-side .video-analysis-ground-truth__scenarios label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: #34463c;
+  font-size: 9px;
+  text-transform: none;
+}
+
+.video-analysis-ground-truth__scenarios input {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #1f5c3d;
+}
+
+.video-analysis-ground-truth__scenarios span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .video-analysis-ground-truth__footer button:first-child {
   flex: 1 1 auto;
   color: #ffffff;

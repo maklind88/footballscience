@@ -142,7 +142,7 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
           required: true,
         }),
         platformModuleLoader.loadModule(leaderboardModuleId, () =>
-          import(`../modules/leaderboard/index.mjs?v=${encodeURIComponent(getAssetVersion())}`)
+          import(`../modules/leaderboard/leaderboard-home-surface.mjs?v=${encodeURIComponent(getAssetVersion())}`)
         ),
       ])
         .then(([, module]) => {
@@ -253,8 +253,7 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
     if (!canView()) return false;
     const handle = await ensureCommandHandle();
     if (!handle) return false;
-    handle.openDialog(opener);
-    return true;
+    return (await handle.openDialog(opener)) !== false;
   }
 
   async function openAward(command = {}, opener = null) {

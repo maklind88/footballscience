@@ -220,6 +220,7 @@ function guardApiRequest(req, res, options = {}) {
     sendSecurityJson(res, 429, { ok: false, reason: "Too many requests. Please wait a moment and try again." });
     return { ok: false, status: 429, reason: "rate_limited" };
   }
+  context.rateLimitPassed = true;
 
   if (options.requireAuth && !options.actor) {
     logSecurityEvent(context, {
@@ -251,6 +252,67 @@ function guardApiRequest(req, res, options = {}) {
   return { ok: true, context, rateLimit };
 }
 
+function enforceApiPermission(req, res, options = {}) {
+  const route = normalizeRoute(options.route || req?.url || "");
+  const method = normalizeText(req?.method || "GET", 12).toUpperCase();
+  const routeConfig = getApiRouteSecurityConfig(route) || {};
+  const resolvedAction = options.action ?? getApiActionForMethod(route, method);
+  const action = resolvedAction ? normalizeAction(resolvedAction) : "";
+  const actorId = normalizeText(options.actor?.id || "", 120);
+  const existingContext = res.__platformSecurityContext;
+  const expectedModuleId = normalizeText(
+    options.moduleId || routeConfig.moduleId || existingContext?.moduleId || "unknown",
+    80
+  );
+
+  const hasMatchingRateLimitPreflight = Boolean(
+    existingContext
+      && existingContext.rateLimitPassed === true
+      && existingContext.done !== true
+      && existingContext.route === route
+      && existingContext.method === method
+      && existingContext.action === action
+      && existingContext.actorId === actorId
+      && existingContext.moduleId === expectedModuleId
+  );
+  if (!hasMatchingRateLimitPreflight) {
+    const context = existingContext || createApiRequestContext(req, {
+      ...options,
+      route,
+      moduleId: expectedModuleId,
+      action,
+    });
+    logSecurityEvent(context, {
+      eventType: "api.security_preflight_missing",
+      status: 500,
+      reason: "Permission check requires a matching rate-limit preflight.",
+      ms: Date.now() - context.startedAt,
+    });
+    sendSecurityJson(res, 500, { ok: false, reason: "API security preflight failed." });
+    return { ok: false, status: 500, reason: "security_preflight_missing" };
+  }
+
+  existingContext.actorRole = normalizeText(options.actor?.role || "", 40);
+
+  const shouldEnforcePermission = options.enforcePermission ?? routeConfig.enforcePermission === true;
+  if (shouldEnforcePermission && !hasModulePermission(options.actor, expectedModuleId, action)) {
+    const permissionDeniedReason = normalizeText(
+      options.permissionDeniedReason || "You do not have permission for this action.",
+      240
+    );
+    logSecurityEvent(existingContext, {
+      eventType: "api.permission_denied",
+      status: 403,
+      reason: `${action} denied for ${expectedModuleId}.`,
+      ms: Date.now() - existingContext.startedAt,
+    });
+    sendSecurityJson(res, 403, { ok: false, reason: permissionDeniedReason });
+    return { ok: false, status: 403, reason: "permission_denied" };
+  }
+
+  return { ok: true, context: existingContext };
+}
+
 function finishApiRequest(res, status, payload = {}) {
   const context = res.__platformSecurityContext;
   if (!context || context.done) {
@@ -271,6 +333,7 @@ module.exports = {
   attachApiRequestContext,
   checkApiRateLimit,
   createApiRequestContext,
+  enforceApiPermission,
   finishApiRequest,
   guardApiRequest,
   logSecurityEvent,

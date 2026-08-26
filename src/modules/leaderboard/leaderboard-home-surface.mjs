@@ -1,17 +1,4 @@
 import {
-  handleChange,
-  handleClick,
-  handleInput,
-  handleSubmit,
-  navigateLeaderboardMonth,
-  openLeaderboardAward,
-  openLeaderboardPlayerDetail,
-  render,
-  restoreLeaderboardCurrentMonth,
-  unmountLeaderboardWorkspace,
-} from "./leaderboard-controller.mjs";
-import { renderLeaderboardHomeDialog } from "./leaderboard-dialog-renderer.mjs";
-import {
   getLeaderboardMonthValue,
   normalizeLeaderboardDate,
   normalizeLeaderboardText,
@@ -26,6 +13,22 @@ import {
 import { renderLeaderboardHomeSummary } from "./leaderboard-summary-renderer.mjs";
 
 let activeSurface = null;
+let dialogModulesPromise = null;
+
+function loadDialogModules() {
+  if (!dialogModulesPromise) {
+    dialogModulesPromise = Promise.all([
+      import("./leaderboard-controller.mjs"),
+      import("./leaderboard-dialog-renderer.mjs"),
+    ])
+      .then(([controller, renderer]) => Object.freeze({ controller, renderer }))
+      .catch((error) => {
+        dialogModulesPromise = null;
+        throw error;
+      });
+  }
+  return dialogModulesPromise;
+}
 
 function listen(surface, target, type, listener) {
   if (typeof target?.addEventListener !== "function") return;
@@ -185,19 +188,31 @@ function findReturnFocus(surface) {
   return surface.summaryRoot.querySelector?.("[data-leaderboard-home-open]") || null;
 }
 
-function openDialog(surface, opener = null) {
+async function openDialog(surface, opener = null) {
   if (!surface.mounted) return false;
   if (surface.dialogOpen) return true;
+  let dialogModules;
+  try {
+    dialogModules = await loadDialogModules();
+  } catch {
+    return false;
+  }
+  if (!surface.mounted) return false;
+  if (surface.dialogOpen) return true;
+  surface.dialogModules = dialogModules;
   rememberOpener(surface, opener);
   const pending = isProtectedWrite(surface.runtime.store.getState());
-  surface.dialogHost.innerHTML = renderLeaderboardHomeDialog(surface.runtime.context, { pendingWrite: pending });
+  surface.dialogHost.innerHTML = dialogModules.renderer.renderLeaderboardHomeDialog(
+    surface.runtime.context,
+    { pendingWrite: pending }
+  );
   const workspace = surface.dialogHost.querySelector?.("[data-leaderboard-dialog-workspace]");
   if (!workspace) return false;
   surface.dialogOpen = true;
   surface.workspace = workspace;
   surface.dialogContext = createDialogContext(surface, workspace);
   lockBackground(surface);
-  render(surface.dialogContext);
+  dialogModules.controller.render(surface.dialogContext);
   syncDialogChrome(surface);
   const close = surface.dialogHost.querySelector?.("button[data-leaderboard-home-close]");
   queueFocus(surface, close?.disabled ? surface.dialogHost.querySelector?.("[data-leaderboard-home-dialog]") : close);
@@ -208,8 +223,8 @@ function closeDialog(surface, restoreFocus = true) {
   if (!surface.dialogOpen) return true;
   if (isProtectedWrite(surface.runtime.store.getState())) return false;
   unlockNestedModal(surface);
-  restoreLeaderboardCurrentMonth(surface.runtime);
-  unmountLeaderboardWorkspace(surface.workspace);
+  surface.dialogModules?.controller.restoreLeaderboardCurrentMonth(surface.runtime);
+  surface.dialogModules?.controller.unmountLeaderboardWorkspace(surface.workspace);
   surface.dialogOpen = false;
   surface.dialogContext = null;
   surface.workspace = null;
@@ -273,21 +288,23 @@ function handleDialogKeydown(surface, event) {
 }
 
 async function openAward(surface, initial = {}, opener = null) {
-  if (!openDialog(surface, opener)) return false;
+  if (!await openDialog(surface, opener)) return false;
   const date = normalizeLeaderboardDate(initial.occurredOn);
   const currentMonth = getLeaderboardMonthValue(surface.runtime.context.getNow());
   if (date && date.slice(0, 7) !== currentMonth) {
-    navigateLeaderboardMonth(date.slice(0, 7), surface.runtime, { replace: true });
+    surface.dialogModules.controller.navigateLeaderboardMonth(date.slice(0, 7), surface.runtime, { replace: true });
     surface.runtime.store.setState({ ui: { notice: { tone: "neutral", message: "Completed Leaderboard months are read-only.", undoEventId: "" } } });
     return false;
   }
-  if (surface.runtime.store.getState().month !== currentMonth) restoreLeaderboardCurrentMonth(surface.runtime);
+  if (surface.runtime.store.getState().month !== currentMonth) {
+    surface.dialogModules.controller.restoreLeaderboardCurrentMonth(surface.runtime);
+  }
   if (surface.runtime.store.getState().status !== "ready") await surface.runtime.loadPromise;
   if (!surface.mounted || !surface.dialogOpen) return false;
   const awardInitial = {};
   if (date) awardInitial.occurredOn = date;
   if (Object.prototype.hasOwnProperty.call(initial, "title")) awardInitial.title = normalizeLeaderboardText(initial.title, 160);
-  const opened = openLeaderboardAward(awardInitial, surface.runtime);
+  const opened = surface.dialogModules.controller.openLeaderboardAward(awardInitial, surface.runtime);
   if (!opened) surface.runtime.store.setState({ ui: { notice: { tone: "neutral", message: "Leaderboard is read-only for your current access.", undoEventId: "" } } });
   return opened;
 }
@@ -295,22 +312,37 @@ async function openAward(surface, initial = {}, opener = null) {
 function bindSurface(surface) {
   listen(surface, surface.summaryRoot, "click", (event) => {
     const target = event.target;
-    if (target?.closest?.("[data-leaderboard-home-open]")) { openDialog(surface, target.closest("button")); return; }
+    if (target?.closest?.("[data-leaderboard-home-open]")) {
+      void openDialog(surface, target.closest("button"));
+      return;
+    }
     if (target?.closest?.("[data-leaderboard-home-retry]")) { runLeaderboardLoad(getLeaderboardMonthValue(surface.runtime.context.getNow()), surface.runtime, { replace: true }); return; }
-    if (target?.closest?.("[data-leaderboard-home-award]")) { openAward(surface, {}, target.closest("button")); return; }
+    if (target?.closest?.("[data-leaderboard-home-award]")) {
+      void openAward(surface, {}, target.closest("button"));
+      return;
+    }
     const player = target?.closest?.("[data-leaderboard-home-player], [data-leaderboard-player-detail]");
-    if (player && openDialog(surface, player)) openLeaderboardPlayerDetail(player.dataset.leaderboardHomePlayer || player.dataset.leaderboardPlayerDetail, surface.runtime);
+    if (player) {
+      void openDialog(surface, player).then((opened) => {
+        if (opened) {
+          surface.dialogModules.controller.openLeaderboardPlayerDetail(
+            player.dataset.leaderboardHomePlayer || player.dataset.leaderboardPlayerDetail,
+            surface.runtime
+          );
+        }
+      });
+    }
   });
   listen(surface, surface.dialogHost, "click", (event) => {
     const target = event.target;
     const closeButton = target?.closest?.("button[data-leaderboard-home-close]");
     const backdrop = target?.matches?.("[data-leaderboard-home-dialog-layer][data-leaderboard-home-close]");
     if (closeButton || backdrop) { closeDialog(surface); return; }
-    handleClick(event, surface.dialogContext);
+    surface.dialogModules?.controller.handleClick(event, surface.dialogContext);
   });
-  listen(surface, surface.dialogHost, "input", (event) => handleInput(event, surface.dialogContext));
-  listen(surface, surface.dialogHost, "change", (event) => handleChange(event, surface.dialogContext));
-  listen(surface, surface.dialogHost, "submit", (event) => handleSubmit(event, surface.dialogContext));
+  listen(surface, surface.dialogHost, "input", (event) => surface.dialogModules?.controller.handleInput(event, surface.dialogContext));
+  listen(surface, surface.dialogHost, "change", (event) => surface.dialogModules?.controller.handleChange(event, surface.dialogContext));
+  listen(surface, surface.dialogHost, "submit", (event) => surface.dialogModules?.controller.handleSubmit(event, surface.dialogContext));
   listen(surface, surface.runtime.context.win?.document, "keydown", (event) => handleDialogKeydown(surface, event));
 }
 
@@ -318,7 +350,7 @@ function cleanupSurface(surface, options = {}) {
   if (!surface.mounted) return;
   if (surface.dialogOpen) {
     unlockNestedModal(surface);
-    unmountLeaderboardWorkspace(surface.workspace);
+    surface.dialogModules?.controller.unmountLeaderboardWorkspace(surface.workspace);
     surface.dialogHost.innerHTML = "";
     unlockBackground(surface);
   }
@@ -357,6 +389,7 @@ export function mountLeaderboardHome(context = {}) {
     backgroundRecords: [],
     nestedRecords: [],
     nestedOuterRecord: null,
+    dialogModules: null,
     dialogSyncQueued: false,
     unsubscribe: null,
     removeRuntimeDispose: null,

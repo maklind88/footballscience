@@ -109,6 +109,18 @@ test("leaderboard module stays isolated, modular and free of local persistence",
   expect(read("src/modules/leaderboard/leaderboard-adapter.mjs")).not.toContain("getPlayerProfilesState");
 });
 
+test("Home loads the summary entry first and defers full dialog modules until interaction", () => {
+  const surfaceRuntime = read("src/core/leaderboard-surface-runtime.mjs");
+  const homeSurface = read("src/modules/leaderboard/leaderboard-home-surface.mjs");
+
+  expect(surfaceRuntime).toContain("../modules/leaderboard/leaderboard-home-surface.mjs");
+  expect(surfaceRuntime).not.toContain("../modules/leaderboard/index.mjs");
+  expect(homeSurface).toContain('import("./leaderboard-controller.mjs")');
+  expect(homeSurface).toContain('import("./leaderboard-dialog-renderer.mjs")');
+  expect(homeSurface).not.toContain('from "./leaderboard-controller.mjs"');
+  expect(homeSurface).not.toContain('from "./leaderboard-dialog-renderer.mjs"');
+});
+
 test("leaderboard lazy module exports the platform event contract", () => {
   for (const exportName of ["render", "handleClick", "handleInput", "handleChange", "handleSubmit"]) {
     expect(leaderboardModule[exportName], exportName).toEqual(expect.any(Function));

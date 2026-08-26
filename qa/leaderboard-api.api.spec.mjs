@@ -7,10 +7,12 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const permissionMatrix = require("../src/core/permission-matrix.cjs");
+const platformSecurity = require("../api/_lib/platform-security.js");
 const contract = require("../api/_lib/leaderboard-contract.js");
 const database = require("../api/_lib/leaderboard-database.js");
 const scope = require("../api/_lib/leaderboard-scope.js");
 const service = require("../api/_lib/leaderboard-service.js");
+const { createLeaderboardHandler } = require("../api/leaderboard.js");
 
 const actorId = "11111111-1111-4111-8111-111111111111";
 const organizationId = "22222222-2222-4222-8222-222222222222";
@@ -63,6 +65,26 @@ function jsonResponse(payload, status = 200) {
   };
 }
 
+function createApiResponse() {
+  return {
+    headers: {},
+    statusCode: 0,
+    body: "",
+    setHeader(name, value) {
+      this.headers[String(name).toLowerCase()] = String(value);
+    },
+    end(value = "") {
+      this.body = String(value || "");
+    },
+  };
+}
+
+function sendApiJson(response, status, payload) {
+  response.statusCode = status;
+  response.setHeader("Content-Type", "application/json");
+  response.end(JSON.stringify(payload));
+}
+
 test("Leaderboard is registered as a guarded team route", () => {
   expect(permissionMatrix.apiRouteSecurity["/api/leaderboard"]).toMatchObject({
     moduleId: "leaderboard",
@@ -79,6 +101,124 @@ test("Leaderboard is registered as a guarded team route", () => {
   expect(route).toContain("resolveLeaderboardActorContext");
   expect(route).toContain("guardApiRequest");
   expect(route).not.toContain("actor.teamId");
+});
+
+test("Leaderboard rate limiting stops body parsing and Platform scope reads", async () => {
+  platformSecurity.rateLimitBuckets.clear();
+  platformSecurity.rateLimitBuckets.set(
+    `/api/leaderboard:GET:read:actor:${actorId}`,
+    { startedAt: Date.now(), count: 90 }
+  );
+  const calls = { parse: 0, scope: 0, context: 0, handle: 0 };
+  const handler = createLeaderboardHandler({
+    getCurrentActor: async () => ({ id: actorId, role: "admin" }),
+    sendCorsHeaders: () => {},
+    sendJson: sendApiJson,
+    prepareLeaderboardRequest: async () => {
+      calls.parse += 1;
+      return { ok: true, request: { method: "GET", month: "2026-08", teamId } };
+    },
+    resolvePlatformActorScope: async () => {
+      calls.scope += 1;
+      return actorScope();
+    },
+    resolveLeaderboardActorContext: () => {
+      calls.context += 1;
+      return { ok: true, actor: { id: actorId, role: "admin" }, tenant: { teamId } };
+    },
+    handleLeaderboardRequest: async () => {
+      calls.handle += 1;
+    },
+  });
+  const response = createApiResponse();
+
+  await handler({
+    method: "GET",
+    url: `/api/leaderboard?month=2026-08&teamId=${teamId}`,
+    headers: { authorization: "Bearer rate-limited" },
+  }, response);
+
+  expect(response.statusCode).toBe(429);
+  expect(calls).toEqual({ parse: 0, scope: 0, context: 0, handle: 0 });
+  expect(response.headers["retry-after"]).toBeTruthy();
+});
+
+test("Leaderboard fresh-scope permission is enforced without double rate counting", async () => {
+  platformSecurity.rateLimitBuckets.clear();
+  const calls = { parse: 0, scope: 0, context: 0, handle: 0 };
+  const handler = createLeaderboardHandler({
+    getCurrentActor: async () => ({ id: actorId, role: "admin" }),
+    sendCorsHeaders: () => {},
+    sendJson: sendApiJson,
+    prepareLeaderboardRequest: async () => {
+      calls.parse += 1;
+      return { ok: true, request: { method: "POST", teamId } };
+    },
+    resolvePlatformActorScope: async () => {
+      calls.scope += 1;
+      return actorScope();
+    },
+    resolveLeaderboardActorContext: () => {
+      calls.context += 1;
+      return { ok: true, actor: { id: actorId, role: "analyst" }, tenant: { teamId } };
+    },
+    handleLeaderboardRequest: async () => {
+      calls.handle += 1;
+    },
+  });
+  const response = createApiResponse();
+
+  await handler({
+    method: "POST",
+    url: "/api/leaderboard",
+    headers: { authorization: "Bearer fresh-scope" },
+  }, response);
+
+  expect(response.statusCode).toBe(403);
+  expect(JSON.parse(response.body).reason).toContain("permission");
+  expect(calls).toEqual({ parse: 1, scope: 1, context: 1, handle: 0 });
+  expect(platformSecurity.rateLimitBuckets.get(
+    `/api/leaderboard:POST:write:actor:${actorId}`
+  )?.count).toBe(1);
+});
+
+test("Leaderboard permission phase rejects a module retarget without route work or a second count", async () => {
+  platformSecurity.rateLimitBuckets.clear();
+  const calls = { handle: 0 };
+  const handler = createLeaderboardHandler({
+    getCurrentActor: async () => ({ id: actorId, role: "admin" }),
+    sendCorsHeaders: () => {},
+    sendJson: sendApiJson,
+    prepareLeaderboardRequest: async () => ({ ok: true, request: { method: "GET", month: "2026-08", teamId } }),
+    resolvePlatformActorScope: async () => actorScope(),
+    resolveLeaderboardActorContext: () => ({
+      ok: true,
+      actor: { id: actorId, role: "admin" },
+      tenant: { teamId },
+    }),
+    enforceApiPermission: (request, response, options) => platformSecurity.enforceApiPermission(
+      request,
+      response,
+      { ...options, moduleId: "medical-team" }
+    ),
+    handleLeaderboardRequest: async () => {
+      calls.handle += 1;
+    },
+  });
+  const response = createApiResponse();
+
+  await handler({
+    method: "GET",
+    url: "/api/leaderboard?month=2026-08",
+    headers: { authorization: "Bearer retarget-attempt" },
+  }, response);
+
+  expect(response.statusCode).toBe(500);
+  expect(JSON.parse(response.body).reason).toBe("API security preflight failed.");
+  expect(calls.handle).toBe(0);
+  expect(platformSecurity.rateLimitBuckets.get(
+    `/api/leaderboard:GET:read:actor:${actorId}`
+  )?.count).toBe(1);
 });
 
 test("award and reverse commands reject unsafe or ambiguous input", () => {

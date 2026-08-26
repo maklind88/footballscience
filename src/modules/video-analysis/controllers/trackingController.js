@@ -1,4 +1,3 @@
-import { normalizeDynamicGraphic } from "../domain/dynamicGraphic.model.js";
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { createTrackingContinuationController } from "./trackingContinuationController.js";
 import {
@@ -9,6 +8,7 @@ import { createTrackingGroundTruthController } from "./trackingGroundTruthContro
 import {
   createTrackingProviderRunController,
 } from "./trackingProviderRunController.js";
+import { createTrackingGraphicController } from "./trackingGraphicController.js";
 import { createTrackingReviewController } from "./trackingReviewController.js";
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
 import { normalizeTrackingJobProgress } from "../services/trackingProgressService.js";
@@ -21,10 +21,10 @@ import {
 } from "../services/trackingExtensionService.js";
 import {
   createManualPromptTrack,
-  trackingMetadataPayload,
   trackingPrompt,
   verifyObjectTrack,
 } from "../services/trackingReviewService.js";
+import { persistTrackingTrack } from "../services/trackingTrackPersistenceService.js";
 import { eventElement } from "../video-analysis.dom-events.js";
 import {
   currentTrackingAtMs as currentAtMs,
@@ -34,7 +34,6 @@ import {
   selectedTrackingItem as selectedItem,
   trackingItemById,
   trackingItemRange as itemRange,
-  trackingLocalId as localId,
   trackingPromptBox as promptBox,
   toggleTrackingTrackSelection,
   updateTrackingPromptField,
@@ -82,6 +81,11 @@ export function createTrackingController(options = {}) {
     persistCorrection: options.persistCorrection,
     invalidateGroundTruth: groundTruth.invalidateDraft,
   });
+  const graphicController = createTrackingGraphicController({
+    getState,
+    updateState,
+    persistGraphic: options.persistGraphic,
+  });
   const batchController = createTrackingBatchController({
     getState,
     updateState,
@@ -104,6 +108,7 @@ export function createTrackingController(options = {}) {
     if (nextMode === "tracking") {
       groundTruth.refreshContext();
       void providerRuns.refresh();
+      void options.restoreTrackingWorkspace?.();
     }
     return true;
   }
@@ -142,15 +147,22 @@ export function createTrackingController(options = {}) {
     return true;
   }
 
-  async function persistTrack(track = {}) {
-    if (!options.persistTrack) return track;
-    const payload = await options.persistTrack(trackingMetadataPayload(track));
-    const remoteTrack = payload?.objectTrack || payload?.track || {};
-    return normalizeObjectTrack({
-      ...track,
-      ...remoteTrack,
-      metadata: { ...(remoteTrack.metadata || {}), ...(track.metadata || {}) },
+  async function persistTrack(trackValue = {}) {
+    const track = await persistTrackingTrack(trackValue, {
+      persistLocalTrack: options.persistLocalTrack,
+      persistMetadata: options.persistTrack,
     });
+    const status = track.metadata?.localWorkspaceStatus;
+    if (["pending-central", "unprotected"].includes(status)) {
+      updateState((state) => trackingPatch(state, {
+        workspace: {
+          ...(state.presentation?.tracking?.workspace || {}),
+          status: status === "pending-central" ? "pending-sync" : "attention",
+          error: String(track.metadata?.localWorkspaceError || ""),
+        },
+      }));
+    }
+    return track;
   }
 
   async function addManualTrack() {
@@ -329,49 +341,6 @@ export function createTrackingController(options = {}) {
     }
   }
 
-  async function addGraphic() {
-    const state = getState();
-    const item = selectedItem(state);
-    const tracking = state.presentation?.tracking || {};
-    const selectedIds = tracking.selectedTrackIds || [];
-    const requiresPair = tracking.tool === "distance";
-    if (!item || !selectedIds.length || (requiresPair && selectedIds.length < 2)) {
-      updateState((current) => trackingPatch(current, { error: requiresPair ? "Select two tracks for distance." : "Select a track first." }));
-      return false;
-    }
-    const range = itemRange(item);
-    let graphic = normalizeDynamicGraphic({
-      id: localId("graphic"),
-      clipId: item.clipId,
-      type: tracking.tool === "highlight" ? "circle" : tracking.tool,
-      source: tracking.tool === "distance" ? "spatial" : "tracking",
-      startMs: tracking.prompt?.startMs ?? range.startMs,
-      endMs: tracking.prompt?.endMs ?? range.endMs,
-      bindings: selectedIds.slice(0, requiresPair ? 2 : 1).map((trackId, index) => ({
-        trackId,
-        role: index ? "secondary" : "primary",
-        anchor: "ground",
-      })),
-      style: { color: "#f7d154", showValue: true },
-    });
-    if (options.persistGraphic) {
-      try {
-        const payload = await options.persistGraphic(graphic);
-        graphic = normalizeDynamicGraphic({ ...graphic, ...(payload?.dynamicGraphic || payload?.graphic || {}) });
-      } catch (error) {
-        updateState((current) => trackingPatch(current, { error: error.message || "Dynamic graphic metadata could not be saved." }));
-        return false;
-      }
-    }
-    updateState((current) => {
-      const liveItem = selectedItem(current);
-      return liveItem ? trackingPatch(replaceItem(current, liveItem.id, {
-        dynamicGraphics: [...(liveItem.dynamicGraphics || []), graphic],
-      }), { error: "" }) : current;
-    });
-    return true;
-  }
-
   function startInteraction(event, surface) {
     const state = getState();
     const captureMode = state.presentation?.tracking?.captureMode;
@@ -449,6 +418,7 @@ export function createTrackingController(options = {}) {
     if (action === "complete-range") { void continuation.complete(); return true; }
     if (action === "refresh-provider") { void providerRuns.refresh(); return true; }
     if (action === "retry-benchmark-storage") { void options.retryBenchmarkStorage?.(); return true; }
+    if (action === "retry-tracking-workspace") { void options.retryTrackingWorkspace?.(); return true; }
     if (action === "cancel") {
       const cancelled = trackingJob.cancel();
       if (cancelled) updateState((state) => trackingPatch(state, {
@@ -461,7 +431,7 @@ export function createTrackingController(options = {}) {
       return cancelled;
     }
     if (action === "verify") { void verifySelectedTrack(); return true; }
-    if (action === "add-graphic") { void addGraphic(); return true; }
+    if (action === "add-graphic") { void graphicController.add(); return true; }
     if (reviewController.handleAction(action)) return true;
     if (groundTruth.handleAction(action, actionElement)) return true;
     return false;

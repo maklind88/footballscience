@@ -121,6 +121,72 @@ test("idle tracking leaves pointer completion to drawing and timeline controller
   expect(result).not.toBeInstanceOf(Promise);
 });
 
+test("device-only tracks must synchronize before a dynamic graphic can bind to them", async () => {
+  const { createTrackingController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingController.js",
+  ));
+  const { renderTrackingSidebar } = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingTelestration.js",
+  ));
+  const track = {
+    id: "track-device-only",
+    clipId: "clip-device-only",
+    entityType: "player",
+    status: "review",
+    startMs: 0,
+    endMs: 1000,
+    confidence: 0.9,
+    metadata: { localWorkspaceStatus: "pending-central" },
+    segments: [{ startMs: 0, endMs: 1000, points: [
+      { atMs: 0, x: 0.2, y: 0.4, width: 0.1, height: 0.2, confidence: 0.9 },
+      { atMs: 1000, x: 0.3, y: 0.4, width: 0.1, height: 0.2, confidence: 0.9 },
+    ] }],
+  };
+  const item = {
+    id: "item-device-only",
+    clipId: track.clipId,
+    startMs: 0,
+    endMs: 1000,
+    objectTracks: [track],
+    dynamicGraphics: [],
+  };
+  let state = {
+    presentation: {
+      current: { sections: [{ id: "section-device-only", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        mode: "tracking",
+        tool: "highlight",
+        selectedTrackIds: [track.id],
+        provider: { status: "offline" },
+        prompt: { startMs: 0, endMs: 1000 },
+        workspace: { status: "pending-sync", localOnlyCount: 1 },
+        error: "",
+      },
+    },
+  };
+  let persistCalls = 0;
+  const controller = createTrackingController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    persistGraphic: async () => { persistCalls += 1; },
+  });
+  expect(renderTrackingSidebar(state, item)).toMatch(
+    /data-video-analysis-tracking-action="add-graphic"[^>]*disabled/,
+  );
+  expect(controller.handleClick({
+    target: {
+      nodeType: 1,
+      closest: (selector) => selector === "[data-video-analysis-tracking-action]"
+        ? { dataset: { videoAnalysisTrackingAction: "add-graphic" } }
+        : null,
+    },
+  })).toBe(true);
+  await expect.poll(() => state.presentation.tracking.error).toMatch(/synchronize/i);
+  expect(persistCalls).toBe(0);
+  expect(state.presentation.current.sections[0].items[0].dynamicGraphics).toHaveLength(0);
+});
+
 test("local tracking exposes cancellation and clears an aborted job without a false error", async () => {
   const { createTrackingController } = await import(moduleUrl("src/modules/video-analysis/controllers/trackingController.js"));
   const { renderTrackingSidebar } = await import(moduleUrl("src/modules/video-analysis/components/TrackingTelestration.js"));

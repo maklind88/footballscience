@@ -305,3 +305,333 @@ test("main tracking controller syncs selected identity and invalidates draft att
   expect(state.presentation.current.sections[0].items[0].objectTracks[0].segments[0].points
     .find((point) => point.atMs === 500)).toMatchObject({ occluded: true, source: "manual" });
 });
+
+test("local tracking workspace chunks samples, isolates scope and reconciles a central track id", async () => {
+  const workspace = await import(moduleUrl(
+    "src/modules/video-analysis/services/localTrackingWorkspaceContract.js",
+  ));
+  const scope = workspace.createLocalTrackingWorkspaceScope({
+    organizationId: "org-tracking",
+    teamId: "team-tracking",
+    userId: "analyst-tracking",
+    matchId: "match-tracking",
+    videoId: "video-tracking",
+    clipId: "clip-1",
+  });
+  const localTrack = reviewTrack({
+    id: "local-track-before-sync",
+    metadata: { localWorkspaceTrackKey: "workspace-track-key-1" },
+  });
+  const bundle = workspace.createLocalTrackingTrackBundle({
+    scope,
+    track: localTrack,
+    syncStatus: "pending",
+  }, { now: () => 1_800_000_100_000 });
+  expect(bundle.record).toMatchObject({
+    protocol: "football-science-local-tracking-workspace-v1",
+    pointCount: 5,
+    chunkCount: 2,
+    syncStatus: "pending",
+  });
+  expect(bundle.chunks.every((chunk) => chunk.points.length <= 1000)).toBe(true);
+  const hydrated = workspace.hydrateLocalTrackingTrack(bundle.record, bundle.chunks);
+  expect(hydrated.track.segments.flatMap((segment) => segment.points)).toHaveLength(5);
+  expect(Object.isFrozen(hydrated.track.segments[0].points)).toBe(true);
+  expect(workspace.createLocalTrackingWorkspaceScope({
+    ...scope,
+    userId: "another-analyst",
+  }).id).not.toBe(scope.id);
+
+  const remoteTrack = {
+    ...hydrated.track,
+    id: "remote-track-after-sync",
+    playerLabel: "Central Opponent 9",
+    segments: [],
+    metadata: { localWorkspaceTrackKey: "workspace-track-key-1" },
+  };
+  const merged = workspace.mergeTrackingWorkspaceTracks([remoteTrack], [hydrated], []);
+  expect(merged).toMatchObject({
+    localOnlyCount: 0,
+    missingSampleCount: 0,
+    migrations: [{ previousTrackId: "local-track-before-sync", trackId: "remote-track-after-sync" }],
+  });
+  expect(merged.tracks[0]).toMatchObject({
+    id: "remote-track-after-sync",
+    playerLabel: "Central Opponent 9",
+    metadata: { localWorkspaceStatus: "ready" },
+  });
+  expect(merged.tracks[0].segments.flatMap((segment) => segment.points)).toHaveLength(5);
+
+  const duplicateBundle = workspace.createLocalTrackingTrackBundle({
+    scope,
+    track: reviewTrack({
+      id: "local-track-duplicate-key",
+      metadata: { localWorkspaceTrackKey: "workspace-track-key-1" },
+    }),
+    syncStatus: "pending",
+  });
+  const duplicateEntry = workspace.hydrateLocalTrackingTrack(
+    duplicateBundle.record,
+    duplicateBundle.chunks,
+  );
+  expect(() => workspace.mergeTrackingWorkspaceTracks(
+    [remoteTrack],
+    [hydrated, duplicateEntry],
+    [],
+  )).toThrow(/identity key is ambiguous/i);
+
+  const tamperedChunk = structuredClone(bundle.chunks[0]);
+  tamperedChunk.scopeId = "another-scope";
+  expect(() => workspace.hydrateLocalTrackingTrack(
+    bundle.record,
+    [tamperedChunk, ...bundle.chunks.slice(1)],
+  )).toThrow(/chunk.*invalid/i);
+  expect(() => workspace.createLocalTrackingTrackBundle({
+    scope,
+    track: reviewTrack({ metadata: { sourceUrl: "https://example.com/match.mp4" } }),
+  })).toThrow(/media field|forbidden/i);
+});
+
+test("track persistence protects samples before central sync and retains a failed upload", async () => {
+  const { persistTrackingTrack } = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingTrackPersistenceService.js",
+  ));
+  const { trackingMetadataPayload } = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingReviewService.js",
+  ));
+  const localCalls = [];
+  const failed = await persistTrackingTrack(reviewTrack(), {
+    persistLocalTrack: async (track, options) => {
+      localCalls.push({ track, options });
+      return { track, syncStatus: options.syncStatus };
+    },
+    persistMetadata: async () => { throw new Error("Central tracking metadata is offline."); },
+  });
+  expect(localCalls).toHaveLength(1);
+  expect(localCalls[0].options).toMatchObject({
+    previousTrackId: "track-review-9",
+    syncStatus: "pending",
+  });
+  expect(failed.metadata).toMatchObject({
+    localWorkspaceStatus: "pending-central",
+    centralSyncPending: true,
+    localWorkspaceTrackKey: "track-review-9",
+  });
+  expect(failed.segments.flatMap((segment) => segment.points)).toHaveLength(5);
+
+  localCalls.length = 0;
+  const synced = await persistTrackingTrack(reviewTrack(), {
+    persistLocalTrack: async (track, options) => {
+      localCalls.push({ track, options });
+      return { track, syncStatus: options.syncStatus };
+    },
+    persistMetadata: async (metadata) => ({
+      objectTrack: { ...metadata, id: "remote-track-9", revision: 2 },
+    }),
+  });
+  expect(localCalls.map((entry) => entry.options.syncStatus)).toEqual(["pending", "synced"]);
+  expect(localCalls[1].options.previousTrackId).toBe("track-review-9");
+  expect(synced).toMatchObject({
+    id: "remote-track-9",
+    metadata: { localWorkspaceStatus: "ready", centralSyncPending: false },
+  });
+  expect(synced.segments.flatMap((segment) => segment.points)).toHaveLength(5);
+  expect(trackingMetadataPayload(synced).metadata).not.toHaveProperty("localWorkspaceStatus");
+  expect(trackingMetadataPayload(synced).metadata).toMatchObject({
+    localWorkspaceTrackKey: "track-review-9",
+  });
+});
+
+test("tracking workspace restores central metadata with local samples and graphics", async () => {
+  const contract = await import(moduleUrl(
+    "src/modules/video-analysis/services/localTrackingWorkspaceContract.js",
+  ));
+  const { createTrackingWorkspaceController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingWorkspaceController.js",
+  ));
+  const track = reviewTrack({
+    metadata: { localWorkspaceTrackKey: "workspace-track-restore" },
+  });
+  const scope = contract.createLocalTrackingWorkspaceScope({
+    organizationId: "org-restore",
+    teamId: "team-restore",
+    userId: "analyst-restore",
+    matchId: "match-restore",
+    videoId: "video-restore",
+    clipId: track.clipId,
+  });
+  const bundle = contract.createLocalTrackingTrackBundle({ scope, track, syncStatus: "synced" });
+  const localEntry = contract.hydrateLocalTrackingTrack(bundle.record, bundle.chunks);
+  const item = {
+    id: "item-restore",
+    clipId: track.clipId,
+    clip: { id: track.clipId, match_id: "match-restore", video_id: "video-restore" },
+    objectTracks: [],
+    dynamicGraphics: [],
+  };
+  let state = {
+    match: { id: "match-restore" },
+    video: { id: "video-restore", match_id: "match-restore" },
+    presentation: {
+      current: { sections: [{ id: "section-restore", items: [item] }] },
+      selectedItemId: item.id,
+      selectedClipId: item.clipId,
+      tracking: {
+        selectedTrackIds: [track.id],
+        workspace: { status: "waiting-item" },
+      },
+    },
+  };
+  let loadedScope = null;
+  const controller = createTrackingWorkspaceController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getContext: () => ({
+      currentUser: {
+        id: "analyst-restore",
+        organizationId: "org-restore",
+        teamId: "team-restore",
+      },
+    }),
+    loadRemoteWorkspace: async () => ({
+      objectTracks: [{ ...track, playerLabel: "Central identity", segments: [] }],
+      dynamicGraphics: [{
+        id: "graphic-restore",
+        clipId: track.clipId,
+        type: "circle",
+        source: "tracking",
+        startMs: 0,
+        endMs: 2000,
+        bindings: [{ trackId: track.id, role: "primary", anchor: "ground" }],
+      }],
+    }),
+    loadLocalTracks: async (value) => {
+      loadedScope = value;
+      return [localEntry];
+    },
+    now: () => 1_800_000_110_000,
+  });
+  expect(await controller.restore()).toBe(true);
+  expect(loadedScope).toMatchObject({
+    id: scope.id,
+    organizationId: "org-restore",
+    teamId: "team-restore",
+    userId: "analyst-restore",
+    clipId: track.clipId,
+  });
+  const restoredItem = state.presentation.current.sections[0].items[0];
+  expect(restoredItem.objectTracks[0]).toMatchObject({
+    id: track.id,
+    playerLabel: "Central identity",
+    metadata: { localWorkspaceStatus: "ready" },
+  });
+  expect(restoredItem.objectTracks[0].segments.flatMap((segment) => segment.points)).toHaveLength(5);
+  expect(restoredItem.dynamicGraphics).toHaveLength(1);
+  expect(state.presentation.tracking.workspace).toMatchObject({
+    status: "restored",
+    localOnlyCount: 0,
+    missingSampleCount: 0,
+  });
+});
+
+test("tracking workspace retries a device-only track and migrates every live binding", async () => {
+  const contract = await import(moduleUrl(
+    "src/modules/video-analysis/services/localTrackingWorkspaceContract.js",
+  ));
+  const { createTrackingWorkspaceController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingWorkspaceController.js",
+  ));
+  const localTrack = reviewTrack({
+    id: "track-device-only",
+    metadata: { localWorkspaceTrackKey: "workspace-retry-key" },
+  });
+  const scopeValues = {
+    organizationId: "org-retry-track",
+    teamId: "team-retry-track",
+    userId: "analyst-retry-track",
+    matchId: "match-retry-track",
+    videoId: "video-retry-track",
+    clipId: localTrack.clipId,
+  };
+  const scope = contract.createLocalTrackingWorkspaceScope(scopeValues);
+  let bundle = contract.createLocalTrackingTrackBundle({
+    scope,
+    track: localTrack,
+    syncStatus: "pending",
+  });
+  let localEntries = [contract.hydrateLocalTrackingTrack(bundle.record, bundle.chunks)];
+  let remoteTracks = [];
+  const localSaves = [];
+  const item = {
+    id: "item-retry-track",
+    clipId: localTrack.clipId,
+    clip: { match_id: scopeValues.matchId, video_id: scopeValues.videoId },
+    objectTracks: [localTrack],
+    dynamicGraphics: [{
+      id: "graphic-retry-track",
+      clipId: localTrack.clipId,
+      type: "circle",
+      source: "tracking",
+      startMs: 0,
+      endMs: 2000,
+      bindings: [{ trackId: localTrack.id, role: "primary", anchor: "ground" }],
+    }],
+  };
+  let state = {
+    match: { id: scopeValues.matchId },
+    video: { id: scopeValues.videoId },
+    presentation: {
+      current: { sections: [{ id: "section-retry-track", items: [item] }] },
+      selectedItemId: item.id,
+      selectedClipId: item.clipId,
+      tracking: {
+        selectedTrackIds: [localTrack.id],
+        workspace: { status: "pending-sync", localOnlyCount: 1 },
+      },
+    },
+  };
+  const controller = createTrackingWorkspaceController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getContext: () => ({ currentUser: {
+      id: scopeValues.userId,
+      organizationId: scopeValues.organizationId,
+      teamId: scopeValues.teamId,
+    } }),
+    loadRemoteWorkspace: async () => ({ objectTracks: remoteTracks, dynamicGraphics: [] }),
+    loadLocalTracks: async () => localEntries,
+    saveRemoteTrack: async (metadata) => {
+      const remoteTrack = { ...metadata, id: "track-central-after-retry", revision: 1 };
+      remoteTracks = [remoteTrack];
+      return { objectTrack: remoteTrack };
+    },
+    saveLocalTrack: async (valueScope, track, options) => {
+      localSaves.push({ scope: valueScope, track, options });
+      bundle = contract.createLocalTrackingTrackBundle({
+        scope: valueScope,
+        track,
+        syncStatus: options.syncStatus,
+      });
+      const entry = contract.hydrateLocalTrackingTrack(bundle.record, bundle.chunks);
+      localEntries = [entry];
+      return entry;
+    },
+  });
+
+  expect(await controller.retrySync()).toBe(true);
+  const restored = state.presentation.current.sections[0].items[0];
+  expect(localSaves).toHaveLength(1);
+  expect(localSaves[0].options).toMatchObject({
+    previousTrackId: "track-device-only",
+    syncStatus: "synced",
+  });
+  expect(restored.objectTracks).toHaveLength(1);
+  expect(restored.objectTracks[0].id).toBe("track-central-after-retry");
+  expect(restored.objectTracks[0].segments.flatMap((segment) => segment.points)).toHaveLength(5);
+  expect(restored.dynamicGraphics[0].bindings[0].trackId).toBe("track-central-after-retry");
+  expect(state.presentation.tracking.selectedTrackIds).toEqual(["track-central-after-retry"]);
+  expect(state.presentation.tracking.workspace).toMatchObject({
+    localOnlyCount: 0,
+    missingSampleCount: 0,
+  });
+});

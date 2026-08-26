@@ -230,6 +230,46 @@
   background: #fff;
 }
 
+.video-analysis-tracking-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: center;
+  border-left: 3px solid #3f7b67;
+  padding: 7px 8px;
+  background: #f0f7f4;
+}
+
+.video-analysis-tracking-workspace.is-attention {
+  border-left-color: #b7791f;
+  background: #fff8e7;
+}
+
+.video-analysis-tracking-workspace span {
+  color: #647169;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.video-analysis-tracking-workspace strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-tracking-workspace button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-height: 28px;
+  border: 1px solid #c8b86f;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: #fff;
+}
+
 .video-analysis-tracking-side label {
   display: grid;
   gap: 4px;

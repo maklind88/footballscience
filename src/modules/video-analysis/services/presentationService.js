@@ -101,6 +101,13 @@ export function createInitialPresentationWorkspace() {
       },
       providerRuns: { byItemId: {}, downloadedAt: "", error: "" },
       benchmarkStorage: { status: "waiting-source", lastSavedAt: "", error: "" },
+      workspace: {
+        status: "waiting-item",
+        localOnlyCount: 0,
+        missingSampleCount: 0,
+        lastLoadedAt: "",
+        error: "",
+      },
       provider: {
         status: "unchecked",
         available: false,

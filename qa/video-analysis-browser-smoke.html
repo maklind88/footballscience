@@ -604,7 +604,12 @@
         win: window,
         allowVideoAnalysisMetadataLoad: true,
         getAuthToken: () => "smoke-token",
-        currentUser: { id: "smoke-analyst", name: "Smoke Analyst" },
+        currentUser: {
+          id: "smoke-analyst",
+          name: "Smoke Analyst",
+          clubId: "smoke-club",
+          teamId: "smoke-team",
+        },
         formatUserName: (user) => user?.name || "Smoke Analyst",
         canEdit: () => true,
         videoAnalysisInitialState: initialStateFromQuery,

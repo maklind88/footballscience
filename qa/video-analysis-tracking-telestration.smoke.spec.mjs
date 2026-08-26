@@ -342,10 +342,167 @@ test("tracking benchmark workspace restores and autosaves only inside its user s
   });
 });
 
+test("tracking workspace reloads chunked samples only for the exact user and clip", async ({ page }) => {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  const result = await page.evaluate(async () => {
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase("football-science-local-tracking-workspaces");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(true);
+      request.onblocked = () => resolve(false);
+    });
+    const contract = await import(
+      "/src/modules/video-analysis/services/localTrackingWorkspaceContract.js"
+    );
+    const localStore = await import(
+      "/src/modules/video-analysis/services/localTrackingWorkspaceStore.js"
+    );
+    const { createTrackingWorkspaceController } = await import(
+      "/src/modules/video-analysis/controllers/trackingWorkspaceController.js"
+    );
+    const scopeValues = {
+      organizationId: "org-track-reload",
+      teamId: "team-track-reload",
+      userId: "analyst-track-reload",
+      matchId: "match-track-reload",
+      videoId: "video-track-reload",
+      clipId: "clip-track-reload",
+    };
+    const points = Array.from({ length: 1500 }, (_, index) => ({
+      atMs: index * 10,
+      x: 0.2 + ((index / 1499) * 0.2),
+      y: 0.45,
+      width: 0.05,
+      height: 0.15,
+      groundX: 0.2 + ((index / 1499) * 0.2),
+      groundY: 0.525,
+      confidence: 0.94,
+      identityConfidence: 0.92,
+      source: "automatic",
+    }));
+    const track = {
+      id: "track-track-reload",
+      clipId: scopeValues.clipId,
+      videoId: scopeValues.videoId,
+      entityType: "player",
+      playerLabel: "Local Player 8",
+      teamSide: "home",
+      shirtNumber: "8",
+      status: "review",
+      startMs: 0,
+      endMs: points.at(-1).atMs,
+      confidence: 0.94,
+      identityConfidence: 0.92,
+      engine: "sam2.1-hiera-tiny",
+      engineVersion: "1.1.0",
+      segments: [{
+        id: "segment-track-reload",
+        startMs: 0,
+        endMs: points.at(-1).atMs,
+        points,
+      }],
+      corrections: [],
+      metadata: { localWorkspaceTrackKey: "workspace-key-track-reload" },
+    };
+    const scope = contract.createLocalTrackingWorkspaceScope(scopeValues);
+    await localStore.saveLocalTrackingTrack(scope, track, {
+      syncStatus: "synced",
+      now: () => 1_800_000_120_000,
+      win: window,
+    });
+
+    const item = {
+      id: "item-track-reload",
+      clipId: scopeValues.clipId,
+      clip: {
+        id: scopeValues.clipId,
+        match_id: scopeValues.matchId,
+        video_id: scopeValues.videoId,
+      },
+      objectTracks: [],
+      dynamicGraphics: [],
+    };
+    let state = {
+      match: { id: scopeValues.matchId },
+      video: { id: scopeValues.videoId, match_id: scopeValues.matchId },
+      presentation: {
+        current: { sections: [{ id: "section-track-reload", items: [item] }] },
+        selectedItemId: item.id,
+        selectedClipId: item.clipId,
+        tracking: {
+          selectedTrackIds: [track.id],
+          workspace: { status: "waiting-item" },
+        },
+      },
+    };
+    const controller = createTrackingWorkspaceController({
+      getState: () => state,
+      updateState: (updater) => { state = updater(state); },
+      getContext: () => ({
+        currentUser: {
+          id: scopeValues.userId,
+          organizationId: scopeValues.organizationId,
+          teamId: scopeValues.teamId,
+        },
+      }),
+      getWindow: () => window,
+      loadRemoteWorkspace: async () => ({
+        objectTracks: [{ ...track, playerLabel: "Central Player 8", segments: [] }],
+        dynamicGraphics: [{
+          id: "graphic-track-reload",
+          clipId: scopeValues.clipId,
+          type: "circle",
+          source: "tracking",
+          startMs: 0,
+          endMs: track.endMs,
+          bindings: [{ trackId: track.id, role: "primary", anchor: "ground" }],
+        }],
+      }),
+      now: () => 1_800_000_121_000,
+    });
+    await controller.restore();
+    const restored = state.presentation.current.sections[0].items[0];
+    const isolatedUser = await localStore.loadLocalTrackingTracks({
+      ...scopeValues,
+      userId: "another-analyst",
+    }, window);
+    const isolatedClip = await localStore.loadLocalTrackingTracks({
+      ...scopeValues,
+      clipId: "another-clip",
+    }, window);
+    const persisted = await localStore.loadLocalTrackingTracks(scope, window);
+    controller.dispose();
+    return {
+      chunkCount: contract.createLocalTrackingTrackBundle({ scope, track }).record.chunkCount,
+      graphicCount: restored.dynamicGraphics.length,
+      isolatedClipCount: isolatedClip.length,
+      isolatedUserCount: isolatedUser.length,
+      persistedPointCount: persisted[0].track.segments[0].points.length,
+      restoredLabel: restored.objectTracks[0].playerLabel,
+      restoredPointCount: restored.objectTracks[0].segments[0].points.length,
+      status: state.presentation.tracking.workspace.status,
+    };
+  });
+
+  expect(result).toEqual({
+    chunkCount: 2,
+    graphicCount: 1,
+    isolatedClipCount: 0,
+    isolatedUserCount: 0,
+    persistedPointCount: 1500,
+    restoredLabel: "Central Player 8",
+    restoredPointCount: 1500,
+    status: "restored",
+  });
+});
+
 test("tracking telestration follows a selected player and persists metadata", async ({ page }, testInfo) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await openTrackingWorkspace(page);
+  await expect.poll(() => page.evaluate(() => (
+    window.__videoAnalysisRequests || []
+  ).some((request) => request.action === "tracking-workspace"))).toBe(true);
   await createTrackedHighlight(page);
   await expect(page.locator(".video-analysis-tracking-list li")).toContainText("Alex Morgan");
   await expect.poll(() => page.evaluate(() => (window.__videoAnalysisRequests || []).some((request) => request.action === "save-object-track"))).toBe(true);

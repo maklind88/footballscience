@@ -98,6 +98,8 @@ Every track change returns the track to review status and invalidates any unlock
 
 The on-device workspace is reload protection, not an external backup. Its status is visible beside the real-match suite, unrelated playhead updates do not rewrite it, and a different user or match scope cannot restore it. Clearing browser site data can still remove IndexedDB, so the exported ground-truth and provider-run suites remain the portable long-term evidence and the inputs to the checksum-bound assembler.
 
+Ordinary tracking trajectories use a separate versioned local workspace with the same privacy boundary. Dense samples are split into bounded per-segment chunks and scoped to the exact organization, team, authenticated user, source, and clip. FS Player retains those samples before attempting the metadata-only central write. If that write fails, the track remains usable and visibly device-only; retry reconciles the stable local workspace key to the generated central track ID and updates live selections and graphic bindings atomically. Ambiguous identity keys, incomplete chunks, changed byte counts, unsafe media fields, and cross-scope restores fail closed.
+
 ## Real Match Pilot
 
 The first real benchmark should contain at least one legally usable tactical wide-angle match source, preferably 1080p or better. The pilot should be a suite of reviewed windows totalling 10-20 minutes. Each locked case is bounded to two minutes for reliable human review, reproducible memory use, and safe local evaluation. A second synchronized angle is useful but not required.

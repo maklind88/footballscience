@@ -216,6 +216,9 @@ export function trackingMetadataPayload(trackValue = {}) {
   const coverage = trackingCoverage(track);
   const metadata = { ...(track.metadata || {}) };
   delete metadata.localSourceSha256;
+  delete metadata.localWorkspaceStatus;
+  delete metadata.localWorkspaceError;
+  delete metadata.centralSyncPending;
   return {
     id: track.id,
     clipId: track.clipId,

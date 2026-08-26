@@ -1,6 +1,7 @@
 import { normalizeDynamicGraphic } from "../domain/dynamicGraphic.model.js";
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { resolveDynamicGraphics } from "../services/dynamicGraphicRenderService.js";
+import { trackingGraphicBindingSelection } from "../services/trackingGraphicBindingService.js";
 import {
   trackingExtensionAvailability,
   trackingTargetRange,
@@ -149,11 +150,15 @@ export function renderTrackingToolbar(state = {}) {
 function renderTrackRow(track = {}, selectedTrackIds = []) {
   const review = trackingReviewSummary(track);
   const selected = selectedTrackIds.includes(track.id);
+  const localStatus = track.metadata?.localWorkspaceStatus;
+  const storageLabel = localStatus === "pending-central"
+    ? "device only"
+    : localStatus === "unprotected" ? "not protected" : localStatus === "samples-missing" ? "samples missing" : "";
   return `
     <li class="${selected ? "is-selected" : ""}">
       <button type="button" data-video-analysis-track-select="${escapeHtml(track.id)}">
         <strong>${escapeHtml(trackedObjectLabel(track))}</strong>
-        <span>${escapeHtml(`${track.entityType} | ${Math.round(track.confidence * 100)}% / ${Math.round(review.coverage.ratio * 100)}% coverage`)}</span>
+        <span>${escapeHtml(`${track.entityType} | ${Math.round(track.confidence * 100)}% / ${Math.round(review.coverage.ratio * 100)}% coverage${storageLabel ? ` | ${storageLabel}` : ""}`)}</span>
       </button>
       <em class="is-${escapeHtml(track.status)}">${escapeHtml(track.status)}</em>
     </li>
@@ -227,6 +232,36 @@ function renderTrackingProvider(provider = {}) {
   `;
 }
 
+function renderTrackingWorkspaceStatus(value = {}) {
+  const status = String(value.status || "waiting-item");
+  const needsAttention = status === "attention"
+    || status === "pending-sync"
+    || Number(value.localOnlyCount) > 0
+    || Number(value.missingSampleCount) > 0;
+  const label = status === "loading"
+    ? "Restoring tracking workspace"
+    : status === "syncing"
+      ? "Synchronizing tracking metadata"
+      : status === "attention"
+        ? "Tracking workspace needs attention"
+        : status === "pending-sync" && !Number(value.localOnlyCount)
+          ? "Tracking metadata sync pending"
+      : Number(value.localOnlyCount) > 0
+        ? `${value.localOnlyCount} device-only track${Number(value.localOnlyCount) === 1 ? "" : "s"}`
+        : Number(value.missingSampleCount) > 0
+          ? `${value.missingSampleCount} track${Number(value.missingSampleCount) === 1 ? "" : "s"} need local samples`
+          : status === "restored"
+            ? "Tracking workspace restored"
+            : status === "saved" ? "Tracking workspace protected" : "Tracking workspace ready";
+  return `
+    <div class="video-analysis-tracking-workspace${needsAttention ? " is-attention" : ""}" title="${escapeHtml(value.error || label)}" aria-live="polite">
+      <span>Workspace</span>
+      <strong>${escapeHtml(label)}</strong>
+      ${needsAttention ? `<button type="button" data-video-analysis-tracking-action="retry-tracking-workspace" ${status === "syncing" ? "disabled" : ""}>Retry</button>` : ""}
+    </div>
+  `;
+}
+
 function pendingTargetLabel(prompt = {}, index = 0) {
   if (prompt.playerLabel) return prompt.playerLabel;
   if (prompt.shirtNumber) return `Shirt ${prompt.shirtNumber}`;
@@ -271,6 +306,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
   const maximumBatchSize = Math.max(1, Math.min(8, Number(provider.maxObjectsPerJob) || 8));
   const batchReady = targetCount < 2 || provider.batchAvailable === true;
   const primaryTrack = tracks.find((track) => track.id === selectedTrackIds[0]) || null;
+  const graphicSelection = trackingGraphicBindingSelection(tracks, selectedTrackIds, tracking.tool);
   const entityType = tracking.prompt?.entityType || "player";
   const clip = item?.clip || {};
   const startSeconds = ((tracking.prompt?.startMs ?? item?.startMs ?? clip.startMs ?? clip.start_ms ?? 0) / 1000).toFixed(1);
@@ -282,6 +318,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
         <h3>${escapeHtml(primaryTrack ? trackedObjectLabel(primaryTrack) : "Select an object")}</h3>
       </div>
       ${renderTrackingProvider(provider)}
+      ${renderTrackingWorkspaceStatus(tracking.workspace)}
       <label>Object
         <select data-video-analysis-tracking-field="entityType">
           <option value="player" ${entityType === "player" ? "selected" : ""}>Player</option>
@@ -335,7 +372,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
       ${renderTrackingBenchmarkSuitePanel(state)}
       <div class="video-analysis-tracking-graphics">
         <strong>${escapeHtml(`${graphics.length} dynamic graphics`)}</strong>
-        <button type="button" data-video-analysis-tracking-action="add-graphic" ${selectedTrackIds.length ? "" : "disabled"}>Add ${escapeHtml(tracking.tool || "highlight")}</button>
+        <button type="button" data-video-analysis-tracking-action="add-graphic" title="${escapeHtml(graphicSelection.reason || `Add ${tracking.tool || "highlight"}`)}" ${graphicSelection.ready ? "" : "disabled"}>Add ${escapeHtml(tracking.tool || "highlight")}</button>
       </div>
     </div>
   `;

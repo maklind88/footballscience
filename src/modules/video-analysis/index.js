@@ -3155,11 +3155,13 @@ async function initialize(context = {}) {
       await restoreLocalVideoHandle(context, { silent: true });
     }
     await run.trackingRuntime.persistence.restore();
+    await run.trackingRuntime.workspace.restore();
     run.store.update((current) => ({ ...current, status: current.status === "loading" ? "ready" : current.status }));
   } catch (error) {
     run.store.setState({ status: "ready", error: error.message || "" });
   }
   run.trackingRuntime.persistence.start();
+  run.trackingRuntime.workspace.start();
 }
 
 export function render(context = {}) {
@@ -3231,6 +3233,7 @@ export function resetVideoAnalysisRuntimeForTests() {
   void runtime?.collaborationRuntime?.dispose?.();
   void runtime?.mediaRuntime?.dispose?.();
   void runtime?.trackingRuntime?.persistence?.dispose?.();
+  void runtime?.trackingRuntime?.workspace?.dispose?.();
   runtime?.unsubscribe?.();
   runtime?.workspaceObserver?.disconnect?.();
   runtime?.context?.doc?.documentElement?.classList?.remove?.(

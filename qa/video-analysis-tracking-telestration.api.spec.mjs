@@ -342,12 +342,67 @@ test("local tracking readiness distinguishes installed, missing and offline prov
           runtimeMode: "football-science-tracking-worker-v1",
           runtimeStatus: "ready",
           modelResident: true,
+          capabilities: ["segment:selected-object", "propagate:selected-object"],
+          trackEvalAvailable: true,
         },
         prompt: { startMs: 0, endMs: 1000, box: null },
       },
     },
   }, { id: "item-1", clipId: "clip-1", objectTracks: [], dynamicGraphics: [] });
   expect(residentSidebar).toContain("Local engine | Resident warm");
+  expect(residentSidebar).toContain("Selected object only");
+  expect(residentSidebar).toMatch(/data-video-analysis-tracking-capability="selected-object"[\s\S]*Match evidence pending/);
+  expect(residentSidebar).toMatch(/data-video-analysis-tracking-capability="detection"[\s\S]*Not installed/);
+  expect(residentSidebar).toMatch(/data-video-analysis-tracking-capability="reference"[\s\S]*Pinned and available/);
+});
+
+test("tracking capability readiness never promotes partial providers to full-scene tracking", async () => {
+  const { trackingCapabilityReadiness } = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingCapabilityReadinessService.js",
+  ));
+  const selectedOnly = trackingCapabilityReadiness({
+    provider: {
+      id: "sam2.1-hiera-tiny",
+      version: "1.3.0",
+      status: "ready",
+      available: true,
+      capabilities: ["segment:selected-object", "propagate:selected-object"],
+      executionFingerprintSha256: "f".repeat(64),
+      trackEvalAvailable: true,
+    },
+  });
+  expect(selectedOnly).toMatchObject({
+    mode: "selected-object-only",
+    entries: expect.arrayContaining([
+      expect.objectContaining({ id: "selected-object", status: "installed" }),
+      expect.objectContaining({ id: "detection", status: "missing" }),
+      expect.objectContaining({ id: "continuity", status: "missing" }),
+      expect.objectContaining({ id: "classification", status: "missing" }),
+      expect.objectContaining({ id: "reference", status: "verified" }),
+    ]),
+  });
+
+  const providers = [
+    ["detect:player", "detect:ball", "detect:referee"],
+    ["associate:multi-object", "reidentify:player"],
+    ["classify:team", "classify:shirt-number"],
+  ].map((capabilities, index) => ({
+    id: `full-scene-provider-${index + 1}`,
+    version: "1.0.0",
+    status: "ready",
+    available: true,
+    benchmarkStatus: "passed",
+    capabilities,
+  }));
+  expect(trackingCapabilityReadiness({ providers }).mode).toBe("full-scene-verified");
+
+  providers[0] = { ...providers[0], capabilities: ["detect:player", "detect:ball"] };
+  const incomplete = trackingCapabilityReadiness({ providers });
+  expect(incomplete.mode).toBe("full-scene-incomplete");
+  expect(incomplete.entries.find((entry) => entry.id === "detection")).toMatchObject({
+    status: "partial",
+    detail: "2/3 capabilities installed",
+  });
 });
 
 test("offline refresh preserves only the last evidence identity for raw-run export", async () => {

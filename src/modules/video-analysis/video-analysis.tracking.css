@@ -230,6 +230,92 @@
   background: #fff;
 }
 
+.video-analysis-tracking-readiness {
+  min-width: 0;
+  border-top: 1px solid #d9dfdb;
+  border-bottom: 1px solid #d9dfdb;
+  padding: 8px 0;
+}
+
+.video-analysis-tracking-readiness > header {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.video-analysis-tracking-readiness > header span {
+  color: #647169;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.video-analysis-tracking-readiness > header strong {
+  color: #33463c;
+  font-size: 10px;
+  text-align: right;
+}
+
+.video-analysis-tracking-readiness dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.video-analysis-tracking-readiness dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 20px;
+}
+
+.video-analysis-tracking-readiness dt,
+.video-analysis-tracking-readiness dd {
+  min-width: 0;
+  margin: 0;
+  font-size: 10px;
+}
+
+.video-analysis-tracking-readiness dt {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: #27352e;
+  font-weight: 700;
+}
+
+.video-analysis-tracking-readiness dd {
+  overflow: hidden;
+  color: #6a756f;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-tracking-readiness i {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9aa49f;
+}
+
+.video-analysis-tracking-readiness .is-installed i,
+.video-analysis-tracking-readiness .is-partial i {
+  background: #b7791f;
+}
+
+.video-analysis-tracking-readiness .is-verified i {
+  background: #258052;
+}
+
+.video-analysis-tracking-readiness .is-failed i {
+  background: #b43b35;
+}
+
 .video-analysis-tracking-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

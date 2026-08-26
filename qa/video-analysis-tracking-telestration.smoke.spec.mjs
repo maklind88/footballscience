@@ -34,6 +34,8 @@ async function openTrackingWorkspace(page) {
   await page.locator('[data-video-analysis-tracking-mode="tracking"]').click();
   await expect(page.locator(".video-analysis-tracking-side")).toBeVisible();
   await expect(page.locator(".video-analysis-tracking-provider")).toContainText("SAM 2.1");
+  await expect(page.locator(".video-analysis-tracking-readiness")).toContainText("Selected object only");
+  await expect(page.locator('[data-video-analysis-tracking-capability="detection"]')).toContainText("Not installed");
   await expect(page.locator(".video-analysis-ground-truth")).toBeVisible();
   await expect(page.locator('[data-video-analysis-tracking-field="groundTruthScenario"]')).toHaveCount(7);
   await expect(page.locator('[data-video-analysis-tracking-field="groundTruthSceneComplete"]')).toHaveCount(0);

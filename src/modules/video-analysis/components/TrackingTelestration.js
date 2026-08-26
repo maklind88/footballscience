@@ -12,6 +12,7 @@ import { trackingReviewSummary } from "../services/trackingReviewService.js";
 import { escapeHtml } from "./renderHelpers.js";
 import { renderTrackingGroundTruthPanel } from "./TrackingGroundTruthPanel.js";
 import { renderTrackingBenchmarkSuitePanel } from "./TrackingBenchmarkSuitePanel.js";
+import { renderTrackingCapabilityReadiness } from "./TrackingCapabilityReadiness.js";
 import { renderTrackingReviewPanel } from "./TrackingReviewPanel.js";
 import {
   renderAnalysisPanelTabs,
@@ -329,6 +330,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
         <h3>${escapeHtml(primaryTrack ? trackedObjectLabel(primaryTrack) : "Select an object")}</h3>
       </div>
       ${renderTrackingProvider(provider)}
+      ${renderTrackingCapabilityReadiness(tracking)}
       ${renderTrackingWorkspaceStatus(tracking.workspace)}
       <label>Object
         <select data-video-analysis-tracking-field="entityType">

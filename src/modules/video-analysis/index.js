@@ -10,7 +10,6 @@ import {
   renderPresentationWorkspace,
   renderTeamPerformanceWorkspace,
 } from "./components/AnalysisRoomShell.js";
-import { miniGamePrinciplePickerGroups, miniGamePrinciplePickerIds } from "./constants/miniGamePrinciples.js";
 import { escapeHtml } from "./components/renderHelpers.js";
 import { createDrawingController } from "./controllers/drawingController.js";
 import { createPresentationController } from "./controllers/presentationController.js";
@@ -84,6 +83,20 @@ import {
 } from "./services/codingInteractionService.js";
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
 import {
+  buildMiniGamePrincipleCapture,
+  clipHasTag,
+  clipMatchesOwner,
+  closeMiniGamePrinciplePickerState,
+  closeUnitEditorState,
+  closeUnitPickerState,
+  defaultMomentTagDurationMs,
+  firstMiniGamePrincipleSearchMatchId,
+  isPickerMiniGamePrincipleId,
+  nextUnitEditorLabel,
+  patchMiniGamePrincipleDraftState,
+  pickerVisibleMiniGamePrincipleIds,
+} from "./services/tagPanelStateService.js";
+import {
   CODE_MODE_LAYOUT_VERSION,
   CODE_PIP_BOUND_MARGIN,
   CODE_PIP_MARGIN,
@@ -146,10 +159,6 @@ let presentationController = null;
 let presenterController = null;
 let thumbnailController = null;
 let clipIntelligenceController = null;
-const pickerMiniGamePrincipleIdSet = new Set(miniGamePrinciplePickerIds);
-const pickerMiniGamePrinciples = miniGamePrinciplePickerGroups.flatMap((group) => (
-  group.principles.map((principle) => ({ ...principle, groupLabel: group.label }))
-));
 const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
 const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2, 3];
@@ -2256,26 +2265,6 @@ function activeMiniGamePrincipleIds(state = {}) {
   ]);
 }
 
-function pickerVisibleMiniGamePrincipleIds(ids = []) {
-  return uniqueMiniGamePrincipleIds(ids).filter((id) => pickerMiniGamePrincipleIdSet.has(id));
-}
-
-function normalizedPickerSearch(value = "") {
-  return String(value || "").trim().toLowerCase();
-}
-
-function pickerPrincipleMatchesSearch(principle = {}, query = "") {
-  if (!query) return true;
-  return [principle.label, principle.id, principle.groupLabel]
-    .some((value) => String(value || "").toLowerCase().includes(query));
-}
-
-function firstMiniGamePrincipleSearchMatchId(search = "") {
-  const query = normalizedPickerSearch(search);
-  if (!query) return "";
-  return pickerMiniGamePrinciples.find((principle) => pickerPrincipleMatchesSearch(principle, query))?.id || "";
-}
-
 function toggleMiniGamePrincipleDraftId(state = {}, id = "") {
   const ids = toggledMiniGamePrincipleIds(state, id);
   if (!ids) return state;
@@ -2284,120 +2273,12 @@ function toggleMiniGamePrincipleDraftId(state = {}, id = "") {
 
 function toggledMiniGamePrincipleIds(state = {}, id = "") {
   const principleId = String(id || "").trim();
-  if (!principleId || !pickerMiniGamePrincipleIdSet.has(principleId)) return null;
+  if (!isPickerMiniGamePrincipleId(principleId)) return null;
   const currentIds = pickerVisibleMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || activeMiniGamePrincipleIds(state));
   const selected = new Set(currentIds);
   if (selected.has(principleId)) selected.delete(principleId);
   else selected.add(principleId);
   return pickerVisibleMiniGamePrincipleIds([...selected]);
-}
-
-function patchMiniGamePrincipleDraftState(state = {}, ids = []) {
-  return {
-    ...state,
-    draft: {
-      ...(state.draft || {}),
-      miniGamePrincipleId: ids[0] || "",
-      miniGamePrincipleIds: ids,
-    },
-    codingSession: {
-      ...(state.codingSession || {}),
-      miniGamePrincipleDraftIds: ids,
-      miniGamePrinciplePickerOpen: true,
-    },
-  };
-}
-
-function buildMiniGamePrincipleCapture(state = {}, startMs = 0, targetClip = null) {
-  const durationMs = defaultMomentTagDurationMs(state);
-  const draft = state.draft || {};
-  const clip = targetClip || {};
-  const players = Array.isArray(clip.players) ? clip.players : [];
-  const player = players[0] || null;
-  return {
-    startMs: Math.max(0, Math.round(Number(startMs || 0))),
-    durationMs,
-    targetClipId: clip.id || "",
-    period: clip.period || draft.period || "1",
-    phase: clip.phase || clip.phase_id || draft.phase || "",
-    subPhase: clip.subPhase || clip.sub_phase || draft.subPhase || "",
-    teamPrincipleId: clip.teamPrincipleId || clip.team_principle_id || draft.teamPrincipleId || "",
-    outcome: clip.outcome || draft.outcome || "",
-    playerId: player?.playerId || player?.player_id || draft.playerId || "",
-    playerRole: player?.role || draft.playerRole || "primary",
-    unit: draft.unit || "",
-    pitchZone: draft.pitchZone || "",
-    pressure: draft.pressure || "",
-    decision: draft.decision || "",
-    execution: draft.execution || "",
-    visibility: clip.visibility || draft.visibility || draft.clipVisibility || "private",
-  };
-}
-
-function closeMiniGamePrinciplePickerState(state = {}) {
-  return {
-    ...state,
-    codingSession: {
-      ...(state.codingSession || {}),
-      miniGamePrinciplePickerOpen: false,
-      miniGamePrincipleSearch: "",
-      miniGamePrincipleCapture: null,
-    },
-  };
-}
-
-function defaultMomentTagDurationMs(state = {}) {
-  return Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
-}
-
-function closeUnitPickerState(state = {}) {
-  return {
-    ...state,
-    codingSession: {
-      ...(state.codingSession || {}),
-      unitPickerOpen: false,
-      unitEditorOpen: false,
-      unitEditorDraft: [],
-      unitCapture: null,
-    },
-  };
-}
-
-function closeUnitEditorState(state = {}) {
-  return {
-    ...state,
-    codingSession: {
-      ...(state.codingSession || {}),
-      unitEditorOpen: false,
-      unitEditorDraft: [],
-    },
-  };
-}
-
-function nextUnitEditorLabel(options = []) {
-  const labels = new Set((Array.isArray(options) ? options : [])
-    .map((option) => String(option || "").trim().toLowerCase())
-    .filter(Boolean));
-  if (!labels.has("new unit")) return "New unit";
-  let index = 2;
-  while (labels.has(`new unit ${index}`)) index += 1;
-  return `New unit ${index}`;
-}
-
-function clipHasTag(clip = {}, tag = "") {
-  const target = String(tag || "").trim().toLowerCase();
-  if (!target) return true;
-  return (Array.isArray(clip.tags) ? clip.tags : []).some((value) => String(value || "").trim().toLowerCase() === target);
-}
-
-function clipOwnerId(clip = {}) {
-  return String(clip.ownerId || clip.owner_id || clip.createdBy || clip.created_by || "").trim();
-}
-
-function clipMatchesOwner(clip = {}, ownerId = "") {
-  const target = String(ownerId || "").trim();
-  if (!target) return true;
-  return clipOwnerId(clip) === target;
 }
 
 async function commitClipTrim(payload = {}, context = {}) {
@@ -3838,7 +3719,7 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
   const id = String(principleId || "").trim();
   const capture = state.codingSession?.miniGamePrincipleCapture || null;
   if (!capture) return false;
-  if (!id || !pickerMiniGamePrincipleIdSet.has(id)) return false;
+  if (!isPickerMiniGamePrincipleId(id)) return false;
   if (!state.match?.id || !state.video?.id) {
     run.store.setState({
       status: "error",

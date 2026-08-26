@@ -71,6 +71,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/services/reviewSessionService.js",
     "src/modules/video-analysis/services/keyboardShortcutService.js",
     "src/modules/video-analysis/services/codePipLayoutService.js",
+    "src/modules/video-analysis/services/tagPanelStateService.js",
     "src/modules/video-analysis/services/localMediaCaptureService.js",
     "src/modules/video-analysis/services/mediaProductionService.js",
     "src/modules/video-analysis/services/localMediaProxyService.js",
@@ -164,6 +165,45 @@ test("FS Player workstation renderer owns code-mode layout markup", async () => 
   const indexSource = read("src/modules/video-analysis/index.js");
   expect(indexSource).toContain('from "./components/FsPlayerWorkspace.js"');
   expect(indexSource).not.toContain("function renderFsPlayerWorkspace");
+});
+
+test("tag panel state service owns deterministic picker and capture state", async () => {
+  const servicePath = "src/modules/video-analysis/services/tagPanelStateService.js";
+  const source = read(servicePath);
+  const service = await import(pathToFileURL(path.join(rootDir, servicePath)).href);
+  const capture = service.buildMiniGamePrincipleCapture({
+    template: { defaultClipDurationMs: 15000 },
+    draft: { visibility: "team", unit: "Back line" },
+  }, 12999.6, {
+    id: "clip-1",
+    phase: "In Possession",
+    subPhase: "Build Up",
+    players: [{ player_id: "player-8", role: "primary" }],
+  });
+
+  expect(service.isPickerMiniGamePrincipleId("drive-past-press")).toBe(true);
+  expect(service.isPickerMiniGamePrincipleId("third-player")).toBe(false);
+  expect(service.pickerVisibleMiniGamePrincipleIds(["drive-past-press", "third-player", "drive-past-press"]))
+    .toEqual(["drive-past-press"]);
+  expect(service.firstMiniGamePrincipleSearchMatchId("Build with GK")).toBeTruthy();
+  expect(capture).toMatchObject({
+    startMs: 13000,
+    durationMs: 15000,
+    targetClipId: "clip-1",
+    phase: "In Possession",
+    subPhase: "Build Up",
+    playerId: "player-8",
+    unit: "Back line",
+    visibility: "team",
+  });
+  expect(service.nextUnitEditorLabel(["New unit", "New unit 2"])).toBe("New unit 3");
+  expect(service.clipHasTag({ tags: ["High Press"] }, "high press")).toBe(true);
+  expect(service.clipMatchesOwner({ owner_id: "analyst-1" }, "analyst-1")).toBe(true);
+  expect(source).not.toMatch(/fetch\(|supabase|\/api\/video-analysis/i);
+
+  const indexSource = read("src/modules/video-analysis/index.js");
+  expect(indexSource).toContain('from "./services/tagPanelStateService.js"');
+  expect(indexSource).not.toContain("function buildMiniGamePrincipleCapture");
 });
 
 test("video player stays playback-only and components avoid direct data access", () => {

@@ -118,6 +118,19 @@ function automaticProviderTracks(artifact, providerId = "sam2.1-hiera-tiny") {
   }));
 }
 
+function providerPerformance(processingMs, overrides = {}) {
+  return {
+    processingMs,
+    device: "mps",
+    runtimeMode: "football-science-tracking-worker-v1",
+    cpuThreads: 0,
+    sampleFps: 12.5,
+    modelResident: true,
+    workerReused: false,
+    ...overrides,
+  };
+}
+
 async function readySuite() {
   const service = await import(moduleUrl(
     "src/modules/video-analysis/services/trackingGroundTruthSuiteService.js",
@@ -200,7 +213,7 @@ async function readyWorkflowState(stage = "segmentation") {
       frame: artifact.frame,
       range: artifact.range,
       tracks: automaticProviderTracks(artifact, provider.id),
-      performance: { processingMs: 18_000, device: "mps" },
+      performance: providerPerformance(18_000, { workerReused: index > 0 }),
     }, { now: () => 1_800_000_020_000 + index });
     byItemId[`item-${index}`] = [run];
   }
@@ -319,12 +332,12 @@ test("provider run snapshots raw automatic output before analyst correction", as
     frame: artifact.frame,
     range: artifact.range,
     tracks: rawTracks,
-    performance: { processingMs: 18_000, device: "mps" },
+    performance: providerPerformance(18_000),
   }, { now: () => 1_800_000_000_000 });
   expect(run).toMatchObject({
     protocol: "football-science-tracking-provider-run-v1",
     benchmarkType: "selected-object",
-    performance: { processingMs: 18_000, device: "mps" },
+    performance: providerPerformance(18_000),
   });
   expect(Object.isFrozen(run.prediction.tracks[0].segments[0].points)).toBe(true);
   expect(runs.trackingProviderRunArtifactJson(run)).not.toMatch(/metadata|localSource|private|https?:|blob:/);
@@ -338,7 +351,35 @@ test("provider run snapshots raw automatic output before analyst correction", as
     rangeCount: 1,
     predictionTrackCount: 3,
     processingMs: 18_000,
+    workerReusedRunCount: 0,
   });
+  expect(runSuite.executionProfile).toEqual({
+    device: "mps",
+    runtimeMode: "football-science-tracking-worker-v1",
+    cpuThreads: 0,
+    sampleFps: 12.5,
+    modelResident: true,
+  });
+
+  const legacyRun = structuredClone(run);
+  for (const field of [
+    "runtimeMode", "cpuThreads", "sampleFps", "modelResident", "workerReused",
+    "executionProfileComplete",
+  ]) delete legacyRun.performance[field];
+  expect(runs.validateTrackingProviderRunArtifact(legacyRun).performance.executionProfileComplete).toBe(false);
+  expect(() => runs.createTrackingProviderRunSuiteArtifact({
+    id: "legacy-incomplete-runs",
+    runs: [legacyRun],
+  })).toThrow(/incomplete execution profile/i);
+
+  const mixedProfileRun = structuredClone(run);
+  mixedProfileRun.id = "sam2-cpu-run";
+  mixedProfileRun.performance.device = "cpu";
+  mixedProfileRun.performance.cpuThreads = 8;
+  expect(() => runs.createTrackingProviderRunSuiteArtifact({
+    id: "mixed-execution-profile-runs",
+    runs: [run, mixedProfileRun],
+  })).toThrow(/one exact execution profile/i);
   const secondProvider = { ...provider, executionFingerprintSha256: "e".repeat(64) };
   const secondRun = runs.createTrackingProviderRunArtifact({
     id: "sam2-other-build-run",
@@ -348,7 +389,7 @@ test("provider run snapshots raw automatic output before analyst correction", as
     frame: artifact.frame,
     range: artifact.range,
     tracks: rawTracks,
-    performance: { processingMs: 19_000, device: "mps" },
+    performance: providerPerformance(19_000),
   });
   const workspace = runs.addTrackingProviderRun(
     runs.addTrackingProviderRun({}, "item-1", run),
@@ -429,7 +470,7 @@ test("local benchmark workspace is versioned, bounded and tenant scoped", async 
     frame: artifact.frame,
     range: artifact.range,
     tracks: automaticProviderTracks(artifact),
-    performance: { processingMs: 18_000, device: "mps" },
+    performance: providerPerformance(18_000),
   });
   const scope = workspaceService.createTrackingBenchmarkWorkspaceScope({
     organizationId: "org-1",
@@ -686,7 +727,7 @@ test("assembler binds raw provider runs to one selected target per unique real-m
           ? { ...track, id: "provider-continuation-id" }
           : track
       )),
-      performance: { processingMs: 60_000, device: "mps" },
+      performance: providerPerformance(60_000, { workerReused: index > 0 }),
     }, { now: () => 1_800_000_020_000 + index })
   ));
   const runSuite = runService.createTrackingProviderRunSuiteArtifact({

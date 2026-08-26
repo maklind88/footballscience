@@ -501,6 +501,12 @@ test("tracking controller submits queued targets in one batch and keeps separate
           angleId: "angle-1",
           providerProcessingMs: 750,
           device: "mps",
+          providerRuntimeMode: "football-science-tracking-worker-v1",
+          providerRuntimeDevice: "mps",
+          providerCpuThreads: 0,
+          providerSampleFps: 12.5,
+          providerModelResident: true,
+          providerWorkerReused: false,
         },
         segments: [{ startMs: 0, endMs: 1000, points: [
           { atMs: 0, x: 0.25 + index * 0.4, y: 0.4, width: 0.1, height: 0.3, confidence: 0.9, identityConfidence: 0.9 },
@@ -535,6 +541,16 @@ test("tracking controller submits queued targets in one batch and keeps separate
       benchmarkType: "selected-object",
       sourceFingerprint: "a".repeat(64),
       prediction: { tracks: expect.arrayContaining([expect.objectContaining({ id: "track-1" })]) },
+      performance: {
+        processingMs: 750,
+        device: "mps",
+        runtimeMode: "football-science-tracking-worker-v1",
+        cpuThreads: 0,
+        sampleFps: 12.5,
+        modelResident: true,
+        workerReused: false,
+        executionProfileComplete: true,
+      },
     }),
   ]);
   expect(state.presentation.tracking).toMatchObject({
@@ -873,6 +889,12 @@ test("tracking controller extends the selected player without duplicating its id
           localSourceArtifactId: "source-a",
           localSourceSha256: "a".repeat(64),
           providerProcessingMs: 500,
+          providerRuntimeMode: "football-science-tracking-worker-v1",
+          providerRuntimeDevice: "mps",
+          providerCpuThreads: 0,
+          providerSampleFps: 12.5,
+          providerModelResident: true,
+          providerWorkerReused: true,
         },
         segments: [{ startMs: 209_000, endMs: 300_000, points: [
           { atMs: 210_000, x: 0.405, y: 0.4, width: 0.08, height: 0.2, confidence: 0.91, identityConfidence: 0.9 },

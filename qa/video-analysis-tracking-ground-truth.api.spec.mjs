@@ -535,7 +535,15 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
       engineVersion: "1.1.0",
       corrections: [],
     })),
-    performance: { processingMs: 500, device: "mps" },
+    performance: {
+      processingMs: 500,
+      device: "mps",
+      runtimeMode: "football-science-tracking-worker-v1",
+      cpuThreads: 0,
+      sampleFps: 12.5,
+      modelResident: true,
+      workerReused: false,
+    },
   }, { now: () => 1_800_000_000_000 });
   let state = {
     video: { id: "video-1" },

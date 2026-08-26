@@ -34,7 +34,7 @@ Every future pipeline stage returns `football-science-tracking-stage-result-v1` 
 
 Candidate outputs can pass this structural boundary for benchmark evaluation, but normal activation uses the stricter activated boundary and fails closed unless the exact provider manifest, original report, raw-run evidence, and reproducible evidence artifact all pass readiness.
 
-Provider evidence also applies a non-overridable workstation policy of at most `1.0x` real time to every attested case. A benchmark profile may demand faster inference, but it cannot raise that ceiling. Missing processing evidence, a weakened report threshold, or one slower case prevents provider approval even when all quality metrics pass.
+Provider evidence also applies a non-overridable workstation policy of at most `1.0x` real time to every attested case. A benchmark profile may demand faster inference, but it cannot raise that ceiling. Each raw run binds the coarse execution profile that produced that time: device class, runtime mode, CPU threads, effective sample rate, model residency, and worker reuse. One approval suite must use one exact profile; mixed or incomplete profiles cannot be hidden behind an aggregate. Missing processing evidence, a weakened report threshold, or one slower case prevents provider approval even when all quality metrics pass.
 
 ## Raw Run Evidence Boundary
 

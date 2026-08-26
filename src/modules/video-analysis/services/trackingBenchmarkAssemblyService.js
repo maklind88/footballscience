@@ -140,6 +140,7 @@ export function assembleTrackingBenchmarkSuite(groundTruthValue = {}, runSuiteVa
     built.usedRunIds.forEach((runId) => usedRunIds.add(runId));
     cases.push(built.reportCase);
   }
+  const usedRuns = runSuite.runs.filter((run) => usedRunIds.has(run.id));
   const providerRunEvidence = {
     protocol: TRACKING_PROVIDER_RUN_EVIDENCE_PROTOCOL,
     provider: {
@@ -151,6 +152,11 @@ export function assembleTrackingBenchmarkSuite(groundTruthValue = {}, runSuiteVa
     providerRunSuiteId: runSuite.id,
     providerRunSuiteSha256: sha256(options.providerRunSuiteSha256, "Provider run suite checksum"),
     runIds: [...usedRunIds].sort(),
+    executionProfile: {
+      ...runSuite.executionProfile,
+      runCount: usedRuns.length,
+      workerReusedRunCount: usedRuns.filter((run) => run.performance.workerReused).length,
+    },
   };
   const suite = {
     version: TRACKING_BENCHMARK_SCHEMA_VERSION,

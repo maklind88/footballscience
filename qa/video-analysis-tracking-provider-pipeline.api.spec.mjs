@@ -243,6 +243,15 @@ function bindProviderRunEvidence(evidenceService, manifest, report) {
       providerRunSuiteId: `${manifest.providerId}-runs`,
       providerRunSuiteSha256: "2".repeat(64),
       runIds: Array.from({ length: 5 }, (_, index) => `${manifest.providerId}-run-${index + 1}`),
+      executionProfile: {
+        device: "cpu",
+        runtimeMode: "football-science-tracking-worker-v1",
+        cpuThreads: 8,
+        sampleFps: 6.25,
+        modelResident: true,
+        runCount: 5,
+        workerReusedRunCount: 4,
+      },
     },
   };
 }
@@ -708,6 +717,11 @@ test("provider evidence binds the exact report, source, model and capability set
     groundTruthSuiteSha256: "1".repeat(64),
     providerRunSuiteSha256: "2".repeat(64),
     providerRunCount: 5,
+    executionProfile: {
+      device: "cpu",
+      runtimeMode: "football-science-tracking-worker-v1",
+      workerReusedRunCount: 4,
+    },
   });
 
   const changedReport = structuredClone(approved.report);
@@ -788,6 +802,13 @@ test("provider evidence requires ten attested real-match minutes and remains met
   const unsafeReport = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
   unsafeReport.sourcePath = "/private/match.mp4";
   expect(() => evidenceService.createTrackingProviderEvidence(candidate, unsafeReport)).toThrow(/metadata-only/i);
+
+  const missingExecutionProfile = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
+  delete missingExecutionProfile.providerRunEvidence.executionProfile;
+  expect(() => evidenceService.createTrackingProviderEvidence(
+    candidate,
+    missingExecutionProfile,
+  )).toThrow(/raw-run evidence/i);
 });
 
 test("provider evidence enforces the workstation real-time policy", async () => {

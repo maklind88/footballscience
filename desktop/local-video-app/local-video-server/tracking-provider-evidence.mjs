@@ -341,6 +341,7 @@ export function createTrackingProviderEvidence(provider = {}, report = {}, optio
       providerRunSuiteSha256: rawRun.providerRunSuiteSha256,
       providerRunCount: rawRun.runIds.length,
       providerRunSetSha256: sha256(rawRun.runIds),
+      executionProfile: rawRun.executionProfile,
       capabilities,
       referenceEvaluator: reference.evaluator,
       referenceReportSha256: reference.reportSha256,

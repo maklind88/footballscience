@@ -195,10 +195,41 @@ function exactObjectKeys(value, allowed, label) {
   if (unsupported.length) benchmarkInvalid(`${label} contains unsupported field ${unsupported[0]}.`);
 }
 
+function normalizeProviderExecutionProfile(value = {}, runCount = 0) {
+  exactObjectKeys(value, [
+    "device", "runtimeMode", "cpuThreads", "sampleFps", "modelResident",
+    "runCount", "workerReusedRunCount",
+  ], "Provider execution profile");
+  const cpuThreads = Number(value.cpuThreads);
+  const sampleFps = Number(value.sampleFps);
+  const declaredRunCount = Number(value.runCount);
+  const workerReusedRunCount = Number(value.workerReusedRunCount);
+  if (typeof value.cpuThreads !== "number"
+    || !Number.isSafeInteger(cpuThreads) || cpuThreads < 0 || cpuThreads > 256
+    || typeof value.sampleFps !== "number"
+    || !Number.isFinite(sampleFps) || sampleFps <= 0 || sampleFps > 240
+    || typeof value.modelResident !== "boolean"
+    || !Number.isSafeInteger(declaredRunCount) || declaredRunCount !== runCount
+    || !Number.isSafeInteger(workerReusedRunCount)
+    || workerReusedRunCount < 0 || workerReusedRunCount > declaredRunCount
+    || (!value.modelResident && workerReusedRunCount > 0)) {
+    benchmarkInvalid("Provider execution profile is invalid.");
+  }
+  return {
+    device: benchmarkBoundedString(value.device, "provider execution device", 80),
+    runtimeMode: benchmarkBoundedString(value.runtimeMode, "provider runtime mode", 100),
+    cpuThreads,
+    sampleFps,
+    modelResident: value.modelResident,
+    runCount: declaredRunCount,
+    workerReusedRunCount,
+  };
+}
+
 export function normalizeBenchmarkProviderRunEvidence(value = {}) {
   exactObjectKeys(value, [
     "protocol", "provider", "groundTruthSuiteId", "groundTruthSuiteSha256",
-    "providerRunSuiteId", "providerRunSuiteSha256", "runIds",
+    "providerRunSuiteId", "providerRunSuiteSha256", "runIds", "executionProfile",
   ], "Provider run evidence");
   if (value.protocol !== TRACKING_PROVIDER_RUN_EVIDENCE_PROTOCOL) {
     benchmarkInvalid("Provider run evidence protocol is invalid.");
@@ -239,6 +270,7 @@ export function normalizeBenchmarkProviderRunEvidence(value = {}) {
     providerRunSuiteId: benchmarkBoundedString(value.providerRunSuiteId, "provider run suite id", 160),
     providerRunSuiteSha256: normalizeBenchmarkFingerprint(value.providerRunSuiteSha256),
     runIds: runIds.slice().sort(),
+    executionProfile: normalizeProviderExecutionProfile(value.executionProfile, runIds.length),
   };
 }
 

@@ -80,7 +80,21 @@ export function createTrackingProviderRunController(options = {}) {
         tracks,
         performance: {
           processingMs: Math.max(0, Number(firstTrack?.metadata?.providerProcessingMs) || 0),
-          device: firstTrack?.metadata?.device || "",
+          device: firstTrack?.metadata?.providerRuntimeDevice
+            || firstTrack?.metadata?.device
+            || provider.runtimeDevice
+            || "",
+          runtimeMode: firstTrack?.metadata?.providerRuntimeMode || provider.runtimeMode || "",
+          cpuThreads: Number(firstTrack?.metadata?.providerCpuThreads ?? provider.runtimeCpuThreads),
+          sampleFps: Number(
+            firstTrack?.metadata?.providerSampleFps
+            ?? firstTrack?.metadata?.sampleFps
+            ?? provider.runtimeSampleFps,
+          ),
+          modelResident: typeof firstTrack?.metadata?.providerModelResident === "boolean"
+            ? firstTrack.metadata.providerModelResident
+            : provider.modelResident === true,
+          workerReused: firstTrack?.metadata?.providerWorkerReused === true,
         },
       }, { now });
       updateState((state) => patchTrackingState(state, {

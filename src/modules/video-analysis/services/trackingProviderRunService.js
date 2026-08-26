@@ -60,6 +60,64 @@ function positiveDuration(value, label) {
   return Math.round(number);
 }
 
+function optionalBoundedString(value, label, maximum = 160) {
+  const text = String(value || "").trim();
+  if (text.length > maximum || /[\r\n]/.test(text)) invalid(`Invalid ${label}.`);
+  return text;
+}
+
+function executionPerformance(value = {}, options = {}) {
+  const processingMs = positiveDuration(value.processingMs, "provider processing time");
+  const device = optionalBoundedString(value.device, "tracking execution device", 80);
+  const runtimeMode = optionalBoundedString(value.runtimeMode, "tracking runtime mode", 100);
+  const cpuThreads = Number(value.cpuThreads);
+  const sampleFps = Number(value.sampleFps);
+  const hasCpuThreads = typeof value.cpuThreads === "number"
+    && Number.isSafeInteger(cpuThreads)
+    && cpuThreads >= 0
+    && cpuThreads <= 256;
+  const hasSampleFps = typeof value.sampleFps === "number"
+    && Number.isFinite(sampleFps)
+    && sampleFps > 0
+    && sampleFps <= 240;
+  const hasModelResident = typeof value.modelResident === "boolean";
+  const hasWorkerReused = typeof value.workerReused === "boolean";
+  const executionProfileComplete = Boolean(
+    device
+    && runtimeMode
+    && hasCpuThreads
+    && hasSampleFps
+    && hasModelResident
+    && hasWorkerReused,
+  );
+  if (options.requireExecutionProfile && !executionProfileComplete) {
+    invalid(
+      "Provider runs need a complete device and runtime execution profile.",
+      "TRACKING_PROVIDER_RUN_PROFILE_MISSING",
+    );
+  }
+  return {
+    processingMs,
+    device,
+    runtimeMode,
+    cpuThreads: hasCpuThreads ? cpuThreads : 0,
+    sampleFps: hasSampleFps ? sampleFps : 0,
+    modelResident: hasModelResident ? value.modelResident : false,
+    workerReused: hasWorkerReused ? value.workerReused : false,
+    executionProfileComplete,
+  };
+}
+
+function executionProfile(value = {}) {
+  return {
+    device: value.device,
+    runtimeMode: value.runtimeMode,
+    cpuThreads: value.cpuThreads,
+    sampleFps: value.sampleFps,
+    modelResident: value.modelResident,
+  };
+}
+
 function providerIdentity(value = {}) {
   exactKeys(value, [
     "providerId", "providerVersion", "protocol", "stage", "capabilities", "executionFingerprintSha256",
@@ -179,7 +237,7 @@ function normalizedRun(value = {}, options = {}) {
     "provider prediction tracks",
     true,
   ).map((track) => safeTrack(track, provider, source, range));
-  const processingMs = positiveDuration(value.performance?.processingMs, "provider processing time");
+  const performance = executionPerformance(value.performance, options);
   const createdAt = new Date(options.now?.() ?? value.createdAt ?? Date.now()).toISOString();
   const runId = benchmarkBoundedString(
     options.id || value.id || `run-${provider.providerId}-${sourceFingerprint.slice(0, 12)}-${range.startMs}`,
@@ -201,18 +259,17 @@ function normalizedRun(value = {}, options = {}) {
     frame,
     range: { startMs: range.startMs, endMs: range.endMs },
     prediction: { tracks },
-    performance: {
-      processingMs,
-      ...(value.performance?.device ? {
-        device: benchmarkBoundedString(value.performance.device, "tracking device", 80),
-      } : {}),
-    },
+    performance,
     createdAt,
   };
 }
 
 export function createTrackingProviderRunArtifact(value = {}, options = {}) {
-  const artifact = normalizedRun(value, { ...options, requireProviderIdentity: true });
+  const artifact = normalizedRun(value, {
+    ...options,
+    requireProviderIdentity: true,
+    requireExecutionProfile: true,
+  });
   assertBenchmarkEnvelope(artifact, {
     label: "Tracking provider run",
     maxBytes: MAX_TRACKING_BENCHMARK_CASE_BYTES,
@@ -235,7 +292,10 @@ export function validateTrackingProviderRunArtifact(value = {}) {
   }
   exactKeys(value.sourceEvidence, ["algorithm", "kind", "angleId"], "Tracking provider source evidence");
   exactKeys(value.prediction, ["tracks"], "Tracking provider prediction");
-  exactKeys(value.performance, ["processingMs", "device"], "Tracking provider performance");
+  exactKeys(value.performance, [
+    "processingMs", "device", "runtimeMode", "cpuThreads", "sampleFps",
+    "modelResident", "workerReused", "executionProfileComplete",
+  ], "Tracking provider performance");
   const normalized = normalizedRun({
     ...value,
     angleId: value.sourceEvidence.angleId,
@@ -269,6 +329,7 @@ function runSuiteSummary(runs = []) {
     ].join(":"))).size,
     predictionTrackCount: runs.reduce((total, run) => total + run.prediction.tracks.length, 0),
     processingMs: runs.reduce((total, run) => total + run.performance.processingMs, 0),
+    workerReusedRunCount: runs.filter((run) => run.performance.workerReused).length,
   };
 }
 
@@ -286,6 +347,19 @@ function normalizedRunSuite(value = {}, options = {}) {
     if (ids.has(run.id)) invalid("Provider run ids must be unique.");
     ids.add(run.id);
     if (!sameProvider(run.provider, runs[0].provider)) invalid("One provider run suite must use one exact provider build.");
+    if (options.requireExecutionProfile && run.performance.executionProfileComplete !== true) {
+      invalid(
+        "Provider run suite contains an incomplete execution profile.",
+        "TRACKING_PROVIDER_RUN_PROFILE_MISSING",
+      );
+    }
+  }
+  const profiles = [...new Set(runs.map((run) => JSON.stringify(executionProfile(run.performance))))];
+  if (profiles.length !== 1) {
+    invalid(
+      "One provider run suite must use one exact execution profile.",
+      "TRACKING_PROVIDER_RUN_PROFILE_MIXED",
+    );
   }
   const createdAt = new Date(options.now?.() ?? value.createdAt ?? Date.now()).toISOString();
   return {
@@ -293,6 +367,7 @@ function normalizedRunSuite(value = {}, options = {}) {
     protocol: TRACKING_PROVIDER_RUN_SUITE_PROTOCOL,
     id: benchmarkBoundedString(options.id || value.id || "fs-player-provider-runs", "provider run suite id", 160),
     provider: { ...runs[0].provider, capabilities: [...runs[0].provider.capabilities] },
+    executionProfile: executionProfile(runs[0].performance),
     createdAt,
     summary: runSuiteSummary(runs),
     runs,
@@ -300,7 +375,7 @@ function normalizedRunSuite(value = {}, options = {}) {
 }
 
 export function createTrackingProviderRunSuiteArtifact(value = {}, options = {}) {
-  const artifact = normalizedRunSuite(value, options);
+  const artifact = normalizedRunSuite(value, { ...options, requireExecutionProfile: true });
   assertBenchmarkEnvelope(artifact, {
     label: "Tracking provider run suite",
     maxBytes: MAX_TRACKING_BENCHMARK_SUITE_BYTES,
@@ -309,17 +384,28 @@ export function createTrackingProviderRunSuiteArtifact(value = {}, options = {})
 }
 
 export function validateTrackingProviderRunSuiteArtifact(value = {}) {
-  exactKeys(value, ["version", "protocol", "id", "provider", "createdAt", "summary", "runs"], "Provider run suite");
+  exactKeys(value, [
+    "version", "protocol", "id", "provider", "executionProfile", "createdAt", "summary", "runs",
+  ], "Provider run suite");
+  exactKeys(value.executionProfile, [
+    "device", "runtimeMode", "cpuThreads", "sampleFps", "modelResident",
+  ], "Provider run suite execution profile");
   exactKeys(value.summary, [
     "runCount", "sourceCount", "rangeCount", "predictionTrackCount", "processingMs",
+    "workerReusedRunCount",
   ], "Provider run suite summary");
   if (Number(value.version) !== TRACKING_BENCHMARK_SCHEMA_VERSION
     || value.protocol !== TRACKING_PROVIDER_RUN_SUITE_PROTOCOL
     || !Number.isFinite(Date.parse(value.createdAt))) {
     invalid("Provider run suite protocol is invalid.");
   }
-  const normalized = normalizedRunSuite(value, { id: value.id, now: () => value.createdAt });
+  const normalized = normalizedRunSuite(value, {
+    id: value.id,
+    now: () => value.createdAt,
+    requireExecutionProfile: true,
+  });
   if (!sameProvider(value.provider, normalized.provider)
+    || JSON.stringify(executionProfile(value.executionProfile)) !== JSON.stringify(normalized.executionProfile)
     || Object.keys(normalized.summary).some((key) => Number(value.summary[key]) !== normalized.summary[key])) {
     invalid("Provider run suite summary does not match its runs.", "TRACKING_PROVIDER_RUN_SUITE_MISMATCH");
   }

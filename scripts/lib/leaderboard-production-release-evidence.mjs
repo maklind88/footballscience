@@ -141,8 +141,9 @@ export async function assertCredentialHealth(input, fetcher = fetchJson) {
   const config = await fetcher(new URL("/api/client-config", base).href, { label: `${target} client config`, redirect: "error" });
   assertSupabaseUrl(config.url, expectedRef, deniedRef);
   const identity = await fetcher(new URL("/api/platform-identity", base).href, { token: accessToken, label: `${target} authenticated identity`, redirect: "error" });
-  invariant(identity.ok === true && hasCoveredActiveTeam(identity), `${target} credentials lacked a covered active team identity.`);
+  invariant(identity.ok === true, `${target} credentials did not produce a platform identity.`);
   if (target === "live") invariant(identity.scope?.manageable?.canManagePlatform === true, "Live credential proof did not establish server-owned platform admin authority.");
+  else invariant(hasCoveredActiveTeam(identity), `${target} credentials lacked a covered active team identity.`);
   return { target, host: base.hostname, auth: "ok", tenant: expectedRef, platformAdmin: target === "live" };
 }
 async function assertFreezeRules(token) {

@@ -206,6 +206,10 @@ test("live, staging, and generated-preview credentials are exact-origin read-onl
     const input = { target, baseUrl: `https://${host}`, username: "u", password: "p", ...(target === "preview" ? { expectedHost: host, expectedRef, deniedRef: baseline.supabase.productionRef } : {}) };
     expect((await assertCredentialHealth(input, fetcher)).tenant).toBe(expectedRef); expect(calls.map(({ method }) => method)).toEqual(["GET", "POST", "GET", "GET"]); expect(calls.every(({ redirect }) => redirect === "error")).toBe(true);
   }
+  const teamlessAdmin = { ok: true, scope: { teams: [], memberships: [], manageable: { canManagePlatform: true } } };
+  const teamlessFetcher = async (url, options = {}) => { if (url.endsWith("auth-health")) return { ok: true, service: "supabase-auth" }; if (url.endsWith("client-config") && options.method === "POST") return { ok: true, session: { access_token: "a", refresh_token: "r" } }; if (url.endsWith("client-config")) return { url: `https://${baseline.supabase.productionRef}.supabase.co` }; return teamlessAdmin; };
+  expect((await assertCredentialHealth({ target: "live", baseUrl: `https://${baseline.hosts.production}`, username: "u", password: "p" }, teamlessFetcher)).platformAdmin).toBe(true);
+  await expect(assertCredentialHealth({ target: "live", baseUrl: `https://${baseline.hosts.production}`, username: "u", password: "p" }, async (url, options) => url.endsWith("platform-identity") ? { ...teamlessAdmin, scope: { ...teamlessAdmin.scope, manageable: { canManagePlatform: false } } } : teamlessFetcher(url, options))).rejects.toThrow(/platform admin/);
   await expect(assertCredentialHealth({ target: "live", baseUrl: "https://footballscience.xyz.attacker.example", username: "u", password: "p" }, async () => ({}))).rejects.toThrow(/exact expected origin/);
 });
 

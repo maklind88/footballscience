@@ -13,6 +13,7 @@ function read(relativePath) {
 test("video analysis module keeps the required isolated file structure", () => {
   for (const relativePath of [
     "src/modules/video-analysis/index.js",
+    "src/modules/video-analysis/video-analysis.shell.css",
     "src/modules/video-analysis/video-analysis.presentation.css",
     "src/modules/video-analysis/video-analysis.routes.js",
     "src/modules/video-analysis/video-analysis.library-controller.js",
@@ -105,6 +106,8 @@ test("video analysis module keeps the required isolated file structure", () => {
 test("analysis room shell owns pure navigation and alternate workspace rendering", async () => {
   const shellPath = "src/modules/video-analysis/components/AnalysisRoomShell.js";
   const shellSource = read(shellPath);
+  const shellCss = read("src/modules/video-analysis/video-analysis.shell.css");
+  const moduleCss = read("src/modules/video-analysis/video-analysis.css");
   const shell = await import(pathToFileURL(path.join(rootDir, shellPath)).href);
   const header = shell.renderAnalysisRoomHeader({
     teamName: "Team <script>alert(1)</script>",
@@ -119,6 +122,10 @@ test("analysis room shell owns pure navigation and alternate workspace rendering
   expect(shell.activeAnalysisRoomTab({ view: "workspace", activeAnalysisRoomTab: "presentation" })).toBe("presentation");
   expect(shell.renderTeamPerformanceWorkspace()).toContain('sandbox="allow-scripts allow-modals allow-same-origin"');
   expect(shellSource).not.toMatch(/fetch\(|supabase|\/api\/video-analysis/i);
+  expect(shellCss).toContain(".analysis-room-header {");
+  expect(shellCss).toContain(".analysis-room-team-performance-frame {");
+  expect(moduleCss).toContain('@import url("./video-analysis.shell.css");');
+  expect(moduleCss).not.toMatch(/^\.analysis-room-header \{/m);
 
   const indexSource = read("src/modules/video-analysis/index.js");
   expect(indexSource).toContain('from "./components/AnalysisRoomShell.js"');

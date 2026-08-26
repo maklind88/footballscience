@@ -115,6 +115,7 @@ Each phase must ship behind capability checks, preserve old records, pass module
 | Timeline workspace | Implemented in candidate branch | Multiple persisted timelines, true millisecond scale, overview/focus zoom, overlap stacking, row colors/order/locks, clip move/copy/merge/delete, and undo |
 | Presentation and export | Implemented in candidate branch | Presentation builder, freehand/arrow/circle/spotlight/text/freeze/zoom layers, track-bound graphics, deterministic overlay compilation, and burned-in H.264/AAC MP4 export |
 | Tracking and dynamic telestration | Implemented in candidate branch | Prompt/keyframe UX, provider readiness, automatic cancellable full-range continuation, identity-safe seam merge, cumulative elapsed/ETA, confidence and occlusion gates, manual correction, track-bound graphics, secure local source reuse, and pinned SAM 2.1 installer/runtime |
+| Tracking quality and provider governance | Implemented in candidate branch | Provider-neutral local benchmark, explicit pass/fail thresholds, privacy-safe reports, and fail-closed stage contracts for detection, segmentation, association, re-ID, and classification |
 | Spatial analysis | Implemented in candidate branch | Manual pitch-plane calibration, server-recomputed confidence/RMS, perspective overlay, true-metre pair and unit metrics, movement curves, and track-bound distance/unit/path layers |
 | Media production | Implemented in candidate branch | Multi-angle workspace, offset/drift sync, compare playback, progressive device-local capture, content-addressed proxies, byte-range playback, bounded replay buffers, source swaps, rendering, progress/cancel/download, and output checksums |
 | Search and intelligence | Implemented in candidate branch | Visible natural-language query compilation, advanced two-dimensional matrix, metric drilldown, cohort comparison, stable evidence snapshots, and generated analysis reports |
@@ -141,6 +142,7 @@ Automatic tracking is intentionally a device capability, not a web-deployment si
 npm run fs-player:tracking:plan
 npm run fs-player:tracking:install -- --accept-license --python /path/to/python3.12
 npm run fs-player:tracking:preflight
+npm run fs-player:tracking:benchmark -- --input /absolute/local/benchmark.json
 ```
 
 Until that preflight succeeds, FS Player shows the provider as unavailable, keeps `Track locally` disabled, and preserves manual keyframe/correction workflows. This is an operational provisioning prerequisite, not permission to upload match video or model samples.

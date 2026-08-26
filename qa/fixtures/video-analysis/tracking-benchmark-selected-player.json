@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "id": "selected-player-clean-motion",
+  "sourceFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "profileId": "selected-player-pilot-v1",
+  "frame": { "width": 1920, "height": 1080 },
+  "range": { "startMs": 0, "endMs": 2000 },
+  "groundTruth": {
+    "track": {
+      "id": "truth-player-8",
+      "entityType": "player",
+      "playerId": "player-8",
+      "teamId": "home",
+      "teamSide": "home",
+      "shirtNumber": "8",
+      "startMs": 0,
+      "endMs": 2000,
+      "segments": [{
+        "id": "truth-segment-1",
+        "startMs": 0,
+        "endMs": 2000,
+        "points": [
+          { "atMs": 0, "frameIndex": 0, "x": 0.25, "y": 0.4, "width": 0.1, "height": 0.2, "groundX": 0.25, "groundY": 0.5 },
+          { "atMs": 1000, "frameIndex": 25, "x": 0.35, "y": 0.4, "width": 0.1, "height": 0.2, "groundX": 0.35, "groundY": 0.5 },
+          { "atMs": 2000, "frameIndex": 50, "x": 0.45, "y": 0.4, "width": 0.1, "height": 0.2, "groundX": 0.45, "groundY": 0.5 }
+        ]
+      }]
+    }
+  },
+  "prediction": {
+    "track": {
+      "id": "prediction-player-8",
+      "entityType": "player",
+      "playerId": "player-8",
+      "teamId": "home",
+      "teamSide": "home",
+      "shirtNumber": "8",
+      "startMs": 0,
+      "endMs": 2000,
+      "segments": [{
+        "id": "prediction-segment-1",
+        "startMs": 0,
+        "endMs": 2000,
+        "points": [
+          { "atMs": 0, "frameIndex": 0, "x": 0.252, "y": 0.401, "width": 0.1, "height": 0.2, "groundX": 0.252, "groundY": 0.501, "confidence": 0.95, "identityConfidence": 0.94 },
+          { "atMs": 1000, "frameIndex": 25, "x": 0.352, "y": 0.401, "width": 0.1, "height": 0.2, "groundX": 0.352, "groundY": 0.501, "confidence": 0.95, "identityConfidence": 0.94 },
+          { "atMs": 2000, "frameIndex": 50, "x": 0.452, "y": 0.401, "width": 0.1, "height": 0.2, "groundX": 0.452, "groundY": 0.501, "confidence": 0.95, "identityConfidence": 0.94 }
+        ]
+      }]
+    }
+  },
+  "performance": { "processingMs": 500, "device": "fixture" }
+}

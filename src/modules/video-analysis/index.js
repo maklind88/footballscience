@@ -277,7 +277,7 @@ function presentationControls(context = {}) {
 const analysisRoomTabs = Object.freeze([
   { id: "overview", label: "Overview", icon: "overview" },
   { id: "fs-player", label: "FS Player", icon: "play" },
-  { id: "team-performance", label: "Team Performance", icon: "numbers" },
+  { id: "team-performance", label: "Team Performance", icon: "numbers", disabled: true },
   { id: "presentation", label: "Presentation", icon: "presentation" },
   { id: "match-report", label: "Clip Library", icon: "report" },
 ]);
@@ -335,7 +335,7 @@ function analysisRoomTabEnabled(tab = {}) {
 function renderAnalysisRoomTabs(activeId = "fs-player") {
   return `
     <nav class="analysis-room-tabs" aria-label="Analysis Room sections">
-      ${analysisRoomTabs.map((tab) => {
+      ${analysisRoomTabs.filter((tab) => tab.disabled !== true).map((tab) => {
         const active = tab.id === activeId;
         const enabled = active || analysisRoomTabEnabled(tab);
         return `
@@ -403,7 +403,6 @@ function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player") {
 
 function activeAnalysisRoomTab(state = {}) {
   if (state.view === "library") return "overview";
-  if (state.activeAnalysisRoomTab === "team-performance") return "team-performance";
   if (state.activeAnalysisRoomTab === "presentation") return "presentation";
   if (state.activeAnalysisRoomTab === "match-report") return "match-report";
   return "fs-player";
@@ -4772,7 +4771,7 @@ export function handleClick(event, context = {}) {
       libraryController().openLibraryView(context);
       return true;
     }
-    if (tabId === "fs-player" || tabId === "team-performance" || tabId === "presentation" || tabId === "match-report") {
+    if (tabId === "fs-player" || tabId === "presentation" || tabId === "match-report") {
       if (tabId !== "fs-player") pauseFsPlayerPlayback(context);
       run.store.update((state) => ({
         ...state,

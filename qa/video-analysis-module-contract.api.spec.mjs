@@ -1096,6 +1096,9 @@ test("analysis room tabs use icons without status labels", () => {
   expect(source).toContain("analysis-room-tab-icon");
   expect(source).toContain("FS Player");
   expect(source).toContain("Team Performance");
+  expect(source).toContain('{ id: "team-performance", label: "Team Performance", icon: "numbers", disabled: true }');
+  expect(source).toContain("analysisRoomTabs.filter((tab) => tab.disabled !== true)");
+  expect(source).not.toContain('if (state.activeAnalysisRoomTab === "team-performance") return "team-performance";');
   expect(source).toContain("TEAM_PERFORMANCE_DASHBOARD_URL");
   expect(source).toContain("https://ncskunk-harris.github.io/Team_Match_Performance_Dashboard/");
   expect(source).toContain('sandbox="allow-scripts allow-modals allow-same-origin"');

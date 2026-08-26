@@ -1,7 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { execFile } from "node:child_process";
+import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+const execFileAsync = promisify(execFile);
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function moduleUrl(relativePath) {
@@ -40,6 +45,20 @@ function provider(stage, capabilities, overrides = {}) {
       bytes: 1024,
       license: "Apache-2.0",
       sourceUrl: `https://models.footballscience.test/${id}.bin`,
+      provenance: {
+        modelCardUrl: `https://models.footballscience.test/${id}.html`,
+        trainingDataReviewed: true,
+        datasets: [{
+          id: `${id}-training-data`,
+          version: "1.0",
+          usage: "pretraining",
+          sourceUrl: `https://datasets.footballscience.test/${id}`,
+          terms: "Apache-2.0",
+          termsUrl: `https://datasets.footballscience.test/${id}/terms`,
+          rightsReviewed: true,
+          identityUseReviewed: true,
+        }],
+      },
     }],
     runtime: {
       maxFrames: 30_000,
@@ -48,34 +67,167 @@ function provider(stage, capabilities, overrides = {}) {
       maxConcurrentJobs: 1,
     },
     benchmark: {
-      status: "passed",
-      evaluatorVersion: "tracking-benchmark-v1",
-      profileId: "real-match-pilot-v1",
-      reportSha256: "d".repeat(64),
-      caseCount: 12,
-      realMatchCaseCount: 10,
-      capabilities,
-      referenceEvaluator: "TrackEval",
-      referenceReportSha256: "e".repeat(64),
-      referenceMetrics: ["HOTA", "DetA", "AssA", "LocA", "MOTA", "IDF1"],
+      status: "not-run",
+      evaluatorVersion: "not-run",
+      profileId: "not-run",
       ...overrides.benchmark,
     },
   };
+}
+
+const referenceMetrics = Object.freeze({ HOTA: 0.9, DetA: 0.94, AssA: 0.9, LocA: 0.92, MOTA: 0.91, IDF1: 0.93 });
+const referenceThresholds = Object.freeze({
+  minHota: 0.65,
+  minDetA: 0.75,
+  minAssA: 0.65,
+  minLocA: 0.75,
+  minMota: 0.8,
+  minIdf1: 0.85,
+});
+
+function referenceEvidence(index = 0) {
+  const hashCharacter = ((index % 6) + 10).toString(16);
+  return {
+    evaluator: "TrackEval",
+    status: "verified",
+    reportSha256: hashCharacter.repeat(64),
+    metrics: { ...referenceMetrics },
+    requiredThresholds: { ...referenceThresholds },
+    passed: true,
+    crossValidation: { passed: true, tolerance: 1e-9, deltas: { MOTA: 0, IDF1: 0 } },
+  };
+}
+
+function multiObjectCase(index = 0) {
+  return {
+    schemaVersion: 1,
+    evaluatorVersion: "tracking-benchmark-v1",
+    benchmarkType: "multi-object",
+    benchmarkId: `real-match-${index + 1}`,
+    sourceFingerprint: `${index + 1}`.repeat(64),
+    profile: { id: "football-scene-pilot-v1" },
+    range: { startMs: 0, endMs: 120_000, durationMs: 120_000 },
+    evidence: {
+      kind: "real-match",
+      reviewProtocol: "football-ground-truth-review-v1",
+      attested: true,
+      durationMs: 120_000,
+    },
+    metrics: {
+      playerPrecision: 0.95,
+      playerRecall: 0.95,
+      ballPrecision: 0.9,
+      ballRecall: 0.9,
+      refereePrecision: 0.9,
+      refereeRecall: 0.9,
+      mota: 0.91,
+      identitySwitchesPerMinute: 0.5,
+      fragmentationsPerMinute: 1,
+      identityF1: 0.93,
+      playerIdentityAccuracy: 0.94,
+      teamAccuracy: 0.98,
+      shirtNumberAccuracy: 0.95,
+    },
+    thresholds: {
+      minPlayerPrecision: 0.9,
+      minPlayerRecall: 0.9,
+      minBallPrecision: 0.8,
+      minBallRecall: 0.8,
+      minRefereePrecision: 0.8,
+      minRefereeRecall: 0.8,
+      minMota: 0.8,
+      maxIdentitySwitchesPerMinute: 2,
+      maxFragmentationsPerMinute: 4,
+      minIdentityF1: 0.85,
+      minPlayerIdentityAccuracy: 0.9,
+      minTeamAccuracy: 0.95,
+      minShirtNumberAccuracy: 0.9,
+    },
+    referenceValidation: referenceEvidence(index),
+    verdict: { passed: true, failureCount: 0, failures: [] },
+  };
+}
+
+function multiObjectReport() {
+  const cases = Array.from({ length: 5 }, (_, index) => multiObjectCase(index));
+  return {
+    schemaVersion: 1,
+    evaluatorVersion: "tracking-benchmark-v1",
+    benchmarkType: "multi-object-suite",
+    suiteId: "provider-real-match-suite",
+    summary: { passed: true, caseCount: cases.length, realMatchCaseCount: cases.length, realMatchDurationMs: 600_000 },
+    referenceValidation: referenceEvidence(20),
+    cases,
+  };
+}
+
+function selectedObjectCase(index = 0) {
+  return {
+    schemaVersion: 1,
+    evaluatorVersion: "tracking-benchmark-v1",
+    benchmarkType: "selected-object",
+    benchmarkId: `selected-real-match-${index + 1}`,
+    sourceFingerprint: `${index + 1}`.repeat(64),
+    profile: { id: "selected-player-pilot-v1" },
+    range: { startMs: 0, endMs: 120_000, durationMs: 120_000 },
+    evidence: {
+      kind: "real-match",
+      reviewProtocol: "football-ground-truth-review-v1",
+      attested: true,
+      durationMs: 120_000,
+    },
+    metrics: { visibleCoverage: 0.98, meanIou: 0.8, continuityBreaks: 1, maxGapMs: 500 },
+    thresholds: { minVisibleCoverage: 0.95, minMeanIou: 0.65, maxContinuityBreaks: 2, maxGapMs: 1000 },
+    verdict: { passed: true, failureCount: 0, failures: [] },
+  };
+}
+
+function selectedObjectReport() {
+  const cases = Array.from({ length: 5 }, (_, index) => selectedObjectCase(index));
+  return {
+    schemaVersion: 1,
+    evaluatorVersion: "tracking-benchmark-v1",
+    benchmarkType: "selected-object-suite",
+    suiteId: "selected-provider-real-match-suite",
+    summary: { passed: true, caseCount: cases.length, realMatchCaseCount: cases.length, realMatchDurationMs: 600_000 },
+    cases,
+  };
+}
+
+function reportForStage(stage = "") {
+  return stage === "segmentation" ? selectedObjectReport() : multiObjectReport();
+}
+
+function approveProvider(contract, evidenceService, manifest, report = reportForStage(manifest.stage)) {
+  const candidate = contract.normalizeTrackingProviderManifest(manifest);
+  const evidence = evidenceService.createTrackingProviderEvidence(candidate, report);
+  manifest.benchmark = evidenceService.trackingProviderBenchmarkFromEvidence(evidence);
+  return { manifest, evidence, report };
 }
 
 test("tracking provider contract accepts only pinned bounded offline providers", async () => {
   const contract = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
   ));
-  const manifest = provider("segmentation", ["segment:selected-object", "propagate:selected-object"]);
-  const normalized = contract.normalizeTrackingProviderManifest(manifest);
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const approved = approveProvider(
+    contract,
+    evidenceService,
+    provider("segmentation", ["segment:selected-object", "propagate:selected-object"]),
+  );
+  const normalized = contract.normalizeTrackingProviderManifest(approved.manifest);
 
   expect(normalized).toMatchObject({
     providerId: "segmentation-provider",
     stage: "segmentation",
     runtime: { maxConcurrentJobs: 1 },
   });
-  expect(contract.trackingProviderReadiness(manifest)).toMatchObject({ ready: true, reasons: [] });
+  expect(contract.trackingProviderReadiness(approved.manifest, {
+    evidence: approved.evidence,
+    report: approved.report,
+  })).toMatchObject({ ready: true, reasons: [] });
 });
 
 test("tracking provider remains blocked without approval, offline inference and real evidence", async () => {
@@ -84,7 +236,15 @@ test("tracking provider remains blocked without approval, offline inference and 
   ));
   const manifest = provider("reidentification", ["reidentify:player"], {
     approval: { status: "candidate", networkAtInference: true, licenseReviewed: false },
-    benchmark: { status: "failed", realMatchCaseCount: 1 },
+    benchmark: {
+      status: "failed",
+      evaluatorVersion: "tracking-benchmark-v1",
+      profileId: "football-scene-pilot-v1",
+      reportSha256: "d".repeat(64),
+      caseCount: 1,
+      realMatchCaseCount: 1,
+      capabilities: ["reidentify:player"],
+    },
   });
   const readiness = contract.trackingProviderReadiness(manifest);
 
@@ -95,6 +255,32 @@ test("tracking provider remains blocked without approval, offline inference and 
     "licence-not-reviewed",
     "benchmark-not-passed",
   ]));
+});
+
+test("learned providers require reviewed training-data and identity-use provenance", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const manifest = provider("reidentification", ["reidentify:player"]);
+  manifest.models[0].provenance.trainingDataReviewed = false;
+  manifest.models[0].provenance.datasets[0].rightsReviewed = false;
+  manifest.models[0].provenance.datasets[0].identityUseReviewed = false;
+  const approved = approveProvider(contract, evidenceService, manifest);
+  expect(contract.trackingProviderReadiness(approved.manifest, {
+    evidence: approved.evidence,
+    report: approved.report,
+  }).reasons).toEqual(expect.arrayContaining([
+    "model-training-data-not-reviewed",
+    "model-data-rights-not-reviewed",
+    "model-identity-use-not-reviewed",
+  ]));
+
+  const missingDataset = provider("detection", ["detect:player"]);
+  missingDataset.models[0].provenance.datasets = [];
+  expect(() => contract.normalizeTrackingProviderManifest(missingDataset)).toThrow(/training-data records/i);
 });
 
 test("tracking provider rejects capabilities from another pipeline stage", async () => {
@@ -110,23 +296,40 @@ test("multi-object providers require an official TrackEval reference report", as
   const contract = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
   ));
-  const manifest = provider("association", ["associate:multi-object"], {
-    benchmark: { referenceEvaluator: "", referenceReportSha256: undefined, referenceMetrics: [] },
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const approved = approveProvider(
+    contract,
+    evidenceService,
+    provider("association", ["associate:multi-object"]),
+  );
+  approved.manifest.benchmark.referenceEvaluator = "";
+  approved.manifest.benchmark.referenceReportSha256 = "";
+  approved.manifest.benchmark.referenceMetrics = [];
+  const readiness = contract.trackingProviderReadiness(approved.manifest, {
+    evidence: approved.evidence,
+    report: approved.report,
   });
-  const readiness = contract.trackingProviderReadiness(manifest);
 
   expect(readiness.ready).toBe(false);
   expect(readiness.reasons).toContain("trackeval-reference-missing");
 
-  const incomplete = provider("association", ["associate:multi-object"], {
-    benchmark: { referenceMetrics: ["HOTA", "MOTA", "IDF1"] },
-  });
-  expect(contract.trackingProviderReadiness(incomplete).reasons).toContain("trackeval-reference-missing");
+  approved.manifest.benchmark.referenceEvaluator = "trackeval";
+  approved.manifest.benchmark.referenceReportSha256 = approved.evidence.benchmark.referenceReportSha256;
+  approved.manifest.benchmark.referenceMetrics = ["HOTA", "MOTA", "IDF1"];
+  expect(contract.trackingProviderReadiness(approved.manifest, {
+    evidence: approved.evidence,
+    report: approved.report,
+  }).reasons).toContain("trackeval-reference-missing");
 });
 
 test("tracking pipeline plans all required stages and fails closed on missing evidence", async () => {
   const contract = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
   ));
   const requiredCapabilities = [
     "detect:player",
@@ -137,27 +340,177 @@ test("tracking pipeline plans all required stages and fails closed on missing ev
     "reidentify:player",
     "classify:team",
   ];
-  const providers = [
+  const candidates = [
     provider("detection", ["detect:player", "detect:ball", "detect:referee"]),
     provider("segmentation", ["segment:selected-object"]),
     provider("association", ["associate:multi-object"]),
     provider("reidentification", ["reidentify:player"]),
-    provider("classification", ["classify:team"], {
-      benchmark: { capabilities: [] },
-    }),
+    provider("classification", ["classify:team"]),
   ];
-  const blocked = contract.buildTrackingPipelinePlan(providers, { requiredCapabilities });
+  const approved = candidates.map((manifest) => approveProvider(contract, evidenceService, manifest));
+  const providers = approved.map((entry) => entry.manifest);
+  const evidenceByProviderId = Object.fromEntries(approved.map((entry) => [entry.manifest.providerId, entry.evidence]));
+  const reportByProviderId = Object.fromEntries(approved.map((entry) => [entry.manifest.providerId, entry.report]));
+  providers[4].benchmark.capabilities = [];
+  const blocked = contract.buildTrackingPipelinePlan(providers, {
+    requiredCapabilities,
+    evidenceByProviderId,
+    reportByProviderId,
+  });
 
   expect(blocked.ready).toBe(false);
   expect(blocked.missingCapabilities).toEqual(["classify:team"]);
-  expect(blocked.blockedProviders).toEqual([{
+  expect(blocked.blockedProviders).toEqual([expect.objectContaining({
     providerId: "classification-provider",
-    reasons: ["capability-evidence-missing"],
-  }]);
+    reasons: expect.arrayContaining(["benchmark-evidence-invalid", "capability-evidence-missing"]),
+  })]);
 
-  providers[4].benchmark.capabilities = ["classify:team"];
-  const ready = contract.buildTrackingPipelinePlan(providers, { requiredCapabilities });
+  providers[4].benchmark = evidenceService.trackingProviderBenchmarkFromEvidence(approved[4].evidence);
+  const ready = contract.buildTrackingPipelinePlan(providers, {
+    requiredCapabilities,
+    evidenceByProviderId,
+    reportByProviderId,
+  });
   expect(ready).toMatchObject({ ready: true, missingCapabilities: [] });
   expect(ready.providers).toHaveLength(5);
   expect(JSON.stringify(ready)).not.toMatch(/repository|sourceUrl|licenseUrl|models/i);
+});
+
+test("provider evidence binds the exact report, source, model and capability set", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const approved = approveProvider(
+    contract,
+    evidenceService,
+    provider("detection", ["detect:player", "detect:ball", "detect:referee"]),
+  );
+  const normalized = contract.normalizeTrackingProviderManifest(approved.manifest);
+  expect(evidenceService.verifyTrackingProviderEvidence(
+    normalized,
+    approved.evidence,
+    approved.report,
+  )).toMatchObject({ verified: true, evidenceSha256: approved.evidence.evidenceSha256 });
+
+  const changedReport = structuredClone(approved.report);
+  changedReport.cases[0].metrics.playerRecall = 0.94;
+  expect(() => evidenceService.verifyTrackingProviderEvidence(
+    normalized,
+    approved.evidence,
+    changedReport,
+  )).toThrow(/report does not match/i);
+
+  const selfConsistentForgery = structuredClone(approved.evidence);
+  selfConsistentForgery.benchmark.capabilityEvidence[0].metrics[0].worst = 1;
+  selfConsistentForgery.evidenceSha256 = evidenceService.trackingProviderEvidenceHash(selfConsistentForgery);
+  expect(() => evidenceService.verifyTrackingProviderEvidence(
+    normalized,
+    selfConsistentForgery,
+    approved.report,
+  )).toThrow(/cannot be reproduced/i);
+
+  const changedProvider = structuredClone(approved.manifest);
+  changedProvider.models[0].sha256 = "f".repeat(64);
+  expect(() => evidenceService.verifyTrackingProviderEvidence(
+    contract.normalizeTrackingProviderManifest(changedProvider),
+    approved.evidence,
+    approved.report,
+  )).toThrow(/installed provider artifacts/i);
+});
+
+test("provider evidence requires ten attested real-match minutes and remains metadata-only", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const candidate = contract.normalizeTrackingProviderManifest(
+    provider("classification", ["classify:team"]),
+  );
+  const shortReport = multiObjectReport();
+  shortReport.cases.pop();
+  expect(() => evidenceService.createTrackingProviderEvidence(candidate, shortReport)).toThrow(/10 minutes/i);
+
+  const syntheticReport = multiObjectReport();
+  syntheticReport.cases[0].evidence = {
+    kind: "synthetic-or-unattested",
+    reviewProtocol: "",
+    attested: false,
+    durationMs: 120_000,
+  };
+  expect(() => evidenceService.createTrackingProviderEvidence(candidate, syntheticReport)).toThrow(/real-match evidence/i);
+
+  const unsafeReport = multiObjectReport();
+  unsafeReport.sourcePath = "/private/match.mp4";
+  expect(() => evidenceService.createTrackingProviderEvidence(candidate, unsafeReport)).toThrow(/metadata-only/i);
+});
+
+test("shirt-number providers need their own measured threshold", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const candidate = contract.normalizeTrackingProviderManifest(
+    provider("classification", ["classify:shirt-number"]),
+  );
+  const missingGate = multiObjectReport();
+  missingGate.cases.forEach((entry) => { entry.thresholds.minShirtNumberAccuracy = null; });
+  expect(() => evidenceService.createTrackingProviderEvidence(candidate, missingGate)).toThrow(/minShirtNumberAccuracy/);
+
+  const failedGate = multiObjectReport();
+  failedGate.cases[0].metrics.shirtNumberAccuracy = 0.8;
+  expect(() => evidenceService.createTrackingProviderEvidence(candidate, failedGate)).toThrow(/does not pass/i);
+
+  const weakenedGate = multiObjectReport();
+  weakenedGate.cases.forEach((entry) => { entry.thresholds.minShirtNumberAccuracy = 0.1; });
+  weakenedGate.cases[0].metrics.shirtNumberAccuracy = 0.8;
+  expect(() => evidenceService.createTrackingProviderEvidence(candidate, weakenedGate)).toThrow(/does not pass/i);
+
+  const evidence = evidenceService.createTrackingProviderEvidence(candidate, multiObjectReport());
+  expect(Object.isFrozen(evidence.benchmark.capabilityEvidence[0].metrics)).toBe(true);
+  expect(evidence.benchmark.capabilityEvidence).toEqual([
+    expect.objectContaining({ capability: "classify:shirt-number" }),
+  ]);
+});
+
+test("provider evidence CLI creates and verifies a private immutable artifact", async () => {
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fs-provider-evidence-test-"));
+  const manifestPath = path.join(directory, "manifest.json");
+  const reportPath = path.join(directory, "report.json");
+  const evidencePath = path.join(directory, "evidence.json");
+  const command = path.join(rootDir, "scripts/fs-player-tracking-provider-evidence.mjs");
+  const manifest = provider("classification", ["classify:team"]);
+  try {
+    await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    await fs.writeFile(reportPath, JSON.stringify(multiObjectReport()));
+    const created = await execFileAsync(process.execPath, [
+      command,
+      "--manifest", manifestPath,
+      "--report", reportPath,
+      "--output", evidencePath,
+    ], { cwd: rootDir });
+    expect(created.stdout).toContain("CREATED | classification-provider@1.0.0 | 5 real-match cases | 10.0 min");
+    const evidence = JSON.parse(await fs.readFile(evidencePath, "utf8"));
+    manifest.benchmark = evidenceService.trackingProviderBenchmarkFromEvidence(evidence);
+    await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    const verified = await execFileAsync(process.execPath, [
+      command,
+      "--manifest", manifestPath,
+      "--report", reportPath,
+      "--evidence", evidencePath,
+    ], { cwd: rootDir });
+    expect(verified.stdout).toContain("VERIFIED | classification-provider@1.0.0");
+    expect(JSON.stringify(evidence)).not.toMatch(/private\/match|sourcePath|tracks|segments|points/);
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
 });

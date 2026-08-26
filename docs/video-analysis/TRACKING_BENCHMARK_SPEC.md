@@ -64,6 +64,23 @@ Exit code `0` means every active quality gate passed, `1` means valid evidence f
 
 `--trackeval` is deliberately explicit. Without it, a multi-object report remains `providerApprovalReady: false`. With it, the report contains only bounded metric evidence and hashes, never source paths, raw tracks, frames, or media. Real provider approval still requires human-verified real-match cases and reviewed model/data provenance.
 
+## Provider Approval Evidence
+
+A provider manifest cannot self-assert benchmark approval. FS Player creates a separate `football-science-tracking-provider-evidence-v1` artifact from the exact metadata-only benchmark report. Creation requires every case to pass, at least ten attested real-match minutes, one profile across the suite, and capability-specific metrics. Detection, association, and re-identification additionally require verified TrackEval metrics and exact internal/reference cross-validation.
+
+The evidence binds the provider id/version, stage, capabilities, upstream source commit and checksum, every model checksum, model card and training-dataset provenance, runtime limits, benchmark report, source set, and review date. Learned providers must identify every training/finetuning dataset with version, source and terms, and record separate reviews for usage rights. Re-identification and shirt-number providers additionally require an explicit identity-use review. Runtime readiness requires the evidence artifact and original report, regenerates the evidence, and rejects any changed model, source, dataset record, capability, threshold, metric, report, or manifest benchmark field.
+
+Capabilities are approved independently and the approval layer enforces policy floors even when a benchmark input supplies weaker overrides. Player, ball, and referee detection have separate precision and recall gates. Association uses continuity, HOTA and AssA. Player re-identification uses internal and TrackEval IDF1. Team classification has its own accuracy gate. Shirt-number accuracy is measured separately and its threshold is deliberately inactive unless that capability is being evaluated, so missing or unreadable shirt numbers cannot be disguised by player identity accuracy.
+
+Create evidence after the real-match report passes, then verify it again after copying the generated benchmark fields into the reviewed provider manifest:
+
+```bash
+npm run fs-player:tracking:provider:evidence -- --manifest /absolute/local/provider-manifest.json --report /absolute/local/report.json --output /absolute/local/provider-evidence.json
+npm run fs-player:tracking:provider:evidence -- --manifest /absolute/local/approved-provider-manifest.json --report /absolute/local/report.json --evidence /absolute/local/provider-evidence.json
+```
+
+The command never changes approval status. Licence, model-data provenance, and redistribution review remain explicit human decisions.
+
 ## Analyst Review Workflow
 
 Tracking review is a local, append-only correction workflow rather than an automatic confidence override. Each selected track exposes a bounded chronological queue for low detection confidence, low player-identity confidence, sparse tracking, and continuity breaks. Previous and next navigation seeks in match time so the same review flow remains correct across synchronized camera angles.

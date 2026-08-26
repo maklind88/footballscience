@@ -309,6 +309,11 @@ test("locked real-match references are immutable, media-free and benchmark-ready
   });
   expect(benchmark.evaluateMultiObjectTrackingBenchmarkCase(benchmarkCase)).toMatchObject({
     benchmarkId: "real-match-case-1",
+    evidence: {
+      kind: "real-match",
+      reviewProtocol: "football-ground-truth-review-v1",
+      attested: true,
+    },
     verdict: { passed: true, providerApprovalReady: false },
     metrics: {
       detectionPrecision: 1,

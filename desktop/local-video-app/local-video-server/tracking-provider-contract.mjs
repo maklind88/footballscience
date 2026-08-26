@@ -1,3 +1,5 @@
+import { verifyTrackingProviderEvidence } from "./tracking-provider-evidence.mjs";
+
 const PROVIDER_PROTOCOL = "football-science-tracking-stage-v1";
 const REQUIRED_EVALUATOR_VERSION = "tracking-benchmark-v1";
 
@@ -14,6 +16,7 @@ const benchmarkStatuses = new Set(["not-run", "passed", "failed"]);
 const knownCapabilities = new Set(Object.values(stageCapabilities).flat());
 const trackEvalCapabilities = /^(?:detect:|associate:|reidentify:)/;
 const trackEvalMetrics = new Set(["HOTA", "DetA", "AssA", "LocA", "MOTA", "IDF1"]);
+const datasetUsages = new Set(["pretraining", "finetuning", "distillation", "evaluation"]);
 
 export class TrackingProviderContractError extends Error {
   constructor(message, code = "TRACKING_PROVIDER_CONTRACT_INVALID") {
@@ -103,13 +106,37 @@ function normalizeUpstream(value = {}) {
   };
 }
 
+function normalizeDataset(value = {}, index = 0, modelIndex = 0) {
+  const usage = boundedString(value.usage, `model ${modelIndex + 1} dataset ${index + 1} usage`, 40);
+  if (!datasetUsages.has(usage)) invalid("Unknown provider model dataset usage.");
+  return {
+    id: identifier(value.id, `model ${modelIndex + 1} dataset ${index + 1} id`),
+    version: boundedString(value.version, `model ${modelIndex + 1} dataset ${index + 1} version`, 100),
+    usage,
+    sourceUrl: httpsUrl(value.sourceUrl, `model ${modelIndex + 1} dataset ${index + 1} source URL`),
+    terms: boundedString(value.terms, `model ${modelIndex + 1} dataset ${index + 1} terms`, 100),
+    termsUrl: httpsUrl(value.termsUrl, `model ${modelIndex + 1} dataset ${index + 1} terms URL`),
+    rightsReviewed: Boolean(value.rightsReviewed),
+    identityUseReviewed: Boolean(value.identityUseReviewed),
+  };
+}
+
 function normalizeModel(value = {}, index = 0) {
+  const datasets = Array.isArray(value.provenance?.datasets)
+    ? value.provenance.datasets.map((entry, datasetIndex) => normalizeDataset(entry, datasetIndex, index))
+    : [];
+  if (!datasets.length || datasets.length > 50) invalid(`Model ${index + 1} needs 1-50 training-data records.`);
   return {
     id: identifier(value.id, `model ${index + 1} id`),
     sha256: sha256(value.sha256, `model ${index + 1} checksum`),
     bytes: positiveInteger(value.bytes, `model ${index + 1} byte size`, 100 * 1024 * 1024 * 1024),
     license: identifier(value.license, `model ${index + 1} SPDX licence`),
     sourceUrl: httpsUrl(value.sourceUrl, `model ${index + 1} source URL`),
+    provenance: {
+      modelCardUrl: httpsUrl(value.provenance?.modelCardUrl, `model ${index + 1} model card URL`),
+      trainingDataReviewed: Boolean(value.provenance?.trainingDataReviewed),
+      datasets,
+    },
   };
 }
 
@@ -143,10 +170,14 @@ function normalizeBenchmark(value = {}) {
     evaluatorVersion: boundedString(value.evaluatorVersion || "not-run", "benchmark evaluator", 80),
     profileId: boundedString(value.profileId || "not-run", "benchmark profile", 80),
     reportSha256: status === "not-run" ? "" : sha256(value.reportSha256, "benchmark report checksum"),
+    evidenceSha256: status === "passed" ? sha256(value.evidenceSha256, "benchmark evidence checksum") : "",
     caseCount: status === "not-run" ? 0 : positiveInteger(value.caseCount, "benchmark case count", 100_000),
     realMatchCaseCount: status === "not-run"
       ? 0
       : positiveInteger(value.realMatchCaseCount, "real-match benchmark count", 100_000),
+    realMatchDurationMs: status === "passed"
+      ? positiveInteger(value.realMatchDurationMs, "real-match benchmark duration", 1_000 * 60 * 60 * 1000)
+      : 0,
     capabilities,
     referenceEvaluator,
     referenceReportSha256: referenceEvaluator
@@ -154,6 +185,13 @@ function normalizeBenchmark(value = {}) {
       : "",
     referenceMetrics,
   };
+}
+
+function providerScopedOption(options = {}, collectionName = "", providerId = "", directName = "") {
+  const collection = options[collectionName];
+  if (collection instanceof Map) return collection.get(providerId);
+  if (collection && typeof collection === "object") return collection[providerId];
+  return options[directName];
 }
 
 export function normalizeTrackingProviderManifest(value = {}) {
@@ -187,9 +225,35 @@ export function trackingProviderReadiness(value = {}, options = {}) {
   if (provider.approval.status !== "approved-local-optional") reasons.push("provider-not-approved");
   if (provider.approval.networkAtInference) reasons.push("inference-network-enabled");
   if (!provider.approval.licenseReviewed) reasons.push("licence-not-reviewed");
+  if (provider.models.some((model) => !model.provenance.trainingDataReviewed)) {
+    reasons.push("model-training-data-not-reviewed");
+  }
+  if (provider.models.some((model) => model.provenance.datasets.some((dataset) => !dataset.rightsReviewed))) {
+    reasons.push("model-data-rights-not-reviewed");
+  }
+  const identityUseRequired = provider.stage === "reidentification"
+    || provider.capabilities.includes("classify:shirt-number");
+  if (identityUseRequired && provider.models.some(
+    (model) => model.provenance.datasets.some((dataset) => !dataset.identityUseReviewed),
+  )) {
+    reasons.push("model-identity-use-not-reviewed");
+  }
   if (provider.benchmark.status !== "passed") reasons.push("benchmark-not-passed");
   if (provider.benchmark.evaluatorVersion !== requiredEvaluatorVersion) reasons.push("benchmark-evaluator-mismatch");
   if (provider.benchmark.realMatchCaseCount < 1) reasons.push("real-match-evidence-missing");
+  if (provider.benchmark.status === "passed") {
+    const evidence = providerScopedOption(options, "evidenceByProviderId", provider.providerId, "evidence");
+    const report = providerScopedOption(options, "reportByProviderId", provider.providerId, "report");
+    if (!evidence) reasons.push("benchmark-evidence-missing");
+    else if (!report) reasons.push("benchmark-report-missing");
+    else {
+      try {
+        verifyTrackingProviderEvidence(provider, evidence, report);
+      } catch {
+        reasons.push("benchmark-evidence-invalid");
+      }
+    }
+  }
   const evidenced = new Set(provider.benchmark.capabilities);
   if (provider.capabilities.some((capability) => !evidenced.has(capability))) reasons.push("capability-evidence-missing");
   if (provider.capabilities.some((capability) => trackEvalCapabilities.test(capability))) {
@@ -211,6 +275,7 @@ export function trackingProviderReadiness(value = {}, options = {}) {
       priority: provider.priority,
       capabilities: provider.capabilities,
       benchmarkReportSha256: provider.benchmark.reportSha256,
+      benchmarkEvidenceSha256: provider.benchmark.evidenceSha256,
       referenceReportSha256: provider.benchmark.referenceReportSha256,
     },
   };

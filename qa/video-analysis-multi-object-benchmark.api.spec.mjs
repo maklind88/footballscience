@@ -35,9 +35,15 @@ test("multi-object benchmark measures a clean football scene by entity and ident
     detectionRecall: 1,
     identityF1: 1,
     identitySwitches: 0,
+    playerPrecision: 1,
+    playerRecall: 1,
+    ballPrecision: 1,
     ballRecall: 1,
+    refereePrecision: 1,
     refereeRecall: 1,
+    shirtNumberAccuracy: 1,
   });
+  expect(report.evidence).toMatchObject({ kind: "synthetic-or-unattested", attested: false });
   expect(report.referenceValidation).toMatchObject({
     evaluator: "TrackEval",
     status: "required-before-provider-approval",
@@ -128,6 +134,23 @@ test("multi-object benchmark separates spatial detection from wrong class, team 
   expect(report.metrics.teamAccuracy).toBe(0.5);
   expect(report.metrics.playerIdentityAccuracy).toBe(0.5);
   expect(report.verdict.passed).toBe(false);
+});
+
+test("shirt-number quality is measured separately and gated only for that capability", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingMultiObjectBenchmarkService.js",
+  ));
+  const input = await fixture();
+  input.prediction.tracks.find((track) => track.playerId === "home-8").shirtNumber = "99";
+  const observed = service.evaluateMultiObjectTrackingBenchmarkCase(input);
+  expect(observed.metrics.shirtNumberAccuracy).toBe(0.5);
+  expect(observed.verdict.failures.map((failure) => failure.metric)).not.toContain("shirtNumberAccuracy");
+
+  input.thresholds = { minShirtNumberAccuracy: 0.9 };
+  const gated = service.evaluateMultiObjectTrackingBenchmarkCase(input);
+  expect(gated.verdict.failures).toEqual(expect.arrayContaining([
+    expect.objectContaining({ metric: "shirtNumberAccuracy", threshold: "minShirtNumberAccuracy" }),
+  ]));
 });
 
 test("Hungarian frame assignment maximizes the full scene instead of greedy pairs", async () => {

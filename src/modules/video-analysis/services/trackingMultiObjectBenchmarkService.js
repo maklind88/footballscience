@@ -17,6 +17,10 @@ import {
   buildMultiObjectFrames,
   summarizeMultiObjectFrames,
 } from "./trackingMultiObjectMetrics.js";
+import {
+  trackingBenchmarkCaseEvidence,
+  trackingBenchmarkSuiteEvidence,
+} from "./trackingBenchmarkEvidence.js";
 
 export const MULTI_OBJECT_BENCHMARK_PROFILES = Object.freeze({
   "football-scene-pilot-v1": Object.freeze({
@@ -41,7 +45,12 @@ export const MULTI_OBJECT_BENCHMARK_PROFILES = Object.freeze({
       minEntityTypeAccuracy: 0.98,
       minTeamAccuracy: 0.95,
       minPlayerIdentityAccuracy: 0.9,
+      minShirtNumberAccuracy: null,
+      minPlayerPrecision: 0.9,
+      minPlayerRecall: 0.9,
+      minBallPrecision: 0.8,
       minBallRecall: 0.8,
+      minRefereePrecision: 0.8,
       minRefereeRecall: 0.8,
       maxDetectionBrierScore: 0.2,
       maxCorrectionsPerMinute: 8,
@@ -71,7 +80,12 @@ const thresholdRules = Object.freeze([
   ["minEntityTypeAccuracy", "entityTypeAccuracy", "minimum"],
   ["minTeamAccuracy", "teamAccuracy", "minimum"],
   ["minPlayerIdentityAccuracy", "playerIdentityAccuracy", "minimum"],
+  ["minShirtNumberAccuracy", "shirtNumberAccuracy", "minimum"],
+  ["minPlayerPrecision", "playerPrecision", "minimum"],
+  ["minPlayerRecall", "playerRecall", "minimum"],
+  ["minBallPrecision", "ballPrecision", "minimum"],
   ["minBallRecall", "ballRecall", "minimum"],
+  ["minRefereePrecision", "refereePrecision", "minimum"],
   ["minRefereeRecall", "refereeRecall", "minimum"],
   ["maxDetectionBrierScore", "detectionBrierScore", "maximum"],
   ["maxCorrectionsPerMinute", "correctionsPerMinute", "maximum"],
@@ -172,7 +186,11 @@ function reportMetrics(frames, truthTracks, predictionTracks, profile, range, pe
   return {
     metrics: {
       ...metrics,
+      playerPrecision: metrics.perEntity.player.precision,
+      playerRecall: metrics.perEntity.player.recall,
+      ballPrecision: metrics.perEntity.ball.precision,
       ballRecall: metrics.perEntity.ball.recall,
+      refereePrecision: metrics.perEntity.referee.precision,
       refereeRecall: metrics.perEntity.referee.recall,
       ...correctionMetrics(predictionTracks, range),
       ...performanceMetrics(performance, range),
@@ -214,6 +232,7 @@ export function evaluateMultiObjectTrackingBenchmarkCase(value = {}) {
     frame,
     range,
     profile: { id: profile.id, description: profile.description },
+    evidence: trackingBenchmarkCaseEvidence(value, range),
     metrics,
     thresholds: profile.thresholds,
     worstFrames,
@@ -250,6 +269,7 @@ export function evaluateMultiObjectTrackingBenchmarkSuite(value = {}) {
     0,
   ) / Math.max(1, truthDetections);
   const failedCaseIds = reports.filter((report) => !report.verdict.passed).map((report) => report.benchmarkId);
+  const evidence = trackingBenchmarkSuiteEvidence(reports);
   return {
     schemaVersion: TRACKING_BENCHMARK_SCHEMA_VERSION,
     evaluatorVersion: TRACKING_BENCHMARK_EVALUATOR_VERSION,
@@ -267,6 +287,7 @@ export function evaluateMultiObjectTrackingBenchmarkSuite(value = {}) {
       detectionRecall: truthDetections > 0 ? truePositives / truthDetections : 0,
       weightedMeanIou: weighted("meanIou"),
       weightedIdentityF1: weighted("identityF1"),
+      ...evidence,
     },
     cases: reports,
   };

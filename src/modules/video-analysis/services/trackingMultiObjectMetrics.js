@@ -131,6 +131,7 @@ function classificationMetrics(frames = []) {
   const entity = [];
   const team = [];
   const playerIdentity = [];
+  const shirtNumber = [];
   for (const frame of frames) {
     for (const match of frame.matches) {
       const truth = match.truth.track;
@@ -143,12 +144,17 @@ function classificationMetrics(frames = []) {
       if (truth.entityType === "player" && trackingIdentityKey(truth)) {
         playerIdentity.push(trackingIdentityKey(truth) === trackingIdentityKey(prediction) ? 1 : 0);
       }
+      if (truth.entityType === "player" && String(truth.shirtNumber || "").trim()) {
+        shirtNumber.push(normalizedTrackingIdentity(truth.shirtNumber)
+          === normalizedTrackingIdentity(prediction.shirtNumber) ? 1 : 0);
+      }
     }
   }
   return {
     entityTypeAccuracy: mean(entity),
     teamAccuracy: mean(team),
     playerIdentityAccuracy: mean(playerIdentity),
+    shirtNumberAccuracy: mean(shirtNumber),
   };
 }
 

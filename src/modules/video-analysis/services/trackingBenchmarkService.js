@@ -26,6 +26,10 @@ import {
   trackingBoxIou,
   trackingContinuityBreaks,
 } from "./trackingBenchmarkMetrics.js";
+import {
+  trackingBenchmarkCaseEvidence,
+  trackingBenchmarkSuiteEvidence,
+} from "./trackingBenchmarkEvidence.js";
 
 export {
   TRACKING_BENCHMARK_EVALUATOR_VERSION,
@@ -217,6 +221,8 @@ export function evaluateTrackingBenchmarkCase(value = {}) {
     frame,
     profile: { id: profile.id, description: profile.description },
     range,
+    benchmarkType: "selected-object",
+    evidence: trackingBenchmarkCaseEvidence(value, range),
     metrics,
     thresholds: profile.thresholds,
     worstSamples: worstSamples(samples),
@@ -240,9 +246,11 @@ export function evaluateTrackingBenchmarkSuite(value = {}) {
     0,
   ) / Math.max(1, visibleSamples);
   const failedCaseIds = reports.filter((report) => !report.verdict.passed).map((report) => report.benchmarkId);
+  const evidence = trackingBenchmarkSuiteEvidence(reports);
   return {
     schemaVersion: TRACKING_BENCHMARK_SCHEMA_VERSION,
     evaluatorVersion: TRACKING_BENCHMARK_EVALUATOR_VERSION,
+    benchmarkType: "selected-object-suite",
     suiteId,
     summary: {
       passed: failedCaseIds.length === 0,
@@ -252,6 +260,7 @@ export function evaluateTrackingBenchmarkSuite(value = {}) {
       visibleGroundTruthSamples: visibleSamples,
       weightedVisibleCoverage: weighted("visibleCoverage"),
       weightedMeanIou: weighted("meanIou"),
+      ...evidence,
     },
     cases: reports,
   };

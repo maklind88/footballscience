@@ -10,7 +10,7 @@ Tracking Intelligence v2 uses a local, replaceable five-stage pipeline:
 4. player re-identification
 5. team and shirt classification
 
-No candidate is activated by installation alone. The provider contract requires a pinned source commit, source and model SHA-256 hashes, explicit code and model licences, bounded memory/time/concurrency, inference with no network access, and capability-specific real-match benchmark evidence.
+No candidate is activated by installation alone. The provider contract requires a pinned source commit, source and model SHA-256 hashes, explicit code and model licences, model-card and training-dataset provenance, bounded memory/time/concurrency, inference with no network access, and capability-specific real-match benchmark evidence. Re-identification and shirt-number providers need a separate reviewed identity-use decision for every declared training dataset. Readiness also requires the original metadata-only report and a reproducible provider-evidence artifact bound to the exact source, models, provenance, runtime limits, capabilities, thresholds, and report hash.
 
 SAM 2.1 remains the installed, approved selected-object propagation engine and safe manual-prompt fallback. It is not treated as an automatic detector or a re-identification engine.
 
@@ -58,4 +58,4 @@ SAM 2.1 remains the selected-object segmentation and propagation stage. The offi
 
 ## Deliberate Hold
 
-The detector, association, re-ID, team, and shirt stages are architecture-ready but not yet installed or activated. Choosing arbitrary public weights now would create false confidence and unresolved data/licence risk. The reference evaluator can be installed independently because it contains no tracking model and approves no provider by itself. The next provider approval point is a local real-match benchmark using representative Football Science footage. Only providers that improve measured quality without breaking workstation performance move from `candidate` to `approved-local-optional`.
+The detector, association, re-ID, team, and shirt stages are architecture-ready but not yet installed or activated. Choosing arbitrary public weights now would create false confidence and unresolved data/licence risk. The reference evaluator can be installed independently because it contains no tracking model and approves no provider by itself. The next provider approval point is a local real-match benchmark using representative Football Science footage. Only providers that improve measured quality without breaking workstation performance and whose report/evidence pair verifies exactly move from `candidate` to `approved-local-optional`.

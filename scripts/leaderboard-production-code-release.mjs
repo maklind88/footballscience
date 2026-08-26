@@ -106,13 +106,14 @@ function vercelApi(secrets, fetchImpl = fetch) {
     cancel: async (id) => call({ pathname: `/v12/deployments/${encodeURIComponent(id)}/cancel`, query: query(), method: "PATCH", json: {}, expectedStatus: 200, label: "single Vercel preview cancel" }),
   };
 }
-function assertDeploymentHistory(records) {
+export function assertDeploymentHistory(records) {
   invariant(Array.isArray(records), "Vercel deployment history was malformed.");
   const ids = new Set();
   for (const record of records) {
     const id = deploymentId(record); const state = deploymentState(record); deploymentCreatedAt(record);
+    const projectId = deploymentProjectId(record); const teamId = record.teamId;
     invariant(!ids.has(id) && ["BUILDING", "CANCELED", "ERROR", "INITIALIZING", "QUEUED", "READY"].includes(state), "Vercel deployment history id/state drifted.");
-    invariant(deploymentProjectId(record) === baseline.vercel.projectId && record.teamId === baseline.vercel.teamId && record.name === baseline.vercel.projectName && Object.hasOwn(record, "target") && [null, "production"].includes(record.target), "Vercel deployment history project/team/target drifted.");
+    invariant((projectId === undefined || projectId === baseline.vercel.projectId) && (teamId === undefined || teamId === baseline.vercel.teamId) && record.name === baseline.vercel.projectName && Object.hasOwn(record, "target") && [null, "production"].includes(record.target), "Vercel deployment history project/team/target drifted.");
     invariant(record.meta && typeof record.meta === "object" && !Array.isArray(record.meta), "Vercel deployment history metadata was malformed."); ids.add(id);
   }
   return records;

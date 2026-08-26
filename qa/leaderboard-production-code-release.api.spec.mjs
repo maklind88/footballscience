@@ -5,7 +5,7 @@ import process from "node:process";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { assertFreshReleaseTimestamp, assertRailEntries, assertReleaseEvidenceWindow, databaseAttestationDigest, normalizeNpmCiDrift, releaseCommandEnvironment, runSinglePreviewAttempt } from "../scripts/leaderboard-production-code-release.mjs";
+import { assertDeploymentHistory, assertFreshReleaseTimestamp, assertRailEntries, assertReleaseEvidenceWindow, databaseAttestationDigest, normalizeNpmCiDrift, releaseCommandEnvironment, runSinglePreviewAttempt } from "../scripts/leaderboard-production-code-release.mjs";
 import { assertCredentialHealth, assertEnvironmentRecord, assertEvidenceFresh, assertFreezeAttestation, assertRequiredSteps, assertRun, buildOwnerFreezeAttestation, otherActiveRuns } from "../scripts/lib/leaderboard-production-release-evidence.mjs";
 import { assertArtifactPath, assertNoSecretLeak, assertOnlyMirroredOccurrences, assertSupabaseUrl, canonicalDigest, captureSecrets, childEnvironment, escapeWorkflowCommandData, readArtifact, redact, runChecked, sanitizedApiRequest, writeArtifact } from "../scripts/lib/leaderboard-production-release-security.mjs";
 import { deploymentId } from "../scripts/lib/leaderboard-production-vercel-state.mjs";
@@ -37,6 +37,13 @@ function ensureCandidateObject() {
 }
 
 ensureCandidateObject();
+
+test("deployment history accepts scoped list omissions but rejects explicit project/team drift", () => {
+  const record = { id: "dpl_ListRecord1", name: baseline.vercel.projectName, created: 1, state: "CANCELED", target: "production", meta: {} };
+  expect(assertDeploymentHistory([record])).toEqual([record]);
+  expect(() => assertDeploymentHistory([{ ...record, projectId: "prj_wrong" }])).toThrow(/project\/team\/target drifted/);
+  expect(() => assertDeploymentHistory([{ ...record, teamId: "team_wrong" }])).toThrow(/project\/team\/target drifted/);
+});
 
 test("baseline locks candidate, Files API, disabled production, and exact infra-only scope", () => {
   expect(baseline.repository).toEqual({ id: 1231879845, fullName: "maklind88/footballscience", defaultBranch: "main" });

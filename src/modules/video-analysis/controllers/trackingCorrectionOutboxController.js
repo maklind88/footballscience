@@ -110,7 +110,8 @@ export function createTrackingCorrectionOutboxController(options = {}) {
     });
     try {
       if (!persistRemote) throw new Error("Central correction audit is not configured.");
-      if (track?.metadata?.localWorkspaceStatus === "pending-central") {
+      if (track?.metadata?.localWorkspaceStatus === "pending-central"
+        || correctionValue.localWorkspaceStatus === "pending-central") {
         throw new Error("Synchronize the track before its correction audit.");
       }
       const result = await persistRemote(trackingCorrectionApiPayload(record));

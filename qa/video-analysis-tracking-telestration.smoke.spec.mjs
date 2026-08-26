@@ -160,6 +160,110 @@ async function mountContinuityReviewFixture(page) {
   });
 }
 
+async function mountStructuralReviewFixture(page) {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await page.evaluate(async () => {
+    const { renderTrackingReviewPanel } = await import(
+      "/src/modules/video-analysis/components/TrackingReviewPanel.js"
+    );
+    const { createTrackingReviewController } = await import(
+      "/src/modules/video-analysis/controllers/trackingReviewController.js"
+    );
+    const point = (atMs, x, identityConfidence) => ({
+      atMs,
+      x,
+      y: 0.4,
+      width: 0.08,
+      height: 0.2,
+      confidence: 0.9,
+      identityConfidence,
+    });
+    const track = (id, playerId, playerLabel, shirtNumber, points) => ({
+      id,
+      clipId: "clip-structural-review",
+      videoId: "video-structural-review",
+      entityType: "player",
+      playerId,
+      playerLabel,
+      shirtNumber,
+      teamSide: "home",
+      status: "review",
+      startMs: 0,
+      endMs: 1500,
+      confidence: 0.9,
+      identityConfidence: 0.8,
+      segments: [{ id: `${id}-segment`, startMs: 0, endMs: 1500, points }],
+    });
+    const first = track("track-player-a", "player-a", "Player A", "8", [
+      point(0, 0.2, 0.9),
+      point(500, 0.3, 0.9),
+      point(1000, 0.7, 0.5),
+      point(1500, 0.8, 0.5),
+    ]);
+    const second = track("track-player-b", "player-b", "Player B", "10", [
+      point(0, 0.8, 0.9),
+      point(500, 0.7, 0.9),
+      point(1000, 0.3, 0.5),
+      point(1500, 0.2, 0.5),
+    ]);
+    let state = {
+      timeline: { playheadMs: 1000 },
+      presentation: {
+        current: { sections: [{ id: "section-structural", items: [{
+          id: "item-structural",
+          clipId: "clip-structural-review",
+          objectTracks: [first, second],
+          dynamicGraphics: [],
+        }] }] },
+        selectedItemId: "item-structural",
+        tracking: {
+          selectedTrackIds: [first.id, second.id],
+          prompt: { entityType: "player", playerId: first.playerId, playerLabel: first.playerLabel },
+          reviewHistory: {},
+        },
+      },
+    };
+    const currentItem = () => state.presentation.current.sections[0].items[0];
+    const render = () => {
+      const tracks = currentItem().objectTracks;
+      const selectedId = state.presentation.tracking.selectedTrackIds[0];
+      const selected = tracks.find((entry) => entry.id === selectedId) || tracks[0];
+      document.body.innerHTML = `<main style="box-sizing:border-box;width:min(380px,calc(100vw - 24px));margin:12px;padding:12px;background:#fff">${renderTrackingReviewPanel(state, selected, tracks)}</main>`;
+    };
+    const updateState = (updater) => {
+      state = typeof updater === "function" ? updater(state) : updater;
+      window.__trackingStructuralState = state;
+      render();
+      return state;
+    };
+    const controller = createTrackingReviewController({
+      getState: () => state,
+      updateState,
+      getCurrentMatchMs: () => state.timeline.playheadMs,
+      seekToMatchMs: (atMs) => { state.timeline.playheadMs = atMs; render(); },
+      getReviewer: () => "browser-reviewer",
+    });
+    window.__trackingStructuralState = state;
+    window.__trackingStructuralActions = [];
+    window.__trackingStructuralPaths = () => currentItem().objectTracks.map((entry) => (
+      entry.segments.flatMap((segment) => segment.points).map((entryPoint) => entryPoint.x)
+    ));
+    document.body.addEventListener("click", (event) => {
+      const action = event.target.closest?.("[data-video-analysis-tracking-action]")
+        ?.dataset.videoAnalysisTrackingAction;
+      if (action) {
+        const handled = controller.handleAction(action);
+        window.__trackingStructuralActions.push({
+          action,
+          handled,
+          error: state.presentation.tracking.error || "",
+        });
+      }
+    });
+    render();
+  });
+}
+
 test("tracking benchmark workspace restores and autosaves only inside its user scope", async ({ page }) => {
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
   const result = await page.evaluate(async () => {
@@ -748,6 +852,56 @@ test("continuity review action stays clear and contained on desktop and mobile",
   expect(measured.pageOverflow).toBeLessThanOrEqual(1);
   expect(measured.elementOverflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath("tracking-continuity-mobile.png"), fullPage: true });
+});
+
+test("structural track repair swaps crossed identities and remains atomically reversible", async ({ page }, testInfo) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await mountStructuralReviewFixture(page);
+  const review = page.locator(".video-analysis-tracking-review");
+  const split = review.locator('[data-video-analysis-tracking-action="review-split"]');
+  const swap = review.locator('[data-video-analysis-tracking-action="review-identity-swap"]');
+  await expect(split).toBeEnabled();
+  await expect(swap).toBeEnabled();
+
+  await swap.click();
+  await expect.poll(() => page.evaluate(() => window.__trackingStructuralActions.at(-1))).toMatchObject({
+    action: "review-identity-swap",
+    handled: true,
+    error: "",
+  });
+  await expect.poll(() => page.evaluate(() => window.__trackingStructuralPaths())).toEqual([
+    [0.2, 0.3, 0.3, 0.2],
+    [0.8, 0.7, 0.7, 0.8],
+  ]);
+  await expect(review.locator('[data-video-analysis-tracking-action="review-undo"]')).toBeEnabled();
+
+  await review.locator('[data-video-analysis-tracking-action="review-undo"]').click();
+  await expect.poll(() => page.evaluate(() => window.__trackingStructuralPaths())).toEqual([
+    [0.2, 0.3, 0.7, 0.8],
+    [0.8, 0.7, 0.3, 0.2],
+  ]);
+  await review.locator('[data-video-analysis-tracking-action="review-redo"]').click();
+  await expect.poll(() => page.evaluate(() => window.__trackingStructuralPaths())).toEqual([
+    [0.2, 0.3, 0.3, 0.2],
+    [0.8, 0.7, 0.7, 0.8],
+  ]);
+  await page.screenshot({ path: testInfo.outputPath("tracking-structural-review-desktop.png"), fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const geometry = await review.evaluate((element) => ({
+    left: element.getBoundingClientRect().left,
+    right: element.getBoundingClientRect().right,
+    viewportWidth: window.innerWidth,
+    pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+    elementOverflow: element.scrollWidth - element.clientWidth,
+  }));
+  expect(geometry.left).toBeGreaterThanOrEqual(0);
+  expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+  expect(geometry.pageOverflow).toBeLessThanOrEqual(1);
+  expect(geometry.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-structural-review-mobile.png"), fullPage: true });
+  expect(pageErrors).toEqual([]);
 });
 
 test("freehand telestration draws, undoes, redoes and persists a bounded path", async ({ page }, testInfo) => {

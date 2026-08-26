@@ -9,11 +9,25 @@ import {
 } from "../services/trackingCorrectionService.js";
 import { applyManualTrackingCorrection } from "../services/trackingReviewService.js";
 import {
+  splitTrackingTrack,
+  swapTrackingTrackContinuations,
+} from "../services/trackingStructuralCorrectionService.js";
+import {
   currentTrackingAtMs,
   patchTrackingState,
   replacePresentationItem,
   selectedTrackingItem,
 } from "./trackingControllerHelpers.js";
+import {
+  compoundHistory,
+  historyDescriptor,
+  historyEntry,
+  latestHistoryCandidate,
+  pushCompoundHistory,
+  pushHistory,
+  trackSnapshots,
+} from "./trackingReviewHistory.js";
+import { createTrackingStructuralReviewRuntime } from "./trackingStructuralReviewRuntime.js";
 
 const reviewActions = new Set([
   "review-previous",
@@ -21,11 +35,11 @@ const reviewActions = new Set([
   "review-continuity",
   "review-identity",
   "review-visibility",
+  "review-split",
+  "review-identity-swap",
   "review-undo",
   "review-redo",
 ]);
-const maximumHistoryEntries = 20;
-
 function correctionOperationId(prefix = "correction") {
   return globalThis.crypto?.randomUUID?.()
     || `${prefix}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 14)}`;
@@ -38,23 +52,6 @@ function selectedContext(state = {}) {
   return { item, trackId, track: track ? normalizeObjectTrack(track) : null };
 }
 
-function historyEntry(map, trackId = "") {
-  return map.get(trackId) || [];
-}
-
-function pushHistory(map, trackId = "", track = {}) {
-  const entries = [...historyEntry(map, trackId), normalizeObjectTrack(track)].slice(-maximumHistoryEntries);
-  map.set(trackId, entries);
-}
-
-function historyDescriptor(trackId, undoByTrackId, redoByTrackId) {
-  return {
-    trackId,
-    undoCount: historyEntry(undoByTrackId, trackId).length,
-    redoCount: historyEntry(redoByTrackId, trackId).length,
-  };
-}
-
 export function createTrackingReviewController(options = {}) {
   const getState = options.getState || (() => ({}));
   const updateState = options.updateState || (() => {});
@@ -63,7 +60,36 @@ export function createTrackingReviewController(options = {}) {
   const seekToMatchMs = options.seekToMatchMs || (() => {});
   const undoByTrackId = new Map();
   const redoByTrackId = new Map();
+  const compoundUndoByItemId = new Map();
+  const compoundRedoByItemId = new Map();
   const revisionByTrackId = new Map();
+  const persistenceTasks = [];
+  let persistenceActive = false;
+  let operationSequence = 0;
+
+  function nextSequence() {
+    operationSequence += 1;
+    return operationSequence;
+  }
+
+  function drainPersistenceTasks() {
+    if (persistenceActive || !persistenceTasks.length) return;
+    persistenceActive = true;
+    const entry = persistenceTasks.shift();
+    let task;
+    try { task = entry.task(); } catch (error) { task = Promise.reject(error); }
+    Promise.resolve(task)
+      .catch(entry.onError)
+      .finally(() => {
+        persistenceActive = false;
+        drainPersistenceTasks();
+      });
+  }
+
+  function enqueuePersistence(task, onError) {
+    persistenceTasks.push({ task, onError });
+    drainPersistenceTasks();
+  }
 
   function currentAtMs(state = getState()) {
     return currentTrackingAtMs(getVideoElement, state, getCurrentMatchMs);
@@ -77,10 +103,27 @@ export function createTrackingReviewController(options = {}) {
     updateState((state) => {
       const item = selectedTrackingItem(state);
       if (!item || item.id !== itemId) return state;
+      const selectedTrackIds = (state.presentation?.tracking?.selectedTrackIds || [])
+        .map((id) => id === trackId ? track.id : id);
+      const dynamicGraphics = (item.dynamicGraphics || []).map((graphic) => ({
+        ...graphic,
+        bindings: (graphic.bindings || []).map((binding) => (
+          binding.trackId === trackId ? { ...binding, trackId: track.id } : binding
+        )),
+      }));
       return patchTrackingState(replacePresentationItem(state, item.id, {
         objectTracks: (item.objectTracks || []).map((entry) => entry.id === trackId ? track : entry),
+        dynamicGraphics,
       }), {
-        reviewHistory: historyDescriptor(track.id || trackId, undoByTrackId, redoByTrackId),
+        selectedTrackIds: [...new Set(selectedTrackIds)],
+        reviewHistory: historyDescriptor(
+          item.id,
+          track.id || trackId,
+          undoByTrackId,
+          redoByTrackId,
+          compoundUndoByItemId,
+          compoundRedoByItemId,
+        ),
         error: "",
       });
     });
@@ -109,6 +152,7 @@ export function createTrackingReviewController(options = {}) {
         operationId,
         objectTrackId: savedTrack.id,
         localWorkspaceTrackKey: savedTrack.metadata?.localWorkspaceTrackKey || "",
+        localWorkspaceStatus: savedTrack.metadata?.localWorkspaceStatus || "",
         atMs: audit.atMs ?? currentAtMs(),
         correctionType: audit.correctionType || "position",
         box: audit.box || {},
@@ -119,7 +163,7 @@ export function createTrackingReviewController(options = {}) {
       });
     };
     if (options.persistTrack || options.persistCorrection) {
-      void task().catch((error) => {
+      enqueuePersistence(task, (error) => {
         if (revisionByTrackId.get(previousTrackId) === revision) {
           setError(`${error?.message || "Correction metadata could not be saved."} The correction remains local.`);
         }
@@ -130,13 +174,142 @@ export function createTrackingReviewController(options = {}) {
   function commitTrackChange(context = {}, nextTrackValue = {}, audit = {}) {
     if (!context.item || !context.track) return false;
     const nextTrack = normalizeObjectTrack(nextTrackValue);
-    pushHistory(undoByTrackId, context.track.id, context.track);
-    redoByTrackId.delete(context.track.id);
+    const sequence = nextSequence();
+    pushHistory(undoByTrackId, context.track.id, context.track, sequence);
+    redoByTrackId.clear();
+    compoundRedoByItemId.clear();
     const revision = bumpRevision(context.track.id);
     replaceTrack(context.item.id, context.track.id, nextTrack);
     options.invalidateGroundTruth?.(context.item.id);
     persistChange(context.item.id, context.track.id, nextTrack, audit, revision);
     return true;
+  }
+
+  const structuralRuntime = createTrackingStructuralReviewRuntime({
+    updateState,
+    historyDescriptor: (itemId, trackId) => historyDescriptor(
+      itemId,
+      trackId,
+      undoByTrackId,
+      redoByTrackId,
+      compoundUndoByItemId,
+      compoundRedoByItemId,
+    ),
+    persistTrack: options.persistTrack,
+    persistCorrection: options.persistCorrection,
+    bumpRevision,
+    getRevision: (trackId) => revisionByTrackId.get(trackId),
+    replaceTrack,
+    enqueuePersistence,
+    setError,
+    createOperationId: correctionOperationId,
+  });
+
+  function commitCompound(transaction) {
+    pushCompoundHistory(compoundUndoByItemId, transaction.itemId, transaction);
+    redoByTrackId.clear();
+    compoundRedoByItemId.clear();
+    structuralRuntime.applyState(transaction, "after");
+    options.invalidateGroundTruth?.(transaction.itemId);
+    structuralRuntime.persist(transaction, "after", true);
+    return true;
+  }
+
+  function splitAtPlayhead() {
+    const state = getState();
+    const context = selectedContext(state);
+    if (!context.item || !context.track) return false;
+    try {
+      const atMs = currentAtMs(state);
+      const operationId = correctionOperationId("split");
+      const result = splitTrackingTrack(context.track, {
+        atMs,
+        operationId,
+        correctedBy: options.getReviewer?.() || "",
+      });
+      const index = context.item.objectTracks.findIndex((track) => track.id === context.track.id);
+      return commitCompound({
+        id: operationId,
+        itemId: context.item.id,
+        type: "split",
+        atMs,
+        sequence: nextSequence(),
+        affectedTrackIds: [result.prefix.id, result.suffix.id],
+        before: trackSnapshots(context.item, [context.track], [index]),
+        after: trackSnapshots(context.item, [result.prefix, result.suffix], [index, index + 1]),
+        selectedBefore: [...(state.presentation?.tracking?.selectedTrackIds || [])],
+        selectedAfter: [result.suffix.id],
+        bindingFallbacks: { [result.suffix.id]: result.prefix.id },
+        audits: [
+          {
+            operationId: `${operationId}:prefix`,
+            trackId: result.prefix.id,
+            atMs,
+            correctionType: "split",
+            reason: "Split trajectory at reviewed frame",
+            metadata: { operationGroupId: operationId, structuralRole: "prefix", partnerTrackId: result.suffix.id },
+          },
+          {
+            operationId: `${operationId}:suffix`,
+            trackId: result.suffix.id,
+            atMs,
+            correctionType: "split",
+            reason: "Created unassigned continuation from split",
+            metadata: { operationGroupId: operationId, structuralRole: "suffix", partnerTrackId: result.prefix.id },
+          },
+        ],
+      });
+    } catch (error) {
+      setError(error?.message || "The selected trajectory could not be split.");
+      return true;
+    }
+  }
+
+  function swapSelectedIdentities() {
+    const state = getState();
+    const context = selectedContext(state);
+    const selectedIds = state.presentation?.tracking?.selectedTrackIds || [];
+    const selectedTracks = selectedIds
+      .map((trackId) => context.item?.objectTracks?.find((track) => track.id === trackId))
+      .filter(Boolean);
+    if (!context.item || selectedTracks.length !== 2) return false;
+    try {
+      const atMs = currentAtMs(state);
+      const operationId = correctionOperationId("identity-swap");
+      const result = swapTrackingTrackContinuations(selectedTracks[0], selectedTracks[1], {
+        atMs,
+        operationId,
+        correctedBy: options.getReviewer?.() || "",
+      });
+      const indexes = result.tracks.map((track) => context.item.objectTracks.findIndex((entry) => entry.id === track.id));
+      return commitCompound({
+        id: operationId,
+        itemId: context.item.id,
+        type: "identity-swap",
+        atMs,
+        sequence: nextSequence(),
+        affectedTrackIds: result.tracks.map((track) => track.id),
+        before: trackSnapshots(context.item, selectedTracks, indexes),
+        after: trackSnapshots(context.item, result.tracks, indexes),
+        selectedBefore: [...selectedIds],
+        selectedAfter: [...selectedIds],
+        bindingFallbacks: {},
+        audits: result.tracks.map((track, index) => ({
+          operationId: `${operationId}:${index + 1}`,
+          trackId: track.id,
+          atMs,
+          correctionType: "identity-swap",
+          reason: "Swapped crossed player trajectories",
+          metadata: {
+            operationGroupId: operationId,
+            partnerTrackId: result.tracks[index === 0 ? 1 : 0].id,
+          },
+        })),
+      });
+    } catch (error) {
+      setError(error?.message || "The selected player identities could not be swapped.");
+      return true;
+    }
   }
 
   function applyPositionCorrection(value = {}) {
@@ -238,11 +411,30 @@ export function createTrackingReviewController(options = {}) {
     if (!context.track) return false;
     const source = direction === "redo" ? redoByTrackId : undoByTrackId;
     const target = direction === "redo" ? undoByTrackId : redoByTrackId;
+    const compoundSource = direction === "redo" ? compoundRedoByItemId : compoundUndoByItemId;
+    const compoundTarget = direction === "redo" ? compoundUndoByItemId : compoundRedoByItemId;
+    const candidate = latestHistoryCandidate(
+      context.track.id,
+      context.item.id,
+      source,
+      compoundSource,
+    );
+    if (!candidate) return true;
+    if (candidate.kind === "compound") {
+      const entries = compoundHistory(compoundSource, context.item.id);
+      compoundSource.set(context.item.id, entries.slice(0, -1));
+      const transaction = { ...candidate.value, sequence: nextSequence() };
+      pushCompoundHistory(compoundTarget, context.item.id, transaction);
+      const targetDirection = direction === "redo" ? "after" : "before";
+      structuralRuntime.applyState(transaction, targetDirection);
+      options.invalidateGroundTruth?.(context.item.id);
+      structuralRuntime.persist(transaction, targetDirection, false);
+      return true;
+    }
     const entries = historyEntry(source, context.track.id);
-    if (!entries.length) return true;
-    const restored = entries.at(-1);
+    const restored = candidate.value.track;
     source.set(context.track.id, entries.slice(0, -1));
-    pushHistory(target, context.track.id, context.track);
+    pushHistory(target, context.track.id, context.track, nextSequence());
     const revision = bumpRevision(context.track.id);
     replaceTrack(context.item.id, context.track.id, restored);
     options.invalidateGroundTruth?.(context.item.id);
@@ -259,7 +451,14 @@ export function createTrackingReviewController(options = {}) {
   function syncHistory() {
     const context = selectedContext(getState());
     updateState((state) => patchTrackingState(state, {
-      reviewHistory: historyDescriptor(context.trackId, undoByTrackId, redoByTrackId),
+      reviewHistory: historyDescriptor(
+        context.item?.id || "",
+        context.trackId,
+        undoByTrackId,
+        redoByTrackId,
+        compoundUndoByItemId,
+        compoundRedoByItemId,
+      ),
     }));
     return true;
   }
@@ -271,6 +470,8 @@ export function createTrackingReviewController(options = {}) {
     if (action === "review-continuity") return confirmContinuity();
     if (action === "review-identity") return applyIdentity();
     if (action === "review-visibility") return toggleVisibility();
+    if (action === "review-split") return splitAtPlayhead();
+    if (action === "review-identity-swap") return swapSelectedIdentities();
     if (action === "review-undo") return restoreHistory("undo");
     return restoreHistory("redo");
   }

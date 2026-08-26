@@ -3,6 +3,7 @@ import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { mergeTrackingWorkspaceTracks } from "../services/localTrackingWorkspaceContract.js";
 import {
   loadLocalTrackingTracks,
+  removeLocalTrackingTrack,
   saveLocalTrackingTrack,
 } from "../services/localTrackingWorkspaceStore.js";
 import { trackingMetadataPayload } from "../services/trackingReviewService.js";
@@ -44,6 +45,7 @@ export function createTrackingWorkspaceController(options = {}) {
   const getWindow = options.getWindow || (() => globalThis.window);
   const loadRemoteWorkspace = options.loadRemoteWorkspace || (async () => ({ objectTracks: [], dynamicGraphics: [] }));
   const loadLocalTracks = options.loadLocalTracks || loadLocalTrackingTracks;
+  const removeLocalTrack = options.removeLocalTrack || removeLocalTrackingTrack;
   const saveLocalTrack = options.saveLocalTrack || saveLocalTrackingTrack;
   const saveRemoteTrack = options.saveRemoteTrack || null;
   const now = options.now || Date.now;
@@ -211,6 +213,20 @@ export function createTrackingWorkspaceController(options = {}) {
     return entry;
   }
 
+  async function discardTrack(trackId = "", removeOptions = {}) {
+    const target = trackingWorkspaceTarget(getState(), getContext());
+    if (!target?.scope) throw new Error("Sign in to remove tracking samples from this device.");
+    const ids = [...new Set([trackId, removeOptions.previousTrackId].map(String).filter(Boolean))];
+    for (const id of ids) await removeLocalTrack(target.scope, id, getWindow());
+    ids.forEach((id) => pendingTrackIds.delete(id));
+    setWorkspace({
+      status: pendingTrackIds.size ? "pending-sync" : "saved",
+      localOnlyCount: pendingTrackIds.size,
+      error: "",
+    });
+    return true;
+  }
+
   function migrateTrackId(itemId, previousTrackId, trackValue) {
     const track = normalizeObjectTrack(trackValue);
     updateState((state) => {
@@ -250,6 +266,10 @@ export function createTrackingWorkspaceController(options = {}) {
           segments: entry.track.segments,
           metadata: { ...(remoteTrack.metadata || {}), ...(entry.track.metadata || {}) },
         });
+        if (track.status === "archived") {
+          await discardTrack(track.id, { previousTrackId });
+          continue;
+        }
         await saveLocalTrack(target.scope, track, {
           previousTrackId,
           syncStatus: "synced",
@@ -276,6 +296,7 @@ export function createTrackingWorkspaceController(options = {}) {
   }
 
   return {
+    discardTrack,
     dispose,
     restore,
     retainTrack,

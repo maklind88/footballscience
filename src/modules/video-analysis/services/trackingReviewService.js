@@ -221,6 +221,7 @@ export function trackingMetadataPayload(trackValue = {}) {
   delete metadata.centralSyncPending;
   return {
     id: track.id,
+    createIfMissing: track.metadata?.clientGeneratedTrackId === true,
     clipId: track.clipId,
     videoId: track.videoId,
     entityType: track.entityType,

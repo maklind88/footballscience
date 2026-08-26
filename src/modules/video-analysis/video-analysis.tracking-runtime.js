@@ -97,6 +97,7 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     },
     persistTrack: (track) => repository.saveObjectTrack(track),
     persistLocalTrack: workspace.retainTrack,
+    removeLocalTrack: workspace.discardTrack,
     persistCorrection: correctionOutbox.persist,
     persistGraphic: (graphic) => repository.saveDynamicGraphic(graphic),
     restoreTrackingWorkspace: async () => {

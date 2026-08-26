@@ -120,6 +120,7 @@ function normalizeTrackPayload(value = {}, actor = {}) {
   return {
     ...scope,
     id: normalizeUuid(value.id),
+    createIfMissing: value.createIfMissing === true || value.create_if_missing === true,
     clipId: normalizeUuid(value.clipId || value.clip_id || value.clipInstanceId),
     entityType: TRACK_ENTITY_TYPES.has(entityType) ? entityType : "unknown",
     playerId: normalizeText(value.playerId || value.player_id, 160) || null,

@@ -406,7 +406,7 @@
           const objectTrack = {
             ...(existing || {}),
             ...input,
-            id: existing?.id || crypto.randomUUID(),
+            id: existing?.id || (input.createIfMissing ? input.id : "") || crypto.randomUUID(),
             revision: Number(existing?.revision || 0) + 1,
           };
           if (existing) Object.assign(existing, objectTrack);

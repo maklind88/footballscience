@@ -35,7 +35,14 @@ export async function persistTrackingTrack(trackValue = {}, options = {}) {
       remoteError = error;
     }
   }
-  if (!remoteError && options.persistLocalTrack) {
+  if (!remoteError && track.status === "archived" && options.removeLocalTrack) {
+    try {
+      await options.removeLocalTrack(track.id, { previousTrackId });
+      localError = null;
+    } catch (error) {
+      localError = error;
+    }
+  } else if (!remoteError && options.persistLocalTrack) {
     try {
       await options.persistLocalTrack(track, { previousTrackId, syncStatus: "synced" });
       localError = null;
@@ -45,7 +52,11 @@ export async function persistTrackingTrack(trackValue = {}, options = {}) {
   }
   const localWorkspaceStatus = remoteError
     ? localError ? "unprotected" : "pending-central"
-    : localError ? "unprotected" : options.persistLocalTrack ? "ready" : "session-only";
+    : localError
+      ? "unprotected"
+      : track.status === "archived" && options.removeLocalTrack
+        ? "removed"
+        : options.persistLocalTrack ? "ready" : "session-only";
   return normalizeObjectTrack({
     ...track,
     metadata: {

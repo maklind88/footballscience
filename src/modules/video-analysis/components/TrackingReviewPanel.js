@@ -4,6 +4,10 @@ import {
   trackingReviewEvents,
 } from "../services/trackingCorrectionService.js";
 import { trackingReviewSummary } from "../services/trackingReviewService.js";
+import {
+  trackingIdentitySwapReadiness,
+  trackingSplitReadiness,
+} from "../services/trackingStructuralCorrectionService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
@@ -27,7 +31,7 @@ function renderTrackingProvenance(track = null) {
   return label ? `<small class="video-analysis-tracking-provenance">${escapeHtml(label)}</small>` : "";
 }
 
-export function renderTrackingReviewPanel(state = {}, track = null) {
+export function renderTrackingReviewPanel(state = {}, track = null, tracks = []) {
   if (!track) return "";
   const review = trackingReviewSummary(track);
   const atMs = currentPlayheadMs(state);
@@ -45,6 +49,14 @@ export function renderTrackingReviewPanel(state = {}, track = null) {
   const historyMatches = history.trackId === track.id;
   const prompt = state.presentation?.tracking?.prompt || {};
   const identityReady = track.entityType === "player" && Boolean(prompt.playerId || prompt.playerLabel);
+  const selectedTrackIds = state.presentation?.tracking?.selectedTrackIds || [];
+  const selectedTracks = selectedTrackIds
+    .map((trackId) => tracks.find((entry) => entry.id === trackId))
+    .filter(Boolean);
+  const split = trackingSplitReadiness(track, atMs);
+  const swap = selectedTracks.length === 2
+    ? trackingIdentitySwapReadiness(selectedTracks[0], selectedTracks[1], atMs)
+    : { ready: false, error: "Select two identified player tracks." };
   return `
     <section class="video-analysis-tracking-review" aria-label="Track review">
       <header>
@@ -66,6 +78,8 @@ export function renderTrackingReviewPanel(state = {}, track = null) {
         ${track.entityType === "player" ? `<button type="button" data-video-analysis-tracking-action="review-identity" ${identityReady ? "" : "disabled"}>Apply identity</button>` : ""}
         <button type="button" data-video-analysis-tracking-action="review-continuity" ${continuityReady ? "" : "disabled"}>Confirm continuity</button>
         <button type="button" data-video-analysis-tracking-action="review-visibility" ${visibility.available ? "" : "disabled"}>${visibility.occluded ? "Mark visible" : "Mark occluded"}</button>
+        <button type="button" data-video-analysis-tracking-action="review-split" title="${escapeHtml(split.error || "Split this trajectory at the playhead")}" ${split.ready ? "" : "disabled"}>Split at playhead</button>
+        <button type="button" data-video-analysis-tracking-action="review-identity-swap" title="${escapeHtml(swap.error || "Swap the two selected trajectories after the playhead")}" ${swap.ready ? "" : "disabled"}>Swap after playhead</button>
         <button type="button" data-video-analysis-tracking-action="review-undo" ${historyMatches && history.undoCount ? "" : "disabled"}>Undo</button>
         <button type="button" data-video-analysis-tracking-action="review-redo" ${historyMatches && history.redoCount ? "" : "disabled"}>Redo</button>
       </div>

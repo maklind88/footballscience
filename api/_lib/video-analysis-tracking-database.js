@@ -83,6 +83,22 @@ function correctionMatches(existing = {}, row = {}) {
     && canonicalJson(existing.metadata || {}) === canonicalJson(row.metadata || {});
 }
 
+function localWorkspaceTrackKey(metadata = {}) {
+  return normalizeText(
+    metadata.localWorkspaceTrackKey || metadata.local_workspace_track_key,
+    180,
+  );
+}
+
+function sameClientGeneratedTrack(existing = {}, track = {}) {
+  const existingKey = localWorkspaceTrackKey(existing.metadata);
+  const requestedKey = localWorkspaceTrackKey(track.metadata);
+  return Boolean(existingKey && requestedKey)
+    && existing.id === track.id
+    && existing.clip_instance_id === track.clipId
+    && existingKey === requestedKey;
+}
+
 function idempotentCorrectionPayload(existing, track) {
   return {
     ok: true,
@@ -170,12 +186,19 @@ async function saveObjectTrack(value = {}, actor = {}) {
   }
   const clip = await scopedClip(track, track.clipId);
   if (!clip) return { ok: false, status: 404, reason: "Clip could not be found." };
-  const existing = track.id ? await scopedTrack(track, track.id) : null;
-  if (track.id && !existing) return { ok: false, status: 404, reason: "Object track could not be found." };
+  const existingLookup = track.id
+    ? await scopedTrackResult(track, track.id)
+    : { ok: true, row: null };
+  if (!existingLookup.ok) return existingLookup;
+  let existing = existingLookup.row;
+  if (track.id && !existing && !track.createIfMissing) {
+    return { ok: false, status: 404, reason: "Object track could not be found." };
+  }
   if (existing && track.expectedRevision && Number(existing.revision || 1) !== track.expectedRevision) {
     return { ok: false, status: 409, reason: "Track revision conflict. Reload before saving." };
   }
   const row = {
+    ...(!existing && track.id ? { id: track.id } : {}),
     organization_id: track.organizationId,
     team_id: track.teamId,
     match_id: clip.match_id,
@@ -210,6 +233,27 @@ async function saveObjectTrack(value = {}, actor = {}) {
     if (track.expectedRevision) params.set("revision", `eq.${track.expectedRevision}`);
     result = await patchRows("video_object_tracks", params, row);
   } else result = await insertRow("video_object_tracks", row);
+  if (!result.ok && !existing && track.id && track.createIfMissing && result.status === 409) {
+    const winnerLookup = await scopedTrackResult(track, track.id);
+    if (!winnerLookup.ok) return winnerLookup;
+    const winner = winnerLookup.row;
+    if (!winner || !sameClientGeneratedTrack(winner, track)) {
+      return { ok: false, status: 409, reason: "Object track id was already used for different content." };
+    }
+    if (track.expectedRevision && Number(winner.revision || 1) !== track.expectedRevision) {
+      return { ok: false, status: 409, reason: "Track revision conflict. Reload before saving." };
+    }
+    existing = winner;
+    const params = buildTeamParams(track);
+    params.set("id", `eq.${winner.id}`);
+    if (track.expectedRevision) params.set("revision", `eq.${track.expectedRevision}`);
+    result = await patchRows("video_object_tracks", params, {
+      ...row,
+      created_by: winner.created_by || row.created_by,
+      reviewed_by: track.status === "verified" ? row.reviewed_by : winner.reviewed_by || null,
+      reviewed_at: track.status === "verified" ? row.reviewed_at : winner.reviewed_at || null,
+    });
+  }
   const saved = rowList(result)[0] || null;
   if (!result.ok) return result;
   if (!saved) return { ok: false, status: track.expectedRevision ? 409 : 500, reason: "Object track could not be saved." };

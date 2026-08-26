@@ -370,7 +370,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
         ${tracks.length ? tracks.map((track) => renderTrackRow(track, selectedTrackIds)).join("") : `<li class="video-analysis-muted">No tracked objects in this clip.</li>`}
       </ol>
       ${renderTrackingContinuation(primaryTrack, item, { providerReady, jobActive: Boolean(tracking.job) })}
-      ${renderTrackingReviewPanel(state, primaryTrack)}
+      ${renderTrackingReviewPanel(state, primaryTrack, tracks)}
       ${renderTrackingGroundTruthPanel(state, item)}
       ${renderTrackingBenchmarkSuitePanel(state)}
       <div class="video-analysis-tracking-graphics">

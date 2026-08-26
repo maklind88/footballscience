@@ -77,6 +77,7 @@ export function createTrackingController(options = {}) {
     getVideoElement,
     getCurrentMatchMs,
     seekToMatchMs: options.seekToMatchMs,
+    getReviewer: options.getReviewer,
     persistTrack,
     persistCorrection: options.persistCorrection,
     invalidateGroundTruth: groundTruth.invalidateDraft,
@@ -151,6 +152,7 @@ export function createTrackingController(options = {}) {
     const track = await persistTrackingTrack(trackValue, {
       persistLocalTrack: options.persistLocalTrack,
       persistMetadata: options.persistTrack,
+      removeLocalTrack: options.removeLocalTrack,
     });
     const status = track.metadata?.localWorkspaceStatus;
     if (["pending-central", "unprotected"].includes(status)) {

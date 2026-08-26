@@ -1108,6 +1108,174 @@ test("tracking metadata API rejects dense samples and migration remains service-
   expect(api).toContain('action === "save-dynamic-graphic"');
 });
 
+test("client-generated split track ids create once and remain stable on retry", async () => {
+  const database = require(path.join(rootDir, "api/_lib/video-analysis-tracking-database.js"));
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.SUPABASE_URL;
+  const originalKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.SUPABASE_URL = "https://tracking-client-id-test.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
+  const clipId = "44444444-4444-4444-8444-444444444444";
+  const clientTrackId = "55555555-5555-4555-8555-555555555555";
+  const clip = {
+    id: clipId,
+    match_id: "22222222-2222-4222-8222-222222222222",
+    video_id: "33333333-3333-4333-8333-333333333333",
+  };
+  const tracks = new Map();
+  let inserts = 0;
+  let updates = 0;
+  globalThis.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    const table = parsed.pathname.split("/").at(-1);
+    const method = options.method || "GET";
+    if (table === "video_clip_instances" && method === "GET") return Response.json([clip]);
+    if (table === "video_object_tracks" && method === "GET") {
+      const id = String(parsed.searchParams.get("id") || "").replace(/^eq\./, "");
+      return Response.json(tracks.has(id) ? [tracks.get(id)] : []);
+    }
+    if (table === "video_object_tracks" && method === "POST") {
+      inserts += 1;
+      const row = { ...JSON.parse(options.body), revision: 1 };
+      tracks.set(row.id, row);
+      return Response.json([row]);
+    }
+    if (table === "video_object_tracks" && method === "PATCH") {
+      updates += 1;
+      const id = String(parsed.searchParams.get("id") || "").replace(/^eq\./, "");
+      const row = { ...tracks.get(id), ...JSON.parse(options.body), revision: 2 };
+      tracks.set(id, row);
+      return Response.json([row]);
+    }
+    if (table === "video_analysis_operations" && method === "POST") {
+      return Response.json([{ id: crypto.randomUUID(), ...JSON.parse(options.body) }]);
+    }
+    throw new Error(`Unexpected client-id request: ${method} ${parsed.pathname}`);
+  };
+  const actor = { id: "analyst-client-id", clubId: "club-client-id", teamId: "team-client-id" };
+  const value = {
+    id: clientTrackId,
+    createIfMissing: true,
+    clipId,
+    entityType: "player",
+    startMs: 1000,
+    endMs: 2000,
+    playerLabel: "Unassigned continuation",
+    status: "review",
+    pointCount: 2,
+    segmentCount: 1,
+    metadata: { clientGeneratedTrackId: true, localWorkspaceTrackKey: clientTrackId },
+  };
+  try {
+    const created = await database.saveObjectTrack(value, actor);
+    const replayed = await database.saveObjectTrack(value, actor);
+    const missing = await database.saveObjectTrack({
+      ...value,
+      id: "66666666-6666-4666-8666-666666666666",
+      createIfMissing: false,
+    }, actor);
+    expect(created).toMatchObject({ ok: true, payload: { objectTrack: { id: clientTrackId } } });
+    expect(replayed).toMatchObject({ ok: true, payload: { objectTrack: { id: clientTrackId } } });
+    expect(missing).toMatchObject({ ok: false, status: 404 });
+    expect(inserts).toBe(1);
+    expect(updates).toBe(1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl == null) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = originalUrl;
+    if (originalKey == null) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey;
+  }
+});
+
+test("concurrent split-track creation adopts only the matching local workspace winner", async () => {
+  const database = require(path.join(rootDir, "api/_lib/video-analysis-tracking-database.js"));
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.SUPABASE_URL;
+  const originalKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.SUPABASE_URL = "https://tracking-client-race-test.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
+  const clipId = "44444444-4444-4444-8444-444444444444";
+  const matchingTrackId = "77777777-7777-4777-8777-777777777777";
+  const conflictingTrackId = "88888888-8888-4888-8888-888888888888";
+  const clip = {
+    id: clipId,
+    match_id: "22222222-2222-4222-8222-222222222222",
+    video_id: "33333333-3333-4333-8333-333333333333",
+  };
+  const tracks = new Map();
+  let inserts = 0;
+  let updates = 0;
+  globalThis.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    const table = parsed.pathname.split("/").at(-1);
+    const method = options.method || "GET";
+    if (table === "video_clip_instances" && method === "GET") return Response.json([clip]);
+    if (table === "video_object_tracks" && method === "GET") {
+      const id = String(parsed.searchParams.get("id") || "").replace(/^eq\./, "");
+      return Response.json(tracks.has(id) ? [tracks.get(id)] : []);
+    }
+    if (table === "video_object_tracks" && method === "POST") {
+      inserts += 1;
+      const requested = JSON.parse(options.body);
+      const row = {
+        ...requested,
+        metadata: requested.id === conflictingTrackId
+          ? { ...requested.metadata, localWorkspaceTrackKey: "another-device-track" }
+          : requested.metadata,
+        revision: 1,
+      };
+      tracks.set(row.id, row);
+      return Response.json({ message: "duplicate key" }, { status: 409 });
+    }
+    if (table === "video_object_tracks" && method === "PATCH") {
+      updates += 1;
+      const id = String(parsed.searchParams.get("id") || "").replace(/^eq\./, "");
+      const row = { ...tracks.get(id), ...JSON.parse(options.body), revision: 2 };
+      tracks.set(id, row);
+      return Response.json([row]);
+    }
+    if (table === "video_analysis_operations" && method === "POST") {
+      return Response.json([{ id: crypto.randomUUID(), ...JSON.parse(options.body) }]);
+    }
+    throw new Error(`Unexpected client-race request: ${method} ${parsed.pathname}`);
+  };
+  const actor = { id: "analyst-client-race", clubId: "club-client-race", teamId: "team-client-race" };
+  const value = (id) => ({
+    id,
+    createIfMissing: true,
+    clipId,
+    entityType: "player",
+    startMs: 1000,
+    endMs: 2000,
+    status: "review",
+    pointCount: 2,
+    segmentCount: 1,
+    metadata: { clientGeneratedTrackId: true, localWorkspaceTrackKey: id },
+  });
+  try {
+    const adopted = await database.saveObjectTrack(value(matchingTrackId), actor);
+    const rejected = await database.saveObjectTrack(value(conflictingTrackId), actor);
+    expect(adopted).toMatchObject({
+      ok: true,
+      payload: { objectTrack: { id: matchingTrackId, metadata: { localWorkspaceTrackKey: matchingTrackId } } },
+    });
+    expect(rejected).toMatchObject({
+      ok: false,
+      status: 409,
+      reason: "Object track id was already used for different content.",
+    });
+    expect(inserts).toBe(2);
+    expect(updates).toBe(1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl == null) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = originalUrl;
+    if (originalKey == null) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey;
+  }
+});
+
 test("tracking correction retries are idempotent and reject changed operation content", async () => {
   const database = require(path.join(rootDir, "api/_lib/video-analysis-tracking-database.js"));
   const originalFetch = globalThis.fetch;

@@ -392,6 +392,6 @@ export function mergeTrackingWorkspaceTracks(remoteValues = [], localEntries = [
       ...merged,
       metadata: { ...(merged?.metadata || {}), localWorkspaceStatus },
     });
-  });
+  }).filter((track) => track.status !== "archived");
   return deepFreeze({ tracks, localOnlyCount, missingSampleCount, migrations });
 }

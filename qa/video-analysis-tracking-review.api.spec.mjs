@@ -119,6 +119,139 @@ test("analyst-confirmed continuity joins only short spatially plausible breaks",
   expect(() => correction.applyTrackingContinuityCorrection(implausibleJump, { atMs: 1500 })).toThrow(/too far/i);
 });
 
+test("structural split preserves every sample and makes the continuation explicitly unassigned", async () => {
+  const structural = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingStructuralCorrectionService.js",
+  ));
+  const source = reviewTrack({
+    metadata: {
+      localArtifactId: "provider-artifact-1",
+      localArtifactHash: "a".repeat(64),
+      localWorkspaceTrackKey: "workspace-track-review-9",
+    },
+  });
+  expect(structural.trackingSplitReadiness(source, 0)).toMatchObject({ ready: false });
+  expect(structural.trackingSplitReadiness(source, 1000)).toMatchObject({
+    ready: true,
+    beforePointCount: 2,
+    afterPointCount: 3,
+  });
+  let sequence = 0;
+  const split = structural.splitTrackingTrack(source, {
+    atMs: 1000,
+    operationId: "split-operation-1",
+    trackId: "track-split-continuation",
+    createId: (prefix) => `${prefix}-${++sequence}`,
+    correctedAt: "2026-08-26T12:00:00.000Z",
+  });
+  expect(split.prefix).toMatchObject({
+    id: source.id,
+    endMs: 500,
+    playerLabel: source.playerLabel,
+    status: "review",
+    metadata: {
+      localWorkspaceTrackKey: "workspace-track-review-9",
+      structuralCorrection: "split-prefix",
+    },
+  });
+  expect(split.suffix).toMatchObject({
+    id: "track-split-continuation",
+    startMs: 1000,
+    playerId: "",
+    playerLabel: "",
+    teamSide: "",
+    shirtNumber: "",
+    identityConfidence: 0,
+    status: "review",
+    metadata: {
+      localWorkspaceTrackKey: "track-split-continuation",
+      splitFromTrackId: source.id,
+      structuralCorrection: "split-suffix",
+    },
+  });
+  expect(split.prefix.metadata).not.toHaveProperty("localArtifactId");
+  expect(split.suffix.metadata).not.toHaveProperty("localArtifactHash");
+  expect(split.suffix.segments.flatMap((segment) => segment.points)
+    .every((point) => point.identityConfidence === 0)).toBe(true);
+  expect([
+    ...split.prefix.segments.flatMap((segment) => segment.points),
+    ...split.suffix.segments.flatMap((segment) => segment.points),
+  ].map((point) => point.atMs)).toEqual([0, 500, 1000, 1500, 2000]);
+  expect(split.prefix.corrections.at(-1)).toMatchObject({ correctionType: "split", startMs: 1000 });
+  expect(split.suffix.corrections.at(-1)).toMatchObject({ correctionType: "split", startMs: 1000 });
+});
+
+test("identity swap exchanges only crossed continuations and confirms both boundaries", async () => {
+  const structural = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingStructuralCorrectionService.js",
+  ));
+  const trackA = reviewTrack({
+    id: "track-player-a",
+    playerId: "player-a",
+    playerLabel: "Player A",
+    shirtNumber: "8",
+    segments: [{ id: "segment-a", startMs: 0, endMs: 1500, points: [
+      { atMs: 0, x: 0.2, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 500, x: 0.3, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 1000, x: 0.7, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.5 },
+      { atMs: 1500, x: 0.8, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.5 },
+    ] }],
+    metadata: { localArtifactId: "raw-a", localWorkspaceTrackKey: "workspace-a" },
+  });
+  const trackB = reviewTrack({
+    id: "track-player-b",
+    playerId: "player-b",
+    playerLabel: "Player B",
+    shirtNumber: "10",
+    segments: [{ id: "segment-b", startMs: 0, endMs: 1500, points: [
+      { atMs: 0, x: 0.8, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 500, x: 0.7, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 1000, x: 0.3, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.5 },
+      { atMs: 1500, x: 0.2, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.5 },
+    ] }],
+    metadata: { localArtifactId: "raw-b", localWorkspaceTrackKey: "workspace-b" },
+  });
+  expect(structural.trackingIdentitySwapReadiness(trackA, trackB, 1000)).toMatchObject({ ready: true });
+  const swapped = structural.swapTrackingTrackContinuations(trackA, trackB, {
+    atMs: 1000,
+    operationId: "identity-swap-operation-1",
+    correctedAt: "2026-08-26T12:00:00.000Z",
+  });
+  const [correctedA, correctedB] = swapped.tracks;
+  expect(correctedA).toMatchObject({
+    id: trackA.id,
+    playerId: "player-a",
+    playerLabel: "Player A",
+    metadata: {
+      localWorkspaceTrackKey: "workspace-a",
+      structuralCorrection: "identity-swap",
+      structuralCorrectionPartnerTrackId: trackB.id,
+    },
+  });
+  expect(correctedB).toMatchObject({
+    id: trackB.id,
+    playerId: "player-b",
+    playerLabel: "Player B",
+    metadata: { structuralCorrectionPartnerTrackId: trackA.id },
+  });
+  expect(correctedA.segments.flatMap((segment) => segment.points).map((point) => point.x))
+    .toEqual([0.2, 0.3, 0.3, 0.2]);
+  expect(correctedB.segments.flatMap((segment) => segment.points).map((point) => point.x))
+    .toEqual([0.8, 0.7, 0.7, 0.8]);
+  expect(correctedA.segments.flatMap((segment) => segment.points).find((point) => point.atMs === 1000))
+    .toMatchObject({ identityConfidence: 1, source: "manual" });
+  expect(correctedB.segments.flatMap((segment) => segment.points).find((point) => point.atMs === 1000))
+    .toMatchObject({ identityConfidence: 1, source: "manual" });
+  expect(correctedA.corrections.at(-1)).toMatchObject({ correctionType: "identity-swap" });
+  expect(correctedB.corrections.at(-1)).toMatchObject({ correctionType: "identity-swap" });
+  expect(correctedA.metadata).not.toHaveProperty("localArtifactId");
+  expect(structural.trackingIdentitySwapReadiness(
+    trackA,
+    { ...trackB, playerId: trackA.playerId, playerLabel: trackA.playerLabel },
+    1000,
+  )).toMatchObject({ ready: false });
+});
+
 test("review controller navigation and undo stay correct when persistence resolves out of order", async () => {
   const { createTrackingReviewController } = await import(moduleUrl(
     "src/modules/video-analysis/controllers/trackingReviewController.js",
@@ -201,6 +334,8 @@ test("tracking review panel exposes professional correction controls without ena
   expect(html).toMatch(/data-video-analysis-tracking-action="review-undo"(?! disabled)/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-redo" disabled/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-continuity" disabled/);
+  expect(html).toMatch(/data-video-analysis-tracking-action="review-split"(?![^>]*disabled)[^>]*>Split at playhead/);
+  expect(html).toMatch(/data-video-analysis-tracking-action="review-identity-swap"[^>]+disabled/);
   expect(html).toContain("Mark occluded");
 
   const continuityHtml = renderTrackingReviewPanel({
@@ -208,6 +343,152 @@ test("tracking review panel exposes professional correction controls without ena
     presentation: { tracking: { prompt: {}, reviewHistory: {} } },
   }, track);
   expect(continuityHtml).toMatch(/data-video-analysis-tracking-action="review-continuity"(?! disabled)/);
+
+  const second = reviewTrack({ id: "track-review-10", playerLabel: "Opponent 10", shirtNumber: "10" });
+  const swapHtml = renderTrackingReviewPanel({
+    timeline: { playheadMs: 500 },
+    presentation: {
+      tracking: {
+        selectedTrackIds: [track.id, second.id],
+        prompt: { entityType: "player", playerLabel: track.playerLabel },
+        reviewHistory: {},
+      },
+    },
+  }, track, [track, second]);
+  expect(swapHtml).toMatch(/data-video-analysis-tracking-action="review-identity-swap"(?![^>]*disabled)[^>]*>Swap after playhead/);
+});
+
+test("trajectory split is one reversible operation and archives only its derived branch", async () => {
+  const { createTrackingReviewController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingReviewController.js",
+  ));
+  const track = reviewTrack();
+  const item = { id: "item-split", clipId: track.clipId, objectTracks: [track], dynamicGraphics: [] };
+  let state = {
+    timeline: { playheadMs: 1000 },
+    presentation: {
+      current: { sections: [{ id: "section-split", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        selectedTrackIds: [track.id],
+        prompt: { entityType: "player", playerLabel: track.playerLabel },
+      },
+    },
+  };
+  const trackWrites = [];
+  const audits = [];
+  const controller = createTrackingReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getCurrentMatchMs: () => state.timeline.playheadMs,
+    persistTrack: async (value) => { trackWrites.push(value); return value; },
+    persistCorrection: async (value) => { audits.push(value); },
+  });
+
+  expect(controller.handleAction("review-split")).toBe(true);
+  let tracks = state.presentation.current.sections[0].items[0].objectTracks;
+  expect(tracks).toHaveLength(2);
+  const suffixId = tracks[1].id;
+  expect(tracks[0].segments.flatMap((segment) => segment.points).map((point) => point.atMs)).toEqual([0, 500]);
+  expect(tracks[1]).toMatchObject({ id: suffixId, playerLabel: "", status: "review" });
+  expect(state.presentation.tracking).toMatchObject({
+    selectedTrackIds: [suffixId],
+    reviewHistory: { undoCount: 1, redoCount: 0 },
+  });
+  await expect.poll(() => audits.length).toBe(2);
+  expect(new Set(audits.map((entry) => entry.operationId)).size).toBe(2);
+
+  state.presentation.current.sections[0].items[0].dynamicGraphics = [{
+    id: "graphic-split-branch",
+    type: "circle",
+    source: "tracking",
+    bindings: [{ trackId: suffixId, role: "primary", anchor: "ground" }],
+  }];
+  expect(controller.handleAction("review-undo")).toBe(true);
+  tracks = state.presentation.current.sections[0].items[0].objectTracks;
+  expect(tracks).toHaveLength(1);
+  expect(tracks[0].segments.flatMap((segment) => segment.points)).toHaveLength(5);
+  expect(state.presentation.current.sections[0].items[0].dynamicGraphics[0].bindings[0].trackId).toBe(track.id);
+  expect(state.presentation.tracking).toMatchObject({
+    selectedTrackIds: [track.id],
+    reviewHistory: { undoCount: 0, redoCount: 1 },
+  });
+  await expect.poll(() => trackWrites.filter((entry) => entry.status === "archived").length).toBe(1);
+  await expect.poll(() => audits.length).toBe(3);
+  expect(audits.at(-1)).toMatchObject({ correctionType: "merge", metadata: { historyAction: "undo" } });
+
+  expect(controller.handleAction("review-redo")).toBe(true);
+  tracks = state.presentation.current.sections[0].items[0].objectTracks;
+  expect(tracks).toHaveLength(2);
+  expect(state.presentation.current.sections[0].items[0].dynamicGraphics[0].bindings[0].trackId).toBe(suffixId);
+  await expect.poll(() => audits.length).toBe(5);
+  expect(audits.slice(-2).every((entry) => entry.correctionType === "split")).toBe(true);
+});
+
+test("identity swap persists and reverses both trajectories as one audit group", async () => {
+  const { createTrackingReviewController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingReviewController.js",
+  ));
+  const trackA = reviewTrack({
+    id: "track-swap-a",
+    playerId: "player-a",
+    playerLabel: "Player A",
+    segments: [{ id: "segment-swap-a", startMs: 0, endMs: 1500, points: [
+      { atMs: 0, x: 0.2, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 500, x: 0.3, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 1000, x: 0.7, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.5 },
+      { atMs: 1500, x: 0.8, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.5 },
+    ] }],
+  });
+  const trackB = reviewTrack({
+    id: "track-swap-b",
+    playerId: "player-b",
+    playerLabel: "Player B",
+    segments: [{ id: "segment-swap-b", startMs: 0, endMs: 1500, points: [
+      { atMs: 0, x: 0.8, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 500, x: 0.7, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 1000, x: 0.3, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.5 },
+      { atMs: 1500, x: 0.2, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.5 },
+    ] }],
+  });
+  const item = { id: "item-swap", clipId: trackA.clipId, objectTracks: [trackA, trackB], dynamicGraphics: [] };
+  let state = {
+    timeline: { playheadMs: 1000 },
+    presentation: {
+      current: { sections: [{ id: "section-swap", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: { selectedTrackIds: [trackA.id, trackB.id], prompt: {} },
+    },
+  };
+  const audits = [];
+  const trackWrites = [];
+  const controller = createTrackingReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getCurrentMatchMs: () => state.timeline.playheadMs,
+    persistTrack: async (value) => { trackWrites.push(value); return value; },
+    persistCorrection: async (value) => { audits.push(value); },
+  });
+
+  expect(controller.handleAction("review-identity-swap")).toBe(true);
+  let tracks = state.presentation.current.sections[0].items[0].objectTracks;
+  expect(tracks[0].segments.flatMap((segment) => segment.points).map((point) => point.x))
+    .toEqual([0.2, 0.3, 0.3, 0.2]);
+  expect(tracks[1].segments.flatMap((segment) => segment.points).map((point) => point.x))
+    .toEqual([0.8, 0.7, 0.7, 0.8]);
+  await expect.poll(() => audits.length).toBe(2);
+  expect(audits.every((entry) => entry.correctionType === "identity-swap")).toBe(true);
+  expect(new Set(audits.map((entry) => entry.metadata.operationGroupId)).size).toBe(1);
+
+  expect(controller.handleAction("review-undo")).toBe(true);
+  tracks = state.presentation.current.sections[0].items[0].objectTracks;
+  expect(tracks[0].segments.flatMap((segment) => segment.points).map((point) => point.x))
+    .toEqual([0.2, 0.3, 0.7, 0.8]);
+  expect(tracks[1].segments.flatMap((segment) => segment.points).map((point) => point.x))
+    .toEqual([0.8, 0.7, 0.3, 0.2]);
+  await expect.poll(() => audits.length).toBe(4);
+  expect(audits.slice(-2).every((entry) => entry.metadata.historyAction === "undo")).toBe(true);
+  expect(trackWrites).toHaveLength(4);
 });
 
 test("continuity confirmation is audited, invalidates ground truth and remains undoable", async () => {
@@ -362,6 +643,16 @@ test("local tracking workspace chunks samples, isolates scope and reconciles a c
   });
   expect(merged.tracks[0].segments.flatMap((segment) => segment.points)).toHaveLength(5);
 
+  const archivedBundle = workspace.createLocalTrackingTrackBundle({
+    scope,
+    track: reviewTrack({ id: "track-archived-pending", status: "archived" }),
+    syncStatus: "pending",
+  });
+  const archivedWorkspace = workspace.mergeTrackingWorkspaceTracks([], [
+    workspace.hydrateLocalTrackingTrack(archivedBundle.record, archivedBundle.chunks),
+  ], []);
+  expect(archivedWorkspace).toMatchObject({ tracks: [], localOnlyCount: 1 });
+
   const duplicateBundle = workspace.createLocalTrackingTrackBundle({
     scope,
     track: reviewTrack({
@@ -439,6 +730,38 @@ test("track persistence protects samples before central sync and retains a faile
   expect(trackingMetadataPayload(synced).metadata).not.toHaveProperty("localWorkspaceStatus");
   expect(trackingMetadataPayload(synced).metadata).toMatchObject({
     localWorkspaceTrackKey: "track-review-9",
+  });
+
+  const archiveCalls = [];
+  const archived = await persistTrackingTrack(reviewTrack({ status: "archived" }), {
+    persistLocalTrack: async (track, options) => {
+      archiveCalls.push({ type: "local", id: track.id, status: options.syncStatus });
+      return { track, syncStatus: options.syncStatus };
+    },
+    persistMetadata: async (metadata) => ({ objectTrack: { ...metadata, status: "archived" } }),
+    removeLocalTrack: async (trackId, options) => {
+      archiveCalls.push({ type: "remove", id: trackId, previousTrackId: options.previousTrackId });
+    },
+  });
+  expect(archiveCalls).toEqual([
+    { type: "local", id: "track-review-9", status: "pending" },
+    { type: "remove", id: "track-review-9", previousTrackId: "track-review-9" },
+  ]);
+  expect(archived).toMatchObject({
+    status: "archived",
+    metadata: { localWorkspaceStatus: "removed", centralSyncPending: false },
+  });
+
+  let removedAfterFailure = false;
+  const pendingArchive = await persistTrackingTrack(reviewTrack({ status: "archived" }), {
+    persistLocalTrack: async (track, options) => ({ track, syncStatus: options.syncStatus }),
+    persistMetadata: async () => { throw new Error("Archive sync offline."); },
+    removeLocalTrack: async () => { removedAfterFailure = true; },
+  });
+  expect(removedAfterFailure).toBe(false);
+  expect(pendingArchive).toMatchObject({
+    status: "archived",
+    metadata: { localWorkspaceStatus: "pending-central", centralSyncPending: true },
   });
 });
 

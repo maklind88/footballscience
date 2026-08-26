@@ -152,6 +152,35 @@ export function trackingExtensionAvailability(trackValue = {}, rangeValue = {}) 
   };
 }
 
+export function trackingContinuationSteps(trackValue = {}, rangeValue = {}, options = {}) {
+  const range = normalizedRange(rangeValue);
+  const availability = trackingExtensionAvailability(trackValue, range);
+  const maximumDurationMs = boundedDuration(options.maxDurationMs);
+  const overlapMs = Math.max(200, Math.min(5000, Math.round(Number(options.overlapMs) || DEFAULT_TRACKING_OVERLAP_MS)));
+  const netDurationMs = Math.max(1, maximumDurationMs - overlapMs);
+  const earlier = availability.earlier
+    ? Math.ceil((availability.trackedStartMs - range.startMs) / netDurationMs)
+    : 0;
+  const later = availability.later
+    ? Math.ceil((range.endMs - availability.trackedEndMs) / netDurationMs)
+    : 0;
+  return { earlier, later, total: earlier + later };
+}
+
+export function trackingContinuationProgress(value = {}, batch = null) {
+  const total = Math.max(0, Math.round(Number(batch?.total) || 0));
+  if (!total) return value;
+  const completed = Math.max(0, Math.min(total - 1, Math.round(Number(batch.completed) || 0)));
+  const localRatio = clamp(value.ratio ?? value.progress);
+  const stage = String(value.stage || "Tracking player").trim();
+  return {
+    ...value,
+    stage: `Complete range ${completed + 1}/${total}: ${stage}`,
+    ratio: clamp((completed + localRatio) / total),
+    startedAtMs: Number.isFinite(Number(batch.startedAtMs)) ? Number(batch.startedAtMs) : value.startedAtMs,
+  };
+}
+
 export function trackingExtensionPrompt(trackValue = {}, rangeValue = {}, direction = "later", options = {}) {
   const track = normalizeObjectTrack(trackValue);
   const range = normalizedRange(rangeValue);
@@ -200,6 +229,14 @@ export function mergeTrackingExtension(baseValue = {}, extensionValue = {}, dire
     throw extensionError("Both track parts need reviewable tracking points before they can be joined.");
   }
   const baseAnchor = direction === "earlier" ? basePoints[0] : basePoints.at(-1);
+  const extensionBoundary = direction === "earlier" ? extensionPoints[0] : extensionPoints.at(-1);
+  if ((direction === "earlier" && extensionBoundary.atMs >= baseAnchor.atMs)
+    || (direction !== "earlier" && extensionBoundary.atMs <= baseAnchor.atMs)) {
+    throw extensionError(
+      "The continuation did not extend the tracked time range.",
+      "TRACK_EXTENSION_NO_PROGRESS",
+    );
+  }
   assertSeamContinuity(baseAnchor, seamPoint(extensionPoints, baseAnchor.atMs));
   const points = mergedPoints(basePoints, extensionPoints);
   const segments = segmentsFromPoints(points, Math.max(250, Number(options.maximumGapMs) || 1500));

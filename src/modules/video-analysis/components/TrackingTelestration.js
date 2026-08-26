@@ -196,6 +196,7 @@ function renderTrackingContinuation(track = null, item = null, options = {}) {
       <div class="video-analysis-tracking-continuation__actions">
         <button type="button" data-video-analysis-tracking-action="extend-earlier" ${availability.earlier && !disabled ? "" : "disabled"}>Extend earlier</button>
         <button type="button" data-video-analysis-tracking-action="extend-later" ${availability.later && !disabled ? "" : "disabled"}>Extend later</button>
+        <button type="button" data-video-analysis-tracking-action="complete-range" ${(availability.earlier || availability.later) && !disabled ? "" : "disabled"}>${availability.earlier || availability.later ? "Complete range" : "Range complete"}</button>
       </div>
     </div>
   `;

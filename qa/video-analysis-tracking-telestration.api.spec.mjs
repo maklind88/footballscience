@@ -389,6 +389,16 @@ test("long tracking ranges chunk safely and merge continuations into one player 
     trackedStartMs: 90_000,
     trackedEndMs: 210_000,
   });
+  expect(extension.trackingContinuationSteps(base, { startMs: 0, endMs: 300_000 })).toEqual({
+    earlier: 1,
+    later: 1,
+    total: 2,
+  });
+  expect(extension.trackingContinuationProgress({ stage: "tracking", ratio: 0.5 }, {
+    completed: 1,
+    total: 2,
+    startedAtMs: 1234,
+  })).toMatchObject({ stage: "Complete range 2/2: tracking", ratio: 0.75, startedAtMs: 1234 });
   expect(extension.trackingExtensionPrompt(base, { startMs: 0, endMs: 300_000 }, "later")).toMatchObject({
     startMs: 209_000,
     endMs: 300_000,
@@ -437,6 +447,18 @@ test("long tracking ranges chunk safely and merge continuations into one player 
     id: "wrong-player",
     playerId: "player-9",
   }, "later")).toThrow(/different player identity/i);
+  expect(() => extension.mergeTrackingExtension(base, {
+    id: "no-progress",
+    clipId: "clip-1",
+    videoId: "video-1",
+    entityType: "player",
+    playerId: "player-8",
+    startMs: 209_000,
+    endMs: 210_000,
+    segments: [{ startMs: 210_000, endMs: 210_000, points: [
+      { atMs: 210_000, x: 0.4, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+    ] }],
+  }, "later")).toThrow(/did not extend/i);
 });
 
 test("tracking controller extends the selected player without duplicating its identity", async () => {
@@ -539,6 +561,194 @@ test("tracking controller extends the selected player without duplicating its id
   expect(state.presentation.tracking.prompt).toMatchObject({ startMs: 0, endMs: 300_000, box: null });
 });
 
+test("complete range chains bounded tracking jobs with one cancellable player identity", async () => {
+  const { createTrackingController } = await import(moduleUrl("src/modules/video-analysis/controllers/trackingController.js"));
+  const baseTrack = {
+    id: "track-complete",
+    clipId: "clip-complete",
+    videoId: "video-1",
+    entityType: "player",
+    playerId: "player-8",
+    playerLabel: "Player 8",
+    status: "review",
+    startMs: 120_000,
+    endMs: 240_000,
+    metadata: {
+      localArtifactId: "artifact-base",
+      localSourceArtifactId: "source-a",
+      targetStartMs: 0,
+      targetEndMs: 400_000,
+    },
+    segments: [{ startMs: 120_000, endMs: 240_000, points: [
+      { atMs: 120_000, x: 0.4, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 240_000, x: 0.4, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+    ] }],
+  };
+  const item = {
+    id: "item-complete",
+    clipId: "clip-complete",
+    startMs: 0,
+    endMs: 400_000,
+    clip: { id: "clip-complete", videoId: "video-1", startMs: 0, endMs: 400_000 },
+    objectTracks: [baseTrack],
+    dynamicGraphics: [],
+  };
+  let state = {
+    video: { id: "video-1" },
+    videoRef: { kind: "local-file", localFileKey: "video-1" },
+    presentation: {
+      current: { sections: [{ id: "section-1", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        mode: "tracking",
+        provider: { status: "ready", available: true, maxDurationMs: 120_000 },
+        selectedTrackIds: [baseTrack.id],
+        job: null,
+        error: "",
+      },
+    },
+  };
+  const requests = [];
+  const corrections = [];
+  const stages = [];
+  const controller = createTrackingController({
+    getState: () => state,
+    updateState: (updater) => {
+      state = updater(state);
+      if (state.presentation.tracking.job?.stage) stages.push(state.presentation.tracking.job.stage);
+    },
+    trackObject: async (request) => {
+      requests.push(request);
+      request.onProgress?.({ stage: "tracking", ratio: 0.5 });
+      const prompt = request.prompt;
+      const earlier = request.continuationDirection === "earlier";
+      const boundaryAtMs = earlier ? prompt.startMs : prompt.endMs;
+      const points = [boundaryAtMs, prompt.promptAtMs]
+        .sort((left, right) => left - right)
+        .map((atMs) => ({
+          atMs,
+          x: 0.4,
+          y: 0.4,
+          width: 0.08,
+          height: 0.2,
+          confidence: 0.9,
+          identityConfidence: 0.9,
+        }));
+      return {
+        id: `part-${requests.length}`,
+        entityType: "player",
+        playerId: "player-8",
+        playerLabel: "Player 8",
+        status: "review",
+        startMs: prompt.startMs,
+        endMs: prompt.endMs,
+        metadata: { localArtifactId: `artifact-${requests.length}`, localSourceArtifactId: "source-a" },
+        segments: [{ startMs: prompt.startMs, endMs: prompt.endMs, points }],
+      };
+    },
+    persistCorrection: async (value) => { corrections.push(value); },
+  });
+  const event = {
+    target: {
+      nodeType: 1,
+      closest: (selector) => selector === "[data-video-analysis-tracking-action]"
+        ? { dataset: { videoAnalysisTrackingAction: "complete-range" } }
+        : null,
+    },
+  };
+
+  expect(controller.handleClick(event)).toBe(true);
+  await expect.poll(() => state.presentation.current.sections[0].items[0].objectTracks[0]?.metadata?.extensionCount).toBe(4);
+  const tracks = state.presentation.current.sections[0].items[0].objectTracks;
+  const points = tracks[0].segments.flatMap((segment) => segment.points);
+  expect(tracks).toHaveLength(1);
+  expect(tracks[0]).toMatchObject({ id: "track-complete", playerId: "player-8", startMs: 0, endMs: 400_000 });
+  expect(points[0].atMs).toBe(0);
+  expect(points.at(-1).atMs).toBe(400_000);
+  expect(requests).toHaveLength(4);
+  expect(requests.every((request) => request.sourceArtifactId === "source-a")).toBe(true);
+  expect(corrections).toHaveLength(4);
+  expect(stages.some((stage) => stage.startsWith("Complete range 1/4:"))).toBe(true);
+  expect(stages.some((stage) => stage.startsWith("Complete range 4/4:"))).toBe(true);
+  expect(state.presentation.tracking).toMatchObject({ job: null, error: "" });
+});
+
+test("cancelling complete range aborts the active part and starts no continuation", async () => {
+  const { createTrackingController } = await import(moduleUrl("src/modules/video-analysis/controllers/trackingController.js"));
+  const baseTrack = {
+    id: "track-cancel-range",
+    clipId: "clip-cancel-range",
+    videoId: "video-1",
+    entityType: "player",
+    playerId: "player-8",
+    playerLabel: "Player 8",
+    status: "review",
+    startMs: 90_000,
+    endMs: 210_000,
+    metadata: { localSourceArtifactId: "source-a", targetStartMs: 0, targetEndMs: 300_000 },
+    segments: [{ startMs: 90_000, endMs: 210_000, points: [
+      { atMs: 90_000, x: 0.4, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 210_000, x: 0.4, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+    ] }],
+  };
+  const item = {
+    id: "item-cancel-range",
+    clipId: "clip-cancel-range",
+    startMs: 0,
+    endMs: 300_000,
+    clip: { id: "clip-cancel-range", videoId: "video-1", startMs: 0, endMs: 300_000 },
+    objectTracks: [baseTrack],
+    dynamicGraphics: [],
+  };
+  let state = {
+    video: { id: "video-1" },
+    presentation: {
+      current: { sections: [{ id: "section-1", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        mode: "tracking",
+        provider: { status: "ready", available: true, maxDurationMs: 120_000 },
+        selectedTrackIds: [baseTrack.id],
+        job: null,
+        error: "",
+      },
+    },
+  };
+  let requestCount = 0;
+  let activeSignal = null;
+  const controller = createTrackingController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    trackObject: ({ signal }) => new Promise((resolve, reject) => {
+      requestCount += 1;
+      activeSignal = signal;
+      signal.addEventListener("abort", () => {
+        const error = new Error("Tracking was cancelled.");
+        error.name = "AbortError";
+        reject(error);
+      }, { once: true });
+    }),
+  });
+  const actionEvent = (action) => ({
+    target: {
+      nodeType: 1,
+      closest: (selector) => selector === "[data-video-analysis-tracking-action]"
+        ? { dataset: { videoAnalysisTrackingAction: action } }
+        : null,
+    },
+  });
+
+  expect(controller.handleClick(actionEvent("complete-range"))).toBe(true);
+  expect(activeSignal?.aborted).toBe(false);
+  expect(controller.handleClick(actionEvent("cancel"))).toBe(true);
+  await expect.poll(() => state.presentation.tracking.job).toBeNull();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(activeSignal.aborted).toBe(true);
+  expect(requestCount).toBe(1);
+  expect(state.presentation.current.sections[0].items[0].objectTracks[0].metadata.extensionCount).toBeUndefined();
+  expect(state.presentation.tracking.error).toBe("");
+});
+
 test("tracking sidebar shows real job telemetry and completed provider provenance", async () => {
   const { renderTrackingSidebar } = await import(moduleUrl("src/modules/video-analysis/components/TrackingTelestration.js"));
   const track = {
@@ -595,6 +805,7 @@ test("tracking sidebar shows real job telemetry and completed provider provenanc
   expect(idleSidebar).toContain("1s of 3s | Partial");
   expect(idleSidebar).toMatch(/data-video-analysis-tracking-action="extend-earlier" disabled/);
   expect(idleSidebar).toMatch(/data-video-analysis-tracking-action="extend-later" >Extend later/);
+  expect(idleSidebar).toMatch(/data-video-analysis-tracking-action="complete-range" >Complete range/);
 });
 
 test("tracking metadata API rejects dense samples and migration remains service-role scoped", async () => {

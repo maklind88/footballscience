@@ -417,6 +417,10 @@
   opacity: 0.48;
 }
 
+.video-analysis-tracking-continuation__actions button:last-child {
+  grid-column: 1 / -1;
+}
+
 .video-analysis-tracking-graphics {
   justify-content: space-between;
 }

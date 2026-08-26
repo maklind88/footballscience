@@ -73,6 +73,35 @@ test("staging release locks the exact remote history and Leaderboard bytes", () 
   expect(releaseContract.poolerPort).toBe(5432);
 });
 
+test("dormant rollback artifact stays outside migration discovery and locks emergency promotion", () => {
+  const artifactPath = "scripts/release-artifacts/leaderboard-rollback-before-code.sql";
+  const artifact = fs.readFileSync(path.join(rootDir, artifactPath));
+  const runbook = read("scripts/release-artifacts/leaderboard-rollback-before-code.md");
+  const activeRollbackMigrations = fs.readdirSync(path.join(rootDir, "supabase", "migrations"))
+    .filter((filename) => /leaderboard.*rollback|rollback.*leaderboard/i.test(filename));
+
+  expect(activeRollbackMigrations).toEqual([]);
+  expect(artifact).toHaveLength(17449);
+  expect(crypto.createHash("sha256").update(artifact).digest("hex"))
+    .toBe("233a04c2190890ade48fa3abab53e36aa8f5f112871845cc14653ac432d7d986");
+  expect(canonicalizeSupabaseMigration(artifact)).toEqual({
+    statements: 1,
+    bytes: 17449,
+    md5: "0844a24b99ec69f07dff6352707e54d2",
+    sha256: "233a04c2190890ade48fa3abab53e36aa8f5f112871845cc14653ac432d7d986",
+  });
+  expect(artifact.toString("utf8")).toContain("set_config('search_path', 'public, extensions, pg_temp', true)");
+  expect(artifact.toString("utf8")).toContain("in access exclusive mode");
+  expect(artifact.toString("utf8")).not.toMatch(/\bcascade\b|\brevoke\b|\bgrant\b|schema_migrations/i);
+  expect(runbook).toContain("Status: dormant");
+  expect(runbook).toContain("apply_migration");
+  expect(runbook).toContain("server version `V_R`");
+  expect(runbook).toContain("supabase/migrations/<V_R>_leaderboard_rollback_before_code.sql");
+  expect(runbook).toContain("merge_branch");
+  expect(runbook).toContain("never blindly retried");
+  expect(runbook).toContain("233a04c2190890ade48fa3abab53e36aa8f5f112871845cc14653ac432d7d986");
+});
+
 test("fetched history verifier rejects extra, forbidden, or byte-drifted files", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "leaderboard-staging-history-contract-"));
   const content = Buffer.from("select 1;\n");

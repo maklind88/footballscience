@@ -55,6 +55,9 @@ function provider(stage, capabilities, overrides = {}) {
       caseCount: 12,
       realMatchCaseCount: 10,
       capabilities,
+      referenceEvaluator: "TrackEval",
+      referenceReportSha256: "e".repeat(64),
+      referenceMetrics: ["HOTA", "DetA", "AssA", "LocA", "MOTA", "IDF1"],
       ...overrides.benchmark,
     },
   };
@@ -101,6 +104,24 @@ test("tracking provider rejects capabilities from another pipeline stage", async
   expect(() => contract.normalizeTrackingProviderManifest(
     provider("detection", ["reidentify:player"]),
   )).toThrow(/does not belong/i);
+});
+
+test("multi-object providers require an official TrackEval reference report", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const manifest = provider("association", ["associate:multi-object"], {
+    benchmark: { referenceEvaluator: "", referenceReportSha256: undefined, referenceMetrics: [] },
+  });
+  const readiness = contract.trackingProviderReadiness(manifest);
+
+  expect(readiness.ready).toBe(false);
+  expect(readiness.reasons).toContain("trackeval-reference-missing");
+
+  const incomplete = provider("association", ["associate:multi-object"], {
+    benchmark: { referenceMetrics: ["HOTA", "MOTA", "IDF1"] },
+  });
+  expect(contract.trackingProviderReadiness(incomplete).reasons).toContain("trackeval-reference-missing");
 });
 
 test("tracking pipeline plans all required stages and fails closed on missing evidence", async () => {

@@ -88,3 +88,16 @@ npm run fs-player:tracking:preflight
 ```
 
 Inference performs no network calls. It samples only the bounded synchronized source range, tracks forward and backward from the analyst's exact prompt frame, and returns review-state metadata with detection confidence, identity confidence, and explicit continuity breaks. Match video and dense tracking points remain on the device.
+
+## Independent tracking evaluation
+
+The optional TrackEval package is a separate reference evaluator. It does not track video or approve a model by installation alone. It recomputes HOTA, CLEAR/MOTA, and Identity/IDF1 from normalized benchmark trajectories using a pinned, hash-verified upstream source and an isolated Python environment.
+
+```bash
+npm run fs-player:tracking:trackeval:plan
+npm run fs-player:tracking:trackeval:install -- --accept-license
+npm run fs-player:tracking:trackeval:preflight
+npm run fs-player:tracking:benchmark -- --input /absolute/local/football-scene.json --trackeval
+```
+
+Evaluation receives no video, image frame, source path, player identity, team identity, or shirt number. Only normalized boxes, opaque trajectory IDs, entity class, timestamps, and the source SHA-256 fingerprint enter the temporary local request; the request is deleted after the bounded evaluation process exits.

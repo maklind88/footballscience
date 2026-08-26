@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "benchmarkType": "multi-object",
+  "id": "football-scene-clean-motion",
+  "sourceFingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "profileId": "football-scene-pilot-v1",
+  "frame": { "width": 1920, "height": 1080 },
+  "range": { "startMs": 0, "endMs": 2000 },
+  "groundTruth": {
+    "tracks": [
+      {
+        "id": "truth-home-8", "entityType": "player", "playerId": "home-8", "teamId": "home", "teamSide": "home", "shirtNumber": "8", "startMs": 0, "endMs": 2000,
+        "segments": [{ "id": "truth-home-8-segment", "startMs": 0, "endMs": 2000, "points": [
+          { "atMs": 0, "frameIndex": 0, "x": 0.2, "y": 0.55, "width": 0.06, "height": 0.16, "groundX": 0.2, "groundY": 0.63 },
+          { "atMs": 1000, "frameIndex": 25, "x": 0.3, "y": 0.55, "width": 0.06, "height": 0.16, "groundX": 0.3, "groundY": 0.63 },
+          { "atMs": 2000, "frameIndex": 50, "x": 0.4, "y": 0.55, "width": 0.06, "height": 0.16, "groundX": 0.4, "groundY": 0.63 }
+        ] }]
+      },
+      {
+        "id": "truth-away-4", "entityType": "player", "playerId": "away-4", "teamId": "away", "teamSide": "away", "shirtNumber": "4", "startMs": 0, "endMs": 2000,
+        "segments": [{ "id": "truth-away-4-segment", "startMs": 0, "endMs": 2000, "points": [
+          { "atMs": 0, "frameIndex": 0, "x": 0.7, "y": 0.5, "width": 0.06, "height": 0.16, "groundX": 0.7, "groundY": 0.58 },
+          { "atMs": 1000, "frameIndex": 25, "x": 0.65, "y": 0.5, "width": 0.06, "height": 0.16, "groundX": 0.65, "groundY": 0.58 },
+          { "atMs": 2000, "frameIndex": 50, "x": 0.6, "y": 0.5, "width": 0.06, "height": 0.16, "groundX": 0.6, "groundY": 0.58 }
+        ] }]
+      },
+      {
+        "id": "truth-ball", "entityType": "ball", "startMs": 0, "endMs": 2000,
+        "segments": [{ "id": "truth-ball-segment", "startMs": 0, "endMs": 2000, "points": [
+          { "atMs": 0, "frameIndex": 0, "x": 0.45, "y": 0.65, "width": 0.02, "height": 0.02, "groundX": 0.45, "groundY": 0.66 },
+          { "atMs": 1000, "frameIndex": 25, "x": 0.5, "y": 0.65, "width": 0.02, "height": 0.02, "groundX": 0.5, "groundY": 0.66 },
+          { "atMs": 2000, "frameIndex": 50, "x": 0.55, "y": 0.65, "width": 0.02, "height": 0.02, "groundX": 0.55, "groundY": 0.66 }
+        ] }]
+      },
+      {
+        "id": "truth-referee", "entityType": "referee", "startMs": 0, "endMs": 2000,
+        "segments": [{ "id": "truth-referee-segment", "startMs": 0, "endMs": 2000, "points": [
+          { "atMs": 0, "frameIndex": 0, "x": 0.5, "y": 0.45, "width": 0.05, "height": 0.15, "groundX": 0.5, "groundY": 0.525 },
+          { "atMs": 1000, "frameIndex": 25, "x": 0.52, "y": 0.45, "width": 0.05, "height": 0.15, "groundX": 0.52, "groundY": 0.525 },
+          { "atMs": 2000, "frameIndex": 50, "x": 0.54, "y": 0.45, "width": 0.05, "height": 0.15, "groundX": 0.54, "groundY": 0.525 }
+        ] }]
+      }
+    ]
+  },
+  "prediction": {
+    "tracks": [
+      {
+        "id": "prediction-home-8", "entityType": "player", "playerId": "home-8", "teamId": "home", "teamSide": "home", "shirtNumber": "8", "startMs": 0, "endMs": 2000,
+        "segments": [{ "id": "prediction-home-8-segment", "startMs": 0, "endMs": 2000, "points": [
+          { "atMs": 0, "frameIndex": 0, "x": 0.202, "y": 0.551, "width": 0.06, "height": 0.16, "groundX": 0.202, "groundY": 0.631, "confidence": 0.96, "identityConfidence": 0.95 },
+          { "atMs": 1000, "frameIndex": 25, "x": 0.302, "y": 0.551, "width": 0.06, "height": 0.16, "groundX": 0.302, "groundY": 0.631, "confidence": 0.96, "identityConfidence": 0.95 },
+          { "atMs": 2000, "frameIndex": 50, "x": 0.402, "y": 0.551, "width": 0.06, "height": 0.16, "groundX": 0.402, "groundY": 0.631, "confidence": 0.96, "identityConfidence": 0.95 }
+        ] }]
+      },
+      {
+        "id": "prediction-away-4", "entityType": "player", "playerId": "away-4", "teamId": "away", "teamSide": "away", "shirtNumber": "4", "startMs": 0, "endMs": 2000,
+        "segments": [{ "id": "prediction-away-4-segment", "startMs": 0, "endMs": 2000, "points": [
+          { "atMs": 0, "frameIndex": 0, "x": 0.698, "y": 0.501, "width": 0.06, "height": 0.16, "groundX": 0.698, "groundY": 0.581, "confidence": 0.95, "identityConfidence": 0.94 },
+          { "atMs": 1000, "frameIndex": 25, "x": 0.648, "y": 0.501, "width": 0.06, "height": 0.16, "groundX": 0.648, "groundY": 0.581, "confidence": 0.95, "identityConfidence": 0.94 },
+          { "atMs": 2000, "frameIndex": 50, "x": 0.598, "y": 0.501, "width": 0.06, "height": 0.16, "groundX": 0.598, "groundY": 0.581, "confidence": 0.95, "identityConfidence": 0.94 }
+        ] }]
+      },
+      {
+        "id": "prediction-ball", "entityType": "ball", "startMs": 0, "endMs": 2000,
+        "segments": [{ "id": "prediction-ball-segment", "startMs": 0, "endMs": 2000, "points": [
+          { "atMs": 0, "frameIndex": 0, "x": 0.45, "y": 0.65, "width": 0.02, "height": 0.02, "groundX": 0.45, "groundY": 0.66, "confidence": 0.93, "identityConfidence": 0.93 },
+          { "atMs": 1000, "frameIndex": 25, "x": 0.5, "y": 0.65, "width": 0.02, "height": 0.02, "groundX": 0.5, "groundY": 0.66, "confidence": 0.93, "identityConfidence": 0.93 },
+          { "atMs": 2000, "frameIndex": 50, "x": 0.55, "y": 0.65, "width": 0.02, "height": 0.02, "groundX": 0.55, "groundY": 0.66, "confidence": 0.93, "identityConfidence": 0.93 }
+        ] }]
+      },
+      {
+        "id": "prediction-referee", "entityType": "referee", "startMs": 0, "endMs": 2000,
+        "segments": [{ "id": "prediction-referee-segment", "startMs": 0, "endMs": 2000, "points": [
+          { "atMs": 0, "frameIndex": 0, "x": 0.501, "y": 0.451, "width": 0.05, "height": 0.15, "groundX": 0.501, "groundY": 0.526, "confidence": 0.94, "identityConfidence": 0.94 },
+          { "atMs": 1000, "frameIndex": 25, "x": 0.521, "y": 0.451, "width": 0.05, "height": 0.15, "groundX": 0.521, "groundY": 0.526, "confidence": 0.94, "identityConfidence": 0.94 },
+          { "atMs": 2000, "frameIndex": 50, "x": 0.541, "y": 0.451, "width": 0.05, "height": 0.15, "groundX": 0.541, "groundY": 0.526, "confidence": 0.94, "identityConfidence": 0.94 }
+        ] }]
+      }
+    ]
+  },
+  "performance": { "processingMs": 900, "device": "fixture" }
+}

@@ -14,6 +14,18 @@ No candidate is activated by installation alone. The provider contract requires 
 
 SAM 2.1 remains the installed, approved selected-object propagation engine and safe manual-prompt fallback. It is not treated as an automatic detector or a re-identification engine.
 
+## Independent Reference Evaluator
+
+Provider approval for detection, association, or re-identification requires a second report from the official TrackEval metric implementation. Football Science packages TrackEval as a local evaluator, not as a tracking provider:
+
+- official source: https://github.com/JonathonLuiten/TrackEval
+- pinned commit: `12c8791b303e0a0b50f753af204249e622d0281a`
+- pinned source SHA-256: `435f0e6d865918332155f8104a98a04d50c2c3de5b985b96c8a71a0f5b62a0ac`
+- licence: MIT
+- metrics: HOTA, DetA, AssA, LocA, CLEAR/MOTA, and Identity/IDF1
+
+The adapter sends normalized boxes, trajectory IDs, entity class, timestamps, and a source fingerprint to an isolated local process. It sends no video, image frames, file paths, URLs, analyst identity, player identity, team identity, or shirt numbers. The report is schema-validated, bounded, deterministic, and hashed before it can be referenced by a provider manifest.
+
 ## Candidate Stack
 
 ### Detection: YOLOX
@@ -46,4 +58,4 @@ SAM 2.1 remains the selected-object segmentation and propagation stage. The offi
 
 ## Deliberate Hold
 
-The detector, association, re-ID, team, and shirt stages are architecture-ready but not yet installed or activated. Choosing arbitrary public weights now would create false confidence and unresolved data/licence risk. The next approval point is a local real-match benchmark using representative Football Science footage. Only providers that improve measured quality without breaking workstation performance move from `candidate` to `approved-local-optional`.
+The detector, association, re-ID, team, and shirt stages are architecture-ready but not yet installed or activated. Choosing arbitrary public weights now would create false confidence and unresolved data/licence risk. The reference evaluator can be installed independently because it contains no tracking model and approves no provider by itself. The next provider approval point is a local real-match benchmark using representative Football Science footage. Only providers that improve measured quality without breaking workstation performance move from `candidate` to `approved-local-optional`.

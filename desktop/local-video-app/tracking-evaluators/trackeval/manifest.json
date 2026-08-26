@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evaluatorId": "trackeval",
+  "evaluatorVersion": "1.0.0",
+  "displayName": "Football Science TrackEval Reference Evaluator",
+  "protocol": "football-science-trackeval-reference-v1",
+  "approval": {
+    "status": "approved-local-optional",
+    "redistributeUpstreamAssets": false,
+    "networkAtEvaluation": false,
+    "reviewedAt": "2026-08-25"
+  },
+  "upstream": {
+    "repository": "https://github.com/JonathonLuiten/TrackEval",
+    "commit": "12c8791b303e0a0b50f753af204249e622d0281a",
+    "sourceUrl": "https://codeload.github.com/JonathonLuiten/TrackEval/tar.gz/12c8791b303e0a0b50f753af204249e622d0281a",
+    "sourceBytes": 168312,
+    "sourceSha256": "435f0e6d865918332155f8104a98a04d50c2c3de5b985b96c8a71a0f5b62a0ac",
+    "license": "MIT",
+    "licenseUrl": "https://github.com/JonathonLuiten/TrackEval/blob/12c8791b303e0a0b50f753af204249e622d0281a/LICENSE"
+  },
+  "runtime": {
+    "pythonMinimum": "3.10",
+    "pythonMaximumExclusive": "3.13",
+    "maximumSequences": 100,
+    "maximumTimestepsPerSequence": 50000,
+    "maximumObservations": 500000,
+    "maximumRequestBytes": 33554432,
+    "maximumReportBytes": 8388608,
+    "maximumEvaluationMs": 120000
+  }
+}

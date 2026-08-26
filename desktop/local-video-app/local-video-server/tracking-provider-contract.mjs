@@ -12,6 +12,8 @@ const stageCapabilities = Object.freeze({
 const approvalStatuses = new Set(["candidate", "approved-local-optional", "blocked"]);
 const benchmarkStatuses = new Set(["not-run", "passed", "failed"]);
 const knownCapabilities = new Set(Object.values(stageCapabilities).flat());
+const trackEvalCapabilities = /^(?:detect:|associate:|reidentify:)/;
+const trackEvalMetrics = new Set(["HOTA", "DetA", "AssA", "LocA", "MOTA", "IDF1"]);
 
 export class TrackingProviderContractError extends Error {
   constructor(message, code = "TRACKING_PROVIDER_CONTRACT_INVALID") {
@@ -129,6 +131,13 @@ function normalizeBenchmark(value = {}) {
   if (capabilities.some((capability) => !knownCapabilities.has(capability))) {
     invalid("Benchmark evidence contains an unknown capability.");
   }
+  const referenceMetrics = Array.isArray(value.referenceMetrics)
+    ? [...new Set(value.referenceMetrics.map((entry) => boundedString(entry, "reference metric", 40)))]
+    : [];
+  if (referenceMetrics.some((metric) => !trackEvalMetrics.has(metric))) {
+    invalid("Benchmark evidence contains an unknown reference metric.");
+  }
+  const referenceEvaluator = String(value.referenceEvaluator || "").trim().toLowerCase();
   return {
     status,
     evaluatorVersion: boundedString(value.evaluatorVersion || "not-run", "benchmark evaluator", 80),
@@ -139,6 +148,11 @@ function normalizeBenchmark(value = {}) {
       ? 0
       : positiveInteger(value.realMatchCaseCount, "real-match benchmark count", 100_000),
     capabilities,
+    referenceEvaluator,
+    referenceReportSha256: referenceEvaluator
+      ? sha256(value.referenceReportSha256, "reference benchmark report checksum")
+      : "",
+    referenceMetrics,
   };
 }
 
@@ -178,6 +192,14 @@ export function trackingProviderReadiness(value = {}, options = {}) {
   if (provider.benchmark.realMatchCaseCount < 1) reasons.push("real-match-evidence-missing");
   const evidenced = new Set(provider.benchmark.capabilities);
   if (provider.capabilities.some((capability) => !evidenced.has(capability))) reasons.push("capability-evidence-missing");
+  if (provider.capabilities.some((capability) => trackEvalCapabilities.test(capability))) {
+    const referenceMetrics = new Set(provider.benchmark.referenceMetrics);
+    if (provider.benchmark.referenceEvaluator !== "trackeval"
+      || !provider.benchmark.referenceReportSha256
+      || ![...trackEvalMetrics].every((metric) => referenceMetrics.has(metric))) {
+      reasons.push("trackeval-reference-missing");
+    }
+  }
   return {
     ready: reasons.length === 0,
     reasons,
@@ -189,6 +211,7 @@ export function trackingProviderReadiness(value = {}, options = {}) {
       priority: provider.priority,
       capabilities: provider.capabilities,
       benchmarkReportSha256: provider.benchmark.reportSha256,
+      referenceReportSha256: provider.benchmark.referenceReportSha256,
     },
   };
 }

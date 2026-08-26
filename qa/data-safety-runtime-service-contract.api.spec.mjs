@@ -204,6 +204,25 @@ test("data safety runtime service fails closed when protected browser cache quot
   expect(service.readManifest().lastError).toContain("exceeded the quota");
 });
 
+test("data safety runtime service preserves the previous protected value when a replacement exceeds quota", () => {
+  const key = "football-medical-team-v1";
+  const previousValue = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
+  const nextValue = JSON.stringify({ players: [{ id: "player-1", recommendation: "100%" }] });
+  const { centralCache, centralCacheInfo, localStorage, queuedWrites, service } = createHarness({ quotaKey: key });
+
+  localStorage.values.set(key, previousValue);
+  centralCache.set(key, previousValue);
+  centralCacheInfo.set(key, { source: "local-write", durable: true, serverBacked: false });
+  service.install();
+
+  expect(() => localStorage.setItem(key, nextValue)).toThrow("exceeded the quota");
+
+  expect(localStorage.values.get(key)).toBe(previousValue);
+  expect(localStorage.getItem(key)).toBe(previousValue);
+  expect(centralCache.get(key)).toBe(previousValue);
+  expect(queuedWrites).toEqual([]);
+});
+
 test("data safety runtime service blocks protected writes until central sync is ready", () => {
   const { localStorage, queuedWrites, service } = createHarness({ canWrite: false });
 

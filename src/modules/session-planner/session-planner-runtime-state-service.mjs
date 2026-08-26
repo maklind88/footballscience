@@ -20,7 +20,10 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     rawDataSafetySetItem = () => {},
     recordDataSafetyWrite = () => {},
     renderWorkspace = () => {},
-    sessionPlannerAutosaveBoundary = { markSessionPlannerWrite: () => {} },
+    sessionPlannerAutosaveBoundary = {
+      markSessionPlannerWrite: () => {},
+      setStatusForKey: () => false,
+    },
     sessionPlannerMultiSelectFields = new Set(),
     sessionPlannerStorageKey = "football-session-planner-v3",
     setSessionPlannerState = () => {},
@@ -28,7 +31,106 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     win = globalThis,
   } = deps;
 
+  const quotaFallbackSnapshotId = `${sessionPlannerStorageKey}-quota-fallback`;
   let snapshotRecoveryQueued = false;
+  let pendingQuotaFallback = null;
+  let quotaFallbackDrainPromise = null;
+  let quotaFallbackLastResult = true;
+
+  function isStorageQuotaError(error) {
+    return (
+      error?.name === "QuotaExceededError" ||
+      error?.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+      Number(error?.code) === 22 ||
+      Number(error?.code) === 1014 ||
+      /quota/i.test(String(error?.message || ""))
+    );
+  }
+
+  function setSaveStatus(state, message) {
+    sessionPlannerAutosaveBoundary.setStatusForKey?.(
+      sessionPlannerStorageKey,
+      state,
+      message
+    );
+  }
+
+  function cacheQuotaFallbackValue(value) {
+    return Boolean(win.footballScienceCentralState?.setCachedValue?.(
+      sessionPlannerStorageKey,
+      value,
+      { source: "local-write", durable: false, serverBacked: false }
+    ));
+  }
+
+  async function persistQuotaFallbackSnapshot(value) {
+    const database = await openDataSafetyDatabase();
+    if (!database) throw new Error("Local backup storage is not available.");
+    const snapshot = {
+      id: quotaFallbackSnapshotId,
+      schema: "football-science-backup-v1",
+      app: "Football Science",
+      createdAt: new Date().toISOString(),
+      reason: "session-planner-quota-fallback",
+      storage: { [sessionPlannerStorageKey]: value },
+    };
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(dataSafetySnapshotStoreName, "readwrite");
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error("Local backup failed."));
+      transaction.onabort = () => reject(transaction.error || new Error("Local backup was cancelled."));
+      transaction.objectStore(dataSafetySnapshotStoreName).put(snapshot);
+    });
+    return snapshot;
+  }
+
+  async function drainQuotaFallbackWrites() {
+    let succeeded = true;
+    while (pendingQuotaFallback) {
+      const currentFallback = pendingQuotaFallback;
+      pendingQuotaFallback = null;
+      try {
+        await persistQuotaFallbackSnapshot(currentFallback.value);
+        if (!canWriteCentralBackedCache()) {
+          succeeded = false;
+          setSaveStatus("issue", "Saved locally; sync pending");
+          continue;
+        }
+        recordDataSafetyWrite(sessionPlannerStorageKey, currentFallback.value);
+      } catch (error) {
+        succeeded = false;
+        setSaveStatus("issue", "Save failed");
+        logEvent(`Session planner fallback save failed: ${error?.message || "Unknown error"}`);
+      }
+    }
+    quotaFallbackLastResult = succeeded;
+    return succeeded;
+  }
+
+  function ensureQuotaFallbackDrain() {
+    if (quotaFallbackDrainPromise) return quotaFallbackDrainPromise;
+    quotaFallbackDrainPromise = drainQuotaFallbackWrites().finally(() => {
+      quotaFallbackDrainPromise = null;
+      if (pendingQuotaFallback) ensureQuotaFallbackDrain();
+    });
+    return quotaFallbackDrainPromise;
+  }
+
+  function queueQuotaFallback(value) {
+    pendingQuotaFallback = { value };
+    cacheQuotaFallbackValue(value);
+    setSaveStatus("saving", "Saving");
+    ensureQuotaFallbackDrain();
+    return true;
+  }
+
+  async function flushQuotaFallback() {
+    while (quotaFallbackDrainPromise || pendingQuotaFallback) {
+      await (quotaFallbackDrainPromise || ensureQuotaFallbackDrain());
+    }
+    return quotaFallbackLastResult;
+  }
+
 
   function areBlockFieldValuesEqual(previousValue, nextValue) {
     if (Object.is(previousValue, nextValue)) {
@@ -139,6 +241,12 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         if (typeof rawState !== "string") return;
         try {
           const backupState = cloneState(JSON.parse(rawState));
+          if (snapshot?.reason === "session-planner-quota-fallback") {
+            const previousValue = JSON.stringify(recoveredState);
+            recoveredState = mergeQuotaFallbackState(recoveredState, backupState);
+            if (JSON.stringify(recoveredState) !== previousValue) recoveredSessions += 1;
+            return;
+          }
           const mergeResult = mergeStateFromBackup(recoveredState, backupState);
           recoveredState = mergeResult.state;
           recoveredSessions += mergeResult.recoveredSessions;
@@ -167,9 +275,29 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     });
   }
 
+  function mergeQuotaFallbackState(currentState, fallbackState) {
+    const currentSelectedDate = currentState?.selectedDate || "";
+    const currentSelectedBlockIds = Object.fromEntries(
+      Object.entries(currentState?.sessions || {}).map(([dateValue, session]) => [
+        dateValue,
+        session?.selectedBlockId || "",
+      ])
+    );
+    const mergedState = mergeStateForWrite(currentState, fallbackState);
+    mergedState.selectedDate = currentSelectedDate || mergedState.selectedDate;
+    Object.entries(currentSelectedBlockIds).forEach(([dateValue, selectedBlockId]) => {
+      const mergedSession = mergedState.sessions?.[dateValue];
+      if (selectedBlockId && mergedSession?.blocks?.some((block) => block.id === selectedBlockId)) {
+        mergedSession.selectedBlockId = selectedBlockId;
+      }
+    });
+    return mergedState;
+  }
+
   function writeState() {
     const state = getSessionPlannerState();
     if (!state) return false;
+    let nextValue = "";
     try {
       let existingState = null;
       let rawExistingState = null;
@@ -181,7 +309,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         rawExistingState = null;
       }
       const nextState = existingState ? mergeStateForWrite(existingState, state) : cloneState(state);
-      const nextValue = JSON.stringify(nextState);
+      nextValue = JSON.stringify(nextState);
       if (rawExistingState === nextValue) {
         setSessionPlannerState(nextState);
         return true;
@@ -191,7 +319,12 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
       sessionPlannerAutosaveBoundary.markSessionPlannerWrite();
       win.localStorage.setItem(sessionPlannerStorageKey, nextValue);
       return true;
-    } catch {
+    } catch (error) {
+      if (isStorageQuotaError(error)) {
+        logEvent("Session planner write moved to durable fallback storage.");
+        return queueQuotaFallback(nextValue);
+      }
+      setSaveStatus("issue", "Save failed");
       logEvent("Session planner could not be written to local storage.");
       return false;
     }
@@ -201,6 +334,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     areBlockFieldValuesEqual,
     assignBlockFieldValue,
     findStateInSnapshots,
+    flushQuotaFallback,
     persistNormalizedState,
     queueSnapshotRecovery,
     readState,

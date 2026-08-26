@@ -74,6 +74,7 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
   const sessionUser = options.sessionUser || qaUser;
   const profileUser = options.profileUser || qaUser;
   const appStateGetUrls = Array.isArray(options.appStateGetUrls) ? options.appStateGetUrls : [];
+  const appStateWriteBodies = Array.isArray(options.appStateWriteBodies) ? options.appStateWriteBodies : [];
 
   await context.route("**/npm/@supabase/supabase-js@2/**", async (route) => {
     await route.fulfill({
@@ -136,6 +137,7 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
 
     const body = JSON.parse(request.postData() || "{}");
     if (body.key !== revisionStateKey) {
+      appStateWriteBodies.push(body);
       const value = String(body.value || "");
       const baseRevision = Number(body?.metadata?.baseRevision ?? body?.baseRevision);
       const revision = Number.isInteger(baseRevision) && baseRevision >= 0 ? baseRevision + 1 : 1;
@@ -568,6 +570,7 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
       [sessionPlannerStateKey]: { ...createMetadata(106, centralValue), moduleId: "session-planner" },
     },
   };
+  const appStateWriteBodies = [];
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "session-quota-fallback", {
     initScript: ({ key, staleValue }) => {
       const originalSetItem = Storage.prototype.setItem;
@@ -592,6 +595,7 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
         },
       }),
     },
+    appStateWriteBodies,
   });
 
   try {
@@ -621,7 +625,40 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
         fallbackKeys: [sessionPlannerStateKey],
         hydrated: true,
         lastError: "",
+    });
+
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    await tab.page.locator('[data-session-date="2026-07-21"]').click();
+    const titleField = tab.page.locator('#sessionPlannerWorkspace [data-session-field="title"]').first();
+    await expect(titleField).toBeVisible();
+    await titleField.fill("Quota fallback saved edit");
+    await titleField.dispatchEvent("change");
+
+    await expect.poll(() => {
+      const write = appStateWriteBodies.find((body) => body.key === sessionPlannerStateKey);
+      return write ? JSON.parse(write.value).sessions?.["2026-07-21"]?.blocks?.[0]?.title || "" : "";
+    }, { timeout: 10_000 }).toBe("Quota fallback saved edit");
+
+    await expect.poll(() => tab.page.evaluate(async ({ databaseName, key, snapshotId, storeName }) => {
+      const database = await new Promise((resolve, reject) => {
+        const request = window.indexedDB.open(databaseName, 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
       });
+      const snapshot = await new Promise((resolve, reject) => {
+        const request = database.transaction(storeName, "readonly").objectStore(storeName).get(snapshotId);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+      database.close();
+      const fallbackState = snapshot?.storage?.[key] ? JSON.parse(snapshot.storage[key]) : null;
+      return fallbackState?.sessions?.["2026-07-21"]?.blocks?.[0]?.title || "";
+    }, {
+      databaseName: "football-science-data-safety-v1",
+      key: sessionPlannerStateKey,
+      snapshotId: `${sessionPlannerStateKey}-quota-fallback`,
+      storeName: "snapshots",
+    }), { timeout: 10_000 }).toBe("Quota fallback saved edit");
   } finally {
     await closeCentralStateContext(tab.context);
   }

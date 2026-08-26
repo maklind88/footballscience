@@ -24,19 +24,29 @@ function createLocalStorage(initialEntries = {}) {
 }
 
 function createSnapshotDatabase(snapshots = []) {
+  const records = new Map(snapshots.map((snapshot, index) => [snapshot.id || `snapshot-${index}`, snapshot]));
   return {
-    transaction: () => ({
-      objectStore: () => ({
+    records,
+    transaction: () => {
+      const transaction = {};
+      const store = {
         getAll: () => {
           const request = {};
           queueMicrotask(() => {
-            request.result = snapshots;
+            request.result = Array.from(records.values());
             request.onsuccess?.();
           });
           return request;
         },
-      }),
-    }),
+        put: (snapshot) => {
+          records.set(snapshot.id, snapshot);
+          queueMicrotask(() => transaction.oncomplete?.());
+          return {};
+        },
+      };
+      transaction.objectStore = () => store;
+      return transaction;
+    },
   };
 }
 
@@ -48,8 +58,15 @@ function createHarness(options = {}) {
   const calls = [];
   const storageKey = "football-session-planner-v3";
   const localStorage = createLocalStorage(options.initialStorage || {});
+  const snapshotDatabase = createSnapshotDatabase(options.snapshots || []);
   const win = {
     __footballScienceCentralHydrating: Boolean(options.centralHydrating),
+    footballScienceCentralState: {
+      setCachedValue: (...args) => {
+        calls.push(["cache", ...args]);
+        return true;
+      },
+    },
     localStorage,
     setTimeout: (callback) => {
       calls.push("timeout");
@@ -94,12 +111,18 @@ function createHarness(options = {}) {
       },
       recoveredSessions: Object.keys(backupState.sessions || {}).length,
     }),
-    openDataSafetyDatabase: async () => createSnapshotDatabase(options.snapshots || []),
+    openDataSafetyDatabase: options.openDataSafetyDatabase || (async () => snapshotDatabase),
     rawDataSafetyGetItem: (key) => localStorage.getItem(key),
     rawDataSafetySetItem: (key, value) => localStorage.setItem(key, value),
     recordDataSafetyWrite: (key, value) => calls.push(["record", key, value]),
     renderWorkspace: (payload) => calls.push(["render", payload]),
-    sessionPlannerAutosaveBoundary: { markSessionPlannerWrite: () => calls.push("autosave") },
+    sessionPlannerAutosaveBoundary: {
+      markSessionPlannerWrite: () => calls.push("autosave"),
+      setStatusForKey: (...args) => {
+        calls.push(["autosave-status", ...args]);
+        return true;
+      },
+    },
     sessionPlannerMultiSelectFields: new Set(["phase"]),
     sessionPlannerStorageKey: storageKey,
     setSessionPlannerState: (nextState) => {
@@ -108,7 +131,7 @@ function createHarness(options = {}) {
     showToast: (message) => calls.push(["toast", message]),
     win,
   });
-  return { calls, localStorage, service, stateRef, storageKey };
+  return { calls, localStorage, service, snapshotDatabase, stateRef, storageKey };
 }
 
 test("Session Planner runtime state service owns read write and recovery bodies outside app-runtime", () => {
@@ -222,6 +245,75 @@ test("Session Planner runtime state service suppresses byte-identical writes", (
   expect(localStorage.setItemCalls).toHaveLength(0);
 });
 
+test("Session Planner runtime state service durably falls back and queues central sync when local storage is full", async () => {
+  const { calls, localStorage, service, snapshotDatabase, storageKey } = createHarness();
+  const quotaError = new Error("The storage quota was exceeded.");
+  quotaError.name = "QuotaExceededError";
+  localStorage.setItem = () => {
+    throw quotaError;
+  };
+
+  expect(service.writeState()).toBe(true);
+  expect(await service.flushQuotaFallback()).toBe(true);
+
+  const snapshot = snapshotDatabase.records.get(`${storageKey}-quota-fallback`);
+  expect(JSON.parse(snapshot.storage[storageKey]).sessions["2026-05-01"].blocks[0].title).toBe("Old");
+  expect(calls).toContainEqual([
+    "cache",
+    storageKey,
+    snapshot.storage[storageKey],
+    { source: "local-write", durable: false, serverBacked: false },
+  ]);
+  expect(calls).toContainEqual(["record", storageKey, snapshot.storage[storageKey]]);
+  expect(calls).not.toContainEqual(["autosave-status", storageKey, "issue", "Save failed"]);
+});
+
+test("Session Planner quota fallback keeps the latest of rapid consecutive edits", async () => {
+  const { localStorage, service, snapshotDatabase, stateRef, storageKey } = createHarness();
+  const quotaError = new Error("The storage quota was exceeded.");
+  quotaError.name = "QuotaExceededError";
+  localStorage.setItem = () => {
+    throw quotaError;
+  };
+
+  expect(service.writeState()).toBe(true);
+  stateRef.current.sessions["2026-05-01"].blocks[0].title = "Latest rapid edit";
+  expect(service.writeState()).toBe(true);
+  expect(await service.flushQuotaFallback()).toBe(true);
+
+  const snapshot = snapshotDatabase.records.get(`${storageKey}-quota-fallback`);
+  expect(JSON.parse(snapshot.storage[storageKey]).sessions["2026-05-01"].blocks[0].title).toBe("Latest rapid edit");
+});
+
+test("Session Planner runtime state service surfaces an issue when quota fallback also fails", async () => {
+  const fallbackError = new Error("IndexedDB is unavailable.");
+  const { calls, localStorage, service, storageKey } = createHarness({
+    openDataSafetyDatabase: async () => {
+      throw fallbackError;
+    },
+  });
+  const quotaError = new Error("The storage quota was exceeded.");
+  quotaError.name = "QuotaExceededError";
+  localStorage.setItem = () => {
+    throw quotaError;
+  };
+
+  expect(service.writeState()).toBe(true);
+  expect(await service.flushQuotaFallback()).toBe(false);
+  expect(calls).toContainEqual(["autosave-status", storageKey, "issue", "Save failed"]);
+  expect(calls.some((call) => Array.isArray(call) && call[0] === "record")).toBe(false);
+});
+
+test("Session Planner runtime state service reports non-quota write failures immediately", () => {
+  const { calls, localStorage, service, storageKey } = createHarness();
+  localStorage.setItem = () => {
+    throw new Error("Storage write failed.");
+  };
+
+  expect(service.writeState()).toBe(false);
+  expect(calls).toContainEqual(["autosave-status", storageKey, "issue", "Save failed"]);
+});
+
 test("Session Planner production state merge stays idempotent for unchanged content", () => {
   const mergeFields = ["title", "phase"];
   const mergeHelpers = createSessionPlannerStateMergeHelpers({
@@ -300,4 +392,45 @@ test("Session Planner runtime state service recovers sessions from data safety s
   const recovered = await service.findStateInSnapshots({ selectedDate: "2026-05-01", sessions: {} });
 
   expect(recovered.sessions["2026-05-03"].blocks[0].id).toBe("recovered");
+});
+
+test("Session Planner runtime state service restores quota fallback edits when block counts are unchanged", async () => {
+  const storageKey = "football-session-planner-v3";
+  const currentState = {
+    selectedDate: "2026-05-02",
+    sessions: {
+      "2026-05-01": {
+        id: "session-2026-05-01",
+        blocks: [{ id: "block-1", title: "Before quota fallback" }],
+      },
+      "2026-05-02": {
+        id: "session-2026-05-02",
+        selectedBlockId: "block-current",
+        blocks: [
+          { id: "block-current", title: "Current selection" },
+          { id: "block-other", title: "Other block" },
+        ],
+      },
+    },
+  };
+  const fallbackState = cloneState(currentState);
+  fallbackState.selectedDate = "2026-05-01";
+  fallbackState.sessions["2026-05-01"].blocks[0].title = "Recovered quota edit";
+  fallbackState.sessions["2026-05-02"].selectedBlockId = "block-other";
+  const { service } = createHarness({
+    mergeStateForWrite: (_existingState, incomingState) => cloneState(incomingState),
+    snapshots: [{
+      id: `${storageKey}-quota-fallback`,
+      createdAt: "2026-05-03T11:00:00.000Z",
+      reason: "session-planner-quota-fallback",
+      storage: { [storageKey]: JSON.stringify(fallbackState) },
+    }],
+    state: cloneState(currentState),
+  });
+
+  const recovered = await service.findStateInSnapshots(currentState);
+
+  expect(recovered.sessions["2026-05-01"].blocks[0].title).toBe("Recovered quota edit");
+  expect(recovered.selectedDate).toBe("2026-05-02");
+  expect(recovered.sessions["2026-05-02"].selectedBlockId).toBe("block-current");
 });

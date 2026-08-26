@@ -24,6 +24,10 @@ import {
 import { createTrackingEngineAdapter } from "./tracking-engine-adapter.mjs";
 import { createTrackingBenchmarkJobHandler } from "./tracking-benchmark-job-handler.mjs";
 import { createTrackingJobHandler } from "./tracking-job-handler.mjs";
+import {
+  TRACKING_PROVIDER_REGISTRY_PROTOCOL,
+  createTrackingProviderRegistry,
+} from "./tracking-provider-registry.mjs";
 
 function safeFileName(value = "match-video") {
   let decoded = String(value || "match-video");
@@ -72,10 +76,35 @@ function publicErrorMessage(error) {
   return String(error?.message || "Could not complete local video processing.").slice(0, 1000);
 }
 
+function blockedTrackingProviderRegistry() {
+  return {
+    protocol: TRACKING_PROVIDER_REGISTRY_PROTOCOL,
+    status: "blocked",
+    providerCount: 0,
+    readyCount: 0,
+    blockedCount: 0,
+    providers: [],
+    reasons: ["provider-registry-unreadable"],
+  };
+}
+
+async function inspectTrackingProviderRegistry(registry = {}) {
+  try {
+    const value = await registry.inspect?.();
+    return value?.protocol === TRACKING_PROVIDER_REGISTRY_PROTOCOL
+      ? value
+      : blockedTrackingProviderRegistry();
+  } catch {
+    return blockedTrackingProviderRegistry();
+  }
+}
+
 export function createLocalVideoServer(options = {}) {
   const config = options.config || createLocalVideoServerConfig();
   const engine = options.engine || createFfmpegEngine(options.ffmpeg || {});
   const trackingEngine = options.trackingEngine || createTrackingEngineAdapter(options.tracking || {});
+  const trackingProviderRegistry = options.trackingProviderRegistry
+    || createTrackingProviderRegistry(options.trackingProviders || {});
   const portableUploader = options.portableUploader || createPortableUploadClient(options.portableUpload || {});
   const sessions = createBridgeSessionStore({ ttlMs: config.sessionTtlMs });
   const assets = createAssetAccessStore({ ttlMs: config.assetTtlMs });
@@ -312,7 +341,10 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "GET" && url.pathname === "/capabilities") {
       if (!authorizeSession(request, response)) return;
-      const cache = await inspectCache(config.cacheDir);
+      const [cache, providerRegistry] = await Promise.all([
+        inspectCache(config.cacheDir),
+        inspectTrackingProviderRegistry(trackingProviderRegistry),
+      ]);
       sendJson(request, response, config, 200, {
         ok: true,
         apiVersion: 2,
@@ -328,9 +360,11 @@ export function createLocalVideoServer(options = {}) {
           "replay-buffer",
           ...(trackingEngine.available() ? ["track-object", "track-objects"] : []),
           "evaluate-tracking-benchmark",
+          "tracking-provider-registry",
           ...(trackingBenchmark.info().referenceAvailable ? ["tracking-reference:trackeval"] : []),
         ],
         trackingProvider: trackingEngine.info?.() || { available: trackingEngine.available() },
+        trackingProviderRegistry: providerRegistry,
         trackingBenchmark: trackingBenchmark.info(),
         limits: {
           maxInputBytes: config.maxInputBytes,

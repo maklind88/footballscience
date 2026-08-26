@@ -26,6 +26,44 @@ function optionalNumber(value) {
   return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
+function boundedText(value, maximum = 160) {
+  return String(value || "").replace(/[\r\n]/g, " ").trim().slice(0, maximum);
+}
+
+function validTrackingProviderRegistry(value = {}) {
+  return value.protocol === "football-science-tracking-provider-registry-v1"
+    && Array.isArray(value.providers)
+    && value.providers.length <= 50;
+}
+
+function registeredTrackingProviders(value = {}) {
+  if (!validTrackingProviderRegistry(value)) return [];
+  return value.providers.map((provider) => {
+    const status = provider?.status === "ready" && provider.available === true ? "ready" : "blocked";
+    const fingerprint = boundedText(provider?.executionFingerprintSha256, 64).toLowerCase();
+    return {
+      id: boundedText(provider?.id, 100),
+      version: boundedText(provider?.version, 100),
+      name: boundedText(provider?.name || provider?.id, 160),
+      protocol: boundedText(provider?.protocol, 100),
+      stage: boundedText(provider?.stage, 40),
+      capabilities: Array.isArray(provider?.capabilities)
+        ? [...new Set(provider.capabilities.map((entry) => boundedText(entry, 80)).filter(Boolean))].slice(0, 20)
+        : [],
+      status,
+      available: status === "ready",
+      executionAvailable: status === "ready" && provider?.executionAvailable === true,
+      activationStatus: boundedText(provider?.activationStatus, 40),
+      benchmarkStatus: boundedText(provider?.benchmarkStatus, 40),
+      executionFingerprintSha256: /^[a-f0-9]{64}$/.test(fingerprint) ? fingerprint : "",
+      source: status === "ready" ? "verified-local-registry" : "local-registry-blocked",
+      reasons: Array.isArray(provider?.reasons)
+        ? provider.reasons.map((entry) => boundedText(entry, 80)).filter(Boolean).slice(0, 20)
+        : [],
+    };
+  }).filter((provider) => provider.id && provider.version);
+}
+
 export function normalizeLocalTrackingJobProgress(job = {}) {
   const source = job.progress && typeof job.progress === "object"
     ? job.progress
@@ -105,6 +143,10 @@ export async function inspectLocalTrackingProvider(win = window) {
     const benchmark = payload.trackingBenchmark && typeof payload.trackingBenchmark === "object"
       ? payload.trackingBenchmark
       : {};
+    const providers = registeredTrackingProviders(payload.trackingProviderRegistry);
+    const providerRegistry = validTrackingProviderRegistry(payload.trackingProviderRegistry)
+      ? payload.trackingProviderRegistry
+      : {};
     return {
       status: available ? "ready" : "not-installed",
       available,
@@ -134,6 +176,12 @@ export async function inspectLocalTrackingProvider(win = window) {
       referenceEvaluatorVersion: String(benchmark.evaluatorVersion || ""),
       referenceEvaluatorCommit: String(benchmark.sourceCommit || ""),
       referenceSourceSha256: String(benchmark.sourceSha256 || ""),
+      providers,
+      providerRegistryStatus: boundedText(providerRegistry.status, 40),
+      providerRegistryBlockedCount: Math.max(
+        0,
+        Math.min(50, Math.round(Number(providerRegistry.blockedCount) || 0)),
+      ),
       error: "",
     };
   } catch (error) {

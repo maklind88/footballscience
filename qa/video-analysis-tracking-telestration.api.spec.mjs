@@ -251,7 +251,7 @@ test("local tracking exposes cancellation and clears an aborted job without a fa
 
 test("local tracking readiness distinguishes installed, missing and offline providers", async () => {
   const localTracking = await import(moduleUrl("src/modules/video-analysis/services/localTrackingService.js"));
-  function providerWindow(port, capabilities = [], offline = false) {
+  function providerWindow(port, capabilities = [], offline = false, providerRegistry = null) {
     const baseUrl = `http://127.0.0.1:${port}`;
     return {
       FOOTBALL_SCIENCE_LOCAL_VIDEO_BRIDGE_URL: baseUrl,
@@ -283,12 +283,39 @@ test("local tracking readiness distinguishes installed, missing and offline prov
               reusedJobs: 1,
             },
           },
+          trackingProviderRegistry: providerRegistry || {
+            protocol: "football-science-tracking-provider-registry-v1",
+            status: "ready",
+            blockedCount: 0,
+            providers: [],
+          },
         });
       },
     };
   }
 
-  await expect(localTracking.inspectLocalTrackingProvider(providerWindow(47911, ["track-object"]))).resolves.toMatchObject({
+  const providerRegistry = {
+    protocol: "football-science-tracking-provider-registry-v1",
+    status: "degraded",
+    blockedCount: 1,
+    providers: [{
+      id: "team-classifier",
+      version: "1.0.0",
+      name: "Verified Team Classifier",
+      protocol: "football-science-tracking-stage-v1",
+      stage: "classification",
+      status: "ready",
+      available: true,
+      executionAvailable: false,
+      activationStatus: "not-configured",
+      benchmarkStatus: "passed",
+      capabilities: ["classify:team"],
+      executionFingerprintSha256: "e".repeat(64),
+    }],
+  };
+  await expect(localTracking.inspectLocalTrackingProvider(
+    providerWindow(47911, ["track-object"], false, providerRegistry),
+  )).resolves.toMatchObject({
     status: "ready",
     available: true,
     id: "sam2.1-hiera-tiny",
@@ -304,6 +331,16 @@ test("local tracking readiness distinguishes installed, missing and offline prov
     workerCompletedJobs: 2,
     workerReusedJobs: 1,
     maxDurationMs: 90_000,
+    providerRegistryStatus: "degraded",
+    providerRegistryBlockedCount: 1,
+    providers: [{
+      id: "team-classifier",
+      status: "ready",
+      executionAvailable: false,
+      activationStatus: "not-configured",
+      capabilities: ["classify:team"],
+      executionFingerprintSha256: "e".repeat(64),
+    }],
   });
   await expect(localTracking.inspectLocalTrackingProvider(providerWindow(47912))).resolves.toMatchObject({
     status: "not-installed",
@@ -396,12 +433,56 @@ test("tracking capability readiness never promotes partial providers to full-sce
   }));
   expect(trackingCapabilityReadiness({ providers }).mode).toBe("full-scene-verified");
 
+  const activationPending = trackingCapabilityReadiness({
+    providers: providers.map((provider) => ({ ...provider, executionAvailable: false })),
+  });
+  expect(activationPending).toMatchObject({
+    mode: "full-scene-installed",
+    modeLabel: "Full scene activation pending",
+  });
+  expect(activationPending.entries.slice(1, 4).every((entry) => (
+    entry.status === "installed" && entry.detail === "Verified; activation pending"
+  ))).toBe(true);
+
   providers[0] = { ...providers[0], capabilities: ["detect:player", "detect:ball"] };
   const incomplete = trackingCapabilityReadiness({ providers });
   expect(incomplete.mode).toBe("full-scene-incomplete");
   expect(incomplete.entries.find((entry) => entry.id === "detection")).toMatchObject({
     status: "partial",
     detail: "2/3 capabilities installed",
+  });
+
+  const blocked = trackingCapabilityReadiness({
+    provider: {
+      id: "sam2.1-hiera-tiny",
+      version: "1.3.0",
+      status: "ready",
+      available: true,
+      capabilities: ["segment:selected-object", "propagate:selected-object"],
+      providers: [{
+        id: "blocked-detector",
+        version: "1.0.0",
+        status: "blocked",
+        available: false,
+        capabilities: ["detect:player", "detect:ball", "detect:referee"],
+      }],
+    },
+  });
+  expect(blocked.entries.find((entry) => entry.id === "detection")).toMatchObject({
+    status: "failed",
+    detail: "Installed provider blocked",
+  });
+
+  expect(trackingCapabilityReadiness({
+    provider: {
+      status: "ready",
+      available: true,
+      providerRegistryStatus: "blocked",
+      providerRegistryBlockedCount: 0,
+    },
+  })).toMatchObject({
+    mode: "full-scene-incomplete",
+    modeLabel: "Full scene incomplete",
   });
 });
 
@@ -1609,9 +1690,38 @@ test("secure local tracking jobs expose provider capability and expiring artifac
       };
     },
   });
+  let registryFailure = false;
   const localServer = serverModule.createLocalVideoServer({
     config,
     trackingEngine,
+    trackingProviderRegistry: {
+      inspect: () => {
+        if (registryFailure) throw new Error("Registry unavailable");
+        return {
+          protocol: "football-science-tracking-provider-registry-v1",
+          status: "ready",
+          providerCount: 1,
+          readyCount: 1,
+          blockedCount: 0,
+          reasons: [],
+          providers: [{
+            id: "team-classifier",
+            version: "1.0.0",
+            name: "Verified Team Classifier",
+            protocol: "football-science-tracking-stage-v1",
+            stage: "classification",
+            status: "ready",
+            available: true,
+            executionAvailable: false,
+            activationStatus: "not-configured",
+            benchmarkStatus: "passed",
+            capabilities: ["classify:team"],
+            executionFingerprintSha256: "e".repeat(64),
+            reasons: [],
+          }],
+        };
+      },
+    },
     engine: { preparePlaybackCopy: async () => ({ mode: "remux" }) },
   });
   try {
@@ -1623,6 +1733,20 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     const capabilities = await (await fetch(`${baseUrl}/capabilities`, { headers })).json();
     expect(capabilities.capabilities).toContain("track-object");
     expect(capabilities.capabilities).toContain("track-objects");
+    expect(capabilities.capabilities).toContain("tracking-provider-registry");
+    expect(capabilities.trackingProviderRegistry).toMatchObject({
+      status: "ready",
+      readyCount: 1,
+      providers: [{ id: "team-classifier", capabilities: ["classify:team"] }],
+    });
+    registryFailure = true;
+    const blockedRegistry = await (await fetch(`${baseUrl}/capabilities`, { headers })).json();
+    expect(blockedRegistry.trackingProviderRegistry).toMatchObject({
+      status: "blocked",
+      readyCount: 0,
+      providers: [],
+      reasons: ["provider-registry-unreadable"],
+    });
     expect(capabilities.limits.maxTrackingObjectsPerJob).toBe(8);
     const prompt = Buffer.from(JSON.stringify({
       startMs: 0,

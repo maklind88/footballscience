@@ -27,6 +27,7 @@ This document supersedes the scope boundaries in `WORKSTATION_V2_SPEC.md`. That 
 | Collaboration operations and revisions | Video Analysis API | Append-only Postgres log plus materialized records |
 | Active normalized tracking samples | Browser tracking workspace | Versioned chunked IndexedDB, exact organization/team/user/source/clip scope |
 | Provider inference artifacts and cache | Local tracking engine | Bounded device files with expiring capability access |
+| Tracking benchmark inputs and evidence | Browser benchmark workspace and local evaluator | Versioned exact-scope IndexedDB inputs; bounded in-memory result until explicit device-local evidence export |
 | Track identity, review status, corrections, summaries | Local correction outbox, then Video Analysis API | Versioned scoped IndexedDB pending records and Postgres metadata |
 | Calibration matrices and quality | Video Analysis API | Postgres metadata |
 | Rendered exports | Local media engine | Device filesystem until explicit share/export |
@@ -68,6 +69,7 @@ Large tracking arrays must not be copied into one unbounded JSON column. The act
 - The approved SAM 2.1 provider has a pinned manifest, checksum-verifying installer, isolated runtime, capability preflight, forward/backward propagation, and bounded artifact validation. Model assets are installed explicitly on the analyst device and are never bundled into the web deployment; dense samples remain local.
 - Long ranges run as bounded, overlapping continuation jobs. `Complete range` chains them automatically with cumulative progress and cancellation, while each continuation reuses the retained source only inside the same secure local session, reconnects from a real endpoint sample, preserves the original player and track ID, and fails closed when the seam breaks identity continuity or time coverage stops growing.
 - The tracking sidebar checks the companion capability before enabling automatic tracking and distinguishes ready, provider-not-installed, and companion-offline states. Manual keyframes remain available without pretending that automatic inference ran.
+- Real-match benchmark evaluation is an in-product local job. Exact ground-truth and raw-run artifacts are checksum-bound before dispatch; selected-object reports are recomputed independently, multi-object reports require pinned TrackEval identity and cross-validation, changed inputs invalidate an in-flight result, and only an explicit metadata/trajectory evidence-set download leaves application memory.
 
 ### Pitch Calibration And Spatial Analysis
 
@@ -121,7 +123,7 @@ Each phase must ship behind capability checks, preserve old records, pass module
 | Timeline workspace | Implemented in candidate branch | Multiple persisted timelines, true millisecond scale, overview/focus zoom, overlap stacking, row colors/order/locks, clip move/copy/merge/delete, and undo |
 | Presentation and export | Implemented in candidate branch | Presentation builder, freehand/arrow/circle/spotlight/text/freeze/zoom layers, track-bound graphics, deterministic overlay compilation, and burned-in H.264/AAC MP4 export |
 | Tracking and dynamic telestration | Implemented in candidate branch | Prompt/keyframe UX, provider readiness, automatic cancellable full-range continuation, identity-safe seam merge, cumulative elapsed/ETA, confidence and occlusion gates, atomic split/identity-swap repair with undo, chunked reload-safe local workspaces, fail-visible idempotent metadata retry, track-bound graphics, secure local source reuse, and pinned SAM 2.1 installer/runtime |
-| Tracking quality and provider governance | Implemented in candidate branch | Selected-object and football-scene benchmarks, optimal frame assignment, class/identity/fragment diagnostics, pinned TrackEval reference gates, privacy-safe hashed reports, and fail-closed stage contracts for detection, segmentation, association, re-ID, and classification |
+| Tracking quality and provider governance | Implemented in candidate branch | In-product checksum-bound real-match workflow, selected-object and football-scene benchmarks, optimal frame assignment, unique non-overlapping evidence time, class/identity/fragment diagnostics, pinned TrackEval reference gates, cancellable loopback evaluation, portable evidence sets, and fail-closed stage contracts for detection, segmentation, association, re-ID, and classification |
 | Spatial analysis | Implemented in candidate branch | Manual pitch-plane calibration, server-recomputed confidence/RMS, perspective overlay, true-metre pair and unit metrics, movement curves, and track-bound distance/unit/path layers |
 | Media production | Implemented in candidate branch | Multi-angle workspace, offset/drift sync, compare playback, progressive device-local capture, content-addressed proxies, byte-range playback, bounded replay buffers, source swaps, rendering, progress/cancel/download, and output checksums |
 | Search and intelligence | Implemented in candidate branch | Visible natural-language query compilation, advanced two-dimensional matrix, metric drilldown, cohort comparison, stable evidence snapshots, and generated analysis reports |
@@ -136,7 +138,7 @@ Each phase must ship behind capability checks, preserve old records, pass module
 | Search | Advanced matrix, clip drilldown, natural-language interpretation, cohort comparison and report output | `qa/video-analysis-clip-intelligence.api.spec.mjs`, `qa/video-analysis-clip-intelligence.smoke.spec.mjs` |
 | Presentation | Freehand and structured drawings, dynamic tracked layers, presenter workflow and rendered video export | `qa/video-analysis-freehand-telestration.api.spec.mjs`, `qa/video-analysis-tracking-telestration.smoke.spec.mjs`, `qa/video-analysis-media-composite.api.spec.mjs` |
 | Media | Multi-angle synchronization, compare playback, live local capture, scrub proxies, replay and cancellable export | `qa/video-analysis-media-production.api.spec.mjs`, `qa/video-analysis-media-production.smoke.spec.mjs`, `qa/video-analysis-media-capture.api.spec.mjs`, `qa/video-analysis-media-proxy.api.spec.mjs` |
-| Tracking | Automatic local SAM 2.1 tracking, bounded earlier/later continuation under one identity, confidence/occlusion visibility, atomic trajectory split and crossed-identity repair, reversible audited correction, and track-bound highlights | `qa/video-analysis-sam2-provider.api.spec.mjs`, `qa/video-analysis-tracking-review.api.spec.mjs`, `qa/video-analysis-tracking-telestration.api.spec.mjs`, `qa/video-analysis-tracking-telestration.smoke.spec.mjs` |
+| Tracking | Automatic local SAM 2.1 tracking, bounded earlier/later continuation under one identity, confidence/occlusion visibility, atomic trajectory split and crossed-identity repair, reversible audited correction, track-bound highlights, and checksum-bound local real-match provider evaluation | `qa/video-analysis-sam2-provider.api.spec.mjs`, `qa/video-analysis-tracking-review.api.spec.mjs`, `qa/video-analysis-tracking-suite.api.spec.mjs`, `qa/video-analysis-trackeval-reference.api.spec.mjs`, `qa/video-analysis-tracking-telestration.api.spec.mjs`, `qa/video-analysis-tracking-telestration.smoke.spec.mjs` |
 | Spatial analysis | Pitch calibration, real metres, pair/unit measures, gaps and continuity-aware movement curves | `qa/video-analysis-spatial-workbench.api.spec.mjs`, `qa/video-analysis-spatial-workbench.smoke.spec.mjs` |
 | Sharing | Metadata reconnection plus private portable reviews that authorized recipients can stream or download without the source file | `qa/video-analysis-portable-media.api.spec.mjs`, `qa/video-analysis-media-production.smoke.spec.mjs` |
 
@@ -163,10 +165,12 @@ Until the SAM preflight succeeds, FS Player shows the provider as unavailable, k
 - Two analysts can work on the same match and see authorship, presence, revisions, and recoverable conflicts.
 - A 15-second clip is represented as 15 seconds at every zoom level.
 - A highlighted player remains attached through movement until the requested end time or a visible tracking-confidence break.
+- A provider can be described as approved only after exact non-overlapping real-match evidence passes the in-product checksum and pinned-reference workflow; synthetic smoke output remains installation evidence only.
 - Distances and unit gaps are shown in metres only when calibration is valid, with uncertainty visible.
 - Multi-angle playback remains synchronized through long clips and can be corrected at reference points.
 - Export is deterministic, cancellable, resumable at job level, and produces a verifiable local artifact.
 - Shared review works either through fingerprint reconnection or an explicit portable package.
+- Tracking installation and quality evidence are independent of latency approval. The current one-shot SAM 2.1 runtime is operational but its measured cold start is not an elite repeated-workstation budget; a pinned resident-worker runtime with separate cold/warm measurements remains required before performance approval.
 
 ## Media Production Security Boundary
 

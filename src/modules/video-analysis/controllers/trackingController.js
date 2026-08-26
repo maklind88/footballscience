@@ -5,6 +5,7 @@ import {
   trackingBatchTargets,
 } from "./trackingBatchController.js";
 import { createTrackingGroundTruthController } from "./trackingGroundTruthController.js";
+import { createTrackingBenchmarkController } from "./trackingBenchmarkController.js";
 import {
   createTrackingProviderRunController,
 } from "./trackingProviderRunController.js";
@@ -47,11 +48,21 @@ export function createTrackingController(options = {}) {
   const getVideoElement = options.getVideoElement || (() => null);
   const getCurrentMatchMs = options.getCurrentMatchMs || null;
   const now = options.now || Date.now;
+  const benchmark = createTrackingBenchmarkController({
+    getState,
+    updateState,
+    getWindow: options.getWindow,
+    evaluateBenchmark: options.evaluateBenchmark,
+    cancelBenchmark: options.cancelBenchmark,
+    cryptoApi: options.cryptoApi,
+    now,
+  });
   const providerRuns = createTrackingProviderRunController({
     getState,
     updateState,
     getVideoElement,
     inspectProvider: options.inspectProvider,
+    onEvidenceChanged: benchmark.invalidate,
     now,
   });
   const trackingJob = createTrackingJobSession((request) => {
@@ -69,6 +80,7 @@ export function createTrackingController(options = {}) {
     getVideoElement,
     getWindow: options.getWindow,
     getReviewer: options.getReviewer,
+    onEvidenceChanged: benchmark.invalidate,
     now,
   });
   const reviewController = createTrackingReviewController({
@@ -434,6 +446,7 @@ export function createTrackingController(options = {}) {
     }
     if (action === "verify") { void verifySelectedTrack(); return true; }
     if (action === "add-graphic") { void graphicController.add(); return true; }
+    if (benchmark.handleAction(action)) return true;
     if (reviewController.handleAction(action)) return true;
     if (groundTruth.handleAction(action, actionElement)) return true;
     return false;
@@ -451,6 +464,7 @@ export function createTrackingController(options = {}) {
     handleChange,
     handleClick,
     refreshProvider: providerRuns.refresh,
+    runBenchmark: benchmark.run,
     startInteraction,
     updateInteraction,
   };

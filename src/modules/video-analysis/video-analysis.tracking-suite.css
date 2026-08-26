@@ -202,6 +202,170 @@
   color: #a12626;
 }
 
+.video-analysis-benchmark-suite__evaluation {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border-block: 1px solid #d9e1e4;
+  padding-block: 9px;
+}
+
+.video-analysis-benchmark-suite__evaluation-head,
+.video-analysis-benchmark-suite__evaluation-actions,
+.video-analysis-benchmark-suite__reference,
+.video-analysis-benchmark-suite__checksum {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.video-analysis-benchmark-suite__evaluation-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.video-analysis-benchmark-suite__evaluation-head span,
+.video-analysis-benchmark-suite__metrics dt,
+.video-analysis-benchmark-suite__reference span,
+.video-analysis-benchmark-suite__checksum span {
+  color: #65747d;
+  font-size: 8px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.video-analysis-benchmark-suite__evaluation-head strong {
+  overflow: hidden;
+  color: #26353c;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-benchmark-suite__evaluation-head em {
+  flex: 0 0 auto;
+  border: 1px solid #cdd8dd;
+  border-radius: 4px;
+  padding: 3px 5px;
+  color: #415761;
+  background: #ffffff;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 750;
+}
+
+.video-analysis-benchmark-suite__evaluation.is-passed .video-analysis-benchmark-suite__evaluation-head strong {
+  color: #17623c;
+}
+
+.video-analysis-benchmark-suite__evaluation.is-failed .video-analysis-benchmark-suite__evaluation-head strong,
+.video-analysis-benchmark-suite__evaluation.is-error .video-analysis-benchmark-suite__evaluation-head strong {
+  color: #9b2f2f;
+}
+
+.video-analysis-benchmark-suite__evaluation-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.video-analysis-benchmark-suite__evaluation-progress progress {
+  width: 100%;
+  height: 7px;
+  border: 0;
+  accent-color: #315f77;
+}
+
+.video-analysis-benchmark-suite__evaluation-progress span {
+  max-width: 130px;
+  overflow: hidden;
+  color: #52636c;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-benchmark-suite__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid #dce4e7;
+  background: #ffffff;
+}
+
+.video-analysis-benchmark-suite__metrics > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 5px;
+  text-align: center;
+}
+
+.video-analysis-benchmark-suite__metrics > div + div {
+  border-left: 1px solid #e2e8ea;
+}
+
+.video-analysis-benchmark-suite__metrics dd {
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: #1f2f36;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-benchmark-suite__reference,
+.video-analysis-benchmark-suite__checksum {
+  margin: 0;
+  color: #76560d;
+}
+
+.video-analysis-benchmark-suite__reference strong,
+.video-analysis-benchmark-suite__checksum code {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 8px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-benchmark-suite__reference.is-ready {
+  color: #17623c;
+}
+
+.video-analysis-benchmark-suite__checksum code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.video-analysis-benchmark-suite__evaluation-actions button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.video-analysis-benchmark-suite__evaluation-actions button:first-child {
+  color: #ffffff;
+  border-color: #315f77;
+  background: #315f77;
+}
+
+.video-analysis-benchmark-suite__evaluation.is-running .video-analysis-benchmark-suite__evaluation-actions button:first-child,
+.video-analysis-benchmark-suite__evaluation.is-preparing .video-analysis-benchmark-suite__evaluation-actions button:first-child,
+.video-analysis-benchmark-suite__evaluation.is-verifying .video-analysis-benchmark-suite__evaluation-actions button:first-child,
+.video-analysis-benchmark-suite__evaluation.is-cancelling .video-analysis-benchmark-suite__evaluation-actions button:first-child {
+  color: #8d2929;
+  border-color: #d5b1b1;
+  background: #fffafa;
+}
+
 .video-analysis-benchmark-suite__cases li.is-empty {
   justify-content: center;
   color: #738087;
@@ -244,5 +408,13 @@
   .video-analysis-benchmark-suite > footer {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .video-analysis-benchmark-suite__evaluation-progress {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .video-analysis-benchmark-suite__evaluation-progress span {
+    max-width: 100%;
   }
 }

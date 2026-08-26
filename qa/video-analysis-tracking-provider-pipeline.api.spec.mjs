@@ -723,6 +723,17 @@ test("provider evidence requires ten attested real-match minutes and remains met
   shortReport.cases.pop();
   expect(() => evidenceService.createTrackingProviderEvidence(candidate, shortReport)).toThrow(/10 minutes/i);
 
+  const overlappingReport = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
+  overlappingReport.cases.forEach((entry) => {
+    entry.sourceFingerprint = "a".repeat(64);
+    entry.range = { startMs: 0, endMs: 120_000, durationMs: 120_000 };
+  });
+  expect(() => evidenceService.createTrackingProviderEvidence(candidate, overlappingReport)).toThrow(/10 minutes/i);
+
+  const forgedDurationReport = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
+  forgedDurationReport.cases[0].evidence.durationMs = 240_000;
+  expect(() => evidenceService.createTrackingProviderEvidence(candidate, forgedDurationReport)).toThrow(/real-match evidence/i);
+
   const syntheticReport = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
   syntheticReport.cases[0].evidence = {
     kind: "synthetic-or-unattested",

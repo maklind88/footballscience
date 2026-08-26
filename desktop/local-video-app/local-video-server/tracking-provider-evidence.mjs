@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { normalizeBenchmarkProviderRunEvidence } from "../../../src/modules/video-analysis/services/trackingBenchmarkContract.js";
+import { trackingBenchmarkSuiteEvidence } from "../../../src/modules/video-analysis/services/trackingBenchmarkEvidence.js";
 import { trackingProviderExecutionFingerprintSha256 } from "../tracking-providers/provider-execution-fingerprint.mjs";
 
 export const TRACKING_PROVIDER_EVIDENCE_PROTOCOL = "football-science-tracking-provider-evidence-v1";
@@ -265,15 +266,15 @@ export function createTrackingProviderEvidence(provider = {}, report = {}, optio
   const realMatchCases = cases.filter((entry) => entry.evidence?.kind === "real-match"
     && entry.evidence?.attested === true
     && entry.evidence?.reviewProtocol === "football-ground-truth-review-v1");
-  const realMatchDurationMs = realMatchCases.reduce(
-    (total, entry) => total + Math.max(0, Number(entry.evidence?.durationMs) || 0),
-    0,
-  );
+  const realMatchEvidence = trackingBenchmarkSuiteEvidence(cases);
+  const realMatchDurationMs = realMatchEvidence.realMatchDurationMs;
   const requestedMinimumDurationMs = Number(options.minimumRealMatchDurationMs);
   const minimumDurationMs = Number.isFinite(requestedMinimumDurationMs)
     ? Math.max(TRACKING_PROVIDER_MINIMUM_REAL_MATCH_DURATION_MS, requestedMinimumDurationMs)
     : TRACKING_PROVIDER_MINIMUM_REAL_MATCH_DURATION_MS;
-  if (realMatchCases.length !== cases.length || realMatchDurationMs < minimumDurationMs) {
+  if (realMatchCases.length !== cases.length
+    || realMatchEvidence.invalidRealMatchCaseIds.length
+    || realMatchDurationMs < minimumDurationMs) {
     invalid(
       `Provider approval requires at least ${Math.ceil(minimumDurationMs / 60_000)} minutes of attested real-match evidence.`,
       "TRACKING_PROVIDER_REAL_MATCH_EVIDENCE_MISSING",

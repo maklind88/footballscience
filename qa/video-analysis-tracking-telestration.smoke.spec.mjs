@@ -125,6 +125,40 @@ async function mountTrackingProgressFixture(page) {
   });
 }
 
+async function mountBenchmarkResultFixture(page) {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await page.evaluate(async () => {
+    const { renderTrackingBenchmarkSuitePanel } = await import(
+      "/src/modules/video-analysis/components/TrackingBenchmarkSuitePanel.js"
+    );
+    const panel = renderTrackingBenchmarkSuitePanel({
+      presentation: { tracking: {
+        groundTruth: { suite: { id: "real-match-pilot", cases: [] } },
+        providerRuns: { byItemId: {} },
+        provider: {
+          benchmarkAvailable: true,
+          trackEvalAvailable: true,
+          referenceEvaluator: "TrackEval",
+        },
+        benchmarkEvaluation: {
+          status: "passed",
+          stage: "Provider evidence verified",
+          progress: 1,
+          benchmarkType: "multi-object",
+          reportSha256: "a".repeat(64),
+          evidenceSet: { protocol: "football-science-tracking-benchmark-evidence-set-v1" },
+          report: {
+            benchmarkType: "multi-object-suite",
+            summary: { passed: true, providerApprovalReady: true, passedCaseCount: 5, caseCount: 5 },
+            referenceValidation: { metrics: { HOTA: 0.83, IDF1: 0.79, MOTA: 0.76 } },
+          },
+        },
+      } },
+    });
+    document.body.innerHTML = `<main style="box-sizing:border-box;width:min(360px,calc(100vw - 24px));margin:12px;padding:12px;background:#fff">${panel}</main>`;
+  });
+}
+
 async function mountContinuityReviewFixture(page) {
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
   await page.evaluate(async () => {
@@ -1017,4 +1051,37 @@ test("tracking progress telemetry stays contained on desktop and mobile", async 
   expect(measured.pageOverflow).toBeLessThanOrEqual(1);
   expect(measured.elementOverflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath("tracking-progress-mobile.png"), fullPage: true });
+});
+
+test("verified benchmark evidence stays scannable and contained on desktop and mobile", async ({ page }, testInfo) => {
+  await mountBenchmarkResultFixture(page);
+  const panel = page.locator(".video-analysis-benchmark-suite");
+  await expect(panel).toContainText("Provider benchmark passed");
+  await expect(panel).toContainText(/HOTA\s*83\.0%/);
+  await expect(panel).toContainText(/IDF1\s*79\.0%/);
+  await expect(panel.locator('[data-video-analysis-tracking-action="tracking-benchmark-evidence-download"]')).toBeEnabled();
+  const geometry = async () => panel.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: window.innerWidth,
+      pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      elementOverflow: element.scrollWidth - element.clientWidth,
+    };
+  });
+  let measured = await geometry();
+  expect(measured.left).toBeGreaterThanOrEqual(0);
+  expect(measured.right).toBeLessThanOrEqual(measured.viewportWidth + 1);
+  expect(measured.pageOverflow).toBeLessThanOrEqual(1);
+  expect(measured.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-benchmark-result-desktop.png"), fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  measured = await geometry();
+  expect(measured.left).toBeGreaterThanOrEqual(0);
+  expect(measured.right).toBeLessThanOrEqual(measured.viewportWidth + 1);
+  expect(measured.pageOverflow).toBeLessThanOrEqual(1);
+  expect(measured.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-benchmark-result-mobile.png"), fullPage: true });
 });

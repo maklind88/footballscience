@@ -4,6 +4,7 @@ import {
   createTrackingProviderRunArtifact,
   trackingProviderRunWorkspaceEntry,
 } from "../services/trackingProviderRunService.js";
+import { emptyTrackingBenchmarkEvaluation } from "../services/trackingBenchmarkStateService.js";
 import {
   patchTrackingState,
   trackingLocalId,
@@ -11,6 +12,7 @@ import {
 
 const providerEvidenceIdentityFields = Object.freeze([
   "id", "version", "protocol", "stage", "capabilities", "executionFingerprintSha256",
+  "referenceEvaluator", "referenceEvaluatorVersion", "referenceEvaluatorCommit", "referenceSourceSha256",
 ]);
 
 export function preserveTrackingProviderEvidenceIdentity(previous = {}, current = {}) {
@@ -21,6 +23,21 @@ export function preserveTrackingProviderEvidenceIdentity(previous = {}, current 
     ...current,
     ...Object.fromEntries(providerEvidenceIdentityFields.map((field) => [field, previous[field]])),
   };
+}
+
+function providerBenchmarkIdentity(value = {}) {
+  return JSON.stringify([
+    value.id,
+    value.version,
+    value.protocol,
+    value.stage,
+    [...(value.capabilities || [])].map(String).sort(),
+    value.executionFingerprintSha256,
+    value.referenceEvaluator,
+    value.referenceEvaluatorVersion,
+    value.referenceEvaluatorCommit,
+    value.referenceSourceSha256,
+  ]);
 }
 
 export function trackingProviderRunFrame(video = null) {
@@ -72,7 +89,9 @@ export function createTrackingProviderRunController(options = {}) {
           value.itemId,
           artifact,
         ),
+        benchmarkEvaluation: emptyTrackingBenchmarkEvaluation(),
       }));
+      options.onEvidenceChanged?.();
       return true;
     } catch (error) {
       updateState((state) => patchTrackingState(state, {
@@ -108,12 +127,19 @@ export function createTrackingProviderRunController(options = {}) {
       };
     }
     if (requestId !== refreshId) return false;
-    updateState((state) => patchTrackingState(state, {
-      provider: preserveTrackingProviderEvidenceIdentity(
-        state.presentation?.tracking?.provider,
-        provider,
-      ),
-    }));
+    let benchmarkIdentityChanged = false;
+    updateState((state) => {
+      const previous = state.presentation?.tracking?.provider || {};
+      const next = preserveTrackingProviderEvidenceIdentity(previous, provider);
+      benchmarkIdentityChanged = providerBenchmarkIdentity(previous) !== providerBenchmarkIdentity(next);
+      return patchTrackingState(state, {
+        provider: next,
+        ...(benchmarkIdentityChanged ? {
+          benchmarkEvaluation: emptyTrackingBenchmarkEvaluation(),
+        } : {}),
+      });
+    });
+    if (benchmarkIdentityChanged) options.onEvidenceChanged?.();
     return provider.available === true;
   }
 

@@ -1,4 +1,5 @@
 import { normalizeDrawingGeometry } from "./presentationLayerGeometryService.js";
+import { emptyTrackingBenchmarkEvaluation } from "./trackingBenchmarkStateService.js";
 
 export const presentationModes = Object.freeze([
   { id: "overview", label: "Library" },
@@ -100,6 +101,7 @@ export function createInitialPresentationWorkspace() {
         },
       },
       providerRuns: { byItemId: {}, downloadedAt: "", error: "" },
+      benchmarkEvaluation: emptyTrackingBenchmarkEvaluation(),
       benchmarkStorage: { status: "waiting-source", lastSavedAt: "", error: "" },
       workspace: {
         status: "waiting-item",

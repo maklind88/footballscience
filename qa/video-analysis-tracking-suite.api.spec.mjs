@@ -131,6 +131,86 @@ async function readySuite() {
   return { service, suite };
 }
 
+async function readyWorkflowState(stage = "segmentation") {
+  const { suite } = await readySuite();
+  const runService = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingProviderRunService.js",
+  ));
+  const multiObject = stage !== "segmentation";
+  const provider = {
+    id: multiObject ? "football-association-v1" : "sam2.1-hiera-tiny",
+    version: "1.1.0",
+    protocol: "football-science-tracking-stage-v1",
+    stage,
+    capabilities: [multiObject ? "associate:multi-object" : "segment:selected-object", ...(
+      multiObject ? [] : ["propagate:selected-object"]
+    )],
+    executionFingerprintSha256: "f".repeat(64),
+    benchmarkAvailable: true,
+    trackEvalAvailable: multiObject,
+    referenceEvaluator: multiObject ? "TrackEval" : "",
+    referenceEvaluatorVersion: multiObject ? "1.0.0" : "",
+    referenceEvaluatorCommit: multiObject ? "b".repeat(40) : "",
+    referenceSourceSha256: multiObject ? "c".repeat(64) : "",
+  };
+  const byItemId = {};
+  for (let index = 0; index < suite.cases.length; index += 1) {
+    const artifact = suite.cases[index];
+    const run = runService.createTrackingProviderRunArtifact({
+      id: `workflow-run-${stage}-${index}`,
+      provider: {
+        providerId: provider.id,
+        providerVersion: provider.version,
+        protocol: provider.protocol,
+        stage: provider.stage,
+        capabilities: provider.capabilities,
+        executionFingerprintSha256: provider.executionFingerprintSha256,
+      },
+      sourceFingerprint: artifact.sourceFingerprint,
+      angleId: artifact.sourceEvidence.angleId,
+      frame: artifact.frame,
+      range: artifact.range,
+      tracks: automaticProviderTracks(artifact, provider.id),
+      performance: { processingMs: 18_000, device: "mps" },
+    }, { now: () => 1_800_000_020_000 + index });
+    byItemId[`item-${index}`] = [run];
+  }
+  return {
+    presentation: {
+      tracking: {
+        groundTruth: { suite },
+        providerRuns: { byItemId, downloadedAt: "", error: "" },
+        provider,
+      },
+    },
+  };
+}
+
+function passingTrackEvalReference(report = {}) {
+  const metrics = (entry = {}) => ({
+    HOTA: 1,
+    DetA: 1,
+    AssA: 1,
+    LocA: 1,
+    MOTA: Number(entry.metrics?.mota),
+    IDF1: Number(entry.metrics?.identityF1),
+  });
+  return {
+    evaluator: { commit: "b".repeat(40), sourceSha256: "c".repeat(64) },
+    threshold: 0.5,
+    reportSha256: "d".repeat(64),
+    sequences: report.cases.map((entry) => ({
+      benchmarkId: entry.benchmarkId,
+      metrics: metrics(entry),
+      perEntity: {},
+    })),
+    summary: {
+      metrics: metrics(report.cases[0]),
+      perEntity: {},
+    },
+  };
+}
+
 test("real-match suite counts unique time, scenarios and produces a benchmark-ready artifact", async () => {
   const { service, suite } = await readySuite();
   const readiness = service.groundTruthSuiteReadiness(suite);
@@ -684,6 +764,253 @@ test("imported suite evidence is revalidated before export or provider execution
   const missingScenarioEvidence = structuredClone(artifact);
   missingScenarioEvidence.cases.at(-1).reviewEvidence.scenarioTags = [];
   expect(() => service.groundTruthSuiteArtifactJson(missingScenarioEvidence)).toThrow(/does not match/i);
+});
+
+test("benchmark workflow binds exact suites and rejects a modified selected-object report", async () => {
+  const state = await readyWorkflowState();
+  const workflow = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingBenchmarkWorkflowService.js",
+  ));
+  const readiness = workflow.trackingBenchmarkWorkflowReadiness(state.presentation.tracking);
+  expect(readiness).toMatchObject({
+    ready: true,
+    runCount: 5,
+    matchedCaseCount: 5,
+    benchmarkType: "selected-object",
+    referenceRequired: false,
+  });
+  const prepared = await workflow.prepareTrackingBenchmarkWorkflow(state.presentation.tracking, {
+    now: () => 1_800_000_100_000,
+  });
+  expect(prepared).toMatchObject({
+    groundTruthSuiteSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    providerRunSuiteSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    sourceSignature: expect.stringMatching(/^[a-f0-9]{64}$/),
+    assembledBenchmark: {
+      providerRunEvidence: {
+        groundTruthSuiteSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+        providerRunSuiteSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
+    },
+  });
+  const finalized = await workflow.finalizeTrackingBenchmarkWorkflow(
+    prepared,
+    prepared.internalReport,
+    { now: () => 1_800_000_100_100 },
+  );
+  expect(finalized.evidenceSet).toMatchObject({
+    protocol: "football-science-tracking-benchmark-evidence-set-v1",
+    sourceSignature: prepared.sourceSignature,
+    checksums: {
+      groundTruthSuiteSha256: prepared.groundTruthSuiteSha256,
+      providerRunSuiteSha256: prepared.providerRunSuiteSha256,
+      reportSha256: finalized.reportSha256,
+    },
+  });
+  expect(workflow.trackingBenchmarkEvidenceSetJson(finalized.evidenceSet)).not.toMatch(
+    /sourcePath|videoUrl|blob:|https?:\/\//i,
+  );
+
+  const modified = structuredClone(prepared.internalReport);
+  modified.summary.weightedMeanIou = 0.01;
+  await expect(workflow.finalizeTrackingBenchmarkWorkflow(prepared, modified)).rejects.toThrow(
+    /does not match/i,
+  );
+});
+
+test("multi-object workflow requires the pinned TrackEval identity and cross-validation", async () => {
+  const state = await readyWorkflowState("association");
+  const workflow = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingBenchmarkWorkflowService.js",
+  ));
+  const { attachTrackEvalReference } = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-trackeval-adapter.mjs",
+  ));
+  const prepared = await workflow.prepareTrackingBenchmarkWorkflow(state.presentation.tracking, {
+    now: () => 1_800_000_110_000,
+  });
+  expect(prepared).toMatchObject({
+    benchmarkType: "multi-object",
+    referenceRequired: true,
+    reference: {
+      evaluator: "TrackEval",
+      evaluatorCommit: "b".repeat(40),
+      sourceSha256: "c".repeat(64),
+    },
+  });
+  const report = await attachTrackEvalReference(
+    prepared.assembledBenchmark,
+    prepared.internalReport,
+    { reference: passingTrackEvalReference(prepared.internalReport) },
+  );
+  const finalized = await workflow.finalizeTrackingBenchmarkWorkflow(prepared, report, {
+    now: () => 1_800_000_110_100,
+  });
+  expect(finalized.report).toMatchObject({
+    summary: { passed: true, providerApprovalReady: true },
+    referenceValidation: { evaluator: "TrackEval", status: "verified", passed: true },
+  });
+
+  const wrongReference = structuredClone(report);
+  wrongReference.cases[0].referenceValidation.sourceSha256 = "e".repeat(64);
+  await expect(workflow.finalizeTrackingBenchmarkWorkflow(prepared, wrongReference)).rejects.toThrow(
+    /checksum changed/i,
+  );
+  const inconsistentThreshold = structuredClone(report);
+  inconsistentThreshold.cases[0].referenceValidation.metrics.HOTA = 0;
+  await expect(workflow.finalizeTrackingBenchmarkWorkflow(prepared, inconsistentThreshold)).rejects.toThrow(
+    /threshold evidence is inconsistent/i,
+  );
+});
+
+test("benchmark controller completes locally and never accepts evidence after inputs change", async () => {
+  const benchmark = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingBenchmarkController.js",
+  ));
+  const evaluator = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingBenchmarkService.js",
+  ));
+  let state = await readyWorkflowState();
+  const updateState = (updater) => { state = updater(state); };
+  const controller = benchmark.createTrackingBenchmarkController({
+    getState: () => state,
+    updateState,
+    getWindow: () => ({ crypto: globalThis.crypto }),
+    evaluateBenchmark: async (suite, options) => {
+      options.onQueued({ jobId: "benchmark-job-1", statusUrl: "http://127.0.0.1/jobs/1", sessionToken: "secret" });
+      options.onProgress({ stage: "evaluating benchmark", ratio: 0.7 });
+      return evaluator.evaluateTrackingBenchmarkSuite(suite);
+    },
+    now: () => 1_800_000_120_000,
+  });
+  expect(await controller.run()).toBe(true);
+  expect(state.presentation.tracking.benchmarkEvaluation).toMatchObject({
+    status: "passed",
+    progress: 1,
+    benchmarkType: "selected-object",
+    reportSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    job: null,
+  });
+  expect(JSON.stringify(state.presentation.tracking.benchmarkEvaluation)).not.toContain("secret");
+
+  state = await readyWorkflowState();
+  const staleController = benchmark.createTrackingBenchmarkController({
+    getState: () => state,
+    updateState,
+    getWindow: () => ({ crypto: globalThis.crypto }),
+    evaluateBenchmark: async (suite) => {
+      const providerRuns = structuredClone(state.presentation.tracking.providerRuns);
+      providerRuns.byItemId["item-0"][0].performance.processingMs += 1;
+      state = {
+        ...state,
+        presentation: {
+          ...state.presentation,
+          tracking: { ...state.presentation.tracking, providerRuns },
+        },
+      };
+      return evaluator.evaluateTrackingBenchmarkSuite(suite);
+    },
+    now: () => 1_800_000_120_000,
+  });
+  expect(await staleController.run()).toBe(false);
+  expect(state.presentation.tracking.benchmarkEvaluation).toMatchObject({
+    status: "error",
+    evidenceSet: null,
+    error: "Benchmark inputs changed during evaluation. Run the benchmark again.",
+  });
+});
+
+test("benchmark controller cancels the local evaluation cleanly", async () => {
+  const benchmark = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingBenchmarkController.js",
+  ));
+  let state = await readyWorkflowState();
+  let cancelRequests = 0;
+  const controller = benchmark.createTrackingBenchmarkController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getWindow: () => ({ crypto: globalThis.crypto }),
+    evaluateBenchmark: async (_suite, options) => new Promise((_resolve, reject) => {
+      options.onQueued({ jobId: "benchmark-job-cancel", statusUrl: "http://127.0.0.1/jobs/cancel", sessionToken: "secret" });
+      options.signal.addEventListener("abort", () => reject(new DOMException("Cancelled", "AbortError")), { once: true });
+    }),
+    cancelBenchmark: async () => { cancelRequests += 1; return true; },
+    now: () => 1_800_000_130_000,
+  });
+  const running = controller.run();
+  await expect.poll(() => state.presentation.tracking.benchmarkEvaluation?.status).toBe("running");
+  expect(controller.cancel()).toBe(true);
+  expect(await running).toBe(false);
+  expect(cancelRequests).toBe(1);
+  expect(state.presentation.tracking.benchmarkEvaluation).toMatchObject({
+    status: "cancelled",
+    report: null,
+    evidenceSet: null,
+    error: "",
+  });
+
+  state = await readyWorkflowState();
+  const invalidated = benchmark.createTrackingBenchmarkController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getWindow: () => ({ crypto: globalThis.crypto }),
+    evaluateBenchmark: async (_suite, options) => new Promise((_resolve, reject) => {
+      options.onQueued({ jobId: "benchmark-job-invalidated", statusUrl: "http://127.0.0.1/jobs/invalidated" });
+      options.signal.addEventListener("abort", () => reject(new DOMException("Cancelled", "AbortError")), { once: true });
+    }),
+    cancelBenchmark: async () => true,
+    now: () => 1_800_000_130_100,
+  });
+  const invalidatedRun = invalidated.run();
+  await expect.poll(() => state.presentation.tracking.benchmarkEvaluation?.status).toBe("running");
+  expect(invalidated.invalidate()).toBe(true);
+  expect(await invalidatedRun).toBe(false);
+  expect(state.presentation.tracking.benchmarkEvaluation).toMatchObject({
+    status: "error",
+    evidenceSet: null,
+    error: "Benchmark inputs changed during evaluation. Run the benchmark again.",
+  });
+});
+
+test("benchmark cancellation during checksum verification cannot publish stale evidence", async () => {
+  const benchmark = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingBenchmarkController.js",
+  ));
+  const evaluator = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingBenchmarkService.js",
+  ));
+  let state = await readyWorkflowState();
+  let digestCount = 0;
+  let releaseVerification;
+  const verificationBlocked = new Promise((resolve) => { releaseVerification = resolve; });
+  const cryptoApi = {
+    subtle: {
+      digest: async (...args) => {
+        digestCount += 1;
+        if (digestCount === 4) await verificationBlocked;
+        return globalThis.crypto.subtle.digest(...args);
+      },
+    },
+  };
+  const controller = benchmark.createTrackingBenchmarkController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getWindow: () => ({ crypto: cryptoApi }),
+    cryptoApi,
+    evaluateBenchmark: async (suite) => evaluator.evaluateTrackingBenchmarkSuite(suite),
+    now: () => 1_800_000_140_000,
+  });
+  const running = controller.run();
+  await expect.poll(() => state.presentation.tracking.benchmarkEvaluation?.status).toBe("verifying");
+  expect(controller.cancel()).toBe(true);
+  releaseVerification();
+  expect(await running).toBe(false);
+  expect(state.presentation.tracking.benchmarkEvaluation).toMatchObject({
+    status: "cancelled",
+    report: null,
+    evidenceSet: null,
+    error: "",
+  });
 });
 
 test("suite panel exposes progress, scenario state and reversible case removal", async () => {

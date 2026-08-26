@@ -329,8 +329,14 @@ test("offline refresh preserves only the last evidence identity for raw-run expo
       stage: "segmentation",
       capabilities: ["segment:selected-object", "propagate:selected-object"],
       executionFingerprintSha256: "f".repeat(64),
+      benchmarkAvailable: true,
+      trackEvalAvailable: false,
+      referenceEvaluator: "trackeval",
+      referenceEvaluatorVersion: "1.0.0",
+      referenceEvaluatorCommit: "b".repeat(40),
+      referenceSourceSha256: "c".repeat(64),
       maxDurationMs: 120_000,
-    } } },
+    }, benchmarkEvaluation: { status: "passed", evidenceSet: { id: "retained-evidence" } } } },
   };
   const controller = createTrackingController({
     getState: () => state,
@@ -350,6 +356,10 @@ test("offline refresh preserves only the last evidence identity for raw-run expo
     executionFingerprintSha256: "f".repeat(64),
   });
   expect(state.presentation.tracking.provider).not.toHaveProperty("maxDurationMs");
+  expect(state.presentation.tracking.benchmarkEvaluation).toMatchObject({
+    status: "passed",
+    evidenceSet: { id: "retained-evidence" },
+  });
   expect(preserveTrackingProviderEvidenceIdentity(state.presentation.tracking.provider, {
     status: "ready",
     available: true,
@@ -358,6 +368,25 @@ test("offline refresh preserves only the last evidence identity for raw-run expo
     status: "ready",
     available: true,
     id: "unverified-external-provider",
+  });
+  const changedController = createTrackingController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    inspectProvider: async () => ({
+      status: "ready",
+      available: true,
+      id: "sam2.1-hiera-tiny",
+      version: "1.2.0",
+      protocol: "football-science-tracking-stage-v1",
+      stage: "segmentation",
+      capabilities: ["segment:selected-object", "propagate:selected-object"],
+      executionFingerprintSha256: "e".repeat(64),
+    }),
+  });
+  await expect(changedController.refreshProvider()).resolves.toBe(true);
+  expect(state.presentation.tracking.benchmarkEvaluation).toMatchObject({
+    status: "idle",
+    evidenceSet: null,
   });
 });
 

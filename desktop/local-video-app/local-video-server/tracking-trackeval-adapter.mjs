@@ -35,6 +35,10 @@ async function readBoundedJson(filePath, maxBytes) {
 
 function runEvaluator(command, args = [], options = {}) {
   return new Promise((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(Object.assign(new TrackingBenchmarkError("TrackEval evaluation was cancelled."), { code: "ABORT_ERR" }));
+      return;
+    }
     const child = spawn(command, args, {
       env: options.env || process.env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -42,23 +46,37 @@ function runEvaluator(command, args = [], options = {}) {
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let terminationError = null;
+    let killTimer = null;
     const finish = (callback, value) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
+      clearTimeout(killTimer);
+      options.signal?.removeEventListener?.("abort", abort);
       callback(value);
     };
-    const timeout = setTimeout(() => {
+    const terminate = (error) => {
+      if (settled || terminationError) return;
+      terminationError = error;
       child.kill("SIGTERM");
-      setTimeout(() => child.kill("SIGKILL"), 2000).unref?.();
-      finish(reject, new TrackingBenchmarkError("TrackEval evaluation exceeded the local time limit."));
-    }, options.timeoutMs);
+      killTimer = setTimeout(() => child.kill("SIGKILL"), 2000);
+      killTimer.unref?.();
+    };
+    const abort = () => terminate(
+      Object.assign(new TrackingBenchmarkError("TrackEval evaluation was cancelled."), { code: "ABORT_ERR" }),
+    );
+    const timeout = setTimeout(() => terminate(
+      new TrackingBenchmarkError("TrackEval evaluation exceeded the local time limit."),
+    ), options.timeoutMs);
     timeout.unref?.();
+    options.signal?.addEventListener?.("abort", abort, { once: true });
     child.stdout.on("data", (chunk) => { stdout = `${stdout}${chunk}`.slice(-64_000); });
     child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-64_000); });
-    child.on("error", (error) => finish(reject, error));
+    child.on("error", (error) => finish(reject, terminationError || error));
     child.on("close", (code) => {
-      if (code === 0) finish(resolve, { stdout, stderr });
+      if (terminationError) finish(reject, terminationError);
+      else if (code === 0) finish(resolve, { stdout, stderr });
       else finish(reject, new TrackingBenchmarkError(stderr.trim() || `TrackEval exited with ${code}.`));
     });
   });
@@ -90,6 +108,7 @@ export async function evaluateTrackEvalReference(value = {}, options = {}) {
     ], {
       env: { ...process.env, ...(runtime.env || {}) },
       timeoutMs: Number(options.timeoutMs || manifest.runtime.maximumEvaluationMs),
+      signal: options.signal,
     });
     const raw = await readBoundedJson(outputPath, Number(manifest.runtime.maximumReportBytes));
     const report = validateTrackEvalReport(raw, request, manifest);
@@ -126,7 +145,18 @@ function referenceThresholdFailures(metrics = {}, thresholds = {}) {
 
 function referenceEvidence(reference = {}, sequence = null, thresholds = {}, internalMetrics = null) {
   const result = sequence || reference.summary;
-  const failures = referenceThresholdFailures(result.metrics, thresholds);
+  const crossValidationEvidence = internalMetrics
+    ? crossValidation(internalMetrics, result.metrics)
+    : null;
+  const failures = [
+    ...referenceThresholdFailures(result.metrics, thresholds),
+    ...(crossValidationEvidence && !crossValidationEvidence.passed ? [{
+      metric: "internal-reference-cross-validation",
+      expected: crossValidationEvidence.tolerance,
+      actual: Math.max(...Object.values(crossValidationEvidence.deltas)),
+      reason: "maximum-delta",
+    }] : []),
+  ];
   return {
     evaluator: "TrackEval",
     status: "verified",
@@ -140,12 +170,12 @@ function referenceEvidence(reference = {}, sequence = null, thresholds = {}, int
     passed: failures.length === 0,
     failureCount: failures.length,
     failures,
-    ...(internalMetrics ? { crossValidation: crossValidation(internalMetrics, result.metrics) } : {}),
+    ...(crossValidationEvidence ? { crossValidation: crossValidationEvidence } : {}),
   };
 }
 
 export async function attachTrackEvalReference(value = {}, report = {}, options = {}) {
-  const reference = await evaluateTrackEvalReference(value, options);
+  const reference = options.reference || await evaluateTrackEvalReference(value, options);
   if (report.benchmarkType === "multi-object-suite") {
     const byId = new Map(reference.sequences.map((sequence) => [sequence.benchmarkId, sequence]));
     const cases = report.cases.map((entry) => {
@@ -163,6 +193,7 @@ export async function attachTrackEvalReference(value = {}, report = {}, options 
         verdict: {
           ...entry.verdict,
           passed: entry.verdict.passed && evidence.passed,
+          providerApprovalReady: entry.verdict.passed && evidence.passed,
           referencePassed: evidence.passed,
           failureCount: entry.verdict.failureCount + evidence.failureCount,
         },
@@ -170,15 +201,19 @@ export async function attachTrackEvalReference(value = {}, report = {}, options 
     });
     const failedCaseIds = cases.filter((entry) => !entry.verdict.passed).map((entry) => entry.benchmarkId);
     const summaryThresholds = report.cases[0]?.referenceValidation?.requiredThresholds || {};
+    const suiteEvidence = referenceEvidence(reference, null, summaryThresholds);
+    const providerApprovalReady = suiteEvidence.passed
+      && cases.every((entry) => entry.verdict.providerApprovalReady === true);
     return {
       ...report,
       summary: {
         ...report.summary,
         passed: failedCaseIds.length === 0,
+        providerApprovalReady,
         passedCaseCount: cases.length - failedCaseIds.length,
         failedCaseIds,
       },
-      referenceValidation: referenceEvidence(reference, null, summaryThresholds),
+      referenceValidation: suiteEvidence,
       cases,
     };
   }
@@ -195,6 +230,7 @@ export async function attachTrackEvalReference(value = {}, report = {}, options 
     verdict: {
       ...report.verdict,
       passed: report.verdict.passed && evidence.passed,
+      providerApprovalReady: report.verdict.passed && evidence.passed,
       referencePassed: evidence.passed,
       failureCount: report.verdict.failureCount + evidence.failureCount,
     },

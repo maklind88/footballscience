@@ -99,6 +99,9 @@ export async function inspectLocalTrackingProvider(win = window) {
       ? payload.trackingProvider
       : {};
     const available = (payload.capabilities || []).includes("track-object") && provider.available !== false;
+    const benchmark = payload.trackingBenchmark && typeof payload.trackingBenchmark === "object"
+      ? payload.trackingBenchmark
+      : {};
     return {
       status: available ? "ready" : "not-installed",
       available,
@@ -113,6 +116,12 @@ export async function inspectLocalTrackingProvider(win = window) {
       source: String(provider.source || "none"),
       maxDurationMs: Math.max(1000, Math.min(20 * 60 * 1000, Number(payload.limits?.maxTrackingDurationMs) || 120_000)),
       maxObjectsPerJob: Math.max(1, Math.min(8, Number(payload.limits?.maxTrackingObjectsPerJob) || 1)),
+      benchmarkAvailable: (payload.capabilities || []).includes("evaluate-tracking-benchmark"),
+      trackEvalAvailable: (payload.capabilities || []).includes("tracking-reference:trackeval"),
+      referenceEvaluator: String(benchmark.evaluator || ""),
+      referenceEvaluatorVersion: String(benchmark.evaluatorVersion || ""),
+      referenceEvaluatorCommit: String(benchmark.sourceCommit || ""),
+      referenceSourceSha256: String(benchmark.sourceSha256 || ""),
       error: "",
     };
   } catch (error) {
@@ -120,6 +129,8 @@ export async function inspectLocalTrackingProvider(win = window) {
       status: "offline",
       available: false,
       batchAvailable: false,
+      benchmarkAvailable: false,
+      trackEvalAvailable: false,
       name: "Local tracking companion",
       version: "",
       source: "none",

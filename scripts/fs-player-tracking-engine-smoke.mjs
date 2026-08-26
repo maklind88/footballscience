@@ -60,7 +60,7 @@ export function trackingEngineSmokePrompt() {
     sourceStartMs: 0,
     sourceEndMs: TRACKING_ENGINE_SMOKE_DURATION_MS,
     sourcePromptAtMs: 0,
-    box: { left: 0.15, top: 0.25, width: 0.11, height: 0.42 },
+    box: { left: 0.16, top: 0.23, width: 0.13, height: 0.46 },
   };
 }
 
@@ -73,7 +73,7 @@ export function trackingEngineBatchSmokePrompts() {
       playerId: "synthetic-player-away",
       playerLabel: "Synthetic away player",
       teamSide: "away",
-      box: { left: 0.64, top: 0.2, width: 0.11, height: 0.42 },
+      box: { left: 0.65, top: 0.22, width: 0.13, height: 0.46 },
     },
   ];
 }
@@ -82,15 +82,15 @@ export async function createSyntheticTrackingFixture(outputPath, options = {}) {
   const ffmpegPath = options.ffmpegPath || process.env.FS_FFMPEG_PATH || ffmpegStaticPath;
   if (!ffmpegPath) throw smokeError("The bundled FFmpeg engine is unavailable.", "TRACKING_ENGINE_SMOKE_FFMPEG");
   const filter = [
-    "[1:v]drawbox=x=0:y=0:w=iw:h=ih:color=white:t=4",
-    "drawbox=x=8:y=12:w=30:h=76:color=0x214f9b:t=fill[obj]",
-    "[0:v][obj]overlay=x=110+45*t:y=100:shortest=1[composite]",
+    "[0:v]noise=alls=10:allf=t+u,drawgrid=w=80:h=60:t=1:c=white@0.18[field]",
+    "[1:v]drawbox=x=0:y=0:w=iw:h=ih:color=white:t=5,drawbox=x=10:y=14:w=22:h=112:color=0x214f9b:t=fill,drawbox=x=40:y=14:w=22:h=112:color=0xf5d142:t=fill[obj]",
+    "[field][obj]overlay=x=108+38*t:y=88:shortest=1[composite]",
     "[composite]format=yuv420p[out]",
   ].join(";");
   await runProcess(ffmpegPath, [
     "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
     "-f", "lavfi", "-i", `color=c=0x285c3a:s=640x360:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
-    "-f", "lavfi", "-i", `color=c=0xc92f3d:s=46x132:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
+    "-f", "lavfi", "-i", `color=c=0xc92f3d:s=72x150:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
     "-filter_complex", filter,
     "-map", "[out]", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
     "-movflags", "+faststart", outputPath,
@@ -106,17 +106,18 @@ export async function createSyntheticBatchTrackingFixture(outputPath, options = 
   const ffmpegPath = options.ffmpegPath || process.env.FS_FFMPEG_PATH || ffmpegStaticPath;
   if (!ffmpegPath) throw smokeError("The bundled FFmpeg engine is unavailable.", "TRACKING_ENGINE_SMOKE_FFMPEG");
   const filter = [
-    "[1:v]drawbox=x=0:y=0:w=iw:h=ih:color=white:t=4,drawbox=x=8:y=12:w=30:h=76:color=0x214f9b:t=fill[first]",
-    "[2:v]drawbox=x=0:y=0:w=iw:h=ih:color=white:t=4,drawbox=x=8:y=12:w=30:h=76:color=0xe5b72f:t=fill[second]",
-    "[0:v][first]overlay=x=110+45*t:y=100:shortest=1[with_first]",
+    "[0:v]noise=alls=10:allf=t+u,drawgrid=w=80:h=60:t=1:c=white@0.18[field]",
+    "[1:v]drawbox=x=0:y=0:w=iw:h=ih:color=white:t=5,drawbox=x=10:y=14:w=22:h=112:color=0x214f9b:t=fill,drawbox=x=40:y=14:w=22:h=112:color=0xf5d142:t=fill[first]",
+    "[2:v]drawbox=x=0:y=0:w=iw:h=ih:color=white:t=5,drawbox=x=10:y=14:w=22:h=112:color=0x167a73:t=fill,drawbox=x=40:y=14:w=22:h=112:color=0xe5b72f:t=fill[second]",
+    "[field][first]overlay=x=108+38*t:y=88:shortest=1[with_first]",
     "[with_first][second]overlay=x=430-35*t:y=85:shortest=1[composite]",
     "[composite]format=yuv420p[out]",
   ].join(";");
   await runProcess(ffmpegPath, [
     "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
     "-f", "lavfi", "-i", `color=c=0x285c3a:s=640x360:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
-    "-f", "lavfi", "-i", `color=c=0xc92f3d:s=46x132:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
-    "-f", "lavfi", "-i", `color=c=0x167a73:s=46x132:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
+    "-f", "lavfi", "-i", `color=c=0xc92f3d:s=72x150:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
+    "-f", "lavfi", "-i", `color=c=0x167a73:s=72x150:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
     "-filter_complex", filter,
     "-map", "[out]", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
     "-movflags", "+faststart", outputPath,

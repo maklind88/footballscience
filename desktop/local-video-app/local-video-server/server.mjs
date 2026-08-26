@@ -22,6 +22,7 @@ import {
   sessionTokenFromRequest,
 } from "./security.mjs";
 import { createTrackingEngineAdapter } from "./tracking-engine-adapter.mjs";
+import { createTrackingBenchmarkJobHandler } from "./tracking-benchmark-job-handler.mjs";
 import { createTrackingJobHandler } from "./tracking-job-handler.mjs";
 
 function safeFileName(value = "match-video") {
@@ -148,6 +149,16 @@ export function createLocalVideoServer(options = {}) {
     sendJson,
     statusCodeForError,
     trackingEngine,
+  });
+  const trackingBenchmark = createTrackingBenchmarkJobHandler({
+    authorizeSession,
+    config,
+    jobOwners,
+    jobs,
+    publicErrorMessage,
+    sendJson,
+    statusCodeForError,
+    ...(options.trackingBenchmark || {}),
   });
   const mediaExport = createMediaExportJobHandler({
     assets,
@@ -316,8 +327,11 @@ export function createLocalVideoServer(options = {}) {
           "create-proxy",
           "replay-buffer",
           ...(trackingEngine.available() ? ["track-object", "track-objects"] : []),
+          "evaluate-tracking-benchmark",
+          ...(trackingBenchmark.info().referenceAvailable ? ["tracking-reference:trackeval"] : []),
         ],
         trackingProvider: trackingEngine.info?.() || { available: trackingEngine.available() },
+        trackingBenchmark: trackingBenchmark.info(),
         limits: {
           maxInputBytes: config.maxInputBytes,
           maxCacheBytes: config.maxCacheBytes,
@@ -355,6 +369,16 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "POST" && url.pathname === "/jobs/track-objects") {
       const jobId = await tracking.createBatchJob(request, response);
+      if (!jobId) return;
+      sendJson(request, response, config, 202, {
+        ok: true,
+        job: jobs.get(jobId),
+        statusUrl: `${baseUrl()}/jobs/${jobId}`,
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/jobs/evaluate-tracking-benchmark") {
+      const jobId = await trackingBenchmark.createJob(request, response);
       if (!jobId) return;
       sendJson(request, response, config, 202, {
         ok: true,

@@ -8,6 +8,7 @@ import {
   trackingProviderRunWorkspaceEntry,
   trackingProviderRunsForProvider,
 } from "../services/trackingProviderRunService.js";
+import { trackingBenchmarkWorkflowReadiness } from "../services/trackingBenchmarkWorkflowService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
 function minutes(value = 0) {
@@ -37,20 +38,103 @@ function benchmarkStorageLabel(value = {}) {
   return labels[value.status] || "Connect a match source for on-device protection";
 }
 
+function percent(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${(number * 100).toFixed(1)}%` : "--";
+}
+
+function evaluationLabel(value = {}) {
+  const labels = {
+    preparing: "Binding evidence",
+    running: "Evaluation in progress",
+    verifying: "Verifying evidence",
+    cancelling: "Cancelling evaluation",
+    cancelled: "Evaluation cancelled",
+    passed: "Provider benchmark passed",
+    failed: "Provider below approval threshold",
+    error: "Evaluation needs attention",
+  };
+  return labels[value.status] || "Provider evidence not evaluated";
+}
+
+function evaluationMetrics(value = {}) {
+  const report = value.report || {};
+  if (!report.summary) return "";
+  const multiObject = report.benchmarkType === "multi-object-suite";
+  const reference = report.referenceValidation?.metrics || {};
+  const metrics = multiObject ? [
+    ["HOTA", percent(reference.HOTA)],
+    ["IDF1", percent(reference.IDF1)],
+    ["MOTA", percent(reference.MOTA)],
+  ] : [
+    ["Mean IoU", percent(report.summary.weightedMeanIou)],
+    ["Coverage", percent(report.summary.weightedVisibleCoverage)],
+    ["Cases", `${report.summary.passedCaseCount}/${report.summary.caseCount}`],
+  ];
+  return `<dl class="video-analysis-benchmark-suite__metrics">${metrics.map(([label, metric]) => `
+    <div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(metric)}</dd></div>
+  `).join("")}</dl>`;
+}
+
+function renderEvaluation(tracking = {}, workflow = {}) {
+  const evaluation = tracking.benchmarkEvaluation || {};
+  const active = ["preparing", "running", "verifying", "cancelling"].includes(evaluation.status);
+  const complete = ["passed", "failed"].includes(evaluation.status) && evaluation.evidenceSet;
+  const benchmarkType = evaluation.benchmarkType || workflow.benchmarkType;
+  const typeLabel = benchmarkType === "multi-object" ? "Multi-object" : benchmarkType ? "Selected object" : "Pending";
+  const issueText = workflow.issues[0]?.message || "Lock the required real-match evidence.";
+  return `
+    <div class="video-analysis-benchmark-suite__evaluation is-${escapeHtml(evaluation.status || "idle")}" aria-live="polite">
+      <div class="video-analysis-benchmark-suite__evaluation-head">
+        <div><span>Evidence benchmark</span><strong>${escapeHtml(evaluationLabel(evaluation))}</strong></div>
+        <em>${escapeHtml(typeLabel)}</em>
+      </div>
+      ${active ? `
+        <div class="video-analysis-benchmark-suite__evaluation-progress">
+          <progress max="1" value="${boundedProgress(evaluation.progress)}"></progress>
+          <span>${escapeHtml(evaluation.stage || "Evaluating benchmark")}</span>
+        </div>
+      ` : ""}
+      ${evaluationMetrics(evaluation)}
+      ${benchmarkType === "multi-object" ? `
+        <p class="video-analysis-benchmark-suite__reference ${tracking.provider?.trackEvalAvailable ? "is-ready" : ""}">
+          <span>TrackEval reference</span>
+          <strong>${escapeHtml(tracking.provider?.trackEvalAvailable ? "Pinned and available" : "Not installed")}</strong>
+        </p>
+      ` : ""}
+      ${evaluation.reportSha256 ? `<p class="video-analysis-benchmark-suite__checksum"><span>Report SHA-256</span><code>${escapeHtml(shortFingerprint(evaluation.reportSha256))}</code></p>` : ""}
+      ${evaluation.error ? `<p class="video-analysis-benchmark-suite__error">${escapeHtml(evaluation.error)}</p>` : ""}
+      ${!workflow.ready && !active && !complete ? `<p class="video-analysis-benchmark-suite__notice">${escapeHtml(issueText)}</p>` : ""}
+      <div class="video-analysis-benchmark-suite__evaluation-actions">
+        ${active
+          ? `<button type="button" data-video-analysis-tracking-action="tracking-benchmark-cancel">Cancel</button>`
+          : `<button type="button" data-video-analysis-tracking-action="tracking-benchmark-run" ${workflow.ready ? "" : "disabled"}>${complete ? "Run again" : "Run benchmark"}</button>`}
+        <button type="button" data-video-analysis-tracking-action="tracking-benchmark-evidence-download" ${complete ? "" : "disabled"}>Export evidence</button>
+      </div>
+    </div>
+  `;
+}
+
+function boundedProgress(value = 0) {
+  return Math.max(0, Math.min(1, Number(value) || 0));
+}
+
 export function renderTrackingBenchmarkSuitePanel(state = {}) {
-  const workspace = state.presentation?.tracking?.groundTruth || {};
+  const tracking = state.presentation?.tracking || {};
+  const workspace = tracking.groundTruth || {};
   const suite = trackingGroundTruthSuiteEntry(workspace);
   const readiness = groundTruthSuiteReadiness(suite);
+  const workflow = trackingBenchmarkWorkflowReadiness(tracking);
   const covered = new Set(readiness.scenarioIds);
   const cases = suite.cases.slice().reverse().slice(0, 5);
-  const providerRuns = trackingProviderRunWorkspaceEntry(state.presentation?.tracking?.providerRuns);
-  const benchmarkStorage = state.presentation?.tracking?.benchmarkStorage || {};
+  const providerRuns = trackingProviderRunWorkspaceEntry(tracking.providerRuns);
+  const benchmarkStorage = tracking.benchmarkStorage || {};
   let providerRunCount = 0;
   let providerRunError = "";
   try {
     providerRunCount = trackingProviderRunsForProvider(
       providerRuns,
-      state.presentation?.tracking?.provider,
+      tracking.provider,
     ).length;
   } catch (error) {
     providerRunError = error?.message || "Raw provider run evidence is invalid.";
@@ -83,9 +167,10 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
       </ol>
       ${suite.cases.length > cases.length ? `<small>${escapeHtml(`${suite.cases.length - cases.length} earlier cases`)}</small>` : ""}
       <div class="video-analysis-benchmark-suite__provider-runs">
-        <span><strong>${providerRunCount}</strong> raw provider run${providerRunCount === 1 ? "" : "s"}</span>
+        <span><strong>${providerRunCount}</strong> raw provider run${providerRunCount === 1 ? "" : "s"}${workflow.matchedCaseCount ? ` | ${workflow.matchedCaseCount}/${readiness.caseCount} cases matched` : ""}</span>
         <button type="button" data-video-analysis-tracking-action="ground-truth-runs-download" ${providerRunCount ? "" : "disabled"}>Export runs</button>
       </div>
+      ${renderEvaluation(tracking, workflow)}
       <div class="video-analysis-benchmark-suite__storage ${benchmarkStorage.status === "error" ? "is-error" : ""}" aria-live="polite">
         <span>${escapeHtml(benchmarkStorageLabel(benchmarkStorage))}</span>
         ${benchmarkStorage.status === "error" ? `<button type="button" data-video-analysis-tracking-action="retry-benchmark-storage">Retry</button>` : ""}

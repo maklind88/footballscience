@@ -12,6 +12,7 @@ import {
   removeGroundTruthSuiteCase,
   trackingGroundTruthSuiteEntry,
 } from "../services/trackingGroundTruthSuiteService.js";
+import { emptyTrackingBenchmarkEvaluation } from "../services/trackingBenchmarkStateService.js";
 import {
   createTrackingProviderRunSuiteArtifact,
   trackingProviderRunSuiteArtifactJson,
@@ -55,8 +56,13 @@ function patchGroundTruth(state = {}, itemId = "", patch = {}) {
 
 function patchGroundTruthSuite(state = {}, suite = {}) {
   const workspace = state.presentation?.tracking?.groundTruth || {};
+  const previousCases = (workspace.suite?.cases || []).map((entry) => entry.id).join("|");
+  const nextCases = (suite.cases || []).map((entry) => entry.id).join("|");
   return patchTrackingState(state, {
     groundTruth: { ...workspace, suite },
+    ...(previousCases !== nextCases ? {
+      benchmarkEvaluation: emptyTrackingBenchmarkEvaluation(),
+    } : {}),
   });
 }
 
@@ -244,6 +250,7 @@ export function createTrackingGroundTruthController(options = {}) {
           addGroundTruthSuiteCase(trackingGroundTruthSuiteEntry(workspace), artifact),
         );
       });
+      options.onEvidenceChanged?.();
       return true;
     } catch (error) {
       updateState((current) => patchGroundTruth(current, item.id, {
@@ -334,6 +341,7 @@ export function createTrackingGroundTruthController(options = {}) {
         removeGroundTruthSuiteCase(trackingGroundTruthSuiteEntry(workspace), caseId),
       );
     });
+    options.onEvidenceChanged?.();
     return true;
   }
 

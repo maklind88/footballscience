@@ -218,6 +218,327 @@ test("TrackEval evidence hashing is canonical and changes with metric evidence",
   expect(adapter.trackEvalReportSha256(first)).toMatch(/^[a-f0-9]{64}$/);
 });
 
+test("TrackEval cancellation waits for process exit and removes its temporary evidence", async () => {
+  const adapter = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-trackeval-adapter.mjs",
+  ));
+  const runtimeService = await import(moduleUrl(
+    "desktop/local-video-app/tracking-evaluators/trackeval/evaluator-runtime.mjs",
+  ));
+  const before = new Set((await fs.readdir(os.tmpdir())).filter((entry) => entry.startsWith("fs-trackeval-")));
+  const abortController = new AbortController();
+  const evaluation = adapter.evaluateTrackEvalReference(await fixture(), {
+    manifest: runtimeService.readTrackEvalManifest(),
+    runtime: {
+      command: process.execPath,
+      args: ["-e", "setTimeout(() => {}, 60000)", "--"],
+      env: {},
+    },
+    signal: abortController.signal,
+    timeoutMs: 5_000,
+  });
+  setTimeout(() => abortController.abort(), 50);
+  await expect(evaluation).rejects.toMatchObject({ code: "ABORT_ERR" });
+  const after = (await fs.readdir(os.tmpdir())).filter((entry) => entry.startsWith("fs-trackeval-"));
+  expect(after.filter((entry) => !before.has(entry))).toEqual([]);
+});
+
+test("TrackEval attachment makes approval explicit and gates internal-reference drift", async () => {
+  const adapter = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-trackeval-adapter.mjs",
+  ));
+  const requestModule = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-trackeval-request.mjs",
+  ));
+  const runtime = await import(moduleUrl(
+    "desktop/local-video-app/tracking-evaluators/trackeval/evaluator-runtime.mjs",
+  ));
+  const benchmarkService = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingMultiObjectBenchmarkService.js",
+  ));
+  const suite = { version: 1, id: "trackeval-approval-suite", cases: [await fixture()] };
+  const internal = benchmarkService.evaluateMultiObjectTrackingBenchmarkSuite(suite);
+  const manifest = runtime.readTrackEvalManifest();
+  const request = requestModule.buildTrackEvalRequest(suite, manifest);
+  const validated = requestModule.validateTrackEvalReport(referenceReport(request, manifest), request, manifest);
+  const reference = { ...validated, reportSha256: adapter.trackEvalReportSha256(validated) };
+  const approved = await adapter.attachTrackEvalReference(suite, internal, { reference });
+  expect(approved).toMatchObject({
+    summary: { passed: true, providerApprovalReady: true },
+    referenceValidation: { passed: true },
+    cases: [{
+      verdict: { passed: true, providerApprovalReady: true, referencePassed: true },
+      referenceValidation: { crossValidation: { passed: true } },
+    }],
+  });
+
+  const drifted = structuredClone(internal);
+  drifted.cases[0].metrics.mota = 0.9;
+  const rejected = await adapter.attachTrackEvalReference(suite, drifted, { reference });
+  expect(rejected).toMatchObject({
+    summary: { passed: false, providerApprovalReady: false },
+    cases: [{
+      verdict: { passed: false, providerApprovalReady: false, referencePassed: false },
+      referenceValidation: { crossValidation: { passed: false } },
+    }],
+  });
+});
+
+test("local benchmark jobs require a secure session and return bounded reference evidence", async () => {
+  const serverModule = await import(moduleUrl("desktop/local-video-app/local-video-server/server.mjs"));
+  const configModule = await import(moduleUrl("desktop/local-video-app/local-video-server/config.mjs"));
+  const benchmarkService = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingMultiObjectBenchmarkService.js",
+  ));
+  const cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), "fs-tracking-benchmark-job-test-"));
+  const config = {
+    ...configModule.createLocalVideoServerConfig({}, { homeDir: cacheDir }),
+    port: 0,
+    cacheDir,
+    maxConcurrentJobs: 1,
+    maxQueuedJobs: 2,
+  };
+  let evaluated = 0;
+  const localServer = serverModule.createLocalVideoServer({
+    config,
+    engine: { preparePlaybackCopy: async () => ({ mode: "remux" }) },
+    trackingEngine: { available: () => false, info: () => ({ available: false }) },
+    trackingBenchmark: {
+      evaluateBenchmark: async (suite) => {
+        evaluated += 1;
+        const report = benchmarkService.evaluateMultiObjectTrackingBenchmarkSuite(suite);
+        return {
+          ...report,
+          referenceValidation: { evaluator: "TrackEval", status: "verified", reportSha256: "a".repeat(64) },
+        };
+      },
+    },
+  });
+  try {
+    const address = await localServer.listen(0);
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const origin = "https://footballscience.xyz";
+    const benchmark = { version: 1, id: "local-reference-suite", cases: [await fixture()] };
+    const unauthorized = await fetch(`${baseUrl}/jobs/evaluate-tracking-benchmark`, {
+      method: "POST",
+      headers: { origin, "content-type": "application/json" },
+      body: JSON.stringify(benchmark),
+    });
+    expect(unauthorized.status).toBe(401);
+
+    const session = await (await fetch(`${baseUrl}/session`, {
+      method: "POST",
+      headers: { origin },
+    })).json();
+    const headers = {
+      origin,
+      "content-type": "application/json",
+      "x-football-science-session": session.sessionToken,
+    };
+    const capabilities = await (await fetch(`${baseUrl}/capabilities`, { headers })).json();
+    expect(capabilities.capabilities).toEqual(expect.arrayContaining([
+      "evaluate-tracking-benchmark",
+      "tracking-reference:trackeval",
+    ]));
+    expect(capabilities.trackingBenchmark).toMatchObject({
+      available: true,
+      referenceAvailable: true,
+      evaluator: "trackeval",
+      evaluatorVersion: "1.0.0",
+    });
+
+    const queuedResponse = await fetch(`${baseUrl}/jobs/evaluate-tracking-benchmark`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(benchmark),
+    });
+    const queued = await queuedResponse.json();
+    expect(queuedResponse.status).toBe(202);
+    await expect.poll(async () => (
+      await (await fetch(queued.statusUrl, { headers })).json()
+    ).job?.status).toBe("succeeded");
+    const completed = await (await fetch(queued.statusUrl, { headers })).json();
+    expect(completed.job).toMatchObject({
+      type: "evaluate-tracking-benchmark",
+      metadata: { benchmarkType: "multi-object", caseCount: 1 },
+      result: {
+        report: {
+          benchmarkType: "multi-object-suite",
+          referenceValidation: { evaluator: "TrackEval", status: "verified" },
+        },
+      },
+    });
+    expect(evaluated).toBe(1);
+    expect(JSON.stringify(completed.job.result)).not.toMatch(/sourcePath|file:|\.mp4|videoBytes/i);
+
+    const retained = localServer.jobs.stats().retained;
+    const unsafe = await fetch(`${baseUrl}/jobs/evaluate-tracking-benchmark`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ ...benchmark, sourcePath: "/private/match.mp4" }),
+    });
+    expect(unsafe.status).toBe(400);
+    expect(localServer.jobs.stats().retained).toBe(retained);
+  } finally {
+    await localServer.close();
+    await fs.rm(cacheDir, { recursive: true, force: true });
+  }
+});
+
+test("browser benchmark client opens one secure session and polls metadata-only evidence", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/services/localTrackingBenchmarkService.js",
+  ));
+  const benchmark = JSON.parse(await fs.readFile(fixturePath, "utf8"));
+  const calls = [];
+  const expectedReport = {
+    benchmarkType: "multi-object-suite",
+    summary: { passed: true, providerApprovalReady: true },
+  };
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.endsWith("/session")) {
+      return { ok: true, json: async () => ({ sessionToken: "benchmark-session", expiresAt: "2099-01-01T00:00:00.000Z" }) };
+    }
+    if (url.endsWith("/capabilities")) {
+      return {
+        ok: true,
+        json: async () => ({ capabilities: ["evaluate-tracking-benchmark", "tracking-reference:trackeval"] }),
+      };
+    }
+    if (url.endsWith("/jobs/evaluate-tracking-benchmark")) {
+      return {
+        ok: true,
+        json: async () => ({ job: { id: "benchmark-job-browser" }, statusUrl: "http://127.0.0.1:47991/jobs/benchmark-job-browser" }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        job: {
+          status: "succeeded",
+          stage: "completed",
+          progress: { ratio: 1 },
+          result: { report: expectedReport },
+        },
+      }),
+    };
+  };
+  const win = {
+    FOOTBALL_SCIENCE_LOCAL_VIDEO_BRIDGE_URL: "http://127.0.0.1:47991",
+    fetch: fetcher,
+    setTimeout,
+  };
+  let queued = null;
+  const report = await service.evaluateLocalTrackingBenchmark(benchmark, {
+    win,
+    fetcher,
+    onQueued: (job) => { queued = job; },
+  });
+  expect(report).toEqual(expectedReport);
+  expect(queued).toMatchObject({ jobId: "benchmark-job-browser", sessionToken: "benchmark-session" });
+  expect(calls.map((entry) => new URL(entry.url).pathname)).toEqual([
+    "/session",
+    "/capabilities",
+    "/jobs/evaluate-tracking-benchmark",
+    "/jobs/benchmark-job-browser",
+  ]);
+  expect(calls.slice(1).every((entry) => (
+    entry.options.headers?.["x-football-science-session"] === "benchmark-session"
+  ))).toBe(true);
+  expect(calls[2].options.body).not.toMatch(/sourcePath|videoUrl|blob:|https?:\/\//i);
+});
+
+test("browser benchmark cancellation removes a job queued during the abort race", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/services/localTrackingBenchmarkService.js",
+  ));
+  const benchmark = JSON.parse(await fs.readFile(fixturePath, "utf8"));
+  const abortController = new AbortController();
+  const calls = [];
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.endsWith("/session")) {
+      return { ok: true, json: async () => ({ sessionToken: "abort-session", expiresAt: "2099-01-01T00:00:00.000Z" }) };
+    }
+    if (url.endsWith("/capabilities")) {
+      return {
+        ok: true,
+        json: async () => ({ capabilities: ["evaluate-tracking-benchmark", "tracking-reference:trackeval"] }),
+      };
+    }
+    if (url.endsWith("/jobs/evaluate-tracking-benchmark")) {
+      abortController.abort();
+      return {
+        ok: true,
+        json: async () => ({ job: { id: "benchmark-job-abort" }, statusUrl: "http://127.0.0.1:47992/jobs/benchmark-job-abort" }),
+      };
+    }
+    return { ok: true, json: async () => ({ ok: true }) };
+  };
+  const win = {
+    FOOTBALL_SCIENCE_LOCAL_VIDEO_BRIDGE_URL: "http://127.0.0.1:47992",
+    fetch: fetcher,
+    setTimeout,
+  };
+  await expect(service.evaluateLocalTrackingBenchmark(benchmark, {
+    win,
+    fetcher,
+    signal: abortController.signal,
+  })).rejects.toMatchObject({ name: "AbortError" });
+  expect(calls.map((entry) => [new URL(entry.url).pathname, entry.options.method || "GET"])).toEqual([
+    ["/session", "POST"],
+    ["/capabilities", "GET"],
+    ["/jobs/evaluate-tracking-benchmark", "POST"],
+    ["/jobs/benchmark-job-abort", "DELETE"],
+  ]);
+});
+
+test("browser benchmark failures remove the queued local job", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/services/localTrackingBenchmarkService.js",
+  ));
+  const benchmark = JSON.parse(await fs.readFile(fixturePath, "utf8"));
+  const calls = [];
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.endsWith("/session")) {
+      return { ok: true, json: async () => ({ sessionToken: "failure-session", expiresAt: "2099-01-01T00:00:00.000Z" }) };
+    }
+    if (url.endsWith("/capabilities")) {
+      return {
+        ok: true,
+        json: async () => ({ capabilities: ["evaluate-tracking-benchmark", "tracking-reference:trackeval"] }),
+      };
+    }
+    if (url.endsWith("/jobs/evaluate-tracking-benchmark")) {
+      return {
+        ok: true,
+        json: async () => ({ job: { id: "benchmark-job-failed" }, statusUrl: "http://127.0.0.1:47993/jobs/benchmark-job-failed" }),
+      };
+    }
+    if (options.method === "DELETE") return { ok: true, json: async () => ({ ok: true }) };
+    return {
+      ok: true,
+      json: async () => ({ job: { status: "failed", error: "Reference evaluation failed." } }),
+    };
+  };
+  const win = {
+    FOOTBALL_SCIENCE_LOCAL_VIDEO_BRIDGE_URL: "http://127.0.0.1:47993",
+    fetch: fetcher,
+    setTimeout,
+  };
+  await expect(service.evaluateLocalTrackingBenchmark(benchmark, { win, fetcher }))
+    .rejects.toThrow("Reference evaluation failed.");
+  expect(calls.map((entry) => [new URL(entry.url).pathname, entry.options.method || "GET"])).toEqual([
+    ["/session", "POST"],
+    ["/capabilities", "GET"],
+    ["/jobs/evaluate-tracking-benchmark", "POST"],
+    ["/jobs/benchmark-job-failed", "GET"],
+    ["/jobs/benchmark-job-failed", "DELETE"],
+  ]);
+});
+
 test("tracking benchmark CLI makes official reference evaluation explicit", async () => {
   const cli = await import(moduleUrl("scripts/fs-player-tracking-benchmark.mjs"));
   expect(cli.parseTrackingBenchmarkArguments(["--input", fixturePath, "--trackeval", "--json"])).toMatchObject({

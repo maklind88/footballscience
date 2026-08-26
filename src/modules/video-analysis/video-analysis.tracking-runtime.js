@@ -8,6 +8,10 @@ import {
   trackLocalObject,
   trackLocalObjects,
 } from "./services/localTrackingService.js";
+import {
+  cancelLocalTrackingBenchmark,
+  evaluateLocalTrackingBenchmark,
+} from "./services/localTrackingBenchmarkService.js";
 import { activeMediaAngle, mediaReferenceForAngle } from "./services/mediaProductionService.js";
 import { matchTimeToAngleTime } from "./services/multiAngleSyncService.js";
 
@@ -81,6 +85,8 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
       const runtime = getRuntime();
       return inspectLocalTrackingProvider(runtime?.context?.win || context.win || window);
     },
+    evaluateBenchmark: evaluateLocalTrackingBenchmark,
+    cancelBenchmark: cancelLocalTrackingBenchmark,
     trackObject: (request) => {
       const runtime = getRuntime();
       return trackLocalObject({

@@ -64,6 +64,14 @@ Exit code `0` means every active quality gate passed, `1` means valid evidence f
 
 `--trackeval` is deliberately explicit. Without it, a multi-object report remains `providerApprovalReady: false`. With it, the report contains only bounded metric evidence and hashes, never source paths, raw tracks, frames, or media. Real provider approval still requires human-verified real-match cases and reviewed model/data provenance.
 
+## Analyst Review Workflow
+
+Tracking review is a local, append-only correction workflow rather than an automatic confidence override. Each selected track exposes a bounded chronological queue for low detection confidence, low player-identity confidence, sparse tracking, and continuity breaks. Previous and next navigation seeks in match time so the same review flow remains correct across synchronized camera angles.
+
+Analysts can correct the box, assign or confirm player identity, and mark a frame occluded or visible. Identity confirmation affects the reviewed frame and does not silently raise confidence across the rest of the trajectory. The latest 20 local changes are reversible with undo and redo; correction audit records remain append-only. A monotonically increasing local revision prevents a late persistence response from overwriting a newer correction or undo.
+
+Every track change returns the track to review status and invalidates any unlocked frame-by-frame benchmark attestation. Locked ground-truth artifacts remain immutable. Verification is enabled only after the remaining continuity, detection, and identity gates pass.
+
 ## Real Match Pilot
 
 The first real benchmark should contain at least one legally usable tactical wide-angle match source, preferably 1080p or better. The pilot should be a suite of reviewed windows totalling 10-20 minutes. Each locked case is bounded to two minutes for reliable human review, reproducible memory use, and safe local evaluation. A second synchronized angle is useful but not required.

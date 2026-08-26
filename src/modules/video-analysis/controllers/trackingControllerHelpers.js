@@ -114,3 +114,23 @@ export function updateTrackingPromptField(state = {}, field = "", value = "") {
     : { ...existing, endMs: Math.max(existing.startMs + 1, milliseconds) };
   return patchTrackingState(state, { prompt: trackingPrompt(changed), error: "" });
 }
+
+export function toggleTrackingTrackSelection(state = {}, trackId = "") {
+  const selected = [...(state.presentation?.tracking?.selectedTrackIds || [])].map(String);
+  const existingIndex = selected.indexOf(trackId);
+  const nextSelected = existingIndex >= 0
+    ? selected.filter((id) => id !== trackId)
+    : [trackId, ...selected.filter((id) => id !== trackId)].slice(0, 2);
+  const item = selectedTrackingItem(state);
+  const primary = (item?.objectTracks || []).find((track) => track.id === nextSelected[0]) || null;
+  const existingPrompt = state.presentation?.tracking?.prompt || trackingPrompt(trackingItemRange(item || {}));
+  const prompt = primary ? trackingPrompt({
+    ...existingPrompt,
+    entityType: primary.entityType,
+    playerId: primary.playerId,
+    playerLabel: primary.playerLabel,
+    teamSide: primary.teamSide,
+    shirtNumber: primary.shirtNumber,
+  }) : existingPrompt;
+  return patchTrackingState(state, { selectedTrackIds: nextSelected, prompt, error: "" });
+}

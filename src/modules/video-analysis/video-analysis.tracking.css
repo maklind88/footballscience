@@ -365,26 +365,6 @@
   background: #dff2e6;
 }
 
-.video-analysis-tracking-review {
-  display: grid;
-  gap: 5px;
-  border-left: 3px solid #d6a91f;
-  padding: 8px 10px;
-  background: #fff9e8;
-}
-
-.video-analysis-tracking-review span {
-  color: #5f665f;
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.video-analysis-tracking-provenance {
-  color: #526158;
-  font-size: 10px;
-  font-weight: 700;
-}
-
 .video-analysis-tracking-continuation {
   display: grid;
   gap: 7px;

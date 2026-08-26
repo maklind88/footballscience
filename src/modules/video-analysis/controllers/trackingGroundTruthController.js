@@ -197,6 +197,17 @@ export function createTrackingGroundTruthController(options = {}) {
     return true;
   }
 
+  function invalidateDraft(itemId = "") {
+    if (!itemId) return false;
+    updateState((state) => {
+      const truth = groundTruthState(state, itemId);
+      return truth.status === "locked"
+        ? state
+        : patchGroundTruth(state, itemId, { attested: false, error: "" });
+    });
+    return true;
+  }
+
   function handleAction(action = "") {
     if (!groundTruthActions.has(action)) return false;
     if (action === "ground-truth-toggle") return toggleSelectedTrack();
@@ -213,6 +224,7 @@ export function createTrackingGroundTruthController(options = {}) {
   return {
     handleAction,
     handleField,
+    invalidateDraft,
     refreshContext,
   };
 }

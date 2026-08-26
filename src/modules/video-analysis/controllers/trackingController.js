@@ -2,6 +2,7 @@ import { normalizeDynamicGraphic } from "../domain/dynamicGraphic.model.js";
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { createTrackingContinuationController } from "./trackingContinuationController.js";
 import { createTrackingGroundTruthController } from "./trackingGroundTruthController.js";
+import { createTrackingReviewController } from "./trackingReviewController.js";
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
 import { normalizeTrackingJobProgress } from "../services/trackingProgressService.js";
 import {
@@ -12,7 +13,6 @@ import {
   trackingTargetRange,
 } from "../services/trackingExtensionService.js";
 import {
-  applyManualTrackingCorrection,
   createManualPromptTrack,
   trackingMetadataPayload,
   trackingPrompt,
@@ -29,6 +29,7 @@ import {
   trackingItemRange as itemRange,
   trackingLocalId as localId,
   trackingPromptBox as promptBox,
+  toggleTrackingTrackSelection,
   updateTrackingPromptField,
 } from "./trackingControllerHelpers.js";
 
@@ -48,6 +49,16 @@ export function createTrackingController(options = {}) {
     getWindow: options.getWindow,
     getReviewer: options.getReviewer,
     now,
+  });
+  const reviewController = createTrackingReviewController({
+    getState,
+    updateState,
+    getVideoElement,
+    getCurrentMatchMs,
+    seekToMatchMs: options.seekToMatchMs,
+    persistTrack,
+    persistCorrection: options.persistCorrection,
+    invalidateGroundTruth: groundTruth.invalidateDraft,
   });
 
   async function refreshProvider() {
@@ -98,13 +109,8 @@ export function createTrackingController(options = {}) {
   }
 
   function selectTrack(trackId = "") {
-    updateState((state) => {
-      const selected = [...(state.presentation?.tracking?.selectedTrackIds || [])];
-      const existingIndex = selected.indexOf(trackId);
-      if (existingIndex >= 0) selected.splice(existingIndex, 1);
-      else selected.push(trackId);
-      return trackingPatch(state, { selectedTrackIds: selected.slice(-2), error: "" });
-    });
+    updateState((state) => toggleTrackingTrackSelection(state, trackId));
+    reviewController.syncHistory();
     return true;
   }
 
@@ -376,20 +382,13 @@ export function createTrackingController(options = {}) {
       const track = (item?.objectTracks || []).find((entry) => entry.id === trackId);
       if (track && item) {
         const atMs = currentAtMs(getVideoElement, state, getCurrentMatchMs);
-        const corrected = applyManualTrackingCorrection(track, { ...prompt, atMs });
-        updateState((currentState) => {
-          const liveItem = selectedItem(currentState);
-          return liveItem ? trackingPatch(replaceItem(currentState, liveItem.id, {
-            objectTracks: (liveItem.objectTracks || []).map((entry) => entry.id === corrected.id ? corrected : entry),
-          }), { prompt: { ...prompt, box: null }, captureMode: "", interaction: null, error: "" }) : currentState;
-        });
-        void Promise.resolve(options.persistCorrection?.({
-          objectTrackId: corrected.id,
-          atMs,
-          box: prompt.box,
-          correctionType: "position",
-          reason: "Manual keyframe",
-        })).catch(() => {});
+        reviewController.applyPositionCorrection({ ...prompt, atMs });
+        updateState((currentState) => trackingPatch(currentState, {
+          prompt: { ...prompt, box: null },
+          captureMode: "",
+          interaction: null,
+          error: "",
+        }));
       }
     } else {
       updateState((currentState) => trackingPatch(currentState, { prompt, captureMode: "", interaction: null, error: "" }));
@@ -429,6 +428,7 @@ export function createTrackingController(options = {}) {
     }
     if (action === "verify") { void verifySelectedTrack(); return true; }
     if (action === "add-graphic") { void addGraphic(); return true; }
+    if (reviewController.handleAction(action)) return true;
     if (groundTruth.handleAction(action)) return true;
     return false;
   }

@@ -7,7 +7,7 @@
     "fs-player:tracking:trackeval:plan": "node desktop/local-video-app/tracking-evaluators/trackeval/install-evaluator.mjs --plan",
     "fs-player:tracking:trackeval:install": "node desktop/local-video-app/tracking-evaluators/trackeval/install-evaluator.mjs",
     "fs-player:tracking:trackeval:preflight": "node desktop/local-video-app/tracking-evaluators/trackeval/preflight.mjs",
-    "qa:fs-player:tracking": "playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/video-analysis-tracking-benchmark.api.spec.mjs qa/video-analysis-multi-object-benchmark.api.spec.mjs qa/video-analysis-trackeval-reference.api.spec.mjs qa/video-analysis-tracking-ground-truth.api.spec.mjs qa/video-analysis-tracking-provider-pipeline.api.spec.mjs qa/video-analysis-sam2-provider.api.spec.mjs qa/video-analysis-tracking-telestration.api.spec.mjs",
+    "qa:fs-player:tracking": "playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/video-analysis-tracking-benchmark.api.spec.mjs qa/video-analysis-multi-object-benchmark.api.spec.mjs qa/video-analysis-trackeval-reference.api.spec.mjs qa/video-analysis-tracking-ground-truth.api.spec.mjs qa/video-analysis-tracking-provider-pipeline.api.spec.mjs qa/video-analysis-sam2-provider.api.spec.mjs qa/video-analysis-tracking-review.api.spec.mjs qa/video-analysis-tracking-telestration.api.spec.mjs",
     "quick:ui": "node scripts/quick-ui-check.mjs",
     "theme:audit": "node scripts/verify-theme-foundation.mjs",
     "qa:theme": "npm run theme:audit && playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/theme-foundation-contract.api.spec.mjs && playwright test --config=qa/playwright.config.mjs --project=chromium qa/theme-dark-mode.smoke.spec.mjs",

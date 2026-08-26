@@ -10,6 +10,7 @@ import { formatTrackingDuration } from "../services/trackingProgressService.js";
 import { trackingReviewSummary } from "../services/trackingReviewService.js";
 import { escapeHtml } from "./renderHelpers.js";
 import { renderTrackingGroundTruthPanel } from "./TrackingGroundTruthPanel.js";
+import { renderTrackingReviewPanel } from "./TrackingReviewPanel.js";
 import {
   renderAnalysisPanelTabs,
   renderSpatialSidebar,
@@ -178,16 +179,6 @@ function renderTrackingProgress(job = {}) {
   `;
 }
 
-function renderTrackingProvenance(track = null) {
-  if (!track) return "";
-  const metadata = track.metadata || {};
-  const parts = [metadata.model || track.engine];
-  if (metadata.device) parts.push(String(metadata.device).toUpperCase());
-  if (Number(metadata.sampleFps) > 0) parts.push(`${Number(metadata.sampleFps).toFixed(1)} fps`);
-  const label = parts.filter(Boolean).join(" | ");
-  return label ? `<small class="video-analysis-tracking-provenance">${escapeHtml(label)}</small>` : "";
-}
-
 function renderTrackingContinuation(track = null, item = null, options = {}) {
   if (!track || !item) return "";
   const availability = trackingExtensionAvailability(
@@ -244,7 +235,6 @@ export function renderTrackingSidebar(state = {}, item = null) {
   const provider = tracking.provider || {};
   const providerReady = provider.status === "ready";
   const primaryTrack = tracks.find((track) => track.id === selectedTrackIds[0]) || null;
-  const review = primaryTrack ? trackingReviewSummary(primaryTrack) : null;
   const entityType = tracking.prompt?.entityType || "player";
   const clip = item?.clip || {};
   const startSeconds = ((tracking.prompt?.startMs ?? item?.startMs ?? clip.startMs ?? clip.start_ms ?? 0) / 1000).toFixed(1);
@@ -302,14 +292,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
         ${tracks.length ? tracks.map((track) => renderTrackRow(track, selectedTrackIds)).join("") : `<li class="video-analysis-muted">No tracked objects in this clip.</li>`}
       </ol>
       ${renderTrackingContinuation(primaryTrack, item, { providerReady, jobActive: Boolean(tracking.job) })}
-      ${review ? `
-        <div class="video-analysis-tracking-review">
-          <strong>${review.canVerify ? "Ready to verify" : "Review required"}</strong>
-          <span>${escapeHtml(review.issues.join(" / ") || "Continuity and identity checks passed.")}</span>
-          ${renderTrackingProvenance(primaryTrack)}
-          <button type="button" data-video-analysis-tracking-action="verify" ${review.canVerify ? "" : "disabled"}>Verify track</button>
-        </div>
-      ` : ""}
+      ${renderTrackingReviewPanel(state, primaryTrack)}
       ${renderTrackingGroundTruthPanel(state, item)}
       <div class="video-analysis-tracking-graphics">
         <strong>${escapeHtml(`${graphics.length} dynamic graphics`)}</strong>

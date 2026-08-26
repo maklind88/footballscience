@@ -122,6 +122,29 @@ test("tracking telestration follows a selected player and persists metadata", as
   expect(pageErrors).toEqual([]);
 });
 
+test("tracking review marks visibility and supports race-safe undo and redo", async ({ page }, testInfo) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await openTrackingWorkspace(page);
+  await createTrackedHighlight(page);
+  const review = page.locator(".video-analysis-tracking-review");
+  await expect(review).toContainText("review event");
+  await expect(review.locator('[data-video-analysis-tracking-action="review-identity"]')).toBeEnabled();
+
+  await review.locator('[data-video-analysis-tracking-action="review-visibility"]').click();
+  await expect(review.locator('[data-video-analysis-tracking-action="review-visibility"]')).toHaveText("Mark visible");
+  await expect(review.locator('[data-video-analysis-tracking-action="review-undo"]')).toBeEnabled();
+
+  await review.locator('[data-video-analysis-tracking-action="review-undo"]').click();
+  await expect(review.locator('[data-video-analysis-tracking-action="review-visibility"]')).toHaveText("Mark occluded");
+  await expect(review.locator('[data-video-analysis-tracking-action="review-redo"]')).toBeEnabled();
+
+  await review.locator('[data-video-analysis-tracking-action="review-redo"]').click();
+  await expect(review.locator('[data-video-analysis-tracking-action="review-visibility"]')).toHaveText("Mark visible");
+  await page.screenshot({ path: testInfo.outputPath("tracking-review-desktop.png"), fullPage: true });
+  expect(pageErrors).toEqual([]);
+});
+
 test("freehand telestration draws, undoes, redoes and persists a bounded path", async ({ page }, testInfo) => {
   await openDrawingWorkspace(page);
   const path = await drawFreehandPath(page);

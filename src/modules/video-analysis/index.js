@@ -212,6 +212,7 @@ function createRuntime(context = {}) {
     getRuntime: () => runtime,
     getVideoElement: () => videoElement(runtime?.context || context),
     getCurrentMatchMs: () => currentPlayheadMs(runtime?.context || context, runtime?.store.getState() || {}),
+    seekToMatchMs: (matchMs) => timelineController(runtime?.context || context).seekToMs(matchMs, { commit: true }),
   });
   const spatialRuntime = createVideoAnalysisSpatialRuntime({
     context,

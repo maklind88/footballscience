@@ -35,6 +35,7 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     updateState: (updater) => getRuntime()?.store.update(updater),
     getVideoElement: options.getVideoElement,
     getCurrentMatchMs: options.getCurrentMatchMs,
+    seekToMatchMs: options.seekToMatchMs,
     getWindow: () => getRuntime()?.context?.win || context.win || window,
     getReviewer: () => {
       const user = getRuntime()?.context?.currentUser || context.currentUser || {};

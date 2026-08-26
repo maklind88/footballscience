@@ -237,11 +237,14 @@ function renderTrackingWorkspaceStatus(value = {}) {
   const needsAttention = status === "attention"
     || status === "pending-sync"
     || Number(value.localOnlyCount) > 0
-    || Number(value.missingSampleCount) > 0;
+    || Number(value.missingSampleCount) > 0
+    || Number(value.pendingCorrectionCount) > 0;
   const label = status === "loading"
     ? "Restoring tracking workspace"
     : status === "syncing"
       ? "Synchronizing tracking metadata"
+      : Number(value.pendingCorrectionCount) > 0
+        ? `${value.pendingCorrectionCount} correction audit${Number(value.pendingCorrectionCount) === 1 ? "" : "s"} awaiting sync`
       : status === "attention"
         ? "Tracking workspace needs attention"
         : status === "pending-sync" && !Number(value.localOnlyCount)

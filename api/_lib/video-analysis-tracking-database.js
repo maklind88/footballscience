@@ -33,14 +33,83 @@ async function scopedClip(scope = {}, clipId = "") {
 }
 
 async function scopedTrack(scope = {}, trackId = "") {
+  const result = await scopedTrackResult(scope, trackId);
+  return result.ok ? result.row : null;
+}
+
+async function scopedTrackResult(scope = {}, trackId = "") {
   const id = normalizeUuid(trackId);
-  if (!id) return null;
+  if (!id) return { ok: true, row: null };
   const params = buildTeamParams(scope);
   params.set("select", "*");
   params.set("id", `eq.${id}`);
   params.set("limit", "1");
   const result = await selectRows("video_object_tracks", params);
-  return result.ok ? rowList(result)[0] || null : null;
+  return result.ok ? { ok: true, row: rowList(result)[0] || null } : { ...result, row: null };
+}
+
+async function correctionByOperationId(scope = {}, operationId = "") {
+  if (!operationId) return { ok: true, row: null };
+  const params = buildTeamParams(scope);
+  params.set("select", "*");
+  params.set("operation_id", `eq.${operationId}`);
+  params.set("limit", "1");
+  const result = await selectRows("video_track_corrections", params);
+  return result.ok ? { ok: true, row: rowList(result)[0] || null } : { ...result, row: null };
+}
+
+function correctionOperationId(value) {
+  const normalized = String(value || "").trim();
+  return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,179}$/.test(normalized) ? normalized : "";
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
+function correctionMatches(existing = {}, row = {}) {
+  return existing.object_track_id === row.object_track_id
+    && Number(existing.at_ms) === Number(row.at_ms)
+    && existing.correction_type === row.correction_type
+    && (existing.player_id || null) === (row.player_id || null)
+    && (existing.player_label || null) === (row.player_label || null)
+    && (existing.reason || null) === (row.reason || null)
+    && canonicalJson(existing.box_json || {}) === canonicalJson(row.box_json || {})
+    && canonicalJson(existing.ground_point_json || {}) === canonicalJson(row.ground_point_json || {})
+    && canonicalJson(existing.metadata || {}) === canonicalJson(row.metadata || {});
+}
+
+function idempotentCorrectionPayload(existing, track) {
+  return {
+    ok: true,
+    payload: {
+      schema: VIDEO_ANALYSIS_SCHEMA,
+      correction: mapCorrection(existing),
+      objectTrack: mapTrack(track),
+      idempotentReplay: true,
+    },
+  };
+}
+
+async function markTrackForCorrection(scope, track) {
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${track.id}`);
+  const result = await patchRows("video_object_tracks", params, { status: "review" });
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    track: rowList(result)[0] || { ...track, status: "review" },
+  };
+}
+
+async function replayExistingCorrection(scope, correction, track) {
+  if (track.status === "review") return idempotentCorrectionPayload(correction, track);
+  const marked = await markTrackForCorrection(scope, track);
+  return marked.ok ? idempotentCorrectionPayload(correction, marked.track) : marked;
 }
 
 async function listTrackingWorkspace(query = {}, actor = {}) {
@@ -160,15 +229,23 @@ async function saveObjectTrack(value = {}, actor = {}) {
 async function saveTrackCorrection(value = {}, actor = {}) {
   rejectForbiddenPayload(value);
   const scope = actorScope(actor);
-  const track = await scopedTrack(scope, value.objectTrackId || value.object_track_id);
+  const requestedOperationId = value.operationId ?? value.operation_id ?? "";
+  const operationId = requestedOperationId ? correctionOperationId(requestedOperationId) : null;
+  if (requestedOperationId && !operationId) {
+    return { ok: false, status: 400, reason: "Tracking correction operation id is invalid." };
+  }
+  const trackLookup = await scopedTrackResult(scope, value.objectTrackId || value.object_track_id);
+  if (!trackLookup.ok) return trackLookup;
+  const track = trackLookup.row;
   if (!track) return { ok: false, status: 404, reason: "Object track could not be found." };
   const correctionType = normalizeText(value.correctionType || value.correction_type || "position", 40).toLowerCase();
-  const result = await insertRow("video_track_corrections", {
+  const row = {
     organization_id: scope.organizationId,
     team_id: scope.teamId,
+    operation_id: operationId,
     object_track_id: track.id,
     at_ms: asMs(value.atMs ?? value.at_ms, 0),
-    correction_type: ["position", "identity", "occlusion", "split", "merge"].includes(correctionType) ? correctionType : "position",
+    correction_type: ["position", "identity", "occlusion", "split", "merge", "identity-swap"].includes(correctionType) ? correctionType : "position",
     box_json: safeObject(value.box || value.box_json),
     ground_point_json: safeObject(value.groundPoint || value.ground_point_json),
     player_id: normalizeText(value.playerId || value.player_id, 160) || null,
@@ -176,14 +253,31 @@ async function saveTrackCorrection(value = {}, actor = {}) {
     reason: normalizeText(value.reason, 1000) || null,
     corrected_by: scope.actorId || null,
     metadata: safeObject(value.metadata),
-  });
+  };
+  const existingResult = await correctionByOperationId(scope, operationId);
+  if (!existingResult.ok) return existingResult;
+  const existing = existingResult.row;
+  if (existing) {
+    return correctionMatches(existing, row)
+      ? replayExistingCorrection(scope, existing, track)
+      : { ok: false, status: 409, reason: "Tracking correction operation id was already used for different content." };
+  }
+  const result = await insertRow("video_track_corrections", row);
+  if (!result.ok && operationId && result.status === 409) {
+    const winnerResult = await correctionByOperationId(scope, operationId);
+    if (!winnerResult.ok) return winnerResult;
+    const winner = winnerResult.row;
+    if (winner) {
+      return correctionMatches(winner, row)
+        ? replayExistingCorrection(scope, winner, track)
+        : { ok: false, status: 409, reason: "Tracking correction operation id was already used for different content." };
+    }
+  }
   if (!result.ok) return result;
-  const trackParams = buildTeamParams(scope);
-  trackParams.set("id", `eq.${track.id}`);
-  const trackResult = await patchRows("video_object_tracks", trackParams, { status: "review" });
-  return trackResult.ok
-    ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, correction: mapCorrection(rowList(result)[0]), objectTrack: mapTrack(rowList(trackResult)[0] || track) } }
-    : trackResult;
+  const marked = await markTrackForCorrection(scope, track);
+  return marked.ok
+    ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, correction: mapCorrection(rowList(result)[0]), objectTrack: mapTrack(marked.track) } }
+    : marked;
 }
 
 async function saveDynamicGraphic(value = {}, actor = {}) {

@@ -100,6 +100,8 @@ The on-device workspace is reload protection, not an external backup. Its status
 
 Ordinary tracking trajectories use a separate versioned local workspace with the same privacy boundary. Dense samples are split into bounded per-segment chunks and scoped to the exact organization, team, authenticated user, source, and clip. FS Player retains those samples before attempting the metadata-only central write. If that write fails, the track remains usable and visibly device-only; retry reconciles the stable local workspace key to the generated central track ID and updates live selections and graphic bindings atomically. Ambiguous identity keys, incomplete chunks, changed byte counts, unsafe media fields, and cross-scope restores fail closed.
 
+Every correction audit is also retained before its central request in a separate metadata-only IndexedDB outbox. The record has a strict allowlist, byte and count budgets, no media/path fields, the exact workspace scope, and an immutable client-generated operation id. Offline retry reuses that id; Postgres accepts an identical replay once, rejects changed content, and keeps the audit queued on the device if either the lookup or write outcome is uncertain. Track-id reconciliation migrates queued audits before retry. The workspace exposes pending audits and clears the warning only after central confirmation.
+
 ## Real Match Pilot
 
 The first real benchmark should contain at least one legally usable tactical wide-angle match source, preferably 1080p or better. The pilot should be a suite of reviewed windows totalling 10-20 minutes. Each locked case is bounded to two minutes for reliable human review, reproducible memory use, and safe local evaluation. A second synchronized angle is useful but not required.

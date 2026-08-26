@@ -26,6 +26,11 @@ const reviewActions = new Set([
 ]);
 const maximumHistoryEntries = 20;
 
+function correctionOperationId(prefix = "correction") {
+  return globalThis.crypto?.randomUUID?.()
+    || `${prefix}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 14)}`;
+}
+
 function selectedContext(state = {}) {
   const item = selectedTrackingItem(state);
   const trackId = state.presentation?.tracking?.selectedTrackIds?.[0] || "";
@@ -88,17 +93,22 @@ export function createTrackingReviewController(options = {}) {
   }
 
   function persistChange(itemId, previousTrackId, track, audit = {}, revision = 0) {
-    const tasks = [];
-    if (options.persistTrack) {
-      tasks.push(Promise.resolve(options.persistTrack(track)).then((saved) => {
+    const operationId = audit.operationId
+      || track.corrections.at(-1)?.id
+      || correctionOperationId();
+    const task = async () => {
+      let savedTrack = track;
+      if (options.persistTrack) {
+        const saved = await options.persistTrack(track);
+        savedTrack = normalizeObjectTrack(saved || track);
         if (revisionByTrackId.get(previousTrackId) === revision) {
-          replaceTrack(itemId, previousTrackId, normalizeObjectTrack(saved || track));
+          replaceTrack(itemId, previousTrackId, savedTrack);
         }
-      }));
-    }
-    if (options.persistCorrection) {
-      tasks.push(Promise.resolve(options.persistCorrection({
-        objectTrackId: track.id,
+      }
+      if (options.persistCorrection) await options.persistCorrection({
+        operationId,
+        objectTrackId: savedTrack.id,
+        localWorkspaceTrackKey: savedTrack.metadata?.localWorkspaceTrackKey || "",
         atMs: audit.atMs ?? currentAtMs(),
         correctionType: audit.correctionType || "position",
         box: audit.box || {},
@@ -106,10 +116,10 @@ export function createTrackingReviewController(options = {}) {
         playerLabel: audit.playerLabel || "",
         reason: audit.reason || "Manual review",
         metadata: audit.metadata || {},
-      })));
-    }
-    if (tasks.length) {
-      void Promise.all(tasks).catch((error) => {
+      });
+    };
+    if (options.persistTrack || options.persistCorrection) {
+      void task().catch((error) => {
         if (revisionByTrackId.get(previousTrackId) === revision) {
           setError(`${error?.message || "Correction metadata could not be saved."} The correction remains local.`);
         }
@@ -240,6 +250,7 @@ export function createTrackingReviewController(options = {}) {
       atMs: currentAtMs(state),
       correctionType: "position",
       reason: direction === "redo" ? "Redid local tracking correction" : "Undid local tracking correction",
+      operationId: correctionOperationId(`history-${direction}`),
       metadata: { historyAction: direction },
     }, revision);
     return true;

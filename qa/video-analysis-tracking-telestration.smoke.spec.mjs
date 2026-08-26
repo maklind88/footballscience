@@ -496,6 +496,164 @@ test("tracking workspace reloads chunked samples only for the exact user and cli
   });
 });
 
+test("tracking correction outbox survives reload and retries only inside its exact scope", async ({ page }) => {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  const result = await page.evaluate(async () => {
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase("football-science-local-tracking-workspaces");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(true);
+      request.onblocked = () => resolve(false);
+    });
+    const localStore = await import(
+      "/src/modules/video-analysis/services/localTrackingCorrectionOutboxStore.js"
+    );
+    const { createTrackingCorrectionOutboxController } = await import(
+      "/src/modules/video-analysis/controllers/trackingCorrectionOutboxController.js"
+    );
+    const scopeValues = {
+      organizationId: "org-correction-reload",
+      teamId: "team-correction-reload",
+      userId: "analyst-correction-reload",
+      matchId: "match-correction-reload",
+      videoId: "video-correction-reload",
+      clipId: "clip-correction-reload",
+    };
+    const track = {
+      id: "11111111-1111-4111-8111-111111111111",
+      clipId: scopeValues.clipId,
+      videoId: scopeValues.videoId,
+      entityType: "player",
+      playerLabel: "Player 8",
+      status: "review",
+      startMs: 0,
+      endMs: 2000,
+      confidence: 0.9,
+      identityConfidence: 0.9,
+      segments: [{ id: "segment-correction", startMs: 0, endMs: 2000, points: [
+        { atMs: 0, x: 0.2, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9 },
+        { atMs: 2000, x: 0.4, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9 },
+      ] }],
+      metadata: {
+        localWorkspaceStatus: "ready",
+        localWorkspaceTrackKey: "workspace-correction-reload",
+      },
+    };
+    const item = {
+      id: "item-correction-reload",
+      clipId: scopeValues.clipId,
+      clip: {
+        id: scopeValues.clipId,
+        match_id: scopeValues.matchId,
+        video_id: scopeValues.videoId,
+      },
+      objectTracks: [track],
+      dynamicGraphics: [],
+    };
+    let state = {
+      match: { id: scopeValues.matchId },
+      video: { id: scopeValues.videoId, match_id: scopeValues.matchId },
+      presentation: {
+        current: { sections: [{ id: "section-correction-reload", items: [item] }] },
+        selectedItemId: item.id,
+        selectedClipId: item.clipId,
+        tracking: {
+          selectedTrackIds: [track.id],
+          workspace: { status: "restored", pendingCorrectionCount: 0, error: "" },
+        },
+      },
+    };
+    const context = { currentUser: {
+      id: scopeValues.userId,
+      organizationId: scopeValues.organizationId,
+      teamId: scopeValues.teamId,
+    } };
+    const remoteCalls = [];
+    let remoteOnline = false;
+    const options = {
+      getState: () => state,
+      updateState: (updater) => { state = updater(state); },
+      getContext: () => context,
+      getWindow: () => window,
+      persistRemote: async (payload) => {
+        remoteCalls.push(structuredClone(payload));
+        if (!remoteOnline) throw new Error("Central correction audit offline.");
+        return { correction: payload };
+      },
+    };
+    const operationId = "correction-reload-operation-1";
+    const firstController = createTrackingCorrectionOutboxController(options);
+    try {
+      await firstController.persist({
+        operationId,
+        objectTrackId: track.id,
+        atMs: 1000,
+        correctionType: "occlusion",
+        reason: "Marked occluded",
+        metadata: { occluded: true },
+      });
+    } catch {
+    }
+    firstController.dispose();
+
+    const secondController = createTrackingCorrectionOutboxController(options);
+    await secondController.restore();
+    const scope = {
+      ...scopeValues,
+      localVideoIdentifier: "",
+    };
+    const retained = await localStore.loadLocalTrackingCorrections(scope, window);
+    const isolatedUser = await localStore.loadLocalTrackingCorrections({
+      ...scope,
+      userId: "another-analyst",
+    }, window);
+    const isolatedClip = await localStore.loadLocalTrackingCorrections({
+      ...scope,
+      clipId: "another-clip",
+    }, window);
+    let conflictCode = "";
+    try {
+      await localStore.saveLocalTrackingCorrection(scope, {
+        ...retained[0],
+        reason: "Changed protected content",
+      }, { win: window });
+    } catch (error) {
+      conflictCode = error.code || error.message;
+    }
+    const statusAfterRestore = state.presentation.tracking.workspace.status;
+    const pendingAfterRestore = state.presentation.tracking.workspace.pendingCorrectionCount;
+    remoteOnline = true;
+    const retried = await secondController.retry();
+    const remaining = await localStore.loadLocalTrackingCorrections(scope, window);
+    secondController.dispose();
+    return {
+      conflictCode,
+      isolatedClipCount: isolatedClip.length,
+      isolatedUserCount: isolatedUser.length,
+      operationIds: remoteCalls.map((entry) => entry.operationId),
+      pendingAfterRestore,
+      pendingAfterRetry: state.presentation.tracking.workspace.pendingCorrectionCount,
+      remainingCount: remaining.length,
+      retried,
+      statusAfterRestore,
+      statusAfterRetry: state.presentation.tracking.workspace.status,
+    };
+  });
+
+  expect(result).toEqual({
+    conflictCode: "LOCAL_TRACKING_CORRECTION_CONFLICT",
+    isolatedClipCount: 0,
+    isolatedUserCount: 0,
+    operationIds: ["correction-reload-operation-1", "correction-reload-operation-1"],
+    pendingAfterRestore: 1,
+    pendingAfterRetry: 0,
+    remainingCount: 0,
+    retried: true,
+    statusAfterRestore: "pending-sync",
+    statusAfterRetry: "restored",
+  });
+});
+
 test("tracking telestration follows a selected player and persists metadata", async ({ page }, testInfo) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));

@@ -1,15 +1,12 @@
 import { normalizeDynamicGraphic } from "../domain/dynamicGraphic.model.js";
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
-import { buildLocalVideoHandleIdentity } from "../services/localVideoSessionService.js";
-import {
-  createLocalTrackingWorkspaceScope,
-  mergeTrackingWorkspaceTracks,
-} from "../services/localTrackingWorkspaceContract.js";
+import { mergeTrackingWorkspaceTracks } from "../services/localTrackingWorkspaceContract.js";
 import {
   loadLocalTrackingTracks,
   saveLocalTrackingTrack,
 } from "../services/localTrackingWorkspaceStore.js";
 import { trackingMetadataPayload } from "../services/trackingReviewService.js";
+import { trackingWorkspaceTarget } from "../services/trackingWorkspaceScopeService.js";
 import {
   patchTrackingState,
   replacePresentationItem,
@@ -21,48 +18,9 @@ function workspaceState(value = {}) {
     status: String(value.status || "waiting-item"),
     localOnlyCount: Math.max(0, Math.round(Number(value.localOnlyCount) || 0)),
     missingSampleCount: Math.max(0, Math.round(Number(value.missingSampleCount) || 0)),
+    pendingCorrectionCount: Math.max(0, Math.round(Number(value.pendingCorrectionCount) || 0)),
     lastLoadedAt: String(value.lastLoadedAt || ""),
     error: String(value.error || ""),
-  };
-}
-
-function currentUser(context = {}) {
-  return context.currentUser || context.user || context.getCurrentPlatformUser?.() || {};
-}
-
-function userIdFor(context = {}) {
-  const user = currentUser(context);
-  return String(
-    user.id || user.userId || user.user_id || user.authId || user.auth_id || user.profileId || user.profile_id || "",
-  ).trim();
-}
-
-function targetFor(state = {}, context = {}) {
-  const item = selectedTrackingItem(state);
-  const clipId = String(item?.clipId || "").trim();
-  if (!item || !clipId) return null;
-  let scope = null;
-  try {
-    const userId = userIdFor(context);
-    if (userId) {
-      const clip = item.clip || {};
-      const identity = buildLocalVideoHandleIdentity(state, context, {
-        userId,
-        matchId: clip.matchId || clip.match_id || state.match?.id,
-        videoId: clip.videoId || clip.video_id || state.video?.id,
-      });
-      if (identity.organizationId !== "local" && identity.teamId !== "team") {
-        scope = createLocalTrackingWorkspaceScope({ ...identity, clipId });
-      }
-    }
-  } catch {
-    scope = null;
-  }
-  return {
-    itemId: item.id,
-    clipId,
-    scope,
-    key: `${item.id}::${clipId}::${scope?.id || "central-only"}`,
   };
 }
 
@@ -110,7 +68,7 @@ export function createTrackingWorkspaceController(options = {}) {
       .forEach((entry) => pendingTrackIds.add(entry.track.id));
     let summary = null;
     updateState((state) => {
-      const liveTarget = targetFor(state, getContext());
+      const liveTarget = trackingWorkspaceTarget(state, getContext());
       const item = selectedTrackingItem(state);
       if (!item || liveTarget?.key !== target.key) return state;
       summary = mergeTrackingWorkspaceTracks(
@@ -136,14 +94,20 @@ export function createTrackingWorkspaceController(options = {}) {
         objectTracks,
         dynamicGraphics,
       });
+      const currentWorkspace = workspaceState(state.presentation?.tracking?.workspace);
       return patchTrackingState(next, {
         selectedTrackIds,
         workspace: {
-          status: errors.length ? "attention" : localEntries.length || objectTracks.length ? "restored" : "ready",
+          status: errors.length
+            ? "attention"
+            : currentWorkspace.pendingCorrectionCount
+              ? "pending-sync"
+              : localEntries.length || objectTracks.length ? "restored" : "ready",
           localOnlyCount: summary.localOnlyCount,
           missingSampleCount: summary.missingSampleCount,
+          pendingCorrectionCount: currentWorkspace.pendingCorrectionCount,
           lastLoadedAt: new Date(now()).toISOString(),
-          error: errors.join(" "),
+          error: errors.join(" ") || (currentWorkspace.pendingCorrectionCount ? currentWorkspace.error : ""),
         },
       });
     });
@@ -151,7 +115,7 @@ export function createTrackingWorkspaceController(options = {}) {
   }
 
   async function restore(optionsValue = {}) {
-    const target = targetFor(getState(), getContext());
+    const target = trackingWorkspaceTarget(getState(), getContext());
     if (!target) {
       requestId += 1;
       activeTarget = null;
@@ -159,6 +123,7 @@ export function createTrackingWorkspaceController(options = {}) {
         status: "waiting-item",
         localOnlyCount: 0,
         missingSampleCount: 0,
+        pendingCorrectionCount: 0,
         lastLoadedAt: "",
         error: "",
       });
@@ -194,6 +159,7 @@ export function createTrackingWorkspaceController(options = {}) {
               now,
               win: getWindow(),
             });
+            await options.onTrackIdMigrated?.(migration.previousTrackId, migration.trackId);
           }
         }
       } catch (error) {
@@ -209,7 +175,7 @@ export function createTrackingWorkspaceController(options = {}) {
 
   function observe(state = getState()) {
     if (disposed) return false;
-    const target = targetFor(state, getContext());
+    const target = trackingWorkspaceTarget(state, getContext());
     if (target?.key === activeTarget?.key || (!target && !activeTarget)) return false;
     void restore({ force: true });
     return true;
@@ -225,7 +191,7 @@ export function createTrackingWorkspaceController(options = {}) {
   }
 
   async function retainTrack(trackValue = {}, saveOptions = {}) {
-    const target = targetFor(getState(), getContext());
+    const target = trackingWorkspaceTarget(getState(), getContext());
     if (!target?.scope) throw new Error("Sign in to protect tracking samples on this device.");
     const entry = await saveLocalTrack(target.scope, normalizeObjectTrack(trackValue), {
       previousTrackId: saveOptions.previousTrackId,
@@ -269,7 +235,7 @@ export function createTrackingWorkspaceController(options = {}) {
   }
 
   async function retrySync() {
-    const target = targetFor(getState(), getContext());
+    const target = trackingWorkspaceTarget(getState(), getContext());
     if (!target?.scope || !saveRemoteTrack) return restore({ force: true });
     setWorkspace({ status: "syncing", error: "" });
     try {
@@ -290,6 +256,7 @@ export function createTrackingWorkspaceController(options = {}) {
           now,
           win: getWindow(),
         });
+        await options.onTrackIdMigrated?.(previousTrackId, track.id);
         if (track.id !== previousTrackId) migrateTrackId(target.itemId, previousTrackId, track);
       }
       activeTarget = null;

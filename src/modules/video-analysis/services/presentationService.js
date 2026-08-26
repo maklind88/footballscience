@@ -105,6 +105,7 @@ export function createInitialPresentationWorkspace() {
         status: "waiting-item",
         localOnlyCount: 0,
         missingSampleCount: 0,
+        pendingCorrectionCount: 0,
         lastLoadedAt: "",
         error: "",
       },

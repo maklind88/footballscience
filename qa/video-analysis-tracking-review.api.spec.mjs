@@ -635,3 +635,158 @@ test("tracking workspace retries a device-only track and migrates every live bin
     missingSampleCount: 0,
   });
 });
+
+test("correction outbox retains one metadata-only operation and retries its exact id", async () => {
+  const contract = await import(moduleUrl(
+    "src/modules/video-analysis/services/localTrackingCorrectionOutboxContract.js",
+  ));
+  const { createTrackingCorrectionOutboxController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingCorrectionOutboxController.js",
+  ));
+  const scopeValues = {
+    organizationId: "org-correction",
+    teamId: "team-correction",
+    userId: "analyst-correction",
+    matchId: "match-correction",
+    videoId: "video-correction",
+    clipId: "clip-1",
+  };
+  const track = reviewTrack({
+    metadata: {
+      localWorkspaceStatus: "ready",
+      localWorkspaceTrackKey: "workspace-correction-key",
+    },
+  });
+  const item = {
+    id: "item-correction-outbox",
+    clipId: track.clipId,
+    clip: { match_id: scopeValues.matchId, video_id: scopeValues.videoId },
+    objectTracks: [track],
+    dynamicGraphics: [],
+  };
+  let state = {
+    match: { id: scopeValues.matchId },
+    video: { id: scopeValues.videoId },
+    presentation: {
+      current: { sections: [{ id: "section-correction", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: { selectedTrackIds: [track.id], workspace: { status: "restored" } },
+    },
+  };
+  const records = new Map();
+  const remoteCalls = [];
+  let remoteOnline = false;
+  const controller = createTrackingCorrectionOutboxController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getContext: () => ({ currentUser: {
+      id: scopeValues.userId,
+      organizationId: scopeValues.organizationId,
+      teamId: scopeValues.teamId,
+    } }),
+    saveRecord: async (scope, value) => {
+      const record = contract.createLocalTrackingCorrectionRecord({ ...value, scope });
+      records.set(record.id, record);
+      return record;
+    },
+    loadRecords: async () => [...records.values()],
+    removeRecord: async (scope, operationId) => {
+      records.delete(contract.localTrackingCorrectionRecordId(scope, operationId));
+      return true;
+    },
+    persistRemote: async (payload) => {
+      remoteCalls.push(payload);
+      if (!remoteOnline) throw new Error("Central audit offline.");
+      return { correction: payload };
+    },
+  });
+  const correction = {
+    operationId: "correction-operation-1",
+    objectTrackId: track.id,
+    atMs: 500,
+    correctionType: "occlusion",
+    reason: "Marked occluded",
+    metadata: { occluded: true },
+  };
+  await expect(controller.persist(correction)).rejects.toThrow(/offline/i);
+  expect(records).toHaveProperty("size", 1);
+  expect(state.presentation.tracking.workspace).toMatchObject({
+    status: "attention",
+    pendingCorrectionCount: 1,
+  });
+  const retained = [...records.values()][0];
+  expect(retained).toMatchObject({
+    operationId: correction.operationId,
+    attempts: 1,
+    localWorkspaceTrackKey: "workspace-correction-key",
+  });
+  expect(() => contract.createLocalTrackingCorrectionRecord({
+    ...correction,
+    scope: scopeValues,
+    metadata: { videoPath: "/Users/analyst/match.mp4" },
+  })).toThrow(/media field|forbidden/i);
+  expect(() => contract.createLocalTrackingCorrectionRecord({
+    ...correction,
+    scope: scopeValues,
+    operationId: "correction,or(status.eq.active)",
+  })).toThrow(/operation id/i);
+  expect(() => contract.createLocalTrackingCorrectionRecord({
+    ...correction,
+    scope: scopeValues,
+    createdAt: "not-a-date",
+  })).toThrow(/creation time/i);
+
+  remoteOnline = true;
+  expect(await controller.retry()).toBe(true);
+  expect(records).toHaveProperty("size", 0);
+  expect(remoteCalls).toHaveLength(2);
+  expect(remoteCalls[0].operationId).toBe(remoteCalls[1].operationId);
+  expect(state.presentation.tracking.workspace).toMatchObject({
+    status: "restored",
+    pendingCorrectionCount: 0,
+    error: "",
+  });
+});
+
+test("review persistence saves the central track id before its correction audit", async () => {
+  const { createTrackingReviewController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingReviewController.js",
+  ));
+  const track = reviewTrack({
+    id: "track-before-central-save",
+    metadata: { localWorkspaceTrackKey: "workspace-sequencing-key" },
+  });
+  const item = { id: "item-sequencing", clipId: track.clipId, objectTracks: [track], dynamicGraphics: [] };
+  let state = {
+    timeline: { playheadMs: 500 },
+    presentation: {
+      current: { sections: [{ id: "section-sequencing", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: { selectedTrackIds: [track.id], prompt: {} },
+    },
+  };
+  const order = [];
+  const audits = [];
+  const controller = createTrackingReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getCurrentMatchMs: () => state.timeline.playheadMs,
+    persistTrack: async (value) => {
+      order.push("track");
+      return { ...value, id: "11111111-1111-4111-8111-111111111111" };
+    },
+    persistCorrection: async (value) => {
+      order.push("correction");
+      audits.push(value);
+    },
+  });
+  expect(controller.handleAction("review-visibility")).toBe(true);
+  await expect.poll(() => audits.length).toBe(1);
+  expect(order).toEqual(["track", "correction"]);
+  expect(audits[0]).toMatchObject({
+    objectTrackId: "11111111-1111-4111-8111-111111111111",
+    localWorkspaceTrackKey: "workspace-sequencing-key",
+    correctionType: "occlusion",
+  });
+  expect(audits[0].operationId).toBeTruthy();
+});

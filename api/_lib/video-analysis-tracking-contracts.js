@@ -70,6 +70,7 @@ function mapTrack(row = {}, corrections = []) {
 function mapCorrection(row = {}) {
   return {
     id: row.id,
+    operationId: row.operation_id || "",
     objectTrackId: row.object_track_id,
     atMs: row.at_ms,
     correctionType: row.correction_type,
@@ -80,6 +81,7 @@ function mapCorrection(row = {}) {
     reason: row.reason || "",
     correctedBy: row.corrected_by || "",
     correctedAt: row.created_at,
+    metadata: row.metadata || {},
   };
 }
 

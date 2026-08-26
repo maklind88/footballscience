@@ -1108,6 +1108,130 @@ test("tracking metadata API rejects dense samples and migration remains service-
   expect(api).toContain('action === "save-dynamic-graphic"');
 });
 
+test("tracking correction retries are idempotent and reject changed operation content", async () => {
+  const database = require(path.join(rootDir, "api/_lib/video-analysis-tracking-database.js"));
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.SUPABASE_URL;
+  const originalKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.SUPABASE_URL = "https://tracking-correction-test.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
+  const track = {
+    id: "11111111-1111-4111-8111-111111111111",
+    organization_id: "club-correction",
+    team_id: "team-correction",
+    match_id: "22222222-2222-4222-8222-222222222222",
+    video_id: "33333333-3333-4333-8333-333333333333",
+    clip_instance_id: "44444444-4444-4444-8444-444444444444",
+    entity_type: "player",
+    start_ms: 0,
+    end_ms: 2000,
+    confidence: 0.9,
+    identity_confidence: 0.9,
+    coverage_ratio: 1,
+    point_count: 5,
+    segment_count: 1,
+    status: "review",
+    revision: 1,
+    metadata: {},
+  };
+  const storedCorrections = new Map();
+  let correctionInserts = 0;
+  let trackPatches = 0;
+  let correctionLookupFailure = false;
+  let failNextTrackPatch = false;
+  let trackStatus = "review";
+  globalThis.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    const table = parsed.pathname.split("/").at(-1);
+    const method = options.method || "GET";
+    if (table === "video_object_tracks" && method === "GET") {
+      return Response.json([{ ...track, status: trackStatus }]);
+    }
+    if (table === "video_object_tracks" && method === "PATCH") {
+      trackPatches += 1;
+      if (failNextTrackPatch) {
+        failNextTrackPatch = false;
+        return Response.json({ message: "Track status update unavailable." }, { status: 503 });
+      }
+      trackStatus = JSON.parse(options.body).status;
+      return Response.json([{ ...track, status: trackStatus, revision: trackPatches + 1 }]);
+    }
+    if (table === "video_track_corrections" && method === "GET") {
+      if (correctionLookupFailure) {
+        return Response.json({ message: "Correction lookup unavailable." }, { status: 503 });
+      }
+      const operationId = String(parsed.searchParams.get("operation_id") || "").replace(/^eq\./, "");
+      const storedCorrection = storedCorrections.get(operationId);
+      return Response.json(storedCorrection ? [storedCorrection] : []);
+    }
+    if (table === "video_track_corrections" && method === "POST") {
+      correctionInserts += 1;
+      const input = JSON.parse(options.body);
+      const storedCorrection = {
+        ...input,
+        id: "55555555-5555-4555-8555-555555555555",
+        created_at: "2026-08-26T12:00:00.000Z",
+        status: "active",
+      };
+      storedCorrections.set(input.operation_id, storedCorrection);
+      return Response.json([storedCorrection]);
+    }
+    throw new Error(`Unexpected tracking database request: ${method} ${parsed.pathname}`);
+  };
+  const actor = { id: "analyst-correction", clubId: "club-correction", teamId: "team-correction" };
+  const correction = {
+    operationId: "operation-correction-1",
+    objectTrackId: track.id,
+    atMs: 500,
+    correctionType: "occlusion",
+    reason: "Marked occluded",
+    metadata: { occluded: true },
+  };
+  try {
+    const first = await database.saveTrackCorrection(correction, actor);
+    const replay = await database.saveTrackCorrection(correction, actor);
+    const conflict = await database.saveTrackCorrection({ ...correction, reason: "Changed content" }, actor);
+    const invalid = await database.saveTrackCorrection({
+      ...correction,
+      operationId: "operation,or(status.eq.active)",
+    }, actor);
+    trackStatus = "verified";
+    failNextTrackPatch = true;
+    const interruptedCorrection = { ...correction, operationId: "operation-correction-2" };
+    const interrupted = await database.saveTrackCorrection(interruptedCorrection, actor);
+    const recovered = await database.saveTrackCorrection(interruptedCorrection, actor);
+    correctionLookupFailure = true;
+    const lookupFailure = await database.saveTrackCorrection({
+      ...correction,
+      operationId: "operation-correction-3",
+    }, actor);
+    expect(first).toMatchObject({ ok: true, payload: { correction: { operationId: correction.operationId } } });
+    expect(replay).toMatchObject({ ok: true, payload: { idempotentReplay: true } });
+    expect(conflict).toMatchObject({ ok: false, status: 409 });
+    expect(invalid).toMatchObject({ ok: false, status: 400 });
+    expect(interrupted).toMatchObject({ ok: false, status: 503 });
+    expect(recovered).toMatchObject({
+      ok: true,
+      payload: { idempotentReplay: true, objectTrack: { status: "review" } },
+    });
+    expect(lookupFailure).toMatchObject({ ok: false, status: 503 });
+    expect(correctionInserts).toBe(2);
+    expect(trackPatches).toBe(3);
+    const migration = await read(
+      "supabase/migrations/20260826074859_video_analysis_tracking_correction_idempotency.sql",
+    );
+    expect(migration).toContain("video_track_corrections_operation_id_uidx");
+    expect(migration).toContain("where operation_id is not null");
+    expect(migration).not.toMatch(/grant\s+.+\s+to\s+(?:anon|authenticated)/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl == null) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = originalUrl;
+    if (originalKey == null) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey;
+  }
+});
+
 test("secure local tracking jobs expose provider capability and expiring artifacts", async () => {
   const serverModule = await import(moduleUrl("desktop/local-video-app/local-video-server/server.mjs"));
   const configModule = await import(moduleUrl("desktop/local-video-app/local-video-server/config.mjs"));

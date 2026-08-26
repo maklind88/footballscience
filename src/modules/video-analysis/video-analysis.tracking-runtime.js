@@ -1,5 +1,6 @@
 import { createTrackingController } from "./controllers/trackingController.js";
 import { createTrackingBenchmarkPersistenceController } from "./controllers/trackingBenchmarkPersistenceController.js";
+import { createTrackingCorrectionOutboxController } from "./controllers/trackingCorrectionOutboxController.js";
 import { createTrackingWorkspaceController } from "./controllers/trackingWorkspaceController.js";
 import { createTrackingRepository } from "./repositories/trackingRepository.js";
 import {
@@ -40,6 +41,14 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
   const context = options.context || {};
   const getRuntime = options.getRuntime || (() => null);
   const repository = createTrackingRepository(context);
+  const correctionOutbox = createTrackingCorrectionOutboxController({
+    getState: () => getRuntime()?.store.getState() || {},
+    updateState: (updater) => getRuntime()?.store.update(updater),
+    getStore: () => getRuntime()?.store,
+    getContext: () => getRuntime()?.context || context,
+    getWindow: () => getRuntime()?.context?.win || context.win || globalThis.window,
+    persistRemote: (correction) => repository.saveCorrection(correction),
+  });
   const workspace = createTrackingWorkspaceController({
     getState: () => getRuntime()?.store.getState() || {},
     updateState: (updater) => getRuntime()?.store.update(updater),
@@ -48,6 +57,7 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     getWindow: () => getRuntime()?.context?.win || context.win || globalThis.window,
     loadRemoteWorkspace: (clipId) => repository.getWorkspace(clipId),
     saveRemoteTrack: (track) => repository.saveObjectTrack(track),
+    onTrackIdMigrated: correctionOutbox.migrateTrackId,
   });
   const persistence = createTrackingBenchmarkPersistenceController({
     getState: () => getRuntime()?.store.getState() || {},
@@ -87,11 +97,18 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     },
     persistTrack: (track) => repository.saveObjectTrack(track),
     persistLocalTrack: workspace.retainTrack,
-    persistCorrection: (correction) => repository.saveCorrection(correction),
+    persistCorrection: correctionOutbox.persist,
     persistGraphic: (graphic) => repository.saveDynamicGraphic(graphic),
-    restoreTrackingWorkspace: workspace.restore,
-    retryTrackingWorkspace: workspace.retrySync,
+    restoreTrackingWorkspace: async () => {
+      const tracks = await workspace.restore();
+      await correctionOutbox.restore();
+      return tracks;
+    },
+    retryTrackingWorkspace: async () => {
+      const tracks = await workspace.retrySync();
+      return tracks ? correctionOutbox.retry() : false;
+    },
     retryBenchmarkStorage: persistence.retry,
   });
-  return { controller, persistence, repository, workspace };
+  return { controller, correctionOutbox, persistence, repository, workspace };
 }

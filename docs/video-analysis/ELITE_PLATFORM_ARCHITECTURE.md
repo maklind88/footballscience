@@ -27,12 +27,12 @@ This document supersedes the scope boundaries in `WORKSTATION_V2_SPEC.md`. That 
 | Collaboration operations and revisions | Video Analysis API | Append-only Postgres log plus materialized records |
 | Active normalized tracking samples | Browser tracking workspace | Versioned chunked IndexedDB, exact organization/team/user/source/clip scope |
 | Provider inference artifacts and cache | Local tracking engine | Bounded device files with expiring capability access |
-| Track identity, review status, corrections, summaries | Video Analysis API | Postgres metadata |
+| Track identity, review status, corrections, summaries | Local correction outbox, then Video Analysis API | Versioned scoped IndexedDB pending records and Postgres metadata |
 | Calibration matrices and quality | Video Analysis API | Postgres metadata |
 | Rendered exports | Local media engine | Device filesystem until explicit share/export |
 | Presence, cursors, active coding state | Collaboration transport | Authenticated API heartbeat/polling; private Realtime only after separate policy approval |
 
-Large tracking arrays must not be copied into one unbounded JSON column. The active working copy is chunked per track in IndexedDB and capped per track and scope; provider artifacts remain in the local engine. Central records carry identity, review state, hashes, summaries, and local artifact references. Restoring or retrying a track requires the exact tenant, authenticated user, media source, and clip scope.
+Large tracking arrays must not be copied into one unbounded JSON column. The active working copy is chunked per track in IndexedDB and capped per track and scope; provider artifacts remain in the local engine. Central records carry identity, review state, hashes, summaries, and local artifact references. Restoring or retrying a track requires the exact tenant, authenticated user, media source, and clip scope. Correction audits use a separate bounded queue in the same scope: the client writes an immutable metadata-only operation before the network call, retries with the same idempotency key, and removes it only after the central write is confirmed.
 
 ## Module Boundaries
 
@@ -61,6 +61,7 @@ Large tracking arrays must not be copied into one unbounded JSON column. The act
 - Low-confidence or discontinuous sections are visible and require correction before verification.
 - The tracking workflow supports manual prompt/keyframes, review and correction, track-bound highlights, metadata-only central persistence, and a secure local provider protocol.
 - A completed or corrected track is retained locally before central metadata is written. Central failure leaves a visible device-only track with an explicit retry; successful retry reconciles the generated central ID through selections and graphic bindings without dropping dense samples.
+- Correction audits remain append-only across offline retry. A tenant-scoped unique operation id makes central replay idempotent, while changed content under an existing operation id and lookup uncertainty both fail closed.
 - Workspace reconciliation rejects duplicate or ambiguous stable track identities. A dynamic graphic cannot bind to a device-only, unprotected, or sample-missing track because its durable central binding would otherwise be misleading.
 - The approved SAM 2.1 provider has a pinned manifest, checksum-verifying installer, isolated runtime, capability preflight, forward/backward propagation, and bounded artifact validation. Model assets are installed explicitly on the analyst device and are never bundled into the web deployment; dense samples remain local.
 - Long ranges run as bounded, overlapping continuation jobs. `Complete range` chains them automatically with cumulative progress and cancellation, while each continuation reuses the retained source only inside the same secure local session, reconnects from a real endpoint sample, preserves the original player and track ID, and fails closed when the seam breaks identity continuity or time coverage stops growing.

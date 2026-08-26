@@ -76,6 +76,8 @@ export function createVideoAnalysisTimelineWorkspaceRuntime(options = {}) {
     }),
     startCollaboration: (timeline) => getCollaborationRuntime()?.start(timeline),
     stopCollaboration: () => getCollaborationRuntime()?.stop(),
+    reloadWorkspace: (loadOptions) => load(loadOptions),
+    confirmDiscard: (message) => (context.win || globalThis).confirm?.(message) === true,
   });
 
   return { controller, load, repository };

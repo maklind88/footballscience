@@ -79,6 +79,134 @@ test("timeline workspace controller batches rows, records undo and persists revi
   });
 });
 
+test("timeline workspace preserves dirty analyst work before applying remote changes", async () => {
+  const model = await import(moduleUrl("src/modules/video-analysis/domain/timelineWorkspace.model.js"));
+  const controllerModule = await import(moduleUrl("src/modules/video-analysis/timeline/timeline.workspace.controller.js"));
+  const matchId = "11111111-1111-4111-8111-111111111111";
+  const timelineId = "22222222-2222-4222-8222-222222222222";
+  const rowId = "33333333-3333-4333-8333-333333333333";
+  const secondTimelineId = "44444444-4444-4444-8444-444444444444";
+  const secondRowId = "55555555-5555-4555-8555-555555555555";
+  let state = {
+    timelineWorkspace: model.normalizeTimelineWorkspace({
+      activeTimelineId: timelineId,
+      dirtyTimelineIds: [timelineId, secondTimelineId],
+      loadedMatchId: matchId,
+      collaboration: {
+        status: "connected",
+        pendingRemoteChanges: 2,
+      },
+      timelines: [
+        {
+          id: timelineId,
+          matchId,
+          title: "Team analysis",
+          revision: 4,
+          isDefault: true,
+          rows: [{ id: rowId, label: "My local press", clipIds: ["clip-local"] }],
+        },
+        {
+          id: secondTimelineId,
+          matchId,
+          title: "Opponent analysis",
+          revision: 2,
+          rows: [{ id: secondRowId, label: "My local block", clipIds: ["clip-second"] }],
+        },
+      ],
+    }),
+  };
+  const controller = controllerModule.createTimelineWorkspaceController({
+    getState: () => state,
+    updateState: (updater) => {
+      state = typeof updater === "function" ? updater(state) : { ...state, ...updater };
+    },
+    reloadWorkspace: async () => {
+      const collaboration = model.normalizeTimelineWorkspace(state.timelineWorkspace).collaboration;
+      const loaded = model.normalizeTimelineWorkspace({
+        activeTimelineId: timelineId,
+        loadedMatchId: matchId,
+        loadStatus: "ready",
+        collaboration: {
+          ...collaboration,
+          pendingRemoteChanges: collaboration.pendingRemoteChanges + 1,
+        },
+        timelines: [
+          {
+            id: timelineId,
+            matchId,
+            title: "Team analysis remote",
+            revision: 5,
+            rows: [{ id: rowId, label: "Remote team press", clipIds: ["clip-remote"] }],
+          },
+          {
+            id: secondTimelineId,
+            matchId,
+            title: "Opponent analysis remote",
+            revision: 3,
+            rows: [{ id: secondRowId, label: "Remote team block", clipIds: [] }],
+          },
+        ],
+      });
+      state = { ...state, timelineWorkspace: loaded };
+      return loaded;
+    },
+  });
+
+  expect(await controller.resolveRemoteChanges("preserve")).toBe(true);
+  const workspace = model.normalizeTimelineWorkspace(state.timelineWorkspace);
+  const recovery = workspace.timelines.find((timeline) => (
+    timeline.settings.recoveredFromTimelineId === timelineId
+  ));
+  const secondRecovery = workspace.timelines.find((timeline) => (
+    timeline.settings.recoveredFromTimelineId === secondTimelineId
+  ));
+  expect(workspace.timelines.find((timeline) => timeline.id === timelineId)).toMatchObject({
+    title: "Team analysis remote",
+    revision: 5,
+    rows: [{ label: "Remote team press", clipIds: ["clip-remote"] }],
+  });
+  expect(recovery).toMatchObject({
+    isDefault: false,
+    revision: 1,
+    rows: [{ label: "My local press", clipIds: ["clip-local"], revision: 1 }],
+    settings: { recoveredFromTimelineId: timelineId },
+  });
+  expect(recovery.title).toContain("local recovery");
+  expect(recovery.rows[0].id).not.toBe(rowId);
+  expect(secondRecovery).toMatchObject({
+    rows: [{ label: "My local block", clipIds: ["clip-second"], revision: 1 }],
+    settings: { recoveredFromTimelineId: secondTimelineId },
+  });
+  expect(workspace.activeTimelineId).toBe(recovery.id);
+  expect(workspace.dirtyTimelineIds).toEqual(expect.arrayContaining([recovery.id, secondRecovery.id]));
+  expect(workspace.collaboration).toMatchObject({
+    pendingRemoteChanges: 1,
+    resolvingRemoteChanges: false,
+    error: "",
+  });
+  expect(state.message).toBe("Local timeline copy preserved");
+
+  state.timelineWorkspace = model.normalizeTimelineWorkspace({
+    ...workspace,
+    collaboration: { ...workspace.collaboration, pendingRemoteChanges: 1 },
+  });
+  let reloadCalls = 0;
+  const denied = controllerModule.createTimelineWorkspaceController({
+    getState: () => state,
+    updateState: (updater) => {
+      state = typeof updater === "function" ? updater(state) : { ...state, ...updater };
+    },
+    confirmDiscard: () => false,
+    reloadWorkspace: async () => {
+      reloadCalls += 1;
+      return state.timelineWorkspace;
+    },
+  });
+  expect(await denied.resolveRemoteChanges("reload")).toBe(false);
+  expect(reloadCalls).toBe(0);
+  expect(state.timelineWorkspace.collaboration.pendingRemoteChanges).toBe(1);
+});
+
 test("timeline workspace renderer exposes multiple timelines, row editing and save state", async () => {
   const renderer = await import(moduleUrl("src/modules/video-analysis/timeline/timeline.workspace.renderer.js"));
   const html = renderer.renderTimelineWorkspaceControls({
@@ -243,6 +371,84 @@ test("collaboration polling deduplicates operations and ignores the current anal
   await service.disconnect();
   expect(left).toHaveLength(1);
   expect(statuses.at(-1)).toBe("disconnected");
+});
+
+test("two analysts exchange operations, presence and disconnect without duplicate replay", async () => {
+  const collaboration = await import(moduleUrl("src/modules/video-analysis/services/collaborationPollingService.js"));
+  const session = { id: "11111111-1111-4111-8111-111111111111" };
+  const participants = new Map();
+  const operations = [];
+  const timerHost = { setInterval: () => 1, clearInterval: () => {} };
+  const repositoryFor = (actorId) => ({
+    async joinCollaborationSession(payload) {
+      participants.set(payload.clientId, {
+        id: `presence-${actorId}`,
+        actor_id: actorId,
+        actor_name: payload.actorName,
+        client_id: payload.clientId,
+        last_seen_at: new Date().toISOString(),
+      });
+    },
+    async leaveCollaborationSession(payload) {
+      participants.delete(payload.clientId);
+    },
+    async collaborationState() {
+      return {
+        nextCursor: new Date().toISOString(),
+        participants: [...participants.values()],
+        operations: [...operations],
+      };
+    },
+  });
+  const receivedA = [];
+  const receivedB = [];
+  const presenceA = [];
+  const presenceB = [];
+  const analystA = collaboration.createCollaborationPollingService({
+    repository: repositoryFor("analyst-a"),
+    getActor: () => ({ id: "analyst-a", name: "Analyst A" }),
+    onOperation: (operation) => receivedA.push(operation.id),
+    onPresence: (snapshot) => presenceA.push(snapshot),
+    timerHost,
+  });
+  const analystB = collaboration.createCollaborationPollingService({
+    repository: repositoryFor("analyst-b"),
+    getActor: () => ({ id: "analyst-b", name: "Analyst B" }),
+    onOperation: (operation) => receivedB.push(operation.id),
+    onPresence: (snapshot) => presenceB.push(snapshot),
+    timerHost,
+  });
+
+  await analystA.join(session);
+  await analystB.join(session);
+  operations.push({
+    id: "operation-b",
+    actor_id: "analyst-b",
+    entity_type: "timeline",
+    operation_type: "timeline.save",
+  });
+  await analystA.poll();
+  await analystB.poll();
+  operations.push({
+    id: "operation-a",
+    actor_id: "analyst-a",
+    entity_type: "clip",
+    operation_type: "clip.create",
+  });
+  await analystA.poll();
+  await analystB.poll();
+  await analystA.poll();
+  await analystB.poll();
+
+  expect(receivedA).toEqual(["operation-b"]);
+  expect(receivedB).toEqual(["operation-a"]);
+  expect(presenceA.at(-1).map((participant) => participant.actorId).sort()).toEqual(["analyst-a", "analyst-b"]);
+  expect(presenceB.at(-1).map((participant) => participant.actorId).sort()).toEqual(["analyst-a", "analyst-b"]);
+
+  await analystB.disconnect();
+  await analystA.poll();
+  expect(presenceA.at(-1).map((participant) => participant.actorId)).toEqual(["analyst-a"]);
+  await analystA.disconnect();
 });
 
 test("private realtime collaboration adapter sends metadata-only operations", async () => {

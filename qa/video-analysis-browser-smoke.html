@@ -92,6 +92,9 @@
       let savedTimelines = [];
       let collaborationSession = null;
       let collaborationParticipants = [];
+      let collaborationOperations = Array.isArray(window.__videoAnalysisSmokeCollaborationOperations)
+        ? window.__videoAnalysisSmokeCollaborationOperations.map((operation) => ({ ...operation }))
+        : [];
       let savedObjectTracks = [];
       let savedDynamicGraphics = [];
       let savedCalibration = null;
@@ -125,6 +128,33 @@
           },
         ];
       }
+      window.__videoAnalysisCollaborationTestApi = {
+        pushOperation(operation = {}) {
+          collaborationOperations.push({
+            id: operation.id || `operation-${collaborationOperations.length + 1}`,
+            actor_id: operation.actor_id || "remote-analyst",
+            entity_type: operation.entity_type || "timeline",
+            entity_id: operation.entity_id || savedTimelines[0]?.id || "",
+            operation_type: operation.operation_type || "timeline.save",
+            resulting_revision: Number(operation.resulting_revision || 1),
+            created_at: operation.created_at || new Date().toISOString(),
+          });
+        },
+        setParticipants(participants = []) {
+          collaborationParticipants = participants.map((participant, index) => ({
+            id: participant.id || `participant-${index + 1}`,
+            actor_id: participant.actor_id || participant.actorId || `analyst-${index + 1}`,
+            actor_name: participant.actor_name || participant.name || `Analyst ${index + 1}`,
+            client_id: participant.client_id || `client-${index + 1}`,
+            last_seen_at: participant.last_seen_at || new Date().toISOString(),
+          }));
+        },
+        updateTimeline(timeline = {}) {
+          const index = savedTimelines.findIndex((entry) => entry.id === timeline.id);
+          if (index >= 0) savedTimelines[index] = { ...savedTimelines[index], ...timeline };
+          else savedTimelines.push({ ...timeline });
+        },
+      };
       if (smokeParams.has("workspace")) {
         const root = document.getElementById("analysisRoomWorkspace");
         const workspaceView = document.createElement("section");
@@ -286,7 +316,7 @@
             schema: "footballscience-video-analysis-elite-v1",
             collaborationSession,
             participants: collaborationParticipants,
-            operations: [],
+            operations: collaborationOperations,
             nextCursor: new Date().toISOString(),
           });
         }

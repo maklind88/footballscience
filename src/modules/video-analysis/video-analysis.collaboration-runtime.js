@@ -35,7 +35,9 @@ export function createVideoAnalysisCollaborationRuntime(options = {}) {
     const runtime = getRuntime();
     if (!runtime) return;
     const workspace = normalizeTimelineWorkspace(runtime.store.getState().timelineWorkspace);
-    if (operation.entityType === "timeline" && workspace.dirtyTimelineIds.length) {
+    if (operation.entityType === "timeline" && (
+      workspace.dirtyTimelineIds.length || workspace.collaboration.resolvingRemoteChanges
+    )) {
       updateCollaboration({
         pendingRemoteChanges: workspace.collaboration.pendingRemoteChanges + 1,
       });

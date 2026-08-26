@@ -42,6 +42,7 @@ Large tracking arrays must not be copied into generic application state or one u
 - Batch operations are commands over explicit clip IDs and return an inverse command for undo.
 - Multi-analyst coding uses idempotency keys, expected revisions, server ordering, presence, and conflict feedback. A generic CRDT is not used for clip intervals because deterministic domain commands are easier to audit and undo.
 - The first collaboration transport uses the authenticated Video Analysis API with 1.2-second operation polling and 10-second participant heartbeats. It is tenant-scoped, replayable, and requires no new direct client grants.
+- A remote timeline revision never replaces dirty local work silently. FS Player exposes the waiting update and either creates independent recovery timelines for every dirty local timeline before reload, or requires explicit confirmation before using the team version. Operations arriving during resolution remain pending.
 - A private Supabase Broadcast/Presence adapter is available behind the transport boundary, but remains disabled until its exact `realtime.messages` membership policies receive a dedicated security approval. Public Realtime channels are never used for analysis data.
 
 ### Timeline Workspace
@@ -110,7 +111,7 @@ Each phase must ship behind capability checks, preserve old records, pass module
 | Slice | Status | Evidence |
 | --- | --- | --- |
 | Elite foundation | Implemented in candidate branch | Domain models, secure loopback job engine, metre-safe geometry, angle synchronization, and multi-timeline contracts |
-| Coding and collaboration | Implemented in candidate branch | Exclusive coding groups, repeatable MG Principles, batch commands, analyst presence, audited operation replay, optimistic revisions, and recoverable conflicts |
+| Coding and collaboration | Implemented in candidate branch | Exclusive coding groups, repeatable MG Principles, batch commands, two-client presence and operation exchange, audited replay, optimistic revisions, visible remote conflicts, and data-safe local recovery copies |
 | Timeline workspace | Implemented in candidate branch | Multiple persisted timelines, true millisecond scale, overview/focus zoom, overlap stacking, row colors/order/locks, clip move/copy/merge/delete, and undo |
 | Presentation and export | Implemented in candidate branch | Presentation builder, freehand/arrow/circle/spotlight/text/freeze/zoom layers, track-bound graphics, deterministic overlay compilation, and burned-in H.264/AAC MP4 export |
 | Tracking and dynamic telestration | Implemented in candidate branch | Prompt/keyframe UX, provider readiness, automatic cancellable full-range continuation, identity-safe seam merge, cumulative elapsed/ETA, confidence and occlusion gates, manual correction, track-bound graphics, secure local source reuse, and pinned SAM 2.1 installer/runtime |

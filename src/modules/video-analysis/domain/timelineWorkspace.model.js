@@ -92,6 +92,7 @@ export function normalizeTimelineWorkspace(value = {}) {
       sessionId: stringValue(collaboration.sessionId || collaboration.session_id),
       participants: Array.isArray(collaboration.participants) ? collaboration.participants : [],
       pendingRemoteChanges: Math.max(0, Math.round(Number(collaboration.pendingRemoteChanges) || 0)),
+      resolvingRemoteChanges: Boolean(collaboration.resolvingRemoteChanges),
       error: stringValue(collaboration.error),
     },
   };

@@ -45,6 +45,41 @@ function renderCollaborationControl(workspace = {}, canEdit = false) {
   `;
 }
 
+function renderRemoteChanges(workspace = {}, canEdit = false) {
+  const collaboration = workspace.collaboration || {};
+  const pending = collaboration.pendingRemoteChanges || 0;
+  if (!pending) return "";
+  const resolving = collaboration.resolvingRemoteChanges === true;
+  const heading = pending === 1 ? "1 team update waiting" : `${pending} team updates waiting`;
+  const detail = collaboration.error
+    || "Your unsaved timelines are protected until you choose which version to use.";
+  return `
+    <div
+      class="video-analysis-workspace-remote-changes${resolving ? " is-resolving" : ""}"
+      role="alert"
+      aria-busy="${resolving ? "true" : "false"}"
+      data-video-analysis-workspace-remote-changes
+    >
+      <div class="video-analysis-workspace-remote-changes__copy">
+        <strong>${escapeHtml(heading)}</strong>
+        <span>${escapeHtml(detail)}</span>
+      </div>
+      <div class="video-analysis-workspace-remote-changes__actions">
+        <button
+          type="button"
+          data-video-analysis-workspace-remote-resolution="preserve"
+          ${canEdit && !resolving ? "" : "disabled"}
+        >${resolving ? "Loading..." : "Keep copy &amp; reload"}</button>
+        <button
+          type="button"
+          data-video-analysis-workspace-remote-resolution="reload"
+          ${canEdit && !resolving ? "" : "disabled"}
+        >Use team version</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderRowMoveButton(row = {}, direction = 0, disabled = false) {
   const label = direction < 0 ? "Move row up" : "Move row down";
   return `
@@ -149,6 +184,7 @@ export function renderTimelineWorkspaceControls(workspaceValue = {}, canEdit = f
         <button type="button" data-video-analysis-workspace-editor-open ${canEdit ? "" : "disabled"}>Rows</button>
       </div>
     </div>
+    ${renderRemoteChanges(workspace, canEdit)}
     ${renderTimelineEditor(workspace, canEdit, selectedClipCount)}
   `;
 }

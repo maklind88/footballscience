@@ -47,12 +47,40 @@ function historySnapshot(workspace = {}, label = "Change timeline") {
   };
 }
 
+function createRecoveryTimeline(timeline = {}) {
+  const recoveredAt = new Date().toISOString();
+  const suffix = ` (local recovery ${recoveredAt.slice(11, 23)})`;
+  const baseTitle = String(timeline.title || "Timeline").trim() || "Timeline";
+  return {
+    ...timeline,
+    id: nextId("timeline-recovery"),
+    title: `${baseTitle.slice(0, 180 - suffix.length)}${suffix}`,
+    isDefault: false,
+    revision: 1,
+    settings: {
+      ...(timeline.settings || {}),
+      recoveredFromTimelineId: String(timeline.id || ""),
+      recoveredAt,
+    },
+    rows: (timeline.rows || []).map((row, index) => ({
+      ...row,
+      id: nextId("row-recovery"),
+      sortOrder: index,
+      revision: 1,
+    })),
+    createdBy: "",
+    updatedAt: "",
+  };
+}
+
 export function createTimelineWorkspaceController(dependencies = {}) {
   const getState = dependencies.getState || (() => ({}));
   const updateState = dependencies.updateState || (() => {});
   const saveTimeline = dependencies.saveTimeline || (async (timeline) => ({ timeline }));
   const startCollaboration = dependencies.startCollaboration || (async () => null);
   const stopCollaboration = dependencies.stopCollaboration || (async () => {});
+  const reloadWorkspace = dependencies.reloadWorkspace || (async () => null);
+  const confirmDiscard = dependencies.confirmDiscard || (() => false);
 
   function setWorkspace(updater, options = {}) {
     updateState((state) => {
@@ -76,6 +104,101 @@ export function createTimelineWorkspaceController(dependencies = {}) {
       workspace,
       updater(activeTimeline(workspace), workspace),
     ), options);
+  }
+
+  function failRemoteResolution(reason = null) {
+    updateState((current) => {
+      const latest = normalizeTimelineWorkspace(current.timelineWorkspace);
+      const message = reason?.message
+        || (typeof reason === "string" ? reason : "")
+        || latest.error
+        || "The team version could not be loaded.";
+      return {
+        ...current,
+        timelineWorkspace: {
+          ...latest,
+          collaboration: {
+            ...latest.collaboration,
+            resolvingRemoteChanges: false,
+            error: message,
+          },
+        },
+      };
+    });
+    return false;
+  }
+
+  async function resolveRemoteChanges(mode = "preserve") {
+    const resolutionMode = mode === "reload" ? "reload" : "preserve";
+    const workspace = normalizeTimelineWorkspace(getState().timelineWorkspace);
+    const pendingAtStart = workspace.collaboration.pendingRemoteChanges;
+    if (!pendingAtStart || workspace.collaboration.resolvingRemoteChanges) return false;
+    const dirtyTimelines = workspace.timelines.filter((timeline) => (
+      workspace.dirtyTimelineIds.includes(timeline.id)
+    ));
+    if (resolutionMode === "reload" && dirtyTimelines.length) {
+      let confirmed = false;
+      try {
+        confirmed = await confirmDiscard("Discard local timeline changes and use the team version?") === true;
+      } catch {
+        confirmed = false;
+      }
+      if (!confirmed) return false;
+    }
+    const recoveryTimelines = resolutionMode === "preserve"
+      ? dirtyTimelines.map(createRecoveryTimeline)
+      : [];
+    updateState((current) => {
+      const latest = normalizeTimelineWorkspace(current.timelineWorkspace);
+      return {
+        ...current,
+        timelineWorkspace: {
+          ...latest,
+          collaboration: {
+            ...latest.collaboration,
+            resolvingRemoteChanges: true,
+            error: "",
+          },
+        },
+      };
+    });
+    let loaded = null;
+    try {
+      loaded = await reloadWorkspace({ force: true, reason: "collaboration-conflict" });
+    } catch (error) {
+      return failRemoteResolution(error);
+    }
+    if (!loaded) return failRemoteResolution();
+    updateState((current) => {
+      const latest = normalizeTimelineWorkspace(current.timelineWorkspace);
+      const existingIds = new Set(latest.timelines.map((timeline) => timeline.id));
+      const recovered = recoveryTimelines.filter((timeline) => !existingIds.has(timeline.id));
+      const activeRecovery = recovered[0] || null;
+      return {
+        ...current,
+        message: activeRecovery ? "Local timeline copy preserved" : "Team timeline loaded",
+        timelineWorkspace: normalizeTimelineWorkspace({
+          ...latest,
+          timelines: [...latest.timelines, ...recovered],
+          activeTimelineId: activeRecovery?.id || latest.activeTimelineId,
+          selectedRowIds: [],
+          dirtyTimelineIds: [
+            ...latest.dirtyTimelineIds,
+            ...recovered.map((timeline) => timeline.id),
+          ],
+          collaboration: {
+            ...latest.collaboration,
+            pendingRemoteChanges: Math.max(
+              0,
+              latest.collaboration.pendingRemoteChanges - pendingAtStart,
+            ),
+            resolvingRemoteChanges: false,
+            error: "",
+          },
+        }),
+      };
+    });
+    return true;
   }
 
   async function saveActiveTimeline() {
@@ -185,6 +308,11 @@ export function createTimelineWorkspaceController(dependencies = {}) {
   function handleClick(event) {
     const target = event?.target?.closest ? event.target : event?.target?.parentElement;
     if (!target?.closest) return false;
+    const remoteResolution = target.closest("[data-video-analysis-workspace-remote-resolution]");
+    if (remoteResolution) {
+      void resolveRemoteChanges(remoteResolution.dataset.videoAnalysisWorkspaceRemoteResolution);
+      return true;
+    }
     const timelineTab = target.closest("[data-video-analysis-workspace-timeline]");
     if (timelineTab) {
       setWorkspace((workspace) => ({
@@ -336,5 +464,12 @@ export function createTimelineWorkspaceController(dependencies = {}) {
     return false;
   }
 
-  return { handleClick, handleInput, handleChange, saveActiveTimeline, toggleCollaboration };
+  return {
+    handleClick,
+    handleInput,
+    handleChange,
+    resolveRemoteChanges,
+    saveActiveTimeline,
+    toggleCollaboration,
+  };
 }

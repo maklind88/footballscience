@@ -14,6 +14,8 @@ No candidate is activated by installation alone. The provider contract requires 
 
 SAM 2.1 remains the installed, approved selected-object propagation engine and safe manual-prompt fallback. It is not treated as an automatic detector or a re-identification engine.
 
+Operational readiness has two local checks. `fs-player:tracking:preflight` verifies the pinned install, source, checkpoint, Python, PyTorch, device, and FFmpeg. `fs-player:tracking:smoke` additionally performs one real model inference over generated synthetic video, validates propagation through the production artifact boundary, and removes all temporary media. Neither check can approve football quality; only the representative real-match benchmark can do that.
+
 ## Independent Reference Evaluator
 
 Provider approval for detection, association, or re-identification requires a second report from the official TrackEval metric implementation. Football Science packages TrackEval as a local evaluator, not as a tracking provider:

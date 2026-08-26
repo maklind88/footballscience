@@ -1,0 +1,122 @@
+import { expect, test } from "@playwright/test";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function moduleUrl(relativePath) {
+  return pathToFileURL(path.join(rootDir, relativePath)).href;
+}
+
+function validResult(prompt = {}) {
+  return {
+    artifact: {
+      entityType: "player",
+      confidence: 0.91,
+      metadata: {
+        model: "SAM 2.1 Hiera Tiny",
+        device: "mps",
+        providerProtocol: "football-science-tracking-v1",
+      },
+      segments: [{
+        id: "segment-1",
+        points: [
+          { atMs: prompt.startMs, x: 0.2, y: 0.4 },
+          { atMs: prompt.startMs + Math.round((prompt.endMs - prompt.startMs) / 2), x: 0.25, y: 0.4 },
+          { atMs: prompt.endMs, x: 0.35, y: 0.4 },
+        ],
+      }],
+    },
+  };
+}
+
+async function temporaryParent() {
+  return fs.mkdtemp(path.join(os.tmpdir(), "fs-player-smoke-contract-"));
+}
+
+test("tracking engine smoke runs an isolated provider job and retains no media or trajectories", async () => {
+  const service = await import(moduleUrl("scripts/fs-player-tracking-engine-smoke.mjs"));
+  const parent = await temporaryParent();
+  const adapter = {
+    available: () => true,
+    info: () => ({
+      engineName: "sam2.1-hiera-tiny",
+      displayName: "Football Science SAM 2.1 Player Tracker",
+      engineVersion: "1.0.0",
+      protocol: "football-science-tracking-v1",
+      source: "approved-packaged",
+      installDir: "/private/provider",
+    }),
+    trackObject: async (inputPath, outputPath, prompt, options) => {
+      expect(path.dirname(inputPath)).toBe(path.dirname(outputPath));
+      options.onProgress({ stage: "Loading SAM 2.1", ratio: 0.3 });
+      options.onProgress({ stage: "Tracking object", ratio: 0.8 });
+      return validResult(prompt);
+    },
+  };
+  try {
+    const times = [1_000, 2_500];
+    const report = await service.runTrackingEngineSmoke({
+      adapter,
+      now: () => times.shift(),
+      temporaryParent: parent,
+      generateFixture: async (filePath) => {
+        const bytes = Buffer.alloc(2_048, 7);
+        await fs.writeFile(filePath, bytes);
+        return { byteLength: bytes.byteLength };
+      },
+    });
+    expect(report).toMatchObject({
+      ok: true,
+      protocol: "football-science-tracking-engine-smoke-v1",
+      provider: { engineName: "sam2.1-hiera-tiny", source: "approved-packaged" },
+      fixture: { kind: "generated-synthetic-video", byteLength: 2_048 },
+      result: { pointCount: 3, segmentCount: 1, observedDurationMs: 1_000 },
+      performance: {
+        processingMs: 1_500,
+        realtimeFactor: 1.5,
+        referenceMaximumRealtimeFactor: 1,
+        withinReferenceBudget: false,
+        coldStartIncluded: true,
+      },
+      temporaryMediaRetained: false,
+      realMatchQualityProven: false,
+    });
+    expect(report.progressStages).toEqual(["Loading SAM 2.1", "Tracking object"]);
+    expect(JSON.stringify(report)).not.toMatch(/private\/provider|synthetic-player\.mp4|segments|points/);
+    expect(await fs.readdir(parent)).toEqual([]);
+  } finally {
+    await fs.rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("tracking engine smoke fails closed on a non-propagated result and still removes the fixture", async () => {
+  const service = await import(moduleUrl("scripts/fs-player-tracking-engine-smoke.mjs"));
+  const parent = await temporaryParent();
+  const adapter = {
+    available: () => true,
+    info: () => ({ engineName: "invalid-provider" }),
+    trackObject: async (_inputPath, _outputPath, prompt) => {
+      const result = validResult(prompt);
+      result.artifact.segments[0].points = result.artifact.segments[0].points.slice(0, 1);
+      return result;
+    },
+  };
+  try {
+    const times = [1_000, 2_500];
+    await expect(service.runTrackingEngineSmoke({
+      adapter,
+      now: () => times.shift(),
+      temporaryParent: parent,
+      generateFixture: async (filePath) => {
+        await fs.writeFile(filePath, Buffer.alloc(2_048, 3));
+        return { byteLength: 2_048 };
+      },
+    })).rejects.toThrow(/valid propagated object track/i);
+    expect(await fs.readdir(parent)).toEqual([]);
+  } finally {
+    await fs.rm(parent, { recursive: true, force: true });
+  }
+});

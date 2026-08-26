@@ -42,7 +42,7 @@ test("Scouting worker avoids duplicating the static player database in IndexedDB
 
   expect(worker).not.toContain("indexedDB");
   expect(worker).not.toContain("football-science-scouting-worker-cache");
-  expect(workspace).toContain("loadScoutingDatabaseWithWorker({ previewFirst: false })");
+  expect(workspace).toContain("loadScoutingDatabaseWithWorker({ previewFirst: false, signal: options.signal })");
   expect(workspace).not.toContain("manifestScriptUrl:");
 });
 
@@ -244,7 +244,9 @@ test("Scouting database keeps source enrichment behind one visual player databas
   expect(workspace).toContain("createFootballScienceDbScoutingAdapter");
   expect(workspace).toContain("createFootballScienceDbScoutingModels");
   expect(workspace).toContain("SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED = false");
-  expect(workspace).toContain("SCOUTING_SERVER_FIRST_DATABASE_ENABLED = false");
+  expect(workspace).toContain("createScoutingDatabaseCapabilityService");
+  expect(workspace).toContain("capability.available && capability.ready");
+  expect(workspace).not.toContain("SCOUTING_SERVER_FIRST_DATABASE_ENABLED");
   expect(workspace).toContain("createScoutingDatabaseSourcePolicy");
   expect(workspace).toContain("scoutingDatabaseSourcePolicy.normalizeFilterSource(filters.source)");
   expect(workspace).toContain("renderScoutingProfileOverviewPanelShell");

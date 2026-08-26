@@ -9,6 +9,11 @@ export const scoutingPerformanceBudgets = Object.freeze({
   "list.add": 220,
   "shadow.add": 260,
   "my-team.assign": 220,
+  "import.source-read": 1_000,
+  "import.source-hash": 1_000,
+  "import.parse": 15_000,
+  "import.prepare": 8_000,
+  "import.preview": 5_000,
 });
 
 function getPerformanceNow(performanceRef) {

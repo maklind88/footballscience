@@ -2,6 +2,10 @@ const crypto = require("crypto");
 const { parseJsonBody, readConfig, sendJson, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 const { appendAuditLog } = require("./audit-log.js");
 const { fetchFootballScienceProfileForScoutingRecord } = require("./football-science-db.js");
+const {
+  createScoutingDatasetImportService,
+  isScoutingDataAdmin,
+} = require("./scouting-dataset-import.js");
 
 const SCOUTING_DATABASE_SCHEMA = "footballscience-scouting-database-v1";
 const SCOUTING_WRITE_ROLES = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst"]);
@@ -12,6 +16,8 @@ const MAX_ID_LENGTH = 180;
 const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 500;
 const SCOUTING_METRICS_CACHE_MS = 5 * 60 * 1000;
+const SCOUTING_DB_REQUEST_TIMEOUT_MS = 15000;
+const SCOUTING_MAX_JSON_BODY_BYTES = 1536 * 1024;
 const MAX_IMPORT_CHUNK_RECORDS = 80;
 const SCOUTING_DEDUPE_PAGE_SIZE = 1000;
 const SCOUTING_DEDUPE_MAX_GROUPS = 25;
@@ -47,6 +53,7 @@ const SCOUTING_OPTIONS_CACHE_MS = 5 * 60 * 1000;
 const SCOUTING_IMPORT_HISTORY_LIMIT = 20;
 let scoutingMetricsCache = { updatedAt: 0, metrics: null };
 let scoutingFilterOptionsCache = { updatedAt: 0, options: null };
+let scoutingDatasetImportService = null;
 
 function normalizeString(value, maxLength = MAX_TEXT_LENGTH) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
@@ -286,6 +293,10 @@ function canWriteScoutingDatabase(actor = {}) {
   return SCOUTING_WRITE_ROLES.has(actorRole(actor));
 }
 
+function canAdministerScoutingData(actor = {}) {
+  return isScoutingDataAdmin(actor);
+}
+
 function isScoutingDatabaseEnabled() {
   const mode = normalizeString(
     process.env.SCOUTING_STORAGE_MODE || process.env.SCOUTING_DATABASE_MODE || process.env.SCOUTING_DUAL_WRITE_MODE,
@@ -301,6 +312,10 @@ function isScoutingDatabaseEnabled() {
     return true;
   }
   return true;
+}
+
+function isLegacyDirectScoutingImportEnabled() {
+  return normalizeString(process.env.SCOUTING_ALLOW_LEGACY_DIRECT_IMPORT, 20).toLowerCase() === "1";
 }
 
 function restBaseUrl() {
@@ -362,26 +377,72 @@ async function dbRequest(path, options = {}) {
     const existingPrefer = String(headers.Prefer || headers.prefer || "").trim();
     headers.Prefer = existingPrefer ? `${existingPrefer},count=exact` : "count=exact";
   }
-  const response = await fetch(`${base.url}${path}`, {
-    method: options.method || "GET",
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const payload = await parseResponse(response);
-  if (!response.ok) {
+  const timeoutController = new AbortController();
+  let timedOut = false;
+  const timeoutMs = Math.max(1000, Math.min(60000, Number(options.timeoutMs) || SCOUTING_DB_REQUEST_TIMEOUT_MS));
+  const timer = setTimeout(() => {
+    timedOut = true;
+    timeoutController.abort();
+  }, timeoutMs);
+  const signal = options.signal && typeof AbortSignal.any === "function"
+    ? AbortSignal.any([options.signal, timeoutController.signal])
+    : timeoutController.signal;
+  try {
+    const response = await fetch(`${base.url}${path}`, {
+      method: options.method || "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal,
+    });
+    const payload = await parseResponse(response);
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        payload,
+        reason: payload?.message || payload?.hint || payload?.details || `Database request failed (${response.status}).`,
+      };
+    }
     return {
-      ok: false,
+      ok: true,
       status: response.status,
       payload,
-      reason: payload?.message || payload?.hint || payload?.details || `Database request failed (${response.status}).`,
+      count: parseScoutingDbCount(response.headers),
     };
+  } catch (error) {
+    return {
+      ok: false,
+      status: timedOut ? 504 : options.signal?.aborted ? 499 : 503,
+      payload: null,
+      reason: timedOut
+        ? "Scouting database request timed out."
+        : options.signal?.aborted
+          ? "Scouting database request was cancelled."
+          : normalizeString(error?.message, 240) || "Scouting database request failed.",
+    };
+  } finally {
+    clearTimeout(timer);
   }
-  return {
-    ok: true,
-    status: response.status,
-    payload,
-    count: parseScoutingDbCount(response.headers),
-  };
+}
+
+function getScoutingDatasetImportService() {
+  if (!scoutingDatasetImportService) {
+    scoutingDatasetImportService = createScoutingDatasetImportService({
+      appendAuditLog,
+      clearCaches: () => {
+        scoutingMetricsCache = { updatedAt: 0, metrics: null };
+        scoutingFilterOptionsCache = { updatedAt: 0, options: null };
+      },
+      dbRequest,
+      isDatabaseEnabled: isScoutingDatabaseEnabled,
+      normalizeImportIntent,
+      normalizeImportMetric,
+      normalizeImportPlayer,
+      normalizeImportSeasonRecord,
+      resolveScoutingRecordIdentities: resolveScoutingDatasetRecordIdentities,
+    });
+  }
+  return scoutingDatasetImportService;
 }
 
 function asLimit(value, fallback = DEFAULT_LIMIT) {
@@ -544,8 +605,8 @@ function importChangeToClient(row = {}) {
     importBatchId: normalizeString(row.import_batch_id, 80),
     seasonRecordId: normalizeString(row.season_record_id, 80),
     changeType: normalizeString(row.change_type, 80),
-    beforeValue: row.before_value && typeof row.before_value === "object" && !Array.isArray(row.before_value) ? row.before_value : {},
-    afterValue: row.after_value && typeof row.after_value === "object" && !Array.isArray(row.after_value) ? row.after_value : {},
+    beforeValue: row.before_record && typeof row.before_record === "object" && !Array.isArray(row.before_record) ? row.before_record : {},
+    afterValue: row.after_record && typeof row.after_record === "object" && !Array.isArray(row.after_record) ? row.after_record : {},
     createdAt: normalizeString(row.created_at, 80),
   };
 }
@@ -928,6 +989,8 @@ function scoutingDatabaseStatus(actor = {}) {
     mode: isScoutingDatabaseEnabled() ? "database" : "legacy",
     enabled: isScoutingDatabaseEnabled(),
     canWrite: canWriteScoutingDatabase(actor),
+    canAdministerData: canAdministerScoutingData(actor),
+    legacyDirectImportEnabled: isLegacyDirectScoutingImportEnabled(),
     tables: {
       imports: "scouting_import_batches",
       metrics: "scouting_metrics",
@@ -1135,18 +1198,17 @@ async function fetchDatabaseFilterOptions() {
   if (scoutingFilterOptionsCache.options && now - scoutingFilterOptionsCache.updatedAt < SCOUTING_OPTIONS_CACHE_MS) {
     return scoutingFilterOptionsCache.options;
   }
-  const params = new URLSearchParams({
-    select: "league_name,team_name,season_label,position_text",
-    status: "eq.active",
-    deleted_at: "is.null",
-    order: "league_name.asc,season_label.desc,position_text.asc",
-    limit: "10000",
-  });
-  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`);
+  const result = await dbRequest("/rpc/get_scouting_filter_options", { method: "POST", body: {} });
   if (!result.ok) {
     throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
   }
-  const options = buildOptionsFromRows(Array.isArray(result.payload) ? result.payload : []);
+  const payload = result.payload && typeof result.payload === "object" ? result.payload : {};
+  const options = {
+    leagues: uniqueNormalized(payload.leagues || []).map(normalizeScoutingLeague).filter(Boolean).sort((a, b) => a.localeCompare(b)),
+    teams: uniqueNormalized(payload.teams || []).sort((a, b) => a.localeCompare(b)),
+    seasons: uniqueNormalized(payload.seasons || [], 80).sort((a, b) => String(b).localeCompare(String(a))),
+    positions: uniqueNormalized(payload.positions || [], 80).map((value) => value.toUpperCase()).sort((a, b) => a.localeCompare(b)),
+  };
   scoutingFilterOptionsCache = { updatedAt: now, options };
   return options;
 }
@@ -1161,12 +1223,33 @@ async function fetchImportHistory(query = {}) {
   if (!result.ok) {
     throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
   }
+  const batches = Array.isArray(result.payload) ? result.payload : [];
+  const batchIds = batches.map((row) => normalizeString(row.id, 80)).filter(Boolean);
+  const versionResult = batchIds.length
+    ? await dbRequest(`/scouting_dataset_versions?select=id,import_batch_id,version_number,version_label,status,validation_summary,activated_at&import_batch_id=in.(${batchIds.join(",")})`)
+    : { ok: true, payload: [] };
+  const versionByBatch = new Map(
+    (versionResult.ok && Array.isArray(versionResult.payload) ? versionResult.payload : [])
+      .map((version) => [normalizeString(version.import_batch_id, 80), version])
+  );
   return {
     ok: true,
     schema: SCOUTING_DATABASE_SCHEMA,
     mode: "database",
     enabled: true,
-    imports: (Array.isArray(result.payload) ? result.payload : []).map(importBatchToClient),
+    imports: batches.map((row) => {
+      const item = importBatchToClient(row);
+      const version = versionByBatch.get(item.id);
+      return {
+        ...item,
+        datasetVersionId: normalizeString(version?.id, 80),
+        datasetVersionStatus: normalizeString(version?.status, 40),
+        versionNumber: normalizeNumber(version?.version_number, null),
+        versionLabel: normalizeString(version?.version_label, 160),
+        validationSummary: version?.validation_summary && typeof version.validation_summary === "object" ? version.validation_summary : {},
+        activatedAt: normalizeString(version?.activated_at, 80),
+      };
+    }),
   };
 }
 
@@ -1176,7 +1259,7 @@ async function fetchImportChanges(query = {}) {
     return { ok: false, status: 400, reason: "Missing scouting import batch id." };
   }
   const params = new URLSearchParams({
-    select: "id,import_batch_id,season_record_id,change_type,before_value,after_value,created_at",
+    select: "id,import_batch_id,season_record_id,change_type,before_record,after_record,created_at",
     import_batch_id: `eq.${importBatchId}`,
     order: "created_at.desc",
     limit: String(asHistoryLimit(query.limit)),
@@ -1365,6 +1448,39 @@ async function resolveScoutingRecordIdentities(records = []) {
       return existingPlayer ? applyScoutingMasterIdentity(record, existingPlayer) : record;
     })
   );
+}
+
+async function resolveScoutingDatasetRecordIdentities(records = []) {
+  const rows = Array.isArray(records) ? records.filter(Boolean) : [];
+  if (!rows.length) return [];
+  const identityKeys = uniqueBy(
+    rows.flatMap((record) => getScoutingIdentityLookupKeys(record)),
+    (value) => normalizeString(value, 180)
+  ).map((value) => normalizeString(value, 180)).filter(Boolean);
+  if (!identityKeys.length) return rows;
+  const result = await dbRequest("/rpc/resolve_scouting_player_identity_keys", {
+    method: "POST",
+    body: { p_identity_keys: identityKeys },
+  });
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  const playersByIdentity = new Map();
+  (Array.isArray(result.payload) ? result.payload : []).forEach((player) => {
+    getStoredPlayerIdentityAliases(player).forEach((identityKey) => {
+      const matches = playersByIdentity.get(identityKey) || [];
+      matches.push(player);
+      playersByIdentity.set(identityKey, matches);
+    });
+  });
+  return rows.map((record) => {
+    const candidates = uniqueBy(
+      getScoutingIdentityLookupKeys(record).flatMap((identityKey) => playersByIdentity.get(identityKey) || []),
+      (player) => player.id
+    );
+    const existingPlayer = candidates.find((player) => isStrongScoutingPlayerMatch(record, player));
+    return existingPlayer ? applyScoutingMasterIdentity(record, existingPlayer) : record;
+  });
 }
 
 function uniqueNormalized(values = [], maxLength = 180) {
@@ -2222,8 +2338,8 @@ async function appendImportChanges(importBatchId = "", preview = {}, seasonRows 
       import_batch_id: batchId,
       season_record_id: seasonRow?.id || null,
       change_type: change.status === "replace" ? "updated-player" : "new-season-row",
-      before_value: change.status === "replace" ? { recordKey: change.existingRecordKey, status: change.existingStatus } : {},
-      after_value: {
+      before_record: change.status === "replace" ? { recordKey: change.existingRecordKey, status: change.existingStatus } : {},
+      after_record: {
         recordKey: seasonRow?.record_key || "",
         sourceSystem: change.sourceSystem,
         sourceRecordId: change.sourceRecordId,
@@ -2248,8 +2364,11 @@ async function appendImportChanges(importBatchId = "", preview = {}, seasonRows 
 }
 
 async function startExcelImport(body = {}, actor = {}) {
-  if (!canWriteScoutingDatabase(actor)) {
-    return { ok: false, status: 403, reason: "Scouting database imports require scouting write access." };
+  if (!canAdministerScoutingData(actor)) {
+    return { ok: false, status: 403, reason: "Scouting database imports require Platform Admin access." };
+  }
+  if (!isLegacyDirectScoutingImportEnabled()) {
+    return { ok: false, status: 409, reason: "Direct scouting imports are disabled. Use the versioned dataset import flow." };
   }
   if (!isScoutingDatabaseEnabled()) {
     return {
@@ -2283,8 +2402,11 @@ async function startExcelImport(body = {}, actor = {}) {
 }
 
 async function importExcelChunk(body = {}, actor = {}) {
-  if (!canWriteScoutingDatabase(actor)) {
-    return { ok: false, status: 403, reason: "Scouting database imports require scouting write access." };
+  if (!canAdministerScoutingData(actor)) {
+    return { ok: false, status: 403, reason: "Scouting database imports require Platform Admin access." };
+  }
+  if (!isLegacyDirectScoutingImportEnabled()) {
+    return { ok: false, status: 409, reason: "Direct scouting imports are disabled. Use the versioned dataset import flow." };
   }
   if (!isScoutingDatabaseEnabled()) {
     return { ok: true, schema: SCOUTING_DATABASE_SCHEMA, mode: "legacy", enabled: false, stored: false };
@@ -2320,8 +2442,8 @@ async function importExcelChunk(body = {}, actor = {}) {
 }
 
 async function previewExcelImport(body = {}, actor = {}) {
-  if (!canWriteScoutingDatabase(actor)) {
-    return { ok: false, status: 403, reason: "Scouting database imports require scouting write access." };
+  if (!canAdministerScoutingData(actor)) {
+    return { ok: false, status: 403, reason: "Scouting database imports require Platform Admin access." };
   }
   if (!isScoutingDatabaseEnabled()) {
     return { ok: true, schema: SCOUTING_DATABASE_SCHEMA, mode: "legacy", enabled: false, stored: false };
@@ -2344,8 +2466,11 @@ async function finishExcelImport(body = {}, actor = {}) {
   if (!importBatchId) {
     return { ok: false, status: 400, reason: "Missing scouting import batch id." };
   }
-  if (!canWriteScoutingDatabase(actor)) {
-    return { ok: false, status: 403, reason: "Scouting database imports require scouting write access." };
+  if (!canAdministerScoutingData(actor)) {
+    return { ok: false, status: 403, reason: "Scouting database imports require Platform Admin access." };
+  }
+  if (!isLegacyDirectScoutingImportEnabled()) {
+    return { ok: false, status: 409, reason: "Direct scouting imports are disabled. Use the versioned dataset import flow." };
   }
   if (!isScoutingDatabaseEnabled()) {
     return { ok: true, schema: SCOUTING_DATABASE_SCHEMA, mode: "legacy", enabled: false, stored: false };
@@ -2390,8 +2515,11 @@ async function rollbackScoutingImport(body = {}, actor = {}) {
   if (!importBatchId) {
     return { ok: false, status: 400, reason: "Missing scouting import batch id." };
   }
-  if (!canWriteScoutingDatabase(actor)) {
-    return { ok: false, status: 403, reason: "Scouting database rollback requires scouting write access." };
+  if (!canAdministerScoutingData(actor)) {
+    return { ok: false, status: 403, reason: "Scouting database rollback requires Platform Admin access." };
+  }
+  if (!isLegacyDirectScoutingImportEnabled()) {
+    return { ok: false, status: 409, reason: "Direct scouting rollback is disabled. Use dataset version rollback." };
   }
   if (!isScoutingDatabaseEnabled()) {
     return { ok: true, schema: SCOUTING_DATABASE_SCHEMA, mode: "legacy", enabled: false, stored: false };
@@ -2440,8 +2568,8 @@ async function rollbackScoutingImport(body = {}, actor = {}) {
 }
 
 async function recordImportIntent(body = {}, actor = {}) {
-  if (!canWriteScoutingDatabase(actor)) {
-    return { ok: false, status: 403, reason: "Scouting database imports require scouting write access." };
+  if (!canAdministerScoutingData(actor)) {
+    return { ok: false, status: 403, reason: "Scouting database imports require Platform Admin access." };
   }
   if (!isScoutingDatabaseEnabled()) {
     return {
@@ -2490,7 +2618,8 @@ async function handleScoutingGet(req, res, actor) {
   const action = normalizeString(url.searchParams.get("action") || "status", 40);
   const status = scoutingDatabaseStatus(actor);
   if (action === "status") {
-    return sendJson(res, 200, status);
+    const dataset = await getScoutingDatasetImportService().getCapability(actor);
+    return sendJson(res, 200, { ...status, dataset });
   }
   if (!status.enabled) {
     return sendJson(res, 200, {
@@ -2528,8 +2657,37 @@ async function handleScoutingGet(req, res, actor) {
 }
 
 async function handleScoutingPost(req, res, actor) {
-  const body = await parseJsonBody(req);
+  const body = await parseJsonBody(req, { maxBytes: SCOUTING_MAX_JSON_BODY_BYTES });
   const action = normalizeString(body.action || "recordImportIntent", 80);
+  const datasetImports = getScoutingDatasetImportService();
+  if (action === "createSourceArtifact") {
+    const result = await datasetImports.createSourceArtifact(body, actor);
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
+  if (action === "verifySourceArtifact") {
+    const result = await datasetImports.verifySourceArtifact(body, actor);
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
+  if (action === "startDatasetImport") {
+    const result = await datasetImports.startDatasetImport(body, actor);
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
+  if (action === "stageDatasetChunk") {
+    const result = await datasetImports.stageDatasetChunk(body, actor);
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
+  if (action === "validateDatasetImport") {
+    const result = await datasetImports.validateDatasetImport(body, actor);
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
+  if (action === "publishDatasetImport") {
+    const result = await datasetImports.publishDatasetImport(body, actor);
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
+  if (action === "rollbackDatasetVersion") {
+    const result = await datasetImports.rollbackDatasetImport(body, actor);
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
   if (action === "startExcelImport") {
     const result = await startExcelImport(body, actor);
     return sendJson(res, result.ok ? 200 : result.status || 400, result);
@@ -2547,7 +2705,9 @@ async function handleScoutingPost(req, res, actor) {
     return sendJson(res, result.ok ? 200 : result.status || 400, result);
   }
   if (action === "rollbackImport") {
-    const result = await rollbackScoutingImport(body, actor);
+    const result = isLegacyDirectScoutingImportEnabled()
+      ? await rollbackScoutingImport(body, actor)
+      : await datasetImports.rollbackDatasetImport(body, actor);
     return sendJson(res, result.ok ? 200 : result.status || 400, result);
   }
   if (action === "previewDuplicateScoutingPlayers" || action === "repairScoutingPlayerDuplicates") {
@@ -2576,6 +2736,7 @@ async function handleScoutingDatabaseRequest(req, res, actor) {
 
 module.exports = {
   SCOUTING_DATABASE_SCHEMA,
+  canAdministerScoutingData,
   canWriteScoutingDatabase,
   handleScoutingDatabaseRequest,
   isScoutingDatabaseEnabled,
@@ -2587,6 +2748,7 @@ module.exports = {
     fetchDatabaseFilterOptions,
     fetchImportHistory,
     fetchPlayerProfile,
+    getScoutingDatasetImportService,
     groupExactNameDuplicatePlayers,
     getClientRecordPositionGroup,
     importExcelChunk,

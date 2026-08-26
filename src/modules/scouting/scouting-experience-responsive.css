@@ -258,6 +258,25 @@
 }
 
 @media (max-width: 560px) {
+  #scoutingWorkspace .scouting-command-bar {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  #scoutingWorkspace .scouting-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  #scoutingWorkspace .scouting-tab {
+    width: 100% !important;
+    min-width: 0;
+    padding-inline: 4px;
+  }
+
   #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) {
     height: auto !important;
     min-height: 0 !important;
@@ -276,6 +295,12 @@
     width: auto;
     max-width: calc(100% - 16px);
     justify-content: space-between;
+  }
+
+  #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) .scouting-pitch-toolbar select {
+    width: 96px;
+    min-width: 96px;
+    padding-right: 30px;
   }
 
   #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) .scouting-pitch-line {

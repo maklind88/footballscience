@@ -233,12 +233,14 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 
 - `id`: `scouting`
 - `purpose`: Shadow XI planning, player database scouting, favorites/lists, reports, and opposition scouting.
-- `data`: `football-scouting-v1`
-- `permissions`: platform/club/team admin, coach, scout, and analyst view/edit; platform admin owns module administration.
-- `import`: `scouting-import-data.js` is generated from the real Wyscout Excel source and lazy-loaded by Scouting. Squad/IDP player profiles use the generated NWSL-only `scouting-import-nwsl-profile-data.js` projection so profile spiders never parse the full multi-league payload on the main thread.
+- `data`: decision/workflow state remains protected in `football-scouting-v1`; player data is versioned in `scouting_source_artifacts`, `scouting_dataset_versions`, `scouting_import_stage_metrics`, `scouting_import_stage_records`, `scouting_import_validations`, `scouting_player_identity_links`, `scouting_players`, `scouting_player_seasons`, and `scouting_metrics`.
+- `api`: `/api/scouting` owns capability detection, paginated reads, immutable source registration, staged dataset writes, validation, atomic publication, version history, and rollback. Scouting UI code must not write import tables or Storage directly except through a short-lived signed upload created by this API.
+- `permissions`: platform/club/team admin, coach, scout, and analyst view/edit the scouting workflow; only Platform Admin can upload, validate, publish, or restore player database versions. Backend authorization and RLS remain authoritative.
+- `import`: Excel parsing runs in `scouting-import-parser-worker.js`. A source file is checksum-verified and stored privately before normalized rows enter a staged version. Publication is explicit, fail-closed, and atomic; a failed or blocked import cannot replace the active dataset. `scouting-import-data.js` remains a lazy legacy read fallback during migration, while Squad/IDP continue using the compact generated `scouting-import-nwsl-profile-data.js` projection until their server read adapters are proven.
+- `identity`: imported rows require stable source player and source record keys. `scouting_player_identity_links` and FSDB crosswalks preserve identity across seasons and provider aliases; row numbers and display order are never canonical identity.
 - `events`: scouting favorite toggled, scouting list updated, Shadow XI slot assigned, scouting report created.
-- `qa`: protected by central state, permission matrix, and migration contracts.
-- `migration`: move through app-state first, then dual-read / dual-write into `scouting_players`, `scouting_player_metrics`, `scouting_lists`, `scouting_shadow_xi`, and `scouting_reports`.
+- `qa`: protected by central state, permission matrix, migration contracts, dataset versioning contracts, parser/cancellation contracts, targeted browser interaction audits, performance budgets, and production postdeploy verification before activation.
+- `migration`: enable the versioned server path behind capability detection, publish one validated dataset, prove server-first reads with the generated file as fallback, then migrate Squad/IDP projections. Retire `scouting-import-data.js` only after dual-read comparison and rollback drills are green. Favorites, lists, reports, and Shadow XI are separate workflow sources of truth and must never be overwritten by statistical player imports.
 
 ## Football Science DB
 

@@ -15,6 +15,7 @@ export function createScoutingTabController(deps = {}) {
   function renderActiveTabSurface(previousTab, nextTabId) {
     const render = () => {
       deps.renderActiveTabSurfaceOrWorkspace?.({ preserveFocus: false });
+      deps.resetScrollPosition?.({ previousTab, tabId: nextTabId });
     };
     if (deps.shouldDeferTabSurfaceRender?.(nextTabId, previousTab) === true) {
       const scheduled = deps.scheduleTabSurfaceRender?.(render, { previousTab, tabId: nextTabId });

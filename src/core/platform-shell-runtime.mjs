@@ -46,9 +46,9 @@ export function createPlatformShellRuntime(deps = {}) {
 
   function queueCriticalWorkspacePreloads() {
     queuePlatformIdleTask(() => {
-      queueWorkspaceModulePreload("transfer-room");
-    }, 900);
-    win.setTimeout(() => queuePlatformIdleTask(() => queueWorkspaceModulePreload("scouting"), 600), 1600);
+      queueWorkspaceModulePreload("scouting");
+    }, 600);
+    win.setTimeout(() => queuePlatformIdleTask(() => queueWorkspaceModulePreload("transfer-room"), 600), 1200);
   }
 
   function getPlatformColorSchemeMediaQuery() {

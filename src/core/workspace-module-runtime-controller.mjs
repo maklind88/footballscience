@@ -131,10 +131,13 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
   }
 
   function getScoutingWorkspaceContext() {
+    const currentUser = getCurrentUser();
     return {
       ui,
       platformModuleLoader,
       escapeHtml,
+      currentUser,
+      getCurrentUser,
       teamName: getScoutingTeamName(),
       ensureState: ensureScoutingState,
       writeState: writeScoutingState,
@@ -494,7 +497,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
   }
 
   function bindWorkspaceModuleEvents() {
-    ["click", "input", "change", "submit"].forEach((type) => {
+    ["click", "input", "change", "submit", "keydown"].forEach((type) => {
       bindWorkspaceModuleEvent(ui.scoutingWorkspace, type, (event) => {
         scoutingWorkspaceModule?.[getWorkspaceModuleEventHandlerName(type)]?.(event, getScoutingWorkspaceContext());
       });

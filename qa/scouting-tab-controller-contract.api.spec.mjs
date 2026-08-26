@@ -19,6 +19,7 @@ function createHarness(overrides = {}) {
     clearedReports: 0,
     perf: [],
     renders: [],
+    scrollResets: [],
     shadowResets: 0,
     syncedTabs: [],
     writes: [],
@@ -33,6 +34,7 @@ function createHarness(overrides = {}) {
     ensureState: () => state,
     getTabs: () => tabs,
     renderActiveTabSurfaceOrWorkspace: (options) => calls.renders.push(options),
+    resetScrollPosition: (options) => calls.scrollResets.push(options),
     resetShadowSelection: (currentState) => {
       calls.shadowResets += 1;
       currentState.shadowXi.selectedSlotId = "";
@@ -62,6 +64,7 @@ test("Scouting tab controller switches tab and keeps the refresh path lightweigh
   expect(harness.calls.writes).toEqual([{ syncCentral: false }]);
   expect(harness.calls.syncedTabs).toEqual(["lists"]);
   expect(harness.calls.renders).toEqual([{ preserveFocus: false }]);
+  expect(harness.calls.scrollResets).toEqual([{ previousTab: "database", tabId: "lists" }]);
   expect(harness.calls.cancelledTimers).toBe(1);
   expect(harness.calls.clearedReports).toBe(1);
   expect(harness.calls.perf[0]).toMatchObject({
@@ -100,10 +103,12 @@ test("Scouting tab controller does not mutate state for invalid or unchanged tab
   expect(invalidHarness.state.activeTab).toBe("lists");
   expect(invalidHarness.calls.writes).toEqual([]);
   expect(invalidHarness.calls.renders).toEqual([]);
+  expect(invalidHarness.calls.scrollResets).toEqual([]);
 
   const unchangedHarness = createHarness({ activeTab: "reports" });
 
   expect(unchangedHarness.controller.setActiveTab("reports")).toEqual({ changed: false, status: "unchanged" });
   expect(unchangedHarness.calls.writes).toEqual([]);
   expect(unchangedHarness.calls.renders).toEqual([]);
+  expect(unchangedHarness.calls.scrollResets).toEqual([]);
 });

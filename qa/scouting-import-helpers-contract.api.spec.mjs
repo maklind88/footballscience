@@ -64,6 +64,8 @@ test("Scouting import helpers preserve parsing, identity, and metric import beha
   });
   expect(helpers.parseScoutingMetricValue("1,23")).toBe(1.23);
   expect(helpers.parseScoutingMetricValue("~450")).toBe(450);
+  expect(helpers.parseScoutingMetricValue("")).toBeNull();
+  expect(helpers.parseScoutingMetricValue("-")).toBeNull();
   expect(helpers.getScoutingImportMetricDirection("Errors against")).toBe("lower");
   expect(helpers.getScoutingImportMetricQuality("estimated 8.4", 900)).toBe("estimated");
   expect(helpers.getScoutingImportMetricQuality("8.4", 300)).toBe("estimated");
@@ -93,4 +95,16 @@ test("Scouting import helpers preserve parsing, identity, and metric import beha
   expect(playerSourceId).toContain("wyscoutid-ws-1");
   expect(helpers.buildScoutingRecordSourceId(row, map, playerSourceId)).toMatch(/^wyscout::/);
   expect(helpers.getScoutingImportMergeKey("wyscout", playerSourceId, "2026", "NWSL", "NCC")).toContain("|2026|NWSL|NCC");
+});
+
+test("Scouting imports keep provider-specific sheets outside the active player dataset", () => {
+  const helpers = createHelpers({
+    sheets: [
+      { name: "NWSL - USA (Women)", headers: ["Player"], rows: [["Player A"]] },
+      { name: "NWSL (Statsbomb)", headers: ["Player SBD ID"], rows: [["sb-1"]] },
+    ],
+  });
+
+  expect(helpers.getScoutingImportSheetsForBatch().map((sheet) => sheet.name)).toEqual(["NWSL - USA (Women)"]);
+  expect(helpers.getScoutingImportHeadersForBatch(helpers.getScoutingImportSheetsForBatch())).toEqual(["Player"]);
 });

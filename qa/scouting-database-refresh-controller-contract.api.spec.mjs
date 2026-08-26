@@ -15,6 +15,7 @@ function createHarness(overrides = {}) {
     appliedWorkers: [],
     cancelledFrames: [],
     clearedTimers: [],
+    apiSignals: [],
     loadedApi: 0,
     loadedFsdb: 0,
     perf: [],
@@ -44,12 +45,14 @@ function createHarness(overrides = {}) {
     isApiDatabaseActive: () => overrides.source === "api",
     isFootballScienceDbDatabaseActive: () => overrides.source === "fsdb",
     isWorkerDatabaseActive: () => overrides.source === "worker",
-    loadApiDatabase: () => {
+    loadApiDatabase: (options = {}) => {
       calls.loadedApi += 1;
-      return overrides.loadApiResult || Promise.resolve({ source: "api" });
+      calls.apiSignals.push(options.signal || null);
+      return overrides.loadApiResults?.[calls.loadedApi - 1] || overrides.loadApiResult || Promise.resolve({ source: "api" });
     },
-    loadFootballScienceDbDatabase: () => {
+    loadFootballScienceDbDatabase: (options = {}) => {
       calls.loadedFsdb += 1;
+      calls.apiSignals.push(options.signal || null);
       return overrides.loadFsdbResult || Promise.resolve({ source: "fsdb" });
     },
     onRefreshStatus: (status) => calls.refreshStatuses.push(status),
@@ -132,7 +135,7 @@ test("Scouting database refresh controller debounces API and FSDB refreshes", as
 
   expect(apiHarness.controller.scheduleRefresh()).toEqual({ delayMs: 260, mode: "api", status: "scheduled" });
   expect(apiHarness.calls.clearedTimers).toEqual([7]);
-  expect(apiHarness.calls.setApiTimers).toEqual([20]);
+  expect(apiHarness.calls.setApiTimers).toEqual([0, 20]);
   apiHarness.runTimer(20);
   await flushMicrotasks();
 
@@ -157,7 +160,8 @@ test("Scouting database refresh controller refreshes worker sources and falls ba
   harness.runTimer(20);
   await flushMicrotasks();
 
-  expect(harness.calls.requestedWorkers).toEqual([{ timeoutMs: 45000 }]);
+  expect(harness.calls.requestedWorkers[0]).toMatchObject({ timeoutMs: 45000 });
+  expect(harness.calls.requestedWorkers[0].signal).toBeInstanceOf(AbortSignal);
   expect(harness.calls.appliedWorkers).toEqual([{ source: "worker" }]);
   expect(harness.calls.renderedResults).toBe(0);
   expect(harness.calls.perf[0]).toMatchObject({ label: "database.refresh", detail: { source: "worker" }, ended: { status: "fallback" } });
@@ -191,6 +195,45 @@ test("Scouting database refresh controller ignores stale worker results", async 
   expect(harness.calls.renderedResults).toBe(1);
   expect(harness.calls.perf.map((entry) => entry.ended?.status).sort()).toEqual(["loaded", "stale"]);
   expect(harness.calls.refreshStatuses).toContainEqual({ revision: 2, source: "worker", status: "loaded" });
+  expect(harness.calls.requestedWorkers[0].signal.aborted).toBe(true);
+  expect(harness.calls.requestedWorkers[1].signal.aborted).toBe(false);
+});
+
+test("Scouting database refresh controller aborts superseded API requests", async () => {
+  let rejectFirst;
+  const firstResult = new Promise((_resolve, reject) => {
+    rejectFirst = reject;
+  });
+  const harness = createHarness({
+    source: "api",
+    loadApiResults: [firstResult, Promise.resolve({ source: "api", marker: "new" })],
+  });
+
+  harness.controller.scheduleRefresh();
+  harness.runTimer(20);
+  harness.controller.scheduleRefresh();
+  expect(harness.calls.apiSignals[0].aborted).toBe(true);
+  rejectFirst(new DOMException("cancelled", "AbortError"));
+  harness.runTimer(21);
+  await flushMicrotasks();
+
+  expect(harness.calls.loadedApi).toBe(2);
+  expect(harness.calls.apiSignals[1].aborted).toBe(false);
+  expect(harness.calls.renderedResults).toBe(1);
+  expect(harness.calls.refreshStatuses).toContainEqual({ revision: 2, source: "api", status: "loaded" });
+});
+
+test("Scouting database refresh controller cancels scheduled and rendered work", () => {
+  const harness = createHarness({ apiRefreshTimer: 7, resultsFrame: 44, source: "api" });
+
+  const result = harness.controller.cancel();
+
+  expect(result).toEqual({ revision: 1, status: "cancelled" });
+  expect(harness.calls.clearedTimers).toEqual([7]);
+  expect(harness.calls.cancelledFrames).toEqual([44]);
+  expect(harness.calls.setApiTimers).toEqual([0]);
+  expect(harness.calls.setFrames).toEqual([0]);
+  expect(harness.calls.refreshStatuses).toContainEqual({ revision: 1, source: "api", status: "cancelled" });
 });
 
 test("Scouting database refresh controller avoids stale renders after leaving Database", async () => {

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createScoutingDatabaseActions } from "../src/modules/scouting/index.mjs";
+import { handleScoutingDatabaseClick } from "../src/modules/scouting/scouting-database.mjs";
 
 function normalizeText(value = "", limit = 160) {
   return String(value || "").trim().slice(0, limit);
@@ -240,4 +241,29 @@ test("Scouting Database actions handle range reset, debounce, and advanced toggl
   expect(filtersClosed).toEqual({ changed: true, open: false, status: "updated" });
   expect(harness.ui.advancedFiltersOpen).toBe(false);
   expect(harness.ui.metricFilterOpen).toBe(false);
+});
+
+test("Scouting Database import cancellation is admin-gated and routed without clearing active data", () => {
+  const target = {
+    closest(selector) {
+      return selector === "[data-cancel-scouting-import]" ? this : null;
+    },
+  };
+  let cancellations = 0;
+
+  expect(handleScoutingDatabaseClick({ target }, {
+    canAdministerData: () => true,
+    cancelImportOperation: () => {
+      cancellations += 1;
+    },
+  })).toBe(true);
+  expect(cancellations).toBe(1);
+
+  expect(handleScoutingDatabaseClick({ target }, {
+    canAdministerData: () => false,
+    cancelImportOperation: () => {
+      cancellations += 1;
+    },
+  })).toBe(true);
+  expect(cancellations).toBe(1);
 });

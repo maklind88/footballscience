@@ -8,6 +8,7 @@ import {
   createScoutingComparisonActions,
   createScoutingDatabaseActions,
   createScoutingDatabaseBackgroundController,
+  createScoutingDatabaseCapabilityService,
   createScoutingDatabaseLoader,
   createScoutingDatabasePagingRenderer,
   createScoutingDatabaseRefreshController,
@@ -38,6 +39,12 @@ import {
   createScoutingProfileModalController,
   createScoutingReportsActions,
   createScoutingShadowXiActions,
+  createScoutingDatasetImportClient,
+  createScoutingImportArtifactClient,
+  createScoutingImportDatabaseBuilder,
+  createScoutingImportParserClient,
+  createScoutingImportPreviewService,
+  calculateScoutingSourceBufferChecksum,
   SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS as SCOUTING_FSDB_GENDER_SEGMENT_POLICY_OPTIONS,
   normalizeScoutingComparisonLab,
   buildScoutingPersonClusters,
@@ -89,6 +96,7 @@ let scoutingDatabaseWorkerFullReady = false;
 let scoutingDatabaseError = "";
 let scoutingDatabaseOptionCache = null;
 let scoutingDatabaseOptionLoadPromise = null;
+let scoutingDatabaseCapabilitySnapshot = null;
 let scoutingPercentileCache = new Map();
 let scoutingMetricAliasCache = new Map();
 let scoutingRoleProfileCache = new Map();
@@ -172,8 +180,8 @@ let scoutingMarketIntelVersion = 0;
 let preferredScoutingShadowSlotId = "";
 let scoutingImportedDatabaseLoaded = false;
 let scoutingImportDraft = null;
-let scoutingImportParserPromise = null;
 let scoutingImportPdfParserPromise = null;
+let scoutingImportOperationController = null;
 let scoutingMyTeamSelectedPlayerId = "";
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
@@ -311,19 +319,35 @@ const scoutingImportSourcePresets = Object.freeze([
     },
   },
 ]);
-const SCOUTING_IMPORT_MAX_RECORDS_PER_CHUNK = 10;
-const SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS = 70000;
-const SCOUTING_IMPORT_MAX_CHUNK_BYTES = 200000;
 const SCOUTING_API_DATABASE_PAGE_LIMIT = 20;
 const SCOUTING_DATABASE_PAGE_SIZE = 20;
 const SCOUTING_ADVANCED_PANEL_RECORD_LIMIT = 4;
-const SCOUTING_SERVER_FIRST_DATABASE_ENABLED = false;
 const SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED = false;
 const SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS = SCOUTING_FSDB_GENDER_SEGMENT_POLICY_OPTIONS;
 const scoutingDatabaseSourcePolicy = createScoutingDatabaseSourcePolicy({
   normalizeText: normalizeScoutingText,
   segmentOptions: SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS,
   standaloneFootballScienceDbEnabled: SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED,
+});
+const scoutingDatabaseCapabilityService = createScoutingDatabaseCapabilityService({
+  fetchStatus: ({ signal } = {}) => fetchScoutingApi({ action: "status" }, { signal }),
+});
+const scoutingImportArtifactClient = createScoutingImportArtifactClient({
+  cryptoRef: typeof globalThis !== "undefined" ? globalThis.crypto : null,
+  getSupabaseClient: getScoutingSupabaseClient,
+  onProgress: updateScoutingImportProgress,
+  sendAction: sendScoutingApiAction,
+});
+const scoutingImportParserClient = createScoutingImportParserClient({
+  createWorker: () => typeof Worker === "function"
+    ? new Worker(`scouting-import-parser-worker.js?v=${getScoutingAssetVersion()}`)
+    : null,
+});
+const scoutingDatasetImportClient = createScoutingDatasetImportClient({
+  artifactClient: scoutingImportArtifactClient,
+  onProgress: updateScoutingImportProgress,
+  sendAction: sendScoutingApiAction,
+  stageConcurrency: 3,
 });
 const scoutingImportSupportedFileExts = Object.freeze(
   scoutingImportSupportedSourceTypes
@@ -411,6 +435,60 @@ const scoutingRecordIndex = Object.freeze({
   metricQuality: 21,
   dateOfBirth: 22,
 });
+const scoutingImportDatabaseBuilder = createScoutingImportDatabaseBuilder({
+  buildCollectionHash: buildScoutingImportCollectionHash,
+  buildPlayerSourceId: buildScoutingPlayerSourceId,
+  buildRecordSourceId: buildScoutingRecordSourceId,
+  getImportColumnId: getScoutingImportColumnId,
+  getImportHeadersForBatch: getScoutingImportHeadersForBatch,
+  getImportIdentityCandidates: getScoutingImportIdentityCandidates,
+  getImportMergeKey: getScoutingImportMergeKey,
+  getImportMetricDirection: getScoutingImportMetricDirection,
+  getImportMetricHeaders: getScoutingImportMetricHeaders,
+  getImportMetricQuality: getScoutingImportMetricQuality,
+  getImportSheetsForBatch: getScoutingImportSheetsForBatch,
+  getImportSourceSystem: getScoutingImportSourceSystem,
+  getRecordCanonicalPersonKey: getScoutingRecordCanonicalPersonKey,
+  getRecordLeague: getScoutingRecordLeague,
+  getRecordMetricValueCount: getScoutingRecordMetricValueCount,
+  getRecordMinutes: getScoutingRecordMinutes,
+  getRecordName: getScoutingRecordName,
+  getRecordPlayerIdentityId: getScoutingRecordPlayerIdentityId,
+  getRecordSeason: getScoutingRecordSeason,
+  getRecordStrongPersonKey: getScoutingRecordStrongPersonKey,
+  getRecordTeam: getScoutingRecordTeam,
+  isVerifiedImportIdentityKey: isScoutingVerifiedImportIdentityKey,
+  normalizeDateValue: normalizeScoutingDateValue,
+  normalizeLeague: normalizeScoutingLeague,
+  normalizeText: normalizeScoutingText,
+  parseMetricValue: parseScoutingMetricValue,
+  recordIndex: scoutingRecordIndex,
+});
+const scoutingImportPreviewService = createScoutingImportPreviewService({
+  getDatabase: getScoutingDatabase,
+  getImportMergeKey: getScoutingImportMergeKey,
+  getManualStateSummary: getScoutingImportManualStateSummary,
+  getMetricQuality: getScoutingMetricQuality,
+  getMetricValue: getScoutingMetricValue,
+  getRecordAge: getScoutingRecordAge,
+  getRecordBirthCountry: getScoutingRecordBirthCountry,
+  getRecordCanonicalPersonKey: getScoutingRecordCanonicalPersonKey,
+  getRecordDateOfBirth: getScoutingRecordDateOfBirth,
+  getRecordLeague: getScoutingRecordLeague,
+  getRecordMinutes: getScoutingRecordMinutes,
+  getRecordName: getScoutingRecordName,
+  getRecordPassportCountry: getScoutingRecordPassportCountry,
+  getRecordPlayerIdentityId: getScoutingRecordPlayerIdentityId,
+  getRecordPosition: getScoutingRecordPosition,
+  getRecordSeason: getScoutingRecordSeason,
+  getRecordSourceTrace: getScoutingRecordSourceTrace,
+  getRecordStrongPersonKey: getScoutingRecordStrongPersonKey,
+  getRecordTeam: getScoutingRecordTeam,
+  normalizeIdentityPart: normalizeScoutingIdentityPart,
+  normalizeMetricQuality: normalizeScoutingMetricQuality,
+  normalizeText: normalizeScoutingText,
+  recordIndex: scoutingRecordIndex,
+});
 const footballScienceDbScoutingAdapter = createFootballScienceDbScoutingAdapter({
   normalizeDateValue: normalizeScoutingDateValue,
   normalizeText: normalizeScoutingText,
@@ -482,11 +560,15 @@ function syncScoutingDatabaseRefreshStatus({ revision = 0, status = "" } = {}) {
     return;
   }
   panel.removeAttribute("aria-busy");
+  if (status === "fallback" && summary) {
+    summary.textContent = "Could not refresh. Showing the previous results.";
+  }
 }
 const scoutingDatabaseRefreshController = createScoutingDatabaseRefreshController({
   applyWorkerDatabase: applyScoutingWorkerDatabase,
   cancelAnimationFrame: (frame) => window.cancelAnimationFrame(frame),
   clearTimeout: (timer) => window.clearTimeout(timer),
+  createAbortController: () => new AbortController(),
   ensureState: ensureScoutingState,
   getApiRefreshTimer: getScoutingDatabaseApiRefreshTimer,
   getResultsFrame: getScoutingDatabaseResultsFrame,
@@ -532,6 +614,7 @@ const scoutingTabController = createScoutingTabController({
   ensureState: ensureScoutingState,
   getTabs: () => scoutingTabs,
   renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
+  resetScrollPosition: resetScoutingTabScrollPosition,
   resetShadowSelection: (state) => {
     preferredScoutingShadowSlotId = "";
     state.shadowXi.selectedSlotId = "";
@@ -968,6 +1051,55 @@ function deferScoutingStateWrite(options = {}, beforeWrite = null, delayMs = 120
 }
 function canEditScoutingWorkspace() {
   return activeContext.canEdit();
+}
+function getScoutingCurrentUser() {
+  return activeContext?.getCurrentUser?.() || activeContext?.currentUser || null;
+}
+function canAdministerScoutingData() {
+  const user = getScoutingCurrentUser();
+  return normalizeScoutingText(user?.role || user?.platformRole || user?.platform_role, 40).toLowerCase() === "admin";
+}
+function getScoutingSupabaseClient() {
+  const authStore = window.platformAuthStore;
+  return typeof authStore?.getSupabaseClient === "function" ? authStore.getSupabaseClient() : authStore?.supabase || null;
+}
+function updateScoutingImportProgress(progress = {}) {
+  if (!scoutingImportDraft) {
+    return;
+  }
+  scoutingImportDraft = {
+    ...scoutingImportDraft,
+    importProgress: {
+      phase: normalizeScoutingText(progress.phase, 40),
+      label: normalizeScoutingText(progress.label, 160),
+      completed: Math.max(0, Math.floor(Number(progress.completed) || 0)),
+      total: Math.max(0, Math.floor(Number(progress.total) || 0)),
+    },
+    databaseUploadStatus: normalizeScoutingText(progress.label, 160) || scoutingImportDraft.databaseUploadStatus || "",
+  };
+  const progressRoot = ui.scoutingWorkspace?.querySelector("[data-scouting-import-progress]");
+  if (!progressRoot) {
+    return;
+  }
+  const label = scoutingImportDraft.importProgress.label;
+  const completed = scoutingImportDraft.importProgress.completed;
+  const total = scoutingImportDraft.importProgress.total;
+  const progressElement = progressRoot.querySelector("progress");
+  const counter = progressRoot.querySelector("[data-scouting-import-progress-counter]");
+  const statusDetail = ui.scoutingWorkspace?.querySelector(".scouting-import-status p");
+  const labelElement = progressRoot.querySelector("[data-scouting-import-progress-label]");
+  if (labelElement) labelElement.textContent = label;
+  if (counter) {
+    counter.textContent = total ? `${completed}/${total}` : "";
+    counter.hidden = !total;
+  }
+  if (progressElement) {
+    const progressPct = total ? Math.round((Math.min(completed, total) / total) * 100) : 0;
+    progressElement.value = progressPct;
+    progressElement.textContent = `${progressPct}%`;
+    progressElement.hidden = !total;
+  }
+  if (statusDetail) statusDetail.textContent = label;
 }
 function startScoutingPerformance(label, detail = {}) {
   return scoutingPerformanceMonitor.start(label, detail);
@@ -1898,6 +2030,16 @@ function getScoutingDatabase() {
     }
     return null;
   }
+  const activeScoutingDatabase = activeDatabase;
+  if (
+    !scoutingDatabaseSourcePolicy.isFootballScienceDbDatabase(activeScoutingDatabase) &&
+    activeScoutingDatabase &&
+    Array.isArray(activeScoutingDatabase.records) &&
+    Array.isArray(activeScoutingDatabase.metrics)
+  ) {
+    rememberScoutingDatabaseRecords(activeScoutingDatabase);
+    return activeScoutingDatabase;
+  }
   if (!scoutingImportedDatabaseLoaded) {
     scoutingImportedDatabaseLoaded = true;
     try {
@@ -1915,18 +2057,11 @@ function getScoutingDatabase() {
     rememberScoutingDatabaseRecords(importedDatabase);
     return importedDatabase;
   }
-  const database = activeDatabase;
-  if (scoutingDatabaseSourcePolicy.isFootballScienceDbDatabase(database)) {
-    return null;
-  }
-  if (database && Array.isArray(database.records) && Array.isArray(database.metrics)) {
-    rememberScoutingDatabaseRecords(database);
-    return database;
-  }
   return null;
 }
 function isScoutingDatabaseLoaded() {
-  return Boolean(getScoutingDatabase());
+  const database = getScoutingDatabase();
+  return Boolean(database && database.source !== "ui-import");
 }
 function isScoutingApiDatabaseActive() {
   return scoutingDatabaseSourcePolicy.isApiDatabase(getScoutingDatabase());
@@ -2086,7 +2221,7 @@ function getScoutingDatabasePageOffset(totalRecordCount = 0) {
   const lastPageStart = Math.max(0, Math.floor((total - 1) / SCOUTING_DATABASE_PAGE_SIZE) * SCOUTING_DATABASE_PAGE_SIZE);
   return Math.max(0, Math.min(rawOffset, lastPageStart));
 }
-async function fetchScoutingApi(query = {}) {
+async function fetchScoutingApi(query = {}, options = {}) {
   const params = new URLSearchParams();
   Object.entries(query).forEach(([key, value]) => {
     if (value !== undefined && value !== null && String(value).trim()) {
@@ -2103,6 +2238,7 @@ async function fetchScoutingApi(query = {}) {
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
+        signal: options.signal,
       });
       const text = await response.text();
       let result = {};
@@ -2125,6 +2261,9 @@ async function fetchScoutingApi(query = {}) {
       }
       return { ok: true, status: response.status, result };
     } catch (error) {
+      if (error?.name === "AbortError") {
+        throw error;
+      }
       return { ok: false, status: 0, reason: error?.message || "Scouting API could not be reached." };
     }
   }
@@ -2148,8 +2287,8 @@ function getFootballScienceDbQueryFromState() {
     limit: SCOUTING_API_DATABASE_PAGE_LIMIT,
   };
 }
-async function fetchFootballScienceDbApi(query = {}) {
-  return footballScienceDbApiClient.fetchApi(query);
+async function fetchFootballScienceDbApi(query = {}, options = {}) {
+  return footballScienceDbApiClient.fetchApi(query, options);
 }
 function calculateScoutingAgeFromBirthDate(dateOfBirth = "", birthYear = null) {
   return footballScienceDbScoutingAdapter.calculateAgeFromBirthDate(dateOfBirth, birthYear);
@@ -2190,12 +2329,12 @@ function applyFootballScienceDbDatabase(result = {}) {
   queueFootballScienceDbQualityLoad();
   return database;
 }
-async function loadFootballScienceDbDatabase() {
+async function loadFootballScienceDbDatabase(options = {}) {
   const query = getFootballScienceDbQueryFromState();
   if (!normalizeFootballScienceDbGenderSegment(query.genderSegment)) {
     throw new Error("Choose Women's or Men's players before loading Football Science DB.");
   }
-  const response = await fetchFootballScienceDbApi(query);
+  const response = await fetchFootballScienceDbApi(query, { signal: options.signal });
   if (!response.ok) {
     throw new Error(response.reason || "Football Science DB is not available.");
   }
@@ -2386,7 +2525,7 @@ function queueFootballScienceDbProfileHydration(recordId, options = {}) {
 async function openFootballScienceDbProfileFromQueue(options = {}) {
   return footballScienceDbProfileService.openFromQueue(options);
 }
-async function sendScoutingApiAction(payload = {}) {
+async function sendScoutingApiAction(payload = {}, options = {}) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const token = await getScoutingApiAccessToken({ forceRefresh: attempt > 0 });
     if (!token) {
@@ -2400,6 +2539,7 @@ async function sendScoutingApiAction(payload = {}) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
+        signal: options.signal,
       });
       const text = await response.text();
       let result = {};
@@ -2422,6 +2562,9 @@ async function sendScoutingApiAction(payload = {}) {
       }
       return { ok: true, status: response.status, result };
     } catch (error) {
+      if (error?.name === "AbortError") {
+        throw error;
+      }
       return { ok: false, status: 0, reason: error?.message || "Scouting API could not be reached." };
     }
   }
@@ -2509,7 +2652,7 @@ function renderScoutingDatabasePagingControls(paging = {}) {
   return scoutingDatabasePagingRenderer.render(paging);
 }
 function renderScoutingImportHistoryPanel() {
-  const canEdit = canEditScoutingWorkspace();
+  const canEdit = canAdministerScoutingData();
   const imports = Array.isArray(scoutingImportHistoryCache.imports) ? scoutingImportHistoryCache.imports : [];
   const body =
     scoutingImportHistoryCache.status === "loading"
@@ -2523,16 +2666,17 @@ function renderScoutingImportHistoryPanel() {
                 .slice(0, 8)
                 .map((item) => {
                   const status = normalizeScoutingText(item.status, 40) || "unknown";
+                  const versionStatus = normalizeScoutingText(item.datasetVersionStatus, 40);
                   const rows = Number.isFinite(Number(item.rowCount)) ? Number(item.rowCount).toLocaleString("en-US") : "0";
                   const date = formatScoutingImportSummaryDate(item.publishedAt || item.updatedAt || item.createdAt);
                   return `
                     <article class="scouting-import-history-item">
                       <div>
                         <strong>${escapeHtml(item.sourceFileName || "Scouting player database import")}</strong>
-                        <span>${escapeHtml(`${status}${date ? ` · ${date}` : ""} · ${rows} rows`)}</span>
+                        <span>${escapeHtml(`${versionStatus || status}${item.versionNumber ? ` · v${item.versionNumber}` : ""}${date ? ` · ${date}` : ""} · ${rows} rows`)}</span>
                       </div>
                       ${
-                        canEdit && item.id && status !== "archived"
+                        canEdit && item.id && item.datasetVersionId && ["superseded", "rolled_back"].includes(versionStatus)
                           ? `<button type="button" class="scouting-secondary-button" data-rollback-scouting-import="${escapeHtml(item.id)}">Rollback</button>`
                           : ""
                       }
@@ -2571,7 +2715,7 @@ function renderScoutingImportHistoryPanelIntoDom() {
   }
 }
 function loadScoutingImportHistory({ force = false } = {}) {
-  if (!isScoutingApiDatabaseActive()) {
+  if (!canAdministerScoutingData()) {
     return;
   }
   if (scoutingImportHistoryCache.promise && !force) {
@@ -2710,9 +2854,9 @@ function renderScoutingProfileApiPanelIntoDom(recordId, profile = null, status =
 function hydrateScoutingProfileApiDetails(recordId) {
   return scoutingApiProfileService.hydrateDetails(recordId);
 }
-async function loadScoutingDatabaseWithApi() {
+async function loadScoutingDatabaseWithApi(options = {}) {
   const query = getScoutingApiQueryFromState();
-  const response = await fetchScoutingApi(query);
+  const response = await fetchScoutingApi(query, { signal: options.signal });
   if (!response.ok) {
     throw new Error(response.reason || "Scouting API is not available.");
   }
@@ -2728,6 +2872,23 @@ async function loadScoutingDatabaseWithApi() {
     });
   }
   return database;
+}
+async function loadScoutingPreferredDatabase(options = {}) {
+  const capability = await scoutingDatabaseCapabilityService.load({ signal: options.signal });
+  scoutingDatabaseCapabilitySnapshot = capability;
+  if (capability.available && capability.ready) {
+    try {
+      return await loadScoutingDatabaseWithApi(options);
+    } catch (error) {
+      if (error?.name === "AbortError") throw error;
+      scoutingDatabaseCapabilitySnapshot = {
+        ...capability,
+        degraded: true,
+        fallbackReason: error?.message || "The active server dataset could not be loaded.",
+      };
+    }
+  }
+  return loadScoutingDatabaseWithWorker({ previewFirst: false, signal: options.signal });
 }
 function loadScoutingDatabaseFilterOptions() {
   if (!isScoutingApiDatabaseActive()) {
@@ -2779,207 +2940,41 @@ function loadScoutingDatabaseFilterOptions() {
   scoutingDatabaseOptionLoadPromise = promise;
   return promise;
 }
-function recordScoutingImportIntent(database = {}) {
-  if (!database?.records?.length) {
-    return Promise.resolve({ ok: false });
-  }
-  return sendScoutingApiAction({
-    action: "recordImportIntent",
-    sourceFileName: database.fileName || "",
-    sheetName: database.sheets?.[0] || "",
-    rowCount: database.records.length,
-    metricCount: database.metrics?.length || 0,
-    metadata: {
-      source: "scouting player database",
-      sourceSystem: getScoutingImportSourceSystem(),
-      sourceType: scoutingImportDraft?.sourceSystem || getScoutingImportSourceSystem(),
-      importedAt: database.importedAt || new Date().toISOString(),
-      sampleRecordIds: database.records.slice(0, 5).map(getScoutingRecordId),
-    },
-  }).catch(() => ({ ok: false }));
-}
-function getScoutingImportChunks(
-  records = [],
-  maxRecordsPerChunk = SCOUTING_IMPORT_MAX_RECORDS_PER_CHUNK,
-  maxPayloadCharacters = SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS
-) {
-  const chunks = [];
-  let current = [];
-  let currentSize = 0;
-  for (const record of records) {
-    const recordSize = JSON.stringify(record).length + 8;
-    if (current.length && (current.length >= maxRecordsPerChunk || currentSize + recordSize > maxPayloadCharacters)) {
-      chunks.push(current);
-      current = [];
-      currentSize = 0;
-    }
-    current.push(record);
-    currentSize += recordSize;
-  }
-  if (current.length) {
-    chunks.push(current);
-  }
-  return chunks;
-}
-async function publishScoutingExcelImportToDatabase(database = {}) {
-  if (!database?.records?.length) {
-    return { ok: false, reason: "No scouting player rows to upload." };
-  }
-  const startResult = await sendScoutingApiAction({
-    action: "startExcelImport",
-    sourceFileName: database.fileName || "",
-    sheetName: Array.isArray(database.sheets) ? database.sheets.join(", ") : "",
-    seasonLabel: scoutingImportDraft?.seasonOverride || "",
-    rowCount: database.records.length,
-    metricCount: database.metrics?.length || 0,
+async function stageScoutingExcelImport(database = {}, options = {}) {
+  return scoutingDatasetImportClient.stage({
+    database,
+    file: scoutingImportDraft?.sourceFile,
+    checksumSha256: scoutingImportDraft?.sourceChecksumSha256 || "",
+    signal: options.signal,
     metadata: {
       source: "scouting player database",
       sourceSystem: scoutingImportDraft?.sourceSystem || getScoutingImportSourceSystem(),
       importedAt: database.importedAt || new Date().toISOString(),
       importedFrom: scoutingImportDraft?.sourceTypeLabel || scoutingImportDraft?.sourceSystem || "file-import",
+      seasonOverride: scoutingImportDraft?.seasonOverride || "",
+      columnMapping: scoutingImportDraft?.map || {},
     },
   });
-  if (!startResult.ok || startResult.result?.enabled === false) {
-    return startResult;
-  }
-  const importBatchId = startResult.result?.importBatchId || "";
-  if (!importBatchId) {
-    return { ok: false, reason: "Scouting import batch could not be created." };
-  }
-  const recordsWithBatchTrace = (database.records || []).map((record) => {
-    const nextRecord = Array.isArray(record) ? record.slice() : record;
-    if (Array.isArray(nextRecord)) {
-      nextRecord[scoutingRecordIndex.sourceTrace] = {
-        ...getScoutingRecordSourceTrace(record),
-        importBatchId,
-      };
-    }
-    return nextRecord;
-  });
-  const databaseForPublish = {
-    ...database,
-    records: recordsWithBatchTrace,
-  };
-  const chunkPlan = getScoutingImportPayloadChunks(databaseForPublish.records, databaseForPublish.metrics || []);
-  if (!chunkPlan.ok) {
-    return chunkPlan;
-  }
-  const chunks = chunkPlan.chunks;
-  for (let index = 0; index < chunks.length; index += 1) {
-    const payloadRows = chunks[index];
-    const chunkPayload = {
-      action: "importExcelChunk",
-      importBatchId,
-      chunkIndex: index,
-      chunkCount: chunks.length,
-      metrics: chunkPlan.metricsFirstChunkIndex === index ? (databaseForPublish.metrics || []) : [],
-      records: payloadRows,
-    };
-    scoutingImportDraft = {
-      ...(scoutingImportDraft || {}),
-      databaseUploadStatus: `Uploading ${index + 1}/${chunks.length} to scouting player database`,
-      databaseImportBatchId: importBatchId,
-    };
-    renderScoutingWorkspace({ preserveFocus: true });
-    const chunkResult = await sendScoutingApiAction(chunkPayload);
-    if (!chunkResult.ok) {
-      return {
-        ok: false,
-        reason: chunkResult.reason || "Scouting player database chunk upload failed.",
-      };
-    }
-  }
-  const finishResult = await sendScoutingApiAction({
-    action: "finishExcelImport",
-    importBatchId,
-    rowCount: databaseForPublish.records.length,
-    metricCount: databaseForPublish.metrics?.length || 0,
-  });
-  if (!finishResult.ok) {
-    return {
-      ok: false,
-      reason: finishResult.reason || "Scouting player database import could not be published.",
-    };
-  }
-  scoutingImportDraft = {
-    ...(scoutingImportDraft || {}),
-    databaseStored: true,
-    databaseUploadStatus: "Scouting player database updated",
-    databaseImportBatchId: importBatchId,
-  };
-  scoutingImportDraft.lastUploadSummary = {
-    ...(scoutingImportDraft.lastUploadSummary || {}),
-    status: "published",
-    databaseStored: true,
-    batchId: importBatchId,
-    rowCount: databaseForPublish.records.length,
-    metricCount: databaseForPublish.metrics?.length || 0,
-    updatedAt: new Date().toISOString(),
-  };
-  setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
-  renderScoutingWorkspace({ preserveFocus: true });
-  return finishResult;
 }
-function getScoutingImportPayloadChunks(records = [], metrics = []) {
-  const rawChunks = getScoutingImportChunks(records);
-  if (!rawChunks.length) {
-    return {
-      ok: true,
-      chunks: [],
-      metricsFirstChunkIndex: 0,
-    };
-  }
-  const chunks = [];
-  const queue = rawChunks.map((chunkRecords, index) => ({
-    rows: chunkRecords,
-    includeMetrics: index === 0,
-    source: `chunk-${index}`,
-  }));
-  while (queue.length) {
-    const current = queue.shift();
-    const payload = {
-      action: "importExcelChunk",
-      importBatchId: "",
-      chunkIndex: 0,
-      chunkCount: 1,
-      metrics: current.includeMetrics ? metrics : [],
-      records: current.rows,
-    };
-    if (JSON.stringify(payload).length <= SCOUTING_IMPORT_MAX_CHUNK_BYTES) {
-      chunks.push({
-        records: current.rows,
-        includeMetrics: current.includeMetrics,
-        source: current.source,
-      });
-      continue;
-    }
-    if (current.rows.length <= 1) {
-      return {
-        ok: false,
-        reason: "Import row is too large for API limits. Please remove unused metric columns and try again.",
-      };
-    }
-    const splitAt = Math.ceil(current.rows.length / 2);
-    const firstRows = current.rows.slice(0, splitAt);
-    const secondRows = current.rows.slice(splitAt);
-    queue.unshift({ rows: secondRows, includeMetrics: false, source: `${current.source}-b` });
-    queue.unshift({ rows: firstRows, includeMetrics: current.includeMetrics, source: `${current.source}-a` });
-  }
-  const metricsFirstChunkIndex = chunks.findIndex((chunk) => chunk.includeMetrics);
-  return {
-    ok: true,
-    chunks: chunks.map((chunk) => chunk.rows),
-    metricsFirstChunkIndex: metricsFirstChunkIndex === -1 ? 0 : metricsFirstChunkIndex,
-  };
+async function publishScoutingDatasetVersion(datasetVersionId = "", options = {}) {
+  return scoutingDatasetImportClient.publish(datasetVersionId, options);
 }
-function loadScoutingDatabaseWithScript() {
+function loadScoutingDatabaseWithScript(options = {}) {
+  if (options.signal?.aborted) {
+    return Promise.reject(new DOMException("Scouting database load was cancelled.", "AbortError"));
+  }
   return platformModuleLoader
     .loadScript("scouting-import-data", "scouting-import-data.js", {
       id: "scoutingImportDataScript",
       required: true,
       async: true,
     })
-    .then(() => getScoutingDatabase());
+    .then(() => {
+      if (options.signal?.aborted) {
+        throw new DOMException("Scouting database load was cancelled.", "AbortError");
+      }
+      return getScoutingDatabase();
+    });
 }
 function rejectPendingScoutingDatabaseWorkerRequests(error) {
   scoutingDatabaseWorkerRequestManager.rejectAll(error);
@@ -3021,7 +3016,7 @@ function requestScoutingDatabaseWorkerQuery(options = {}) {
       query: options.query && typeof options.query === "object" ? options.query : getScoutingWorkerQueryFromState(),
       recordIds: Array.isArray(options.recordIds) ? options.recordIds : [],
     },
-    { timeoutMs, type: options.type || "query" }
+    { signal: options.signal, timeoutMs, type: options.type || "query" }
   );
 }
 function requestScoutingDatabaseWorkerRecords(recordIds = [], options = {}) {
@@ -3109,9 +3104,12 @@ function markScoutingWorkerPreviewDatabase(database = {}) {
         : { preview: true, pendingFull: true },
   };
 }
-function loadFullScoutingDatabaseWithWorker() {
-  return requestScoutingDatabaseWorkerQuery({ timeoutMs: 45000 })
+function loadFullScoutingDatabaseWithWorker(options = {}) {
+  return requestScoutingDatabaseWorkerQuery({ signal: options.signal, timeoutMs: 45000 })
     .then((database) => {
+      if (options.signal?.aborted) {
+        throw new DOMException("Scouting database load was cancelled.", "AbortError");
+      }
       const appliedDatabase = applyScoutingWorkerDatabase(database);
       if (!appliedDatabase) {
         throw new Error("Scouting player database worker returned no records.");
@@ -3119,16 +3117,23 @@ function loadFullScoutingDatabaseWithWorker() {
       scoutingDatabaseWorkerFullReady = true;
       return appliedDatabase;
     })
-    .catch(() => loadScoutingDatabaseWithScript());
+    .catch((error) => {
+      if (error?.name === "AbortError") throw error;
+      return loadScoutingDatabaseWithScript(options);
+    });
 }
 function loadScoutingDatabaseWithWorker(options = {}) {
   const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
   if (options.previewFirst !== false && shouldUseScoutingWorkerPreviewFirst(filters) && !scoutingDatabaseWorkerFullReady) {
     return requestScoutingDatabaseWorkerQuery({
+      signal: options.signal,
       type: "preview",
       timeoutMs: 8000,
     })
       .then((database) => {
+        if (options.signal?.aborted) {
+          throw new DOMException("Scouting database load was cancelled.", "AbortError");
+        }
         const appliedDatabase = applyScoutingWorkerDatabase(markScoutingWorkerPreviewDatabase(database));
         if (!appliedDatabase) {
           throw new Error("Scouting player database preview returned no records.");
@@ -3136,9 +3141,12 @@ function loadScoutingDatabaseWithWorker(options = {}) {
         scheduleFullScoutingDatabaseWorkerPreload(0);
         return appliedDatabase;
       })
-      .catch(() => loadFullScoutingDatabaseWithWorker());
+      .catch((error) => {
+        if (error?.name === "AbortError") throw error;
+        return loadFullScoutingDatabaseWithWorker(options);
+      });
   }
-  return loadFullScoutingDatabaseWithWorker();
+  return loadFullScoutingDatabaseWithWorker(options);
 }
 function ensureScoutingDatabaseLoaded() {
   return getScoutingDatabaseLoader().ensureLoaded();
@@ -3148,6 +3156,7 @@ function queueScoutingDatabaseLoad(onReady = renderScoutingWorkspace) {
 }
 function cancelScoutingDatabaseBackgroundTimers() {
   scoutingDatabaseBackgroundController.cancel();
+  scoutingDatabaseRefreshController.cancel();
 }
 function scheduleScoutingDatabaseAutoLoad(delayMs = 320) {
   scoutingDatabaseBackgroundController.scheduleAutoLoad(delayMs);
@@ -4871,16 +4880,21 @@ function findScoutingImportHeader(headers, labels = []) {
   }
   return "";
 }
+function findScoutingImportExactHeader(headers, labels = []) {
+  const normalizedLabels = new Set(labels.map((label) => normalizeScoutingText(label, 120).toLowerCase()));
+  return headers.find((header) => normalizedLabels.has(normalizeScoutingText(header, 120).toLowerCase())) || "";
+}
 function getScoutingImportAutoMap(headers = []) {
   return {
     player: findScoutingImportHeader(headers, ["player", "player name", "name"]),
     team: findScoutingImportHeader(headers, ["team", "squad", "club"]),
+    teamWithinTimeframe: findScoutingImportHeader(headers, ["team within selected timeframe", "team within timeframe"]),
     league: findScoutingImportHeader(headers, ["league", "competition"]),
     season: findScoutingImportHeader(headers, ["season", "year"]),
     position: findScoutingImportHeader(headers, ["position", "positions", "pos"]),
     age: findScoutingImportHeader(headers, ["age"]),
     dateOfBirth: findScoutingImportHeader(headers, ["date of birth", "birth date", "dob", "birthday"]),
-    matches: findScoutingImportHeader(headers, ["matches", "apps", "appearances"]),
+    matches: findScoutingImportExactHeader(headers, ["matches", "apps", "appearances"]),
     minutes: findScoutingImportHeader(headers, ["minutes", "mins", "played"]),
     birthCountry: findScoutingImportHeader(headers, ["birth country", "country of birth"]),
     passportCountry: findScoutingImportHeader(headers, ["passport", "nationality"]),
@@ -4937,7 +4951,7 @@ function buildScoutingImportPresetMap(presetId = "", headers = [], map = {}) {
   return nextMap;
 }
 function applyScoutingImportSourcePreset(presetId = "") {
-  if (!canEditScoutingWorkspace() || !scoutingImportDraft) {
+  if (!canAdministerScoutingData() || !scoutingImportDraft) {
     return;
   }
   const selected = scoutingImportDraft.sheets?.find((sheet) => sheet.name === scoutingImportDraft.selectedSheet);
@@ -4954,76 +4968,68 @@ function applyScoutingImportSourcePreset(presetId = "") {
   }
   scoutingImportDraft = {
     ...scoutingImportDraft,
+    status: "ready",
     sourceSystem: preset.sourceSystem || scoutingImportDraft.sourceSystem,
     map: buildScoutingImportPresetMap(preset.id, selected.headers || [], scoutingImportDraft.map || {}),
     importPreview: null,
+    preparedDatabase: null,
+    serverValidation: null,
+    datasetVersionId: "",
   };
   renderScoutingWorkspace({ preserveFocus: true });
 }
-function getScoutingImportSheetRows(sheet) {
-  if (!window.XLSX || !sheet) {
-    return [];
-  }
-  return window.XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
-}
-function ensureScoutingSpreadsheetParserLoaded() {
-  if (window.XLSX?.read) {
-    return Promise.resolve(window.XLSX);
-  }
-  if (!scoutingImportParserPromise) {
-    scoutingImportParserPromise = new Promise((resolve, reject) => {
-      const existing = document.getElementById("scoutingXlsxParserScript");
-      if (existing) {
-        existing.addEventListener("load", () => resolve(window.XLSX), { once: true });
-        existing.addEventListener("error", reject, { once: true });
-        return;
-      }
-      const script = document.createElement("script");
-      script.id = "scoutingXlsxParserScript";
-      script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
-      script.async = true;
-      script.onload = () => (window.XLSX?.read ? resolve(window.XLSX) : reject(new Error("Spreadsheet parser did not load.")));
-      script.onerror = () => reject(new Error("Spreadsheet parser could not be loaded."));
-      document.head.appendChild(script);
-    });
-  }
-  return scoutingImportParserPromise;
-}
-
 function getScoutingImportStepState(draft = scoutingImportDraft) {
   if (!draft) {
     return { current: "upload", done: [] };
   }
   if (draft.status === "error") {
-    const current = draft.importPreview?.signature ? "publish" : draft.sheets?.length ? "preview" : "upload";
+    const current = draft.serverValidation ? "validate" : draft.importPreview?.signature ? "validate" : draft.sheets?.length ? "preview" : "upload";
     const done = draft.importPreview?.signature ? ["upload", "preview"] : draft.sheets?.length ? ["upload"] : [];
     return { current, done, error: true };
   }
   if (draft.status === "loading") {
     return { current: "upload", done: [] };
   }
-  if (draft.status === "importing") {
-    return { current: "publish", done: ["upload", "preview"] };
+  if (draft.status === "cancelled") {
+    return { current: "upload", done: [] };
+  }
+  if (draft.status === "preparing") {
+    return { current: "preview", done: ["upload"] };
+  }
+  if (["staging", "blocked"].includes(draft.status)) {
+    return { current: "validate", done: ["upload", "preview"], error: draft.status === "blocked" };
+  }
+  if (draft.status === "validated") {
+    return { current: "publish", done: ["upload", "preview", "validate"] };
+  }
+  if (draft.status === "publishing") {
+    return { current: "publish", done: ["upload", "preview", "validate"] };
   }
   if (draft.databaseStored || draft.status === "imported") {
-    return { current: "publish", done: ["upload", "preview", "publish"] };
+    return { current: "publish", done: ["upload", "preview", "validate", "publish"] };
   }
   if (draft.importPreview?.signature) {
-    return { current: "publish", done: ["upload", "preview"] };
+    return { current: "validate", done: ["upload", "preview"] };
   }
   return { current: "preview", done: ["upload"] };
 }
 
 function getScoutingImportPrimaryActionLabel(draft = scoutingImportDraft) {
+  if (draft?.status === "validated") {
+    return "Publish validated version";
+  }
   if (draft?.importPreview?.signature) {
-    return "Commit to scouting player database";
+    return draft?.status === "blocked" ? "Validate again" : "Stage and validate";
   }
   return "Build import preview";
 }
 
 function getScoutingImportActionHelp(draft = scoutingImportDraft) {
+  if (draft?.status === "validated") {
+    return "Activates this exact version atomically. The current version remains available for rollback.";
+  }
   if (draft?.importPreview?.signature) {
-    return "Publishes only new or changed rows. Matching player-season rows are replaced and unchanged rows are skipped.";
+    return "Uploads the immutable source, stages every row, and runs server-side quality gates. Nothing becomes active yet.";
   }
   return "Builds a safe preview first. Nothing is published until you commit the preview.";
 }
@@ -5034,9 +5040,14 @@ function renderScoutingImportStepTracker(draft = scoutingImportDraft) {
     { id: "upload", label: "Upload file", detail: draft?.fileName || "Choose workbook" },
     { id: "preview", label: "Review changes", detail: draft?.importPreview?.signature ? "Preview ready" : "Build preview" },
     {
+      id: "validate",
+      label: "Validate",
+      detail: draft?.status === "validated" ? "All gates passed" : draft?.status === "blocked" ? "Blocked" : "Stage safely",
+    },
+    {
       id: "publish",
       label: "Publish",
-      detail: draft?.databaseStored || draft?.status === "imported" ? "Database updated" : "Commit after review",
+      detail: draft?.databaseStored || draft?.status === "imported" ? "Version active" : "Explicit approval",
     },
   ];
   return `<div class="scouting-import-steps" aria-label="Scouting import progress">
@@ -5055,6 +5066,20 @@ function renderScoutingImportStepTracker(draft = scoutingImportDraft) {
   </div>`;
 }
 
+function renderScoutingServerValidation(validation = null, progress = null) {
+  const summary = validation?.summary || {};
+  const checks = Array.isArray(validation?.checks) ? validation.checks : [];
+  const total = Math.max(0, Number(progress?.total) || 0);
+  const completed = Math.max(0, Math.min(total, Number(progress?.completed) || 0));
+  const progressPct = total ? Math.round((completed / total) * 100) : 0;
+  if (!checks.length && !progress?.label) return "";
+  return `<section class="scouting-import-server-validation" aria-live="polite">
+    ${progress?.label ? `<div class="scouting-import-progress" data-scouting-import-progress><span><strong data-scouting-import-progress-label>${escapeHtml(progress.label)}</strong><em data-scouting-import-progress-counter ${total ? "" : "hidden"}>${total ? escapeHtml(`${completed}/${total}`) : ""}</em></span><progress max="100" value="${progressPct}" ${total ? "" : "hidden"}>${progressPct}%</progress></div>` : ""}
+    ${checks.length ? `<div class="scouting-import-validation-head"><div><span>Server validation</span><strong>${Number(summary.blockerCount) > 0 ? "Publication blocked" : "Ready to publish"}</strong></div><p>${escapeHtml(`${summary.rowCount || 0} rows · ${summary.metricCount || 0} metrics · ${summary.newRows || 0} new · ${summary.updatedRows || 0} updated · ${summary.unchangedRows || 0} unchanged`)}</p></div>
+      <div class="scouting-import-validation-list">${checks.map((check) => `<article class="is-${escapeHtml(check.status || "failed")}"><span aria-hidden="true">${check.status === "passed" ? "✓" : "!"}</span><div><strong>${escapeHtml(check.message || check.validation_code || "Validation check")}</strong><small>${escapeHtml(check.validation_code || "")}</small></div></article>`).join("")}</div>` : ""}
+  </section>`;
+}
+
 function setScoutingImportDraftFailure(error, fileName = "") {
   const message = error?.message || "Import failed before the workbook could be read.";
   scoutingImportDraft = {
@@ -5064,6 +5089,26 @@ function setScoutingImportDraftFailure(error, fileName = "") {
     sourceTypeLabel: "Weekly database upload",
     error: message,
     databaseUploadError: message,
+  };
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+
+function cancelScoutingImportOperation() {
+  if (!canAdministerScoutingData() || !scoutingImportDraft) return;
+  const cancellableStatuses = new Set(["loading", "preparing", "staging", "validating"]);
+  if (!cancellableStatuses.has(scoutingImportDraft.status)) return;
+  scoutingImportOperationController?.abort();
+  scoutingImportOperationController = null;
+  scoutingImportParserClient.cancel();
+  const canResume = Boolean(scoutingImportDraft.sheets?.length);
+  scoutingImportDraft = {
+    ...scoutingImportDraft,
+    status: canResume ? "ready" : "cancelled",
+    importProgress: null,
+    databaseUploadError: "",
+    databaseUploadStatus: canResume
+      ? "Operation cancelled. The file and mapping remain ready; no database version was activated."
+      : "Import cancelled. No scouting data changed.",
   };
   renderScoutingWorkspace({ preserveFocus: true });
 }
@@ -5079,49 +5124,66 @@ function queueScoutingImportPreview(fileName = "") {
 }
 
 async function loadScoutingImportFile(file) {
-  if (!canEditScoutingWorkspace()) {
+  if (!canAdministerScoutingData()) {
     return;
   }
   if (!file) {
     return;
   }
-  const state = ensureScoutingState();
-  state.activeTab = "database";
-  writeScoutingState({ syncCentral: false });
+  scoutingImportOperationController?.abort();
+  scoutingImportParserClient.cancel();
+  const operationController = new AbortController();
+  scoutingImportOperationController = operationController;
   const sourceType = getScoutingImportSourceFromFile(file.name);
   scoutingImportDraft = {
     status: "loading",
     fileName: normalizeScoutingText(file.name, 180),
+    sourceFile: file,
     sourceSystem: sourceType.id,
     error: "",
   };
   renderScoutingWorkspace({ preserveFocus: true });
   let shouldAutoPreview = false;
+  let sourceChecksumSha256 = "";
+  let sourceBuffer = null;
   const loadedFileName = normalizeScoutingText(file.name, 180);
   try {
     let sheets = [];
+    if (typeof file.arrayBuffer === "function") {
+      const sourceReadPerf = startScoutingPerformance("import.source-read", { bytes: file.size || 0 });
+      sourceBuffer = await file.arrayBuffer();
+      if (operationController.signal.aborted) throw new DOMException("Scouting import was cancelled.", "AbortError");
+      sourceReadPerf.end();
+      const sourceHashPerf = startScoutingPerformance("import.source-hash", { bytes: sourceBuffer.byteLength });
+      sourceChecksumSha256 = await calculateScoutingSourceBufferChecksum(sourceBuffer, globalThis.crypto);
+      if (operationController.signal.aborted) throw new DOMException("Scouting import was cancelled.", "AbortError");
+      sourceHashPerf.end();
+    }
     if (sourceType.parser === "xlsx") {
       try {
-        await ensureScoutingSpreadsheetParserLoaded();
-        const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
-        sheets = workbook.SheetNames.map((sheetName) => {
-          const rows = getScoutingImportSheetRows(workbook.Sheets[sheetName]).slice(0, 50000);
-          const headers = Array.from(
-            rows.reduce((set, row) => {
-              Object.keys(row || {}).forEach((header) => set.add(header));
-              return set;
-            }, new Set())
-          );
-          return {
-            name: sheetName,
-            rows,
-            headers,
-          };
-        }).filter((sheet) => sheet.headers.length);
+        if (!sourceBuffer) throw new Error("Could not read the selected Excel file.");
+        const parsePerf = startScoutingPerformance("import.parse", { bytes: file.size || 0 });
+        updateScoutingImportProgress({ phase: "parsing", label: "Reading workbook in background" });
+        const parsed = await scoutingImportParserClient.parseXlsx(sourceBuffer, {
+          signal: operationController.signal,
+          maxRowsPerSheet: 50000,
+          onProgress: ({ completed, total }) => updateScoutingImportProgress({
+            phase: "parsing",
+            label: "Reading workbook in background",
+            completed,
+            total,
+          }),
+        });
+        if (!parsed?.ok) {
+          throw new Error(parsed?.reason || "Could not parse the selected Excel file.");
+        }
+        sheets = Array.isArray(parsed.sheets) ? parsed.sheets : [];
+        parsePerf.end({ sheets: sheets.length, rows: sheets.reduce((sum, sheet) => sum + (sheet.rows?.length || 0), 0) });
         if (!sheets.length) {
           throw new Error("No readable sheet found in the Excel workbook.");
         }
       } catch (error) {
+        if (error?.name === "AbortError") return;
         throw new Error(error?.message || "Could not parse the selected Excel file. Try saving as .xlsx and retry.");
       }
     } else if (sourceType.parser === "json") {
@@ -5142,6 +5204,7 @@ async function loadScoutingImportFile(file) {
         sheets = [{ name: normalizeScoutingText(file.name, 120), rows: parsed.rows, headers: parsed.headers }];
       }
     }
+    if (operationController.signal.aborted) throw new DOMException("Scouting import was cancelled.", "AbortError");
     const selectedSheet = sheets[0]?.name || "";
     const selected = sheets.find((sheet) => sheet.name === selectedSheet);
     if (!sheets.length || !selected) {
@@ -5150,6 +5213,8 @@ async function loadScoutingImportFile(file) {
     scoutingImportDraft = {
       status: "ready",
       fileName: loadedFileName,
+      sourceFile: file,
+      sourceChecksumSha256,
       sourceSystem: sourceType.id,
       sourceTypeLabel: sourceType.label,
       sheets,
@@ -5161,9 +5226,11 @@ async function loadScoutingImportFile(file) {
     };
     shouldAutoPreview = true;
   } catch (error) {
+    if (error?.name === "AbortError" || operationController.signal.aborted) return;
     scoutingImportDraft = {
       status: "error",
       fileName: loadedFileName,
+      sourceFile: file,
       sourceSystem: sourceType.id,
       sourceTypeLabel: sourceType.label,
       error: error?.message || "Import failed.",
@@ -5182,7 +5249,11 @@ function setScoutingImportDraftPatch(patch = {}) {
   scoutingImportDraft = {
     ...scoutingImportDraft,
     ...patch,
+    status: "ready",
     importPreview: null,
+    preparedDatabase: null,
+    serverValidation: null,
+    datasetVersionId: "",
   };
   if (patch.selectedSheet) {
     const selected = scoutingImportDraft.sheets?.find((sheet) => sheet.name === patch.selectedSheet);
@@ -5196,7 +5267,11 @@ function setScoutingImportMapField(field, value) {
   }
   scoutingImportDraft = {
     ...scoutingImportDraft,
+    status: "ready",
     importPreview: null,
+    preparedDatabase: null,
+    serverValidation: null,
+    datasetVersionId: "",
     map: {
       ...(scoutingImportDraft.map || {}),
       [field]: normalizeScoutingText(value, 120),
@@ -5212,72 +5287,6 @@ function getScoutingRecordMergeKey(record) {
     getScoutingRecordLeague(record),
     getScoutingRecordTeam(record)
   );
-}
-function getScoutingMetricFingerprint(metrics = {}) {
-  if (Array.isArray(metrics)) {
-    return metrics
-      .map((entry) => {
-        const value = entry && typeof entry === "object" && !Array.isArray(entry) ? entry.value : entry;
-        return value === null || value === undefined || value === "" ? null : Number(value);
-      });
-  }
-  return Object.keys(metrics || {})
-    .sort((a, b) => a.localeCompare(b))
-    .map((key) => {
-      const entry = metrics[key];
-      const value = entry && typeof entry === "object" && !Array.isArray(entry) ? entry.value : entry;
-      const quality = entry && typeof entry === "object" && !Array.isArray(entry) ? normalizeScoutingMetricQuality(entry.quality) : "trusted";
-      return [key, Number.isFinite(Number(value)) ? Number(value) : null, quality];
-    });
-}
-function getScoutingRecordImportFingerprint(record) {
-  return JSON.stringify({
-    player: getScoutingRecordName(record),
-    team: getScoutingRecordTeam(record),
-    league: getScoutingRecordLeague(record),
-    season: getScoutingRecordSeason(record),
-    position: getScoutingRecordPosition(record),
-    age: getScoutingRecordAge(record),
-    matches: getScoutingMetricValue(record, "matches"),
-    minutes: getScoutingRecordMinutes(record),
-    birthCountry: getScoutingRecordBirthCountry(record),
-    passportCountry: getScoutingRecordPassportCountry(record),
-    height: normalizeScoutingText(record?.[scoutingRecordIndex.height], 40),
-    weight: normalizeScoutingText(record?.[scoutingRecordIndex.weight], 40),
-    metrics: getScoutingMetricFingerprint(record?.[scoutingRecordIndex.metrics]),
-  });
-}
-function getScoutingImportIdentitySignature(record) {
-  return [
-    normalizeScoutingIdentityPart(getScoutingRecordName(record), 120),
-    normalizeScoutingIdentityPart(getScoutingRecordDateOfBirth(record), 40),
-    normalizeScoutingIdentityPart(getScoutingRecordPassportCountry(record) || getScoutingRecordBirthCountry(record), 120),
-  ]
-    .filter(Boolean)
-    .join("|");
-}
-function getScoutingImportIdentityLabel(record) {
-  const dateOfBirth = getScoutingRecordDateOfBirth(record);
-  const nationality = getScoutingRecordPassportCountry(record) || getScoutingRecordBirthCountry(record);
-  return [getScoutingRecordName(record), dateOfBirth, nationality].filter(Boolean).join(" / ") || "Unknown player";
-}
-function preferScoutingImportRecord(nextRecord, currentRecord) {
-  if (!currentRecord) {
-    return nextRecord;
-  }
-  const nextScore = getScoutingRecordMetricValueCount(nextRecord) * 10000 + getScoutingRecordMinutes(nextRecord);
-  const currentScore = getScoutingRecordMetricValueCount(currentRecord) * 10000 + getScoutingRecordMinutes(currentRecord);
-  return nextScore >= currentScore ? nextRecord : currentRecord;
-}
-function mergeScoutingImportMetrics(existingMetrics = [], importedMetrics = []) {
-  const byId = new Map();
-  [...existingMetrics, ...importedMetrics].forEach((metric) => {
-    const id = normalizeScoutingText(metric?.id, 120);
-    if (id && !byId.has(id)) {
-      byId.set(id, metric);
-    }
-  });
-  return [...byId.values()];
 }
 function getScoutingSlotPlayerCount(slots = {}) {
   return Object.values(slots && typeof slots === "object" ? slots : {}).reduce((sum, slot) => {
@@ -5300,190 +5309,8 @@ function getScoutingImportManualStateSummary(state = ensureScoutingState()) {
     myTeamPlayers: getScoutingSlotPlayerCount(myTeam.slots),
   };
 }
-function buildScoutingImportPreview(database = {}) {
-  const existingRecords = getScoutingDatabase()?.records || [];
-  const existingByMergeKey = new Map();
-  const existingByIdentityId = new Map();
-  const existingByIdentitySignature = new Map();
-  existingRecords.forEach((record) => {
-    const key = getScoutingRecordMergeKey(record);
-    if (key) {
-      existingByMergeKey.set(key, record);
-    }
-    const identityId = getScoutingRecordPlayerIdentityId(record);
-    if (identityId) {
-      if (!existingByIdentityId.has(identityId)) {
-        existingByIdentityId.set(identityId, []);
-      }
-      existingByIdentityId.get(identityId).push(record);
-    }
-    const identitySignature = getScoutingImportIdentitySignature(record);
-    if (identitySignature) {
-      if (!existingByIdentitySignature.has(identitySignature)) {
-        existingByIdentitySignature.set(identitySignature, []);
-      }
-      existingByIdentitySignature.get(identitySignature).push(record);
-    }
-  });
-  const operationsByMergeKey = {};
-  const samples = [];
-  const identityWarnings = [];
-  const metricQualityCounts = { trusted: 0, estimated: 0, missing: 0 };
-  const summary = {
-    incomingRows: database.records?.length || 0,
-    newRows: 0,
-    replaceRows: 0,
-    unchangedRows: 0,
-    duplicateRows: database.dedupeSummary?.incomingDuplicates || 0,
-    duplicateSamples: database.dedupeSummary?.duplicateSamples || [],
-    identityWarningRows: 0,
-    criticalIdentityRows: 0,
-    identityWarnings,
-    metricQualityCounts,
-    samples,
-    operationsByMergeKey,
-    manualStatePreserved: getScoutingImportManualStateSummary(),
-    signature: database.importSignature || "",
-  };
-  (database.records || []).forEach((record) => {
-    const key = getScoutingRecordMergeKey(record);
-    const existing = key ? existingByMergeKey.get(key) : null;
-    const operation = !existing
-      ? "new"
-      : getScoutingRecordImportFingerprint(existing) === getScoutingRecordImportFingerprint(record)
-        ? "unchanged"
-        : "replace";
-    operationsByMergeKey[key] = operation;
-    if (operation === "new") {
-      summary.newRows += 1;
-    } else if (operation === "replace") {
-      summary.replaceRows += 1;
-    } else {
-      summary.unchangedRows += 1;
-    }
-    const identityId = getScoutingRecordPlayerIdentityId(record);
-    const sourceTrace = getScoutingRecordSourceTrace(record);
-    const identitySource = normalizeScoutingText(sourceTrace.identitySource, 40) || "unknown";
-    const identitySourceMapped = identitySource !== "derived";
-    const identitySignature = getScoutingImportIdentitySignature(record);
-    const identityIssueLabels = [];
-    const hasDateOfBirth = Boolean(getScoutingRecordDateOfBirth(record));
-    const hasNationality = Boolean(getScoutingRecordPassportCountry(record) || getScoutingRecordBirthCountry(record));
-    const existingIdentityRows = existingByIdentityId.get(identityId) || [];
-    const conflictingIdentity = existingIdentityRows.find((existingRecord) => {
-      const existingSignature = getScoutingImportIdentitySignature(existingRecord);
-      return existingSignature && identitySignature && existingSignature !== identitySignature;
-    });
-    const possibleAlias = identitySignature
-      ? (existingByIdentitySignature.get(identitySignature) || []).find((existingRecord) => getScoutingRecordPlayerIdentityId(existingRecord) !== identityId)
-      : null;
-    if (!identitySourceMapped) {
-      identityIssueLabels.push(hasDateOfBirth && hasNationality ? "Derived identity" : "Weak identity");
-    }
-    if (!hasDateOfBirth) {
-      identityIssueLabels.push("Missing DOB");
-    }
-    if (!hasNationality) {
-      identityIssueLabels.push("Missing nationality");
-    }
-    if (conflictingIdentity) {
-      identityIssueLabels.push("Identity conflict");
-    }
-    if (possibleAlias) {
-      identityIssueLabels.push("Possible alias");
-    }
-    if (identityIssueLabels.length) {
-      const isCriticalIdentityIssue = identityIssueLabels.includes("Identity conflict") || identityIssueLabels.includes("Possible alias");
-      summary.identityWarningRows += 1;
-      if (isCriticalIdentityIssue) {
-        summary.criticalIdentityRows += 1;
-      }
-      if (identityWarnings.length < 8) {
-        identityWarnings.push({
-          labels: Array.from(new Set(identityIssueLabels)),
-          name: getScoutingRecordName(record),
-          detail: conflictingIdentity
-            ? `Same player ID already exists as ${getScoutingImportIdentityLabel(conflictingIdentity)}.`
-            : possibleAlias
-              ? `Same DOB/nationality profile exists under another player ID: ${getScoutingRecordPlayerIdentityId(possibleAlias)}.`
-              : !identitySourceMapped
-                ? "No mapped source player ID found. Merge is based on derived name/DOB/nationality identity."
-                : "Identity data should be completed before commit.",
-          team: getScoutingRecordTeam(record),
-          league: getScoutingRecordLeague(record),
-          season: getScoutingRecordSeason(record),
-        });
-      }
-    }
-    const metricQuality = record?.[scoutingRecordIndex.metricQuality] || {};
-    Object.values(metricQuality).forEach((quality) => {
-      const normalized = normalizeScoutingMetricQuality(quality);
-      metricQualityCounts[normalized] += 1;
-    });
-    if (samples.length < 6 && operation !== "unchanged") {
-      samples.push({
-        operation,
-        name: getScoutingRecordName(record),
-        team: getScoutingRecordTeam(record),
-        league: getScoutingRecordLeague(record),
-        season: getScoutingRecordSeason(record),
-      });
-    }
-  });
-  summary.importSafety =
-    summary.criticalIdentityRows > 0
-      ? {
-          tone: "danger",
-          label: "Stop and review identity",
-          detail: `${summary.criticalIdentityRows} player rows may collide with an existing player identity. Check aliases before commit.`,
-        }
-      : summary.identityWarningRows > 0
-        ? {
-            tone: "warning",
-            label: "Review before commit",
-            detail: `${summary.identityWarningRows} player rows use derived or incomplete identity. Commit only if name, DOB and nationality look correct.`,
-          }
-        : summary.replaceRows > 0 || summary.newRows > 0
-          ? {
-              tone: "safe",
-          label: "Safe to commit",
-          detail: "No identity conflicts detected in this preview. New and replaced rows will keep source trace metadata; manual notes and lists are preserved.",
-        }
-          : {
-              tone: "neutral",
-              label: "No changes detected",
-              detail: "This import does not change the scouting player database.",
-            };
-  return summary;
-}
-function getScoutingImportPublishDatabase(database = {}, preview = {}) {
-  const operations = preview.operationsByMergeKey || {};
-  return {
-    ...database,
-    records: (database.records || []).filter((record) => {
-      const operation = operations[getScoutingRecordMergeKey(record)];
-      return operation === "new" || operation === "replace";
-    }),
-  };
-}
-function mergeScoutingImportedDatabase(database = {}, preview = {}) {
-  const existing = getScoutingDatabase();
-  const operations = preview.operationsByMergeKey || {};
-  const incomingRecords = (database.records || []).filter((record) => {
-    const operation = operations[getScoutingRecordMergeKey(record)];
-    return operation === "new" || operation === "replace";
-  });
-  const incomingByMergeKey = new Map(incomingRecords.map((record) => [getScoutingRecordMergeKey(record), record]));
-  const nextRecords = [
-    ...(existing?.records || []).filter((record) => !incomingByMergeKey.has(getScoutingRecordMergeKey(record))),
-    ...incomingRecords,
-  ];
-  return {
-    ...database,
-    records: nextRecords,
-    metrics: mergeScoutingImportMetrics(existing?.metrics || [], database.metrics || []),
-    preview,
-  };
+async function buildScoutingImportPreview(database = {}, options = {}) {
+  return scoutingImportPreviewService.build(database, options);
 }
 function renderScoutingImportDiffPreview(preview = null) {
   if (!preview?.signature) {
@@ -5560,178 +5387,125 @@ function renderScoutingImportDiffPreview(preview = null) {
     </div>
   `;
 }
-function buildScoutingImportedDatabase() {
-  if (!scoutingImportDraft || scoutingImportDraft.status !== "ready") {
-    return null;
-  }
-  const selected = scoutingImportDraft.sheets.find((sheet) => sheet.name === scoutingImportDraft.selectedSheet);
-  const sheets = getScoutingImportSheetsForBatch(scoutingImportDraft);
-  if (!selected || !sheets.length) {
-    return null;
-  }
-  const map = scoutingImportDraft.map || {};
-  const batchHeaders = getScoutingImportHeadersForBatch(sheets);
-  const metricHeaders = getScoutingImportMetricHeaders(batchHeaders, map);
-  const metrics = metricHeaders
-    .map((header) => ({
-      id: `import_${getScoutingImportColumnId(header)}`,
-      label: normalizeScoutingText(header, 120),
-      direction: getScoutingImportMetricDirection(header),
-      sourceColumn: normalizeScoutingText(header, 160),
-    }))
-      .filter((metric, index, values) => metric.label && values.findIndex((item) => item.id === metric.id) === index);
-  const importedAt = new Date().toISOString();
-  const sourceSystem = getScoutingImportSourceSystem();
-  let incomingDuplicates = 0;
-  const duplicateSamples = [];
-  const recordsByMergeKey = new Map();
-  sheets
-    .flatMap((sheet) =>
-      sheet.rows.map((row, index) => ({
-        row,
-        rowIndex: index,
-        sheetName: sheet.name,
-      }))
-    )
-    .map(({ row, rowIndex, sheetName }) => {
-      const player = normalizeScoutingText(row[map.player], 160);
-      const team = normalizeScoutingText(row[map.team], 160);
-      const league = normalizeScoutingLeague(row[map.league]);
-      const season = normalizeScoutingText(scoutingImportDraft.seasonOverride || row[map.season], 80);
-      const position = normalizeScoutingText(row[map.position], 80);
-      if (!player && !team && !position) {
-        return null;
-      }
-      const identityCandidates = getScoutingImportIdentityCandidates(row, map);
-      const mappedPlayerSourceId =
-        identityCandidates[0]?.value && isScoutingVerifiedImportIdentityKey(identityCandidates[0]?.key) ? identityCandidates[0].value : "";
-      const playerSourceId = buildScoutingPlayerSourceId(row, map);
-      const sourceRecordId = buildScoutingRecordSourceId(row, map, playerSourceId);
-      const age = parseScoutingMetricValue(row[map.age]) || "";
-      const matches = parseScoutingMetricValue(row[map.matches]) || "";
-      const minutes = Math.max(0, Math.round(parseScoutingMetricValue(row[map.minutes]) || 0));
-      const dateOfBirth = normalizeScoutingDateValue(row[map.dateOfBirth]);
-      const mergeKey = getScoutingImportMergeKey(sourceSystem, playerSourceId, season, league, team);
-      const metricValues = {};
-      const metricQuality = {};
-      for (const metric of metrics) {
-        const header = metric.label;
-        const value = parseScoutingMetricValue(row[header]);
-        const quality = getScoutingImportMetricQuality(row[header], minutes);
-        metricQuality[metric.id] = quality;
-        if (Number.isFinite(value) && quality !== "missing") {
-          metricValues[metric.id] = {
-            value,
-            quality,
-          };
-        }
-      }
-      const sourceTrace = {
-        sourceSystem,
-        sourceFileName: scoutingImportDraft.fileName || "",
-        sheetName,
-        sourceRowNumber: rowIndex + 2,
-        uploadedAt: importedAt,
-        importedAt,
-        importBatchId: "",
-        playerIdentityId: playerSourceId,
-        sourcePlayerAlias: player,
-        identitySource: mappedPlayerSourceId ? identityCandidates[0]?.key || "playerSourceId" : "derived",
-        identitySourceLabel: mappedPlayerSourceId ? identityCandidates[0]?.label || "mapped source id" : "name + date of birth + nationality",
-        identityCandidateCount: identityCandidates.length || 0,
-        identityCandidates: identityCandidates.map((candidate) => ({ key: candidate.key, label: candidate.label, value: candidate.value })),
-        identityBasis: mappedPlayerSourceId ? `mapped ${identityCandidates[0]?.label || "player id"}` : "name + date of birth + nationality",
-        sourceRecordId,
-        mergeKey,
-      };
-      return [
-        sourceRecordId,
-        player,
-        team,
-        team,
-        league,
-        season,
-        position,
-        age,
-        matches,
-        minutes,
-        normalizeScoutingText(row[map.birthCountry], 120),
-        normalizeScoutingText(row[map.passportCountry], 120),
-        normalizeScoutingText(row[map.height], 40),
-        normalizeScoutingText(row[map.weight], 40),
-        metricValues,
-        sourceSystem,
-        playerSourceId,
-        sourceRecordId,
-        normalizeScoutingText(row[map.imageUrl], 220),
-        playerSourceId,
-        sourceTrace,
-        metricQuality,
-        dateOfBirth,
-      ];
-    })
-    .filter(Boolean)
-    .forEach((record) => {
-      const mergeKey = getScoutingRecordMergeKey(record);
-      if (recordsByMergeKey.has(mergeKey)) {
-        incomingDuplicates += 1;
-        if (duplicateSamples.length < 6) {
-          const kept = preferScoutingImportRecord(record, recordsByMergeKey.get(mergeKey));
-          const dropped = kept === record ? recordsByMergeKey.get(mergeKey) : record;
-          duplicateSamples.push({
-            name: getScoutingRecordName(record),
-            team: getScoutingRecordTeam(record),
-            league: getScoutingRecordLeague(record),
-            season: getScoutingRecordSeason(record),
-            keptMinutes: getScoutingRecordMinutes(kept),
-            droppedMinutes: getScoutingRecordMinutes(dropped),
-          });
-        }
-      }
-      recordsByMergeKey.set(mergeKey, preferScoutingImportRecord(record, recordsByMergeKey.get(mergeKey)));
-    });
-  const records = [...recordsByMergeKey.values()];
-  const metricSignature = buildScoutingImportCollectionHash(
-    metrics.map((metric) => `${metric.id}:${metric.label}:${metric.direction}:${metric.sourceColumn}`)
-  );
-  const recordSignature = buildScoutingImportCollectionHash(
-    records
-      .slice()
-      .sort((a, b) => getScoutingRecordMergeKey(a).localeCompare(getScoutingRecordMergeKey(b)))
-      .map((record) => `${getScoutingRecordMergeKey(record)}:${getScoutingRecordImportFingerprint(record)}`)
-  );
-  const importSignature = buildScoutingImportCollectionHash([
-    scoutingImportDraft.fileName,
-    sheets.map((sheet) => sheet.name).join("~"),
-    sourceSystem,
-    scoutingImportDraft.seasonOverride || "",
-    JSON.stringify(scoutingImportDraft.map || {}),
-    records.length,
-    metrics.length,
-    metricSignature,
-    recordSignature,
-  ]);
-  return {
-    source: "ui-import",
-    fileName: scoutingImportDraft.fileName,
-    importedAt,
-    sheets: sheets.map((sheet) => sheet.name),
-    metrics,
-    records,
-    importSignature,
-    importContentSignature: recordSignature,
-    dedupeSummary: {
-      incomingDuplicates,
-      duplicateSamples,
-      mergeStrategy: "sourceSystem + playerId + season + league + team",
+async function buildScoutingImportedDatabase(draft = scoutingImportDraft, options = {}) {
+  return scoutingImportDatabaseBuilder.build(draft, options);
+}
+function setScoutingDatasetImportFailure(reason = "Scouting dataset import failed.", options = {}) {
+  const message = normalizeScoutingText(reason, 400) || "Scouting dataset import failed.";
+  const blocked = options.blocked === true;
+  scoutingImportDraft = {
+    ...(scoutingImportDraft || {}),
+    status: blocked ? "blocked" : "error",
+    databaseStored: false,
+    databaseUploadError: message,
+    databaseUploadStatus: blocked ? "Validation stopped publication" : "Import stopped safely",
+    serverValidation: options.serverValidation || scoutingImportDraft?.serverValidation || null,
+    lastUploadSummary: {
+      ...(scoutingImportDraft?.lastUploadSummary || {}),
+      status: blocked ? "blocked" : "failed",
+      databaseStored: false,
+      updatedAt: new Date().toISOString(),
+      databaseUploadError: message,
     },
   };
+  setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
+  renderScoutingWorkspace({ preserveFocus: true });
 }
-function applyScoutingImportDraft() {
-  if (!canEditScoutingWorkspace()) {
+function finishScoutingDatasetImport(database = {}, result = {}) {
+  delete window.__footballScienceImportedScoutingDatabase;
+  delete window.__footballScienceScoutingDatabase;
+  scoutingImportedDatabaseLoaded = true;
+  try {
+    window.localStorage?.removeItem(scoutingImportedDatabaseStorageKey);
+  } catch {}
+  scoutingDatabaseCapabilityService.invalidate();
+  scoutingDatabaseCapabilitySnapshot = null;
+  scoutingDatabaseOptionCache = null;
+  clearScoutingDatabaseLoadState();
+  resetScoutingComputedCaches();
+  const versionId = result.datasetVersionId || scoutingImportDraft?.datasetVersionId || "";
+  scoutingImportOperationController = null;
+  scoutingImportDraft = {
+    ...(scoutingImportDraft || {}),
+    status: "imported",
+    databaseStored: true,
+    databaseUploadStatus: result.alreadyActive ? "This dataset version is already active" : "Scouting database version is active",
+    databaseUploadError: "",
+    datasetVersionId: versionId,
+    sourceFile: null,
+    sheets: [],
+    preparedDatabase: null,
+    importProgress: null,
+    importedCount: database.records?.length || 0,
+    metricCount: database.metrics?.length || 0,
+    lastUploadSummary: {
+      ...(scoutingImportDraft?.lastUploadSummary || {}),
+      status: "published",
+      databaseStored: true,
+      batchId: result.importBatchId || scoutingImportDraft?.databaseImportBatchId || "",
+      datasetVersionId: versionId,
+      rowCount: database.records?.length || 0,
+      metricCount: database.metrics?.length || 0,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
+  void loadScoutingImportHistory();
+  queueScoutingDatabaseLoad(renderScoutingLoadedDatabaseSurface);
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+async function applyScoutingImportDraft() {
+  if (!canAdministerScoutingData()) {
     return;
   }
-  const database = buildScoutingImportedDatabase();
+  const operationController = scoutingImportOperationController?.signal.aborted
+    ? new AbortController()
+    : scoutingImportOperationController || new AbortController();
+  scoutingImportOperationController = operationController;
+  const draftAtStart = scoutingImportDraft;
+  if (!draftAtStart) return;
+  const alreadyPrepared = Boolean(
+    draftAtStart.preparedDatabase?.importSignature &&
+    draftAtStart.preparedDatabase.importSignature === draftAtStart.importPreview?.signature
+  );
+  if (!alreadyPrepared) {
+    scoutingImportDraft = {
+      ...draftAtStart,
+      status: "preparing",
+      databaseUploadStatus: "Analyzing player rows without blocking the workspace",
+      databaseUploadError: "",
+      importProgress: { phase: "preparing", label: "Analyzing player rows", completed: 0, total: 0 },
+    };
+    renderScoutingWorkspace({ preserveFocus: true });
+  }
+  let database = null;
+  try {
+    const preparePerf = startScoutingPerformance("import.prepare", { fileName: draftAtStart.fileName });
+    database = await buildScoutingImportedDatabase(
+      { ...draftAtStart, status: alreadyPrepared ? draftAtStart.status : "preparing" },
+      {
+        signal: operationController.signal,
+        onProgress: ({ completed, total }) => updateScoutingImportProgress({
+          phase: "preparing",
+          label: "Analyzing player rows",
+          completed,
+          total,
+        }),
+      }
+    );
+    preparePerf.end({ rows: database?.records?.length || 0, metrics: database?.metrics?.length || 0 });
+  } catch (error) {
+    if (error?.name === "AbortError" || operationController.signal.aborted) return;
+    setScoutingDatasetImportFailure(error?.message || "Scouting import preview could not be prepared.");
+    return;
+  }
+  if (
+    operationController.signal.aborted ||
+    scoutingImportDraft?.fileName !== draftAtStart.fileName ||
+    scoutingImportDraft?.selectedSheet !== draftAtStart.selectedSheet
+  ) {
+    return;
+  }
   if (!database?.records?.length) {
     const failedSummary = {
       status: "failed",
@@ -5756,12 +5530,45 @@ function applyScoutingImportDraft() {
     renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
-  const preview = buildScoutingImportPreview(database);
+  updateScoutingImportProgress({
+    phase: "previewing",
+    label: "Comparing database changes",
+    completed: 0,
+    total: database.records.length,
+  });
+  const previewPerf = startScoutingPerformance("import.preview", { rows: database.records.length });
+  let preview;
+  try {
+    preview = await buildScoutingImportPreview(database, {
+      signal: operationController.signal,
+      onProgress: ({ completed, total }) => {
+        if (operationController.signal.aborted) return;
+        updateScoutingImportProgress({
+          phase: "previewing",
+          label: "Comparing database changes",
+          completed,
+          total,
+        });
+      },
+    });
+    previewPerf.end({ newRows: preview.newRows, replaceRows: preview.replaceRows, unchangedRows: preview.unchangedRows });
+  } catch (error) {
+    if (error?.name === "AbortError" || operationController.signal.aborted) {
+      previewPerf.end({ status: "cancelled" });
+      return;
+    }
+    previewPerf.end({ status: "failed" });
+    setScoutingDatasetImportFailure(error?.message || "Scouting import preview could not be prepared.");
+    return;
+  }
   const previewAccepted = scoutingImportDraft?.importPreview?.signature === database.importSignature;
   if (!previewAccepted) {
     scoutingImportDraft = {
       ...(scoutingImportDraft || {}),
+      status: "ready",
       importPreview: preview,
+      preparedDatabase: database,
+      importProgress: null,
       databaseUploadStatus: "Preview ready. Review new, replaced, unchanged and flagged rows before publishing.",
       databaseUploadError: "",
       importedCount: database.records.length,
@@ -5773,7 +5580,9 @@ function applyScoutingImportDraft() {
   if (preview.criticalIdentityRows > 0 && scoutingImportDraft?.criticalImportOverrideSignature !== database.importSignature) {
     scoutingImportDraft = {
       ...(scoutingImportDraft || {}),
+      status: "ready",
       importPreview: preview,
+      preparedDatabase: database,
       criticalImportOverrideSignature: database.importSignature,
       databaseUploadStatus: "Critical identity review required. Check the flagged rows, then press commit again if this import is intentional.",
       databaseUploadError: "",
@@ -5783,55 +5592,48 @@ function applyScoutingImportDraft() {
     renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
-  const publishDatabase = getScoutingImportPublishDatabase(database, preview);
-  const mergedDatabase = mergeScoutingImportedDatabase(database, preview);
-  window.__footballScienceImportedScoutingDatabase = mergedDatabase;
-  scoutingDatabaseOptionCache = null;
-  resetScoutingComputedCaches();
-  try {
-    window.localStorage?.setItem(scoutingImportedDatabaseStorageKey, JSON.stringify(mergedDatabase));
-  } catch {}
-  if (!publishDatabase.records.length) {
-    const unchangedSummary = {
-      status: "published",
-      fileName: database.fileName || "Uploaded file",
-      sourceSystem: scoutingImportDraft?.sourceSystem || getScoutingImportSourceSystem(),
-      sourceTypeLabel: scoutingImportDraft?.sourceTypeLabel || "",
-      rowCount: 0,
-      metricCount: database.metrics.length,
-      season: scoutingImportDraft?.seasonOverride || "",
-      startedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      databaseStored: true,
-      importPreview: preview,
-      databaseUploadStatus: "No changed rows to publish.",
-    };
+  const validatedVersionId = normalizeScoutingText(scoutingImportDraft?.datasetVersionId, 80);
+  const serverValidationAccepted =
+    scoutingImportDraft?.status === "validated" &&
+    scoutingImportDraft?.serverValidation?.signature === database.importSignature &&
+    validatedVersionId;
+  if (serverValidationAccepted) {
+    const importSignature = database.importSignature;
     scoutingImportDraft = {
       ...scoutingImportDraft,
-      status: "imported",
-      databaseStored: true,
-      databaseUploadStatus: "No changed rows to publish.",
+      status: "publishing",
+      databaseUploadStatus: "Activating validated database version",
       databaseUploadError: "",
-      lastUploadSummary: unchangedSummary,
-      importedCount: 0,
-      metricCount: database.metrics.length,
     };
-    setScoutingImportLastUploadSummary(unchangedSummary);
     renderScoutingWorkspace({ preserveFocus: true });
+    void publishScoutingDatasetVersion(validatedVersionId, { signal: operationController.signal })
+      .then((result) => {
+        if (operationController.signal.aborted || scoutingImportDraft?.importPreview?.signature !== importSignature) return;
+        if (!result?.ok) {
+          setScoutingDatasetImportFailure(result?.reason || "Scouting dataset could not be published.");
+          return;
+        }
+        finishScoutingDatasetImport(database, result);
+      })
+      .catch((error) => {
+        if (error?.name === "AbortError" || operationController.signal.aborted) return;
+        setScoutingDatasetImportFailure(error?.message);
+      });
     return;
   }
   scoutingImportDraft = {
     ...scoutingImportDraft,
-    status: "importing",
+    status: "staging",
     databaseStored: false,
-    databaseUploadStatus: "Uploading to scouting player database...",
+    databaseUploadStatus: "Preparing immutable source and staged dataset",
     databaseUploadError: "",
+    serverValidation: null,
     lastUploadSummary: {
-      status: "importing",
+      status: "staging",
       fileName: database.fileName || "Uploaded file",
       sourceSystem: scoutingImportDraft?.sourceSystem || getScoutingImportSourceSystem(),
       sourceTypeLabel: scoutingImportDraft?.sourceTypeLabel || "",
-      rowCount: publishDatabase.records.length,
+      rowCount: database.records.length,
       metricCount: database.metrics.length,
       season: scoutingImportDraft?.seasonOverride || "",
       startedAt: new Date().toISOString(),
@@ -5839,62 +5641,55 @@ function applyScoutingImportDraft() {
       databaseStored: false,
       importPreview: preview,
     },
-    importedCount: publishDatabase.records.length,
+    importedCount: database.records.length,
     metricCount: database.metrics.length,
   };
+  const importSignature = database.importSignature;
   setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
-  void publishScoutingExcelImportToDatabase(publishDatabase).then((result) => {
-    if (!result || result.ok === false) {
-      scoutingImportDraft = {
-        ...(scoutingImportDraft || {}),
-        status: "error",
-        databaseStored: false,
-        databaseUploadError: result?.reason || "Scouting player database upload failed. Local import is still active.",
-      };
-      scoutingImportDraft.lastUploadSummary = {
-        ...(scoutingImportDraft.lastUploadSummary || {}),
-        status: "failed",
-        databaseStored: false,
-        updatedAt: new Date().toISOString(),
-        databaseUploadError: scoutingImportDraft.databaseUploadError,
-      };
-      setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
-      renderScoutingWorkspace({ preserveFocus: true });
+  void stageScoutingExcelImport(database, { signal: operationController.signal }).then((result) => {
+    if (operationController.signal.aborted || scoutingImportDraft?.importPreview?.signature !== importSignature) return;
+    if (result?.alreadyActive) {
+      finishScoutingDatasetImport(database, result);
       return;
     }
-    if (result?.result?.enabled === false) {
-      scoutingImportDraft = {
-        ...(scoutingImportDraft || {}),
-        status: "imported",
-        databaseStored: false,
-        databaseUploadError:
-          result.result?.reason ||
-          "Scouting player database mode is disabled. Data is stored locally in your scouting database.",
-      };
-      scoutingImportDraft.lastUploadSummary = {
-        ...(scoutingImportDraft.lastUploadSummary || {}),
-        status: "published",
-        databaseStored: false,
-        updatedAt: new Date().toISOString(),
-      };
-      setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
-      renderScoutingWorkspace({ preserveFocus: true });
+    if (!result?.ok) {
+      const serverValidation = result?.validation || result?.checks
+        ? {
+            signature: database.importSignature,
+            summary: result.validation || {},
+            checks: result.checks || [],
+          }
+        : null;
+      setScoutingDatasetImportFailure(result?.reason, {
+        blocked: result?.status === "blocked",
+        serverValidation,
+      });
       return;
     }
+    const versionId = normalizeScoutingText(result.version?.id, 80);
     scoutingImportDraft = {
       ...(scoutingImportDraft || {}),
-      status: "imported",
-      databaseStored: true,
-      databaseUploadStatus: "Scouting player database updated",
+      status: "validated",
+      databaseStored: false,
+      databaseUploadStatus: "Validation passed. Review the checks, then publish this version.",
       databaseUploadError: "",
+      datasetVersionId: versionId,
+      databaseImportBatchId: result.version?.importBatchId || "",
+      sourceArtifact: result.artifact || null,
+      serverValidation: {
+        signature: database.importSignature,
+        summary: result.validation || {},
+        checks: result.checks || [],
+      },
       importedCount: database.records.length,
       metricCount: database.metrics.length,
       lastUploadSummary: {
         ...(scoutingImportDraft.lastUploadSummary || {}),
-        status: "published",
-        databaseStored: true,
-        batchId: result?.result?.importBatchId || scoutingImportDraft.lastUploadSummary?.batchId || "",
-        rowCount: publishDatabase.records.length,
+        status: "validated",
+        databaseStored: false,
+        batchId: result.version?.importBatchId || "",
+        datasetVersionId: versionId,
+        rowCount: database.records.length,
         updatedAt: new Date().toISOString(),
       },
     };
@@ -5902,29 +5697,19 @@ function applyScoutingImportDraft() {
     void loadScoutingImportHistory();
     renderScoutingWorkspace({ preserveFocus: true });
   }).catch((error) => {
-    scoutingImportDraft = {
-      ...(scoutingImportDraft || {}),
-      status: "error",
-      databaseStored: false,
-      databaseUploadError: error?.message || "Scouting player database upload failed. Local import is still active.",
-    };
-    scoutingImportDraft.lastUploadSummary = {
-      ...(scoutingImportDraft.lastUploadSummary || {}),
-      status: "failed",
-      databaseStored: false,
-      updatedAt: new Date().toISOString(),
-      databaseUploadError: scoutingImportDraft.databaseUploadError,
-    };
-    setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
-    renderScoutingWorkspace({ preserveFocus: true });
+    if (error?.name === "AbortError" || operationController.signal.aborted) return;
+    setScoutingDatasetImportFailure(error?.message || "Scouting dataset staging failed.");
   });
   renderScoutingWorkspace();
 }
 function clearScoutingImportedDatabase() {
-  if (!canEditScoutingWorkspace()) {
+  if (!canAdministerScoutingData()) {
     return;
   }
   delete window.__footballScienceImportedScoutingDatabase;
+  scoutingImportOperationController?.abort();
+  scoutingImportOperationController = null;
+  scoutingImportParserClient.cancel();
   scoutingImportedDatabaseLoaded = true;
   scoutingDatabaseOptionCache = null;
   resetScoutingComputedCaches();
@@ -7117,7 +6902,16 @@ function renderScoutingRoleSpiderSummary(record, template = [], metricRows = [])
 function renderScoutingTabButton(tab) {
   const active = ensureScoutingState().activeTab === tab.id;
   return `
-    <button type="button" class="scouting-tab${active ? " is-active" : ""}" data-scouting-tab="${escapeHtml(tab.id)}" aria-selected="${active ? "true" : "false"}">
+    <button
+      type="button"
+      id="scouting-tab-${escapeHtml(tab.id)}"
+      class="scouting-tab${active ? " is-active" : ""}"
+      role="tab"
+      data-scouting-tab="${escapeHtml(tab.id)}"
+      aria-controls="scouting-active-panel"
+      aria-selected="${active ? "true" : "false"}"
+      tabindex="${active ? "0" : "-1"}"
+    >
       ${escapeHtml(tab.label)}
     </button>
   `;
@@ -7231,6 +7025,7 @@ function bindScoutingDragAndDrop() {
   bindScoutingDragAndDropRouter(root, {
     addRecordToShadow: shadowXiActions.addRecordToShadow,
     assignMyTeamPlayerToSlot: myTeamActions.assignPlayerToSlot,
+    canAdministerData: canAdministerScoutingData,
     canEdit: canEditScoutingWorkspace,
     getPointerPitchPosition: getScoutingMyTeamPointerPitchPosition,
     normalizeText: normalizeScoutingText,
@@ -10481,12 +10276,11 @@ function getScoutingDatabaseLoader() {
     ensureState: ensureScoutingState,
     getDatabase: getScoutingDatabase,
     isDatabaseLoaded: isScoutingDatabaseLoaded,
-    loadBySource: (filters = {}) =>
+    createAbortController: () => new AbortController(),
+    loadBySource: (filters = {}, options = {}) =>
       filters.source === "fsdb"
-        ? loadFootballScienceDbDatabase()
-        : SCOUTING_SERVER_FIRST_DATABASE_ENABLED
-          ? loadScoutingDatabaseWithApi().catch(() => loadScoutingDatabaseWithWorker({ previewFirst: false }))
-          : loadScoutingDatabaseWithWorker({ previewFirst: false }),
+        ? loadFootballScienceDbDatabase(options)
+        : loadScoutingPreferredDatabase(options),
     normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
     renderWorkspace: renderScoutingWorkspace,
     resetComputedCaches: resetScoutingComputedCaches,
@@ -10926,7 +10720,7 @@ function updateScoutingTeamFilterSuggestions(input) {
   suggestions.replaceChildren(fragment);
 }
 function renderScoutingImportPanel() {
-  if (!canEditScoutingWorkspace()) {
+  if (!canAdministerScoutingData()) {
     return "";
   }
   const database = getScoutingDatabase();
@@ -10942,8 +10736,18 @@ function renderScoutingImportPanel() {
   const draftStatusLabel =
     draft?.status === "loading"
       ? "Reading workbook..."
-      : draft?.status === "importing"
-        ? "Uploading to scouting player database..."
+      : draft?.status === "preparing"
+        ? "Analyzing player rows..."
+      : draft?.status === "staging"
+        ? "Staging database version..."
+      : draft?.status === "validated"
+        ? "Validation passed"
+      : draft?.status === "publishing"
+        ? "Activating database version..."
+      : draft?.status === "blocked"
+        ? "Publication blocked"
+      : draft?.status === "cancelled"
+        ? "Import cancelled"
       : draft?.databaseStored
         ? "Scouting player database updated"
         : draft?.status === "imported"
@@ -10961,6 +10765,7 @@ function renderScoutingImportPanel() {
   const coreFields = [
     ["player", "Player"],
     ["team", "Team"],
+    ["teamWithinTimeframe", "Team within timeframe"],
     ["league", "League"],
     ["season", "Season"],
     ["position", "Position"],
@@ -11009,12 +10814,15 @@ function renderScoutingImportPanel() {
             ? `
             <div class="scouting-import-workbench">
               <div class="scouting-import-status ${importStepState.error ? "is-error" : ""}" aria-live="polite">
-                <span>${escapeHtml("Scouting player database file")}</span>
-                <strong>${escapeHtml(draftStatusLabel)}</strong>
-                <p>${escapeHtml(draftStatusDetail)}</p>
+                <div>
+                  <span>${escapeHtml("Scouting player database file")}</span>
+                  <strong>${escapeHtml(draftStatusLabel)}</strong>
+                  <p>${escapeHtml(draftStatusDetail)}</p>
+                </div>
+                ${["loading", "preparing", "staging", "validating"].includes(draft.status) ? `<button type="button" class="scouting-secondary-button" data-cancel-scouting-import>Cancel</button>` : ""}
               </div>
               ${
-                draft.status === "ready" || draft.status === "imported" || draft.status === "error"
+                ["ready", "blocked", "validated", "error"].includes(draft.status)
                   ? `
                   <div class="scouting-import-controls">
                     <div class="scouting-import-presets">
@@ -11024,7 +10832,7 @@ function renderScoutingImportPanel() {
                       </div>
                     </div>
                       ${
-                        draft.sheets.length > 1
+                        (draft.sheets || []).length > 1
                           ? `
                             <label>
                               <span>Mapping sheet</span>
@@ -11065,8 +10873,9 @@ function renderScoutingImportPanel() {
                       </div>
                     </div>
                     ${renderScoutingImportDiffPreview(draft.importPreview)}
+                    ${renderScoutingServerValidation(draft.serverValidation, draft.importProgress)}
                   `
-                  : ""
+                  : renderScoutingServerValidation(draft.serverValidation, draft.importProgress)
               }
             </div>
           `
@@ -11076,7 +10885,7 @@ function renderScoutingImportPanel() {
   `;
 }
 function renderScoutingImportLaunch({ label = "Update scouting database" } = {}) {
-  if (!canEditScoutingWorkspace()) {
+  if (!canAdministerScoutingData()) {
     return "";
   }
   return `
@@ -11106,11 +10915,11 @@ function renderScoutingSettingsMenu() {
           <p>Choose the area you want to manage.</p>
         </div>
         <div class="scouting-settings-option-grid">
-          <button type="button" class="scouting-settings-option" data-open-scouting-settings-panel="datasource">
+          ${canAdministerScoutingData() ? `<button type="button" class="scouting-settings-option" data-open-scouting-settings-panel="datasource">
             <span>Datasource & imports</span>
             <strong>Update scouting player database</strong>
             <small>Upload files, review import history and inspect data foundation.</small>
-          </button>
+          </button>` : ""}
           <button type="button" class="scouting-settings-option" data-open-scouting-role-models>
             <span>Role models</span>
             <strong>Manage search blueprints</strong>
@@ -11128,7 +10937,7 @@ function renderScoutingSettingsMenu() {
 }
 function openScoutingSettingsPanel(panelId) {
   const id = normalizeScoutingText(panelId, 80);
-  if (!canEditScoutingWorkspace() || id !== "datasource") {
+  if (!canAdministerScoutingData() || id !== "datasource") {
     return;
   }
   scoutingSettingsPanel = id;
@@ -11140,7 +10949,7 @@ function closeScoutingSettingsPanel() {
   renderScoutingWorkspace({ preserveFocus: true });
 }
 function renderScoutingSettingsOverlay() {
-  if (!scoutingSettingsPanel || !canEditScoutingWorkspace()) {
+  if (!scoutingSettingsPanel || !canAdministerScoutingData()) {
     return "";
   }
   if (scoutingSettingsPanel !== "datasource") {
@@ -11153,7 +10962,7 @@ function renderScoutingSettingsOverlay() {
           <div>
             <p class="placeholder-tag">Settings</p>
             <h2>Datasource & imports</h2>
-            <p>Manage uploads, import history and the scouting player database foundation from one clean workspace.</p>
+            <p>Manage immutable sources, validation history, active versions and rollback from one workspace.</p>
           </div>
           <button type="button" class="scouting-report-builder-close" data-close-scouting-settings-panel aria-label="Close scouting settings">Close</button>
         </header>
@@ -11162,7 +10971,7 @@ function renderScoutingSettingsOverlay() {
             <div>
               <p class="placeholder-tag">Update</p>
               <h3>Upload datasource</h3>
-              <p>Add a new scouting player database file, preview changes and commit only when the import looks right.</p>
+              <p>Add a source file, review the staged validation, then publish an exact database version.</p>
             </div>
             ${renderScoutingImportLaunch({ label: "Upload datasource" })}
           </section>
@@ -11361,12 +11170,21 @@ function getScoutingDataQualitySummary() {
 }
 function renderScoutingDataQualityPanel() {
   const summary = getScoutingDataQualitySummary();
+  const capability = scoutingDatabaseCapabilitySnapshot;
+  const sourceLabel = capability?.readMode === "versioned"
+    ? `Version ${capability.activeDatasetVersion?.version_number || "active"}`
+    : capability?.readMode === "legacy-server"
+      ? "Server transition"
+      : capability?.degraded
+        ? "Bundled fallback · server unavailable"
+        : "Bundled fallback";
   return `
     <section class="scouting-data-quality">
       <div>
         <span>Data foundation</span>
         <strong>${summary.coreCompleteness}% core completeness</strong>
-        <p>${escapeHtml(`${summary.records.toLocaleString("en-US")} rows / ${summary.sheets} sheets / ${summary.metrics} metrics`)}</p>
+        <p>${escapeHtml(`${summary.records.toLocaleString("en-US")} rows / ${summary.sheets} sheets / ${summary.metrics} metrics / ${sourceLabel}`)}</p>
+        ${capability?.degraded && capability.fallbackReason ? `<small>${escapeHtml(capability.fallbackReason)}</small>` : ""}
       </div>
       <div class="scouting-data-quality-grid">
         <article><span>Seasons</span><strong>${escapeHtml(summary.seasons)}</strong><em>${escapeHtml(summary.leagues)} leagues</em></article>
@@ -12504,7 +12322,13 @@ function renderScoutingWorkspace(options = {}) {
             ${scoutingTabs.map(renderScoutingTabButton).join("")}
           </div>
         </div>
-          <div class="scouting-content" data-scouting-active-content>
+          <div
+            id="scouting-active-panel"
+            class="scouting-content"
+            role="tabpanel"
+            aria-labelledby="scouting-tab-${escapeHtml(state.activeTab)}"
+            data-scouting-active-content
+          >
             ${renderScoutingActiveContent()}
           </div>
       </section>
@@ -12528,7 +12352,47 @@ function syncScoutingTabButtonsDom(state = ensureScoutingState()) {
     const active = normalizeScoutingText(button.dataset.scoutingTab, 80) === state.activeTab;
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-selected", active ? "true" : "false");
+    button.setAttribute("tabindex", active ? "0" : "-1");
   });
+  const activePanel = ui.scoutingWorkspace?.querySelector("[data-scouting-active-content]");
+  activePanel?.setAttribute("aria-labelledby", `scouting-tab-${state.activeTab}`);
+}
+function handleScoutingTabKeydown(event) {
+  const currentTab = event?.target?.closest?.('.scouting-tabs [role="tab"][data-scouting-tab]');
+  if (!currentTab) {
+    return false;
+  }
+  const keys = new Set(["ArrowLeft", "ArrowRight", "Home", "End"]);
+  if (!keys.has(event.key)) {
+    return false;
+  }
+  const tabs = Array.from(currentTab.closest('[role="tablist"]')?.querySelectorAll('[role="tab"][data-scouting-tab]') || [])
+    .filter((tab) => !tab.disabled && tab.getAttribute("aria-disabled") !== "true");
+  const currentIndex = tabs.indexOf(currentTab);
+  if (currentIndex < 0 || !tabs.length) {
+    return false;
+  }
+  const nextIndex = event.key === "Home"
+    ? 0
+    : event.key === "End"
+      ? tabs.length - 1
+      : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  const nextTab = tabs[nextIndex];
+  event.preventDefault();
+  event.stopPropagation();
+  nextTab.focus({ preventScroll: true });
+  setScoutingActiveTab(nextTab.dataset.scoutingTab);
+  return true;
+}
+function resetScoutingTabScrollPosition() {
+  const scrollHost = ui.scoutingWorkspace?.closest(".platform-content");
+  if (scrollHost) {
+    scrollHost.scrollTop = 0;
+  }
+  const activeContent = ui.scoutingWorkspace?.querySelector("[data-scouting-active-content]");
+  if (activeContent) {
+    activeContent.scrollTop = 0;
+  }
 }
 function refreshScoutingActiveTabSurface(options = {}) {
   if (!ui.scoutingWorkspace) {
@@ -12754,24 +12618,33 @@ function scheduleScoutingDatabaseFilterRefresh() {
   return getScoutingDatabaseActions().scheduleFilterRefresh();
 }
 function rollbackScoutingImport(importBatchId) {
-  if (!canEditScoutingWorkspace()) {
+  if (!canAdministerScoutingData()) {
     return;
   }
   const batchId = normalizeScoutingText(importBatchId, 80);
-  if (!batchId || !isScoutingApiDatabaseActive()) {
+  if (!batchId) {
+    return;
+  }
+  const version = scoutingImportHistoryCache.imports?.find((item) => item.id === batchId);
+  const label = normalizeScoutingText(version?.versionLabel || version?.sourceFileName, 160) || "this database version";
+  if (!window.confirm(`Restore ${label}? The current scouting database will remain available in version history.`)) {
     return;
   }
   scoutingImportHistoryCache = { ...scoutingImportHistoryCache, status: "loading", error: "" };
   renderScoutingImportHistoryPanelIntoDom();
-  sendScoutingApiAction({ action: "rollbackImport", importBatchId: batchId })
+  scoutingDatasetImportClient.rollback({ importBatchId: batchId })
     .then((result) => {
       if (!result?.ok) {
         throw new Error(result?.reason || "Could not rollback import.");
       }
       scoutingDatabaseOptionCache = null;
+      scoutingDatabaseCapabilityService.invalidate();
+      scoutingDatabaseCapabilitySnapshot = null;
+      delete window.__footballScienceScoutingDatabase;
+      clearScoutingDatabaseLoadState();
       resetScoutingComputedCaches();
       scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
-      return loadScoutingDatabaseWithApi();
+      return loadScoutingPreferredDatabase();
     })
     .then(() => {
       renderScoutingDatabaseResults();
@@ -13254,9 +13127,11 @@ function getScoutingEventDeps() {
     addRoleModelMetricFromPicker: addScoutingRoleModelMetricFromPicker,
     applyImportDraft: applyScoutingImportDraft,
     applyImportSourcePreset: applyScoutingImportSourcePreset,
+    cancelImportOperation: cancelScoutingImportOperation,
     applyPresetView: applyScoutingPresetView,
     applySavedView: applyScoutingSavedView,
     assignMyTeamPlayerToSlot: myTeamActions.assignPlayerToSlot,
+    canAdministerData: canAdministerScoutingData,
     canEdit: canEditScoutingWorkspace,
     clearCompareSet: clearScoutingCompareSet,
     clearImportedDatabase: clearScoutingImportedDatabase,
@@ -13391,8 +13266,12 @@ function getScoutingEventDeps() {
       if (scoutingImportDraft) {
         scoutingImportDraft = {
           ...scoutingImportDraft,
+          status: "ready",
           seasonOverride: value,
           importPreview: null,
+          preparedDatabase: null,
+          serverValidation: null,
+          datasetVersionId: "",
         };
       }
     },
@@ -13417,4 +13296,8 @@ export function handleChange(event, context) {
 export function handleSubmit(event, context) {
   setScoutingContext(context);
   handleScoutingModuleSubmit(event, getScoutingEventDeps());
+}
+export function handleKeydown(event, context) {
+  setScoutingContext(context);
+  handleScoutingTabKeydown(event);
 }

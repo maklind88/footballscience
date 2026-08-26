@@ -1,15 +1,21 @@
 export function createScoutingDatabaseLoader(deps = {}) {
   let activeLoadPromise = null;
   let activeLoadSource = "";
+  let activeLoadController = null;
   let queuedRenderRequest = null;
 
   function getFilters() {
     return deps.normalizeDatabaseFilters?.(deps.ensureState?.().databaseFilters) || {};
   }
 
-  function clearLoadState() {
+  function clearLoadState(options = {}) {
+    if (options.abort !== false) {
+      activeLoadController?.abort?.();
+      queuedRenderRequest = null;
+    }
     activeLoadPromise = null;
     activeLoadSource = "";
+    activeLoadController = null;
   }
 
   function isLoading() {
@@ -32,9 +38,14 @@ export function createScoutingDatabaseLoader(deps = {}) {
     if (!activeLoadPromise) {
       deps.setDatabaseError?.("");
       activeLoadSource = filters.source;
-      const loader = deps.loadBySource?.(filters);
+      activeLoadController = deps.createAbortController?.() || (typeof AbortController === "function" ? new AbortController() : null);
+      const loadController = activeLoadController;
+      const loader = deps.loadBySource?.(filters, { signal: loadController?.signal });
       const loadPromise = Promise.resolve(loader)
         .then(() => {
+          if (loadController?.signal?.aborted || activeLoadPromise !== loadPromise) {
+            throw new DOMException("Scouting database load was superseded.", "AbortError");
+          }
           const database = deps.getDatabase?.();
           if (!database) {
             throw new Error(
@@ -46,13 +57,16 @@ export function createScoutingDatabaseLoader(deps = {}) {
           deps.clearDatabaseOptionCache?.();
           deps.resetComputedCaches?.();
           if (activeLoadPromise === loadPromise) {
-            clearLoadState();
+            clearLoadState({ abort: false });
           }
           return database;
         })
         .catch((error) => {
           if (activeLoadPromise === loadPromise) {
-            clearLoadState();
+            clearLoadState({ abort: false });
+          }
+          if (error?.name === "AbortError") {
+            throw error;
           }
           deps.setDatabaseError?.(
             error?.message ||

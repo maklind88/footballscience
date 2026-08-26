@@ -62,3 +62,29 @@ test("Scouting worker fatal errors reject every pending request", async () => {
   await expect(secondRequest).rejects.toThrow("worker crashed");
   expect(harness.manager.getPendingCount()).toBe(0);
 });
+
+test("Scouting worker requests stop waiting when their signal is aborted", async () => {
+  const harness = createHarness();
+  const controller = new AbortController();
+  const request = harness.manager.request(
+    harness.worker,
+    { type: "query" },
+    { signal: controller.signal, timeoutMs: 15000 }
+  );
+
+  controller.abort();
+
+  await expect(request).rejects.toMatchObject({ name: "AbortError" });
+  expect(harness.manager.getPendingCount()).toBe(0);
+  expect(harness.manager.handleMessage({ requestId: 1, type: "database", database: { source: "worker" } })).toBe(false);
+});
+
+test("Scouting worker requests fail immediately for an already aborted signal", async () => {
+  const harness = createHarness();
+  const controller = new AbortController();
+  controller.abort();
+
+  await expect(harness.manager.request(harness.worker, { type: "query" }, { signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+  expect(harness.posted).toEqual([]);
+  expect(harness.manager.getPendingCount()).toBe(0);
+});

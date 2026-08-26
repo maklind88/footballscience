@@ -26,7 +26,7 @@ export function createFootballScienceDbApiClient(deps = {}) {
   const getAccessToken = deps.getAccessToken;
   const URLSearchParamsRef = deps.URLSearchParamsRef || URLSearchParams;
 
-  async function fetchApi(query = {}) {
+  async function fetchApi(query = {}, options = {}) {
     const params = createFootballScienceDbSearchParams(query, URLSearchParamsRef);
     const queryString = params.toString();
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -42,6 +42,7 @@ export function createFootballScienceDbApiClient(deps = {}) {
           method: "GET",
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
+          signal: options.signal,
         });
         const result = await parseFootballScienceDbResponse(response);
         if (response.status === 401 && attempt === 0) {
@@ -56,6 +57,7 @@ export function createFootballScienceDbApiClient(deps = {}) {
         }
         return { ok: true, status: response.status, result };
       } catch (error) {
+        if (error?.name === "AbortError") throw error;
         return { ok: false, status: 0, reason: error?.message || "Football Science DB could not be reached." };
       }
     }

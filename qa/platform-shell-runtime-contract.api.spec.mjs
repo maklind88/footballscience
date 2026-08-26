@@ -78,7 +78,7 @@ function createRuntimeHarness(options = {}) {
     },
     win,
   });
-  return { body, intervals, mediaListeners, preloads, runtime, storage, stylesheets, ui };
+  return { body, intervals, mediaListeners, preloads, runtime, storage, stylesheets, timeouts, ui };
 }
 
 test("platform shell runtime owns theme and preload wiring outside app.js", () => {
@@ -122,5 +122,6 @@ test("platform shell runtime preserves theme modes and scheduled work", async ()
   ]);
 
   harness.runtime.queueCriticalWorkspacePreloads();
-  expect(harness.preloads).toEqual(["transfer-room", "scouting"]);
+  expect(harness.preloads).toEqual(["scouting", "transfer-room"]);
+  expect(harness.timeouts).toContain(1200);
 });

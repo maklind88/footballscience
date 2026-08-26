@@ -319,6 +319,33 @@ test("Scouting non-database tabs do not load the player database payload", async
   }
 });
 
+test("Scouting primary tabs expose keyboard and screen-reader navigation", async ({ page }) => {
+  await seedScoutingAccess(page, { activeTab: "shadow-xi" });
+  const boot = await bootApp(page);
+  expect(boot.pageErrors).toEqual([]);
+  await openWorkspace(page, "scouting");
+
+  const tablist = page.getByRole("tablist", { name: "Scouting views" });
+  const shadowTab = tablist.getByRole("tab", { name: "Shadow XI" });
+  const databaseTab = tablist.getByRole("tab", { name: "Database" });
+  const reportsTab = tablist.getByRole("tab", { name: "Reports" });
+  const panel = page.getByRole("tabpanel");
+
+  await expect(shadowTab).toHaveAttribute("aria-selected", "true");
+  await expect(shadowTab).toHaveAttribute("tabindex", "0");
+  await shadowTab.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(databaseTab).toBeFocused();
+  await expect(databaseTab).toHaveAttribute("aria-selected", "true");
+  await expect(shadowTab).toHaveAttribute("tabindex", "-1");
+  await expect(panel).toHaveAttribute("aria-labelledby", "scouting-tab-database");
+
+  await page.keyboard.press("End");
+  await expect(reportsTab).toBeFocused();
+  await expect(reportsTab).toHaveAttribute("aria-selected", "true");
+  await expect(panel).toHaveAttribute("aria-labelledby", "scouting-tab-reports");
+});
+
 test("Scouting database load, search and position filter stay stable", async ({ page }) => {
   test.setTimeout(180_000);
   await seedScoutingAccess(page);
@@ -523,6 +550,23 @@ test("Scouting mobile squad boards stack without visual overflow", async ({ page
   const boot = await bootApp(page);
   expect(boot.pageErrors).toEqual([]);
   await openWorkspace(page, "scouting");
+
+  const navigationGeometry = await page.evaluate(() => {
+    const tabs = Array.from(document.querySelectorAll('[data-workspace-view="scouting"].is-active .scouting-tab'));
+    const tablist = document.querySelector('[data-workspace-view="scouting"].is-active .scouting-tabs');
+    const activeContent = document.querySelector('[data-workspace-view="scouting"].is-active [data-scouting-active-content]');
+    const tablistRect = tablist?.getBoundingClientRect();
+    const contentRect = activeContent?.getBoundingClientRect();
+    const rects = tabs.map((tab) => tab.getBoundingClientRect());
+    return {
+      count: tabs.length,
+      rows: new Set(rects.map((rect) => Math.round(rect.top))).size,
+      clipped: rects.filter((rect) => !tablistRect || rect.left < tablistRect.left - 1 || rect.right > tablistRect.right + 1).length,
+      hidden: rects.filter((rect) => rect.width <= 0 || rect.height <= 0).length,
+      overlapsContent: Boolean(tablistRect && contentRect && tablistRect.bottom > contentRect.top + 1),
+    };
+  });
+  expect(navigationGeometry).toEqual({ count: 6, rows: 2, clipped: 0, hidden: 0, overlapsContent: false });
 
   const expectMobileBoardGeometry = async ({ tabId, pitchSelector, sideSelector }) => {
     const tab = page.locator(`.scouting-tab[data-scouting-tab="${tabId}"]`).first();

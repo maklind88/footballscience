@@ -211,7 +211,7 @@ export function handleScoutingDatabaseClick(event, deps = {}) {
   }
   const openImportTrigger = target.closest("[data-scouting-import-open]");
   if (openImportTrigger) {
-    if (!deps.canEdit()) {
+    if (!deps.canAdministerData?.()) {
       return true;
     }
     deps.getWorkspaceRoot()?.querySelector("[data-scouting-import-file]")?.click();
@@ -243,16 +243,25 @@ export function handleScoutingDatabaseClick(event, deps = {}) {
   }
   const applyImportTrigger = target.closest("[data-apply-scouting-import]");
   if (applyImportTrigger) {
+    if (!deps.canAdministerData?.()) return true;
     deps.applyImportDraft();
+    return true;
+  }
+  const cancelImportTrigger = target.closest("[data-cancel-scouting-import]");
+  if (cancelImportTrigger) {
+    if (!deps.canAdministerData?.()) return true;
+    deps.cancelImportOperation?.();
     return true;
   }
   const presetImportTrigger = target.closest("[data-scouting-import-preset]");
   if (presetImportTrigger) {
+    if (!deps.canAdministerData?.()) return true;
     deps.applyImportSourcePreset(presetImportTrigger.dataset.scoutingImportPreset);
     return true;
   }
   const clearImportTrigger = target.closest("[data-clear-scouting-import]");
   if (clearImportTrigger) {
+    if (!deps.canAdministerData?.()) return true;
     deps.clearImportedDatabase();
     return true;
   }
@@ -309,6 +318,7 @@ export function handleScoutingDatabaseInput(event, deps = {}) {
   const target = event.target;
   const importSeasonInput = target.closest("[data-scouting-import-season]");
   if (importSeasonInput) {
+    if (!deps.canAdministerData?.()) return true;
     deps.updateImportSeasonDraft(importSeasonInput.value);
     return true;
   }
@@ -349,6 +359,7 @@ export function handleScoutingDatabaseChange(event, deps = {}) {
   const target = event.target;
   const importFileInput = target.closest("[data-scouting-import-file]");
   if (importFileInput) {
+    if (!deps.canAdministerData?.()) return true;
     const nextFile = importFileInput.files?.[0];
     importFileInput.value = "";
     deps.loadImportFile(nextFile).catch((error) => {
@@ -358,11 +369,13 @@ export function handleScoutingDatabaseChange(event, deps = {}) {
   }
   const importSheetInput = target.closest("[data-scouting-import-sheet]");
   if (importSheetInput) {
+    if (!deps.canAdministerData?.()) return true;
     deps.setImportDraftPatch({ selectedSheet: importSheetInput.value });
     return true;
   }
   const importMapInput = target.closest("[data-scouting-import-map]");
   if (importMapInput) {
+    if (!deps.canAdministerData?.()) return true;
     deps.setImportMapField(importMapInput.dataset.scoutingImportMap, importMapInput.value);
     return true;
   }

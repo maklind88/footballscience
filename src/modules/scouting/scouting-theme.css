@@ -81,6 +81,9 @@ body.is-dark-mode #scoutingWorkspace :where(
   .scouting-data-quality,
   .scouting-import-panel,
   .scouting-import-preview,
+  .scouting-import-step,
+  .scouting-import-server-validation,
+  .scouting-import-validation-list article,
   .scouting-saved-views-modal,
   .scouting-saved-view-save,
   .scouting-empty-panel

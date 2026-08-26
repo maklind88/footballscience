@@ -2,6 +2,8 @@ function defaultNormalizeText(value = "", maxLength = 160) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
+const defaultIsolatedSheetNames = ["NWSL (Statsbomb)"];
+
 export function createScoutingImportHelpers(deps = {}) {
   const normalizeText = typeof deps.normalizeText === "function" ? deps.normalizeText : defaultNormalizeText;
   const normalizeDateValue = typeof deps.normalizeDateValue === "function" ? deps.normalizeDateValue : (value = "") => normalizeText(value, 40);
@@ -131,7 +133,11 @@ export function createScoutingImportHelpers(deps = {}) {
   }
 
   function parseScoutingMetricValue(value) {
-    const numeric = Number(String(value ?? "").replace(/,/g, ".").replace(/[^0-9.+-]/g, ""));
+    const text = String(value ?? "").trim();
+    if (!text || /^(-|n\/?a|null|undefined)$/i.test(text)) return null;
+    const normalized = text.replace(/,/g, ".").replace(/[^0-9.+-]/g, "");
+    if (!normalized || !/[0-9]/.test(normalized)) return null;
+    const numeric = Number(normalized);
     return Number.isFinite(numeric) ? numeric : null;
   }
 
@@ -323,7 +329,15 @@ export function createScoutingImportHelpers(deps = {}) {
   }
 
   function getScoutingImportSheetsForBatch(draft = getImportDraft()) {
-    return (Array.isArray(draft?.sheets) ? draft.sheets : []).filter((sheet) => Array.isArray(sheet?.rows) && sheet.rows.length);
+    const isolatedSheetNames = new Set(
+      [...defaultIsolatedSheetNames, ...(Array.isArray(deps.isolatedSheetNames) ? deps.isolatedSheetNames : [])]
+        .map((name) => normalizeText(name, 160).toLowerCase())
+        .filter(Boolean)
+    );
+    return (Array.isArray(draft?.sheets) ? draft.sheets : []).filter((sheet) => {
+      const sheetName = normalizeText(sheet?.name, 160).toLowerCase();
+      return Array.isArray(sheet?.rows) && sheet.rows.length && !isolatedSheetNames.has(sheetName);
+    });
   }
 
   function getScoutingImportHeadersForBatch(sheets = []) {

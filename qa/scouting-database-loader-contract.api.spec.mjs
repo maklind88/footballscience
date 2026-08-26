@@ -9,6 +9,7 @@ function createHarness(options = {}) {
   const calls = {
     errors: [],
     loads: [],
+    signals: [],
     renders: [],
     resetCaches: 0,
     clearedOptions: 0,
@@ -20,9 +21,11 @@ function createHarness(options = {}) {
     ensureState: () => state,
     getDatabase: () => database,
     isDatabaseLoaded: () => Boolean(database),
-    loadBySource: (filters) => {
+    loadBySource: (filters, loadOptions = {}) => {
       calls.loads.push(filters.source);
+      calls.signals.push(loadOptions.signal || null);
       const result = options.loadBySource?.(filters, {
+        signal: loadOptions.signal,
         setDatabase(nextDatabase) {
           database = nextDatabase;
         },
@@ -57,12 +60,13 @@ test("Scouting database loader returns existing databases without starting a loa
 });
 
 test("Scouting database loader resets stale source promises before FSDB loads", async () => {
-  const pending = new Promise(() => {});
   const harness = createHarness({
     source: "local",
     loadBySource: (filters, api) => {
       if (filters.source === "local") {
-        return pending;
+        return new Promise((_resolve, reject) => {
+          api.signal.addEventListener("abort", () => reject(new DOMException("cancelled", "AbortError")), { once: true });
+        });
       }
       api.setDatabase({ source: "fsdb", records: [{ id: "fsdb-1" }] });
       return Promise.resolve();
@@ -70,6 +74,7 @@ test("Scouting database loader resets stale source promises before FSDB loads", 
   });
 
   const firstLoad = harness.loader.ensureLoaded();
+  const firstLoadResult = firstLoad.catch((error) => error);
   expect(harness.loader.isLoading()).toBe(true);
   expect(harness.loader.getLoadSource()).toBe("local");
 
@@ -77,12 +82,31 @@ test("Scouting database loader resets stale source promises before FSDB loads", 
   const secondLoad = harness.loader.ensureLoaded();
 
   await expect(secondLoad).resolves.toEqual({ source: "fsdb", records: [{ id: "fsdb-1" }] });
-  expect(firstLoad).toBeInstanceOf(Promise);
+  await expect(firstLoadResult).resolves.toMatchObject({ name: "AbortError" });
+  expect(harness.calls.signals[0].aborted).toBe(true);
+  expect(harness.calls.signals[1].aborted).toBe(false);
   expect(harness.calls.loads).toEqual(["local", "fsdb"]);
   expect(harness.loader.isLoading()).toBe(false);
   expect(harness.loader.getLoadSource()).toBe("");
   expect(harness.calls.clearedOptions).toBe(1);
   expect(harness.calls.resetCaches).toBe(1);
+});
+
+test("Scouting database loader cancels queued rendering when a load is cleared", async () => {
+  const harness = createHarness({
+    loadBySource: (_filters, api) => new Promise((_resolve, reject) => {
+      api.signal.addEventListener("abort", () => reject(new DOMException("cancelled", "AbortError")), { once: true });
+    }),
+  });
+
+  harness.loader.queueLoad();
+  harness.loader.clearLoadState();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(harness.calls.signals[0].aborted).toBe(true);
+  expect(harness.calls.renders).toEqual([]);
+  expect(harness.loader.isLoading()).toBe(false);
 });
 
 test("Scouting database loader dedupes queued renders while a load is active", async () => {

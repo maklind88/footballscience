@@ -36,7 +36,8 @@ test("Scouting database readiness is explicit and uses a restrained progress sta
 
   expect(controller).toContain("scheduleAutoLoad(delayMs = 320)");
   expect(workspace).toContain("scheduleScoutingDatabaseAutoLoad(delayMs = 320)");
-  expect(workspace).toContain("const SCOUTING_SERVER_FIRST_DATABASE_ENABLED = false");
+  expect(workspace).toContain("createScoutingDatabaseCapabilityService");
+  expect(workspace).toContain("loadScoutingPreferredDatabase");
   expect(workspace).toContain("renderActiveTabSurfaceOrWorkspace: renderScoutingLoadedDatabaseSurface");
   expect(workspace).toContain("renderScoutingProfileModalIntoDom(state.selectedRecordId)");
   expect(databaseRenderer).toContain('class="scouting-database-progress"');

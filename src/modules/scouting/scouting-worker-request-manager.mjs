@@ -10,6 +10,10 @@ function getRequestError(message = "") {
   return new Error(message || "Scouting player database worker failed.");
 }
 
+function getAbortError(message = "") {
+  return new DOMException(message || "Scouting player database request was cancelled.", "AbortError");
+}
+
 export function createScoutingWorkerRequestManager(deps = {}) {
   const timers = getTimerApi(deps);
   const pending = new Map();
@@ -22,6 +26,7 @@ export function createScoutingWorkerRequestManager(deps = {}) {
     }
     pending.delete(requestId);
     timers.clearTimeout?.(request.timeoutId);
+    request.cleanup?.();
     settle(request);
     return true;
   }
@@ -52,6 +57,9 @@ export function createScoutingWorkerRequestManager(deps = {}) {
     if (!worker || typeof worker.postMessage !== "function") {
       return Promise.reject(getRequestError("Scouting player database worker is unavailable."));
     }
+    if (options.signal?.aborted) {
+      return Promise.reject(getAbortError());
+    }
     const requestId = (nextRequestId += 1);
     const timeoutMs = Math.max(1000, Math.floor(Number(options.timeoutMs) || 45000));
     const type = String(options.type || payload.type || "query").slice(0, 40);
@@ -71,7 +79,22 @@ export function createScoutingWorkerRequestManager(deps = {}) {
         }
       }, timeoutMs);
 
-      pending.set(requestId, { reject, resolve, timeoutId });
+      const onAbort = () => {
+        settleRequest(requestId, (request) => request.reject(getAbortError()));
+      };
+      const pendingRequest = {
+        cleanup: null,
+        reject,
+        resolve,
+        timeoutId,
+      };
+      pending.set(requestId, pendingRequest);
+      options.signal?.addEventListener?.("abort", onAbort, { once: true });
+      pendingRequest.cleanup = () => options.signal?.removeEventListener?.("abort", onAbort);
+      if (options.signal?.aborted) {
+        onAbort();
+        return;
+      }
       try {
         worker.postMessage({ ...payload, requestId });
       } catch (error) {

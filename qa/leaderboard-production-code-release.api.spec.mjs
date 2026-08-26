@@ -21,6 +21,23 @@ const liveSmokeConfig = read("qa/leaderboard-production-readonly.playwright.conf
 const baseline = JSON.parse(read("scripts/leaderboard-production-release-baseline.json"));
 const packageJson = JSON.parse(read("package.json"));
 
+function ensureCandidateObject() {
+  const git = (args) => execFileSync("git", ["-c", `safe.directory=${rootDir}`, ...args], {
+    cwd: rootDir,
+    encoding: "utf8",
+    env: { ...process.env, GIT_TEST_ASSUME_DIFFERENT_OWNER: "1" },
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+  try {
+    git(["cat-file", "-e", `${baseline.candidate.sha}^{commit}`]);
+  } catch {
+    git(["fetch", "--no-tags", "--depth=1", "origin", baseline.candidate.featureRef]);
+    expect(git(["rev-parse", "FETCH_HEAD^{commit}"])).toBe(baseline.candidate.sha);
+  }
+}
+
+ensureCandidateObject();
+
 test("baseline locks candidate, Files API, disabled production, and exact infra-only scope", () => {
   expect(baseline.repository).toEqual({ id: 1231879845, fullName: "maklind88/footballscience", defaultBranch: "main" });
   expect(baseline.candidate).toMatchObject({ sha: "c1b1821ab796bb680eb3480979542b6a461af964", tree: "4f1313f370d647fbffaa20236f6dee6a4412006a" });

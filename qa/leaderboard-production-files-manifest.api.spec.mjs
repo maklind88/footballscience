@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import process from "node:process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { canonicalDigest, canonicalJson } from "../scripts/lib/leaderboard-production-release-security.mjs";
@@ -9,6 +11,23 @@ import { assertSourceRequestFiles, deploymentContentResponseLimit, uniqueUploadR
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const baseline = JSON.parse(fs.readFileSync(path.join(rootDir, "scripts/leaderboard-production-release-baseline.json"), "utf8"));
 const sourceCode = fs.readFileSync(path.join(rootDir, "scripts/lib/leaderboard-production-source-manifest.mjs"), "utf8");
+
+function ensureCandidateObject() {
+  const git = (args) => execFileSync("git", ["-c", `safe.directory=${rootDir}`, ...args], {
+    cwd: rootDir,
+    encoding: "utf8",
+    env: { ...process.env, GIT_TEST_ASSUME_DIFFERENT_OWNER: "1" },
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+  try {
+    git(["cat-file", "-e", `${baseline.candidate.sha}^{commit}`]);
+  } catch {
+    git(["fetch", "--no-tags", "--depth=1", "origin", baseline.candidate.featureRef]);
+    expect(git(["rev-parse", "FETCH_HEAD^{commit}"])).toBe(baseline.candidate.sha);
+  }
+}
+
+ensureCandidateObject();
 
 test("Git-object source manifest exactly matches the frozen c1 projection", () => {
   const manifest = assertSourceManifest(buildSourceManifest(rootDir, baseline), baseline);

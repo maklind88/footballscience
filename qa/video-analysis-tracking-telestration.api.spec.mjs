@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { promises as fs } from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -298,6 +299,7 @@ test("stale local tracking sources fall back once to the reconnected file", asyn
       videoId: "video-1",
       sourceArtifactId,
       prompt: {
+        angleId: "angle-1",
         startMs: 0,
         endMs: 1000,
         promptAtMs: 0,
@@ -310,6 +312,7 @@ test("stale local tracking sources fall back once to the reconnected file", asyn
     expect(requests[1].headers).not.toHaveProperty("x-football-science-tracking-source-id");
     expect(requests[1].body).toBe(file);
     expect(track.metadata).toMatchObject({
+      angleId: "angle-1",
       localArtifactId: "fresh-artifact",
       localSourceArtifactId: "fresh-source",
     });
@@ -519,8 +522,8 @@ test("tracking controller extends the selected player without duplicating its id
       return {
         id: "provider-continuation",
         entityType: "player",
-        playerId: "player-8",
-        playerLabel: "Player 8",
+        playerId: "provider-wrong-player",
+        playerLabel: "Provider wrong player",
         status: "review",
         startMs: 209_000,
         endMs: 300_000,
@@ -549,6 +552,7 @@ test("tracking controller extends the selected player without duplicating its id
   expect(tracks[0]).toMatchObject({
     id: "track-8",
     playerId: "player-8",
+    playerLabel: "Player 8",
     startMs: 90_000,
     endMs: 300_000,
     metadata: { localArtifactIds: ["artifact-a", "artifact-b"], localSourceArtifactId: "source-a" },
@@ -901,7 +905,13 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     const completed = await (await fetch(queued.statusUrl, { headers })).json();
     const artifact = await (await fetch(completed.job.result.trackingUrl, { headers: { origin } })).json();
     expect(artifact.segments[0].points).toHaveLength(2);
-    expect(completed.job.result).toMatchObject({ engine: "qa-prompt-tracker", pointCount: 2, segmentCount: 1 });
+    const sourceSha256 = createHash("sha256").update("local-video").digest("hex");
+    expect(completed.job.result).toMatchObject({
+      engine: "qa-prompt-tracker",
+      pointCount: 2,
+      segmentCount: 1,
+      sourceSha256,
+    });
     expect(completed.job.result.sourceArtifactId).toBe(completed.job.id);
     expect(receivedPrompt).toMatchObject({
       startMs: 0,
@@ -932,6 +942,7 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     await expect.poll(async () => (await (await fetch(continuation.statusUrl, { headers })).json()).job?.status).toBe("succeeded");
     const continued = await (await fetch(continuation.statusUrl, { headers })).json();
     expect(continued.job.result.sourceArtifactId).toBe(completed.job.id);
+    expect(continued.job.result.sourceSha256).toBe(sourceSha256);
     expect(receivedInputs).toEqual(["local-video", "local-video"]);
     expect(await fs.readdir(path.join(cacheDir, continued.job.id))).toEqual(["track.json"]);
 

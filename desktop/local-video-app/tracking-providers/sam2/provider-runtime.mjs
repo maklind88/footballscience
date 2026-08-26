@@ -61,6 +61,7 @@ export function resolveInstalledSam2Provider(options = {}) {
     command: paths.python,
     args: [paths.providerEntry],
     engineName: paths.manifest.providerId,
+    displayName: paths.manifest.displayName,
     engineVersion: paths.manifest.providerVersion,
     installDir: paths.installDir,
     env: {

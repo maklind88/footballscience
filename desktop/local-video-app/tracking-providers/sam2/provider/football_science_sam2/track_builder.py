@@ -128,7 +128,7 @@ def build_track(
         points.append(_point(observation, identity, _match_time(frame_index, prompt, sample_fps)))
     segments = _segments(points, sample_fps)
     if not segments:
-        raise ProviderError("The provider could not maintain the selected player's identity.")
+        raise ProviderError("The provider could not maintain the selected object's continuity.")
     all_points = [point for segment in segments for point in segment["points"]]
     return {
         "id": f"track-{uuid.uuid4()}",

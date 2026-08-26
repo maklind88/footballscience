@@ -139,7 +139,7 @@ class Sam2Engine:
                     observation = self._observation(mask_logits[object_index], int(frame_index))
                     if observation:
                         observations[int(frame_index)] = observation
-                    progress("Tracking player", 0.35 + 0.55 * len(observations) / max(1, frame_count))
+                    progress("Tracking object", 0.35 + 0.55 * len(observations) / max(1, frame_count))
             return observations
         finally:
             if state is not None:

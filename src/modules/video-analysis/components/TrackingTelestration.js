@@ -9,6 +9,7 @@ import { trackingPointAt } from "../services/trackingGeometryService.js";
 import { formatTrackingDuration } from "../services/trackingProgressService.js";
 import { trackingReviewSummary } from "../services/trackingReviewService.js";
 import { escapeHtml } from "./renderHelpers.js";
+import { renderTrackingGroundTruthPanel } from "./TrackingGroundTruthPanel.js";
 import {
   renderAnalysisPanelTabs,
   renderSpatialSidebar,
@@ -44,6 +45,14 @@ function itemRange(item = {}) {
   return { startMs, endMs };
 }
 
+function trackedObjectLabel(track = {}) {
+  if (track.playerLabel) return track.playerLabel;
+  if (track.entityType === "ball") return "Ball";
+  if (track.entityType === "referee") return "Referee";
+  if (track.entityType === "area") return "Tracked area";
+  return track.entityType === "player" ? "Unassigned player" : "Tracked object";
+}
+
 function renderTrackBox(track = {}, atMs = 0, selectedTrackIds = []) {
   const point = trackingPointAt(track, atMs, { maxInterpolationGapMs: 1200 });
   if (!point) return "";
@@ -55,8 +64,8 @@ function renderTrackBox(track = {}, atMs = 0, selectedTrackIds = []) {
       class="video-analysis-track-box${selected ? " is-selected" : ""}${point.confidence < 0.55 ? " is-low-confidence" : ""}"
       style="left:${left}%;top:${top}%;width:${percent(point.width)}%;height:${percent(point.height)}%"
       data-video-analysis-track-select="${escapeHtml(track.id)}"
-      title="${escapeHtml(`${track.playerLabel || "Unassigned player"} - ${Math.round(point.confidence * 100)}% confidence`)}">
-      <span>${escapeHtml(track.shirtNumber || track.playerLabel || "Track")}</span>
+      title="${escapeHtml(`${trackedObjectLabel(track)} - ${Math.round(point.confidence * 100)}% confidence`)}">
+      <span>${escapeHtml(track.shirtNumber || trackedObjectLabel(track))}</span>
     </button>
   `;
 }
@@ -139,8 +148,8 @@ function renderTrackRow(track = {}, selectedTrackIds = []) {
   return `
     <li class="${selected ? "is-selected" : ""}">
       <button type="button" data-video-analysis-track-select="${escapeHtml(track.id)}">
-        <strong>${escapeHtml(track.playerLabel || "Unassigned player")}</strong>
-        <span>${escapeHtml(`${Math.round(track.confidence * 100)}% / ${Math.round(review.coverage.ratio * 100)}% coverage`)}</span>
+        <strong>${escapeHtml(trackedObjectLabel(track))}</strong>
+        <span>${escapeHtml(`${track.entityType} | ${Math.round(track.confidence * 100)}% / ${Math.round(review.coverage.ratio * 100)}% coverage`)}</span>
       </button>
       <em class="is-${escapeHtml(track.status)}">${escapeHtml(track.status)}</em>
     </li>
@@ -158,10 +167,10 @@ function renderTrackingProgress(job = {}) {
     details.push(`${job.processedFrames}/${job.totalFrames} frames`);
   }
   return `
-    <div class="video-analysis-tracking-progress" role="progressbar" aria-label="${escapeHtml(job.stage || "Tracking player")}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percentage}">
+    <div class="video-analysis-tracking-progress" role="progressbar" aria-label="${escapeHtml(job.stage || "Tracking object")}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percentage}">
       <span class="video-analysis-tracking-progress__meter" style="width:${percentage}%"></span>
       <div class="video-analysis-tracking-progress__copy">
-        <strong>${escapeHtml(job.stage || "Tracking player")}</strong>
+        <strong>${escapeHtml(job.stage || "Tracking object")}</strong>
         <small>${escapeHtml(details.join(" | "))}</small>
       </div>
       <button type="button" data-video-analysis-tracking-action="cancel">Cancel</button>
@@ -236,6 +245,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
   const providerReady = provider.status === "ready";
   const primaryTrack = tracks.find((track) => track.id === selectedTrackIds[0]) || null;
   const review = primaryTrack ? trackingReviewSummary(primaryTrack) : null;
+  const entityType = tracking.prompt?.entityType || "player";
   const clip = item?.clip || {};
   const startSeconds = ((tracking.prompt?.startMs ?? item?.startMs ?? clip.startMs ?? clip.start_ms ?? 0) / 1000).toFixed(1);
   const endSeconds = ((tracking.prompt?.endMs ?? item?.endMs ?? clip.endMs ?? clip.end_ms ?? 0) / 1000).toFixed(1);
@@ -243,15 +253,39 @@ export function renderTrackingSidebar(state = {}, item = null) {
     <div class="video-analysis-tracking-side">
       <div>
         <p class="video-analysis-kicker">Object tracking</p>
-        <h3>${escapeHtml(primaryTrack ? primaryTrack.playerLabel || "Review track" : "Select a player")}</h3>
+        <h3>${escapeHtml(primaryTrack ? trackedObjectLabel(primaryTrack) : "Select an object")}</h3>
       </div>
       ${renderTrackingProvider(provider)}
-      <label>Player
-        <select data-video-analysis-tracking-field="playerId">
-          <option value="">Unassigned</option>
-          ${(state.players || []).map((player) => `<option value="${escapeHtml(player.id)}" ${tracking.prompt?.playerId === player.id ? "selected" : ""}>${escapeHtml(`${player.number ? `${player.number} ` : ""}${player.name}`)}</option>`).join("")}
+      <label>Object
+        <select data-video-analysis-tracking-field="entityType">
+          <option value="player" ${entityType === "player" ? "selected" : ""}>Player</option>
+          <option value="ball" ${entityType === "ball" ? "selected" : ""}>Ball</option>
+          <option value="referee" ${entityType === "referee" ? "selected" : ""}>Referee</option>
         </select>
       </label>
+      ${entityType === "player" ? `
+        <label>Player
+          <select data-video-analysis-tracking-field="playerId">
+            <option value="">Unassigned</option>
+            ${(state.players || []).map((player) => `<option value="${escapeHtml(player.id)}" ${tracking.prompt?.playerId === player.id ? "selected" : ""}>${escapeHtml(`${player.number ? `${player.number} ` : ""}${player.name}`)}</option>`).join("")}
+          </select>
+        </label>
+        <label>Team side
+          <select data-video-analysis-tracking-field="teamSide">
+            <option value="">Unassigned</option>
+            <option value="home" ${tracking.prompt?.teamSide === "home" ? "selected" : ""}>Home</option>
+            <option value="away" ${tracking.prompt?.teamSide === "away" ? "selected" : ""}>Away</option>
+          </select>
+        </label>
+        <div class="video-analysis-tracking-identity-fields">
+          <label>Identity label
+            <input type="text" maxlength="180" value="${escapeHtml(tracking.prompt?.playerLabel || "")}" placeholder="Opponent 9" data-video-analysis-tracking-field="playerLabel">
+          </label>
+          <label>Shirt
+            <input type="text" maxlength="24" value="${escapeHtml(tracking.prompt?.shirtNumber || "")}" placeholder="9" data-video-analysis-tracking-field="shirtNumber">
+          </label>
+        </div>
+      ` : ""}
       <div class="video-analysis-tracking-range">
         <label>From <input type="number" min="0" step="0.1" value="${escapeHtml(startSeconds)}" data-video-analysis-tracking-field="startSeconds"></label>
         <label>To <input type="number" min="0" step="0.1" value="${escapeHtml(endSeconds)}" data-video-analysis-tracking-field="endSeconds"></label>
@@ -276,6 +310,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
           <button type="button" data-video-analysis-tracking-action="verify" ${review.canVerify ? "" : "disabled"}>Verify track</button>
         </div>
       ` : ""}
+      ${renderTrackingGroundTruthPanel(state, item)}
       <div class="video-analysis-tracking-graphics">
         <strong>${escapeHtml(`${graphics.length} dynamic graphics`)}</strong>
         <button type="button" data-video-analysis-tracking-action="add-graphic" ${selectedTrackIds.length ? "" : "disabled"}>Add ${escapeHtml(tracking.tool || "highlight")}</button>

@@ -35,6 +35,11 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     updateState: (updater) => getRuntime()?.store.update(updater),
     getVideoElement: options.getVideoElement,
     getCurrentMatchMs: options.getCurrentMatchMs,
+    getWindow: () => getRuntime()?.context?.win || context.win || window,
+    getReviewer: () => {
+      const user = getRuntime()?.context?.currentUser || context.currentUser || {};
+      return user.id || user.userId || user.user_id || "local-analyst";
+    },
     inspectProvider: () => {
       const runtime = getRuntime();
       return inspectLocalTrackingProvider(runtime?.context?.win || context.win || window);

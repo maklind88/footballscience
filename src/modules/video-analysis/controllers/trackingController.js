@@ -1,8 +1,7 @@
 import { normalizeDynamicGraphic } from "../domain/dynamicGraphic.model.js";
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { createTrackingContinuationController } from "./trackingContinuationController.js";
-import { pointerPercent } from "../services/presentationLayerGeometryService.js";
-import { selectedPresentationItem, updatePresentationItem } from "../services/presentationService.js";
+import { createTrackingGroundTruthController } from "./trackingGroundTruthController.js";
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
 import { normalizeTrackingJobProgress } from "../services/trackingProgressService.js";
 import {
@@ -19,69 +18,19 @@ import {
   trackingPrompt,
   verifyObjectTrack,
 } from "../services/trackingReviewService.js";
-import { getVideoCurrentMs } from "../services/videoPlaybackService.js";
 import { eventElement } from "../video-analysis.dom-events.js";
-
-function localId(prefix = "graphic") {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`;
-}
-function selectedItem(state = {}) {
-  return selectedPresentationItem(
-    state.presentation?.current,
-    state.presentation?.selectedItemId,
-    state.presentation?.selectedClipId,
-  );
-}
-
-function trackingPatch(state = {}, patch = {}) {
-  return {
-    ...state,
-    presentation: {
-      ...(state.presentation || {}),
-      tracking: { ...(state.presentation?.tracking || {}), ...patch },
-    },
-  };
-}
-
-function replaceItem(state = {}, itemId = "", patch = {}) {
-  return {
-    ...state,
-    presentation: {
-      ...(state.presentation || {}),
-      current: updatePresentationItem(state.presentation?.current, itemId, patch),
-    },
-  };
-}
-
-function normalizedPointer(event, surface) {
-  const point = pointerPercent(event, surface);
-  return { x: point.x / 100, y: point.y / 100 };
-}
-
-function promptBox(start = {}, end = {}) {
-  const left = Math.min(start.x, end.x);
-  const top = Math.min(start.y, end.y);
-  return {
-    left,
-    top,
-    width: Math.max(0.02, Math.abs(end.x - start.x)),
-    height: Math.max(0.04, Math.abs(end.y - start.y)),
-  };
-}
-
-function itemRange(item = {}) {
-  const clip = item.clip || {};
-  const startMs = Math.max(0, Math.round(Number(item.startMs ?? clip.startMs ?? clip.start_ms) || 0));
-  const endMs = Math.max(startMs + 1, Math.round(Number(item.endMs ?? clip.endMs ?? clip.end_ms) || startMs + 5000));
-  return { startMs, endMs };
-}
-
-function currentAtMs(getVideoElement, state = {}, getCurrentMatchMs = null) {
-  const matchMs = getCurrentMatchMs?.();
-  if (Number.isFinite(Number(matchMs))) return Math.max(0, Math.round(Number(matchMs)));
-  const video = getVideoElement?.();
-  return video ? getVideoCurrentMs(video) : Math.max(0, Number(state.timeline?.playheadMs) || 0);
-}
+import {
+  currentTrackingAtMs as currentAtMs,
+  normalizedTrackingPointer as normalizedPointer,
+  patchTrackingState as trackingPatch,
+  replacePresentationItem as replaceItem,
+  selectedTrackingItem as selectedItem,
+  trackingItemById,
+  trackingItemRange as itemRange,
+  trackingLocalId as localId,
+  trackingPromptBox as promptBox,
+  updateTrackingPromptField,
+} from "./trackingControllerHelpers.js";
 
 export function createTrackingController(options = {}) {
   const getState = options.getState || (() => ({}));
@@ -92,6 +41,14 @@ export function createTrackingController(options = {}) {
   const trackingJob = createTrackingJobSession(options.trackObject);
   let activeInteraction = null;
   let providerRefreshId = 0;
+  const groundTruth = createTrackingGroundTruthController({
+    getState,
+    updateState,
+    getVideoElement,
+    getWindow: options.getWindow,
+    getReviewer: options.getReviewer,
+    now,
+  });
 
   async function refreshProvider() {
     if (!options.inspectProvider) return false;
@@ -128,7 +85,10 @@ export function createTrackingController(options = {}) {
       interaction: null,
       error: "",
     }));
-    if (nextMode === "tracking") void refreshProvider();
+    if (nextMode === "tracking") {
+      groundTruth.refreshContext();
+      void refreshProvider();
+    }
     return true;
   }
 
@@ -164,35 +124,20 @@ export function createTrackingController(options = {}) {
     return true;
   }
 
-  function selectedPlayer(state = {}, playerId = "") {
-    return (state.players || []).find((player) => player.id === playerId) || null;
-  }
-
   function updateField(field = "", value = "") {
-    updateState((state) => {
-      const item = selectedItem(state);
-      const existing = state.presentation?.tracking?.prompt || trackingPrompt({ ...itemRange(item || {}) });
-      if (field === "playerId") {
-        const player = selectedPlayer(state, value);
-        return trackingPatch(state, {
-          prompt: { ...existing, playerId: value, playerLabel: player?.name || "" },
-          error: "",
-        });
-      }
-      const milliseconds = Math.max(0, Math.round(Number(value) * 1000) || 0);
-      const changed = field === "startSeconds"
-        ? { ...existing, startMs: milliseconds, endMs: Math.max(milliseconds + 1, existing.endMs) }
-        : { ...existing, endMs: Math.max(existing.startMs + 1, milliseconds) };
-      const prompt = trackingPrompt(changed);
-      return trackingPatch(state, { prompt, error: "" });
-    });
+    updateState((state) => updateTrackingPromptField(state, field, value));
     return true;
   }
 
   async function persistTrack(track = {}) {
     if (!options.persistTrack) return track;
     const payload = await options.persistTrack(trackingMetadataPayload(track));
-    return normalizeObjectTrack({ ...track, ...(payload?.objectTrack || payload?.track || {}) });
+    const remoteTrack = payload?.objectTrack || payload?.track || {};
+    return normalizeObjectTrack({
+      ...track,
+      ...remoteTrack,
+      metadata: { ...(remoteTrack.metadata || {}), ...(track.metadata || {}) },
+    });
   }
 
   async function addManualTrack() {
@@ -269,8 +214,11 @@ export function createTrackingController(options = {}) {
         ...track,
         clipId: item.clipId,
         videoId: item.clip?.videoId || item.clip?.video_id || state.video?.id,
-        playerId: baseTrack ? track.playerId || baseTrack.playerId : prompt.playerId || track.playerId,
-        playerLabel: baseTrack ? track.playerLabel || baseTrack.playerLabel : prompt.playerLabel || track.playerLabel,
+        entityType: baseTrack ? baseTrack.entityType : prompt.entityType || track.entityType,
+        playerId: baseTrack ? baseTrack.playerId : prompt.playerId || track.playerId,
+        playerLabel: baseTrack ? baseTrack.playerLabel : prompt.playerLabel || track.playerLabel,
+        teamSide: baseTrack ? baseTrack.teamSide : prompt.teamSide || track.teamSide,
+        shirtNumber: baseTrack ? baseTrack.shirtNumber : prompt.shirtNumber || track.shirtNumber,
         status: "review",
         metadata: {
           ...(track.metadata || {}),
@@ -288,7 +236,7 @@ export function createTrackingController(options = {}) {
         }
       }
       updateState((current) => {
-        const liveItem = selectedPresentationItem(current.presentation?.current, item.id, "");
+        const liveItem = trackingItemById(current, item.id);
         if (!liveItem) return trackingPatch(current, { job: null });
         const tracks = [...(liveItem.objectTracks || []).filter((entry) => (
           entry.id !== track.id && entry.id !== baseTrack?.id
@@ -481,12 +429,15 @@ export function createTrackingController(options = {}) {
     }
     if (action === "verify") { void verifySelectedTrack(); return true; }
     if (action === "add-graphic") { void addGraphic(); return true; }
+    if (groundTruth.handleAction(action)) return true;
     return false;
   }
 
   function handleChange(event) {
     const field = eventElement(event)?.closest?.("[data-video-analysis-tracking-field]");
-    return field ? updateField(field.dataset.videoAnalysisTrackingField, field.value) : false;
+    if (!field) return false;
+    if (groundTruth.handleField(field.dataset.videoAnalysisTrackingField, field)) return true;
+    return updateField(field.dataset.videoAnalysisTrackingField, field.value);
   }
 
   return {

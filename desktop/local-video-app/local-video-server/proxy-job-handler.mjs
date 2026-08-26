@@ -78,6 +78,7 @@ function proxyResult(entry, proxyId, access, baseUrl, cacheHit) {
     cacheHit,
     ...entry.manifest.output,
     preset: entry.manifest.preset,
+    sourceSha256: entry.manifest.sourceSha256,
   };
 }
 

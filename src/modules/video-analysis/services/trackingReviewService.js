@@ -5,6 +5,8 @@ import {
   trackingPoints,
 } from "../domain/tracking.model.js";
 
+const promptEntityTypes = new Set(["player", "ball", "referee"]);
+
 function localId(prefix = "track") {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`;
 }
@@ -21,8 +23,21 @@ function normalizedBox(value = {}) {
   return { left, top, width, height };
 }
 
+function normalizedPromptEntityType(value = "player") {
+  const entityType = String(value || "player").trim().toLowerCase();
+  return promptEntityTypes.has(entityType) ? entityType : "player";
+}
+
+function defaultEntityLabel(entityType = "player", label = "") {
+  if (String(label || "").trim()) return String(label).trim();
+  if (entityType === "ball") return "Ball";
+  if (entityType === "referee") return "Referee";
+  return "";
+}
+
 export function trackingPrompt(value = {}) {
   const box = normalizedBox(value.box || value);
+  const entityType = normalizedPromptEntityType(value.entityType || value.entity_type);
   const startMs = Math.max(0, Math.round(Number(value.startMs ?? value.atMs) || 0));
   const endMs = Math.max(startMs + 1, Math.round(Number(value.endMs) || startMs + 5000));
   const requestedPromptAtMs = Number(value.promptAtMs ?? value.prompt_at_ms ?? value.atMs);
@@ -42,9 +57,11 @@ export function trackingPrompt(value = {}) {
       groundX: box.left + (box.width / 2),
       groundY: box.top + box.height,
     },
-    playerId: String(value.playerId || ""),
-    playerLabel: String(value.playerLabel || ""),
-    teamSide: String(value.teamSide || ""),
+    entityType,
+    playerId: entityType === "player" ? String(value.playerId || "") : "",
+    playerLabel: defaultEntityLabel(entityType, value.playerLabel),
+    teamSide: entityType === "player" ? String(value.teamSide || "") : "",
+    shirtNumber: entityType === "player" ? String(value.shirtNumber || value.shirt_number || "").slice(0, 24) : "",
   };
 }
 
@@ -59,18 +76,19 @@ export function createManualPromptTrack(value = {}) {
     groundX: prompt.point.groundX,
     groundY: prompt.point.groundY,
     confidence: 1,
-    identityConfidence: prompt.playerId ? 1 : 0.5,
+    identityConfidence: prompt.entityType === "player" && !prompt.playerId && !prompt.playerLabel ? 0.5 : 1,
     source: "manual",
   });
   return normalizeObjectTrack({
     id: String(value.id || localId("track")),
     clipId: value.clipId,
     videoId: value.videoId,
-    entityType: "player",
+    entityType: prompt.entityType,
     playerId: prompt.playerId,
     playerLabel: prompt.playerLabel,
     teamId: value.teamId,
     teamSide: prompt.teamSide,
+    shirtNumber: prompt.shirtNumber,
     status: "review",
     startMs: prompt.startMs,
     endMs: prompt.endMs,
@@ -154,16 +172,19 @@ export function applyManualTrackingCorrection(trackValue = {}, correction = {}) 
 
 export function trackingReviewSummary(trackValue = {}, options = {}) {
   const track = normalizeObjectTrack(trackValue);
+  const requiresPlayerIdentity = track.entityType === "player";
   const points = trackingPoints(track);
   const coverage = trackingCoverage(track);
   const minimumDetection = Number(options.minimumDetectionConfidence ?? 0.55);
   const minimumIdentity = Number(options.minimumIdentityConfidence ?? 0.65);
   const minimumCoverage = Number(options.minimumCoverage ?? 0.8);
   const lowDetectionCount = points.filter((point) => point.confidence < minimumDetection).length;
-  const lowIdentityCount = points.filter((point) => point.identityConfidence < minimumIdentity).length;
+  const lowIdentityCount = requiresPlayerIdentity
+    ? points.filter((point) => point.identityConfidence < minimumIdentity).length
+    : 0;
   const discontinuityCount = track.segments.filter((segment) => segment.discontinuityBefore).length;
   const issues = [];
-  if (!track.playerId && !track.playerLabel) issues.push("Assign a player identity");
+  if (requiresPlayerIdentity && !track.playerId && !track.playerLabel) issues.push("Assign a player identity");
   if (points.length < 2) issues.push("Add at least two tracking points");
   if (coverage.ratio < minimumCoverage) issues.push("Tracking coverage is incomplete");
   if (lowDetectionCount) issues.push(`${lowDetectionCount} low-confidence samples`);
@@ -193,6 +214,8 @@ export function verifyObjectTrack(trackValue = {}, options = {}) {
 export function trackingMetadataPayload(trackValue = {}) {
   const track = normalizeObjectTrack(trackValue);
   const coverage = trackingCoverage(track);
+  const metadata = { ...(track.metadata || {}) };
+  delete metadata.localSourceSha256;
   return {
     id: track.id,
     clipId: track.clipId,
@@ -214,6 +237,6 @@ export function trackingMetadataPayload(trackValue = {}) {
     coverageRatio: coverage.ratio,
     localArtifactId: track.metadata?.localArtifactId || "",
     localArtifactHash: track.metadata?.localArtifactHash || "",
-    metadata: { ...(track.metadata || {}), pointsStoredLocally: true },
+    metadata: { ...metadata, pointsStoredLocally: true },
   };
 }

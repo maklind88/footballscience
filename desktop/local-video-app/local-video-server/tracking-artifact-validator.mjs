@@ -114,17 +114,22 @@ export function validateTrackingArtifact(value = {}, prompt = {}, options = {}) 
     throw contractError("The tracking engine returned too many samples for one job.", "TRACKING_SAMPLE_LIMIT");
   }
   const points = segments.flatMap((segment) => segment.points);
-  const entityType = boundedString(value.entityType ?? value.entity_type).toLowerCase();
+  const providerEntityType = boundedString(value.entityType ?? value.entity_type).toLowerCase();
+  const requestedEntityType = boundedString(prompt.entityType ?? prompt.entity_type).toLowerCase();
+  const entityType = entityTypes.has(requestedEntityType)
+    ? requestedEntityType
+    : entityTypes.has(providerEntityType) ? providerEntityType : "player";
   const average = (field) => points.reduce((total, point) => total + point[field], 0) / points.length;
   return {
     artifact: {
       id: boundedString(value.id || `local-track-${Date.now().toString(36)}`),
       clipId: boundedString(prompt.clipId),
       videoId: boundedString(prompt.videoId),
-      entityType: entityTypes.has(entityType) ? entityType : "player",
+      entityType,
       playerId: boundedString(prompt.playerId),
       playerLabel: boundedString(prompt.playerLabel),
       teamSide: boundedString(prompt.teamSide, 40),
+      shirtNumber: boundedString(prompt.shirtNumber ?? prompt.shirt_number, 24),
       status: "review",
       startMs: prompt.startMs,
       endMs: prompt.endMs,

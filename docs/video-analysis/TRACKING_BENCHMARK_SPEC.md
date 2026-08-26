@@ -66,7 +66,7 @@ Exit code `0` means every active quality gate passed, `1` means valid evidence f
 
 ## Real Match Pilot
 
-The first real benchmark should contain at least one legally usable tactical wide-angle match source, preferably 1080p or better. A representative 10-20 minute range is enough for the pilot. A second synchronized angle is useful but not required.
+The first real benchmark should contain at least one legally usable tactical wide-angle match source, preferably 1080p or better. The pilot should be a suite of reviewed windows totalling 10-20 minutes. Each locked case is bounded to two minutes for reliable human review, reproducible memory use, and safe local evaluation. A second synchronized angle is useful but not required.
 
 The selected range should deliberately include:
 
@@ -77,7 +77,19 @@ The selected range should deliberately include:
 - set pieces and compact team units
 - similar shirt colours or difficult lighting when available
 
-The user only needs to reconnect the source in FS Player or provide its absolute local path for the local benchmark session. No advance annotation is required. FS Player should create and review ground truth in a dedicated workflow, record who verified it, and retain only the local benchmark artifact plus metadata-safe reports. Until that workflow has produced a representative reviewed suite, synthetic fixtures prove evaluator correctness but do not prove elite football performance.
+The user only needs to reconnect the source in FS Player or provide its absolute local path for the local benchmark session. No advance annotation is required. The local tracking or proxy job computes the SHA-256 source fingerprint while receiving the source; it is not inferred from a file name or mutable metadata.
+
+FS Player now creates the reference through the tracking sidebar:
+
+1. Track and correct players, the ball, and at least one referee across the benchmark range.
+2. Assign player identity and team side, then verify every reference track with no annotation gap above 500 ms. Locked trajectories are deterministically reduced to that cadence while preserving manual corrections and occlusion transitions.
+3. Add the verified tracks to `Benchmark reference` and refresh the exact source/frame evidence.
+4. Attest the frame-by-frame review and lock the reference.
+5. Download the immutable `football-science-ground-truth-v1` JSON for local benchmark custody.
+
+Locking creates a new revisioned snapshot. Later edits to live tracks do not mutate the locked reference. The artifact contains reviewed normalized trajectories, source fingerprint, frame/range, object identity, and bounded analyst evidence. Provider metadata, confidence values, correction authors, local paths, URLs, video, frames, and binary data are removed. Ground truth is not written through the central tracking repository.
+
+The locked artifact can be combined locally with a provider prediction to form a `multi-object` benchmark case and evaluated with the internal diagnostic plus `--trackeval`. Until this workflow has produced a representative reviewed suite from real matches, synthetic fixtures prove evaluator correctness but do not prove elite football performance.
 
 ## Provider Boundary
 

@@ -32,7 +32,7 @@ export function normalizeTrackingJobProgress(value = {}, previous = {}, options 
     Math.max(0, finiteNumber(previous.elapsedMs)),
     Math.max(0, nowMs - startedAtMs),
   );
-  const stage = boundedText(value.stage || previous.stage || "Tracking player");
+  const stage = boundedText(value.stage || previous.stage || "Tracking object");
   const isCancelling = /cancel/i.test(stage);
   let estimatedRemainingMs = null;
   if (!isCancelling && progress >= 0.15 && progress < 0.98 && elapsedMs > 0) {

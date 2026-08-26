@@ -246,6 +246,13 @@
   flex: 1 1 90px;
 }
 
+.video-analysis-tracking-identity-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(64px, 1fr);
+  gap: 6px;
+  min-width: 0;
+}
+
 .video-analysis-tracking-progress {
   position: relative;
   display: grid;

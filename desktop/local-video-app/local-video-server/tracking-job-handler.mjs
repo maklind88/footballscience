@@ -34,7 +34,12 @@ async function reusableSource(options = {}, sourceId = "", sessionToken = "") {
   if (!stat.isFile() || stat.isSymbolicLink()) {
     throw Object.assign(new Error("The local tracking source must be reconnected."), { statusCode: 404 });
   }
-  return { id: sourceId, fileName, filePath };
+  return {
+    id: sourceId,
+    fileName,
+    filePath,
+    sourceSha256: String(job.result?.sourceSha256 || ""),
+  };
 }
 
 function trackingPrompt(request = {}, maxDurationMs = 120_000) {
@@ -107,6 +112,7 @@ export function createTrackingJobHandler(options = {}) {
       const prompt = trackingPrompt(request, options.config.maxTrackingDurationMs);
       const sourceId = requestedSourceId(request);
       const source = await reusableSource(options, sourceId, session.token);
+      let sourceSha256 = source?.sourceSha256 || "";
       const declaredBytes = source ? 0 : Math.max(0, Number(request.headers["content-length"] || 0));
       await pruneCache(options.config.cacheDir, {
         maxBytes: options.config.maxCacheBytes,
@@ -131,10 +137,11 @@ export function createTrackingJobHandler(options = {}) {
         await fs.link(source.filePath, inputPath);
         options.jobs.updateProgress(job.id, { stage: "reusing local source", ratio: 0.2 });
       } else {
-        await receiveRequestFile(request, inputPath, {
+        const upload = await receiveRequestFile(request, inputPath, {
           maxBytes: options.config.maxInputBytes,
           onProgress: (progress) => options.jobs.updateProgress(job.id, progress),
         });
+        sourceSha256 = upload.sha256;
       }
       options.jobs.enqueue(job.id, async ({ signal, reportProgress }) => {
         try {
@@ -148,6 +155,7 @@ export function createTrackingJobHandler(options = {}) {
           return {
             artifactId: job.id,
             sourceArtifactId: source?.id || job.id,
+            sourceSha256,
             trackingUrl: `${options.baseUrl()}/tracking/${job.id}/track.json?access=${encodeURIComponent(access.token)}`,
             expiresAt: new Date(access.expiresAtMs).toISOString(),
             engine: result.engine,

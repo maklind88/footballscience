@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "providerId": "sam2.1-hiera-tiny",
   "providerVersion": "1.0.0",
-  "displayName": "Football Science SAM 2.1 Player Tracker",
+  "displayName": "Football Science SAM 2.1 Object Tracker",
   "protocol": "football-science-tracking-v1",
   "approval": {
     "status": "approved-local-optional",

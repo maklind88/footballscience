@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -40,6 +41,7 @@ test("local proxy cache supports range scrub and exact replay without a second s
   const configModule = await import(moduleUrl("desktop/local-video-app/local-video-server/config.mjs"));
   const cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), "fs-media-proxy-test-"));
   const sourceBytes = Buffer.from("device-local-full-match-source");
+  const sourceSha256 = createHash("sha256").update(sourceBytes).digest("hex");
   const proxyBytes = Buffer.from("scrub-optimized-proxy-video");
   const replayBytes = Buffer.from("exact-local-replay-buffer");
   let proxyRuns = 0;
@@ -98,7 +100,13 @@ test("local proxy cache supports range scrub and exact replay without a second s
     const queued = await queuedResponse.json();
     expect(queuedResponse.status).toBe(202);
     const proxyJob = await completedJob(queued.statusUrl, headers);
-    expect(proxyJob.result).toMatchObject({ cacheHit: false, preset: "scrub-540p", height: 540, fps: 25 });
+    expect(proxyJob.result).toMatchObject({
+      cacheHit: false,
+      preset: "scrub-540p",
+      height: 540,
+      fps: 25,
+      sourceSha256,
+    });
     expect(proxyJob.result.artifactId).toMatch(/^proxy-[a-f0-9]{40}$/);
     expect(proxyRuns).toBe(1);
 
@@ -133,7 +141,7 @@ test("local proxy cache supports range scrub and exact replay without a second s
 
     const cachedQueued = await (await createProxy()).json();
     const cachedJob = await completedJob(cachedQueued.statusUrl, headers);
-    expect(cachedJob.result).toMatchObject({ artifactId: proxyJob.result.artifactId, cacheHit: true });
+    expect(cachedJob.result).toMatchObject({ artifactId: proxyJob.result.artifactId, cacheHit: true, sourceSha256 });
     expect(proxyRuns).toBe(1);
 
     await fs.writeFile(path.join(cacheDir, proxyJob.result.artifactId, "proxy.mp4"), Buffer.alloc(proxyBytes.length, 7));

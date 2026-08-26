@@ -87,6 +87,9 @@ export function createInitialPresentationWorkspace() {
       interaction: null,
       job: null,
       error: "",
+      groundTruth: {
+        byItemId: {},
+      },
       provider: {
         status: "unchecked",
         available: false,

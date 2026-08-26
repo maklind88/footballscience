@@ -92,7 +92,7 @@ export async function inspectLocalTrackingProvider(win = window) {
     return {
       status: available ? "ready" : "not-installed",
       available,
-      name: String(provider.engineName || "Football Science SAM 2.1 Player Tracker"),
+      name: String(provider.displayName || provider.engineName || "Football Science SAM 2.1 Object Tracker"),
       version: String(provider.engineVersion || ""),
       source: String(provider.source || "none"),
       maxDurationMs: Math.max(1000, Math.min(20 * 60 * 1000, Number(payload.limits?.maxTrackingDurationMs) || 120_000)),
@@ -137,7 +137,7 @@ export async function trackLocalObject(options = {}) {
   const fetcher = win.fetch?.bind(win) || fetch;
   const file = getLocalVideoFile(options.videoRef);
   const requestedSourceId = String(options.sourceArtifactId || "").trim();
-  if (!file && !requestedSourceId) throw new Error("Reconnect the original local video before tracking a player.");
+  if (!file && !requestedSourceId) throw new Error("Reconnect the original local video before tracking an object.");
   const baseUrl = localVideoBridgeBaseUrl(win);
   const session = await openLocalBridgeSession(baseUrl, { fetcher });
   const capabilityResponse = await fetcher(`${baseUrl}/capabilities`, {
@@ -188,6 +188,8 @@ export async function trackLocalObject(options = {}) {
         localArtifactId: result.artifactId,
         localArtifactExpiresAt: result.expiresAt,
         localSourceArtifactId: result.sourceArtifactId || requestedSourceId,
+        localSourceSha256: result.sourceSha256 || "",
+        angleId: String(prompt.angleId || ""),
       },
     });
   } catch (error) {

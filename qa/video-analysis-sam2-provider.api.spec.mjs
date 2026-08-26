@@ -68,6 +68,7 @@ test("packaged provider activates only for an exact verified install marker", as
     expect(runtime.resolveInstalledSam2Provider({ installDir })).toMatchObject({
       command: paths.python,
       engineName: "sam2.1-hiera-tiny",
+      displayName: "Football Science SAM 2.1 Object Tracker",
       engineVersion: "1.0.0",
     });
     await fs.writeFile(paths.marker, JSON.stringify({

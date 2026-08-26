@@ -109,7 +109,7 @@ function assertSeamContinuity(basePoint = {}, extensionPoint = {}) {
   );
   if (timeGapMs > 2500 || distance > Math.max(0.3, scale * 3.5)) {
     throw extensionError(
-      "The continuation did not reconnect to the selected player's identity. Correct the seam before extending again.",
+      "The continuation did not reconnect to the selected object's continuity. Correct the seam before extending again.",
       "TRACK_EXTENSION_IDENTITY_BREAK",
     );
   }
@@ -172,7 +172,7 @@ export function trackingContinuationProgress(value = {}, batch = null) {
   if (!total) return value;
   const completed = Math.max(0, Math.min(total - 1, Math.round(Number(batch.completed) || 0)));
   const localRatio = clamp(value.ratio ?? value.progress);
-  const stage = String(value.stage || "Tracking player").trim();
+  const stage = String(value.stage || "Tracking object").trim();
   return {
     ...value,
     stage: `Complete range ${completed + 1}/${total}: ${stage}`,

@@ -79,6 +79,7 @@ export function createTrackingEngineAdapter(options = {}) {
   const commandArgs = options.commandArgs || installed?.args || [];
   const engineName = options.engineName || process.env.FS_TRACKING_ENGINE_NAME
     || installed?.engineName || "external-prompt-tracker";
+  const displayName = options.displayName || installed?.displayName || engineName;
   const engineVersion = options.engineVersion || process.env.FS_TRACKING_ENGINE_VERSION
     || installed?.engineVersion || "1";
   const providerEnv = {
@@ -92,6 +93,7 @@ export function createTrackingEngineAdapter(options = {}) {
     info: () => ({
       available: Boolean(runner || command),
       engineName,
+      displayName,
       engineVersion,
       protocol: "football-science-tracking-v1",
       source: installed ? "approved-packaged" : runner ? "embedded-test" : command ? "external" : "none",

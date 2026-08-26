@@ -123,6 +123,41 @@ async function mountTrackingProgressFixture(page) {
   });
 }
 
+async function mountContinuityReviewFixture(page) {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await page.evaluate(async () => {
+    const { renderTrackingReviewPanel } = await import("/src/modules/video-analysis/components/TrackingReviewPanel.js");
+    const track = {
+      id: "track-continuity",
+      entityType: "player",
+      playerLabel: "Player 8",
+      status: "review",
+      startMs: 0,
+      endMs: 2000,
+      confidence: 0.9,
+      identityConfidence: 0.9,
+      segments: [
+        { id: "segment-1", startMs: 0, endMs: 1000, points: [
+          { atMs: 0, x: 0.2, y: 0.4, width: 0.1, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+          { atMs: 1000, x: 0.3, y: 0.4, width: 0.1, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+        ] },
+        { id: "segment-2", startMs: 1500, endMs: 2000, discontinuityBefore: true, points: [
+          { atMs: 1500, x: 0.35, y: 0.4, width: 0.1, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+          { atMs: 2000, x: 0.4, y: 0.4, width: 0.1, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+        ] },
+      ],
+    };
+    const panel = renderTrackingReviewPanel({
+      timeline: { playheadMs: 1500 },
+      presentation: { tracking: {
+        prompt: { entityType: "player", playerLabel: "Player 8" },
+        reviewHistory: { trackId: track.id, undoCount: 1, redoCount: 0 },
+      } },
+    }, track);
+    document.body.innerHTML = `<main style="box-sizing:border-box;width:min(360px,calc(100vw - 24px));margin:12px;padding:12px;background:#fff">${panel}</main>`;
+  });
+}
+
 test("tracking telestration follows a selected player and persists metadata", async ({ page }, testInfo) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -186,6 +221,34 @@ test("tracking review marks visibility and supports race-safe undo and redo", as
   await expect(review.locator('[data-video-analysis-tracking-action="review-visibility"]')).toHaveText("Mark visible");
   await page.screenshot({ path: testInfo.outputPath("tracking-review-desktop.png"), fullPage: true });
   expect(pageErrors).toEqual([]);
+});
+
+test("continuity review action stays clear and contained on desktop and mobile", async ({ page }, testInfo) => {
+  await mountContinuityReviewFixture(page);
+  const review = page.locator(".video-analysis-tracking-review");
+  const continuity = review.locator('[data-video-analysis-tracking-action="review-continuity"]');
+  await expect(continuity).toBeEnabled();
+  await expect(continuity).toHaveText("Confirm continuity");
+  const geometry = async () => review.evaluate((element) => ({
+    left: element.getBoundingClientRect().left,
+    right: element.getBoundingClientRect().right,
+    viewportWidth: window.innerWidth,
+    pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+    elementOverflow: element.scrollWidth - element.clientWidth,
+  }));
+  let measured = await geometry();
+  expect(measured.left).toBeGreaterThanOrEqual(0);
+  expect(measured.right).toBeLessThanOrEqual(measured.viewportWidth + 1);
+  expect(measured.pageOverflow).toBeLessThanOrEqual(1);
+  expect(measured.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-continuity-desktop.png"), fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  measured = await geometry();
+  expect(measured.right).toBeLessThanOrEqual(measured.viewportWidth + 1);
+  expect(measured.pageOverflow).toBeLessThanOrEqual(1);
+  expect(measured.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-continuity-mobile.png"), fullPage: true });
 });
 
 test("freehand telestration draws, undoes, redoes and persists a bounded path", async ({ page }, testInfo) => {

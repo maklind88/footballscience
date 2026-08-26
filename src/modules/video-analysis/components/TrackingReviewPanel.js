@@ -33,6 +33,11 @@ export function renderTrackingReviewPanel(state = {}, track = null) {
   const atMs = currentPlayheadMs(state);
   const events = trackingReviewEvents(track);
   const issue = nearestReviewEvent(events, atMs);
+  const continuityIssue = nearestReviewEvent(
+    events.filter((entry) => entry.type === "continuity-break"),
+    atMs,
+  );
+  const continuityReady = continuityIssue && Math.abs(continuityIssue.atMs - atMs) <= 250;
   const previous = adjacentTrackingReviewEvent(events, atMs, "earlier");
   const next = adjacentTrackingReviewEvent(events, atMs, "later");
   const visibility = trackingPointVisibility(track, atMs);
@@ -59,6 +64,7 @@ export function renderTrackingReviewPanel(state = {}, track = null) {
       </div>
       <div class="video-analysis-tracking-review__actions">
         ${track.entityType === "player" ? `<button type="button" data-video-analysis-tracking-action="review-identity" ${identityReady ? "" : "disabled"}>Apply identity</button>` : ""}
+        <button type="button" data-video-analysis-tracking-action="review-continuity" ${continuityReady ? "" : "disabled"}>Confirm continuity</button>
         <button type="button" data-video-analysis-tracking-action="review-visibility" ${visibility.available ? "" : "disabled"}>${visibility.occluded ? "Mark visible" : "Mark occluded"}</button>
         <button type="button" data-video-analysis-tracking-action="review-undo" ${historyMatches && history.undoCount ? "" : "disabled"}>Undo</button>
         <button type="button" data-video-analysis-tracking-action="review-redo" ${historyMatches && history.redoCount ? "" : "disabled"}>Redo</button>

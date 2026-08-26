@@ -61,9 +61,12 @@ function provider(stage, capabilities, overrides = {}) {
       },
     }],
     runtime: {
+      providerSha256: "e".repeat(64),
       maxFrames: 30_000,
       maxDurationMs: 1_200_000,
+      maxWallTimeMs: 7_200_000,
       maxMemoryMb: 8192,
+      maxOutputBytes: 64 * 1024 * 1024,
       maxConcurrentJobs: 1,
     },
     benchmark: {
@@ -205,6 +208,32 @@ function approveProvider(contract, evidenceService, manifest, report = reportFor
   return { manifest, evidence, report };
 }
 
+function stageRequest(overrides = {}) {
+  return {
+    sourceFingerprint: "f".repeat(64),
+    range: { startMs: 0, endMs: 2000 },
+    ...overrides,
+  };
+}
+
+function stageResult(manifest, evidenceService, payload, overrides = {}) {
+  return {
+    schemaVersion: 1,
+    protocol: "football-science-tracking-stage-result-v1",
+    provider: {
+      id: manifest.providerId,
+      version: manifest.providerVersion,
+      fingerprintSha256: evidenceService.trackingProviderFingerprint(manifest),
+    },
+    stage: manifest.stage,
+    capabilities: [...manifest.capabilities],
+    sourceFingerprint: "f".repeat(64),
+    range: { startMs: 0, endMs: 2000 },
+    payload,
+    ...overrides,
+  };
+}
+
 test("tracking provider contract accepts only pinned bounded offline providers", async () => {
   const contract = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
@@ -222,12 +251,21 @@ test("tracking provider contract accepts only pinned bounded offline providers",
   expect(normalized).toMatchObject({
     providerId: "segmentation-provider",
     stage: "segmentation",
-    runtime: { maxConcurrentJobs: 1 },
+    runtime: {
+      providerSha256: "e".repeat(64),
+      maxWallTimeMs: 7_200_000,
+      maxOutputBytes: 64 * 1024 * 1024,
+      maxConcurrentJobs: 1,
+    },
   });
   expect(contract.trackingProviderReadiness(approved.manifest, {
     evidence: approved.evidence,
     report: approved.report,
   })).toMatchObject({ ready: true, reasons: [] });
+
+  const missingRuntimeIntegrity = provider("detection", ["detect:player"]);
+  delete missingRuntimeIntegrity.runtime.providerSha256;
+  expect(() => contract.normalizeTrackingProviderManifest(missingRuntimeIntegrity)).toThrow(/runtime checksum/i);
 });
 
 test("tracking provider remains blocked without approval, offline inference and real evidence", async () => {
@@ -376,6 +414,212 @@ test("tracking pipeline plans all required stages and fails closed on missing ev
   expect(JSON.stringify(ready)).not.toMatch(/repository|sourceUrl|licenseUrl|models/i);
 });
 
+test("detection result boundary separates player, ball and referee capabilities", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const artifacts = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-stage-artifact-validator.mjs",
+  ));
+  const manifest = contract.normalizeTrackingProviderManifest(provider(
+    "detection",
+    ["detect:player", "detect:ball", "detect:referee"],
+  ));
+  const result = stageResult(manifest, evidenceService, { observations: [
+    { id: "player-1", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 },
+    { id: "ball-1", atMs: 0, frameIndex: 0, entityType: "ball", box: { left: 0.5, top: 0.6, width: 0.02, height: 0.02 }, confidence: 0.88 },
+    { id: "referee-1", atMs: 0, frameIndex: 0, entityType: "referee", box: { left: 0.7, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.91 },
+  ] });
+  const validated = artifacts.validateTrackingStageArtifact(result, manifest, stageRequest());
+  expect(validated.payload.observations.map((entry) => entry.entityType)).toEqual(["player", "ball", "referee"]);
+  expect(Object.isFrozen(validated.payload.observations)).toBe(true);
+  expect(artifacts.parseTrackingStageArtifact(
+    JSON.stringify(result),
+    manifest,
+    stageRequest(),
+  ).payload.observations).toHaveLength(3);
+  expect(() => artifacts.parseTrackingStageArtifact(
+    JSON.stringify(result).padEnd(4096, " "),
+    manifest,
+    stageRequest(),
+    { maxBytes: 1024 },
+  )).toThrow(/output limit/i);
+
+  const identityLeak = structuredClone(result);
+  identityLeak.payload.observations[0].playerId = "player-8";
+  expect(() => artifacts.validateTrackingStageArtifact(identityLeak, manifest, stageRequest())).toThrow(/unsupported field/i);
+
+  const playerOnly = contract.normalizeTrackingProviderManifest(provider("detection", ["detect:player"]));
+  const unauthorizedBall = stageResult(playerOnly, evidenceService, {
+    observations: [result.payload.observations[1]],
+  });
+  expect(() => artifacts.validateTrackingStageArtifact(unauthorizedBall, playerOnly, stageRequest())).toThrow(/not approved to detect ball/i);
+
+  const wrongSource = structuredClone(result);
+  wrongSource.sourceFingerprint = "a".repeat(64);
+  expect(() => artifacts.validateTrackingStageArtifact(wrongSource, manifest, stageRequest())).toThrow(/another video source/i);
+});
+
+test("association result boundary rejects unknown and multiply assigned observations", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const artifacts = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-stage-artifact-validator.mjs",
+  ));
+  const manifest = contract.normalizeTrackingProviderManifest(provider("association", ["associate:multi-object"]));
+  const request = stageRequest({ observations: [
+    { id: "p-1-a", entityType: "player" },
+    { id: "p-1-b", entityType: "player" },
+    { id: "ball-a", entityType: "ball" },
+  ] });
+  const result = stageResult(manifest, evidenceService, { trajectories: [
+    { id: "trajectory-player", entityType: "player", observationIds: ["p-1-a", "p-1-b"], confidence: 0.93, discontinuitiesMs: [] },
+    { id: "trajectory-ball", entityType: "ball", observationIds: ["ball-a"], confidence: 0.82, discontinuitiesMs: [1000] },
+  ] });
+  expect(artifacts.validateTrackingStageArtifact(result, manifest, request).payload.trajectories).toHaveLength(2);
+
+  const duplicated = structuredClone(result);
+  duplicated.payload.trajectories[1].observationIds = ["p-1-b"];
+  duplicated.payload.trajectories[1].entityType = "player";
+  expect(() => artifacts.validateTrackingStageArtifact(duplicated, manifest, request)).toThrow(/assigned twice/i);
+
+  const unknown = structuredClone(result);
+  unknown.payload.trajectories[0].observationIds = ["missing-observation"];
+  expect(() => artifacts.validateTrackingStageArtifact(unknown, manifest, request)).toThrow(/unknown/i);
+});
+
+test("re-identification boundary returns opaque links and activation remains fail-closed", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const artifacts = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-stage-artifact-validator.mjs",
+  ));
+  const candidate = provider("reidentification", ["reidentify:player"]);
+  const manifest = contract.normalizeTrackingProviderManifest(candidate);
+  const request = stageRequest({ trajectories: [
+    { id: "trajectory-player", entityType: "player" },
+    { id: "trajectory-ball", entityType: "ball" },
+  ] });
+  const result = stageResult(manifest, evidenceService, { identities: [
+    { trajectoryId: "trajectory-player", identityKey: "local-cluster-8", confidence: 0.91 },
+  ] });
+  expect(artifacts.validateTrackingStageArtifact(result, manifest, request).payload.identities[0]).toEqual({
+    trajectoryId: "trajectory-player",
+    identityKey: "local-cluster-8",
+    confidence: 0.91,
+  });
+  expect(() => artifacts.validateActivatedTrackingStageArtifact(result, candidate, request)).toThrow(/not activated/i);
+
+  const embeddingLeak = structuredClone(result);
+  embeddingLeak.payload.identities[0].embedding = [0.1, 0.2];
+  expect(() => artifacts.validateTrackingStageArtifact(embeddingLeak, manifest, request)).toThrow(/unsupported field/i);
+  const ballIdentity = structuredClone(result);
+  ballIdentity.payload.identities[0].trajectoryId = "trajectory-ball";
+  expect(() => artifacts.validateTrackingStageArtifact(ballIdentity, manifest, request)).toThrow(/player trajectory/i);
+
+  const approved = approveProvider(contract, evidenceService, candidate);
+  const activatedResult = stageResult(approved.manifest, evidenceService, result.payload);
+  expect(artifacts.validateActivatedTrackingStageArtifact(
+    activatedResult,
+    approved.manifest,
+    request,
+    { evidence: approved.evidence, report: approved.report },
+  ).payload.identities).toHaveLength(1);
+});
+
+test("team and shirt classification boundary cannot assign players or classify non-players", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const artifacts = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-stage-artifact-validator.mjs",
+  ));
+  const manifest = contract.normalizeTrackingProviderManifest(provider(
+    "classification",
+    ["classify:team", "classify:shirt-number"],
+  ));
+  const request = stageRequest({ trajectories: [
+    { id: "trajectory-player", entityType: "player" },
+    { id: "trajectory-referee", entityType: "referee" },
+  ] });
+  const result = stageResult(manifest, evidenceService, { classifications: [{
+    trajectoryId: "trajectory-player",
+    teamSide: "home",
+    teamConfidence: 0.97,
+    shirtNumber: "8",
+    shirtNumberConfidence: 0.9,
+  }] });
+  expect(artifacts.validateTrackingStageArtifact(result, manifest, request).payload.classifications[0]).toMatchObject({
+    teamSide: "home",
+    shirtNumber: "8",
+  });
+
+  const identityLeak = structuredClone(result);
+  identityLeak.payload.classifications[0].playerId = "player-8";
+  expect(() => artifacts.validateTrackingStageArtifact(identityLeak, manifest, request)).toThrow(/unsupported field/i);
+  const refereeClassification = structuredClone(result);
+  refereeClassification.payload.classifications[0].trajectoryId = "trajectory-referee";
+  expect(() => artifacts.validateTrackingStageArtifact(refereeClassification, manifest, request)).toThrow(/player trajectory/i);
+});
+
+test("segmentation stage result reuses the strict selected-object track boundary", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const artifacts = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-stage-artifact-validator.mjs",
+  ));
+  const manifest = contract.normalizeTrackingProviderManifest(provider(
+    "segmentation",
+    ["segment:selected-object", "propagate:selected-object"],
+  ));
+  const prompt = {
+    id: "prompt-player-8",
+    startMs: 0,
+    endMs: 2000,
+    promptAtMs: 0,
+    entityType: "player",
+    box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 },
+  };
+  const result = stageResult(manifest, evidenceService, { tracks: [{
+    id: "track-player-8",
+    promptId: prompt.id,
+    entityType: "player",
+    status: "review",
+    startMs: 0,
+    endMs: 2000,
+    confidence: 0.9,
+    segments: [{ id: "segment-1", startMs: 0, endMs: 2000, points: [
+      { atMs: 0, x: 0.2, y: 0.4, width: 0.08, height: 0.3, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 2000, x: 0.3, y: 0.4, width: 0.08, height: 0.3, confidence: 0.9, identityConfidence: 0.9 },
+    ] }],
+  }] });
+  const validated = artifacts.validateTrackingStageArtifact(
+    result,
+    manifest,
+    stageRequest({ prompts: [prompt] }),
+  );
+  expect(validated.payload.tracks).toHaveLength(1);
+  expect(validated.payload.tracks[0].metadata.promptId).toBe(prompt.id);
+});
+
 test("provider evidence binds the exact report, source, model and capability set", async () => {
   const contract = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
@@ -416,6 +660,14 @@ test("provider evidence binds the exact report, source, model and capability set
   changedProvider.models[0].sha256 = "f".repeat(64);
   expect(() => evidenceService.verifyTrackingProviderEvidence(
     contract.normalizeTrackingProviderManifest(changedProvider),
+    approved.evidence,
+    approved.report,
+  )).toThrow(/installed provider artifacts/i);
+
+  const changedRuntime = structuredClone(approved.manifest);
+  changedRuntime.runtime.providerSha256 = "d".repeat(64);
+  expect(() => evidenceService.verifyTrackingProviderEvidence(
+    contract.normalizeTrackingProviderManifest(changedRuntime),
     approved.evidence,
     approved.report,
   )).toThrow(/installed provider artifacts/i);

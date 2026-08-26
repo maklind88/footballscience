@@ -99,6 +99,10 @@
   gap: 6px;
 }
 
+.video-analysis-tracking-review__actions button:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 .video-analysis-tracking-review button:disabled {
   cursor: not-allowed;
   opacity: 0.48;

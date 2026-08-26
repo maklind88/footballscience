@@ -142,9 +142,12 @@ function normalizeModel(value = {}, index = 0) {
 
 function normalizeRuntime(value = {}) {
   return {
+    providerSha256: sha256(value.providerSha256, "provider runtime checksum"),
     maxFrames: positiveInteger(value.maxFrames, "maximum frame count", 1_000_000),
     maxDurationMs: positiveInteger(value.maxDurationMs, "maximum duration", 4 * 60 * 60 * 1000),
+    maxWallTimeMs: positiveInteger(value.maxWallTimeMs, "maximum wall time", 24 * 60 * 60 * 1000),
     maxMemoryMb: positiveInteger(value.maxMemoryMb, "maximum memory", 131_072),
+    maxOutputBytes: positiveInteger(value.maxOutputBytes, "maximum output size", 4 * 1024 * 1024 * 1024),
     maxConcurrentJobs: positiveInteger(value.maxConcurrentJobs, "maximum concurrency", 4),
   };
 }

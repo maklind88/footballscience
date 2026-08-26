@@ -94,6 +94,31 @@ test("identity and visibility corrections affect one reviewed frame and preserve
   expect(correction.trackingReviewEvents(identity).map((entry) => entry.type)).toContain("identity-confidence");
 });
 
+test("analyst-confirmed continuity joins only short spatially plausible breaks", async () => {
+  const correction = await import(moduleUrl("src/modules/video-analysis/services/trackingCorrectionService.js"));
+  const merged = correction.applyTrackingContinuityCorrection(reviewTrack(), { atMs: 1500 });
+  expect(merged.segments).toHaveLength(1);
+  expect(merged.segments[0]).toMatchObject({ startMs: 0, endMs: 2000, discontinuityBefore: false });
+  expect(merged.corrections.at(-1)).toMatchObject({ correctionType: "merge", startMs: 1500 });
+  expect(correction.trackingReviewEvents(merged).map((entry) => entry.type)).not.toContain("continuity-break");
+  expect(() => correction.applyTrackingContinuityCorrection(reviewTrack(), { atMs: 0 })).toThrow(/playhead/i);
+
+  const longGap = reviewTrack();
+  longGap.endMs = 3500;
+  longGap.segments[1] = {
+    ...longGap.segments[1],
+    startMs: 3000,
+    endMs: 3500,
+    points: longGap.segments[1].points.map((point) => ({ ...point, atMs: point.atMs + 1500 })),
+  };
+  expect(() => correction.applyTrackingContinuityCorrection(longGap, { atMs: 3000 })).toThrow(/too long/i);
+
+  const implausibleJump = reviewTrack();
+  implausibleJump.segments[1].points = implausibleJump.segments[1].points
+    .map((point) => ({ ...point, x: 0.95, groundX: 0.95 }));
+  expect(() => correction.applyTrackingContinuityCorrection(implausibleJump, { atMs: 1500 })).toThrow(/too far/i);
+});
+
 test("review controller navigation and undo stay correct when persistence resolves out of order", async () => {
   const { createTrackingReviewController } = await import(moduleUrl(
     "src/modules/video-analysis/controllers/trackingReviewController.js",
@@ -175,7 +200,54 @@ test("tracking review panel exposes professional correction controls without ena
   expect(html).toMatch(/data-video-analysis-tracking-action="review-identity"(?! disabled)/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-undo"(?! disabled)/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-redo" disabled/);
+  expect(html).toMatch(/data-video-analysis-tracking-action="review-continuity" disabled/);
   expect(html).toContain("Mark occluded");
+
+  const continuityHtml = renderTrackingReviewPanel({
+    timeline: { playheadMs: 1500 },
+    presentation: { tracking: { prompt: {}, reviewHistory: {} } },
+  }, track);
+  expect(continuityHtml).toMatch(/data-video-analysis-tracking-action="review-continuity"(?! disabled)/);
+});
+
+test("continuity confirmation is audited, invalidates ground truth and remains undoable", async () => {
+  const { createTrackingReviewController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingReviewController.js",
+  ));
+  const track = reviewTrack();
+  const item = { id: "item-continuity", clipId: "clip-1", objectTracks: [track], dynamicGraphics: [] };
+  let state = {
+    timeline: { playheadMs: 1500 },
+    presentation: {
+      current: { sections: [{ id: "section-1", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        selectedTrackIds: [track.id],
+        prompt: {},
+        groundTruth: { byItemId: { [item.id]: { itemId: item.id, status: "draft", attested: true } } },
+      },
+    },
+  };
+  const audits = [];
+  const controller = createTrackingReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getCurrentMatchMs: () => state.timeline.playheadMs,
+    persistTrack: async (value) => value,
+    persistCorrection: async (value) => { audits.push(value); },
+    invalidateGroundTruth: (itemId) => {
+      state.presentation.tracking.groundTruth.byItemId[itemId].attested = false;
+    },
+  });
+
+  expect(controller.handleAction("review-continuity")).toBe(true);
+  expect(state.presentation.current.sections[0].items[0].objectTracks[0].segments).toHaveLength(1);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].attested).toBe(false);
+  await expect.poll(() => audits.length).toBe(1);
+  expect(audits[0]).toMatchObject({ correctionType: "merge", atMs: 1500 });
+
+  expect(controller.handleAction("review-undo")).toBe(true);
+  expect(state.presentation.current.sections[0].items[0].objectTracks[0].segments).toHaveLength(2);
 });
 
 test("main tracking controller syncs selected identity and invalidates draft attestation on correction", async () => {

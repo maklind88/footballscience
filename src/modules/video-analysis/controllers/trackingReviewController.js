@@ -1,6 +1,7 @@
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import {
   adjacentTrackingReviewEvent,
+  applyTrackingContinuityCorrection,
   applyTrackingIdentityCorrection,
   applyTrackingVisibilityCorrection,
   trackingPointVisibility,
@@ -17,6 +18,7 @@ import {
 const reviewActions = new Set([
   "review-previous",
   "review-next",
+  "review-continuity",
   "review-identity",
   "review-visibility",
   "review-undo",
@@ -187,6 +189,25 @@ export function createTrackingReviewController(options = {}) {
     }
   }
 
+  function confirmContinuity() {
+    const state = getState();
+    const context = selectedContext(state);
+    if (!context.track) return false;
+    try {
+      const corrected = applyTrackingContinuityCorrection(context.track, { atMs: currentAtMs(state) });
+      const correction = corrected.corrections.at(-1);
+      return commitTrackChange(context, corrected, {
+        atMs: correction?.startMs ?? currentAtMs(state),
+        correctionType: "merge",
+        reason: "Confirmed segment continuity",
+        metadata: { joinedSegments: true },
+      });
+    } catch (error) {
+      setError(error?.message || "Continuity could not be confirmed.");
+      return true;
+    }
+  }
+
   function navigate(direction = "later") {
     const state = getState();
     const context = selectedContext(state);
@@ -236,6 +257,7 @@ export function createTrackingReviewController(options = {}) {
     if (!reviewActions.has(action)) return false;
     if (action === "review-previous") return navigate("earlier");
     if (action === "review-next") return navigate("later");
+    if (action === "review-continuity") return confirmContinuity();
     if (action === "review-identity") return applyIdentity();
     if (action === "review-visibility") return toggleVisibility();
     if (action === "review-undo") return restoreHistory("undo");

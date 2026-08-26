@@ -101,6 +101,78 @@ function segmentWithPoint(segment = {}, point = {}) {
   };
 }
 
+function groundDistance(first = {}, second = {}) {
+  const deltaX = Number(first.groundPoint?.x || 0) - Number(second.groundPoint?.x || 0);
+  const deltaY = Number(first.groundPoint?.y || 0) - Number(second.groundPoint?.y || 0);
+  return Math.hypot(deltaX, deltaY);
+}
+
+export function applyTrackingContinuityCorrection(trackValue = {}, options = {}) {
+  const track = normalizeObjectTrack(trackValue);
+  const requestedAtMs = Math.max(0, Math.round(Number(options.atMs) || 0));
+  const candidates = track.segments
+    .map((segment, index) => ({ index, segment }))
+    .filter(({ index, segment }) => index > 0 && segment.discontinuityBefore);
+  const target = candidates.reduce((nearest, candidate) => (
+    !nearest
+      || Math.abs(candidate.segment.startMs - requestedAtMs) < Math.abs(nearest.segment.startMs - requestedAtMs)
+      ? candidate
+      : nearest
+  ), null);
+  if (!target) {
+    const error = new Error("This track has no unresolved continuity break.");
+    error.code = "TRACKING_REVIEW_CONTINUITY_MISSING";
+    throw error;
+  }
+  const maximumSelectionDistanceMs = Math.max(
+    1,
+    Math.round(Number(options.maximumSelectionDistanceMs) || 250),
+  );
+  if (Math.abs(target.segment.startMs - requestedAtMs) > maximumSelectionDistanceMs) {
+    const error = new Error("Move the playhead to the continuity break before confirming it.");
+    error.code = "TRACKING_REVIEW_CONTINUITY_NOT_SELECTED";
+    throw error;
+  }
+  const previous = track.segments[target.index - 1];
+  const current = target.segment;
+  const previousPoint = previous.points.at(-1);
+  const currentPoint = current.points[0];
+  const gapMs = Math.max(0, currentPoint.atMs - previousPoint.atMs);
+  const maximumGapMs = Math.max(1, Math.round(Number(options.maximumGapMs) || 1000));
+  if (gapMs > maximumGapMs) {
+    const error = new Error("The continuity gap is too long. Add a reviewed keyframe before joining the segments.");
+    error.code = "TRACKING_REVIEW_CONTINUITY_GAP";
+    throw error;
+  }
+  const maximumJump = Math.max(0.01, Math.min(1, Number(options.maximumJump) || 0.3));
+  if (groundDistance(previousPoint, currentPoint) > maximumJump) {
+    const error = new Error("The object moves too far across this break. Correct the boxes before joining the segments.");
+    error.code = "TRACKING_REVIEW_CONTINUITY_JUMP";
+    throw error;
+  }
+  const merged = {
+    id: previous.id,
+    startMs: Math.min(previous.startMs, current.startMs),
+    endMs: Math.max(previous.endMs, current.endMs),
+    discontinuityBefore: previous.discontinuityBefore,
+    points: [...previous.points, ...current.points],
+  };
+  const segments = [
+    ...track.segments.slice(0, target.index - 1),
+    merged,
+    ...track.segments.slice(target.index + 1),
+  ];
+  return normalizeObjectTrack({
+    ...track,
+    status: "review",
+    segments,
+    corrections: [...track.corrections, correctionRecord("merge", current.startMs, {
+      ...options,
+      reason: options.reason || "Confirmed segment continuity",
+    })],
+  });
+}
+
 export function applyTrackingVisibilityCorrection(trackValue = {}, options = {}) {
   const track = normalizeObjectTrack(trackValue);
   const atMs = Math.max(track.startMs, Math.min(track.endMs, Math.round(Number(options.atMs) || 0)));

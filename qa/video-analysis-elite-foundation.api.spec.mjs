@@ -187,6 +187,24 @@ test("local processing security rejects wildcard origins and scopes sessions", a
   expect(sessions.validate(session.token, "https://evil.example")).toBe(false);
 });
 
+test("local processing CORS permits every FS Player bridge request header", async () => {
+  const configModule = await import(moduleUrl("desktop/local-video-app/local-video-server/config.mjs"));
+  const security = await import(moduleUrl("desktop/local-video-app/local-video-server/security.mjs"));
+  const servicesDir = path.join(rootDir, "src/modules/video-analysis/services");
+  const serviceFiles = (await fs.readdir(servicesDir))
+    .filter((fileName) => /^local.*Service\.js$/.test(fileName));
+  const requestedHeaders = new Set();
+  for (const fileName of serviceFiles) {
+    const source = await fs.readFile(path.join(servicesDir, fileName), "utf8");
+    for (const header of source.match(/x-football-science-[a-z-]+/g) || []) requestedHeaders.add(header);
+  }
+  const config = configModule.createLocalVideoServerConfig({}, { homeDir: "/tmp" });
+  const headers = security.corsHeaders({ headers: { origin: "https://footballscience.xyz" } }, config);
+  const allowedHeaders = new Set(headers["access-control-allow-headers"].split(","));
+
+  expect([...requestedHeaders].filter((header) => !allowedHeaders.has(header))).toEqual([]);
+});
+
 test("local processing job manager enforces concurrency, progress and cancellation", async () => {
   const jobsModule = await import(moduleUrl("desktop/local-video-app/local-video-server/processing-job-manager.mjs"));
   const manager = jobsModule.createProcessingJobManager({ concurrency: 1 });

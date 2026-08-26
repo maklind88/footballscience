@@ -14,8 +14,11 @@ import {
 import {
   readSam2ProviderManifest,
   sam2ProviderInstallDir,
+  sam2ProviderManifestSha256,
   sam2ProviderPaths,
+  sam2ProviderPreferredDevice,
   sam2ProviderRuntimeSha256,
+  sam2ProviderSourceRuntimeSha256,
 } from "./provider-runtime.mjs";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -81,6 +84,7 @@ export function providerInstallPlan(args = {}, options = {}) {
       commit: manifest.upstream.commit,
       bytes: manifest.upstream.sourceBytes,
       sha256: manifest.upstream.sourceSha256,
+      runtimeTreeSha256: manifest.upstream.runtimeTreeSha256,
       license: manifest.upstream.license,
     },
     model: {
@@ -93,6 +97,10 @@ export function providerInstallPlan(args = {}, options = {}) {
       python: `${manifest.runtime.pythonMinimum} <= version < ${manifest.runtime.pythonMaximumExclusive}`,
       isolatedVirtualEnvironment: true,
       networkAtInference: false,
+      executionMode: manifest.runtime.executionMode,
+      maximumWorkerStartupMs: manifest.runtime.maximumWorkerStartupMs,
+      maximumJobWallTimeMs: manifest.runtime.maximumJobWallTimeMs,
+      deviceDefaults: { ...manifest.runtime.deviceDefaults },
     },
   };
 }
@@ -146,10 +154,12 @@ async function installPythonRuntime(paths, args, python, manifest) {
     FS_SAM2_CHECKPOINT: paths.checkpoint,
     FS_SAM2_CHECKPOINT_SHA256: manifest.model.checkpointSha256,
     FS_SAM2_CONFIG: manifest.model.config,
+    FS_SAM2_DEVICE: sam2ProviderPreferredDevice(manifest),
     FS_SAM2_FFMPEG_PATH: ffmpegStaticPath || "ffmpeg",
     FS_SAM2_MAX_FRAMES: String(manifest.runtime.maximumFrames),
     FS_SAM2_MODEL_NAME: manifest.model.displayName,
     FS_SAM2_SAMPLE_FPS: String(manifest.runtime.sampleFps),
+    PYTHONPATH: [paths.sourceDir, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
   };
   const preflight = await runCapture(paths.python, [paths.providerEntry, "--preflight", "--json"], {
     env: providerEnvironment,
@@ -201,6 +211,9 @@ export async function installSam2Provider(args = {}, options = {}) {
     await runVisible("tar", ["-xzf", stagedSourceArchive, "-C", stagedSource, "--strip-components=1"]);
     await fs.access(path.join(stagedSource, "LICENSE"));
     await fs.access(path.join(stagedSource, "setup.py"));
+    if (sam2ProviderSourceRuntimeSha256({ sourceDir: stagedSource }) !== manifest.upstream.runtimeTreeSha256) {
+      throw new Error("The approved SAM 2 source runtime failed its integrity check.");
+    }
     await fs.rm(path.join(stagedDir, "downloads"), { recursive: true, force: true });
     await copyProviderPolicy(stagedDir);
     const stagedPaths = sam2ProviderPaths({ manifest, installDir: stagedDir });
@@ -218,8 +231,10 @@ export async function installSam2Provider(args = {}, options = {}) {
       providerVersion: manifest.providerVersion,
       sourceCommit: manifest.upstream.commit,
       sourceSha256: manifest.upstream.sourceSha256,
+      sourceRuntimeSha256: manifest.upstream.runtimeTreeSha256,
       checkpointSha256: manifest.model.checkpointSha256,
       providerSha256: manifest.runtime.providerSha256,
+      manifestSha256: sam2ProviderManifestSha256(manifest),
       installedAt: new Date().toISOString(),
       platform: process.platform,
       pythonVersion: python.version,

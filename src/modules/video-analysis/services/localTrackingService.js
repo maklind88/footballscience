@@ -98,6 +98,9 @@ export async function inspectLocalTrackingProvider(win = window) {
     const provider = payload.trackingProvider && typeof payload.trackingProvider === "object"
       ? payload.trackingProvider
       : {};
+    const runtime = provider.runtime && typeof provider.runtime === "object"
+      ? provider.runtime
+      : {};
     const available = (payload.capabilities || []).includes("track-object") && provider.available !== false;
     const benchmark = payload.trackingBenchmark && typeof payload.trackingBenchmark === "object"
       ? payload.trackingBenchmark
@@ -114,6 +117,13 @@ export async function inspectLocalTrackingProvider(win = window) {
       capabilities: ["segment:selected-object", "propagate:selected-object"],
       executionFingerprintSha256: String(provider.providerExecutionFingerprintSha256 || ""),
       source: String(provider.source || "none"),
+      runtimeMode: String(runtime.mode || ""),
+      runtimeStatus: String(runtime.status || ""),
+      modelResident: runtime.modelResident === true,
+      runtimeDevice: String(runtime.device || ""),
+      workerColdStartMs: Math.max(0, Number(runtime.coldStartMs) || 0),
+      workerCompletedJobs: Math.max(0, Number(runtime.completedJobs) || 0),
+      workerReusedJobs: Math.max(0, Number(runtime.reusedJobs) || 0),
       maxDurationMs: Math.max(1000, Math.min(20 * 60 * 1000, Number(payload.limits?.maxTrackingDurationMs) || 120_000)),
       maxObjectsPerJob: Math.max(1, Math.min(8, Number(payload.limits?.maxTrackingObjectsPerJob) || 1)),
       benchmarkAvailable: (payload.capabilities || []).includes("evaluate-tracking-benchmark"),
@@ -179,6 +189,13 @@ function normalizedLocalTrack(artifact = {}, prompt = {}, result = {}, options =
       localSourceArtifactId: result.sourceArtifactId || requestedSourceId,
       localSourceSha256: result.sourceSha256 || "",
       providerProcessingMs: Math.max(0, Number(result.processingMs) || 0),
+      providerRuntimeMode: String(result.providerRuntime?.mode || ""),
+      providerRuntimeDevice: String(result.providerRuntime?.device || ""),
+      providerModelResident: result.providerRuntime?.modelResident === true,
+      providerWorkerReused: result.providerRuntime?.workerReused === true,
+      providerWorkerJobSequence: Math.max(0, Number(result.providerRuntime?.workerJobSequence) || 0),
+      providerModelLoadMs: Math.max(0, Number(result.providerRuntime?.modelLoadMs) || 0),
+      providerJobProcessingMs: Math.max(0, Number(result.providerRuntime?.jobProcessingMs) || 0),
       angleId: String(prompt.angleId || ""),
     },
   });

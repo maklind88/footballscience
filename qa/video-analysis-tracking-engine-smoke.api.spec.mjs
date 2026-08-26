@@ -173,3 +173,90 @@ test("tracking batch smoke compares one shared video pass with repeated single j
     await fs.rm(parent, { recursive: true, force: true });
   }
 });
+
+test("tracking warm smoke proves resident model reuse and separates cold from warm latency", async () => {
+  const service = await import(moduleUrl("scripts/fs-player-tracking-engine-smoke.mjs"));
+  const parent = await temporaryParent();
+  let sequence = 0;
+  const adapter = {
+    available: () => true,
+    info: () => ({
+      engineName: "sam2.1-hiera-tiny",
+      displayName: "Football Science SAM 2.1 Object Tracker",
+      engineVersion: "1.2.0",
+      protocol: "football-science-tracking-v1",
+      source: "approved-packaged",
+      runtime: {
+        mode: "football-science-tracking-worker-v1",
+        status: "ready",
+        modelResident: true,
+        generation: 1,
+        completedJobs: sequence,
+        reusedJobs: Math.max(0, sequence - 1),
+        coldStartMs: 4_000,
+        modelLoadMs: 3_500,
+      },
+    }),
+    trackObject: async (_inputPath, _outputPath, prompt, options) => {
+      sequence += 1;
+      options.onProgress({ stage: sequence === 1 ? "Loading resident SAM 2.1" : "Using resident SAM 2.1", ratio: 0.7 });
+      return {
+        ...validResult(prompt),
+        runtime: {
+          mode: "football-science-tracking-worker-v1",
+          generation: 1,
+          workerJobSequence: sequence,
+          workerReused: sequence > 1,
+          modelResident: true,
+          workerColdStartMs: 4_000,
+          modelLoadMs: 3_500,
+          jobProcessingMs: sequence === 1 ? 900 : 800,
+        },
+      };
+    },
+  };
+  try {
+    const times = [1_000, 6_000, 7_000, 8_000];
+    const report = await service.runTrackingEngineWarmSmoke({
+      adapter,
+      now: () => times.shift(),
+      temporaryParent: parent,
+      generateFixture: async (filePath) => {
+        const bytes = Buffer.alloc(2_048, 5);
+        await fs.writeFile(filePath, bytes);
+        return { byteLength: bytes.byteLength };
+      },
+    });
+    expect(report).toMatchObject({
+      ok: true,
+      protocol: "football-science-tracking-engine-warm-smoke-v1",
+      provider: {
+        engineVersion: "1.2.0",
+        runtime: { modelResident: true, completedJobs: 2, reusedJobs: 1 },
+      },
+      result: {
+        first: { pointCount: 3, observedDurationMs: 1_000 },
+        warm: { pointCount: 3, observedDurationMs: 1_000 },
+      },
+      performance: {
+        firstEndToEndMs: 5_000,
+        warmEndToEndMs: 1_000,
+        coldStartMs: 4_000,
+        modelLoadMs: 3_500,
+        warmProviderMs: 800,
+        warmRealtimeFactor: 1,
+        warmWithinReferenceBudget: true,
+        coldToWarmSpeedup: 5,
+        sameWorkerGeneration: true,
+        modelResident: true,
+      },
+      temporaryMediaRetained: false,
+      realMatchQualityProven: false,
+    });
+    expect(report.progressStages).toEqual(["Loading resident SAM 2.1", "Using resident SAM 2.1"]);
+    expect(JSON.stringify(report)).not.toMatch(/segments|points|synthetic-player\.mp4/);
+    expect(await fs.readdir(parent)).toEqual([]);
+  } finally {
+    await fs.rm(parent, { recursive: true, force: true });
+  }
+});

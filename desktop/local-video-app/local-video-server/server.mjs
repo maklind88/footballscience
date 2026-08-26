@@ -506,7 +506,8 @@ export function createLocalVideoServer(options = {}) {
         });
       });
     },
-    close() {
+    async close() {
+      await trackingEngine.close?.();
       return new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     },
   };

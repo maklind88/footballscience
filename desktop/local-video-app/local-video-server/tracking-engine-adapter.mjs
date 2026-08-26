@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import ffmpegStaticPath from "ffmpeg-static";
 import { resolveInstalledSam2Provider } from "../tracking-providers/sam2/provider-runtime.mjs";
+import { createTrackingResidentWorker } from "./tracking-resident-worker.mjs";
 import {
   validateTrackingArtifact,
   validateTrackingArtifacts,
@@ -33,19 +34,37 @@ function runCommand(command, args = [], options = {}) {
     let stderr = "";
     let stdoutBuffer = "";
     let settled = false;
+    let terminationError = null;
+    let processError = null;
+    let killTimer = null;
+    const startedAt = Date.now();
     const settle = (handler, value) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timeout);
+      clearTimeout(killTimer);
       options.signal?.removeEventListener?.("abort", abort);
       handler(value);
     };
-    const abort = () => {
+    const terminate = (error) => {
+      if (settled || terminationError) return;
+      terminationError = error;
       child.kill("SIGTERM");
-      setTimeout(() => child.kill("SIGKILL"), 2000).unref?.();
+      killTimer = setTimeout(() => child.kill("SIGKILL"), 2000);
+      killTimer.unref?.();
+    };
+    const abort = () => {
       const error = new Error("Tracking was cancelled.");
       error.name = "AbortError";
-      settle(reject, error);
+      error.code = "ABORT_ERR";
+      terminate(error);
     };
+    const timeout = setTimeout(() => {
+      const error = new Error("The tracking provider exceeded its local time limit.");
+      error.code = "TRACKING_PROVIDER_TIMEOUT";
+      terminate(error);
+    }, Math.max(60_000, Number(options.timeoutMs) || 2 * 60 * 60 * 1000));
+    timeout.unref?.();
     options.signal?.addEventListener?.("abort", abort, { once: true });
     child.stdout.on("data", (chunk) => {
       stdoutBuffer = `${stdoutBuffer}${chunk}`.slice(-16_384);
@@ -66,9 +85,14 @@ function runCommand(command, args = [], options = {}) {
       }
     });
     child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-8000); });
-    child.on("error", (error) => settle(reject, error));
+    child.on("error", (error) => { processError = error; });
     child.on("close", (code) => {
-      if (code === 0) settle(resolve, true);
+      if (terminationError || processError) settle(reject, terminationError || processError);
+      else if (code === 0) settle(resolve, {
+        mode: "one-shot-process",
+        hostElapsedMs: Math.max(1, Date.now() - startedAt),
+        modelResident: false,
+      });
       else settle(reject, new Error(stderr || `Tracking engine exited with ${code}.`));
     });
   });
@@ -88,19 +112,36 @@ export function createTrackingEngineAdapter(options = {}) {
   const providerEnv = {
     ...process.env,
     ...(installed?.env || {}),
+    HF_HUB_OFFLINE: "1",
+    TRANSFORMERS_OFFLINE: "1",
     FS_SAM2_FFMPEG_PATH: options.ffmpegPath || process.env.FS_FFMPEG_PATH || ffmpegStaticPath || "ffmpeg",
   };
+  const residentEnabled = Boolean(options.residentWorker
+    || (command && (options.resident === true || (installed && options.resident !== false))));
+  const residentWorker = options.residentWorker || (residentEnabled ? createTrackingResidentWorker({
+    command,
+    args: commandArgs,
+    env: providerEnv,
+    expectedProvider: engineName,
+    expectedVersion: engineVersion,
+    jobTimeoutMs: options.jobTimeoutMs || installed?.jobTimeoutMs,
+    startupTimeoutMs: options.startupTimeoutMs || installed?.startupTimeoutMs,
+  }) : null);
 
   async function runTracking(inputPath, outputPath, request = {}, runOptions = {}) {
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     const requestPath = path.join(path.dirname(outputPath), "tracking-request.json");
     await fs.writeFile(requestPath, JSON.stringify({ protocolVersion: 1, ...request }), { flag: "wx" });
     try {
+      let runtime = null;
       if (runner) {
         const result = await runner({ inputPath, outputPath, requestPath, ...request, ...runOptions });
         if (result && typeof result === "object") await fs.writeFile(outputPath, JSON.stringify(result));
+        runtime = { mode: "embedded-runner", modelResident: false };
+      } else if (residentWorker) {
+        runtime = await residentWorker.run({ inputPath, outputPath, requestPath }, runOptions);
       } else if (command) {
-        await runCommand(command, [
+        runtime = await runCommand(command, [
           ...commandArgs,
           "--protocol", "football-science-tracking-v1",
           "--input", inputPath,
@@ -117,11 +158,11 @@ export function createTrackingEngineAdapter(options = {}) {
       if (Array.isArray(request.prompts)) {
         const validated = validateTrackingArtifacts(rawArtifact, request.prompts, options.validation);
         await fs.writeFile(outputPath, JSON.stringify({ schemaVersion: 1, tracks: validated.artifacts }));
-        return { ...validated, engine: engineName, engineVersion };
+        return { ...validated, engine: engineName, engineVersion, runtime };
       }
       const validated = validateTrackingArtifact(rawArtifact, request.prompt, options.validation);
       await fs.writeFile(outputPath, JSON.stringify(validated.artifact));
-      return { ...validated, engine: engineName, engineVersion };
+      return { ...validated, engine: engineName, engineVersion, runtime };
     } finally {
       await fs.rm(requestPath, { force: true });
     }
@@ -138,7 +179,13 @@ export function createTrackingEngineAdapter(options = {}) {
       providerContractProtocol: "football-science-tracking-stage-v1",
       source: installed ? "approved-packaged" : runner ? "embedded-test" : command ? "external" : "none",
       providerExecutionFingerprintSha256: installed?.providerExecutionFingerprintSha256 || "",
+      runtime: residentWorker?.info() || {
+        mode: runner ? "embedded-runner" : command ? "one-shot-process" : "none",
+        status: command || runner ? "ready" : "stopped",
+        modelResident: false,
+      },
     }),
+    close: () => residentWorker?.close?.() || Promise.resolve(true),
     async trackObject(inputPath, outputPath, prompt = {}, runOptions = {}) {
       return runTracking(inputPath, outputPath, { prompt }, runOptions);
     },

@@ -106,6 +106,7 @@ export function createTrackingController(options = {}) {
     persistTrack,
     captureProviderRun: providerRuns.capture,
     getProviderRunFrame: providerRuns.frame,
+    refreshProvider: providerRuns.refresh,
     trackObjects: options.trackObjects,
     trackingJob,
   });
@@ -297,6 +298,7 @@ export function createTrackingController(options = {}) {
           error: "",
         });
       });
+      void providerRuns.refresh();
       return true;
     } catch (error) {
       updateState((current) => trackingPatch(current, {

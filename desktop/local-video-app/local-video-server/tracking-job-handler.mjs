@@ -7,6 +7,25 @@ function safeFileName(value = "tracking-video") {
   return String(value || "tracking-video").replace(/[^a-zA-Z0-9._ -]+/g, "").slice(0, 120) || "tracking-video";
 }
 
+function publicProviderRuntime(value = {}) {
+  const number = (entry, maximum = Number.MAX_SAFE_INTEGER) => {
+    const normalized = Number(entry);
+    return Number.isFinite(normalized) && normalized >= 0 ? Math.min(maximum, normalized) : 0;
+  };
+  return {
+    mode: String(value.mode || "").slice(0, 80),
+    generation: number(value.generation, 1_000_000),
+    workerJobSequence: number(value.workerJobSequence, 1_000_000),
+    workerReused: value.workerReused === true,
+    modelResident: value.modelResident === true,
+    device: String(value.device || "").slice(0, 24),
+    modelLoadMs: number(value.modelLoadMs, 60 * 60 * 1000),
+    workerColdStartMs: number(value.workerColdStartMs, 60 * 60 * 1000),
+    jobProcessingMs: number(value.jobProcessingMs, 2 * 60 * 60 * 1000),
+    hostElapsedMs: number(value.hostElapsedMs, 2 * 60 * 60 * 1000),
+  };
+}
+
 function requestedSourceId(request = {}) {
   const value = String(request.headers?.["x-football-science-tracking-source-id"] || "").trim();
   if (!value) return "";
@@ -210,6 +229,7 @@ export function createTrackingJobHandler(options = {}) {
             pointCount: result.pointCount,
             segmentCount: result.segmentCount,
             trackCount: result.trackCount || 1,
+            providerRuntime: publicProviderRuntime(result.runtime),
           };
         } catch (error) {
           await removeCacheEntry(options.config.cacheDir, job.id);

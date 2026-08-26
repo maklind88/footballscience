@@ -194,6 +194,7 @@ export function createTrackingBatchController(options = {}) {
           error: "",
         });
       });
+      void options.refreshProvider?.();
       return true;
     } catch (error) {
       updateState((current) => patchTrackingState(current, {

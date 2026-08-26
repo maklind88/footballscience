@@ -273,6 +273,15 @@ test("local tracking readiness distinguishes installed, missing and offline prov
             providerContractProtocol: "football-science-tracking-stage-v1",
             providerExecutionFingerprintSha256: "f".repeat(64),
             source: capabilities.includes("track-object") ? "approved-packaged" : "none",
+            runtime: {
+              mode: "football-science-tracking-worker-v1",
+              status: "ready",
+              modelResident: true,
+              device: "mps",
+              coldStartMs: 41_000,
+              completedJobs: 2,
+              reusedJobs: 1,
+            },
           },
         });
       },
@@ -287,6 +296,13 @@ test("local tracking readiness distinguishes installed, missing and offline prov
     stage: "segmentation",
     executionFingerprintSha256: "f".repeat(64),
     source: "approved-packaged",
+    runtimeMode: "football-science-tracking-worker-v1",
+    runtimeStatus: "ready",
+    modelResident: true,
+    runtimeDevice: "mps",
+    workerColdStartMs: 41_000,
+    workerCompletedJobs: 2,
+    workerReusedJobs: 1,
     maxDurationMs: 90_000,
   });
   await expect(localTracking.inspectLocalTrackingProvider(providerWindow(47912))).resolves.toMatchObject({
@@ -313,6 +329,25 @@ test("local tracking readiness distinguishes installed, missing and offline prov
   expect(sidebar).toContain("Provider not installed");
   expect(sidebar).toMatch(/data-video-analysis-tracking-action="run" disabled/);
   expect(sidebar).toMatch(/data-video-analysis-tracking-action="manual" >Manual keyframe/);
+  const residentSidebar = renderTrackingSidebar({
+    players: [],
+    presentation: {
+      tracking: {
+        mode: "tracking",
+        provider: {
+          status: "ready",
+          available: true,
+          name: "Football Science SAM 2.1 Object Tracker",
+          version: "1.2.0",
+          runtimeMode: "football-science-tracking-worker-v1",
+          runtimeStatus: "ready",
+          modelResident: true,
+        },
+        prompt: { startMs: 0, endMs: 1000, box: null },
+      },
+    },
+  }, { id: "item-1", clipId: "clip-1", objectTracks: [], dynamicGraphics: [] });
+  expect(residentSidebar).toContain("Local engine | Resident warm");
 });
 
 test("offline refresh preserves only the last evidence identity for raw-run export", async () => {
@@ -545,6 +580,15 @@ test("stale local tracking sources fall back once to the reconnected file", asyn
           artifactId: "fresh-artifact",
           sourceArtifactId: "fresh-source",
           trackingUrl: "http://127.0.0.1:47924/tracking/fresh/track.json",
+          providerRuntime: {
+            mode: "football-science-tracking-worker-v1",
+            device: "mps",
+            modelResident: true,
+            workerReused: true,
+            workerJobSequence: 2,
+            modelLoadMs: 40_000,
+            jobProcessingMs: 900,
+          },
           },
         } });
       }
@@ -590,6 +634,13 @@ test("stale local tracking sources fall back once to the reconnected file", asyn
       localArtifactId: "fresh-artifact",
       localSourceArtifactId: "fresh-source",
       providerProcessingMs: 1500,
+      providerRuntimeMode: "football-science-tracking-worker-v1",
+      providerRuntimeDevice: "mps",
+      providerModelResident: true,
+      providerWorkerReused: true,
+      providerWorkerJobSequence: 2,
+      providerModelLoadMs: 40_000,
+      providerJobProcessingMs: 900,
     });
   } finally {
     localVideo.revokeLocalVideoReference(videoRef, win);

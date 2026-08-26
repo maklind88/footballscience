@@ -216,6 +216,14 @@ function renderTrackingProvider(provider = {}) {
     ? requestedStatus
     : "unchecked";
   const providerName = String(provider.name || "Local tracker").replace(/^Football Science\s+/i, "");
+  const resident = provider.runtimeMode === "football-science-tracking-worker-v1";
+  const runtimeLabel = resident
+    ? provider.modelResident
+      ? "Resident warm"
+      : provider.runtimeStatus === "starting"
+        ? "Resident loading"
+        : "Resident on demand"
+    : "Local process";
   const label = status === "ready"
     ? `${providerName}${provider.version ? ` ${provider.version}` : ""}`
     : status === "not-installed"
@@ -225,7 +233,7 @@ function renderTrackingProvider(provider = {}) {
         : "Checking local engine";
   return `
     <div class="video-analysis-tracking-provider is-${escapeHtml(status)}" title="${escapeHtml(provider.error || label)}">
-      <span>Local engine</span>
+      <span>${escapeHtml(`Local engine | ${runtimeLabel}`)}</span>
       <strong>${escapeHtml(label)}</strong>
       <button type="button" data-video-analysis-tracking-action="refresh-provider" ${status === "checking" ? "disabled" : ""}>Refresh</button>
     </div>

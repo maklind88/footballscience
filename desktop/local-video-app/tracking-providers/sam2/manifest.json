@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "providerId": "sam2.1-hiera-tiny",
-  "providerVersion": "1.1.0",
+  "providerVersion": "1.2.0",
   "displayName": "Football Science SAM 2.1 Object Tracker",
   "protocol": "football-science-tracking-v1",
   "approval": {
@@ -16,6 +16,7 @@
     "sourceUrl": "https://codeload.github.com/facebookresearch/sam2/tar.gz/2b90b9f5ceec907a1c18123530e92e794ad901a4",
     "sourceBytes": 55645345,
     "sourceSha256": "1f2fbfad3ffa38110368abac76c6ef9df9c282a66d5c2807bc94abf4d2fb30f8",
+    "runtimeTreeSha256": "ea438009aac8ac297b3ed5e7d902684eb298859aa9c8db0eb49bc3deaf11c6e7",
     "license": "Apache-2.0",
     "licenseUrl": "https://github.com/facebookresearch/sam2/blob/2b90b9f5ceec907a1c18123530e92e794ad901a4/LICENSE"
   },
@@ -37,6 +38,13 @@
     "maximumFrames": 30000,
     "maximumTrackingDurationMs": 1200000,
     "maximumObjectsPerJob": 8,
-    "providerSha256": "f193802ce127d10f8f2f31d5c6f4d95be2b64f19d11870a90cf19a46e0e0f8ab"
+    "maximumWorkerStartupMs": 180000,
+    "maximumJobWallTimeMs": 7200000,
+    "executionMode": "resident-worker-v1",
+    "deviceDefaults": {
+      "darwin": "cpu",
+      "linux": "auto"
+    },
+    "providerSha256": "8898ab82aed4e9fa6b96f405304f73e94ecfeae9dfecb6ecfede2c2a90c7828e"
   }
 }

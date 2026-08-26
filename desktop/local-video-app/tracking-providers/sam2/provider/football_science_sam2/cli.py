@@ -8,7 +8,7 @@ import signal
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Callable, Dict, Optional
 
 from . import PROTOCOL, PROVIDER_VERSION
 from .media import cancel_active_process, extract_sample_frames, prompt_frame_index
@@ -35,7 +35,7 @@ def _environment_path(name: str) -> Path:
     return Path(value).expanduser().resolve()
 
 
-def _runtime_report() -> Dict[str, Any]:
+def _runtime_report(engine: Optional[Sam2Engine] = None) -> Dict[str, Any]:
     if sys.version_info < (3, 10) or sys.version_info >= (3, 13):
         raise ProviderError("The SAM 2 provider requires Python 3.10, 3.11, or 3.12.")
     checkpoint = _environment_path("FS_SAM2_CHECKPOINT")
@@ -49,7 +49,7 @@ def _runtime_report() -> Dict[str, Any]:
     if not ffmpeg_path:
         raise ProviderError("The approved local FFmpeg engine is unavailable.")
     config = str(os.environ.get("FS_SAM2_CONFIG", "configs/sam2.1/sam2.1_hiera_t.yaml"))
-    engine = Sam2Engine(str(checkpoint), config, os.environ.get("FS_SAM2_DEVICE", "auto"))
+    runtime_engine = engine or Sam2Engine(str(checkpoint), config, os.environ.get("FS_SAM2_DEVICE", "auto"))
     try:
         from sam2.build_sam import build_sam2_video_predictor  # noqa: F401
     except ImportError as error:
@@ -59,9 +59,9 @@ def _runtime_report() -> Dict[str, Any]:
         "provider": "sam2.1-hiera-tiny",
         "providerVersion": PROVIDER_VERSION,
         "protocol": PROTOCOL,
-        "device": engine.device_name,
+        "device": runtime_engine.device_name,
         "python": ".".join(map(str, sys.version_info[:3])),
-        "torch": str(engine.torch.__version__),
+        "torch": str(runtime_engine.torch.__version__),
         "checkpointSha256": expected_sha256,
         "networkAtInference": False,
     }
@@ -84,7 +84,13 @@ def _settings(report: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _tracking(arguments: argparse.Namespace) -> int:
+def _tracking(
+    arguments: argparse.Namespace,
+    report: Optional[Dict[str, Any]] = None,
+    settings: Optional[Dict[str, Any]] = None,
+    engine: Optional[Sam2Engine] = None,
+    emit: Callable[[str, float], None] = _emit,
+) -> int:
     require_protocol(arguments.protocol)
     input_path = Path(arguments.input)
     request_path = Path(arguments.request)
@@ -93,44 +99,53 @@ def _tracking(arguments: argparse.Namespace) -> int:
     request = read_request(request_path)
     prompts = request["prompts"] if isinstance(request.get("prompts"), list) else [request]
     prompt = prompts[0]
-    _emit("Verifying local tracking provider", 0.03)
-    report = _runtime_report()
-    settings = _settings(report)
-    engine = Sam2Engine(settings["checkpoint"], settings["config"], settings["device"])
-    with tempfile.TemporaryDirectory(prefix="fs-sam2-", dir=str(request_path.resolve().parent)) as temporary:
-        frames_dir = Path(temporary) / "frames"
-        _emit("Sampling synchronized video frames", 0.12)
-        frames = extract_sample_frames(
-            input_path.resolve(),
-            frames_dir,
-            prompt,
-            settings["ffmpeg"],
-            settings["sampleFps"],
-            settings["maximumFrames"],
-        )
-        prompt_index = prompt_frame_index(prompt, settings["sampleFps"], len(frames))
-        _emit("Loading SAM 2.1", 0.30)
-        observations = engine.track_many(frames_dir.as_posix(), prompts, prompt_index, _emit)
-        tracks = [
-            build_track(
-                object_observations,
-                target_prompt,
-                prompt_index,
-                settings["sampleFps"],
-                {
-                    "device": engine.device_name,
-                    "model": settings["model"],
-                    "promptFrameIndex": prompt_index,
-                    "providerProtocol": PROTOCOL,
-                    "sampleFps": settings["sampleFps"],
-                },
+    emit("Verifying local tracking provider", 0.03)
+    runtime_report = report or _runtime_report(engine)
+    runtime_settings = settings or _settings(runtime_report)
+    owns_engine = engine is None
+    runtime_engine = engine or Sam2Engine(
+        runtime_settings["checkpoint"],
+        runtime_settings["config"],
+        runtime_settings["device"],
+    )
+    try:
+        with tempfile.TemporaryDirectory(prefix="fs-sam2-", dir=str(request_path.resolve().parent)) as temporary:
+            frames_dir = Path(temporary) / "frames"
+            emit("Sampling synchronized video frames", 0.12)
+            frames = extract_sample_frames(
+                input_path.resolve(),
+                frames_dir,
+                prompt,
+                runtime_settings["ffmpeg"],
+                runtime_settings["sampleFps"],
+                runtime_settings["maximumFrames"],
             )
-            for object_observations, target_prompt in zip(observations, prompts)
-        ]
-    _emit("Writing review tracks" if len(tracks) > 1 else "Writing review track", 0.96)
+            prompt_index = prompt_frame_index(prompt, runtime_settings["sampleFps"], len(frames))
+            emit("Using resident SAM 2.1" if not owns_engine else "Loading SAM 2.1", 0.30)
+            observations = runtime_engine.track_many(frames_dir.as_posix(), prompts, prompt_index, emit)
+            tracks = [
+                build_track(
+                    object_observations,
+                    target_prompt,
+                    prompt_index,
+                    runtime_settings["sampleFps"],
+                    {
+                        "device": runtime_engine.device_name,
+                        "model": runtime_settings["model"],
+                        "promptFrameIndex": prompt_index,
+                        "providerProtocol": PROTOCOL,
+                        "sampleFps": runtime_settings["sampleFps"],
+                    },
+                )
+                for object_observations, target_prompt in zip(observations, prompts)
+            ]
+    finally:
+        if owns_engine:
+            runtime_engine.close()
+    emit("Writing review tracks" if len(tracks) > 1 else "Writing review track", 0.96)
     artifact = {"schemaVersion": 1, "tracks": tracks} if len(tracks) > 1 else tracks[0]
     atomic_write_json(output_path, artifact)
-    _emit("Tracking ready for review", 1.0)
+    emit("Tracking ready for review", 1.0)
     return 0
 
 
@@ -141,6 +156,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--request", default="")
     parser.add_argument("--output", default="")
     parser.add_argument("--preflight", action="store_true")
+    parser.add_argument("--worker", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -154,6 +170,9 @@ def main(values=None) -> int:
     signal.signal(signal.SIGTERM, cancel_tracking)
     signal.signal(signal.SIGINT, cancel_tracking)
     try:
+        if arguments.worker:
+            from .resident_worker import run_resident_worker
+            return run_resident_worker(arguments)
         if arguments.preflight:
             report = _runtime_report()
             print(json.dumps(report) if arguments.json else json.dumps(report, indent=2))

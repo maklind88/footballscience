@@ -10,6 +10,7 @@ sys.path.insert(0, str(PROVIDER))
 
 from football_science_sam2.media import prompt_frame_index
 from football_science_sam2.protocol import ProviderError, normalize_batch_request, normalize_request, read_request
+from football_science_sam2.resident_worker import WORKER_PROTOCOL, parse_worker_job
 from football_science_sam2.track_builder import build_track
 
 
@@ -41,6 +42,23 @@ def observation(frame_index, x=0.4, confidence=0.95):
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_resident_worker_accepts_only_the_exact_bounded_job_envelope(self):
+        value = {
+            "protocol": WORKER_PROTOCOL,
+            "type": "job",
+            "jobId": "9f3e1a68-0f0c-4c43-bdb5-fc51834f7d11",
+            "inputPath": "/tmp/job/input.mp4",
+            "requestPath": "/tmp/job/request.json",
+            "outputPath": "/tmp/job/output.json",
+        }
+        self.assertEqual(parse_worker_job(value)["jobId"], value["jobId"])
+        with self.assertRaises(ProviderError):
+            parse_worker_job({**value, "unexpected": True})
+        with self.assertRaises(ProviderError):
+            parse_worker_job({**value, "jobId": "not-a-job-id"})
+        with self.assertRaises(ProviderError):
+            parse_worker_job({**value, "outputPath": "/tmp/job/output.json\nnext"})
+
     def test_normalizes_independent_match_and_source_ranges(self):
         prompt = normalize_request(request_value())
         self.assertEqual(prompt["promptAtMs"], 6000)

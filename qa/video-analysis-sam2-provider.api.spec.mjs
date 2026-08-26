@@ -21,13 +21,14 @@ test("approved SAM 2 provider assets and install plan are immutable", async () =
   ), "utf8"));
   expect(manifest).toMatchObject({
     providerId: "sam2.1-hiera-tiny",
-    providerVersion: "1.1.0",
+    providerVersion: "1.2.0",
     protocol: "football-science-tracking-v1",
     approval: { status: "approved-local-optional", networkAtInference: false, redistributeUpstreamAssets: false },
     upstream: {
       commit: "2b90b9f5ceec907a1c18123530e92e794ad901a4",
       license: "Apache-2.0",
       sourceSha256: "1f2fbfad3ffa38110368abac76c6ef9df9c282a66d5c2807bc94abf4d2fb30f8",
+      runtimeTreeSha256: "ea438009aac8ac297b3ed5e7d902684eb298859aa9c8db0eb49bc3deaf11c6e7",
     },
     model: {
       license: "Apache-2.0",
@@ -35,14 +36,29 @@ test("approved SAM 2 provider assets and install plan are immutable", async () =
     },
     runtime: {
       maximumObjectsPerJob: 8,
-      providerSha256: "f193802ce127d10f8f2f31d5c6f4d95be2b64f19d11870a90cf19a46e0e0f8ab",
+      maximumWorkerStartupMs: 180_000,
+      maximumJobWallTimeMs: 7_200_000,
+      executionMode: "resident-worker-v1",
+      deviceDefaults: { darwin: "cpu", linux: "auto" },
+      providerSha256: "8898ab82aed4e9fa6b96f405304f73e94ecfeae9dfecb6ecfede2c2a90c7828e",
     },
   });
   const installer = await import(moduleUrl("desktop/local-video-app/tracking-providers/sam2/install-provider.mjs"));
+  const runtime = await import(moduleUrl("desktop/local-video-app/tracking-providers/sam2/provider-runtime.mjs"));
+  expect(runtime.sam2ProviderRuntimeSha256({
+    runtimeDir: path.join(rootDir, "desktop/local-video-app/tracking-providers/sam2/provider"),
+  })).toBe(manifest.runtime.providerSha256);
   const args = installer.parseInstallArguments(["--plan", "--python", "python3.12"]);
   const plan = installer.providerInstallPlan(args, { manifest, homeDir: "/tmp/analyst" });
-  expect(plan.runtime).toMatchObject({ isolatedVirtualEnvironment: true, networkAtInference: false });
-  expect(plan.installDir).toContain(".football-science/tracking-providers/sam2.1-hiera-tiny-1.1.0");
+  expect(plan.runtime).toMatchObject({
+    isolatedVirtualEnvironment: true,
+    networkAtInference: false,
+    executionMode: "resident-worker-v1",
+    maximumWorkerStartupMs: 180_000,
+    maximumJobWallTimeMs: 7_200_000,
+    deviceDefaults: { darwin: "cpu", linux: "auto" },
+  });
+  expect(plan.installDir).toContain(".football-science/tracking-providers/sam2.1-hiera-tiny-1.2.0");
 });
 
 test("packaged provider activates only for an exact verified install marker", async () => {
@@ -66,18 +82,22 @@ test("packaged provider activates only for an exact verified install marker", as
         providerVersion: paths.manifest.providerVersion,
         sourceCommit: paths.manifest.upstream.commit,
         sourceSha256: paths.manifest.upstream.sourceSha256,
+        sourceRuntimeSha256: paths.manifest.upstream.runtimeTreeSha256,
         checkpointSha256: paths.manifest.model.checkpointSha256,
         providerSha256: paths.manifest.runtime.providerSha256,
+        manifestSha256: runtime.sam2ProviderManifestSha256(paths.manifest),
       })),
     ]);
     expect(runtime.resolveInstalledSam2Provider({
       installDir,
       runtimeSha256: () => paths.manifest.runtime.providerSha256,
+      checkpointSha256: () => paths.manifest.model.checkpointSha256,
+      sourceRuntimeSha256: () => paths.manifest.upstream.runtimeTreeSha256,
     })).toMatchObject({
       command: paths.python,
       engineName: "sam2.1-hiera-tiny",
       displayName: "Football Science SAM 2.1 Object Tracker",
-      engineVersion: "1.1.0",
+      engineVersion: "1.2.0",
       providerExecutionFingerprintSha256: runtime.sam2ProviderExecutionFingerprintSha256(paths.manifest),
     });
     expect(runtime.sam2ProviderExecutionFingerprintSha256(paths.manifest)).toMatch(/^[a-f0-9]{64}$/);
@@ -87,16 +107,32 @@ test("packaged provider activates only for an exact verified install marker", as
       providerVersion: paths.manifest.providerVersion,
       sourceCommit: paths.manifest.upstream.commit,
       sourceSha256: "tampered",
+      sourceRuntimeSha256: paths.manifest.upstream.runtimeTreeSha256,
       checkpointSha256: paths.manifest.model.checkpointSha256,
       providerSha256: paths.manifest.runtime.providerSha256,
+      manifestSha256: runtime.sam2ProviderManifestSha256(paths.manifest),
     }));
     expect(runtime.resolveInstalledSam2Provider({
       installDir,
       runtimeSha256: () => paths.manifest.runtime.providerSha256,
+      checkpointSha256: () => paths.manifest.model.checkpointSha256,
+      sourceRuntimeSha256: () => paths.manifest.upstream.runtimeTreeSha256,
     })).toBeNull();
   } finally {
     await fs.rm(installDir, { recursive: true, force: true });
   }
+});
+
+test("packaged provider device policy is explicit and still allows a reviewed override", async () => {
+  const runtime = await import(moduleUrl("desktop/local-video-app/tracking-providers/sam2/provider-runtime.mjs"));
+  const manifest = runtime.readSam2ProviderManifest();
+  expect(runtime.sam2ProviderPreferredDevice(manifest, { env: {}, platform: "darwin" })).toBe("cpu");
+  expect(runtime.sam2ProviderPreferredDevice(manifest, { env: {}, platform: "linux" })).toBe("auto");
+  expect(runtime.sam2ProviderPreferredDevice(manifest, {
+    env: { FS_SAM2_DEVICE: "mps" },
+    platform: "darwin",
+  })).toBe("mps");
+  expect(runtime.sam2ProviderManifestSha256(manifest)).toMatch(/^[a-f0-9]{64}$/);
 });
 
 test("packaged provider runtime hash changes when any approved source file changes", async () => {
@@ -112,6 +148,35 @@ test("packaged provider runtime hash changes when any approved source file chang
     const first = runtime.sam2ProviderRuntimeSha256({ runtimeDir });
     await fs.appendFile(path.join(runtimeDir, runtime.SAM2_PROVIDER_RUNTIME_FILES[2]), "-tampered");
     expect(runtime.sam2ProviderRuntimeSha256({ runtimeDir })).not.toBe(first);
+  } finally {
+    await fs.rm(installDir, { recursive: true, force: true });
+  }
+});
+
+test("packaged provider rehashes the checkpoint and exact upstream execution tree", async () => {
+  const runtime = await import(moduleUrl("desktop/local-video-app/tracking-providers/sam2/provider-runtime.mjs"));
+  const installDir = await fs.mkdtemp(path.join(os.tmpdir(), "fs-sam2-upstream-hash-"));
+  const sourceDir = path.join(installDir, "source");
+  const checkpoint = path.join(installDir, "checkpoint.pt");
+  try {
+    await fs.mkdir(path.join(sourceDir, "sam2", "configs"), { recursive: true });
+    await Promise.all([
+      fs.writeFile(path.join(sourceDir, "LICENSE"), "approved-license"),
+      fs.writeFile(path.join(sourceDir, "pyproject.toml"), "approved-build"),
+      fs.writeFile(path.join(sourceDir, "setup.py"), "approved-setup"),
+      fs.writeFile(path.join(sourceDir, "sam2", "__init__.py"), "approved-runtime"),
+      fs.writeFile(path.join(sourceDir, "sam2", "configs", "model.yaml"), "approved-config"),
+      fs.writeFile(checkpoint, "approved-checkpoint"),
+    ]);
+    const treeHash = runtime.sam2ProviderSourceRuntimeSha256({ sourceDir });
+    const checkpointHash = runtime.sam2ProviderFileSha256(checkpoint);
+    await fs.appendFile(path.join(sourceDir, "sam2", "__init__.py"), "-tampered");
+    await fs.appendFile(checkpoint, "-tampered");
+    expect(runtime.sam2ProviderSourceRuntimeSha256({ sourceDir })).not.toBe(treeHash);
+    expect(runtime.sam2ProviderFileSha256(checkpoint)).not.toBe(checkpointHash);
+    await fs.writeFile(path.join(sourceDir, "unapproved.py"), "unapproved-runtime");
+    await fs.symlink("../unapproved.py", path.join(sourceDir, "sam2", "linked-runtime.py"));
+    expect(() => runtime.sam2ProviderSourceRuntimeSha256({ sourceDir })).toThrow(/approved runtime tree/i);
   } finally {
     await fs.rm(installDir, { recursive: true, force: true });
   }
@@ -348,6 +413,204 @@ test("external provider process streams progress through the strict v1 boundary"
     expect(JSON.parse(await fs.readFile(outputPath, "utf8"))).toMatchObject({ status: "review" });
     await expect(fs.access(path.join(temporaryDir, "tracking-request.json"))).rejects.toThrow();
   } finally {
+    await fs.rm(temporaryDir, { recursive: true, force: true });
+  }
+});
+
+function residentProviderSource() {
+  return `
+    import { readFileSync, writeFileSync } from "node:fs";
+    import readline from "node:readline";
+    const protocol = "football-science-tracking-worker-v1";
+    const send = (value) => process.stdout.write(JSON.stringify({ protocol, ...value }) + "\\n");
+    send({
+      type: "ready",
+      provider: "qa-resident-provider",
+      providerVersion: "9.0.0",
+      device: "test",
+      modelResident: true,
+      modelLoadMs: 7,
+      startupMs: 11,
+    });
+    let sequence = 0;
+    const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+    lines.on("line", (line) => {
+      const job = JSON.parse(line);
+      const request = JSON.parse(readFileSync(job.requestPath, "utf8"));
+      const prompt = request.prompt;
+      sequence += 1;
+      send({ type: "progress", jobId: job.jobId, stage: prompt.id === "hang" ? "fake-hanging" : "fake-resident", ratio: 0.7 });
+      if (prompt.id === "hang") return;
+      writeFileSync(job.outputPath, JSON.stringify({
+        id: "resident-track-" + sequence,
+        promptId: prompt.id,
+        entityType: "player",
+        segments: [{ points: [
+          { atMs: prompt.startMs, frameIndex: 0, x: 0.3, y: 0.4, width: 0.1, height: 0.2, groundX: 0.3, groundY: 0.5, confidence: 0.9, identityConfidence: 0.8 },
+          { atMs: prompt.endMs, frameIndex: 1, x: 0.4, y: 0.4, width: 0.1, height: 0.2, groundX: 0.4, groundY: 0.5, confidence: 0.88, identityConfidence: 0.78 }
+        ] }]
+      }));
+      send({
+        type: "result",
+        jobId: job.jobId,
+        ok: true,
+        device: "test",
+        modelResident: true,
+        modelLoadMs: 7,
+        jobProcessingMs: 5,
+        workerJobSequence: sequence,
+      });
+    });
+  `;
+}
+
+function residentPrompt(id = "target") {
+  return {
+    id,
+    startMs: 1000,
+    endMs: 2000,
+    promptAtMs: 1500,
+    sourceStartMs: 1000,
+    sourceEndMs: 2000,
+    sourcePromptAtMs: 1500,
+    box: { left: 0.2, top: 0.2, width: 0.1, height: 0.3 },
+  };
+}
+
+test("resident tracking worker reuses one model process across sequential jobs", async () => {
+  const { createTrackingEngineAdapter } = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-engine-adapter.mjs",
+  ));
+  const temporaryDir = await fs.mkdtemp(path.join(os.tmpdir(), "fs-sam2-resident-"));
+  const provider = path.join(temporaryDir, "fake-resident-provider.mjs");
+  const inputPath = path.join(temporaryDir, "input.mp4");
+  let adapter;
+  try {
+    await Promise.all([
+      fs.writeFile(provider, residentProviderSource()),
+      fs.writeFile(inputPath, "video"),
+    ]);
+    adapter = createTrackingEngineAdapter({
+      command: process.execPath,
+      commandArgs: [provider],
+      engineName: "qa-resident-provider",
+      engineVersion: "9.0.0",
+      resident: true,
+    });
+    const first = await adapter.trackObject(
+      inputPath,
+      path.join(temporaryDir, "first.json"),
+      residentPrompt("first"),
+    );
+    const second = await adapter.trackObject(
+      inputPath,
+      path.join(temporaryDir, "second.json"),
+      residentPrompt("second"),
+    );
+    expect(first.runtime).toMatchObject({
+      mode: "football-science-tracking-worker-v1",
+      generation: 1,
+      workerJobSequence: 1,
+      workerReused: false,
+      modelResident: true,
+    });
+    expect(second.runtime).toMatchObject({
+      generation: 1,
+      workerJobSequence: 2,
+      workerReused: true,
+      modelResident: true,
+    });
+    expect(adapter.info().runtime).toMatchObject({
+      status: "ready",
+      generation: 1,
+      completedJobs: 2,
+      reusedJobs: 1,
+      modelResident: true,
+    });
+  } finally {
+    await adapter?.close?.();
+    await fs.rm(temporaryDir, { recursive: true, force: true });
+  }
+});
+
+test("resident tracking cancellation waits for exit and restarts a clean worker generation", async () => {
+  const { createTrackingEngineAdapter } = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-engine-adapter.mjs",
+  ));
+  const temporaryDir = await fs.mkdtemp(path.join(os.tmpdir(), "fs-sam2-resident-cancel-"));
+  const provider = path.join(temporaryDir, "fake-resident-provider.mjs");
+  const inputPath = path.join(temporaryDir, "input.mp4");
+  const controller = new AbortController();
+  let adapter;
+  try {
+    await Promise.all([
+      fs.writeFile(provider, residentProviderSource()),
+      fs.writeFile(inputPath, "video"),
+    ]);
+    adapter = createTrackingEngineAdapter({
+      command: process.execPath,
+      commandArgs: [provider],
+      engineName: "qa-resident-provider",
+      engineVersion: "9.0.0",
+      resident: true,
+    });
+    await expect(adapter.trackObject(
+      inputPath,
+      path.join(temporaryDir, "cancelled.json"),
+      residentPrompt("hang"),
+      {
+        signal: controller.signal,
+        onProgress: (progress) => {
+          if (progress.stage === "fake-hanging") controller.abort();
+        },
+      },
+    )).rejects.toMatchObject({ name: "AbortError", code: "ABORT_ERR" });
+    await expect(fs.access(path.join(temporaryDir, "tracking-request.json"))).rejects.toThrow();
+    const recovered = await adapter.trackObject(
+      inputPath,
+      path.join(temporaryDir, "recovered.json"),
+      residentPrompt("recovered"),
+    );
+    expect(recovered.runtime).toMatchObject({
+      generation: 2,
+      workerJobSequence: 1,
+      workerReused: false,
+      modelResident: true,
+    });
+  } finally {
+    await adapter?.close?.();
+    await fs.rm(temporaryDir, { recursive: true, force: true });
+  }
+});
+
+test("closing a resident tracking adapter prevents queued worker restart", async () => {
+  const { createTrackingEngineAdapter } = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-engine-adapter.mjs",
+  ));
+  const temporaryDir = await fs.mkdtemp(path.join(os.tmpdir(), "fs-sam2-resident-close-"));
+  const provider = path.join(temporaryDir, "fake-resident-provider.mjs");
+  const inputPath = path.join(temporaryDir, "input.mp4");
+  const adapter = createTrackingEngineAdapter({
+    command: process.execPath,
+    commandArgs: [provider],
+    engineName: "qa-resident-provider",
+    engineVersion: "9.0.0",
+    resident: true,
+  });
+  try {
+    await Promise.all([
+      fs.writeFile(provider, residentProviderSource()),
+      fs.writeFile(inputPath, "video"),
+    ]);
+    await adapter.close();
+    await expect(adapter.trackObject(
+      inputPath,
+      path.join(temporaryDir, "closed.json"),
+      residentPrompt("closed"),
+    )).rejects.toMatchObject({ code: "TRACKING_RESIDENT_WORKER_CLOSED" });
+    expect(adapter.info().runtime).toMatchObject({ status: "closed", modelResident: false });
+  } finally {
+    await adapter.close();
     await fs.rm(temporaryDir, { recursive: true, force: true });
   }
 });

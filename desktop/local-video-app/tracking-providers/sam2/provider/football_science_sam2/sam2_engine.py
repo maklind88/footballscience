@@ -3,6 +3,7 @@ from __future__ import annotations
 import gc
 import os
 import platform
+import time
 from typing import Any, Callable, Dict, List, Optional
 
 from .protocol import ProviderError
@@ -21,6 +22,8 @@ class Sam2Engine:
         self.config = config
         self.requested_device = str(requested_device or "auto").lower()
         self.device = self._resolve_device(self.requested_device)
+        self._predictor = None
+        self.model_load_ms = 0
 
     def _resolve_device(self, requested: str):
         torch = self.torch
@@ -75,13 +78,9 @@ class Sam2Engine:
             "confidence": confidence,
         }
 
-    def _track_many_once(
-        self,
-        frames_dir: str,
-        prompts: List[Dict[str, Any]],
-        prompt_index: int,
-        progress: Callable[[str, float], None],
-    ) -> List[Dict[int, Dict[str, float]]]:
+    def warm(self):
+        if self._predictor is not None:
+            return self._predictor
         try:
             from sam2.build_sam import build_sam2_video_predictor
         except ImportError as error:
@@ -90,12 +89,37 @@ class Sam2Engine:
         if self.device.type == "cuda":
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
-        predictor = build_sam2_video_predictor(
+        started_at = time.perf_counter()
+        self._predictor = build_sam2_video_predictor(
             self.config,
             self.checkpoint,
             device=self.device,
             apply_postprocessing=False,
         )
+        self.model_load_ms = max(1, round((time.perf_counter() - started_at) * 1000))
+        return self._predictor
+
+    def close(self) -> None:
+        predictor = self._predictor
+        self._predictor = None
+        if predictor is not None:
+            del predictor
+        gc.collect()
+        torch = self.torch
+        if self.device.type == "cuda":
+            torch.cuda.empty_cache()
+        elif self.device.type == "mps" and hasattr(torch.mps, "empty_cache"):
+            torch.mps.empty_cache()
+
+    def _track_many_once(
+        self,
+        frames_dir: str,
+        prompts: List[Dict[str, Any]],
+        prompt_index: int,
+        progress: Callable[[str, float], None],
+    ) -> List[Dict[int, Dict[str, float]]]:
+        torch = self.torch
+        predictor = self.warm()
         state = None
         observations: List[Dict[int, Dict[str, float]]] = [{} for _ in prompts]
         try:
@@ -159,7 +183,6 @@ class Sam2Engine:
         finally:
             if state is not None:
                 predictor.reset_state(state)
-            del predictor
             gc.collect()
             if self.device.type == "cuda":
                 torch.cuda.empty_cache()
@@ -188,8 +211,10 @@ class Sam2Engine:
             if self.requested_device != "auto" or self.device.type != "mps":
                 raise
             progress("Retrying tracking on CPU", 0.32)
+            self.close()
             self.device = self.torch.device("cpu")
             try:
                 return self._track_many_once(frames_dir, prompts, prompt_index, progress)
             except RuntimeError as fallback_error:
+                self.close()
                 raise ProviderError("SAM 2 could not complete tracking on this computer.") from fallback_error

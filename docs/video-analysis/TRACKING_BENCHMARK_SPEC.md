@@ -73,6 +73,7 @@ npm run fs-player:tracking:benchmark -- --input /absolute/local/suite.json --out
 npm run fs-player:tracking:assemble -- --ground-truth /absolute/local/ground-truth-suite.json --runs /absolute/local/provider-runs.json --output /absolute/local/benchmark.json
 npm run fs-player:tracking:smoke -- --json
 npm run fs-player:tracking:smoke -- --batch --json --progress
+npm run fs-player:tracking:smoke -- --warm --json
 npm run fs-player:tracking:trackeval:plan
 npm run fs-player:tracking:trackeval:install -- --accept-license --python /absolute/path/to/python3.12
 npm run fs-player:tracking:trackeval:preflight -- --json
@@ -81,7 +82,9 @@ npm run fs-player:tracking:benchmark -- --input /absolute/local/football-scene.j
 
 Exit code `0` means every active quality gate passed, `1` means valid evidence failed one or more thresholds, and `2` means the input was invalid or unsafe.
 
-The engine smoke command is a separate operational check. It creates a one-second synthetic local video, invokes the exact installed SAM 2.1 runtime, validates that more than one timestamp was propagated through the strict artifact boundary, reports cold-start processing time and real-time factor against the reference maximum of `1`, returns only bounded aggregate evidence, and deletes the video and trajectories before exit. The explicit `--batch` mode generates two targets, runs one shared video state and two repeated single-target jobs, and reports the measured speedup without turning it into a quality claim. Passing either mode proves installation and inference wiring, not acceptable speed or football accuracy; `withinReferenceBudget` and `realMatchQualityProven` remain independent fail-visible facts.
+The engine smoke command is a separate operational check. It creates a one-second synthetic local video, invokes the exact installed SAM 2.1 runtime, validates that more than one timestamp was propagated through the strict artifact boundary, returns only bounded aggregate evidence, and deletes the video and trajectories before exit. The explicit `--batch` mode generates two targets, runs one shared video state and two repeated single-target jobs, and reports the measured speedup without turning it into a quality claim. The explicit `--warm` mode runs the same target twice in one resident process and proves the worker generation, model residency, job sequence, cold start, model load, first-job latency, warm-job latency, and recovery boundary. Passing any smoke mode proves installation and inference wiring, not acceptable speed or football accuracy; `withinReferenceBudget`, `warmWithinReferenceBudget`, and `realMatchQualityProven` remain independent fail-visible facts.
+
+The reference workstation measurement for provider `1.2.0` on 2026-08-26 used the macOS CPU default. Cold worker startup was 2.467 seconds, model load 1.760 seconds, first end-to-end inference 10.517 seconds, and warm end-to-end inference 7.819 seconds for one second of synthetic video. Model reuse is therefore verified, while the 7.819 warm real-time factor explicitly fails the reference maximum of 1. This measurement is an optimization baseline, not provider approval. Performance work must improve the media sampling and inference path without weakening trajectory quality, then repeat both synthetic and real-match evidence.
 
 `--trackeval` is deliberately explicit. Without it, a multi-object report remains `providerApprovalReady: false`. With it, the report contains only bounded metric evidence and hashes, never source paths, raw tracks, frames, or media. Real provider approval still requires human-verified real-match cases and reviewed model/data provenance.
 

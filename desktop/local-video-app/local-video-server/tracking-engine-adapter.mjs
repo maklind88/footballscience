@@ -135,7 +135,9 @@ export function createTrackingEngineAdapter(options = {}) {
       displayName,
       engineVersion,
       protocol: "football-science-tracking-v1",
+      providerContractProtocol: "football-science-tracking-stage-v1",
       source: installed ? "approved-packaged" : runner ? "embedded-test" : command ? "external" : "none",
+      providerExecutionFingerprintSha256: installed?.providerExecutionFingerprintSha256 || "",
     }),
     async trackObject(inputPath, outputPath, prompt = {}, runOptions = {}) {
       return runTracking(inputPath, outputPath, { prompt }, runOptions);

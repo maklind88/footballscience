@@ -4,6 +4,10 @@ import {
   groundTruthSuiteReadiness,
   trackingGroundTruthSuiteEntry,
 } from "../services/trackingGroundTruthSuiteService.js";
+import {
+  trackingProviderRunWorkspaceEntry,
+  trackingProviderRunsForProvider,
+} from "../services/trackingProviderRunService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
 function minutes(value = 0) {
@@ -27,6 +31,17 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
   const readiness = groundTruthSuiteReadiness(suite);
   const covered = new Set(readiness.scenarioIds);
   const cases = suite.cases.slice().reverse().slice(0, 5);
+  const providerRuns = trackingProviderRunWorkspaceEntry(state.presentation?.tracking?.providerRuns);
+  let providerRunCount = 0;
+  let providerRunError = "";
+  try {
+    providerRunCount = trackingProviderRunsForProvider(
+      providerRuns,
+      state.presentation?.tracking?.provider,
+    ).length;
+  } catch (error) {
+    providerRunError = error?.message || "Raw provider run evidence is invalid.";
+  }
   return `
     <section class="video-analysis-benchmark-suite" aria-label="Real-match benchmark suite">
       <header>
@@ -54,6 +69,11 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
         `).join("") : `<li class="is-empty">No locked real-match cases</li>`}
       </ol>
       ${suite.cases.length > cases.length ? `<small>${escapeHtml(`${suite.cases.length - cases.length} earlier cases`)}</small>` : ""}
+      <div class="video-analysis-benchmark-suite__provider-runs">
+        <span><strong>${providerRunCount}</strong> raw provider run${providerRunCount === 1 ? "" : "s"}</span>
+        <button type="button" data-video-analysis-tracking-action="ground-truth-runs-download" ${providerRunCount ? "" : "disabled"}>Export runs</button>
+      </div>
+      ${providerRuns.error || providerRunError ? `<p class="video-analysis-benchmark-suite__error" aria-live="polite">${escapeHtml(providerRuns.error || providerRunError)}</p>` : ""}
       ${suite.error ? `<p class="video-analysis-benchmark-suite__error" aria-live="polite">${escapeHtml(suite.error)}</p>` : ""}
       <footer>
         <span>${escapeHtml(readiness.ready ? `${readiness.sourceCount} source${readiness.sourceCount === 1 ? "" : "s"} | all required scenarios` : readiness.issues[0]?.message || "Suite not ready")}</span>

@@ -181,6 +181,21 @@ function normalizeBenchmark(value = {}) {
     realMatchDurationMs: status === "passed"
       ? positiveInteger(value.realMatchDurationMs, "real-match benchmark duration", 1_000 * 60 * 60 * 1000)
       : 0,
+    providerExecutionFingerprintSha256: status === "passed"
+      ? sha256(value.providerExecutionFingerprintSha256, "provider execution fingerprint")
+      : "",
+    groundTruthSuiteSha256: status === "passed"
+      ? sha256(value.groundTruthSuiteSha256, "ground-truth suite checksum")
+      : "",
+    providerRunSuiteSha256: status === "passed"
+      ? sha256(value.providerRunSuiteSha256, "provider run suite checksum")
+      : "",
+    providerRunCount: status === "passed"
+      ? positiveInteger(value.providerRunCount, "provider run count", 500)
+      : 0,
+    providerRunSetSha256: status === "passed"
+      ? sha256(value.providerRunSetSha256, "provider run set checksum")
+      : "",
     capabilities,
     referenceEvaluator,
     referenceReportSha256: referenceEvaluator

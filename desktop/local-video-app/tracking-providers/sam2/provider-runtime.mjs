@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { trackingProviderExecutionFingerprintSha256 } from "../provider-execution-fingerprint.mjs";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const manifestPath = path.join(moduleDir, "manifest.json");
@@ -70,6 +71,22 @@ export function sam2ProviderRuntimeSha256(paths = {}, options = {}) {
   return digest.digest("hex");
 }
 
+export function sam2ProviderExecutionFingerprintSha256(manifest = readSam2ProviderManifest()) {
+  return trackingProviderExecutionFingerprintSha256({
+    providerId: manifest.providerId,
+    providerVersion: manifest.providerVersion,
+    protocol: "football-science-tracking-stage-v1",
+    stage: "segmentation",
+    capabilities: ["segment:selected-object", "propagate:selected-object"],
+    sourceCommit: manifest.upstream?.commit,
+    sourceSha256: manifest.upstream?.sourceSha256,
+    modelSha256s: [manifest.model?.checkpointSha256],
+    runtimeSha256: manifest.runtime?.providerSha256,
+  });
+}
+
+export const sam2ProviderFingerprintSha256 = sam2ProviderExecutionFingerprintSha256;
+
 export function resolveInstalledSam2Provider(options = {}) {
   const paths = sam2ProviderPaths(options);
   const exists = options.exists || existsSync;
@@ -94,6 +111,7 @@ export function resolveInstalledSam2Provider(options = {}) {
     engineName: paths.manifest.providerId,
     displayName: paths.manifest.displayName,
     engineVersion: paths.manifest.providerVersion,
+    providerExecutionFingerprintSha256: sam2ProviderExecutionFingerprintSha256(paths.manifest),
     installDir: paths.installDir,
     env: {
       FS_SAM2_CHECKPOINT: paths.checkpoint,

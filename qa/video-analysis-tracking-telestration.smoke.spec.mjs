@@ -36,7 +36,9 @@ async function openTrackingWorkspace(page) {
   await expect(page.locator(".video-analysis-tracking-provider")).toContainText("SAM 2.1");
   await expect(page.locator(".video-analysis-ground-truth")).toBeVisible();
   await expect(page.locator('[data-video-analysis-tracking-field="groundTruthScenario"]')).toHaveCount(7);
+  await expect(page.locator('[data-video-analysis-tracking-field="groundTruthSceneComplete"]')).toBeVisible();
   await expect(page.locator(".video-analysis-benchmark-suite")).toContainText("Real-match suite");
+  await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-runs-download"]')).toBeDisabled();
 }
 
 async function createTrackedHighlight(page) {
@@ -298,6 +300,8 @@ test("tracking controls and overlays stay contained on mobile", async ({ page },
   await page.setViewportSize({ width: 390, height: 844 });
   await openTrackingWorkspace(page);
   await createTrackedHighlight(page);
+  await page.locator('[data-video-analysis-tracking-action="ground-truth-toggle"]').click();
+  await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-target"]')).toHaveText("Benchmark target");
   const geometry = await page.locator(".video-analysis-drawing-builder").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {
@@ -322,6 +326,13 @@ test("tracking controls and overlays stay contained on mobile", async ({ page },
   expect(suiteGeometry.left).toBeGreaterThanOrEqual(0);
   expect(suiteGeometry.right).toBeLessThanOrEqual(suiteGeometry.viewportWidth + 1);
   expect(suiteGeometry.overflow).toBeLessThanOrEqual(1);
+  const groundTruthGeometry = await page.locator(".video-analysis-ground-truth").evaluate((element) => ({
+    right: element.getBoundingClientRect().right,
+    viewportWidth: window.innerWidth,
+    overflow: element.scrollWidth - element.clientWidth,
+  }));
+  expect(groundTruthGeometry.right).toBeLessThanOrEqual(groundTruthGeometry.viewportWidth + 1);
+  expect(groundTruthGeometry.overflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath("tracking-telestration-mobile.png"), fullPage: true });
 });
 

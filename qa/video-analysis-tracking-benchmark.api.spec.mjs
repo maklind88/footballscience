@@ -51,6 +51,13 @@ test("tracking benchmark fails missing coverage and large geometric error", asyn
   ]));
 });
 
+test("tracking benchmark rejects a zero or fabricated processing time", async () => {
+  const service = await import(moduleUrl("src/modules/video-analysis/services/trackingBenchmarkService.js"));
+  const input = await fixture();
+  input.performance.processingMs = 0;
+  expect(() => service.evaluateTrackingBenchmarkCase(input)).toThrow(/must be positive/i);
+});
+
 test("tracking benchmark never interpolates across continuity segments", async () => {
   const service = await import(moduleUrl("src/modules/video-analysis/services/trackingBenchmarkService.js"));
   const input = await fixture();

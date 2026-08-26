@@ -200,8 +200,12 @@ test("local tracking readiness distinguishes installed, missing and offline prov
           limits: { maxTrackingDurationMs: 90_000 },
           trackingProvider: {
             available: capabilities.includes("track-object"),
-            engineName: "Football Science SAM 2.1 Player Tracker",
-            engineVersion: "1.0.0",
+            engineName: "sam2.1-hiera-tiny",
+            displayName: "Football Science SAM 2.1 Player Tracker",
+            engineVersion: "1.1.0",
+            protocol: "football-science-tracking-v1",
+            providerContractProtocol: "football-science-tracking-stage-v1",
+            providerExecutionFingerprintSha256: "f".repeat(64),
             source: capabilities.includes("track-object") ? "approved-packaged" : "none",
           },
         });
@@ -212,6 +216,10 @@ test("local tracking readiness distinguishes installed, missing and offline prov
   await expect(localTracking.inspectLocalTrackingProvider(providerWindow(47911, ["track-object"]))).resolves.toMatchObject({
     status: "ready",
     available: true,
+    id: "sam2.1-hiera-tiny",
+    name: "Football Science SAM 2.1 Player Tracker",
+    stage: "segmentation",
+    executionFingerprintSha256: "f".repeat(64),
     source: "approved-packaged",
     maxDurationMs: 90_000,
   });
@@ -239,6 +247,52 @@ test("local tracking readiness distinguishes installed, missing and offline prov
   expect(sidebar).toContain("Provider not installed");
   expect(sidebar).toMatch(/data-video-analysis-tracking-action="run" disabled/);
   expect(sidebar).toMatch(/data-video-analysis-tracking-action="manual" >Manual keyframe/);
+});
+
+test("offline refresh preserves only the last evidence identity for raw-run export", async () => {
+  const { createTrackingController, preserveTrackingProviderEvidenceIdentity } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingController.js",
+  ));
+  let state = {
+    presentation: { tracking: { provider: {
+      status: "ready",
+      available: true,
+      id: "sam2.1-hiera-tiny",
+      version: "1.1.0",
+      protocol: "football-science-tracking-stage-v1",
+      stage: "segmentation",
+      capabilities: ["segment:selected-object", "propagate:selected-object"],
+      executionFingerprintSha256: "f".repeat(64),
+      maxDurationMs: 120_000,
+    } } },
+  };
+  const controller = createTrackingController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    inspectProvider: async () => ({
+      status: "offline",
+      available: false,
+      name: "Local tracking companion",
+      error: "Companion unavailable",
+    }),
+  });
+  await expect(controller.refreshProvider()).resolves.toBe(false);
+  expect(state.presentation.tracking.provider).toMatchObject({
+    status: "offline",
+    available: false,
+    id: "sam2.1-hiera-tiny",
+    executionFingerprintSha256: "f".repeat(64),
+  });
+  expect(state.presentation.tracking.provider).not.toHaveProperty("maxDurationMs");
+  expect(preserveTrackingProviderEvidenceIdentity(state.presentation.tracking.provider, {
+    status: "ready",
+    available: true,
+    id: "unverified-external-provider",
+  })).toEqual({
+    status: "ready",
+    available: true,
+    id: "unverified-external-provider",
+  });
 });
 
 test("tracking controller submits queued targets in one batch and keeps separate review tracks", async () => {
@@ -275,7 +329,18 @@ test("tracking controller submits queued targets in one batch and keeps separate
       tracking: {
         mode: "tracking",
         tool: "highlight",
-        provider: { status: "ready", available: true, batchAvailable: true, maxObjectsPerJob: 8 },
+        provider: {
+          status: "ready",
+          available: true,
+          batchAvailable: true,
+          maxObjectsPerJob: 8,
+          id: "sam2.1-hiera-tiny",
+          version: "1.1.0",
+          protocol: "football-science-tracking-stage-v1",
+          stage: "segmentation",
+          capabilities: ["segment:selected-object", "propagate:selected-object"],
+          executionFingerprintSha256: "f".repeat(64),
+        },
         selectedTrackIds: [],
         pendingPrompts: [prompt("prompt-a", "Player A", 0.2)],
         prompt: prompt("prompt-b", "Player B", 0.6),
@@ -287,16 +352,26 @@ test("tracking controller submits queued targets in one batch and keeps separate
   const controller = createTrackingController({
     getState: () => state,
     updateState: (updater) => { state = updater(state); },
+    getVideoElement: () => ({ videoWidth: 1920, videoHeight: 1080 }),
     trackObjects: async (value) => {
       request = value;
       value.onProgress?.({ stage: "Tracking 2 objects", ratio: 0.7 });
       return value.prompts.map((target, index) => ({
         id: `track-${index + 1}`,
+        engine: "sam2.1-hiera-tiny",
+        engineVersion: "1.1.0",
         entityType: "player",
         status: "review",
         startMs: 0,
         endMs: 1000,
-        metadata: { promptId: target.id },
+        metadata: {
+          promptId: target.id,
+          localArtifactId: "batch-run-1",
+          localSourceSha256: "a".repeat(64),
+          angleId: "angle-1",
+          providerProcessingMs: 750,
+          device: "mps",
+        },
         segments: [{ startMs: 0, endMs: 1000, points: [
           { atMs: 0, x: 0.25 + index * 0.4, y: 0.4, width: 0.1, height: 0.3, confidence: 0.9, identityConfidence: 0.9 },
           { atMs: 1000, x: 0.27 + index * 0.4, y: 0.4, width: 0.1, height: 0.3, confidence: 0.88, identityConfidence: 0.88 },
@@ -323,6 +398,14 @@ test("tracking controller submits queued targets in one batch and keeps separate
   expect(request.prompts.map((target) => target.id)).toEqual(["prompt-a", "prompt-b"]);
   expect(state.presentation.current.sections[0].items[0].objectTracks.map((track) => track.playerLabel)).toEqual([
     "Player A", "Player B",
+  ]);
+  expect(state.presentation.tracking.providerRuns.byItemId[item.id]).toEqual([
+    expect.objectContaining({
+      id: "batch-run-1",
+      benchmarkType: "selected-object",
+      sourceFingerprint: "a".repeat(64),
+      prediction: { tracks: expect.arrayContaining([expect.objectContaining({ id: "track-1" })]) },
+    }),
   ]);
   expect(state.presentation.tracking).toMatchObject({
     pendingPrompts: [],
@@ -359,11 +442,16 @@ test("stale local tracking sources fall back once to the reconnected file", asyn
         return Response.json({ statusUrl: "http://127.0.0.1:47924/jobs/fresh" }, { status: 202 });
       }
       if (parsed.pathname === "/jobs/fresh") {
-        return Response.json({ job: { status: "succeeded", result: {
+        return Response.json({ job: {
+          status: "succeeded",
+          startedAt: "2026-08-26T12:00:00.000Z",
+          completedAt: "2026-08-26T12:00:01.500Z",
+          result: {
           artifactId: "fresh-artifact",
           sourceArtifactId: "fresh-source",
           trackingUrl: "http://127.0.0.1:47924/tracking/fresh/track.json",
-        } } });
+          },
+        } });
       }
       if (parsed.pathname === "/tracking/fresh/track.json") {
         return Response.json({
@@ -406,6 +494,7 @@ test("stale local tracking sources fall back once to the reconnected file", asyn
       angleId: "angle-1",
       localArtifactId: "fresh-artifact",
       localSourceArtifactId: "fresh-source",
+      providerProcessingMs: 1500,
     });
   } finally {
     localVideo.revokeLocalVideoReference(videoRef, win);
@@ -589,6 +678,7 @@ test("tracking controller extends the selected player without duplicating its id
   };
   let request = null;
   let correction = null;
+  let videoFrame = { videoWidth: 1920, videoHeight: 1080 };
   let state = {
     video: { id: "video-1" },
     videoRef: { kind: "local-file", localFileKey: "video-1" },
@@ -597,7 +687,17 @@ test("tracking controller extends the selected player without duplicating its id
       selectedItemId: item.id,
       tracking: {
         mode: "tracking",
-        provider: { status: "ready", available: true, maxDurationMs: 120_000 },
+        provider: {
+          status: "ready",
+          available: true,
+          maxDurationMs: 120_000,
+          id: "sam2.1-hiera-tiny",
+          version: "1.1.0",
+          protocol: "football-science-tracking-stage-v1",
+          stage: "segmentation",
+          capabilities: ["segment:selected-object", "propagate:selected-object"],
+          executionFingerprintSha256: "f".repeat(64),
+        },
         selectedTrackIds: [baseTrack.id],
         prompt: null,
         job: null,
@@ -608,17 +708,26 @@ test("tracking controller extends the selected player without duplicating its id
   const controller = createTrackingController({
     getState: () => state,
     updateState: (updater) => { state = updater(state); },
+    getVideoElement: () => videoFrame,
     trackObject: async (value) => {
       request = value;
+      videoFrame = { videoWidth: 1280, videoHeight: 720 };
       return {
         id: "provider-continuation",
+        engine: "sam2.1-hiera-tiny",
+        engineVersion: "1.1.0",
         entityType: "player",
         playerId: "provider-wrong-player",
         playerLabel: "Provider wrong player",
         status: "review",
         startMs: 209_000,
         endMs: 300_000,
-        metadata: { localArtifactId: "artifact-b", localSourceArtifactId: "source-a" },
+        metadata: {
+          localArtifactId: "artifact-b",
+          localSourceArtifactId: "source-a",
+          localSourceSha256: "a".repeat(64),
+          providerProcessingMs: 500,
+        },
         segments: [{ startMs: 209_000, endMs: 300_000, points: [
           { atMs: 210_000, x: 0.405, y: 0.4, width: 0.08, height: 0.2, confidence: 0.91, identityConfidence: 0.9 },
           { atMs: 300_000, x: 0.6, y: 0.42, width: 0.08, height: 0.2, confidence: 0.89, identityConfidence: 0.87 },
@@ -653,6 +762,14 @@ test("tracking controller extends the selected player without duplicating its id
     prompt: { startMs: 209_000, endMs: 300_000, promptAtMs: 210_000, playerId: "player-8" },
   });
   expect(correction).toMatchObject({ objectTrackId: "track-8", atMs: 210_000, correctionType: "merge" });
+  expect(state.presentation.tracking.providerRuns.byItemId[item.id]).toEqual([
+    expect.objectContaining({
+      id: "artifact-b",
+      frame: { width: 1920, height: 1080 },
+      range: { startMs: 209_000, endMs: 300_000 },
+      prediction: { tracks: [expect.objectContaining({ id: "provider-continuation" })] },
+    }),
+  ]);
   expect(state.presentation.tracking.prompt).toMatchObject({ startMs: 0, endMs: 300_000, box: null });
 });
 

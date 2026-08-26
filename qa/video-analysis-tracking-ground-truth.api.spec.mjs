@@ -53,8 +53,10 @@ function reviewedInput(overrides = {}) {
     range: { startMs: 0, endMs: 1000 },
     tracks,
     selectedTrackIds: tracks.map((track) => track.id),
+    benchmarkTargetTrackId: tracks.find((track) => track.entityType === "player")?.id || "",
     reviewedBy: "analyst-1",
     attested: true,
+    exhaustiveSceneAttested: true,
     ...overrides,
   };
 }
@@ -211,7 +213,7 @@ test("ground-truth readiness fails closed until exact source, entities, verifica
     "src/modules/video-analysis/services/trackingGroundTruthService.js",
   ));
   const incomplete = groundTruth.groundTruthReadiness({
-    ...reviewedInput({ sourceFingerprint: "", attested: false }),
+    ...reviewedInput({ sourceFingerprint: "", attested: false, exhaustiveSceneAttested: false }),
     tracks: [objectTrack("p1", "player")],
     selectedTrackIds: ["p1"],
   });
@@ -221,6 +223,7 @@ test("ground-truth readiness fails closed until exact source, entities, verifica
     "ball-missing",
     "referee-missing",
     "attestation-missing",
+    "scene-completeness-missing",
   ]));
 
   const unverified = reviewedInput();
@@ -252,6 +255,13 @@ test("ground-truth readiness fails closed until exact source, entities, verifica
     verifiedTrackCount: 3,
     entityCounts: { player: 1, ball: 1, referee: 1 },
   });
+
+  const brieflyVisibleBall = reviewedInput();
+  brieflyVisibleBall.tracks[1].startMs = 500;
+  brieflyVisibleBall.tracks[1].segments[0].startMs = 500;
+  brieflyVisibleBall.tracks[1].segments[0].points = brieflyVisibleBall.tracks[1].segments[0].points
+    .filter((point) => point.atMs >= 500);
+  expect(groundTruth.groundTruthReadiness(brieflyVisibleBall)).toMatchObject({ ready: true });
 });
 
 test("locked real-match references are immutable, media-free and benchmark-ready", async () => {
@@ -285,6 +295,8 @@ test("locked real-match references are immutable, media-free and benchmark-ready
       protocol: "football-ground-truth-review-v1",
       reviewedBy: "analyst-1",
       attested: true,
+      exhaustiveSceneAttested: true,
+      selectedObjectTargetTrackId: "p1",
     },
   });
   expect(artifact.groundTruth.tracks[0]).not.toHaveProperty("metadata");
@@ -342,6 +354,12 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
   const { renderTrackingGroundTruthPanel } = await import(moduleUrl(
     "src/modules/video-analysis/components/TrackingGroundTruthPanel.js",
   ));
+  const { renderTrackingBenchmarkSuitePanel } = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingBenchmarkSuitePanel.js",
+  ));
+  const providerRuns = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingProviderRunService.js",
+  ));
   const tracks = reviewedInput().tracks;
   tracks[0].metadata.localSourceSha256 = sourceFingerprint;
   tracks[0].metadata.angleId = "angle-1";
@@ -352,6 +370,28 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     endMs: 1000,
     objectTracks: tracks,
   };
+  const providerRun = providerRuns.createTrackingProviderRunArtifact({
+    id: "raw-run-1",
+    provider: {
+      providerId: "sam2.1-hiera-tiny",
+      providerVersion: "1.1.0",
+      protocol: "football-science-tracking-stage-v1",
+      stage: "segmentation",
+      capabilities: ["segment:selected-object", "propagate:selected-object"],
+      executionFingerprintSha256: "f".repeat(64),
+    },
+    sourceFingerprint,
+    angleId: "angle-1",
+    frame: { width: 1920, height: 1080 },
+    range: { startMs: 0, endMs: 1000 },
+    tracks: tracks.map((track) => ({
+      ...track,
+      engine: "sam2.1-hiera-tiny",
+      engineVersion: "1.1.0",
+      corrections: [],
+    })),
+    performance: { processingMs: 500, device: "mps" },
+  }, { now: () => 1_800_000_000_000 });
   let state = {
     video: { id: "video-1" },
     presentation: {
@@ -359,8 +399,23 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
       selectedItemId: item.id,
       tracking: {
         mode: "tracking",
+        provider: {
+          id: "sam2.1-hiera-tiny",
+          version: "1.1.0",
+          protocol: "football-science-tracking-stage-v1",
+          stage: "segmentation",
+          capabilities: ["segment:selected-object", "propagate:selected-object"],
+          executionFingerprintSha256: "f".repeat(64),
+        },
         selectedTrackIds: [tracks[0].id],
-        groundTruth: { status: "draft", revision: 1, selectedTrackIds: [], attested: false },
+        groundTruth: {
+          status: "draft",
+          revision: 1,
+          selectedTrackIds: [],
+          attested: false,
+          exhaustiveSceneAttested: false,
+        },
+        providerRuns: { byItemId: { [item.id]: [providerRun] }, downloadedAt: "", error: "" },
       },
     },
     mediaProduction: {
@@ -401,6 +456,8 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
   expect(controller.handleField("groundTruthScenario", { value: "transition", checked: true })).toBe(true);
   expect(renderTrackingGroundTruthPanel(state, item)).toMatch(/value="transition"[^>]*checked/);
   expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
+  expect(controller.handleField("groundTruthSceneComplete", { checked: true })).toBe(true);
+  expect(renderTrackingGroundTruthPanel(state, item)).toMatch(/groundTruthSceneComplete" checked/);
   tracks[0].metadata.angleId = "angle-2";
   const mismatchedPanel = renderTrackingGroundTruthPanel(state, item);
   expect(mismatchedPanel).toContain("Reference tracks must use the active camera angle.");
@@ -420,11 +477,19 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     state.presentation.tracking.groundTruth.byItemId[item.id].lockedArtifact.id,
   );
   expect(renderTrackingGroundTruthPanel(state, item)).toContain("Locked reference");
+  expect(renderTrackingBenchmarkSuitePanel(state)).toContain("1</strong> raw provider run");
   expect(renderTrackingGroundTruthPanel(state, { ...item, id: "item-2" })).toContain("Review draft");
   expect(controller.handleAction("ground-truth-download")).toBe(true);
   expect(downloads).toEqual(expect.arrayContaining([
     expect.objectContaining({ href: "blob:ground-truth", download: expect.stringMatching(/^fs-player-gt-.*\.json$/) }),
     { revoked: "blob:ground-truth" },
+  ]));
+  expect(controller.handleAction("ground-truth-runs-download")).toBe(true);
+  expect(downloads).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      href: "blob:ground-truth",
+      download: "fs-player-real-match-pilot-sam2.1-hiera-tiny-runs.json",
+    }),
   ]));
   const caseId = state.presentation.tracking.groundTruth.suite.cases[0].id;
   expect(controller.handleAction("ground-truth-suite-remove", {
@@ -436,7 +501,9 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     status: "draft",
     revision: 2,
     selectedTrackIds: [],
+    benchmarkTargetTrackId: "",
     scenarioTags: [],
+    exhaustiveSceneAttested: false,
     lockedArtifact: null,
   });
 });

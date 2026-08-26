@@ -13,6 +13,12 @@ import {
   trackingGroundTruthSuiteEntry,
 } from "../services/trackingGroundTruthSuiteService.js";
 import {
+  createTrackingProviderRunSuiteArtifact,
+  trackingProviderRunSuiteArtifactJson,
+  trackingProviderRunWorkspaceEntry,
+  trackingProviderRunsForProvider,
+} from "../services/trackingProviderRunService.js";
+import {
   patchTrackingState,
   selectedTrackingItem,
   trackingItemRange,
@@ -20,12 +26,14 @@ import {
 
 const groundTruthActions = new Set([
   "ground-truth-toggle",
+  "ground-truth-target",
   "ground-truth-refresh",
   "ground-truth-lock",
   "ground-truth-download",
   "ground-truth-new",
   "ground-truth-suite-download",
   "ground-truth-suite-remove",
+  "ground-truth-runs-download",
 ]);
 
 function groundTruthState(state = {}, itemId = "") {
@@ -114,9 +122,21 @@ export function createTrackingGroundTruthController(options = {}) {
   }
 
   function refreshContext() {
-    const context = contextFor();
+    const state = getState();
+    const context = contextFor(state);
     if (!context.itemId) return false;
-    updateState((state) => patchGroundTruth(state, context.itemId, { ...context, error: "" }));
+    const truth = groundTruthState(state, context.itemId);
+    const contextChanged = truth.sourceFingerprint !== context.sourceFingerprint
+      || truth.angleId !== context.angleId
+      || Number(truth.frame?.width) !== context.frame.width
+      || Number(truth.frame?.height) !== context.frame.height
+      || Number(truth.range?.startMs) !== context.range.startMs
+      || Number(truth.range?.endMs) !== context.range.endMs;
+    updateState((current) => patchGroundTruth(current, context.itemId, {
+      ...context,
+      ...(contextChanged ? { attested: false, exhaustiveSceneAttested: false } : {}),
+      error: "",
+    }));
     return true;
   }
 
@@ -133,14 +153,41 @@ export function createTrackingGroundTruthController(options = {}) {
       return true;
     }
     const selected = new Set((truth.selectedTrackIds || []).map(String));
-    if (selected.has(trackId)) selected.delete(trackId);
+    const selectedTrack = (selectedTrackingItem(state)?.objectTracks || []).find((track) => track.id === trackId);
+    const removing = selected.has(trackId);
+    if (removing) selected.delete(trackId);
     else selected.add(trackId);
+    const includedPlayerIds = (selectedTrackingItem(state)?.objectTracks || [])
+      .filter((track) => selected.has(track.id) && track.entityType === "player")
+      .map((track) => track.id);
+    const benchmarkTargetTrackId = removing && truth.benchmarkTargetTrackId === trackId
+      ? includedPlayerIds[0] || ""
+      : !truth.benchmarkTargetTrackId && selectedTrack?.entityType === "player"
+        ? trackId
+        : truth.benchmarkTargetTrackId || "";
     const context = contextFor(state);
     updateState((current) => patchGroundTruth(current, itemId, {
       ...context,
       status: "draft",
       selectedTrackIds: [...selected],
+      benchmarkTargetTrackId,
       attested: false,
+      exhaustiveSceneAttested: false,
+      error: "",
+    }));
+    return true;
+  }
+
+  function setBenchmarkTarget() {
+    const state = getState();
+    const item = selectedTrackingItem(state);
+    const truth = groundTruthState(state, item?.id);
+    const trackId = state.presentation?.tracking?.selectedTrackIds?.[0] || "";
+    const track = (item?.objectTracks || []).find((entry) => entry.id === trackId);
+    if (!item || truth.status === "locked" || track?.entityType !== "player"
+      || !(truth.selectedTrackIds || []).includes(trackId)) return false;
+    updateState((current) => patchGroundTruth(current, item.id, {
+      benchmarkTargetTrackId: trackId,
       error: "",
     }));
     return true;
@@ -151,6 +198,17 @@ export function createTrackingGroundTruthController(options = {}) {
     const itemId = selectedTrackingItem(state)?.id || "";
     if (!itemId || groundTruthState(state, itemId).status === "locked") return false;
     updateState((current) => patchGroundTruth(current, itemId, { attested: Boolean(checked), error: "" }));
+    return true;
+  }
+
+  function setExhaustiveSceneAttested(checked = false) {
+    const state = getState();
+    const itemId = selectedTrackingItem(state)?.id || "";
+    if (!itemId || groundTruthState(state, itemId).status === "locked") return false;
+    updateState((current) => patchGroundTruth(current, itemId, {
+      exhaustiveSceneAttested: Boolean(checked),
+      error: "",
+    }));
     return true;
   }
 
@@ -165,8 +223,10 @@ export function createTrackingGroundTruthController(options = {}) {
         ...context,
         tracks: item.objectTracks || [],
         selectedTrackIds: truth.selectedTrackIds || [],
+        benchmarkTargetTrackId: truth.benchmarkTargetTrackId || "",
         scenarioTags: truth.scenarioTags || [],
         attested: truth.attested === true,
+        exhaustiveSceneAttested: truth.exhaustiveSceneAttested === true,
         reviewedBy: reviewerId(getReviewer()),
         revision: truth.revision || 1,
       }, { now });
@@ -229,6 +289,42 @@ export function createTrackingGroundTruthController(options = {}) {
     }
   }
 
+  function downloadProviderRuns() {
+    const state = getState();
+    const tracking = state.presentation?.tracking || {};
+    const workspace = trackingProviderRunWorkspaceEntry(tracking.providerRuns);
+    try {
+      const runs = trackingProviderRunsForProvider(workspace, tracking.provider);
+      const groundTruthSuite = trackingGroundTruthSuiteEntry(tracking.groundTruth || {});
+      const artifact = createTrackingProviderRunSuiteArtifact({
+        id: `${groundTruthSuite.id || "real-match-pilot"}-${runs[0]?.provider.providerId || "provider"}-runs`,
+        runs,
+      }, { now });
+      const win = getWindow();
+      if (!downloadJson(
+        win,
+        trackingProviderRunSuiteArtifactJson(artifact),
+        `fs-player-${artifact.id}.json`,
+      )) return false;
+      updateState((current) => patchTrackingState(current, {
+        providerRuns: {
+          ...trackingProviderRunWorkspaceEntry(current.presentation?.tracking?.providerRuns),
+          downloadedAt: artifact.createdAt,
+          error: "",
+        },
+      }));
+      return true;
+    } catch (error) {
+      updateState((current) => patchTrackingState(current, {
+        providerRuns: {
+          ...trackingProviderRunWorkspaceEntry(current.presentation?.tracking?.providerRuns),
+          error: error?.message || "The raw provider runs could not be exported.",
+        },
+      }));
+      return true;
+    }
+  }
+
   function removeSuiteCase(caseId = "") {
     if (!caseId) return false;
     updateState((state) => {
@@ -251,8 +347,10 @@ export function createTrackingGroundTruthController(options = {}) {
       status: "draft",
       revision: Math.max(1, Math.round(Number(truth.revision) || 1)) + 1,
       selectedTrackIds: [],
+      benchmarkTargetTrackId: "",
       scenarioTags: [],
       attested: false,
+      exhaustiveSceneAttested: false,
       lockedArtifact: null,
       lockedAt: "",
       downloadedAt: "",
@@ -267,7 +365,11 @@ export function createTrackingGroundTruthController(options = {}) {
       const truth = groundTruthState(state, itemId);
       return truth.status === "locked"
         ? state
-        : patchGroundTruth(state, itemId, { attested: false, error: "" });
+        : patchGroundTruth(state, itemId, {
+          attested: false,
+          exhaustiveSceneAttested: false,
+          error: "",
+        });
     });
     return true;
   }
@@ -290,10 +392,12 @@ export function createTrackingGroundTruthController(options = {}) {
   function handleAction(action = "", element = null) {
     if (!groundTruthActions.has(action)) return false;
     if (action === "ground-truth-toggle") return toggleSelectedTrack();
+    if (action === "ground-truth-target") return setBenchmarkTarget();
     if (action === "ground-truth-refresh") return refreshContext();
     if (action === "ground-truth-lock") return lockReference();
     if (action === "ground-truth-download") return downloadReference();
     if (action === "ground-truth-suite-download") return downloadSuite();
+    if (action === "ground-truth-runs-download") return downloadProviderRuns();
     if (action === "ground-truth-suite-remove") {
       return removeSuiteCase(element?.dataset?.videoAnalysisGroundTruthCaseId);
     }
@@ -302,6 +406,7 @@ export function createTrackingGroundTruthController(options = {}) {
 
   function handleField(field = "", element = {}) {
     if (field === "groundTruthAttested") return setAttested(element.checked);
+    if (field === "groundTruthSceneComplete") return setExhaustiveSceneAttested(element.checked);
     if (field === "groundTruthScenario") return setScenario(element.value, element.checked);
     return false;
   }

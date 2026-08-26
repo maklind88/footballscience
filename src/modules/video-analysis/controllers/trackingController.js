@@ -6,6 +6,9 @@ import {
   trackingBatchTargets,
 } from "./trackingBatchController.js";
 import { createTrackingGroundTruthController } from "./trackingGroundTruthController.js";
+import {
+  createTrackingProviderRunController,
+} from "./trackingProviderRunController.js";
 import { createTrackingReviewController } from "./trackingReviewController.js";
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
 import { normalizeTrackingJobProgress } from "../services/trackingProgressService.js";
@@ -37,12 +40,21 @@ import {
   updateTrackingPromptField,
 } from "./trackingControllerHelpers.js";
 
+export { preserveTrackingProviderEvidenceIdentity } from "./trackingProviderRunController.js";
+
 export function createTrackingController(options = {}) {
   const getState = options.getState || (() => ({}));
   const updateState = options.updateState || (() => {});
   const getVideoElement = options.getVideoElement || (() => null);
   const getCurrentMatchMs = options.getCurrentMatchMs || null;
   const now = options.now || Date.now;
+  const providerRuns = createTrackingProviderRunController({
+    getState,
+    updateState,
+    getVideoElement,
+    inspectProvider: options.inspectProvider,
+    now,
+  });
   const trackingJob = createTrackingJobSession((request) => {
     if (Array.isArray(request.prompts)) {
       if (!options.trackObjects) throw new Error("Batch tracking is not available.");
@@ -52,7 +64,6 @@ export function createTrackingController(options = {}) {
     return options.trackObject(request);
   });
   let activeInteraction = null;
-  let providerRefreshId = 0;
   const groundTruth = createTrackingGroundTruthController({
     getState,
     updateState,
@@ -76,36 +87,11 @@ export function createTrackingController(options = {}) {
     updateState,
     now,
     persistTrack,
+    captureProviderRun: providerRuns.capture,
+    getProviderRunFrame: providerRuns.frame,
     trackObjects: options.trackObjects,
     trackingJob,
   });
-
-  async function refreshProvider() {
-    if (!options.inspectProvider) return false;
-    const refreshId = ++providerRefreshId;
-    updateState((state) => trackingPatch(state, {
-      provider: {
-        ...(state.presentation?.tracking?.provider || {}),
-        status: "checking",
-        available: false,
-        error: "",
-      },
-    }));
-    let provider;
-    try {
-      provider = await options.inspectProvider();
-    } catch (error) {
-      provider = {
-        status: "offline",
-        available: false,
-        name: "Local tracking companion",
-        error: error?.message || "The local tracking companion is offline.",
-      };
-    }
-    if (refreshId !== providerRefreshId) return false;
-    updateState((state) => trackingPatch(state, { provider }));
-    return provider.available === true;
-  }
 
   function setMode(mode = "static") {
     const nextMode = mode === "tracking" ? "tracking" : "static";
@@ -117,7 +103,7 @@ export function createTrackingController(options = {}) {
     }));
     if (nextMode === "tracking") {
       groundTruth.refreshContext();
-      void refreshProvider();
+      void providerRuns.refresh();
     }
     return true;
   }
@@ -205,6 +191,7 @@ export function createTrackingController(options = {}) {
     const baseTrack = runOptions.baseTrack ? normalizeObjectTrack(runOptions.baseTrack) : null;
     if (!item || !requestedPrompt?.box || !options.trackObject || trackingJob.isActive()) return false;
     const provider = state.presentation?.tracking?.provider || {};
+    const frame = providerRuns.frame();
     const targetRange = baseTrack
       ? trackingTargetRange(baseTrack, itemRange(item))
       : { startMs: requestedPrompt.startMs, endMs: requestedPrompt.endMs };
@@ -252,6 +239,13 @@ export function createTrackingController(options = {}) {
           targetStartMs: targetRange.startMs,
           targetEndMs: targetRange.endMs,
         },
+      });
+      providerRuns.capture({
+        itemId: item.id,
+        provider,
+        frame,
+        range: { startMs: prompt.startMs, endMs: prompt.endMs },
+        tracks: [trackedPart],
       });
       track = baseTrack ? mergeTrackingExtension(baseTrack, trackedPart, direction) : trackedPart;
       track = await persistTrack(track);
@@ -453,7 +447,7 @@ export function createTrackingController(options = {}) {
     if (action === "extend-earlier") { void continuation.extend("earlier"); return true; }
     if (action === "extend-later") { void continuation.extend("later"); return true; }
     if (action === "complete-range") { void continuation.complete(); return true; }
-    if (action === "refresh-provider") { void refreshProvider(); return true; }
+    if (action === "refresh-provider") { void providerRuns.refresh(); return true; }
     if (action === "cancel") {
       const cancelled = trackingJob.cancel();
       if (cancelled) updateState((state) => trackingPatch(state, {
@@ -483,7 +477,7 @@ export function createTrackingController(options = {}) {
     finishInteraction,
     handleChange,
     handleClick,
-    refreshProvider,
+    refreshProvider: providerRuns.refresh,
     startInteraction,
     updateInteraction,
   };

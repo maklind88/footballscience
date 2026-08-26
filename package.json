@@ -4,6 +4,7 @@
     "fs-player:tracking:plan": "node desktop/local-video-app/tracking-providers/sam2/install-provider.mjs --plan",
     "fs-player:tracking:preflight": "node desktop/local-video-app/tracking-providers/sam2/preflight.mjs",
     "fs-player:tracking:benchmark": "node scripts/fs-player-tracking-benchmark.mjs",
+    "fs-player:tracking:assemble": "node scripts/fs-player-tracking-benchmark-assemble.mjs",
     "fs-player:tracking:smoke": "node scripts/fs-player-tracking-engine-smoke.mjs",
     "fs-player:tracking:trackeval:plan": "node desktop/local-video-app/tracking-evaluators/trackeval/install-evaluator.mjs --plan",
     "fs-player:tracking:trackeval:install": "node desktop/local-video-app/tracking-evaluators/trackeval/install-evaluator.mjs",

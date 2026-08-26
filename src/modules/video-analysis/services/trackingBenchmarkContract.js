@@ -2,6 +2,7 @@ import { normalizeObjectTrack } from "../domain/tracking.model.js";
 
 export const TRACKING_BENCHMARK_SCHEMA_VERSION = 1;
 export const TRACKING_BENCHMARK_EVALUATOR_VERSION = "tracking-benchmark-v1";
+export const TRACKING_PROVIDER_RUN_EVIDENCE_PROTOCOL = "football-science-tracking-provider-run-evidence-v1";
 export const MAX_TRACKING_BENCHMARK_CASE_BYTES = 8 * 1024 * 1024;
 export const MAX_TRACKING_BENCHMARK_SUITE_BYTES = 64 * 1024 * 1024;
 
@@ -186,6 +187,59 @@ export function normalizeBenchmarkFingerprint(value) {
   const fingerprint = benchmarkBoundedString(value, "source fingerprint", 64).toLowerCase();
   if (!/^[a-f0-9]{64}$/.test(fingerprint)) benchmarkInvalid("Source fingerprint must be a SHA-256 hash.");
   return fingerprint;
+}
+
+function exactObjectKeys(value, allowed, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) benchmarkInvalid(`${label} must be an object.`);
+  const unsupported = Object.keys(value).filter((key) => !allowed.includes(key));
+  if (unsupported.length) benchmarkInvalid(`${label} contains unsupported field ${unsupported[0]}.`);
+}
+
+export function normalizeBenchmarkProviderRunEvidence(value = {}) {
+  exactObjectKeys(value, [
+    "protocol", "provider", "groundTruthSuiteId", "groundTruthSuiteSha256",
+    "providerRunSuiteId", "providerRunSuiteSha256", "runIds",
+  ], "Provider run evidence");
+  if (value.protocol !== TRACKING_PROVIDER_RUN_EVIDENCE_PROTOCOL) {
+    benchmarkInvalid("Provider run evidence protocol is invalid.");
+  }
+  exactObjectKeys(value.provider, [
+    "providerId", "providerVersion", "protocol", "stage", "capabilities", "executionFingerprintSha256",
+  ], "Provider run evidence identity");
+  const stage = benchmarkBoundedString(value.provider.stage, "provider run stage", 40).toLowerCase();
+  if (!["detection", "segmentation", "association", "reidentification", "classification"].includes(stage)) {
+    benchmarkInvalid("Provider run evidence stage is invalid.");
+  }
+  if (!Array.isArray(value.provider.capabilities) || !value.provider.capabilities.length) {
+    benchmarkInvalid("Provider run evidence capabilities are required.");
+  }
+  const capabilities = [...new Set(value.provider.capabilities.map((capability) => (
+    benchmarkBoundedString(capability, "provider run capability", 80)
+  )))].sort();
+  const runIds = Array.isArray(value.runIds)
+    ? value.runIds.map((runId) => benchmarkBoundedString(runId, "provider run id", 160))
+    : [];
+  if (!runIds.length || runIds.length > 500 || new Set(runIds).size !== runIds.length) {
+    benchmarkInvalid("Provider run evidence requires 1-500 unique run ids.");
+  }
+  return {
+    protocol: TRACKING_PROVIDER_RUN_EVIDENCE_PROTOCOL,
+    provider: {
+      providerId: benchmarkBoundedString(value.provider.providerId, "provider run id", 100),
+      providerVersion: benchmarkBoundedString(value.provider.providerVersion, "provider run version", 100),
+      protocol: benchmarkBoundedString(value.provider.protocol, "provider run protocol", 100),
+      stage,
+      capabilities,
+      executionFingerprintSha256: normalizeBenchmarkFingerprint(
+        value.provider.executionFingerprintSha256,
+      ),
+    },
+    groundTruthSuiteId: benchmarkBoundedString(value.groundTruthSuiteId, "ground-truth suite id", 160),
+    groundTruthSuiteSha256: normalizeBenchmarkFingerprint(value.groundTruthSuiteSha256),
+    providerRunSuiteId: benchmarkBoundedString(value.providerRunSuiteId, "provider run suite id", 160),
+    providerRunSuiteSha256: normalizeBenchmarkFingerprint(value.providerRunSuiteSha256),
+    runIds: runIds.slice().sort(),
+  };
 }
 
 export function normalizeBenchmarkFrame(value = {}) {

@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { normalizeBenchmarkProviderRunEvidence } from "../../../src/modules/video-analysis/services/trackingBenchmarkContract.js";
+import { trackingProviderExecutionFingerprintSha256 } from "../tracking-providers/provider-execution-fingerprint.mjs";
 
 export const TRACKING_PROVIDER_EVIDENCE_PROTOCOL = "football-science-tracking-provider-evidence-v1";
 export const TRACKING_PROVIDER_MINIMUM_REAL_MATCH_DURATION_MS = 10 * 60 * 1000;
@@ -193,6 +195,20 @@ export function trackingProviderFingerprint(provider = {}) {
   return sha256(providerFingerprintPayload(provider));
 }
 
+export function trackingProviderExecutionFingerprint(provider = {}) {
+  return trackingProviderExecutionFingerprintSha256({
+    providerId: provider.providerId,
+    providerVersion: provider.providerVersion,
+    protocol: provider.protocol,
+    stage: provider.stage,
+    capabilities: provider.capabilities,
+    sourceCommit: provider.upstream?.commit,
+    sourceSha256: provider.upstream?.sourceSha256,
+    modelSha256s: (provider.models || []).map((model) => model.sha256),
+    runtimeSha256: provider.runtime?.providerSha256,
+  });
+}
+
 export function trackingProviderEvidenceHash(value = {}) {
   const { evidenceSha256, ...payload } = value;
   return sha256(payload);
@@ -214,6 +230,24 @@ function benchmarkProfile(cases = []) {
   const profiles = [...new Set(cases.map((entry) => String(entry.profile?.id || "")))];
   if (profiles.length !== 1 || !profiles[0]) invalid("Provider benchmark cases must use one explicit profile.");
   return profiles[0];
+}
+
+function providerRunReference(provider = {}, report = {}) {
+  let evidence;
+  try {
+    evidence = normalizeBenchmarkProviderRunEvidence(report.providerRunEvidence);
+  } catch {
+    invalid("Provider benchmark report is missing valid raw-run evidence.");
+  }
+  if (evidence.provider.providerId !== provider.providerId
+    || evidence.provider.providerVersion !== provider.providerVersion
+    || evidence.provider.protocol !== provider.protocol
+    || evidence.provider.stage !== provider.stage
+    || evidence.provider.executionFingerprintSha256 !== trackingProviderExecutionFingerprint(provider)
+    || !exactKeys(evidence.provider.capabilities, provider.capabilities)) {
+    invalid("Provider benchmark raw-run evidence does not match the provider artifacts.");
+  }
+  return evidence;
 }
 
 export function createTrackingProviderEvidence(provider = {}, report = {}, options = {}) {
@@ -250,6 +284,7 @@ export function createTrackingProviderEvidence(provider = {}, report = {}, optio
     metrics: metricEvidence(cases, capability),
   }));
   const reference = reportReference(report, cases);
+  const rawRun = providerRunReference(provider, report);
   const sourceFingerprints = [...new Set(cases.map((entry) => String(entry.sourceFingerprint || "")))].sort();
   if (sourceFingerprints.some((fingerprint) => !/^[a-f0-9]{64}$/i.test(fingerprint))) {
     invalid("Provider benchmark source evidence is invalid.");
@@ -273,6 +308,11 @@ export function createTrackingProviderEvidence(provider = {}, report = {}, optio
       realMatchDurationMs,
       sourceCount: sourceFingerprints.length,
       sourceSetSha256: sha256(sourceFingerprints),
+      providerExecutionFingerprintSha256: rawRun.provider.executionFingerprintSha256,
+      groundTruthSuiteSha256: rawRun.groundTruthSuiteSha256,
+      providerRunSuiteSha256: rawRun.providerRunSuiteSha256,
+      providerRunCount: rawRun.runIds.length,
+      providerRunSetSha256: sha256(rawRun.runIds),
       capabilities,
       referenceEvaluator: reference.evaluator,
       referenceReportSha256: reference.reportSha256,
@@ -296,6 +336,11 @@ export function trackingProviderBenchmarkFromEvidence(evidence = {}) {
     caseCount: benchmark.caseCount,
     realMatchCaseCount: benchmark.realMatchCaseCount,
     realMatchDurationMs: benchmark.realMatchDurationMs,
+    providerExecutionFingerprintSha256: benchmark.providerExecutionFingerprintSha256,
+    groundTruthSuiteSha256: benchmark.groundTruthSuiteSha256,
+    providerRunSuiteSha256: benchmark.providerRunSuiteSha256,
+    providerRunCount: benchmark.providerRunCount,
+    providerRunSetSha256: benchmark.providerRunSetSha256,
     capabilities: benchmark.capabilities,
     referenceEvaluator: benchmark.referenceEvaluator,
     referenceReportSha256: benchmark.referenceReportSha256,
@@ -334,7 +379,8 @@ export function verifyTrackingProviderEvidence(provider = {}, evidence = {}, rep
   const scalarFields = [
     "status", "evaluatorVersion", "profileId", "reportSha256", "evidenceSha256",
     "caseCount", "realMatchCaseCount", "realMatchDurationMs", "referenceEvaluator",
-    "referenceReportSha256",
+    "referenceReportSha256", "providerExecutionFingerprintSha256", "groundTruthSuiteSha256",
+    "providerRunSuiteSha256", "providerRunCount", "providerRunSetSha256",
   ];
   if (scalarFields.some((field) => actual[field] !== expectedBenchmark[field])
     || !exactKeys(actual.capabilities, expectedBenchmark.capabilities)

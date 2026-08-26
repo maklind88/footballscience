@@ -158,6 +158,27 @@
   font-size: 8px;
 }
 
+.video-analysis-benchmark-suite__provider-runs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.video-analysis-benchmark-suite__provider-runs span {
+  min-width: 0;
+  overflow: hidden;
+  color: #52636c;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-benchmark-suite__provider-runs strong {
+  color: #26353c;
+}
+
 .video-analysis-benchmark-suite__cases li.is-empty {
   justify-content: center;
   color: #738087;

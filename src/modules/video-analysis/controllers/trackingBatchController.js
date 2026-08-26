@@ -127,6 +127,7 @@ export function createTrackingBatchController(options = {}) {
     const prompts = targets.map((prompt) => initialTrackingPromptChunk(prompt, {
       maxDurationMs: state.presentation?.tracking?.provider?.maxDurationMs,
     }));
+    const frame = options.getProviderRunFrame?.();
     updateState((value) => patchTrackingState(value, {
       job: normalizeTrackingJobProgress({
         stage: `Preparing ${prompts.length} tracking targets`,
@@ -167,6 +168,13 @@ export function createTrackingBatchController(options = {}) {
           targetEndMs: targetRange.endMs,
         },
       }));
+      options.captureProviderRun?.({
+        itemId: item.id,
+        provider: state.presentation?.tracking?.provider || {},
+        frame,
+        range: targetRange,
+        tracks: normalized,
+      });
       const persisted = await Promise.all(normalized.map((track) => options.persistTrack(track)));
       updateState((current) => {
         const liveItem = trackingItemById(current, item.id);

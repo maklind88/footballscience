@@ -99,6 +99,7 @@ export function createInitialPresentationWorkspace() {
           error: "",
         },
       },
+      providerRuns: { byItemId: {}, downloadedAt: "", error: "" },
       provider: {
         status: "unchecked",
         available: false,

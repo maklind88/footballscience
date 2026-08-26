@@ -19,6 +19,7 @@ import { normalizeTrackingBenchmarkScenarios } from "./trackingBenchmarkScenario
 export const TRACKING_GROUND_TRUTH_PROTOCOL = "football-science-ground-truth-v1";
 export const TRACKING_GROUND_TRUTH_REVIEW_PROTOCOL = "football-ground-truth-review-v1";
 export const TRACKING_GROUND_TRUTH_PROFILE = "football-scene-pilot-v1";
+export const TRACKING_SELECTED_OBJECT_PROFILE = "selected-player-pilot-v1";
 export const TRACKING_GROUND_TRUTH_MAX_SAMPLE_GAP_MS = 500;
 export const TRACKING_GROUND_TRUTH_MAX_RANGE_MS = 2 * 60 * 1000;
 
@@ -35,11 +36,13 @@ export function trackingGroundTruthEntry(workspace = {}, itemId = "") {
     status: "draft",
     revision: 1,
     selectedTrackIds: [],
+    benchmarkTargetTrackId: "",
     scenarioTags: [],
     sourceFingerprint: "",
     frame: { width: 0, height: 0 },
     range: { startMs: 0, endMs: 1 },
     attested: false,
+    exhaustiveSceneAttested: false,
     lockedArtifact: null,
     lockedAt: "",
     downloadedAt: "",
@@ -97,28 +100,35 @@ function trackReviewCoverage(track = {}, range = {}) {
     point.atMs >= Number(range.startMs) && point.atMs <= Number(range.endMs)
   ));
   let maxSampleGapMs = 0;
-  const coveredMs = track.segments.reduce((total, segment) => {
+  let declaredVisibleMs = 0;
+  const reviewedVisibleMs = track.segments.reduce((total, segment) => {
     const startMs = Math.max(Number(range.startMs), segment.startMs);
     const endMs = Math.min(Number(range.endMs), segment.endMs);
     const segmentPoints = segment.points.filter((point) => point.atMs >= startMs && point.atMs <= endMs);
     if (endMs > startMs) {
+      declaredVisibleMs += endMs - startMs;
       const sampleTimes = [startMs, ...segmentPoints.map((point) => point.atMs), endMs]
         .sort((first, second) => first - second);
       for (let index = 1; index < sampleTimes.length; index += 1) {
         maxSampleGapMs = Math.max(maxSampleGapMs, sampleTimes[index] - sampleTimes[index - 1]);
       }
     }
-    return total + Math.max(0, endMs - startMs);
+    const firstPointMs = segmentPoints[0]?.atMs;
+    const lastPointMs = segmentPoints.at(-1)?.atMs;
+    return total + (Number.isFinite(firstPointMs) && Number.isFinite(lastPointMs)
+      ? Math.max(0, Math.min(endMs, lastPointMs) - Math.max(startMs, firstPointMs))
+      : 0);
   }, 0);
   return {
     pointCount: points.length,
-    ratio: Math.min(1, coveredMs / Math.max(1, Number(range.endMs) - Number(range.startMs))),
+    ratio: Math.min(1, reviewedVisibleMs / Math.max(1, declaredVisibleMs)),
     maxSampleGapMs,
   };
 }
 
 export function groundTruthReadiness(value = {}) {
   const tracks = selectedTracks(value);
+  const benchmarkTargetTrackId = String(value.benchmarkTargetTrackId || "");
   const counts = entityCounts(tracks);
   const issues = [];
   const ids = new Set();
@@ -130,6 +140,9 @@ export function groundTruthReadiness(value = {}) {
   if (!tracks.length) issues.push(issue("tracks-missing", "Add verified object tracks to the reference set."));
   for (const entityType of requiredEntityTypes) {
     if (!counts[entityType]) issues.push(issue(`${entityType}-missing`, `Add at least one ${entityType} track.`));
+  }
+  if (!tracks.some((track) => track.id === benchmarkTargetTrackId && track.entityType === "player")) {
+    issues.push(issue("benchmark-target-missing", "Choose one included player track as the selected-object benchmark target."));
   }
   for (const track of tracks) {
     const coverage = trackReviewCoverage(track, value.range);
@@ -149,7 +162,7 @@ export function groundTruthReadiness(value = {}) {
     }
     if (track.status !== "verified") issues.push(issue("track-unverified", "Verify every reference track.", track.id));
     if (coverage.pointCount < 2) issues.push(issue("track-sparse", "Reference tracks need at least two reviewed points in the benchmark range.", track.id));
-    if (coverage.ratio < 0.8) issues.push(issue("track-coverage", "Reference track coverage must reach 80%.", track.id));
+    if (coverage.ratio < 0.8) issues.push(issue("track-coverage", "Review at least 80% of every declared visible track span.", track.id));
     if (coverage.maxSampleGapMs > TRACKING_GROUND_TRUTH_MAX_SAMPLE_GAP_MS) {
       issues.push(issue("track-sampling", "Reference samples must be no more than 500 ms apart.", track.id));
     }
@@ -162,6 +175,12 @@ export function groundTruthReadiness(value = {}) {
   }
   if (!String(value.reviewedBy || "").trim()) issues.push(issue("reviewer-missing", "A local analyst identity is required."));
   if (value.attested !== true) issues.push(issue("attestation-missing", "Confirm that every selected track was reviewed frame by frame."));
+  if (value.exhaustiveSceneAttested !== true) {
+    issues.push(issue(
+      "scene-completeness-missing",
+      "Confirm that every visible player, ball and referee in the range is included.",
+    ));
+  }
   return {
     ready: issues.length === 0,
     issues,
@@ -321,7 +340,9 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
       reviewedAt,
       reviewedBy: String(value.reviewedBy).trim().slice(0, 160),
       attested: true,
+      exhaustiveSceneAttested: true,
       selectedTrackCount: readiness.selectedTrackCount,
+      selectedObjectTargetTrackId: String(value.benchmarkTargetTrackId),
       entityCounts: readiness.entityCounts,
       scenarioTags: normalizeTrackingBenchmarkScenarios(value.scenarioTags),
     },
@@ -349,6 +370,8 @@ export function validateGroundTruthArtifact(artifact = {}) {
     || artifact.reviewEvidence?.kind !== "real-match"
     || artifact.reviewEvidence?.protocol !== TRACKING_GROUND_TRUTH_REVIEW_PROTOCOL
     || artifact.reviewEvidence?.attested !== true
+    || artifact.reviewEvidence?.exhaustiveSceneAttested !== true
+    || !artifact.reviewEvidence?.selectedObjectTargetTrackId
     || !artifact.groundTruth?.tracks?.length) {
     throw new TrackingGroundTruthError("The locked reference artifact is invalid.");
   }
@@ -364,6 +387,8 @@ export function validateGroundTruthArtifact(artifact = {}) {
     range,
     reviewedBy: artifact.reviewEvidence?.reviewedBy,
     attested: true,
+    exhaustiveSceneAttested: artifact.reviewEvidence?.exhaustiveSceneAttested,
+    benchmarkTargetTrackId: artifact.reviewEvidence?.selectedObjectTargetTrackId,
   });
   if (!readiness.ready) {
     throw new TrackingGroundTruthError(
@@ -394,7 +419,37 @@ export function buildMultiObjectCaseFromGroundTruth(artifactValue = {}, options 
     range: { ...artifact.range },
     groundTruth: { tracks: artifact.groundTruth.tracks.map((track) => ({ ...track })) },
     prediction: { tracks: predictionTracks },
-    performance: Number.isFinite(processingMs) && processingMs >= 0 ? { processingMs } : {},
+    performance: Number.isFinite(processingMs) && processingMs > 0 ? { processingMs } : {},
+    reviewEvidence: { ...artifact.reviewEvidence },
+  };
+  assertBenchmarkEnvelope(benchmarkCase);
+  return benchmarkCase;
+}
+
+export function buildSelectedObjectCaseFromGroundTruth(artifactValue = {}, options = {}) {
+  const artifact = validateGroundTruthArtifact(artifactValue);
+  const range = normalizeBenchmarkRange(artifact.range);
+  const targetTrackId = String(artifact.reviewEvidence?.selectedObjectTargetTrackId || "");
+  const groundTruthTrack = artifact.groundTruth.tracks.find((track) => track.id === targetTrackId);
+  if (!groundTruthTrack || groundTruthTrack.entityType !== "player") {
+    throw new TrackingGroundTruthError("The selected-object benchmark target is missing from ground truth.");
+  }
+  const sampleTimes = groundTruthTrack.segments.flatMap((segment) => segment.points.map((point) => point.atMs));
+  const predictionTrack = safeTrack(options.predictionTrack, range, 0, true, sampleTimes);
+  const processingMs = Number(options.performance?.processingMs);
+  const benchmarkCase = {
+    version: TRACKING_BENCHMARK_SCHEMA_VERSION,
+    id: String(options.id || `${artifact.id}-${targetTrackId}-provider-run`).slice(0, 120),
+    profileId: TRACKING_SELECTED_OBJECT_PROFILE,
+    sourceFingerprint: artifact.sourceFingerprint,
+    frame: { ...artifact.frame },
+    range: { ...artifact.range },
+    groundTruth: { track: groundTruthTrack },
+    prediction: { track: predictionTrack },
+    performance: {
+      ...(Number.isFinite(processingMs) && processingMs > 0 ? { processingMs } : {}),
+      ...(options.performance?.device ? { device: String(options.performance.device).slice(0, 80) } : {}),
+    },
     reviewEvidence: { ...artifact.reviewEvidence },
   };
   assertBenchmarkEnvelope(benchmarkCase);

@@ -211,6 +211,10 @@
   accent-color: #1f5c3d;
 }
 
+.video-analysis-tracking-side .video-analysis-ground-truth__attestation + .video-analysis-ground-truth__attestation {
+  border-top: 0;
+}
+
 .video-analysis-ground-truth__issues {
   display: grid;
   gap: 3px;

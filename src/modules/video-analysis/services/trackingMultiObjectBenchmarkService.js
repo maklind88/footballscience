@@ -11,6 +11,7 @@ import {
   benchmarkSerializedBytes,
   normalizeBenchmarkFingerprint,
   normalizeBenchmarkFrame,
+  normalizeBenchmarkProviderRunEvidence,
   normalizeBenchmarkRange,
   normalizeBenchmarkTracks,
 } from "./trackingBenchmarkContract.js";
@@ -163,7 +164,8 @@ function thresholdFailures(metrics, thresholds) {
 function performanceMetrics(value = {}, range = {}) {
   const processingMs = value.processingMs === undefined
     ? null
-    : Math.max(0, benchmarkFinite(value.processingMs, "processing time"));
+    : benchmarkFinite(value.processingMs, "processing time");
+  if (processingMs !== null && processingMs <= 0) benchmarkInvalid("Processing time must be positive.");
   return {
     processingMs,
     realtimeFactor: processingMs === null ? null : processingMs / range.durationMs,
@@ -259,6 +261,12 @@ export function evaluateMultiObjectTrackingBenchmarkSuite(value = {}) {
   assertBenchmarkMetadataOnly(value);
   if (Number(value.version) !== TRACKING_BENCHMARK_SCHEMA_VERSION) benchmarkInvalid("Unsupported benchmark suite version.");
   const suiteId = benchmarkBoundedString(value.id, "benchmark suite id", 120);
+  const providerRunEvidence = value.providerRunEvidence
+    ? normalizeBenchmarkProviderRunEvidence(value.providerRunEvidence)
+    : null;
+  if (providerRunEvidence && providerRunEvidence.provider.stage === "segmentation") {
+    benchmarkInvalid("Multi-object provider evidence cannot use a segmentation-only provider run.");
+  }
   const cases = Array.isArray(value.cases) ? value.cases : [];
   if (!cases.length || cases.length > 100) benchmarkInvalid("Benchmark suite must contain 1-100 cases.");
   const reports = cases.map(evaluateMultiObjectTrackingBenchmarkCase);
@@ -276,6 +284,7 @@ export function evaluateMultiObjectTrackingBenchmarkSuite(value = {}) {
     evaluatorVersion: TRACKING_BENCHMARK_EVALUATOR_VERSION,
     benchmarkType: "multi-object-suite",
     suiteId,
+    ...(providerRunEvidence ? { providerRunEvidence } : {}),
     summary: {
       passed: failedCaseIds.length === 0,
       providerApprovalReady: false,

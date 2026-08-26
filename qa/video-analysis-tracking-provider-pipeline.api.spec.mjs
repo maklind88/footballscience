@@ -203,9 +203,32 @@ function reportForStage(stage = "") {
 
 function approveProvider(contract, evidenceService, manifest, report = reportForStage(manifest.stage)) {
   const candidate = contract.normalizeTrackingProviderManifest(manifest);
-  const evidence = evidenceService.createTrackingProviderEvidence(candidate, report);
+  const boundReport = bindProviderRunEvidence(evidenceService, candidate, report);
+  const evidence = evidenceService.createTrackingProviderEvidence(candidate, boundReport);
   manifest.benchmark = evidenceService.trackingProviderBenchmarkFromEvidence(evidence);
-  return { manifest, evidence, report };
+  return { manifest, evidence, report: boundReport };
+}
+
+function bindProviderRunEvidence(evidenceService, manifest, report) {
+  return {
+    ...report,
+    providerRunEvidence: {
+      protocol: "football-science-tracking-provider-run-evidence-v1",
+      provider: {
+        providerId: manifest.providerId,
+        providerVersion: manifest.providerVersion,
+        protocol: manifest.protocol,
+        stage: manifest.stage,
+        capabilities: [...manifest.capabilities],
+        executionFingerprintSha256: evidenceService.trackingProviderExecutionFingerprint(manifest),
+      },
+      groundTruthSuiteId: "real-match-ground-truth-r1",
+      groundTruthSuiteSha256: "1".repeat(64),
+      providerRunSuiteId: `${manifest.providerId}-runs`,
+      providerRunSuiteSha256: "2".repeat(64),
+      runIds: Array.from({ length: 5 }, (_, index) => `${manifest.providerId}-run-${index + 1}`),
+    },
+  };
 }
 
 function stageRequest(overrides = {}) {
@@ -638,6 +661,12 @@ test("provider evidence binds the exact report, source, model and capability set
     approved.evidence,
     approved.report,
   )).toMatchObject({ verified: true, evidenceSha256: approved.evidence.evidenceSha256 });
+  expect(approved.evidence.benchmark).toMatchObject({
+    providerExecutionFingerprintSha256: evidenceService.trackingProviderExecutionFingerprint(normalized),
+    groundTruthSuiteSha256: "1".repeat(64),
+    providerRunSuiteSha256: "2".repeat(64),
+    providerRunCount: 5,
+  });
 
   const changedReport = structuredClone(approved.report);
   changedReport.cases[0].metrics.playerRecall = 0.94;
@@ -646,6 +675,13 @@ test("provider evidence binds the exact report, source, model and capability set
     approved.evidence,
     changedReport,
   )).toThrow(/report does not match/i);
+
+  const changedRawRun = structuredClone(approved.report);
+  changedRawRun.providerRunEvidence.provider.executionFingerprintSha256 = "0".repeat(64);
+  expect(() => evidenceService.createTrackingProviderEvidence(
+    normalized,
+    changedRawRun,
+  )).toThrow(/raw-run evidence/i);
 
   const selfConsistentForgery = structuredClone(approved.evidence);
   selfConsistentForgery.benchmark.capabilityEvidence[0].metrics[0].worst = 1;
@@ -683,11 +719,11 @@ test("provider evidence requires ten attested real-match minutes and remains met
   const candidate = contract.normalizeTrackingProviderManifest(
     provider("classification", ["classify:team"]),
   );
-  const shortReport = multiObjectReport();
+  const shortReport = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
   shortReport.cases.pop();
   expect(() => evidenceService.createTrackingProviderEvidence(candidate, shortReport)).toThrow(/10 minutes/i);
 
-  const syntheticReport = multiObjectReport();
+  const syntheticReport = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
   syntheticReport.cases[0].evidence = {
     kind: "synthetic-or-unattested",
     reviewProtocol: "",
@@ -696,7 +732,7 @@ test("provider evidence requires ten attested real-match minutes and remains met
   };
   expect(() => evidenceService.createTrackingProviderEvidence(candidate, syntheticReport)).toThrow(/real-match evidence/i);
 
-  const unsafeReport = multiObjectReport();
+  const unsafeReport = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
   unsafeReport.sourcePath = "/private/match.mp4";
   expect(() => evidenceService.createTrackingProviderEvidence(candidate, unsafeReport)).toThrow(/metadata-only/i);
 });
@@ -711,20 +747,23 @@ test("shirt-number providers need their own measured threshold", async () => {
   const candidate = contract.normalizeTrackingProviderManifest(
     provider("classification", ["classify:shirt-number"]),
   );
-  const missingGate = multiObjectReport();
+  const missingGate = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
   missingGate.cases.forEach((entry) => { entry.thresholds.minShirtNumberAccuracy = null; });
   expect(() => evidenceService.createTrackingProviderEvidence(candidate, missingGate)).toThrow(/minShirtNumberAccuracy/);
 
-  const failedGate = multiObjectReport();
+  const failedGate = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
   failedGate.cases[0].metrics.shirtNumberAccuracy = 0.8;
   expect(() => evidenceService.createTrackingProviderEvidence(candidate, failedGate)).toThrow(/does not pass/i);
 
-  const weakenedGate = multiObjectReport();
+  const weakenedGate = bindProviderRunEvidence(evidenceService, candidate, multiObjectReport());
   weakenedGate.cases.forEach((entry) => { entry.thresholds.minShirtNumberAccuracy = 0.1; });
   weakenedGate.cases[0].metrics.shirtNumberAccuracy = 0.8;
   expect(() => evidenceService.createTrackingProviderEvidence(candidate, weakenedGate)).toThrow(/does not pass/i);
 
-  const evidence = evidenceService.createTrackingProviderEvidence(candidate, multiObjectReport());
+  const evidence = evidenceService.createTrackingProviderEvidence(
+    candidate,
+    bindProviderRunEvidence(evidenceService, candidate, multiObjectReport()),
+  );
   expect(Object.isFrozen(evidence.benchmark.capabilityEvidence[0].metrics)).toBe(true);
   expect(evidence.benchmark.capabilityEvidence).toEqual([
     expect.objectContaining({ capability: "classify:shirt-number" }),
@@ -732,6 +771,9 @@ test("shirt-number providers need their own measured threshold", async () => {
 });
 
 test("provider evidence CLI creates and verifies a private immutable artifact", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
   const evidenceService = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
   ));
@@ -741,9 +783,14 @@ test("provider evidence CLI creates and verifies a private immutable artifact", 
   const evidencePath = path.join(directory, "evidence.json");
   const command = path.join(rootDir, "scripts/fs-player-tracking-provider-evidence.mjs");
   const manifest = provider("classification", ["classify:team"]);
+  const report = bindProviderRunEvidence(
+    evidenceService,
+    contract.normalizeTrackingProviderManifest(manifest),
+    multiObjectReport(),
+  );
   try {
     await fs.writeFile(manifestPath, JSON.stringify(manifest));
-    await fs.writeFile(reportPath, JSON.stringify(multiObjectReport()));
+    await fs.writeFile(reportPath, JSON.stringify(report));
     const created = await execFileAsync(process.execPath, [
       command,
       "--manifest", manifestPath,

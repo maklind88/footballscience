@@ -78,7 +78,9 @@ test("packaged provider activates only for an exact verified install marker", as
       engineName: "sam2.1-hiera-tiny",
       displayName: "Football Science SAM 2.1 Object Tracker",
       engineVersion: "1.1.0",
+      providerExecutionFingerprintSha256: runtime.sam2ProviderExecutionFingerprintSha256(paths.manifest),
     });
+    expect(runtime.sam2ProviderExecutionFingerprintSha256(paths.manifest)).toMatch(/^[a-f0-9]{64}$/);
     await fs.writeFile(paths.marker, JSON.stringify({
       schemaVersion: 1,
       providerId: paths.manifest.providerId,

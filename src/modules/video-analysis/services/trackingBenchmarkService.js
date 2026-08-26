@@ -12,6 +12,7 @@ import {
   benchmarkSerializedBytes,
   normalizeBenchmarkFingerprint,
   normalizeBenchmarkFrame,
+  normalizeBenchmarkProviderRunEvidence,
   normalizeBenchmarkRange,
   normalizeBenchmarkTrack,
   trackingClassificationAccuracy,
@@ -147,7 +148,8 @@ function metricSummary(samples, truth, prediction, range, frame, performance = {
   const durationMinutes = range.durationMs / 60_000;
   const processingMs = performance.processingMs === undefined
     ? null
-    : Math.max(0, benchmarkFinite(performance.processingMs, "processing time"));
+    : benchmarkFinite(performance.processingMs, "processing time");
+  if (processingMs !== null && processingMs <= 0) benchmarkInvalid("Processing time must be positive.");
   return {
     visibleGroundTruthSamples: samples.length,
     matchedSamples: matched.length,
@@ -238,6 +240,12 @@ export function evaluateTrackingBenchmarkSuite(value = {}) {
   assertBenchmarkMetadataOnly(value);
   if (Number(value.version) !== TRACKING_BENCHMARK_SCHEMA_VERSION) benchmarkInvalid("Unsupported benchmark suite version.");
   const suiteId = benchmarkBoundedString(value.id, "benchmark suite id", 120);
+  const providerRunEvidence = value.providerRunEvidence
+    ? normalizeBenchmarkProviderRunEvidence(value.providerRunEvidence)
+    : null;
+  if (providerRunEvidence && providerRunEvidence.provider.stage !== "segmentation") {
+    benchmarkInvalid("Selected-object provider evidence requires a segmentation provider.");
+  }
   const cases = Array.isArray(value.cases) ? value.cases : [];
   if (!cases.length || cases.length > 100) benchmarkInvalid("Benchmark suite must contain 1-100 cases.");
   const reports = cases.map(evaluateTrackingBenchmarkCase);
@@ -253,6 +261,7 @@ export function evaluateTrackingBenchmarkSuite(value = {}) {
     evaluatorVersion: TRACKING_BENCHMARK_EVALUATOR_VERSION,
     benchmarkType: "selected-object-suite",
     suiteId,
+    ...(providerRunEvidence ? { providerRunEvidence } : {}),
     summary: {
       passed: failedCaseIds.length === 0,
       caseCount: reports.length,

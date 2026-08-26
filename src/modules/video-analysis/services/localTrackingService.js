@@ -58,7 +58,17 @@ async function pollTrackingJob(statusUrl, sessionToken, options = {}) {
     if (!response.ok) throw new Error(payload.error || "Could not read the local tracking job.");
     const job = payload.job || {};
     options.onProgress?.(normalizeLocalTrackingJobProgress(job));
-    if (job.status === "succeeded") return job.result || {};
+    if (job.status === "succeeded") {
+      const startedAt = Date.parse(job.startedAt);
+      const completedAt = Date.parse(job.completedAt);
+      const processingMs = Number.isFinite(startedAt) && Number.isFinite(completedAt)
+        ? Math.max(0, completedAt - startedAt)
+        : null;
+      return {
+        ...(job.result || {}),
+        ...(processingMs !== null ? { processingMs } : {}),
+      };
+    }
     if (["failed", "cancelled"].includes(job.status)) throw new Error(job.error || "Local tracking did not complete.");
     await delay(450, win);
   }
@@ -93,8 +103,13 @@ export async function inspectLocalTrackingProvider(win = window) {
       status: available ? "ready" : "not-installed",
       available,
       batchAvailable: available && (payload.capabilities || []).includes("track-objects"),
+      id: String(provider.engineName || ""),
       name: String(provider.displayName || provider.engineName || "Football Science SAM 2.1 Object Tracker"),
       version: String(provider.engineVersion || ""),
+      protocol: String(provider.providerContractProtocol || "football-science-tracking-stage-v1"),
+      stage: "segmentation",
+      capabilities: ["segment:selected-object", "propagate:selected-object"],
+      executionFingerprintSha256: String(provider.providerExecutionFingerprintSha256 || ""),
       source: String(provider.source || "none"),
       maxDurationMs: Math.max(1000, Math.min(20 * 60 * 1000, Number(payload.limits?.maxTrackingDurationMs) || 120_000)),
       maxObjectsPerJob: Math.max(1, Math.min(8, Number(payload.limits?.maxTrackingObjectsPerJob) || 1)),
@@ -152,6 +167,7 @@ function normalizedLocalTrack(artifact = {}, prompt = {}, result = {}, options =
       localArtifactExpiresAt: result.expiresAt,
       localSourceArtifactId: result.sourceArtifactId || requestedSourceId,
       localSourceSha256: result.sourceSha256 || "",
+      providerProcessingMs: Math.max(0, Number(result.processingMs) || 0),
       angleId: String(prompt.angleId || ""),
     },
   });

@@ -26,7 +26,13 @@ Every future pipeline stage returns `football-science-tracking-stage-result-v1` 
 - team and shirt classification may return only capability-approved labels and confidence for known player trajectories; it cannot assign a Football Science player identity or classify a ball/referee
 - segmentation reuses the existing bounded selected-object track validator
 
-Candidate outputs can pass this structural boundary for benchmark evaluation, but normal activation uses the stricter activated boundary and fails closed unless the exact provider manifest, original report, and reproducible evidence artifact all pass readiness.
+Candidate outputs can pass this structural boundary for benchmark evaluation, but normal activation uses the stricter activated boundary and fails closed unless the exact provider manifest, original report, raw-run evidence, and reproducible evidence artifact all pass readiness.
+
+## Raw Run Evidence Boundary
+
+FS Player snapshots normalized provider output immediately after local inference and before persistence, merge, identity correction, continuity repair, or any other analyst edit. Every `football-science-tracking-provider-run-v1` artifact records the exact provider id, version, contract protocol, stage, capability set and shared execution fingerprint over upstream commit/source, model hashes and packaged runtime, plus source SHA-256, angle, frame, range, positive measured processing time, and automatic trajectory output. Corrected points or correction records are rejected. The execution fingerprint is deliberately separate from the broader reviewed-manifest fingerprint that also binds provenance, licence policy and runtime limits.
+
+Provider runs remain separate from ground truth until the local assembler validates both suites and binds their SHA-256 hashes and exact used run ids into `football-science-tracking-provider-run-evidence-v1`. Provider approval carries those hashes and the run-id set hash into the reviewed manifest. A report made from another provider build, video, range, frame, or post-correction output therefore cannot approve the installed engine.
 
 ## Independent Reference Evaluator
 

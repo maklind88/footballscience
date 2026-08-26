@@ -11,7 +11,9 @@ The benchmark is local-first and provider-neutral. It evaluates normalized metad
 - The analyst's local match video remains on the device.
 - A benchmark case references that source only by a SHA-256 fingerprint.
 - Human-reviewed ground-truth points are the benchmark truth for the selected time range.
-- Provider output is the prediction under test.
+- The provider run captured before any analyst correction is the prediction under test.
+- Ground truth and provider runs are exported as separate immutable artifacts. Their validated SHA-256 hashes are bound into the assembled benchmark and final provider evidence.
+- Ground truth and raw runs remain in the local FS Player workspace and are excluded from the centrally saved presentation payload. Per-item, total-run, and serialized-byte budgets fail visibly before local memory can grow without bound.
 - The generated report contains metrics, thresholds, failed gates, and bounded worst-sample timestamps, but no track arrays or media references.
 
 ## Selected-Object Metrics
@@ -54,6 +56,7 @@ Run one case or a suite locally:
 ```bash
 npm run fs-player:tracking:benchmark -- --input /absolute/local/benchmark.json
 npm run fs-player:tracking:benchmark -- --input /absolute/local/suite.json --output /absolute/local/report.json --json
+npm run fs-player:tracking:assemble -- --ground-truth /absolute/local/ground-truth-suite.json --runs /absolute/local/provider-runs.json --output /absolute/local/benchmark.json
 npm run fs-player:tracking:smoke -- --json
 npm run fs-player:tracking:smoke -- --batch --json --progress
 npm run fs-player:tracking:trackeval:plan
@@ -70,9 +73,9 @@ The engine smoke command is a separate operational check. It creates a one-secon
 
 ## Provider Approval Evidence
 
-A provider manifest cannot self-assert benchmark approval. FS Player creates a separate `football-science-tracking-provider-evidence-v1` artifact from the exact metadata-only benchmark report. Creation requires every case to pass, at least ten attested real-match minutes, one profile across the suite, and capability-specific metrics. Detection, association, and re-identification additionally require verified TrackEval metrics and exact internal/reference cross-validation.
+A provider manifest cannot self-assert benchmark approval. FS Player creates a separate `football-science-tracking-provider-evidence-v1` artifact from the exact metadata-only benchmark report. Creation requires every case to pass, at least ten attested real-match minutes, one profile across the suite, capability-specific metrics, and valid `football-science-tracking-provider-run-evidence-v1` data from the assembler. Detection, association, and re-identification additionally require verified TrackEval metrics and exact internal/reference cross-validation.
 
-The evidence binds the provider id/version, stage, capabilities, upstream source commit and checksum, every model checksum, model card and training-dataset provenance, runtime limits, benchmark report, source set, and review date. Learned providers must identify every training/finetuning dataset with version, source and terms, and record separate reviews for usage rights. Re-identification and shirt-number providers additionally require an explicit identity-use review. Runtime readiness requires the evidence artifact and original report, regenerates the evidence, and rejects any changed model, source, dataset record, capability, threshold, metric, report, or manifest benchmark field.
+The evidence binds the provider id/version, protocol, stage, capabilities, exact execution fingerprint, full reviewed manifest fingerprint, upstream source commit and checksum, every model checksum, model card and training-dataset provenance, runtime limits, benchmark report, source set, ground-truth suite checksum, provider-run suite checksum, exact run-id set, and review date. The execution fingerprint answers exactly what code/model/runtime ran; the separate manifest fingerprint also binds licence, provenance, policy and resource limits. Learned providers must identify every training/finetuning dataset with version, source and terms, and record separate reviews for usage rights. Re-identification and shirt-number providers additionally require an explicit identity-use review. Runtime readiness requires the evidence artifact and original report, regenerates the evidence, and rejects any changed model, source, dataset record, capability, threshold, metric, raw-run reference, report, or manifest benchmark field.
 
 Capabilities are approved independently and the approval layer enforces policy floors even when a benchmark input supplies weaker overrides. Player, ball, and referee detection have separate precision and recall gates. Association uses continuity, HOTA and AssA. Player re-identification uses internal and TrackEval IDF1. Team classification has its own accuracy gate. Shirt-number accuracy is measured separately and its threshold is deliberately inactive unless that capability is being evaluated, so missing or unreadable shirt numbers cannot be disguised by player identity accuracy.
 
@@ -110,18 +113,20 @@ The user only needs to reconnect the source in FS Player or provide its absolute
 
 FS Player now creates the reference through the tracking sidebar:
 
-1. Track and correct players, the ball, and at least one referee across the benchmark range.
-2. Assign player identity and team side, then verify every reference track with no annotation gap above 500 ms. Locked trajectories are deterministically reduced to that cadence while preserving manual corrections and occlusion transitions.
-3. Add the verified tracks to `Benchmark reference`, refresh the exact source/frame evidence, and classify the football scenarios in the range.
-4. Attest the frame-by-frame review and lock the reference. The locked artifact is added to the local real-match suite automatically.
-5. Repeat with at least five reviewed ranges until the suite contains ten unique minutes and covers transition, crowded-box, occlusion, camera-motion/cut, set-piece, and compact-unit scenarios.
-6. Download individual immutable `football-science-ground-truth-v1` artifacts when needed, then export the completed `football-science-ground-truth-suite-v1` JSON for local benchmark custody.
+1. Run the provider before manual corrections. FS Player captures the normalized automatic output, exact provider fingerprint, source/range/frame, and measured positive processing time as an immutable `football-science-tracking-provider-run-v1` snapshot.
+2. Track and correct every visible player, the ball, and referees across the benchmark range. Brief appearances use their declared visible segment rather than being forced to span the whole range.
+3. Assign player identity and team side, then verify every reference track with no annotation gap above 500 ms and at least 80% review coverage of each declared visible span. Locked trajectories are deterministically reduced to that cadence while preserving manual corrections and occlusion transitions.
+4. Add the verified tracks to `Benchmark reference`, choose one included player as the selected-object benchmark target, refresh the exact source/frame evidence, and classify the football scenarios in the range.
+5. Separately attest that every visible player, ball, and referee is included and that the selected tracks were reviewed frame by frame. Both attestations reset after any relevant track or source/range change.
+6. Lock the reference. The locked artifact is added to the local real-match suite automatically.
+7. Repeat with at least five reviewed ranges until the suite contains ten unique minutes and covers transition, crowded-box, occlusion, camera-motion/cut, set-piece, and compact-unit scenarios.
+8. Export the immutable `football-science-ground-truth-suite-v1` and `football-science-tracking-provider-run-suite-v1` files. Assemble them with `fs-player:tracking:assemble`; any missing/duplicate target, source/range/frame mismatch, changed provider build, corrected provider point, non-positive processing time, malformed input, or checksum mismatch fails closed.
 
 Locking creates a new revisioned snapshot. Later edits to live tracks do not mutate the locked reference. The artifact contains reviewed normalized trajectories, source fingerprint, frame/range, object identity, and bounded analyst evidence. Provider metadata, confidence values, correction authors, local paths, URLs, video, frames, and binary data are removed. Ground truth is not written through the central tracking repository.
 
 The suite treats time as unique only within each exact source fingerprint and camera angle. Overlapping ranges are merged before duration is counted, and relocking the same source, angle, and range replaces that case instead of inflating the evidence. Readiness is fail-closed when a case is malformed, sparse, unattested, missing required entities, below five cases, below ten unique minutes, or missing a required football scenario. Twenty unique minutes remains the recommended pilot ceiling rather than an approval shortcut.
 
-Each locked artifact can be combined locally with its matching provider prediction to form a `multi-object` benchmark case. The exported suite can then be transformed into one provider benchmark suite and evaluated with the internal diagnostic plus `--trackeval`; a missing provider run for any reference case fails the build. Until this workflow has produced a representative reviewed suite from real matches, synthetic fixtures prove evaluator correctness but do not prove elite football performance.
+The assembler matches artifacts only by exact source fingerprint, camera angle, time range, and frame. Segmentation evaluates exactly the selected player target and requires one matching raw prediction. Multi-object stages combine disjoint runs for the same case and reject duplicate track ids. The resulting metadata-only benchmark carries both input checksums and the exact used run ids through evaluation and provider approval. Until this workflow has produced a representative reviewed suite from real matches, synthetic fixtures prove evaluator correctness but do not prove elite football performance.
 
 ## Provider Boundary
 

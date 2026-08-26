@@ -36,7 +36,8 @@ async function openTrackingWorkspace(page) {
   await expect(page.locator(".video-analysis-tracking-provider")).toContainText("SAM 2.1");
   await expect(page.locator(".video-analysis-ground-truth")).toBeVisible();
   await expect(page.locator('[data-video-analysis-tracking-field="groundTruthScenario"]')).toHaveCount(7);
-  await expect(page.locator('[data-video-analysis-tracking-field="groundTruthSceneComplete"]')).toBeVisible();
+  await expect(page.locator('[data-video-analysis-tracking-field="groundTruthSceneComplete"]')).toHaveCount(0);
+  await expect(page.locator('[data-video-analysis-ground-truth-benchmark-type="selected-object"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".video-analysis-benchmark-suite")).toContainText("Real-match suite");
   await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-runs-download"]')).toBeDisabled();
 }
@@ -986,7 +987,8 @@ test("tracking controls and overlays stay contained on mobile", async ({ page },
   await openTrackingWorkspace(page);
   await createTrackedHighlight(page);
   await page.locator('[data-video-analysis-tracking-action="ground-truth-toggle"]').click();
-  await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-target"]')).toHaveText("Benchmark target");
+  await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-toggle"]')).toHaveText("Remove target");
+  await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-target"]')).toHaveCount(0);
   const geometry = await page.locator(".video-analysis-drawing-builder").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {

@@ -264,6 +264,151 @@ test("ground-truth readiness fails closed until exact source, entities, verifica
   expect(groundTruth.groundTruthReadiness(brieflyVisibleBall)).toMatchObject({ ready: true });
 });
 
+test("selected-object ground truth locks exactly one reviewed target without full-scene attestation", async () => {
+  const groundTruth = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingGroundTruthService.js",
+  ));
+  const player = objectTrack("selected-player", "player", { x: 0.22 });
+  const input = reviewedInput({
+    benchmarkType: "selected-object",
+    tracks: [
+      player,
+      objectTrack("unselected-ball", "ball", { x: 0.5 }),
+      objectTrack("unselected-referee", "referee", { x: 0.72 }),
+    ],
+    selectedTrackIds: [player.id],
+    benchmarkTargetTrackId: player.id,
+    exhaustiveSceneAttested: false,
+    scenarioTags: ["transition"],
+  });
+  expect(groundTruth.groundTruthReadiness(input)).toMatchObject({
+    ready: true,
+    benchmarkType: "selected-object",
+    selectedTrackCount: 1,
+    verifiedTrackCount: 1,
+    entityCounts: { player: 1, ball: 0, referee: 0 },
+  });
+  const artifact = groundTruth.createGroundTruthArtifact(input, { now: () => 1_800_000_000_000 });
+  expect(artifact).toMatchObject({
+    profileId: "selected-player-pilot-v1",
+    reviewEvidence: {
+      benchmarkType: "selected-object",
+      exhaustiveSceneAttested: false,
+      selectedTrackCount: 1,
+      selectedObjectTargetTrackId: player.id,
+      entityCounts: { player: 1, ball: 0, referee: 0 },
+    },
+  });
+  expect(artifact.groundTruth.tracks.map((track) => track.id)).toEqual([player.id]);
+  const selectedCase = groundTruth.buildSelectedObjectCaseFromGroundTruth(artifact, {
+    predictionTrack: { ...player, corrections: [] },
+    performance: { processingMs: 400, device: "cpu" },
+  });
+  expect(selectedCase).toMatchObject({
+    profileId: "selected-player-pilot-v1",
+    groundTruth: { track: { id: player.id } },
+    performance: { processingMs: 400, device: "cpu" },
+  });
+  expect(() => groundTruth.buildMultiObjectCaseFromGroundTruth(artifact, {
+    predictionTracks: [{ ...player, corrections: [] }],
+  })).toThrow(/full-scene ground truth/i);
+
+  const forged = structuredClone(artifact);
+  forged.reviewEvidence.selectedTrackCount = 2;
+  expect(() => groundTruth.validateGroundTruthArtifact(forged)).toThrow(/does not match/i);
+  const extraTrack = structuredClone(artifact);
+  extraTrack.groundTruth.tracks.push({
+    ...extraTrack.groundTruth.tracks[0],
+    id: "unexpected-player",
+    playerId: "unexpected-player",
+  });
+  expect(() => groundTruth.validateGroundTruthArtifact(extraTrack)).toThrow(/exactly one target player/i);
+  const falseClaim = structuredClone(artifact);
+  falseClaim.reviewEvidence.exhaustiveSceneAttested = true;
+  expect(() => groundTruth.validateGroundTruthArtifact(falseClaim)).toThrow(/invalid/i);
+});
+
+test("selected-object controller uses one player target and locks its evidence profile", async () => {
+  const { createTrackingGroundTruthController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingGroundTruthController.js",
+  ));
+  const { renderTrackingGroundTruthPanel } = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingGroundTruthPanel.js",
+  ));
+  const player = objectTrack("selected-player", "player", { x: 0.2 });
+  const ball = objectTrack("ball", "ball", { x: 0.5 });
+  player.metadata = { localSourceSha256: sourceFingerprint, angleId: "angle-1" };
+  const item = { id: "selected-item", startMs: 0, endMs: 1000, objectTracks: [player, ball] };
+  let state = {
+    presentation: {
+      current: { sections: [{ id: "section-1", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        selectedTrackIds: [player.id],
+        groundTruth: {
+          byItemId: {},
+          suite: {
+            id: "real-match-pilot",
+            revision: 1,
+            status: "draft",
+            benchmarkType: "selected-object",
+            cases: [],
+          },
+        },
+        providerRuns: { byItemId: {} },
+      },
+    },
+    mediaProduction: {
+      activeAngleId: "angle-1",
+      angles: [{ id: "angle-1", primary: true }],
+      proxy: { byAngleId: {} },
+    },
+  };
+  const controller = createTrackingGroundTruthController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getVideoElement: () => ({ videoWidth: 1920, videoHeight: 1080 }),
+    getReviewer: () => "analyst-1",
+    now: () => 1_800_000_000_000,
+  });
+  expect(controller.handleAction("ground-truth-suite-mode", {
+    dataset: { videoAnalysisGroundTruthBenchmarkType: "multi-object" },
+  })).toBe(true);
+  expect(state.presentation.tracking.groundTruth.suite.benchmarkType).toBe("multi-object");
+  expect(controller.handleAction("ground-truth-suite-mode", {
+    dataset: { videoAnalysisGroundTruthBenchmarkType: "selected-object" },
+  })).toBe(true);
+
+  state.presentation.tracking.selectedTrackIds = [ball.id];
+  expect(controller.handleAction("ground-truth-toggle")).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].selectedTrackIds).toEqual([]);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].error).toMatch(/player track/i);
+  state.presentation.tracking.selectedTrackIds = [player.id];
+  expect(controller.handleAction("ground-truth-toggle")).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
+    benchmarkType: "selected-object",
+    selectedTrackIds: [player.id],
+    benchmarkTargetTrackId: player.id,
+  });
+  const draftHtml = renderTrackingGroundTruthPanel(state, item);
+  expect(draftHtml).toContain("Selected-object reference");
+  expect(draftHtml).toContain("Remove target");
+  expect(draftHtml).not.toContain("groundTruthSceneComplete");
+  expect(draftHtml).not.toContain('data-video-analysis-tracking-action="ground-truth-target"');
+  expect(controller.handleField("groundTruthSceneComplete", { checked: true })).toBe(false);
+  expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
+  expect(controller.handleAction("ground-truth-lock")).toBe(true);
+  const artifact = state.presentation.tracking.groundTruth.byItemId[item.id].lockedArtifact;
+  expect(artifact).toMatchObject({
+    profileId: "selected-player-pilot-v1",
+    reviewEvidence: { benchmarkType: "selected-object", selectedObjectTargetTrackId: player.id },
+  });
+  expect(artifact.groundTruth.tracks.map((track) => track.id)).toEqual([player.id]);
+  expect(controller.handleAction("ground-truth-suite-mode", {
+    dataset: { videoAnalysisGroundTruthBenchmarkType: "multi-object" },
+  })).toBe(false);
+});
+
 test("locked real-match references are immutable, media-free and benchmark-ready", async () => {
   const groundTruth = await import(moduleUrl(
     "src/modules/video-analysis/services/trackingGroundTruthService.js",

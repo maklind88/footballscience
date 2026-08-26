@@ -67,6 +67,10 @@
   padding-block: 7px;
 }
 
+.video-analysis-ground-truth__entities.is-selected-object {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .video-analysis-ground-truth__entities > span {
   display: grid;
   gap: 1px;

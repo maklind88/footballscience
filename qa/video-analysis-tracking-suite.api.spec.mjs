@@ -62,9 +62,14 @@ async function groundTruthArtifact(index, scenarios, overrides = {}) {
     reviewedTrack("ball", `ball-${index}`, startMs, endMs, sourceFingerprint, angleId, 0.2),
     reviewedTrack("referee", `referee-${index}`, startMs, endMs, sourceFingerprint, angleId, 0.4),
   ];
+  const benchmarkType = String(overrides.benchmarkType || "multi-object");
+  const selectedTracks = benchmarkType === "selected-object"
+    ? tracks.filter((track) => track.entityType === "player")
+    : tracks;
   return groundTruth.createGroundTruthArtifact({
+    benchmarkType,
     tracks,
-    selectedTrackIds: tracks.map((track) => track.id),
+    selectedTrackIds: selectedTracks.map((track) => track.id),
     benchmarkTargetTrackId: tracks.find((track) => track.entityType === "player")?.id || "",
     sourceFingerprint,
     angleId,
@@ -72,7 +77,7 @@ async function groundTruthArtifact(index, scenarios, overrides = {}) {
     range: { startMs, endMs },
     reviewedBy: "analyst-1",
     attested: true,
-    exhaustiveSceneAttested: true,
+    exhaustiveSceneAttested: benchmarkType === "multi-object",
     scenarioTags: scenarios,
   }, { now: () => 1_800_000_000_000 + index });
 }
@@ -131,8 +136,32 @@ async function readySuite() {
   return { service, suite };
 }
 
+async function readySelectedObjectSuite() {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingGroundTruthSuiteService.js",
+  ));
+  const scenarioGroups = [
+    ["transition"],
+    ["crowded-box"],
+    ["occlusion"],
+    ["camera-motion"],
+    ["set-piece", "compact-unit", "difficult-visuals"],
+  ];
+  let suite = service.trackingGroundTruthSuiteEntry({
+    suite: { benchmarkType: "selected-object" },
+  });
+  for (let index = 0; index < scenarioGroups.length; index += 1) {
+    suite = service.addGroundTruthSuiteCase(suite, await groundTruthArtifact(index, scenarioGroups[index], {
+      benchmarkType: "selected-object",
+    }));
+  }
+  return { service, suite };
+}
+
 async function readyWorkflowState(stage = "segmentation") {
-  const { suite } = await readySuite();
+  const { suite } = stage === "segmentation"
+    ? await readySelectedObjectSuite()
+    : await readySuite();
   const runService = await import(moduleUrl(
     "src/modules/video-analysis/services/trackingProviderRunService.js",
   ));
@@ -242,6 +271,30 @@ test("real-match suite counts unique time, scenarios and produces a benchmark-re
     realMatchCaseCount: 5,
     realMatchDurationMs: 600_000,
   });
+});
+
+test("selected-object suite keeps a distinct evidence profile and rejects full-scene mixing", async () => {
+  const { service, suite } = await readySelectedObjectSuite();
+  expect(service.groundTruthSuiteReadiness(suite)).toMatchObject({
+    ready: true,
+    benchmarkType: "selected-object",
+    profileId: "selected-player-pilot-v1",
+    caseCount: 5,
+    uniqueDurationMs: 600_000,
+  });
+  const artifact = service.createGroundTruthSuiteArtifact(suite, { now: () => 1_800_000_010_000 });
+  expect(artifact).toMatchObject({
+    profileId: "selected-player-pilot-v1",
+    summary: { benchmarkType: "selected-object", caseCount: 5 },
+  });
+  expect(artifact.cases.every((entry) => entry.groundTruth.tracks.length === 1)).toBe(true);
+  expect(() => service.buildMultiObjectSuiteFromGroundTruthSuite(artifact, {})).toThrow(/full-scene/i);
+  const fullScene = await groundTruthArtifact(6, ["transition"]);
+  expect(() => service.addGroundTruthSuiteCase(suite, fullScene)).toThrow(/cannot mix/i);
+
+  const mixed = structuredClone(artifact);
+  mixed.cases[0] = await groundTruthArtifact(8, ["transition"]);
+  expect(() => service.validateGroundTruthSuiteArtifact(mixed)).toThrow(/does not match|mix/i);
 });
 
 test("provider run snapshots raw automatic output before analyst correction", async () => {
@@ -427,11 +480,24 @@ test("local benchmark workspace is versioned, bounded and tenant scoped", async 
   expect(workspace).toMatchObject({
     protocol: "football-science-tracking-benchmark-workspace-v1",
     scope: { organizationId: "org-1", teamId: "team-1", userId: "analyst-1", sourceType: "match" },
-    groundTruth: { suite: { error: "", cases: [expect.objectContaining({ id: artifact.id })] } },
+    groundTruth: {
+      byItemId: { "item-1": { benchmarkType: "multi-object" } },
+      suite: { benchmarkType: "multi-object", error: "", cases: [expect.objectContaining({ id: artifact.id })] },
+    },
     providerRuns: { error: "", byItemId: { "item-1": [expect.objectContaining({ id: run.id })] } },
   });
   expect(Object.isFrozen(workspace.groundTruth.byItemId["item-1"].lockedArtifact)).toBe(true);
   expect(workspaceService.validateTrackingBenchmarkWorkspaceArtifact(workspace)).toEqual(workspace);
+  expect(workspaceService.emptyTrackingBenchmarkWorkspaceContent()).toMatchObject({
+    groundTruth: { suite: { benchmarkType: "selected-object", cases: [] } },
+  });
+  const forgedWorkspace = structuredClone(workspace);
+  forgedWorkspace.groundTruth.suite.benchmarkType = "selected-object";
+  expect(() => workspaceService.validateTrackingBenchmarkWorkspaceArtifact(forgedWorkspace)).toThrow(/cannot mix/i);
+  const forgedDraftType = structuredClone(workspace);
+  forgedDraftType.groundTruth.byItemId["item-1"].benchmarkType = "selected-object";
+  expect(workspaceService.validateTrackingBenchmarkWorkspaceArtifact(forgedDraftType)
+    .groundTruth.byItemId["item-1"].benchmarkType).toBe("multi-object");
   expect(await workspaceService.trackingBenchmarkWorkspaceContentFingerprint({
     ...workspace,
     benchmarkStorage: { status: "saving", error: "ignored" },
@@ -783,6 +849,10 @@ test("benchmark workflow binds exact suites and rejects a modified selected-obje
     now: () => 1_800_000_100_000,
   });
   expect(prepared).toMatchObject({
+    groundTruthSuite: {
+      profileId: "selected-player-pilot-v1",
+      summary: { benchmarkType: "selected-object" },
+    },
     groundTruthSuiteSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     providerRunSuiteSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     sourceSignature: expect.stringMatching(/^[a-f0-9]{64}$/),
@@ -1026,4 +1096,5 @@ test("suite panel exposes progress, scenario state and reversible case removal",
   expect(html).toMatch(/ground-truth-suite-download"(?! disabled)/);
   expect(html).toContain("data-video-analysis-ground-truth-case-id");
   expect(html).toContain("is-covered");
+  expect(html).toMatch(/data-video-analysis-ground-truth-benchmark-type="multi-object"[^>]*aria-pressed="true"[^>]*disabled/);
 });

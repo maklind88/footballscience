@@ -55,6 +55,31 @@
   background: #dcf1e4;
 }
 
+.video-analysis-benchmark-suite__mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid #c9d3d8;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.video-analysis-benchmark-suite .video-analysis-benchmark-suite__mode button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.video-analysis-benchmark-suite .video-analysis-benchmark-suite__mode button + button {
+  border-left: 1px solid #c9d3d8;
+}
+
+.video-analysis-benchmark-suite .video-analysis-benchmark-suite__mode button.is-selected {
+  color: #ffffff;
+  background: #315f77;
+}
+
 .video-analysis-benchmark-suite__progress {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

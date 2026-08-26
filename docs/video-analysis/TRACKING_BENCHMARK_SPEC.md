@@ -61,9 +61,16 @@ The initial reference gates are explicit and versioned: HOTA 0.65, DetA 0.75, As
 
 The packaged reference is pinned to TrackEval commit `12c8791b303e0a0b50f753af204249e622d0281a`, source SHA-256 `435f0e6d865918332155f8104a98a04d50c2c3de5b985b96c8a71a0f5b62a0ac`, and the MIT licence. Installation creates an isolated Python environment and evaluation performs no network requests.
 
-## Initial Profile
+## Evidence Profiles
 
-`selected-player-pilot-v1` is an explicit, calibratable starting gate for a single prompted player. It is not presented as a universal industry standard. Threshold changes require a versioned profile or explicit case override so historical reports remain reproducible.
+FS Player separates two scientific questions instead of forcing one annotation protocol onto every provider:
+
+- `selected-player-pilot-v1` measures one explicitly prompted and frame-reviewed player for segmentation and propagation providers such as SAM 2.1. The locked reference contains exactly that player. Ball, referee, and exhaustive-scene attestation are neither requested nor claimed.
+- `football-scene-pilot-v1` measures every visible player, ball, and referee for detection, association, re-identification, and classification providers. It retains the exhaustive-scene attestation and pinned TrackEval requirement.
+
+A suite declares one benchmark type before evidence is collected. Every locked case must match it, the type and profile are included in immutable case and suite evidence, and the mode is locked once cases or raw provider runs exist. Mixed suites and attempts to send selected-object evidence through the full-scene evaluator fail closed. A new local workspace starts in selected-object mode because that matches the installed SAM provider; imported legacy evidence without an explicit type remains full-scene for backward compatibility.
+
+Both profiles are explicit, calibratable pilot gates rather than universal industry standards. Threshold changes require a versioned profile or explicit case override so historical reports remain reproducible.
 
 Run one case or a suite locally:
 
@@ -143,17 +150,17 @@ The user only needs to reconnect the source in FS Player or provide its absolute
 FS Player now creates the reference through the tracking sidebar:
 
 1. Run the provider before manual corrections. FS Player captures the normalized automatic output, exact provider fingerprint, source/range/frame, and measured positive processing time as an immutable `football-science-tracking-provider-run-v1` snapshot.
-2. Track and correct every visible player, the ball, and referees across the benchmark range. Brief appearances use their declared visible segment rather than being forced to span the whole range.
-3. Assign player identity and team side, then verify every reference track with no annotation gap above 500 ms and at least 80% review coverage of each declared visible span. Locked trajectories are deterministically reduced to that cadence while preserving manual corrections and occlusion transitions.
-4. Add the verified tracks to `Benchmark reference`, choose one included player as the selected-object benchmark target, refresh the exact source/frame evidence, and classify the football scenarios in the range.
-5. Separately attest that every visible player, ball, and referee is included and that the selected tracks were reviewed frame by frame. Both attestations reset after any relevant track or source/range change.
+2. Choose `Selected object` for one prompted-player propagation or `Full scene` for detection, association, re-identification, and classification evidence. The mode cannot change after the suite contains a case or raw run.
+3. In selected-object mode, track and correct exactly the prompted player. In full-scene mode, track and correct every visible player, ball, and referee; brief appearances use their declared visible span rather than being forced across the full range.
+4. Assign the required player and team identity, then verify every reference track with no annotation gap above 500 ms and at least 80% review coverage. Locked trajectories are deterministically reduced to that cadence while preserving manual corrections and occlusion transitions.
+5. Add the reference, refresh exact source/frame evidence, and classify the scenarios. Selected-object mode automatically makes the included player the benchmark target and requires only frame-by-frame target review. Full-scene mode additionally requires an exhaustive-scene attestation and one included player target.
 6. Lock the reference. The locked artifact is added to the local real-match suite automatically.
 7. Repeat with at least five reviewed ranges until the suite contains ten unique minutes and covers transition, crowded-box, occlusion, camera-motion/cut, set-piece, and compact-unit scenarios.
 8. Run the benchmark directly in the suite panel and export the immutable `football-science-tracking-benchmark-evidence-set-v1`. Any missing/duplicate target, source/range/frame mismatch, changed provider build, corrected provider point, non-positive processing time, malformed input, TrackEval drift, or checksum mismatch fails closed. Separate suite exports and `fs-player:tracking:assemble` remain available for independent audit.
 
 Locking creates a new revisioned snapshot. Later edits to live tracks do not mutate the locked reference. The artifact contains reviewed normalized trajectories, source fingerprint, frame/range, object identity, and bounded analyst evidence. Provider metadata, confidence values, correction authors, local paths, URLs, video, frames, and binary data are removed. Ground truth is not written through the central tracking repository.
 
-The suite treats time as unique only within each exact source fingerprint and camera angle. Overlapping ranges are merged before duration is counted, and relocking the same source, angle, and range replaces that case instead of inflating the evidence. Readiness is fail-closed when a case is malformed, sparse, unattested, missing required entities, below five cases, below ten unique minutes, or missing a required football scenario. Twenty unique minutes remains the recommended pilot ceiling rather than an approval shortcut.
+The suite treats time as unique only within each exact source fingerprint and camera angle. Overlapping ranges are merged before duration is counted, and relocking the same source, angle, and range replaces that case instead of inflating the evidence. Readiness is fail-closed when a case is malformed, sparse, unattested, profile-mismatched, missing the entities required by its profile, below five cases, below ten unique minutes, or missing a required football scenario. Twenty unique minutes remains the recommended pilot ceiling rather than an approval shortcut.
 
 The assembler matches artifacts only by exact source fingerprint, camera angle, time range, and frame. Segmentation evaluates exactly the selected player target and requires one matching raw prediction. Multi-object stages combine disjoint runs for the same case and reject duplicate track ids. The resulting metadata-only benchmark carries both input checksums and the exact used run ids through evaluation and provider approval. Until this workflow has produced a representative reviewed suite from real matches, synthetic fixtures prove evaluator correctness but do not prove elite football performance.
 

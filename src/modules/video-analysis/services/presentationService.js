@@ -95,6 +95,7 @@ export function createInitialPresentationWorkspace() {
           id: "real-match-pilot",
           revision: 1,
           status: "draft",
+          benchmarkType: "selected-object",
           cases: [],
           downloadedAt: "",
           error: "",

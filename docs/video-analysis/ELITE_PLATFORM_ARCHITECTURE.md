@@ -70,6 +70,7 @@ Large tracking arrays must not be copied into one unbounded JSON column. The act
 - Long ranges run as bounded, overlapping continuation jobs. `Complete range` chains them automatically with cumulative progress and cancellation, while each continuation reuses the retained source only inside the same secure local session, reconnects from a real endpoint sample, preserves the original player and track ID, and fails closed when the seam breaks identity continuity or time coverage stops growing.
 - The tracking sidebar checks the companion capability before enabling automatic tracking and distinguishes ready, provider-not-installed, and companion-offline states. Manual keyframes remain available without pretending that automatic inference ran.
 - Real-match benchmark evaluation is an in-product local job. Exact ground-truth and raw-run artifacts are checksum-bound before dispatch; selected-object reports are recomputed independently, multi-object reports require pinned TrackEval identity and cross-validation, changed inputs invalidate an in-flight result, and only an explicit metadata/trajectory evidence-set download leaves application memory.
+- Benchmark ground truth is capability-scoped. Selected-object suites contain exactly one prompted player and never claim scene completeness; full-scene suites retain every player/ball/referee requirement and exhaustive attestation. Suite type is persisted, immutable after evidence exists, and mixed-profile assembly fails closed.
 
 ### Pitch Calibration And Spatial Analysis
 

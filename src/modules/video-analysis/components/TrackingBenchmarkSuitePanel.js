@@ -8,6 +8,10 @@ import {
   trackingProviderRunWorkspaceEntry,
   trackingProviderRunsForProvider,
 } from "../services/trackingProviderRunService.js";
+import {
+  TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
+  TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT,
+} from "../services/trackingGroundTruthService.js";
 import { trackingBenchmarkWorkflowReadiness } from "../services/trackingBenchmarkWorkflowService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
@@ -129,6 +133,8 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
   const cases = suite.cases.slice().reverse().slice(0, 5);
   const providerRuns = trackingProviderRunWorkspaceEntry(tracking.providerRuns);
   const benchmarkStorage = tracking.benchmarkStorage || {};
+  const modeLocked = suite.cases.length > 0
+    || Object.values(providerRuns.byItemId || {}).some((runs) => runs.length > 0);
   let providerRunCount = 0;
   let providerRunError = "";
   try {
@@ -148,6 +154,10 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
         </div>
         <em class="${readiness.ready ? "is-ready" : ""}">${escapeHtml(minutes(readiness.uniqueDurationMs))}</em>
       </header>
+      <div class="video-analysis-benchmark-suite__mode" role="group" aria-label="Benchmark evidence profile">
+        <button type="button" class="${suite.benchmarkType === TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT ? "is-selected" : ""}" data-video-analysis-tracking-action="ground-truth-suite-mode" data-video-analysis-ground-truth-benchmark-type="${TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT}" aria-pressed="${suite.benchmarkType === TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT}" ${modeLocked ? "disabled" : ""}>Selected object</button>
+        <button type="button" class="${suite.benchmarkType === TRACKING_BENCHMARK_TYPE_MULTI_OBJECT ? "is-selected" : ""}" data-video-analysis-tracking-action="ground-truth-suite-mode" data-video-analysis-ground-truth-benchmark-type="${TRACKING_BENCHMARK_TYPE_MULTI_OBJECT}" aria-pressed="${suite.benchmarkType === TRACKING_BENCHMARK_TYPE_MULTI_OBJECT}" ${modeLocked ? "disabled" : ""}>Full scene</button>
+      </div>
       <div class="video-analysis-benchmark-suite__progress">
         <progress max="${TRACKING_GROUND_TRUTH_SUITE_MIN_DURATION_MS}" value="${Math.min(readiness.uniqueDurationMs, TRACKING_GROUND_TRUTH_SUITE_MIN_DURATION_MS)}"></progress>
         <span>${escapeHtml(`${minutes(readiness.uniqueDurationMs)} unique / 10.0 min`)}</span>

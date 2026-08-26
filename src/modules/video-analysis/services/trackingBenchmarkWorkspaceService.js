@@ -9,7 +9,10 @@ import {
   trackingGroundTruthSuiteEntry,
 } from "./trackingGroundTruthSuiteService.js";
 import {
+  TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT,
   TRACKING_GROUND_TRUTH_MAX_RANGE_MS,
+  normalizeTrackingGroundTruthBenchmarkType,
+  trackingGroundTruthArtifactBenchmarkType,
   validateGroundTruthArtifact,
 } from "./trackingGroundTruthService.js";
 import {
@@ -106,6 +109,9 @@ function safeDraft(value = {}, itemId = "") {
     itemId: identifier(itemId || value.itemId, "benchmark item id"),
     status,
     revision: positiveInteger(value.revision || 1, "benchmark draft revision", 1_000_000),
+    benchmarkType: lockedArtifact
+      ? trackingGroundTruthArtifactBenchmarkType(lockedArtifact)
+      : normalizeTrackingGroundTruthBenchmarkType(value.benchmarkType),
     selectedTrackIds: uniqueIds(value.selectedTrackIds || [], "selected track id"),
     benchmarkTargetTrackId: identifier(value.benchmarkTargetTrackId, "benchmark target track id", true),
     scenarioTags: normalizeTrackingBenchmarkScenarios(value.scenarioTags),
@@ -136,6 +142,9 @@ function safeGroundTruthWorkspace(value = {}) {
   const cases = suite.cases.map((artifact) => {
     const safe = validateGroundTruthArtifact(artifact);
     if (caseIds.has(safe.id)) invalid("Ground-truth suite case ids must be unique.");
+    if (trackingGroundTruthArtifactBenchmarkType(safe) !== suite.benchmarkType) {
+      invalid("Ground-truth suite cannot mix selected-object and full-scene references.");
+    }
     caseIds.add(safe.id);
     return safe;
   });
@@ -145,6 +154,7 @@ function safeGroundTruthWorkspace(value = {}) {
       id: identifier(suite.id, "ground-truth suite id"),
       revision: positiveInteger(suite.revision, "ground-truth suite revision", 1_000_000),
       status: suite.status === "exported" ? "exported" : "draft",
+      benchmarkType: suite.benchmarkType,
       cases,
       downloadedAt: optionalIso(suite.downloadedAt, "ground-truth suite download time"),
       error: "",
@@ -222,6 +232,7 @@ export function emptyTrackingBenchmarkWorkspaceContent() {
         id: "real-match-pilot",
         revision: 1,
         status: "draft",
+        benchmarkType: TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT,
         cases: [],
         downloadedAt: "",
         error: "",

@@ -5,10 +5,14 @@ import {
   benchmarkSerializedBytes,
 } from "./trackingBenchmarkContract.js";
 import {
+  TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
+  TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT,
   TRACKING_GROUND_TRUTH_MAX_RANGE_MS,
-  TRACKING_GROUND_TRUTH_PROFILE,
   TrackingGroundTruthError,
   buildMultiObjectCaseFromGroundTruth,
+  normalizeTrackingGroundTruthBenchmarkType,
+  trackingGroundTruthArtifactBenchmarkType,
+  trackingGroundTruthProfileForType,
   validateGroundTruthArtifact,
 } from "./trackingGroundTruthService.js";
 import {
@@ -40,11 +44,17 @@ function issue(code, message, caseId = "") {
 
 export function trackingGroundTruthSuiteEntry(workspace = {}) {
   const suite = workspace.suite && typeof workspace.suite === "object" ? workspace.suite : {};
+  const cases = Array.isArray(suite.cases) ? suite.cases.slice(0, 100) : [];
+  const benchmarkType = normalizeTrackingGroundTruthBenchmarkType(
+    suite.benchmarkType,
+    suite.profileId || cases[0]?.profileId,
+  );
   return {
     id: String(suite.id || "real-match-pilot"),
     revision: Math.max(1, Math.round(Number(suite.revision) || 1)),
     status: String(suite.status || "draft"),
-    cases: Array.isArray(suite.cases) ? suite.cases.slice(0, 100) : [],
+    benchmarkType,
+    cases,
     downloadedAt: String(suite.downloadedAt || ""),
     error: String(suite.error || ""),
   };
@@ -59,11 +69,15 @@ function artifactKey(artifact = {}) {
   ].join(":");
 }
 
-function validateSuiteCase(artifact = {}) {
+function validateSuiteCase(artifact = {}, expectedBenchmarkType = "") {
   if (!artifact.id) {
     throw new TrackingGroundTruthError("Benchmark suite contains an invalid ground-truth case.");
   }
   validateGroundTruthArtifact(artifact);
+  const benchmarkType = trackingGroundTruthArtifactBenchmarkType(artifact);
+  if (expectedBenchmarkType && benchmarkType !== expectedBenchmarkType) {
+    throw new TrackingGroundTruthError("Benchmark suite cannot mix selected-object and full-scene references.");
+  }
   const durationMs = Number(artifact.range?.endMs) - Number(artifact.range?.startMs);
   if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > TRACKING_GROUND_TRUTH_MAX_RANGE_MS) {
     throw new TrackingGroundTruthError("Benchmark suite case range is invalid.");
@@ -79,7 +93,7 @@ function validateSuiteCase(artifact = {}) {
 
 export function addGroundTruthSuiteCase(suiteValue = {}, artifactValue = {}) {
   const suite = trackingGroundTruthSuiteEntry({ suite: suiteValue });
-  const artifact = validateSuiteCase(artifactValue);
+  const artifact = validateSuiteCase(artifactValue, suite.benchmarkType);
   const key = artifactKey(artifact);
   const cases = suite.cases.filter((entry) => artifactKey(entry) !== key);
   if (cases.length >= 100) throw new TrackingGroundTruthError("Benchmark suite cannot exceed 100 cases.");
@@ -135,7 +149,7 @@ export function groundTruthSuiteReadiness(suiteValue = {}) {
   const ids = new Set();
   for (const artifact of suite.cases) {
     try {
-      validateSuiteCase(artifact);
+      validateSuiteCase(artifact, suite.benchmarkType);
       if (ids.has(artifact.id)) issues.push(issue("duplicate-case", "Benchmark case ids must be unique.", artifact.id));
       else validCases.push(artifact);
       ids.add(artifact.id);
@@ -159,6 +173,8 @@ export function groundTruthSuiteReadiness(suiteValue = {}) {
   return {
     ready: issues.length === 0,
     issues,
+    benchmarkType: suite.benchmarkType,
+    profileId: trackingGroundTruthProfileForType(suite.benchmarkType),
     caseCount: validCases.length,
     sourceCount,
     scenarioIds: [...scenarioIds],
@@ -181,9 +197,10 @@ export function createGroundTruthSuiteArtifact(suiteValue = {}, options = {}) {
     version: TRACKING_BENCHMARK_SCHEMA_VERSION,
     protocol: TRACKING_GROUND_TRUTH_SUITE_PROTOCOL,
     id: `${suite.id}-r${suite.revision}`,
-    profileId: TRACKING_GROUND_TRUTH_PROFILE,
+    profileId: readiness.profileId,
     createdAt: new Date(options.now?.() ?? Date.now()).toISOString(),
     summary: {
+      benchmarkType: readiness.benchmarkType,
       caseCount: readiness.caseCount,
       sourceCount: readiness.sourceCount,
       uniqueDurationMs: readiness.uniqueDurationMs,
@@ -211,9 +228,19 @@ function sameScenarioSet(values = [], expected = []) {
 }
 
 export function validateGroundTruthSuiteArtifact(artifact = {}) {
+  const summaryBenchmarkType = artifact.summary?.benchmarkType;
+  if (summaryBenchmarkType && ![
+    TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT,
+    TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
+  ].includes(summaryBenchmarkType)) {
+    throw new TrackingGroundTruthError("The ground-truth suite benchmark type is invalid.");
+  }
+  const benchmarkType = normalizeTrackingGroundTruthBenchmarkType(summaryBenchmarkType, artifact.profileId);
   if (artifact.protocol !== TRACKING_GROUND_TRUTH_SUITE_PROTOCOL
     || Number(artifact.version) !== TRACKING_BENCHMARK_SCHEMA_VERSION
-    || artifact.profileId !== TRACKING_GROUND_TRUTH_PROFILE
+    || artifact.profileId !== trackingGroundTruthProfileForType(benchmarkType)
+    || (benchmarkType === TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT
+      && summaryBenchmarkType !== TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT)
     || typeof artifact.id !== "string"
     || !artifact.id.trim()
     || artifact.id.length > 160
@@ -227,9 +254,10 @@ export function validateGroundTruthSuiteArtifact(artifact = {}) {
     throw new TrackingGroundTruthError("The ground-truth suite is too large.", "TRACKING_GROUND_TRUTH_SUITE_LIMIT");
   }
   assertBenchmarkMetadataOnly(artifact);
-  const readiness = groundTruthSuiteReadiness({ cases: artifact.cases });
+  const readiness = groundTruthSuiteReadiness({ benchmarkType, cases: artifact.cases });
   const summary = artifact.summary || {};
   if (!readiness.ready
+    || (summary.benchmarkType && summary.benchmarkType !== readiness.benchmarkType)
     || summary.caseCount !== readiness.caseCount
     || summary.sourceCount !== readiness.sourceCount
     || summary.uniqueDurationMs !== readiness.uniqueDurationMs
@@ -250,6 +278,10 @@ export function groundTruthSuiteArtifactJson(artifactValue = {}) {
 
 export function buildMultiObjectSuiteFromGroundTruthSuite(artifactValue = {}, runsByCaseId = {}, options = {}) {
   const artifact = validateGroundTruthSuiteArtifact(artifactValue);
+  if (normalizeTrackingGroundTruthBenchmarkType(artifact.summary?.benchmarkType, artifact.profileId)
+    !== TRACKING_BENCHMARK_TYPE_MULTI_OBJECT) {
+    throw new TrackingGroundTruthError("TrackEval requires a full-scene ground-truth suite.");
+  }
   const runFor = (caseId) => runsByCaseId instanceof Map ? runsByCaseId.get(caseId) : runsByCaseId[caseId];
   const cases = artifact.cases.map((groundTruth) => {
     const run = runFor(groundTruth.id);

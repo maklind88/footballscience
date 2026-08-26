@@ -1,8 +1,0 @@
-{
-  "name": "footballscience-leaderboard-release-vercel-cli",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "vercel": "53.2.0"
-  }
-}

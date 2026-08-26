@@ -5,8 +5,7 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 const secretNames = Object.freeze(["GITHUB_TOKEN", "VERCEL_TOKEN", "VERCEL_ORG_ID", "VERCEL_PROJECT_ID", "CRON_SECRET", "LIVE_QA_USERNAME", "LIVE_QA_PASSWORD", "LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD", "STAGING_QA_USERNAME", "STAGING_QA_PASSWORD"]);
 export function invariant(condition, message) { if (!condition) throw new Error(message); }
-export function sha256(value) { return crypto.createHash("sha256").update(value).digest("hex"); }
-const readonlyRequestLabels = new Set(["login", "client-config", "identity", "leaderboard", "anonymous-leaderboard", "anonymous-dispose"]);
+export function sha256(value) { return crypto.createHash("sha256").update(value).digest("hex"); } const readonlyRequestLabels = new Set(["login", "client-config", "identity", "leaderboard", "anonymous-leaderboard", "anonymous-dispose"]);
 export async function sanitizedApiRequest(label, execute) {
   invariant(readonlyRequestLabels.has(label) && typeof execute === "function", "Read-only API request label was not allowlisted.");
   try { return await execute(); } catch { throw new Error(`Leaderboard read-only request failed: ${label}.`); }
@@ -204,10 +203,11 @@ export async function fetchJson(url, { token = "", method = "GET", body, label =
   }
   return payload;
 }
-export async function fetchBytes(url, { token = "", label = "request" } = {}) {
+export async function fetchBytes(url, { token = "", label = "request", redirect = "follow" } = {}) {
+  invariant(["error", "follow", "manual"].includes(redirect), "Unsupported fetch redirect policy.");
   const response = await fetch(url, {
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    redirect: "follow",
+    redirect,
     signal: AbortSignal.timeout(20_000),
   });
   const bytes = Buffer.from(await response.arrayBuffer());

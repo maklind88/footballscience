@@ -14,14 +14,19 @@
     ".github/workflows/leaderboard-production-code-release.yml",
     "package.json",
     "qa/leaderboard-production-code-release.api.spec.mjs",
+    "qa/leaderboard-production-files-manifest.api.spec.mjs",
     "qa/leaderboard-production-readonly.live.spec.mjs",
     "qa/leaderboard-production-readonly.playwright.config.mjs",
+    "qa/leaderboard-production-vercel-files.api.spec.mjs",
     "scripts/leaderboard-production-code-release.mjs",
     "scripts/leaderboard-production-release-baseline.json",
     "scripts/lib/leaderboard-production-release-evidence.mjs",
     "scripts/lib/leaderboard-production-release-security.mjs",
-    "scripts/release-tools/vercel-cli/package-lock.json",
-    "scripts/release-tools/vercel-cli/package.json"
+    "scripts/lib/leaderboard-production-source-manifest.mjs",
+    "scripts/lib/leaderboard-production-vercel-deployments.mjs",
+    "scripts/lib/leaderboard-production-vercel-files.mjs",
+    "scripts/lib/leaderboard-production-vercel-state.mjs",
+    "scripts/lib/leaderboard-production-vercel-transport.mjs"
   ],
   "actions": {
     "checkout": "3d3c42e5aac5ba805825da76410c181273ba90b1",
@@ -82,12 +87,75 @@
     "projectName": "footballscience",
     "nodeVersion": "24.15.0",
     "containerImage": "mcr.microsoft.com/playwright:v1.59.1-noble@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53",
-    "cliVersion": "53.2.0",
-    "cliIntegrity": "sha512-r4fzI7LSnzhYn2L4acMHmRk1V6WgfjFFzaei0AgG0bd2b17HF9HeRoP9BxJD/yvYmjLIfYIoGTd0CWlIGg3rUg==",
-    "cliShasum": "3ccbc7fc82bd31951c8e4cb7875355476ec06542",
-    "cliLockSha256": "cf2cda833a248212b371cb3324c8784722a8ad986be0bf7894c9872d47b4e080",
-    "cliEntrySha256": "24a660d5013c2066a2637431519bda38a3c71c60a65566d86121362f27696576",
-    "cliBundleSha256": "480fde7092a80bb2b1f1596086d475ef8c623eaca2b64e7077a598188c48545c",
+    "filesApi": {
+      "origin": "https://api.vercel.com",
+      "project": {
+        "repoId": "1231879845",
+        "rootDirectory": null,
+        "commandForIgnoringBuildStep": null,
+        "candidateConfig": {
+          "file": "vercel.json",
+          "size": 1814,
+          "sha256": "341f61a369f0cd584d7a11aa0945e81605d0c064bc11603a8abc06f65b32d574",
+          "gitBlob": "6da4a55db7b42bb38ab409039f9ae9ebd50131c2",
+          "ignoreCommand": "node scripts/vercel-ignore-build.mjs"
+        },
+        "productionRequiresAutoAssignCustomDomains": false
+      },
+      "source": {
+        "schema": "footballscience-leaderboard-vercel-source-manifest-v1",
+        "trackedCount": 1538,
+        "projectedCount": 1039,
+        "totalBytes": 33686765,
+        "uniqueUploadCount": 1038,
+        "uniqueUploadBytes": 33532921,
+        "ignoreSha256": "a43dcd7f0728f4a2c0be1c14f668e3a1119ea26afda9ea61ac5a59b6cb1df1e5",
+        "ignorePatterns": [
+          ".DS_Store",
+          ".env",
+          ".env.*",
+          ".github",
+          ".vercel",
+          "elite-principle-engine-research.md",
+          "possession-identity-model.md",
+          "principle-taxonomy.md",
+          "backups",
+          "node_modules",
+          "padelunited",
+          "playwright-report",
+          "qa",
+          "reference-copy.mp4",
+          "reference-video.mp4",
+          "supabase/.temp",
+          "test-results"
+        ],
+        "manifestSha256": "5a6f8f8f6bac6dc0263014d2da7474eea14906b6c871e5cbd6f5c818c5f15b7d",
+        "requestFilesSha256": "291c00107b9d17c93c830a78deb8ebd0f3fec82d3e261c432c6bf04549c40238",
+        "requestFilesBytes": 126674,
+        "largestFile": {
+          "file": "scouting-import-data.js",
+          "size": 16776671,
+          "contentResponseLimit": 22372992
+        },
+        "canary": {
+          "file": ".vercelignore",
+          "sha": "7a220ef268beccf101c8ce6aeabd33b3e187c5d1",
+          "size": 245,
+          "sha256": "a43dcd7f0728f4a2c0be1c14f668e3a1119ea26afda9ea61ac5a59b6cb1df1e5",
+          "gitBlob": "2a85340d5e0252ecb165b823dee97561cbf75f6e"
+        }
+      },
+      "preview": {
+        "supabaseRef": "pokrksgempkuraueglpu",
+        "createTarget": null,
+        "releaseLane": "leaderboard-files-preview-c1"
+      },
+      "production": {
+        "enabled": false,
+        "requiredReadySubstate": "STAGED",
+        "releaseLane": "leaderboard-files-production-c1"
+      }
+    },
     "stagingDeployment": {
       "id": "dpl_FDBULqi5jGigvky6VoXPUqp7Ju86",
       "url": "footballscience-9felg5v3a-makattack.vercel.app",
@@ -154,10 +222,16 @@
   },
   "environments": {
     "plan": "leaderboard-production-code-release-plan",
-    "apply": "leaderboard-production-code-release-apply",
+    "previewApply": "leaderboard-production-code-release-apply",
     "reviewer": "maklind88",
     "reviewerId": 279889782,
-    "requiredExternalSecretCount": 0
+    "externalOwnerAdminPredispatchAudit": {
+      "authority": "owner-admin-read-only",
+      "environmentSecrets": 0,
+      "environmentVariables": 0,
+      "runtimeVerified": false,
+      "status": "required-fresh-before-dispatch"
+    }
   },
-  "confirmationPrefix": "DEPLOY_LEADERBOARD_CODE_C1_"
+  "confirmationPrefix": "PROVE_LEADERBOARD_FILES_PREVIEW_C1_"
 }

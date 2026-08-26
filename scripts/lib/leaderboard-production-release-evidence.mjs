@@ -120,12 +120,13 @@ function hasCoveredActiveTeam(identity) {
 }
 export async function assertCredentialHealth(input, fetcher = fetchJson) {
   const target = String(input.target || "");
-  invariant(target === "live" || target === "staging", "Credential proof target must be live or staging.");
+  invariant(target === "live" || target === "staging" || target === "preview", "Credential proof target must be live, staging, or preview.");
   const base = new URL(input.baseUrl);
-  const expectedHost = target === "staging" ? baseline.hosts.staging : baseline.hosts.production;
+  const expectedHost = target === "preview" ? String(input.expectedHost || "") : target === "staging" ? baseline.hosts.staging : baseline.hosts.production;
+  if (target === "preview") invariant(/^footballscience-[a-z0-9]+-makattack\.vercel\.app$/.test(expectedHost), "Preview credential proof host was not a generated deployment host.");
   invariant(base.href === `https://${expectedHost}/`, "Credential proof base URL did not match the exact expected origin.");
-  const expectedRef = target === "staging" ? baseline.supabase.stagingRef : baseline.supabase.productionRef;
-  const deniedRef = target === "staging" ? baseline.supabase.productionRef : baseline.supabase.stagingRef;
+  const expectedRef = target === "preview" ? String(input.expectedRef || "") : target === "staging" ? baseline.supabase.stagingRef : baseline.supabase.productionRef;
+  const deniedRef = target === "preview" ? String(input.deniedRef || "") : target === "staging" ? baseline.supabase.productionRef : baseline.supabase.stagingRef;
   const health = await fetcher(new URL("/api/auth-health", base).href, { label: `${target} auth health`, redirect: "error" });
   invariant(health.ok === true && health.service === "supabase-auth", `${target} auth health was not ready.`);
   const login = await fetcher(new URL("/api/client-config", base).href, {
@@ -195,7 +196,7 @@ export function assertEnvironmentRecord(environment, policies, expected) {
 export async function assertReleaseEnvironments(token) {
   const expected = [
     { name: baseline.environments.plan, id: process.env.EXPECTED_PLAN_ENVIRONMENT_ID },
-    { name: baseline.environments.apply, id: process.env.EXPECTED_APPLY_ENVIRONMENT_ID },
+    { name: baseline.environments.previewApply, id: process.env.EXPECTED_PREVIEW_APPLY_ENVIRONMENT_ID },
   ];
   const results = [];
   for (const item of expected) {
@@ -205,7 +206,8 @@ export async function assertReleaseEnvironments(token) {
     const policies = await github(`/environments/${encoded}/deployment-branch-policies?per_page=100&page=1`, token, `${item.name} branch policies`);
     results.push(assertEnvironmentRecord(environment, policies, item));
   }
-  return results;
+  const externalAudit = baseline.environments.externalOwnerAdminPredispatchAudit; invariant(canonicalJson(externalAudit) === canonicalJson({ authority: "owner-admin-read-only", environmentSecrets: 0, environmentVariables: 0, runtimeVerified: false, status: "required-fresh-before-dispatch" }), "External environment secret/variable audit policy drifted.");
+  return { records: results, runtimeScope: "ids-protection-policies-only", externalOwnerAdminAudit: externalAudit };
 }
 export async function assertGithubRace(token) {
   for (const [ref, sha] of [["main", process.env.GITHUB_SHA], ["staging", baseline.candidate.sha], [baseline.candidate.featureRef, baseline.candidate.sha]]) {
@@ -215,12 +217,10 @@ export async function assertGithubRace(token) {
   await assertNoOtherActions(token);
   return { freezes: assertFreezeAttestation(await assertFreezeRules(token)) };
 }
-
 export async function assertGithubEvidence(token) {
   const repo = await fetchJson(`https://api.github.com/repositories/${baseline.repository.id}`, { token, label: "repository identity", headers: githubHeaders });
   invariant(repo.full_name === baseline.repository.fullName && repo.default_branch === "main", "Repository id/name/default branch drifted.");
-  const { freezes } = await assertGithubRace(token);
-  const environments = await assertReleaseEnvironments(token);
+  const { freezes } = await assertGithubRace(token); const environments = await assertReleaseEnvironments(token);
   const codeqlExpected = { ...baseline.evidence.codeql, workflowId: baseline.workflows.codeql };
   const codeql = await github(`/actions/runs/${codeqlExpected.runId}`, token, "CodeQL evidence");
   assertRun(codeql, codeqlExpected, "CodeQL");

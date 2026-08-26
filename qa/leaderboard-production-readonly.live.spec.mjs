@@ -2,14 +2,14 @@ import { expect, request, test } from "@playwright/test";
 import { assertSupabaseUrl, sanitizedApiRequest } from "../scripts/lib/leaderboard-production-release-security.mjs";
 
 const liveBaseUrl = String(process.env.LIVE_QA_BASE_URL || "https://footballscience.xyz").trim();
-const expectedOrigin = "https://footballscience.xyz";
-const productionRef = String(process.env.SUPABASE_PROJECT_REF || "bustidorxevacosqhkcz").trim();
-const stagingRef = String(process.env.STAGING_SUPABASE_PROJECT_REF || "pokrksgempkuraueglpu").trim();
+const expectedOrigin = String(process.env.LEADERBOARD_READONLY_EXPECTED_ORIGIN || "https://footballscience.xyz").trim();
+const expectedRef = String(process.env.LEADERBOARD_READONLY_EXPECTED_SUPABASE_REF || "bustidorxevacosqhkcz").trim();
+const deniedRef = String(process.env.LEADERBOARD_READONLY_DENIED_SUPABASE_REF || "pokrksgempkuraueglpu").trim();
 const hasCredentials = Boolean(process.env.LIVE_QA_USERNAME && process.env.LIVE_QA_PASSWORD);
 
-if (new URL(liveBaseUrl).href !== `${expectedOrigin}/`) throw new Error("Leaderboard smoke base URL did not match the exact production origin.");
+if (new URL(liveBaseUrl).href !== `${expectedOrigin}/`) throw new Error("Leaderboard smoke base URL did not match the exact reviewed origin.");
 
-test.skip(!hasCredentials, "Protected production Leaderboard smoke requires live QA credentials.");
+test.skip(!hasCredentials, "Protected Leaderboard smoke requires reviewed QA credentials.");
 
 function teamIsCovered(identity, teamId) {
   const teams = Array.isArray(identity?.scope?.teams) ? identity.scope.teams : [];
@@ -67,7 +67,7 @@ async function authenticatePage(page) {
   await waitForReady(page);
 }
 
-test("production Leaderboard is authenticated, tenant-bound, empty, and read-only", async ({ page }) => {
+test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async ({ page }) => {
   let forbiddenMethodCount = 0;
   let crossOriginApiCount = 0;
   let apiFailureCount = 0;
@@ -105,7 +105,7 @@ test("production Leaderboard is authenticated, tenant-bound, empty, and read-onl
   const clientConfigResponse = await sanitizedApiRequest("client-config", () => page.request.get(`${expectedOrigin}/api/client-config`, { maxRedirects: 0 }));
   const clientConfig = await clientConfigResponse.json().catch(() => null);
   expect(clientConfigResponse.status()).toBe(200);
-  assertSupabaseUrl(clientConfig?.url, productionRef, stagingRef);
+  assertSupabaseUrl(clientConfig?.url, expectedRef, deniedRef);
 
   const identityResponse = await sanitizedApiRequest("identity", () => page.request.get(`${expectedOrigin}/api/platform-identity`, {
     headers: { Authorization: `Bearer ${token}` },

@@ -1,0 +1,461 @@
+/* Product-grade Scouting composition. Keeps data and interaction contracts intact. */
+#scoutingWorkspace {
+  --scout-product-blue: #eef5fc;
+  --scout-product-gold: #fbf6e8;
+  --scout-product-row: 58px;
+  --scout-product-ease: 140ms ease;
+  --scout-control-hover: #e9e9ec;
+}
+
+#scoutingWorkspace .scouting-shell {
+  align-content: start;
+}
+
+#scoutingWorkspace .scouting-hero {
+  min-height: 72px !important;
+  background: #173a2d !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+#scoutingWorkspace .scouting-hero h1 {
+  font-size: 26px !important;
+  font-weight: 700;
+}
+
+#scoutingWorkspace .scouting-command-bar {
+  min-height: 44px;
+}
+
+#scoutingWorkspace .scouting-tabs {
+  min-height: 44px;
+  padding: 3px;
+  background: var(--scout-control-hover);
+}
+
+#scoutingWorkspace .scouting-tab {
+  min-height: 36px;
+  padding-inline: 13px;
+}
+
+#scoutingWorkspace :where(button, summary) {
+  transition:
+    background-color var(--scout-product-ease),
+    border-color var(--scout-product-ease),
+    color var(--scout-product-ease),
+    box-shadow var(--scout-product-ease),
+    opacity var(--scout-product-ease);
+}
+
+#scoutingWorkspace :where(button, summary):active:not(:disabled) {
+  opacity: 0.76;
+}
+
+#scoutingWorkspace .scouting-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+#scoutingWorkspace .scouting-section-head > div {
+  min-width: 0;
+}
+
+#scoutingWorkspace .scouting-section-head h2 {
+  margin: 2px 0 0;
+  color: var(--scout-strong);
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+#scoutingWorkspace .scouting-section-head > span {
+  flex: 0 0 auto;
+  color: var(--scout-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Database: one toolbar, one table, no stacked-card chrome. */
+#scoutingWorkspace .scouting-database-toolbar {
+  overflow: visible;
+  border: 1px solid var(--scout-line);
+  border-radius: 8px;
+  background: var(--scout-panel);
+  box-shadow: var(--scout-shadow);
+}
+
+#scoutingWorkspace .scouting-database-toolbar .scouting-database-results-header,
+#scoutingWorkspace .scouting-database-toolbar .scouting-database-controls {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-database-toolbar .scouting-database-results-header {
+  min-height: 52px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--scout-line);
+}
+
+#scoutingWorkspace .scouting-database-toolbar .scouting-database-controls {
+  padding: 10px 12px 12px;
+}
+
+#scoutingWorkspace .scouting-database-results-actions,
+#scoutingWorkspace .scouting-database-paging {
+  gap: 8px;
+}
+
+#scoutingWorkspace .scouting-database-paging :where(button, input) {
+  min-height: 38px !important;
+}
+
+#scoutingWorkspace .scouting-saved-views-trigger {
+  min-height: 38px;
+}
+
+#scoutingWorkspace .scouting-record-table-head {
+  min-height: 36px;
+  padding-inline: 10px;
+}
+
+#scoutingWorkspace .scouting-record-head-cell {
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: none;
+}
+
+#scoutingWorkspace .scouting-record-card {
+  min-height: var(--scout-product-row);
+  padding: 7px 10px;
+}
+
+#scoutingWorkspace .scouting-record-card:focus-visible {
+  position: relative;
+  z-index: 2;
+  outline: 0;
+  box-shadow: inset 0 0 0 2px var(--scout-green);
+}
+
+#scoutingWorkspace .scouting-record-name-cell strong {
+  font-size: 14px;
+  font-weight: 680;
+}
+
+#scoutingWorkspace .scouting-record-table-cell,
+#scoutingWorkspace .scouting-record-card-meta-cell strong {
+  font-size: 12px;
+}
+
+#scoutingWorkspace .scouting-record-card-meta-cell span,
+#scoutingWorkspace .scouting-record-card-recommendation span {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+#scoutingWorkspace .scouting-record-card-recommendation-badge {
+  height: 26px;
+  border-radius: 7px;
+  font-weight: 650;
+}
+
+#scoutingWorkspace .scouting-record-mini-radar-popover {
+  pointer-events: none;
+}
+
+#scoutingWorkspace .scouting-database-results-footer {
+  padding-block: 4px 12px;
+}
+
+/* Tactical boards: restrained pitch materials and quieter placement cards. */
+#scoutingWorkspace :where(.scouting-shadow-pitch, .scouting-my-team-pitch) {
+  border: 1px solid rgba(18, 74, 52, 0.2);
+  background-color: #1e7557;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-pitch-toolbar {
+  min-height: 48px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(19, 56, 43, 0.94);
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-pitch-toolbar :where(label, span) {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: none;
+}
+
+#scoutingWorkspace .scouting-pitch-toolbar select {
+  min-height: 36px;
+  border-radius: 7px;
+}
+
+#scoutingWorkspace :where(.scouting-my-team-slot-card, .scouting-my-team-drop-card) {
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(8, 30, 21, 0.12);
+}
+
+#scoutingWorkspace .scouting-my-team-slot-card {
+  padding: 6px;
+}
+
+#scoutingWorkspace .scouting-my-team-slot-role {
+  min-width: 28px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+#scoutingWorkspace .scouting-my-team-slot-head small {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+#scoutingWorkspace .scouting-shadow-empty {
+  min-height: 42px;
+  border-radius: 7px;
+}
+
+#scoutingWorkspace .scouting-shadow-empty strong {
+  font-size: 11px;
+}
+
+#scoutingWorkspace .scouting-shadow-empty span {
+  font-size: 10px;
+}
+
+#scoutingWorkspace .scouting-my-team-add-to-slot {
+  min-height: 30px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: none;
+}
+
+#scoutingWorkspace :where(.scouting-shadow-side, .scouting-my-team-side) {
+  gap: 10px;
+}
+
+#scoutingWorkspace .scouting-shadow-card {
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-shadow-card-head p {
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: none;
+}
+
+/* Lists: compact collection management with useful empty states. */
+#scoutingWorkspace .scouting-lists-panel {
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--scout-line);
+  border-radius: 8px;
+  background: var(--scout-panel);
+  box-shadow: var(--scout-shadow);
+}
+
+#scoutingWorkspace .scouting-list-form {
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--scout-soft);
+}
+
+#scoutingWorkspace .scouting-list-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+#scoutingWorkspace .scouting-list-card,
+#scoutingWorkspace .scouting-list-card.is-featured {
+  min-height: 144px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--scout-panel);
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-list-card.is-featured {
+  border-color: rgba(36, 70, 54, 0.24);
+  background: #f4f8f5;
+}
+
+#scoutingWorkspace .scouting-list-card h2 {
+  margin: 2px 0 0;
+  font-size: 19px;
+}
+
+#scoutingWorkspace .scouting-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 54px;
+  color: var(--scout-muted);
+}
+
+#scoutingWorkspace .scouting-list-empty strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+#scoutingWorkspace .scouting-list-empty button {
+  min-height: 34px;
+  padding-inline: 10px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+/* Comparison: clear setup first, analysis only after selections exist. */
+#scoutingWorkspace .scouting-comparison-studio {
+  gap: 14px;
+  padding: 14px;
+}
+
+#scoutingWorkspace .scouting-comparison-head {
+  min-height: 46px;
+}
+
+#scoutingWorkspace .scouting-comparison-head h2 {
+  margin-top: 2px;
+  font-size: 21px;
+}
+
+#scoutingWorkspace .scouting-comparison-form {
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--scout-line);
+  background: var(--scout-soft);
+}
+
+#scoutingWorkspace .scouting-comparison-selected-grid {
+  gap: 8px !important;
+}
+
+#scoutingWorkspace .scouting-comparison-selected-player {
+  min-height: 66px !important;
+  padding: 10px !important;
+  border-radius: 8px !important;
+}
+
+#scoutingWorkspace .scouting-comparison-selected-player.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-style: dashed;
+  background: transparent;
+}
+
+#scoutingWorkspace .scouting-comparison-selected-player.is-empty span {
+  color: var(--scout-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#scoutingWorkspace .scouting-comparison-selected-player.is-empty strong {
+  color: var(--scout-ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+#scoutingWorkspace .scouting-comparison-summary {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--scout-soft);
+  color: var(--scout-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Reports: hierarchy through layout and tone, not more cards. */
+#scoutingWorkspace .scouting-reports-shell {
+  gap: 12px;
+}
+
+#scoutingWorkspace .scouting-reports-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+#scoutingWorkspace .scouting-reports-tools > * {
+  min-width: 0;
+}
+
+#scoutingWorkspace .scouting-next-actions {
+  padding: 12px;
+}
+
+#scoutingWorkspace .scouting-next-actions > article {
+  min-height: 104px;
+  padding: 12px;
+}
+
+#scoutingWorkspace .scouting-next-actions > article:nth-child(2) {
+  background: var(--scout-product-blue);
+}
+
+#scoutingWorkspace .scouting-next-actions > article:nth-child(3) {
+  background: var(--scout-product-gold);
+}
+
+#scoutingWorkspace .scouting-reports-list,
+#scoutingWorkspace :where(.scouting-role-models, .scouting-budget-board) {
+  padding: 14px;
+}
+
+#scoutingWorkspace .scouting-reports-list-head {
+  align-items: center;
+}
+
+#scoutingWorkspace .scouting-reports-list-head h2,
+#scoutingWorkspace .scouting-role-model-head h2,
+#scoutingWorkspace .scouting-budget-board h2 {
+  margin-block: 2px 0;
+  font-size: 20px;
+}
+
+#scoutingWorkspace .scouting-reports-list .scouting-target-card {
+  border-width: 1px 0 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-reports-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--scout-line);
+}
+
+#scoutingWorkspace .scouting-reports-empty strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+#scoutingWorkspace .scouting-reports-empty span {
+  color: var(--scout-muted);
+  font-size: 12px;
+  font-weight: 600;
+}

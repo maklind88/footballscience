@@ -13,10 +13,12 @@ export function renderScoutingReportsWorkspace(deps = {}) {
     <div class="scouting-reports-shell">
       ${renderSection("reports.next-action", () => deps.renderNextActionCenter(state, { includeRecommendations: false }))}
       ${renderSection("reports.panel", () => deps.renderReportsPanel())}
-      ${renderSection("reports.role-models", () => deps.renderRoleModelsPanel())}
-      ${renderSection("reports.targets", () =>
-        renderScoutingReportsLazyPanel(deps, "targets", "Funnel", "Pipeline board", "Load funnel", deps.renderTargetsPanel)
-      )}
+      <div class="scouting-reports-tools">
+        ${renderSection("reports.role-models", () => deps.renderRoleModelsPanel())}
+        ${renderSection("reports.targets", () =>
+          renderScoutingReportsLazyPanel(deps, "targets", "Funnel", "Pipeline board", "Load funnel", deps.renderTargetsPanel)
+        )}
+      </div>
       ${renderSection("reports.budget", () => deps.renderBudgetBoard(state))}
     </div>
   `;

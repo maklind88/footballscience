@@ -203,6 +203,8 @@ test("workspace module runtime owns lazy render handoff for extracted workspaces
   expect(calls.stylesheets).toContain("scouting-experience");
   expect(calls.stylesheets).toContain("scouting-experience-details");
   expect(calls.stylesheets).toContain("scouting-experience-responsive");
+  expect(calls.stylesheets).toContain("scouting-product");
+  expect(calls.stylesheets).toContain("scouting-product-responsive");
   expect(calls.stylesheets).toContain("scouting-theme");
   expect(calls.scoutingRender[0]).toMatchObject({ teamName: "First Team" });
 

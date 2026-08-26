@@ -292,6 +292,14 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
           id: "scoutingExperienceResponsiveStylesheet",
           required: true,
         }),
+        platformModuleLoader.loadStylesheet("scouting-product", "src/modules/scouting/scouting-product.css", {
+          id: "scoutingProductStylesheet",
+          required: true,
+        }),
+        platformModuleLoader.loadStylesheet("scouting-product-responsive", "src/modules/scouting/scouting-product-responsive.css", {
+          id: "scoutingProductResponsiveStylesheet",
+          required: true,
+        }),
         platformModuleLoader.loadStylesheet("scouting-theme", "src/modules/scouting/scouting-theme.css", {
           id: "scoutingThemeStylesheet",
           required: true,
@@ -300,7 +308,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
           import(`../../scouting-workspace.js?v=${encodeURIComponent(getAssetVersion())}`)
         ),
       ])
-        .then(([, , , , , module]) => {
+        .then(([, , , , , , , module]) => {
           scoutingWorkspaceModule = module;
           return module;
         })

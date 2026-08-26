@@ -8439,7 +8439,7 @@ function renderScoutingBudgetBoard(state = ensureScoutingState()) {
                   `
                 )
                 .join("")
-            : `<p class="scouting-muted">Add players to the pipeline and market file to build a budget board.</p>`
+            : `<p class="scouting-muted">No active pipeline costs.</p>`
         }
       </div>
     </section>
@@ -11669,7 +11669,7 @@ function renderScoutingRoleModelsPanel() {
         <div>
           <p class="placeholder-tag">Search blueprint</p>
           <h2>Role models</h2>
-          <p>Manage position baselines for My Team benchmarking and scouting database ranking.</p>
+          <p>${models.length ? `${escapeHtml(models.length)} active baseline${models.length === 1 ? "" : "s"}` : "No active baselines"}</p>
         </div>
         <div class="scouting-role-model-toolbar">
           <span>${escapeHtml(models.length)} models</span>
@@ -11802,7 +11802,7 @@ function renderScoutingReportsPanel() {
           <div>
             <p class="placeholder-tag">Reports hub</p>
             <h2>Saved reports</h2>
-            <p>Collect player reports, opposition notes, and recruitment decisions in one place.</p>
+            <p>${reports.length ? `${escapeHtml(reports.length)} saved report${reports.length === 1 ? "" : "s"}` : "No saved reports"}</p>
           </div>
           ${canEdit ? `<button type="button" class="scouting-primary-button" data-open-scouting-report-builder>Create report</button>` : ""}
         </div>
@@ -11835,7 +11835,7 @@ function renderScoutingReportsPanel() {
                     `;
                   })
                   .join("")
-              : `<p class="scouting-muted">Create a first scouting report from the funnel target list.</p>`
+              : `<div class="scouting-reports-empty"><strong>No reports yet</strong><span>0 saved</span></div>`
           }
         </div>
       </section>

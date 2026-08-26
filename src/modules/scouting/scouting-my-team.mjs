@@ -45,13 +45,13 @@ export function renderScoutingMyTeamWorkspace(deps = {}) {
                             })
                             .join("")}
                         </div>
-                        ${canEdit ? `<button type="button" class="scouting-my-team-add-to-slot" data-assign-scouting-my-team-slot="${deps.escapeHtml(slot.id)}">+ Add player</button>` : ""}
+                        ${canEdit ? `<button type="button" class="scouting-my-team-add-to-slot" data-assign-scouting-my-team-slot="${deps.escapeHtml(slot.id)}">Add player</button>` : ""}
                       </div>
                     `
                     : `
                       <button type="button" class="scouting-my-team-drop-card" data-assign-scouting-my-team-slot="${deps.escapeHtml(slot.id)}" aria-label="Drop squad player on ${deps.escapeHtml(slot.label)}">
                         <span>${deps.escapeHtml(slot.label)}</span>
-                        <strong>Drop player</strong>
+                        <strong>Add player</strong>
                       </button>
                     `
                 }

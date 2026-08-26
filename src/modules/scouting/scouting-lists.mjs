@@ -7,6 +7,13 @@ export function renderScoutingListsWorkspace(deps = {}) {
   const renderStoredPlayerButton = deps.renderStoredPlayerButton;
   return `
     <section class="scouting-lists-panel">
+      <header class="scouting-section-head">
+        <div>
+          <p class="placeholder-tag">Saved scouting</p>
+          <h2>Lists</h2>
+        </div>
+        <span>${lists.length + 1} ${lists.length ? "collections" : "collection"}</span>
+      </header>
       ${
         canEdit
           ? `
@@ -30,7 +37,7 @@ export function renderScoutingListsWorkspace(deps = {}) {
                     .slice(0, 16)
                     .map((recordId) => renderStoredPlayerButton(recordId, state, "position"))
                     .join("")
-                : `<p class="scouting-muted">Favorites become your master live watchlist.</p>`
+                : `<div class="scouting-list-empty"><strong>No favorite players</strong><button type="button" class="scouting-secondary-button" data-scouting-open-database>Open database</button></div>`
             }
           </div>
         </article>
@@ -64,7 +71,7 @@ export function renderScoutingListsWorkspace(deps = {}) {
                           .slice(0, 16)
                           .map((recordId) => renderStoredPlayerButton(recordId, state, "team"))
                           .join("")
-                      : `<p class="scouting-muted">Add players from a scouting profile.</p>`
+                      : `<div class="scouting-list-empty"><strong>No players saved</strong><button type="button" class="scouting-secondary-button" data-scouting-open-database>Open database</button></div>`
                   }
                 </div>
               </article>
@@ -78,6 +85,13 @@ export function renderScoutingListsWorkspace(deps = {}) {
 
 export function handleScoutingListsClick(event, deps = {}) {
   const target = event.target;
+  const openDatabaseTrigger = target.closest("[data-scouting-open-database]");
+  if (openDatabaseTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.setActiveTab?.("database");
+    return true;
+  }
   const deleteListTrigger = target.closest("[data-delete-scouting-list]");
   if (deleteListTrigger) {
     event.preventDefault();

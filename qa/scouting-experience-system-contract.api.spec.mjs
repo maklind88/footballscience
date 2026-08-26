@@ -58,3 +58,34 @@ test("Scouting mobile boards stack without absolute-position overlap", () => {
   expect(responsive).toContain("min-height: max-content;");
   expect(responsive).toContain("transform: none !important;");
 });
+
+test("Scouting product layer keeps premium surfaces restrained and mobile controls complete", () => {
+  const product = readProjectFile("src/modules/scouting/scouting-product.css");
+  const responsive = readProjectFile("src/modules/scouting/scouting-product-responsive.css");
+  const database = readProjectFile("src/modules/scouting/scouting-database.mjs");
+  const lists = readProjectFile("src/modules/scouting/scouting-lists.mjs");
+  const comparison = readProjectFile("src/modules/scouting/scouting-comparison.mjs");
+  const reports = readProjectFile("src/modules/scouting/scouting-reports.mjs");
+  const theme = readProjectFile("src/modules/scouting/scouting-theme.css");
+
+  expect(product).toContain(".scouting-database-toolbar");
+  expect(product).toContain(".scouting-reports-tools");
+  expect(product).toContain(".scouting-record-mini-radar-popover {\n  pointer-events: none;");
+  expect(product).not.toMatch(/linear-gradient|letter-spacing:\s*-/);
+  expect(responsive).toContain("grid-template-columns: repeat(2, minmax(0, 1fr)) !important;");
+  expect(responsive).toContain(
+    "#scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) {\n    grid-template-columns: repeat(2, minmax(0, 1fr));"
+  );
+  expect(responsive).toContain("#scoutingWorkspace .scouting-record-best-role {\n    width: calc(100% - 144px);");
+  expect(responsive).toContain("#scoutingWorkspace .scouting-record-card-recommendation {\n    grid-column: 1 / span 2;");
+  expect(responsive).toContain("#scoutingWorkspace .scouting-reports-list-head {\n    align-items: stretch;");
+  expect(responsive).toContain("grid-template-columns: repeat(4, minmax(0, 1fr));");
+  expect(responsive).toContain("background: var(--scout-panel) !important;");
+  expect(database).toContain('class="scouting-database-toolbar"');
+  expect(lists).toContain("data-scouting-open-database");
+  expect(comparison.match(/Add at least two players to begin\./g)).toHaveLength(2);
+  expect(reports).toContain('class="scouting-reports-tools"');
+  expect(theme).toContain(".scouting-radar-head,\n  .scouting-profile-spider-context,\n  .scouting-database-page-jump");
+  expect(theme).toContain(".scouting-role-model-toolbar > span");
+  expect(theme).toContain(".scouting-record-avatar-fallback");
+});

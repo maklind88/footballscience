@@ -72,14 +72,16 @@ export function renderScoutingDatabaseWorkspace(deps = {}) {
     <section class="scouting-database-panel">
       <div class="scouting-database-workbench">
         <main class="scouting-database-main">
-          <div class="scouting-database-results-header">
-            <div class="scouting-result-summary" data-scouting-result-summary role="status" aria-live="polite">${deps.escapeHtml(results.summary)}</div>
-            <div class="scouting-database-results-actions">
-              ${deps.renderSavedViewsButton()}
-              ${deps.renderDatabasePagingControls(results.paging)}
+          <section class="scouting-database-toolbar" aria-label="Player database controls">
+            <div class="scouting-database-results-header">
+              <div class="scouting-result-summary" data-scouting-result-summary role="status" aria-live="polite">${deps.escapeHtml(results.summary)}</div>
+              <div class="scouting-database-results-actions">
+                ${deps.renderSavedViewsButton()}
+                ${deps.renderDatabasePagingControls(results.paging)}
+              </div>
             </div>
-          </div>
-          ${deps.renderDatabaseControls()}
+            ${deps.renderDatabaseControls()}
+          </section>
           ${advancedPanelsMarkup}
           <div class="scouting-record-table">
             ${renderScoutingRecordListHeader()}

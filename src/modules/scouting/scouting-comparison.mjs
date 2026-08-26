@@ -306,14 +306,14 @@ export function renderScoutingComparisonWorkspace(deps = {}) {
   const comparisonCoveragePercent = Math.round((comparisonCoverageCount / comparisonCoverageTotal) * 100);
   const comparisonConclusion =
     canScoreCompare && comparisonRecommendation
-      ? `${getScoutingRecordName(comparisonRecommendation.record)} leder jämförelsen${Number.isFinite(comparisonScoreGap) ? ` med ${comparisonScoreGap} percentile-poäng` : ""}. ${
+      ? `${getScoutingRecordName(comparisonRecommendation.record)} leads the comparison${Number.isFinite(comparisonScoreGap) ? ` by ${comparisonScoreGap} percentile points` : ""}. ${
           comparisonRecommendation.bestSelectedMetric
-            ? `Starkaste datapunkten är ${comparisonRecommendation.bestSelectedMetric.metric.label} på P${comparisonRecommendation.bestSelectedMetric.percentile}.`
-            : "Datatäckningen är begränsad, så använd detta som en första indikation."
+            ? `Strongest data point: ${comparisonRecommendation.bestSelectedMetric.metric.label} at P${comparisonRecommendation.bestSelectedMetric.percentile}.`
+            : "Data coverage is limited, so treat this as an initial signal."
         }`
       : canCompare
-        ? "Välj metrics för att skapa en riktig jämförelse mellan spelarna."
-        : "Sök fram minst två spelare och välj metrics för att få vinnare, spider, tabell och slutsats.";
+        ? "Choose metrics to score the selected players."
+        : "Add at least two players to begin.";
   const canEdit = canEditScoutingWorkspace();
   const selectedSlotMarkup = [0, 1, 2, 3]
     .map((slotIndex) => {
@@ -332,8 +332,8 @@ export function renderScoutingComparisonWorkspace(deps = {}) {
         `
         : `
           <article class="scouting-comparison-selected-player is-empty">
-            <span>${escapeHtml(`Player ${slotIndex + 1}`)}</span>
-            <strong>Search and add</strong>
+            <span>${escapeHtml(`Slot ${slotIndex + 1}`)}</span>
+            <strong>Empty</strong>
           </article>
         `;
     })
@@ -452,7 +452,7 @@ export function renderScoutingComparisonWorkspace(deps = {}) {
         ${selectedSlotMarkup}
       </div>
       <p class="scouting-comparison-summary">
-        ${selectedMetricOptions.length ? `Metrics: ${escapeHtml(metricLabelText)}` : "Select metrics"} ${canScoreCompare && metricDelta ? `· ${metricDelta}` : "· Decision is based only on selected players and selected metrics"}
+        ${selectedMetricOptions.length ? `Metrics: ${escapeHtml(metricLabelText)}` : "No metrics selected"} ${canScoreCompare && metricDelta ? `· ${metricDelta}` : `· ${uniquePlayerIds.length}/4 players selected`}
       </p>
       ${
         canCompare
@@ -502,7 +502,7 @@ export function renderScoutingComparisonWorkspace(deps = {}) {
                   `;
                 })
                 .join("")
-            : `<p class="scouting-muted">Select two to four players, then choose the metrics you want to compare.</p>`
+            : `<p class="scouting-muted">Add at least two players to begin.</p>`
         }
       </div>
       ${

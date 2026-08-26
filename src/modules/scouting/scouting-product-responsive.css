@@ -1,0 +1,209 @@
+/* Responsive product composition for Scouting. */
+@media (max-width: 980px) {
+  #scoutingWorkspace .scouting-record-card {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    column-gap: 10px;
+    row-gap: 4px;
+    padding: 10px;
+  }
+
+  #scoutingWorkspace .scouting-record-avatar-shell {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  #scoutingWorkspace .scouting-record-name-cell {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  #scoutingWorkspace .scouting-record-position,
+  #scoutingWorkspace .scouting-record-club {
+    display: block;
+    grid-row: 2;
+    color: var(--scout-muted);
+    font-size: 11px;
+  }
+
+  #scoutingWorkspace .scouting-record-position {
+    grid-column: 2;
+    padding-right: 44%;
+  }
+
+  #scoutingWorkspace .scouting-record-club {
+    grid-column: 2;
+    padding-left: 34%;
+    text-align: right;
+  }
+
+  #scoutingWorkspace .scouting-record-best-role {
+    grid-column: 1 / span 2;
+    grid-row: 3;
+  }
+
+  #scoutingWorkspace .scouting-record-card-recommendation {
+    grid-column: 2;
+    grid-row: 3;
+    justify-self: end;
+    width: min(58%, 230px);
+  }
+
+  #scoutingWorkspace .scouting-record-actions {
+    grid-column: 3;
+    grid-row: 1 / span 3;
+    align-self: center;
+  }
+
+  #scoutingWorkspace .scouting-record-card-meta-cell > span,
+  #scoutingWorkspace .scouting-record-card-recommendation > span {
+    display: none;
+  }
+
+  #scoutingWorkspace .scouting-reports-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  #scoutingWorkspace .scouting-hero {
+    min-height: 68px !important;
+  }
+
+  #scoutingWorkspace .scouting-database-toolbar .scouting-database-results-header {
+    padding: 10px;
+  }
+
+  #scoutingWorkspace .scouting-database-results-footer {
+    display: none;
+  }
+
+  #scoutingWorkspace .scouting-database-page-jump {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  #scoutingWorkspace .scouting-database-paging {
+    gap: 6px;
+  }
+
+  #scoutingWorkspace .scouting-record-best-role {
+    width: calc(100% - 144px);
+  }
+
+  #scoutingWorkspace .scouting-record-best-role strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #scoutingWorkspace .scouting-record-card-recommendation {
+    grid-column: 1 / span 2;
+    width: 136px;
+  }
+
+  #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-color: var(--scout-line);
+    background: var(--scout-panel) !important;
+  }
+
+  #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) .scouting-pitch-toolbar {
+    grid-column: 1 / -1;
+  }
+
+  #scoutingWorkspace :where(.scouting-my-team-slot-pin, .scouting-shadow-slot-pin) {
+    display: none;
+  }
+
+  #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) .scouting-my-team-slot {
+    min-height: 52px;
+  }
+
+  #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) .scouting-shadow-slot {
+    align-self: stretch;
+  }
+
+  #scoutingWorkspace .scouting-my-team-drop-card {
+    min-height: 52px;
+    border: 1px dashed var(--scout-line-strong);
+    background: var(--scout-soft);
+    color: var(--scout-ink);
+  }
+
+  #scoutingWorkspace .scouting-shadow-empty {
+    min-height: 34px;
+    border: 0;
+    background: transparent;
+  }
+
+  #scoutingWorkspace .scouting-shadow-empty span {
+    display: none;
+  }
+
+  #scoutingWorkspace .scouting-list-form,
+  #scoutingWorkspace .scouting-section-head,
+  #scoutingWorkspace .scouting-list-empty {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #scoutingWorkspace .scouting-list-empty button {
+    width: 100%;
+  }
+
+  #scoutingWorkspace .scouting-reports-list-head {
+    align-items: stretch;
+    text-align: left;
+  }
+
+  #scoutingWorkspace .scouting-reports-list-head > button {
+    width: 100%;
+  }
+
+  #scoutingWorkspace .scouting-comparison-selected-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  #scoutingWorkspace .scouting-comparison-selected-player.is-empty {
+    min-height: 62px !important;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #scoutingWorkspace .scouting-profile-modal {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  #scoutingWorkspace .scouting-profile-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+    overflow: visible;
+  }
+
+  #scoutingWorkspace .scouting-profile-tabs button {
+    width: 100%;
+    min-width: 0;
+    min-height: 34px;
+    padding-inline: 3px;
+    font-size: 11px;
+  }
+
+  #scoutingWorkspace .scouting-profile-tab-panel {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #scoutingWorkspace *,
+  #scoutingWorkspace *::before,
+  #scoutingWorkspace *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

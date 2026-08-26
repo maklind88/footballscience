@@ -29,6 +29,8 @@ body.is-dark-mode #scoutingWorkspace {
   --scout-focus: var(--fs-focus-ring);
   --scout-shadow: var(--fs-shadow-soft);
   --scout-shadow-strong: var(--fs-shadow);
+  --scout-product-blue: rgba(70, 137, 194, 0.18);
+  --scout-product-gold: rgba(190, 149, 57, 0.16);
   color: var(--scout-ink);
 }
 
@@ -54,6 +56,7 @@ body.is-dark-mode #scoutingWorkspace .scouting-hero :where(p, span, small, .plac
 
 body.is-dark-mode #scoutingWorkspace :where(
   .scouting-command-bar,
+  .scouting-database-toolbar,
   .scouting-load-panel,
   .scouting-database-panel,
   .scouting-database-results-header,
@@ -149,6 +152,26 @@ body.is-dark-mode #scoutingWorkspace :where(
 }
 
 body.is-dark-mode #scoutingWorkspace :where(
+  .scouting-radar-head,
+  .scouting-profile-spider-context,
+  .scouting-database-page-jump
+) {
+  background: var(--scout-soft) !important;
+  border-color: var(--scout-line) !important;
+  color: var(--scout-ink) !important;
+  box-shadow: none !important;
+}
+
+body.is-dark-mode #scoutingWorkspace .scouting-record-avatar {
+  background: var(--scout-chip-bg) !important;
+  border-color: var(--scout-chip-line) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace .scouting-record-avatar-fallback {
+  color: var(--scout-strong) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(
   button,
   summary,
   .scouting-tab,
@@ -225,7 +248,9 @@ body.is-dark-mode #scoutingWorkspace :where(
   .scouting-workflow-meta span,
   .scouting-report-scoreline span,
   .scouting-squad-fit-metrics span,
-  .scouting-comparison-candidate-action
+  .scouting-comparison-candidate-action,
+  .scouting-role-model-toolbar > span,
+  .scouting-shadow-card-head > span
 ) {
   background: var(--scout-chip-bg) !important;
   border-color: var(--scout-chip-line) !important;

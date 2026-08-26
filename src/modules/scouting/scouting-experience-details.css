@@ -96,6 +96,96 @@
   grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
 }
 
+/* Compact identity chrome and stable profile navigation. */
+#scoutingWorkspace .scouting-profile-backdrop {
+  background: rgba(11, 18, 15, 0.5);
+  backdrop-filter: blur(18px);
+}
+
+#scoutingWorkspace .scouting-profile-modal {
+  width: min(1160px, 100%);
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--scout-panel);
+  box-shadow: 0 28px 80px rgba(10, 18, 14, 0.28);
+}
+
+#scoutingWorkspace .scouting-profile-top-actions .scouting-profile-nav {
+  border-radius: 8px;
+  background: var(--scout-soft);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+#scoutingWorkspace .scouting-profile-top-actions .scouting-profile-nav button {
+  border-radius: 6px;
+}
+
+#scoutingWorkspace .scouting-profile-close {
+  border-radius: 50%;
+  background: var(--scout-soft);
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-profile-close:hover,
+#scoutingWorkspace .scouting-profile-close:focus-visible {
+  background: var(--scout-control-hover);
+  box-shadow: 0 0 0 4px var(--scout-focus);
+  transform: none;
+}
+
+#scoutingWorkspace .scouting-profile-head {
+  min-height: 72px;
+}
+
+#scoutingWorkspace .scouting-profile-identity {
+  min-height: 68px;
+}
+
+#scoutingWorkspace .scouting-profile-identity h2 {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+#scoutingWorkspace .scouting-profile-identity-meta span,
+#scoutingWorkspace .scouting-profile-shadow-count {
+  min-height: 30px;
+  padding-inline: 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#scoutingWorkspace .scouting-profile-tabs-row {
+  min-height: 50px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--scout-control-hover);
+}
+
+#scoutingWorkspace .scouting-profile-tabs {
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#scoutingWorkspace .scouting-profile-tabs button {
+  min-height: 38px;
+  padding-inline: 12px;
+  border-radius: 6px;
+}
+
+#scoutingWorkspace .scouting-profile-action-menu > summary {
+  min-height: 38px;
+  border-radius: 7px;
+}
+
+#scoutingWorkspace :where(.scouting-profile-radar, .scouting-profile-metrics) {
+  padding: 14px;
+  border-radius: 8px;
+}
+
 /* Data imports keep destructive operations explicit and the long-running work legible. */
 #scoutingWorkspace :where(
   .scouting-import-panel,

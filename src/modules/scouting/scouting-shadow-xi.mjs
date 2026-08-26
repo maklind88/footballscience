@@ -55,10 +55,10 @@ export function renderScoutingShadowXiWorkspace(deps = {}) {
                               `;
                             })
                             .join("")
-                        : `<p class="scouting-shadow-empty"><strong>Drop target</strong><span>Drag a favorite or add from player profile.</span></p>`
+                        : `<p class="scouting-shadow-empty"><strong>Empty slot</strong><span>Drag a favorite or add from player profile.</span></p>`
                     }
                   </div>
-                  <button type="button" class="scouting-my-team-add-to-slot scouting-shadow-add" data-select-scouting-shadow-slot="${deps.escapeHtml(slot.id)}" ${canEdit ? "" : "disabled"}>+ Add player</button>
+                  <button type="button" class="scouting-my-team-add-to-slot scouting-shadow-add" data-select-scouting-shadow-slot="${deps.escapeHtml(slot.id)}" ${canEdit ? "" : "disabled"}>Add player</button>
                 </div>
               </article>
             `;

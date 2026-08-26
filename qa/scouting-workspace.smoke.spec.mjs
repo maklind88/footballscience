@@ -595,6 +595,7 @@ test("Scouting mobile squad boards stack without visual overflow", async ({ page
           documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           pitchSideOverlap: pitchRect && sideRect ? overlaps(pitchRect, sideRect) : true,
           slots: slots.length,
+          columns: new Set(slotRects.map((rect) => Math.round(rect.left))).size,
           positions: slots.map((slot) => getComputedStyle(slot).position),
           collisions,
           clippedCards: slotRects.filter((rect, index) => cardRects[index] && rect.height + 1 < cardRects[index].height).length,
@@ -610,6 +611,7 @@ test("Scouting mobile squad boards stack without visual overflow", async ({ page
       documentOverflow: 0,
       pitchSideOverlap: false,
       slots: 11,
+      columns: 2,
       collisions: [],
       clippedCards: 0,
     });
@@ -628,4 +630,99 @@ test("Scouting mobile squad boards stack without visual overflow", async ({ page
     pitchSelector: ".scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-pitch",
     sideSelector: ".scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-side",
   });
+});
+
+test("Scouting mobile database, Lists action, and profile remain unobstructed", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedScoutingAccess(page, { activeTab: "database" });
+  const boot = await bootApp(page);
+  expect(boot.pageErrors).toEqual([]);
+  await openWorkspace(page, "scouting");
+
+  await page.locator('.scouting-tab[data-scouting-tab="database"]').click();
+  const firstPlayer = await loadScoutingDatabase(page);
+  const playerCard = firstPlayer.locator("xpath=ancestor::article[contains(@class, 'scouting-record-card')]");
+  const rowGeometry = await playerCard.evaluate((card) => {
+    const role = card.querySelector(".scouting-record-best-role")?.getBoundingClientRect();
+    const recommendation = card.querySelector(".scouting-record-card-recommendation")?.getBoundingClientRect();
+    const popover = card.querySelector(".scouting-record-mini-radar-popover");
+    return {
+      roleRight: role?.right || 0,
+      recommendationLeft: recommendation?.left || 0,
+      popoverPointerEvents: popover ? getComputedStyle(popover).pointerEvents : "missing",
+      documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+  expect(rowGeometry.documentOverflow).toBe(0);
+  expect(rowGeometry.roleRight).toBeLessThanOrEqual(rowGeometry.recommendationLeft + 1);
+  expect(rowGeometry.popoverPointerEvents).toBe("none");
+
+  await firstPlayer.click();
+  const profile = page.locator("[data-scouting-profile-modal]:visible");
+  await expect(profile).toBeVisible();
+  const profileGeometry = await profile.evaluate((modal) => {
+    const tablist = modal.querySelector(".scouting-profile-tabs");
+    const tablistRect = tablist?.getBoundingClientRect();
+    const tabs = Array.from(tablist?.querySelectorAll("button") || []);
+    const rects = tabs.map((tab) => tab.getBoundingClientRect());
+    return {
+      count: tabs.length,
+      rows: new Set(rects.map((rect) => Math.round(rect.top))).size,
+      clipped: rects.filter((rect) => !tablistRect || rect.left < tablistRect.left - 1 || rect.right > tablistRect.right + 1).length,
+      documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+  expect(profileGeometry).toEqual({ count: 7, rows: 2, clipped: 0, documentOverflow: 0 });
+
+  await page.locator(".scouting-profile-close").click();
+  await page.locator('.scouting-tab[data-scouting-tab="lists"]').click();
+  const openDatabase = page.locator("[data-scouting-open-database]:visible").first();
+  await expect(openDatabase).toBeVisible();
+  await openDatabase.click();
+  await expect(page.locator('.scouting-tab[data-scouting-tab="database"]')).toHaveClass(/is-active/);
+});
+
+test("Scouting dark profile keeps analysis surfaces readable", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.addInitScript(() => {
+    window.localStorage.setItem("football-platform-theme-mode-v1", "dark");
+  });
+  await seedScoutingAccess(page, { activeTab: "database" });
+  const boot = await bootApp(page);
+  expect(boot.pageErrors).toEqual([]);
+  await expect(page.locator("body")).toHaveClass(/is-dark-mode/);
+  await openWorkspace(page, "scouting");
+
+  await page.locator('.scouting-tab[data-scouting-tab="database"]').click();
+  const firstPlayer = await loadScoutingDatabase(page);
+  await firstPlayer.click();
+  const profile = page.locator("[data-scouting-profile-modal]:visible");
+  await expect(profile).toBeVisible();
+
+  const surfaces = await profile.evaluate((modal) => {
+    const luminance = (value) => {
+      const channels = (String(value).match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+      if (channels.length !== 3) return 1;
+      const linear = channels.map((channel) => {
+        const normalized = channel / 255;
+        return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+    };
+    return [".scouting-radar-head", ".scouting-profile-spider-context"].map((selector) => {
+      const element = modal.querySelector(selector);
+      const style = element ? getComputedStyle(element) : null;
+      return {
+        selector,
+        backgroundLuminance: luminance(style?.backgroundColor),
+        textLuminance: luminance(style?.color),
+      };
+    });
+  });
+
+  for (const surface of surfaces) {
+    expect(surface.backgroundLuminance, `${surface.selector} leaked a light surface`).toBeLessThan(0.2);
+    expect(surface.textLuminance, `${surface.selector} text is too dark`).toBeGreaterThan(0.35);
+  }
 });

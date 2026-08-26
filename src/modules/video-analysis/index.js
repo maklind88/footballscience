@@ -1,12 +1,8 @@
 import { renderClipFilters } from "./components/ClipFilters.js";
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import { renderClipList } from "./components/ClipList.js";
-import { renderCodingTemplateBuilder } from "./components/CodingTemplateBuilder.js";
-import { renderMediaProductionPanel } from "./components/MediaProductionPanel.js";
-import { renderTagFilterOverlay } from "./components/TagFilterOverlay.js";
-import { renderTimeline } from "./components/Timeline.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
-import { renderVideoPlayer } from "./components/VideoPlayer.js";
+import { renderFsPlayerWorkspace } from "./components/FsPlayerWorkspace.js";
 import {
   activeAnalysisRoomTab,
   renderAnalysisRoomHeader,
@@ -87,6 +83,14 @@ import {
   sameMomentTagWindowMs,
 } from "./services/codingInteractionService.js";
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
+import {
+  CODE_MODE_LAYOUT_VERSION,
+  CODE_PIP_BOUND_MARGIN,
+  CODE_PIP_MARGIN,
+  CODE_PIP_MIN_HEIGHT,
+  CODE_PIP_MIN_WIDTH,
+  codePipConfig,
+} from "./services/codePipLayoutService.js";
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
 import {
@@ -159,15 +163,6 @@ const VIDEO_SHUTTLE_CONTAIN_RATIO = 0.6;
 const VIDEO_SHUTTLE_DOMINANCE_RATIO = 1.35;
 const VIDEO_SHUTTLE_IDLE_MS = 520;
 const VIDEO_SHUTTLE_MAX_FRAME_MS = 80;
-const CODE_PIP_MIN_WIDTH = 360;
-const CODE_PIP_MIN_HEIGHT = 220;
-const CODE_TIMELINE_PIP_MIN_WIDTH = 420;
-const CODE_TIMELINE_PIP_MIN_HEIGHT = 96;
-const CODE_WINDOW_PIP_MIN_WIDTH = 240;
-const CODE_WINDOW_PIP_MIN_HEIGHT = 220;
-const CODE_PIP_MARGIN = 8;
-const CODE_PIP_BOUND_MARGIN = 0;
-const CODE_MODE_LAYOUT_VERSION = 5;
 const VIDEO_ANALYSIS_TOAST_DISMISS_MS = 1600;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
 const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
@@ -362,78 +357,6 @@ function intelligenceControls(context = {}) {
   }
   ensureRuntime(runtime?.context || context);
   return clipIntelligenceController;
-}
-
-function codePipConfig(target = "video") {
-  if (target === "timeline") {
-    return {
-      target: "timeline",
-      stateKey: "timelinePip",
-      minWidth: CODE_TIMELINE_PIP_MIN_WIDTH,
-      minHeight: CODE_TIMELINE_PIP_MIN_HEIGHT,
-      cssPrefix: "--video-analysis-code-timeline-pip",
-    };
-  }
-  if (target === "code-window") {
-    return {
-      target: "code-window",
-      stateKey: "codeWindowPip",
-      minWidth: CODE_WINDOW_PIP_MIN_WIDTH,
-      minHeight: CODE_WINDOW_PIP_MIN_HEIGHT,
-      cssPrefix: "--video-analysis-code-window-pip",
-    };
-  }
-  return {
-    target: "video",
-    stateKey: "pip",
-    minWidth: CODE_PIP_MIN_WIDTH,
-    minHeight: CODE_PIP_MIN_HEIGHT,
-    cssPrefix: "--video-analysis-code-pip",
-  };
-}
-
-function renderCodePipStyle(pip = null, target = "video") {
-  if (!pip || !Number.isFinite(Number(pip.x)) || !Number.isFinite(Number(pip.y))) return "";
-  const config = codePipConfig(target);
-  const x = Math.max(CODE_PIP_BOUND_MARGIN, Math.round(Number(pip.x)));
-  const y = Math.max(CODE_PIP_BOUND_MARGIN, Math.round(Number(pip.y)));
-  const width = Math.max(config.minWidth, Math.round(Number(pip.width || config.minWidth)));
-  const height = Math.max(config.minHeight, Math.round(Number(pip.height || config.minHeight)));
-  return ` style="${config.cssPrefix}-x: ${x}px; ${config.cssPrefix}-y: ${y}px; ${config.cssPrefix}-width: ${width}px; ${config.cssPrefix}-height: ${height}px;"`;
-}
-
-function renderCodePipResizeHandles(label = "panel") {
-  return ["n", "e", "s", "w", "ne", "nw", "se", "sw"].map((direction) => (
-    `<div class="video-analysis-code-pip-resize video-analysis-code-pip-resize--${direction}" data-video-analysis-code-pip-resize="${direction}" aria-hidden="true" title="Resize ${escapeHtml(label)} ${direction}"></div>`
-  )).join("");
-}
-
-function renderFsPlayerWorkspace(displayState = {}) {
-  const codeModeActive = displayState.fsPlayer?.mode === "code";
-  const fullscreenActive = displayState.fsPlayer?.fullscreen === true;
-  const pipStyle = codeModeActive ? renderCodePipStyle(displayState.fsPlayer?.pip) : "";
-  const timelinePipStyle = codeModeActive ? renderCodePipStyle(displayState.fsPlayer?.timelinePip, "timeline") : "";
-  const codeWindowPipStyle = codeModeActive ? renderCodePipStyle(displayState.fsPlayer?.codeWindowPip, "code-window") : "";
-  return `
-    <section class="video-analysis-fs-player-workstation${codeModeActive ? " is-code-mode" : ""}${fullscreenActive ? " is-fullscreen" : ""}" data-video-analysis-fs-player-workstation>
-      <section class="video-analysis-fs-player-main">
-        <section class="video-analysis-fs-player-deck"${codeModeActive ? ` data-video-analysis-code-pip="video"` : ""}${pipStyle}>
-          ${renderVideoPlayer(displayState)}
-          ${renderMediaProductionPanel(displayState)}
-          ${codeModeActive ? renderCodePipResizeHandles("video panel") : ""}
-        </section>
-        <section class="video-analysis-fs-player-timeline"${codeModeActive ? ` data-video-analysis-code-pip="timeline"` : ""}${timelinePipStyle}>
-          ${renderTimeline(displayState)}
-          ${codeModeActive ? renderCodePipResizeHandles("timeline panel") : ""}
-        </section>
-      </section>
-      <section class="video-analysis-code-window-dock"${codeModeActive ? ` data-video-analysis-code-pip="code-window"` : ""}${codeWindowPipStyle}>
-        ${renderCodingTemplateBuilder(displayState)}
-        ${codeModeActive ? renderCodePipResizeHandles("code window") : ""}
-      </section>
-    </section>
-    ${renderTagFilterOverlay(displayState)}
-  `;
 }
 
 function updateVideoDuration(durationMs = 0) {

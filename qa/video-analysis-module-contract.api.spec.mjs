@@ -34,6 +34,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "api/_lib/video-analysis-library-database.js",
     "src/modules/video-analysis/components/VideoPlayer.js",
     "src/modules/video-analysis/components/AnalysisRoomShell.js",
+    "src/modules/video-analysis/components/FsPlayerWorkspace.js",
     "src/modules/video-analysis/components/VideoLibrary.js",
     "src/modules/video-analysis/components/CodingPanel.js",
     "src/modules/video-analysis/components/Timeline.js",
@@ -69,6 +70,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/services/clipIntelligenceService.js",
     "src/modules/video-analysis/services/reviewSessionService.js",
     "src/modules/video-analysis/services/keyboardShortcutService.js",
+    "src/modules/video-analysis/services/codePipLayoutService.js",
     "src/modules/video-analysis/services/localMediaCaptureService.js",
     "src/modules/video-analysis/services/mediaProductionService.js",
     "src/modules/video-analysis/services/localMediaProxyService.js",
@@ -130,6 +132,38 @@ test("analysis room shell owns pure navigation and alternate workspace rendering
   const indexSource = read("src/modules/video-analysis/index.js");
   expect(indexSource).toContain('from "./components/AnalysisRoomShell.js"');
   expect(indexSource).not.toContain("const analysisRoomTabs");
+});
+
+test("FS Player workstation renderer owns code-mode layout markup", async () => {
+  const rendererPath = "src/modules/video-analysis/components/FsPlayerWorkspace.js";
+  const layoutPath = "src/modules/video-analysis/services/codePipLayoutService.js";
+  const rendererSource = read(rendererPath);
+  const renderer = await import(pathToFileURL(path.join(rootDir, rendererPath)).href);
+  const layout = await import(pathToFileURL(path.join(rootDir, layoutPath)).href);
+  const html = renderer.renderFsPlayerWorkspace({
+    fsPlayer: {
+      mode: "code",
+      fullscreen: true,
+      pip: { x: 12, y: 16, width: 640, height: 360 },
+      timelinePip: { x: 0, y: 480, width: 1280, height: 140 },
+      codeWindowPip: { x: 8, y: 8, width: 280, height: 500 },
+    },
+  });
+
+  expect(layout.codePipConfig("timeline")).toMatchObject({
+    stateKey: "timelinePip",
+    minWidth: 420,
+    minHeight: 96,
+  });
+  expect(html).toContain("is-code-mode is-fullscreen");
+  expect(html).toContain('data-video-analysis-code-pip="video"');
+  expect(html).toContain("--video-analysis-code-pip-width: 640px");
+  expect(html.match(/data-video-analysis-code-pip-resize=/g)).toHaveLength(24);
+  expect(rendererSource).not.toMatch(/fetch\(|supabase|\/api\/video-analysis/i);
+
+  const indexSource = read("src/modules/video-analysis/index.js");
+  expect(indexSource).toContain('from "./components/FsPlayerWorkspace.js"');
+  expect(indexSource).not.toContain("function renderFsPlayerWorkspace");
 });
 
 test("video player stays playback-only and components avoid direct data access", () => {

@@ -24,11 +24,59 @@ function boundedText(value, maximum = 120) {
   return String(value || "").slice(0, maximum);
 }
 
+function validProtocolNumber(value, maximum, minimum = 0, integer = true) {
+  return typeof value === "number"
+    && Number.isFinite(value)
+    && value >= minimum
+    && value <= maximum
+    && (!integer || Number.isSafeInteger(value));
+}
+
+function boundedTelemetry(value = {}, maximumJobMs = Number.MAX_SAFE_INTEGER) {
+  const timing = (entry) => Math.round(boundedNumber(entry, maximumJobMs));
+  return Object.freeze({
+    samplingMs: timing(value.samplingMs),
+    stateInitMs: timing(value.stateInitMs),
+    promptMs: timing(value.promptMs),
+    forwardPropagationMs: timing(value.forwardPropagationMs),
+    reversePropagationMs: timing(value.reversePropagationMs),
+    cleanupMs: timing(value.cleanupMs),
+    trackingMs: timing(value.trackingMs),
+    trackBuildMs: timing(value.trackBuildMs),
+    writeMs: timing(value.writeMs),
+    sampledFrameCount: Math.round(boundedNumber(value.sampledFrameCount, 1_000_000)),
+    propagatedFrameCount: Math.round(boundedNumber(value.propagatedFrameCount, 2_000_000)),
+    objectCount: Math.round(boundedNumber(value.objectCount, 8)),
+    sampleFps: boundedNumber(value.sampleFps, 25),
+  });
+}
+
+function validTelemetry(value, maximumJobMs) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const within = (key, maximum, integer = true) => validProtocolNumber(value[key], maximum, 0, integer);
+  return [
+    "samplingMs",
+    "stateInitMs",
+    "promptMs",
+    "forwardPropagationMs",
+    "reversePropagationMs",
+    "cleanupMs",
+    "trackingMs",
+    "trackBuildMs",
+    "writeMs",
+  ].every((key) => within(key, maximumJobMs))
+    && within("sampledFrameCount", 1_000_000)
+    && within("propagatedFrameCount", 2_000_000)
+    && within("objectCount", 8)
+    && within("sampleFps", 25, false);
+}
+
 export function createTrackingResidentWorker(options = {}) {
   const spawnProcess = options.spawn || spawn;
   const clock = options.clock || Date.now;
   const startupTimeoutMs = Math.max(30_000, Number(options.startupTimeoutMs) || 3 * 60 * 1000);
   const jobTimeoutMs = Math.max(60_000, Number(options.jobTimeoutMs) || 2 * 60 * 60 * 1000);
+  const maximumSampleFps = Math.max(1, Math.min(25, Number(options.maximumSampleFps) || 25));
   let worker = null;
   let generation = 0;
   let completedJobs = 0;
@@ -36,6 +84,7 @@ export function createTrackingResidentWorker(options = {}) {
   let reusedJobs = 0;
   let lastReady = null;
   let lastJobMs = 0;
+  let lastJobTelemetry = null;
   let schedule = Promise.resolve();
 
   function settleActive(state, handler, value) {
@@ -73,11 +122,20 @@ export function createTrackingResidentWorker(options = {}) {
     if (message.type === "ready") {
       const modelLoadMs = boundedNumber(message.modelLoadMs, startupTimeoutMs);
       const startupMs = boundedNumber(message.startupMs, startupTimeoutMs);
+      const device = boundedText(message.device, 24);
+      const cpuThreads = Math.round(boundedNumber(message.cpuThreads, 64));
+      const sampleFps = boundedNumber(message.sampleFps, maximumSampleFps);
       if (state.readyInfo
         || (options.expectedProvider && message.provider !== options.expectedProvider)
         || (options.expectedVersion && message.providerVersion !== options.expectedVersion)
+        || typeof message.device !== "string"
+        || !message.device
+        || message.device.length > 24
         || message.modelResident !== true
-        || modelLoadMs < 1
+        || !validProtocolNumber(message.cpuThreads, 64, device === "cpu" ? 1 : 0)
+        || !validProtocolNumber(message.sampleFps, maximumSampleFps, 1, false)
+        || !validProtocolNumber(message.modelLoadMs, startupTimeoutMs, 1)
+        || !validProtocolNumber(message.startupMs, startupTimeoutMs, 1)
         || startupMs < modelLoadMs) {
         terminate(state, workerError("The resident tracking worker identity is invalid."));
         return;
@@ -86,7 +144,9 @@ export function createTrackingResidentWorker(options = {}) {
       state.readyInfo = Object.freeze({
         provider: boundedText(message.provider),
         providerVersion: boundedText(message.providerVersion),
-        device: boundedText(message.device, 24),
+        cpuThreads,
+        device,
+        sampleFps,
         modelResident: true,
         modelLoadMs,
         startupMs,
@@ -121,7 +181,38 @@ export function createTrackingResidentWorker(options = {}) {
     }
     const sequence = Math.round(boundedNumber(message.workerJobSequence, 1_000_000));
     const jobProcessingMs = boundedNumber(message.jobProcessingMs, jobTimeoutMs);
-    if (sequence !== state.completedJobs + 1 || message.modelResident !== true || jobProcessingMs < 1) {
+    const telemetry = boundedTelemetry(message.telemetry, jobTimeoutMs);
+    const topLevelMeasuredMs = telemetry.samplingMs + telemetry.trackingMs
+      + telemetry.trackBuildMs + telemetry.writeMs;
+    const trackingMeasuredMs = telemetry.stateInitMs + telemetry.promptMs
+      + telemetry.forwardPropagationMs + telemetry.reversePropagationMs + telemetry.cleanupMs;
+    const cpuThreads = Math.round(boundedNumber(message.cpuThreads, 64));
+    const device = boundedText(message.device, 24);
+    const modelLoadMs = boundedNumber(message.modelLoadMs, startupTimeoutMs);
+    if (sequence !== state.completedJobs + 1
+      || !validProtocolNumber(message.workerJobSequence, 1_000_000, 1)
+      || !validProtocolNumber(message.jobProcessingMs, jobTimeoutMs, 1)
+      || !validProtocolNumber(message.cpuThreads, 64)
+      || !validProtocolNumber(message.modelLoadMs, startupTimeoutMs, 1)
+      || typeof message.device !== "string"
+      || !message.device
+      || message.device.length > 24
+      || message.modelResident !== true
+      || !validTelemetry(message.telemetry, jobTimeoutMs)
+      || jobProcessingMs < 1
+      || telemetry.sampledFrameCount < 1
+      || telemetry.propagatedFrameCount < 1
+      || telemetry.propagatedFrameCount > telemetry.sampledFrameCount + 1
+      || telemetry.objectCount < 1
+      || (active.expectedObjectCount > 0 && telemetry.objectCount !== active.expectedObjectCount)
+      || telemetry.sampleFps < 1
+      || Math.abs(telemetry.sampleFps - state.readyInfo.sampleFps) > 1e-9
+      || telemetry.trackingMs < 1
+      || topLevelMeasuredMs > jobProcessingMs + 1_000
+      || trackingMeasuredMs > telemetry.trackingMs + 1_000
+      || device !== state.readyInfo?.device
+      || cpuThreads !== state.readyInfo?.cpuThreads
+      || modelLoadMs !== state.readyInfo?.modelLoadMs) {
       terminate(state, workerError("The resident tracking worker telemetry is inconsistent."));
       return;
     }
@@ -132,16 +223,20 @@ export function createTrackingResidentWorker(options = {}) {
       workerJobSequence: sequence,
       workerReused: sequence > 1,
       modelResident: message.modelResident === true,
-      device: boundedText(message.device, 24),
-      modelLoadMs: boundedNumber(message.modelLoadMs, startupTimeoutMs),
+      cpuThreads,
+      device,
+      sampleFps: state.readyInfo.sampleFps,
+      modelLoadMs,
       workerColdStartMs: state.readyInfo?.startupMs || 0,
       jobProcessingMs,
       hostElapsedMs,
+      telemetry,
     });
     completedJobs += 1;
     state.completedJobs = sequence;
     if (runtime.workerReused) reusedJobs += 1;
     lastJobMs = hostElapsedMs;
+    lastJobTelemetry = telemetry;
     settleActive(state, active.resolve, runtime);
   }
 
@@ -256,6 +351,9 @@ export function createTrackingResidentWorker(options = {}) {
       const id = randomUUID();
       const active = {
         abort: null,
+        expectedObjectCount: Number.isSafeInteger(job.expectedObjectCount)
+          ? Math.max(0, Math.min(8, job.expectedObjectCount))
+          : 0,
         id,
         onProgress: runOptions.onProgress,
         reject,
@@ -318,13 +416,16 @@ export function createTrackingResidentWorker(options = {}) {
         ? "closed"
         : worker?.active ? "running" : worker?.readyInfo ? "ready" : worker ? "starting" : "stopped",
       modelResident: worker?.readyInfo?.modelResident === true,
+      cpuThreads: Math.round(boundedNumber(worker?.readyInfo?.cpuThreads || lastReady?.cpuThreads, 64)),
       device: boundedText(worker?.readyInfo?.device || lastReady?.device, 24),
+      sampleFps: boundedNumber(worker?.readyInfo?.sampleFps || lastReady?.sampleFps, 25),
       generation,
       completedJobs,
       reusedJobs,
       coldStartMs: boundedNumber(worker?.readyInfo?.startupMs || lastReady?.startupMs, startupTimeoutMs),
       modelLoadMs: boundedNumber(worker?.readyInfo?.modelLoadMs || lastReady?.modelLoadMs, startupTimeoutMs),
       lastJobMs,
+      lastJobTelemetry,
     };
   }
 

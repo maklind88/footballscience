@@ -16,6 +16,7 @@ import {
   sam2ProviderInstallDir,
   sam2ProviderManifestSha256,
   sam2ProviderPaths,
+  sam2ProviderPreferredCpuThreads,
   sam2ProviderPreferredDevice,
   sam2ProviderRuntimeSha256,
   sam2ProviderSourceRuntimeSha256,
@@ -101,6 +102,7 @@ export function providerInstallPlan(args = {}, options = {}) {
       maximumWorkerStartupMs: manifest.runtime.maximumWorkerStartupMs,
       maximumJobWallTimeMs: manifest.runtime.maximumJobWallTimeMs,
       deviceDefaults: { ...manifest.runtime.deviceDefaults },
+      cpuThreadDefaults: { ...manifest.runtime.cpuThreadDefaults },
     },
   };
 }
@@ -154,6 +156,7 @@ async function installPythonRuntime(paths, args, python, manifest) {
     FS_SAM2_CHECKPOINT: paths.checkpoint,
     FS_SAM2_CHECKPOINT_SHA256: manifest.model.checkpointSha256,
     FS_SAM2_CONFIG: manifest.model.config,
+    FS_SAM2_CPU_THREADS: String(sam2ProviderPreferredCpuThreads(manifest)),
     FS_SAM2_DEVICE: sam2ProviderPreferredDevice(manifest),
     FS_SAM2_FFMPEG_PATH: ffmpegStaticPath || "ffmpeg",
     FS_SAM2_MAX_FRAMES: String(manifest.runtime.maximumFrames),

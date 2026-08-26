@@ -9,6 +9,10 @@ from typing import Any, Callable, Dict, List, Optional
 from .protocol import ProviderError
 
 
+def _elapsed_ms(started_at: float) -> int:
+    return max(0, round((time.perf_counter() - started_at) * 1000))
+
+
 class Sam2Engine:
     def __init__(self, checkpoint: str, config: str, requested_device: str = "auto") -> None:
         if platform.system() == "Darwin":
@@ -22,7 +26,20 @@ class Sam2Engine:
         self.config = config
         self.requested_device = str(requested_device or "auto").lower()
         self.device = self._resolve_device(self.requested_device)
+        self.cpu_threads = int(torch.get_num_threads())
+        if self.device.type == "cpu":
+            configured_threads = str(os.environ.get("FS_SAM2_CPU_THREADS", "0")).strip()
+            try:
+                requested_threads = int(configured_threads or "0")
+            except ValueError as error:
+                raise ProviderError("The configured tracking CPU thread count is invalid.") from error
+            if requested_threads < 0 or requested_threads > 64:
+                raise ProviderError("The configured tracking CPU thread count is invalid.")
+            if requested_threads:
+                torch.set_num_threads(requested_threads)
+            self.cpu_threads = int(torch.get_num_threads())
         self._predictor = None
+        self.last_job_telemetry: Dict[str, int] = {}
         self.model_load_ms = 0
 
     def _resolve_device(self, requested: str):
@@ -122,17 +139,26 @@ class Sam2Engine:
         predictor = self.warm()
         state = None
         observations: List[Dict[int, Dict[str, float]]] = [{} for _ in prompts]
+        state_init_ms = 0
+        prompt_ms = 0
+        forward_propagation_ms = 0
+        reverse_propagation_ms = 0
+        propagated_frame_count = 0
+        cleanup_ms = 0
         try:
+            state_started_at = time.perf_counter()
             state = predictor.init_state(
                 video_path=frames_dir,
                 offload_video_to_cpu=self.device.type != "cpu",
                 offload_state_to_cpu=False,
                 async_loading_frames=False,
             )
+            state_init_ms = _elapsed_ms(state_started_at)
             frame_count = int(state["num_frames"])
             width = int(state["video_width"])
             height = int(state["video_height"])
             object_indexes = {}
+            prompt_started_at = time.perf_counter()
             for index, prompt in enumerate(prompts):
                 object_id = index + 1
                 object_indexes[object_id] = index
@@ -154,13 +180,17 @@ class Sam2Engine:
                 prompted = self._observation(masks[mask_index], prompt_index)
                 if prompted:
                     observations[index][prompt_index] = prompted
+            prompt_ms = _elapsed_ms(prompt_started_at)
             directions = [
-                (False, max(0, frame_count - prompt_index - 1)),
-                (True, max(0, prompt_index)),
+                ("forward", False, max(0, frame_count - prompt_index - 1), frame_count - prompt_index),
+                ("reverse", True, max(0, prompt_index), prompt_index + 1 if prompt_index > 0 else 0),
             ]
             processed_frames = 0
-            total_frames = max(1, sum(maximum + 1 for _, maximum in directions))
-            for reverse, maximum in directions:
+            total_frames = max(1, sum(expected for _, _, _, expected in directions))
+            for direction, reverse, maximum, expected in directions:
+                if expected < 1:
+                    continue
+                direction_started_at = time.perf_counter()
                 for frame_index, object_ids, mask_logits in predictor.propagate_in_video(
                     state,
                     start_frame_idx=prompt_index,
@@ -179,8 +209,15 @@ class Sam2Engine:
                         f"Tracking {len(prompts)} objects" if len(prompts) > 1 else "Tracking object",
                         0.35 + 0.55 * processed_frames / total_frames,
                     )
+                direction_ms = _elapsed_ms(direction_started_at)
+                if direction == "reverse":
+                    reverse_propagation_ms = direction_ms
+                else:
+                    forward_propagation_ms = direction_ms
+            propagated_frame_count = processed_frames
             return observations
         finally:
+            cleanup_started_at = time.perf_counter()
             if state is not None:
                 predictor.reset_state(state)
             gc.collect()
@@ -188,6 +225,16 @@ class Sam2Engine:
                 torch.cuda.empty_cache()
             elif self.device.type == "mps" and hasattr(torch.mps, "empty_cache"):
                 torch.mps.empty_cache()
+            cleanup_ms = _elapsed_ms(cleanup_started_at)
+            self.last_job_telemetry = {
+                "stateInitMs": state_init_ms,
+                "promptMs": prompt_ms,
+                "forwardPropagationMs": forward_propagation_ms,
+                "reversePropagationMs": reverse_propagation_ms,
+                "cleanupMs": cleanup_ms,
+                "propagatedFrameCount": propagated_frame_count,
+                "objectCount": len(prompts),
+            }
 
     def track(
         self,

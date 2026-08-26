@@ -132,6 +132,9 @@ export async function createSyntheticBatchTrackingFixture(outputPath, options = 
 
 function boundedProviderInfo(value = {}) {
   const runtime = value.runtime && typeof value.runtime === "object" ? value.runtime : {};
+  const telemetry = runtime.lastJobTelemetry && typeof runtime.lastJobTelemetry === "object"
+    ? runtime.lastJobTelemetry
+    : {};
   return {
     engineName: String(value.engineName || "").slice(0, 120),
     displayName: String(value.displayName || "").slice(0, 160),
@@ -143,11 +146,25 @@ function boundedProviderInfo(value = {}) {
       status: String(runtime.status || "").slice(0, 40),
       modelResident: runtime.modelResident === true,
       device: String(runtime.device || "").slice(0, 24),
+      cpuThreads: Math.max(0, Math.min(64, Number(runtime.cpuThreads) || 0)),
+      sampleFps: Math.max(0, Math.min(25, Number(runtime.sampleFps) || 0)),
       generation: Math.max(0, Number(runtime.generation) || 0),
       completedJobs: Math.max(0, Number(runtime.completedJobs) || 0),
       reusedJobs: Math.max(0, Number(runtime.reusedJobs) || 0),
       coldStartMs: Math.max(0, Number(runtime.coldStartMs) || 0),
       modelLoadMs: Math.max(0, Number(runtime.modelLoadMs) || 0),
+      lastJobTelemetry: {
+        samplingMs: Math.max(0, Number(telemetry.samplingMs) || 0),
+        stateInitMs: Math.max(0, Number(telemetry.stateInitMs) || 0),
+        promptMs: Math.max(0, Number(telemetry.promptMs) || 0),
+        forwardPropagationMs: Math.max(0, Number(telemetry.forwardPropagationMs) || 0),
+        reversePropagationMs: Math.max(0, Number(telemetry.reversePropagationMs) || 0),
+        cleanupMs: Math.max(0, Number(telemetry.cleanupMs) || 0),
+        trackingMs: Math.max(0, Number(telemetry.trackingMs) || 0),
+        sampledFrameCount: Math.max(0, Number(telemetry.sampledFrameCount) || 0),
+        propagatedFrameCount: Math.max(0, Number(telemetry.propagatedFrameCount) || 0),
+        sampleFps: Math.max(0, Number(telemetry.sampleFps) || 0),
+      },
     },
   };
 }
@@ -443,6 +460,7 @@ export async function runTrackingEngineWarmSmoke(options = {}) {
         coldStartMs: Math.max(0, Number(firstRuntime.workerColdStartMs) || 0),
         modelLoadMs: Math.max(0, Number(firstRuntime.modelLoadMs) || 0),
         warmProviderMs: Math.max(0, Number(warmRuntime.jobProcessingMs) || 0),
+        warmTelemetry: warmRuntime.telemetry || {},
         warmRealtimeFactor: warmEndToEndMs / TRACKING_ENGINE_SMOKE_DURATION_MS,
         referenceMaximumRealtimeFactor: TRACKING_ENGINE_SMOKE_REFERENCE_MAX_REALTIME_FACTOR,
         warmWithinReferenceBudget: warmEndToEndMs / TRACKING_ENGINE_SMOKE_DURATION_MS

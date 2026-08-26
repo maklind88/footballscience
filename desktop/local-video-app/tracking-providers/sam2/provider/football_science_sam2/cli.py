@@ -7,6 +7,7 @@ import shutil
 import signal
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -60,6 +61,7 @@ def _runtime_report(engine: Optional[Sam2Engine] = None) -> Dict[str, Any]:
         "providerVersion": PROVIDER_VERSION,
         "protocol": PROTOCOL,
         "device": runtime_engine.device_name,
+        "cpuThreads": runtime_engine.cpu_threads if runtime_engine.device_name == "cpu" else 0,
         "python": ".".join(map(str, sys.version_info[:3])),
         "torch": str(runtime_engine.torch.__version__),
         "checkpointSha256": expected_sha256,
@@ -90,6 +92,7 @@ def _tracking(
     settings: Optional[Dict[str, Any]] = None,
     engine: Optional[Sam2Engine] = None,
     emit: Callable[[str, float], None] = _emit,
+    telemetry: Optional[Dict[str, Any]] = None,
 ) -> int:
     require_protocol(arguments.protocol)
     input_path = Path(arguments.input)
@@ -108,10 +111,12 @@ def _tracking(
         runtime_settings["config"],
         runtime_settings["device"],
     )
+    job_telemetry = telemetry if isinstance(telemetry, dict) else {}
     try:
         with tempfile.TemporaryDirectory(prefix="fs-sam2-", dir=str(request_path.resolve().parent)) as temporary:
             frames_dir = Path(temporary) / "frames"
             emit("Sampling synchronized video frames", 0.12)
+            sampling_started_at = time.perf_counter()
             frames = extract_sample_frames(
                 input_path.resolve(),
                 frames_dir,
@@ -120,9 +125,16 @@ def _tracking(
                 runtime_settings["sampleFps"],
                 runtime_settings["maximumFrames"],
             )
+            job_telemetry["samplingMs"] = max(0, round((time.perf_counter() - sampling_started_at) * 1000))
+            job_telemetry["sampledFrameCount"] = len(frames)
+            job_telemetry["sampleFps"] = runtime_settings["sampleFps"]
             prompt_index = prompt_frame_index(prompt, runtime_settings["sampleFps"], len(frames))
             emit("Using resident SAM 2.1" if not owns_engine else "Loading SAM 2.1", 0.30)
+            tracking_started_at = time.perf_counter()
             observations = runtime_engine.track_many(frames_dir.as_posix(), prompts, prompt_index, emit)
+            job_telemetry["trackingMs"] = max(0, round((time.perf_counter() - tracking_started_at) * 1000))
+            job_telemetry.update(runtime_engine.last_job_telemetry)
+            track_build_started_at = time.perf_counter()
             tracks = [
                 build_track(
                     object_observations,
@@ -131,6 +143,7 @@ def _tracking(
                     runtime_settings["sampleFps"],
                     {
                         "device": runtime_engine.device_name,
+                        "cpuThreads": runtime_engine.cpu_threads if runtime_engine.device_name == "cpu" else 0,
                         "model": runtime_settings["model"],
                         "promptFrameIndex": prompt_index,
                         "providerProtocol": PROTOCOL,
@@ -139,12 +152,15 @@ def _tracking(
                 )
                 for object_observations, target_prompt in zip(observations, prompts)
             ]
+            job_telemetry["trackBuildMs"] = max(0, round((time.perf_counter() - track_build_started_at) * 1000))
     finally:
         if owns_engine:
             runtime_engine.close()
     emit("Writing review tracks" if len(tracks) > 1 else "Writing review track", 0.96)
     artifact = {"schemaVersion": 1, "tracks": tracks} if len(tracks) > 1 else tracks[0]
+    write_started_at = time.perf_counter()
     atomic_write_json(output_path, artifact)
+    job_telemetry["writeMs"] = max(0, round((time.perf_counter() - write_started_at) * 1000))
     emit("Tracking ready for review", 1.0)
     return 0
 

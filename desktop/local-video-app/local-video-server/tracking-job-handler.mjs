@@ -12,6 +12,7 @@ function publicProviderRuntime(value = {}) {
     const normalized = Number(entry);
     return Number.isFinite(normalized) && normalized >= 0 ? Math.min(maximum, normalized) : 0;
   };
+  const telemetry = value.telemetry && typeof value.telemetry === "object" ? value.telemetry : {};
   return {
     mode: String(value.mode || "").slice(0, 80),
     generation: number(value.generation, 1_000_000),
@@ -19,10 +20,27 @@ function publicProviderRuntime(value = {}) {
     workerReused: value.workerReused === true,
     modelResident: value.modelResident === true,
     device: String(value.device || "").slice(0, 24),
+    cpuThreads: number(value.cpuThreads, 64),
+    sampleFps: number(value.sampleFps, 25),
     modelLoadMs: number(value.modelLoadMs, 60 * 60 * 1000),
     workerColdStartMs: number(value.workerColdStartMs, 60 * 60 * 1000),
     jobProcessingMs: number(value.jobProcessingMs, 2 * 60 * 60 * 1000),
     hostElapsedMs: number(value.hostElapsedMs, 2 * 60 * 60 * 1000),
+    telemetry: {
+      samplingMs: number(telemetry.samplingMs, 2 * 60 * 60 * 1000),
+      stateInitMs: number(telemetry.stateInitMs, 2 * 60 * 60 * 1000),
+      promptMs: number(telemetry.promptMs, 2 * 60 * 60 * 1000),
+      forwardPropagationMs: number(telemetry.forwardPropagationMs, 2 * 60 * 60 * 1000),
+      reversePropagationMs: number(telemetry.reversePropagationMs, 2 * 60 * 60 * 1000),
+      cleanupMs: number(telemetry.cleanupMs, 2 * 60 * 60 * 1000),
+      trackingMs: number(telemetry.trackingMs, 2 * 60 * 60 * 1000),
+      trackBuildMs: number(telemetry.trackBuildMs, 2 * 60 * 60 * 1000),
+      writeMs: number(telemetry.writeMs, 2 * 60 * 60 * 1000),
+      sampledFrameCount: number(telemetry.sampledFrameCount, 1_000_000),
+      propagatedFrameCount: number(telemetry.propagatedFrameCount, 2_000_000),
+      objectCount: number(telemetry.objectCount, 8),
+      sampleFps: number(telemetry.sampleFps, 25),
+    },
   };
 }
 

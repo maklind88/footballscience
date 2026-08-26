@@ -126,6 +126,7 @@ export function createTrackingEngineAdapter(options = {}) {
     expectedVersion: engineVersion,
     jobTimeoutMs: options.jobTimeoutMs || installed?.jobTimeoutMs,
     startupTimeoutMs: options.startupTimeoutMs || installed?.startupTimeoutMs,
+    maximumSampleFps: Number(providerEnv.FS_SAM2_SAMPLE_FPS) || 25,
   }) : null);
 
   async function runTracking(inputPath, outputPath, request = {}, runOptions = {}) {
@@ -139,7 +140,12 @@ export function createTrackingEngineAdapter(options = {}) {
         if (result && typeof result === "object") await fs.writeFile(outputPath, JSON.stringify(result));
         runtime = { mode: "embedded-runner", modelResident: false };
       } else if (residentWorker) {
-        runtime = await residentWorker.run({ inputPath, outputPath, requestPath }, runOptions);
+        runtime = await residentWorker.run({
+          inputPath,
+          outputPath,
+          requestPath,
+          expectedObjectCount: Array.isArray(request.prompts) ? request.prompts.length : 1,
+        }, runOptions);
       } else if (command) {
         runtime = await runCommand(command, [
           ...commandArgs,

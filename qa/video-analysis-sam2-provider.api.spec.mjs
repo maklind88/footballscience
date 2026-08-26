@@ -21,7 +21,7 @@ test("approved SAM 2 provider assets and install plan are immutable", async () =
   ), "utf8"));
   expect(manifest).toMatchObject({
     providerId: "sam2.1-hiera-tiny",
-    providerVersion: "1.2.0",
+    providerVersion: "1.3.0",
     protocol: "football-science-tracking-v1",
     approval: { status: "approved-local-optional", networkAtInference: false, redistributeUpstreamAssets: false },
     upstream: {
@@ -40,7 +40,8 @@ test("approved SAM 2 provider assets and install plan are immutable", async () =
       maximumJobWallTimeMs: 7_200_000,
       executionMode: "resident-worker-v1",
       deviceDefaults: { darwin: "cpu", linux: "auto" },
-      providerSha256: "8898ab82aed4e9fa6b96f405304f73e94ecfeae9dfecb6ecfede2c2a90c7828e",
+      cpuThreadDefaults: { darwin: 8, linux: 0 },
+      providerSha256: "b3fc5eaefd82f268e963b308be066ef7c232b05fd5cbe43d5e86c39d5a45be57",
     },
   });
   const installer = await import(moduleUrl("desktop/local-video-app/tracking-providers/sam2/install-provider.mjs"));
@@ -57,8 +58,9 @@ test("approved SAM 2 provider assets and install plan are immutable", async () =
     maximumWorkerStartupMs: 180_000,
     maximumJobWallTimeMs: 7_200_000,
     deviceDefaults: { darwin: "cpu", linux: "auto" },
+    cpuThreadDefaults: { darwin: 8, linux: 0 },
   });
-  expect(plan.installDir).toContain(".football-science/tracking-providers/sam2.1-hiera-tiny-1.2.0");
+  expect(plan.installDir).toContain(".football-science/tracking-providers/sam2.1-hiera-tiny-1.3.0");
 });
 
 test("packaged provider activates only for an exact verified install marker", async () => {
@@ -97,7 +99,7 @@ test("packaged provider activates only for an exact verified install marker", as
       command: paths.python,
       engineName: "sam2.1-hiera-tiny",
       displayName: "Football Science SAM 2.1 Object Tracker",
-      engineVersion: "1.2.0",
+      engineVersion: "1.3.0",
       providerExecutionFingerprintSha256: runtime.sam2ProviderExecutionFingerprintSha256(paths.manifest),
     });
     expect(runtime.sam2ProviderExecutionFingerprintSha256(paths.manifest)).toMatch(/^[a-f0-9]{64}$/);
@@ -132,6 +134,16 @@ test("packaged provider device policy is explicit and still allows a reviewed ov
     env: { FS_SAM2_DEVICE: "mps" },
     platform: "darwin",
   })).toBe("mps");
+  expect(runtime.sam2ProviderPreferredCpuThreads(manifest, { env: {}, platform: "darwin" })).toBe(8);
+  expect(runtime.sam2ProviderPreferredCpuThreads(manifest, { env: {}, platform: "linux" })).toBe(0);
+  expect(runtime.sam2ProviderPreferredCpuThreads(manifest, {
+    env: { FS_SAM2_CPU_THREADS: "6" },
+    platform: "darwin",
+  })).toBe(6);
+  expect(() => runtime.sam2ProviderPreferredCpuThreads(manifest, {
+    env: { FS_SAM2_CPU_THREADS: "6.5" },
+    platform: "darwin",
+  })).toThrow("FS_SAM2_CPU_THREADS must be an integer from 1 to 64.");
   expect(runtime.sam2ProviderManifestSha256(manifest)).toMatch(/^[a-f0-9]{64}$/);
 });
 
@@ -417,7 +429,12 @@ test("external provider process streams progress through the strict v1 boundary"
   }
 });
 
-function residentProviderSource() {
+function residentProviderSource({
+  readySampleFps = 2,
+  resultCpuThreads = 4,
+  resultSampleFps = 2,
+  sampledFrameCount = 2,
+} = {}) {
   return `
     import { readFileSync, writeFileSync } from "node:fs";
     import readline from "node:readline";
@@ -428,6 +445,8 @@ function residentProviderSource() {
       provider: "qa-resident-provider",
       providerVersion: "9.0.0",
       device: "test",
+      cpuThreads: 4,
+      sampleFps: ${readySampleFps},
       modelResident: true,
       modelLoadMs: 7,
       startupMs: 11,
@@ -455,10 +474,26 @@ function residentProviderSource() {
         jobId: job.jobId,
         ok: true,
         device: "test",
+        cpuThreads: ${resultCpuThreads},
         modelResident: true,
         modelLoadMs: 7,
         jobProcessingMs: 5,
         workerJobSequence: sequence,
+        telemetry: {
+          samplingMs: 1,
+          stateInitMs: 1,
+          promptMs: 0,
+          forwardPropagationMs: 1,
+          reversePropagationMs: 0,
+          cleanupMs: 0,
+          trackingMs: 2,
+          trackBuildMs: 0,
+          writeMs: 0,
+          sampledFrameCount: ${sampledFrameCount},
+          propagatedFrameCount: 2,
+          objectCount: 1,
+          sampleFps: ${resultSampleFps},
+        },
       });
     });
   `;
@@ -513,12 +548,16 @@ test("resident tracking worker reuses one model process across sequential jobs",
       workerJobSequence: 1,
       workerReused: false,
       modelResident: true,
+      cpuThreads: 4,
+      sampleFps: 2,
+      telemetry: { sampledFrameCount: 2, propagatedFrameCount: 2, trackingMs: 2 },
     });
     expect(second.runtime).toMatchObject({
       generation: 1,
       workerJobSequence: 2,
       workerReused: true,
       modelResident: true,
+      cpuThreads: 4,
     });
     expect(adapter.info().runtime).toMatchObject({
       status: "ready",
@@ -530,6 +569,44 @@ test("resident tracking worker reuses one model process across sequential jobs",
   } finally {
     await adapter?.close?.();
     await fs.rm(temporaryDir, { recursive: true, force: true });
+  }
+});
+
+test("resident tracking worker rejects out-of-bounds telemetry and runtime identity drift", async () => {
+  const { createTrackingEngineAdapter } = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-engine-adapter.mjs",
+  ));
+  const cases = [
+    ["telemetry", residentProviderSource({ sampledFrameCount: 1_000_001 })],
+    ["identity", residentProviderSource({ resultCpuThreads: 5 })],
+    ["sampling", residentProviderSource({ resultSampleFps: 3 })],
+    ["startup-sampling", residentProviderSource({ readySampleFps: 30 })],
+  ];
+  for (const [name, source] of cases) {
+    const temporaryDir = await fs.mkdtemp(path.join(os.tmpdir(), `fs-sam2-resident-${name}-`));
+    const provider = path.join(temporaryDir, "fake-resident-provider.mjs");
+    const inputPath = path.join(temporaryDir, "input.mp4");
+    const adapter = createTrackingEngineAdapter({
+      command: process.execPath,
+      commandArgs: [provider],
+      engineName: "qa-resident-provider",
+      engineVersion: "9.0.0",
+      resident: true,
+    });
+    try {
+      await Promise.all([
+        fs.writeFile(provider, source),
+        fs.writeFile(inputPath, "video"),
+      ]);
+      await expect(adapter.trackObject(
+        inputPath,
+        path.join(temporaryDir, "rejected.json"),
+        residentPrompt(name),
+      )).rejects.toMatchObject({ code: "TRACKING_RESIDENT_WORKER_FAILED" });
+    } finally {
+      await adapter.close();
+      await fs.rm(temporaryDir, { recursive: true, force: true });
+    }
   }
 });
 

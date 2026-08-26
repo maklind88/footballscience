@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "providerId": "sam2.1-hiera-tiny",
-  "providerVersion": "1.2.0",
+  "providerVersion": "1.3.0",
   "displayName": "Football Science SAM 2.1 Object Tracker",
   "protocol": "football-science-tracking-v1",
   "approval": {
@@ -45,6 +45,10 @@
       "darwin": "cpu",
       "linux": "auto"
     },
-    "providerSha256": "8898ab82aed4e9fa6b96f405304f73e94ecfeae9dfecb6ecfede2c2a90c7828e"
+    "cpuThreadDefaults": {
+      "darwin": 8,
+      "linux": 0
+    },
+    "providerSha256": "b3fc5eaefd82f268e963b308be066ef7c232b05fd5cbe43d5e86c39d5a45be57"
   }
 }

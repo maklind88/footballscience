@@ -87,6 +87,8 @@ def run_resident_worker(arguments: argparse.Namespace) -> int:
             "provider": "sam2.1-hiera-tiny",
             "providerVersion": PROVIDER_VERSION,
             "device": engine.device_name,
+            "cpuThreads": engine.cpu_threads if engine.device_name == "cpu" else 0,
+            "sampleFps": settings["sampleFps"],
             "modelResident": True,
             "modelLoadMs": engine.model_load_ms,
             "startupMs": startup_ms,
@@ -120,9 +122,17 @@ def run_resident_worker(arguments: argparse.Namespace) -> int:
                 request=job["requestPath"],
                 output=job["outputPath"],
             )
+            job_telemetry: Dict[str, Any] = {}
             try:
                 with contextlib.redirect_stdout(sys.stderr):
-                    _tracking(job_arguments, report=report, settings=settings, engine=engine, emit=emit)
+                    _tracking(
+                        job_arguments,
+                        report=report,
+                        settings=settings,
+                        engine=engine,
+                        emit=emit,
+                        telemetry=job_telemetry,
+                    )
             except ProviderError as error:
                 _message({
                     "protocol": WORKER_PROTOCOL,
@@ -149,10 +159,12 @@ def run_resident_worker(arguments: argparse.Namespace) -> int:
                 "jobId": job["jobId"],
                 "ok": True,
                 "device": engine.device_name,
+                "cpuThreads": engine.cpu_threads if engine.device_name == "cpu" else 0,
                 "jobProcessingMs": max(1, round((time.perf_counter() - job_started_at) * 1000)),
                 "modelLoadMs": engine.model_load_ms,
                 "modelResident": True,
                 "workerJobSequence": sequence,
+                "telemetry": job_telemetry,
             })
         return 0
     finally:

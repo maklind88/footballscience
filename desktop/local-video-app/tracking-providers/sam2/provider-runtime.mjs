@@ -60,6 +60,21 @@ export function sam2ProviderPreferredDevice(manifest = readSam2ProviderManifest(
   return ["auto", "cpu", "cuda", "mps"].includes(configured) ? configured : "auto";
 }
 
+export function sam2ProviderPreferredCpuThreads(manifest = readSam2ProviderManifest(), options = {}) {
+  const env = options.env || process.env;
+  const explicitValue = String(env.FS_SAM2_CPU_THREADS ?? "").trim();
+  if (explicitValue) {
+    const explicit = Number(explicitValue);
+    if (!Number.isSafeInteger(explicit) || explicit < 1 || explicit > 64) {
+      throw new Error("FS_SAM2_CPU_THREADS must be an integer from 1 to 64.");
+    }
+    return explicit;
+  }
+  const platform = options.platform || process.platform;
+  const configured = Number(manifest.runtime?.cpuThreadDefaults?.[platform]);
+  return Number.isSafeInteger(configured) && configured >= 1 && configured <= 64 ? configured : 0;
+}
+
 export function sam2ProviderInstallDir(options = {}) {
   const env = options.env || process.env;
   const manifest = options.manifest || readSam2ProviderManifest();
@@ -239,6 +254,10 @@ export function resolveInstalledSam2Provider(options = {}) {
       FS_SAM2_CHECKPOINT: paths.checkpoint,
       FS_SAM2_CHECKPOINT_SHA256: paths.manifest.model.checkpointSha256,
       FS_SAM2_CONFIG: paths.manifest.model.config,
+      FS_SAM2_CPU_THREADS: String(sam2ProviderPreferredCpuThreads(paths.manifest, {
+        env,
+        platform: options.platform,
+      })),
       FS_SAM2_DEVICE: sam2ProviderPreferredDevice(paths.manifest, {
         env,
         platform: options.platform,

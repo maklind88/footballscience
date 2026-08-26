@@ -7,7 +7,7 @@ import { assertCredentialHealth, assertFreezeFresh, assertGithubEvidence, assert
 import { assertSourceManifest, buildSourceManifest } from "./lib/leaderboard-production-source-manifest.mjs";
 import { assertDeploymentFileTree, assertSourceRequestFiles, uploadSourceFiles, verifyDeploymentFileContents } from "./lib/leaderboard-production-vercel-files.mjs";
 import { buildPreviewCreateBody, collectDeploymentPages, previewAttemptMeta, resolveAmbiguousCreate, selectDeploymentCandidates } from "./lib/leaderboard-production-vercel-deployments.mjs";
-import { aliasSnapshot, assertAliasBaseline, assertAliasesUnchanged, assertPreviewDeployment, assertPreviewSupabaseRef, assertVercelProject, deploymentCreatedAt, deploymentId, deploymentProjectId, deploymentState } from "./lib/leaderboard-production-vercel-state.mjs";
+import { aliasSnapshot, assertAliasBaseline, assertAliasesUnchanged, assertPreviewDeployment, assertPreviewSupabaseRef, assertVercelProject, deploymentCreatedAt, deploymentGitCommitSha, deploymentId, deploymentProjectId, deploymentState } from "./lib/leaderboard-production-vercel-state.mjs";
 import { VERCEL_API_ORIGIN, VercelRequestError, assertNoProxyEnvironment, vercelRequest } from "./lib/leaderboard-production-vercel-transport.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -157,9 +157,9 @@ async function assertVercelState(secrets, expectedStagingId = process.env.EXPECT
   const history = await allDeployments(api); const active = activeDeployments(history); const prior = priorPreviewDeployments(history);
   invariant(active.length === 0 && prior.length === 0, "Vercel traffic or a prior immutable Files preview blocks a new create.");
   const staging = assertKnownDeployment(await api.deployment(expectedStagingId), baseline.vercel.stagingDeployment, null);
-  invariant(staging.meta?.gitDirty === baseline.vercel.stagingDeployment.acceptedGitDirty && staging.meta?.githubCommitSha === baseline.candidate.sha && staging.meta?.githubCommitRef === baseline.vercel.stagingDeployment.githubCommitRef && staging.meta?.releaseLane === baseline.vercel.stagingDeployment.releaseLane, "Reviewed staging provenance drifted.");
+  invariant(staging.meta?.gitDirty === baseline.vercel.stagingDeployment.acceptedGitDirty && deploymentGitCommitSha(staging) === baseline.candidate.sha && staging.meta?.githubCommitRef === baseline.vercel.stagingDeployment.githubCommitRef && staging.meta?.releaseLane === baseline.vercel.stagingDeployment.releaseLane, "Reviewed staging provenance drifted.");
   const old = assertKnownDeployment(await api.deployment(baseline.vercel.oldProductionDeployment.id), baseline.vercel.oldProductionDeployment, "production");
-  invariant(old.meta?.githubCommitSha === baseline.vercel.oldProductionDeployment.gitCommitSha, "Reviewed old-production commit provenance drifted.");
+  invariant(deploymentGitCommitSha(old) === baseline.vercel.oldProductionDeployment.gitCommitSha, "Reviewed old-production commit provenance drifted.");
   const aliases = await loadAliases(api);
   invariant(aliases[baseline.hosts.staging] === expectedStagingId && aliases[baseline.hosts.stagingBranch] === expectedStagingId && aliases[baseline.hosts.production] === old.id && aliases[baseline.hosts.www] === old.id, "Bound live/staging aliases drifted.");
   assertSupabaseUrl((await publicJson(baseline.hosts.staging, "/api/client-config")).url, baseline.supabase.stagingRef, baseline.supabase.productionRef);

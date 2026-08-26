@@ -9,6 +9,11 @@ function exactFallback(primary, fallback, label) {
 }
 
 export function deploymentProjectId(record) { return exactFallback(record?.projectId, record?.project?.id, "project id"); }
+export function deploymentGitCommitSha(record) {
+  const value = exactFallback(record?.meta?.githubCommitSha, record?.meta?.gitCommitSha, "git commit SHA");
+  invariant(/^[0-9a-f]{40}$/.test(value || ""), "Vercel deployment git commit SHA was missing or invalid.");
+  return value;
+}
 export function deploymentState(record) {
   const state = exactFallback(record?.readyState, record?.state, "state");
   invariant(["BUILDING", "CANCELED", "ERROR", "INITIALIZING", "QUEUED", "READY"].includes(state), "Vercel deployment state was missing or unknown.");

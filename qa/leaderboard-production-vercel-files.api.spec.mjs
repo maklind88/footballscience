@@ -6,7 +6,7 @@ import { expect, test } from "@playwright/test";
 import { canonicalDigest, canonicalJson } from "../scripts/lib/leaderboard-production-release-security.mjs";
 import { assertPreviewCreateBody, buildPreviewCreateBody, buildStagedProductionCreateBody, collectDeploymentPages, previewAttemptMeta, resolveAmbiguousCreate, selectDeploymentCandidates } from "../scripts/lib/leaderboard-production-vercel-deployments.mjs";
 import { assertDeploymentFileTree, assertSourceRequestFiles, assertUploadResponse, decodeDeploymentFileContent, deploymentContentResponseLimit, flattenDeploymentFiles, uniqueUploadRows, verifyDeploymentFileContents } from "../scripts/lib/leaderboard-production-vercel-files.mjs";
-import { aliasSnapshot, assertAliasBaseline, assertAliasesUnchanged, assertPreviewDeployment, assertPreviewSupabaseRef, assertProductionProjectEligible, assertVercelProject, deploymentCreatedAt, deploymentId, deploymentProjectId, deploymentState } from "../scripts/lib/leaderboard-production-vercel-state.mjs";
+import { aliasSnapshot, assertAliasBaseline, assertAliasesUnchanged, assertPreviewDeployment, assertPreviewSupabaseRef, assertProductionProjectEligible, assertVercelProject, deploymentCreatedAt, deploymentGitCommitSha, deploymentId, deploymentProjectId, deploymentState } from "../scripts/lib/leaderboard-production-vercel-state.mjs";
 import { VERCEL_API_ORIGIN, VercelRequestError, assertExactHeaders, assertNoProxyEnvironment, assertRateHeaders, vercelApiUrl, vercelRequest } from "../scripts/lib/leaderboard-production-vercel-transport.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -104,6 +104,9 @@ test("deployment resolver requires exact meta, project/team/target/time, paginat
 test("deployment identity rejects conflicting fallback fields and preview proves a real build", () => {
   const f = fixture(); const exact = deployment({ meta: f.meta });
   expect(deploymentId(exact)).toBe(exact.id); expect(deploymentProjectId(exact)).toBe(baseline.vercel.projectId); expect(deploymentState(exact)).toBe("READY"); expect(deploymentCreatedAt(exact)).toBe(1_000_000);
+  expect(deploymentGitCommitSha({ meta: { gitCommitSha: baseline.candidate.sha } })).toBe(baseline.candidate.sha);
+  expect(deploymentGitCommitSha({ meta: { githubCommitSha: baseline.candidate.sha, gitCommitSha: baseline.candidate.sha } })).toBe(baseline.candidate.sha);
+  expect(() => deploymentGitCommitSha({ meta: { githubCommitSha: baseline.candidate.sha, gitCommitSha: "f".repeat(40) } })).toThrow(/conflicting git commit SHA/);
   expect(assertPreviewDeployment({ ...exact, source: "non-authoritative-wrong" }, { meta: f.meta }, f.baseline)).toMatchObject({ target: null, readyState: "READY" });
   for (const drift of [{ ...exact, buildingAt: undefined }, { ...exact, ready: 1 }, { ...exact, target: undefined }, { ...exact, alias: ["live.example"] }, { ...exact, customEnvironment: { id: "x" } }, { ...exact, url: "attacker.example" }]) expect(() => assertPreviewDeployment(drift, { meta: f.meta }, f.baseline)).toThrow();
 });

@@ -7,6 +7,7 @@ import {
   validateTrackingArtifact,
   validateTrackingArtifacts,
 } from "./tracking-artifact-validator.mjs";
+import { createHash } from "node:crypto";
 import { TextDecoder } from "node:util";
 
 export const TRACKING_STAGE_RESULT_PROTOCOL = "football-science-tracking-stage-result-v1";
@@ -17,6 +18,13 @@ const entityCapabilities = Object.freeze({
   referee: "detect:referee",
 });
 const teamSides = new Set(["home", "away", "official", "unknown"]);
+const requestInputFields = Object.freeze({
+  detection: "",
+  segmentation: "prompts",
+  association: "observations",
+  reidentification: "trajectories",
+  classification: "trajectories",
+});
 
 export class TrackingStageArtifactError extends Error {
   constructor(message, code = "TRACKING_STAGE_ARTIFACT_INVALID") {
@@ -59,6 +67,18 @@ function sha256(value, label) {
   return text;
 }
 
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function canonicalSha256(value) {
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+
 function integer(value, label, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) {
   const number = Number(value);
   if (!Number.isSafeInteger(number) || number < minimum || number > maximum) invalid(`Invalid ${label}.`);
@@ -96,6 +116,61 @@ function deepFreeze(value) {
   return Object.freeze(value);
 }
 
+export function trackingStageRequestFingerprint(providerValue = {}, request = {}) {
+  const provider = normalizeTrackingProviderManifest(providerValue);
+  const inputField = requestInputFields[provider.stage];
+  const allowed = ["sourceFingerprint", "range", ...(inputField ? [inputField] : [])];
+  exactKeys(request, allowed, "Tracking stage request");
+  const sourceFingerprint = sha256(request.sourceFingerprint, "tracking request source fingerprint");
+  exactKeys(request.range, ["startMs", "endMs"], "Tracking request range");
+  const range = {
+    startMs: integer(request.range.startMs, "tracking request start"),
+    endMs: integer(request.range.endMs, "tracking request end"),
+  };
+  if (range.endMs <= range.startMs || range.endMs - range.startMs > provider.runtime.maxDurationMs) {
+    invalid("Tracking request range is invalid.", "TRACKING_STAGE_RANGE_MISMATCH");
+  }
+  const inputs = inputField
+    ? Array.isArray(request[inputField])
+      ? request[inputField]
+      : invalid(`Tracking stage request ${inputField} must be an array.`)
+    : [];
+  const maximumInputs = provider.stage === "segmentation"
+    ? 8
+    : provider.stage === "detection"
+      ? 0
+      : provider.stage === "association"
+        ? 250_000
+        : 1024;
+  if (inputs.length > maximumInputs || (provider.stage === "segmentation" && !inputs.length)) {
+    invalid("Tracking stage request input count is outside its safety limit.", "TRACKING_STAGE_REQUEST_LIMIT");
+  }
+  const payload = {
+    schemaVersion: 1,
+    protocol: "football-science-tracking-stage-request-v1",
+    provider: {
+      id: provider.providerId,
+      version: provider.providerVersion,
+      fingerprintSha256: trackingProviderFingerprint(provider),
+    },
+    stage: provider.stage,
+    capabilities: [...provider.capabilities].sort(),
+    sourceFingerprint,
+    range,
+    ...(inputField ? { [inputField]: inputs } : {}),
+  };
+  let serialized;
+  try {
+    serialized = canonicalJson(payload);
+  } catch {
+    invalid("Tracking stage request is not serializable.");
+  }
+  if (Buffer.byteLength(serialized) > maximumOutputBytes(provider)) {
+    invalid("Tracking stage request exceeds its safety limit.", "TRACKING_STAGE_REQUEST_LIMIT");
+  }
+  return canonicalSha256(payload);
+}
+
 function maximumOutputBytes(provider = {}, options = {}) {
   return Math.min(
     provider.runtime.maxOutputBytes,
@@ -130,7 +205,7 @@ function parseSerializedResult(value, provider = {}, options = {}) {
 function normalizedHeader(value = {}, provider = {}, request = {}, options = {}) {
   exactKeys(value, [
     "schemaVersion", "protocol", "provider", "stage", "capabilities",
-    "sourceFingerprint", "range", "payload",
+    "sourceFingerprint", "requestFingerprint", "range", "payload",
   ], "Tracking stage result");
   if (Number(value.schemaVersion) !== 1 || value.protocol !== TRACKING_STAGE_RESULT_PROTOCOL) {
     invalid("Unsupported tracking stage result protocol.");
@@ -153,6 +228,10 @@ function normalizedHeader(value = {}, provider = {}, request = {}, options = {})
   if (sourceFingerprint !== sha256(request.sourceFingerprint, "requested source fingerprint")) {
     invalid("Tracking result belongs to another video source.", "TRACKING_STAGE_SOURCE_MISMATCH");
   }
+  const requestFingerprint = sha256(value.requestFingerprint, "tracking request fingerprint");
+  if (requestFingerprint !== trackingStageRequestFingerprint(provider, request)) {
+    invalid("Tracking result belongs to different stage inputs.", "TRACKING_STAGE_REQUEST_MISMATCH");
+  }
   exactKeys(value.range, ["startMs", "endMs"], "Tracking result range");
   const range = {
     startMs: integer(value.range.startMs, "tracking result start"),
@@ -174,7 +253,7 @@ function normalizedHeader(value = {}, provider = {}, request = {}, options = {})
   if (Buffer.byteLength(serialized) > maximumOutputBytes(provider, options)) {
     invalid("Tracking stage result exceeds its output limit.", "TRACKING_STAGE_OUTPUT_LIMIT");
   }
-  return { capabilities, range, sourceFingerprint };
+  return { capabilities, range, sourceFingerprint, requestFingerprint };
 }
 
 function validateDetection(payload = {}, provider = {}, range = {}, options = {}) {
@@ -342,6 +421,7 @@ export function validateTrackingStageArtifact(value = {}, providerValue = {}, re
     stage: provider.stage,
     capabilities: header.capabilities,
     sourceFingerprint: header.sourceFingerprint,
+    requestFingerprint: header.requestFingerprint,
     range: header.range,
     payload: normalizedPayload,
   });

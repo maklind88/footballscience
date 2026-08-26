@@ -24,7 +24,7 @@ Segmentation/propagation and full-scene tracking use separate ground-truth contr
 
 ## Execution Result Boundary
 
-Every future pipeline stage returns `football-science-tracking-stage-result-v1` through one strict local validator. Serialized output is size-bounded and UTF-8 validated before parsing. The result is then bound to the exact provider runtime fingerprint, capability set, video-source fingerprint, and requested time range before any value can reach FS Player.
+Every future pipeline stage returns `football-science-tracking-stage-result-v1` through one strict local validator. Serialized output is size-bounded and UTF-8 validated before parsing. The result is then bound to the exact provider runtime fingerprint, capability set, video-source fingerprint, requested time range, and a canonical SHA-256 fingerprint of the complete stage request before any value can reach FS Player. Detection binds the source/range request; segmentation binds every prompt; association binds the exact ordered observation set; and re-identification/classification bind the exact trajectory set. Changed, reordered, hidden top-level, or cross-provider inputs therefore invalidate the result instead of silently creating a mixed pipeline run.
 
 - detection may return only bounded boxes, timestamps, entity class, and confidence for separately approved player, ball, or referee capabilities
 - association may reference each known observation at most once and cannot introduce identity data
@@ -33,6 +33,8 @@ Every future pipeline stage returns `football-science-tracking-stage-result-v1` 
 - segmentation reuses the existing bounded selected-object track validator
 
 Candidate outputs can pass this structural boundary for benchmark evaluation, but normal activation uses the stricter activated boundary and fails closed unless the exact provider manifest, original report, raw-run evidence, and reproducible evidence artifact all pass readiness.
+
+Provider evidence also applies a non-overridable workstation policy of at most `1.0x` real time to every attested case. A benchmark profile may demand faster inference, but it cannot raise that ceiling. Missing processing evidence, a weakened report threshold, or one slower case prevents provider approval even when all quality metrics pass.
 
 ## Raw Run Evidence Boundary
 

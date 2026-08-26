@@ -10,6 +10,7 @@ const requiredEvaluatorVersion = "tracking-benchmark-v1";
 const referenceCapabilities = /^(?:detect:|associate:|reidentify:)/;
 const requiredReferenceMetrics = Object.freeze(["HOTA", "DetA", "AssA", "LocA", "MOTA", "IDF1"]);
 const maximumReportBytes = 16 * 1024 * 1024;
+const maximumApprovedRealtimeFactor = 1;
 
 const capabilityRules = Object.freeze({
   "detect:player": Object.freeze([
@@ -176,6 +177,32 @@ function metricEvidence(cases = [], capability = "") {
   });
 }
 
+function performanceEvidence(cases = []) {
+  const actuals = cases.map((entry) => finiteMetric(
+    valueAtPath(entry, "metrics.realtimeFactor"),
+    "metrics.realtimeFactor",
+  ));
+  const reportedThresholds = cases.map((entry) => finiteMetric(
+    valueAtPath(entry, "thresholds.maxRealtimeFactor"),
+    "thresholds.maxRealtimeFactor",
+  ));
+  const thresholds = reportedThresholds.map((threshold) => (
+    Math.min(threshold, maximumApprovedRealtimeFactor)
+  ));
+  if (actuals.some((actual, index) => actual > thresholds[index])) {
+    invalid(
+      "Provider evidence does not pass the workstation real-time policy.",
+      "TRACKING_PROVIDER_EVIDENCE_FAILED",
+    );
+  }
+  return {
+    metric: "realtimeFactor",
+    direction: "maximum",
+    required: Math.min(...thresholds),
+    worst: Math.max(...actuals),
+  };
+}
+
 function providerFingerprintPayload(provider = {}) {
   return {
     schemaVersion: provider.schemaVersion,
@@ -318,6 +345,7 @@ export function createTrackingProviderEvidence(provider = {}, report = {}, optio
       referenceEvaluator: reference.evaluator,
       referenceReportSha256: reference.reportSha256,
       referenceMetrics: reference.metrics,
+      performanceEvidence: performanceEvidence(cases),
       capabilityEvidence,
     },
     reviewedOn: String(options.reviewedOn || provider.approval?.reviewedAt || ""),

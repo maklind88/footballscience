@@ -1,0 +1,178 @@
+import { expect, request, test } from "@playwright/test";
+import { assertSupabaseUrl, sanitizedApiRequest } from "../scripts/lib/leaderboard-production-release-security.mjs";
+
+const liveBaseUrl = String(process.env.LIVE_QA_BASE_URL || "https://footballscience.xyz").trim();
+const expectedOrigin = "https://footballscience.xyz";
+const productionRef = String(process.env.SUPABASE_PROJECT_REF || "bustidorxevacosqhkcz").trim();
+const stagingRef = String(process.env.STAGING_SUPABASE_PROJECT_REF || "pokrksgempkuraueglpu").trim();
+const hasCredentials = Boolean(process.env.LIVE_QA_USERNAME && process.env.LIVE_QA_PASSWORD);
+
+if (new URL(liveBaseUrl).href !== `${expectedOrigin}/`) throw new Error("Leaderboard smoke base URL did not match the exact production origin.");
+
+test.skip(!hasCredentials, "Protected production Leaderboard smoke requires live QA credentials.");
+
+function teamIsCovered(identity, teamId) {
+  const teams = Array.isArray(identity?.scope?.teams) ? identity.scope.teams : [];
+  const memberships = Array.isArray(identity?.scope?.memberships) ? identity.scope.memberships : [];
+  const team = teams.find((entry) => entry.id === teamId && entry.status === "active");
+  if (!team) return false;
+  return memberships.some((membership) => {
+    if (membership.status !== "active") return false;
+    if (membership.scope === "team") return membership.teamId === team.id;
+    if (membership.scope === "club") return Boolean(team.clubId && membership.clubId === team.clubId);
+    return membership.scope === "organization" && membership.organizationId === team.organizationId;
+  });
+}
+
+async function waitForReady(page) {
+  await page.waitForFunction(() => Boolean(window.platformAuthReadyPromise), null, { timeout: 20_000 });
+  await page.evaluate(() => window.platformAuthReadyPromise);
+  await expect.poll(() => page.evaluate(() => {
+    if (document.body.dataset.appLoadError) return `error:${document.body.dataset.appLoadError}`;
+    return window.__footballScienceAppReady ? "ready" : "loading";
+  }), { timeout: 75_000 }).toBe("ready");
+  await expect(page.locator("#hubShell")).toBeVisible({ timeout: 30_000 });
+  const close = page.locator("button[data-dashboard-news-dismiss], button[data-dashboard-tutorial-never], button[data-dashboard-tutorial-save], button[data-dashboard-modal-close]").first();
+  if (await close.isVisible().catch(() => false)) await close.click({ force: true });
+}
+
+async function tokenFrom(page) {
+  await expect.poll(() => page.evaluate(async () => String((await window.platformAuthStore?.getAccessToken?.()) || "")), {
+    timeout: 20_000,
+  }).not.toBe("");
+  return page.evaluate(async () => String((await window.platformAuthStore.getAccessToken()) || ""));
+}
+
+async function authenticatePage(page) {
+  await page.goto(liveBaseUrl, { waitUntil: "domcontentloaded" });
+  expect(new URL(page.url()).origin === expectedOrigin).toBe(true);
+  await page.waitForFunction(() => Boolean(window.platformAuthReadyPromise), null, { timeout: 20_000 });
+  await page.evaluate(() => window.platformAuthReadyPromise);
+  const loginResponse = await sanitizedApiRequest("login", () => page.request.post(`${expectedOrigin}/api/client-config`, {
+    data: { email: process.env.LIVE_QA_USERNAME, password: process.env.LIVE_QA_PASSWORD },
+    maxRedirects: 0,
+  }));
+  const login = await loginResponse.json().catch(() => null);
+  expect(loginResponse.status()).toBe(200);
+  expect(login?.ok === true).toBe(true);
+  expect(Boolean(login?.session?.access_token)).toBe(true);
+  expect(Boolean(login?.session?.refresh_token)).toBe(true);
+  const sessionOk = await page.evaluate(async (session) => {
+    const client = window.platformAuthStore?.getSupabaseClient?.();
+    if (!client?.auth?.setSession) return false;
+    const { error } = await client.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token });
+    return !error;
+  }, login.session);
+  expect(sessionOk).toBe(true);
+  await waitForReady(page);
+}
+
+test("production Leaderboard is authenticated, tenant-bound, empty, and read-only", async ({ page }) => {
+  let forbiddenMethodCount = 0;
+  let crossOriginApiCount = 0;
+  let apiFailureCount = 0;
+  let pageErrorCount = 0;
+  let leaderboardConsoleErrorCount = 0;
+
+  await page.route("**/*", async (route) => {
+    const method = route.request().method().toUpperCase();
+    const requestUrl = new URL(route.request().url());
+    if (requestUrl.pathname.startsWith("/api/") && requestUrl.origin !== expectedOrigin) {
+      crossOriginApiCount += 1;
+      await route.abort("blockedbyclient");
+      return;
+    }
+    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+      forbiddenMethodCount += 1;
+      await route.abort("blockedbyclient");
+      return;
+    }
+    await route.continue();
+  });
+  page.on("response", (response) => {
+    const responseUrl = new URL(response.url());
+    if (responseUrl.pathname === "/api/leaderboard" && (responseUrl.origin !== expectedOrigin || response.status() >= 400)) apiFailureCount += 1;
+  });
+  page.on("pageerror", () => { pageErrorCount += 1; });
+  page.on("console", (message) => {
+    if (message.type() === "error" && /leaderboard|\/api\/leaderboard/i.test(message.text())) leaderboardConsoleErrorCount += 1;
+  });
+
+  await authenticatePage(page);
+  const token = await tokenFrom(page);
+  expect(new URL(page.url()).origin === expectedOrigin).toBe(true);
+
+  const clientConfigResponse = await sanitizedApiRequest("client-config", () => page.request.get(`${expectedOrigin}/api/client-config`, { maxRedirects: 0 }));
+  const clientConfig = await clientConfigResponse.json().catch(() => null);
+  expect(clientConfigResponse.status()).toBe(200);
+  assertSupabaseUrl(clientConfig?.url, productionRef, stagingRef);
+
+  const identityResponse = await sanitizedApiRequest("identity", () => page.request.get(`${expectedOrigin}/api/platform-identity`, {
+    headers: { Authorization: `Bearer ${token}` },
+    maxRedirects: 0,
+  }));
+  const identity = await identityResponse.json().catch(() => null);
+  expect(identityResponse.status()).toBe(200);
+  expect(identity?.ok === true).toBe(true);
+  const currentTeamId = await page.evaluate(() => String(window.platformAuthStore?.getCurrentUser?.()?.teamId || ""));
+  const fallbackTeamId = (Array.isArray(identity?.scope?.teams) ? identity.scope.teams : [])
+    .filter((team) => team.status === "active" && teamIsCovered(identity, team.id))
+    .map((team) => String(team.id || ""))
+    .filter(Boolean)
+    .sort()[0] || "";
+  const teamId = teamIsCovered(identity, currentTeamId) ? currentTeamId : fallbackTeamId;
+  expect(/^[0-9a-f-]{36}$/i.test(teamId) && teamIsCovered(identity, teamId), "Live QA identity must expose a deterministic active team.").toBe(true);
+
+  const month = new Date().toISOString().slice(0, 7);
+  const params = new URLSearchParams({ month, teamId });
+  const directResponse = await sanitizedApiRequest("leaderboard", () => page.request.get(`${expectedOrigin}/api/leaderboard?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    maxRedirects: 0,
+  }));
+  const direct = await directResponse.json().catch(() => null);
+  expect(directResponse.status()).toBe(200);
+  expect(direct?.ok === true && direct?.schema === "footballscience-leaderboard-v1" && direct?.month === month).toBe(true);
+  expect(Number(direct?.summary?.totalPoints)).toBe(0);
+  expect(Number(direct?.summary?.eventCount)).toBe(0);
+  expect(Array.isArray(direct?.events) ? direct.events.length : -1).toBe(0);
+  expect(Array.isArray(direct?.standings) ? direct.standings.length : -1).toBe(0);
+
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "schedule" } })));
+  await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
+  const homeRead = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname === "/api/leaderboard" && response.request().method() === "GET";
+  }, { timeout: 45_000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "home" } })));
+  await expect(page.locator('[data-workspace-view="home"].is-active')).toBeVisible();
+  const uiResponse = await homeRead;
+  const uiUrl = new URL(uiResponse.url());
+  expect(uiUrl.origin === expectedOrigin && uiUrl.searchParams.get("month") === month && teamIsCovered(identity, uiUrl.searchParams.get("teamId"))).toBe(true);
+  expect(uiResponse.status()).toBe(200);
+  const uiPayload = await uiResponse.json().catch(() => null);
+  expect(uiPayload?.ok === true && uiPayload?.schema === "footballscience-leaderboard-v1" && uiPayload?.month === month).toBe(true);
+  expect(Number(uiPayload?.summary?.totalPoints)).toBe(0);
+  expect(Number(uiPayload?.summary?.eventCount)).toBe(0);
+  expect(Array.isArray(uiPayload?.events) ? uiPayload.events.length : -1).toBe(0);
+  expect(Array.isArray(uiPayload?.standings) ? uiPayload.standings.length : -1).toBe(0);
+  await expect(page.locator("#leaderboardSummary")).toBeVisible({ timeout: 30_000 });
+  await page.locator("[data-leaderboard-home-open]").click();
+  await expect(page.locator("[data-leaderboard-dialog-workspace] [data-leaderboard-root]")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("[data-leaderboard-open-award]")).toBeVisible();
+
+  const anonymous = await request.newContext({ baseURL: expectedOrigin });
+  try {
+    const denied = await sanitizedApiRequest("anonymous-leaderboard", () => anonymous.get(`/api/leaderboard?${params}`, { maxRedirects: 0 }));
+    expect([401, 403]).toContain(denied.status());
+    const payload = await denied.json().catch(() => null);
+    expect(payload?.ok === false).toBe(true);
+  } finally {
+    await sanitizedApiRequest("anonymous-dispose", () => anonymous.dispose());
+  }
+
+  expect(forbiddenMethodCount, "Leaderboard live smoke attempted a write.").toBe(0);
+  expect(crossOriginApiCount, "Authenticated API traffic crossed the exact production origin.").toBe(0);
+  expect(apiFailureCount, "Authenticated Leaderboard requests must not fail.").toBe(0);
+  expect(pageErrorCount).toBe(0);
+  expect(leaderboardConsoleErrorCount).toBe(0);
+});

@@ -1,0 +1,340 @@
+name: Leaderboard Production Code Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_orchestration_sha:
+        description: Exact trusted-main SHA containing only the reviewed release rail
+        required: true
+        type: string
+      expected_staging_deployment_id:
+        description: Exact reviewed READY preview deployment currently serving staging
+        required: true
+        type: string
+      expected_plan_environment_id:
+        description: Exact pre-created protected plan Environment id
+        required: true
+        type: string
+      expected_apply_environment_id:
+        description: Exact pre-created protected apply Environment id
+        required: true
+        type: string
+      production_db_observed_at:
+        description: Fresh reviewer/MCP production DB observation timestamp (ISO-8601)
+        required: true
+        type: string
+      production_db_attestation_sha256:
+        description: Canonical SHA256 for the exact 48/V/catalog/rows0 DB observation
+        required: true
+        type: string
+      freeze_observed_at:
+        description: Fresh owner/admin observation time for exact no-bypass branch and tag freezes
+        required: true
+        type: string
+      freeze_attestation_sha256:
+        description: Canonical SHA256 binding dynamic ruleset ids, updated_at, payloads, and empty bypass actors
+        required: true
+        type: string
+      confirmation:
+        description: DEPLOY_LEADERBOARD_CODE_C1_<exact orchestration SHA>
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: footballscience-production-edge-release
+  cancel-in-progress: false
+
+env:
+  CANDIDATE_SHA: c1b1821ab796bb680eb3480979542b6a461af964
+  CANDIDATE_TREE: 4f1313f370d647fbffaa20236f6dee6a4412006a
+  VERCEL_CLI_VERSION: 53.2.0
+
+jobs:
+  environment-preflight:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted orchestration rail
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Set up exact Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.15.0
+
+      - name: Verify both protected environments before jobs can reference them
+        run: node scripts/leaderboard-production-code-release.mjs --mode environment-preflight
+        env:
+          EXPECTED_APPLY_ENVIRONMENT_ID: ${{ inputs.expected_apply_environment_id }}
+          EXPECTED_PLAN_ENVIRONMENT_ID: ${{ inputs.expected_plan_environment_id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  plan:
+    if: github.ref == 'refs/heads/main' && needs.environment-preflight.result == 'success'
+    needs: environment-preflight
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53
+    timeout-minutes: 40
+    environment:
+      name: leaderboard-production-code-release-plan
+    outputs:
+      artifact_sha256: ${{ steps.plan.outputs.artifact_sha256 }}
+      plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - name: Checkout trusted orchestration rail
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Checkout immutable production candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: c1b1821ab796bb680eb3480979542b6a461af964
+          path: .release-candidate
+
+      - name: Fetch immutable main and staging refs
+        shell: bash
+        run: |
+          git fetch --quiet --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/staging:refs/remotes/origin/staging
+          git -C .release-candidate fetch --quiet --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/staging:refs/remotes/origin/staging
+
+      - name: Set up pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            .release-candidate/package-lock.json
+
+      - name: Install orchestration dependencies
+        run: npm ci
+
+      - name: Normalize proven orchestration npm-ci drift
+        run: node scripts/leaderboard-production-code-release.mjs --mode normalize
+        env:
+          TARGET_DIR: ${{ github.workspace }}
+
+      - name: Install immutable candidate dependencies
+        run: npm ci
+        working-directory: .release-candidate
+
+      - name: Normalize proven candidate npm-ci drift
+        run: node scripts/leaderboard-production-code-release.mjs --mode normalize
+        env:
+          TARGET_DIR: ${{ github.workspace }}/.release-candidate
+
+      - name: Install integrity-locked Vercel CLI
+        run: npm ci --prefix scripts/release-tools/vercel-cli --ignore-scripts --no-audit --no-fund
+
+      - name: Verify integrity-locked Vercel CLI bytes
+        run: node scripts/leaderboard-production-code-release.mjs --mode tooling
+
+      - name: Build protected immutable release plan
+        id: plan
+        run: node scripts/leaderboard-production-code-release.mjs --mode plan
+        env:
+          CANDIDATE_DIR: ${{ github.workspace }}/.release-candidate
+          EXPECTED_APPLY_ENVIRONMENT_ID: ${{ inputs.expected_apply_environment_id }}
+          EXPECTED_ORCHESTRATION_SHA: ${{ inputs.expected_orchestration_sha }}
+          EXPECTED_PLAN_ENVIRONMENT_ID: ${{ inputs.expected_plan_environment_id }}
+          EXPECTED_STAGING_DEPLOYMENT_ID: ${{ inputs.expected_staging_deployment_id }}
+          FREEZE_ATTESTATION_SHA256: ${{ inputs.freeze_attestation_sha256 }}
+          FREEZE_OBSERVED_AT: ${{ inputs.freeze_observed_at }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
+          LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
+          PLAN_ARTIFACT_PATH: ${{ runner.temp }}/leaderboard-production-plan/plan.json
+          PRODUCTION_DB_ATTESTATION_SHA256: ${{ inputs.production_db_attestation_sha256 }}
+          PRODUCTION_DB_OBSERVED_AT: ${{ inputs.production_db_observed_at }}
+          RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+          STAGING_QA_PASSWORD: ${{ secrets.STAGING_QA_PASSWORD }}
+          STAGING_QA_USERNAME: ${{ secrets.STAGING_QA_USERNAME }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Upload immutable secret-free release plan
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: leaderboard-production-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/leaderboard-production-plan/plan.json
+          if-no-files-found: error
+          retention-days: 1
+
+  apply:
+    if: github.ref == 'refs/heads/main' && needs.plan.result == 'success'
+    needs: plan
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53
+    timeout-minutes: 65
+    environment:
+      name: leaderboard-production-code-release-apply
+    outputs:
+      release_authorized: ${{ steps.authorization.outputs.release_authorized }}
+    steps:
+      - name: Record protected apply authorization
+        id: authorization
+        run: node -e 'require("node:fs").appendFileSync(process.env.GITHUB_OUTPUT,"release_authorized=true\n")'
+
+      - name: Checkout trusted orchestration rail
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Checkout immutable production candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: c1b1821ab796bb680eb3480979542b6a461af964
+          path: .release-candidate
+
+      - name: Fetch immutable main and staging refs
+        shell: bash
+        run: |
+          git fetch --quiet --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/staging:refs/remotes/origin/staging
+          git -C .release-candidate fetch --quiet --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/staging:refs/remotes/origin/staging
+
+      - name: Set up pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            .release-candidate/package-lock.json
+
+      - name: Install orchestration dependencies
+        run: npm ci
+
+      - name: Normalize proven orchestration npm-ci drift
+        run: node scripts/leaderboard-production-code-release.mjs --mode normalize
+        env:
+          TARGET_DIR: ${{ github.workspace }}
+
+      - name: Install immutable candidate dependencies
+        run: npm ci
+        working-directory: .release-candidate
+
+      - name: Normalize proven candidate npm-ci drift
+        run: node scripts/leaderboard-production-code-release.mjs --mode normalize
+        env:
+          TARGET_DIR: ${{ github.workspace }}/.release-candidate
+
+      - name: Install integrity-locked Vercel CLI
+        run: npm ci --prefix scripts/release-tools/vercel-cli --ignore-scripts --no-audit --no-fund
+
+      - name: Verify integrity-locked Vercel CLI bytes
+        run: node scripts/leaderboard-production-code-release.mjs --mode tooling
+
+      - name: Download exact same-run plan
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: leaderboard-production-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/leaderboard-production-plan
+
+      - name: Normalize downloaded plan permissions
+        shell: bash
+        run: |
+          chmod 0700 "${RUNNER_TEMP}/leaderboard-production-plan"
+          chmod 0600 "${RUNNER_TEMP}/leaderboard-production-plan/plan.json"
+
+      - name: Apply exact candidate code release
+        id: apply
+        run: node scripts/leaderboard-production-code-release.mjs --mode apply
+        env:
+          CANDIDATE_DIR: ${{ github.workspace }}/.release-candidate
+          EXPECTED_APPLY_ENVIRONMENT_ID: ${{ inputs.expected_apply_environment_id }}
+          EXPECTED_ARTIFACT_SHA256: ${{ needs.plan.outputs.artifact_sha256 }}
+          EXPECTED_UPLOAD_DIGEST: ${{ needs.plan.outputs.artifact_digest }}
+          EXPECTED_ORCHESTRATION_SHA: ${{ inputs.expected_orchestration_sha }}
+          EXPECTED_PLAN_ENVIRONMENT_ID: ${{ inputs.expected_plan_environment_id }}
+          EXPECTED_STAGING_DEPLOYMENT_ID: ${{ inputs.expected_staging_deployment_id }}
+          FREEZE_ATTESTATION_SHA256: ${{ inputs.freeze_attestation_sha256 }}
+          FREEZE_OBSERVED_AT: ${{ inputs.freeze_observed_at }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
+          LIVE_QA_PEER_PASSWORD: ${{ secrets.LIVE_QA_PEER_PASSWORD }}
+          LIVE_QA_PEER_USERNAME: ${{ secrets.LIVE_QA_PEER_USERNAME }}
+          LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PLAN_ARTIFACT_PATH: ${{ runner.temp }}/leaderboard-production-plan/plan.json
+          PRODUCTION_DB_ATTESTATION_SHA256: ${{ inputs.production_db_attestation_sha256 }}
+          PRODUCTION_DB_OBSERVED_AT: ${{ inputs.production_db_observed_at }}
+          RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+          STAGING_QA_PASSWORD: ${{ secrets.STAGING_QA_PASSWORD }}
+          STAGING_QA_USERNAME: ${{ secrets.STAGING_QA_USERNAME }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+  cleanup:
+    if: always() && needs.apply.outputs.release_authorized == 'true'
+    needs: [plan, apply]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout trusted orchestration rail
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Checkout immutable production candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: c1b1821ab796bb680eb3480979542b6a461af964
+          path: .release-candidate
+
+      - name: Fetch immutable main and staging refs
+        shell: bash
+        run: |
+          git fetch --quiet --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/staging:refs/remotes/origin/staging
+          git -C .release-candidate fetch --quiet --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/staging:refs/remotes/origin/staging
+
+      - name: Set up exact Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.15.0
+
+      - name: Install integrity-locked Vercel CLI
+        run: npm ci --prefix scripts/release-tools/vercel-cli --ignore-scripts --no-audit --no-fund
+
+      - name: Verify integrity-locked Vercel CLI bytes
+        run: node scripts/leaderboard-production-code-release.mjs --mode tooling
+
+      - name: Settle outcome and restore staging isolation
+        run: node scripts/leaderboard-production-code-release.mjs --mode cleanup
+        env:
+          APPLY_RESULT: ${{ needs.apply.result }}
+          CANDIDATE_DIR: ${{ github.workspace }}/.release-candidate
+          EXPECTED_ARTIFACT_SHA256: ${{ needs.plan.outputs.artifact_sha256 }}
+          EXPECTED_ORCHESTRATION_SHA: ${{ inputs.expected_orchestration_sha }}
+          EXPECTED_STAGING_DEPLOYMENT_ID: ${{ inputs.expected_staging_deployment_id }}
+          RELEASE_AUTHORIZED: ${{ needs.apply.outputs.release_authorized }}
+          RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

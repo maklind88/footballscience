@@ -1,0 +1,163 @@
+{
+  "schema": "footballscience-leaderboard-production-code-release-baseline-v1",
+  "repository": {
+    "id": 1231879845,
+    "fullName": "maklind88/footballscience",
+    "defaultBranch": "main"
+  },
+  "candidate": {
+    "sha": "c1b1821ab796bb680eb3480979542b6a461af964",
+    "tree": "4f1313f370d647fbffaa20236f6dee6a4412006a",
+    "featureRef": "codex/leaderboard-module"
+  },
+  "allowedRailPaths": [
+    ".github/workflows/leaderboard-production-code-release.yml",
+    "package.json",
+    "qa/leaderboard-production-code-release.api.spec.mjs",
+    "qa/leaderboard-production-readonly.live.spec.mjs",
+    "qa/leaderboard-production-readonly.playwright.config.mjs",
+    "scripts/leaderboard-production-code-release.mjs",
+    "scripts/leaderboard-production-release-baseline.json",
+    "scripts/lib/leaderboard-production-release-evidence.mjs",
+    "scripts/lib/leaderboard-production-release-security.mjs",
+    "scripts/release-tools/vercel-cli/package-lock.json",
+    "scripts/release-tools/vercel-cli/package.json"
+  ],
+  "actions": {
+    "checkout": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "setupNode": "249970729cb0ef3589644e2896645e5dc5ba9c38",
+    "uploadArtifact": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "downloadArtifact": "634f93cb2916e3fdff6788551b99b062d0335ce0"
+  },
+  "workflows": {
+    "codeql": 273626539,
+    "qa": 272632247,
+    "stagingSmoke": 273867963,
+    "stagingDeploy": 273867961,
+    "productionDeploy": 273632402
+  },
+  "evidence": {
+    "codeql": {
+      "runId": 32926215969,
+      "event": "push",
+      "branch": "main",
+      "attempt": 1,
+      "conclusion": "success"
+    },
+    "qa": {
+      "runId": 32926216162,
+      "event": "push",
+      "branch": "main",
+      "attempt": 1,
+      "conclusion": "failure",
+      "failedJobId": 98049538827,
+      "failedJobName": "full-qa / Browser shard 3 of 4",
+      "expectedJobs": 6,
+      "failure": {
+        "url": "https://ncskunk-harris.github.io/Team_Match_Performance_Dashboard/",
+        "test": "qa/platform-click-audit.smoke.spec.mjs",
+        "message": "Failed to load resource: the server responded with a status of 404 ()",
+        "counts": "{\"clicked\":111,\"slow\":0,\"missingLabels\":0,\"smallTargets\":21,\"pageErrors\":0,\"consoleErrors\":1}",
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    "stagingSmoke": {
+      "runId": 32927128439,
+      "jobId": 98052178006,
+      "event": "workflow_dispatch",
+      "branch": "main",
+      "attempt": 1,
+      "createdAt": "2026-08-26T03:37:12.000Z",
+      "conclusion": "success",
+      "requiredSteps": [
+        "Run npm run verify:staging-env -- --required",
+        "Run npm run qa:staging:required"
+      ]
+    }
+  },
+  "vercel": {
+    "teamId": "team_ayMHRHhvpCWLhB7Hss525k0z",
+    "projectId": "prj_GazeaGD3eThx8p2w1m334AAFNN0x",
+    "projectName": "footballscience",
+    "nodeVersion": "24.15.0",
+    "containerImage": "mcr.microsoft.com/playwright:v1.59.1-noble@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53",
+    "cliVersion": "53.2.0",
+    "cliIntegrity": "sha512-r4fzI7LSnzhYn2L4acMHmRk1V6WgfjFFzaei0AgG0bd2b17HF9HeRoP9BxJD/yvYmjLIfYIoGTd0CWlIGg3rUg==",
+    "cliShasum": "3ccbc7fc82bd31951c8e4cb7875355476ec06542",
+    "cliLockSha256": "cf2cda833a248212b371cb3324c8784722a8ad986be0bf7894c9872d47b4e080",
+    "cliEntrySha256": "24a660d5013c2066a2637431519bda38a3c71c60a65566d86121362f27696576",
+    "cliBundleSha256": "480fde7092a80bb2b1f1596086d475ef8c623eaca2b64e7077a598188c48545c",
+    "stagingDeployment": {
+      "id": "dpl_FDBULqi5jGigvky6VoXPUqp7Ju86",
+      "url": "footballscience-9felg5v3a-makattack.vercel.app",
+      "createdAt": 1787715218651,
+      "target": null,
+      "readyState": "READY",
+      "acceptedGitDirty": "1",
+      "githubCommitRef": "staging",
+      "releaseLane": "leaderboard-staging-c1"
+    },
+    "oldProductionDeployment": {
+      "id": "dpl_9FH59WSmWpUFyenf5xzjSkMq8oDT",
+      "url": "footballscience-ao0vgnrol-makattack.vercel.app",
+      "gitCommitSha": "64808dc4d788bb944602c8a9e2a197efb46006e6",
+      "target": "production",
+      "readyState": "READY"
+    }
+  },
+  "hosts": {
+    "staging": "staging.footballscience.xyz",
+    "stagingBranch": "footballscience-git-staging-makattack.vercel.app",
+    "production": "footballscience.xyz",
+    "www": "www.footballscience.xyz"
+  },
+  "freezes": {
+    "branch": {
+      "name": "temporary-leaderboard-staging-secret-freeze-branch-20260825",
+      "payloadSha256": "63b90492f82b8979d484fbb05e6ef757ebe09f17f4fb4facae3ff8f1a491669f"
+    },
+    "tag": {
+      "name": "temporary-leaderboard-staging-secret-freeze-tag-20260825",
+      "payloadSha256": "ff441ee1e4cd15156ef6267d955213483f8231b2493325fa1ae7313da04412a9"
+    }
+  },
+  "supabase": {
+    "stagingRef": "pokrksgempkuraueglpu",
+    "productionRef": "bustidorxevacosqhkcz",
+    "previewRef": "dzlbopjjvmnhfholeppy",
+    "productionStatus": "ACTIVE_HEALTHY",
+    "autoDeployGitBranch": null,
+    "edgeFunctionCount": 0,
+    "migrationCount": 48,
+    "leaderboardVersion": "20260825181453",
+    "leaderboardName": "leaderboard_foundation",
+    "migrationRawSha256": "c4e719b1fc7600f57f4bcf8726704877a76b793423eaeb42d4c7365e43d19717",
+    "migrationCanonicalSha256": "e51c119d3f47b9cc1e473a1518f646b749799dfb3e0f64d882701fddc3fcc36e",
+    "catalogObjects": 175,
+    "catalogMd5": "ff4915614faf4a99ed13ec2dd1c8af17",
+    "rowCounts": {
+      "leaderboard_audit_events": 0,
+      "leaderboard_competitions": 0,
+      "leaderboard_participants": 0,
+      "leaderboard_point_transactions": 0,
+      "leaderboard_scoring_events": 0
+    }
+  },
+  "assets": {
+    "appJsSha256": "3545885c154096e41c2fa2d65027011cbdc35392b2de2573517415943eac3759",
+    "appRuntimeSha256": "ad09c8499d80ad2731f5ec6d81de8f6f64b1a53d62230cd9cda4306c772131a9",
+    "navigationControllerSha256": "de6ddeef146d8fbf78fa3baed689482c75de451682640f95669fe6b105b54b9f",
+    "leaderboardModulePath": "/src/modules/leaderboard/leaderboard-home-surface.mjs",
+    "leaderboardModuleBytes": 17487,
+    "leaderboardModuleSha256": "0010dc05942668e3d3ac8b8d0c95f650317c5405be9f14a4552bbf458dd9aba0"
+  },
+  "environments": {
+    "plan": "leaderboard-production-code-release-plan",
+    "apply": "leaderboard-production-code-release-apply",
+    "reviewer": "maklind88",
+    "reviewerId": 279889782,
+    "requiredExternalSecretCount": 0
+  },
+  "confirmationPrefix": "DEPLOY_LEADERBOARD_CODE_C1_"
+}

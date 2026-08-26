@@ -1,20 +1,20 @@
 import { createTrackingController } from "./controllers/trackingController.js";
 import { createTrackingRepository } from "./repositories/trackingRepository.js";
-import { inspectLocalTrackingProvider, trackLocalObject } from "./services/localTrackingService.js";
+import {
+  inspectLocalTrackingProvider,
+  trackLocalObject,
+  trackLocalObjects,
+} from "./services/localTrackingService.js";
 import { activeMediaAngle, mediaReferenceForAngle } from "./services/mediaProductionService.js";
 import { matchTimeToAngleTime } from "./services/multiAngleSyncService.js";
 
 export function localTrackingRequest(request = {}, state = {}) {
   const angle = activeMediaAngle(state);
-  const prompt = request.prompt || {};
-  const sourceStartMs = angle ? matchTimeToAngleTime(prompt.startMs, angle) : prompt.startMs;
-  const sourceEndMs = angle ? matchTimeToAngleTime(prompt.endMs, angle) : prompt.endMs;
-  const sourcePromptAtMs = angle ? matchTimeToAngleTime(prompt.promptAtMs, angle) : prompt.promptAtMs;
-  return {
-    ...request,
-    videoRef: mediaReferenceForAngle(state, angle) || request.videoRef || state.videoRef,
-    videoId: angle?.videoId || request.videoId,
-    prompt: {
+  const mapPrompt = (prompt = {}) => {
+    const sourceStartMs = angle ? matchTimeToAngleTime(prompt.startMs, angle) : prompt.startMs;
+    const sourceEndMs = angle ? matchTimeToAngleTime(prompt.endMs, angle) : prompt.endMs;
+    const sourcePromptAtMs = angle ? matchTimeToAngleTime(prompt.promptAtMs, angle) : prompt.promptAtMs;
+    return {
       ...prompt,
       angleId: angle?.id || "",
       sourceStartMs,
@@ -22,7 +22,15 @@ export function localTrackingRequest(request = {}, state = {}) {
       sourcePromptAtMs: Math.max(sourceStartMs, Math.min(sourceEndMs, sourcePromptAtMs)),
       syncOffsetMs: Number(angle?.syncOffsetMs) || 0,
       driftPpm: Number(angle?.driftPpm) || 0,
-    },
+    };
+  };
+  const prompts = Array.isArray(request.prompts) ? request.prompts.map(mapPrompt) : null;
+  const prompt = prompts ? null : mapPrompt(request.prompt || {});
+  return {
+    ...request,
+    videoRef: mediaReferenceForAngle(state, angle) || request.videoRef || state.videoRef,
+    videoId: angle?.videoId || request.videoId,
+    ...(prompts ? { prompts } : { prompt }),
   };
 }
 
@@ -48,6 +56,13 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     trackObject: (request) => {
       const runtime = getRuntime();
       return trackLocalObject({
+        ...localTrackingRequest(request, runtime?.store.getState() || {}),
+        win: runtime?.context?.win || context.win || window,
+      });
+    },
+    trackObjects: (request) => {
+      const runtime = getRuntime();
+      return trackLocalObjects({
         ...localTrackingRequest(request, runtime?.store.getState() || {}),
         win: runtime?.context?.win || context.win || window,
       });

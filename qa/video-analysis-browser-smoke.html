@@ -222,11 +222,12 @@
         if (parsed.origin === "http://127.0.0.1:47831" && parsed.pathname === "/capabilities") {
           return Response.json({
             ok: true,
-            capabilities: ["track-object"],
+            capabilities: ["track-object", "track-objects"],
+            limits: { maxTrackingDurationMs: 120000, maxTrackingObjectsPerJob: 8 },
             trackingProvider: {
               available: true,
               engineName: "Football Science SAM 2.1 Player Tracker",
-              engineVersion: "1.0.0",
+              engineVersion: "1.1.0",
               source: "approved-packaged",
             },
           });

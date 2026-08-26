@@ -241,6 +241,97 @@ test("local tracking readiness distinguishes installed, missing and offline prov
   expect(sidebar).toMatch(/data-video-analysis-tracking-action="manual" >Manual keyframe/);
 });
 
+test("tracking controller submits queued targets in one batch and keeps separate review tracks", async () => {
+  const { createTrackingController } = await import(moduleUrl("src/modules/video-analysis/controllers/trackingController.js"));
+  const { renderTrackingSidebar, renderTrackingStage } = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingTelestration.js",
+  ));
+  const prompt = (id, playerLabel, left) => ({
+    id,
+    entityType: "player",
+    playerLabel,
+    startMs: 0,
+    endMs: 1000,
+    promptAtMs: 500,
+    box: { left, top: 0.2, width: 0.1, height: 0.3 },
+  });
+  const item = {
+    id: "item-batch",
+    clipId: "clip-batch",
+    startMs: 0,
+    endMs: 1000,
+    clip: { videoId: "video-batch" },
+    objectTracks: [],
+    dynamicGraphics: [],
+  };
+  let request = null;
+  let state = {
+    video: { id: "video-batch" },
+    videoRef: { kind: "local-file", localFileKey: "video-batch" },
+    timeline: { playheadMs: 500 },
+    presentation: {
+      current: { sections: [{ id: "section", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        mode: "tracking",
+        tool: "highlight",
+        provider: { status: "ready", available: true, batchAvailable: true, maxObjectsPerJob: 8 },
+        selectedTrackIds: [],
+        pendingPrompts: [prompt("prompt-a", "Player A", 0.2)],
+        prompt: prompt("prompt-b", "Player B", 0.6),
+        job: null,
+        error: "",
+      },
+    },
+  };
+  const controller = createTrackingController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    trackObjects: async (value) => {
+      request = value;
+      value.onProgress?.({ stage: "Tracking 2 objects", ratio: 0.7 });
+      return value.prompts.map((target, index) => ({
+        id: `track-${index + 1}`,
+        entityType: "player",
+        status: "review",
+        startMs: 0,
+        endMs: 1000,
+        metadata: { promptId: target.id },
+        segments: [{ startMs: 0, endMs: 1000, points: [
+          { atMs: 0, x: 0.25 + index * 0.4, y: 0.4, width: 0.1, height: 0.3, confidence: 0.9, identityConfidence: 0.9 },
+          { atMs: 1000, x: 0.27 + index * 0.4, y: 0.4, width: 0.1, height: 0.3, confidence: 0.88, identityConfidence: 0.88 },
+        ] }],
+      }));
+    },
+  });
+  const sidebar = renderTrackingSidebar(state, item);
+  expect(sidebar).toContain("Targets ready");
+  expect(sidebar).toContain("2/8");
+  expect(sidebar).toMatch(/data-video-analysis-tracking-action="run" >Track 2 targets/);
+  expect(renderTrackingStage(state, item).match(/video-analysis-track-prompt/g)).toHaveLength(2);
+
+  const event = {
+    target: {
+      nodeType: 1,
+      closest: (selector) => selector === "[data-video-analysis-tracking-action]"
+        ? { dataset: { videoAnalysisTrackingAction: "run" } }
+        : null,
+    },
+  };
+  expect(controller.handleClick(event)).toBe(true);
+  await expect.poll(() => state.presentation.current.sections[0].items[0].objectTracks.length).toBe(2);
+  expect(request.prompts.map((target) => target.id)).toEqual(["prompt-a", "prompt-b"]);
+  expect(state.presentation.current.sections[0].items[0].objectTracks.map((track) => track.playerLabel)).toEqual([
+    "Player A", "Player B",
+  ]);
+  expect(state.presentation.tracking).toMatchObject({
+    pendingPrompts: [],
+    selectedTrackIds: ["track-1", "track-2"],
+    job: null,
+    error: "",
+  });
+});
+
 test("stale local tracking sources fall back once to the reconnected file", async () => {
   const localVideo = await import(moduleUrl("src/modules/video-analysis/services/localVideoBridgeService.js"));
   const localTracking = await import(moduleUrl("src/modules/video-analysis/services/localTrackingService.js"));
@@ -852,10 +943,21 @@ test("secure local tracking jobs expose provider capability and expiring artifac
   const receivedInputs = [];
   const trackingEngine = engineModule.createTrackingEngineAdapter({
     engineName: "qa-prompt-tracker",
-    runner: async ({ inputPath, prompt, onProgress }) => {
-      receivedPrompt = prompt;
+    runner: async ({ inputPath, prompt, prompts, onProgress }) => {
       receivedInputs.push(await fs.readFile(inputPath, "utf8"));
       onProgress?.({ stage: "tracking", ratio: 0.7 });
+      if (prompts) {
+        return { tracks: prompts.map((target, index) => ({
+          id: `track-batch-${index + 1}`,
+          promptId: target.id,
+          entityType: "player",
+          segments: [{ points: [
+            { atMs: target.startMs, x: 0.2 + index * 0.4, y: 0.4, width: 0.08, height: 0.2, confidence: 0.94 },
+            { atMs: target.endMs, x: 0.3 + index * 0.4, y: 0.4, width: 0.08, height: 0.2, confidence: 0.92 },
+          ] }],
+        })) };
+      }
+      receivedPrompt = prompt;
       return {
         id: "track-local",
         entityType: "player",
@@ -888,6 +990,8 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     const headers = { origin, "x-football-science-session": session.sessionToken };
     const capabilities = await (await fetch(`${baseUrl}/capabilities`, { headers })).json();
     expect(capabilities.capabilities).toContain("track-object");
+    expect(capabilities.capabilities).toContain("track-objects");
+    expect(capabilities.limits.maxTrackingObjectsPerJob).toBe(8);
     const prompt = Buffer.from(JSON.stringify({
       startMs: 0,
       endMs: 1000,
@@ -943,8 +1047,46 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     const continued = await (await fetch(continuation.statusUrl, { headers })).json();
     expect(continued.job.result.sourceArtifactId).toBe(completed.job.id);
     expect(continued.job.result.sourceSha256).toBe(sourceSha256);
-    expect(receivedInputs).toEqual(["local-video", "local-video"]);
+    const batchPrompts = Buffer.from(JSON.stringify([
+      {
+        id: "batch-a",
+        clipId: "clip-batch",
+        videoId: "video-batch",
+        startMs: 0,
+        endMs: 1000,
+        promptAtMs: 500,
+        box: { left: 0.2, top: 0.3, width: 0.08, height: 0.2 },
+      },
+      {
+        id: "batch-b",
+        clipId: "clip-batch",
+        videoId: "video-batch",
+        startMs: 0,
+        endMs: 1000,
+        promptAtMs: 500,
+        box: { left: 0.6, top: 0.3, width: 0.08, height: 0.2 },
+      },
+    ])).toString("base64url");
+    const batchResponse = await fetch(`${baseUrl}/jobs/track-objects`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "x-football-science-file-name": "match.mp4",
+        "x-football-science-tracking-prompts": batchPrompts,
+        "x-football-science-tracking-source-id": completed.job.id,
+      },
+    });
+    const batch = await batchResponse.json();
+    expect(batchResponse.status).toBe(202);
+    await expect.poll(async () => (await (await fetch(batch.statusUrl, { headers })).json()).job?.status).toBe("succeeded");
+    const batchCompleted = await (await fetch(batch.statusUrl, { headers })).json();
+    const batchArtifact = await (await fetch(batchCompleted.job.result.trackingUrl, { headers: { origin } })).json();
+    expect(batchArtifact.tracks).toHaveLength(2);
+    expect(batchArtifact.tracks.map((track) => track.metadata.promptId)).toEqual(["batch-a", "batch-b"]);
+    expect(batchCompleted.job.result).toMatchObject({ trackCount: 2, pointCount: 4, segmentCount: 2 });
+    expect(receivedInputs).toEqual(["local-video", "local-video", "local-video"]);
     expect(await fs.readdir(path.join(cacheDir, continued.job.id))).toEqual(["track.json"]);
+    expect(await fs.readdir(path.join(cacheDir, batchCompleted.job.id))).toEqual(["tracks.json"]);
 
     const secondSession = await (await fetch(`${baseUrl}/session`, { method: "POST", headers: { origin } })).json();
     const retainedBeforeForeignReuse = localServer.jobs.stats().retained;
@@ -969,7 +1111,11 @@ test("secure local tracking jobs expose provider capability and expiring artifac
     });
     expect(rejectedUpload.status).toBe(413);
     expect(localServer.jobs.stats().retained).toBe(retainedBeforeRejectedUpload);
-    expect((await fs.readdir(cacheDir)).sort()).toEqual([completed.job.id, continued.job.id].sort());
+    expect((await fs.readdir(cacheDir)).sort()).toEqual([
+      completed.job.id,
+      continued.job.id,
+      batchCompleted.job.id,
+    ].sort());
   } finally {
     await localServer.close();
     await fs.rm(cacheDir, { recursive: true, force: true });

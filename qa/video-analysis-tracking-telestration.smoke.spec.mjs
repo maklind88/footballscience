@@ -59,6 +59,17 @@ async function createTrackedHighlight(page) {
   await expect(page.locator(".video-analysis-dynamic-anchor.is-circle")).toBeVisible();
 }
 
+async function drawTrackingTarget(page, left, top, right, bottom) {
+  await page.locator('[data-video-analysis-tracking-action="select-target"]').click();
+  const surface = page.locator("[data-video-analysis-drawing-surface]");
+  const box = await surface.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.move(box.x + (box.width * left), box.y + (box.height * top));
+  await page.mouse.down();
+  await page.mouse.move(box.x + (box.width * right), box.y + (box.height * bottom));
+  await page.mouse.up();
+}
+
 async function drawFreehandPath(page) {
   await page.locator('[data-video-analysis-draw-tool="freehand"]').click();
   const surface = page.locator("[data-video-analysis-drawing-surface]");
@@ -122,6 +133,36 @@ test("tracking telestration follows a selected player and persists metadata", as
   await expect.poll(() => page.evaluate(() => (window.__videoAnalysisRequests || []).some((request) => request.action === "save-dynamic-graphic"))).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("tracking-telestration-desktop.png"), fullPage: true });
   expect(pageErrors).toEqual([]);
+});
+
+test("multi-target queue remains clear and contained before shared-state tracking", async ({ page }, testInfo) => {
+  await openTrackingWorkspace(page);
+  await page.locator('[data-video-analysis-tracking-field="playerId"]').selectOption("p1");
+  await drawTrackingTarget(page, 0.26, 0.28, 0.35, 0.62);
+  await page.locator('[data-video-analysis-tracking-action="queue-target"]').click();
+  await expect(page.locator(".video-analysis-tracking-batch li")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-tracking-batch")).toContainText("Alex Morgan");
+
+  await page.locator('[data-video-analysis-tracking-field="playerId"]').selectOption("p2");
+  await drawTrackingTarget(page, 0.58, 0.25, 0.67, 0.6);
+  await expect(page.locator(".video-analysis-tracking-batch li")).toHaveCount(2);
+  await expect(page.locator(".video-analysis-tracking-batch")).toContainText("2/8");
+  await expect(page.locator(".video-analysis-track-prompt")).toHaveCount(2);
+  await expect(page.locator('[data-video-analysis-tracking-action="run"]')).toHaveText("Track 2 targets");
+  await expect(page.locator('[data-video-analysis-tracking-action="run"]')).toBeEnabled();
+  await page.screenshot({ path: testInfo.outputPath("tracking-batch-desktop.png"), fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const geometry = await page.locator(".video-analysis-tracking-batch").evaluate((element) => ({
+    right: element.getBoundingClientRect().right,
+    viewportWidth: window.innerWidth,
+    pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+    elementOverflow: element.scrollWidth - element.clientWidth,
+  }));
+  expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+  expect(geometry.pageOverflow).toBeLessThanOrEqual(1);
+  expect(geometry.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-batch-mobile.png"), fullPage: true });
 });
 
 test("tracking review marks visibility and supports race-safe undo and redo", async ({ page }, testInfo) => {

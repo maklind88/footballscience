@@ -55,6 +55,7 @@ Run one case or a suite locally:
 npm run fs-player:tracking:benchmark -- --input /absolute/local/benchmark.json
 npm run fs-player:tracking:benchmark -- --input /absolute/local/suite.json --output /absolute/local/report.json --json
 npm run fs-player:tracking:smoke -- --json
+npm run fs-player:tracking:smoke -- --batch --json --progress
 npm run fs-player:tracking:trackeval:plan
 npm run fs-player:tracking:trackeval:install -- --accept-license --python /absolute/path/to/python3.12
 npm run fs-player:tracking:trackeval:preflight -- --json
@@ -63,7 +64,7 @@ npm run fs-player:tracking:benchmark -- --input /absolute/local/football-scene.j
 
 Exit code `0` means every active quality gate passed, `1` means valid evidence failed one or more thresholds, and `2` means the input was invalid or unsafe.
 
-The engine smoke command is a separate operational check. It creates a one-second synthetic local video, invokes the exact installed SAM 2.1 runtime, validates that more than one timestamp was propagated through the strict artifact boundary, reports cold-start processing time and real-time factor against the reference maximum of `1`, returns only bounded aggregate evidence, and deletes the video and trajectories before exit. Passing it proves installation and inference wiring, not acceptable speed or football accuracy; `withinReferenceBudget` and `realMatchQualityProven` remain independent fail-visible facts.
+The engine smoke command is a separate operational check. It creates a one-second synthetic local video, invokes the exact installed SAM 2.1 runtime, validates that more than one timestamp was propagated through the strict artifact boundary, reports cold-start processing time and real-time factor against the reference maximum of `1`, returns only bounded aggregate evidence, and deletes the video and trajectories before exit. The explicit `--batch` mode generates two targets, runs one shared video state and two repeated single-target jobs, and reports the measured speedup without turning it into a quality claim. Passing either mode proves installation and inference wiring, not acceptable speed or football accuracy; `withinReferenceBudget` and `realMatchQualityProven` remain independent fail-visible facts.
 
 `--trackeval` is deliberately explicit. Without it, a multi-object report remains `providerApprovalReady: false`. With it, the report contains only bounded metric evidence and hashes, never source paths, raw tracks, frames, or media. Real provider approval still requires human-verified real-match cases and reviewed model/data provenance.
 

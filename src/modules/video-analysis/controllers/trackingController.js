@@ -1,6 +1,10 @@
 import { normalizeDynamicGraphic } from "../domain/dynamicGraphic.model.js";
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { createTrackingContinuationController } from "./trackingContinuationController.js";
+import {
+  createTrackingBatchController,
+  trackingBatchTargets,
+} from "./trackingBatchController.js";
 import { createTrackingGroundTruthController } from "./trackingGroundTruthController.js";
 import { createTrackingReviewController } from "./trackingReviewController.js";
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
@@ -39,7 +43,14 @@ export function createTrackingController(options = {}) {
   const getVideoElement = options.getVideoElement || (() => null);
   const getCurrentMatchMs = options.getCurrentMatchMs || null;
   const now = options.now || Date.now;
-  const trackingJob = createTrackingJobSession(options.trackObject);
+  const trackingJob = createTrackingJobSession((request) => {
+    if (Array.isArray(request.prompts)) {
+      if (!options.trackObjects) throw new Error("Batch tracking is not available.");
+      return options.trackObjects(request);
+    }
+    if (!options.trackObject) throw new Error("No local tracking provider is configured.");
+    return options.trackObject(request);
+  });
   let activeInteraction = null;
   let providerRefreshId = 0;
   const groundTruth = createTrackingGroundTruthController({
@@ -59,6 +70,14 @@ export function createTrackingController(options = {}) {
     persistTrack,
     persistCorrection: options.persistCorrection,
     invalidateGroundTruth: groundTruth.invalidateDraft,
+  });
+  const batchController = createTrackingBatchController({
+    getState,
+    updateState,
+    now,
+    persistTrack,
+    trackObjects: options.trackObjects,
+    trackingJob,
   });
 
   async function refreshProvider() {
@@ -118,6 +137,8 @@ export function createTrackingController(options = {}) {
     target?.closest?.(".video-analysis-drawing-builder")
       ?.querySelector?.("[data-video-analysis-drawing-surface]")
       ?.scrollIntoView?.({ block: "nearest" });
+    const batchAnchorAtMs = captureMode === "prompt" ? batchController.anchorAtMs() : NaN;
+    if (Number.isFinite(batchAnchorAtMs)) options.seekToMatchMs?.(batchAnchorAtMs);
     updateState((state) => {
       const item = selectedItem(state);
       const prompt = state.presentation?.tracking?.prompt || trackingPrompt(itemRange(item || {}));
@@ -249,6 +270,7 @@ export function createTrackingController(options = {}) {
         )), track];
         return trackingPatch(replaceItem(current, liveItem.id, { objectTracks: tracks }), {
           selectedTrackIds: [track.id],
+          ...(runOptions.clearPending ? { pendingPrompts: [] } : {}),
           captureMode: "",
           prompt: { ...requestedPrompt, ...targetRange, box: null },
           job: null,
@@ -263,6 +285,16 @@ export function createTrackingController(options = {}) {
       }));
       return false;
     }
+  }
+
+  async function runTargets() {
+    const state = getState();
+    const targets = trackingBatchTargets(state);
+    if (targets.length >= 2) return batchController.run();
+    if (targets.length === 1 && (state.presentation?.tracking?.pendingPrompts || []).length) {
+      return runTracking({ prompt: targets[0], clearPending: true });
+    }
+    return runTracking();
   }
 
   const continuation = createTrackingContinuationController({
@@ -372,10 +404,13 @@ export function createTrackingController(options = {}) {
     const state = getState();
     const item = selectedItem(state);
     const current = state.presentation?.tracking?.prompt || trackingPrompt(itemRange(item || {}));
+    const batchAnchorAtMs = batchController.anchorAtMs();
     const prompt = {
       ...current,
       box: promptBox(interaction.start, end),
-      promptAtMs: currentAtMs(getVideoElement, state, getCurrentMatchMs),
+      promptAtMs: Number.isFinite(batchAnchorAtMs)
+        ? batchAnchorAtMs
+        : currentAtMs(getVideoElement, state, getCurrentMatchMs),
     };
     if (interaction.captureMode === "correction") {
       const trackId = state.presentation?.tracking?.selectedTrackIds?.[0] || "";
@@ -411,7 +446,10 @@ export function createTrackingController(options = {}) {
     if (action === "select-target") return beginCapture("prompt", target);
     if (action === "correct") return beginCapture("correction", target);
     if (action === "manual") { void addManualTrack(); return true; }
-    if (action === "run") { void runTracking(); return true; }
+    if (action === "queue-target") return batchController.queueCurrent();
+    if (action === "remove-target") return batchController.remove(actionElement.dataset.videoAnalysisTrackingPromptId);
+    if (action === "clear-target") return batchController.clearCurrent();
+    if (action === "run") { void runTargets(); return true; }
     if (action === "extend-earlier") { void continuation.extend("earlier"); return true; }
     if (action === "extend-later") { void continuation.extend("later"); return true; }
     if (action === "complete-range") { void continuation.complete(); return true; }

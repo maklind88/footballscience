@@ -90,7 +90,9 @@ def _tracking(arguments: argparse.Namespace) -> int:
     request_path = Path(arguments.request)
     output_path = Path(arguments.output)
     validate_job_paths(input_path, request_path, output_path)
-    prompt = read_request(request_path)
+    request = read_request(request_path)
+    prompts = request["prompts"] if isinstance(request.get("prompts"), list) else [request]
+    prompt = prompts[0]
     _emit("Verifying local tracking provider", 0.03)
     report = _runtime_report()
     settings = _settings(report)
@@ -108,21 +110,25 @@ def _tracking(arguments: argparse.Namespace) -> int:
         )
         prompt_index = prompt_frame_index(prompt, settings["sampleFps"], len(frames))
         _emit("Loading SAM 2.1", 0.30)
-        observations = engine.track(frames_dir.as_posix(), prompt, prompt_index, _emit)
-        artifact = build_track(
-            observations,
-            prompt,
-            prompt_index,
-            settings["sampleFps"],
-            {
-                "device": engine.device_name,
-                "model": settings["model"],
-                "promptFrameIndex": prompt_index,
-                "providerProtocol": PROTOCOL,
-                "sampleFps": settings["sampleFps"],
-            },
-        )
-    _emit("Writing review track", 0.96)
+        observations = engine.track_many(frames_dir.as_posix(), prompts, prompt_index, _emit)
+        tracks = [
+            build_track(
+                object_observations,
+                target_prompt,
+                prompt_index,
+                settings["sampleFps"],
+                {
+                    "device": engine.device_name,
+                    "model": settings["model"],
+                    "promptFrameIndex": prompt_index,
+                    "providerProtocol": PROTOCOL,
+                    "sampleFps": settings["sampleFps"],
+                },
+            )
+            for object_observations, target_prompt in zip(observations, prompts)
+        ]
+    _emit("Writing review tracks" if len(tracks) > 1 else "Writing review track", 0.96)
+    artifact = {"schemaVersion": 1, "tracks": tracks} if len(tracks) > 1 else tracks[0]
     atomic_write_json(output_path, artifact)
     _emit("Tracking ready for review", 1.0)
     return 0

@@ -315,7 +315,7 @@ export function createLocalVideoServer(options = {}) {
           "publish-export",
           "create-proxy",
           "replay-buffer",
-          ...(trackingEngine.available() ? ["track-object"] : []),
+          ...(trackingEngine.available() ? ["track-object", "track-objects"] : []),
         ],
         trackingProvider: trackingEngine.info?.() || { available: trackingEngine.available() },
         limits: {
@@ -324,6 +324,7 @@ export function createLocalVideoServer(options = {}) {
           maxConcurrentJobs: config.maxConcurrentJobs,
           maxQueuedJobs: config.maxQueuedJobs,
           maxTrackingDurationMs: config.maxTrackingDurationMs,
+          maxTrackingObjectsPerJob: 8,
           maxOverlayBytes: config.maxOverlayBytes,
           maxOverlayPrimitives: config.maxOverlayPrimitives,
           maxReplayDurationMs: config.maxReplayDurationMs,
@@ -344,6 +345,16 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "POST" && url.pathname === "/jobs/track-object") {
       const jobId = await tracking.createJob(request, response);
+      if (!jobId) return;
+      sendJson(request, response, config, 202, {
+        ok: true,
+        job: jobs.get(jobId),
+        statusUrl: `${baseUrl()}/jobs/${jobId}`,
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/jobs/track-objects") {
+      const jobId = await tracking.createBatchJob(request, response);
       if (!jobId) return;
       sendJson(request, response, config, 202, {
         ok: true,

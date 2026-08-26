@@ -1,4 +1,6 @@
 import sys
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -7,7 +9,7 @@ PROVIDER = ROOT / "desktop/local-video-app/tracking-providers/sam2/provider"
 sys.path.insert(0, str(PROVIDER))
 
 from football_science_sam2.media import prompt_frame_index
-from football_science_sam2.protocol import ProviderError, normalize_request
+from football_science_sam2.protocol import ProviderError, normalize_batch_request, normalize_request, read_request
 from football_science_sam2.track_builder import build_track
 
 
@@ -53,6 +55,37 @@ class ProtocolTests(unittest.TestCase):
         prompt = normalize_request(request_value())
         self.assertEqual(prompt_frame_index(prompt, 10, 25), 10)
 
+    def test_batch_requires_unique_targets_on_one_prompt_frame(self):
+        first = request_value(id="target-a")["prompt"]
+        second = request_value(
+            id="target-b",
+            box={"left": 0.5, "top": 0.2, "width": 0.1, "height": 0.3},
+        )["prompt"]
+        prompts = normalize_batch_request({"protocolVersion": 1, "prompts": [first, second]})
+        self.assertEqual([prompt["id"] for prompt in prompts], ["target-a", "target-b"])
+        with self.assertRaises(ProviderError):
+            normalize_batch_request({"protocolVersion": 1, "prompts": [first, {**second, "promptAtMs": 6100}]})
+        with self.assertRaises(ProviderError):
+            normalize_batch_request({"protocolVersion": 1, "prompts": [first, {**second, "id": "target-a"}]})
+
+    def test_reads_a_bounded_batch_request_from_disk(self):
+        first = request_value(id="target-a")["prompt"]
+        second = request_value(
+            id="target-b",
+            box={"left": 0.5, "top": 0.2, "width": 0.1, "height": 0.3},
+        )["prompt"]
+        with tempfile.TemporaryDirectory() as directory:
+            request_path = Path(directory) / "request.json"
+            request_path.write_text(json.dumps({"protocolVersion": 1, "prompts": [first, second]}))
+            self.assertEqual(len(read_request(request_path)["prompts"]), 2)
+
+    def test_disk_request_respects_the_host_duration_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            request_path = Path(directory) / "request.json"
+            request_path.write_text(json.dumps(request_value()))
+            with self.assertRaises(ProviderError):
+                read_request(request_path, maximum_duration_ms=1000)
+
 
 class TrackBuilderTests(unittest.TestCase):
     def test_builds_review_segments_on_continuity_gaps(self):
@@ -65,6 +98,7 @@ class TrackBuilderTests(unittest.TestCase):
             9: observation(9, 0.42),
         }
         track = build_track(observations, prompt, prompt_index=2, sample_fps=10, metadata={"device": "test"})
+        self.assertEqual(track["promptId"], prompt["id"])
         self.assertEqual(track["status"], "review")
         self.assertEqual(len(track["segments"]), 2)
         self.assertTrue(track["segments"][1]["discontinuityBefore"])

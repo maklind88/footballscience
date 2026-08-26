@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "providerId": "sam2.1-hiera-tiny",
-  "providerVersion": "1.0.0",
+  "providerVersion": "1.1.0",
   "displayName": "Football Science SAM 2.1 Object Tracker",
   "protocol": "football-science-tracking-v1",
   "approval": {
@@ -35,6 +35,8 @@
     "sampleFps": 12.5,
     "maximumSampleFps": 25,
     "maximumFrames": 30000,
-    "maximumTrackingDurationMs": 1200000
+    "maximumTrackingDurationMs": 1200000,
+    "maximumObjectsPerJob": 8,
+    "providerSha256": "f193802ce127d10f8f2f31d5c6f4d95be2b64f19d11870a90cf19a46e0e0f8ab"
   }
 }

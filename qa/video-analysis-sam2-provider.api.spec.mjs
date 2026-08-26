@@ -21,7 +21,7 @@ test("approved SAM 2 provider assets and install plan are immutable", async () =
   ), "utf8"));
   expect(manifest).toMatchObject({
     providerId: "sam2.1-hiera-tiny",
-    providerVersion: "1.0.0",
+    providerVersion: "1.1.0",
     protocol: "football-science-tracking-v1",
     approval: { status: "approved-local-optional", networkAtInference: false, redistributeUpstreamAssets: false },
     upstream: {
@@ -33,12 +33,16 @@ test("approved SAM 2 provider assets and install plan are immutable", async () =
       license: "Apache-2.0",
       checkpointSha256: "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69",
     },
+    runtime: {
+      maximumObjectsPerJob: 8,
+      providerSha256: "f193802ce127d10f8f2f31d5c6f4d95be2b64f19d11870a90cf19a46e0e0f8ab",
+    },
   });
   const installer = await import(moduleUrl("desktop/local-video-app/tracking-providers/sam2/install-provider.mjs"));
   const args = installer.parseInstallArguments(["--plan", "--python", "python3.12"]);
   const plan = installer.providerInstallPlan(args, { manifest, homeDir: "/tmp/analyst" });
   expect(plan.runtime).toMatchObject({ isolatedVirtualEnvironment: true, networkAtInference: false });
-  expect(plan.installDir).toContain(".football-science/tracking-providers/sam2.1-hiera-tiny-1.0.0");
+  expect(plan.installDir).toContain(".football-science/tracking-providers/sam2.1-hiera-tiny-1.1.0");
 });
 
 test("packaged provider activates only for an exact verified install marker", async () => {
@@ -63,13 +67,17 @@ test("packaged provider activates only for an exact verified install marker", as
         sourceCommit: paths.manifest.upstream.commit,
         sourceSha256: paths.manifest.upstream.sourceSha256,
         checkpointSha256: paths.manifest.model.checkpointSha256,
+        providerSha256: paths.manifest.runtime.providerSha256,
       })),
     ]);
-    expect(runtime.resolveInstalledSam2Provider({ installDir })).toMatchObject({
+    expect(runtime.resolveInstalledSam2Provider({
+      installDir,
+      runtimeSha256: () => paths.manifest.runtime.providerSha256,
+    })).toMatchObject({
       command: paths.python,
       engineName: "sam2.1-hiera-tiny",
       displayName: "Football Science SAM 2.1 Object Tracker",
-      engineVersion: "1.0.0",
+      engineVersion: "1.1.0",
     });
     await fs.writeFile(paths.marker, JSON.stringify({
       schemaVersion: 1,
@@ -78,8 +86,30 @@ test("packaged provider activates only for an exact verified install marker", as
       sourceCommit: paths.manifest.upstream.commit,
       sourceSha256: "tampered",
       checkpointSha256: paths.manifest.model.checkpointSha256,
+      providerSha256: paths.manifest.runtime.providerSha256,
     }));
-    expect(runtime.resolveInstalledSam2Provider({ installDir })).toBeNull();
+    expect(runtime.resolveInstalledSam2Provider({
+      installDir,
+      runtimeSha256: () => paths.manifest.runtime.providerSha256,
+    })).toBeNull();
+  } finally {
+    await fs.rm(installDir, { recursive: true, force: true });
+  }
+});
+
+test("packaged provider runtime hash changes when any approved source file changes", async () => {
+  const runtime = await import(moduleUrl("desktop/local-video-app/tracking-providers/sam2/provider-runtime.mjs"));
+  const installDir = await fs.mkdtemp(path.join(os.tmpdir(), "fs-sam2-runtime-hash-"));
+  const runtimeDir = path.join(installDir, "runtime");
+  try {
+    await Promise.all(runtime.SAM2_PROVIDER_RUNTIME_FILES.map(async (relativePath, index) => {
+      const filePath = path.join(runtimeDir, relativePath);
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, `approved-${index}`);
+    }));
+    const first = runtime.sam2ProviderRuntimeSha256({ runtimeDir });
+    await fs.appendFile(path.join(runtimeDir, runtime.SAM2_PROVIDER_RUNTIME_FILES[2]), "-tampered");
+    expect(runtime.sam2ProviderRuntimeSha256({ runtimeDir })).not.toBe(first);
   } finally {
     await fs.rm(installDir, { recursive: true, force: true });
   }
@@ -150,6 +180,24 @@ test("tracking prompt anchors at the drawn match frame and maps to the active an
     videoRef: { localVideoIdentifier: "angle-two-file" },
     prompt: { angleId: "angle-two", sourceStartMs: 1501, sourcePromptAtMs: 2001, sourceEndMs: 2502 },
   });
+  const batchRequest = runtime.localTrackingRequest({
+    prompts: [
+      review.trackingPrompt({ id: "target-a", startMs: 1000, endMs: 2000, promptAtMs: 1500 }),
+      review.trackingPrompt({ id: "target-b", startMs: 1000, endMs: 2000, promptAtMs: 1500 }),
+    ],
+  }, {
+    mediaProduction: {
+      activeAngleId: "angle-two",
+      angles: [{ id: "angle-two", videoId: "angle-two-video", syncOffsetMs: 500, driftPpm: 1000 }],
+    },
+  });
+  expect(batchRequest.prompts).toHaveLength(2);
+  expect(batchRequest.prompts.every((prompt) => (
+    prompt.angleId === "angle-two"
+      && prompt.sourceStartMs === 1501
+      && prompt.sourcePromptAtMs === 2001
+      && prompt.sourceEndMs === 2502
+  ))).toBe(true);
 
   let state = {
     presentation: {
@@ -217,6 +265,42 @@ test("provider artifact contract rejects unsafe samples and strips unknown metad
   }, prompt)).toThrow(/outside the requested range/i);
 });
 
+test("batch artifact boundary preserves prompt identity and rejects partial results", async () => {
+  const { validateTrackingArtifacts } = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-artifact-validator.mjs",
+  ));
+  const prompts = ["target-a", "target-b"].map((id, index) => ({
+    id,
+    clipId: "clip-batch",
+    videoId: "video-batch",
+    startMs: 0,
+    endMs: 1000,
+    promptAtMs: 0,
+    sourceStartMs: 0,
+    sourceEndMs: 1000,
+    sourcePromptAtMs: 0,
+    box: { left: 0.2 + index * 0.3, top: 0.2, width: 0.1, height: 0.3 },
+  }));
+  const rawTrack = (prompt, index) => ({
+    id: `track-${index}`,
+    promptId: prompt.id,
+    segments: [{ points: [
+      { atMs: 0, frameIndex: 0, x: 0.25 + index * 0.3, y: 0.4, width: 0.1, height: 0.3, confidence: 0.9 },
+      { atMs: 1000, frameIndex: 1, x: 0.27 + index * 0.3, y: 0.4, width: 0.1, height: 0.3, confidence: 0.88 },
+    ] }],
+  });
+  const validated = validateTrackingArtifacts({
+    tracks: [rawTrack(prompts[1], 1), rawTrack(prompts[0], 0)],
+  }, prompts);
+  expect(validated).toMatchObject({ trackCount: 2, pointCount: 4, segmentCount: 2 });
+  expect(validated.artifacts.map((track) => track.metadata.promptId)).toEqual(["target-a", "target-b"]);
+  expect(validated.artifacts[1].metadata).toMatchObject({ batchIndex: 1, batchSize: 2 });
+  expect(() => validateTrackingArtifacts({ tracks: [rawTrack(prompts[0], 0)] }, prompts)).toThrow(/incomplete/i);
+  expect(() => validateTrackingArtifacts({
+    tracks: [rawTrack(prompts[0], 0), rawTrack(prompts[0], 1)],
+  }, prompts)).toThrow(/unknown or duplicate/i);
+});
+
 test("external provider process streams progress through the strict v1 boundary", async () => {
   const { createTrackingEngineAdapter } = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-engine-adapter.mjs",
@@ -260,6 +344,48 @@ test("external provider process streams progress through the strict v1 boundary"
     expect(result).toMatchObject({ engine: "qa-process-provider", pointCount: 2, segmentCount: 1 });
     expect(progress).toContainEqual({ stage: "provider-process", ratio: 0.75 });
     expect(JSON.parse(await fs.readFile(outputPath, "utf8"))).toMatchObject({ status: "review" });
+    await expect(fs.access(path.join(temporaryDir, "tracking-request.json"))).rejects.toThrow();
+  } finally {
+    await fs.rm(temporaryDir, { recursive: true, force: true });
+  }
+});
+
+test("tracking adapter validates several objects from one provider invocation", async () => {
+  const { createTrackingEngineAdapter } = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-engine-adapter.mjs",
+  ));
+  const temporaryDir = await fs.mkdtemp(path.join(os.tmpdir(), "fs-sam2-batch-"));
+  const inputPath = path.join(temporaryDir, "input.mp4");
+  const outputPath = path.join(temporaryDir, "tracks.json");
+  const prompts = ["target-a", "target-b"].map((id, index) => ({
+    id,
+    startMs: 0,
+    endMs: 1000,
+    promptAtMs: 0,
+    sourceStartMs: 0,
+    sourceEndMs: 1000,
+    sourcePromptAtMs: 0,
+    box: { left: 0.1 + index * 0.4, top: 0.2, width: 0.1, height: 0.3 },
+  }));
+  try {
+    await fs.writeFile(inputPath, "video");
+    let invocations = 0;
+    const adapter = createTrackingEngineAdapter({
+      runner: async ({ prompts: requested }) => {
+        invocations += 1;
+        return { tracks: requested.map((prompt, index) => ({
+          promptId: prompt.id,
+          segments: [{ points: [
+            { atMs: 0, x: 0.2 + index * 0.4, y: 0.4, width: 0.1, height: 0.2, confidence: 0.9 },
+            { atMs: 1000, x: 0.22 + index * 0.4, y: 0.4, width: 0.1, height: 0.2, confidence: 0.88 },
+          ] }],
+        })) };
+      },
+    });
+    const result = await adapter.trackObjects(inputPath, outputPath, prompts);
+    expect(invocations).toBe(1);
+    expect(result).toMatchObject({ trackCount: 2, pointCount: 4, segmentCount: 2 });
+    expect(JSON.parse(await fs.readFile(outputPath, "utf8")).tracks).toHaveLength(2);
     await expect(fs.access(path.join(temporaryDir, "tracking-request.json"))).rejects.toThrow();
   } finally {
     await fs.rm(temporaryDir, { recursive: true, force: true });

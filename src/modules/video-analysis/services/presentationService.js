@@ -84,6 +84,7 @@ export function createInitialPresentationWorkspace() {
       tool: "highlight",
       selectedTrackIds: [],
       prompt: null,
+      pendingPrompts: [],
       interaction: null,
       job: null,
       error: "",

@@ -120,3 +120,56 @@ test("tracking engine smoke fails closed on a non-propagated result and still re
     await fs.rm(parent, { recursive: true, force: true });
   }
 });
+
+test("tracking batch smoke compares one shared video pass with repeated single jobs", async () => {
+  const service = await import(moduleUrl("scripts/fs-player-tracking-engine-smoke.mjs"));
+  const parent = await temporaryParent();
+  const adapter = {
+    available: () => true,
+    info: () => ({
+      engineName: "sam2.1-hiera-tiny",
+      displayName: "Football Science SAM 2.1 Object Tracker",
+      engineVersion: "1.0.0",
+      protocol: "football-science-tracking-v1",
+      source: "approved-packaged",
+    }),
+    trackObjects: async (_inputPath, _outputPath, prompts, options) => {
+      options.onProgress({ stage: "Tracking 2 objects", ratio: 0.8 });
+      return { artifacts: prompts.map((prompt) => validResult(prompt).artifact) };
+    },
+    trackObject: async (_inputPath, _outputPath, prompt) => validResult(prompt),
+  };
+  try {
+    const times = [1_000, 5_000, 6_000, 14_000];
+    const report = await service.runTrackingEngineBatchSmoke({
+      adapter,
+      now: () => times.shift(),
+      temporaryParent: parent,
+      generateFixture: async (filePath) => {
+        const bytes = Buffer.alloc(2_048, 9);
+        await fs.writeFile(filePath, bytes);
+        return { byteLength: bytes.byteLength };
+      },
+    });
+    expect(report).toMatchObject({
+      ok: true,
+      protocol: "football-science-tracking-engine-batch-smoke-v1",
+      fixture: { objectCount: 2, byteLength: 2_048 },
+      result: { trackCount: 2, pointCount: 6, repeatedSingleTrackCount: 2 },
+      performance: {
+        batchProcessingMs: 4_000,
+        repeatedSingleProcessingMs: 8_000,
+        speedup: 2,
+        batchFaster: true,
+        providerInvocationsAvoided: 1,
+        sharedVideoState: true,
+      },
+      temporaryMediaRetained: false,
+      realMatchQualityProven: false,
+    });
+    expect(JSON.stringify(report)).not.toMatch(/segments|points|synthetic-players\.mp4/);
+    expect(await fs.readdir(parent)).toEqual([]);
+  } finally {
+    await fs.rm(parent, { recursive: true, force: true });
+  }
+});

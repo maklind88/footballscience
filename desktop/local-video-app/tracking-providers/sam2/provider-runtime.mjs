@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -5,6 +6,16 @@ import { fileURLToPath } from "node:url";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const manifestPath = path.join(moduleDir, "manifest.json");
+
+export const SAM2_PROVIDER_RUNTIME_FILES = Object.freeze([
+  "provider.py",
+  "football_science_sam2/__init__.py",
+  "football_science_sam2/cli.py",
+  "football_science_sam2/media.py",
+  "football_science_sam2/protocol.py",
+  "football_science_sam2/sam2_engine.py",
+  "football_science_sam2/track_builder.py",
+]);
 
 export function readSam2ProviderManifest() {
   return JSON.parse(readFileSync(manifestPath, "utf8"));
@@ -25,7 +36,8 @@ function markerMatches(marker = {}, manifest = {}) {
     && marker.providerVersion === manifest.providerVersion
     && marker.sourceCommit === manifest.upstream.commit
     && marker.sourceSha256 === manifest.upstream.sourceSha256
-    && marker.checkpointSha256 === manifest.model.checkpointSha256;
+    && marker.checkpointSha256 === manifest.model.checkpointSha256
+    && marker.providerSha256 === manifest.runtime.providerSha256;
 }
 
 export function sam2ProviderPaths(options = {}) {
@@ -40,9 +52,22 @@ export function sam2ProviderPaths(options = {}) {
     marker: path.join(installDir, "install.json"),
     python,
     providerEntry: path.join(installDir, "runtime", "provider.py"),
+    runtimeDir: path.join(installDir, "runtime"),
     checkpoint: path.join(installDir, "checkpoints", manifest.model.fileName),
     sourceDir: path.join(installDir, "source"),
   };
+}
+
+export function sam2ProviderRuntimeSha256(paths = {}, options = {}) {
+  const readFile = options.readFile || readFileSync;
+  const digest = createHash("sha256");
+  for (const relativePath of SAM2_PROVIDER_RUNTIME_FILES) {
+    digest.update(relativePath);
+    digest.update("\0");
+    digest.update(readFile(path.join(paths.runtimeDir, relativePath)));
+    digest.update("\0");
+  }
+  return digest.digest("hex");
 }
 
 export function resolveInstalledSam2Provider(options = {}) {
@@ -57,6 +82,12 @@ export function resolveInstalledSam2Provider(options = {}) {
     return null;
   }
   if (!markerMatches(marker, paths.manifest)) return null;
+  try {
+    const runtimeSha256 = options.runtimeSha256 || sam2ProviderRuntimeSha256;
+    if (runtimeSha256(paths) !== paths.manifest.runtime.providerSha256) return null;
+  } catch {
+    return null;
+  }
   return {
     command: paths.python,
     args: [paths.providerEntry],

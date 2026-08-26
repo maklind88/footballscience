@@ -132,6 +132,7 @@ def build_track(
     all_points = [point for segment in segments for point in segment["points"]]
     return {
         "id": f"track-{uuid.uuid4()}",
+        "promptId": str(prompt.get("id") or ""),
         "entityType": "player",
         "status": "review",
         "startMs": prompt["startMs"],

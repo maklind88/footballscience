@@ -3,7 +3,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import ffmpegStaticPath from "ffmpeg-static";
 import { resolveInstalledSam2Provider } from "../tracking-providers/sam2/provider-runtime.mjs";
-import { validateTrackingArtifact } from "./tracking-artifact-validator.mjs";
+import {
+  validateTrackingArtifact,
+  validateTrackingArtifacts,
+} from "./tracking-artifact-validator.mjs";
 
 async function readBoundedJson(filePath, maxBytes = 64 * 1024 * 1024) {
   const stat = await fs.stat(filePath);
@@ -88,6 +91,42 @@ export function createTrackingEngineAdapter(options = {}) {
     FS_SAM2_FFMPEG_PATH: options.ffmpegPath || process.env.FS_FFMPEG_PATH || ffmpegStaticPath || "ffmpeg",
   };
 
+  async function runTracking(inputPath, outputPath, request = {}, runOptions = {}) {
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    const requestPath = path.join(path.dirname(outputPath), "tracking-request.json");
+    await fs.writeFile(requestPath, JSON.stringify({ protocolVersion: 1, ...request }), { flag: "wx" });
+    try {
+      if (runner) {
+        const result = await runner({ inputPath, outputPath, requestPath, ...request, ...runOptions });
+        if (result && typeof result === "object") await fs.writeFile(outputPath, JSON.stringify(result));
+      } else if (command) {
+        await runCommand(command, [
+          ...commandArgs,
+          "--protocol", "football-science-tracking-v1",
+          "--input", inputPath,
+          "--request", requestPath,
+          "--output", outputPath,
+        ], { ...runOptions, env: providerEnv });
+      } else {
+        const error = new Error("No local tracking provider is installed.");
+        error.code = "TRACKING_PROVIDER_UNAVAILABLE";
+        error.statusCode = 501;
+        throw error;
+      }
+      const rawArtifact = await readBoundedJson(outputPath, options.maxArtifactBytes);
+      if (Array.isArray(request.prompts)) {
+        const validated = validateTrackingArtifacts(rawArtifact, request.prompts, options.validation);
+        await fs.writeFile(outputPath, JSON.stringify({ schemaVersion: 1, tracks: validated.artifacts }));
+        return { ...validated, engine: engineName, engineVersion };
+      }
+      const validated = validateTrackingArtifact(rawArtifact, request.prompt, options.validation);
+      await fs.writeFile(outputPath, JSON.stringify(validated.artifact));
+      return { ...validated, engine: engineName, engineVersion };
+    } finally {
+      await fs.rm(requestPath, { force: true });
+    }
+  }
+
   return {
     available: () => Boolean(runner || command),
     info: () => ({
@@ -99,37 +138,10 @@ export function createTrackingEngineAdapter(options = {}) {
       source: installed ? "approved-packaged" : runner ? "embedded-test" : command ? "external" : "none",
     }),
     async trackObject(inputPath, outputPath, prompt = {}, runOptions = {}) {
-      await fs.mkdir(path.dirname(outputPath), { recursive: true });
-      const requestPath = path.join(path.dirname(outputPath), "tracking-request.json");
-      await fs.writeFile(requestPath, JSON.stringify({ protocolVersion: 1, prompt }), { flag: "wx" });
-      try {
-        if (runner) {
-          const result = await runner({ inputPath, outputPath, requestPath, prompt, ...runOptions });
-          if (result && typeof result === "object") await fs.writeFile(outputPath, JSON.stringify(result));
-        } else if (command) {
-          await runCommand(command, [
-            ...commandArgs,
-            "--protocol", "football-science-tracking-v1",
-            "--input", inputPath,
-            "--request", requestPath,
-            "--output", outputPath,
-          ], { ...runOptions, env: providerEnv });
-        } else {
-          const error = new Error("No local tracking provider is installed.");
-          error.code = "TRACKING_PROVIDER_UNAVAILABLE";
-          error.statusCode = 501;
-          throw error;
-        }
-        const validated = validateTrackingArtifact(
-          await readBoundedJson(outputPath, options.maxArtifactBytes),
-          prompt,
-          options.validation,
-        );
-        await fs.writeFile(outputPath, JSON.stringify(validated.artifact));
-        return { ...validated, engine: engineName, engineVersion };
-      } finally {
-        await fs.rm(requestPath, { force: true });
-      }
+      return runTracking(inputPath, outputPath, { prompt }, runOptions);
+    },
+    async trackObjects(inputPath, outputPath, prompts = [], runOptions = {}) {
+      return runTracking(inputPath, outputPath, { prompts }, runOptions);
     },
   };
 }

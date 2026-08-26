@@ -4,13 +4,16 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from . import PROTOCOL
 
 
 class ProviderError(RuntimeError):
     """A bounded error that is safe to return through the local bridge."""
+
+
+MAX_BATCH_OBJECTS = 8
 
 
 def _integer(value: Any, fallback: int = 0) -> int:
@@ -87,7 +90,41 @@ def normalize_request(value: Any, maximum_duration_ms: int = 1_200_000) -> Dict[
     }
 
 
-def read_request(file_path: Path, maximum_bytes: int = 65_536) -> Dict[str, Any]:
+def normalize_batch_request(value: Any, maximum_duration_ms: int = 1_200_000) -> List[Dict[str, Any]]:
+    if not isinstance(value, dict) or value.get("protocolVersion") != 1:
+        raise ProviderError("The tracking request protocol version is not supported.")
+    sources = value.get("prompts")
+    if not isinstance(sources, list) or len(sources) < 2 or len(sources) > MAX_BATCH_OBJECTS:
+        raise ProviderError(f"A tracking batch must contain 2-{MAX_BATCH_OBJECTS} targets.")
+    prompts = [
+        normalize_request({"protocolVersion": 1, "prompt": source}, maximum_duration_ms)
+        for source in sources
+    ]
+    prompt_ids = [prompt["id"] for prompt in prompts]
+    if any(not prompt_id for prompt_id in prompt_ids) or len(set(prompt_ids)) != len(prompt_ids):
+        raise ProviderError("Every batched tracking target needs a unique id.")
+    shared_fields = (
+        "clipId",
+        "videoId",
+        "angleId",
+        "startMs",
+        "endMs",
+        "promptAtMs",
+        "sourceStartMs",
+        "sourceEndMs",
+        "sourcePromptAtMs",
+    )
+    anchor = prompts[0]
+    if any(any(prompt[field] != anchor[field] for field in shared_fields) for prompt in prompts[1:]):
+        raise ProviderError("Batched tracking targets must share one clip, angle, range, and prompt frame.")
+    return prompts
+
+
+def read_request(
+    file_path: Path,
+    maximum_bytes: int = 65_536,
+    maximum_duration_ms: int = 1_200_000,
+) -> Dict[str, Any]:
     if not file_path.is_file() or file_path.is_symlink():
         raise ProviderError("The tracking request file is unavailable.")
     if file_path.stat().st_size > maximum_bytes:
@@ -96,7 +133,9 @@ def read_request(file_path: Path, maximum_bytes: int = 65_536) -> Dict[str, Any]
         value = json.loads(file_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ProviderError("The tracking request is invalid JSON.") from error
-    return normalize_request(value)
+    if isinstance(value, dict) and "prompts" in value:
+        return {"prompts": normalize_batch_request(value, maximum_duration_ms)}
+    return normalize_request(value, maximum_duration_ms)
 
 
 def validate_job_paths(input_path: Path, request_path: Path, output_path: Path) -> None:

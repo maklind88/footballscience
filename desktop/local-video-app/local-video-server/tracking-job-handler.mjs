@@ -19,7 +19,7 @@ function requestedSourceId(request = {}) {
 async function reusableSource(options = {}, sourceId = "", sessionToken = "") {
   if (!sourceId) return null;
   const job = options.jobs.get(sourceId);
-  if (!job || job.type !== "track-object" || job.status !== "succeeded"
+  if (!job || !["track-object", "track-objects"].includes(job.type) || job.status !== "succeeded"
     || options.jobOwners.get(sourceId) !== sessionToken) {
     throw Object.assign(new Error("The local tracking source is no longer available in this secure session."), { statusCode: 404 });
   }
@@ -42,15 +42,19 @@ async function reusableSource(options = {}, sourceId = "", sessionToken = "") {
   };
 }
 
-function trackingPrompt(request = {}, maxDurationMs = 120_000) {
-  const encoded = String(request.headers?.["x-football-science-tracking-prompt"] || "");
-  if (!encoded || encoded.length > 8192) throw Object.assign(new Error("A bounded tracking prompt is required."), { statusCode: 400 });
+function trackingHeader(request = {}, name = "", errorMessage = "A bounded tracking prompt is required.") {
+  const encoded = String(request.headers?.[name] || "");
+  if (!encoded || encoded.length > 8192) throw Object.assign(new Error(errorMessage), { statusCode: 400 });
   let value;
   try {
     value = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
   } catch {
     throw Object.assign(new Error("The tracking prompt is invalid."), { statusCode: 400 });
   }
+  return value;
+}
+
+function normalizedTrackingPrompt(value = {}, maxDurationMs = 120_000) {
   const box = value.box || {};
   const coordinates = [box.left, box.top, box.width, box.height].map(Number);
   if (!coordinates.every(Number.isFinite) || coordinates.some((entry) => entry < 0 || entry > 1)
@@ -95,8 +99,40 @@ function trackingPrompt(request = {}, maxDurationMs = 120_000) {
   };
 }
 
+function trackingPrompt(request = {}, maxDurationMs = 120_000) {
+  return normalizedTrackingPrompt(trackingHeader(
+    request,
+    "x-football-science-tracking-prompt",
+  ), maxDurationMs);
+}
+
+function trackingPrompts(request = {}, maxDurationMs = 120_000) {
+  const values = trackingHeader(
+    request,
+    "x-football-science-tracking-prompts",
+    "A bounded tracking target batch is required.",
+  );
+  if (!Array.isArray(values) || values.length < 2 || values.length > 8) {
+    throw Object.assign(new Error("A tracking batch must contain 2-8 targets."), { statusCode: 400 });
+  }
+  const prompts = values.map((value) => normalizedTrackingPrompt(value, maxDurationMs));
+  const ids = prompts.map((prompt) => String(prompt.id || "").trim());
+  if (ids.some((id) => !id) || new Set(ids).size !== ids.length) {
+    throw Object.assign(new Error("Every batched tracking target needs a unique id."), { statusCode: 400 });
+  }
+  const sharedFields = [
+    "clipId", "videoId", "angleId", "startMs", "endMs", "promptAtMs",
+    "sourceStartMs", "sourceEndMs", "sourcePromptAtMs",
+  ];
+  const anchor = prompts[0];
+  if (prompts.slice(1).some((prompt) => sharedFields.some((field) => prompt[field] !== anchor[field]))) {
+    throw Object.assign(new Error("Batched targets must share one clip, angle, range, and prompt frame."), { statusCode: 400 });
+  }
+  return prompts;
+}
+
 export function createTrackingJobHandler(options = {}) {
-  async function createJob(request, response) {
+  async function createJob(request, response, batch = false) {
     const session = options.authorizeSession(request, response);
     if (!session) return null;
     if (!options.trackingEngine.available()) {
@@ -109,7 +145,8 @@ export function createTrackingJobHandler(options = {}) {
     }
     let job = null;
     try {
-      const prompt = trackingPrompt(request, options.config.maxTrackingDurationMs);
+      const prompts = batch ? trackingPrompts(request, options.config.maxTrackingDurationMs) : null;
+      const prompt = prompts?.[0] || trackingPrompt(request, options.config.maxTrackingDurationMs);
       const sourceId = requestedSourceId(request);
       const source = await reusableSource(options, sourceId, session.token);
       let sourceSha256 = source?.sourceSha256 || "";
@@ -119,8 +156,9 @@ export function createTrackingJobHandler(options = {}) {
         reserveBytes: declaredBytes,
         protectedIds: [...options.jobs.activeIds(), ...(source ? [source.id] : [])],
       });
-      job = options.jobs.create("track-object", {
+      job = options.jobs.create(batch ? "track-objects" : "track-object", {
         fileName: source?.fileName || safeFileName(request.headers["x-football-science-file-name"]),
+        objectCount: prompts?.length || 1,
         sourceArtifactId: source?.id || "",
         startMs: prompt.startMs,
         endMs: prompt.endMs,
@@ -131,7 +169,8 @@ export function createTrackingJobHandler(options = {}) {
       options.jobOwners.set(job.id, session.token);
       const workDir = path.join(options.config.cacheDir, job.id);
       const inputPath = path.join(workDir, `input-${job.metadata.fileName}`);
-      const outputPath = path.join(workDir, "track.json");
+      const outputName = batch ? "tracks.json" : "track.json";
+      const outputPath = path.join(workDir, outputName);
       if (source) {
         await fs.mkdir(workDir, { recursive: true });
         await fs.link(source.filePath, inputPath);
@@ -146,22 +185,31 @@ export function createTrackingJobHandler(options = {}) {
       options.jobs.enqueue(job.id, async ({ signal, reportProgress }) => {
         try {
           reportProgress({ stage: "tracking", ratio: 0.22 });
-          const result = await options.trackingEngine.trackObject(inputPath, outputPath, prompt, {
+          const result = await (batch ? options.trackingEngine.trackObjects(
+            inputPath,
+            outputPath,
+            prompts,
+            {
+              signal,
+              onProgress: (progress) => reportProgress({ ...progress, ratio: Math.max(0.22, Number(progress.ratio) || 0.22) }),
+            },
+          ) : options.trackingEngine.trackObject(inputPath, outputPath, prompt, {
             signal,
             onProgress: (progress) => reportProgress({ ...progress, ratio: Math.max(0.22, Number(progress.ratio) || 0.22) }),
-          });
+          }));
           if (source) await fs.rm(inputPath, { force: true });
           const access = options.assets.issue(job.id, session.origin);
           return {
             artifactId: job.id,
             sourceArtifactId: source?.id || job.id,
             sourceSha256,
-            trackingUrl: `${options.baseUrl()}/tracking/${job.id}/track.json?access=${encodeURIComponent(access.token)}`,
+            trackingUrl: `${options.baseUrl()}/tracking/${job.id}/${outputName}?access=${encodeURIComponent(access.token)}`,
             expiresAt: new Date(access.expiresAtMs).toISOString(),
             engine: result.engine,
             engineVersion: result.engineVersion,
             pointCount: result.pointCount,
             segmentCount: result.segmentCount,
+            trackCount: result.trackCount || 1,
           };
         } catch (error) {
           await removeCacheEntry(options.config.cacheDir, job.id);
@@ -184,7 +232,7 @@ export function createTrackingJobHandler(options = {}) {
   }
 
   async function handleArtifact(request, url, response) {
-    const match = url.pathname.match(/^\/tracking\/([a-f0-9-]+)\/track\.json$/i);
+    const match = url.pathname.match(/^\/tracking\/([a-f0-9-]+)\/(track|tracks)\.json$/i);
     if (!match) return false;
     const id = match[1];
     const origin = options.requestOrigin(request);
@@ -193,7 +241,7 @@ export function createTrackingJobHandler(options = {}) {
       return true;
     }
     try {
-      const artifactPath = path.join(options.config.cacheDir, id, "track.json");
+      const artifactPath = path.join(options.config.cacheDir, id, `${match[2]}.json`);
       const stat = await fs.stat(artifactPath);
       response.writeHead(200, options.corsHeaders(request, options.config, {
         "cache-control": "private, max-age=3600",
@@ -207,5 +255,9 @@ export function createTrackingJobHandler(options = {}) {
     return true;
   }
 
-  return { createJob, handleArtifact };
+  return {
+    createJob: (request, response) => createJob(request, response, false),
+    createBatchJob: (request, response) => createJob(request, response, true),
+    handleArtifact,
+  };
 }

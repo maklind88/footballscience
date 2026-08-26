@@ -86,12 +86,19 @@ function normalizedMetadata(value = {}, prompt = {}) {
     model: boundedString(metadata.model, 120),
     device: boundedString(metadata.device, 40),
     providerProtocol: boundedString(metadata.providerProtocol ?? metadata.provider_protocol, 80),
+    promptId: boundedString(prompt.id, 160),
     angleId: boundedString(prompt.angleId, 160),
     sourceStartMs: Math.max(0, Math.round(Number(prompt.sourceStartMs) || 0)),
     sourceEndMs: Math.max(0, Math.round(Number(prompt.sourceEndMs) || 0)),
     sourcePromptAtMs: Math.max(0, Math.round(Number(prompt.sourcePromptAtMs) || 0)),
     syncOffsetMs: Math.round(Number(prompt.syncOffsetMs) || 0),
     driftPpm: Number(prompt.driftPpm) || 0,
+    ...(Number.isFinite(Number(prompt.batchSize)) ? {
+      batchSize: Math.max(1, Math.min(8, Math.round(Number(prompt.batchSize)))),
+    } : {}),
+    ...(Number.isFinite(Number(prompt.batchIndex)) ? {
+      batchIndex: Math.max(0, Math.min(7, Math.round(Number(prompt.batchIndex)))),
+    } : {}),
     ...(Number.isFinite(sampleFps) ? { sampleFps: Math.max(0, Math.min(120, sampleFps)) } : {}),
     ...(Number.isFinite(promptFrameIndex) ? { promptFrameIndex: Math.max(0, Math.round(promptFrameIndex)) } : {}),
   };
@@ -140,5 +147,42 @@ export function validateTrackingArtifact(value = {}, prompt = {}, options = {}) 
     },
     pointCount,
     segmentCount: segments.length,
+  };
+}
+
+export function validateTrackingArtifacts(value = {}, prompts = [], options = {}) {
+  if (!Array.isArray(prompts) || prompts.length < 2 || prompts.length > 8) {
+    throw contractError("A tracking batch must contain 2-8 requested targets.", "TRACKING_BATCH_LIMIT");
+  }
+  const requestedIds = prompts.map((prompt) => boundedString(prompt?.id));
+  if (requestedIds.some((id) => !id) || new Set(requestedIds).size !== requestedIds.length) {
+    throw contractError("Every batched tracking target needs a unique id.", "TRACKING_BATCH_PROMPT_ID");
+  }
+  const rawTracks = Array.isArray(value.tracks) ? value.tracks : [];
+  if (rawTracks.length !== prompts.length) {
+    throw contractError("The tracking provider returned an incomplete object batch.", "TRACKING_BATCH_INCOMPLETE");
+  }
+  const tracksByPromptId = new Map();
+  for (const track of rawTracks) {
+    const promptId = boundedString(track?.promptId ?? track?.prompt_id);
+    if (!requestedIds.includes(promptId) || tracksByPromptId.has(promptId)) {
+      throw contractError("The tracking provider returned an unknown or duplicate target.", "TRACKING_BATCH_PROMPT_ID");
+    }
+    tracksByPromptId.set(promptId, track);
+  }
+  const validated = prompts.map((prompt, batchIndex) => validateTrackingArtifact(
+    tracksByPromptId.get(boundedString(prompt.id)),
+    { ...prompt, batchIndex, batchSize: prompts.length },
+    options,
+  ));
+  const pointCount = validated.reduce((total, result) => total + result.pointCount, 0);
+  if (pointCount > (Number(options.maxBatchPoints) || 1_000_000)) {
+    throw contractError("The tracking engine returned too many samples for one batch.", "TRACKING_SAMPLE_LIMIT");
+  }
+  return {
+    artifacts: validated.map((result) => result.artifact),
+    pointCount,
+    segmentCount: validated.reduce((total, result) => total + result.segmentCount, 0),
+    trackCount: validated.length,
   };
 }

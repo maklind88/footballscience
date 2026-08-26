@@ -108,9 +108,9 @@ function renderResolvedGraphic(graphic = {}) {
   return "";
 }
 
-function renderPrompt(prompt = null) {
+function renderPrompt(prompt = null, label = "Target", queued = false) {
   if (!prompt?.box) return "";
-  return `<span class="video-analysis-track-prompt" style="left:${percent(prompt.box.left)}%;top:${percent(prompt.box.top)}%;width:${percent(prompt.box.width)}%;height:${percent(prompt.box.height)}%"><span>Target</span></span>`;
+  return `<span class="video-analysis-track-prompt${queued ? " is-queued" : ""}" style="left:${percent(prompt.box.left)}%;top:${percent(prompt.box.top)}%;width:${percent(prompt.box.width)}%;height:${percent(prompt.box.height)}%"><span>${escapeHtml(label)}</span></span>`;
 }
 
 export function renderTrackingStage(state = {}, item = null) {
@@ -118,6 +118,7 @@ export function renderTrackingStage(state = {}, item = null) {
   const { tracks, graphics } = currentItemTracking(item);
   const atMs = playheadMs(state);
   const selectedTrackIds = state.presentation?.tracking?.selectedTrackIds || [];
+  const pendingPrompts = state.presentation?.tracking?.pendingPrompts || [];
   const spatialCapture = Boolean(state.presentation?.spatial?.captureLandmarkId);
   const resolved = resolveDynamicGraphics(graphics, tracks, atMs, {
     calibration: state.presentation?.spatial?.calibration || null,
@@ -126,7 +127,8 @@ export function renderTrackingStage(state = {}, item = null) {
     <div class="video-analysis-tracking-stage${spatialCapture ? " is-spatial-capturing" : ""}" data-video-analysis-tracking-stage>
       ${tracks.map((track) => renderTrackBox(track, atMs, selectedTrackIds)).join("")}
       ${resolved.map(renderResolvedGraphic).join("")}
-      ${renderPrompt(state.presentation?.tracking?.prompt)}
+      ${pendingPrompts.map((prompt, index) => renderPrompt(prompt, `Target ${index + 1}`, true)).join("")}
+      ${renderPrompt(state.presentation?.tracking?.prompt, `Target ${pendingPrompts.length + 1}`)}
       ${renderSpatialStage(state)}
     </div>
   `;
@@ -225,6 +227,35 @@ function renderTrackingProvider(provider = {}) {
   `;
 }
 
+function pendingTargetLabel(prompt = {}, index = 0) {
+  if (prompt.playerLabel) return prompt.playerLabel;
+  if (prompt.shirtNumber) return `Shirt ${prompt.shirtNumber}`;
+  if (prompt.entityType === "ball") return "Ball";
+  if (prompt.entityType === "referee") return "Referee";
+  return `Target ${index + 1}`;
+}
+
+function renderPendingTargets(prompts = [], currentPrompt = null, maximum = 8) {
+  const targets = [
+    ...prompts.map((prompt) => ({ prompt, queued: true })),
+    ...(currentPrompt?.box ? [{ prompt: currentPrompt, queued: false }] : []),
+  ];
+  if (!prompts.length) return "";
+  return `
+    <div class="video-analysis-tracking-batch">
+      <header><strong>Targets ready</strong><span>${targets.length}/${maximum}</span></header>
+      <ol>
+        ${targets.map(({ prompt, queued }, index) => `
+          <li>
+            <span><strong>${escapeHtml(pendingTargetLabel(prompt, index))}</strong><small>${escapeHtml(`${prompt.entityType || "player"}${queued ? "" : " | current"}`)}</small></span>
+            <button type="button" data-video-analysis-tracking-action="${queued ? "remove-target" : "clear-target"}" ${queued ? `data-video-analysis-tracking-prompt-id="${escapeHtml(prompt.id)}"` : ""}>Remove</button>
+          </li>
+        `).join("")}
+      </ol>
+    </div>
+  `;
+}
+
 export function renderTrackingSidebar(state = {}, item = null) {
   const tracking = state.presentation?.tracking || {};
   if (tracking.mode === "static") return "";
@@ -235,6 +266,10 @@ export function renderTrackingSidebar(state = {}, item = null) {
   const selectedTrackIds = tracking.selectedTrackIds || [];
   const provider = tracking.provider || {};
   const providerReady = provider.status === "ready";
+  const pendingPrompts = tracking.pendingPrompts || [];
+  const targetCount = pendingPrompts.length + (tracking.prompt?.box ? 1 : 0);
+  const maximumBatchSize = Math.max(1, Math.min(8, Number(provider.maxObjectsPerJob) || 8));
+  const batchReady = targetCount < 2 || provider.batchAvailable === true;
   const primaryTrack = tracks.find((track) => track.id === selectedTrackIds[0]) || null;
   const entityType = tracking.prompt?.entityType || "player";
   const clip = item?.clip || {};
@@ -283,10 +318,12 @@ export function renderTrackingSidebar(state = {}, item = null) {
       </div>
       <div class="video-analysis-tracking-commands">
         <button type="button" data-video-analysis-tracking-action="select-target">Select target</button>
-        <button type="button" data-video-analysis-tracking-action="run" ${tracking.prompt?.box && providerReady ? "" : "disabled"}>Track locally</button>
+        <button type="button" data-video-analysis-tracking-action="queue-target" ${tracking.prompt?.box && targetCount < maximumBatchSize ? "" : "disabled"}>Add another</button>
+        <button type="button" data-video-analysis-tracking-action="run" ${targetCount && providerReady && batchReady ? "" : "disabled"}>${escapeHtml(targetCount > 1 ? `Track ${targetCount} targets` : "Track locally")}</button>
         <button type="button" data-video-analysis-tracking-action="manual" ${tracking.prompt?.box ? "" : "disabled"}>Manual keyframe</button>
         <button type="button" data-video-analysis-tracking-action="correct" ${primaryTrack ? "" : "disabled"}>Correct here</button>
       </div>
+      ${renderPendingTargets(pendingPrompts, tracking.prompt, maximumBatchSize)}
       ${tracking.job ? renderTrackingProgress(tracking.job) : ""}
       ${tracking.error ? `<p class="video-analysis-error">${escapeHtml(tracking.error)}</p>` : ""}
       <ol class="video-analysis-tracking-list">

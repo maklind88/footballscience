@@ -92,16 +92,19 @@ export async function inspectLocalTrackingProvider(win = window) {
     return {
       status: available ? "ready" : "not-installed",
       available,
+      batchAvailable: available && (payload.capabilities || []).includes("track-objects"),
       name: String(provider.displayName || provider.engineName || "Football Science SAM 2.1 Object Tracker"),
       version: String(provider.engineVersion || ""),
       source: String(provider.source || "none"),
       maxDurationMs: Math.max(1000, Math.min(20 * 60 * 1000, Number(payload.limits?.maxTrackingDurationMs) || 120_000)),
+      maxObjectsPerJob: Math.max(1, Math.min(8, Number(payload.limits?.maxTrackingObjectsPerJob) || 1)),
       error: "",
     };
   } catch (error) {
     return {
       status: "offline",
       available: false,
+      batchAvailable: false,
       name: "Local tracking companion",
       version: "",
       source: "none",
@@ -111,13 +114,17 @@ export async function inspectLocalTrackingProvider(win = window) {
 }
 
 async function queueTrackingJob(options = {}) {
+  const batch = Array.isArray(options.prompts);
   const headers = {
     "content-type": options.file?.type || "application/octet-stream",
     "x-football-science-file-name": encodeURIComponent(
       options.file?.name || options.displayName || "match-video",
     ),
     "x-football-science-session": options.sessionToken,
-    "x-football-science-tracking-prompt": encodePrompt(options.prompt, options.win),
+    [batch ? "x-football-science-tracking-prompts" : "x-football-science-tracking-prompt"]: encodePrompt(
+      batch ? options.prompts : options.prompt,
+      options.win,
+    ),
   };
   if (options.sourceArtifactId) {
     headers["x-football-science-tracking-source-id"] = options.sourceArtifactId;
@@ -128,16 +135,34 @@ async function queueTrackingJob(options = {}) {
     signal: options.signal,
   };
   if (!options.sourceArtifactId) request.body = options.file;
-  const response = await options.fetcher(`${options.baseUrl}/jobs/track-object`, request);
+  const response = await options.fetcher(`${options.baseUrl}/jobs/${batch ? "track-objects" : "track-object"}`, request);
   return { response, payload: await responseJson(response) };
 }
 
-export async function trackLocalObject(options = {}) {
+function normalizedLocalTrack(artifact = {}, prompt = {}, result = {}, options = {}, requestedSourceId = "") {
+  return normalizeObjectTrack({
+    ...artifact,
+    clipId: options.clipId,
+    videoId: options.videoId,
+    engine: result.engine || artifact.engine,
+    engineVersion: result.engineVersion || artifact.engineVersion,
+    metadata: {
+      ...(artifact.metadata || {}),
+      localArtifactId: result.artifactId,
+      localArtifactExpiresAt: result.expiresAt,
+      localSourceArtifactId: result.sourceArtifactId || requestedSourceId,
+      localSourceSha256: result.sourceSha256 || "",
+      angleId: String(prompt.angleId || ""),
+    },
+  });
+}
+
+async function runLocalTrackingJob(options = {}, values = {}) {
   const win = options.win || window;
   const fetcher = win.fetch?.bind(win) || fetch;
   const file = getLocalVideoFile(options.videoRef);
   const requestedSourceId = String(options.sourceArtifactId || "").trim();
-  if (!file && !requestedSourceId) throw new Error("Reconnect the original local video before tracking an object.");
+  if (!file && !requestedSourceId) throw new Error("Reconnect the original local video before tracking objects.");
   const baseUrl = localVideoBridgeBaseUrl(win);
   const session = await openLocalBridgeSession(baseUrl, { fetcher });
   const capabilityResponse = await fetcher(`${baseUrl}/capabilities`, {
@@ -146,20 +171,15 @@ export async function trackLocalObject(options = {}) {
   });
   const capabilityPayload = await responseJson(capabilityResponse);
   if (!capabilityResponse.ok) throw new Error(capabilityPayload.error || "The local processing service is not ready.");
-  if (!(capabilityPayload.capabilities || []).includes("track-object")) {
+  if (!(capabilityPayload.capabilities || []).includes(values.capability)) {
     throw new Error("No approved local tracking provider is installed. Use manual keyframes or install the tracking engine.");
   }
-  const prompt = {
-    ...(options.prompt || {}),
-    clipId: options.clipId,
-    videoId: options.videoId,
-  };
   const request = {
     baseUrl,
     displayName: options.videoRef?.displayName,
     fetcher,
     file,
-    prompt,
+    ...(values.prompts ? { prompts: values.prompts } : { prompt: values.prompt }),
     sessionToken: session.sessionToken,
     signal: options.signal,
     sourceArtifactId: requestedSourceId,
@@ -177,23 +197,48 @@ export async function trackLocalObject(options = {}) {
     const artifactResponse = await fetcher(result.trackingUrl, { signal: options.signal });
     const artifact = await responseJson(artifactResponse);
     if (!artifactResponse.ok) throw new Error(artifact.error || "The local tracking artifact could not be opened.");
-    return normalizeObjectTrack({
-      ...artifact,
-      clipId: options.clipId,
-      videoId: options.videoId,
-      engine: result.engine || artifact.engine,
-      engineVersion: result.engineVersion || artifact.engineVersion,
-      metadata: {
-        ...(artifact.metadata || {}),
-        localArtifactId: result.artifactId,
-        localArtifactExpiresAt: result.expiresAt,
-        localSourceArtifactId: result.sourceArtifactId || requestedSourceId,
-        localSourceSha256: result.sourceSha256 || "",
-        angleId: String(prompt.angleId || ""),
-      },
-    });
+    return { artifact, requestedSourceId, result };
   } catch (error) {
     if (options.signal?.aborted) await cancelLocalTrackingJob(queuedJob, win).catch(() => false);
     throw error;
   }
+}
+
+export async function trackLocalObject(options = {}) {
+  const prompt = {
+    ...(options.prompt || {}),
+    clipId: options.clipId,
+    videoId: options.videoId,
+  };
+  const local = await runLocalTrackingJob(options, { capability: "track-object", prompt });
+  return normalizedLocalTrack(local.artifact, prompt, local.result, options, local.requestedSourceId);
+}
+
+export async function trackLocalObjects(options = {}) {
+  if (!Array.isArray(options.prompts) || options.prompts.length < 2 || options.prompts.length > 8) {
+    throw new Error("Select 2-8 targets for one local tracking batch.");
+  }
+  const prompts = options.prompts.map((prompt) => ({
+    ...(prompt || {}),
+    clipId: options.clipId,
+    videoId: options.videoId,
+  }));
+  const promptIds = prompts.map((prompt) => String(prompt.id || "").trim());
+  if (promptIds.some((id) => !id) || new Set(promptIds).size !== promptIds.length) {
+    throw new Error("Every tracking target needs a unique id.");
+  }
+  const local = await runLocalTrackingJob(options, { capability: "track-objects", prompts });
+  const rawTracks = Array.isArray(local.artifact?.tracks) ? local.artifact.tracks : [];
+  if (rawTracks.length !== prompts.length) throw new Error("The local tracker returned an incomplete target batch.");
+  const byPromptId = new Map(rawTracks.map((track) => [String(track?.metadata?.promptId || ""), track]));
+  if (byPromptId.size !== prompts.length || promptIds.some((id) => !byPromptId.has(id))) {
+    throw new Error("The local tracker returned mismatched target identities.");
+  }
+  return prompts.map((prompt) => normalizedLocalTrack(
+    byPromptId.get(String(prompt.id)),
+    prompt,
+    local.result,
+    options,
+    local.requestedSourceId,
+  ));
 }

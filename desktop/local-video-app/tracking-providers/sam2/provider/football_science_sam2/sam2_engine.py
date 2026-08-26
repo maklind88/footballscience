@@ -3,7 +3,7 @@ from __future__ import annotations
 import gc
 import os
 import platform
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .protocol import ProviderError
 
@@ -75,13 +75,13 @@ class Sam2Engine:
             "confidence": confidence,
         }
 
-    def _track_once(
+    def _track_many_once(
         self,
         frames_dir: str,
-        prompt: Dict[str, Any],
+        prompts: List[Dict[str, Any]],
         prompt_index: int,
         progress: Callable[[str, float], None],
-    ) -> Dict[int, Dict[str, float]]:
+    ) -> List[Dict[int, Dict[str, float]]]:
         try:
             from sam2.build_sam import build_sam2_video_predictor
         except ImportError as error:
@@ -97,7 +97,7 @@ class Sam2Engine:
             apply_postprocessing=False,
         )
         state = None
-        observations: Dict[int, Dict[str, float]] = {}
+        observations: List[Dict[int, Dict[str, float]]] = [{} for _ in prompts]
         try:
             state = predictor.init_state(
                 video_path=frames_dir,
@@ -108,26 +108,34 @@ class Sam2Engine:
             frame_count = int(state["num_frames"])
             width = int(state["video_width"])
             height = int(state["video_height"])
-            box = prompt["box"]
-            box_pixels = [
-                box["left"] * width,
-                box["top"] * height,
-                (box["left"] + box["width"]) * width,
-                (box["top"] + box["height"]) * height,
-            ]
-            _, _, masks = predictor.add_new_points_or_box(
-                state,
-                frame_idx=prompt_index,
-                obj_id=1,
-                box=box_pixels,
-            )
-            prompted = self._observation(masks[0], prompt_index)
-            if prompted:
-                observations[prompt_index] = prompted
+            object_indexes = {}
+            for index, prompt in enumerate(prompts):
+                object_id = index + 1
+                object_indexes[object_id] = index
+                box = prompt["box"]
+                box_pixels = [
+                    box["left"] * width,
+                    box["top"] * height,
+                    (box["left"] + box["width"]) * width,
+                    (box["top"] + box["height"]) * height,
+                ]
+                _, object_ids, masks = predictor.add_new_points_or_box(
+                    state,
+                    frame_idx=prompt_index,
+                    obj_id=object_id,
+                    box=box_pixels,
+                )
+                normalized_ids = [int(value) for value in object_ids]
+                mask_index = normalized_ids.index(object_id)
+                prompted = self._observation(masks[mask_index], prompt_index)
+                if prompted:
+                    observations[index][prompt_index] = prompted
             directions = [
                 (False, max(0, frame_count - prompt_index - 1)),
                 (True, max(0, prompt_index)),
             ]
+            processed_frames = 0
+            total_frames = max(1, sum(maximum + 1 for _, maximum in directions))
             for reverse, maximum in directions:
                 for frame_index, object_ids, mask_logits in predictor.propagate_in_video(
                     state,
@@ -135,11 +143,18 @@ class Sam2Engine:
                     max_frame_num_to_track=maximum,
                     reverse=reverse,
                 ):
-                    object_index = list(object_ids).index(1)
-                    observation = self._observation(mask_logits[object_index], int(frame_index))
-                    if observation:
-                        observations[int(frame_index)] = observation
-                    progress("Tracking object", 0.35 + 0.55 * len(observations) / max(1, frame_count))
+                    for mask_index, object_id in enumerate(object_ids):
+                        result_index = object_indexes.get(int(object_id))
+                        if result_index is None:
+                            continue
+                        observation = self._observation(mask_logits[mask_index], int(frame_index))
+                        if observation:
+                            observations[result_index][int(frame_index)] = observation
+                    processed_frames += 1
+                    progress(
+                        f"Tracking {len(prompts)} objects" if len(prompts) > 1 else "Tracking object",
+                        0.35 + 0.55 * processed_frames / total_frames,
+                    )
             return observations
         finally:
             if state is not None:
@@ -158,14 +173,23 @@ class Sam2Engine:
         prompt_index: int,
         progress: Callable[[str, float], None],
     ) -> Dict[int, Dict[str, float]]:
+        return self.track_many(frames_dir, [prompt], prompt_index, progress)[0]
+
+    def track_many(
+        self,
+        frames_dir: str,
+        prompts: List[Dict[str, Any]],
+        prompt_index: int,
+        progress: Callable[[str, float], None],
+    ) -> List[Dict[int, Dict[str, float]]]:
         try:
-            return self._track_once(frames_dir, prompt, prompt_index, progress)
+            return self._track_many_once(frames_dir, prompts, prompt_index, progress)
         except RuntimeError as error:
             if self.requested_device != "auto" or self.device.type != "mps":
                 raise
             progress("Retrying tracking on CPU", 0.32)
             self.device = self.torch.device("cpu")
             try:
-                return self._track_once(frames_dir, prompt, prompt_index, progress)
+                return self._track_many_once(frames_dir, prompts, prompt_index, progress)
             except RuntimeError as fallback_error:
                 raise ProviderError("SAM 2 could not complete tracking on this computer.") from fallback_error

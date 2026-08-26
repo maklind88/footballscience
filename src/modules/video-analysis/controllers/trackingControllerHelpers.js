@@ -112,7 +112,14 @@ export function updateTrackingPromptField(state = {}, field = "", value = "") {
   const changed = field === "startSeconds"
     ? { ...existing, startMs: milliseconds, endMs: Math.max(milliseconds + 1, existing.endMs) }
     : { ...existing, endMs: Math.max(existing.startMs + 1, milliseconds) };
-  return patchTrackingState(state, { prompt: trackingPrompt(changed), error: "" });
+  const prompt = trackingPrompt(changed);
+  const pendingPrompts = (state.presentation?.tracking?.pendingPrompts || []).map((pending) => trackingPrompt({
+    ...pending,
+    startMs: prompt.startMs,
+    endMs: prompt.endMs,
+    promptAtMs: Math.max(prompt.startMs, Math.min(prompt.endMs, pending.promptAtMs)),
+  }));
+  return patchTrackingState(state, { prompt, pendingPrompts, error: "" });
 }
 
 export function toggleTrackingTrackSelection(state = {}, trackId = "") {

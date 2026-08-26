@@ -15,6 +15,7 @@ import {
   readSam2ProviderManifest,
   sam2ProviderInstallDir,
   sam2ProviderPaths,
+  sam2ProviderRuntimeSha256,
 } from "./provider-runtime.mjs";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -202,6 +203,10 @@ export async function installSam2Provider(args = {}, options = {}) {
     await fs.access(path.join(stagedSource, "setup.py"));
     await fs.rm(path.join(stagedDir, "downloads"), { recursive: true, force: true });
     await copyProviderPolicy(stagedDir);
+    const stagedPaths = sam2ProviderPaths({ manifest, installDir: stagedDir });
+    if (sam2ProviderRuntimeSha256(stagedPaths) !== manifest.runtime.providerSha256) {
+      throw new Error("The Football Science tracking provider runtime failed its integrity check.");
+    }
 
     backupDir = await stageInstallDirectory(stagedDir, installDir, args.force);
     activated = true;
@@ -214,6 +219,7 @@ export async function installSam2Provider(args = {}, options = {}) {
       sourceCommit: manifest.upstream.commit,
       sourceSha256: manifest.upstream.sourceSha256,
       checkpointSha256: manifest.model.checkpointSha256,
+      providerSha256: manifest.runtime.providerSha256,
       installedAt: new Date().toISOString(),
       platform: process.platform,
       pythonVersion: python.version,

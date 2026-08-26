@@ -8,6 +8,7 @@ import ffmpegStaticPath from "ffmpeg-static";
 import { createTrackingEngineAdapter } from "../desktop/local-video-app/local-video-server/tracking-engine-adapter.mjs";
 
 export const TRACKING_ENGINE_SMOKE_PROTOCOL = "football-science-tracking-engine-smoke-v1";
+export const TRACKING_ENGINE_BATCH_SMOKE_PROTOCOL = "football-science-tracking-engine-batch-smoke-v1";
 export const TRACKING_ENGINE_SMOKE_DURATION_MS = 1_000;
 export const TRACKING_ENGINE_SMOKE_TIMEOUT_MS = 5 * 60 * 1000;
 export const TRACKING_ENGINE_SMOKE_REFERENCE_MAX_REALTIME_FACTOR = 1;
@@ -63,6 +64,20 @@ export function trackingEngineSmokePrompt() {
   };
 }
 
+export function trackingEngineBatchSmokePrompts() {
+  return [
+    trackingEngineSmokePrompt(),
+    {
+      ...trackingEngineSmokePrompt(),
+      id: "sam2-operational-smoke-away",
+      playerId: "synthetic-player-away",
+      playerLabel: "Synthetic away player",
+      teamSide: "away",
+      box: { left: 0.64, top: 0.2, width: 0.11, height: 0.42 },
+    },
+  ];
+}
+
 export async function createSyntheticTrackingFixture(outputPath, options = {}) {
   const ffmpegPath = options.ffmpegPath || process.env.FS_FFMPEG_PATH || ffmpegStaticPath;
   if (!ffmpegPath) throw smokeError("The bundled FFmpeg engine is unavailable.", "TRACKING_ENGINE_SMOKE_FFMPEG");
@@ -83,6 +98,32 @@ export async function createSyntheticTrackingFixture(outputPath, options = {}) {
   const stat = await fs.stat(outputPath);
   if (!stat.isFile() || stat.size < 1_024 || stat.size > 16 * 1024 * 1024) {
     throw smokeError("The synthetic tracking fixture is invalid.", "TRACKING_ENGINE_SMOKE_FIXTURE");
+  }
+  return { byteLength: stat.size };
+}
+
+export async function createSyntheticBatchTrackingFixture(outputPath, options = {}) {
+  const ffmpegPath = options.ffmpegPath || process.env.FS_FFMPEG_PATH || ffmpegStaticPath;
+  if (!ffmpegPath) throw smokeError("The bundled FFmpeg engine is unavailable.", "TRACKING_ENGINE_SMOKE_FFMPEG");
+  const filter = [
+    "[1:v]drawbox=x=0:y=0:w=iw:h=ih:color=white:t=4,drawbox=x=8:y=12:w=30:h=76:color=0x214f9b:t=fill[first]",
+    "[2:v]drawbox=x=0:y=0:w=iw:h=ih:color=white:t=4,drawbox=x=8:y=12:w=30:h=76:color=0xe5b72f:t=fill[second]",
+    "[0:v][first]overlay=x=110+45*t:y=100:shortest=1[with_first]",
+    "[with_first][second]overlay=x=430-35*t:y=85:shortest=1[composite]",
+    "[composite]format=yuv420p[out]",
+  ].join(";");
+  await runProcess(ffmpegPath, [
+    "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+    "-f", "lavfi", "-i", `color=c=0x285c3a:s=640x360:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
+    "-f", "lavfi", "-i", `color=c=0xc92f3d:s=46x132:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
+    "-f", "lavfi", "-i", `color=c=0x167a73:s=46x132:r=12.5:d=${TRACKING_ENGINE_SMOKE_DURATION_MS / 1_000}`,
+    "-filter_complex", filter,
+    "-map", "[out]", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+    "-movflags", "+faststart", outputPath,
+  ], options);
+  const stat = await fs.stat(outputPath);
+  if (!stat.isFile() || stat.size < 1_024 || stat.size > 16 * 1024 * 1024) {
+    throw smokeError("The synthetic batch fixture is invalid.", "TRACKING_ENGINE_SMOKE_FIXTURE");
   }
   return { byteLength: stat.size };
 }
@@ -207,6 +248,106 @@ export async function runTrackingEngineSmoke(options = {}) {
   }
 }
 
+export async function runTrackingEngineBatchSmoke(options = {}) {
+  const clock = options.now || (() => Number(process.hrtime.bigint() / 1_000_000n));
+  const temporaryParent = options.temporaryParent || os.tmpdir();
+  const jobDir = await fs.mkdtemp(path.join(temporaryParent, "fs-player-tracking-batch-smoke-"));
+  const inputPath = path.join(jobDir, "synthetic-players.mp4");
+  const batchOutputPath = path.join(jobDir, "tracking-batch.json");
+  const prompts = trackingEngineBatchSmokePrompts();
+  const progressStages = [];
+  const abortController = new AbortController();
+  const timeout = setTimeout(
+    () => abortController.abort(),
+    Math.max(60_000, Number(options.timeoutMs) || TRACKING_ENGINE_SMOKE_TIMEOUT_MS * 2),
+  );
+  timeout.unref?.();
+  const onProgress = (progress = {}) => {
+    const stage = String(progress.stage || "").trim().slice(0, 120);
+    if (stage && progressStages.at(-1) !== stage) progressStages.push(stage);
+    options.onProgress?.(progress);
+  };
+  try {
+    const fixture = await (options.generateFixture || createSyntheticBatchTrackingFixture)(inputPath, options);
+    const fixtureSha256 = await sha256File(inputPath);
+    const adapter = options.adapter || createTrackingEngineAdapter({ ffmpegPath: options.ffmpegPath });
+    if (!adapter.available() || typeof adapter.trackObjects !== "function") {
+      throw smokeError("The installed tracking provider does not support shared-state object batches.", "TRACKING_BATCH_UNAVAILABLE");
+    }
+    const batchStartedAt = clock();
+    const batch = await adapter.trackObjects(inputPath, batchOutputPath, prompts, {
+      signal: abortController.signal,
+      onProgress,
+    });
+    const batchProcessingMs = Math.max(1, clock() - batchStartedAt);
+    const batchResults = (batch.artifacts || []).map((artifact, index) => validateOperationalResult(
+      { artifact },
+      prompts[index],
+    ));
+    if (batchResults.length !== prompts.length) {
+      throw smokeError("The installed tracker did not propagate every batched object.", "TRACKING_ENGINE_SMOKE_OUTPUT");
+    }
+
+    const singlesStartedAt = clock();
+    const singleResults = [];
+    for (let index = 0; index < prompts.length; index += 1) {
+      const result = await adapter.trackObject(
+        inputPath,
+        path.join(jobDir, `tracking-single-${index + 1}.json`),
+        prompts[index],
+        { signal: abortController.signal, onProgress },
+      );
+      singleResults.push(validateOperationalResult(result, prompts[index]));
+    }
+    const repeatedSingleProcessingMs = Math.max(1, clock() - singlesStartedAt);
+    return Object.freeze({
+      ok: true,
+      protocol: TRACKING_ENGINE_BATCH_SMOKE_PROTOCOL,
+      provider: boundedProviderInfo(adapter.info()),
+      fixture: {
+        kind: "generated-two-object-video",
+        durationMs: TRACKING_ENGINE_SMOKE_DURATION_MS,
+        width: 640,
+        height: 360,
+        objectCount: prompts.length,
+        byteLength: Number(fixture?.byteLength) || 0,
+        sha256: fixtureSha256,
+      },
+      result: {
+        trackCount: batchResults.length,
+        pointCount: batchResults.reduce((total, result) => total + result.pointCount, 0),
+        segmentCount: batchResults.reduce((total, result) => total + result.segmentCount, 0),
+        minimumCoverageRatio: Math.min(...batchResults.map((result) => result.coverageRatio)),
+        minimumConfidence: Math.min(...batchResults.map((result) => result.confidence)),
+        repeatedSingleTrackCount: singleResults.length,
+      },
+      performance: {
+        batchProcessingMs,
+        repeatedSingleProcessingMs,
+        speedup: repeatedSingleProcessingMs / batchProcessingMs,
+        batchFaster: batchProcessingMs < repeatedSingleProcessingMs,
+        providerInvocationsAvoided: prompts.length - 1,
+        sharedVideoState: true,
+        coldStartIncluded: true,
+      },
+      progressStages,
+      temporaryMediaRetained: false,
+      realMatchQualityProven: false,
+    });
+  } catch (error) {
+    if (abortController.signal.aborted) {
+      throw smokeError(
+        `Tracking batch self-test timed out${progressStages.at(-1) ? ` during ${progressStages.at(-1)}` : ""}.`,
+        "TRACKING_ENGINE_SMOKE_TIMEOUT",
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    await fs.rm(jobDir, { recursive: true, force: true });
+  }
+}
+
 function safeError(error) {
   const home = os.homedir();
   const temporary = os.tmpdir();
@@ -223,7 +364,8 @@ if (isDirectRun) {
   const json = process.argv.includes("--json");
   const showProgress = process.argv.includes("--progress");
   try {
-    const report = await runTrackingEngineSmoke({
+    const smoke = process.argv.includes("--batch") ? runTrackingEngineBatchSmoke : runTrackingEngineSmoke;
+    const report = await smoke({
       onProgress: showProgress
         ? (progress) => console.error(`${Math.round((Number(progress.ratio) || 0) * 100)}% ${progress.stage || "Tracking"}`)
         : undefined,

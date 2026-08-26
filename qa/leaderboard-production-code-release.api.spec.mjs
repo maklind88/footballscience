@@ -182,6 +182,8 @@ test("owner freeze and DB/plan freshness are exact and future-skew bounded", () 
   const now = Date.parse("2026-08-26T12:00:00Z"); const observedAt = "2026-08-26T11:55:00Z";
   const rules = ["branch", "tag"].map((target, index) => ({ id: 100 + index, name: baseline.freezes[target].name, target, enforcement: "active", current_user_can_bypass: "never", updated_at: "2026-08-26T11:54:00Z", bypass_actors: [], conditions: { ref_name: { include: ["~ALL"], exclude: [] } }, rules: [{ type: "creation" }, { type: "update", parameters: { update_allows_fetch_and_merge: false } }, { type: "deletion" }] }));
   const owner = buildOwnerFreezeAttestation(rules, observedAt, now); expect(owner.authority).toBe("owner-admin-reviewed");
+  const apiOrdered = rules.map((rule) => ({ ...rule, conditions: { ref_name: { exclude: [], include: ["~ALL"] } } }));
+  expect(buildOwnerFreezeAttestation(apiOrdered, observedAt, now).digest).toBe(owner.digest);
   const visible = rules.map(({ bypass_actors, ...rule }) => rule); expect(assertFreezeAttestation(visible, observedAt, owner.digest, now).digest).toBe(owner.digest);
   expect(() => assertFreezeAttestation(visible, observedAt, "f".repeat(64), now)).toThrow(/digest/);
   const prior = process.env.FREEZE_ATTESTATION_SHA256; process.env.FREEZE_ATTESTATION_SHA256 = owner.digest;

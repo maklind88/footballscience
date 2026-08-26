@@ -44,6 +44,7 @@ function normalizeFreezeRule(rule, requireBypass) {
   invariant(expected && Number.isSafeInteger(Number(rule.id)) && Number(rule.id) > 0, "Freeze ruleset identity/target drifted.");
   invariant(rule.name === expected.name && rule.enforcement === "active" && rule.current_user_can_bypass === "never", `${rule.target} freeze name/enforcement/reviewer drifted.`);
   invariant(canonicalJson(rule.conditions) === canonicalJson({ ref_name: { include: ["~ALL"], exclude: [] } }), `${rule.target} freeze conditions drifted.`);
+  const conditions = { ref_name: { include: ["~ALL"], exclude: [] } };
   invariant(Array.isArray(rule.rules) && canonicalJson(rule.rules.map(({ type }) => type)) === canonicalJson(requiredRuleTypes), `${rule.target} freeze rules drifted.`);
   const [creation, update, deletion] = rule.rules;
   invariant(canonicalJson(Object.keys(creation).sort()) === canonicalJson(["type"]) && canonicalJson(Object.keys(deletion).sort()) === canonicalJson(["type"]), `${rule.target} freeze non-update rule schema drifted.`);
@@ -54,13 +55,13 @@ function normalizeFreezeRule(rule, requireBypass) {
   if (requireBypass) invariant(Object.hasOwn(rule, "bypass_actors") && Array.isArray(rule.bypass_actors) && rule.bypass_actors.length === 0, `${rule.target} owner attestation did not prove empty bypass actors.`);
   else if (Object.hasOwn(rule, "bypass_actors")) invariant(Array.isArray(rule.bypass_actors) && rule.bypass_actors.length === 0, `${rule.target} visible bypass actors were nonempty or malformed.`);
   invariant(Number.isFinite(Date.parse(rule.updated_at)), `${rule.target} freeze updated_at was invalid.`);
-  const payload = { name: rule.name, target: rule.target, enforcement: rule.enforcement, bypass_actors: [], conditions: rule.conditions, rules: [{ type: "creation" }, { type: "update", parameters: { update_allows_fetch_and_merge: false } }, { type: "deletion" }] };
+  const payload = { name: rule.name, target: rule.target, enforcement: rule.enforcement, bypass_actors: [], conditions, rules: [{ type: "creation" }, { type: "update", parameters: { update_allows_fetch_and_merge: false } }, { type: "deletion" }] };
   const payloadSha256 = sha256(JSON.stringify(payload));
   invariant(payloadSha256 === expected.payloadSha256, `${rule.target} observed freeze payload bytes drifted.`);
   return {
     id: Number(rule.id), name: rule.name, target: rule.target, updatedAt: rule.updated_at,
     payloadSha256, bypassActors: [], reviewerCanBypass: "never",
-    conditions: { ref_name: { include: ["~ALL"], exclude: [] } },
+    conditions,
     rules: [{ type: "creation" }, { type: "update", parameters: { update_allows_fetch_and_merge: false } }, { type: "deletion" }],
   };
 }

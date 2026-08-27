@@ -170,7 +170,7 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
     return `loading:${String(user.role || "unknown")}`;
   }), { timeout: 30_000, intervals: [250, 500, 1_000, 2_000] }).toBe("ready");
   await expect(page.locator("#leaderboardSummary [data-leaderboard-home-root]")).toBeVisible();
-  await expect(page.locator("#leaderboardSummary .leaderboard-home-standings, #leaderboardSummary .leaderboard-home-state")).toBeVisible();
+  await expect(page.locator("#leaderboardSummary .leaderboard-home-standings, #leaderboardSummary .leaderboard-home-state").first()).toBeVisible();
   await expect(page.locator("#leaderboardSummary [data-leaderboard-home-open]")).toBeVisible();
   await page.locator("#leaderboardSummary [data-leaderboard-home-open]").click();
   await expect(page.locator("[data-leaderboard-dialog-workspace] [data-leaderboard-root]")).toBeVisible({ timeout: 30_000 });

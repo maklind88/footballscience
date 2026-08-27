@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: footballscience-staging-deploy
-  cancel-in-progress: true
+  group: footballscience-production-edge-release
+  cancel-in-progress: false
 
 jobs:
   full-qa:

@@ -338,6 +338,17 @@ export function createCentralSyncRuntimeService(deps = {}) {
           reportSyncStatus(write.key, "issue", "Sync needs attention");
           continue;
         }
+        if (result?.status === 403) {
+          // A 403 means the server permanently refused this specific key for
+          // the current actor (e.g. a role without edit access to that
+          // workspace). That will never succeed on retry, so drop it instead
+          // of requeueing forever and blocking every other pending write
+          // behind it, and keep this key's own denial local instead of
+          // pinning the global sync status.
+          setCentralSyncPendingState(write.key, false, write.removed);
+          reportSyncStatus(write.key, "issue", result?.reason || "Not authorized for this data.");
+          continue;
+        }
         for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {
           const retryWrite = writes[retryIndex];
           centralStateWriteQueue.set(retryWrite.key, retryWrite);

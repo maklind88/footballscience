@@ -66,11 +66,18 @@ export function createLeaderboardApiService(context = {}) {
   let resolvedTeamId = "";
   let teamScopePromise = null;
 
+  function getConfiguredTeamCandidate() {
+    return String(
+      context.teamId
+        || context.team?.id
+        || context.currentUser?.teamId
+        || context.currentUser?.team_id
+        || ""
+    ).trim();
+  }
+
   function getConfiguredTeamId() {
-    return normalizeLeaderboardTeamId(context.teamId)
-      || normalizeLeaderboardTeamId(context.team?.id)
-      || normalizeLeaderboardTeamId(context.currentUser?.teamId)
-      || normalizeLeaderboardTeamId(context.currentUser?.team_id);
+    return normalizeLeaderboardTeamId(getConfiguredTeamCandidate());
   }
 
   async function resolveTeamId() {
@@ -80,35 +87,41 @@ export function createLeaderboardApiService(context = {}) {
       return configured;
     }
     if (resolvedTeamId) return resolvedTeamId;
-    if (!teamScopePromise) {
-      teamScopePromise = (async () => {
-        if (typeof fetchImpl !== "function") throw new Error("Leaderboard network service is unavailable.");
-        const token = await getAuthToken();
-        if (!token) throw new Error("Leaderboard team scope requires authentication.");
-        const response = await fetchImpl(platformIdentityApiPath, {
-          method: "GET",
-          signal: getAbortSignal(),
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const identity = await parseLeaderboardResponse(response);
-        if (!response.ok || identity?.ok === false) {
-          const error = new Error(identity?.reason || identity?.error || `Platform identity request failed (${response.status}).`);
-          error.status = response.status;
-          error.payload = identity;
-          throw error;
-        }
-        const teamId = resolveLeaderboardTeamIdFromIdentity(identity);
-        if (!teamId) throw new Error("No active Leaderboard team is available for this account.");
-        resolvedTeamId = teamId;
-        return teamId;
-      })().catch((error) => {
-        teamScopePromise = null;
-        throw error;
-      });
+    if (teamScopePromise) return teamScopePromise;
+
+    const token = await getAuthToken();
+    if (!token) {
+      const localTeamId = getConfiguredTeamCandidate();
+      if (localTeamId) return localTeamId;
+      throw new Error("Leaderboard team scope requires authentication.");
     }
+
+    teamScopePromise = (async () => {
+      if (typeof fetchImpl !== "function") throw new Error("Leaderboard network service is unavailable.");
+      const response = await fetchImpl(platformIdentityApiPath, {
+        method: "GET",
+        signal: getAbortSignal(),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const identity = await parseLeaderboardResponse(response);
+      if (!response.ok || identity?.ok === false) {
+        const error = new Error(identity?.reason || identity?.error || `Platform identity request failed (${response.status}).`);
+        error.status = response.status;
+        error.payload = identity;
+        throw error;
+      }
+      const teamId = resolveLeaderboardTeamIdFromIdentity(identity);
+      if (!teamId) throw new Error("No active Leaderboard team is available for this account.");
+      resolvedTeamId = teamId;
+      return teamId;
+    })().catch((error) => {
+      teamScopePromise = null;
+      throw error;
+    });
+
     return teamScopePromise;
   }
 

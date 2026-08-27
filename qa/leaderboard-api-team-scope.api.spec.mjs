@@ -75,3 +75,24 @@ test("API service resolves a server team UUID before loading Leaderboard", async
   ]);
   expect(calls.every((call) => call.options.headers.Authorization === "Bearer scope-token")).toBe(true);
 });
+
+test("API service keeps synthetic harness team IDs when no auth scope is available", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    return response({ ok: true, schema: "footballscience-leaderboard-v1", month: "2026-08" });
+  };
+  const api = createLeaderboardApiService({
+    teamId: "team-1",
+    currentUser: { teamId: "team-1" },
+    getAuthToken: async () => "",
+    fetchImpl,
+  });
+
+  await api.loadMonth("2026-08");
+
+  expect(calls.map((call) => call.url)).toEqual([
+    "/api/leaderboard?month=2026-08&teamId=team-1",
+  ]);
+  expect(calls[0].options.headers.Authorization).toBeUndefined();
+});

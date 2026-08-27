@@ -5,13 +5,17 @@ on:
   push:
     branches:
       - staging
+    paths-ignore:
+      - "qa/**"
+      - "docs/**"
+      - "**/*.md"
 
 permissions:
   contents: read
 
 concurrency:
-  group: footballscience-production-edge-release
-  cancel-in-progress: false
+  group: footballscience-staging-deploy
+  cancel-in-progress: true
 
 jobs:
   full-qa:

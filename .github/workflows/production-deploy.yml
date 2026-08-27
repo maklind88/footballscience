@@ -70,6 +70,10 @@ jobs:
         run: node scripts/restore-staging-alias.mjs
 
       - name: Verify staging smoke before production
+        env:
+          LEADERBOARD_READONLY_EXPECTED_ORIGIN: ${{ env.STAGING_QA_BASE_URL }}
+          LEADERBOARD_READONLY_EXPECTED_SUPABASE_REF: ${{ env.STAGING_SUPABASE_PROJECT_REF }}
+          LEADERBOARD_READONLY_DENIED_SUPABASE_REF: ${{ env.SUPABASE_PROJECT_REF }}
         run: npm run qa:staging:required
       - run: npx --yes vercel@53.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
       - run: npx --yes vercel@53.2.0 build --prod --token="$VERCEL_TOKEN"

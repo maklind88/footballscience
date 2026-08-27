@@ -133,6 +133,33 @@ jobs:
           console.log(`Assigned ${stagingHost} to ${deploymentHost}.`);
           NODE
 
+      - name: Wait for staging alias propagation
+        if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const baseUrl = process.env.STAGING_QA_BASE_URL || process.env.STAGING_DEPLOYMENT_URL;
+          const probeUrl = new URL("/api/leaderboard", baseUrl);
+          const deadline = Date.now() + 90_000;
+          let lastStatus = 0;
+
+          while (Date.now() < deadline) {
+            try {
+              const response = await fetch(probeUrl, { redirect: "manual", cache: "no-store" });
+              lastStatus = response.status;
+              if (lastStatus === 401) {
+                console.log(`Staging alias is serving the Leaderboard API (${lastStatus}).`);
+                process.exit(0);
+              }
+            } catch (error) {
+              console.log(`Staging alias probe failed: ${error.message}`);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 3_000));
+          }
+
+          throw new Error(`Staging alias did not expose the Leaderboard API within 90 seconds (last status: ${lastStatus || "no response"}).`);
+          NODE
+
       - name: Authenticated staging smoke
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
         run: |

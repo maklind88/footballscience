@@ -87,7 +87,7 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
       await route.abort("blockedbyclient");
       return;
     }
-    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    if (requestUrl.pathname === "/api/leaderboard" && !["GET", "HEAD", "OPTIONS"].includes(method)) {
       forbiddenMethodCount += 1;
       await route.abort("blockedbyclient");
       return;

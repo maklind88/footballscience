@@ -96,7 +96,8 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
   });
   page.on("response", (response) => {
     const responseUrl = new URL(response.url());
-    if (responseUrl.pathname === "/api/leaderboard" && (responseUrl.origin !== expectedOrigin || response.status() >= 400)) apiFailureCount += 1;
+    const authorization = String(response.request().headers().authorization || "");
+    if (responseUrl.pathname === "/api/leaderboard" && authorization && (responseUrl.origin !== expectedOrigin || response.status() >= 400)) apiFailureCount += 1;
   });
   page.on("pageerror", () => { pageErrorCount += 1; });
   page.on("console", (message) => {

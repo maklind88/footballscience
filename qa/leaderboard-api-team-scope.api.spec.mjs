@@ -76,7 +76,7 @@ test("API service resolves a server team UUID before loading Leaderboard", async
   expect(calls.every((call) => call.options.headers.Authorization === "Bearer scope-token")).toBe(true);
 });
 
-test("API service keeps synthetic harness team IDs when no auth scope is available", async () => {
+test("API service keeps synthetic harness team IDs only with explicit opt-in", async () => {
   const calls = [];
   const fetchImpl = async (url, options = {}) => {
     calls.push({ url: String(url), options });
@@ -85,6 +85,7 @@ test("API service keeps synthetic harness team IDs when no auth scope is availab
   const api = createLeaderboardApiService({
     teamId: "team-1",
     currentUser: { teamId: "team-1" },
+    allowSyntheticTeamId: true,
     getAuthToken: async () => "",
     fetchImpl,
   });
@@ -95,4 +96,20 @@ test("API service keeps synthetic harness team IDs when no auth scope is availab
     "/api/leaderboard?month=2026-08&teamId=team-1",
   ]);
   expect(calls[0].options.headers.Authorization).toBeUndefined();
+});
+
+test("API service blocks unauthenticated synthetic team requests outside a harness", async () => {
+  const calls = [];
+  const api = createLeaderboardApiService({
+    teamId: "team-ncc-first",
+    currentUser: { teamId: "team-ncc-first" },
+    getAuthToken: async () => "",
+    fetchImpl: async (...args) => {
+      calls.push(args);
+      return response({}, 400);
+    },
+  });
+
+  await expect(api.loadMonth("2026-08")).rejects.toThrow("Leaderboard team scope requires authentication.");
+  expect(calls).toEqual([]);
 });

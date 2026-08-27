@@ -63,6 +63,7 @@ export function createLeaderboardApiService(context = {}) {
   const getAuthToken = typeof context.getAuthToken === "function" ? context.getAuthToken : () => "";
   const getAbortSignal = typeof context.getLeaderboardAbortSignal === "function" ? context.getLeaderboardAbortSignal : () => undefined;
   const fetchImpl = context.fetchImpl || globalThis.fetch;
+  const allowSyntheticTeamId = context.allowSyntheticTeamId === true;
   let resolvedTeamId = "";
   let teamScopePromise = null;
 
@@ -92,7 +93,7 @@ export function createLeaderboardApiService(context = {}) {
     const token = await getAuthToken();
     if (!token) {
       const localTeamId = getConfiguredTeamCandidate();
-      if (localTeamId) return localTeamId;
+      if (allowSyntheticTeamId && localTeamId) return localTeamId;
       throw new Error("Leaderboard team scope requires authentication.");
     }
 

@@ -174,7 +174,7 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
   await expect(page.locator("#leaderboardSummary [data-leaderboard-home-open]")).toBeVisible();
   await page.locator("#leaderboardSummary [data-leaderboard-home-open]").click();
   await expect(page.locator("[data-leaderboard-dialog-workspace] [data-leaderboard-root]")).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator("[data-leaderboard-open-award]")).toBeVisible();
+  await expect(page.locator("[data-leaderboard-open-award]").first()).toBeVisible();
 
   const anonymous = await request.newContext({ baseURL: expectedOrigin });
   try {

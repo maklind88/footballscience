@@ -63,6 +63,7 @@ export function createLeaderboardApiService(context = {}) {
   const getAuthToken = typeof context.getAuthToken === "function" ? context.getAuthToken : () => "";
   const getAbortSignal = typeof context.getLeaderboardAbortSignal === "function" ? context.getLeaderboardAbortSignal : () => undefined;
   const fetchImpl = context.fetchImpl || globalThis.fetch;
+  // Only isolated harness contexts opt into non-UUID team IDs; platform contexts require authenticated scope resolution.
   const allowSyntheticTeamId = context.allowSyntheticTeamId === true;
   let resolvedTeamId = "";
   let teamScopePromise = null;

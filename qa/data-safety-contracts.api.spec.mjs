@@ -766,3 +766,56 @@ test("central app-state merges stale Medical saves without dropping availability
     restoreEnv(env);
   }
 });
+
+test("central app-state batch entries skip keys the actor cannot edit instead of failing the whole seed", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const scheduleKey = "football-schedule-v1";
+  const medicalKey = "football-medical-team-v1";
+  const schedulePath = `global/${scheduleKey}.json`;
+  const medicalPath = `global/${medicalKey}.json`;
+  const scheduleValue = JSON.stringify({ events: [{ id: "match-1", title: "First team fixture" }] });
+  const medicalValue = JSON.stringify({ records: [], injuryPlans: [], selectedDate: "2026-05-17" });
+
+  // A coach's browser can legitimately hold a locally-seeded default value
+  // for a workspace (Medical) that the coach role never has edit access to.
+  // First-time hydration bundles every locally-cached key into one seed
+  // request; that one inapplicable key must not block the coach's own
+  // Schedule data (or any other authorized key) from being saved centrally.
+  const storage = createAppStateFetchMock({}, "coach");
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        entries: {
+          [scheduleKey]: scheduleValue,
+          [medicalKey]: medicalValue,
+        },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.ok).toBe(true);
+    expect(response.payload.keys).toEqual([scheduleKey]);
+    expect(response.payload.skipped).toEqual([
+      { key: medicalKey, reason: "You do not have edit access for medical-team." },
+    ]);
+
+    expect(storage.objects.has(schedulePath)).toBe(true);
+    expect(storage.objects.has(medicalPath)).toBe(false);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});

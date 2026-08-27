@@ -3434,8 +3434,25 @@ async function listStateObjects(options = {}) {
   return result;
 }
 
+const BATCH_ACCESS_DENIAL_REASONS = new Set([
+  "Only admins can sync this data centrally.",
+  "Only admins can remove workspace settings.",
+  "Only platform or club admins can sync club/team structure.",
+  "You do not have access to Transfer Room.",
+  "Only team admins can remove Transfer Room state.",
+]);
+
+function isBatchSeedAccessDenial(authorization) {
+  const reason = String(authorization?.reason || "");
+  if (BATCH_ACCESS_DENIAL_REASONS.has(reason)) {
+    return true;
+  }
+  return /^You do not have edit access for /.test(reason);
+}
+
 async function applyStateEntries(actor, entries = {}, metadata = {}) {
   const results = [];
+  const skipped = [];
   for (const [key, rawValue] of Object.entries(entries)) {
     const normalizedKey = sanitizeStateKey(key);
     if (!normalizedKey) {
@@ -3450,6 +3467,19 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
       clientBaseRevision,
     });
     if (!authorization.ok) {
+      // A batch entries write is used to seed a device's locally-cached state
+      // into the server on first hydration. That local cache can legitimately
+      // contain keys the current actor's role has no access to at all (e.g. a
+      // coach's browser holding a blank medical-team default). Rejecting the
+      // whole batch for one inapplicable key would also drop every other key
+      // the actor IS authorized to seed, and would leave hydration stuck in a
+      // failed state. Skip only pure role/workspace access denials and keep
+      // processing the remaining keys; genuine content-safety or write
+      // failures for keys the actor can access still abort as before.
+      if (isBatchSeedAccessDenial(authorization)) {
+        skipped.push({ key: normalizedKey, reason: authorization.reason });
+        continue;
+      }
       return {
         ok: false,
         ...authorization,
@@ -3517,6 +3547,7 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
     ok: true,
     keys: results.map((result) => result.key),
     results,
+    skipped,
   };
 }
 

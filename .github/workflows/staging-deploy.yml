@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - staging
+      - fix/leaderboard-live-smoke
     paths-ignore:
       - "docs/**"
       - "**/*.md"

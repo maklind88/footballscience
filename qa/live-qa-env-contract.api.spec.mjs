@@ -1,9 +1,18 @@
 import { expect, test } from "@playwright/test";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
+test("staging smoke binds the read-only Leaderboard proof to staging", () => {
+  const workflow = fs.readFileSync(path.join(rootDir, ".github/workflows/staging-deploy.yml"), "utf8");
+
+  expect(workflow).toContain("LEADERBOARD_READONLY_EXPECTED_ORIGIN: ${{ vars.STAGING_QA_BASE_URL }}");
+  expect(workflow).toContain("LEADERBOARD_READONLY_EXPECTED_SUPABASE_REF: ${{ vars.STAGING_SUPABASE_PROJECT_REF }}");
+  expect(workflow).toContain("LEADERBOARD_READONLY_DENIED_SUPABASE_REF: ${{ vars.SUPABASE_PROJECT_REF }}");
+});
 
 function runNodeScript(relativePath, env = {}) {
   return spawnSync(process.execPath, [path.join(rootDir, relativePath)], {

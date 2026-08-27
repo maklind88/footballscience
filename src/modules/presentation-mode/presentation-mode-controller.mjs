@@ -4641,7 +4641,7 @@ export function createPresentationModeController(dependencies = {}) {
     }
     if (
       event.target.closest?.(
-        "[data-presentation-context-menu], .presentation-insert-popover, .presentation-new-slide-popover, .presentation-theme-popover"
+        "[data-presentation-context-menu], .presentation-tool-popover-panel, .presentation-insert-popover, .presentation-new-slide-popover, .presentation-theme-popover"
       )
     ) {
       return;

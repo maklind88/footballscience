@@ -110,18 +110,23 @@ export function createDataSafetyRuntimeService(deps = {}) {
     if (!storage || !nativeSetItem) return;
     const normalizedKey = String(key || "");
     const normalizedValue = String(value ?? "");
+    const previousNativeValue = isProtectedStorageKey(normalizedKey)
+      ? nativeGetItem?.call(storage, normalizedKey)
+      : null;
     try {
       nativeSetItem.call(storage, normalizedKey, normalizedValue);
       if (isProtectedStorageKey(normalizedKey)) setCentralCachedValue(normalizedKey, normalizedValue);
     } catch (error) {
       if (isProtectedStorageKey(normalizedKey) && isStorageQuotaError(error)) {
         const cachedInfo = getCentralCachedValueInfo(normalizedKey);
-        if (!(cachedInfo.serverBacked && cachedInfo.durable === false)) {
-          removeCentralCachedValue(normalizedKey);
+        if (previousNativeValue === null) {
+          if (!(cachedInfo.serverBacked && cachedInfo.durable === false)) {
+            removeCentralCachedValue(normalizedKey);
+          }
+          try {
+            nativeRemoveItem?.call(storage, normalizedKey);
+          } catch {}
         }
-        try {
-          nativeRemoveItem?.call(storage, normalizedKey);
-        } catch {}
       }
       throw error;
     }

@@ -1,6 +1,8 @@
 import { leaderboardApiPath } from "../leaderboard-constants.mjs";
 import { normalizeLeaderboardMonth, normalizeLeaderboardTeamId } from "../leaderboard-helpers.mjs";
 
+const platformIdentityApiPath = "/api/platform-identity";
+
 async function parseLeaderboardResponse(response) {
   const text = await response.text();
   if (!text) return {};
@@ -11,13 +13,117 @@ async function parseLeaderboardResponse(response) {
   }
 }
 
+function normalizeStatus(value = "active") {
+  return String(value || "active").trim().toLowerCase();
+}
+
+function identityTeams(identity = {}) {
+  return (Array.isArray(identity?.scope?.teams) ? identity.scope.teams : [])
+    .map((team) => ({
+      ...team,
+      id: normalizeLeaderboardTeamId(team?.id),
+      clubId: String(team?.clubId || "").trim(),
+      organizationId: String(team?.organizationId || "").trim(),
+      status: normalizeStatus(team?.status),
+    }))
+    .filter((team) => team.id && team.status === "active");
+}
+
+function identityMemberships(identity = {}) {
+  return (Array.isArray(identity?.scope?.memberships) ? identity.scope.memberships : [])
+    .filter((membership) => normalizeStatus(membership?.status) === "active");
+}
+
+function membershipCoversTeam(membership = {}, team = {}) {
+  const scope = String(membership?.scope || "").trim().toLowerCase();
+  if (scope === "team") return normalizeLeaderboardTeamId(membership?.teamId) === team.id;
+  if (scope === "club") return Boolean(team.clubId && String(membership?.clubId || "").trim() === team.clubId);
+  if (scope === "organization") {
+    return Boolean(team.organizationId && String(membership?.organizationId || "").trim() === team.organizationId);
+  }
+  return false;
+}
+
+export function resolveLeaderboardTeamIdFromIdentity(identity = {}) {
+  const teams = identityTeams(identity);
+  const memberships = identityMemberships(identity);
+  const coveredTeams = teams.filter((team) => memberships.some((membership) => membershipCoversTeam(membership, team)));
+  const coveredIds = new Set(coveredTeams.map((team) => team.id));
+  const preferredIds = [
+    identity?.actor?.profile?.primaryTeamId,
+    identity?.scope?.primary?.teamId,
+    identity?.scope?.primary?.team?.id,
+  ].map(normalizeLeaderboardTeamId).filter(Boolean);
+  const preferred = preferredIds.find((teamId) => coveredIds.has(teamId));
+  if (preferred) return preferred;
+  return coveredTeams.map((team) => team.id).sort()[0] || "";
+}
+
 export function createLeaderboardApiService(context = {}) {
   const getAuthToken = typeof context.getAuthToken === "function" ? context.getAuthToken : () => "";
   const getAbortSignal = typeof context.getLeaderboardAbortSignal === "function" ? context.getLeaderboardAbortSignal : () => undefined;
   const fetchImpl = context.fetchImpl || globalThis.fetch;
+  const allowSyntheticTeamId = context.allowSyntheticTeamId === true;
+  let resolvedTeamId = "";
+  let teamScopePromise = null;
 
-  function getTeamId() {
-    return normalizeLeaderboardTeamId(context.teamId) || normalizeLeaderboardTeamId(context.team?.id);
+  function getConfiguredTeamCandidate() {
+    return String(
+      context.teamId
+        || context.team?.id
+        || context.currentUser?.teamId
+        || context.currentUser?.team_id
+        || ""
+    ).trim();
+  }
+
+  function getConfiguredTeamId() {
+    return normalizeLeaderboardTeamId(getConfiguredTeamCandidate());
+  }
+
+  async function resolveTeamId() {
+    const configured = getConfiguredTeamId();
+    if (configured) {
+      resolvedTeamId = configured;
+      return configured;
+    }
+    if (resolvedTeamId) return resolvedTeamId;
+    if (teamScopePromise) return teamScopePromise;
+
+    const token = await getAuthToken();
+    if (!token) {
+      const localTeamId = getConfiguredTeamCandidate();
+      if (allowSyntheticTeamId && localTeamId) return localTeamId;
+      throw new Error("Leaderboard team scope requires authentication.");
+    }
+
+    teamScopePromise = (async () => {
+      if (typeof fetchImpl !== "function") throw new Error("Leaderboard network service is unavailable.");
+      const response = await fetchImpl(platformIdentityApiPath, {
+        method: "GET",
+        signal: getAbortSignal(),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const identity = await parseLeaderboardResponse(response);
+      if (!response.ok || identity?.ok === false) {
+        const error = new Error(identity?.reason || identity?.error || `Platform identity request failed (${response.status}).`);
+        error.status = response.status;
+        error.payload = identity;
+        throw error;
+      }
+      const teamId = resolveLeaderboardTeamIdFromIdentity(identity);
+      if (!teamId) throw new Error("No active Leaderboard team is available for this account.");
+      resolvedTeamId = teamId;
+      return teamId;
+    })().catch((error) => {
+      teamScopePromise = null;
+      throw error;
+    });
+
+    return teamScopePromise;
   }
 
   async function request(path, options = {}) {
@@ -43,21 +149,20 @@ export function createLeaderboardApiService(context = {}) {
   }
 
   return Object.freeze({
-    loadMonth(month, options = {}) {
+    async loadMonth(month, options = {}) {
       const safeMonth = normalizeLeaderboardMonth(month);
-      if (!safeMonth) return Promise.reject(new Error("A valid leaderboard month is required."));
-      const teamId = getTeamId();
-      const params = new URLSearchParams({ month: safeMonth });
-      if (teamId) params.set("teamId", teamId);
+      if (!safeMonth) throw new Error("A valid leaderboard month is required.");
+      const teamId = await resolveTeamId();
+      const params = new URLSearchParams({ month: safeMonth, teamId });
       return request(`${leaderboardApiPath}?${params.toString()}`, { signal: options.signal });
     },
-    award(payload) {
-      const teamId = getTeamId();
-      return request(leaderboardApiPath, { method: "POST", body: { ...payload, action: "award", ...(teamId ? { teamId } : {}) } });
+    async award(payload) {
+      const teamId = await resolveTeamId();
+      return request(leaderboardApiPath, { method: "POST", body: { ...payload, action: "award", teamId } });
     },
-    reverseEvent(payload) {
-      const teamId = getTeamId();
-      return request(leaderboardApiPath, { method: "POST", body: { ...payload, action: "reverse-event", ...(teamId ? { teamId } : {}) } });
+    async reverseEvent(payload) {
+      const teamId = await resolveTeamId();
+      return request(leaderboardApiPath, { method: "POST", body: { ...payload, action: "reverse-event", teamId } });
     },
   });
 }

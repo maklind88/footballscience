@@ -98,6 +98,14 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
     if (message.type() === "error" && /leaderboard|\/api\/leaderboard/i.test(message.text())) leaderboardConsoleErrorCount += 1;
   });
 
+  const homeRead = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.origin === expectedOrigin
+      && url.pathname === "/api/leaderboard"
+      && response.request().method() === "GET"
+      && response.status() === 200;
+  }, { timeout: 90_000 });
+
   await authenticatePage(page);
   const token = await tokenFrom(page);
   expect(new URL(page.url()).origin === expectedOrigin).toBe(true);
@@ -139,10 +147,6 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
 
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "schedule" } })));
   await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
-  const homeRead = page.waitForResponse((response) => {
-    const url = new URL(response.url());
-    return url.pathname === "/api/leaderboard" && response.request().method() === "GET";
-  }, { timeout: 45_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "home" } })));
   await expect(page.locator('[data-workspace-view="home"].is-active')).toBeVisible();
   const uiResponse = await homeRead;
@@ -155,8 +159,10 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
   expect(Number(uiPayload?.summary?.eventCount)).toBe(0);
   expect(Array.isArray(uiPayload?.events) ? uiPayload.events.length : -1).toBe(0);
   expect(Array.isArray(uiPayload?.standings) ? uiPayload.standings.length : -1).toBe(0);
-  await expect(page.locator("#leaderboardSummary")).toBeVisible({ timeout: 30_000 });
-  await page.locator("[data-leaderboard-home-open]").click();
+  await expect(page.locator("#leaderboardSummary [data-leaderboard-home-root]")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("#leaderboardSummary .leaderboard-home-standings, #leaderboardSummary .leaderboard-home-state")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("#leaderboardSummary [data-leaderboard-home-open]")).toBeVisible({ timeout: 30_000 });
+  await page.locator("#leaderboardSummary [data-leaderboard-home-open]").click();
   await expect(page.locator("[data-leaderboard-dialog-workspace] [data-leaderboard-root]")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("[data-leaderboard-open-award]")).toBeVisible();
 

@@ -66,6 +66,8 @@ function createHarness(options = {}) {
         calls.push(["cache", ...args]);
         return true;
       },
+      getCachedValue: (key) =>
+        options.centralCachedValues ? options.centralCachedValues[key] : undefined,
     },
     localStorage,
     setTimeout: (callback) => {
@@ -266,6 +268,7 @@ test("Session Planner runtime state service durably falls back and queues centra
   ]);
   expect(calls).toContainEqual(["record", storageKey, snapshot.storage[storageKey]]);
   expect(calls).not.toContainEqual(["autosave-status", storageKey, "issue", "Save failed"]);
+  expect(calls).toContainEqual(["autosave-status", storageKey, "saved", "Saved"]);
 });
 
 test("Session Planner quota fallback keeps the latest of rapid consecutive edits", async () => {
@@ -370,6 +373,33 @@ test("Session Planner runtime state service preserves normalized reads and centr
   expect(state.selectedDate).toBe("2026-05-02");
   expect(localStorage.getItem(storageKey)).toContain("2026-05-02");
   expect(calls.some((call) => Array.isArray(call) && call[0] === "record" && call[1] === storageKey)).toBe(true);
+});
+
+test("Session Planner runtime state service falls back to the central cache when local storage was evicted by quota", () => {
+  const storageKey = "football-session-planner-v3";
+  const centralState = {
+    selectedDate: "2026-08-27",
+    sessions: {
+      "2026-08-27": { id: "session-2026-08-27", blocks: [{ id: "new-exercise" }] },
+    },
+  };
+  const { service } = createHarness({
+    initialStorage: {},
+    centralCachedValues: { [storageKey]: JSON.stringify(centralState) },
+  });
+
+  const state = service.readState();
+
+  expect(state.selectedDate).toBe("2026-08-27");
+  expect(state.sessions["2026-08-27"].blocks).toContainEqual({ id: "new-exercise" });
+});
+
+test("Session Planner runtime state service returns the default state when local storage and the central cache are both empty", () => {
+  const { service } = createHarness({ initialStorage: {} });
+
+  const state = service.readState();
+
+  expect(state).toEqual({ selectedDate: "default", sessions: {} });
 });
 
 test("Session Planner runtime state service recovers sessions from data safety snapshots", async () => {

@@ -219,6 +219,23 @@ function sanitizeSafeProbeRows(payload) {
     "transaction-control",
   ]);
   const sourceCategories = new Set(["application-or-admin", "database-internal", "supabase-service"]);
+  const backendCategories = new Set([
+    "archiver",
+    "autovacuum-launcher",
+    "autovacuum-worker",
+    "background-worker",
+    "background-writer",
+    "checkpointer",
+    "client-backend",
+    "logical-replication-launcher",
+    "logical-replication-worker",
+    "other",
+    "parallel-worker",
+    "startup",
+    "wal-receiver",
+    "wal-sender",
+    "wal-writer",
+  ]);
   const stateCategories = new Set([
     "active",
     "disabled",
@@ -231,6 +248,7 @@ function sanitizeSafeProbeRows(payload) {
   const ageBuckets = new Set(["5-10 minutes", "10-30 minutes", "30-60 minutes", "over 60 minutes"]);
   return extractInspectRows(payload).map((row) => ({
     ageBucket: safeProbeValue(rowValue(row, ["age_bucket", "age bucket"]), ageBuckets),
+    backendCategory: safeProbeValue(rowValue(row, ["backend_category", "backend category"]), backendCategories),
     hasBlockers: booleanProbeValue(rowValue(row, ["has_blockers", "has blockers"])),
     relationReference: booleanProbeValue(rowValue(row, ["relation_reference", "relation reference"])),
     signalType: safeProbeValue(rowValue(row, ["signal_type", "signal type"]), signalTypes),
@@ -295,6 +313,40 @@ function assessResults(results = []) {
   return "GREEN";
 }
 
+function assessReportStatus(results = [], investigation = null) {
+  if (!investigation) return assessResults(results);
+  if (results.some((result) => result.status === "failed") || investigation.status !== "completed") return "RED";
+  if (results.some((result) => result.command === "blocking" && result.recordCount > 0)) return "RED";
+  if (results.some((result) => result.command === "bloat" && result.recordCount > 0)) return "YELLOW";
+
+  const longRunningCount = results.find((result) => result.command === "long-running-queries")?.recordCount || 0;
+  const lockCount = results.find((result) => result.command === "locks")?.recordCount || 0;
+  const longRunningSignals = investigation.signals.filter((signal) => signal.signalType === "long-running-query");
+  const lockSignals = investigation.signals.filter((signal) => signal.signalType === "exclusive-lock");
+  if (longRunningSignals.length < longRunningCount) return "RED";
+  if (lockSignals.length < lockCount) return "YELLOW";
+
+  const unsafeLongRunning = longRunningSignals.some(
+    (signal) =>
+      signal.sourceCategory !== "database-internal" ||
+      signal.stateCategory !== "active" ||
+      !new Set(["activity", "client"]).has(signal.waitCategory) ||
+      signal.hasBlockers ||
+      signal.transactionOpen
+  );
+  if (unsafeLongRunning) return "RED";
+
+  const unsafeLock = lockSignals.some(
+    (signal) =>
+      signal.statementCategory !== "database-monitoring" ||
+      signal.sourceCategory !== "supabase-service" ||
+      signal.hasBlockers ||
+      signal.relationReference ||
+      signal.transactionReference
+  );
+  return unsafeLock ? "YELLOW" : "GREEN";
+}
+
 function interpretation(result) {
   if (result.status === "failed") {
     return `Collection failed (${result.failureReason || "unknown"}); inspect the connection path.`;
@@ -310,7 +362,7 @@ function interpretation(result) {
 }
 
 function buildMarkdownSummary({ generatedAt, investigation, mode, results }) {
-  const overall = assessResults(results);
+  const overall = assessReportStatus(results, investigation);
   const correlations = correlateSafeSignals(results);
   const rows = results.map(
     (result) => `| \`${result.command}\` | ${result.status} | ${result.recordCount} | ${interpretation(result)} |`
@@ -347,7 +399,7 @@ function buildMarkdownSummary({ generatedAt, investigation, mode, results }) {
         "",
         ...investigation.signals.map(
           (signal, index) =>
-            `- \`${signal.signalType}#${index + 1}\`: ${signal.statementCategory}, source ${signal.sourceCategory}, state ${signal.stateCategory}, wait ${signal.waitCategory}, ${signal.ageBucket}, blockers ${signal.hasBlockers}, transaction open ${signal.transactionOpen}, relation ${signal.relationReference}, transaction reference ${signal.transactionReference}`
+            `- \`${signal.signalType}#${index + 1}\`: ${signal.statementCategory}, source ${signal.sourceCategory}, backend ${signal.backendCategory}, state ${signal.stateCategory}, wait ${signal.waitCategory}, ${signal.ageBucket}, blockers ${signal.hasBlockers}, transaction open ${signal.transactionOpen}, relation ${signal.relationReference}, transaction reference ${signal.transactionReference}`
         ),
       ]
     : [];
@@ -445,7 +497,7 @@ function runSafeSignalProbe({ dryRun = false } = {}) {
 }
 
 function writeReport({ investigation = null, mode, outputDir, results, generatedAt = new Date().toISOString() }) {
-  const status = assessResults(results);
+  const status = assessReportStatus(results, investigation);
   const markdown = buildMarkdownSummary({ generatedAt, investigation, mode, results });
   const report = {
     schema: "footballscience-supabase-database-health-v1",
@@ -467,6 +519,7 @@ function writeReport({ investigation = null, mode, outputDir, results, generated
 }
 
 export {
+  assessReportStatus,
   assessResults,
   buildInspectionDbUrl,
   buildMarkdownSummary,

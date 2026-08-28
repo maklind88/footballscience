@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
+  assessReportStatus,
   assessResults,
   buildInspectionDbUrl,
   buildSafeSignalEvidence,
@@ -115,6 +116,7 @@ test("database health fixed probe retains only allowlisted categories and boolea
       {
         age_bucket: "10-30 minutes",
         application_name: "private application name",
+        backend_category: "client-backend",
         has_blockers: false,
         query: "private raw SQL",
         relation_reference: false,
@@ -135,6 +137,7 @@ test("database health fixed probe retains only allowlisted categories and boolea
   expect(signals).toEqual([
     {
       ageBucket: "10-30 minutes",
+      backendCategory: "client-backend",
       hasBlockers: false,
       relationReference: false,
       signalType: "long-running-query",
@@ -149,6 +152,51 @@ test("database health fixed probe retains only allowlisted categories and boolea
   expect(serialized).not.toContain("private raw SQL");
   expect(serialized).not.toContain("private application name");
   expect(serialized).not.toContain("private-user");
+});
+
+test("database health investigation clears known benign internal activity but keeps unsafe signals fail-closed", () => {
+  const results = [
+    { command: "blocking", recordCount: 0, status: "completed" },
+    { command: "long-running-queries", recordCount: 1, status: "completed" },
+    { command: "locks", recordCount: 1, status: "completed" },
+  ];
+  const benignSignals = [
+    {
+      backendCategory: "wal-sender",
+      hasBlockers: false,
+      relationReference: false,
+      signalType: "long-running-query",
+      sourceCategory: "database-internal",
+      stateCategory: "active",
+      statementCategory: "other",
+      transactionOpen: false,
+      transactionReference: false,
+      waitCategory: "client",
+    },
+    {
+      backendCategory: "client-backend",
+      hasBlockers: false,
+      relationReference: false,
+      signalType: "exclusive-lock",
+      sourceCategory: "supabase-service",
+      stateCategory: "active",
+      statementCategory: "database-monitoring",
+      transactionOpen: true,
+      transactionReference: false,
+      waitCategory: "none",
+    },
+  ];
+
+  expect(assessReportStatus(results, { signals: benignSignals, status: "completed" })).toBe("GREEN");
+  expect(
+    assessReportStatus(results, {
+      signals: [
+        { ...benignSignals[0], sourceCategory: "application-or-admin", transactionOpen: true },
+        benignSignals[1],
+      ],
+      status: "completed",
+    })
+  ).toBe("RED");
 });
 
 test("database health uses the IPv4-compatible session pooler without exposing raw credentials", () => {
@@ -189,6 +237,7 @@ test("database health workflow is scheduled, aggregate-only, and non-mutating", 
   expect(workflow).not.toContain("deploy");
   expect(workflow).toContain("SUPABASE_DB_POOLER_HOST");
   expect(workflow).toContain("--investigate-signals");
+  expect(workflow).toContain("github.event_name == 'schedule' || inputs.investigate");
   expect(workflow).toContain("default_transaction_read_only=on");
   expect(workflow).not.toContain("supabase link");
   expect(script).toContain('["inspect", "db", command, ...connectionArgs, "--output-format", "json"]');

@@ -31,6 +31,23 @@ classified AS (
       WHEN application_name ~* '(supabase|postgrest|realtime|gotrue|storage|supavisor)' THEN 'supabase-service'
       ELSE 'application-or-admin'
     END AS source_category,
+    CASE backend_type
+      WHEN 'archiver' THEN 'archiver'
+      WHEN 'autovacuum launcher' THEN 'autovacuum-launcher'
+      WHEN 'autovacuum worker' THEN 'autovacuum-worker'
+      WHEN 'background worker' THEN 'background-worker'
+      WHEN 'background writer' THEN 'background-writer'
+      WHEN 'checkpointer' THEN 'checkpointer'
+      WHEN 'client backend' THEN 'client-backend'
+      WHEN 'logical replication launcher' THEN 'logical-replication-launcher'
+      WHEN 'logical replication worker' THEN 'logical-replication-worker'
+      WHEN 'parallel worker' THEN 'parallel-worker'
+      WHEN 'startup' THEN 'startup'
+      WHEN 'walreceiver' THEN 'wal-receiver'
+      WHEN 'walsender' THEN 'wal-sender'
+      WHEN 'walwriter' THEN 'wal-writer'
+      ELSE 'other'
+    END AS backend_category,
     CASE
       WHEN state = 'active' THEN 'active'
       WHEN state = 'idle in transaction' THEN 'idle-in-transaction'
@@ -56,6 +73,7 @@ SELECT
   'long-running-query' AS signal_type,
   statement_category,
   source_category,
+  backend_category,
   state_category,
   wait_category,
   age_bucket,
@@ -71,6 +89,7 @@ SELECT
   'exclusive-lock' AS signal_type,
   activity.statement_category,
   activity.source_category,
+  activity.backend_category,
   activity.state_category,
   activity.wait_category,
   activity.age_bucket,

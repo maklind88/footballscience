@@ -141,7 +141,7 @@ function runInspectCommand({ command, dryRun = false }) {
   if (dryRun) return { command, durationMs: 0, recordCount: 0, status: "planned" };
   const cliPath = path.join(rootDir, "node_modules", ".bin", process.platform === "win32" ? "supabase.cmd" : "supabase");
   const startedAt = Date.now();
-  const result = spawnSync(cliPath, ["inspect", "db", command, "--linked", "--output", "json"], {
+  const result = spawnSync(cliPath, ["inspect", "db", command, "--linked"], {
     cwd: rootDir,
     encoding: "utf8",
     env: { ...process.env, NO_COLOR: "1" },

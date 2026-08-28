@@ -1,0 +1,93 @@
+name: Supabase Database Health
+
+on:
+  schedule:
+    - cron: "30 10 * * 1-6"
+    - cron: "30 10 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Inspection depth
+        required: true
+        default: daily
+        type: choice
+        options:
+          - daily
+          - weekly
+
+permissions:
+  contents: read
+
+concurrency:
+  group: footballscience-supabase-database-health
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: platform-production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Select inspection depth
+        id: inspection-mode
+        env:
+          DISPATCH_MODE: ${{ inputs.mode }}
+          SCHEDULE_VALUE: ${{ github.event.schedule }}
+        shell: bash
+        run: |
+          mode="${DISPATCH_MODE:-daily}"
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$SCHEDULE_VALUE" = "30 10 * * 0" ]; then
+            mode="weekly"
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
+      - name: Verify read-only inspection credentials
+        shell: bash
+        run: |
+          missing=()
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Missing required Supabase inspection configuration: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Link production project
+        run: npx --no-install supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" --yes
+
+      - name: Collect aggregate read-only database signals
+        id: inspect
+        continue-on-error: true
+        env:
+          REPORT_DIR: ${{ runner.temp }}/supabase-database-health
+        run: node scripts/supabase-database-health.mjs --mode "${{ steps.inspection-mode.outputs.mode }}" --output-dir "$REPORT_DIR"
+
+      - name: Publish aggregate report
+        if: always()
+        env:
+          REPORT_DIR: ${{ runner.temp }}/supabase-database-health
+        run: |
+          if [ -f "$REPORT_DIR/summary.md" ]; then
+            cat "$REPORT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "# Supabase Database Health" >> "$GITHUB_STEP_SUMMARY"
+            echo "The aggregate report could not be generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Fail closed when signal collection failed
+        if: ${{ steps.inspect.outcome == 'failure' }}
+        run: exit 1

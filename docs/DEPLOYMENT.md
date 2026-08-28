@@ -183,6 +183,14 @@ npm run qa:supabase:remote
 
 `qa:supabase:remote` links the CI runner to the target Supabase project, lists local vs remote migrations, runs linked database linting, and runs `supabase db push --dry-run`. Do not put these values in source files.
 
+### Automated Supabase database health
+
+`Supabase Database Health` is a separate read-only GitHub Actions workflow. It runs a light production inspection Monday through Saturday and a deeper inspection on Sunday. It can also be started manually in `daily` or `weekly` mode.
+
+The workflow uses the existing `platform-production` environment and the same `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_REF` configuration as the remote migration gate. Only aggregate status and signal counts are written to the GitHub run; raw query text and detailed database metadata are not stored.
+
+The health workflow only runs `supabase inspect db` commands. It never changes the database automatically: it does not execute SQL, migrations, deploys, index changes, query cancellation, vacuum commands, or repair operations. Codex reports whether the result is green, yellow, or red and proposes a separate investigation plan when needed. Any fix requires explicit user approval and a reviewed branch/migration flow.
+
 Authenticated live smoke requires a dedicated test account and these CI/local environment variables:
 
 ```bash

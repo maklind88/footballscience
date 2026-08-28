@@ -30,10 +30,13 @@ function createServiceHarness(options = {}) {
           "football-schedule-v1": { revision },
           "football-dashboard-presentation-mode-v1": { revision },
           "football-session-planner-v1": { revision },
+          "football-medical-team-v1": { revision },
         },
       }),
       isCentralKey: () => true,
       isHydrated: () => hydrated,
+      canAutoSyncKey: (key) =>
+        typeof options.canAutoSyncKey === "function" ? options.canAutoSyncKey(key) : true,
       syncKey: async (key, value, syncOptions) => {
         syncCalls.push({ key, value, options: syncOptions });
         if (Array.isArray(options.syncResults)) {
@@ -332,6 +335,70 @@ test("central sync runtime retries pending tombstones even when local raw value 
   expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
     pendingCentralSync: false,
     deletedAt: "2026-06-08T12:00:00.000Z",
+    serverRevision: 12,
+  });
+});
+
+test("central sync runtime leaves denied automatic Medical retries pending without posting", async () => {
+  const key = "football-medical-team-v1";
+  const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
+  const harness = createServiceHarness({ canAutoSyncKey: () => false });
+  harness.rawValues.set(key, value);
+  harness.manifest.entries[key] = {
+    label: "Medical Room",
+    pendingCentralSync: true,
+  };
+
+  harness.service.retryCentral(() => harness.manifest);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([]);
+  expect(harness.manifest.entries[key]).toMatchObject({
+    pendingCentralSync: true,
+  });
+});
+
+test("central sync runtime rechecks automatic Medical access immediately before posting", async () => {
+  const key = "football-medical-team-v1";
+  const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
+  let automaticWriteAllowed = true;
+  const harness = createServiceHarness({ canAutoSyncKey: () => automaticWriteAllowed });
+  harness.rawValues.set(key, value);
+  harness.manifest.entries[key] = {
+    label: "Medical Room",
+    pendingCentralSync: true,
+  };
+
+  harness.service.retryCentral(() => harness.manifest);
+  automaticWriteAllowed = false;
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([]);
+  expect(harness.manifest.entries[key]).toMatchObject({
+    pendingCentralSync: true,
+  });
+});
+
+test("central sync runtime still sends explicit Medical writes to backend authorization", async () => {
+  const key = "football-medical-team-v1";
+  const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
+  const harness = createServiceHarness({
+    canAutoSyncKey: () => false,
+    syncResult: { ok: true, value, revision: 12 },
+  });
+
+  harness.service.queueCentralStateWrite(key, value);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key,
+      value,
+      options: { removed: false, baseRevision: 7 },
+    },
+  ]);
+  expect(harness.manifest.entries[key]).toMatchObject({
+    pendingCentralSync: false,
     serverRevision: 12,
   });
 });

@@ -394,7 +394,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     const manifest = readManifest();
     const centralStatus = getCentralStateBridge()?.getStatus?.() ?? {};
     const error = status.lastError || manifest.lastError;
-    const centralError = centralStatus.lastError || manifest.lastCentralError;
+    const centralError = centralStatus.lastError || centralStatus.lastWriteError || manifest.lastCentralError;
     const snapshotWarning = status.lastSnapshotError || manifest.lastSnapshotError;
     const hasPendingCentralSync = Object.values(manifest.entries || {}).some((entry) => entry?.pendingCentralSync);
     ui.dataSafetyStatus.classList.toggle("is-error", Boolean(error || centralError));

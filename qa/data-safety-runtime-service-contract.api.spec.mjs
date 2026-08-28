@@ -235,6 +235,23 @@ test("data safety runtime service blocks protected writes until central sync is 
   expect(service.readManifest().lastError).toBe("Central sync is not ready.");
 });
 
+test("data safety runtime service surfaces central write errors without requiring hydration failure", () => {
+  const { dataSafetyStatus, service } = createHarness({
+    centralStatus: {
+      hydrated: true,
+      lastError: "",
+      lastWriteError: "You do not have edit access for medical-team.",
+    },
+  });
+
+  service.install();
+  service.refreshStatus();
+
+  expect(dataSafetyStatus.textContent).toBe("Sync needs attention");
+  expect(dataSafetyStatus.title).toBe("You do not have edit access for medical-team.");
+  expect(dataSafetyStatus.toggles).toContainEqual(["is-error", true]);
+});
+
 test("data safety runtime service reads server-backed hydration cache without exporting it as local backup", () => {
   const key = "football-medical-team-v1";
   const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });

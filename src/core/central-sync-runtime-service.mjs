@@ -116,7 +116,13 @@ export function createCentralSyncRuntimeService(deps = {}) {
     const manifest = typeof readManifest === "function" ? readManifest() : {};
     for (const [key, entry] of Object.entries(manifest.entries || {})) {
       const value = rawGetItem(key);
-      if (entry?.pendingCentralSync && (entry.deletedAt || value !== null)) queueCentralStateWrite(key, value ?? "", { removed: !!entry.deletedAt });
+      if (
+        entry?.pendingCentralSync &&
+        (entry.deletedAt || value !== null) &&
+        getCentralStateBridge()?.canAutoSyncKey?.(key) !== false
+      ) {
+        queueCentralStateWrite(key, value ?? "", { removed: !!entry.deletedAt, automatic: true });
+      }
     }
   }
 
@@ -277,6 +283,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       key: normalizedKey,
       value: String(value ?? ""),
       removed: Boolean(options.removed),
+      automatic: Boolean(options.automatic),
       baseRevision: isCentralStateBridgeHydrated(bridge) ? getCentralStateRevisionForKey(normalizedKey) : null,
     });
     if (centralStateWriteTimer) {
@@ -303,6 +310,9 @@ export function createCentralSyncRuntimeService(deps = {}) {
     centralStateWriteQueue.clear();
     for (let index = 0; index < writes.length; index += 1) {
       const write = writes[index];
+      if (write.automatic && bridge.canAutoSyncKey?.(write.key) === false) {
+        continue;
+      }
       const result = await bridge.syncKey(write.key, write.value, {
         removed: write.removed,
         baseRevision: getCentralStateWriteBaseRevision(write),

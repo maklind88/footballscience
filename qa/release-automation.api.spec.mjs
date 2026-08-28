@@ -109,7 +109,7 @@ test("production deploy validates and promotes the exact staged artifact before 
   expect(workflow).toContain("deploy --prebuilt --prod --skip-domain");
   expect(workflow).toContain("--meta githubCommitSha=\"$GITHUB_SHA\"");
   expect(workflow).toContain("node scripts/verify-production-promotion.mjs --phase=staged");
-  expect(workflow).toContain("vercel@53.2.0 promote \"$PRODUCTION_DEPLOYMENT_URL\"");
+  expect(workflow).toContain("vercel@53.2.0 promote \"$PRODUCTION_DEPLOYMENT_URL\" --yes --timeout=5m --scope=\"$VERCEL_ORG_ID\"");
   expect(workflow).toContain("node scripts/verify-production-promotion.mjs --phase=live");
   expect(workflow.indexOf("--phase=staged")).toBeLessThan(workflow.indexOf("vercel@53.2.0 promote"));
   expect(workflow.indexOf("--phase=live")).toBeLessThan(workflow.indexOf("npm run release:postdeploy"));

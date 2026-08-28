@@ -96,7 +96,7 @@ jobs:
         run: node scripts/verify-production-promotion.mjs --phase=staged
 
       - name: Promote exact deployment to production domains
-        run: npx --yes vercel@53.2.0 promote "$PRODUCTION_DEPLOYMENT_URL" --yes --timeout=5m --token="$VERCEL_TOKEN"
+        run: npx --yes vercel@53.2.0 promote "$PRODUCTION_DEPLOYMENT_URL" --yes --timeout=5m --scope="$VERCEL_ORG_ID" --token="$VERCEL_TOKEN"
 
       - name: Verify exact deployment owns the live domain
         run: node scripts/verify-production-promotion.mjs --phase=live

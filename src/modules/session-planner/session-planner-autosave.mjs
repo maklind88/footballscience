@@ -26,6 +26,7 @@ export function createSessionPlannerAutosaveBoundary(options = {}) {
   const setStatus = typeof options.setStatus === "function" ? options.setStatus : () => {};
   const setVisible = typeof options.setVisible === "function" ? options.setVisible : () => {};
   let lastSessionPlannerWriteAt = Number.NEGATIVE_INFINITY;
+  let hasPendingResolution = false;
 
   function markSessionPlannerWrite() {
     lastSessionPlannerWriteAt = getNow(now);
@@ -36,7 +37,16 @@ export function createSessionPlannerAutosaveBoundary(options = {}) {
     if (!isSessionPlannerAutosaveKey(key, storageKey) || !shouldShowSessionPlannerAutosaveStatus(workspaceId)) {
       return false;
     }
-    if (String(state || "") === "issue") {
+    const normalizedState = String(state || "");
+    if (normalizedState === "issue") {
+      return true;
+    }
+    // A terminal "saved" outcome for a write we already told the user was
+    // "Saving" must always be allowed through, even once the active window
+    // has elapsed: slow saves (e.g. IndexedDB quota fallback + central sync)
+    // can resolve well after activeWindowMs, and dropping that update would
+    // leave the "Saving" indicator stuck on screen forever.
+    if (normalizedState === "saved" && hasPendingResolution) {
       return true;
     }
     return getNow(now) - lastSessionPlannerWriteAt <= activeWindowMs;
@@ -47,6 +57,12 @@ export function createSessionPlannerAutosaveBoundary(options = {}) {
       return false;
     }
     setStatus(state, message);
+    const normalizedState = String(state || "");
+    if (normalizedState === "saving") {
+      hasPendingResolution = true;
+    } else if (normalizedState === "saved" || normalizedState === "issue") {
+      hasPendingResolution = false;
+    }
     return true;
   }
 

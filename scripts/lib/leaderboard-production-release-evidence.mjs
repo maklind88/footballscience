@@ -160,7 +160,7 @@ async function assertFreezeRules(token) {
   for (const rule of exact) {
     normalizeFreezeRule(rule, false);
   }
-  for (const ref of ["main", "staging", baseline.candidate.featureRef]) {
+  for (const ref of ["main", "staging"]) {
     const effective = await github(`/rules/branches/${encodeURIComponent(ref)}`, token, `effective rules for ${ref}`);
     const branchId = exact.find((rule) => rule.target === "branch").id;
     const types = effective.filter((rule) => Number(rule.ruleset_id) === Number(branchId)).map(({ type }) => type).sort();
@@ -170,6 +170,14 @@ async function assertFreezeRules(token) {
 }
 export function otherActiveRuns(runs, currentRunId) {
   return [...new Map(runs.map((run) => [run.id, run])).values()].filter((run) => Number(run.id) !== Number(currentRunId));
+}
+export function assertCandidateReachability(compare, candidateSha) {
+  const normalizedCandidateSha = String(candidateSha || "");
+  invariant(/^[0-9a-f]{40}$/.test(normalizedCandidateSha), "Candidate SHA was invalid.");
+  invariant(compare?.base_commit?.sha === normalizedCandidateSha, "Candidate comparison base drifted.");
+  invariant(compare?.merge_base_commit?.sha === normalizedCandidateSha, "Candidate is not an ancestor of main.");
+  invariant(Number(compare?.behind_by) === 0 && ["ahead", "identical"].includes(compare?.status), "Candidate comparison did not prove main-history reachability.");
+  return true;
 }
 async function assertNoOtherActions(token) {
   const current = Number(process.env.GITHUB_RUN_ID);
@@ -212,10 +220,12 @@ export async function assertReleaseEnvironments(token) {
   return { records: results, runtimeScope: "ids-protection-policies-only", externalOwnerAdminAudit: externalAudit };
 }
 export async function assertGithubRace(token) {
-  for (const [ref, sha] of [["main", process.env.GITHUB_SHA], ["staging", baseline.candidate.sha], [baseline.candidate.featureRef, baseline.candidate.sha]]) {
+  for (const [ref, sha] of [["main", process.env.GITHUB_SHA], ["staging", baseline.candidate.sha]]) {
     const payload = await github(`/git/ref/heads/${encodeURIComponent(ref)}`, token, `ref ${ref}`);
     invariant(payload.object?.sha === sha, `Remote ${ref} drifted.`);
   }
+  const comparison = await github(`/compare/${encodeURIComponent(baseline.candidate.sha)}...${encodeURIComponent(process.env.GITHUB_SHA)}`, token, "candidate main-history ancestry");
+  assertCandidateReachability(comparison, baseline.candidate.sha);
   await assertNoOtherActions(token);
   return { freezes: assertFreezeAttestation(await assertFreezeRules(token)) };
 }

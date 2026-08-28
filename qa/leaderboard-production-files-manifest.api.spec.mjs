@@ -22,7 +22,7 @@ function ensureCandidateObject() {
   try {
     git(["cat-file", "-e", `${baseline.candidate.sha}^{commit}`]);
   } catch {
-    git(["fetch", "--no-tags", "--depth=1", "origin", baseline.candidate.featureRef]);
+    git(["fetch", "--no-tags", "--depth=1", "origin", baseline.candidate.sha]);
     expect(git(["rev-parse", "FETCH_HEAD^{commit}"])).toBe(baseline.candidate.sha);
   }
 }

@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { assertDeploymentHistory, assertFreshReleaseTimestamp, assertRailEntries, assertReleaseEvidenceWindow, databaseAttestationDigest, normalizeNpmCiDrift, releaseCommandEnvironment, runSinglePreviewAttempt } from "../scripts/leaderboard-production-code-release.mjs";
-import { assertCredentialHealth, assertEnvironmentRecord, assertEvidenceFresh, assertFreezeAttestation, assertRequiredSteps, assertRun, buildOwnerFreezeAttestation, otherActiveRuns } from "../scripts/lib/leaderboard-production-release-evidence.mjs";
+import { assertCandidateReachability, assertCredentialHealth, assertEnvironmentRecord, assertEvidenceFresh, assertFreezeAttestation, assertRequiredSteps, assertRun, buildOwnerFreezeAttestation, otherActiveRuns } from "../scripts/lib/leaderboard-production-release-evidence.mjs";
 import { assertArtifactPath, assertNoSecretLeak, assertOnlyMirroredOccurrences, assertSupabaseUrl, canonicalDigest, captureSecrets, childEnvironment, escapeWorkflowCommandData, readArtifact, redact, runChecked, sanitizedApiRequest, writeArtifact } from "../scripts/lib/leaderboard-production-release-security.mjs";
 import { deploymentId } from "../scripts/lib/leaderboard-production-vercel-state.mjs";
 
@@ -31,7 +31,7 @@ function ensureCandidateObject() {
   try {
     git(["cat-file", "-e", `${baseline.candidate.sha}^{commit}`]);
   } catch {
-    git(["fetch", "--no-tags", "--depth=1", "origin", baseline.candidate.featureRef]);
+    git(["fetch", "--no-tags", "--depth=1", "origin", baseline.candidate.sha]);
     expect(git(["rev-parse", "FETCH_HEAD^{commit}"])).toBe(baseline.candidate.sha);
   }
 }
@@ -47,7 +47,7 @@ test("deployment history accepts scoped list omissions but rejects explicit proj
 
 test("baseline locks candidate, Files API, disabled production, and exact infra-only scope", () => {
   expect(baseline.repository).toEqual({ id: 1231879845, fullName: "maklind88/footballscience", defaultBranch: "main" });
-  expect(baseline.candidate).toMatchObject({ sha: "c1b1821ab796bb680eb3480979542b6a461af964", tree: "4f1313f370d647fbffaa20236f6dee6a4412006a" });
+  expect(baseline.candidate).toEqual({ sha: "c1b1821ab796bb680eb3480979542b6a461af964", tree: "4f1313f370d647fbffaa20236f6dee6a4412006a" });
   expect(baseline.vercel.filesApi).toMatchObject({ origin: "https://api.vercel.com", preview: { supabaseRef: "pokrksgempkuraueglpu", createTarget: null }, production: { enabled: false, requiredReadySubstate: "STAGED" } });
   expect(baseline.vercel.filesApi.project).toMatchObject({ commandForIgnoringBuildStep: null, candidateConfig: { file: "vercel.json", size: 1814, sha256: "341f61a369f0cd584d7a11aa0945e81605d0c064bc11603a8abc06f65b32d574", gitBlob: "6da4a55db7b42bb38ab409039f9ae9ebd50131c2", ignoreCommand: "node scripts/vercel-ignore-build.mjs" }, productionRequiresAutoAssignCustomDomains: false });
   expect(baseline.vercel.filesApi.preview.supabaseRef).toBe(baseline.supabase.stagingRef);
@@ -183,6 +183,21 @@ test("GitHub run, environment, stale evidence, and active-run fixtures fail clos
   expect(assertEnvironmentRecord(environment, policies, { id: 7, name: baseline.environments.plan })).toMatchObject({ id: 7, policyId: 9 });
   for (const drift of [{ ...environment, can_admins_bypass: true }, { ...environment, protection_rules: environment.protection_rules.slice(1) }]) expect(() => assertEnvironmentRecord(drift, policies, { id: 7, name: baseline.environments.plan })).toThrow();
   expect(evidence).toContain('runtimeScope: "ids-protection-policies-only"'); expect(evidence).toContain("externalOwnerAdminAudit: externalAudit");
+});
+
+test("candidate SHA anchoring accepts only an exact main-history ancestor", () => {
+  const candidateSha = baseline.candidate.sha;
+  expect(assertCandidateReachability({
+    status: "ahead",
+    behind_by: 0,
+    base_commit: { sha: candidateSha },
+    merge_base_commit: { sha: candidateSha },
+  }, candidateSha)).toBe(true);
+  for (const drift of [
+    { status: "diverged", behind_by: 1, base_commit: { sha: candidateSha }, merge_base_commit: { sha: candidateSha } },
+    { status: "ahead", behind_by: 0, base_commit: { sha: "f".repeat(40) }, merge_base_commit: { sha: candidateSha } },
+    { status: "ahead", behind_by: 0, base_commit: { sha: candidateSha }, merge_base_commit: { sha: "f".repeat(40) } },
+  ]) expect(() => assertCandidateReachability(drift, candidateSha)).toThrow(/candidate/i);
 });
 
 test("owner freeze and DB/plan freshness are exact and future-skew bounded", () => {

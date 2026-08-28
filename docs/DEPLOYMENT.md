@@ -187,7 +187,7 @@ npm run qa:supabase:remote
 
 `Supabase Database Health` is a separate read-only GitHub Actions workflow. It runs a light production inspection Monday through Saturday and a deeper inspection on Sunday. It can also be started manually in `daily` or `weekly` mode.
 
-The workflow uses the existing `platform-production` environment and the same `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_REF` configuration as the remote migration gate. Only aggregate status and signal counts are written to the GitHub run; raw query text and detailed database metadata are not stored.
+The workflow uses the existing `platform-production` environment with `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`, and the non-secret `SUPABASE_DB_POOLER_HOST`. It connects through Supabase's session pooler on port 5432 so GitHub Actions can use the IPv4-compatible path. Only aggregate status and signal counts are written to the GitHub run; raw query text, credentials, connection strings, and detailed database metadata are not stored.
 
 The health workflow only runs `supabase inspect db` commands. It never changes the database automatically: it does not execute SQL, migrations, deploys, index changes, query cancellation, vacuum commands, or repair operations. Codex reports whether the result is green, yellow, or red and proposes a separate investigation plan when needed. Any fix requires explicit user approval and a reviewed branch/migration flow.
 

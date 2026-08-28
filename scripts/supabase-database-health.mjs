@@ -82,6 +82,25 @@ function countRecords(payload) {
   return Object.keys(payload).length ? 1 : 0;
 }
 
+function buildInspectionDbUrl({
+  password = process.env.SUPABASE_DB_PASSWORD,
+  poolerHost = process.env.SUPABASE_DB_POOLER_HOST,
+  projectRef = process.env.SUPABASE_PROJECT_REF,
+} = {}) {
+  const normalizedHost = String(poolerHost || "").trim();
+  if (!normalizedHost) return "";
+  const normalizedPassword = String(password || "");
+  const normalizedProjectRef = String(projectRef || "").trim();
+  if (!normalizedPassword || !normalizedProjectRef) {
+    throw new Error("Pooler inspection requires SUPABASE_DB_PASSWORD and SUPABASE_PROJECT_REF.");
+  }
+  if (!/^[a-z0-9.-]+$/i.test(normalizedHost)) {
+    throw new Error("SUPABASE_DB_POOLER_HOST must be a hostname.");
+  }
+  const username = encodeURIComponent(`postgres.${normalizedProjectRef}`);
+  return `postgresql://${username}:${encodeURIComponent(normalizedPassword)}@${normalizedHost}:5432/postgres?sslmode=require`;
+}
+
 function assessResults(results = []) {
   const failed = results.filter((result) => result.status === "failed");
   const redSignals = results.filter(
@@ -140,8 +159,10 @@ function buildMarkdownSummary({ generatedAt, mode, results }) {
 function runInspectCommand({ command, dryRun = false }) {
   if (dryRun) return { command, durationMs: 0, recordCount: 0, status: "planned" };
   const cliPath = path.join(rootDir, "node_modules", ".bin", process.platform === "win32" ? "supabase.cmd" : "supabase");
+  const dbUrl = buildInspectionDbUrl();
+  const connectionArgs = dbUrl ? ["--db-url", dbUrl] : ["--linked"];
   const startedAt = Date.now();
-  const result = spawnSync(cliPath, ["inspect", "db", command, "--linked"], {
+  const result = spawnSync(cliPath, ["inspect", "db", command, ...connectionArgs], {
     cwd: rootDir,
     encoding: "utf8",
     env: { ...process.env, NO_COLOR: "1" },
@@ -178,6 +199,7 @@ function writeReport({ mode, outputDir, results, generatedAt = new Date().toISOS
 
 export {
   assessResults,
+  buildInspectionDbUrl,
   buildMarkdownSummary,
   commandPlan,
   countRecords,

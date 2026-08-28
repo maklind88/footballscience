@@ -7,8 +7,7 @@
   },
   "candidate": {
     "sha": "c1b1821ab796bb680eb3480979542b6a461af964",
-    "tree": "4f1313f370d647fbffaa20236f6dee6a4412006a",
-    "featureRef": "codex/leaderboard-module"
+    "tree": "4f1313f370d647fbffaa20236f6dee6a4412006a"
   },
   "allowedRailPaths": [
     ".github/workflows/leaderboard-production-code-release.yml",

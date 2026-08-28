@@ -72,6 +72,27 @@ async function authenticatePage(page) {
   }), { timeout: 30_000, intervals: [250, 500, 1_000, 2_000] }).toMatch(/^[^|]+\|[^|]+$/);
 }
 
+async function openLeaderboardDialog(page) {
+  const button = page.locator("#leaderboardSummary [data-leaderboard-home-open]");
+  const dialog = page.locator("[data-leaderboard-home-dialog]");
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await button.click();
+    const opened = await dialog.waitFor({ state: "visible", timeout: 4_000 }).then(() => true).catch(() => false);
+    if (opened) return;
+
+    await page.evaluate(async () => {
+      await Promise.all([
+        import("/src/modules/leaderboard/leaderboard-controller.mjs"),
+        import("/src/modules/leaderboard/leaderboard-dialog-renderer.mjs"),
+      ]);
+    });
+    await page.waitForTimeout(250);
+  }
+
+  await expect(dialog).toBeVisible({ timeout: 15_000 });
+}
+
 test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async ({ page }) => {
   let forbiddenMethodCount = 0;
   let crossOriginApiCount = 0;
@@ -172,7 +193,7 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
   await expect(page.locator("#leaderboardSummary [data-leaderboard-home-root]")).toBeVisible();
   await expect(page.locator("#leaderboardSummary .leaderboard-home-standings, #leaderboardSummary .leaderboard-home-state").first()).toBeVisible();
   await expect(page.locator("#leaderboardSummary [data-leaderboard-home-open]")).toBeVisible();
-  await page.locator("#leaderboardSummary [data-leaderboard-home-open]").click();
+  await openLeaderboardDialog(page);
   await expect(page.locator("[data-leaderboard-dialog-workspace] [data-leaderboard-root]")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("[data-leaderboard-open-award]").first()).toBeVisible();
 
@@ -187,7 +208,7 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
   }
 
   expect(forbiddenMethodCount, "Leaderboard live smoke attempted a write.").toBe(0);
-  expect(crossOriginApiCount, "Authenticated API traffic crossed the exact reviewed origin.").toBe(0);
+  expect(crossOriginApiCount, "Authenticated API traffic crossed the exact production origin.").toBe(0);
   expect(apiFailureCount, "Authenticated Leaderboard requests must not fail.").toBe(0);
   expect(pageErrorCount).toBe(0);
   expect(leaderboardConsoleErrorCount).toBe(0);

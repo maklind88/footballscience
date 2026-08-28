@@ -10,6 +10,10 @@ on:
         options:
           - staging
           - production
+      role_filter:
+        description: Optional comma-separated server-owned roles to include, for example coach.
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -38,6 +42,7 @@ jobs:
       PLATFORM_BACKFILL_TEAM_SLUG: ${{ vars.PLATFORM_BACKFILL_TEAM_SLUG }}
       PLATFORM_BACKFILL_TEAM_GENDER: ${{ vars.PLATFORM_BACKFILL_TEAM_GENDER }}
       PLATFORM_BACKFILL_LINKS: ${{ secrets.PLATFORM_BACKFILL_LINKS }}
+      PLATFORM_BACKFILL_ROLE_FILTER: ${{ inputs.role_filter }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -69,6 +74,12 @@ jobs:
             IFS=',' read -ra links <<< "$PLATFORM_BACKFILL_LINKS"
             for link in "${links[@]}"; do
               args+=(--link "$link")
+            done
+          fi
+          if [ -n "$PLATFORM_BACKFILL_ROLE_FILTER" ]; then
+            IFS=',' read -ra roles <<< "$PLATFORM_BACKFILL_ROLE_FILTER"
+            for role in "${roles[@]}"; do
+              args+=(--role "$role")
             done
           fi
           node scripts/platform-identity-backfill.mjs "${args[@]}"

@@ -89,6 +89,18 @@ test("platform identity backfill parses reviewed plan guards", () => {
   expect(options.expectedUserCount).toBe(17);
 });
 
+test("platform identity backfill parses a repeatable server-owned role filter", () => {
+  const options = parseBackfillArgs([
+    `--actor-id=${actorId}`,
+    "--role=coach",
+    "--role",
+    "team-admin",
+    "--role=coach",
+  ]);
+
+  expect(options.roles).toEqual(["coach", "team-admin"]);
+});
+
 test("platform identity backfill GitHub Environment validation blocks staging-to-production drift", () => {
   const environment = {
     PLATFORM_BACKFILL_TARGET: "staging",
@@ -126,6 +138,8 @@ test("platform identity backfill workflow remains manual, isolated, and read-onl
   expect(backfillWorkflow).toContain("PLATFORM_BACKFILL_TEAM_ID: ${{ secrets.PLATFORM_BACKFILL_TEAM_ID }}");
   expect(backfillWorkflow).not.toContain("PLATFORM_BACKFILL_ACTOR_ID: ${{ vars.PLATFORM_BACKFILL_ACTOR_ID }}");
   expect(backfillWorkflow).toContain("Generate PII-free read-only plan");
+  expect(backfillWorkflow).toContain("PLATFORM_BACKFILL_ROLE_FILTER: ${{ inputs.role_filter }}");
+  expect(backfillWorkflow).toContain('args+=(--role "$role")');
   expect(backfillWorkflow).not.toContain("--apply");
   expect(backfillWorkflow).not.toContain("BACKFILL_PLATFORM_IDENTITY");
 });
@@ -176,6 +190,66 @@ test("platform identity backfill gives platform admins organization scope and st
   expect(coachBody.membership).toMatchObject({ role: "coach", scope: "team" });
   expect(adminBody.user.id).toBe(actorId);
   expect(coachBody.user.id).toBe(userId);
+});
+
+test("platform identity backfill fails closed for a missing server-owned role", () => {
+  expect(() => buildTenantBootstrapBody(
+    {
+      id: userId,
+      app_metadata: { status: "active" },
+      user_metadata: { role: "coach" },
+    },
+    {
+      organization: { name: "Football Science", slug: "football-science" },
+      team: { name: "First Team", slug: "first-team" },
+    }
+  )).toThrow("server-owned app_metadata role");
+});
+
+test("platform identity backfill selects active coaches without writing or leaking identities", async () => {
+  const calls = [];
+  const result = await executePlatformIdentityBackfill({
+    actorId,
+    roles: ["coach"],
+    organization: { name: "Football Science", slug: "football-science" },
+    team: { name: "First Team", slug: "first-team" },
+    config: testConfig,
+    fetchImpl: createBackfillFetch([
+      { id: userId, email: "coach@example.com", app_metadata: { role: "coach", status: "active" } },
+      { id: actorId, email: "admin@example.com", app_metadata: { role: "admin", status: "active" } },
+      { id: moduleRecordId, email: "paused@example.com", app_metadata: { role: "coach", status: "paused" } },
+    ], calls),
+  });
+
+  expect(result.ok).toBe(true);
+  expect(result.usersFound).toBe(3);
+  expect(result.usersSelected).toBe(1);
+  expect(result.usersSkippedRole).toBe(1);
+  expect(result.usersSkippedInactive).toBe(1);
+  expect(result.plan.roleCounts).toEqual({ coach: 1 });
+  expect(calls.every((call) => call.method === "GET")).toBe(true);
+  expect(JSON.stringify(result)).not.toContain("coach@example.com");
+  expect(JSON.stringify(result)).not.toContain(userId);
+});
+
+test("platform identity backfill stops before planning when Auth role metadata is invalid", async () => {
+  const calls = [];
+  const result = await executePlatformIdentityBackfill({
+    actorId,
+    roles: ["coach"],
+    organization: { name: "Football Science", slug: "football-science" },
+    team: { name: "First Team", slug: "first-team" },
+    config: testConfig,
+    fetchImpl: createBackfillFetch([
+      { id: userId, app_metadata: { role: "unexpected-role", status: "active" } },
+    ], calls),
+  });
+
+  expect(result.ok).toBe(false);
+  expect(result.status).toBe(409);
+  expect(result.usersProcessed).toBe(0);
+  expect(result.reason).toContain("unsupported server-owned role or status");
+  expect(calls.every((call) => call.method === "GET")).toBe(true);
 });
 
 test("platform identity backfill dry-run plans tenants without writes", async () => {

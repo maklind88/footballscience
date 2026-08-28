@@ -44,7 +44,7 @@ function normalizeSlug(value, fallback = "football-science") {
   return slug || fallback;
 }
 
-function normalizeRole(value, fallback = "coach") {
+function normalizeRole(value, fallback = "") {
   const role = normalizeText(value, 40).toLowerCase();
   return PLATFORM_ROLES.has(role) ? role : fallback;
 }
@@ -59,12 +59,14 @@ function userMetadataFromUser(user = {}) {
 
 function roleFromServerOwnedMetadata(user = {}) {
   const appMetadata = appMetadataFromUser(user);
-  return normalizeRole(appMetadata.role || appMetadata.platformRole || appMetadata.platform_role, "coach");
+  return normalizeRole(appMetadata.role || appMetadata.platformRole || appMetadata.platform_role, "");
 }
 
 function statusFromServerOwnedMetadata(user = {}) {
   const appMetadata = appMetadataFromUser(user);
-  return normalizeText(appMetadata.status, 40).toLowerCase() === "paused" ? "paused" : "active";
+  const status = normalizeText(appMetadata.status, 40).toLowerCase();
+  if (!status) return "active";
+  return ["active", "paused", "removed", "archived"].includes(status) ? status : "";
 }
 
 function displayNameFromUser(user = {}) {
@@ -114,6 +116,7 @@ export function parseBackfillArgs(argv = process.argv.slice(2)) {
     limit: 200,
     maxPages: 20,
     userIds: [],
+    roles: [],
     links: [],
     actorId: normalizeText(process.env.PLATFORM_BACKFILL_ACTOR_ID, 120),
     actorEmail: normalizeText(process.env.PLATFORM_BACKFILL_ACTOR_EMAIL, 254).toLowerCase(),
@@ -153,6 +156,7 @@ export function parseBackfillArgs(argv = process.argv.slice(2)) {
     if (flag === "--actor-id") options.actorId = normalizeText(value, 120);
     if (flag === "--actor-email") options.actorEmail = normalizeText(value, 254).toLowerCase();
     if (flag === "--user-id") options.userIds.push(normalizeText(value, 120));
+    if (flag === "--role") options.roles.push(normalizeText(value, 40).toLowerCase());
     if (flag === "--limit") options.limit = Math.max(1, Math.min(500, Number(value) || 200));
     if (flag === "--max-pages") options.maxPages = Math.max(1, Math.min(100, Number(value) || 20));
     if (flag === "--organization-id") options.organization.id = normalizeText(value, 120);
@@ -172,6 +176,7 @@ export function parseBackfillArgs(argv = process.argv.slice(2)) {
   }
 
   options.userIds = options.userIds.filter(isUuid);
+  options.roles = Array.from(new Set(options.roles.filter(Boolean)));
   options.organization.slug = normalizeSlug(options.organization.slug || options.organization.name || "football-science");
   if (options.club?.name && !options.club.slug) {
     options.club.slug = normalizeSlug(options.club.name, "club");
@@ -194,6 +199,7 @@ Examples:
 
 Useful flags:
   --user-id <uuid>             Backfill one user. Repeatable. Defaults to listing auth users.
+  --role <role>                Limit the plan to active users with this server-owned role. Repeatable.
   --organization-name <name>   Canonical organization name.
   --club-name <name>           Optional canonical club.
   --team-name <name>           Optional canonical team.
@@ -292,6 +298,13 @@ function normalizeLink(value) {
 export function buildTenantBootstrapBody(user, options = {}) {
   const profile = userProfileFromAuthUser(user);
   const role = roleFromServerOwnedMetadata(user);
+  const status = statusFromServerOwnedMetadata(user);
+  if (!role) {
+    throw new Error("A valid server-owned app_metadata role is required for Platform Identity backfill.");
+  }
+  if (status !== "active") {
+    throw new Error("Only active users can be included in Platform Identity backfill.");
+  }
   const scope = resolveBackfillMembershipScope(role, options);
   return {
     dryRun: options.apply !== true,
@@ -366,7 +379,44 @@ function validateBackfillOptions(options = {}) {
   if (options.apply && normalizeExpectedUserCount(options.expectedUserCount) === null) {
     failures.push("Apply mode requires --expected-user-count from the reviewed dry-run.");
   }
+  const invalidRoles = (options.roles || []).filter((role) => !PLATFORM_ROLES.has(role));
+  if (invalidRoles.length) {
+    failures.push("Each --role must be a supported server-owned Platform role.");
+  }
   return failures;
+}
+
+function selectBackfillUsers(users = [], options = {}) {
+  const requestedRoles = new Set(options.roles || []);
+  const selected = [];
+  let invalidRoleCount = 0;
+  let invalidStatusCount = 0;
+  let skippedInactive = 0;
+  let skippedRole = 0;
+
+  for (const user of users) {
+    const role = roleFromServerOwnedMetadata(user);
+    const status = statusFromServerOwnedMetadata(user);
+    if (!role) {
+      invalidRoleCount += 1;
+      continue;
+    }
+    if (!status) {
+      invalidStatusCount += 1;
+      continue;
+    }
+    if (status !== "active") {
+      skippedInactive += 1;
+      continue;
+    }
+    if (requestedRoles.size && !requestedRoles.has(role)) {
+      skippedRole += 1;
+      continue;
+    }
+    selected.push(user);
+  }
+
+  return { selected, invalidRoleCount, invalidStatusCount, skippedInactive, skippedRole };
 }
 
 export async function executePlatformIdentityBackfill(options = {}) {
@@ -394,8 +444,28 @@ export async function executePlatformIdentityBackfill(options = {}) {
     };
   }
 
+  const selection = selectBackfillUsers(userResult.users, options);
+  const selectionSummary = {
+    usersSelected: selection.selected.length,
+    usersSkippedInactive: selection.skippedInactive,
+    usersSkippedRole: selection.skippedRole,
+  };
+  if (selection.invalidRoleCount || selection.invalidStatusCount) {
+    return {
+      ok: false,
+      status: 409,
+      schema: PLATFORM_IDENTITY_BACKFILL_SCHEMA,
+      dryRun: options.apply !== true,
+      usersFound: userResult.users.length,
+      usersProcessed: 0,
+      failed: selection.invalidRoleCount + selection.invalidStatusCount,
+      ...selectionSummary,
+      reason: "Backfill stopped because Auth contains an unsupported server-owned role or status.",
+    };
+  }
+
   const plannedEntries = [];
-  for (const user of userResult.users) {
+  for (const user of selection.selected) {
     const body = buildTenantBootstrapBody(user, { ...options, apply: false });
     const result = await executeTenantBootstrap(body, actor, { config, fetchImpl: options.fetchImpl });
     plannedEntries.push({ body, result });
@@ -411,7 +481,7 @@ export async function executePlatformIdentityBackfill(options = {}) {
     return {
       schema: PLATFORM_IDENTITY_BACKFILL_SCHEMA,
       ...createPlatformIdentityBackfillSummary({
-        ok: false, status: 500, usersFound: userResult.users.length, results: plannedResults, plan,
+        ok: false, status: 500, usersFound: userResult.users.length, results: plannedResults, plan, ...selectionSummary,
       }),
     };
   }
@@ -420,7 +490,7 @@ export async function executePlatformIdentityBackfill(options = {}) {
     return {
       schema: PLATFORM_IDENTITY_BACKFILL_SCHEMA,
       ...createPlatformIdentityBackfillSummary({
-        ok: true, status: 200, usersFound: userResult.users.length, results: plannedResults, plan,
+        ok: true, status: 200, usersFound: userResult.users.length, results: plannedResults, plan, ...selectionSummary,
       }),
     };
   }
@@ -437,13 +507,14 @@ export async function executePlatformIdentityBackfill(options = {}) {
         usersFound: userResult.users.length,
         results: plannedResults,
         plan,
+        ...selectionSummary,
         reason: "Apply guard mismatch. Re-run and review the dry-run before applying.",
       }),
     };
   }
 
   const appliedEntries = [];
-  for (const user of userResult.users) {
+  for (const user of selection.selected) {
     const body = buildTenantBootstrapBody(user, { ...options, apply: true });
     const result = await executeTenantBootstrap(body, actor, { config, fetchImpl: options.fetchImpl });
     appliedEntries.push({ body, result });
@@ -461,6 +532,7 @@ export async function executePlatformIdentityBackfill(options = {}) {
       usersFound: userResult.users.length,
       results,
       plan,
+      ...selectionSummary,
     }),
   };
 }
@@ -468,6 +540,9 @@ export async function executePlatformIdentityBackfill(options = {}) {
 function printHumanSummary(summary) {
   console.log(`Platform Identity backfill ${summary.dryRun ? "dry-run" : "apply"}: ${summary.ok ? "ok" : "failed"}`);
   console.log(`- users found: ${summary.usersFound || 0}`);
+  console.log(`- users selected: ${summary.usersSelected || 0}`);
+  console.log(`- users skipped (inactive): ${summary.usersSkippedInactive || 0}`);
+  console.log(`- users skipped (role filter): ${summary.usersSkippedRole || 0}`);
   console.log(`- users processed: ${summary.usersProcessed || 0}`);
   console.log(`- failed: ${summary.failed || 0}`);
   if (summary.plan?.planSha256) {

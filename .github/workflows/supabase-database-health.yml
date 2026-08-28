@@ -14,6 +14,11 @@ on:
         options:
           - daily
           - weekly
+      investigate:
+        description: Add privacy-safe classifications for long-running queries and locks
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -71,7 +76,14 @@ jobs:
         continue-on-error: true
         env:
           REPORT_DIR: ${{ runner.temp }}/supabase-database-health
-        run: node scripts/supabase-database-health.mjs --mode "${{ steps.inspection-mode.outputs.mode }}" --output-dir "$REPORT_DIR"
+          INVESTIGATE_SIGNALS: ${{ inputs.investigate }}
+        shell: bash
+        run: |
+          args=(--mode "${{ steps.inspection-mode.outputs.mode }}" --output-dir "$REPORT_DIR")
+          if [ "${INVESTIGATE_SIGNALS:-false}" = "true" ]; then
+            args+=(--investigate-signals)
+          fi
+          node scripts/supabase-database-health.mjs "${args[@]}"
 
       - name: Publish aggregate report
         if: always()

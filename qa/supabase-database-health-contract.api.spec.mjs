@@ -7,11 +7,16 @@ import { fileURLToPath } from "node:url";
 import {
   assessResults,
   buildInspectionDbUrl,
+  buildSafeSignalEvidence,
+  classifyStatement,
   classifyInspectFailure,
   commandPlan,
+  correlateSafeSignals,
   countInspectOutputRecords,
   countRecords,
+  durationBucket,
   parseJsonOutput,
+  statementFingerprint,
   supabaseCliVersion,
 } from "../scripts/supabase-database-health.mjs";
 
@@ -51,6 +56,58 @@ test("database health parser counts Supabase CLI table output without retaining 
   expect(countInspectOutputRecords("unrecognized output")).toBeNull();
 });
 
+test("database health investigation classifies signals without retaining raw SQL or relation names", () => {
+  const privateQuery = "select * from private_player_medical_records where athlete_id = 'secret'";
+  const longRunning = buildSafeSignalEvidence("long-running-queries", {
+    rows: [{ duration: "00:07:10", pid: 123, query: privateQuery }],
+  });
+  const locks = buildSafeSignalEvidence("locks", {
+    rows: [
+      {
+        age: "00:07:10",
+        granted: true,
+        pid: 123,
+        relname: "private_player_medical_records",
+        stmt: privateQuery,
+        transactionid: "98765",
+      },
+    ],
+  });
+  const serialized = JSON.stringify({ longRunning, locks });
+
+  expect(longRunning).toEqual([
+    expect.objectContaining({ ageBucket: "5-10 minutes", statementCategory: "data-read" }),
+  ]);
+  expect(locks).toEqual([
+    expect.objectContaining({
+      ageBucket: "5-10 minutes",
+      granted: true,
+      relationReference: "present",
+      statementCategory: "data-read",
+      transactionReference: "present",
+    }),
+  ]);
+  expect(serialized).not.toContain(privateQuery);
+  expect(serialized).not.toContain("private_player_medical_records");
+  expect(serialized).not.toContain("98765");
+  expect(
+    correlateSafeSignals([
+      { command: "long-running-queries", safeSignals: longRunning },
+      { command: "locks", safeSignals: locks },
+    ])
+  ).toHaveLength(1);
+});
+
+test("database health investigation recognizes monitoring statements and safe age buckets", () => {
+  expect(classifyStatement("select pid from pg_stat_activity")).toBe("database-monitoring");
+  expect(classifyStatement("update private_table set value = 1")).toBe("data-write");
+  expect(durationBucket("00:31:00")).toBe("30-60 minutes");
+  expect(durationBucket("2 days 01:00:00")).toBe("over 60 minutes");
+  expect(statementFingerprint("select * from private_table where id = 123")).toBe(
+    statementFingerprint("select * from private_table where id = 987")
+  );
+});
+
 test("database health uses the IPv4-compatible session pooler without exposing raw credentials", () => {
   const url = buildInspectionDbUrl({
     password: "secret with spaces/@",
@@ -87,6 +144,7 @@ test("database health workflow is scheduled, aggregate-only, and non-mutating", 
   expect(workflow).not.toContain("supabase migration");
   expect(workflow).not.toContain("deploy");
   expect(workflow).toContain("SUPABASE_DB_POOLER_HOST");
+  expect(workflow).toContain("--investigate-signals");
   expect(workflow).not.toContain("supabase link");
   expect(script).toContain('["inspect", "db", command, ...connectionArgs, "--output-format", "json"]');
   expect(script).toContain('["--db-url", dbUrl]');

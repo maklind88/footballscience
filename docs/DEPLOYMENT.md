@@ -191,6 +191,8 @@ The workflow uses the existing `platform-production` environment with `SUPABASE_
 
 The health workflow only runs `supabase inspect db` commands. It never changes the database automatically: it does not execute SQL, migrations, deploys, index changes, query cancellation, vacuum commands, or repair operations. Codex reports whether the result is green, yellow, or red and proposes a separate investigation plan when needed. Any fix requires explicit user approval and a reviewed branch/migration flow.
 
+When a daily report is red because of a long-running query or an exclusive lock, run the workflow manually with `investigate` enabled. That mode stores only privacy-safe categories, age buckets, and short one-way fingerprints so repeated signals can be correlated. It intentionally omits raw SQL, relation names, process IDs, transaction IDs, and database values, and it still makes no database changes.
+
 Authenticated live smoke requires a dedicated test account and these CI/local environment variables:
 
 ```bash

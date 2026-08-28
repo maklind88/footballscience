@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -35,11 +36,13 @@ function commandPlan(mode = "daily") {
 }
 
 function parseArgs(argv = process.argv.slice(2)) {
-  const options = { dryRun: false, mode: "daily", outputDir: "" };
+  const options = { dryRun: false, investigateSignals: false, mode: "daily", outputDir: "" };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     if (value === "--dry-run") {
       options.dryRun = true;
+    } else if (value === "--investigate-signals") {
+      options.investigateSignals = true;
     } else if (value === "--mode") {
       options.mode = String(argv[index + 1] || "");
       index += 1;
@@ -94,6 +97,105 @@ function countInspectOutputRecords(value = "") {
   });
   if (separatorIndex < 0) return null;
   return lines.slice(separatorIndex + 1).filter((line) => line.trim() && line.includes("|")).length;
+}
+
+function extractInspectRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+  for (const key of ["rows", "records", "data", "result", "items"]) {
+    if (!(key in payload)) continue;
+    const rows = extractInspectRows(payload[key]);
+    if (rows.length || Array.isArray(payload[key])) return rows;
+  }
+  return [];
+}
+
+function rowValue(row, names) {
+  if (!row || typeof row !== "object" || Array.isArray(row)) return undefined;
+  const entries = Object.entries(row);
+  for (const name of names) {
+    const match = entries.find(([key]) => key.toLowerCase() === name.toLowerCase());
+    if (match) return match[1];
+  }
+  return undefined;
+}
+
+function normalizeStatement(value = "") {
+  return String(value || "")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/--[^\n\r]*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function classifyStatement(value = "") {
+  const statement = normalizeStatement(value);
+  if (!statement) return "unknown";
+  if (/\b(pg_stat_activity|pg_locks|pg_stat_statements)\b/.test(statement)) return "database-monitoring";
+  if (/^(vacuum|analyze|reindex|cluster|refresh\s+materialized\s+view)\b/.test(statement)) return "maintenance";
+  if (/^(insert|update|delete|merge|copy|truncate)\b/.test(statement)) return "data-write";
+  if (/^(create|alter|drop|grant|revoke|comment)\b/.test(statement)) return "schema-or-permission-change";
+  if (/^(select|with|show|explain)\b/.test(statement)) return "data-read";
+  if (/^(begin|commit|rollback|savepoint|release)\b/.test(statement)) return "transaction-control";
+  return "unknown";
+}
+
+function statementFingerprint(value = "") {
+  const statement = normalizeStatement(value)
+    .replace(/'(?:''|[^'])*'/g, "?")
+    .replace(/\b\d+(?:\.\d+)?\b/g, "?");
+  if (!statement) return "none";
+  return crypto.createHash("sha256").update(statement).digest("hex").slice(0, 16);
+}
+
+function durationBucket(value = "") {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return "unknown";
+  const days = Number(text.match(/(\d+)\s+days?/)?.[1] || 0);
+  const time = text.match(/(\d+):(\d+):(\d+(?:\.\d+)?)/);
+  if (!time && !days) return "unknown";
+  const seconds = days * 86_400 + Number(time?.[1] || 0) * 3_600 + Number(time?.[2] || 0) * 60 + Number(time?.[3] || 0);
+  if (seconds < 10 * 60) return "5-10 minutes";
+  if (seconds < 30 * 60) return "10-30 minutes";
+  if (seconds < 60 * 60) return "30-60 minutes";
+  return "over 60 minutes";
+}
+
+function buildSafeSignalEvidence(command, payload) {
+  if (!new Set(["long-running-queries", "locks"]).has(command)) return [];
+  return extractInspectRows(payload).map((row) => {
+    const statement = rowValue(row, command === "locks" ? ["stmt", "query"] : ["query", "stmt"]);
+    const age = rowValue(row, command === "locks" ? ["age", "duration"] : ["duration", "age"]);
+    const evidence = {
+      ageBucket: durationBucket(age),
+      fingerprint: statementFingerprint(statement),
+      statementCategory: classifyStatement(statement),
+    };
+    if (command === "locks") {
+      const relation = String(rowValue(row, ["relname", "relation"]) || "").trim().toLowerCase();
+      const transaction = String(rowValue(row, ["transactionid", "transaction id"]) || "").trim().toLowerCase();
+      evidence.granted = String(rowValue(row, ["granted"]) || "").toLowerCase() === "true";
+      evidence.relationReference = relation && relation !== "null" ? "present" : "none";
+      evidence.transactionReference = transaction && transaction !== "null" ? "present" : "none";
+    }
+    return evidence;
+  });
+}
+
+function correlateSafeSignals(results = []) {
+  const commandsByFingerprint = new Map();
+  for (const result of results) {
+    for (const signal of result.safeSignals || []) {
+      if (signal.fingerprint === "none") continue;
+      const commands = commandsByFingerprint.get(signal.fingerprint) || new Set();
+      commands.add(result.command);
+      commandsByFingerprint.set(signal.fingerprint, commands);
+    }
+  }
+  return [...commandsByFingerprint.entries()]
+    .filter(([, commands]) => commands.size > 1)
+    .map(([fingerprint, commands]) => ({ commands: [...commands].sort(), fingerprint }));
 }
 
 function buildInspectionDbUrl({
@@ -159,9 +261,35 @@ function interpretation(result) {
 
 function buildMarkdownSummary({ generatedAt, mode, results }) {
   const overall = assessResults(results);
+  const correlations = correlateSafeSignals(results);
   const rows = results.map(
     (result) => `| \`${result.command}\` | ${result.status} | ${result.recordCount} | ${interpretation(result)} |`
   );
+  const safeSignalRows = results.flatMap((result) =>
+    (result.safeSignals || []).map((signal, index) => {
+      const lockDetails =
+        result.command === "locks"
+          ? `, granted ${signal.granted}, relation ${signal.relationReference}, transaction ${signal.transactionReference}`
+          : "";
+      return `- \`${result.command}#${index + 1}\`: ${signal.statementCategory}, ${signal.ageBucket}, fingerprint \`${signal.fingerprint}\`${lockDetails}`;
+    })
+  );
+  const signalSection = safeSignalRows.length
+    ? [
+        "",
+        "## Safe signal classification",
+        "",
+        "Raw SQL, relation names, process IDs and database values are intentionally omitted.",
+        "",
+        ...safeSignalRows,
+        ...(correlations.length
+          ? [
+              "",
+              `Matching fingerprints across checks: ${correlations.map((entry) => `\`${entry.fingerprint}\``).join(", ")}.`,
+            ]
+          : []),
+      ]
+    : [];
   return [
     "# Supabase Database Health",
     "",
@@ -170,11 +298,12 @@ function buildMarkdownSummary({ generatedAt, mode, results }) {
     `- Generated: ${generatedAt}`,
     `- Supabase CLI: ${supabaseCliVersion}`,
     "- Database changes: **none**",
-    "- Stored database/query details: **none**",
+    "- Stored raw database/query details: **none**",
     "",
     "| Check | Collection | Signals | Meaning |",
     "|---|---:|---:|---|",
     ...rows,
+    ...signalSection,
     "",
     "## Next decision",
     "",
@@ -186,7 +315,7 @@ function buildMarkdownSummary({ generatedAt, mode, results }) {
   ].join("\n");
 }
 
-function runInspectCommand({ command, dryRun = false }) {
+function runInspectCommand({ command, dryRun = false, investigateSignals = false }) {
   if (dryRun) return { command, durationMs: 0, recordCount: 0, status: "planned" };
   const cliPath = path.join(rootDir, "node_modules", ".bin", process.platform === "win32" ? "supabase.cmd" : "supabase");
   const dbUrl = buildInspectionDbUrl();
@@ -201,9 +330,12 @@ function runInspectCommand({ command, dryRun = false }) {
   });
   const recordCount = result.status === 0 ? countInspectOutputRecords(result.stdout) : null;
   const completed = result.status === 0 && recordCount !== null;
+  const safeSignals =
+    completed && investigateSignals ? buildSafeSignalEvidence(command, parseJsonOutput(result.stdout)) : [];
   return {
     command,
     durationMs: Date.now() - startedAt,
+    ...(safeSignals.length ? { safeSignals } : {}),
     ...(completed
       ? {}
       : { failureReason: classifyInspectFailure({ error: result.error, status: result.status, stderr: result.stderr, stdout: result.stdout }) }),
@@ -223,6 +355,8 @@ function writeReport({ mode, outputDir, results, generatedAt = new Date().toISOS
     supabaseCliVersion,
     databaseChanges: false,
     storedDatabaseDetails: false,
+    storedDerivedSignalMetadata: results.some((result) => result.safeSignals?.length),
+    signalCorrelations: correlateSafeSignals(results),
     results,
   };
   fs.mkdirSync(outputDir, { recursive: true });
@@ -235,14 +369,20 @@ export {
   assessResults,
   buildInspectionDbUrl,
   buildMarkdownSummary,
+  buildSafeSignalEvidence,
+  classifyStatement,
   classifyInspectFailure,
   commandPlan,
+  correlateSafeSignals,
   countInspectOutputRecords,
   countRecords,
   dailyCommands,
+  durationBucket,
+  extractInspectRows,
   parseArgs,
   parseJsonOutput,
   runInspectCommand,
+  statementFingerprint,
   supabaseCliVersion,
   weeklyCommands,
   writeReport,
@@ -250,7 +390,9 @@ export {
 
 function main() {
   const options = parseArgs();
-  const results = commandPlan(options.mode).map((command) => runInspectCommand({ command, dryRun: options.dryRun }));
+  const results = commandPlan(options.mode).map((command) =>
+    runInspectCommand({ command, dryRun: options.dryRun, investigateSignals: options.investigateSignals })
+  );
   const { markdown, report } = writeReport({ mode: options.mode, outputDir: options.outputDir, results });
   console.log(markdown);
   console.log(`DATABASE_HEALTH_REPORT_JSON=${JSON.stringify(report)}`);

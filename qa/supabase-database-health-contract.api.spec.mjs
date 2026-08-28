@@ -88,7 +88,7 @@ test("database health workflow is scheduled, aggregate-only, and non-mutating", 
   expect(workflow).not.toContain("deploy");
   expect(workflow).toContain("SUPABASE_DB_POOLER_HOST");
   expect(workflow).not.toContain("supabase link");
-  expect(script).toContain('["inspect", "db", command, ...connectionArgs]');
+  expect(script).toContain('["inspect", "db", command, ...connectionArgs, "--output-format", "json"]');
   expect(script).toContain('["--db-url", dbUrl]');
   expect(script).not.toContain('"--output", "json"');
   expect(script).not.toContain("result.stdout,");

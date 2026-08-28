@@ -192,7 +192,7 @@ function runInspectCommand({ command, dryRun = false }) {
   const dbUrl = buildInspectionDbUrl();
   const connectionArgs = dbUrl ? ["--db-url", dbUrl] : ["--linked"];
   const startedAt = Date.now();
-  const result = spawnSync(cliPath, ["inspect", "db", command, ...connectionArgs], {
+  const result = spawnSync(cliPath, ["inspect", "db", command, ...connectionArgs, "--output-format", "json"], {
     cwd: rootDir,
     encoding: "utf8",
     env: { ...process.env, NO_COLOR: "1" },

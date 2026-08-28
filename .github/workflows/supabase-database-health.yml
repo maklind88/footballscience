@@ -33,6 +33,7 @@ jobs:
     timeout-minutes: 20
     environment: platform-production
     env:
+      PGOPTIONS: -c default_transaction_read_only=on
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_DB_POOLER_HOST: ${{ vars.SUPABASE_DB_POOLER_HOST }}
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}

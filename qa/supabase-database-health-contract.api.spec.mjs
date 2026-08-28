@@ -16,6 +16,7 @@ import {
   countRecords,
   durationBucket,
   parseJsonOutput,
+  sanitizeSafeProbeRows,
   statementFingerprint,
   supabaseCliVersion,
 } from "../scripts/supabase-database-health.mjs";
@@ -108,6 +109,48 @@ test("database health investigation recognizes monitoring statements and safe ag
   );
 });
 
+test("database health fixed probe retains only allowlisted categories and booleans", () => {
+  const payload = {
+    rows: [
+      {
+        age_bucket: "10-30 minutes",
+        application_name: "private application name",
+        has_blockers: false,
+        query: "private raw SQL",
+        relation_reference: false,
+        signal_type: "long-running-query",
+        source_category: "application-or-admin",
+        state_category: "idle-in-transaction",
+        statement_category: "data-read",
+        transaction_open: true,
+        transaction_reference: false,
+        usename: "private-user",
+        wait_category: "client",
+      },
+    ],
+  };
+  const signals = sanitizeSafeProbeRows(payload);
+  const serialized = JSON.stringify(signals);
+
+  expect(signals).toEqual([
+    {
+      ageBucket: "10-30 minutes",
+      hasBlockers: false,
+      relationReference: false,
+      signalType: "long-running-query",
+      sourceCategory: "application-or-admin",
+      stateCategory: "idle-in-transaction",
+      statementCategory: "data-read",
+      transactionOpen: true,
+      transactionReference: false,
+      waitCategory: "client",
+    },
+  ]);
+  expect(serialized).not.toContain("private raw SQL");
+  expect(serialized).not.toContain("private application name");
+  expect(serialized).not.toContain("private-user");
+});
+
 test("database health uses the IPv4-compatible session pooler without exposing raw credentials", () => {
   const url = buildInspectionDbUrl({
     password: "secret with spaces/@",
@@ -133,6 +176,7 @@ test("database health diagnostics expose only a safe failure category", () => {
 test("database health workflow is scheduled, aggregate-only, and non-mutating", () => {
   const workflow = readProjectFile(".github/workflows/supabase-database-health.yml");
   const script = readProjectFile("scripts/supabase-database-health.mjs");
+  const investigationSql = readProjectFile("scripts/supabase-database-health-investigation.sql");
   const docs = readProjectFile("docs/DEPLOYMENT.md");
 
   expect(workflow).toContain("name: Supabase Database Health");
@@ -145,11 +189,14 @@ test("database health workflow is scheduled, aggregate-only, and non-mutating", 
   expect(workflow).not.toContain("deploy");
   expect(workflow).toContain("SUPABASE_DB_POOLER_HOST");
   expect(workflow).toContain("--investigate-signals");
+  expect(workflow).toContain("default_transaction_read_only=on");
   expect(workflow).not.toContain("supabase link");
   expect(script).toContain('["inspect", "db", command, ...connectionArgs, "--output-format", "json"]');
   expect(script).toContain('["--db-url", dbUrl]');
   expect(script).not.toContain('"--output", "json"');
-  expect(script).not.toContain("result.stdout,");
+  expect(investigationSql.trim().toLowerCase()).toMatch(/^with\s/);
+  expect(investigationSql).not.toMatch(/^\s*(insert|update|delete|alter|drop|truncate|grant|revoke)\b/im);
+  expect(investigationSql.match(/;/g)).toHaveLength(1);
   expect(docs).toContain("Supabase Database Health");
   expect(docs).toContain("never changes the database automatically");
 });

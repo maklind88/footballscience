@@ -198,6 +198,56 @@ function correlateSafeSignals(results = []) {
     .map(([fingerprint, commands]) => ({ commands: [...commands].sort(), fingerprint }));
 }
 
+function safeProbeValue(value, allowedValues) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return allowedValues.has(normalized) ? normalized : "unknown";
+}
+
+function booleanProbeValue(value) {
+  return value === true || String(value || "").trim().toLowerCase() === "true";
+}
+
+function sanitizeSafeProbeRows(payload) {
+  const signalTypes = new Set(["exclusive-lock", "long-running-query"]);
+  const statementCategories = new Set([
+    "data-read",
+    "data-write",
+    "database-monitoring",
+    "maintenance",
+    "other",
+    "schema-or-permission-change",
+    "transaction-control",
+  ]);
+  const sourceCategories = new Set(["application-or-admin", "database-internal", "supabase-service"]);
+  const stateCategories = new Set([
+    "active",
+    "disabled",
+    "fastpath-function",
+    "idle-in-transaction",
+    "idle-in-transaction-aborted",
+    "other",
+  ]);
+  const waitCategories = new Set(["activity", "client", "io", "ipc", "lock", "none", "other", "timeout"]);
+  const ageBuckets = new Set(["5-10 minutes", "10-30 minutes", "30-60 minutes", "over 60 minutes"]);
+  return extractInspectRows(payload).map((row) => ({
+    ageBucket: safeProbeValue(rowValue(row, ["age_bucket", "age bucket"]), ageBuckets),
+    hasBlockers: booleanProbeValue(rowValue(row, ["has_blockers", "has blockers"])),
+    relationReference: booleanProbeValue(rowValue(row, ["relation_reference", "relation reference"])),
+    signalType: safeProbeValue(rowValue(row, ["signal_type", "signal type"]), signalTypes),
+    sourceCategory: safeProbeValue(rowValue(row, ["source_category", "source category"]), sourceCategories),
+    stateCategory: safeProbeValue(rowValue(row, ["state_category", "state category"]), stateCategories),
+    statementCategory: safeProbeValue(
+      rowValue(row, ["statement_category", "statement category"]),
+      statementCategories
+    ),
+    transactionOpen: booleanProbeValue(rowValue(row, ["transaction_open", "transaction open"])),
+    transactionReference: booleanProbeValue(
+      rowValue(row, ["transaction_reference", "transaction reference"])
+    ),
+    waitCategory: safeProbeValue(rowValue(row, ["wait_category", "wait category"]), waitCategories),
+  }));
+}
+
 function buildInspectionDbUrl({
   password = process.env.SUPABASE_DB_PASSWORD,
   poolerHost = process.env.SUPABASE_DB_POOLER_HOST,
@@ -259,7 +309,7 @@ function interpretation(result) {
   return "Aggregate evidence collected; no automatic decision.";
 }
 
-function buildMarkdownSummary({ generatedAt, mode, results }) {
+function buildMarkdownSummary({ generatedAt, investigation, mode, results }) {
   const overall = assessResults(results);
   const correlations = correlateSafeSignals(results);
   const rows = results.map(
@@ -290,6 +340,17 @@ function buildMarkdownSummary({ generatedAt, mode, results }) {
           : []),
       ]
     : [];
+  const probeSection = investigation?.signals?.length
+    ? [
+        "",
+        "## Fixed read-only probe",
+        "",
+        ...investigation.signals.map(
+          (signal, index) =>
+            `- \`${signal.signalType}#${index + 1}\`: ${signal.statementCategory}, source ${signal.sourceCategory}, state ${signal.stateCategory}, wait ${signal.waitCategory}, ${signal.ageBucket}, blockers ${signal.hasBlockers}, transaction open ${signal.transactionOpen}, relation ${signal.relationReference}, transaction reference ${signal.transactionReference}`
+        ),
+      ]
+    : [];
   return [
     "# Supabase Database Health",
     "",
@@ -304,6 +365,7 @@ function buildMarkdownSummary({ generatedAt, mode, results }) {
     "|---|---:|---:|---|",
     ...rows,
     ...signalSection,
+    ...probeSection,
     "",
     "## Next decision",
     "",
@@ -344,9 +406,47 @@ function runInspectCommand({ command, dryRun = false, investigateSignals = false
   };
 }
 
-function writeReport({ mode, outputDir, results, generatedAt = new Date().toISOString() }) {
+function runSafeSignalProbe({ dryRun = false } = {}) {
+  if (dryRun) return { databaseChanges: false, signals: [], status: "planned" };
+  const cliPath = path.join(rootDir, "node_modules", ".bin", process.platform === "win32" ? "supabase.cmd" : "supabase");
+  const dbUrl = buildInspectionDbUrl();
+  const sqlPath = path.join(rootDir, "scripts", "supabase-database-health-investigation.sql");
+  const connectionArgs = dbUrl ? ["--db-url", dbUrl] : ["--linked"];
+  const startedAt = Date.now();
+  const result = spawnSync(
+    cliPath,
+    ["db", "query", "--file", sqlPath, ...connectionArgs, "--output-format", "json"],
+    {
+      cwd: rootDir,
+      encoding: "utf8",
+      env: { ...process.env, NO_COLOR: "1", PGOPTIONS: "-c default_transaction_read_only=on" },
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: 120_000,
+    }
+  );
+  const payload = result.status === 0 ? parseJsonOutput(result.stdout) : null;
+  const completed = result.status === 0 && payload !== null;
+  return {
+    databaseChanges: false,
+    durationMs: Date.now() - startedAt,
+    ...(completed
+      ? { signals: sanitizeSafeProbeRows(payload) }
+      : {
+          failureReason: classifyInspectFailure({
+            error: result.error,
+            status: result.status,
+            stderr: result.stderr,
+            stdout: result.stdout,
+          }),
+          signals: [],
+        }),
+    status: completed ? "completed" : "failed",
+  };
+}
+
+function writeReport({ investigation = null, mode, outputDir, results, generatedAt = new Date().toISOString() }) {
   const status = assessResults(results);
-  const markdown = buildMarkdownSummary({ generatedAt, mode, results });
+  const markdown = buildMarkdownSummary({ generatedAt, investigation, mode, results });
   const report = {
     schema: "footballscience-supabase-database-health-v1",
     generatedAt,
@@ -356,6 +456,7 @@ function writeReport({ mode, outputDir, results, generatedAt = new Date().toISOS
     databaseChanges: false,
     storedDatabaseDetails: false,
     storedDerivedSignalMetadata: results.some((result) => result.safeSignals?.length),
+    investigation,
     signalCorrelations: correlateSafeSignals(results),
     results,
   };
@@ -382,6 +483,8 @@ export {
   parseArgs,
   parseJsonOutput,
   runInspectCommand,
+  runSafeSignalProbe,
+  sanitizeSafeProbeRows,
   statementFingerprint,
   supabaseCliVersion,
   weeklyCommands,
@@ -393,10 +496,16 @@ function main() {
   const results = commandPlan(options.mode).map((command) =>
     runInspectCommand({ command, dryRun: options.dryRun, investigateSignals: options.investigateSignals })
   );
-  const { markdown, report } = writeReport({ mode: options.mode, outputDir: options.outputDir, results });
+  const investigation = options.investigateSignals ? runSafeSignalProbe({ dryRun: options.dryRun }) : null;
+  const { markdown, report } = writeReport({
+    investigation,
+    mode: options.mode,
+    outputDir: options.outputDir,
+    results,
+  });
   console.log(markdown);
   console.log(`DATABASE_HEALTH_REPORT_JSON=${JSON.stringify(report)}`);
-  if (results.some((result) => result.status === "failed")) process.exitCode = 1;
+  if (results.some((result) => result.status === "failed") || investigation?.status === "failed") process.exitCode = 1;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

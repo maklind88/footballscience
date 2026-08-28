@@ -79,8 +79,8 @@ test("database health workflow is scheduled, aggregate-only, and non-mutating", 
   const docs = readProjectFile("docs/DEPLOYMENT.md");
 
   expect(workflow).toContain("name: Supabase Database Health");
-  expect(workflow).toContain('cron: "30 10 * * 1-6"');
-  expect(workflow).toContain('cron: "30 10 * * 0"');
+  expect(workflow).toContain('cron: "30 9 * * 1-6"');
+  expect(workflow).toContain('cron: "30 9 * * 0"');
   expect(workflow).toContain("environment: platform-production");
   expect(workflow).not.toContain("upload-artifact");
   expect(workflow).not.toContain("supabase db push");

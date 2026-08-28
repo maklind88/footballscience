@@ -2,8 +2,8 @@ name: Supabase Database Health
 
 on:
   schedule:
-    - cron: "30 10 * * 1-6"
-    - cron: "30 10 * * 0"
+    - cron: "30 9 * * 1-6"
+    - cron: "30 9 * * 0"
   workflow_dispatch:
     inputs:
       mode:
@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           mode="${DISPATCH_MODE:-daily}"
-          if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$SCHEDULE_VALUE" = "30 10 * * 0" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$SCHEDULE_VALUE" = "30 9 * * 0" ]; then
             mode="weekly"
           fi
           echo "mode=$mode" >> "$GITHUB_OUTPUT"

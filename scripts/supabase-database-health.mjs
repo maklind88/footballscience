@@ -315,6 +315,13 @@ function assessResults(results = []) {
 
 function assessReportStatus(results = [], investigation = null) {
   if (!investigation) return assessResults(results);
+  if (
+    investigation.status === "planned"
+    && results.length > 0
+    && results.every((result) => result.status === "planned")
+  ) {
+    return "PLAN";
+  }
   if (results.some((result) => result.status === "failed") || investigation.status !== "completed") return "RED";
   if (results.some((result) => result.command === "blocking" && result.recordCount > 0)) return "RED";
   if (results.some((result) => result.command === "bloat" && result.recordCount > 0)) return "YELLOW";

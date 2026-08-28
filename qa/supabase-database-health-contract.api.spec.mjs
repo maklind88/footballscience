@@ -199,6 +199,22 @@ test("database health investigation clears known benign internal activity but ke
   ).toBe("RED");
 });
 
+test("database health investigation dry-run remains an approval plan", () => {
+  const plannedResults = commandPlan("daily").map((command) => ({
+    command,
+    recordCount: 0,
+    status: "planned",
+  }));
+
+  expect(
+    assessReportStatus(plannedResults, {
+      databaseChanges: false,
+      signals: [],
+      status: "planned",
+    })
+  ).toBe("PLAN");
+});
+
 test("database health uses the IPv4-compatible session pooler without exposing raw credentials", () => {
   const url = buildInspectionDbUrl({
     password: "secret with spaces/@",

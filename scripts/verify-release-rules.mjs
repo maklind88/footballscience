@@ -191,6 +191,13 @@ requireText(".github/workflows/production-deploy.yml", "npm run release:safety",
 requireText(".github/workflows/production-deploy.yml", "npm run qa:staging:required", "production deploy must verify staging first");
 requireText(".github/workflows/production-deploy.yml", "npm run release:vercel-token", "production must fail closed when the Vercel token is invalid");
 requireText(".github/workflows/production-deploy.yml", "vercel@53.2.0 deploy --prebuilt --prod", "production deploy must use the pinned Vercel CLI prebuilt path");
+requireText(".github/workflows/production-deploy.yml", "deploy --prebuilt --prod --skip-domain", "production deploy must stage the exact production artifact before domain promotion");
+requireText(".github/workflows/production-deploy.yml", "node scripts/verify-production-promotion.mjs --phase=staged", "production must verify the staged artifact before promotion");
+requireText(".github/workflows/production-deploy.yml", "vercel@53.2.0 promote", "production must promote the already verified artifact without rebuilding");
+requireText(".github/workflows/production-deploy.yml", "node scripts/verify-production-promotion.mjs --phase=live", "production must prove the live domain points to the exact deployment");
+requireText("scripts/lib/production-promotion.mjs", "liveId !== stagedId", "production promotion must compare exact Vercel deployment ids");
+requireText("scripts/lib/production-promotion.mjs", "SUPABASE_PROJECT_REF", "production promotion must prove the production Supabase environment");
+requireText("scripts/verify-live-qa-env.mjs", "LEADERBOARD_LIVE_QA_TEAM_ID", "live QA must require a deterministic team-scoped Leaderboard identity");
 requireText(".github/workflows/production-deploy.yml", "npm run release:postdeploy", "production deploy must verify the live domain");
 requireText(".github/workflows/production-deploy.yml", "npm run release:staging-isolation:repair", "production deploy must repair staging/live alias drift before live verification");
 requireText(".github/workflows/production-deploy.yml", "npm run qa:live:required", "production deploy must run authenticated live smoke");

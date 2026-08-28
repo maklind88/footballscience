@@ -102,6 +102,22 @@ test("release automation keeps staging and live environments isolated", () => {
   expect(rollbackWorkflow).toContain("npm run release:staging-isolation:repair");
 });
 
+test("production deploy validates and promotes the exact staged artifact before live QA", () => {
+  const workflow = readProjectFile(".github/workflows/production-deploy.yml");
+  const verifier = readProjectFile("scripts/lib/production-promotion.mjs");
+
+  expect(workflow).toContain("deploy --prebuilt --prod --skip-domain");
+  expect(workflow).toContain("--meta githubCommitSha=\"$GITHUB_SHA\"");
+  expect(workflow).toContain("node scripts/verify-production-promotion.mjs --phase=staged");
+  expect(workflow).toContain("vercel@53.2.0 promote \"$PRODUCTION_DEPLOYMENT_URL\"");
+  expect(workflow).toContain("node scripts/verify-production-promotion.mjs --phase=live");
+  expect(workflow.indexOf("--phase=staged")).toBeLessThan(workflow.indexOf("vercel@53.2.0 promote"));
+  expect(workflow.indexOf("--phase=live")).toBeLessThan(workflow.indexOf("npm run release:postdeploy"));
+  expect(verifier).toContain("Live domain points to");
+  expect(verifier).toContain("does not use production Supabase project");
+  expect(verifier).toContain("does not match the release artifact");
+});
+
 
 function makeTempDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));

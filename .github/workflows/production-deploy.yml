@@ -28,6 +28,9 @@ jobs:
       LIVE_QA_PEER_USERNAME: ${{ secrets.LIVE_QA_PEER_USERNAME }}
       LIVE_QA_REQUIRE_PEER_CHAT: ${{ vars.LIVE_QA_REQUIRE_PEER_CHAT || '1' }}
       LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
+      LEADERBOARD_LIVE_QA_PASSWORD: ${{ secrets.LEADERBOARD_LIVE_QA_PASSWORD }}
+      LEADERBOARD_LIVE_QA_TEAM_ID: ${{ vars.LEADERBOARD_LIVE_QA_TEAM_ID }}
+      LEADERBOARD_LIVE_QA_USERNAME: ${{ secrets.LEADERBOARD_LIVE_QA_USERNAME }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
       STAGING_QA_BASE_URL: ${{ vars.STAGING_QA_BASE_URL }}
       STAGING_QA_PASSWORD: ${{ secrets.STAGING_QA_PASSWORD }}
@@ -78,8 +81,25 @@ jobs:
       - run: npx --yes vercel@53.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
       - run: npx --yes vercel@53.2.0 build --prod --token="$VERCEL_TOKEN"
 
-      - name: Deploy production
-        run: npx --yes vercel@53.2.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN" | tee deployment-url.txt
+      - name: Deploy staged production artifact
+        shell: bash
+        run: |
+          npx --yes vercel@53.2.0 deploy --prebuilt --prod --skip-domain --meta githubCommitSha="$GITHUB_SHA" --meta githubCommitRef=main --token="$VERCEL_TOKEN" | tee deployment-url.txt
+          deployment_url="$(grep -Eo 'https://[^[:space:]]+\.vercel\.app' deployment-url.txt | tail -n 1)"
+          if [ -z "$deployment_url" ]; then
+            echo "Could not resolve the staged production deployment URL from Vercel output."
+            exit 1
+          fi
+          echo "PRODUCTION_DEPLOYMENT_URL=$deployment_url" >> "$GITHUB_ENV"
+
+      - name: Verify staged production artifact
+        run: node scripts/verify-production-promotion.mjs --phase=staged
+
+      - name: Promote exact deployment to production domains
+        run: npx --yes vercel@53.2.0 promote "$PRODUCTION_DEPLOYMENT_URL" --yes --timeout=5m --token="$VERCEL_TOKEN"
+
+      - name: Verify exact deployment owns the live domain
+        run: node scripts/verify-production-promotion.mjs --phase=live
 
       - name: Restore staging alias after production deploy
         if: ${{ env.STAGING_QA_BASE_URL != '' }}

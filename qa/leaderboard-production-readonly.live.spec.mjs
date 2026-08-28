@@ -5,7 +5,18 @@ const liveBaseUrl = String(process.env.LIVE_QA_BASE_URL || "https://footballscie
 const expectedOrigin = String(process.env.LEADERBOARD_READONLY_EXPECTED_ORIGIN || "https://footballscience.xyz").trim();
 const expectedRef = String(process.env.LEADERBOARD_READONLY_EXPECTED_SUPABASE_REF || "bustidorxevacosqhkcz").trim();
 const deniedRef = String(process.env.LEADERBOARD_READONLY_DENIED_SUPABASE_REF || "pokrksgempkuraueglpu").trim();
-const hasCredentials = Boolean(process.env.LIVE_QA_USERNAME && process.env.LIVE_QA_PASSWORD);
+const productionOrigin = "https://footballscience.xyz";
+const isProductionProof = expectedOrigin === productionOrigin;
+const qaUsername = String(
+  isProductionProof ? process.env.LEADERBOARD_LIVE_QA_USERNAME : process.env.LIVE_QA_USERNAME,
+).trim();
+const qaPassword = String(
+  isProductionProof ? process.env.LEADERBOARD_LIVE_QA_PASSWORD : process.env.LIVE_QA_PASSWORD,
+).trim();
+const configuredTeamId = String(
+  isProductionProof ? process.env.LEADERBOARD_LIVE_QA_TEAM_ID : "",
+).trim().toLowerCase();
+const hasCredentials = Boolean(qaUsername && qaPassword);
 const leaderboardViewRoles = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
 
 if (new URL(liveBaseUrl).href !== `${expectedOrigin}/`) throw new Error("Leaderboard smoke base URL did not match the exact reviewed origin.");
@@ -50,7 +61,7 @@ async function authenticatePage(page) {
   await page.waitForFunction(() => Boolean(window.platformAuthReadyPromise), null, { timeout: 20_000 });
   await page.evaluate(() => window.platformAuthReadyPromise);
   const loginResponse = await sanitizedApiRequest("login", () => page.request.post(`${expectedOrigin}/api/client-config`, {
-    data: { email: process.env.LIVE_QA_USERNAME, password: process.env.LIVE_QA_PASSWORD },
+    data: { email: qaUsername, password: qaPassword },
     maxRedirects: 0,
   }));
   const login = await loginResponse.json().catch(() => null);
@@ -158,7 +169,12 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
     .map((team) => String(team.id || ""))
     .filter(Boolean)
     .sort()[0] || "";
-  const teamId = teamIsCovered(identity, clientUser.teamId) ? clientUser.teamId : fallbackTeamId;
+  const teamId = isProductionProof
+    ? configuredTeamId
+    : (teamIsCovered(identity, clientUser.teamId) ? clientUser.teamId : fallbackTeamId);
+  if (isProductionProof) {
+    expect(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(teamId), "LEADERBOARD_LIVE_QA_TEAM_ID must be an exact Platform team UUID.").toBe(true);
+  }
   expect(/^[0-9a-f-]{36}$/i.test(teamId) && teamIsCovered(identity, teamId), "Live QA identity must expose a deterministic active team.").toBe(true);
 
   const month = new Date().toISOString().slice(0, 7);

@@ -7,6 +7,9 @@ const required = [
   "CRON_SECRET",
   "LIVE_QA_USERNAME",
   "LIVE_QA_PASSWORD",
+  "LEADERBOARD_LIVE_QA_USERNAME",
+  "LEADERBOARD_LIVE_QA_PASSWORD",
+  "LEADERBOARD_LIVE_QA_TEAM_ID",
   "STAGING_QA_BASE_URL",
   "STAGING_QA_USERNAME",
   "STAGING_QA_PASSWORD",
@@ -15,6 +18,10 @@ const required = [
 ];
 
 const missing = required.filter((name) => !String(process.env[name] || "").trim());
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+if (process.env.LEADERBOARD_LIVE_QA_TEAM_ID && !uuidPattern.test(String(process.env.LEADERBOARD_LIVE_QA_TEAM_ID).trim())) {
+  missing.push("LEADERBOARD_LIVE_QA_TEAM_ID must be a Platform team UUID");
+}
 if (process.env.LIVE_QA_REQUIRE_PEER_CHAT === "1") {
   const hasPeerSecrets = ["LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD"].every((name) => String(process.env[name] || "").trim());
   const canCreateDynamicPeer = process.env.LIVE_QA_EXPECT_ADMIN === "1";

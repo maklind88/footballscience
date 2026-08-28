@@ -1,6 +1,12 @@
 import process from "node:process";
 
-const required = ["LIVE_QA_USERNAME", "LIVE_QA_PASSWORD"];
+const required = [
+  "LIVE_QA_USERNAME",
+  "LIVE_QA_PASSWORD",
+  "LEADERBOARD_LIVE_QA_USERNAME",
+  "LEADERBOARD_LIVE_QA_PASSWORD",
+  "LEADERBOARD_LIVE_QA_TEAM_ID",
+];
 const peerRequired = process.env.LIVE_QA_REQUIRE_PEER_CHAT === "1";
 const peerRequiredNames = ["LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD"];
 const hasAnyPeerSecret = peerRequiredNames.some((name) => String(process.env[name] || "").trim());
@@ -11,6 +17,10 @@ const requiredNames = [
   ...(hasAnyPeerSecret ? peerRequiredNames : []),
 ];
 const missing = requiredNames.filter((name) => !String(process.env[name] || "").trim());
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+if (process.env.LEADERBOARD_LIVE_QA_TEAM_ID && !uuidPattern.test(String(process.env.LEADERBOARD_LIVE_QA_TEAM_ID).trim())) {
+  missing.push("LEADERBOARD_LIVE_QA_TEAM_ID must be a Platform team UUID");
+}
 if (peerRequired && !hasPeerSecrets && !expectsAdminCredentials) {
   missing.push("LIVE_QA_PEER_USERNAME/LIVE_QA_PEER_PASSWORD or LIVE_QA_EXPECT_ADMIN=1");
 }
@@ -27,6 +37,7 @@ if (missing.length) {
   } else {
     console.log("- admin-only live smoke is skipped unless LIVE_QA_EXPECT_ADMIN=1.");
   }
+  console.log("- Leaderboard read-only QA uses a separate active team-scoped account and exact Platform team UUID.");
   if (hasPeerSecrets) {
     console.log("- two-account chat live smoke is configured.");
   } else if (expectsAdminCredentials) {

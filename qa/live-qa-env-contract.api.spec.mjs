@@ -5,6 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const leaderboardLiveQaEnv = {
+  LEADERBOARD_LIVE_QA_USERNAME: "leaderboard-coach@example.com",
+  LEADERBOARD_LIVE_QA_PASSWORD: "secret",
+  LEADERBOARD_LIVE_QA_TEAM_ID: "11111111-1111-4111-8111-111111111111",
+};
 
 test("staging smoke binds the read-only Leaderboard proof to staging", () => {
   const workflow = fs.readFileSync(path.join(rootDir, ".github/workflows/staging-deploy.yml"), "utf8");
@@ -31,6 +36,7 @@ test("live QA env allows mandatory peer chat through dynamic admin peer setup", 
     LIVE_QA_PASSWORD: "secret",
     LIVE_QA_EXPECT_ADMIN: "1",
     LIVE_QA_REQUIRE_PEER_CHAT: "1",
+    ...leaderboardLiveQaEnv,
   });
 
   expect(result.status).toBe(0);
@@ -43,6 +49,7 @@ test("live QA env fails closed when mandatory peer chat has no peer path", () =>
     LIVE_QA_USERNAME: "qa-admin@example.com",
     LIVE_QA_PASSWORD: "secret",
     LIVE_QA_REQUIRE_PEER_CHAT: "1",
+    ...leaderboardLiveQaEnv,
   });
 
   expect(result.status).toBe(1);
@@ -59,6 +66,7 @@ test("CI release env accepts mandatory peer chat when admin live QA can create t
     LIVE_QA_PASSWORD: "secret",
     LIVE_QA_EXPECT_ADMIN: "1",
     LIVE_QA_REQUIRE_PEER_CHAT: "1",
+    ...leaderboardLiveQaEnv,
     STAGING_QA_BASE_URL: "https://staging.footballscience.xyz",
     STAGING_QA_USERNAME: "staging-admin@example.com",
     STAGING_QA_PASSWORD: "secret",
@@ -69,4 +77,30 @@ test("CI release env accepts mandatory peer chat when admin live QA can create t
   expect(result.status).toBe(0);
   expect(result.stdout).toContain("CI release environment: ok");
   expect(result.stderr).toBe("");
+});
+
+test("live QA env requires a separate team-scoped Leaderboard identity", () => {
+  const result = runNodeScript("scripts/verify-live-qa-env.mjs", {
+    LIVE_QA_USERNAME: "qa-admin@example.com",
+    LIVE_QA_PASSWORD: "secret",
+    LIVE_QA_EXPECT_ADMIN: "1",
+  });
+
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("LEADERBOARD_LIVE_QA_USERNAME");
+  expect(result.stderr).toContain("LEADERBOARD_LIVE_QA_PASSWORD");
+  expect(result.stderr).toContain("LEADERBOARD_LIVE_QA_TEAM_ID");
+});
+
+test("production workflows pass dedicated Leaderboard QA configuration", () => {
+  for (const relativePath of [
+    ".github/workflows/production-deploy.yml",
+    ".github/workflows/production-smoke.yml",
+    ".github/workflows/production-rollback.yml",
+  ]) {
+    const workflow = fs.readFileSync(path.join(rootDir, relativePath), "utf8");
+    expect(workflow).toContain("LEADERBOARD_LIVE_QA_USERNAME: ${{ secrets.LEADERBOARD_LIVE_QA_USERNAME }}");
+    expect(workflow).toContain("LEADERBOARD_LIVE_QA_PASSWORD: ${{ secrets.LEADERBOARD_LIVE_QA_PASSWORD }}");
+    expect(workflow).toContain("LEADERBOARD_LIVE_QA_TEAM_ID: ${{ vars.LEADERBOARD_LIVE_QA_TEAM_ID }}");
+  }
 });

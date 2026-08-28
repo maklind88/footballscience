@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
-const secretNames = Object.freeze(["GITHUB_TOKEN", "VERCEL_TOKEN", "VERCEL_ORG_ID", "VERCEL_PROJECT_ID", "CRON_SECRET", "LIVE_QA_USERNAME", "LIVE_QA_PASSWORD", "LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD", "STAGING_QA_USERNAME", "STAGING_QA_PASSWORD"]);
+const secretNames = Object.freeze(["GITHUB_TOKEN", "VERCEL_TOKEN", "VERCEL_ORG_ID", "VERCEL_PROJECT_ID", "CRON_SECRET", "LIVE_QA_USERNAME", "LIVE_QA_PASSWORD", "LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD", "LEADERBOARD_LIVE_QA_USERNAME", "LEADERBOARD_LIVE_QA_PASSWORD", "STAGING_QA_USERNAME", "STAGING_QA_PASSWORD"]);
 export function invariant(condition, message) { if (!condition) throw new Error(message); }
 export function sha256(value) { return crypto.createHash("sha256").update(value).digest("hex"); } const readonlyRequestLabels = new Set(["login", "client-config", "identity", "leaderboard", "anonymous-leaderboard", "anonymous-dispose"]);
 export async function sanitizedApiRequest(label, execute) {

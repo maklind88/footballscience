@@ -132,6 +132,9 @@ const stagingHost = hostFromUrl(stagingBaseUrl);
 for (const name of [
   "LIVE_QA_USERNAME",
   "LIVE_QA_PASSWORD",
+  "LEADERBOARD_LIVE_QA_USERNAME",
+  "LEADERBOARD_LIVE_QA_PASSWORD",
+  "LEADERBOARD_LIVE_QA_TEAM_ID",
   "STAGING_QA_BASE_URL",
   "STAGING_QA_USERNAME",
   "STAGING_QA_PASSWORD",
@@ -139,6 +142,13 @@ for (const name of [
   "STAGING_SUPABASE_PROJECT_REF",
 ]) {
   requireEnv(name);
+}
+
+if (
+  clean(process.env.LEADERBOARD_LIVE_QA_TEAM_ID)
+  && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(process.env.LEADERBOARD_LIVE_QA_TEAM_ID))
+) {
+  failures.push("LEADERBOARD_LIVE_QA_TEAM_ID must be a Platform team UUID.");
 }
 
 if (clean(process.env.LIVE_QA_REQUIRE_PEER_CHAT) === "1") {

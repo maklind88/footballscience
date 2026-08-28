@@ -230,6 +230,7 @@ For **Safe Lane** or risky changes, use the fuller order:
 2. Implement the change.
 3. Run validation:
    - `npm run check`
+   - prefer `npm run qa` when you need the full repo-wide QA gate; its `qa:static` phase includes release rules, incident-readiness, storage/platform guards, Supabase migration checks, performance budgets, and architecture budgets before Playwright
    - targeted Playwright/API tests for the touched area
    - prefer `npm run qa:contracts` for focused contract/module guardrail coverage when shared APIs, adapters, release rules, or modular boundaries changed
    - prefer `npm run qa:api` for API/data contract coverage instead of typing the full Playwright command
@@ -267,5 +268,6 @@ npm run deploy:safe
 - Do not put secrets in source files. Vercel/GitHub/Supabase secrets stay in their respective dashboards.
 - Use `npm run release:gate` only when manual safe-step control is required; it is not the everyday deploy path.
 - After deployment, verify the live domain and protected backup endpoint through `npm run release:postdeploy`.
+- For recurring production monitoring where local `main` may legitimately be ahead of Live, use `npm run release:monitor-postdeploy` instead of `npm run release:postdeploy`; it allows the expected Live hash mismatch before the rest of monitor-mode checks.
 - For recurring live health monitoring or manual postdeploy follow-up, use `npm run release:monitor`; it runs monitor-mode postdeploy verification, staging/live isolation, auth health, backup freshness/readiness checks, restore drill, and authenticated live smoke.
 - For release alerting readiness checks before relying on GitHub incident automation, run `npm run release:incident-readiness`.

@@ -599,6 +599,15 @@ test("Session Planner autosave boundary only surfaces active session writes and 
   expect(statuses).toEqual([["saving", "Saving"]]);
 
   clock += 6000;
+  // A "saved" resolving a write we already surfaced as "Saving" must still
+  // get through even once the active window has elapsed, so a slow save
+  // never leaves the indicator stuck on "Saving" forever.
+  expect(boundary.setStatusForKey(sessionPlannerStorageKey, "saved", "Saved")).toBe(true);
+  expect(statuses.at(-1)).toEqual(["saved", "Saved"]);
+
+  // Once resolved, a further "saved" with no new pending write is stale and
+  // must NOT resurface (the original anti-spam intent of the window).
+  clock += 6000;
   expect(boundary.setStatusForKey(sessionPlannerStorageKey, "saved", "Saved")).toBe(false);
   expect(boundary.setStatusForKey(sessionPlannerStorageKey, "issue", "Sync needs attention")).toBe(true);
   expect(statuses.at(-1)).toEqual(["issue", "Sync needs attention"]);
@@ -609,6 +618,51 @@ test("Session Planner autosave boundary only surfaces active session writes and 
   boundary.markSessionPlannerWrite();
   expect(boundary.setStatusForKey(sessionPlannerStorageKey, "saving", "Saving")).toBe(false);
   expect(boundary.setStatusForKey("football-schedule-v1", "issue", "Schedule issue")).toBe(false);
+});
+
+test("Session Planner autosave boundary always resolves a slow save even after the active window elapses", () => {
+  let clock = 0;
+  const statuses = [];
+  const boundary = createSessionPlannerAutosaveBoundary({
+    now: () => clock,
+    getActiveWorkspaceId: () => "session-planner",
+    setStatus: (...args) => statuses.push(args),
+    activeWindowMs: 15000,
+  });
+
+  // A write starts and "Saving" is surfaced immediately.
+  boundary.markSessionPlannerWrite();
+  expect(boundary.setStatusForKey(sessionPlannerStorageKey, "saving", "Saving")).toBe(true);
+
+  // The underlying save is slow (quota fallback + central sync) and takes
+  // far longer than the active window before it resolves.
+  clock += 5 * 60 * 1000; // 5 minutes
+  expect(boundary.setStatusForKey(sessionPlannerStorageKey, "saved", "Saved")).toBe(true);
+  expect(statuses).toEqual([
+    ["saving", "Saving"],
+    ["saved", "Saved"],
+  ]);
+});
+
+test("Session Planner autosave boundary resolves a slow save as an issue when it ultimately fails", () => {
+  let clock = 0;
+  const statuses = [];
+  const boundary = createSessionPlannerAutosaveBoundary({
+    now: () => clock,
+    getActiveWorkspaceId: () => "session-planner",
+    setStatus: (...args) => statuses.push(args),
+    activeWindowMs: 15000,
+  });
+
+  boundary.markSessionPlannerWrite();
+  expect(boundary.setStatusForKey(sessionPlannerStorageKey, "saving", "Saving")).toBe(true);
+
+  clock += 60000;
+  expect(boundary.setStatusForKey(sessionPlannerStorageKey, "issue", "Save failed")).toBe(true);
+  expect(statuses).toEqual([
+    ["saving", "Saving"],
+    ["issue", "Save failed"],
+  ]);
 });
 
 test("Session Planner app integration delegates autosave policy and block rendering to the module", () => {

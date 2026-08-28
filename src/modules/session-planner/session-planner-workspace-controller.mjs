@@ -1,4 +1,8 @@
 import { createSessionPlannerPlayerBoardTidyHelpers } from "./session-planner-player-board-tidy-helpers.mjs";
+import {
+  getSessionPlannerMedicalBlockRule,
+  isSessionPlannerWarmUpBlock,
+} from "./session-planner-medical-block-rules.mjs";
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import {
   getLeaderboardTodayValue,
@@ -1863,20 +1867,17 @@ renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 function getSessionPlannerBlockNumber(block = getSessionPlannerSelectedBlock()) {
 const session = getSessionPlannerSelectedSession();
 const index = session?.blocks?.findIndex((candidate) => candidate.id === block?.id) ?? -1;
-return index >= 0 ? index + 1 : 1;
+if (index < 0 || isSessionPlannerWarmUpBlock(block)) {
+return 1;
+}
+return Math.max(
+1,
+session.blocks.slice(0, index + 1).filter((candidate) => !isSessionPlannerWarmUpBlock(candidate)).length
+);
 }
 function getSessionPlannerPlayerBoardRule(block = getSessionPlannerSelectedBlock()) {
 const blockNumber = getSessionPlannerBlockNumber(block);
-if (blockNumber <= 1) {
-return { blockNumber, label: "Block 1", valueLabel: "10%+", min: 10 };
-}
-if (blockNumber === 2) {
-return { blockNumber, label: "Block 2", valueLabel: "25%+", min: 25 };
-}
-if (blockNumber === 3) {
-return { blockNumber, label: "Block 3", valueLabel: "50%+", min: 50 };
-}
-return { blockNumber, label: `Block ${blockNumber}`, valueLabel: "75%+", min: 75 };
+return getSessionPlannerMedicalBlockRule(block, blockNumber);
 }
 function getSessionPlannerPlayerBoardProfileState() {
 try {

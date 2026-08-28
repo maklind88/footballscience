@@ -4,6 +4,7 @@ export * from "./session-planner-session-factory.mjs";
 export * from "./session-planner-history-helpers.mjs";
 export * from "./session-planner-local-ui-state.mjs";
 export * from "./session-planner-medical-availability-selectors.mjs";
+export * from "./session-planner-medical-block-rules.mjs";
 export * from "./session-planner-options.mjs";
 export * from "./session-planner-block-helpers.mjs";
 export * from "./session-planner-board-history-controller.mjs";

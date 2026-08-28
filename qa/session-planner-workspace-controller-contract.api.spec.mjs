@@ -269,6 +269,40 @@ test("Session Planner date and block navigation stays read-only and keeps board 
   expect(calls).toContainEqual(["baseline", "player", "block-2"]);
 });
 
+test("Session Planner player board applies the shared warm-up and 25/50/75/100 block thresholds", () => {
+  const { controller, state } = createWorkspaceNavigationHarness();
+  const session = state.sessions["2026-05-01"];
+  session.blocks = [
+    { id: "warm-up", label: "Warm Up", title: "Activation", fieldUpdatedAt: {} },
+    { ...session.blocks[0], label: "Block 1" },
+    { ...session.blocks[1], label: "Block 2" },
+    { id: "block-3", label: "Block 3", title: "Football load", fieldUpdatedAt: {} },
+    { id: "block-4", label: "Block 4", title: "Full training", fieldUpdatedAt: {} },
+  ];
+
+  const rules = session.blocks.map((block) => controller.getSessionPlannerPlayerBoardRule(block));
+
+  expect(rules).toEqual([
+    { blockNumber: 0, label: "Warm Up", valueLabel: "10%+", min: 10 },
+    { blockNumber: 1, label: "Block 1", valueLabel: "25%+", min: 25 },
+    { blockNumber: 2, label: "Block 2", valueLabel: "50%+", min: 50 },
+    { blockNumber: 3, label: "Block 3", valueLabel: "75%+", min: 75 },
+    { blockNumber: 4, label: "Block 4", valueLabel: "100%", min: 100 },
+  ]);
+  expect([
+    controller.isSessionPlannerPlayerVisibleForBoard(0, rules[0]),
+    controller.isSessionPlannerPlayerVisibleForBoard(10, rules[0]),
+    controller.isSessionPlannerPlayerVisibleForBoard(10, rules[1]),
+    controller.isSessionPlannerPlayerVisibleForBoard(25, rules[1]),
+    controller.isSessionPlannerPlayerVisibleForBoard(25, rules[2]),
+    controller.isSessionPlannerPlayerVisibleForBoard(50, rules[2]),
+    controller.isSessionPlannerPlayerVisibleForBoard(50, rules[3]),
+    controller.isSessionPlannerPlayerVisibleForBoard(75, rules[3]),
+    controller.isSessionPlannerPlayerVisibleForBoard(75, rules[4]),
+    controller.isSessionPlannerPlayerVisibleForBoard(100, rules[4]),
+  ]).toEqual([false, true, false, true, false, true, false, true, false, true]);
+});
+
 test("Session Planner block fields only write after a semantic value change", () => {
   const { calls, controller, state } = createWorkspaceNavigationHarness({ canEdit: true });
 

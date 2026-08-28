@@ -338,7 +338,7 @@ function assessReportStatus(results = [], investigation = null) {
 
   const unsafeLock = lockSignals.some(
     (signal) =>
-      signal.statementCategory !== "database-monitoring" ||
+      !new Set(["data-read", "database-monitoring"]).has(signal.statementCategory) ||
       signal.sourceCategory !== "supabase-service" ||
       signal.hasBlockers ||
       signal.relationReference ||

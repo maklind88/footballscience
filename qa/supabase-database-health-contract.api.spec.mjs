@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   assessResults,
+  buildInspectionDbUrl,
   commandPlan,
   countRecords,
   parseJsonOutput,
@@ -35,6 +36,20 @@ test("database health parser keeps only aggregate record counts", () => {
   expect(assessResults([{ command: "locks", recordCount: 1, status: "completed" }])).toBe("YELLOW");
 });
 
+test("database health uses the IPv4-compatible session pooler without exposing raw credentials", () => {
+  const url = buildInspectionDbUrl({
+    password: "secret with spaces/@",
+    poolerHost: "aws-1-us-east-1.pooler.supabase.com",
+    projectRef: "project-ref",
+  });
+  expect(url).toBe(
+    "postgresql://postgres.project-ref:secret%20with%20spaces%2F%40@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+  );
+  expect(() => buildInspectionDbUrl({ password: "secret", poolerHost: "host/invalid", projectRef: "ref" })).toThrow(
+    "must be a hostname"
+  );
+});
+
 test("database health workflow is scheduled, aggregate-only, and non-mutating", () => {
   const workflow = readProjectFile(".github/workflows/supabase-database-health.yml");
   const script = readProjectFile("scripts/supabase-database-health.mjs");
@@ -48,7 +63,10 @@ test("database health workflow is scheduled, aggregate-only, and non-mutating", 
   expect(workflow).not.toContain("supabase db push");
   expect(workflow).not.toContain("supabase migration");
   expect(workflow).not.toContain("deploy");
-  expect(script).toContain('["inspect", "db", command, "--linked"]');
+  expect(workflow).toContain("SUPABASE_DB_POOLER_HOST");
+  expect(workflow).not.toContain("supabase link");
+  expect(script).toContain('["inspect", "db", command, ...connectionArgs]');
+  expect(script).toContain('["--db-url", dbUrl]');
   expect(script).not.toContain('"--output", "json"');
   expect(script).not.toContain("result.stdout,");
   expect(docs).toContain("Supabase Database Health");

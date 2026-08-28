@@ -48,7 +48,8 @@ test("database health workflow is scheduled, aggregate-only, and non-mutating", 
   expect(workflow).not.toContain("supabase db push");
   expect(workflow).not.toContain("supabase migration");
   expect(workflow).not.toContain("deploy");
-  expect(script).toContain('"--linked", "--output", "json"');
+  expect(script).toContain('["inspect", "db", command, "--linked"]');
+  expect(script).not.toContain('"--output", "json"');
   expect(script).not.toContain("result.stdout,");
   expect(docs).toContain("Supabase Database Health");
   expect(docs).toContain("never changes the database automatically");

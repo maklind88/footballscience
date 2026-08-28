@@ -9,6 +9,7 @@ import {
   buildInspectionDbUrl,
   classifyInspectFailure,
   commandPlan,
+  countInspectOutputRecords,
   countRecords,
   parseJsonOutput,
   supabaseCliVersion,
@@ -35,6 +36,19 @@ test("database health parser keeps only aggregate record counts", () => {
   expect(parseJsonOutput("not json")).toBeNull();
   expect(assessResults([{ command: "blocking", recordCount: 1, status: "completed" }])).toBe("RED");
   expect(assessResults([{ command: "locks", recordCount: 1, status: "completed" }])).toBe("YELLOW");
+});
+
+test("database health parser counts Supabase CLI table output without retaining row details", () => {
+  const table = [
+    " Name | Query | Age ",
+    "------|-------|-----",
+    " first | private query | 6m ",
+    " second | another private query | 7m ",
+    "",
+  ].join("\n");
+  expect(countInspectOutputRecords(table)).toBe(2);
+  expect(countInspectOutputRecords(" Name | Query\n------|------\n")).toBe(0);
+  expect(countInspectOutputRecords("unrecognized output")).toBeNull();
 });
 
 test("database health uses the IPv4-compatible session pooler without exposing raw credentials", () => {

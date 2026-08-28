@@ -17,6 +17,7 @@ import {
   normalizePresentationMatchSquadPlayerIds,
   presentationLineupFormationOptions,
 } from "./presentation-lineup-contract.mjs";
+import { getSessionPlannerMedicalBlockRule } from "../session-planner/session-planner-medical-block-rules.mjs";
 
 export const dashboardPresentationStorageKey = "football-dashboard-presentation-mode-v1";
 
@@ -703,12 +704,8 @@ export function mergeDashboardPresentationStatePreservingLocalEdits(localValue, 
   );
 }
 
-function getBlockRule(blockIndex = 0) {
-  const blockNumber = blockIndex + 1;
-  if (blockNumber <= 1) return { blockNumber, label: "Block 1", valueLabel: "10%+", min: 10 };
-  if (blockNumber === 2) return { blockNumber, label: "Block 2", valueLabel: "25%+", min: 25 };
-  if (blockNumber === 3) return { blockNumber, label: "Block 3", valueLabel: "50%+", min: 50 };
-  return { blockNumber, label: `Block ${blockNumber}`, valueLabel: "75%+", min: 75 };
+function getBlockRule(block = {}, blockIndex = 0) {
+  return getSessionPlannerMedicalBlockRule(block, blockIndex + 1);
 }
 
 function isPlayerVisibleForRule(participation, rule) {
@@ -1314,7 +1311,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function getPlayerSummaryForBlock(dateValue, block = {}, blockIndex = 0) {
-    const rule = getBlockRule(blockIndex);
+    const rule = getBlockRule(block, blockIndex);
     const availabilityItems = getAvailabilityItems(dateValue)
       .map((item) => normalizePlayerItem(item, block))
       .filter(Boolean);

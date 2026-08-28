@@ -54,7 +54,7 @@ test("Medical recommendation renderer keeps log, preset, and plan contracts", ()
       { key: "unavailable", label: "Unavailable" },
       { key: "modified", label: "Modified" },
     ],
-    medicalParticipationOptions: [0, 50, 75, 100],
+    medicalParticipationOptions: [0, 10, 50, 75, 100],
     normalizeMedicalActualParticipation: (value) => value ?? "not-logged",
   });
 
@@ -64,6 +64,7 @@ test("Medical recommendation renderer keeps log, preset, and plan contracts", ()
 
   const recommendationPresets = renderer.renderRecommendationPresets(75, true);
   expect(recommendationPresets).toContain("data-medical-recommendation-preset");
+  expect(recommendationPresets).toContain("Warm Up");
   expect(recommendationPresets).toContain('data-medical-participation="75"');
 
   const actualPresets = renderer.renderActualPresets("not-logged", true);

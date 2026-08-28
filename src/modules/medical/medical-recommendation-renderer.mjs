@@ -58,7 +58,7 @@ ${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-
   const renderRecommendationPresets = (selectedParticipation, canEdit = canEditMedicalTeam()) => {
     const labels = {
       0: "Out",
-      10: "Return",
+      10: "Warm Up",
       25: "Rehab",
       50: "Controlled",
       75: "Modified",

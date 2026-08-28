@@ -754,6 +754,47 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(controller.buildModel().slides.map((slide) => slide.type)).toEqual(["cover", "overview", "block"]);
 });
 
+test("Presentation Mode uses the shared warm-up and block thresholds", () => {
+  const harness = createDocumentHarness();
+  const blocks = [
+    { id: "warm-up", label: "Warm Up", title: "Activation" },
+    { id: "block-1", label: "Block 1", title: "Technical" },
+    { id: "block-2", label: "Block 2", title: "Possession" },
+    { id: "block-3", label: "Block 3", title: "Game preparation" },
+    { id: "block-4", label: "Block 4", title: "Full training" },
+  ];
+  const controller = createPresentationModeController({
+    documentRef: harness.documentRef,
+    win: {},
+    renderer: { render: () => "" },
+    readJson: (_key, fallback) => fallback,
+    writeJson: () => {},
+    getTodayValue: () => "2026-06-02",
+    getSessionForDate: () => ({ title: "Training", blocks }),
+    getAvailabilityItems: () => [10, 25, 50, 75, 100].map((participation) => ({
+      player: { id: `p-${participation}`, name: `Player ${participation}`, position: "Forward" },
+      record: { id: `r-${participation}` },
+      participation,
+      status: { label: `${participation}%` },
+    })),
+  });
+
+  const slides = controller.buildModel().slides.filter((slide) => slide.type === "block");
+  const plannedNames = (index) => slides[index].playerSummary.plannedPlayers.map((item) => item.player.name);
+
+  expect(slides.map((slide) => slide.playerSummary.rule)).toEqual([
+    { blockNumber: 0, label: "Warm Up", valueLabel: "10%+", min: 10 },
+    { blockNumber: 1, label: "Block 1", valueLabel: "25%+", min: 25 },
+    { blockNumber: 2, label: "Block 2", valueLabel: "50%+", min: 50 },
+    { blockNumber: 3, label: "Block 3", valueLabel: "75%+", min: 75 },
+    { blockNumber: 4, label: "Block 4", valueLabel: "100%", min: 100 },
+  ]);
+  expect(plannedNames(0)).toContain("Player 10");
+  expect(plannedNames(1)).not.toContain("Player 10");
+  expect(plannedNames(1)).toContain("Player 25");
+  expect(plannedNames(4)).toEqual(["Player 100"]);
+});
+
 test("Presentation Mode copies a complete custom slide to another date without changing either deck", () => {
   const sourceDeck = {
     infoSlides: [{ id: "source-slide", layout: "starting-xi", title: "Starting XI", formation: "4-3-3", lineup: { gk: "p1" } }],

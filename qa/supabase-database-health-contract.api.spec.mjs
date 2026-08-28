@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   assessResults,
   buildInspectionDbUrl,
+  classifyInspectFailure,
   commandPlan,
   countRecords,
   parseJsonOutput,
@@ -48,6 +49,14 @@ test("database health uses the IPv4-compatible session pooler without exposing r
   expect(() => buildInspectionDbUrl({ password: "secret", poolerHost: "host/invalid", projectRef: "ref" })).toThrow(
     "must be a hostname"
   );
+});
+
+test("database health diagnostics expose only a safe failure category", () => {
+  expect(classifyInspectFailure({ status: 1, stderr: "password authentication failed for user postgres" })).toBe(
+    "authentication"
+  );
+  expect(classifyInspectFailure({ status: 1, stderr: "dial tcp: network is unreachable" })).toBe("network");
+  expect(classifyInspectFailure({ status: 0, stdout: "pretty table output" })).toBe("unexpected-output");
 });
 
 test("database health workflow is scheduled, aggregate-only, and non-mutating", () => {

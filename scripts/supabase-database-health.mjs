@@ -101,6 +101,20 @@ function buildInspectionDbUrl({
   return `postgresql://${username}:${encodeURIComponent(normalizedPassword)}@${normalizedHost}:5432/postgres?sslmode=require`;
 }
 
+function classifyInspectFailure({ error, status, stderr, stdout } = {}) {
+  if (status === 0 && parseJsonOutput(stdout) === null) return "unexpected-output";
+  const message = `${error?.message || ""}\n${stderr || ""}`.toLowerCase();
+  if (/password authentication failed|authentication failed|invalid password|sasl/.test(message)) return "authentication";
+  if (/could not translate host|no such host|name or service not known|dns/.test(message)) return "dns";
+  if (/network is unreachable|no route to host|connection refused|connection timed out|timeout/.test(message)) {
+    return "network";
+  }
+  if (/certificate|ssl|tls/.test(message)) return "tls";
+  if (/prepared statement|transaction pool/.test(message)) return "pooler-mode";
+  if (/connect|connection/.test(message)) return "connection";
+  return "command-error";
+}
+
 function assessResults(results = []) {
   const failed = results.filter((result) => result.status === "failed");
   const redSignals = results.filter(
@@ -116,7 +130,9 @@ function assessResults(results = []) {
 }
 
 function interpretation(result) {
-  if (result.status === "failed") return "Collection failed; inspect credentials or connectivity.";
+  if (result.status === "failed") {
+    return `Collection failed (${result.failureReason || "unknown"}); inspect the connection path.`;
+  }
   if (result.status === "planned") return "Read-only check planned.";
   if (result.command === "blocking") return result.recordCount ? "Blocking queries need review." : "No blocking query signal.";
   if (result.command === "long-running-queries") {
@@ -170,11 +186,15 @@ function runInspectCommand({ command, dryRun = false }) {
     timeout: 120_000,
   });
   const payload = result.status === 0 ? parseJsonOutput(result.stdout) : null;
+  const completed = result.status === 0 && payload !== null;
   return {
     command,
     durationMs: Date.now() - startedAt,
+    ...(completed
+      ? {}
+      : { failureReason: classifyInspectFailure({ error: result.error, status: result.status, stderr: result.stderr, stdout: result.stdout }) }),
     recordCount: payload === null ? 0 : countRecords(payload),
-    status: result.status === 0 && payload !== null ? "completed" : "failed",
+    status: completed ? "completed" : "failed",
   };
 }
 
@@ -201,6 +221,7 @@ export {
   assessResults,
   buildInspectionDbUrl,
   buildMarkdownSummary,
+  classifyInspectFailure,
   commandPlan,
   countRecords,
   dailyCommands,

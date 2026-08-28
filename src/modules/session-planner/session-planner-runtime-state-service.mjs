@@ -97,6 +97,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
           continue;
         }
         recordDataSafetyWrite(sessionPlannerStorageKey, currentFallback.value);
+        setSaveStatus("saved", "Saved");
       } catch (error) {
         succeeded = false;
         setSaveStatus("issue", "Save failed");
@@ -188,10 +189,30 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     }
   }
 
+  function readCentralCacheFallbackState() {
+    try {
+      const cachedValue = win.footballScienceCentralState?.getCachedValue?.(sessionPlannerStorageKey);
+      if (typeof cachedValue !== "string" || !cachedValue) return null;
+      return cloneState(JSON.parse(cachedValue));
+    } catch {
+      return null;
+    }
+  }
+
   function readState() {
     try {
       const raw = win.localStorage.getItem(sessionPlannerStorageKey);
-      if (!raw) return createDefaultState();
+      if (!raw) {
+        // Local storage can be evicted for this key when the browser's
+        // storage quota is exhausted (see cacheCentralStateValue's
+        // quota-error path), even though the server copy is intact and was
+        // already loaded into the in-memory central cache during
+        // hydration. Prefer that cache over silently rendering an empty
+        // planner, which otherwise looks like saved exercises disappeared.
+        const fallbackState = readCentralCacheFallbackState();
+        if (fallbackState) return fallbackState;
+        return createDefaultState();
+      }
       const state = cloneState(JSON.parse(raw));
       if (JSON.stringify(state) !== raw) {
         persistNormalizedState(state);

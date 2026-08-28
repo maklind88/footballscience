@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
 import {
   assessResults,
   buildInspectionDbUrl,
+  classifyInspectFailure,
   commandPlan,
+  countInspectOutputRecords,
   countRecords,
   parseJsonOutput,
   supabaseCliVersion,
@@ -36,6 +38,19 @@ test("database health parser keeps only aggregate record counts", () => {
   expect(assessResults([{ command: "locks", recordCount: 1, status: "completed" }])).toBe("YELLOW");
 });
 
+test("database health parser counts Supabase CLI table output without retaining row details", () => {
+  const table = [
+    " Name | Query | Age ",
+    "------|-------|-----",
+    " first | private query | 6m ",
+    " second | another private query | 7m ",
+    "",
+  ].join("\n");
+  expect(countInspectOutputRecords(table)).toBe(2);
+  expect(countInspectOutputRecords(" Name | Query\n------|------\n")).toBe(0);
+  expect(countInspectOutputRecords("unrecognized output")).toBeNull();
+});
+
 test("database health uses the IPv4-compatible session pooler without exposing raw credentials", () => {
   const url = buildInspectionDbUrl({
     password: "secret with spaces/@",
@@ -48,6 +63,14 @@ test("database health uses the IPv4-compatible session pooler without exposing r
   expect(() => buildInspectionDbUrl({ password: "secret", poolerHost: "host/invalid", projectRef: "ref" })).toThrow(
     "must be a hostname"
   );
+});
+
+test("database health diagnostics expose only a safe failure category", () => {
+  expect(classifyInspectFailure({ status: 1, stderr: "password authentication failed for user postgres" })).toBe(
+    "authentication"
+  );
+  expect(classifyInspectFailure({ status: 1, stderr: "dial tcp: network is unreachable" })).toBe("network");
+  expect(classifyInspectFailure({ status: 0, stdout: "pretty table output" })).toBe("unexpected-output");
 });
 
 test("database health workflow is scheduled, aggregate-only, and non-mutating", () => {

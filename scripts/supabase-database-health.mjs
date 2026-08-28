@@ -82,6 +82,20 @@ function countRecords(payload) {
   return Object.keys(payload).length ? 1 : 0;
 }
 
+function countInspectOutputRecords(value = "") {
+  const parsed = parseJsonOutput(value);
+  if (parsed !== null) return countRecords(parsed);
+  const lines = String(value || "")
+    .replace(/\u001b\[[0-9;]*m/g, "")
+    .split(/\r?\n/);
+  const separatorIndex = lines.findIndex((line) => {
+    const normalized = line.trim();
+    return normalized.includes("|") && /^[\s|+-]+$/.test(normalized);
+  });
+  if (separatorIndex < 0) return null;
+  return lines.slice(separatorIndex + 1).filter((line) => line.trim() && line.includes("|")).length;
+}
+
 function buildInspectionDbUrl({
   password = process.env.SUPABASE_DB_PASSWORD,
   poolerHost = process.env.SUPABASE_DB_POOLER_HOST,
@@ -101,6 +115,20 @@ function buildInspectionDbUrl({
   return `postgresql://${username}:${encodeURIComponent(normalizedPassword)}@${normalizedHost}:5432/postgres?sslmode=require`;
 }
 
+function classifyInspectFailure({ error, status, stderr, stdout } = {}) {
+  if (status === 0 && countInspectOutputRecords(stdout) === null) return "unexpected-output";
+  const message = `${error?.message || ""}\n${stderr || ""}`.toLowerCase();
+  if (/password authentication failed|authentication failed|invalid password|sasl/.test(message)) return "authentication";
+  if (/could not translate host|no such host|name or service not known|dns/.test(message)) return "dns";
+  if (/network is unreachable|no route to host|connection refused|connection timed out|timeout/.test(message)) {
+    return "network";
+  }
+  if (/certificate|ssl|tls/.test(message)) return "tls";
+  if (/prepared statement|transaction pool/.test(message)) return "pooler-mode";
+  if (/connect|connection/.test(message)) return "connection";
+  return "command-error";
+}
+
 function assessResults(results = []) {
   const failed = results.filter((result) => result.status === "failed");
   const redSignals = results.filter(
@@ -116,7 +144,9 @@ function assessResults(results = []) {
 }
 
 function interpretation(result) {
-  if (result.status === "failed") return "Collection failed; inspect credentials or connectivity.";
+  if (result.status === "failed") {
+    return `Collection failed (${result.failureReason || "unknown"}); inspect the connection path.`;
+  }
   if (result.status === "planned") return "Read-only check planned.";
   if (result.command === "blocking") return result.recordCount ? "Blocking queries need review." : "No blocking query signal.";
   if (result.command === "long-running-queries") {
@@ -169,12 +199,16 @@ function runInspectCommand({ command, dryRun = false }) {
     maxBuffer: 8 * 1024 * 1024,
     timeout: 120_000,
   });
-  const payload = result.status === 0 ? parseJsonOutput(result.stdout) : null;
+  const recordCount = result.status === 0 ? countInspectOutputRecords(result.stdout) : null;
+  const completed = result.status === 0 && recordCount !== null;
   return {
     command,
     durationMs: Date.now() - startedAt,
-    recordCount: payload === null ? 0 : countRecords(payload),
-    status: result.status === 0 && payload !== null ? "completed" : "failed",
+    ...(completed
+      ? {}
+      : { failureReason: classifyInspectFailure({ error: result.error, status: result.status, stderr: result.stderr, stdout: result.stdout }) }),
+    recordCount: recordCount === null ? 0 : recordCount,
+    status: completed ? "completed" : "failed",
   };
 }
 
@@ -201,7 +235,9 @@ export {
   assessResults,
   buildInspectionDbUrl,
   buildMarkdownSummary,
+  classifyInspectFailure,
   commandPlan,
+  countInspectOutputRecords,
   countRecords,
   dailyCommands,
   parseArgs,

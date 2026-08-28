@@ -415,7 +415,7 @@ function runSafeSignalProbe({ dryRun = false } = {}) {
   const startedAt = Date.now();
   const result = spawnSync(
     cliPath,
-    ["db", "query", "--file", sqlPath, ...connectionArgs, "--output-format", "json"],
+    ["db", "query", "--file", sqlPath, ...connectionArgs, "--output", "json", "--agent", "no"],
     {
       cwd: rootDir,
       encoding: "utf8",

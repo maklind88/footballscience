@@ -193,7 +193,7 @@ test("database health workflow is scheduled, aggregate-only, and non-mutating", 
   expect(workflow).not.toContain("supabase link");
   expect(script).toContain('["inspect", "db", command, ...connectionArgs, "--output-format", "json"]');
   expect(script).toContain('["--db-url", dbUrl]');
-  expect(script).not.toContain('"--output", "json"');
+  expect(script).toContain('"--output", "json", "--agent", "no"');
   expect(investigationSql.trim().toLowerCase()).toMatch(/^with\s/);
   expect(investigationSql).not.toMatch(/^\s*(insert|update|delete|alter|drop|truncate|grant|revoke)\b/im);
   expect(investigationSql.match(/;/g)).toHaveLength(1);

@@ -159,10 +159,13 @@ test("database permission seed mirrors the guarded API contract", () => {
 
 test("active coach identity repair is production-targeted, role-safe, exact, and retryable", () => {
   expect(coachIdentityRepairName).toMatch(/^\d{14}_leaderboard_active_coach_identity_repair\.sql$/);
+  const coachIdentityRepairVersion = coachIdentityRepairName.match(/^(\d{14})_leaderboard_active_coach_identity_repair\.sql$/)?.[1];
   expect(coachIdentityRepair).toContain("leaderboard-live-qa-activation");
   expect(coachIdentityRepair).toContain("raw_app_meta_data ->> 'role'");
   expect(coachIdentityRepair).toContain("raw_app_meta_data ->> 'status'");
   expect(coachIdentityRepair).toContain("'roleSource', 'app_metadata'");
+  expect(coachIdentityRepairVersion).toBeTruthy();
+  expect(coachIdentityRepair).toContain(`'migration', '${coachIdentityRepairVersion}'`);
   expect(coachIdentityRepair).toContain("reviewed 7/1/6 precondition changed");
   expect(coachIdentityRepair).toContain("all seven active coaches are already canonical; no-op");
   expect(coachIdentityRepair).toContain("expected six new profiles");

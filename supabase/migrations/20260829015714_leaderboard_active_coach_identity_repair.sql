@@ -193,7 +193,7 @@ begin
       'backfillSchema', 'footballscience-platform-identity-backfill-v1',
       'source', 'leaderboard-active-coach-identity-repair',
       'roleSource', 'app_metadata',
-      'migration', '20260829014436'
+      'migration', '20260829015714'
     )
   from auth.users auth_user
   where lower(coalesce(auth_user.raw_app_meta_data ->> 'role', '')) = 'coach'
@@ -234,7 +234,7 @@ begin
       'backfillSchema', 'footballscience-platform-identity-backfill-v1',
       'source', 'leaderboard-active-coach-identity-repair',
       'roleSource', 'app_metadata',
-      'migration', '20260829014436'
+      'migration', '20260829015714'
     )
   from auth.users auth_user
   where lower(coalesce(auth_user.raw_app_meta_data ->> 'role', '')) = 'coach'

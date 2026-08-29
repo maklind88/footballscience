@@ -7,6 +7,12 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const migrationName = fs.readdirSync(path.join(rootDir, "supabase", "migrations"))
   .find((name) => name.endsWith("_leaderboard_foundation.sql"));
 const migration = fs.readFileSync(path.join(rootDir, "supabase", "migrations", migrationName), "utf8");
+const coachIdentityRepairName = fs.readdirSync(path.join(rootDir, "supabase", "migrations"))
+  .find((name) => name.endsWith("_leaderboard_active_coach_identity_repair.sql"));
+const coachIdentityRepair = fs.readFileSync(
+  path.join(rootDir, "supabase", "migrations", coachIdentityRepairName),
+  "utf8"
+);
 
 function functionSql(functionName, nextFunctionName) {
   const start = migration.indexOf(`create or replace function public.${functionName}`);
@@ -149,4 +155,18 @@ test("database permission seed mirrors the guarded API contract", () => {
   expect(migration).not.toContain("('leaderboard', 'read', array['admin','club-admin','team-admin','coach','scout','analyst','performance','medical','guest']");
   expect(migration).toContain("('leaderboard', 'write', array['admin','club-admin','team-admin','coach']");
   expect(migration).toContain("requires_team_scope");
+});
+
+test("active coach identity repair is production-targeted, role-safe, exact, and retryable", () => {
+  expect(coachIdentityRepairName).toMatch(/^\d{14}_leaderboard_active_coach_identity_repair\.sql$/);
+  expect(coachIdentityRepair).toContain("leaderboard-live-qa-activation");
+  expect(coachIdentityRepair).toContain("raw_app_meta_data ->> 'role'");
+  expect(coachIdentityRepair).toContain("raw_app_meta_data ->> 'status'");
+  expect(coachIdentityRepair).toContain("'roleSource', 'app_metadata'");
+  expect(coachIdentityRepair).toContain("reviewed 7/1/6 precondition changed");
+  expect(coachIdentityRepair).toContain("all seven active coaches are already canonical; no-op");
+  expect(coachIdentityRepair).toContain("expected six new profiles");
+  expect(coachIdentityRepair).toContain("expected six new memberships");
+  expect(coachIdentityRepair).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  expect(coachIdentityRepair).not.toContain("raw_user_meta_data ->> 'role'");
 });

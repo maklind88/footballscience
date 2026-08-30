@@ -30,7 +30,7 @@ export function trackingBenchmarkAssemblyHelp() {
     "FS Player Tracking Benchmark Assembler",
     "",
     "Usage:",
-    "  npm run fs-player:tracking:assemble -- --ground-truth <suite.json> --runs <provider-runs.json> --output <benchmark.json> [--json]",
+    "  npm --prefix desktop/local-video-app run tracking:assemble -- --ground-truth <suite.json> --runs <provider-runs.json> --output <benchmark.json> [--json]",
     "",
     "The command validates and hashes both immutable inputs before assembly.",
   ].join("\n");

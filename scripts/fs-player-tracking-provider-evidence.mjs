@@ -33,10 +33,10 @@ export function providerEvidenceHelp() {
     "FS Player Tracking Provider Evidence",
     "",
     "Create:",
-    "  npm run fs-player:tracking:provider:evidence -- --manifest <manifest.json> --report <report.json> --output <evidence.json>",
+    "  npm --prefix desktop/local-video-app run tracking:provider:evidence -- --manifest <manifest.json> --report <report.json> --output <evidence.json>",
     "",
     "Verify an approved manifest:",
-    "  npm run fs-player:tracking:provider:evidence -- --manifest <manifest.json> --report <report.json> --evidence <evidence.json>",
+    "  npm --prefix desktop/local-video-app run tracking:provider:evidence -- --manifest <manifest.json> --report <report.json> --evidence <evidence.json>",
     "",
     "The command never reads source video or writes provider approval status.",
   ].join("\n");

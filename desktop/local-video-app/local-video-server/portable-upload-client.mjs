@@ -1,6 +1,5 @@
 import { createReadStream } from "node:fs";
 import { promises as fs } from "node:fs";
-import { Upload } from "tus-js-client";
 
 const TUS_CHUNK_BYTES = 6 * 1024 * 1024;
 
@@ -11,10 +10,25 @@ function abortError() {
   return error;
 }
 
+async function resolveUploadClass(configuredUploadClass) {
+  if (configuredUploadClass) return configuredUploadClass;
+  try {
+    const module = await import("tus-js-client");
+    if (typeof module.Upload === "function") return module.Upload;
+  } catch (error) {
+    const wrapped = new Error(
+      "Portable review upload needs the FS Player desktop dependencies. Run npm --prefix desktop/local-video-app install.",
+    );
+    wrapped.cause = error;
+    throw wrapped;
+  }
+  throw new Error("The FS Player desktop upload client is unavailable.");
+}
+
 export function createPortableUploadClient(options = {}) {
-  const UploadClass = options.UploadClass || Upload;
   return {
     async upload(filePath, reservation = {}, runOptions = {}) {
+      const UploadClass = await resolveUploadClass(options.UploadClass);
       const stat = await fs.stat(filePath);
       if (!stat.isFile() || stat.size !== reservation.expectedBytes) {
         throw new Error("The rendered review no longer matches its upload reservation.");

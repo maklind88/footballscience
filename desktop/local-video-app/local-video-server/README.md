@@ -74,20 +74,20 @@ The packaged optional provider uses the official Apache-2.0 SAM 2.1 Hiera Tiny s
 Review the immutable asset plan first:
 
 ```bash
-npm run fs-player:tracking:plan
+npm --prefix desktop/local-video-app run tracking:plan
 ```
 
 Install after reviewing `tracking-providers/sam2/THIRD_PARTY_NOTICES.md`:
 
 ```bash
-npm run fs-player:tracking:install -- --accept-license
+npm --prefix desktop/local-video-app run tracking:install -- --accept-license
 ```
 
 Python 3.10, 3.11, or 3.12 is required. The installer finds a supported version without replacing the system Python. Verify the finished local installation with:
 
 ```bash
-npm run fs-player:tracking:preflight
-npm run fs-player:tracking:smoke -- --batch --json --progress
+npm --prefix desktop/local-video-app run tracking:preflight
+npm --prefix desktop/local-video-app run tracking:smoke -- --batch --json --progress
 ```
 
 Inference performs no network calls. It samples only the bounded synchronized source range, tracks forward and backward from the analyst's exact prompt frame, and returns review-state metadata with detection confidence, identity confidence, and explicit continuity breaks. The batch smoke compares one shared-state run with repeated single-target runs and returns aggregate timing and quality evidence only. Match video and dense tracking points remain on the device.
@@ -97,10 +97,10 @@ Inference performs no network calls. It samples only the bounded synchronized so
 The optional TrackEval package is a separate reference evaluator. It does not track video or approve a model by installation alone. It recomputes HOTA, CLEAR/MOTA, and Identity/IDF1 from normalized benchmark trajectories using a pinned, hash-verified upstream source and an isolated Python environment.
 
 ```bash
-npm run fs-player:tracking:trackeval:plan
-npm run fs-player:tracking:trackeval:install -- --accept-license
-npm run fs-player:tracking:trackeval:preflight
-npm run fs-player:tracking:benchmark -- --input /absolute/local/football-scene.json --trackeval
+npm --prefix desktop/local-video-app run tracking:trackeval:plan
+npm --prefix desktop/local-video-app run tracking:trackeval:install -- --accept-license
+npm --prefix desktop/local-video-app run tracking:trackeval:preflight
+npm --prefix desktop/local-video-app run tracking:benchmark -- --input /absolute/local/football-scene.json --trackeval
 ```
 
 Evaluation receives no video, image frame, source path, player identity, team identity, or shirt number. Only normalized boxes, opaque trajectory IDs, entity class, timestamps, and the source SHA-256 fingerprint enter the temporary local request; the request is deleted after the bounded evaluation process exits.

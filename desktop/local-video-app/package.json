@@ -1,0 +1,21 @@
+{
+  "name": "@football-science/fs-player-local-video",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tracking:install": "node tracking-providers/sam2/install-provider.mjs",
+    "tracking:plan": "node tracking-providers/sam2/install-provider.mjs --plan",
+    "tracking:preflight": "node tracking-providers/sam2/preflight.mjs",
+    "tracking:benchmark": "node ../../scripts/fs-player-tracking-benchmark.mjs",
+    "tracking:assemble": "node ../../scripts/fs-player-tracking-benchmark-assemble.mjs",
+    "tracking:smoke": "node ../../scripts/fs-player-tracking-engine-smoke.mjs",
+    "tracking:trackeval:plan": "node tracking-evaluators/trackeval/install-evaluator.mjs --plan",
+    "tracking:trackeval:install": "node tracking-evaluators/trackeval/install-evaluator.mjs",
+    "tracking:trackeval:preflight": "node tracking-evaluators/trackeval/preflight.mjs",
+    "tracking:provider:evidence": "node ../../scripts/fs-player-tracking-provider-evidence.mjs"
+  },
+  "dependencies": {
+    "tus-js-client": "4.3.1"
+  }
+}

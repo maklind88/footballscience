@@ -146,18 +146,18 @@ Each phase must ship behind capability checks, preserve old records, pass module
 
 ## Local Tracking Activation
 
-Automatic tracking is intentionally a device capability, not a web-deployment side effect. A workstation is ready only when `npm run fs-player:tracking:preflight` reports `ok: true`. Installation requires an explicit Apache-2.0 acknowledgement and a supported Python 3.10-3.12 runtime:
+Automatic tracking is intentionally a device capability, not a web-deployment side effect. A workstation is ready only when `npm --prefix desktop/local-video-app run tracking:preflight` reports `ok: true`. Installation requires an explicit Apache-2.0 acknowledgement and a supported Python 3.10-3.12 runtime:
 
 ```bash
-npm run fs-player:tracking:plan
-npm run fs-player:tracking:install -- --accept-license --python /path/to/python3.12
-npm run fs-player:tracking:preflight
-npm run fs-player:tracking:smoke -- --warm --json
-npm run fs-player:tracking:benchmark -- --input /absolute/local/benchmark.json
-npm run fs-player:tracking:trackeval:plan
-npm run fs-player:tracking:trackeval:install -- --accept-license --python /path/to/python3.12
-npm run fs-player:tracking:trackeval:preflight
-npm run fs-player:tracking:benchmark -- --input /absolute/local/football-scene.json --trackeval
+npm --prefix desktop/local-video-app run tracking:plan
+npm --prefix desktop/local-video-app run tracking:install -- --accept-license --python /path/to/python3.12
+npm --prefix desktop/local-video-app run tracking:preflight
+npm --prefix desktop/local-video-app run tracking:smoke -- --warm --json
+npm --prefix desktop/local-video-app run tracking:benchmark -- --input /absolute/local/benchmark.json
+npm --prefix desktop/local-video-app run tracking:trackeval:plan
+npm --prefix desktop/local-video-app run tracking:trackeval:install -- --accept-license --python /path/to/python3.12
+npm --prefix desktop/local-video-app run tracking:trackeval:preflight
+npm --prefix desktop/local-video-app run tracking:benchmark -- --input /absolute/local/football-scene.json --trackeval
 ```
 
 Until the SAM preflight succeeds, FS Player shows the provider as unavailable, keeps `Track locally` disabled, and preserves manual keyframe/correction workflows. TrackEval is a separate optional quality evaluator; its preflight is required before producing provider-approval evidence. These are operational provisioning prerequisites, not permission to upload match video or model samples.

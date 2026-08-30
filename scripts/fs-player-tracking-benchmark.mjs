@@ -36,7 +36,7 @@ export function trackingBenchmarkHelp() {
     "FS Player Tracking Benchmark",
     "",
     "Usage:",
-    "  npm run fs-player:tracking:benchmark -- --input <case-or-suite.json> [--output <report.json>] [--json] [--trackeval]",
+    "  npm --prefix desktop/local-video-app run tracking:benchmark -- --input <case-or-suite.json> [--output <report.json>] [--json] [--trackeval]",
     "",
     "Exit codes: 0 passed, 1 quality threshold failed, 2 invalid input.",
   ].join("\n");

@@ -76,16 +76,16 @@ Both profiles are explicit, calibratable pilot gates rather than universal indus
 Run one case or a suite locally:
 
 ```bash
-npm run fs-player:tracking:benchmark -- --input /absolute/local/benchmark.json
-npm run fs-player:tracking:benchmark -- --input /absolute/local/suite.json --output /absolute/local/report.json --json
-npm run fs-player:tracking:assemble -- --ground-truth /absolute/local/ground-truth-suite.json --runs /absolute/local/provider-runs.json --output /absolute/local/benchmark.json
-npm run fs-player:tracking:smoke -- --json
-npm run fs-player:tracking:smoke -- --batch --json --progress
-npm run fs-player:tracking:smoke -- --warm --json
-npm run fs-player:tracking:trackeval:plan
-npm run fs-player:tracking:trackeval:install -- --accept-license --python /absolute/path/to/python3.12
-npm run fs-player:tracking:trackeval:preflight -- --json
-npm run fs-player:tracking:benchmark -- --input /absolute/local/football-scene.json --trackeval --output /absolute/local/report.json --json
+npm --prefix desktop/local-video-app run tracking:benchmark -- --input /absolute/local/benchmark.json
+npm --prefix desktop/local-video-app run tracking:benchmark -- --input /absolute/local/suite.json --output /absolute/local/report.json --json
+npm --prefix desktop/local-video-app run tracking:assemble -- --ground-truth /absolute/local/ground-truth-suite.json --runs /absolute/local/provider-runs.json --output /absolute/local/benchmark.json
+npm --prefix desktop/local-video-app run tracking:smoke -- --json
+npm --prefix desktop/local-video-app run tracking:smoke -- --batch --json --progress
+npm --prefix desktop/local-video-app run tracking:smoke -- --warm --json
+npm --prefix desktop/local-video-app run tracking:trackeval:plan
+npm --prefix desktop/local-video-app run tracking:trackeval:install -- --accept-license --python /absolute/path/to/python3.12
+npm --prefix desktop/local-video-app run tracking:trackeval:preflight -- --json
+npm --prefix desktop/local-video-app run tracking:benchmark -- --input /absolute/local/football-scene.json --trackeval --output /absolute/local/report.json --json
 ```
 
 Exit code `0` means every active quality gate passed, `1` means valid evidence failed one or more thresholds, and `2` means the input was invalid or unsafe.
@@ -107,8 +107,8 @@ Capabilities are approved independently and the approval layer enforces policy f
 Create evidence after the real-match report passes, then verify it again after copying the generated benchmark fields into the reviewed provider manifest:
 
 ```bash
-npm run fs-player:tracking:provider:evidence -- --manifest /absolute/local/provider-manifest.json --report /absolute/local/report.json --output /absolute/local/provider-evidence.json
-npm run fs-player:tracking:provider:evidence -- --manifest /absolute/local/approved-provider-manifest.json --report /absolute/local/report.json --evidence /absolute/local/provider-evidence.json
+npm --prefix desktop/local-video-app run tracking:provider:evidence -- --manifest /absolute/local/provider-manifest.json --report /absolute/local/report.json --output /absolute/local/provider-evidence.json
+npm --prefix desktop/local-video-app run tracking:provider:evidence -- --manifest /absolute/local/approved-provider-manifest.json --report /absolute/local/report.json --evidence /absolute/local/provider-evidence.json
 ```
 
 The command never changes approval status. Licence, model-data provenance, and redistribution review remain explicit human decisions.

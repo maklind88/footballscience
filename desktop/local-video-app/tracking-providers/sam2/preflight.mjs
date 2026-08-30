@@ -15,7 +15,7 @@ export async function preflightSam2Provider(options = {}) {
       provider: manifest.displayName,
       installDir: sam2ProviderInstallDir({ manifest, env: options.env || process.env }),
       python: python?.version || "Python 3.10-3.12 required",
-      action: "npm run fs-player:tracking:install -- --accept-license",
+      action: "npm --prefix desktop/local-video-app run tracking:install -- --accept-license",
     };
   }
   const result = await runCapture(installed.command, [

@@ -16,9 +16,9 @@ The server validates origin and expiring session capabilities, bounds jobs and r
 See `local-video-server/README.md` for the security model and server command. Tracking provider setup is available through:
 
 ```bash
-npm run fs-player:tracking:plan
-npm run fs-player:tracking:install -- --accept-license
-npm run fs-player:tracking:preflight
+npm --prefix desktop/local-video-app run tracking:plan
+npm --prefix desktop/local-video-app run tracking:install -- --accept-license
+npm --prefix desktop/local-video-app run tracking:preflight
 ```
 
 The web release does not install model weights or accept the provider license on the analyst's behalf. FS Player checks the companion capability when Auto follow opens and enables `Track locally` only after preflight is ready; manual keyframes and corrections remain available otherwise.

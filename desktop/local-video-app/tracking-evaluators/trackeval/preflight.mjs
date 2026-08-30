@@ -23,7 +23,7 @@ export async function preflightTrackEval(options = {}) {
       evaluator: manifest.displayName,
       installDir: trackEvalInstallDir({ manifest, env: options.env || process.env }),
       python: python?.version || "Python 3.10-3.12 required",
-      action: "npm run fs-player:tracking:trackeval:install -- --accept-license",
+      action: "npm --prefix desktop/local-video-app run tracking:trackeval:install -- --accept-license",
     };
   }
   const result = await runCapture(installed.command, [...installed.args, "--preflight", "--json"], {

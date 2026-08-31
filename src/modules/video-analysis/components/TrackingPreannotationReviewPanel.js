@@ -3,6 +3,7 @@ import {
   TRACKING_PREANNOTATION_REVIEW_BATCH_SIZES,
   TRACKING_PREANNOTATION_REVIEW_SCOPES,
 } from "../services/trackingPreannotationReviewPriorityService.js";
+import { trackingPreannotationReviewPersistence } from "../services/trackingPreannotationReviewPersistenceService.js";
 
 const labels = Object.freeze({
   idle: "Not opened",
@@ -89,6 +90,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
   const active = ["loading", "saving"].includes(review.status);
   const hasWorkspace = Boolean(review.workspaceSha256);
   const current = review.current || null;
+  const persistence = trackingPreannotationReviewPersistence(review);
   const pendingSuggestion = current && !current.savedForCorrection;
   const canSave = Number(review.acceptedCount) > 0 && !active;
   const canOpenNextBatch = hasWorkspace && !current && Number(review.scopePendingCount) > 0 && !active;
@@ -102,7 +104,8 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
   )).length;
   const canPrepareGroundTruth = activeCampaignCase?.complete
     && activeCampaignCase.reviewEffortCoverage === "complete"
-    && Number(activeCampaignCase.savedCount) > 0 && unresolvedRoleCount === 0 && !active;
+    && Number(activeCampaignCase.savedCount) > 0 && unresolvedRoleCount === 0
+    && persistence.ready && !active;
   return `
     <section class="video-analysis-preannotation" aria-label="Preannotation review queue">
       <header>
@@ -161,6 +164,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
         <button type="button" data-video-analysis-tracking-action="preannotation-undo" aria-keyshortcuts="U" title="Undo decision (U)" ${!hasWorkspace || active ? "disabled" : ""}>Undo</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-save-current" aria-keyshortcuts="C" title="Save and correct suggestion (C)" ${!pendingSuggestion || active ? "disabled" : ""}>Save &amp; correct</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-save" aria-keyshortcuts="S" title="Save accepted suggestions (S)" ${canSave ? "" : "disabled"}>Save accepted</button>
+        ${persistence.retryable ? '<button type="button" data-video-analysis-tracking-action="preannotation-save-progress">Retry progress save</button>' : ""}
         <button type="button" data-video-analysis-tracking-action="ground-truth-use-preannotation-case" ${canPrepareGroundTruth ? "" : "disabled"}>Use in ground truth</button>
       </div>
     </section>

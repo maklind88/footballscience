@@ -12,6 +12,7 @@ import {
   trackingGroundTruthSceneReviewProgress,
   trackingGroundTruthSceneReviewTimes,
 } from "./trackingGroundTruthSceneReviewService.js";
+import { trackingPreannotationReviewPersistence } from "./trackingPreannotationReviewPersistenceService.js";
 
 const fingerprintPattern = /^[a-f0-9]{64}$/i;
 
@@ -110,6 +111,7 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
   const suite = trackingGroundTruthSuiteEntry(workspace);
   const suiteReadiness = groundTruthSuiteReadiness(suite);
   const review = tracking.preannotationReview || {};
+  const persistence = trackingPreannotationReviewPersistence(review);
   const campaignCase = review.campaign?.cases?.find((entry) => entry.caseId === review.caseId);
   const campaignCases = campaignReviewCases(review, suite);
   const tracks = (item?.objectTracks || []).map(normalizeObjectTrack).filter((track) => (
@@ -120,7 +122,7 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
     && Number(truth.frame?.width) > 0
     && Number(truth.frame?.height) > 0;
   const workspaceReady = Boolean(review.workspaceSha256);
-  const campaignDecisionsComplete = Boolean(
+  const campaignDecisionsResolved = Boolean(
     campaignCase?.complete
     && campaignCase.reviewEffortCoverage === "complete"
     && Number(campaignCase.savedCount) > 0,
@@ -131,7 +133,8 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
     && track.metadata?.preannotationCaseId === review.caseId
     && ["person", "unknown"].includes(track.entityType)
   ));
-  const decisionsComplete = campaignDecisionsComplete && unresolvedRoles.length === 0;
+  const campaignDecisionsComplete = campaignDecisionsResolved && (persistence.ready || locked);
+  const decisionsComplete = locked || (campaignDecisionsComplete && unresolvedRoles.length === 0);
   const referencePrepared = Boolean(truth.workloadEvidence && (truth.selectedTrackIds || []).length);
   const scene = trackingGroundTruthSceneReviewProgress(truth.sceneReview, truth);
   const sceneComplete = locked || scene.complete;
@@ -152,6 +155,8 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
     stage("decisions", "Decisions", decisionsComplete ? "complete" : workspaceReady ? "active" : "pending",
       decisionsComplete
         ? `${campaignCase.savedCount} saved tracks`
+        : campaignDecisionsResolved && !persistence.ready
+          ? persistence.message
         : unresolvedRoles.length
           ? `${unresolvedRoles.length} saved roles unresolved`
           : workspaceReady ? `${Number(review.pendingCount) || 0} suggestions pending` : "Waiting for workspace"),
@@ -175,7 +180,15 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
       actions: [action("preannotation-open", "Open workspace")],
     };
   } else if (workspaceReady && !decisionsComplete) {
-    next = campaignDecisionsComplete && unresolvedRoles.length ? {
+    next = campaignDecisionsResolved && !persistence.ready ? {
+      title: persistence.status === "session-only" ? "Protect review progress" : "Secure campaign checkpoint",
+      detail: persistence.message,
+      actions: persistence.retryable
+        ? [action("preannotation-save-progress", "Retry protected save")]
+        : persistence.status === "session-only"
+          ? [action("preannotation-open", "Reopen workspace")]
+          : [],
+    } : campaignDecisionsComplete && unresolvedRoles.length ? {
       title: "Classify saved person roles",
       detail: `${unresolvedRoles.length} saved track${unresolvedRoles.length === 1 ? "" : "s"} must become player or referee before ground truth.`,
       actions: [{ label: "Review first role", trackId: unresolvedRoles[0].id }],

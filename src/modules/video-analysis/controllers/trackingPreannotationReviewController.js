@@ -458,6 +458,12 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (action === "preannotation-undo") return undo();
     if (action === "preannotation-save-current") { void saveCurrentForCorrection(); return true; }
     if (action === "preannotation-save") { void saveAccepted(); return true; }
+    if (action === "preannotation-save-progress") {
+      if (!sync() || !session) return false;
+      const review = reviewState(getState().presentation?.tracking?.preannotationReview);
+      if (review.draftStatus !== "error" && review.campaign?.status !== "error") return false;
+      void saveDraftProgress(); return true;
+    }
     return false;
   }
 

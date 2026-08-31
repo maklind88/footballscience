@@ -65,6 +65,7 @@ function state(overrides = {}) {
       tracking: {
         preannotationReview: {
           status: "complete",
+          draftStatus: "ready",
           caseId: "transition",
           workspaceSha256,
           pendingCount: 0,
@@ -72,6 +73,7 @@ function state(overrides = {}) {
           rejectedCount: 0,
           savedCount: 2,
           campaign: {
+            status: "ready",
             workspaceSha256,
             packId: "real-match-pack",
             cases: [{
@@ -168,6 +170,38 @@ test("completed preannotation selects only exact saved case tracks for full-scen
   expect(invalidated).toBe(1);
 });
 
+test("preannotation persistence distinguishes durable, retryable, and session-only evidence", async () => {
+  const { trackingPreannotationReviewPersistence } = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingPreannotationReviewPersistenceService.js",
+  ));
+  expect(trackingPreannotationReviewPersistence({
+    workspaceSha256,
+    draftStatus: "restored",
+    campaign: { status: "ready" },
+  })).toMatchObject({ status: "ready", ready: true, retryable: false });
+  expect(trackingPreannotationReviewPersistence({
+    workspaceSha256,
+    draftStatus: "error",
+    draftError: "Disk unavailable.",
+    campaign: { status: "error" },
+  })).toMatchObject({
+    status: "error",
+    ready: false,
+    retryable: true,
+    message: expect.stringMatching(/disk unavailable/i),
+  });
+  expect(trackingPreannotationReviewPersistence({
+    workspaceSha256,
+    draftStatus: "session-only",
+    campaign: { status: "session-only" },
+  })).toMatchObject({
+    status: "session-only",
+    ready: false,
+    retryable: false,
+    message: expect.stringMatching(/sign in and reopen/i),
+  });
+});
+
 test("preannotation bridge refuses incomplete, selected-object, and locked review state", async () => {
   const service = await import(moduleUrl(
     "src/modules/video-analysis/controllers/trackingGroundTruthPreannotationBridgeController.js",
@@ -176,6 +210,7 @@ test("preannotation bridge refuses incomplete, selected-object, and locked revie
     [state({ review: { pendingCount: 1 } }), /finish and save every/i],
     [state({ review: {
       campaign: {
+        status: "ready",
         workspaceSha256,
         packId: "real-match-pack",
         cases: [{
@@ -205,6 +240,22 @@ test("preannotation bridge refuses incomplete, selected-object, and locked revie
     } }), /coverage must be complete/i],
     [state({ benchmarkType: "selected-object" }), /choose full scene/i],
     [state({ truthStatus: "locked" }), /start a new draft/i],
+    [state({ review: { draftStatus: "session-only", campaign: {
+      status: "session-only",
+      workspaceSha256,
+      packId: "real-match-pack",
+      cases: [{
+        caseId: "transition",
+        totalSuggestionCount: 2,
+        pendingCount: 0,
+        acceptedCount: 0,
+        rejectedCount: 0,
+        savedCount: 2,
+        reviewEffortCoverage: "complete",
+        complete: true,
+      }],
+    } } }), /sign in and reopen/i],
+    [state({ review: { draftStatus: "error", draftError: "Disk unavailable." } }), /could not be protected.*disk unavailable/i],
   ]) {
     let current = initial;
     const controller = service.createTrackingGroundTruthPreannotationBridgeController({

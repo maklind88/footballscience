@@ -517,6 +517,104 @@ test("preannotation review restores, serializes, and removes exact local decisio
   });
 });
 
+test("preannotation review retries a failed protected progress checkpoint", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingPreannotationReviewController.js",
+  ));
+  let state = initialState();
+  let failDraftSave = true;
+  let campaignWrites = 0;
+  const draftScope = {
+    organizationId: "org-review",
+    teamId: "team-review",
+    userId: "analyst-review",
+    matchId: "match-review",
+    clipId: "clip-1",
+  };
+  const suggestion = track("associated-player", "player", 1000, 0.8, "associated");
+  const controller = service.createTrackingPreannotationReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getWindow: () => ({ crypto: globalThis.crypto }),
+    getDraftScope: () => draftScope,
+    pickFiles: async () => ({ caseId: "transition" }),
+    importCase: async () => ({
+      workspaceSha256: "b".repeat(64),
+      sourceSha256: "a".repeat(64),
+      caseId: "transition",
+      tracks: [suggestion],
+      queue: [],
+      summary: { associatedTrackCount: 1, unassociatedObservationCount: 0 },
+      campaign: {
+        workspaceSha256: "b".repeat(64),
+        packId: "real-match-pack",
+        caseCount: 1,
+        totalSuggestionCount: 1,
+        cases: [{
+          caseId: "transition",
+          totalSuggestionCount: 1,
+          associatedTrackCount: 1,
+          unassociatedObservationCount: 0,
+          missingSuggestedEntityTypes: [],
+        }],
+      },
+    }),
+    loadDraft: async () => null,
+    saveDraft: async (_scope, value) => {
+      if (failDraftSave) throw new Error("Disk unavailable.");
+      return value;
+    },
+    removeDraft: async () => true,
+    loadCampaignCases: async () => [],
+    saveCampaignCase: async (_scope, value) => {
+      campaignWrites += 1;
+      return { ...structuredClone(value), updatedAt: "2026-08-31T15:00:00.000Z" };
+    },
+  });
+
+  expect(await controller.open()).toBe(true);
+  expect(controller.handleAction("preannotation-reject")).toBe(true);
+  expect(await controller.flushDraft()).toBe(false);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    draftStatus: "error",
+    draftError: "Disk unavailable.",
+    campaign: { status: "error" },
+  });
+  failDraftSave = false;
+  expect(controller.handleAction("preannotation-save-progress")).toBe(true);
+  expect(await controller.flushDraft()).toBe(true);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    draftStatus: "ready",
+    draftError: "",
+    campaign: { status: "ready", completeCaseCount: 1 },
+  });
+  expect(campaignWrites).toBe(2);
+  expect(controller.handleAction("preannotation-save-progress")).toBe(false);
+  state = {
+    ...state,
+    mediaProduction: {
+      ...state.mediaProduction,
+      proxy: { byAngleId: { primary: { result: { sourceSha256: "c".repeat(64) } } } },
+    },
+    presentation: {
+      ...state.presentation,
+      tracking: {
+        ...state.presentation.tracking,
+        preannotationReview: {
+          ...state.presentation.tracking.preannotationReview,
+          draftStatus: "error",
+          campaign: {
+            ...state.presentation.tracking.preannotationReview.campaign,
+            status: "error",
+          },
+        },
+      },
+    },
+  };
+  expect(controller.handleAction("preannotation-save-progress")).toBe(false);
+  expect(campaignWrites).toBe(2);
+});
+
 test("preannotation review restores and advances source-bound campaign progress", async () => {
   const service = await import(moduleUrl(
     "src/modules/video-analysis/controllers/trackingPreannotationReviewController.js",

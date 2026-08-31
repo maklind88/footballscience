@@ -119,6 +119,42 @@ test("review studio keeps accept and reject decisions explicit", async () => {
   expect(html).toContain("0/5 refs");
 });
 
+test("review studio blocks reference preparation until campaign progress is durable", async () => {
+  const component = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingGroundTruthReviewStudio.js",
+  ));
+  const html = component.renderTrackingGroundTruthReviewStudio(state({
+    groundTruth: {
+      suite: { benchmarkType: "multi-object", cases: [] },
+      byItemId: { "item-1": truth() },
+    },
+    preannotationReview: {
+      status: "complete",
+      draftStatus: "error",
+      draftError: "Disk unavailable.",
+      workspaceSha256: "b".repeat(64),
+      caseId: "fast-transition",
+      campaign: {
+        status: "error",
+        error: "Campaign write failed.",
+        caseCount: 5,
+        completeCaseCount: 1,
+        cases: [{
+          caseId: "fast-transition",
+          complete: true,
+          reviewEffortCoverage: "complete",
+          savedCount: 8,
+        }],
+      },
+    },
+  }), { id: "item-1", objectTracks: [] });
+
+  expect(html).toContain("Secure campaign checkpoint");
+  expect(html).toContain("Disk unavailable.");
+  expect(html).toContain('data-video-analysis-tracking-action="preannotation-save-progress"');
+  expect(html).not.toContain('data-video-analysis-tracking-action="ground-truth-use-preannotation-case"');
+});
+
 test("review studio routes the analyst to the first known checkpoint issue", async () => {
   const component = await import(moduleUrl(
     "src/modules/video-analysis/components/TrackingGroundTruthReviewStudio.js",
@@ -137,9 +173,11 @@ test("review studio routes the analyst to the first known checkpoint issue", asy
     },
     preannotationReview: {
       status: "complete",
+      draftStatus: "ready",
       workspaceSha256: "b".repeat(64),
       caseId: "attacking-third",
       campaign: {
+        status: "ready",
         caseCount: 5,
         completeCaseCount: 1,
         cases: [{
@@ -177,9 +215,11 @@ test("review studio exposes bounded motion context before checkpoint confirmatio
     },
     preannotationReview: {
       status: "complete",
+      draftStatus: "ready",
       workspaceSha256: "b".repeat(64),
       caseId: "attacking-third",
       campaign: {
+        status: "ready",
         caseCount: 5,
         completeCaseCount: 1,
         cases: [{
@@ -222,9 +262,11 @@ test("review studio routes unresolved person roles back to explicit classificati
     },
     preannotationReview: {
       status: "complete",
+      draftStatus: "ready",
       workspaceSha256: "b".repeat(64),
       caseId: "attacking-third",
       campaign: {
+        status: "ready",
         caseCount: 5,
         completeCaseCount: 1,
         cases: [{
@@ -265,9 +307,11 @@ test("review studio separates decision completion from locked Match 11 reference
     },
     preannotationReview: {
       status: "complete",
+      draftStatus: "ready",
       workspaceSha256: "b".repeat(64),
       caseId: "attacking-third",
       campaign: {
+        status: "ready",
         caseCount: 2,
         completeCaseCount: 1,
         cases: [{
@@ -348,6 +392,7 @@ test("review studio accepts the real normalized campaign coverage contract", asy
     },
     preannotationReview: {
       status: "complete",
+      draftStatus: "ready",
       workspaceSha256: "b".repeat(64),
       caseId: "attacking-third",
       campaign,

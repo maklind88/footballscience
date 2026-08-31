@@ -5,6 +5,7 @@ import {
 } from "../services/trackingGroundTruthService.js";
 import { trackingGroundTruthSuiteEntry } from "../services/trackingGroundTruthSuiteService.js";
 import { createTrackingGroundTruthSceneReview } from "../services/trackingGroundTruthSceneReviewService.js";
+import { trackingPreannotationReviewPersistence } from "../services/trackingPreannotationReviewPersistenceService.js";
 import { createTrackingReviewWorkloadEvidence } from "../services/trackingReviewWorkloadEvidenceService.js";
 import { patchTrackingState, selectedTrackingItem } from "./trackingControllerHelpers.js";
 
@@ -56,6 +57,7 @@ export function createTrackingGroundTruthPreannotationBridgeController(options =
     const tracking = state.presentation?.tracking || {};
     const review = tracking.preannotationReview || {};
     const campaignCase = review.campaign?.cases?.find((entry) => entry.caseId === review.caseId);
+    const persistence = trackingPreannotationReviewPersistence(review);
     const suite = trackingGroundTruthSuiteEntry(tracking.groundTruth || {});
     const truth = trackingGroundTruthEntry(tracking.groundTruth || {}, item.id);
     if (suite.benchmarkType !== TRACKING_BENCHMARK_TYPE_MULTI_OBJECT) {
@@ -64,6 +66,7 @@ export function createTrackingGroundTruthPreannotationBridgeController(options =
     if (truth.status === "locked") {
       return fail(item.id, "Start a new draft before replacing the locked reference selection.");
     }
+    if (!persistence.ready) return fail(item.id, persistence.message);
     const counts = ["pendingCount", "acceptedCount", "rejectedCount", "savedCount"]
       .map((key) => Math.max(0, Number(review[key]) || 0));
     const campaignCountsMatch = campaignCase

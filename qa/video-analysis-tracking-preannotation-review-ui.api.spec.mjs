@@ -162,6 +162,7 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
       tracking: {
         preannotationReview: {
           status: "complete",
+          draftStatus: "ready",
           caseId: "attacking-third",
           workspaceSha256: "a".repeat(64),
           pendingCount: 0,
@@ -190,6 +191,15 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   };
   const completeHtml = component.renderTrackingPreannotationReviewPanel(completeState, { id: "item-1" });
   expect(completeHtml).toMatch(/ground-truth-use-preannotation-case" >Use in ground truth/);
+  completeState.presentation.tracking.preannotationReview.draftStatus = "error";
+  completeState.presentation.tracking.preannotationReview.draftError = "Disk unavailable.";
+  completeState.presentation.tracking.preannotationReview.campaign.status = "error";
+  const failedSaveHtml = component.renderTrackingPreannotationReviewPanel(completeState, { id: "item-1" });
+  expect(failedSaveHtml).toContain('data-video-analysis-tracking-action="preannotation-save-progress"');
+  expect(failedSaveHtml).toMatch(/ground-truth-use-preannotation-case" disabled>Use in ground truth/);
+  completeState.presentation.tracking.preannotationReview.draftStatus = "ready";
+  completeState.presentation.tracking.preannotationReview.draftError = "";
+  completeState.presentation.tracking.preannotationReview.campaign.status = "ready";
   completeState.presentation.tracking.preannotationReview.campaign.cases[0].reviewEffortCoverage = "partial";
   const partialEffortHtml = component.renderTrackingPreannotationReviewPanel(completeState, { id: "item-1" });
   expect(partialEffortHtml).toMatch(/ground-truth-use-preannotation-case" disabled>Use in ground truth/);

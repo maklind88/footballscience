@@ -1829,6 +1829,7 @@ function cloneScoutingReportsState(reports = []) {
 
 const scoutingDurableStateStorageKey = "football-scouting-durable-state-v1";
 let scoutingDurableHydrating = false;
+const scoutingDurableHydrationCache = new WeakMap();
 
 function getScoutingDurableScopeKey() {
   const context = activeContext || {};
@@ -1840,10 +1841,20 @@ function getScoutingDurableScopeKey() {
   return normalizeScoutingText(team, 80).toLowerCase();
 }
 
-function readScoutingDurableStateStore() {
+function readScoutingDurableStateRaw() {
+  if (!window.localStorage) return "";
+  try {
+    return window.localStorage.getItem(scoutingDurableStateStorageKey) || "{}";
+  } catch (error) {
+    return "";
+  }
+}
+
+function readScoutingDurableStateStore(rawValue = null) {
   if (!window.localStorage) return {};
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(scoutingDurableStateStorageKey) || "{}");
+    const raw = typeof rawValue === "string" ? rawValue : readScoutingDurableStateRaw();
+    const parsed = JSON.parse(raw || "{}");
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch (error) {
     return {};
@@ -1851,11 +1862,14 @@ function readScoutingDurableStateStore() {
 }
 
 function writeScoutingDurableStateStore(store) {
-  if (!window.localStorage) return;
+  if (!window.localStorage) return null;
   try {
-    window.localStorage.setItem(scoutingDurableStateStorageKey, JSON.stringify(store || {}));
+    const serialized = JSON.stringify(store || {});
+    window.localStorage.setItem(scoutingDurableStateStorageKey, serialized);
+    return serialized;
   } catch (error) {
     // Local storage can fail in private mode. The central write still runs.
+    return null;
   }
 }
 
@@ -1901,10 +1915,16 @@ function normalizeScoutingDurableStateSlice(state = {}) {
 
 function hydrateScoutingDurableState(state) {
   if (!state || scoutingDurableHydrating) return state;
+  const scopeKey = getScoutingDurableScopeKey();
+  const storageRaw = readScoutingDurableStateRaw();
+  const cachedHydration = scoutingDurableHydrationCache.get(state);
+  if (cachedHydration?.scopeKey === scopeKey && cachedHydration.storageRaw === storageRaw) {
+    return state;
+  }
   scoutingDurableHydrating = true;
   try {
-    const store = readScoutingDurableStateStore();
-    const durable = normalizeScoutingDurableStateSlice(store[getScoutingDurableScopeKey()] || {});
+    const store = readScoutingDurableStateStore(storageRaw);
+    const durable = normalizeScoutingDurableStateSlice(store[scopeKey] || {});
 
     state.savedViews = mergeScoutingItemsById(
       Array.isArray(state.savedViews) ? state.savedViews : [],
@@ -1963,6 +1983,7 @@ function hydrateScoutingDurableState(state) {
       ...(durable.playerSnapshots || {}),
       ...(state.playerSnapshots && typeof state.playerSnapshots === "object" ? state.playerSnapshots : {}),
     };
+    scoutingDurableHydrationCache.set(state, { scopeKey, storageRaw });
   } finally {
     scoutingDurableHydrating = false;
   }
@@ -1971,9 +1992,13 @@ function hydrateScoutingDurableState(state) {
 
 function persistScoutingDurableState(state) {
   if (!state || scoutingDurableHydrating) return;
+  const scopeKey = getScoutingDurableScopeKey();
   const store = readScoutingDurableStateStore();
-  store[getScoutingDurableScopeKey()] = normalizeScoutingDurableStateSlice(state);
-  writeScoutingDurableStateStore(store);
+  store[scopeKey] = normalizeScoutingDurableStateSlice(state);
+  const storageRaw = writeScoutingDurableStateStore(store);
+  if (typeof storageRaw === "string") {
+    scoutingDurableHydrationCache.set(state, { scopeKey, storageRaw });
+  }
 }
 function normalizeScoutingDatabaseFilters(filters = {}) {
   const minMinutes = Number(filters.minMinutes);
@@ -12095,6 +12120,13 @@ function renderScoutingProfileModal(options = {}) {
   const activeProfileTab = normalizeScoutingProfileTab(state.profileTab);
   const lightweightOverview = options.lightweightOverview === true && activeProfileTab === "overview";
   if (lightweightOverview) {
+    const canEdit = canEditScoutingWorkspace();
+    const favorite = isScoutingRecordFavorited(recordId);
+    const shadowRoles = scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, state).includes(recordId));
+    const targetSlotId = getSelectedScoutingShadowSlotId(state) || scoutingShadowSlots[0]?.id || "";
+    const slotOptions = scoutingShadowSlots
+      .map((slot) => `<option value="${escapeHtml(slot.id)}" ${targetSlotId === slot.id ? "selected" : ""}>${escapeHtml(slot.label)} - ${escapeHtml(slot.position)}</option>`)
+      .join("");
     return `
       <div class="scouting-profile-backdrop" data-close-scouting-profile>
         <article class="scouting-profile-modal" data-scouting-profile-modal role="dialog" aria-modal="true" aria-labelledby="scouting-profile-dialog-title" tabindex="-1" aria-busy="true">
@@ -12103,7 +12135,20 @@ function renderScoutingProfileModal(options = {}) {
           </button>
           <header class="scouting-profile-head">
             <div class="scouting-profile-identity">
-              <h2 id="scouting-profile-dialog-title">${escapeHtml(getScoutingRecordName(record))}</h2>
+              <h2 id="scouting-profile-dialog-title">
+                <span>${escapeHtml(getScoutingRecordName(record))}</span>
+                <button
+                  type="button"
+                  class="scouting-profile-favorite-star${favorite ? " is-active" : ""}"
+                  data-toggle-scouting-favorite="${escapeHtml(recordId)}"
+                  aria-label="${favorite ? "Remove favorite" : "Add favorite"}"
+                  aria-pressed="${favorite ? "true" : "false"}"
+                  ${canEdit ? "" : "disabled"}
+                >
+                  <span aria-hidden="true">★</span>
+                  <span class="scouting-sr-only">${favorite ? "Favorited" : "Favorite"}</span>
+                </button>
+              </h2>
               <div class="scouting-profile-identity-meta">
                 <span><strong>Position</strong>${escapeHtml(getScoutingRecordPosition(record) || "Unknown")}</span>
                 <span><strong>Club</strong>${escapeHtml(getScoutingRecordTeam(record) || "Unknown club")}</span>
@@ -12112,10 +12157,36 @@ function renderScoutingProfileModal(options = {}) {
           </header>
           <div class="scouting-profile-tabs-row">
             ${renderScoutingProfileTabs(activeProfileTab)}
+            <div class="scouting-profile-tabs-actions">
+              <span class="scouting-profile-shadow-count">
+                <strong data-scouting-profile-role-stack>${escapeHtml(String(shadowRoles.length))}</strong>
+                <em data-scouting-profile-role-stack-label>Shadow XI</em>
+              </span>
+              <details class="scouting-profile-action-menu">
+                <summary>Player actions</summary>
+                <div class="scouting-profile-action-menu-panel">
+                  <section>
+                    <p class="placeholder-tag">Shadow XI</p>
+                    <div class="scouting-profile-action-grid">
+                      <label>
+                        <span>Shadow slot</span>
+                        <select data-scouting-profile-slot ${canEdit ? "" : "disabled"}>${slotOptions}</select>
+                      </label>
+                      <button type="button" class="scouting-primary-button" data-add-scouting-record-to-shadow="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>Add to wishlist</button>
+                    </div>
+                  </section>
+                </div>
+              </details>
+            </div>
           </div>
           ${renderScoutingProfileTabPanel({
             activeTab: activeProfileTab,
-            content: `<section class="scouting-load-panel" aria-live="polite"><h2>Loading player profile...</h2></section>`,
+            content: `
+              <section class="scouting-profile-role-spider-grid" aria-live="polite">
+                <div class="scouting-radar-head"><h3>Loading player analysis...</h3></div>
+                <div class="scouting-profile-spider-context"><span>Preparing role profile</span></div>
+              </section>
+            `,
           })}
         </article>
       </div>
@@ -12507,7 +12578,9 @@ function scheduleScoutingTabSurfaceRender(callback) {
   }
   win.requestAnimationFrame(() => {
     win.requestAnimationFrame(() => {
-      win.setTimeout(run, 0);
+      win.requestAnimationFrame(() => {
+        win.setTimeout(run, 0);
+      });
     });
   });
   return true;
@@ -13110,6 +13183,7 @@ function getScoutingShadowXiActions() {
   scoutingShadowXiActions = createScoutingShadowXiActions({
     canEdit: canEditScoutingWorkspace,
     ensureState: ensureScoutingState,
+    getCurrentState: () => activeContext.ensureState(),
     getFirstShadowSlot: () => scoutingShadowSlots[0] || null,
     getPreferredSlotId: () => preferredScoutingShadowSlotId,
     getRecordAge: getScoutingRecordAge,
@@ -13129,7 +13203,7 @@ function getScoutingShadowXiActions() {
     refreshWorkspaceAfterShadowMutation: refreshScoutingWorkspaceAfterShadowMutation,
     rememberRecordSnapshot: rememberScoutingRecordSnapshot,
     renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
-    setActiveTab: setScoutingActiveTab,
+    setActiveTab: (tabId, options = {}) => scoutingTabController.setActiveTab(tabId, { ...options, deferStateWrite: true }),
     setPreferredSlotId: (slotId) => {
       preferredScoutingShadowSlotId = slotId || "";
     },

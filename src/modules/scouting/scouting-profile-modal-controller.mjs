@@ -96,7 +96,7 @@ export function createScoutingProfileModalController(deps = {}) {
       }
       deps.writeState?.({ syncCentral: false });
       deps.queueProfileHydration?.(targetId);
-    }, 500) || 0;
+    }, 700) || 0;
     return postOpenTimer;
   }
 

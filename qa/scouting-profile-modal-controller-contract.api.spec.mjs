@@ -96,7 +96,7 @@ test("Scouting profile modal controller opens records with reset profile state a
     ["focus-without-scroll"],
     ["clear-timeout", 0],
     ["set-timeout", 20, 40],
-    ["set-timeout", 21, 500],
+    ["set-timeout", 21, 700],
   ]);
 
   harness.documentRef.activeElement = {};

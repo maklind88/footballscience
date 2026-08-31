@@ -31,6 +31,7 @@ function createHarness(overrides = {}) {
   ]);
   const calls = {
     activeRefreshes: [],
+    ensureState: 0,
     perf: [],
     refreshes: [],
     snapshots: [],
@@ -39,7 +40,11 @@ function createHarness(overrides = {}) {
   let preferredSlotId = overrides.preferredSlotId || "";
   const deps = {
     canEdit: () => overrides.canEdit ?? true,
-    ensureState: () => state,
+    ensureState: () => {
+      calls.ensureState += 1;
+      return state;
+    },
+    getCurrentState: () => state,
     getFirstShadowSlot: () => slots[0],
     getPreferredSlotId: () => preferredSlotId,
     getRecordAge: (record) => Number(record?.age),
@@ -61,7 +66,7 @@ function createHarness(overrides = {}) {
     rememberRecordSnapshot: (record, currentState, options) => calls.snapshots.push({ record, currentState, options }),
     renderActiveTabSurfaceOrWorkspace: (options) => calls.activeRefreshes.push(options),
     setActiveTab: overrides.setActiveTab
-      ? (tabId) => overrides.setActiveTab(tabId, state, calls)
+      ? (tabId, options) => overrides.setActiveTab(tabId, options, state, calls)
       : undefined,
     setPreferredSlotId: (slotId) => {
       preferredSlotId = slotId || "";
@@ -147,7 +152,8 @@ test("Scouting Shadow XI actions select and clear slot focus", () => {
 
 test("Scouting Shadow XI slot navigation uses the shared deferred tab controller", () => {
   const harness = createHarness({
-    setActiveTab: (tabId, state, calls) => {
+    setActiveTab: (tabId, options, state, calls) => {
+      expect(options.state).toBe(state);
       state.activeTab = tabId;
       calls.activeRefreshes.push({ deferredTab: tabId });
     },
@@ -160,6 +166,7 @@ test("Scouting Shadow XI slot navigation uses the shared deferred tab controller
   expect(harness.state.activeTab).toBe("database");
   expect(harness.calls.activeRefreshes).toEqual([{ deferredTab: "database" }]);
   expect(harness.calls.writes).toEqual([]);
+  expect(harness.calls.ensureState).toBe(0);
 });
 
 test("Scouting Shadow XI actions save formation, pitch position, and record meta", () => {

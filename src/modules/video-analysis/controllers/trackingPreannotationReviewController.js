@@ -13,6 +13,7 @@ import {
   currentTrackingPreannotationReview as currentReview,
   normalizeTrackingPreannotationReviewState as reviewState,
   previewTrackingPreannotationTrack as previewTrack,
+  replaceTrackingPreannotationReviewTracks as replaceReviewTracks,
   selectTrackingPreannotationReviewFiles,
   summarizeTrackingPreannotationReviewSession,
   TRACKING_PREANNOTATION_SHORTCUT_ACTIONS,
@@ -25,9 +26,7 @@ import {
 import { createTrackingPreannotationCampaignController } from "./trackingPreannotationCampaignController.js";
 import {
   patchTrackingState,
-  replacePresentationItem,
   selectedTrackingItem,
-  trackingItemById,
 } from "./trackingControllerHelpers.js";
 
 function invalid(message) {
@@ -98,8 +97,8 @@ export function createTrackingPreannotationReviewController(options = {}) {
     return session?.entries.find((entry) => entry.track.id === id) || null;
   }
 
-  function pendingIndex(start = 0) {
-    return findTrackingPreannotationReviewBatchIndex(session, start);
+  function pendingIndex(start = 0, direction = 1) {
+    return findTrackingPreannotationReviewBatchIndex(session, start, direction);
   }
 
   function refreshBatch(options = {}) {
@@ -113,19 +112,6 @@ export function createTrackingPreannotationReviewController(options = {}) {
       },
     ));
     return show(pendingIndex(0));
-  }
-
-  function replaceReviewTracks(state, itemId, removeIds, additions = []) {
-    const item = trackingItemById(state, itemId);
-    if (!item) return state;
-    const remove = new Set(removeIds);
-    const addIds = new Set(additions.map((track) => track.id));
-    return replacePresentationItem(state, itemId, {
-      objectTracks: [
-        ...(item.objectTracks || []).filter((track) => !remove.has(track.id) && !addIds.has(track.id)),
-        ...additions,
-      ],
-    });
   }
 
   function sync() {
@@ -158,6 +144,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (!session) return false;
     const previousId = session.currentId;
     const entry = index >= 0 ? session.entries[index] : null;
+    const batchPosition = entry ? session.batchIds.indexOf(entry.track.id) + 1 : 0;
     session.currentId = entry?.track.id || "";
     updateState((state) => {
       let next = replaceReviewTracks(state, session.itemId, previousId ? [previousId] : [], entry
@@ -169,7 +156,10 @@ export function createTrackingPreannotationReviewController(options = {}) {
           ...reviewState(state.presentation?.tracking?.preannotationReview),
           ...summary,
           status: entry ? "review" : summary.pendingCount ? "batch-complete" : "complete",
-          current: entry ? currentReview(entry) : null,
+          current: entry ? currentReview(entry, {
+            batchPosition,
+            batchTotalCount: session.batchIds.length,
+          }) : null,
           error: "",
         },
       });
@@ -354,13 +344,14 @@ export function createTrackingPreannotationReviewController(options = {}) {
     return shown;
   }
 
-  function next() {
+  function navigate(direction = 1) {
     if (!sync()) return false;
     if (!session) return false;
     const currentIndex = session.entries.findIndex((entry) => entry.track.id === session.currentId);
-    const shown = show(pendingIndex(Math.max(0, currentIndex + 1)));
-    if (shown && currentIndex >= 0) campaignController.record(session, "defer");
-    if (shown && currentIndex >= 0) void saveDraftProgress();
+    const start = currentIndex >= 0 ? currentIndex + direction : direction < 0 ? -1 : 0;
+    const shown = show(pendingIndex(start, direction));
+    if (shown && currentIndex >= 0 && direction > 0) campaignController.record(session, "defer");
+    if (shown && currentIndex >= 0 && direction > 0) void saveDraftProgress();
     return shown;
   }
 
@@ -460,7 +451,8 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (action === "preannotation-open") { void open(); return true; }
     if (action === "preannotation-accept") return decide("accepted");
     if (action === "preannotation-reject") return decide("rejected");
-    if (action === "preannotation-next") return next();
+    if (action === "preannotation-next") return navigate(1);
+    if (action === "preannotation-previous") return navigate(-1);
     if (action === "preannotation-preview-context") return previewContext();
     if (action === "preannotation-next-batch") return sync() && refreshBatch();
     if (action === "preannotation-undo") return undo();
@@ -476,7 +468,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (!action) return false;
     const review = reviewState(getState().presentation?.tracking?.preannotationReview);
     if (!review.workspaceSha256 || ["idle", "loading", "saving"].includes(review.status)) return false;
-    if (["preannotation-accept", "preannotation-reject", "preannotation-next", "preannotation-preview-context", "preannotation-save-current"]
+    if (["preannotation-accept", "preannotation-reject", "preannotation-next", "preannotation-previous", "preannotation-preview-context", "preannotation-save-current"]
       .includes(action) && !review.current) return false;
     if (action === "preannotation-save" && Number(review.acceptedCount) <= 0) return false;
     if (!handleAction(action)) return false;

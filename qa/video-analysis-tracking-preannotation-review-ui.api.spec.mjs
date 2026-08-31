@@ -91,6 +91,8 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
             associationStatus: "unassociated",
             atMs: 1250,
             durationMs: 900,
+            batchPosition: 7,
+            batchTotalCount: 17,
             confidence: 0.4,
             pointCount: 1,
             priorityCode: "critical-entity",
@@ -125,12 +127,13 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   expect(html).toContain("Find referee");
   expect(html).toContain('aria-current="step"');
   expect(html).toContain("Protected on this device");
-  expect(html).toContain("1 samples | 900ms | 40%");
+  expect(html).toContain("1 samples | 900ms | 40% | 7/17");
   for (const action of [
     "preannotation-open",
     "preannotation-accept",
     "preannotation-reject",
     "preannotation-preview-context",
+    "preannotation-previous",
     "preannotation-next",
     "preannotation-next-batch",
     "preannotation-undo",
@@ -145,12 +148,14 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
     ["preannotation-accept", "A"],
     ["preannotation-reject", "R"],
     ["preannotation-preview-context", "P"],
+    ["preannotation-previous", "B"],
     ["preannotation-next", "N"],
     ["preannotation-undo", "U"],
     ["preannotation-save-current", "C"],
     ["preannotation-save", "S"],
   ]) expect(html).toMatch(new RegExp(`${action}" aria-keyshortcuts="${key}"`));
   expect(html).toContain('title="Play 1.5 seconds before and after this suggestion (P)"');
+  expect(html).toContain('title="Previous pending suggestion (B)"');
 
   const completeState = {
     presentation: {

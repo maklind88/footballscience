@@ -36,6 +36,12 @@ function duration(value) {
   return milliseconds < 1000 ? `${Math.round(milliseconds)}ms` : `${(milliseconds / 1000).toFixed(2)}s`;
 }
 
+function batchPosition(current = null) {
+  const position = Math.max(0, Number(current?.batchPosition) || 0);
+  const total = Math.max(0, Number(current?.batchTotalCount) || 0);
+  return position && total ? ` | ${position}/${total}` : "";
+}
+
 function currentLabel(current = null) {
   if (!current) return "No pending suggestion";
   if (current.savedForCorrection) return `Saved ${current.entityType || "object"}`;
@@ -133,7 +139,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
           <p><span>Scope</span><strong>${count(review.scopePendingCount)}</strong><span>Batch</span><strong>${count(review.batchPendingCount)}/${count(review.batchTotalCount)}</strong></p>
         </div>
         <div class="video-analysis-preannotation__current ${current ? "" : "is-empty"}">
-          <div><strong>${escapeHtml(currentLabel(current))}</strong><span>${current ? `${count(current.pointCount)} samples | ${duration(current.durationMs)} | ${confidence(current.confidence)}${current.priorityLabel ? ` | ${escapeHtml(current.priorityLabel)}` : ""}` : "Queue reviewed"}</span></div>
+          <div><strong>${escapeHtml(currentLabel(current))}</strong><span>${current ? `${count(current.pointCount)} samples | ${duration(current.durationMs)} | ${confidence(current.confidence)}${batchPosition(current)}${current.priorityLabel ? ` | ${escapeHtml(current.priorityLabel)}` : ""}` : "Queue reviewed"}</span></div>
           <time>${current ? `${(Number(current.atMs) / 1000).toFixed(2)}s` : ""}</time>
         </div>
       ` : ""}
@@ -149,6 +155,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
         <button type="button" data-video-analysis-tracking-action="preannotation-accept" aria-keyshortcuts="A" title="Accept suggestion (A)" ${!pendingSuggestion || active ? "disabled" : ""}>Accept</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-reject" aria-keyshortcuts="R" title="Reject suggestion (R)" ${!pendingSuggestion || active ? "disabled" : ""}>Reject</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-preview-context" aria-keyshortcuts="P" title="Play 1.5 seconds before and after this suggestion (P)" ${!pendingSuggestion || active ? "disabled" : ""}>Context</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-previous" aria-keyshortcuts="B" title="Previous pending suggestion (B)" ${!pendingSuggestion || active ? "disabled" : ""}>Back</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-next" aria-keyshortcuts="N" title="Next suggestion (N)" ${(!pendingSuggestion && review.status !== "correcting") || active ? "disabled" : ""}>${review.status === "correcting" ? "Continue" : "Next"}</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-next-batch" ${canOpenNextBatch ? "" : "disabled"}>Next batch</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-undo" aria-keyshortcuts="U" title="Undo decision (U)" ${!hasWorkspace || active ? "disabled" : ""}>Undo</button>

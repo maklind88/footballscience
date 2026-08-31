@@ -124,12 +124,14 @@ export function summarizeTrackingPreannotationReviewBatch(session = {}) {
   };
 }
 
-export function findTrackingPreannotationReviewBatchIndex(session = {}, start = 0) {
+export function findTrackingPreannotationReviewBatchIndex(session = {}, start = 0, direction = 1) {
   const entries = session.entries || [];
   const batchIds = new Set(session.batchIds || []);
   if (!entries.length || !batchIds.size) return -1;
+  const step = Number(direction) < 0 ? -1 : 1;
+  const firstIndex = ((Number(start) || 0) % entries.length + entries.length) % entries.length;
   for (let offset = 0; offset < entries.length; offset += 1) {
-    const index = (start + offset) % entries.length;
+    const index = (firstIndex + (offset * step) + entries.length) % entries.length;
     const id = entries[index].track.id;
     if (batchIds.has(id) && !session.decisions.has(id)) return index;
   }

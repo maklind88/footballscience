@@ -5,12 +5,17 @@ import {
   summarizeTrackingPreannotationReviewBatch,
 } from "../services/trackingPreannotationReviewPriorityService.js";
 import { selectTrackingPreannotationWorkspaceDirectory } from "../services/trackingPreannotationWorkspacePickerService.js";
+import {
+  replacePresentationItem,
+  trackingItemById,
+} from "./trackingControllerHelpers.js";
 
 export const TRACKING_PREANNOTATION_CONTEXT_LEAD_MS = 1500;
 export const TRACKING_PREANNOTATION_SHORTCUT_ACTIONS = Object.freeze({
   a: "preannotation-accept",
   r: "preannotation-reject",
   n: "preannotation-next",
+  b: "preannotation-previous",
   p: "preannotation-preview-context",
   u: "preannotation-undo",
   c: "preannotation-save-current",
@@ -130,6 +135,19 @@ export function summarizeTrackingPreannotationReviewSession(session = null) {
     savedCount: values.filter((value) => value === "saved").length,
     ...summarizeTrackingPreannotationReviewBatch(session),
   };
+}
+
+export function replaceTrackingPreannotationReviewTracks(state, itemId, removeIds, additions = []) {
+  const item = trackingItemById(state, itemId);
+  if (!item) return state;
+  const remove = new Set(removeIds);
+  const addIds = new Set(additions.map((track) => track.id));
+  return replacePresentationItem(state, itemId, {
+    objectTracks: [
+      ...(item.objectTracks || []).filter((track) => !remove.has(track.id) && !addIds.has(track.id)),
+      ...additions,
+    ],
+  });
 }
 
 export async function selectTrackingPreannotationReviewFiles(win = globalThis.window, options = {}) {

@@ -809,18 +809,45 @@ test("preannotation keyboard review is deliberate, scoped, and repeat-safe", asy
       durationMs: 0,
       contextStartMs: 0,
       contextLeadMs: 500,
+      batchPosition: 1,
+      batchTotalCount: 2,
     },
   });
+  const back = keyboardEvent("B");
+  expect(controller.handleShortcut(back)).toBe(true);
+  expect(back.calls).toEqual({ prevented: 1, stopped: 1 });
+  expect(seeks).toEqual([500, 0, 1000]);
+  expect(video.paused).toBe(true);
+  expect(pauseCount).toBe(1);
+  expect(listeners.size).toBe(0);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    pendingCount: 2,
+    acceptedCount: 0,
+    current: { id: associated.id, batchPosition: 2, batchTotalCount: 2 },
+  });
+
+  const next = keyboardEvent("N");
+  expect(controller.handleShortcut(next)).toBe(true);
+  expect(next.calls).toEqual({ prevented: 1, stopped: 1 });
+  expect(seeks).toEqual([500, 0, 1000, 500]);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    pendingCount: 2,
+    acceptedCount: 0,
+    current: { id: unassociated.id, batchPosition: 1, batchTotalCount: 2 },
+  });
+
+  expect(controller.handleShortcut(keyboardEvent("p"))).toBe(true);
+  expect(playCount).toBe(2);
   currentMatchMs = 2000;
   listeners.get("timeupdate")();
   expect(video.paused).toBe(true);
-  expect(pauseCount).toBe(1);
+  expect(pauseCount).toBe(2);
   expect(listeners.size).toBe(0);
 
   playError = new Error("Autoplay blocked");
   expect(controller.handleShortcut(keyboardEvent("p"))).toBe(true);
-  expect(playCount).toBe(2);
-  expect(seeks).toEqual([500, 0, 0]);
+  expect(playCount).toBe(3);
+  expect(seeks).toEqual([500, 0, 1000, 500, 0, 0]);
   expect(listeners.size).toBe(0);
   expect(state.presentation.tracking.preannotationReview).toMatchObject({ pendingCount: 2, acceptedCount: 0 });
   playError = null;

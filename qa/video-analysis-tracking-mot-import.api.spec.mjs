@@ -110,6 +110,37 @@ test("SoccerNet/MOT import creates strict metadata-only full-scene evidence", as
   expect(groundTruth.validateGroundTruthArtifact(legacyReadable)).toBe(legacyReadable);
 });
 
+test("MOT annotation audit reports structural progress without granting review approval", async () => {
+  const importer = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingMotGroundTruthImportService.js",
+  ));
+  expect(importer.inspectMotAnnotationProgress(rows(), descriptor())).toMatchObject({
+    protocol: "football-science-mot-annotation-audit-v1",
+    rowCount: 15,
+    trackCount: 3,
+    annotatedFrameCount: 5,
+    sequenceLengthFrames: 20,
+    annotatedFrameRatio: 0.25,
+    sceneCoverageRatio: 0.95,
+    entityCounts: { player: 1, ball: 1, referee: 1 },
+    structurallyReady: true,
+    issues: [],
+  });
+  expect(importer.inspectMotAnnotationProgress("", {
+    ...descriptor(),
+    trackMap: {},
+  })).toMatchObject({
+    rowCount: 0,
+    structurallyReady: false,
+    issues: expect.arrayContaining([
+      expect.objectContaining({ code: "annotations-empty" }),
+      expect.objectContaining({ code: "player-missing" }),
+      expect.objectContaining({ code: "ball-missing" }),
+      expect.objectContaining({ code: "referee-missing" }),
+    ]),
+  });
+});
+
 test("MOT import refuses inferred classes, duplicate observations and off-frame boxes", async () => {
   const importer = await import(moduleUrl(
     "src/modules/video-analysis/services/trackingMotGroundTruthImportService.js",
@@ -186,11 +217,17 @@ test("MOT import command exposes one bounded manifest-to-suite interface", async
   const command = await import(moduleUrl("scripts/fs-player-tracking-mot-import.mjs"));
   expect(command.parseMotImportArguments([
     "--manifest", "import.json", "--output", "suite.json", "--json",
-  ])).toEqual({ manifest: "import.json", output: "suite.json", json: true, help: false });
+  ])).toEqual({ manifest: "import.json", output: "suite.json", audit: false, json: true, help: false });
+  expect(command.parseMotImportArguments([
+    "--manifest", "import.json", "--audit", "--json",
+  ])).toEqual({ manifest: "import.json", output: "", audit: true, json: true, help: false });
   expect(command.motImportHelp()).toContain("tracking:mot:import");
   expect(() => command.parseMotImportArguments(["--manifest", "import.json"])).toThrow(
-    /--manifest and --output are required/,
+    /--output is required unless --audit/,
   );
+  expect(() => command.parseMotImportArguments([
+    "--manifest", "import.json", "--audit", "--output", "suite.json",
+  ])).toThrow(/read-only/);
 });
 
 test("MOT import command writes and revalidates a complete ten-minute suite", async () => {
@@ -259,6 +296,25 @@ test("MOT import command writes and revalidates a complete ten-minute suite", as
     }));
     let stdout = "";
     let stderr = "";
+    expect(await command.runMotGroundTruthImport([
+      "--manifest", manifestPath,
+      "--audit",
+      "--json",
+    ], {
+      stdout: { write: (value) => { stdout += value; } },
+      stderr: { write: (value) => { stderr += value; } },
+    })).toBe(0);
+    const audit = JSON.parse(stdout);
+    expect(audit).toMatchObject({
+      protocol: "football-science-mot-ground-truth-audit-v1",
+      rightsReady: true,
+      reviewReady: true,
+      sequenceCount: 5,
+      structurallyReadySequenceCount: 5,
+      readyForImport: true,
+    });
+    expect(audit.annotationRowCount).toBe(3600);
+    stdout = "";
     expect(await command.runMotGroundTruthImport([
       "--manifest", manifestPath,
       "--output", outputPath,
@@ -338,6 +394,77 @@ test("MOT import command writes and revalidates a complete ten-minute suite", as
       stderr: { write: (value) => { stderr += value; } },
     })).toBe(2);
     expect(stderr).toContain("never overwritten");
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("MOT annotation audit reports empty human work without writing or approving evidence", async () => {
+  const command = await import(moduleUrl("scripts/fs-player-tracking-mot-import.mjs"));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fs-mot-audit-empty-"));
+  try {
+    await fs.writeFile(path.join(directory, "source.mp4"), "exact-private-source");
+    await fs.writeFile(path.join(directory, "annotations.txt"), "");
+    const manifestPath = path.join(directory, "import.json");
+    await fs.writeFile(manifestPath, JSON.stringify({
+      version: 1,
+      protocol: "football-science-mot-ground-truth-import-manifest-v1",
+      suite: { id: "human-review-pending", revision: 1 },
+      dataset: {
+        name: "Local match",
+        version: "review-1",
+        videoUseReviewed: false,
+        annotationUseReviewed: false,
+        localBenchmarkOnly: true,
+      },
+      review: {
+        reviewedBy: "",
+        reviewedAt: "",
+        attested: false,
+        exhaustiveSceneAttested: false,
+      },
+      sequences: [{
+        id: "case-1",
+        sourceFile: "source.mp4",
+        annotationFile: "annotations.txt",
+        angleId: "main",
+        frame: { width: 1920, height: 1080 },
+        frameRate: 30,
+        sequenceLengthFrames: 3600,
+        firstFrameNumber: 1,
+        sourceStartMs: 0,
+        coordinateOrigin: "one-based",
+        maximumContinuousGapFrames: 15,
+        scenarioTags: ["transition"],
+        benchmarkTargetTrackId: "",
+        trackMap: {},
+      }],
+    }));
+    let stdout = "";
+    let stderr = "";
+    expect(await command.runMotGroundTruthImport([
+      "--manifest", manifestPath,
+      "--audit",
+      "--json",
+    ], {
+      stdout: { write: (value) => { stdout += value; } },
+      stderr: { write: (value) => { stderr += value; } },
+    })).toBe(3);
+    expect(stderr).toBe("");
+    const audit = JSON.parse(stdout);
+    expect(audit).toMatchObject({
+      rightsReady: false,
+      reviewReady: false,
+      structurallyReadySequenceCount: 0,
+      annotationRowCount: 0,
+      readyForImport: false,
+      sequences: [{
+        id: "case-1",
+        structurallyReady: false,
+        issues: expect.arrayContaining([expect.objectContaining({ code: "annotations-empty" })]),
+      }],
+    });
+    expect(await fs.readdir(directory)).toEqual(expect.not.arrayContaining(["suite.json"]));
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

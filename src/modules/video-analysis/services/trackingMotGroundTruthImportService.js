@@ -1,6 +1,7 @@
 import {
   TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
   createGroundTruthArtifact,
+  groundTruthSceneTemporalCoverage,
 } from "./trackingGroundTruthService.js";
 import {
   TRACKING_GROUND_TRUTH_REFERENCE_PROTOCOL,
@@ -9,6 +10,8 @@ import {
 
 export const TRACKING_MOT_IMPORT_PROTOCOL = "football-science-mot-ground-truth-import-v1";
 export const TRACKING_MOT_ANNOTATION_PROTOCOL = "motchallenge-10";
+export const TRACKING_MOT_ANNOTATION_AUDIT_PROTOCOL =
+  "football-science-mot-annotation-audit-v1";
 
 const MAX_ANNOTATION_BYTES = 64 * 1024 * 1024;
 const MAX_ANNOTATION_ROWS = 500_000;
@@ -80,10 +83,7 @@ function normalizeTrackMap(value = {}) {
   }));
 }
 
-function normalizeDescriptor(value = {}) {
-  if (value.protocol !== TRACKING_MOT_IMPORT_PROTOCOL || Number(value.version) !== 1) {
-    invalid("Unsupported MOT import descriptor.");
-  }
+function normalizeSequenceDescriptor(value = {}) {
   const frame = {
     width: integer(value.frame?.width, "frame width", 1, 16_384),
     height: integer(value.frame?.height, "frame height", 1, 16_384),
@@ -99,11 +99,12 @@ function normalizeDescriptor(value = {}) {
   const sourceStartMs = integer(value.sourceStartMs ?? 0, "source start time", 0, 24 * 60 * 60 * 1000);
   const coordinateOrigin = String(value.coordinateOrigin || "one-based");
   if (!new Set(["zero-based", "one-based"]).has(coordinateOrigin)) invalid("Unsupported box coordinate origin.");
-  if (value.attested !== true || value.exhaustiveSceneAttested !== true) {
-    invalid("MOT import requires explicit frame-by-frame and exhaustive-scene attestation.");
-  }
-  const reviewedAt = new Date(value.reviewedAt);
-  if (!Number.isFinite(reviewedAt.getTime())) invalid("A valid review time is required.");
+  const maximumContinuousGapFrames = integer(
+    value.maximumContinuousGapFrames ?? Math.max(1, Math.floor(frameRate / 2)),
+    "maximum continuous frame gap",
+    1,
+    Math.max(1, Math.floor(frameRate / 2)),
+  );
   return {
     frame,
     frameRate,
@@ -112,41 +113,50 @@ function normalizeDescriptor(value = {}) {
     lastFrameNumber: firstFrameNumber + sequenceLengthFrames - 1,
     sourceStartMs,
     coordinateOrigin,
+    maximumContinuousGapFrames,
+  };
+}
+
+function normalizeDescriptor(value = {}) {
+  if (value.protocol !== TRACKING_MOT_IMPORT_PROTOCOL || Number(value.version) !== 1) {
+    invalid("Unsupported MOT import descriptor.");
+  }
+  const sequence = normalizeSequenceDescriptor(value);
+  if (value.attested !== true || value.exhaustiveSceneAttested !== true) {
+    invalid("MOT import requires explicit frame-by-frame and exhaustive-scene attestation.");
+  }
+  const reviewedAt = new Date(value.reviewedAt);
+  if (!Number.isFinite(reviewedAt.getTime())) invalid("A valid review time is required.");
+  return {
+    ...sequence,
     sourceFingerprint: bounded(value.sourceFingerprint, "source fingerprint", 64).toLowerCase(),
     angleId: bounded(value.angleId || "main", "camera angle", 160),
     reviewedBy: bounded(value.reviewedBy, "reviewer", 160),
     reviewedAt: reviewedAt.toISOString(),
     scenarioTags: Array.isArray(value.scenarioTags) ? value.scenarioTags : [],
     benchmarkTargetTrackId: String(value.benchmarkTargetTrackId || "").trim(),
-    maximumContinuousGapFrames: integer(
-      value.maximumContinuousGapFrames ?? Math.max(1, Math.floor(frameRate / 2)),
-      "maximum continuous frame gap",
-      1,
-      Math.max(1, Math.floor(frameRate / 2)),
-    ),
     trackMap: normalizeTrackMap(value.trackMap),
     referenceEvidence: normalizeGroundTruthReferenceEvidence({
       ...value.referenceEvidence,
       protocol: TRACKING_GROUND_TRUTH_REFERENCE_PROTOCOL,
       sequenceId: bounded(value.sequenceId, "sequence id", 120),
       annotationProtocol: TRACKING_MOT_ANNOTATION_PROTOCOL,
-      frameRate,
-      sequenceLengthFrames,
-      firstFrameNumber,
-      coordinateOrigin,
-      maximumContinuousGapFrames: integer(
-        value.maximumContinuousGapFrames ?? Math.max(1, Math.floor(frameRate / 2)),
-        "maximum continuous frame gap",
-        1,
-        Math.max(1, Math.floor(frameRate / 2)),
-      ),
+      frameRate: sequence.frameRate,
+      sequenceLengthFrames: sequence.sequenceLengthFrames,
+      firstFrameNumber: sequence.firstFrameNumber,
+      coordinateOrigin: sequence.coordinateOrigin,
+      maximumContinuousGapFrames: sequence.maximumContinuousGapFrames,
       reviewedAt: reviewedAt.toISOString(),
     }),
   };
 }
 
-function parseRows(text, descriptor) {
-  if (typeof text !== "string" || !text.trim() || new TextEncoder().encode(text).byteLength > MAX_ANNOTATION_BYTES) {
+function parseRows(text, descriptor, options = {}) {
+  if (typeof text !== "string" || new TextEncoder().encode(text).byteLength > MAX_ANNOTATION_BYTES) {
+    invalid("MOT annotations are empty or outside the size limit.", "TRACKING_MOT_IMPORT_LIMIT");
+  }
+  if (!text.trim()) {
+    if (options.allowEmpty === true) return [];
     invalid("MOT annotations are empty or outside the size limit.", "TRACKING_MOT_IMPORT_LIMIT");
   }
   const lines = text.split(/\r?\n/);
@@ -176,7 +186,7 @@ function parseRows(text, descriptor) {
     }
     rows.push({ frameNumber, trackId, left: normalizedLeft, top: normalizedTop, width, height, confidence });
   }
-  if (!rows.length) invalid("MOT annotations contain no usable ground truth.");
+  if (!rows.length && options.allowEmpty !== true) invalid("MOT annotations contain no usable ground truth.");
   return rows.sort((first, second) => first.trackId.localeCompare(second.trackId, undefined, { numeric: true })
     || first.frameNumber - second.frameNumber);
 }
@@ -256,6 +266,67 @@ function tracksFromRows(rows, descriptor) {
       },
     };
   });
+}
+
+function entityCounts(tracks = []) {
+  return Object.fromEntries(["player", "ball", "referee"].map((entityType) => [
+    entityType,
+    tracks.filter((track) => track.entityType === entityType).length,
+  ]));
+}
+
+export function inspectMotAnnotationProgress(annotationText, descriptorValue = {}) {
+  const descriptor = normalizeSequenceDescriptor(descriptorValue);
+  const rows = parseRows(annotationText, descriptor, { allowEmpty: true });
+  const annotatedFrames = new Set(rows.map((row) => row.frameNumber));
+  const rawTrackIds = new Set(rows.map((row) => row.trackId));
+  const issues = [];
+  let tracks = [];
+  if (!rows.length) issues.push({ code: "annotations-empty", message: "No reviewed MOT observations exist." });
+  if (rows.length) {
+    try {
+      tracks = tracksFromRows(rows, {
+        ...descriptor,
+        trackMap: normalizeTrackMap(descriptorValue.trackMap),
+      });
+    } catch (error) {
+      issues.push({ code: "track-metadata-incomplete", message: error.message });
+    }
+  }
+  const counts = entityCounts(tracks);
+  for (const entityType of ["player", "ball", "referee"]) {
+    if (!counts[entityType]) {
+      issues.push({
+        code: `${entityType}-missing`,
+        message: `Reviewed annotations are missing an explicit ${entityType} track.`,
+      });
+    }
+  }
+  const durationMs = Math.round((descriptor.sequenceLengthFrames * 1000) / descriptor.frameRate);
+  const sceneCoverageRatio = tracks.length
+    ? groundTruthSceneTemporalCoverage(tracks, {
+      startMs: descriptor.sourceStartMs,
+      endMs: descriptor.sourceStartMs + durationMs,
+    })
+    : 0;
+  if (tracks.length && sceneCoverageRatio < 0.95) {
+    issues.push({
+      code: "scene-coverage-incomplete",
+      message: "Reviewed player trajectories cover less than 95% of the sequence.",
+    });
+  }
+  return {
+    protocol: TRACKING_MOT_ANNOTATION_AUDIT_PROTOCOL,
+    rowCount: rows.length,
+    trackCount: rawTrackIds.size,
+    annotatedFrameCount: annotatedFrames.size,
+    sequenceLengthFrames: descriptor.sequenceLengthFrames,
+    annotatedFrameRatio: annotatedFrames.size / descriptor.sequenceLengthFrames,
+    sceneCoverageRatio,
+    entityCounts: counts,
+    structurallyReady: issues.length === 0,
+    issues,
+  };
 }
 
 export function createGroundTruthArtifactFromMotAnnotations(annotationText, descriptorValue = {}) {

@@ -226,7 +226,7 @@ begin
       'backfillSchema', 'footballscience-platform-identity-backfill-v1',
       'source', 'leaderboard-active-staff-identity-repair',
       'roleSource', 'app_metadata',
-      'migration', '20260831200058'
+      'migration', '20260831204057'
     )
   from auth.users auth_user
   where lower(coalesce(auth_user.raw_app_meta_data ->> 'role', '')) = any(array[
@@ -274,7 +274,7 @@ begin
       'backfillSchema', 'footballscience-platform-identity-backfill-v1',
       'source', 'leaderboard-active-staff-identity-repair',
       'roleSource', 'app_metadata',
-      'migration', '20260831200058'
+      'migration', '20260831204057'
     )
   from auth.users auth_user
   where lower(coalesce(auth_user.raw_app_meta_data ->> 'role', '')) = any(array[

@@ -1,0 +1,24 @@
+{
+  "build": {
+    "frontendDist": "../candidates"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "FS Desktop Architecture Spike — Hosted",
+        "width": 1000,
+        "height": 720,
+        "minWidth": 760,
+        "minHeight": 540,
+        "resizable": true,
+        "url": "http://127.0.0.1:47842/"
+      }
+    ],
+    "security": {
+      "capabilities": ["hosted"],
+      "csp": null,
+      "freezePrototype": true
+    }
+  }
+}

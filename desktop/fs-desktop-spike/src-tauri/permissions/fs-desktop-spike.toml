@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-runtime-info"
+description = "Allows the frontend to read versioned desktop runtime metadata."
+commands.allow = ["desktop_runtime_info"]
+
+[[permission]]
+identifier = "allow-record-probe"
+description = "Allows the architecture spike to write one sanitized result record to the temporary directory."
+commands.allow = ["record_spike_probe"]

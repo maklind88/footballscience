@@ -1,0 +1,16 @@
+{
+  "name": "@football-science/desktop-architecture-spike",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "host:hosted": "node tools/hosted-server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "tauri:build:bundled": "tauri build --no-bundle",
+    "tauri:build:hosted": "tauri build --no-bundle --config src-tauri/tauri.hosted.conf.json"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/cli": "2.11.4"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "identifier": "hosted",
+  "description": "Explicit origin and two-command capability for the trusted hosted spike frontend.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:47842/*"]
+  },
+  "platforms": ["macOS", "windows"],
+  "permissions": ["allow-runtime-info", "allow-record-probe"]
+}

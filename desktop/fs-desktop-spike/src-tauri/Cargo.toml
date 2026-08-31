@@ -1,0 +1,17 @@
+[package]
+name = "fs-desktop-architecture-spike"
+version = "0.0.1"
+description = "Local delivery-model and least-privilege bridge spike for Football Science"
+edition = "2024"
+
+[lib]
+name = "fs_desktop_architecture_spike_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+tauri = { version = "=2.11.5", features = [] }

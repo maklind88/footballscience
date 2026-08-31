@@ -1,0 +1,63 @@
+{
+  "schema": "fs-desktop-architecture-spike-evidence-v1",
+  "recordedOn": "2026-08-30",
+  "environment": {
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "webview": "WKWebView via Tauri",
+    "rust": "1.98.0",
+    "tauriRust": "2.11.5",
+    "tauriCli": "2.11.4"
+  },
+  "results": [
+    {
+      "candidate": "bundled",
+      "scenario": "packaged local-asset startup",
+      "recordedAtUnixMs": 1788145124036,
+      "result": "passed",
+      "bootMode": "network-independent",
+      "nativeBridge": "two-command bridge invoked"
+    },
+    {
+      "candidate": "hosted",
+      "scenario": "service worker controls a subsequent packaged launch",
+      "recordedAtUnixMs": 1788145321856,
+      "result": "passed",
+      "bootMode": "online",
+      "serviceWorkerControlled": true
+    },
+    {
+      "candidate": "hosted",
+      "scenario": "packaged cold start after the origin server was confirmed unreachable",
+      "recordedAtUnixMs": 1788145451182,
+      "result": "passed",
+      "bootMode": "offline",
+      "cachedPayload": true,
+      "serviceWorkerControlled": true
+    },
+    {
+      "candidate": "hosted",
+      "scenario": "same-process online to offline transition",
+      "recordedAtUnixMs": 1788145515158,
+      "result": "passed",
+      "bootMode": "offline",
+      "cachedPayload": true,
+      "serviceWorkerControlled": true
+    },
+    {
+      "candidate": "hosted",
+      "scenario": "same-process offline to online recovery",
+      "recordedAtUnixMs": 1788145533247,
+      "result": "passed",
+      "bootMode": "online",
+      "cachedPayload": false,
+      "serviceWorkerControlled": true
+    }
+  ],
+  "windows": {
+    "implemented": false,
+    "ciVerified": false,
+    "physicalManualVerification": false,
+    "status": "required before accepting ADR-0001"
+  }
+}

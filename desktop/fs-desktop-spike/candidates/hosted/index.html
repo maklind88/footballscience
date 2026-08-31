@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+    <title>FS hosted desktop spike</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body data-candidate="hosted">
+    <main>
+      <p class="eyebrow">FS desktop architecture spike</p>
+      <h1>Trusted hosted frontend</h1>
+      <dl>
+        <div><dt>Boot</dt><dd id="bootMode">checking</dd></div>
+        <div><dt>Service worker</dt><dd id="serviceWorker">checking</dd></div>
+        <div><dt>Payload</dt><dd id="payload">checking</dd></div>
+        <div><dt>Native bridge</dt><dd id="bridge">checking</dd></div>
+      </dl>
+      <pre id="details"></pre>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

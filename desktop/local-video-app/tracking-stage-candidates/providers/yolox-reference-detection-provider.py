@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Detection pre/post-processing is derived from the official YOLOX ONNX Runtime demo.
+# Copyright (c) Megvii, Inc. and its affiliates.
 import argparse
 import hashlib
 import json

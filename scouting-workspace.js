@@ -130,6 +130,7 @@ let scoutingComparisonCandidatesOpen = false;
 let scoutingComparisonPlayerSearchQuery = "";
 let scoutingLeagueQualityCache = new Map();
 let scoutingDeferredTabSurfaceRenderId = 0;
+const scoutingDeferredTabSurfaceDelayMs = 240;
 let scoutingFilteredDatabaseCache = {
   key: "",
   records: [],
@@ -12579,7 +12580,7 @@ function scheduleScoutingTabSurfaceRender(callback) {
   win.requestAnimationFrame(() => {
     win.requestAnimationFrame(() => {
       win.requestAnimationFrame(() => {
-        win.setTimeout(run, 0);
+        win.setTimeout(run, scoutingDeferredTabSurfaceDelayMs);
       });
     });
   });

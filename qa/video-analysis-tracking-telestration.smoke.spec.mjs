@@ -1030,6 +1030,28 @@ test("tracking review marks visibility and supports race-safe undo and redo", as
   expect(pageErrors).toEqual([]);
 });
 
+test("tracking review relabels a saved player as ball and restores it with undo", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await openTrackingWorkspace(page);
+  await createTrackedHighlight(page);
+  const review = page.locator(".video-analysis-tracking-review");
+  const entityAction = review.locator('[data-video-analysis-tracking-action="review-entity"]');
+  await expect(entityAction).toBeDisabled();
+
+  await page.locator('[data-video-analysis-tracking-field="entityType"]').selectOption("ball");
+  await expect(entityAction).toBeEnabled();
+  await entityAction.click();
+  await expect(page.locator(".video-analysis-tracking-side h3")).toHaveText("Ball");
+  await expect(review.locator('[data-video-analysis-tracking-action="review-identity"]')).toHaveCount(0);
+  await expect(entityAction).toBeDisabled();
+
+  await review.locator('[data-video-analysis-tracking-action="review-undo"]').click();
+  await expect(page.locator(".video-analysis-tracking-side h3")).not.toHaveText("Ball");
+  await expect(review.locator('[data-video-analysis-tracking-action="review-identity"]')).toHaveCount(1);
+  expect(pageErrors).toEqual([]);
+});
+
 test("continuity review action stays clear and contained on desktop and mobile", async ({ page }, testInfo) => {
   await mountContinuityReviewFixture(page);
   const review = page.locator(".video-analysis-tracking-review");

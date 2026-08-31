@@ -292,7 +292,7 @@ async function saveTrackCorrection(value = {}, actor = {}) {
     operation_id: operationId,
     object_track_id: track.id,
     at_ms: asMs(value.atMs ?? value.at_ms, 0),
-    correction_type: ["position", "identity", "occlusion", "split", "merge", "identity-swap", "reject", "restore"].includes(correctionType) ? correctionType : "position",
+    correction_type: ["position", "identity", "entity", "occlusion", "split", "merge", "identity-swap", "reject", "restore"].includes(correctionType) ? correctionType : "position",
     box_json: safeObject(value.box || value.box_json),
     ground_point_json: safeObject(value.groundPoint || value.ground_point_json),
     player_id: normalizeText(value.playerId || value.player_id, 160) || null,

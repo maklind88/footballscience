@@ -64,6 +64,9 @@ export function renderTrackingReviewPanel(state = {}, track = null, tracks = [])
   const next = adjacentTrackingReviewEvent(events, atMs, "later");
   const visibility = trackingPointVisibility(track, atMs);
   const prompt = state.presentation?.tracking?.prompt || {};
+  const entityTarget = String(prompt.entityType || "").trim().toLowerCase();
+  const entityReady = ["player", "ball", "referee"].includes(entityTarget)
+    && entityTarget !== track.entityType;
   const identityReady = track.entityType === "player" && Boolean(prompt.playerId || prompt.playerLabel);
   const selectedTrackIds = state.presentation?.tracking?.selectedTrackIds || [];
   const selectedTracks = selectedTrackIds
@@ -94,6 +97,7 @@ export function renderTrackingReviewPanel(state = {}, track = null, tracks = [])
         <button type="button" data-video-analysis-tracking-action="review-next" ${next ? "" : "disabled"}>Next</button>
       </div>
       <div class="video-analysis-tracking-review__actions">
+        <button type="button" data-video-analysis-tracking-action="review-entity" title="${escapeHtml(entityReady ? `Relabel ${track.entityType} as ${entityTarget}` : "Choose a different object type above")}" ${entityReady ? "" : "disabled"}>Apply object type</button>
         ${track.entityType === "player" ? `<button type="button" data-video-analysis-tracking-action="review-identity" ${identityReady ? "" : "disabled"}>Apply identity</button>` : ""}
         <button type="button" data-video-analysis-tracking-action="review-continuity" ${continuityReady ? "" : "disabled"}>Confirm continuity</button>
         <button type="button" data-video-analysis-tracking-action="review-visibility" ${visibility.available ? "" : "disabled"}>${visibility.occluded ? "Mark visible" : "Mark occluded"}</button>

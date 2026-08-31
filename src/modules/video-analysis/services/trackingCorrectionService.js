@@ -6,6 +6,7 @@ import {
 import { trackingPointAt } from "./trackingGeometryService.js";
 
 const reviewEventLimit = 240;
+const editableEntityTypes = new Set(["player", "ball", "referee"]);
 
 function localId(prefix = "correction") {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`;
@@ -256,6 +257,45 @@ export function applyTrackingIdentityCorrection(trackValue = {}, identity = {}, 
     corrections: [...track.corrections, correctionRecord("identity", atMs, {
       ...options,
       reason: options.reason || "Assigned player identity",
+    })],
+  });
+}
+
+export function applyTrackingEntityCorrection(trackValue = {}, entityTypeValue = "", options = {}) {
+  const track = normalizeObjectTrack(trackValue);
+  const entityType = String(entityTypeValue || "").trim().toLowerCase();
+  if (!editableEntityTypes.has(entityType)) {
+    const error = new Error("Choose player, ball, or referee as the corrected object type.");
+    error.code = "TRACKING_REVIEW_ENTITY_UNSUPPORTED";
+    throw error;
+  }
+  if (entityType === track.entityType) {
+    const error = new Error("The selected trajectory already has this object type.");
+    error.code = "TRACKING_REVIEW_ENTITY_UNCHANGED";
+    throw error;
+  }
+  const atMs = Math.max(track.startMs, Math.min(
+    track.endMs,
+    Math.round(Number(options.atMs) || track.startMs),
+  ));
+  const segments = track.segments.map((segment) => ({
+    ...segment,
+    points: segment.points.map((point) => ({ ...point, identityConfidence: 0 })),
+  }));
+  return normalizeObjectTrack({
+    ...track,
+    entityType,
+    playerId: "",
+    playerLabel: "",
+    teamId: "",
+    teamSide: entityType === "referee" ? "official" : "",
+    shirtNumber: "",
+    identityConfidence: 0,
+    status: "review",
+    segments,
+    corrections: [...track.corrections, correctionRecord("entity", atMs, {
+      ...options,
+      reason: options.reason || `Relabeled ${track.entityType} as ${entityType}`,
     })],
   });
 }

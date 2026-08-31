@@ -1613,6 +1613,14 @@ test("tracking correction retries are idempotent and reject changed operation co
     const rejectedReplay = await database.saveTrackCorrection(rejection, actor);
     const restoration = { ...correction, operationId: "operation-correction-restore", correctionType: "restore" };
     const restored = await database.saveTrackCorrection(restoration, actor);
+    const entityCorrection = {
+      ...correction,
+      operationId: "operation-correction-entity",
+      correctionType: "entity",
+      reason: "Relabeled player as referee",
+      metadata: { previousEntityType: "player", nextEntityType: "referee" },
+    };
+    const entity = await database.saveTrackCorrection(entityCorrection, actor);
     correctionLookupFailure = true;
     const lookupFailure = await database.saveTrackCorrection({
       ...correction,
@@ -1639,9 +1647,13 @@ test("tracking correction retries are idempotent and reject changed operation co
       ok: true,
       payload: { correction: { correctionType: "restore" }, objectTrack: { status: "review" } },
     });
+    expect(entity).toMatchObject({
+      ok: true,
+      payload: { correction: { correctionType: "entity" }, objectTrack: { status: "review" } },
+    });
     expect(lookupFailure).toMatchObject({ ok: false, status: 503 });
-    expect(correctionInserts).toBe(4);
-    expect(trackPatches).toBe(5);
+    expect(correctionInserts).toBe(5);
+    expect(trackPatches).toBe(6);
     const migration = await read(
       "supabase/migrations/20260826074859_video_analysis_tracking_correction_idempotency.sql",
     );
@@ -1654,6 +1666,11 @@ test("tracking correction retries are idempotent and reject changed operation co
     expect(rejectMigration).toContain("'reject'");
     expect(rejectMigration).toContain("'restore'");
     expect(rejectMigration).not.toMatch(/grant\s+.+\s+to\s+(?:anon|authenticated)/i);
+    const entityMigration = await read(
+      "supabase/migrations/20260831214500_video_analysis_tracking_entity_correction.sql",
+    );
+    expect(entityMigration).toContain("'entity'");
+    expect(entityMigration).not.toMatch(/grant\s+.+\s+to\s+(?:anon|authenticated)/i);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalUrl == null) delete process.env.SUPABASE_URL;

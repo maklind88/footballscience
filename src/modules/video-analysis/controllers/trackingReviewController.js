@@ -2,7 +2,6 @@ import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import {
   adjacentTrackingReviewEvent,
   applyTrackingContinuityCorrection,
-  applyTrackingIdentityCorrection,
   applyTrackingVisibilityCorrection,
   trackingPointVisibility,
   trackingReviewEvents,
@@ -30,9 +29,10 @@ import {
 } from "./trackingReviewHistory.js";
 import { createTrackingStructuralReviewRuntime } from "./trackingStructuralReviewRuntime.js";
 import { createTrackingReviewStructuralActions } from "./trackingReviewStructuralActions.js";
+import { createTrackingReviewEntityActions } from "./trackingReviewEntityActions.js";
 
 const reviewActions = new Set([
-  "review-previous", "review-next", "review-continuity", "review-identity",
+  "review-previous", "review-next", "review-continuity", "review-entity", "review-identity",
   "review-visibility", "review-merge", "review-reject", "review-split",
   "review-identity-swap", "review-undo", "review-redo",
 ]);
@@ -171,7 +171,13 @@ export function createTrackingReviewController(options = {}) {
     if (!context.item || !context.track) return false;
     const nextTrack = normalizeObjectTrack(nextTrackValue);
     const sequence = nextSequence();
-    pushHistory(undoByTrackId, context.track.id, context.track, sequence);
+    pushHistory(
+      undoByTrackId,
+      context.track.id,
+      context.track,
+      sequence,
+      audit.correctionType,
+    );
     redoByTrackId.clear();
     compoundRedoByItemId.clear();
     const revision = bumpRevision(context.track.id);
@@ -218,6 +224,15 @@ export function createTrackingReviewController(options = {}) {
     createOperationId: correctionOperationId,
     nextSequence,
     commitCompound,
+    commitTrackChange,
+    setError,
+    getReviewer: options.getReviewer,
+  });
+
+  const reviewEntityActions = createTrackingReviewEntityActions({
+    getState,
+    selectedContext,
+    currentAtMs,
     commitTrackChange,
     setError,
     getReviewer: options.getReviewer,
@@ -336,27 +351,6 @@ export function createTrackingReviewController(options = {}) {
     });
   }
 
-  function applyIdentity() {
-    const state = getState();
-    const context = selectedContext(state);
-    if (!context.track) return false;
-    try {
-      const prompt = state.presentation?.tracking?.prompt || {};
-      const corrected = applyTrackingIdentityCorrection(context.track, prompt, { atMs: currentAtMs(state) });
-      return commitTrackChange(context, corrected, {
-        atMs: currentAtMs(state),
-        correctionType: "identity",
-        playerId: corrected.playerId,
-        playerLabel: corrected.playerLabel,
-        reason: "Assigned player identity",
-        metadata: { teamSide: corrected.teamSide, shirtNumber: corrected.shirtNumber },
-      });
-    } catch (error) {
-      setError(error?.message || "Player identity could not be applied.");
-      return true;
-    }
-  }
-
   function toggleVisibility() {
     const state = getState();
     const context = selectedContext(state);
@@ -444,18 +438,23 @@ export function createTrackingReviewController(options = {}) {
     const restored = candidate.value.track;
     const restoringRejectedTrack = context.track.status === "archived" && restored.status !== "archived";
     source.set(context.track.id, entries.slice(0, -1));
-    pushHistory(target, context.track.id, context.track, nextSequence());
+    const historyCorrectionType = String(candidate.value.correctionType || "position");
+    pushHistory(target, context.track.id, context.track, nextSequence(), historyCorrectionType);
     const revision = bumpRevision(context.track.id);
     replaceTrack(context.item.id, context.track.id, restored);
     options.invalidateGroundTruth?.(context.item.id);
     persistChange(context.item.id, context.track.id, restored, {
       atMs: currentAtMs(state),
-      correctionType: restoringRejectedTrack ? "restore" : "position",
+      correctionType: restoringRejectedTrack ? "restore" : historyCorrectionType,
       reason: restoringRejectedTrack
         ? "Restored rejected false-positive trajectory"
         : direction === "redo" ? "Redid local tracking correction" : "Undid local tracking correction",
       operationId: correctionOperationId(`history-${direction}`),
-      metadata: { historyAction: direction, ...(restoringRejectedTrack ? { disposition: "restored" } : {}) },
+      metadata: {
+        historyAction: direction,
+        revertedCorrectionType: historyCorrectionType,
+        ...(restoringRejectedTrack ? { disposition: "restored" } : {}),
+      },
     }, revision);
     return true;
   }
@@ -481,7 +480,8 @@ export function createTrackingReviewController(options = {}) {
     if (action === "review-previous") return navigate("earlier");
     if (action === "review-next") return navigate("later");
     if (action === "review-continuity") return confirmContinuity();
-    if (action === "review-identity") return applyIdentity();
+    if (action === "review-entity") return reviewEntityActions.applyEntityType();
+    if (action === "review-identity") return reviewEntityActions.applyIdentity();
     if (action === "review-visibility") return toggleVisibility();
     if (action === "review-merge") return reviewStructuralActions.mergeSelectedTracks();
     if (action === "review-reject") return reviewStructuralActions.rejectSelectedTrack();

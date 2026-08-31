@@ -94,6 +94,53 @@ test("identity and visibility corrections affect one reviewed frame and preserve
   expect(correction.trackingReviewEvents(identity).map((entry) => entry.type)).toContain("identity-confidence");
 });
 
+test("object type correction clears incompatible player identity without rewriting provider geometry", async () => {
+  const correction = await import(moduleUrl("src/modules/video-analysis/services/trackingCorrectionService.js"));
+  const source = reviewTrack({
+    playerId: "player-9",
+    teamId: "team-away",
+    metadata: { providerRunId: "provider-run-1", model: "YOLOX-S" },
+  });
+  const referee = correction.applyTrackingEntityCorrection(source, "referee", {
+    atMs: 500,
+    correctedBy: "analyst-1",
+  });
+  expect(referee).toMatchObject({
+    entityType: "referee",
+    playerId: "",
+    playerLabel: "",
+    teamId: "",
+    teamSide: "official",
+    shirtNumber: "",
+    identityConfidence: 0,
+    status: "review",
+    metadata: source.metadata,
+  });
+  expect(referee.segments.flatMap((segment) => segment.points)).toEqual(
+    source.segments.flatMap((segment) => segment.points).map((point) => expect.objectContaining({
+      atMs: point.atMs,
+      x: point.x,
+      y: point.y,
+      confidence: point.confidence,
+      identityConfidence: 0,
+    })),
+  );
+  expect(referee.corrections.at(-1)).toMatchObject({
+    correctionType: "entity",
+    startMs: 500,
+    correctedBy: "analyst-1",
+  });
+
+  const player = correction.applyTrackingEntityCorrection(referee, "player", { atMs: 500 });
+  expect(player).toMatchObject({ entityType: "player", teamSide: "", identityConfidence: 0 });
+  expect(correction.trackingReviewEvents(player).map((entry) => entry.type))
+    .toEqual(expect.arrayContaining(["identity-assignment", "identity-confidence"]));
+  expect(() => correction.applyTrackingEntityCorrection(player, "player"))
+    .toThrow(/already has this object type/i);
+  expect(() => correction.applyTrackingEntityCorrection(player, "area"))
+    .toThrow(/player, ball, or referee/i);
+});
+
 test("false-positive rejection archives only the review copy and remains explicitly auditable", async () => {
   const review = await import(moduleUrl("src/modules/video-analysis/services/trackingReviewService.js"));
   const rejected = review.rejectTrackingTrack(reviewTrack(), {
@@ -407,6 +454,7 @@ test("tracking review panel exposes professional correction controls without ena
     },
   }, track);
   expect(html).toContain("review events");
+  expect(html).toMatch(/data-video-analysis-tracking-action="review-entity"[^>]+disabled/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-identity"(?! disabled)/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-undo"(?! disabled)/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-redo" disabled/);
@@ -415,6 +463,12 @@ test("tracking review panel exposes professional correction controls without ena
   expect(html).toMatch(/data-video-analysis-tracking-action="review-split"(?![^>]*disabled)[^>]*>Split at playhead/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-identity-swap"[^>]+disabled/);
   expect(html).toContain("Mark occluded");
+
+  const entityHtml = renderTrackingReviewPanel({
+    timeline: { playheadMs: 500 },
+    presentation: { tracking: { prompt: { entityType: "referee" }, reviewHistory: {} } },
+  }, track);
+  expect(entityHtml).toMatch(/data-video-analysis-tracking-action="review-entity"(?![^>]*disabled)[^>]*>Apply object type/);
 
   const continuityHtml = renderTrackingReviewPanel({
     timeline: { playheadMs: 1500 },
@@ -667,6 +721,68 @@ test("false-positive rejection is reversible and excluded from rendered tracking
   expect(audits.at(-1)).toMatchObject({
     correctionType: "restore",
     metadata: { historyAction: "undo", disposition: "restored" },
+  });
+});
+
+test("object type relabel is persisted, auditable, and reversible", async () => {
+  const { createTrackingReviewController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingReviewController.js",
+  ));
+  const track = reviewTrack({ playerId: "player-9", teamId: "team-away" });
+  const item = { id: "item-entity", clipId: track.clipId, objectTracks: [track], dynamicGraphics: [] };
+  let state = {
+    timeline: { playheadMs: 500 },
+    presentation: {
+      current: { sections: [{ id: "section-entity", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        selectedTrackIds: [track.id],
+        prompt: { entityType: "ball" },
+      },
+    },
+  };
+  const audits = [];
+  const controller = createTrackingReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getCurrentMatchMs: () => state.timeline.playheadMs,
+    getReviewer: () => "analyst-entity",
+    persistTrack: async (value) => value,
+    persistCorrection: async (value) => { audits.push(value); },
+  });
+
+  expect(controller.handleAction("review-entity")).toBe(true);
+  let corrected = state.presentation.current.sections[0].items[0].objectTracks[0];
+  expect(corrected).toMatchObject({
+    entityType: "ball",
+    playerId: "",
+    playerLabel: "",
+    teamSide: "",
+    identityConfidence: 0,
+  });
+  await expect.poll(() => audits.length).toBe(1);
+  expect(audits[0]).toMatchObject({
+    correctionType: "entity",
+    reason: "Relabeled player as ball",
+    metadata: {
+      previousEntityType: "player",
+      nextEntityType: "ball",
+      playerAssignmentCleared: true,
+    },
+  });
+
+  expect(controller.handleAction("review-undo")).toBe(true);
+  corrected = state.presentation.current.sections[0].items[0].objectTracks[0];
+  expect(corrected).toMatchObject({
+    entityType: "player",
+    playerId: "player-9",
+    playerLabel: "Opponent 9",
+    teamSide: "away",
+  });
+  await expect.poll(() => audits.length).toBe(2);
+  expect(audits.at(-1)).toMatchObject({
+    correctionType: "entity",
+    metadata: { historyAction: "undo", revertedCorrectionType: "entity" },
   });
 });
 
@@ -1317,6 +1433,14 @@ test("correction outbox retains one metadata-only operation and retries its exac
     correctionType: "restore",
     reason: "Restored rejected trajectory",
   })).toMatchObject({ correctionType: "restore" });
+  expect(contract.createLocalTrackingCorrectionRecord({
+    ...correction,
+    scope: scopeValues,
+    operationId: "entity-operation-outbox-1",
+    correctionType: "entity",
+    reason: "Relabeled player as ball",
+    metadata: { previousEntityType: "player", nextEntityType: "ball" },
+  })).toMatchObject({ correctionType: "entity" });
 
   remoteOnline = true;
   expect(await controller.retry()).toBe(true);
@@ -1409,6 +1533,7 @@ test("unsaved preannotation previews cannot enter correction persistence", async
     box: { left: 0.2, top: 0.3, width: 0.1, height: 0.2 },
   })).toBe(true);
   expect(controller.handleAction("review-identity")).toBe(true);
+  expect(controller.handleAction("review-entity")).toBe(true);
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(persisted).toHaveLength(0);
   expect(state.presentation.current.sections[0].items[0].objectTracks[0]).toEqual(track);

@@ -6,10 +6,11 @@ export function historyEntry(map, trackId = "") {
   return map.get(trackId) || [];
 }
 
-export function pushHistory(map, trackId = "", track = {}, sequence = 0) {
+export function pushHistory(map, trackId = "", track = {}, sequence = 0, correctionType = "position") {
   const entries = [...historyEntry(map, trackId), {
     sequence,
     track: normalizeObjectTrack(track),
+    correctionType: String(correctionType || "position"),
   }].slice(-maximumHistoryEntries);
   map.set(trackId, entries);
 }

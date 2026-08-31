@@ -374,6 +374,100 @@ async function mountStructuralReviewFixture(page) {
   });
 }
 
+async function mountMergeRejectReviewFixture(page) {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await page.evaluate(async () => {
+    const { renderTrackingSidebar, renderTrackingStage } = await import(
+      "/src/modules/video-analysis/components/TrackingTelestration.js"
+    );
+    const { createTrackingReviewController } = await import(
+      "/src/modules/video-analysis/controllers/trackingReviewController.js"
+    );
+    const point = (atMs, x) => ({
+      atMs,
+      x,
+      y: 0.4,
+      width: 0.08,
+      height: 0.2,
+      confidence: 0.9,
+      identityConfidence: 0.9,
+    });
+    const fragment = (id, startMs, endMs, points) => ({
+      id,
+      clipId: "clip-merge-reject",
+      videoId: "video-merge-reject",
+      entityType: "player",
+      playerId: "player-8",
+      playerLabel: "Player 8",
+      shirtNumber: "8",
+      teamSide: "home",
+      status: "review",
+      startMs,
+      endMs,
+      confidence: 0.9,
+      identityConfidence: 0.9,
+      segments: [{ id: `${id}-segment`, startMs, endMs, points }],
+    });
+    const first = fragment("track-fragment-first", 0, 500, [point(0, 0.2), point(500, 0.25)]);
+    const second = fragment("track-fragment-second", 1000, 1500, [point(1000, 0.3), point(1500, 0.35)]);
+    let state = {
+      players: [],
+      timeline: { playheadMs: 500 },
+      presentation: {
+        current: { sections: [{ id: "section-merge-reject", items: [{
+          id: "item-merge-reject",
+          clipId: first.clipId,
+          objectTracks: [first, second],
+          dynamicGraphics: [{
+            id: "graphic-merge-reject",
+            clipId: first.clipId,
+            type: "circle",
+            source: "tracking",
+            startMs: 0,
+            endMs: 1500,
+            bindings: [{ trackId: second.id, role: "primary", anchor: "ground" }],
+          }],
+        }] }] },
+        selectedItemId: "item-merge-reject",
+        tracking: {
+          mode: "tracking",
+          provider: {},
+          selectedTrackIds: [first.id, second.id],
+          prompt: { entityType: "player", playerId: first.playerId, playerLabel: first.playerLabel },
+          reviewHistory: {},
+        },
+      },
+    };
+    const currentItem = () => state.presentation.current.sections[0].items[0];
+    const render = () => {
+      document.body.innerHTML = `
+        <main style="box-sizing:border-box;width:min(420px,calc(100vw - 24px));margin:12px;padding:12px;background:#fff">
+          <div style="position:relative;width:100%;aspect-ratio:16/9">${renderTrackingStage(state, currentItem())}</div>
+          ${renderTrackingSidebar(state, currentItem())}
+        </main>`;
+    };
+    const updateState = (updater) => {
+      state = typeof updater === "function" ? updater(state) : updater;
+      window.__trackingMergeRejectState = state;
+      render();
+      return state;
+    };
+    const controller = createTrackingReviewController({
+      getState: () => state,
+      updateState,
+      getCurrentMatchMs: () => state.timeline.playheadMs,
+      getReviewer: () => "browser-reviewer",
+    });
+    window.__trackingMergeRejectState = state;
+    document.body.addEventListener("click", (event) => {
+      const action = event.target.closest?.("[data-video-analysis-tracking-action]")
+        ?.dataset.videoAnalysisTrackingAction;
+      if (action) controller.handleAction(action);
+    });
+    render();
+  });
+}
+
 test("tracking benchmark workspace restores and autosaves only inside its user scope", async ({ page }) => {
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
   const result = await page.evaluate(async () => {
@@ -1011,6 +1105,52 @@ test("structural track repair swaps crossed identities and remains atomically re
   expect(geometry.pageOverflow).toBeLessThanOrEqual(1);
   expect(geometry.elementOverflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath("tracking-structural-review-mobile.png"), fullPage: true });
+  expect(pageErrors).toEqual([]);
+});
+
+test("trajectory fragments merge and false positives reject and restore without stale overlays", async ({ page }, testInfo) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await mountMergeRejectReviewFixture(page);
+  const review = page.locator(".video-analysis-tracking-review");
+  const merge = review.locator('[data-video-analysis-tracking-action="review-merge"]');
+  await expect(merge).toBeEnabled();
+  await merge.click();
+  await expect.poll(() => page.evaluate(() => {
+    const item = window.__trackingMergeRejectState.presentation.current.sections[0].items[0];
+    return {
+      trackIds: item.objectTracks.map((track) => track.id),
+      binding: item.dynamicGraphics[0].bindings[0].trackId,
+    };
+  })).toEqual({ trackIds: ["track-fragment-first"], binding: "track-fragment-first" });
+  await expect(page.locator(".video-analysis-dynamic-anchor.is-circle")).toBeVisible();
+
+  await review.locator('[data-video-analysis-tracking-action="review-reject"]').click();
+  await expect(review).toContainText("Rejected false positive");
+  await expect(page.locator(".video-analysis-track-box")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-dynamic-anchor")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (
+    window.__trackingMergeRejectState.presentation.current.sections[0].items[0].objectTracks[0].status
+  ))).toBe("archived");
+
+  await review.locator('[data-video-analysis-tracking-action="review-undo"]').click();
+  await expect(page.locator(".video-analysis-track-box")).toBeVisible();
+  await expect(page.locator(".video-analysis-dynamic-anchor.is-circle")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (
+    window.__trackingMergeRejectState.presentation.current.sections[0].items[0].objectTracks[0].status
+  ))).toBe("review");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const geometry = await page.locator(".video-analysis-tracking-side").evaluate((element) => ({
+    right: element.getBoundingClientRect().right,
+    viewportWidth: window.innerWidth,
+    pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+    elementOverflow: element.scrollWidth - element.clientWidth,
+  }));
+  expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+  expect(geometry.pageOverflow).toBeLessThanOrEqual(1);
+  expect(geometry.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-merge-reject-mobile.png"), fullPage: true });
   expect(pageErrors).toEqual([]);
 });
 

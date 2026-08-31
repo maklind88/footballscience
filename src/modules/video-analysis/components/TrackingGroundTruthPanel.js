@@ -53,7 +53,8 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
     ? trackingGroundTruthArtifactBenchmarkType(truth.lockedArtifact)
     : suite.benchmarkType;
   const selectedObject = benchmarkType === TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT;
-  const tracks = (item?.objectTracks || []).map(normalizeObjectTrack);
+  const tracks = (item?.objectTracks || []).map(normalizeObjectTrack)
+    .filter((track) => track.status !== "archived");
   const primaryTrackId = state.presentation?.tracking?.selectedTrackIds?.[0] || "";
   const referenceIds = truth.selectedTrackIds || [];
   const primaryIncluded = referenceIds.includes(primaryTrackId);

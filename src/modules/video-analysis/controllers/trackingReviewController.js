@@ -28,17 +28,12 @@ import {
   trackSnapshots,
 } from "./trackingReviewHistory.js";
 import { createTrackingStructuralReviewRuntime } from "./trackingStructuralReviewRuntime.js";
+import { createTrackingReviewStructuralActions } from "./trackingReviewStructuralActions.js";
 
 const reviewActions = new Set([
-  "review-previous",
-  "review-next",
-  "review-continuity",
-  "review-identity",
-  "review-visibility",
-  "review-split",
-  "review-identity-swap",
-  "review-undo",
-  "review-redo",
+  "review-previous", "review-next", "review-continuity", "review-identity",
+  "review-visibility", "review-merge", "review-reject", "review-split",
+  "review-identity-swap", "review-undo", "review-redo",
 ]);
 function correctionOperationId(prefix = "correction") {
   return globalThis.crypto?.randomUUID?.()
@@ -214,6 +209,18 @@ export function createTrackingReviewController(options = {}) {
     structuralRuntime.persist(transaction, "after", true);
     return true;
   }
+
+  const reviewStructuralActions = createTrackingReviewStructuralActions({
+    getState,
+    selectedContext,
+    currentAtMs,
+    createOperationId: correctionOperationId,
+    nextSequence,
+    commitCompound,
+    commitTrackChange,
+    setError,
+    getReviewer: options.getReviewer,
+  });
 
   function splitAtPlayhead() {
     const state = getState();
@@ -433,6 +440,7 @@ export function createTrackingReviewController(options = {}) {
     }
     const entries = historyEntry(source, context.track.id);
     const restored = candidate.value.track;
+    const restoringRejectedTrack = context.track.status === "archived" && restored.status !== "archived";
     source.set(context.track.id, entries.slice(0, -1));
     pushHistory(target, context.track.id, context.track, nextSequence());
     const revision = bumpRevision(context.track.id);
@@ -440,10 +448,12 @@ export function createTrackingReviewController(options = {}) {
     options.invalidateGroundTruth?.(context.item.id);
     persistChange(context.item.id, context.track.id, restored, {
       atMs: currentAtMs(state),
-      correctionType: "position",
-      reason: direction === "redo" ? "Redid local tracking correction" : "Undid local tracking correction",
+      correctionType: restoringRejectedTrack ? "restore" : "position",
+      reason: restoringRejectedTrack
+        ? "Restored rejected false-positive trajectory"
+        : direction === "redo" ? "Redid local tracking correction" : "Undid local tracking correction",
       operationId: correctionOperationId(`history-${direction}`),
-      metadata: { historyAction: direction },
+      metadata: { historyAction: direction, ...(restoringRejectedTrack ? { disposition: "restored" } : {}) },
     }, revision);
     return true;
   }
@@ -470,6 +480,8 @@ export function createTrackingReviewController(options = {}) {
     if (action === "review-continuity") return confirmContinuity();
     if (action === "review-identity") return applyIdentity();
     if (action === "review-visibility") return toggleVisibility();
+    if (action === "review-merge") return reviewStructuralActions.mergeSelectedTracks();
+    if (action === "review-reject") return reviewStructuralActions.rejectSelectedTrack();
     if (action === "review-split") return splitAtPlayhead();
     if (action === "review-identity-swap") return swapSelectedIdentities();
     if (action === "review-undo") return restoreHistory("undo");

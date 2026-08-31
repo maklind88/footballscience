@@ -170,6 +170,39 @@ export function applyManualTrackingCorrection(trackValue = {}, correction = {}) 
   });
 }
 
+export function rejectTrackingTrack(trackValue = {}, options = {}) {
+  const track = normalizeObjectTrack(trackValue);
+  if (!track.id || track.status === "archived") {
+    const error = new Error(track.status === "archived"
+      ? "This trajectory is already rejected."
+      : "A saved trajectory is required before it can be rejected.");
+    error.code = "TRACKING_REVIEW_REJECT_INVALID";
+    throw error;
+  }
+  const atMs = Math.max(track.startMs, Math.min(
+    track.endMs,
+    Math.round(Number(options.atMs) || track.startMs),
+  ));
+  return normalizeObjectTrack({
+    ...track,
+    status: "archived",
+    corrections: [...track.corrections, {
+      id: String(options.operationId || localId("reject-correction")),
+      startMs: atMs,
+      endMs: atMs,
+      correctionType: "reject",
+      reason: String(options.reason || "Rejected false-positive trajectory"),
+      correctedBy: String(options.correctedBy || ""),
+      correctedAt: String(options.correctedAt || new Date().toISOString()),
+    }],
+    metadata: {
+      ...(track.metadata || {}),
+      reviewDisposition: "false-positive",
+      reviewDispositionAtMs: atMs,
+    },
+  });
+}
+
 export function trackingReviewSummary(trackValue = {}, options = {}) {
   const track = normalizeObjectTrack(trackValue);
   const requiresPlayerIdentity = track.entityType === "player";

@@ -7,21 +7,25 @@ import {
 } from "./trackingControllerHelpers.js";
 
 function remapGraphics(graphics = [], transaction = {}, direction = "after") {
-  if (direction === "before") {
+  const fallbacks = transaction.bindingFallbacksByDirection?.[direction]
+    || (direction === "before" ? transaction.bindingFallbacks : null);
+  if (fallbacks) {
     const migrations = [];
     const mapped = graphics.map((graphic) => ({
       ...graphic,
       bindings: (graphic.bindings || []).map((binding, index) => {
-        const trackId = transaction.bindingFallbacks?.[binding.trackId];
+        const trackId = fallbacks[binding.trackId];
         if (!trackId) return binding;
         migrations.push({ graphicId: graphic.id, index, from: binding.trackId, to: trackId });
         return { ...binding, trackId };
       }),
     }));
-    transaction.bindingMigrations = migrations;
+    transaction.bindingMigrationsByDirection ||= {};
+    transaction.bindingMigrationsByDirection[direction] = migrations;
     return mapped;
   }
-  const migrations = transaction.bindingMigrations || [];
+  const opposite = direction === "before" ? "after" : "before";
+  const migrations = transaction.bindingMigrationsByDirection?.[opposite] || [];
   return graphics.map((graphic) => ({
     ...graphic,
     bindings: (graphic.bindings || []).map((binding, index) => {
@@ -44,28 +48,30 @@ function tracksFromSnapshots(liveTracks = [], snapshots = [], affectedTrackIds =
 
 function operationOutputs(transaction, direction = "after") {
   const target = direction === "before" ? transaction.before : transaction.after;
+  const source = direction === "before" ? transaction.after : transaction.before;
   const outputs = target.map((snapshot) => ({ logicalId: snapshot.track.id, track: snapshot.track }));
-  if (direction === "before") {
-    const retained = new Set(target.map((snapshot) => snapshot.track.id));
-    transaction.after.filter((snapshot) => !retained.has(snapshot.track.id)).forEach((snapshot) => {
-      outputs.push({
-        logicalId: snapshot.track.id,
-        track: normalizeObjectTrack({ ...snapshot.track, status: "archived" }),
-      });
+  const retained = new Set(target.map((snapshot) => snapshot.track.id));
+  source.filter((snapshot) => !retained.has(snapshot.track.id)).forEach((snapshot) => {
+    outputs.push({
+      logicalId: snapshot.track.id,
+      track: normalizeObjectTrack({ ...snapshot.track, status: "archived" }),
     });
-  }
+  });
   return outputs;
 }
 
 function operationAudits(transaction, direction, initial, createOperationId) {
   if (initial) return transaction.audits;
   const snapshots = direction === "before" ? transaction.before : transaction.after;
-  const correctionType = transaction.type === "identity-swap"
-    ? "identity-swap"
-    : transaction.type === "split" ? (direction === "before" ? "merge" : "split") : "position";
-  const reason = direction === "before"
-    ? transaction.type === "split" ? "Undid trajectory split" : "Undid identity swap"
-    : transaction.type === "split" ? "Redid trajectory split" : "Redid identity swap";
+  const correctionType = transaction.type === "identity-swap" ? "identity-swap"
+    : transaction.type === "split" ? (direction === "before" ? "merge" : "split")
+      : transaction.type === "merge" ? (direction === "before" ? "split" : "merge") : "position";
+  const descriptions = {
+    split: direction === "before" ? "Undid trajectory split" : "Redid trajectory split",
+    merge: direction === "before" ? "Undid trajectory merge" : "Redid trajectory merge",
+    "identity-swap": direction === "before" ? "Undid identity swap" : "Redid identity swap",
+  };
+  const reason = descriptions[transaction.type] || "Restored structural tracking correction";
   const operationGroupId = createOperationId(`history-${direction}`);
   return snapshots.map((snapshot, index) => ({
     operationId: `${operationGroupId}:${index + 1}`,

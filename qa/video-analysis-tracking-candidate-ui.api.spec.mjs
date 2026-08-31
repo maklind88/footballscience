@@ -116,6 +116,8 @@ test("candidate provider is benchmark-only and selected only for full-scene evid
   ]);
   expect(trackingBenchmarkProvider(tracking, "multi-object")).toBe(tracking.candidateBenchmarkProvider);
   expect(trackingBenchmarkProvider(tracking, "selected-object")).toBe(tracking.provider);
+  expect(trackingBenchmarkProvider({ ...tracking, candidateBenchmarkProvider: null }, "multi-object"))
+    .toBe(tracking.provider);
 });
 
 test("candidate benchmark stage switching invalidates stale evaluation evidence", async () => {

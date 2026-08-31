@@ -111,10 +111,11 @@ function idempotentCorrectionPayload(existing, track) {
   };
 }
 
-async function markTrackForCorrection(scope, track) {
+async function markTrackForCorrection(scope, track, correctionType = "position") {
   const params = buildTeamParams(scope);
   params.set("id", `eq.${track.id}`);
-  const result = await patchRows("video_object_tracks", params, { status: "review" });
+  const status = correctionType === "reject" ? "archived" : "review";
+  const result = await patchRows("video_object_tracks", params, { status });
   if (!result.ok) return result;
   return {
     ok: true,
@@ -123,8 +124,10 @@ async function markTrackForCorrection(scope, track) {
 }
 
 async function replayExistingCorrection(scope, correction, track) {
-  if (track.status === "review") return idempotentCorrectionPayload(correction, track);
-  const marked = await markTrackForCorrection(scope, track);
+  const correctionType = String(correction.correction_type || "position").toLowerCase();
+  const expectedStatus = correctionType === "reject" ? "archived" : "review";
+  if (track.status === expectedStatus) return idempotentCorrectionPayload(correction, track);
+  const marked = await markTrackForCorrection(scope, track, correctionType);
   return marked.ok ? idempotentCorrectionPayload(correction, marked.track) : marked;
 }
 
@@ -289,7 +292,7 @@ async function saveTrackCorrection(value = {}, actor = {}) {
     operation_id: operationId,
     object_track_id: track.id,
     at_ms: asMs(value.atMs ?? value.at_ms, 0),
-    correction_type: ["position", "identity", "occlusion", "split", "merge", "identity-swap"].includes(correctionType) ? correctionType : "position",
+    correction_type: ["position", "identity", "occlusion", "split", "merge", "identity-swap", "reject", "restore"].includes(correctionType) ? correctionType : "position",
     box_json: safeObject(value.box || value.box_json),
     ground_point_json: safeObject(value.groundPoint || value.ground_point_json),
     player_id: normalizeText(value.playerId || value.player_id, 160) || null,
@@ -318,7 +321,7 @@ async function saveTrackCorrection(value = {}, actor = {}) {
     }
   }
   if (!result.ok) return result;
-  const marked = await markTrackForCorrection(scope, track);
+  const marked = await markTrackForCorrection(scope, track, correctionType);
   return marked.ok
     ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, correction: mapCorrection(rowList(result)[0]), objectTrack: mapTrack(marked.track) } }
     : marked;

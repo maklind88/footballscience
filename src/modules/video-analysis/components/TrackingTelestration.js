@@ -59,6 +59,7 @@ function trackedObjectLabel(track = {}) {
 }
 
 function renderTrackBox(track = {}, atMs = 0, selectedTrackIds = []) {
+  if (track.status === "archived") return "";
   const point = trackingPointAt(track, atMs, { maxInterpolationGapMs: 1200 });
   if (!point) return "";
   const selected = selectedTrackIds.includes(track.id);
@@ -119,16 +120,21 @@ function renderPrompt(prompt = null, label = "Target", queued = false) {
 export function renderTrackingStage(state = {}, item = null) {
   if (state.presentation?.tracking?.mode === "static" || !item) return "";
   const { tracks, graphics } = currentItemTracking(item);
+  const activeTracks = tracks.filter((track) => track.status !== "archived");
+  const activeTrackIds = new Set(activeTracks.map((track) => track.id));
+  const activeGraphics = graphics.filter((graphic) => (
+    (graphic.bindings || []).every((binding) => activeTrackIds.has(binding.trackId))
+  ));
   const atMs = playheadMs(state);
   const selectedTrackIds = state.presentation?.tracking?.selectedTrackIds || [];
   const pendingPrompts = state.presentation?.tracking?.pendingPrompts || [];
   const spatialCapture = Boolean(state.presentation?.spatial?.captureLandmarkId);
-  const resolved = resolveDynamicGraphics(graphics, tracks, atMs, {
+  const resolved = resolveDynamicGraphics(activeGraphics, activeTracks, atMs, {
     calibration: state.presentation?.spatial?.calibration || null,
   });
   return `
     <div class="video-analysis-tracking-stage${spatialCapture ? " is-spatial-capturing" : ""}" data-video-analysis-tracking-stage>
-      ${tracks.map((track) => renderTrackBox(track, atMs, selectedTrackIds)).join("")}
+      ${activeTracks.map((track) => renderTrackBox(track, atMs, selectedTrackIds)).join("")}
       ${resolved.map(renderResolvedGraphic).join("")}
       ${pendingPrompts.map((prompt, index) => renderPrompt(prompt, `Target ${index + 1}`, true)).join("")}
       ${renderPrompt(state.presentation?.tracking?.prompt, `Target ${pendingPrompts.length + 1}`)}
@@ -190,7 +196,7 @@ function renderTrackingProgress(job = {}) {
 }
 
 function renderTrackingContinuation(track = null, item = null, options = {}) {
-  if (!track || !item) return "";
+  if (!track || !item || track.status === "archived") return "";
   const availability = trackingExtensionAvailability(
     track,
     trackingTargetRange(track, itemRange(item)),
@@ -312,6 +318,10 @@ export function renderTrackingSidebar(state = {}, item = null) {
   }
   const { tracks, graphics } = currentItemTracking(item || {});
   const selectedTrackIds = tracking.selectedTrackIds || [];
+  const activeTracks = tracks.filter((track) => track.status !== "archived");
+  const visibleTracks = tracks.filter((track) => (
+    track.status !== "archived" || selectedTrackIds.includes(track.id)
+  ));
   const provider = tracking.provider || {};
   const providerReady = provider.status === "ready";
   const pendingPrompts = tracking.pendingPrompts || [];
@@ -319,7 +329,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
   const maximumBatchSize = Math.max(1, Math.min(8, Number(provider.maxObjectsPerJob) || 8));
   const batchReady = targetCount < 2 || provider.batchAvailable === true;
   const primaryTrack = tracks.find((track) => track.id === selectedTrackIds[0]) || null;
-  const graphicSelection = trackingGraphicBindingSelection(tracks, selectedTrackIds, tracking.tool);
+  const graphicSelection = trackingGraphicBindingSelection(activeTracks, selectedTrackIds, tracking.tool);
   const entityType = tracking.prompt?.entityType || "player";
   const clip = item?.clip || {};
   const startSeconds = ((tracking.prompt?.startMs ?? item?.startMs ?? clip.startMs ?? clip.start_ms ?? 0) / 1000).toFixed(1);
@@ -378,10 +388,10 @@ export function renderTrackingSidebar(state = {}, item = null) {
       ${tracking.job ? renderTrackingProgress(tracking.job) : ""}
       ${tracking.error ? `<p class="video-analysis-error">${escapeHtml(tracking.error)}</p>` : ""}
       <ol class="video-analysis-tracking-list">
-        ${tracks.length ? tracks.map((track) => renderTrackRow(track, selectedTrackIds)).join("") : `<li class="video-analysis-muted">No tracked objects in this clip.</li>`}
+        ${visibleTracks.length ? visibleTracks.map((track) => renderTrackRow(track, selectedTrackIds)).join("") : `<li class="video-analysis-muted">No tracked objects in this clip.</li>`}
       </ol>
       ${renderTrackingContinuation(primaryTrack, item, { providerReady, jobActive: Boolean(tracking.job) })}
-      ${renderTrackingReviewPanel(state, primaryTrack, tracks)}
+      ${renderTrackingReviewPanel(state, primaryTrack, activeTracks)}
       ${renderTrackingGroundTruthPanel(state, item)}
       ${renderTrackingCandidatePanel(state, item)}
       ${renderTrackingBenchmarkSuitePanel(state)}

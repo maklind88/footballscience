@@ -94,6 +94,28 @@ test("identity and visibility corrections affect one reviewed frame and preserve
   expect(correction.trackingReviewEvents(identity).map((entry) => entry.type)).toContain("identity-confidence");
 });
 
+test("false-positive rejection archives only the review copy and remains explicitly auditable", async () => {
+  const review = await import(moduleUrl("src/modules/video-analysis/services/trackingReviewService.js"));
+  const rejected = review.rejectTrackingTrack(reviewTrack(), {
+    atMs: 500,
+    operationId: "reject-operation-1",
+    correctedAt: "2026-08-31T12:00:00.000Z",
+  });
+  expect(rejected).toMatchObject({
+    status: "archived",
+    metadata: { reviewDisposition: "false-positive", reviewDispositionAtMs: 500 },
+  });
+  expect(rejected.corrections.at(-1)).toMatchObject({
+    id: "reject-operation-1",
+    correctionType: "reject",
+    startMs: 500,
+  });
+  expect(rejected.segments).toEqual(reviewTrack().segments.map((segment, index) => (
+    expect.objectContaining({ id: segment.id, points: expect.any(Array) })
+  )));
+  expect(() => review.rejectTrackingTrack(rejected)).toThrow(/already rejected/i);
+});
+
 test("analyst-confirmed continuity joins only short spatially plausible breaks", async () => {
   const correction = await import(moduleUrl("src/modules/video-analysis/services/trackingCorrectionService.js"));
   const merged = correction.applyTrackingContinuityCorrection(reviewTrack(), { atMs: 1500 });
@@ -179,6 +201,61 @@ test("structural split preserves every sample and makes the continuation explici
   ].map((point) => point.atMs)).toEqual([0, 500, 1000, 1500, 2000]);
   expect(split.prefix.corrections.at(-1)).toMatchObject({ correctionType: "split", startMs: 1000 });
   expect(split.suffix.corrections.at(-1)).toMatchObject({ correctionType: "split", startMs: 1000 });
+});
+
+test("structural merge preserves samples and blocks conflicting or overlapping trajectories", async () => {
+  const structural = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingStructuralCorrectionService.js",
+  ));
+  const first = reviewTrack({
+    id: "track-merge-first",
+    startMs: 0,
+    endMs: 500,
+    segments: [{ id: "segment-merge-first", startMs: 0, endMs: 500, points: [
+      { atMs: 0, x: 0.2, y: 0.4, width: 0.08, height: 0.2, confidence: 0.8, identityConfidence: 0.8 },
+      { atMs: 500, x: 0.25, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+    ] }],
+    metadata: { localWorkspaceTrackKey: "workspace-merge-first", localArtifactId: "raw-first" },
+  });
+  const second = reviewTrack({
+    id: "track-merge-second",
+    startMs: 1000,
+    endMs: 1500,
+    segments: [{ id: "segment-merge-second", startMs: 1000, endMs: 1500, points: [
+      { atMs: 1000, x: 0.3, y: 0.4, width: 0.08, height: 0.2, confidence: 0.85, identityConfidence: 0.85 },
+      { atMs: 1500, x: 0.35, y: 0.4, width: 0.08, height: 0.2, confidence: 0.88, identityConfidence: 0.88 },
+    ] }],
+    metadata: { localWorkspaceTrackKey: "workspace-merge-second", localArtifactId: "raw-second" },
+  });
+  expect(structural.trackingMergeReadiness(first, second)).toMatchObject({
+    ready: true,
+    atMs: 1000,
+    retainedTrackId: first.id,
+    absorbedTrackId: second.id,
+  });
+  const result = structural.mergeTrackingTracks(first, second, {
+    operationId: "merge-operation-1",
+    correctedAt: "2026-08-31T12:00:00.000Z",
+  });
+  expect(result.merged).toMatchObject({
+    id: first.id,
+    startMs: 0,
+    endMs: 1500,
+    status: "review",
+    metadata: {
+      localWorkspaceTrackKey: "workspace-merge-first",
+      structuralCorrection: "merge",
+      structuralCorrectionPartnerTrackId: second.id,
+    },
+  });
+  expect(result.merged.metadata).not.toHaveProperty("localArtifactId");
+  expect(result.merged.segments.flatMap((segment) => segment.points).map((point) => point.atMs))
+    .toEqual([0, 500, 1000, 1500]);
+  expect(result.merged.corrections.at(-1)).toMatchObject({ correctionType: "merge", startMs: 1000 });
+  expect(structural.trackingMergeReadiness(first, { ...second, playerLabel: "Opponent 10" }))
+    .toMatchObject({ ready: false, error: expect.stringMatching(/conflicting player identity/i) });
+  expect(structural.trackingMergeReadiness(first, { ...second, startMs: 500 }))
+    .toMatchObject({ ready: false, error: expect.stringMatching(/overlap/i) });
 });
 
 test("identity swap exchanges only crossed continuations and confirms both boundaries", async () => {
@@ -334,6 +411,7 @@ test("tracking review panel exposes professional correction controls without ena
   expect(html).toMatch(/data-video-analysis-tracking-action="review-undo"(?! disabled)/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-redo" disabled/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-continuity" disabled/);
+  expect(html).toMatch(/data-video-analysis-tracking-action="review-merge"[^>]+disabled/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-split"(?![^>]*disabled)[^>]*>Split at playhead/);
   expect(html).toMatch(/data-video-analysis-tracking-action="review-identity-swap"[^>]+disabled/);
   expect(html).toContain("Mark occluded");
@@ -356,6 +434,31 @@ test("tracking review panel exposes professional correction controls without ena
     },
   }, track, [track, second]);
   expect(swapHtml).toMatch(/data-video-analysis-tracking-action="review-identity-swap"(?![^>]*disabled)[^>]*>Swap after playhead/);
+
+  const fragment = reviewTrack({
+    id: "track-review-fragment",
+    startMs: 2500,
+    endMs: 3000,
+    segments: [{ id: "segment-review-fragment", startMs: 2500, endMs: 3000, points: [
+      { atMs: 2500, x: 0.42, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 3000, x: 0.45, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+    ] }],
+  });
+  const mergeHtml = renderTrackingReviewPanel({
+    timeline: { playheadMs: 2000 },
+    presentation: { tracking: { selectedTrackIds: [track.id, fragment.id], prompt: {}, reviewHistory: {} } },
+  }, track, [track, fragment]);
+  expect(mergeHtml).toMatch(/data-video-analysis-tracking-action="review-merge"(?![^>]*disabled)[^>]*>Merge tracks/);
+
+  const rejected = { ...track, status: "archived" };
+  const rejectedHtml = renderTrackingReviewPanel({
+    timeline: { playheadMs: 500 },
+    presentation: { tracking: { selectedTrackIds: [track.id], reviewHistory: { trackId: track.id, undoCount: 1 } } },
+  }, rejected, [rejected]);
+  expect(rejectedHtml).toContain("Rejected false positive");
+  expect(rejectedHtml).toContain("Raw provider evidence is unchanged");
+  expect(rejectedHtml).toMatch(/data-video-analysis-tracking-action="review-undo"(?! disabled)[^>]*>Restore trajectory/);
+  expect(rejectedHtml).not.toContain("review-reject");
 });
 
 test("trajectory split is one reversible operation and archives only its derived branch", async () => {
@@ -423,6 +526,148 @@ test("trajectory split is one reversible operation and archives only its derived
   expect(state.presentation.current.sections[0].items[0].dynamicGraphics[0].bindings[0].trackId).toBe(suffixId);
   await expect.poll(() => audits.length).toBe(5);
   expect(audits.slice(-2).every((entry) => entry.correctionType === "split")).toBe(true);
+});
+
+test("trajectory merge archives one fragment and reverses tracks and graphics as one operation", async () => {
+  const { createTrackingReviewController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingReviewController.js",
+  ));
+  const first = reviewTrack({
+    id: "track-controller-merge-first",
+    startMs: 0,
+    endMs: 500,
+    segments: [{ id: "segment-controller-merge-first", startMs: 0, endMs: 500, points: [
+      { atMs: 0, x: 0.2, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 500, x: 0.25, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+    ] }],
+  });
+  const second = reviewTrack({
+    id: "track-controller-merge-second",
+    startMs: 1000,
+    endMs: 1500,
+    segments: [{ id: "segment-controller-merge-second", startMs: 1000, endMs: 1500, points: [
+      { atMs: 1000, x: 0.3, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+      { atMs: 1500, x: 0.35, y: 0.4, width: 0.08, height: 0.2, confidence: 0.9, identityConfidence: 0.9 },
+    ] }],
+  });
+  const item = {
+    id: "item-controller-merge",
+    clipId: first.clipId,
+    objectTracks: [first, second],
+    dynamicGraphics: [{
+      id: "graphic-controller-merge",
+      type: "distance",
+      source: "tracking",
+      bindings: [{ trackId: second.id, role: "secondary", anchor: "ground" }],
+    }],
+  };
+  let state = {
+    timeline: { playheadMs: 500 },
+    presentation: {
+      current: { sections: [{ id: "section-controller-merge", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: { selectedTrackIds: [first.id, second.id], prompt: {} },
+    },
+  };
+  const trackWrites = [];
+  const audits = [];
+  const controller = createTrackingReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getCurrentMatchMs: () => state.timeline.playheadMs,
+    persistTrack: async (value) => { trackWrites.push(value); return value; },
+    persistCorrection: async (value) => { audits.push(value); },
+  });
+
+  expect(controller.handleAction("review-merge")).toBe(true);
+  let mergedItem = state.presentation.current.sections[0].items[0];
+  expect(mergedItem.objectTracks).toHaveLength(1);
+  expect(mergedItem.objectTracks[0].segments.flatMap((segment) => segment.points)).toHaveLength(4);
+  expect(mergedItem.dynamicGraphics[0].bindings[0].trackId).toBe(first.id);
+  expect(state.presentation.tracking).toMatchObject({
+    selectedTrackIds: [first.id],
+    reviewHistory: { undoCount: 1, redoCount: 0 },
+  });
+  await expect.poll(() => trackWrites.length).toBe(2);
+  expect(trackWrites.filter((entry) => entry.status === "archived")).toHaveLength(1);
+  expect(trackWrites.find((entry) => entry.status === "archived").id).toBe(second.id);
+  await expect.poll(() => audits.length).toBe(1);
+  expect(audits[0]).toMatchObject({ correctionType: "merge", metadata: { mergedTrackId: second.id } });
+
+  expect(controller.handleAction("review-undo")).toBe(true);
+  mergedItem = state.presentation.current.sections[0].items[0];
+  expect(mergedItem.objectTracks.map((track) => track.id)).toEqual([first.id, second.id]);
+  expect(mergedItem.dynamicGraphics[0].bindings[0].trackId).toBe(second.id);
+  await expect.poll(() => audits.length).toBe(3);
+  expect(audits.slice(-2).every((entry) => entry.correctionType === "split")).toBe(true);
+
+  expect(controller.handleAction("review-redo")).toBe(true);
+  mergedItem = state.presentation.current.sections[0].items[0];
+  expect(mergedItem.objectTracks).toHaveLength(1);
+  expect(mergedItem.dynamicGraphics[0].bindings[0].trackId).toBe(first.id);
+});
+
+test("false-positive rejection is reversible and excluded from rendered tracking analysis", async () => {
+  const { createTrackingReviewController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingReviewController.js",
+  ));
+  const { renderTrackingSidebar, renderTrackingStage } = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingTelestration.js",
+  ));
+  const track = reviewTrack();
+  const item = {
+    id: "item-controller-reject",
+    clipId: track.clipId,
+    objectTracks: [track],
+    dynamicGraphics: [{
+      id: "graphic-controller-reject",
+      type: "circle",
+      source: "tracking",
+      startMs: 0,
+      endMs: 2000,
+      bindings: [{ trackId: track.id, role: "primary", anchor: "ground" }],
+    }],
+  };
+  let state = {
+    timeline: { playheadMs: 500 },
+    presentation: {
+      current: { sections: [{ id: "section-controller-reject", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: { mode: "tracking", selectedTrackIds: [track.id], prompt: {} },
+    },
+  };
+  const trackWrites = [];
+  const audits = [];
+  const controller = createTrackingReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getCurrentMatchMs: () => state.timeline.playheadMs,
+    persistTrack: async (value) => { trackWrites.push(value); return value; },
+    persistCorrection: async (value) => { audits.push(value); },
+  });
+
+  expect(controller.handleAction("review-reject")).toBe(true);
+  let rejected = state.presentation.current.sections[0].items[0].objectTracks[0];
+  expect(rejected).toMatchObject({ status: "archived", metadata: { reviewDisposition: "false-positive" } });
+  expect(renderTrackingStage(state, state.presentation.current.sections[0].items[0]))
+    .not.toContain(`data-video-analysis-track-select="${track.id}"`);
+  const rejectedSidebar = renderTrackingSidebar(state, state.presentation.current.sections[0].items[0]);
+  expect(rejectedSidebar).toContain("Rejected false positive");
+  expect(rejectedSidebar).not.toContain("Add movement path");
+  await expect.poll(() => audits.length).toBe(1);
+  expect(audits[0]).toMatchObject({ correctionType: "reject", metadata: { disposition: "false-positive" } });
+
+  expect(controller.handleAction("review-undo")).toBe(true);
+  rejected = state.presentation.current.sections[0].items[0].objectTracks[0];
+  expect(rejected.status).toBe("review");
+  expect(renderTrackingStage(state, state.presentation.current.sections[0].items[0]))
+    .toContain(`data-video-analysis-track-select="${track.id}"`);
+  await expect.poll(() => trackWrites.length).toBe(2);
+  await expect.poll(() => audits.length).toBe(2);
+  expect(audits.at(-1)).toMatchObject({
+    correctionType: "restore",
+    metadata: { historyAction: "undo", disposition: "restored" },
+  });
 });
 
 test("identity swap persists and reverses both trajectories as one audit group", async () => {
@@ -1058,6 +1303,20 @@ test("correction outbox retains one metadata-only operation and retries its exac
     scope: scopeValues,
     createdAt: "not-a-date",
   })).toThrow(/creation time/i);
+  expect(contract.createLocalTrackingCorrectionRecord({
+    ...correction,
+    scope: scopeValues,
+    operationId: "reject-operation-outbox-1",
+    correctionType: "reject",
+    reason: "Rejected false-positive trajectory",
+  })).toMatchObject({ correctionType: "reject" });
+  expect(contract.createLocalTrackingCorrectionRecord({
+    ...correction,
+    scope: scopeValues,
+    operationId: "restore-operation-outbox-1",
+    correctionType: "restore",
+    reason: "Restored rejected trajectory",
+  })).toMatchObject({ correctionType: "restore" });
 
   remoteOnline = true;
   expect(await controller.retry()).toBe(true);

@@ -8,14 +8,15 @@ const candidateStages = Object.freeze([
 ]);
 
 function candidateProvider(value = {}) {
-  const id = String(value.id || value.providerId || "");
-  const version = String(value.version || value.providerVersion || "");
-  const stage = String(value.stage || "");
-  const fingerprint = String(value.executionFingerprintSha256 || "").toLowerCase();
+  const provider = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const id = String(provider.id || provider.providerId || "");
+  const version = String(provider.version || provider.providerVersion || "");
+  const stage = String(provider.stage || "");
+  const fingerprint = String(provider.executionFingerprintSha256 || "").toLowerCase();
   if (!id || !version || !candidateStages.includes(stage)
     || !/^[a-f0-9]{64}$/.test(fingerprint)
-    || value.benchmarkOnly !== true) return null;
-  return value;
+    || provider.benchmarkOnly !== true) return null;
+  return provider;
 }
 
 export function trackingCandidateBenchmarkProviders(tracking = {}) {

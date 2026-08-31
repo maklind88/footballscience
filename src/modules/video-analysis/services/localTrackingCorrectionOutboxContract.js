@@ -14,7 +14,7 @@ export const MAX_LOCAL_TRACKING_CORRECTION_BYTES = 64 * 1024;
 export const MAX_LOCAL_TRACKING_CORRECTION_SCOPE_BYTES = 8 * 1024 * 1024;
 
 const correctionTypes = new Set([
-  "position", "identity", "occlusion", "split", "merge", "identity-swap",
+  "position", "identity", "occlusion", "split", "merge", "identity-swap", "reject", "restore",
 ]);
 const unsafeKeys = new Set(["__proto__", "constructor", "prototype"]);
 

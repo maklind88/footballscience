@@ -6,6 +6,7 @@ import {
 import { trackingReviewSummary } from "../services/trackingReviewService.js";
 import {
   trackingIdentitySwapReadiness,
+  trackingMergeReadiness,
   trackingSplitReadiness,
 } from "../services/trackingStructuralCorrectionService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
@@ -33,8 +34,25 @@ function renderTrackingProvenance(track = null) {
 
 export function renderTrackingReviewPanel(state = {}, track = null, tracks = []) {
   if (!track) return "";
-  const review = trackingReviewSummary(track);
   const atMs = currentPlayheadMs(state);
+  const history = state.presentation?.tracking?.reviewHistory || {};
+  const historyMatches = history.trackId === track.id;
+  if (track.status === "archived") {
+    return `
+      <section class="video-analysis-tracking-review is-rejected" aria-label="Rejected trajectory">
+        <header>
+          <div>
+            <strong>Rejected false positive</strong>
+            <span>Raw provider evidence is unchanged</span>
+          </div>
+          <em>rejected</em>
+        </header>
+        <p class="video-analysis-tracking-review__summary">This trajectory is excluded from tracking, spatial analysis and ground truth.</p>
+        <button type="button" data-video-analysis-tracking-action="review-undo" ${historyMatches && history.undoCount ? "" : "disabled"}>Restore trajectory</button>
+      </section>
+    `;
+  }
+  const review = trackingReviewSummary(track);
   const events = trackingReviewEvents(track);
   const issue = nearestReviewEvent(events, atMs);
   const continuityIssue = nearestReviewEvent(
@@ -45,8 +63,6 @@ export function renderTrackingReviewPanel(state = {}, track = null, tracks = [])
   const previous = adjacentTrackingReviewEvent(events, atMs, "earlier");
   const next = adjacentTrackingReviewEvent(events, atMs, "later");
   const visibility = trackingPointVisibility(track, atMs);
-  const history = state.presentation?.tracking?.reviewHistory || {};
-  const historyMatches = history.trackId === track.id;
   const prompt = state.presentation?.tracking?.prompt || {};
   const identityReady = track.entityType === "player" && Boolean(prompt.playerId || prompt.playerLabel);
   const selectedTrackIds = state.presentation?.tracking?.selectedTrackIds || [];
@@ -57,6 +73,9 @@ export function renderTrackingReviewPanel(state = {}, track = null, tracks = [])
   const swap = selectedTracks.length === 2
     ? trackingIdentitySwapReadiness(selectedTracks[0], selectedTracks[1], atMs)
     : { ready: false, error: "Select two identified player tracks." };
+  const merge = selectedTracks.length === 2
+    ? trackingMergeReadiness(selectedTracks[0], selectedTracks[1])
+    : { ready: false, error: "Select two trajectory fragments." };
   return `
     <section class="video-analysis-tracking-review" aria-label="Track review">
       <header>
@@ -78,8 +97,10 @@ export function renderTrackingReviewPanel(state = {}, track = null, tracks = [])
         ${track.entityType === "player" ? `<button type="button" data-video-analysis-tracking-action="review-identity" ${identityReady ? "" : "disabled"}>Apply identity</button>` : ""}
         <button type="button" data-video-analysis-tracking-action="review-continuity" ${continuityReady ? "" : "disabled"}>Confirm continuity</button>
         <button type="button" data-video-analysis-tracking-action="review-visibility" ${visibility.available ? "" : "disabled"}>${visibility.occluded ? "Mark visible" : "Mark occluded"}</button>
+        <button type="button" data-video-analysis-tracking-action="review-merge" title="${escapeHtml(merge.error || "Merge the two selected trajectory fragments")}" ${merge.ready ? "" : "disabled"}>Merge tracks</button>
         <button type="button" data-video-analysis-tracking-action="review-split" title="${escapeHtml(split.error || "Split this trajectory at the playhead")}" ${split.ready ? "" : "disabled"}>Split at playhead</button>
         <button type="button" data-video-analysis-tracking-action="review-identity-swap" title="${escapeHtml(swap.error || "Swap the two selected trajectories after the playhead")}" ${swap.ready ? "" : "disabled"}>Swap after playhead</button>
+        <button type="button" data-video-analysis-tracking-action="review-reject" title="Exclude this false-positive trajectory without changing raw provider evidence">Reject track</button>
         <button type="button" data-video-analysis-tracking-action="review-undo" ${historyMatches && history.undoCount ? "" : "disabled"}>Undo</button>
         <button type="button" data-video-analysis-tracking-action="review-redo" ${historyMatches && history.redoCount ? "" : "disabled"}>Redo</button>
       </div>

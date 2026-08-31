@@ -2,6 +2,7 @@ import { createReadStream, readFileSync, renameSync, statSync, writeFileSync } f
 import { createServer } from "node:http";
 import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { pathIsWithinRoot } from "./path-containment.mjs";
 
 if (process.argv.includes("--load-check")) {
   console.log("hosted server helper loaded");
@@ -44,7 +45,7 @@ function resolveFile(urlPath) {
   const cleanPath = decodeURIComponent((urlPath || "/").split("?")[0]);
   const relative = cleanPath === "/" ? "index.html" : cleanPath.replace(/^\/+/, "");
   const filePath = resolve(root, relative);
-  if (filePath !== root && !filePath.startsWith(`${root}/`)) throw new Error("Not found");
+  if (!pathIsWithinRoot(root, filePath)) throw new Error("Not found");
   return filePath;
 }
 

@@ -204,6 +204,52 @@ test("Squad training availability summary ignores unrecommended trainings but co
   expect(summary.lastFive).toEqual({ average: 50, count: 3 });
 });
 
+test("Squad training availability summary counts available players from their roster start date", () => {
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "new-player",
+    referenceDateValue: "2026-08-31",
+    availabilityStartDateValue: "2026-08-20",
+    records: [],
+    getPlayerAvailabilityStatusForDate: (_playerId, dateValue) =>
+      dateValue === "2026-08-27"
+        ? "national-team"
+        : dateValue === "2026-08-28"
+          ? "vacation"
+          : dateValue === "2026-08-29"
+            ? "injured"
+            : "available",
+    getTeamTrainingDateValues: () => [
+      "2026-08-18",
+      "2026-08-20",
+      "2026-08-24",
+      "2026-08-27",
+      "2026-08-28",
+      "2026-08-29",
+      "2026-08-31",
+    ],
+  });
+
+  expect(summary.hasData).toBe(true);
+  expect(summary.loggedCount).toBe(5);
+  expect(summary.season).toEqual({ average: 60, count: 5 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 60, count: 5 });
+});
+
+test("Squad training availability summary preserves earlier roster evidence from medical history", () => {
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "imported-player",
+    referenceDateValue: "2026-08-31",
+    availabilityStartDateValue: "2026-08-20",
+    records: [
+      { playerId: "imported-player", date: "2026-08-10", participation: 50, updatedAt: "2026-08-10T14:00:00Z" },
+    ],
+    getPlayerAvailabilityStatusForDate: () => "available",
+    getTeamTrainingDateValues: () => ["2026-08-08", "2026-08-10", "2026-08-15", "2026-08-20"],
+  });
+
+  expect(summary.season).toEqual({ average: 83, count: 3 });
+});
+
 test("Squad training availability summary uses actual participation when logged", () => {
   const summary = getSquadTrainingAvailabilitySummary({
     playerId: "p1",
@@ -242,11 +288,11 @@ test("Squad training availability summary counts medical plans and injured statu
   });
 
   expect(summary.hasData).toBe(true);
-  expect(summary.week).toEqual({ average: 33, count: 3 });
-  expect(summary.month).toEqual({ average: 33, count: 3 });
-  expect(summary.season).toEqual({ average: 33, count: 3 });
-  expect(summary.lastTwoWeeks).toEqual({ average: 33, count: 3 });
-  expect(summary.lastFive).toEqual({ average: 33, count: 3 });
+  expect(summary.week).toEqual({ average: 50, count: 4 });
+  expect(summary.month).toEqual({ average: 50, count: 4 });
+  expect(summary.season).toEqual({ average: 50, count: 4 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 50, count: 4 });
+  expect(summary.lastFive).toEqual({ average: 50, count: 4 });
 });
 
 test("Squad training availability summary uses the last fourteen calendar days for recent availability", () => {

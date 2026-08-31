@@ -238,6 +238,23 @@ test("Squad medical snapshot context preserves future and same-date latest-log s
   })).toEqual(service.getPlayerProfileMedicalSnapshot("p2", "2026-06-07", { medicalStateReady: true }));
 });
 
+test("Squad medical status service applies the player roster start to unlogged availability", () => {
+  const service = createSquadMedicalStatusService({
+    formatDateValue: () => "2026-08-31",
+    getMedicalState: () => ({ records: [] }),
+    getPlayerProfileById: () => ({ id: "new-player", createdAt: "2026-08-20T12:00:00.000Z" }),
+    getPlayerAvailabilityStatusForDate: () => "available",
+    getTeamTrainingDateValues: () => ["2026-08-18", "2026-08-20", "2026-08-24", "2026-08-31"],
+  });
+
+  expect(service.getPlayerProfileMedicalSnapshot("new-player", "2026-08-31").trainingAvailability).toMatchObject({
+    hasData: true,
+    loggedCount: 3,
+    season: { average: 100, count: 3 },
+    lastTwoWeeks: { average: 100, count: 3 },
+  });
+});
+
 test("Squad medical status service is a read-only extracted runtime boundary", () => {
   const serviceSource = readFileSync(new URL("../src/modules/squad/squad-medical-status-service.mjs", import.meta.url), "utf8");
   const facadeSource = readFileSync(new URL("../src/modules/squad/player-profile-runtime-facade.mjs", import.meta.url), "utf8");

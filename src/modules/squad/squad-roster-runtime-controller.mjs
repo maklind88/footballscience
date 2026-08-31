@@ -106,11 +106,13 @@ export function createSquadRosterRuntimeController(options = {}) {
         return;
       }
       players.slice(playerIndex, playerIndex + 1).forEach((player) => {
+        const availabilityStartDateValue = String(player.temporaryFrom || player.createdAt || "").slice(0, 10);
         medicalSnapshotsByPlayerId.set(
           player.id,
           options.getMedicalSnapshot?.(player.id, undefined, {
             medicalStateReady: true,
             includeTrainingAvailability: true,
+            ...(availabilityStartDateValue ? { availabilityStartDateValue } : {}),
             snapshotContext: medicalSnapshotContext,
           })
         );

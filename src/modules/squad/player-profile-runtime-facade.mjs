@@ -175,6 +175,8 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     getMedicalRecordStatus: deps.getMedicalRecordStatus,
     getMedicalRtpPhaseOption: deps.getMedicalRtpPhaseOption,
     getMedicalState,
+    getPlayerProfileById: (playerId) =>
+      (getProfilesState()?.players || []).find((player) => player.id === playerId) || null,
     getPlayerAvailabilityStatusForDate: (playerId, dateValue) =>
       deps.getMedicalPlayerAvailabilityStatusForDate?.({ id: playerId }, dateValue) || "",
     getTeamTrainingDateValues: deps.getTeamTrainingDateValues,

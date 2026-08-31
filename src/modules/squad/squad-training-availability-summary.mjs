@@ -85,6 +85,7 @@ function buildWindow(items, predicate) {
 
 const excusedClubAbsenceStatusKeys = new Set(["national-team"]);
 const injuryAbsenceStatusKeys = new Set(["injured", "rehab"]);
+const unavailableClubStatusKeys = new Set(["unavailable", "vacation", "personal", "suspended", "loan"]);
 
 function isExcusedClubAbsenceStatus(value = "") {
   const status = String(value || "").trim().toLowerCase();
@@ -94,6 +95,20 @@ function isExcusedClubAbsenceStatus(value = "") {
 function isInjuryAbsenceStatus(value = "") {
   const status = String(value || "").trim().toLowerCase();
   return injuryAbsenceStatusKeys.has(status);
+}
+
+function getUnloggedTrainingParticipation(value = "") {
+  const status = String(value || "").trim().toLowerCase();
+  if (status === "available") {
+    return 100;
+  }
+  if (status === "managed") {
+    return 75;
+  }
+  if (injuryAbsenceStatusKeys.has(status) || unavailableClubStatusKeys.has(status)) {
+    return 0;
+  }
+  return null;
 }
 
 function normalizeDateValue(value = "") {
@@ -175,6 +190,7 @@ export function getSquadTrainingAvailabilitySummary({
   playerId = "",
   records = [],
   referenceDateValue = defaultFormatDateValue(new Date()),
+  availabilityStartDateValue = "",
   medicalActualParticipationFallback = "not-logged",
   getActivityContext = () => null,
   getActiveMedicalInjuryPlan = () => null,
@@ -184,6 +200,7 @@ export function getSquadTrainingAvailabilitySummary({
 } = {}) {
   const cleanPlayerId = String(playerId || "").trim();
   const referenceDate = parseDateValue(referenceDateValue) || parseDateValue(defaultFormatDateValue(new Date()));
+  const availabilityStartDate = parseDateValue(normalizeDateValue(availabilityStartDateValue));
   if (!cleanPlayerId || !referenceDate) {
     return {
       hasData: false,
@@ -219,6 +236,10 @@ export function getSquadTrainingAvailabilitySummary({
   const referenceYear = referenceDate.getUTCFullYear();
   const getAgeDays = (recordDate) => Math.floor((referenceDate - recordDate) / dayMs);
   const playerRecordByDate = getLatestRecordMapByDate(completedRecords);
+  const earliestRecordDate = completedRecords[0]?.dateValue || null;
+  const effectiveAvailabilityStartDate = availabilityStartDate
+    ? new Date(Math.min(availabilityStartDate.getTime(), earliestRecordDate?.getTime() || availabilityStartDate.getTime()))
+    : null;
   const trainingDateValues = Array.isArray(summaryContext?.trainingDateValues)
     ? summaryContext.trainingDateValues
     : getTeamTrainingDateValuesForSummary({
@@ -234,6 +255,9 @@ export function getSquadTrainingAvailabilitySummary({
       }
       const playerRecord = playerRecordByDate.get(date);
       if (!playerRecord) {
+        if (effectiveAvailabilityStartDate && dateValue < effectiveAvailabilityStartDate) {
+          return null;
+        }
         const status = getPlayerAvailabilityStatusForDate(cleanPlayerId, date, null);
         if (isExcusedClubAbsenceStatus(status)) {
           return null;
@@ -252,6 +276,14 @@ export function getSquadTrainingAvailabilitySummary({
             date,
             dateValue,
             participation: 0,
+          };
+        }
+        const unloggedParticipation = getUnloggedTrainingParticipation(status);
+        if (unloggedParticipation !== null) {
+          return {
+            date,
+            dateValue,
+            participation: unloggedParticipation,
           };
         }
         return null;

@@ -6,6 +6,7 @@ const labels = Object.freeze({
   review: "Review in progress",
   saving: "Saving accepted tracks",
   complete: "Queue complete",
+  correcting: "Correct saved track",
   error: "Needs attention",
 });
 
@@ -27,6 +28,7 @@ function confidence(value) {
 
 function currentLabel(current = null) {
   if (!current) return "No pending suggestion";
+  if (current.savedForCorrection) return `Saved ${current.entityType || "object"}`;
   const association = current.associationStatus === "associated" ? "Associated" : "Unassociated";
   return `${association} ${current.entityType || "object"}`;
 }
@@ -36,6 +38,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
   const active = ["loading", "saving"].includes(review.status);
   const hasWorkspace = Boolean(review.workspaceSha256);
   const current = review.current || null;
+  const pendingSuggestion = current && !current.savedForCorrection;
   const canSave = Number(review.acceptedCount) > 0 && !active;
   return `
     <section class="video-analysis-preannotation" aria-label="Preannotation review queue">
@@ -66,10 +69,11 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
       ` : ""}
       <div class="video-analysis-preannotation__commands">
         <button type="button" data-video-analysis-tracking-action="preannotation-open" ${!item || active ? "disabled" : ""}>Open workspace</button>
-        <button type="button" data-video-analysis-tracking-action="preannotation-accept" ${!current || active ? "disabled" : ""}>Accept</button>
-        <button type="button" data-video-analysis-tracking-action="preannotation-reject" ${!current || active ? "disabled" : ""}>Reject</button>
-        <button type="button" data-video-analysis-tracking-action="preannotation-next" ${!current || active ? "disabled" : ""}>Next</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-accept" ${!pendingSuggestion || active ? "disabled" : ""}>Accept</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-reject" ${!pendingSuggestion || active ? "disabled" : ""}>Reject</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-next" ${(!pendingSuggestion && review.status !== "correcting") || active ? "disabled" : ""}>${review.status === "correcting" ? "Continue" : "Next"}</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-undo" ${!hasWorkspace || active ? "disabled" : ""}>Undo</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-save-current" ${!pendingSuggestion || active ? "disabled" : ""}>Save &amp; correct</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-save" ${canSave ? "" : "disabled"}>Save accepted</button>
       </div>
     </section>

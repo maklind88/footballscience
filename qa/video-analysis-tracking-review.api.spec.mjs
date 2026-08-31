@@ -1372,3 +1372,47 @@ test("review persistence saves the central track id before its correction audit"
   });
   expect(audits[0].operationId).toBeTruthy();
 });
+
+test("unsaved preannotation previews cannot enter correction persistence", async () => {
+  const { createTrackingReviewController } = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingReviewController.js",
+  ));
+  const track = reviewTrack({
+    metadata: {
+      preannotationReviewPreview: true,
+      preannotationReviewState: "pending",
+    },
+  });
+  const item = { id: "item-preview", clipId: track.clipId, objectTracks: [track], dynamicGraphics: [] };
+  let state = {
+    timeline: { playheadMs: 500 },
+    presentation: {
+      current: { sections: [{ id: "section-preview", items: [item] }] },
+      selectedItemId: item.id,
+      tracking: {
+        selectedTrackIds: [track.id],
+        prompt: { playerLabel: "Opponent 10", teamSide: "away", shirtNumber: "10" },
+      },
+    },
+  };
+  const persisted = [];
+  const controller = createTrackingReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getCurrentMatchMs: () => 500,
+    persistTrack: async (value) => { persisted.push(value); return value; },
+    persistCorrection: async (value) => { persisted.push(value); },
+  });
+
+  expect(controller.applyPositionCorrection({
+    atMs: 500,
+    box: { left: 0.2, top: 0.3, width: 0.1, height: 0.2 },
+  })).toBe(true);
+  expect(controller.handleAction("review-identity")).toBe(true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(persisted).toHaveLength(0);
+  expect(state.presentation.current.sections[0].items[0].objectTracks[0]).toEqual(track);
+  expect(state.presentation.tracking.error).toBe(
+    "Save the preannotation suggestion before using tracking corrections or graphics.",
+  );
+});

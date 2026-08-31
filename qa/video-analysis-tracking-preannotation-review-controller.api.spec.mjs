@@ -174,6 +174,64 @@ test("preannotation review decisions stay local, support undo, and persist only 
   expect(persisted).toHaveLength(2);
 });
 
+test("preannotation review can save one current suggestion and hand it to correction tools", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingPreannotationReviewController.js",
+  ));
+  let state = initialState();
+  const persisted = [];
+  const associated = track("associated-player", "player", 1000, 0.8, "associated");
+  const unassociated = track("unassociated-ball", "ball", 500, 0.4, "unassociated");
+  const controller = service.createTrackingPreannotationReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getWindow: () => ({ crypto: globalThis.crypto }),
+    pickFiles: async () => ({ caseId: "transition" }),
+    importCase: async () => ({
+      workspaceSha256: "b".repeat(64),
+      sourceSha256: "a".repeat(64),
+      caseId: "transition",
+      tracks: [associated],
+      queue: [{ track: unassociated }],
+      summary: { associatedTrackCount: 1, unassociatedObservationCount: 1 },
+    }),
+    persistTrack: async (value) => {
+      persisted.push(value);
+      return value;
+    },
+  });
+
+  expect(await controller.open()).toBe(true);
+  expect(await controller.saveCurrentForCorrection()).toBe(true);
+  expect(persisted).toHaveLength(1);
+  expect(persisted[0]).toMatchObject({
+    id: unassociated.id,
+    status: "review",
+    metadata: {
+      preannotationReviewPreview: false,
+      preannotationReviewState: "saved-review",
+    },
+  });
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    status: "correcting",
+    pendingCount: 1,
+    savedCount: 1,
+    current: { id: unassociated.id, savedForCorrection: true },
+  });
+  expect(state.presentation.tracking.selectedTrackIds).toEqual([unassociated.id]);
+  expect(state.presentation.current.sections[0].items[0].objectTracks).toHaveLength(1);
+  expect(state.presentation.current.sections[0].items[0].objectTracks[0].metadata.preannotationReviewPreview).toBe(false);
+
+  expect(controller.handleAction("preannotation-next")).toBe(true);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    status: "review",
+    current: { id: associated.id },
+  });
+  expect(state.presentation.tracking.preannotationReview.current).not.toHaveProperty("savedForCorrection");
+  expect(state.presentation.tracking.selectedTrackIds).toEqual([associated.id]);
+  expect(state.presentation.current.sections[0].items[0].objectTracks).toHaveLength(2);
+});
+
 test("preannotation review keeps completed saves when a later track fails and resumes safely", async () => {
   const service = await import(moduleUrl(
     "src/modules/video-analysis/controllers/trackingPreannotationReviewController.js",

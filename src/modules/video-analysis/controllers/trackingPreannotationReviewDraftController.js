@@ -29,6 +29,29 @@ function draftSnapshot(value = {}) {
   };
 }
 
+export function restoreTrackingPreannotationReviewDecisions(entries = [], existingSavedIds = new Set(), draft = null) {
+  const entryIds = new Set(entries.map((entry) => entry.track.id));
+  const restoredDecisions = new Map(entries.filter((entry) => existingSavedIds.has(entry.track.id)).map(
+    (entry) => [entry.track.id, "saved"],
+  ));
+  if (!draft) return { decisions: restoredDecisions, history: [], restoredDecisionCount: 0 };
+  if (draft.totalSuggestionCount !== entries.length
+    || draft.decisions.some((entry) => !entryIds.has(entry.trackId))) {
+    throw new Error("Saved review progress does not match this sealed suggestion queue.");
+  }
+  let restoredDecisionCount = 0;
+  draft.decisions.forEach((entry) => {
+    if (!existingSavedIds.has(entry.trackId)) {
+      restoredDecisions.set(entry.trackId, entry.decision);
+      restoredDecisionCount += 1;
+    }
+  });
+  const history = draft.history.filter((entry) => (
+    restoredDecisions.get(entry.trackId) === entry.decision
+  )).map((entry) => ({ id: entry.trackId, decision: entry.decision }));
+  return { decisions: restoredDecisions, history, restoredDecisionCount };
+}
+
 export function createTrackingPreannotationReviewDraftController(options = {}) {
   const getState = options.getState || (() => ({}));
   const getContext = options.getContext || (() => ({}));

@@ -54,6 +54,7 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
     "preannotation-reject",
     "preannotation-next",
     "preannotation-undo",
+    "preannotation-save-current",
     "preannotation-save",
   ]) expect(html).toContain(`data-video-analysis-tracking-action="${action}"`);
   expect(html).toMatch(/preannotation-save" >Save accepted/);

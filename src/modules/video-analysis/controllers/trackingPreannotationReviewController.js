@@ -1,7 +1,10 @@
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { importTrackingPreannotationReviewCase } from "../services/trackingPreannotationReviewService.js";
 import { trackingSourceFingerprint } from "./trackingGroundTruthController.js";
-import { createTrackingPreannotationReviewDraftController } from "./trackingPreannotationReviewDraftController.js";
+import {
+  createTrackingPreannotationReviewDraftController,
+  restoreTrackingPreannotationReviewDecisions,
+} from "./trackingPreannotationReviewDraftController.js";
 import {
   patchTrackingState,
   replacePresentationItem,
@@ -95,6 +98,18 @@ function acceptedTrack(track = {}, state = "accepted-local") {
       preannotationReviewState: state,
     },
   });
+}
+
+function currentReview(entry = {}, overrides = {}) {
+  return {
+    id: entry.track.id,
+    entityType: entry.track.entityType,
+    associationStatus: entry.associationStatus,
+    atMs: entry.track.startMs,
+    confidence: entry.track.confidence,
+    pointCount: entry.track.segments.reduce((sum, segment) => sum + segment.points.length, 0),
+    ...overrides,
+  };
 }
 
 export function createTrackingPreannotationReviewController(options = {}) {
@@ -205,14 +220,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
           ...reviewState(state.presentation?.tracking?.preannotationReview),
           ...counts(),
           status: entry ? "review" : "complete",
-          current: entry ? {
-            id: entry.track.id,
-            entityType: entry.track.entityType,
-            associationStatus: entry.associationStatus,
-            atMs: entry.track.startMs,
-            confidence: entry.track.confidence,
-            pointCount: entry.track.segments.reduce((sum, segment) => sum + segment.points.length, 0),
-          } : null,
+          current: entry ? currentReview(entry) : null,
           error: "",
         },
       });
@@ -294,41 +302,23 @@ export function createTrackingPreannotationReviewController(options = {}) {
           [],
         ));
       }
-      const existingSavedIds = new Set((latestItem.objectTracks || []).filter((track) => (
+      const savedTracks = (latestItem.objectTracks || []).filter((track) => (
         track.metadata?.preannotationWorkspaceSha256 === imported.workspaceSha256
         && track.metadata?.preannotationCaseId === imported.caseId
         && track.metadata?.preannotationReviewState === "saved-review"
-      )).map((track) => track.id));
-      const entryIds = new Set(entries.map((entry) => entry.track.id));
-      const restoredDecisions = new Map(entries.filter((entry) => existingSavedIds.has(entry.track.id)).map(
-        (entry) => [entry.track.id, "saved"],
       ));
-      let restoredHistory = [];
-      let restoredDecisionCount = 0;
-      if (restoredDraft) {
-        try {
-          if (restoredDraft.totalSuggestionCount !== entries.length
-            || restoredDraft.decisions.some((entry) => !entryIds.has(entry.trackId))) {
-            invalid("Saved review progress does not match this sealed suggestion queue.");
-          }
-          restoredDraft.decisions.forEach((entry) => {
-            if (!existingSavedIds.has(entry.trackId)) {
-              restoredDecisions.set(entry.trackId, entry.decision);
-              restoredDecisionCount += 1;
-            }
-          });
-          restoredHistory = restoredDraft.history.filter((entry) => (
-            restoredDecisions.get(entry.trackId) === entry.decision
-          )).map((entry) => ({ id: entry.trackId, decision: entry.decision }));
-        } catch (error) {
-          restoredDraft = null;
-          restoredDecisionCount = 0;
-          restoredHistory = [];
-          for (const [trackId, decision] of [...restoredDecisions]) {
-            if (decision !== "saved") restoredDecisions.delete(trackId);
-          }
-          draftError = error?.message || "Saved review progress could not be matched to this workspace.";
-        }
+      const savedSuggestionIds = new Set(savedTracks.map((track) => track.metadata?.preannotationSuggestionId));
+      const existingSavedIds = new Set(entries.filter((entry) => (
+        savedTracks.some((track) => track.id === entry.track.id)
+        || savedSuggestionIds.has(entry.track.metadata?.preannotationSuggestionId)
+      )).map((entry) => entry.track.id));
+      let decisionRestore;
+      try {
+        decisionRestore = restoreTrackingPreannotationReviewDecisions(entries, existingSavedIds, restoredDraft);
+      } catch (error) {
+        restoredDraft = null;
+        decisionRestore = restoreTrackingPreannotationReviewDecisions(entries, existingSavedIds, null);
+        draftError = error?.message || "Saved review progress could not be matched to this workspace.";
       }
       session = {
         itemId: item.id,
@@ -339,8 +329,8 @@ export function createTrackingPreannotationReviewController(options = {}) {
         workspaceSha256: imported.workspaceSha256,
         caseId: imported.caseId,
         entries,
-        decisions: restoredDecisions,
-        history: restoredHistory,
+        decisions: decisionRestore.decisions,
+        history: decisionRestore.history,
         currentId: "",
         draftRevision: 0,
       };
@@ -353,7 +343,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
         ...counts(),
         draftStatus: scope ? draftError ? "error" : restoredDraft ? "restored" : "ready" : "session-only",
         draftError: draftError || (scope ? "" : "Sign in to keep review progress after this browser session."),
-        restoredDecisionCount,
+        restoredDecisionCount: decisionRestore.restoredDecisionCount,
         current: null,
         error: "",
       });
@@ -408,6 +398,43 @@ export function createTrackingPreannotationReviewController(options = {}) {
     return show(pendingIndex(Math.max(0, currentIndex + 1)));
   }
 
+  async function saveCurrentForCorrection() {
+    if (!sync()) return false;
+    const current = entryById(session?.currentId);
+    if (!session || !current || typeof options.persistTrack !== "function") return false;
+    patchReview({ status: "saving", error: "" });
+    try {
+      const requested = acceptedTrack(current.track, "saved-review");
+      const saved = normalizeObjectTrack(await options.persistTrack(requested) || requested);
+      session.decisions.set(current.track.id, "saved");
+      session.history = session.history.filter((entry) => entry.id !== current.track.id);
+      session.currentId = "";
+      updateState((state) => {
+        const next = replaceReviewTracks(state, session.itemId, [current.track.id], [saved]);
+        return patchTrackingState(next, {
+          selectedTrackIds: [saved.id],
+          preannotationReview: {
+            ...reviewState(state.presentation?.tracking?.preannotationReview),
+            ...counts(),
+            status: "correcting",
+            current: currentReview(current, { id: saved.id, savedForCorrection: true }),
+            error: "",
+          },
+        });
+      });
+      await saveDraftProgress();
+      options.onEvidenceChanged?.();
+      return true;
+    } catch (error) {
+      patchReview({
+        status: "error",
+        ...counts(),
+        error: error?.message || "The current review track could not be saved for correction.",
+      });
+      return false;
+    }
+  }
+
   async function saveAccepted() {
     if (!sync()) return false;
     if (!session || typeof options.persistTrack !== "function") return false;
@@ -453,6 +480,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (action === "preannotation-reject") return decide("rejected");
     if (action === "preannotation-next") return next();
     if (action === "preannotation-undo") return undo();
+    if (action === "preannotation-save-current") { void saveCurrentForCorrection(); return true; }
     if (action === "preannotation-save") { void saveAccepted(); return true; }
     return false;
   }
@@ -462,6 +490,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     handleAction,
     open,
     saveAccepted,
+    saveCurrentForCorrection,
     sync,
   };
 }

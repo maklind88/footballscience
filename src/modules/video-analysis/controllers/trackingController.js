@@ -28,6 +28,7 @@ import {
   verifyObjectTrack,
 } from "../services/trackingReviewService.js";
 import { persistTrackingTrack } from "../services/trackingTrackPersistenceService.js";
+import { blockTrackingPreannotationPreview } from "../services/trackingPreannotationReviewGuard.js";
 import { eventElement } from "../video-analysis.dom-events.js";
 import {
   currentTrackingAtMs as currentAtMs,
@@ -367,6 +368,11 @@ export function createTrackingController(options = {}) {
     const trackId = state.presentation?.tracking?.selectedTrackIds?.[0] || "";
     const track = (item?.objectTracks || []).find((entry) => entry.id === trackId);
     if (!item || !track) return false;
+    if (blockTrackingPreannotationPreview(
+      track,
+      (error) => updateState((current) => trackingPatch(current, { error })),
+      "verify",
+    )) return false;
     try {
       const verified = await persistTrack(verifyObjectTrack(track));
       updateState((current) => {
@@ -447,6 +453,15 @@ export function createTrackingController(options = {}) {
     const actionElement = target?.closest?.("[data-video-analysis-tracking-action]");
     const action = actionElement?.dataset?.videoAnalysisTrackingAction;
     if (!action) return false;
+    const actionState = getState();
+    const actionItem = selectedItem(actionState);
+    const selectedTrackId = actionState.presentation?.tracking?.selectedTrackIds?.[0] || "";
+    const selectedTrack = (actionItem?.objectTracks || []).find((entry) => entry.id === selectedTrackId);
+    if (blockTrackingPreannotationPreview(
+      selectedTrack,
+      (error) => updateState((state) => trackingPatch(state, { error })),
+      action,
+    )) return true;
     if (action === "select-target") return beginCapture("prompt", target);
     if (action === "correct") return beginCapture("correction", target);
     if (action === "manual") { void addManualTrack(); return true; }

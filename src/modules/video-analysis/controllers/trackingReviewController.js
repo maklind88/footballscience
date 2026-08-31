@@ -8,6 +8,7 @@ import {
   trackingReviewEvents,
 } from "../services/trackingCorrectionService.js";
 import { applyManualTrackingCorrection } from "../services/trackingReviewService.js";
+import { blockTrackingPreannotationPreview } from "../services/trackingPreannotationReviewGuard.js";
 import {
   splitTrackingTrack,
   swapTrackingTrackContinuations,
@@ -323,6 +324,7 @@ export function createTrackingReviewController(options = {}) {
     const state = getState();
     const context = selectedContext(state);
     if (!context.track) return false;
+    if (blockTrackingPreannotationPreview(context.track, setError)) return true;
     const requestedAtMs = Number(value.atMs);
     const atMs = Math.max(0, Math.round(Number.isFinite(requestedAtMs) ? requestedAtMs : currentAtMs(state)));
     const corrected = applyManualTrackingCorrection(context.track, { ...value, atMs });
@@ -475,6 +477,7 @@ export function createTrackingReviewController(options = {}) {
 
   function handleAction(action = "") {
     if (!reviewActions.has(action)) return false;
+    if (blockTrackingPreannotationPreview(selectedContext(getState()).track, setError)) return true;
     if (action === "review-previous") return navigate("earlier");
     if (action === "review-next") return navigate("later");
     if (action === "review-continuity") return confirmContinuity();

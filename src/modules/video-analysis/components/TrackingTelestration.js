@@ -330,7 +330,12 @@ export function renderTrackingSidebar(state = {}, item = null) {
   const maximumBatchSize = Math.max(1, Math.min(8, Number(provider.maxObjectsPerJob) || 8));
   const batchReady = targetCount < 2 || provider.batchAvailable === true;
   const primaryTrack = tracks.find((track) => track.id === selectedTrackIds[0]) || null;
-  const graphicSelection = trackingGraphicBindingSelection(activeTracks, selectedTrackIds, tracking.tool);
+  const reviewablePrimaryTrack = primaryTrack?.metadata?.preannotationReviewPreview ? null : primaryTrack;
+  const graphicSelection = trackingGraphicBindingSelection(
+    activeTracks.filter((track) => !track.metadata?.preannotationReviewPreview),
+    selectedTrackIds,
+    tracking.tool,
+  );
   const entityType = tracking.prompt?.entityType || "player";
   const clip = item?.clip || {};
   const startSeconds = ((tracking.prompt?.startMs ?? item?.startMs ?? clip.startMs ?? clip.start_ms ?? 0) / 1000).toFixed(1);
@@ -383,7 +388,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
         <button type="button" data-video-analysis-tracking-action="queue-target" ${tracking.prompt?.box && targetCount < maximumBatchSize ? "" : "disabled"}>Add another</button>
         <button type="button" data-video-analysis-tracking-action="run" ${targetCount && providerReady && batchReady ? "" : "disabled"}>${escapeHtml(targetCount > 1 ? `Track ${targetCount} targets` : "Track locally")}</button>
         <button type="button" data-video-analysis-tracking-action="manual" ${tracking.prompt?.box ? "" : "disabled"}>Manual keyframe</button>
-        <button type="button" data-video-analysis-tracking-action="correct" ${primaryTrack ? "" : "disabled"}>Correct here</button>
+        <button type="button" data-video-analysis-tracking-action="correct" ${reviewablePrimaryTrack ? "" : "disabled"}>Correct here</button>
       </div>
       ${renderPendingTargets(pendingPrompts, tracking.prompt, maximumBatchSize)}
       ${tracking.job ? renderTrackingProgress(tracking.job) : ""}
@@ -391,8 +396,8 @@ export function renderTrackingSidebar(state = {}, item = null) {
       <ol class="video-analysis-tracking-list">
         ${visibleTracks.length ? visibleTracks.map((track) => renderTrackRow(track, selectedTrackIds)).join("") : `<li class="video-analysis-muted">No tracked objects in this clip.</li>`}
       </ol>
-      ${renderTrackingContinuation(primaryTrack, item, { providerReady, jobActive: Boolean(tracking.job) })}
-      ${renderTrackingReviewPanel(state, primaryTrack, activeTracks)}
+      ${renderTrackingContinuation(reviewablePrimaryTrack, item, { providerReady, jobActive: Boolean(tracking.job) })}
+      ${renderTrackingReviewPanel(state, reviewablePrimaryTrack, activeTracks)}
       ${renderTrackingGroundTruthPanel(state, item)}
       ${renderTrackingCandidatePanel(state, item)}
       ${renderTrackingPreannotationReviewPanel(state, item)}

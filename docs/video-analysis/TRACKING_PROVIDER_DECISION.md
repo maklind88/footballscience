@@ -135,6 +135,8 @@ Provider approval for detection, association, or re-identification requires a se
 
 The adapter sends normalized boxes, trajectory IDs, entity class, timestamps, and a source fingerprint to an isolated local process. It sends no video, image frames, file paths, URLs, analyst identity, player identity, team identity, or shirt numbers. The report is schema-validated, bounded, deterministic, and hashed before it can be referenced by a provider manifest.
 
+The local evaluator preflight on 2026-08-31 reverified the exact pinned commit and source SHA-256 above with Python `3.12.13` and reproduced perfect synthetic control metrics before any Match 11 report was permitted. FS Player now derives a read-only Measurement Intelligence view only after a multi-object TrackEval report has passed its existing schema, report-hash, per-case and internal/reference cross-validation boundaries. It exposes all six approval metrics and their signed gate margins, the weakest measured entity and case, identity switches, fragmentations, and a dimension-specific next investigation. This view cannot calculate, alter or approve evidence; incomplete per-entity metrics, missing report identity or one failed case cross-check keep it visibly incomplete. Real Match 11 quality remains unmeasured until the five exhaustive human references are locked and evaluated.
+
 ## Candidate Stack
 
 ### Detection: YOLOX

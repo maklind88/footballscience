@@ -15,6 +15,7 @@ import {
 import { trackingBenchmarkWorkflowReadiness } from "../services/trackingBenchmarkWorkflowService.js";
 import { trackingBenchmarkProvider } from "../services/trackingBenchmarkProviderService.js";
 import { escapeHtml } from "./renderHelpers.js";
+import { renderTrackingMeasurementIntelligence } from "./TrackingMeasurementIntelligence.js";
 
 function minutes(value = 0) {
   return `${(Math.max(0, Number(value) || 0) / 60_000).toFixed(1)} min`;
@@ -107,6 +108,7 @@ function renderEvaluation(tracking = {}, workflow = {}) {
           <strong>${escapeHtml(tracking.provider?.trackEvalAvailable ? "Pinned and available" : "Not installed")}</strong>
         </p>
       ` : ""}
+      ${renderTrackingMeasurementIntelligence(evaluation)}
       ${evaluation.reportSha256 ? `<p class="video-analysis-benchmark-suite__checksum"><span>Report SHA-256</span><code>${escapeHtml(shortFingerprint(evaluation.reportSha256))}</code></p>` : ""}
       ${evaluation.error ? `<p class="video-analysis-benchmark-suite__error">${escapeHtml(evaluation.error)}</p>` : ""}
       ${!workflow.ready && !active && !complete ? `<p class="video-analysis-benchmark-suite__notice">${escapeHtml(issueText)}</p>` : ""}

@@ -9162,7 +9162,7 @@ function renderScoutingProfileModalIntoDom(recordId, options = {}) {
   const scrollSnapshot = options.resetScroll ? null : getScoutingScrollSnapshot();
   const disclosureSnapshot = getScoutingDisclosureSnapshot();
   state.selectedRecordId = normalizedId;
-  const modalMarkup = renderScoutingProfileModal();
+  const modalMarkup = renderScoutingProfileModal(options);
   if (!modalMarkup) {
     const existingBackdrop = workspace.querySelector(".scouting-profile-backdrop");
     if (existingBackdrop) {
@@ -9170,14 +9170,14 @@ function renderScoutingProfileModalIntoDom(recordId, options = {}) {
     }
     return false;
   }
-  const parser = document.createElement("template");
-  parser.innerHTML = modalMarkup;
-  const nextBackdrop = parser.content.firstElementChild;
-  if (!nextBackdrop) {
-    return false;
-  }
   const existingBackdrop = workspace.querySelector(".scouting-profile-backdrop");
   if (existingBackdrop) {
+    const parser = document.createElement("template");
+    parser.innerHTML = modalMarkup;
+    const nextBackdrop = parser.content.firstElementChild;
+    if (!nextBackdrop) {
+      return false;
+    }
     existingBackdrop.replaceWith(nextBackdrop);
   } else {
     workspace.insertAdjacentHTML("beforeend", modalMarkup);
@@ -12085,22 +12085,51 @@ function renderScoutingShadowPlayerMenu(record, slot, recordId) {
     </details>
   `;
 }
-function renderScoutingProfileModal() {
+function renderScoutingProfileModal(options = {}) {
   const state = ensureScoutingState();
   const record = getScoutingStoredPlayerRecord(state.selectedRecordId, state);
   if (!record) {
     return "";
   }
   const recordId = getScoutingRecordId(record);
+  const activeProfileTab = normalizeScoutingProfileTab(state.profileTab);
+  const lightweightOverview = options.lightweightOverview === true && activeProfileTab === "overview";
+  if (lightweightOverview) {
+    return `
+      <div class="scouting-profile-backdrop" data-close-scouting-profile>
+        <article class="scouting-profile-modal" data-scouting-profile-modal role="dialog" aria-modal="true" aria-labelledby="scouting-profile-dialog-title" tabindex="-1" aria-busy="true">
+          <button type="button" class="scouting-profile-close" data-close-scouting-profile aria-label="Close scouting profile">
+            <span aria-hidden="true">×</span>
+          </button>
+          <header class="scouting-profile-head">
+            <div class="scouting-profile-identity">
+              <h2 id="scouting-profile-dialog-title">${escapeHtml(getScoutingRecordName(record))}</h2>
+              <div class="scouting-profile-identity-meta">
+                <span><strong>Position</strong>${escapeHtml(getScoutingRecordPosition(record) || "Unknown")}</span>
+                <span><strong>Club</strong>${escapeHtml(getScoutingRecordTeam(record) || "Unknown club")}</span>
+              </div>
+            </div>
+          </header>
+          <div class="scouting-profile-tabs-row">
+            ${renderScoutingProfileTabs(activeProfileTab)}
+          </div>
+          ${renderScoutingProfileTabPanel({
+            activeTab: activeProfileTab,
+            content: `<section class="scouting-load-panel" aria-live="polite"><h2>Loading player profile...</h2></section>`,
+          })}
+        </article>
+      </div>
+    `;
+  }
   const canEdit = canEditScoutingWorkspace();
   const canSendToTransferRoom = canSendScoutingRecordToTransferRoom();
   const favorite = isScoutingRecordFavorited(recordId);
   const profileRoleProfileId = normalizeScoutingRoleProfileId(state.profileRoleProfileId, "auto");
   const selectedProfileRoleId = profileRoleProfileId === "auto" ? "" : profileRoleProfileId;
-  const activeProfileTab = normalizeScoutingProfileTab(state.profileTab);
   const needsPerformanceData = activeProfileTab === "performance";
   const needsRoleSpiderData = activeProfileTab === "overview" || activeProfileTab === "performance";
-  const playerRows = getScoutingRecordsForPlayer(record).slice(0, 20);
+  const needsPlayerRows = needsRoleSpiderData || activeProfileTab === "history";
+  const playerRows = needsPlayerRows ? getScoutingRecordsForPlayer(record).slice(0, 20) : [];
   const spiderContext = needsRoleSpiderData ? getScoutingProfileSpiderContext(record, playerRows, selectedProfileRoleId) : null;
   const spiderRecord = spiderContext?.record || record;
   const radarTemplate = needsRoleSpiderData ? getScoutingRadarTemplate(spiderRecord, selectedProfileRoleId) : { profileLabel: "" };

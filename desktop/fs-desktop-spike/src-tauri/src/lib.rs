@@ -193,8 +193,26 @@ async fn desktop_prepare_shell_update(
             worker_runtime.release_trust()?,
         )
     })
-    .await
-    .map_err(|error| error.to_string())??;
+    .await;
+    let result = match result {
+        Ok(Ok(result)) => {
+            ci_trace::record(format!(
+                "command desktop_prepare_shell_update completed state={}",
+                result.state
+            ));
+            result
+        }
+        Ok(Err(error)) => {
+            ci_trace::record(format!(
+                "command desktop_prepare_shell_update failed error={error}"
+            ));
+            return Err(error);
+        }
+        Err(error) => {
+            ci_trace::record("command desktop_prepare_shell_update task failed");
+            return Err(error.to_string());
+        }
+    };
     if matches!(result.state, "candidate-staged" | "candidate-pending")
         && app.get_webview_window("candidate").is_none()
     {

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   assessReportStatus,
   assessResults,
+  byteSize,
   buildInspectionDbUrl,
   buildSafeSignalEvidence,
   classifyStatement,
@@ -18,6 +19,7 @@ import {
   durationBucket,
   parseJsonOutput,
   sanitizeSafeProbeRows,
+  summarizeBloat,
   statementFingerprint,
   supabaseCliVersion,
 } from "../scripts/supabase-database-health.mjs";
@@ -43,6 +45,34 @@ test("database health parser keeps only aggregate record counts", () => {
   expect(parseJsonOutput("not json")).toBeNull();
   expect(assessResults([{ command: "blocking", recordCount: 1, status: "completed" }])).toBe("RED");
   expect(assessResults([{ command: "locks", recordCount: 1, status: "completed" }])).toBe("YELLOW");
+});
+
+test("database health bloat assessment uses material waste instead of row count", () => {
+  const normal = summarizeBloat({
+    rows: [
+      { BLOAT: "0.7", "OBJECT NAME": "private_index", WASTE: "880 kB" },
+      { BLOAT: "4.0", "OBJECT NAME": "private_table", WASTE: "9 MB" },
+    ],
+  });
+  const review = summarizeBloat({
+    rows: [
+      { BLOAT: "41.0", "OBJECT NAME": "private_large_table", WASTE: "700 MB" },
+      { BLOAT: "1.0", "OBJECT NAME": "private_small_table", WASTE: "1472 kB" },
+    ],
+  });
+
+  expect(normal).toEqual(expect.objectContaining({ inspectedRelations: 2, measuredRelations: 2, reviewCandidates: 0 }));
+  expect(review).toEqual(
+    expect.objectContaining({ highPriorityCandidates: 1, inspectedRelations: 2, reviewCandidates: 1 })
+  );
+  expect(byteSize("1.5 GB")).toBe(1.5 * 1024 ** 3);
+  expect(assessResults([{ command: "bloat", recordCount: 243, status: "completed", bloatSummary: normal }])).toBe(
+    "GREEN"
+  );
+  expect(assessResults([{ command: "bloat", recordCount: 2, status: "completed", bloatSummary: review }])).toBe(
+    "YELLOW"
+  );
+  expect(JSON.stringify({ normal, review })).not.toContain("private_");
 });
 
 test("database health parser counts Supabase CLI table output without retaining row details", () => {

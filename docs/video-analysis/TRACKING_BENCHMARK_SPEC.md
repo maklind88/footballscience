@@ -148,6 +148,16 @@ The selected range should deliberately include:
 
 The user only needs to reconnect the source in FS Player or provide its absolute local path for the local benchmark session. No advance annotation is required. The local tracking or proxy job computes the SHA-256 source fingerprint while receiving the source; it is not inferred from a file name or mutable metadata.
 
+An existing SoccerNet/MOTChallenge reference can instead be imported locally with `tracking:mot:import`. The import manifest must explicitly attest video and annotation usage review, local-benchmark-only handling, exhaustive frame review, and the analyst identity. SoccerNet MOT rows do not encode reliable player/ball/referee, team, or player identity classes, so every observed track id requires an explicit sidecar mapping; FS Player never guesses these fields. The importer hashes each regular non-link source file, validates exact ten-column MOT rows, frame bounds, unique observations, continuity, and at least 95% player-scene temporal coverage, then strips every path before creating the normal immutable ground-truth artifacts. It writes no suite until the same ten-minute, five-case, scenario, metadata-only, and size gates pass.
+
+```bash
+npm --prefix desktop/local-video-app run tracking:mot:import -- \
+  --manifest /absolute/local/soccernet-import.json \
+  --output /absolute/local/fs-player-ground-truth-suite.json
+```
+
+The manifest contract and a non-runnable path template live in `docs/video-analysis/TRACKING_MOT_IMPORT_MANIFEST.example.json`. Imported dataset provenance is retained only as bounded dataset/version/sequence/protocol and rights-review evidence; local source and annotation paths never enter the artifact.
+
 FS Player now creates the reference through the tracking sidebar:
 
 1. Run the provider before manual corrections. FS Player captures the normalized automatic output, exact provider fingerprint, source/range/frame, and measured positive processing time as an immutable `football-science-tracking-provider-run-v1` snapshot.
@@ -161,7 +171,7 @@ FS Player now creates the reference through the tracking sidebar:
 
 Locking creates a new revisioned snapshot. Later edits to live tracks do not mutate the locked reference. The artifact contains reviewed normalized trajectories, source fingerprint, frame/range, object identity, and bounded analyst evidence. Provider metadata, confidence values, correction authors, local paths, URLs, video, frames, and binary data are removed. Ground truth is not written through the central tracking repository.
 
-The suite treats time as unique only within each exact source fingerprint and camera angle. Overlapping ranges are merged before duration is counted, and relocking the same source, angle, and range replaces that case instead of inflating the evidence. Readiness is fail-closed when a case is malformed, sparse, unattested, profile-mismatched, missing the entities required by its profile, below five cases, below ten unique minutes, or missing a required football scenario. Twenty unique minutes remains the recommended pilot ceiling rather than an approval shortcut.
+The suite treats time as unique only within each exact source fingerprint and camera angle. Overlapping ranges are merged before duration is counted, and relocking the same source, angle, and range replaces that case instead of inflating the evidence. Full-scene cases additionally require reviewed player visibility over at least 95% of the declared range, preventing sparse annotations from inflating approval time. Readiness is fail-closed when a case is malformed, sparse, unattested, profile-mismatched, missing the entities required by its profile, below five cases, below ten unique minutes, or missing a required football scenario. Twenty unique minutes remains the recommended pilot ceiling rather than an approval shortcut.
 
 The assembler matches artifacts only by exact source fingerprint, camera angle, time range, and frame. Segmentation evaluates exactly the selected player target and requires one matching raw prediction. Multi-object stages combine disjoint runs for the same case and reject duplicate track ids. The resulting metadata-only benchmark carries both input checksums and the exact used run ids through evaluation and provider approval. Until this workflow has produced a representative reviewed suite from real matches, synthetic fixtures prove evaluator correctness but do not prove elite football performance.
 

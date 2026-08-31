@@ -192,7 +192,11 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
       ${suite.error ? `<p class="video-analysis-benchmark-suite__error" aria-live="polite">${escapeHtml(suite.error)}</p>` : ""}
       <footer>
         <span>${escapeHtml(readiness.ready ? `${readiness.sourceCount} source${readiness.sourceCount === 1 ? "" : "s"} | all required scenarios` : readiness.issues[0]?.message || "Suite not ready")}</span>
-        <button type="button" data-video-analysis-tracking-action="ground-truth-suite-download" ${readiness.ready ? "" : "disabled"}>Export suite</button>
+        <div class="video-analysis-benchmark-suite__footer-actions">
+          <input type="file" accept="application/json,.json" hidden data-video-analysis-tracking-field="groundTruthSuiteImport">
+          <button type="button" data-video-analysis-tracking-action="ground-truth-suite-import" ${modeLocked ? "disabled" : ""}>Import suite</button>
+          <button type="button" data-video-analysis-tracking-action="ground-truth-suite-download" ${readiness.ready ? "" : "disabled"}>Export suite</button>
+        </div>
       </footer>
     </section>
   `;

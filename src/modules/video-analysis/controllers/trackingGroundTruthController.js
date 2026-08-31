@@ -23,11 +23,8 @@ import {
   trackingProviderRunWorkspaceEntry,
   trackingProviderRunsForProvider,
 } from "../services/trackingProviderRunService.js";
-import {
-  patchTrackingState,
-  selectedTrackingItem,
-  trackingItemRange,
-} from "./trackingControllerHelpers.js";
+import { patchTrackingState, selectedTrackingItem, trackingItemRange } from "./trackingControllerHelpers.js";
+import { createTrackingGroundTruthSuiteImportController } from "./trackingGroundTruthSuiteImportController.js";
 
 const groundTruthActions = new Set([
   "ground-truth-toggle",
@@ -37,6 +34,7 @@ const groundTruthActions = new Set([
   "ground-truth-download",
   "ground-truth-new",
   "ground-truth-suite-download",
+  "ground-truth-suite-import",
   "ground-truth-suite-remove",
   "ground-truth-suite-mode",
   "ground-truth-runs-download",
@@ -120,6 +118,18 @@ export function createTrackingGroundTruthController(options = {}) {
   const getWindow = options.getWindow || (() => globalThis.window);
   const getReviewer = options.getReviewer || (() => "local-analyst");
   const now = options.now || Date.now;
+  const suiteImport = createTrackingGroundTruthSuiteImportController({
+    getState,
+    setSuite: (suite) => updateState((state) => patchGroundTruthSuite(state, suite)),
+    setError: (message) => updateState((state) => {
+      const workspace = state.presentation?.tracking?.groundTruth || {};
+      return patchGroundTruthSuite(state, {
+        ...trackingGroundTruthSuiteEntry(workspace),
+        error: message,
+      });
+    }),
+    onEvidenceChanged: options.onEvidenceChanged,
+  });
 
   function contextFor(state = getState()) {
     const item = selectedTrackingItem(state);
@@ -457,6 +467,7 @@ export function createTrackingGroundTruthController(options = {}) {
     if (action === "ground-truth-lock") return lockReference();
     if (action === "ground-truth-download") return downloadReference();
     if (action === "ground-truth-suite-download") return downloadSuite();
+    if (action === "ground-truth-suite-import") return suiteImport.chooseFile(element);
     if (action === "ground-truth-runs-download") return downloadProviderRuns();
     if (action === "ground-truth-suite-mode") {
       return setSuiteBenchmarkType(element?.dataset?.videoAnalysisGroundTruthBenchmarkType);
@@ -471,6 +482,10 @@ export function createTrackingGroundTruthController(options = {}) {
     if (field === "groundTruthAttested") return setAttested(element.checked);
     if (field === "groundTruthSceneComplete") return setExhaustiveSceneAttested(element.checked);
     if (field === "groundTruthScenario") return setScenario(element.value, element.checked);
+    if (field === "groundTruthSuiteImport") {
+      void suiteImport.importFile(element.files?.[0], element);
+      return true;
+    }
     return false;
   }
 

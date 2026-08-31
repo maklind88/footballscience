@@ -183,6 +183,12 @@
   font-size: 8px;
 }
 
+.video-analysis-benchmark-suite__footer-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
 .video-analysis-benchmark-suite__provider-runs {
   display: flex;
   align-items: center;
@@ -433,6 +439,10 @@
   .video-analysis-benchmark-suite > footer {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .video-analysis-benchmark-suite__footer-actions {
+    justify-content: flex-end;
   }
 
   .video-analysis-benchmark-suite__evaluation-progress {

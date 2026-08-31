@@ -15,6 +15,7 @@ import {
 } from "./trackingBenchmarkContract.js";
 import { sampleTrackAt } from "./trackingBenchmarkMetrics.js";
 import { normalizeTrackingBenchmarkScenarios } from "./trackingBenchmarkScenarioService.js";
+import { normalizeGroundTruthReferenceEvidence } from "./trackingGroundTruthReferenceEvidenceService.js";
 import {
   TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
   TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT,
@@ -79,6 +80,30 @@ function entityCounts(tracks = []) {
   ]));
 }
 
+export function groundTruthSceneTemporalCoverage(tracks = [], range = {}) {
+  if (!rangeReady(range)) return 0;
+  const intervals = tracks
+    .filter((track) => track.entityType === "player")
+    .flatMap((track) => track.segments.map((segment) => ({
+      startMs: Math.max(Number(range.startMs), Number(segment.startMs)),
+      endMs: Math.min(Number(range.endMs), Number(segment.endMs)),
+    })))
+    .filter((interval) => interval.endMs > interval.startMs)
+    .sort((first, second) => first.startMs - second.startMs || first.endMs - second.endMs);
+  let coveredMs = 0;
+  let active = null;
+  for (const interval of intervals) {
+    if (!active || interval.startMs > active.endMs) {
+      if (active) coveredMs += active.endMs - active.startMs;
+      active = { ...interval };
+    } else {
+      active.endMs = Math.max(active.endMs, interval.endMs);
+    }
+  }
+  if (active) coveredMs += active.endMs - active.startMs;
+  return Math.min(1, coveredMs / Math.max(1, Number(range.endMs) - Number(range.startMs)));
+}
+
 function trackReviewCoverage(track = {}, range = {}) {
   if (!rangeReady(range)) return { pointCount: 0, ratio: 0, maxSampleGapMs: Infinity };
   const points = trackingPoints(track).filter((point) => (
@@ -120,6 +145,7 @@ export function groundTruthReadiness(value = {}) {
     ? target ? [target] : []
     : selected;
   const counts = entityCounts(tracks);
+  const sceneCoverageRatio = groundTruthSceneTemporalCoverage(tracks, value.range);
   const issues = [];
   const ids = new Set();
   if (!sourceFingerprintPattern.test(String(value.sourceFingerprint || ""))) {
@@ -134,6 +160,12 @@ export function groundTruthReadiness(value = {}) {
   if (benchmarkType === TRACKING_BENCHMARK_TYPE_MULTI_OBJECT) {
     for (const entityType of requiredEntityTypes) {
       if (!counts[entityType]) issues.push(issue(`${entityType}-missing`, `Add at least one ${entityType} track.`));
+    }
+    if (value.sceneCoverageRequired !== false && sceneCoverageRatio < 0.95) {
+      issues.push(issue(
+        "scene-temporal-coverage",
+        "Full-scene ground truth must contain reviewed player visibility across at least 95% of the range.",
+      ));
     }
   }
   if (!target) {
@@ -183,6 +215,7 @@ export function groundTruthReadiness(value = {}) {
     selectedTrackCount: tracks.length,
     verifiedTrackCount: tracks.filter((track) => track.status === "verified").length,
     entityCounts: counts,
+    sceneCoverageRatio,
     sourceFingerprintReady: sourceFingerprintPattern.test(String(value.sourceFingerprint || "")),
     frameReady: frameReady(value.frame),
     rangeReady: rangeReady(value.range),
@@ -319,6 +352,9 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
   if (profileId !== trackingGroundTruthProfileForType(readiness.benchmarkType)) {
     throw new TrackingGroundTruthError(`Unsupported ground-truth profile: ${profileId}.`);
   }
+  const referenceEvidence = value.referenceEvidence
+    ? normalizeGroundTruthReferenceEvidence(value.referenceEvidence)
+    : null;
   const artifact = {
     version: TRACKING_BENCHMARK_SCHEMA_VERSION,
     protocol: TRACKING_GROUND_TRUTH_PROTOCOL,
@@ -329,6 +365,7 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
       algorithm: "sha256",
       kind: "exact-local-file-bytes",
       angleId: String(value.angleId || "").slice(0, 160),
+      ...(referenceEvidence ? { reference: referenceEvidence } : {}),
     },
     frame,
     range: { startMs: range.startMs, endMs: range.endMs },
@@ -344,6 +381,7 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
       selectedTrackCount: readiness.selectedTrackCount,
       selectedObjectTargetTrackId: String(value.benchmarkTargetTrackId),
       entityCounts: readiness.entityCounts,
+      sceneCoverageRatio: readiness.sceneCoverageRatio,
       scenarioTags: normalizeTrackingBenchmarkScenarios(value.scenarioTags),
     },
   };
@@ -366,6 +404,9 @@ export function validateGroundTruthArtifact(artifact = {}) {
   const expectedProfile = trackingGroundTruthProfileForType(benchmarkType);
   const scenarioTags = artifact.reviewEvidence?.scenarioTags || [];
   const normalizedScenarioTags = normalizeTrackingBenchmarkScenarios(scenarioTags);
+  if (artifact.sourceEvidence?.reference) {
+    normalizeGroundTruthReferenceEvidence(artifact.sourceEvidence.reference);
+  }
   if (artifact.protocol !== TRACKING_GROUND_TRUTH_PROTOCOL
     || Number(artifact.version) !== TRACKING_BENCHMARK_SCHEMA_VERSION
     || artifact.profileId !== expectedProfile
@@ -404,6 +445,7 @@ export function validateGroundTruthArtifact(artifact = {}) {
     attested: true,
     exhaustiveSceneAttested: artifact.reviewEvidence?.exhaustiveSceneAttested,
     benchmarkTargetTrackId: artifact.reviewEvidence?.selectedObjectTargetTrackId,
+    sceneCoverageRequired: artifact.reviewEvidence?.sceneCoverageRatio !== undefined,
   });
   if (!readiness.ready) {
     throw new TrackingGroundTruthError(
@@ -413,7 +455,9 @@ export function validateGroundTruthArtifact(artifact = {}) {
   }
   const counts = artifact.reviewEvidence?.entityCounts || {};
   if (Number(artifact.reviewEvidence?.selectedTrackCount) !== readiness.selectedTrackCount
-    || requiredEntityTypes.some((entityType) => Number(counts[entityType] || 0) !== readiness.entityCounts[entityType])) {
+    || requiredEntityTypes.some((entityType) => Number(counts[entityType] || 0) !== readiness.entityCounts[entityType])
+    || (artifact.reviewEvidence?.sceneCoverageRatio !== undefined
+      && Math.abs(Number(artifact.reviewEvidence.sceneCoverageRatio) - readiness.sceneCoverageRatio) > 1e-9)) {
     throw new TrackingGroundTruthError(
       "The locked reference review summary does not match its trajectories.",
       "TRACKING_GROUND_TRUTH_EVIDENCE_MISMATCH",

@@ -602,6 +602,7 @@ const scoutingProfileModalController = createScoutingProfileModalController({
   getProfileBackdrop: () => ui.scoutingWorkspace?.querySelector(".scouting-profile-backdrop") || null,
   getProfileModal: () => ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]") || null,
   hasProfileModal: () => Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")),
+  isProfileInteractionActive: () => Boolean(ui.scoutingWorkspace?.querySelector(".scouting-profile-action-menu[open]")),
   normalizeText: normalizeScoutingText,
   now: () => Date.now(),
   queueProfileHydration: queueFootballScienceDbProfileHydration,

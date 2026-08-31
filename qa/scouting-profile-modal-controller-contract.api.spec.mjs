@@ -2,15 +2,24 @@ import { expect, test } from "@playwright/test";
 import { createScoutingProfileModalController } from "../src/modules/scouting/index.mjs";
 
 function createModal(calls, options = {}) {
+  const listeners = new Map();
   return {
+    addEventListener: (type, listener) => listeners.set(type, listener),
     contains: () => options.containsActiveElement === true,
+    dispatch: (type) => listeners.get(type)?.(),
     focus: (focusOptions) => calls.push(["focus", focusOptions]),
+    removeEventListener: (type, listener) => {
+      if (listeners.get(type) === listener) {
+        listeners.delete(type);
+      }
+    },
   };
 }
 
 function createHarness(options = {}) {
   let now = options.now || 1000;
   let nextTimerId = 20;
+  let profileInteractionActive = options.profileInteractionActive === true;
   const timers = new Map();
   const calls = [];
   const state = {
@@ -41,6 +50,7 @@ function createHarness(options = {}) {
     getProfileBackdrop: () => backdrop,
     getProfileModal: () => modal,
     hasProfileModal: () => options.hasProfileModal === true,
+    isProfileInteractionActive: () => profileInteractionActive,
     normalizeText: (value = "", limit = 160) => String(value || "").trim().slice(0, limit),
     now: () => now,
     queueProfileHydration: (recordId) => calls.push(["hydrate-profile", recordId]),
@@ -60,8 +70,12 @@ function createHarness(options = {}) {
     calls,
     controller,
     documentRef,
+    modal,
     runTimer(timerId) {
       timers.get(timerId)?.();
+    },
+    setProfileInteractionActive(value) {
+      profileInteractionActive = value === true;
     },
     setNow(value) {
       now = value;
@@ -115,6 +129,30 @@ test("Scouting profile modal controller opens records with reset profile state a
     ["hydrate-profile", "record-1"],
   ]);
   expect(harness.controller.getFocusState().postOpenTimer).toBe(0);
+});
+
+test("Scouting profile modal controller keeps lightweight actions stable during interaction", () => {
+  const harness = createHarness({ profileInteractionActive: true });
+
+  harness.controller.openRecord("record-1");
+  harness.modal?.dispatch?.("click");
+
+  expect(harness.calls.slice(-2)).toEqual([
+    ["clear-timeout", 21],
+    ["set-timeout", 22, 700],
+  ]);
+
+  harness.runTimer(22);
+  expect(harness.calls.slice(-1)).toEqual([["set-timeout", 23, 180]]);
+  expect(harness.calls).not.toContainEqual(["render-profile", "record-1", {}]);
+
+  harness.setProfileInteractionActive(false);
+  harness.runTimer(23);
+  expect(harness.calls.slice(-3)).toEqual([
+    ["render-profile", "record-1", {}],
+    ["write", { syncCentral: false }],
+    ["hydrate-profile", "record-1"],
+  ]);
 });
 
 test("Scouting profile modal controller only refocuses an already open profile", () => {

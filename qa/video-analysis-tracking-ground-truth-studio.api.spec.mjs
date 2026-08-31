@@ -289,7 +289,7 @@ test("review studio separates decision completion from locked Match 11 reference
   const component = await import(moduleUrl(
     "src/modules/video-analysis/components/TrackingGroundTruthReviewStudio.js",
   ));
-  const html = component.renderTrackingGroundTruthReviewStudio(state({
+  const tracking = {
     groundTruth: {
       suite: {
         benchmarkType: "multi-object",
@@ -341,7 +341,9 @@ test("review studio separates decision completion from locked Match 11 reference
         }],
       },
     },
-  }), { id: "item-1", objectTracks: [] });
+  };
+  const item = { id: "item-1", objectTracks: [] };
+  const html = component.renderTrackingGroundTruthReviewStudio(state(tracking), item);
 
   expect(html).toContain("Match 11 campaign");
   expect(html).toContain("1/2 references");
@@ -354,13 +356,53 @@ test("review studio separates decision completion from locked Match 11 reference
   expect(html).toContain(`data-video-analysis-ground-truth-handoff-source-sha256="${"c".repeat(64)}"`);
   expect(html).toContain('data-video-analysis-ground-truth-handoff-item-id="item-fast-transition"');
   expect(html).not.toContain("2/2 references");
+
+  const connected = state({
+    ...tracking,
+    groundTruthHandoff: {
+      caseId: "fast-transition",
+      sourceSha256: "c".repeat(64),
+      itemId: "item-fast-transition",
+      clipId: "clip-fast-transition",
+      angleId: "wide",
+      resumeContextReady: true,
+      status: "awaiting-source",
+    },
+  });
+  connected.mediaProduction = {
+    activeAngleId: "primary",
+    primaryAngleId: "primary",
+    proxy: { byAngleId: { primary: { result: { sourceSha256: "c".repeat(64) } } } },
+  };
+  const connectedHtml = component.renderTrackingGroundTruthReviewStudio(connected, item);
+  expect(connectedHtml).toContain("Open fast-transition workspace");
+  expect(connectedHtml).toContain("Source cccccc...cccc matches");
+  expect(connectedHtml).toContain('data-video-analysis-tracking-action="preannotation-open"');
+  expect(connectedHtml).not.toContain('data-video-analysis-tracking-action="ground-truth-handoff-reconnect"');
 });
 
 test("review handoff remains source-bound until the exact case opens", async () => {
   const module = await import(moduleUrl(
     "src/modules/video-analysis/controllers/trackingGroundTruthHandoffController.js",
   ));
-  let currentState = state({});
+  let currentState = {
+    mediaProduction: {
+      activeAngleId: "primary",
+      primaryAngleId: "primary",
+      angles: [{ id: "wide", label: "Wide", role: "tactical", status: "available" }],
+    },
+    presentation: {
+      selectedItemId: "item-current",
+      selectedClipId: "clip-current",
+      current: {
+        sections: [{
+          id: "section-1",
+          items: [{ id: "item-fast-transition", clipId: "clip-fast-transition", objectTracks: [] }],
+        }],
+      },
+      tracking: {},
+    },
+  };
   let pickerCount = 0;
   const controller = module.createTrackingGroundTruthHandoffController({
     getState: () => currentState,
@@ -389,6 +431,15 @@ test("review handoff remains source-bound until the exact case opens", async () 
     resumeContextReady: true,
     status: "awaiting-source",
   });
+  expect(controller.prepare({ sourceSha256: "d".repeat(64) })).toBe(false);
+  expect(currentState.presentation.selectedItemId).toBe("item-current");
+  expect(controller.prepare({ sourceSha256: "c".repeat(64) })).toBe(true);
+  expect(currentState.presentation).toMatchObject({
+    selectedItemId: "item-fast-transition",
+    selectedClipId: "clip-fast-transition",
+  });
+  expect(currentState.mediaProduction.activeAngleId).toBe("wide");
+  expect(controller.validate({ sourceSha256: "c".repeat(64) })).toBe(true);
   expect(controller.complete({
     caseId: "fast-transition",
     sourceSha256: "d".repeat(64),
@@ -416,6 +467,89 @@ test("review handoff remains source-bound until the exact case opens", async () 
   })).toBe(true);
   expect(pickerCount).toBe(1);
   expect(currentState.presentation.tracking.error).toMatch(/missing its sealed source identity/i);
+});
+
+test("review studio keeps an incomplete campaign stable when no next handoff case is available", async () => {
+  const component = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingGroundTruthReviewStudio.js",
+  ));
+  const html = component.renderTrackingGroundTruthReviewStudio(state({
+    groundTruth: {
+      suite: {
+        benchmarkType: "multi-object",
+        cases: [{
+          id: "locked-attacking-third",
+          sourceFingerprint: "a".repeat(64),
+          workloadEvidence: {
+            workspaceSha256: "b".repeat(64),
+            caseId: "attacking-third",
+            sourceFingerprint: "a".repeat(64),
+          },
+        }],
+      },
+      byItemId: {
+        "item-1": truth({ status: "locked", lockedArtifact: { id: "locked-attacking-third" } }),
+      },
+    },
+    preannotationReview: {
+      status: "complete",
+      draftStatus: "ready",
+      workspaceSha256: "b".repeat(64),
+      caseId: "attacking-third",
+      campaign: {
+        status: "ready",
+        caseCount: 2,
+        completeCaseCount: 1,
+        cases: [{
+          caseId: "attacking-third",
+          sourceSha256: "a".repeat(64),
+          complete: true,
+          reviewEffortCoverage: "complete",
+          savedCount: 10,
+          decisionCount: 10,
+          totalSuggestionCount: 10,
+          pendingCount: 0,
+        }],
+      },
+    },
+  }), { id: "item-1", objectTracks: [] });
+
+  expect(html).toContain("Continue the real-match suite");
+  expect(html).not.toContain("Reconnect undefined");
+  expect(html).not.toContain('data-video-analysis-tracking-action="ground-truth-handoff-reconnect"');
+});
+
+test("review handoff refuses a removed presentation item or camera angle", async () => {
+  const module = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingGroundTruthHandoffController.js",
+  ));
+  const element = {
+    dataset: {
+      videoAnalysisGroundTruthHandoffCaseId: "fast-transition",
+      videoAnalysisGroundTruthHandoffSourceSha256: "c".repeat(64),
+      videoAnalysisGroundTruthHandoffItemId: "item-fast-transition",
+      videoAnalysisGroundTruthHandoffClipId: "clip-fast-transition",
+      videoAnalysisGroundTruthHandoffAngleId: "wide",
+    },
+  };
+  let currentState = state({});
+  const controller = module.createTrackingGroundTruthHandoffController({
+    getState: () => currentState,
+    updateState: (updater) => { currentState = updater(currentState); },
+    openLocalVideoPicker: async () => true,
+  });
+  controller.start(element);
+  expect(controller.prepare({ sourceSha256: "c".repeat(64) })).toBe(false);
+  expect(currentState.presentation.tracking.error).toMatch(/presentation item is no longer available/i);
+
+  currentState.presentation.current = {
+    sections: [{
+      id: "section-1",
+      items: [{ id: "item-fast-transition", clipId: "clip-fast-transition", objectTracks: [] }],
+    }],
+  };
+  expect(controller.prepare({ sourceSha256: "c".repeat(64) })).toBe(false);
+  expect(currentState.presentation.tracking.error).toMatch(/camera angle is no longer available/i);
 });
 
 test("review studio never counts a crossed-source workload as a locked campaign reference", async () => {

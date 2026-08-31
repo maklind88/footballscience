@@ -13,6 +13,7 @@ import {
   trackingGroundTruthSceneReviewTimes,
 } from "./trackingGroundTruthSceneReviewService.js";
 import { trackingPreannotationReviewPersistence } from "./trackingPreannotationReviewPersistenceService.js";
+import { trackingSourceFingerprint } from "./trackingSourceIdentityService.js";
 
 const fingerprintPattern = /^[a-f0-9]{64}$/i;
 
@@ -251,18 +252,28 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
   } else if (locked && !suiteReadiness.ready) {
     const handoff = nextCampaignHandoff(campaignCases, review.caseId);
     const requested = tracking.groundTruthHandoff;
-    const awaitingHandoff = requested?.caseId === handoff?.id
-      && requested?.sourceSha256 === handoff?.sourceSha256;
+    const awaitingHandoff = Boolean(handoff
+      && requested
+      && requested.caseId === handoff.id
+      && requested.sourceSha256 === handoff.sourceSha256);
+    const handoffSourceReady = awaitingHandoff
+      && trackingSourceFingerprint(state, item) === handoff.sourceSha256;
     next = {
-      title: awaitingHandoff ? `Reconnect ${handoff.id}` : "Continue the real-match suite",
+      title: handoffSourceReady
+        ? `Open ${handoff.id} workspace`
+        : awaitingHandoff ? `Reconnect ${handoff.id}` : "Continue the real-match suite",
       detail: handoff
-        ? awaitingHandoff
+        ? handoffSourceReady
+          ? `Source ${handoff.sourceHint} matches. The saved clip context will be restored before import.`
+          : awaitingHandoff
           ? `Expected source ${handoff.sourceHint}. Open its sealed workspace only after the exact local video is connected.`
           : handoff.decisionsComplete
           ? `Reconnect ${handoff.id} (${handoff.sourceHint}) and prepare its independent reference.`
           : `Reconnect ${handoff.id} (${handoff.sourceHint}) and resolve ${handoff.pendingCount} remaining suggestions.`
         : suiteReadiness.issues[0]?.message || "Connect the next representative match case.",
-      actions: handoff ? [action("ground-truth-handoff-reconnect", awaitingHandoff ? "Choose video again" : "Reconnect next case", {
+      actions: handoffSourceReady
+        ? [action("preannotation-open", "Open case workspace")]
+        : handoff ? [action("ground-truth-handoff-reconnect", awaitingHandoff ? "Choose video again" : "Reconnect next case", {
         videoAnalysisGroundTruthHandoffCaseId: handoff.id,
         videoAnalysisGroundTruthHandoffSourceSha256: handoff.sourceSha256,
         ...(handoff.resumeContextReady ? {

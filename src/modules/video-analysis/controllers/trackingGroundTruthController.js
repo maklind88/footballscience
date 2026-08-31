@@ -34,6 +34,9 @@ import { createTrackingGroundTruthSceneReviewController } from "./trackingGround
 import { createTrackingGroundTruthSceneReview } from "../services/trackingGroundTruthSceneReviewService.js";
 import { downloadTrackingJson } from "../services/trackingJsonDownloadService.js";
 import { createTrackingGroundTruthCheckpointController } from "./trackingGroundTruthCheckpointController.js";
+import { trackingSourceFingerprint } from "../services/trackingSourceIdentityService.js";
+
+export { trackingSourceFingerprint } from "../services/trackingSourceIdentityService.js";
 
 const groundTruthActions = new Set([
   "ground-truth-toggle",
@@ -81,21 +84,6 @@ function patchGroundTruthSuite(state = {}, suite = {}) {
       benchmarkEvaluation: emptyTrackingBenchmarkEvaluation(),
     } : {}),
   });
-}
-
-export function trackingSourceFingerprint(state = {}) {
-  const angle = activeMediaAngle(state);
-  const proxyFingerprint = String(
-    state.mediaProduction?.proxy?.byAngleId?.[angle?.id]?.result?.sourceSha256 || "",
-  ).trim();
-  if (/^[a-f0-9]{64}$/i.test(proxyFingerprint)) return proxyFingerprint;
-  const item = selectedTrackingItem(state);
-  const trackedFingerprint = (item?.objectTracks || []).find((track) => {
-    const value = String(track.metadata?.localSourceSha256 || "");
-    const trackAngleId = String(track.metadata?.angleId || "");
-    return /^[a-f0-9]{64}$/i.test(value) && (!angle?.id || !trackAngleId || trackAngleId === angle.id);
-  })?.metadata?.localSourceSha256;
-  return String(trackedFingerprint || "").trim();
 }
 
 export function trackingFrameSize(video = null) {

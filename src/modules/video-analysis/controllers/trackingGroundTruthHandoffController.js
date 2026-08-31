@@ -1,4 +1,5 @@
-import { patchTrackingState } from "./trackingControllerHelpers.js";
+import { patchTrackingState, trackingItemById } from "./trackingControllerHelpers.js";
+import { mediaAnglesForState } from "../services/mediaProductionService.js";
 
 const fingerprintPattern = /^[a-f0-9]{64}$/i;
 const identifierPattern = /^[a-z0-9][a-z0-9._:-]*$/i;
@@ -40,6 +41,58 @@ export function createTrackingGroundTruthHandoffController(options = {}) {
 
   function fail(message) {
     updateState((state) => patchTrackingState(state, { error: message }));
+    return false;
+  }
+
+  function validate(value = {}) {
+    const state = getState();
+    const handoff = state.presentation?.tracking?.groundTruthHandoff;
+    if (!handoff) return true;
+    if (handoff.sourceSha256 !== String(value.sourceSha256 || "").toLowerCase()) {
+      return fail(`Reconnect the sealed ${handoff.caseId} source before opening its review workspace.`);
+    }
+    if (!handoff.resumeContextReady) return true;
+    if (state.presentation?.selectedItemId !== handoff.itemId
+      || state.presentation?.selectedClipId !== handoff.clipId
+      || String(state.mediaProduction?.activeAngleId || "") !== handoff.angleId) {
+      return fail(`Restore the saved ${handoff.caseId} clip context before opening its review workspace.`);
+    }
+    return true;
+  }
+
+  function prepare(value = {}) {
+    const state = getState();
+    const handoff = state.presentation?.tracking?.groundTruthHandoff;
+    if (!handoff) return true;
+    if (handoff.sourceSha256 !== String(value.sourceSha256 || "").toLowerCase()) {
+      return fail(`Reconnect the sealed ${handoff.caseId} source before opening its review workspace.`);
+    }
+    if (!handoff.resumeContextReady) return true;
+    const item = trackingItemById(state, handoff.itemId);
+    const clipId = String(item?.clipId || item?.clip?.id || "");
+    if (!item || clipId !== handoff.clipId) {
+      return fail(`The saved ${handoff.caseId} presentation item is no longer available.`);
+    }
+    if (!mediaAnglesForState(state).some((angle) => angle.id === handoff.angleId)) {
+      return fail(`The saved ${handoff.caseId} camera angle is no longer available.`);
+    }
+    updateState((current) => ({
+      ...current,
+      presentation: {
+        ...(current.presentation || {}),
+        selectedItemId: handoff.itemId,
+        selectedClipId: handoff.clipId,
+        tracking: {
+          ...(current.presentation?.tracking || {}),
+          error: "",
+        },
+      },
+      mediaProduction: {
+        ...(current.mediaProduction || {}),
+        activeAngleId: handoff.angleId,
+      },
+    }));
+    return true;
   }
 
   function start(element = null) {
@@ -86,6 +139,8 @@ export function createTrackingGroundTruthHandoffController(options = {}) {
     handleAction: (action, element) => (
       action === "ground-truth-handoff-reconnect" ? start(element) : false
     ),
+    prepare,
     start,
+    validate,
   };
 }

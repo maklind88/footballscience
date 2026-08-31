@@ -82,6 +82,7 @@ test("preannotation review decisions stay local, support undo, and persist only 
   const persisted = [];
   const seeks = [];
   const openedCases = [];
+  const handoffChecks = [];
   let invalidated = 0;
   const associated = track("associated-player", "player", 1000, 0.8, "associated");
   const unassociated = track("unassociated-ball", "ball", 500, 0.4, "unassociated");
@@ -112,6 +113,14 @@ test("preannotation review decisions stay local, support undo, and persist only 
       persisted.push(value);
       return value;
     },
+    prepareHandoffContext: (value) => {
+      handoffChecks.push(["prepare", value]);
+      return true;
+    },
+    validateHandoffContext: (value) => {
+      handoffChecks.push(["validate", value]);
+      return true;
+    },
     onCaseOpened: (value) => openedCases.push(value),
     onEvidenceChanged: () => { invalidated += 1; },
   });
@@ -135,6 +144,10 @@ test("preannotation review decisions stay local, support undo, and persist only 
   });
   expect(state.presentation.current.sections[0].items[0].objectTracks).toHaveLength(1);
   expect(persisted).toHaveLength(0);
+  expect(handoffChecks).toEqual([
+    ["prepare", { sourceSha256: "a".repeat(64) }],
+    ["validate", { sourceSha256: "a".repeat(64) }],
+  ]);
   expect(openedCases).toEqual([{
     caseId: "transition",
     sourceSha256: "a".repeat(64),

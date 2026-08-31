@@ -157,6 +157,8 @@ export function createTrackingController(options = {}) {
     seekToMatchMs: options.seekToMatchMs,
     persistTrack,
     onCaseOpened: groundTruthHandoff.complete,
+    prepareHandoffContext: groundTruthHandoff.prepare,
+    validateHandoffContext: groundTruthHandoff.validate,
     onEvidenceChanged: (itemId) => {
       groundTruth.invalidateDraft(itemId);
       benchmark.invalidate();

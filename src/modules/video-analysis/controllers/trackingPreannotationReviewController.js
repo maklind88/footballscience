@@ -6,7 +6,7 @@ import {
   prioritizeTrackingPreannotationReviewEntries,
   summarizeTrackingPreannotationReviewPriorities,
 } from "../services/trackingPreannotationReviewPriorityService.js";
-import { trackingSourceFingerprint } from "./trackingGroundTruthController.js";
+import { trackingSourceFingerprint } from "../services/trackingSourceIdentityService.js";
 import { shouldIgnoreShortcutTarget } from "../services/codingTemplateService.js";
 import {
   acceptedTrackingPreannotationTrack as acceptedTrack,
@@ -171,9 +171,12 @@ export function createTrackingPreannotationReviewController(options = {}) {
 
   async function open() {
     contextReplay.stop();
+    const initialSourceSha256 = trackingSourceFingerprint(getState());
+    if (options.prepareHandoffContext?.({ sourceSha256: initialSourceSha256 }) === false) return false;
     const state = getState();
     const item = selectedTrackingItem(state);
     const sourceSha256 = trackingSourceFingerprint(state);
+    if (options.validateHandoffContext?.({ sourceSha256 }) === false) return false;
     const clipId = String(item?.clipId || item?.clip?.id || "");
     const angleId = String(state.mediaProduction?.activeAngleId || "primary");
     if (!item || !clipId || !sourceSha256) {

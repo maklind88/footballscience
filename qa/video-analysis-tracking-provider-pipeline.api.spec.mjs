@@ -609,6 +609,29 @@ test("re-identification boundary returns opaque links and activation remains fai
   ballIdentity.payload.identities[0].trajectoryId = "trajectory-ball";
   expect(() => artifacts.validateTrackingStageArtifact(ballIdentity, manifest, request)).toThrow(/player trajectory/i);
 
+  const collisionRequest = stageRequest({ trajectories: [
+    {
+      id: "trajectory-player-a", entityType: "player", confidence: 0.93, discontinuitiesMs: [],
+      observations: [
+        { id: "p-a-1", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 },
+        { id: "p-a-2", atMs: 1000, frameIndex: 30, entityType: "player", box: { left: 0.12, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.95 },
+      ],
+    },
+    {
+      id: "trajectory-player-b", entityType: "player", confidence: 0.9, discontinuitiesMs: [],
+      observations: [
+        { id: "p-b-1", atMs: 500, frameIndex: 15, entityType: "player", box: { left: 0.5, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.94 },
+        { id: "p-b-2", atMs: 1500, frameIndex: 45, entityType: "player", box: { left: 0.52, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.93 },
+      ],
+    },
+  ] });
+  const collisionResult = stageResult(manifest, evidenceService, artifacts, collisionRequest, { identities: [
+    { trajectoryId: "trajectory-player-a", identityKey: "local-cluster-collision", confidence: 0.9 },
+    { trajectoryId: "trajectory-player-b", identityKey: "local-cluster-collision", confidence: 0.88 },
+  ] });
+  expect(() => artifacts.validateTrackingStageArtifact(collisionResult, manifest, collisionRequest))
+    .toThrow(/simultaneous player trajectories/i);
+
   const approved = approveProvider(contract, evidenceService, candidate);
   const activatedResult = stageResult(
     approved.manifest,

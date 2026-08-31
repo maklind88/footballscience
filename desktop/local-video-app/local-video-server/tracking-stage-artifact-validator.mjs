@@ -266,12 +266,13 @@ function validateAssociation(payload = {}, request = {}, range = {}, options = {
 function validateReidentification(payload = {}, request = {}, options = {}) {
   exactKeys(payload, ["identities"], "Re-identification result");
   const trajectories = referenceMap(request.trajectories, "trajectory");
+  const trajectoryInputs = new Map(request.trajectories.map((trajectory) => [trajectory.id, trajectory]));
   const values = Array.isArray(payload.identities) ? payload.identities : invalid("Re-identification results are required.");
   if (values.length > Math.max(1, Math.min(1024, Number(options.maxIdentities) || 256))) {
     invalid("Re-identification result contains too many identities.", "TRACKING_STAGE_RESULT_LIMIT");
   }
   const assigned = new Set();
-  return { identities: values.map((value, index) => {
+  const identities = values.map((value, index) => {
     exactKeys(value, ["trajectoryId", "identityKey", "confidence"], `Re-identification ${index + 1}`);
     const trajectoryId = identifier(value.trajectoryId, "re-identification trajectory id");
     if (trajectories.get(trajectoryId)?.entityType !== "player" || assigned.has(trajectoryId)) {
@@ -283,7 +284,27 @@ function validateReidentification(payload = {}, request = {}, options = {}) {
       identityKey: identifier(value.identityKey, "opaque re-identification key"),
       confidence: confidence(value.confidence, "re-identification confidence"),
     };
-  }) };
+  });
+  const windowsByIdentity = new Map();
+  for (const identity of identities) {
+    const observations = trajectoryInputs.get(identity.trajectoryId)?.observations || [];
+    if (!observations.length) invalid("Re-identification trajectory has no observations.");
+    if (!windowsByIdentity.has(identity.identityKey)) windowsByIdentity.set(identity.identityKey, []);
+    windowsByIdentity.get(identity.identityKey).push({
+      startMs: observations[0].atMs,
+      endMs: observations.at(-1).atMs,
+    });
+  }
+  for (const windows of windowsByIdentity.values()) {
+    windows.sort((left, right) => left.startMs - right.startMs);
+    if (windows.some((window, index) => index > 0 && window.startMs <= windows[index - 1].endMs)) {
+      invalid(
+        "Re-identification cannot assign one identity to simultaneous player trajectories.",
+        "TRACKING_STAGE_IDENTITY_COLLISION",
+      );
+    }
+  }
+  return { identities };
 }
 
 function validateClassification(payload = {}, provider = {}, request = {}, options = {}) {

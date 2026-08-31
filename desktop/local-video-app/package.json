@@ -22,6 +22,8 @@
     "tracking:candidate:screen:verify": "node ../../scripts/fs-player-tracking-candidate-screening-verify.mjs",
     "tracking:candidate:screen:association": "node ../../scripts/fs-player-tracking-association-candidate-screening.mjs",
     "tracking:candidate:screen:association:verify": "node ../../scripts/fs-player-tracking-association-candidate-screening-verify.mjs",
+    "tracking:candidate:screen:reidentification": "node ../../scripts/fs-player-tracking-reidentification-candidate-screening.mjs",
+    "tracking:candidate:screen:reidentification:verify": "node ../../scripts/fs-player-tracking-reidentification-candidate-screening-verify.mjs",
     "tracking:smoke": "node ../../scripts/fs-player-tracking-engine-smoke.mjs",
     "tracking:trackeval:plan": "node tracking-evaluators/trackeval/install-evaluator.mjs --plan",
     "tracking:trackeval:install": "node tracking-evaluators/trackeval/install-evaluator.mjs",

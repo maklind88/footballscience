@@ -134,7 +134,7 @@ function preliminaryManifest(value = {}) {
   return value;
 }
 
-export async function verifyTrackingCandidateAssociationBundle(options = {}, dependencies = {}) {
+export async function loadVerifiedTrackingCandidateAssociationBundle(options = {}, dependencies = {}) {
   const packFile = await readJson(options.packPath, MAXIMUM_JSON_BYTES, "Annotation pack");
   const pack = normalizeTrackingCandidateScreeningPack(packFile.value);
   const detectionDir = await canonicalDirectory(options.detectionScreeningDir, "Detection screening directory");
@@ -174,6 +174,7 @@ export async function verifyTrackingCandidateAssociationBundle(options = {}, dep
     invalid("Screening cases do not match the annotation pack.");
   }
   const caseResults = [];
+  const verifiedCases = [];
   for (let index = 0; index < pack.cases.length; index += 1) {
     const packCase = pack.cases[index];
     const detectionCase = detectionManifest.cases[index];
@@ -209,6 +210,7 @@ export async function verifyTrackingCandidateAssociationBundle(options = {}, dep
       evidenceSha256: associationFile.sha256,
     });
     caseResults.push({ provider: associationEvidence.provider, summary: rebuiltSummary });
+    verifiedCases.push(Object.freeze({ packCase, detectionEvidence, associationEvidence }));
   }
   const rebuilt = createTrackingCandidateAssociationManifest(pack, detectionManifest, caseResults, {
     id: manifest.id,
@@ -218,7 +220,7 @@ export async function verifyTrackingCandidateAssociationBundle(options = {}, dep
     || rebuilt.screeningSha256 !== sha256(manifest.screeningSha256, "association screening checksum")) {
     invalid("Association manifest does not reproduce from its raw evidence.");
   }
-  return Object.freeze({
+  const verification = Object.freeze({
     ok: true,
     protocol: rebuilt.protocol,
     id: identifier(rebuilt.id, "association screening id"),
@@ -227,4 +229,15 @@ export async function verifyTrackingCandidateAssociationBundle(options = {}, dep
     caseCount: rebuilt.summary.caseCount,
     screeningSha256: rebuilt.screeningSha256,
   });
+  return Object.freeze({
+    verification,
+    pack,
+    detectionManifest: Object.freeze(detectionManifest),
+    associationManifest: rebuilt,
+    cases: Object.freeze(verifiedCases),
+  });
+}
+
+export async function verifyTrackingCandidateAssociationBundle(options = {}, dependencies = {}) {
+  return (await loadVerifiedTrackingCandidateAssociationBundle(options, dependencies)).verification;
 }

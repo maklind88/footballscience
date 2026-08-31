@@ -104,3 +104,21 @@ npm --prefix desktop/local-video-app run tracking:candidate:screen:verify -- \
 ```
 
 Verification reopens the exact installed provider, rejects linked or writable evidence, revalidates every candidate-stage artifact, recomputes every case summary, and reproduces the canonical screening SHA-256. One changed byte fails the complete bundle.
+
+After both detection and association have been screened over each complete case (`--sample-ms 120000` for the current two-minute pack), they can seed a separate review workspace:
+
+```bash
+npm --prefix desktop/local-video-app run tracking:candidate:preannotation -- \
+  --pack /absolute/local/annotation-pack.json \
+  --detection-screening /absolute/local/full-detection-screening \
+  --association-screening /absolute/local/full-association-screening \
+  --output /absolute/local/preannotation-workspace
+
+npm --prefix desktop/local-video-app run tracking:candidate:preannotation:verify -- \
+  --pack /absolute/local/annotation-pack.json \
+  --detection-screening /absolute/local/full-detection-screening \
+  --association-screening /absolute/local/full-association-screening \
+  --workspace /absolute/local/preannotation-workspace
+```
+
+The workspace contains immutable MOT suggestions and per-case track maps. It preserves detections left unassociated, but it never writes the pack's `annotations/*.txt`, cannot be promoted by changing a status field, and remains `suggestionOnly`, `approvalReady: false`, and `groundTruthEvaluated: false`. An analyst must still find false negatives and missing entities, correct every box and identity, assign player/team metadata, review dataset rights, and create a new independently attested MOT import manifest.

@@ -221,6 +221,18 @@ test("local provider registry verifies actual runtime, model and evidence withou
     });
     expect(JSON.stringify(snapshot)).not.toContain(registryRoot);
     expect(JSON.stringify(snapshot)).not.toMatch(/sourceUrl|repository|models\/|runtime\//);
+    const execution = await registry.resolve("team-classifier", "1.0.0");
+    const expectedRuntimePath = await fs.realpath(path.join(
+      installed.providerDir,
+      "runtime/provider.bin",
+    ));
+    expect(execution).toMatchObject({
+      provider: { providerId: "team-classifier", providerVersion: "1.0.0", stage: "classification" },
+      runtime: { sha256: sha256(installed.runtime), filePath: expectedRuntimePath },
+      models: [{ id: "team-classifier-weights", sha256: sha256(installed.model) }],
+    });
+    expect(execution.report).toEqual(installed.report);
+    expect(execution.evidence).toEqual(installed.evidence);
 
     const changedRuntime = Buffer.from(installed.runtime);
     changedRuntime[0] ^= 1;
@@ -235,6 +247,9 @@ test("local provider registry verifies actual runtime, model and evidence withou
       status: "blocked",
       available: false,
       reasons: ["provider-runtime-checksum-mismatch"],
+    });
+    await expect(registry.resolve("team-classifier", "1.0.0")).rejects.toMatchObject({
+      code: "provider-installation-not-ready",
     });
   } finally {
     await fs.rm(registryRoot, { recursive: true, force: true });
@@ -276,6 +291,9 @@ test("local provider registry rejects path escape, symbolic links and duplicate 
     expect(duplicate.readyCount).toBe(0);
     expect(duplicate.blockedCount).toBe(2);
     expect(duplicate.providers.every((provider) => provider.reasons.includes("duplicate-provider-id"))).toBe(true);
+    await expect(registry.resolve("team-classifier", "1.0.0")).rejects.toMatchObject({
+      code: "provider-installation-ambiguous",
+    });
   } finally {
     await fs.rm(registryRoot, { recursive: true, force: true });
   }

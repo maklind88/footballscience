@@ -22,7 +22,7 @@ const MAXIMUM_EVIDENCE_BYTES = 16 * 1024 * 1024;
 const MAXIMUM_RUNTIME_BYTES = 4 * 1024 * 1024 * 1024;
 const MAXIMUM_MODEL_BYTES = 100 * 1024 * 1024 * 1024;
 
-class TrackingProviderInstallationError extends Error {
+export class TrackingProviderInstallationError extends Error {
   constructor(code) {
     super(code);
     this.name = "TrackingProviderInstallationError";
@@ -227,7 +227,7 @@ function publicProvider(provider = {}, readiness = {}, reasons = []) {
   };
 }
 
-async function inspectProviderDirectory(providerDir, digestCache) {
+async function inspectProviderDirectory(providerDir, digestCache, options = {}) {
   let marker = null;
   let provider = {};
   try {
@@ -260,7 +260,25 @@ async function inspectProviderDirectory(providerDir, digestCache) {
       }
     }
     const readiness = trackingProviderReadiness(provider, { report, evidence });
-    return publicProvider(provider, readiness);
+    const publicValue = publicProvider(provider, readiness);
+    if (!options.includeExecution) return publicValue;
+    return {
+      publicValue,
+      execution: readiness.ready ? {
+        provider,
+        report,
+        evidence,
+        providerDir: await fs.realpath(providerDir),
+        runtime: {
+          ...marker.files.runtime,
+          filePath: await verifiedArtifactPath(providerDir, marker.files.runtime.path),
+        },
+        models: await Promise.all(marker.files.models.map(async (entry) => ({
+          ...entry,
+          filePath: await verifiedArtifactPath(providerDir, entry.path),
+        }))),
+      } : null,
+    };
   } catch (error) {
     const reasons = [error instanceof TrackingProviderInstallationError
       ? error.code
@@ -268,7 +286,8 @@ async function inspectProviderDirectory(providerDir, digestCache) {
     if (!provider.providerId && marker?.provider) {
       provider = { providerId: marker.provider.id, providerVersion: marker.provider.version };
     }
-    return publicProvider(provider, {}, reasons);
+    const publicValue = publicProvider(provider, {}, reasons);
+    return options.includeExecution ? { publicValue, execution: null } : publicValue;
   }
 }
 
@@ -296,7 +315,54 @@ export function trackingProviderRegistryDir(options = {}) {
 export function createTrackingProviderRegistry(options = {}) {
   const rootDir = path.resolve(options.rootDir || trackingProviderRegistryDir(options));
   const digestCache = new Map();
+  const maximumProviders = Math.max(
+    1,
+    Math.min(MAXIMUM_PROVIDERS, Math.round(Number(options.maximumProviders) || MAXIMUM_PROVIDERS)),
+  );
+
+  async function providerEntries() {
+    const rootStat = await fs.lstat(rootDir);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+      invalid("provider-registry-boundary-invalid");
+    }
+    const entries = (await fs.readdir(rootDir, { withFileTypes: true }))
+      .filter((entry) => !entry.name.startsWith("."));
+    if (entries.length > maximumProviders) invalid("provider-registry-limit-exceeded");
+    return entries.sort((first, second) => first.name.localeCompare(second.name));
+  }
+
   return {
+    async resolve(providerId, providerVersion = "") {
+      const requestedId = identifier(providerId);
+      const requestedVersion = providerVersion ? identifier(providerVersion) : "";
+      let entries;
+      try {
+        entries = await providerEntries();
+      } catch (error) {
+        if (error?.code === "ENOENT") invalid("provider-registry-unavailable");
+        throw error;
+      }
+      const matches = [];
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+        const record = await inspectProviderDirectory(
+          path.join(rootDir, entry.name),
+          digestCache,
+          { includeExecution: true },
+        );
+        if (record.publicValue.id === requestedId
+          && (!requestedVersion || record.publicValue.version === requestedVersion)) {
+          matches.push(record);
+        }
+      }
+      if (matches.length !== 1) invalid(matches.length
+        ? "provider-installation-ambiguous"
+        : "provider-installation-not-found");
+      if (!matches[0].execution || matches[0].publicValue.status !== "ready") {
+        invalid("provider-installation-not-ready");
+      }
+      return matches[0].execution;
+    },
     async inspect() {
       let rootStat;
       try {
@@ -347,10 +413,6 @@ export function createTrackingProviderRegistry(options = {}) {
           reasons: ["provider-registry-unreadable"],
         };
       }
-      const maximumProviders = Math.max(
-        1,
-        Math.min(MAXIMUM_PROVIDERS, Math.round(Number(options.maximumProviders) || MAXIMUM_PROVIDERS)),
-      );
       if (entries.length > maximumProviders) {
         return {
           protocol: TRACKING_PROVIDER_REGISTRY_PROTOCOL,

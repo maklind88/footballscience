@@ -2,10 +2,15 @@ import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { pruneCache, removeCacheEntry } from "./cache-manager.mjs";
 import { receiveRequestFile } from "./request-upload.mjs";
-
-function safeFileName(value = "tracking-video") {
-  return String(value || "tracking-video").replace(/[^a-zA-Z0-9._ -]+/g, "").slice(0, 120) || "tracking-video";
-}
+import {
+  sealTrackingSourceFile,
+  verifyTrackingFileSeal,
+} from "./tracking-file-integrity.mjs";
+import {
+  requestedTrackingSourceId,
+  reusableTrackingSource,
+  safeTrackingFileName,
+} from "./tracking-source-store.mjs";
 
 function publicProviderRuntime(value = {}) {
   const number = (entry, maximum = Number.MAX_SAFE_INTEGER) => {
@@ -41,41 +46,6 @@ function publicProviderRuntime(value = {}) {
       objectCount: number(telemetry.objectCount, 8),
       sampleFps: number(telemetry.sampleFps, 25),
     },
-  };
-}
-
-function requestedSourceId(request = {}) {
-  const value = String(request.headers?.["x-football-science-tracking-source-id"] || "").trim();
-  if (!value) return "";
-  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value)) {
-    throw Object.assign(new Error("The local tracking source reference is invalid."), { statusCode: 400 });
-  }
-  return value;
-}
-
-async function reusableSource(options = {}, sourceId = "", sessionToken = "") {
-  if (!sourceId) return null;
-  const job = options.jobs.get(sourceId);
-  if (!job || !["track-object", "track-objects"].includes(job.type) || job.status !== "succeeded"
-    || options.jobOwners.get(sourceId) !== sessionToken) {
-    throw Object.assign(new Error("The local tracking source is no longer available in this secure session."), { statusCode: 404 });
-  }
-  const fileName = safeFileName(job.metadata?.fileName);
-  const filePath = path.join(options.config.cacheDir, sourceId, `input-${fileName}`);
-  let stat;
-  try {
-    stat = await fs.lstat(filePath);
-  } catch {
-    throw Object.assign(new Error("The local tracking source must be reconnected."), { statusCode: 404 });
-  }
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw Object.assign(new Error("The local tracking source must be reconnected."), { statusCode: 404 });
-  }
-  return {
-    id: sourceId,
-    fileName,
-    filePath,
-    sourceSha256: String(job.result?.sourceSha256 || ""),
   };
 }
 
@@ -184,9 +154,10 @@ export function createTrackingJobHandler(options = {}) {
     try {
       const prompts = batch ? trackingPrompts(request, options.config.maxTrackingDurationMs) : null;
       const prompt = prompts?.[0] || trackingPrompt(request, options.config.maxTrackingDurationMs);
-      const sourceId = requestedSourceId(request);
-      const source = await reusableSource(options, sourceId, session.token);
+      const sourceId = requestedTrackingSourceId(request);
+      const source = await reusableTrackingSource(options, sourceId, session.token);
       let sourceSha256 = source?.sourceSha256 || "";
+      let sourceSeal = null;
       const declaredBytes = source ? 0 : Math.max(0, Number(request.headers["content-length"] || 0));
       await pruneCache(options.config.cacheDir, {
         maxBytes: options.config.maxCacheBytes,
@@ -194,7 +165,7 @@ export function createTrackingJobHandler(options = {}) {
         protectedIds: [...options.jobs.activeIds(), ...(source ? [source.id] : [])],
       });
       job = options.jobs.create(batch ? "track-objects" : "track-object", {
-        fileName: source?.fileName || safeFileName(request.headers["x-football-science-file-name"]),
+        fileName: source?.fileName || safeTrackingFileName(request.headers["x-football-science-file-name"]),
         objectCount: prompts?.length || 1,
         sourceArtifactId: source?.id || "",
         startMs: prompt.startMs,
@@ -211,6 +182,9 @@ export function createTrackingJobHandler(options = {}) {
       if (source) {
         await fs.mkdir(workDir, { recursive: true });
         await fs.link(source.filePath, inputPath);
+        sourceSeal = await sealTrackingSourceFile(inputPath, {
+          expectedSha256: sourceSha256,
+        });
         options.jobs.updateProgress(job.id, { stage: "reusing local source", ratio: 0.2 });
       } else {
         const upload = await receiveRequestFile(request, inputPath, {
@@ -218,10 +192,15 @@ export function createTrackingJobHandler(options = {}) {
           onProgress: (progress) => options.jobs.updateProgress(job.id, progress),
         });
         sourceSha256 = upload.sha256;
+        sourceSeal = await sealTrackingSourceFile(inputPath, {
+          expectedSha256: upload.sha256,
+          expectedBytes: upload.receivedBytes,
+        });
       }
       options.jobs.enqueue(job.id, async ({ signal, reportProgress }) => {
         try {
           reportProgress({ stage: "tracking", ratio: 0.22 });
+          await verifyTrackingFileSeal(inputPath, sourceSeal);
           const result = await (batch ? options.trackingEngine.trackObjects(
             inputPath,
             outputPath,
@@ -234,6 +213,7 @@ export function createTrackingJobHandler(options = {}) {
             signal,
             onProgress: (progress) => reportProgress({ ...progress, ratio: Math.max(0.22, Number(progress.ratio) || 0.22) }),
           }));
+          await verifyTrackingFileSeal(inputPath, sourceSeal);
           if (source) await fs.rm(inputPath, { force: true });
           const access = options.assets.issue(job.id, session.origin);
           return {

@@ -24,6 +24,8 @@ import {
 import { createTrackingEngineAdapter } from "./tracking-engine-adapter.mjs";
 import { createTrackingBenchmarkJobHandler } from "./tracking-benchmark-job-handler.mjs";
 import { createTrackingJobHandler } from "./tracking-job-handler.mjs";
+import { createTrackingStageJobHandler } from "./tracking-stage-job-handler.mjs";
+import { createTrackingStageRunner } from "./tracking-stage-runner.mjs";
 import {
   TRACKING_PROVIDER_REGISTRY_PROTOCOL,
   createTrackingProviderRegistry,
@@ -88,12 +90,13 @@ function blockedTrackingProviderRegistry() {
   };
 }
 
-async function inspectTrackingProviderRegistry(registry = {}) {
+async function inspectTrackingProviderRegistry(registry = {}, stageRunner = {}) {
   try {
     const value = await registry.inspect?.();
-    return value?.protocol === TRACKING_PROVIDER_REGISTRY_PROTOCOL
-      ? value
-      : blockedTrackingProviderRegistry();
+    if (value?.protocol !== TRACKING_PROVIDER_REGISTRY_PROTOCOL) return blockedTrackingProviderRegistry();
+    return typeof stageRunner.decorateRegistry === "function"
+      ? await stageRunner.decorateRegistry(value)
+      : value;
   } catch {
     return blockedTrackingProviderRegistry();
   }
@@ -105,6 +108,10 @@ export function createLocalVideoServer(options = {}) {
   const trackingEngine = options.trackingEngine || createTrackingEngineAdapter(options.tracking || {});
   const trackingProviderRegistry = options.trackingProviderRegistry
     || createTrackingProviderRegistry(options.trackingProviders || {});
+  const trackingStageRunner = options.trackingStageRunner || createTrackingStageRunner({
+    registry: trackingProviderRegistry,
+    sandbox: options.trackingStageSandbox || {},
+  });
   const portableUploader = options.portableUploader || createPortableUploadClient(options.portableUpload || {});
   const sessions = createBridgeSessionStore({ ttlMs: config.sessionTtlMs });
   const assets = createAssetAccessStore({ ttlMs: config.assetTtlMs });
@@ -188,6 +195,20 @@ export function createLocalVideoServer(options = {}) {
     sendJson,
     statusCodeForError,
     ...(options.trackingBenchmark || {}),
+  });
+  const trackingStage = createTrackingStageJobHandler({
+    assets,
+    authorizeSession,
+    baseUrl,
+    config,
+    corsHeaders,
+    jobOwners,
+    jobs,
+    publicErrorMessage,
+    requestOrigin,
+    sendJson,
+    stageRunner: trackingStageRunner,
+    statusCodeForError,
   });
   const mediaExport = createMediaExportJobHandler({
     assets,
@@ -343,7 +364,7 @@ export function createLocalVideoServer(options = {}) {
       if (!authorizeSession(request, response)) return;
       const [cache, providerRegistry] = await Promise.all([
         inspectCache(config.cacheDir),
-        inspectTrackingProviderRegistry(trackingProviderRegistry),
+        inspectTrackingProviderRegistry(trackingProviderRegistry, trackingStageRunner),
       ]);
       sendJson(request, response, config, 200, {
         ok: true,
@@ -361,6 +382,7 @@ export function createLocalVideoServer(options = {}) {
           ...(trackingEngine.available() ? ["track-object", "track-objects"] : []),
           "evaluate-tracking-benchmark",
           "tracking-provider-registry",
+          ...(providerRegistry.executableCount > 0 ? ["run-tracking-stage"] : []),
           ...(trackingBenchmark.info().referenceAvailable ? ["tracking-reference:trackeval"] : []),
         ],
         trackingProvider: trackingEngine.info?.() || { available: trackingEngine.available() },
@@ -372,6 +394,7 @@ export function createLocalVideoServer(options = {}) {
           maxConcurrentJobs: config.maxConcurrentJobs,
           maxQueuedJobs: config.maxQueuedJobs,
           maxTrackingDurationMs: config.maxTrackingDurationMs,
+          maxTrackingStageRequestBytes: config.maxTrackingStageRequestBytes,
           maxTrackingObjectsPerJob: 8,
           maxOverlayBytes: config.maxOverlayBytes,
           maxOverlayPrimitives: config.maxOverlayPrimitives,
@@ -413,6 +436,16 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "POST" && url.pathname === "/jobs/evaluate-tracking-benchmark") {
       const jobId = await trackingBenchmark.createJob(request, response);
+      if (!jobId) return;
+      sendJson(request, response, config, 202, {
+        ok: true,
+        job: jobs.get(jobId),
+        statusUrl: `${baseUrl()}/jobs/${jobId}`,
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/jobs/run-tracking-stage") {
+      const jobId = await trackingStage.createJob(request, response);
       if (!jobId) return;
       sendJson(request, response, config, 202, {
         ok: true,
@@ -515,6 +548,9 @@ export function createLocalVideoServer(options = {}) {
     if (request.method === "GET" && url.pathname.startsWith("/tracking/")) {
       if (await tracking.handleArtifact(request, url, response)) return;
     }
+    if (request.method === "GET" && url.pathname.startsWith("/tracking-stage/")) {
+      if (await trackingStage.handleArtifact(request, url, response)) return;
+    }
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/exports/")) {
       if (await mediaExport.handleArtifact(request, url, response)) return;
     }
@@ -531,6 +567,7 @@ export function createLocalVideoServer(options = {}) {
     server,
     config,
     jobs,
+    trackingStageRunner,
     listen(port = config.port, host = config.host) {
       return new Promise((resolve, reject) => {
         server.once("error", reject);

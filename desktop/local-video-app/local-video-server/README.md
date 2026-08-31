@@ -37,6 +37,7 @@ Optional limits and policy:
 - `FS_LOCAL_VIDEO_MAX_CONCURRENT_JOBS`: processing concurrency, capped at four.
 - `FS_LOCAL_VIDEO_MAX_QUEUED_JOBS`: bounded waiting queue.
 - `FS_LOCAL_VIDEO_MAX_TRACKING_DURATION_MS`: maximum range for one tracking job.
+- `FS_LOCAL_VIDEO_MAX_TRACKING_STAGE_REQUEST_BYTES`: maximum metadata request for one verified pipeline stage, capped at 64 MiB.
 - `FS_LOCAL_VIDEO_MAX_REPLAY_DURATION_MS`: maximum range for one replay buffer, capped at ten minutes.
 - `FS_TRACKING_ENGINE_PATH`: approved local executable implementing the tracking provider protocol.
 
@@ -48,6 +49,7 @@ Optional limits and policy:
 - `POST /jobs/prepare-playback`
 - `POST /jobs/track-object`
 - `POST /jobs/track-objects`
+- `POST /jobs/run-tracking-stage`
 - `POST /jobs/create-proxy`
 - `POST /jobs/create-replay-buffer`
 - `POST /jobs/render-export`
@@ -57,6 +59,7 @@ Optional limits and policy:
 - `GET /playback/:id/playback.mp4`
 - `GET /tracking/:id/track.json`
 - `GET /tracking/:id/tracks.json`
+- `GET /tracking-stage/:id/result.json`
 - `GET /proxies/:id/proxy.mp4`
 - `GET /replays/:id/replay.mp4`
 - `GET /exports/:id/render.mp4`
@@ -66,6 +69,10 @@ Optional limits and policy:
 The server only binds to loopback. Raw match video and generated media stay on the device unless an authorized user explicitly exports or shares a portable package.
 
 Object tracking uses a provider boundary instead of embedding an unreviewable model in the web app. The provider receives an input path, a bounded prompt request, and an output path under the `football-science-tracking-v1` protocol. It writes normalized track JSON and may stream JSON progress lines. The batch route accepts 2-8 unique targets on the same clip, angle, range, and prompt frame; all targets share one video state and the bridge rejects partial or mismatched output. Without an approved provider, the capability is hidden and analysts can still add reviewed manual keyframes.
+
+Future full-scene stages use the separate `football-science-tracking-stage-execution-v1` runner. A registered provider becomes executable only when its exact manifest, report, evidence, native runtime, and model bytes reverify and the runtime passes the local sandbox preflight. Runtime, models, and retained match sources must be regular, non-link, read-only files. Their SHA-256, byte length, and descriptor identity are sealed before execution and the identity is checked again before any output is accepted. On macOS the runner denies network access, permits execution of only the sealed native runtime, limits readable provider/source/system paths, scrubs the environment, bounds output and wall time, monitors resident memory for the whole process group, enforces provider concurrency, and validates the returned stage artifact against the exact request fingerprint. A timeout, cancellation, memory/output breach, changed source, changed provider, or malformed result terminates the job fail-closed.
+
+The first stage upload retains one session-owned local source artifact. Later association, re-identification, and classification jobs can reuse that exact source by job id while sending their bounded metadata request as JSON. Another bridge session cannot read or reuse it. The browser receives expiring access only to the normalized result JSON; provider paths, model paths, raw frames, and source paths are never returned. No full-scene provider ships with the companion today, so this boundary does not by itself make detection, re-identification, team, ball, referee, or shirt classification available.
 
 ## Approved tracking provider
 

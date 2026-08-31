@@ -133,7 +133,7 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
     ["preannotation-save", "S"],
   ]) expect(html).toMatch(new RegExp(`${action}" aria-keyshortcuts="${key}"`));
 
-  const completeHtml = component.renderTrackingPreannotationReviewPanel({
+  const completeState = {
     presentation: {
       tracking: {
         preannotationReview: {
@@ -155,6 +155,7 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
               decisionCount: 20,
               resolvedCount: 20,
               savedCount: 20,
+              reviewEffortCoverage: "complete",
               complete: true,
               active: true,
             }],
@@ -162,8 +163,12 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
         },
       },
     },
-  }, { id: "item-1" });
+  };
+  const completeHtml = component.renderTrackingPreannotationReviewPanel(completeState, { id: "item-1" });
   expect(completeHtml).toMatch(/ground-truth-use-preannotation-case" >Use in ground truth/);
+  completeState.presentation.tracking.preannotationReview.campaign.cases[0].reviewEffortCoverage = "partial";
+  const partialEffortHtml = component.renderTrackingPreannotationReviewPanel(completeState, { id: "item-1" });
+  expect(partialEffortHtml).toMatch(/ground-truth-use-preannotation-case" disabled>Use in ground truth/);
 });
 
 test("preannotation file picker opens the three real workspace locations in order", async () => {

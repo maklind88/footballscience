@@ -5,6 +5,7 @@ import {
 } from "../services/trackingGroundTruthService.js";
 import { trackingGroundTruthSuiteEntry } from "../services/trackingGroundTruthSuiteService.js";
 import { createTrackingGroundTruthSceneReview } from "../services/trackingGroundTruthSceneReviewService.js";
+import { createTrackingReviewWorkloadEvidence } from "../services/trackingReviewWorkloadEvidenceService.js";
 import { patchTrackingState, selectedTrackingItem } from "./trackingControllerHelpers.js";
 
 const actionName = "ground-truth-use-preannotation-case";
@@ -83,6 +84,23 @@ export function createTrackingGroundTruthPreannotationBridgeController(options =
     if (!tracks.length) {
       return fail(item.id, "No saved tracks from this sealed case are available for ground truth.");
     }
+    let workloadEvidence;
+    try {
+      workloadEvidence = createTrackingReviewWorkloadEvidence({
+        sourceFingerprint: context.sourceFingerprint,
+        workspaceSha256: review.workspaceSha256,
+        packId: review.campaign?.packId,
+        caseId: review.caseId,
+        angleId: context.angleId,
+        range: context.range,
+        totalSuggestionCount: campaignCase.totalSuggestionCount,
+        rejectedCount: campaignCase.rejectedCount,
+        savedCount: campaignCase.savedCount,
+        reviewEffort: campaignCase.reviewEffort,
+      }, { expectedSavedTrackCount: tracks.length });
+    } catch (error) {
+      return fail(item.id, error?.message || "Saved preannotation workload could not be validated.");
+    }
     const selectedTrackIds = [...new Set(tracks.map((track) => track.id))];
     const benchmarkTargetTrackId = selectedTrackIds.includes(truth.benchmarkTargetTrackId)
       ? truth.benchmarkTargetTrackId
@@ -92,6 +110,7 @@ export function createTrackingGroundTruthPreannotationBridgeController(options =
       status: "draft",
       selectedTrackIds,
       benchmarkTargetTrackId,
+      workloadEvidence,
       sceneReview: createTrackingGroundTruthSceneReview(context),
       attested: false,
       exhaustiveSceneAttested: false,

@@ -21,6 +21,23 @@ function selectedFile(files, expectedName, errorMessage) {
   return file;
 }
 
+function normalizeCampaignEffort(value = {}) {
+  const counter = (entry) => Math.max(0, Number(entry) || 0);
+  return {
+    coverage: value.coverage === "partial" ? "partial" : "complete",
+    openedCount: counter(value.openedCount),
+    acceptActionCount: counter(value.acceptActionCount),
+    rejectActionCount: counter(value.rejectActionCount),
+    undoActionCount: counter(value.undoActionCount),
+    deferActionCount: counter(value.deferActionCount),
+    correctionHandoffCount: counter(value.correctionHandoffCount),
+    batchSaveActionCount: counter(value.batchSaveActionCount),
+    savedTrackActionCount: counter(value.savedTrackActionCount),
+    firstOpenedAt: String(value.firstOpenedAt || ""),
+    lastActionAt: String(value.lastActionAt || ""),
+  };
+}
+
 function normalizeCampaignState(value = null) {
   if (!value || typeof value !== "object") return null;
   return {
@@ -50,6 +67,7 @@ function normalizeCampaignState(value = null) {
       rejectedCount: Math.max(0, Number(entry.rejectedCount) || 0),
       savedCount: Math.max(0, Number(entry.savedCount) || 0),
       reviewEffortCoverage: entry.reviewEffort?.coverage === "partial" ? "partial" : "complete",
+      reviewEffort: normalizeCampaignEffort(entry.reviewEffort),
       reviewActionCount: Math.max(0, Number(entry.reviewActionCount) || 0),
       reworkActionCount: Math.max(0, Number(entry.reworkActionCount) || 0),
       reviewActionsPer100Suggestions: Math.max(0, Number(entry.reviewActionsPer100Suggestions) || 0),

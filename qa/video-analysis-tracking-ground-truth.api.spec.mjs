@@ -530,7 +530,34 @@ test("locked real-match references are immutable, media-free and benchmark-ready
   const benchmark = await import(moduleUrl(
     "src/modules/video-analysis/services/trackingMultiObjectBenchmarkService.js",
   ));
+  const workload = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingReviewWorkloadEvidenceService.js",
+  ));
   const input = reviewedInput();
+  input.workloadEvidence = workload.createTrackingReviewWorkloadEvidence({
+    sourceFingerprint,
+    workspaceSha256: "b".repeat(64),
+    packId: "real-match-pack",
+    caseId: "transition-1",
+    angleId: "angle-1",
+    range: input.range,
+    totalSuggestionCount: 3,
+    rejectedCount: 0,
+    savedCount: 3,
+    reviewEffort: {
+      coverage: "complete",
+      openedCount: 1,
+      acceptActionCount: 3,
+      rejectActionCount: 0,
+      undoActionCount: 0,
+      deferActionCount: 0,
+      correctionHandoffCount: 0,
+      batchSaveActionCount: 1,
+      savedTrackActionCount: 3,
+      firstOpenedAt: "2026-08-31T12:00:00.000Z",
+      lastActionAt: "2026-08-31T12:10:00.000Z",
+    },
+  });
   input.tracks[0].segments[0].points = Array.from({ length: 11 }, (_, index) => ({
     atMs: index * 100,
     x: 0.1 + (index * 0.005),
@@ -557,6 +584,12 @@ test("locked real-match references are immutable, media-free and benchmark-ready
       exhaustiveSceneAttested: true,
       selectedObjectTargetTrackId: "p1",
     },
+    workloadEvidence: {
+      protocol: "football-science-tracking-review-workload-evidence-v1",
+      caseId: "transition-1",
+      outcome: { totalSuggestionCount: 3, rejectedCount: 0, savedCount: 3 },
+      metrics: { reviewActionCount: 4, reviewActionsPer100Suggestions: 133.33 },
+    },
   });
   expect(artifact.groundTruth.tracks[0]).not.toHaveProperty("metadata");
   expect(artifact.groundTruth.tracks[0]).not.toHaveProperty("confidence");
@@ -569,6 +602,10 @@ test("locked real-match references are immutable, media-free and benchmark-ready
     expect(track.segments.flatMap((segment) => segment.points.map((point) => point.atMs))).toContain(300);
   }
   expect(groundTruth.groundTruthArtifactJson(artifact)).not.toMatch(/private\/match|private-model|correctedBy|https?:|blob:/);
+  expect(groundTruth.validateGroundTruthArtifact(structuredClone(artifact))).toEqual(artifact);
+  const forgedWorkload = structuredClone(artifact);
+  forgedWorkload.workloadEvidence.metrics.reviewActionCount += 1;
+  expect(() => groundTruth.validateGroundTruthArtifact(forgedWorkload)).toThrow(/metrics do not match/i);
 
   input.tracks[0].segments[0].points[0].x = 0.99;
   expect(artifact.groundTruth.tracks[0].segments[0].points[0].x).toBe(0.1);
@@ -578,6 +615,7 @@ test("locked real-match references are immutable, media-free and benchmark-ready
     predictionTracks: reviewedInput().tracks.map((track) => ({ ...track, corrections: [] })),
     performance: { processingMs: 500 },
   });
+  expect(benchmarkCase).not.toHaveProperty("workloadEvidence");
   expect(benchmark.evaluateMultiObjectTrackingBenchmarkCase(benchmarkCase)).toMatchObject({
     benchmarkId: "real-match-case-1",
     evidence: {
@@ -604,6 +642,14 @@ test("locked real-match references are immutable, media-free and benchmark-ready
       failures: expect.arrayContaining([expect.objectContaining({ metric: "realtimeFactor", reason: "missing-metric" })]),
     },
   });
+  expect(() => groundTruth.createGroundTruthArtifact({
+    ...reviewedInput({
+      benchmarkType: "selected-object",
+      selectedTrackIds: ["p1"],
+      exhaustiveSceneAttested: false,
+    }),
+    workloadEvidence: input.workloadEvidence,
+  })).toThrow(/full-scene ground truth/i);
 });
 
 test("ground-truth controller locks and downloads only the reviewed snapshot", async () => {
@@ -618,6 +664,9 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
   ));
   const providerRuns = await import(moduleUrl(
     "src/modules/video-analysis/services/trackingProviderRunService.js",
+  ));
+  const workload = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingReviewWorkloadEvidenceService.js",
   ));
   const tracks = reviewedInput().tracks;
   tracks[0].metadata.localSourceSha256 = sourceFingerprint;
@@ -723,6 +772,36 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     state.presentation.tracking.selectedTrackIds = [track.id];
     expect(controller.handleAction("ground-truth-toggle")).toBe(true);
   }
+  const workloadEvidence = workload.createTrackingReviewWorkloadEvidence({
+      sourceFingerprint,
+      workspaceSha256: "b".repeat(64),
+      packId: "real-match-pack",
+      caseId: "transition-1",
+      angleId: "angle-1",
+      range: { startMs: 0, endMs: 1000 },
+      totalSuggestionCount: 3,
+      rejectedCount: 0,
+      savedCount: 3,
+      reviewEffort: {
+        coverage: "complete",
+        openedCount: 1,
+        acceptActionCount: 3,
+        rejectActionCount: 0,
+        undoActionCount: 0,
+        deferActionCount: 0,
+        correctionHandoffCount: 0,
+        batchSaveActionCount: 1,
+        savedTrackActionCount: 3,
+        firstOpenedAt: "2026-08-31T12:00:00.000Z",
+        lastActionAt: "2026-08-31T12:10:00.000Z",
+      },
+    });
+  state.presentation.tracking.groundTruth.byItemId[item.id].workloadEvidence = workloadEvidence;
+  state.presentation.tracking.selectedTrackIds = [tracks[0].id];
+  expect(controller.handleAction("ground-truth-toggle")).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].workloadEvidence).toBeNull();
+  expect(controller.handleAction("ground-truth-toggle")).toBe(true);
+  state.presentation.tracking.groundTruth.byItemId[item.id].workloadEvidence = workloadEvidence;
   expect(controller.handleField("groundTruthScenario", { value: "transition", checked: true })).toBe(true);
   expect(renderTrackingGroundTruthPanel(state, item)).toMatch(/value="transition"[^>]*checked/);
   expect(renderTrackingGroundTruthPanel(state, item)).toContain("0/3");
@@ -741,15 +820,20 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
   expect(controller.handleAction("ground-truth-lock")).toBe(true);
   expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
     status: "locked",
-    selectedTrackIds: tracks.map((track) => track.id),
+    selectedTrackIds: expect.arrayContaining(tracks.map((track) => track.id)),
     lockedArtifact: {
       sourceFingerprint,
       reviewEvidence: {
         scenarioTags: ["transition"],
         sceneReview: { reviewedSampleCount: 3, expectedSampleCount: 3, coverageRatio: 1 },
       },
+      workloadEvidence: {
+        protocol: "football-science-tracking-review-workload-evidence-v1",
+        caseId: "transition-1",
+      },
     },
   });
+  expect(new Set(state.presentation.tracking.groundTruth.byItemId[item.id].selectedTrackIds).size).toBe(3);
   expect(state.presentation.tracking.groundTruth.suite.cases).toHaveLength(1);
   expect(state.presentation.tracking.groundTruth.suite.cases[0].id).toBe(
     state.presentation.tracking.groundTruth.byItemId[item.id].lockedArtifact.id,

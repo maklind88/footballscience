@@ -39,6 +39,7 @@ export function trackingGroundTruthEntry(workspace = {}, itemId = "") {
     benchmarkType: TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
     selectedTrackIds: [],
     benchmarkTargetTrackId: "",
+    workloadEvidence: null,
     scenarioTags: [],
     sourceFingerprint: "",
     frame: { width: 0, height: 0 },

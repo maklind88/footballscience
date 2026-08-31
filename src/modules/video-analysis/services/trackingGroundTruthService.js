@@ -31,6 +31,7 @@ import {
   trackingGroundTruthArtifactBenchmarkType,
   trackingGroundTruthProfileForType,
 } from "./trackingGroundTruthProfileService.js";
+import { validateTrackingReviewWorkloadEvidence } from "./trackingReviewWorkloadEvidenceService.js";
 
 export * from "./trackingGroundTruthProfileService.js";
 
@@ -394,6 +395,26 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
   const sceneReviewEvidence = value.requireSceneReview === true
     ? trackingGroundTruthSceneReviewEvidence(value.sceneReview, value)
     : null;
+  let workloadEvidence = null;
+  if (value.workloadEvidence != null) {
+    if (readiness.benchmarkType !== TRACKING_BENCHMARK_TYPE_MULTI_OBJECT) {
+      throw new TrackingGroundTruthError("Review workload evidence is valid only for full-scene ground truth.");
+    }
+    try {
+      workloadEvidence = validateTrackingReviewWorkloadEvidence(value.workloadEvidence, {
+        sourceFingerprint,
+        angleId: value.angleId,
+        range,
+        expectedSavedTrackCount: readiness.selectedTrackCount,
+      });
+    } catch (error) {
+      throw new TrackingGroundTruthError(
+        error?.message || "Review workload evidence is invalid.",
+        "TRACKING_GROUND_TRUTH_WORKLOAD_INVALID",
+        { cause: error },
+      );
+    }
+  }
   const artifact = {
     version: TRACKING_BENCHMARK_SCHEMA_VERSION,
     protocol: TRACKING_GROUND_TRUTH_PROTOCOL,
@@ -424,6 +445,7 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
       ...(sceneReviewEvidence ? { sceneReview: sceneReviewEvidence } : {}),
       scenarioTags: normalizeTrackingBenchmarkScenarios(value.scenarioTags),
     },
+    ...(workloadEvidence ? { workloadEvidence } : {}),
   };
   if (benchmarkSerializedBytes(artifact, "Ground-truth artifact") > MAX_TRACKING_BENCHMARK_CASE_BYTES) {
     throw new TrackingGroundTruthError(
@@ -476,6 +498,25 @@ export function validateGroundTruthArtifact(artifact = {}) {
   assertBenchmarkEnvelope(artifact, { label: "Ground-truth artifact" });
   const range = normalizeBenchmarkRange(artifact.range);
   const tracks = normalizeBenchmarkTracks(artifact.groundTruth.tracks, range, "ground-truth tracks");
+  if (artifact.workloadEvidence != null) {
+    if (benchmarkType !== TRACKING_BENCHMARK_TYPE_MULTI_OBJECT) {
+      throw new TrackingGroundTruthError("Review workload evidence is valid only for full-scene ground truth.");
+    }
+    try {
+      validateTrackingReviewWorkloadEvidence(artifact.workloadEvidence, {
+        sourceFingerprint: artifact.sourceFingerprint,
+        angleId: artifact.sourceEvidence?.angleId,
+        range,
+        expectedSavedTrackCount: tracks.length,
+      });
+    } catch (error) {
+      throw new TrackingGroundTruthError(
+        error?.message || "Review workload evidence is invalid.",
+        "TRACKING_GROUND_TRUTH_WORKLOAD_INVALID",
+        { cause: error },
+      );
+    }
+  }
   const readiness = groundTruthReadiness({
     tracks,
     selectedTrackIds: tracks.map((track) => track.id),

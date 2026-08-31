@@ -73,6 +73,7 @@ function state(overrides = {}) {
           savedCount: 2,
           campaign: {
             workspaceSha256,
+            packId: "real-match-pack",
             cases: [{
               caseId: "transition",
               totalSuggestionCount: 2,
@@ -80,6 +81,20 @@ function state(overrides = {}) {
               acceptedCount: 0,
               rejectedCount: 0,
               savedCount: 2,
+              reviewEffortCoverage: "complete",
+              reviewEffort: {
+                coverage: "complete",
+                openedCount: 1,
+                acceptActionCount: 2,
+                rejectActionCount: 0,
+                undoActionCount: 0,
+                deferActionCount: 0,
+                correctionHandoffCount: 0,
+                batchSaveActionCount: 1,
+                savedTrackActionCount: 2,
+                firstOpenedAt: "2026-08-31T12:00:00.000Z",
+                lastActionAt: "2026-08-31T12:10:00.000Z",
+              },
               complete: true,
             }],
           },
@@ -139,6 +154,14 @@ test("completed preannotation selects only exact saved case tracks for full-scen
     range: { startMs: 0, endMs: 1000 },
     attested: false,
     exhaustiveSceneAttested: false,
+    workloadEvidence: {
+      protocol: "football-science-tracking-review-workload-evidence-v1",
+      sourceFingerprint: sourceSha256,
+      workspaceSha256,
+      caseId: "transition",
+      outcome: { totalSuggestionCount: 2, rejectedCount: 0, savedCount: 2 },
+      effort: { coverage: "complete", savedTrackActionCount: 2 },
+    },
     error: "",
   });
   expect(current.presentation.tracking.groundTruth.byItemId["item-1"].sceneReview.reviewedAtMs).toEqual([]);
@@ -151,6 +174,35 @@ test("preannotation bridge refuses incomplete, selected-object, and locked revie
   ));
   for (const [initial, message] of [
     [state({ review: { pendingCount: 1 } }), /finish and save every/i],
+    [state({ review: {
+      campaign: {
+        workspaceSha256,
+        packId: "real-match-pack",
+        cases: [{
+          caseId: "transition",
+          totalSuggestionCount: 2,
+          pendingCount: 0,
+          acceptedCount: 0,
+          rejectedCount: 0,
+          savedCount: 2,
+          reviewEffortCoverage: "partial",
+          reviewEffort: {
+            coverage: "partial",
+            openedCount: 1,
+            acceptActionCount: 2,
+            rejectActionCount: 0,
+            undoActionCount: 0,
+            deferActionCount: 0,
+            correctionHandoffCount: 0,
+            batchSaveActionCount: 1,
+            savedTrackActionCount: 2,
+            firstOpenedAt: "2026-08-31T12:00:00.000Z",
+            lastActionAt: "2026-08-31T12:10:00.000Z",
+          },
+          complete: true,
+        }],
+      },
+    } }), /coverage must be complete/i],
     [state({ benchmarkType: "selected-object" }), /choose full scene/i],
     [state({ truthStatus: "locked" }), /start a new draft/i],
   ]) {

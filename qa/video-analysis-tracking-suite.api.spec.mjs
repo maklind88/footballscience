@@ -873,6 +873,55 @@ test("imported suite evidence is revalidated before export or provider execution
   expect(() => service.groundTruthSuiteArtifactJson(missingScenarioEvidence)).toThrow(/does not match/i);
 });
 
+test("benchmark suite checksum binds exact review workload evidence without changing approval inputs", async () => {
+  const state = await readyWorkflowState("association");
+  const workflow = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingBenchmarkWorkflowService.js",
+  ));
+  const workload = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingReviewWorkloadEvidenceService.js",
+  ));
+  const baseline = await workflow.prepareTrackingBenchmarkWorkflow(state.presentation.tracking, {
+    now: () => 1_800_000_090_000,
+  });
+  const tracking = structuredClone(state.presentation.tracking);
+  const benchmarkCase = tracking.groundTruth.suite.cases[0];
+  benchmarkCase.workloadEvidence = workload.createTrackingReviewWorkloadEvidence({
+    sourceFingerprint: benchmarkCase.sourceFingerprint,
+    workspaceSha256: "d".repeat(64),
+    packId: "real-match-pack",
+    caseId: "workload-case-1",
+    angleId: benchmarkCase.sourceEvidence.angleId,
+    range: benchmarkCase.range,
+    totalSuggestionCount: 3,
+    rejectedCount: 0,
+    savedCount: 3,
+    reviewEffort: {
+      coverage: "complete",
+      openedCount: 1,
+      acceptActionCount: 3,
+      rejectActionCount: 0,
+      undoActionCount: 0,
+      deferActionCount: 0,
+      correctionHandoffCount: 0,
+      batchSaveActionCount: 1,
+      savedTrackActionCount: 3,
+      firstOpenedAt: "2026-08-31T12:00:00.000Z",
+      lastActionAt: "2026-08-31T12:10:00.000Z",
+    },
+  });
+  const withWorkload = await workflow.prepareTrackingBenchmarkWorkflow(tracking, {
+    now: () => 1_800_000_090_000,
+  });
+
+  expect(withWorkload.groundTruthSuite.cases[0].workloadEvidence).toEqual(benchmarkCase.workloadEvidence);
+  expect(withWorkload.groundTruthSuiteSha256).not.toBe(baseline.groundTruthSuiteSha256);
+  expect(withWorkload.assembledBenchmark.cases[0]).not.toHaveProperty("workloadEvidence");
+  const forged = structuredClone(tracking);
+  forged.groundTruth.suite.cases[0].workloadEvidence.metrics.reviewActionCount += 1;
+  await expect(workflow.prepareTrackingBenchmarkWorkflow(forged)).rejects.toThrow(/metrics do not match/i);
+});
+
 test("benchmark workflow binds exact suites and rejects a modified selected-object report", async () => {
   const state = await readyWorkflowState();
   const workflow = await import(moduleUrl(

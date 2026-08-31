@@ -83,6 +83,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
   const canOpenNextBatch = hasWorkspace && !current && Number(review.scopePendingCount) > 0 && !active;
   const activeCampaignCase = review.campaign?.cases?.find((entry) => entry.caseId === review.caseId);
   const canPrepareGroundTruth = activeCampaignCase?.complete
+    && activeCampaignCase.reviewEffortCoverage === "complete"
     && Number(activeCampaignCase.savedCount) > 0 && !active;
   return `
     <section class="video-analysis-preannotation" aria-label="Preannotation review queue">

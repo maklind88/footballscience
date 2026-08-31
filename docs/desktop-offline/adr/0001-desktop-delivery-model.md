@@ -26,13 +26,15 @@ Keep Candidate B as an archived/rebuildable fallback if physical Windows or real
 - atomic projection/outbox, accepted-response loss, close/reopen replay, durable acknowledgement and unauthorized-partition behavior passed Rust contracts;
 - the synthetic native `SessionAuthority` supplies bounded identity/lease context without a refresh token in SQLite or frontend storage;
 - packaged macOS Candidate B started without a network dependency;
-- [Windows CI run 33397533148](https://github.com/maklind88/footballscience/actions/runs/33397533148) built and ran Candidate A, Candidate B and an unauthorized-origin executable from commit `03524459614364fe1754af143e5d40e3c228700c`;
-- WebView2 `151.0.4129.101` passed active-generation restart, compatibility/LKG, synthetic online/offline/restart/online and local-projection checks;
+- [Windows CI run 33451341546](https://github.com/maklind88/footballscience/actions/runs/33451341546) built and ran Candidate A, Candidate B and an unauthorized-origin executable from commit `a5c15425f0e44c389361e689ac4593f9043e5184`;
+- WebView2 `151.0.4129.101` passed signed custom-protocol activation, active-generation restart, compatibility/LKG, synthetic online/offline/restart/online and local-projection checks;
+- Windows CI rejected invalid signatures, unknown keys, post-signing asset modification and an incompatible candidate without changing the active generation;
+- Windows CI timed out and quarantined a hanging candidate, cleared its authority, retained active state and suppressed retry after process restart;
 - unauthorized origin and unauthorized command attempts were rejected;
 - static/security gates, API contracts and all four Chromium web regression shards passed in the same run;
 - no existing browser/PWA service-worker source was changed.
-- the current local branch adds exact-manifest signature, unknown-key, modified-manifest, modified-asset, immutable-build-ID, rollback, candidate-isolation and quarantine tests;
-- the current local branch verifies a native OS-vault SessionAuthority lifecycle, including one refresh owner, durable two-slot rotation, account switch, logout, revocation and configurable offline lease;
+- exact-manifest signature, unknown-key, modified-manifest, modified-asset, immutable-build-ID, rollback, candidate-isolation and quarantine contracts pass locally and, where applicable, in Windows CI;
+- the native OS-vault SessionAuthority lifecycle verifies one refresh owner, durable two-slot rotation, account switch, logout, revocation and configurable offline lease in local contracts; Windows Credential Manager compiled but was not physically exercised;
 - an isolated macOS Keychain test wrote, read and deleted one uniquely named synthetic credential;
 - a disposable Postgres + authenticated handler + file-backed SQLite E2E passes the complete selected-session, two-offline-edit, restart, lost-ack, replay and receipt-before-remove sequence.
 

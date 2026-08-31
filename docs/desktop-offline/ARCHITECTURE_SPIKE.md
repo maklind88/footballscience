@@ -58,18 +58,20 @@ On Apple Silicon macOS with a packaged application:
 
 ### Windows, verified through GitHub Actions CI
 
-[Run 33397533148](https://github.com/maklind88/footballscience/actions/runs/33397533148) verified exact commit `03524459614364fe1754af143e5d40e3c228700c` on Windows Server 2025 AMD64 with WebView2 `151.0.4129.101`:
+[Run 33451341546](https://github.com/maklind88/footballscience/actions/runs/33451341546) verified exact commit `a5c15425f0e44c389361e689ac4593f9043e5184` on Windows Server 2025 AMD64 with WebView2 `151.0.4129.101`:
 
 - Candidate A, Candidate B and the unauthorized-origin probe compiled as release executables;
-- Candidate A WebView2 startup, native generation persistence across process restart, incompatible-candidate rejection and last-known-good restart passed;
+- Candidate A signed custom-protocol activation, native generation persistence across process restart, incompatible-candidate rejection and last-known-good restart passed;
+- invalid signatures, unknown signing keys and post-signing asset modification were rejected without changing the active generation;
+- a hanging candidate timed out, was quarantined with backoff, lost candidate authority and was not retried after process restart;
 - synthetic online → offline, offline process restart and offline → online recovery passed;
 - the local Session Planner projection loaded after restart;
 - Candidate B WebView2 startup without network dependency passed;
 - unauthorized origin and unauthorized native command paths were rejected;
-- native Rust tests, desktop contract tests, static/security gates, API contracts and all four Chromium regression shards passed;
+- native Rust tests, all 34 desktop contract tests, static/security gates, API contracts and all four Chromium regression shards passed;
 - an unsigned, checksummed evidence artifact was generated; no installer or release was produced.
 
-The Windows runner is a hosted VM. It does not prove physical Windows behavior, installer UX, sleep/wake, real adapter switching, Credential Manager, signed update UX, SmartScreen or a physical OS restart.
+The Windows runner is a hosted VM. It does not prove physical Windows behavior, installer UX, sleep/wake, real adapter switching, a physical Credential Manager round trip, signed update UX, SmartScreen or a physical OS restart. The earlier failing integration runs are retained as negative evidence; the last failure was a Windows-path 404 in the synthetic hosted server, corrected by portable `path.relative` containment and explicit POSIX/Windows tests in `6ee92acc`.
 
 ## Decision matrix
 
@@ -89,7 +91,7 @@ Candidate A remains the recommended architecture for the next local implementati
 
 The local architecture gate can be provisionally closed because the same bounded slice passed packaged macOS verification and isolated Windows CI, including cold restart, reconnect, compatibility rejection, LKG retention, local projection persistence, bridge restrictions and existing web regression.
 
-This is not production acceptance. Before any public desktop build, Candidate A still needs real auth and secure credential storage, logout/account-switch/revocation behavior, a reviewed real sync boundary, encryption and data-retention decisions, production signing custody/protected publication, physical Windows verification, installer/signing/SmartScreen work, sleep/wake and real-network testing. Candidate timeout/quarantine is implemented locally but still needs Windows CI and fault-injection evidence.
+This is not production acceptance. Before any public desktop build, Candidate A still needs real non-production auth/provider wiring, physical verification of OS credential storage and lifecycle behavior, a reviewed real sync boundary, encryption and data-retention decisions, production signing custody/protected publication, physical Windows verification, installer/signing/SmartScreen work, sleep/wake and real-network testing. Candidate timeout/quarantine now has local and Windows CI fault-injection evidence, but still needs real-shell and physical-device verification.
 
 ## Supabase and synchronization boundary
 

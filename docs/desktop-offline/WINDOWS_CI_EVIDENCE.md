@@ -4,57 +4,61 @@ Date: 2026-08-31
 
 Scope: branch-only, unsigned architecture verification. No deployment, installer publication, production/staging secret, Supabase schema, privileged production data or real FS account was used.
 
-## Immutable run reference
+## Immutable accepted run
 
 - Workflow: `FS Desktop Windows Architecture Verification`
-- Accepted run: [33397533148](https://github.com/maklind88/footballscience/actions/runs/33397533148)
-- Verified commit: `03524459614364fe1754af143e5d40e3c228700c`
-- Branch: `codex/fs-desktop-offline-phase0-2`
+- Accepted run: [33451341546](https://github.com/maklind88/footballscience/actions/runs/33451341546)
+- Verified commit: `a5c15425f0e44c389361e689ac4593f9043e5184`
+- Branch: `codex/fs-desktop-offline-local-integration`
 - Runner image: `win25-vs2026`
 - OS: Microsoft Windows Server 2025 Datacenter `10.0.26100`, AMD64
 - WebView2 registry/runtime version: `151.0.4129.101`
-- Production credentials/data used: no/no
+- Production credentials/data/signing keys used: no/no/no
 
-An earlier attempt, run `33397328944`, correctly failed before compilation because Git checkout converted immutable shell assets to CRLF while their manifests described LF bytes. Commit `03524459` added a scoped `.gitattributes` rule for candidate assets. The accepted run proves the corrected cross-platform byte contract.
+The earlier Phase 0–2 run `33397533148` proved the initial delivery candidates. The local-integration series then intentionally exercised a stricter signed-release, custom-protocol, candidate-isolation and quarantine path. Runs `33424220460`, `33428867278`, `33431518257`, `33434262180` and `33443309980` failed rather than overstating Windows support. Their traces isolated platform custom-origin translation and finally a portable-path bug in the synthetic hosted source: a POSIX-only `${root}/` containment check returned 404 for valid Windows paths. Commit `6ee92acc` replaced that check with `path.relative` containment and added both POSIX and Windows contract tests. The accepted run is the first complete local-integration proof after those corrections.
 
 ## Passed checks
 
 | Check | Evidence | Result |
 | --- | --- | --- |
 | Existing web regression | Static/security gates, API contracts and four Chromium browser shards | Passed |
-| Desktop contracts | Native-cache manifest, bridge and frontend contracts | Passed |
-| Native contracts | Bootstrap, compatibility, authority, projection, outbox and replay Rust tests | Passed |
-| Candidate A build/start | x64 release executable and actual WebView2 online startup | Passed |
+| Desktop contracts | 34 native-cache, signed-release, bridge, private-routine and path-containment contracts | Passed |
+| Native contracts | Bootstrap, compatibility, authority, projection, outbox, replay, quarantine and origin Rust tests | Passed |
+| Candidate A build/start | x64 release executable and actual signed custom-protocol WebView2 activation | Passed |
 | Candidate B build/start | x64 release executable and local-asset startup without network | Passed |
 | WebView2 runtime | Installed runtime detected and actual Tauri/WebView2 processes exercised | Passed |
-| Native cache generation | `fs-desktop-native-shell-cache-v1`; active generation persisted across process restart | Passed |
-| Compatibility/LKG | schema `999` candidate rejected; `hosted-spike-v11` retained and restarted | Passed |
+| Signed release trust | Valid detached signature accepted; invalid signature, unknown key and post-signing asset modification rejected | Passed |
+| Native cache generation | `fs-desktop-native-shell-cache-v2`; active generation persisted across process restart | Passed |
+| Compatibility/LKG | schema-incompatible candidate rejected; active `hosted-test-normal-s21-8a801b6ddc65` retained | Passed |
+| Timeout/quarantine | hanging candidate timed out, candidate authority cleared, active generation preserved and backoff persisted | Passed |
+| Quarantine restart | quarantined candidate was not retried after process restart | Passed |
 | Online → offline | loopback-only synthetic update source stopped; local projection remained | Passed |
-| Offline restart | source confirmed unavailable; native active generation and projection reloaded | Passed |
-| Offline → online | source restarted; same process recovered without using cached private payload | Passed |
+| Offline restart | source confirmed unavailable; native active generation and SQLite projection reloaded | Passed |
+| Offline → online | source restarted; same process recovered with active generation unchanged | Passed |
 | Candidate B minimal bridge | only its two intended commands granted | Passed |
 | Unauthorized command | compiled but ungranted command rejected | Passed |
 | Unauthorized origin | `http://127.0.0.1:47843` attempted `desktop_runtime_info`; ACL rejected it | Passed |
+| Artifact safety | private-key guard passed; installer/release flags false; local common-secret-marker scan found no match | Passed |
 | Evidence generation | checksummed unsigned executables, JSON evidence and sanitized logs | Passed |
 
-Failed checks in accepted run: none.
+Failed checks in the accepted run: none.
 
 ## Artifact
 
-- Name: `fs-desktop-windows-architecture-33397533148`
-- GitHub artifact ID: `9760498252`
-- Compressed size: `18,371,849` bytes
-- Artifact digest: `sha256:d09ff6074208208d888f7456424fc2c09e2aff37267d9cfef30581fc723abd5e`
-- Retention expiry: `2026-09-14T13:49:38Z`
+- Name: `fs-desktop-windows-architecture-33451341546`
+- GitHub artifact ID: `9780258630`
+- Compressed size: `19,238,572` bytes
+- Artifact digest: `sha256:24d78b8c292a6487aa8318fc985dce808358986a9772c19ce7828e593b6fedc0`
+- Retention expiry: `2026-09-14T23:52:54Z`
 - Installer generated/published: no/no
 
 | File | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `fs-desktop-bundled.exe` | 15,045,120 | `e55a3dd97a0de1186e7d5c672590c46ec49159629893f86b302b205e7aa5663d` |
-| `fs-desktop-hosted.exe` | 16,815,104 | `b31f2f844df8d54db2a31145fc7cb34ede01006c9b32a41e9a5efa09c33f1525` |
-| `fs-desktop-unauthorized-origin.exe` | 16,815,104 | `68336b6e7f660821a2c30201ff4ab3d3fbadf1011e09ecdee41296ed7c2f8705` |
+| `fs-desktop-bundled.exe` | 16,907,776 | `c730867b7768925c1caa0fc2ae7a00cee4ccc47c2e6db8d0c2887b78e3eb5164` |
+| `fs-desktop-hosted.exe` | 16,937,472 | `d403b5ad16369ad7cdb8ed51c9839c43e0cad05e1e6b2b342ebb5065e4108208` |
+| `fs-desktop-unauthorized-origin.exe` | 16,886,784 | `bdb2a2796f114838636a5f3f6561ae16e900b0e30965b7a96cb78c208e96887c` |
 
-The artifact also contains `build-manifest.json`, `windows-runtime-environment.json`, `windows-runtime-evidence.json`, `unauthorized-origin-probe.json` and sanitized build/runtime logs.
+The artifact also contains `build-manifest.json`, `windows-runtime-environment.json`, `windows-runtime-evidence.json`, `unauthorized-origin-probe.json` and sanitized build/runtime logs. The evidence records `productionCredentialsUsed: false`, `productionDataUsed: false`, `productionSigningKeysUsed: false`, `installerGenerated: false` and `releasePublished: false`.
 
 ## Truthful limitations
 
@@ -65,18 +69,20 @@ Not verified by this run:
 - installer, upgrade, uninstall, repair or recovery UX;
 - sleep/wake, hibernation, lock or time change;
 - real network adapter switching;
-- Windows Credential Manager;
+- a physical Windows Credential Manager round trip;
 - signed update installation/rollback UX;
 - code signing, reputation or SmartScreen;
 - physical Windows reboot/restart;
 - real FS auth, real synchronization endpoint or production-origin shell delivery.
+
+The Windows Credential Manager adapter compiled and its in-memory lifecycle contracts passed. That is implementation and CI compilation evidence, not a physical credential-store claim. Process restart was exercised; operating-system restart was not.
 
 ## Remaining manual Windows checklist
 
 1. Install, launch, upgrade, uninstall, reinstall and repair on supported physical Windows 11 hardware.
 2. Repeat cold offline start and process restart with a real adapter disabled; recover across Wi-Fi/Ethernet, VPN/proxy and captive-portal conditions.
 3. Exercise sleep, wake, hibernate, lock/lid and clock changes with pending work and active synchronization.
-4. Implement and verify Credential Manager storage, serialized refresh, logout, account switch and revocation; no credential-storage claim exists yet.
+4. Run the implemented Credential Manager adapter through write/read/rotation/logout/account-switch/revocation on physical Windows; confirm no credential enters WebView, SQLite or logs.
 5. Verify signed installer/update UX, rollback, interrupted update recovery, signing identity and SmartScreen/reputation after separate authorization.
 6. Verify candidate timeout/quarantine plus LKG rollback with real FS shell version transitions.
 7. Verify accessibility, keyboard use, scaling, multi-monitor placement and supported WebView2 update states.
@@ -84,4 +90,4 @@ Not verified by this run:
 
 ## Conclusion
 
-Candidate A remains primary and Candidate B remains a viable fallback. The local architecture gate is provisionally closed. Physical Windows verification remains a production-readiness gate. No migration or synchronization schema was introduced.
+Candidate A remains primary and Candidate B remains a viable fallback. The architecture gate is provisionally closed for continued local development. Physical Windows verification remains a production-readiness gate. No migration or synchronization schema was introduced or applied remotely.

@@ -122,3 +122,17 @@ npm --prefix desktop/local-video-app run tracking:benchmark -- --input /absolute
 ```
 
 Evaluation receives no video, image frame, source path, player identity, team identity, or shirt number. Only normalized boxes, opaque trajectory IDs, entity class, timestamps, and the source SHA-256 fingerprint enter the temporary local request; the request is deleted after the bounded evaluation process exits.
+
+Before starting or resuming a full-scene review campaign, run the read-only combined preflight. It cross-binds the sealed pack, source clips, preannotation workspace, editable review manifest and pinned evaluator without changing any annotation or attestation:
+
+```bash
+npm --prefix desktop/local-video-app run tracking:ground-truth:preflight -- \
+  --pack /absolute/local/annotation-pack.json \
+  --detection-screening /absolute/local/detection-screening \
+  --association-screening /absolute/local/association-screening \
+  --workspace /absolute/local/preannotation-workspace \
+  --review-manifest /absolute/local/mot-import.review.json \
+  --json
+```
+
+`ready-for-human-review` means the technical evidence is coherent but the human reference is still incomplete. Only `ready-for-measurement` means every sequence passed the independent annotation audit; the benchmark still performs its own import, lock and TrackEval validation afterward.

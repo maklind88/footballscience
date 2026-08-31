@@ -28,6 +28,7 @@
     "tracking:candidate:screen:reidentification:verify": "node ../../scripts/fs-player-tracking-reidentification-candidate-screening-verify.mjs",
     "tracking:candidate:preannotation": "node ../../scripts/fs-player-tracking-preannotation-workspace.mjs",
     "tracking:candidate:preannotation:verify": "node ../../scripts/fs-player-tracking-preannotation-workspace-verify.mjs",
+    "tracking:ground-truth:preflight": "node ../../scripts/fs-player-tracking-ground-truth-review-preflight.mjs",
     "tracking:provider:plan": "node tracking-stage-providers/install-approved-provider.mjs --plan",
     "tracking:provider:install": "node tracking-stage-providers/install-approved-provider.mjs",
     "tracking:smoke": "node ../../scripts/fs-player-tracking-engine-smoke.mjs",

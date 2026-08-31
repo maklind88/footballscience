@@ -81,6 +81,9 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
   const pendingSuggestion = current && !current.savedForCorrection;
   const canSave = Number(review.acceptedCount) > 0 && !active;
   const canOpenNextBatch = hasWorkspace && !current && Number(review.scopePendingCount) > 0 && !active;
+  const activeCampaignCase = review.campaign?.cases?.find((entry) => entry.caseId === review.caseId);
+  const canPrepareGroundTruth = activeCampaignCase?.complete
+    && Number(activeCampaignCase.savedCount) > 0 && !active;
   return `
     <section class="video-analysis-preannotation" aria-label="Preannotation review queue">
       <header>
@@ -136,6 +139,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
         <button type="button" data-video-analysis-tracking-action="preannotation-undo" ${!hasWorkspace || active ? "disabled" : ""}>Undo</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-save-current" ${!pendingSuggestion || active ? "disabled" : ""}>Save &amp; correct</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-save" ${canSave ? "" : "disabled"}>Save accepted</button>
+        <button type="button" data-video-analysis-tracking-action="ground-truth-use-preannotation-case" ${canPrepareGroundTruth ? "" : "disabled"}>Use in ground truth</button>
       </div>
     </section>
   `;

@@ -5,6 +5,7 @@ import {
   trackingBatchTargets,
 } from "./trackingBatchController.js";
 import { createTrackingGroundTruthController } from "./trackingGroundTruthController.js";
+import { createTrackingGroundTruthPreannotationBridgeController } from "./trackingGroundTruthPreannotationBridgeController.js";
 import { createTrackingBenchmarkController } from "./trackingBenchmarkController.js";
 import {
   createTrackingProviderRunController,
@@ -83,6 +84,12 @@ export function createTrackingController(options = {}) {
     seekToMatchMs: options.seekToMatchMs,
     onEvidenceChanged: benchmark.invalidate,
     now,
+  });
+  const groundTruthPreannotation = createTrackingGroundTruthPreannotationBridgeController({
+    getState,
+    updateState,
+    getContext: groundTruth.contextFor,
+    onEvidenceChanged: benchmark.invalidate,
   });
   const trackLifecycle = createTrackingTrackLifecycleController({
     getState,
@@ -427,6 +434,7 @@ export function createTrackingController(options = {}) {
     if (action === "add-graphic") { void graphicController.add(); return true; }
     if (benchmark.handleAction(action)) return true;
     if (preannotationReviewController.handleAction(action)) return true;
+    if (groundTruthPreannotation.handleAction(action)) return true;
     if (candidateController.handleAction(action, actionElement)) return true;
     if (reviewController.handleAction(action)) return true;
     if (groundTruth.handleAction(action, actionElement)) return true;

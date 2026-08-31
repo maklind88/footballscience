@@ -483,6 +483,7 @@ export function createTrackingGroundTruthController(options = {}) {
   }
 
   return {
+    contextFor,
     handleAction,
     handleField,
     invalidateDraft,

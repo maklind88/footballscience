@@ -109,9 +109,43 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
     "preannotation-undo",
     "preannotation-save-current",
     "preannotation-save",
+    "ground-truth-use-preannotation-case",
   ]) expect(html).toContain(`data-video-analysis-tracking-action="${action}"`);
   expect(html).toMatch(/preannotation-save" >Save accepted/);
   expect(html).toMatch(/preannotation-next-batch" disabled>Next batch/);
+  expect(html).toMatch(/ground-truth-use-preannotation-case" disabled>Use in ground truth/);
+
+  const completeHtml = component.renderTrackingPreannotationReviewPanel({
+    presentation: {
+      tracking: {
+        preannotationReview: {
+          status: "complete",
+          caseId: "attacking-third",
+          workspaceSha256: "a".repeat(64),
+          pendingCount: 0,
+          acceptedCount: 0,
+          savedCount: 20,
+          campaign: {
+            status: "ready",
+            caseCount: 1,
+            completeCaseCount: 1,
+            totalSuggestionCount: 20,
+            decisionCount: 20,
+            cases: [{
+              caseId: "attacking-third",
+              totalSuggestionCount: 20,
+              decisionCount: 20,
+              resolvedCount: 20,
+              savedCount: 20,
+              complete: true,
+              active: true,
+            }],
+          },
+        },
+      },
+    },
+  }, { id: "item-1" });
+  expect(completeHtml).toMatch(/ground-truth-use-preannotation-case" >Use in ground truth/);
 });
 
 test("preannotation file picker opens the three real workspace locations in order", async () => {

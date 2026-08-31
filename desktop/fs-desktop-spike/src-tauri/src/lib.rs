@@ -4,29 +4,50 @@ mod bootstrap;
 mod bootstrap_tests;
 mod local_data;
 mod local_schema;
+mod protocol;
+mod release_trust;
 mod runtime;
-mod server;
 mod shell_contract;
 #[cfg(test)]
 mod sync_contract;
+mod windows;
 
 use authority::{SessionAuthoritySnapshot, SessionContextProof};
-use bootstrap::{BootstrapStatus, ConfirmCandidateRequest, PrepareResult, RUNTIME_CAPABILITIES};
+use bootstrap::{BootstrapStatus, CandidateRuntimeStatus, ConfirmCandidateRequest, PrepareResult};
 use local_data::{OperationReceipt, SessionOperationRequest, SessionSlice};
-use runtime::{DesktopRuntime, DesktopState};
+use runtime::{DeliveryMode, DesktopRuntime, DesktopState, delivery_mode};
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::Manager;
+use tauri::{Manager, WebviewWindow};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeInfo {
     native_app_version: String,
     runtime: &'static str,
+    delivery_mode: &'static str,
     local_schema_version: u32,
     sync_protocol_version: u32,
     capabilities: Vec<&'static str>,
+    global_tauri_enabled: bool,
+    content_origin: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecoveryStatus {
+    schema: &'static str,
+    read_only: bool,
+    offline_access_available: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CandidateFailureRequest {
+    health_nonce: String,
+    failure_code: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -55,12 +76,26 @@ struct StoredProbe<'a> {
 struct NativeProbeEvidence {
     active_build_id: Option<String>,
     previous_build_id: Option<String>,
+    candidate_build_id: Option<String>,
+    active_isolation_proof_schema: Option<String>,
+    latest_quarantine: Option<QuarantineEvidence>,
     local_projection_loaded: bool,
     selected_session_revision: Option<i64>,
     partition_validated: bool,
     synthetic_identity: bool,
     local_schema_version: u32,
     sync_protocol_version: u32,
+    custom_protocol: bool,
+    content_origin: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct QuarantineEvidence {
+    build_id: String,
+    failure_count: i64,
+    failure_code: String,
+    retry_after_unix_ms: Option<i64>,
 }
 
 fn runtime(
@@ -69,21 +104,59 @@ fn runtime(
     state.runtime()
 }
 
-#[tauri::command]
-fn desktop_runtime_info(app: tauri::AppHandle) -> RuntimeInfo {
-    RuntimeInfo {
-        native_app_version: app.package_info().version.to_string(),
-        runtime: "tauri",
-        local_schema_version: local_data::LOCAL_SCHEMA_VERSION,
-        sync_protocol_version: local_data::SYNC_PROTOCOL_VERSION,
-        capabilities: RUNTIME_CAPABILITIES.to_vec(),
+fn require_window(window: &WebviewWindow, role: windows::WebviewRole) -> Result<(), String> {
+    let expected_label = match role {
+        windows::WebviewRole::Active
+        | windows::WebviewRole::Bundled
+        | windows::WebviewRole::UnauthorizedProbe => "main",
+        windows::WebviewRole::Candidate => "candidate",
+        windows::WebviewRole::Recovery => "recovery",
+    };
+    let url = window.url().map_err(|error| error.to_string())?;
+    if window.label() != expected_label || !windows::navigation_allowed(role, &url) {
+        return Err("desktop command caller is outside its native window/origin role".into());
+    }
+    Ok(())
+}
+
+fn require_active_window(window: &WebviewWindow) -> Result<(), String> {
+    match delivery_mode() {
+        DeliveryMode::Hosted => require_window(window, windows::WebviewRole::Active),
+        DeliveryMode::Bundled => require_window(window, windows::WebviewRole::Bundled),
+        DeliveryMode::UnauthorizedOrigin => {
+            Err("negative-probe origin has no active privileges".into())
+        }
     }
 }
 
 #[tauri::command]
+fn desktop_runtime_info(
+    app: tauri::AppHandle,
+    window: WebviewWindow,
+) -> Result<RuntimeInfo, String> {
+    require_active_window(&window)?;
+    Ok(RuntimeInfo {
+        native_app_version: app.package_info().version.to_string(),
+        runtime: "tauri",
+        delivery_mode: match delivery_mode() {
+            DeliveryMode::Bundled => "bundled",
+            DeliveryMode::Hosted => "signed-frontend-delivery",
+            DeliveryMode::UnauthorizedOrigin => "unauthorized-origin-probe",
+        },
+        local_schema_version: local_data::LOCAL_SCHEMA_VERSION,
+        sync_protocol_version: local_data::SYNC_PROTOCOL_VERSION,
+        capabilities: bootstrap::ACTIVE_CAPABILITIES.to_vec(),
+        global_tauri_enabled: false,
+        content_origin: "fs-active://localhost (https://fs-active.localhost on Windows)",
+    })
+}
+
+#[tauri::command]
 fn desktop_bootstrap_status(
+    window: WebviewWindow,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<BootstrapStatus, String> {
+    require_window(&window, windows::WebviewRole::Active)?;
     let runtime = runtime(&state)?;
     let shell = runtime
         .shell
@@ -94,10 +167,62 @@ fn desktop_bootstrap_status(
 
 #[tauri::command]
 async fn desktop_prepare_shell_update(
+    app: tauri::AppHandle,
+    window: WebviewWindow,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<PrepareResult, String> {
+    require_window(&window, windows::WebviewRole::Active)?;
     let runtime = runtime(&state)?;
-    tauri::async_runtime::spawn_blocking(move || {
+    let worker_runtime = runtime.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let mut shell = worker_runtime
+            .shell
+            .write()
+            .map_err(|_| "shell state lock poisoned".to_string())?;
+        let mut connection = worker_runtime
+            .connection
+            .lock()
+            .map_err(|_| "local database lock poisoned".to_string())?;
+        bootstrap::download_and_stage(
+            &worker_runtime.root,
+            &mut connection,
+            &mut shell,
+            worker_runtime.release_trust()?,
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    if matches!(result.state, "candidate-staged" | "candidate-pending")
+        && app.get_webview_window("candidate").is_none()
+    {
+        windows::start_candidate(&app, runtime)?;
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+fn desktop_candidate_status(
+    window: WebviewWindow,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<CandidateRuntimeStatus, String> {
+    require_window(&window, windows::WebviewRole::Candidate)?;
+    let runtime = runtime(&state)?;
+    let shell = runtime
+        .shell
+        .read()
+        .map_err(|_| "shell state lock poisoned".to_string())?;
+    bootstrap::candidate_status(&shell)
+}
+
+#[tauri::command]
+fn desktop_candidate_confirm(
+    window: WebviewWindow,
+    request: ConfirmCandidateRequest,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<BootstrapStatus, String> {
+    require_window(&window, windows::WebviewRole::Candidate)?;
+    let runtime = runtime(&state)?;
+    let result = {
         let mut shell = runtime
             .shell
             .write()
@@ -106,33 +231,95 @@ async fn desktop_prepare_shell_update(
             .connection
             .lock()
             .map_err(|_| "local database lock poisoned".to_string())?;
-        bootstrap::download_and_stage(&runtime.root, &mut connection, &mut shell)
-    })
-    .await
-    .map_err(|error| error.to_string())?
+        bootstrap::confirm_candidate(&mut connection, &mut shell, &request)?
+    };
+    window.close().map_err(|error| error.to_string())?;
+    Ok(result)
 }
 
 #[tauri::command]
-fn desktop_confirm_shell_candidate(
-    request: ConfirmCandidateRequest,
+fn desktop_candidate_report_failure(
+    window: WebviewWindow,
+    request: CandidateFailureRequest,
     state: tauri::State<'_, DesktopState>,
-) -> Result<BootstrapStatus, String> {
+) -> Result<bool, String> {
+    require_window(&window, windows::WebviewRole::Candidate)?;
     let runtime = runtime(&state)?;
-    let mut shell = runtime
-        .shell
-        .write()
-        .map_err(|_| "shell state lock poisoned".to_string())?;
-    let mut connection = runtime
+    let result = {
+        let mut shell = runtime
+            .shell
+            .write()
+            .map_err(|_| "shell state lock poisoned".to_string())?;
+        let connection = runtime
+            .connection
+            .lock()
+            .map_err(|_| "local database lock poisoned".to_string())?;
+        bootstrap::quarantine_candidate(
+            &connection,
+            &mut shell,
+            &request.health_nonce,
+            &request.failure_code,
+        )?
+    };
+    window.close().map_err(|error| error.to_string())?;
+    Ok(result)
+}
+
+#[tauri::command]
+fn desktop_open_recovery(app: tauri::AppHandle, window: WebviewWindow) -> Result<(), String> {
+    require_window(&window, windows::WebviewRole::Active)?;
+    windows::open_recovery(&app)
+}
+
+#[tauri::command]
+fn desktop_recovery_status(
+    window: WebviewWindow,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<RecoveryStatus, String> {
+    require_window(&window, windows::WebviewRole::Recovery)?;
+    let runtime = runtime(&state)?;
+    let authority = runtime
+        .authority
+        .lock()
+        .map_err(|_| "session authority lock poisoned".to_string())?;
+    Ok(RecoveryStatus {
+        schema: "fs-desktop-recovery-status-v1",
+        read_only: true,
+        offline_access_available: authority.snapshot().can_read_offline,
+    })
+}
+
+#[tauri::command]
+fn desktop_recovery_read_selected_session(
+    window: WebviewWindow,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<SessionSlice, String> {
+    require_window(&window, windows::WebviewRole::Recovery)?;
+    let runtime = runtime(&state)?;
+    let partition = {
+        let authority = runtime
+            .authority
+            .lock()
+            .map_err(|_| "session authority lock poisoned".to_string())?;
+        let snapshot = authority.snapshot();
+        if !snapshot.can_read_offline {
+            return Err("recovery partition is locked".into());
+        }
+        snapshot.partition_key
+    };
+    let connection = runtime
         .connection
         .lock()
         .map_err(|_| "local database lock poisoned".to_string())?;
-    bootstrap::confirm_candidate(&mut connection, &mut shell, &request)
+    local_data::read_selected_session(&connection, &partition)
 }
 
 #[tauri::command]
 fn desktop_session_authority(
+    window: WebviewWindow,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<SessionAuthoritySnapshot, String> {
+    require_active_window(&window)?;
     let runtime = runtime(&state)?;
     let authority = runtime
         .authority
@@ -143,9 +330,11 @@ fn desktop_session_authority(
 
 #[tauri::command]
 fn desktop_read_selected_session(
+    window: WebviewWindow,
     context: SessionContextProof,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<SessionSlice, String> {
+    require_active_window(&window)?;
     let runtime = runtime(&state)?;
     runtime
         .authority
@@ -157,7 +346,7 @@ fn desktop_read_selected_session(
             .shell
             .read()
             .map_err(|_| "shell state lock poisoned".to_string())?;
-        bootstrap::validate_frontend_build(&shell, &context.frontend_build_id)?;
+        bootstrap::validate_active_frontend_build(&shell, &context.frontend_build_id)?;
     }
     let connection = runtime
         .connection
@@ -168,9 +357,11 @@ fn desktop_read_selected_session(
 
 #[tauri::command]
 fn desktop_apply_session_operation(
+    window: WebviewWindow,
     request: SessionOperationRequest,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<OperationReceipt, String> {
+    require_active_window(&window)?;
     let runtime = runtime(&state)?;
     runtime
         .authority
@@ -182,7 +373,7 @@ fn desktop_apply_session_operation(
             .shell
             .read()
             .map_err(|_| "shell state lock poisoned".to_string())?;
-        bootstrap::validate_frontend_build(&shell, &request.context.frontend_build_id)?;
+        bootstrap::validate_active_frontend_build(&shell, &request.context.frontend_build_id)?;
     }
     let mut connection = runtime
         .connection
@@ -193,12 +384,18 @@ fn desktop_apply_session_operation(
 
 #[tauri::command]
 fn record_spike_probe(
+    window: WebviewWindow,
     probe: SpikeProbe,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<(), String> {
+    match probe.candidate.as_str() {
+        "hosted" => require_window(&window, windows::WebviewRole::Active)?,
+        "bundled" => require_window(&window, windows::WebviewRole::Bundled)?,
+        _ => return Err("unknown spike candidate".into()),
+    }
     validate_probe(&probe)?;
     let runtime = runtime(&state)?;
-    let (active_build_id, previous_build_id) = {
+    let (active_build_id, previous_build_id, candidate_build_id) = {
         let shell = runtime
             .shell
             .read()
@@ -206,6 +403,10 @@ fn record_spike_probe(
         (
             shell.active.as_ref().map(|item| item.build_id.clone()),
             shell.previous.as_ref().map(|item| item.build_id.clone()),
+            shell
+                .candidate
+                .as_ref()
+                .map(|item| item.manifest.build_id.clone()),
         )
     };
     let authority = runtime
@@ -229,15 +430,63 @@ fn record_spike_probe(
     } else {
         None
     };
+    let (active_isolation_proof_schema, latest_quarantine) = {
+        let connection = runtime
+            .connection
+            .lock()
+            .map_err(|_| "local database lock poisoned".to_string())?;
+        let isolation = active_build_id
+            .as_deref()
+            .map(|build_id| {
+                connection.query_row(
+                    "SELECT isolation_proof_schema FROM shell_generations WHERE build_id = ?1",
+                    [build_id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+            })
+            .transpose()
+            .map_err(|error| error.to_string())?
+            .flatten();
+        let quarantine = connection
+            .query_row(
+                "SELECT build_id, failure_count, failure_code, retry_after_unix_ms
+                 FROM shell_generations
+                 WHERE status = 'quarantined' AND failure_code IS NOT NULL
+                 ORDER BY quarantined_at_unix_ms DESC, build_id DESC LIMIT 1",
+                [],
+                |row| {
+                    Ok(QuarantineEvidence {
+                        build_id: row.get(0)?,
+                        failure_count: row.get(1)?,
+                        failure_code: row.get(2)?,
+                        retry_after_unix_ms: row.get(3)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        (isolation, quarantine)
+    };
     let native_evidence = NativeProbeEvidence {
         active_build_id,
         previous_build_id,
+        candidate_build_id,
+        active_isolation_proof_schema,
+        latest_quarantine,
         local_projection_loaded: selected_session_revision.is_some(),
         selected_session_revision,
         partition_validated: authority.can_read_offline,
         synthetic_identity: authority.synthetic_identity,
         local_schema_version: local_data::LOCAL_SCHEMA_VERSION,
         sync_protocol_version: local_data::SYNC_PROTOCOL_VERSION,
+        custom_protocol: probe.candidate == "hosted",
+        content_origin: {
+            let url = window.url().map_err(|error| error.to_string())?;
+            let host = url
+                .host_str()
+                .ok_or_else(|| "desktop content URL has no host".to_string())?;
+            format!("{}://{}", url.scheme(), host)
+        },
     };
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -267,7 +516,7 @@ fn validate_probe(probe: &SpikeProbe) -> Result<(), String> {
         return Err("unknown boot mode".into());
     }
     for (value, max, label) in [
-        (&probe.shell_version, 40, "shell version"),
+        (&probe.shell_version, 80, "shell version"),
         (&probe.cache_version, 80, "cache version"),
         (&probe.payload_build_id, 80, "payload build ID"),
     ] {
@@ -290,27 +539,35 @@ fn internal_denied_probe() -> bool {
 pub fn run() {
     tauri::Builder::default()
         .manage(DesktopState::default())
+        .register_uri_scheme_protocol("fs-active", protocol::active)
+        .register_uri_scheme_protocol("fs-candidate", protocol::candidate)
+        .register_uri_scheme_protocol("fs-recovery", protocol::recovery)
         .setup(|app| {
             let root = app
                 .path()
                 .app_data_dir()
                 .map_err(|error| error.to_string())?;
             let runtime = DesktopRuntime::initialize(&root)?;
-            app.state::<DesktopState>().install(runtime.clone())?;
-            server::start(runtime)?;
+            app.state::<DesktopState>().install(runtime)?;
+            windows::create_main(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             desktop_runtime_info,
             desktop_bootstrap_status,
             desktop_prepare_shell_update,
-            desktop_confirm_shell_candidate,
+            desktop_candidate_status,
+            desktop_candidate_confirm,
+            desktop_candidate_report_failure,
+            desktop_open_recovery,
+            desktop_recovery_status,
+            desktop_recovery_read_selected_session,
             desktop_session_authority,
             desktop_read_selected_session,
             desktop_apply_session_operation,
             record_spike_probe,
-            internal_denied_probe
+            internal_denied_probe,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running FS desktop architecture spike");
+        .expect("error while running FS desktop local integration");
 }

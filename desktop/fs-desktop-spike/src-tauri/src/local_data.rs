@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 use uuid::Uuid;
 
-pub const LOCAL_SCHEMA_VERSION: u32 = 2;
+pub const LOCAL_SCHEMA_VERSION: u32 = 3;
 pub const SYNC_PROTOCOL_VERSION: u32 = 1;
 pub const SYNTHETIC_SESSION_ID: &str = "00000000-0000-4000-8000-000000001001";
 
@@ -329,6 +329,41 @@ pub fn apply_operation(
     })
 }
 
+#[allow(
+    dead_code,
+    reason = "the local sync transport will call this after the authenticated backend is authorized"
+)]
+pub fn quarantine_operation(
+    connection: &Connection,
+    operation_id: &str,
+    reason_code: &str,
+    quarantined_at_ms: u128,
+) -> Result<(), String> {
+    validate_uuid(operation_id, "operation ID")?;
+    if !matches!(
+        reason_code,
+        "authorization-revoked" | "lease-expired" | "account-switched" | "tenant-denied"
+    ) {
+        return Err("unsupported operation quarantine reason".into());
+    }
+    let timestamp =
+        i64::try_from(quarantined_at_ms).map_err(|_| "timestamp overflow".to_string())?;
+    let changed = connection
+        .execute(
+            "INSERT INTO operation_quarantine(operation_id, reason_code, quarantined_at_unix_ms)
+             SELECT operation_id, ?2, ?3 FROM session_outbox WHERE operation_id = ?1
+             ON CONFLICT(operation_id) DO UPDATE SET
+               reason_code = excluded.reason_code,
+               quarantined_at_unix_ms = excluded.quarantined_at_unix_ms",
+            params![operation_id, reason_code, timestamp],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("pending operation not found for quarantine".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 pub fn acknowledge_test_operation(
     connection: &mut Connection,
@@ -470,6 +505,32 @@ mod tests {
             )
             .unwrap();
         assert!(!schema.to_lowercase().contains("refresh_token"));
+        drop(connection);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn revoked_authority_quarantines_without_deleting_pending_work() {
+        let path = database_path("quarantine");
+        let mut connection = open(&path).unwrap();
+        let operation = request(7);
+        apply_operation(&mut connection, &operation, 10_000).unwrap();
+        quarantine_operation(
+            &connection,
+            &operation.operation_id,
+            "authorization-revoked",
+            20_000,
+        )
+        .unwrap();
+        let counts: (i64, i64) = connection
+            .query_row(
+                "SELECT (SELECT count(*) FROM session_outbox),
+                        (SELECT count(*) FROM operation_quarantine)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (1, 1));
         drop(connection);
         let _ = fs::remove_file(path);
     }

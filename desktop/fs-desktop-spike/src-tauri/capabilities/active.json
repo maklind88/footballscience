@@ -1,16 +1,13 @@
 {
-  "identifier": "hosted",
-  "description": "Exact native-bootstrap origin and narrow domain commands for the verified hosted shell.",
+  "identifier": "active",
+  "description": "Exact active signed-shell commands, scoped to the native active window only.",
   "windows": ["main"],
-  "remote": {
-    "urls": ["http://127.0.0.1:47844/*"]
-  },
   "platforms": ["macOS", "windows"],
   "permissions": [
     "allow-runtime-info",
     "allow-bootstrap-status",
     "allow-bootstrap-update",
-    "allow-bootstrap-confirm",
+    "allow-open-recovery",
     "allow-session-authority",
     "allow-session-read",
     "allow-session-operation",

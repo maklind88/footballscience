@@ -1,16 +1,20 @@
-import { createDesktopBridge, verifyDeniedNativeCommand } from "../shared/desktop-bridge-contract.mjs";
+import { bundledNative, negativeProbeNative } from "../shared/tauri-invoke.mjs";
 
-const bridge = createDesktopBridge(window);
-const runtime = await bridge.getRuntimeInfo();
-const unauthorizedCommandRejected = await verifyDeniedNativeCommand(window);
+const runtime = await bundledNative.runtimeInfo();
+let unauthorizedCommandRejected = false;
+try {
+  await negativeProbeNative.invokeKnownButUngranted();
+} catch {
+  unauthorizedCommandRejected = true;
+}
 document.getElementById("status").textContent = "Bundled assets opened without a network dependency.";
 document.getElementById("details").textContent = JSON.stringify(runtime, null, 2);
-await bridge.recordProbe({
+await bundledNative.recordProbe({
   candidate: "bundled",
   bootMode: navigator.onLine === false ? "offline" : "unknown",
-  shellVersion: "bundled-spike-v1",
+  shellVersion: "bundled-spike-v2",
   cacheVersion: "not-applicable",
-  payloadBuildId: "bundled-spike-v1",
+  payloadBuildId: "bundled-spike-v2",
   cachedPayload: true,
   serviceWorkerControlled: false,
   unauthorizedCommandRejected,

@@ -1,58 +1,67 @@
-const invoke = window.__TAURI__?.core?.invoke;
+import { activeNative } from "./tauri-invoke.mjs";
+
 const statusNode = document.getElementById("status");
 const detailsNode = document.getElementById("details");
 
-if (typeof invoke !== "function") throw new Error("Native bootstrap bridge unavailable.");
+function render(status, message) {
+  statusNode.textContent = message;
+  detailsNode.textContent = JSON.stringify(status, null, 2);
+}
 
-function openChannel(channel, nonce = "") {
-  const query = nonce ? `?healthNonce=${encodeURIComponent(nonce)}` : "";
-  window.location.replace(`/${channel}/index.html${query}`);
+function openActive() {
+  window.location.replace("/active/index.html");
+}
+
+async function waitForCandidate() {
+  const deadline = Date.now() + 9_500;
+  while (Date.now() < deadline) {
+    const status = await activeNative.bootstrapStatus();
+    render(status, status.candidateBuildId
+      ? "A signed candidate is running in an isolated native window."
+      : "The candidate completed or stopped safely.");
+    if (status.activeBuildId) {
+      openActive();
+      return;
+    }
+    if (!status.candidateBuildId) break;
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+  }
+  throw new Error("No signed candidate became active within the native deadline.");
+}
+
+async function openRecovery(message) {
+  statusNode.textContent = "No signed active shell is available. Read-only recovery has been opened.";
+  detailsNode.textContent = message;
+  await activeNative.openRecovery();
 }
 
 async function boot() {
-  const status = await invoke("desktop_bootstrap_status");
-  detailsNode.textContent = JSON.stringify(status, null, 2);
-  if (status.candidateBuildId && status.candidateHealthNonce) {
-    statusNode.textContent = "Retrying a fully verified candidate after an interrupted initialization.";
-    openChannel("candidate", status.candidateHealthNonce);
-    return;
-  }
+  const status = await activeNative.bootstrapStatus();
+  render(status, "The native last-known-good registry has been verified.");
   if (status.activeBuildId) {
-    statusNode.textContent = "Checking briefly for a verified replacement before opening the active known-good shell.";
-    try {
-      const prepared = await Promise.race([
-        invoke("desktop_prepare_shell_update"),
-        new Promise((resolve) => window.setTimeout(() => resolve({ state: "bootstrap-timeout" }), 1500)),
-      ]);
-      if (prepared.state === "candidate-staged" && prepared.healthNonce) {
-        openChannel("candidate", prepared.healthNonce);
-        return;
-      }
-    } catch (error) {
-      await fetch(`/bootstrap/diagnostic?stage=active-update-check-failed&message=${encodeURIComponent(String(error?.message || error).slice(0, 300))}`, { cache: "no-store" }).catch(() => {});
-    }
-    openChannel("active");
+    openActive();
     return;
   }
-  statusNode.textContent = "Downloading and verifying the first shell generation.";
+  render(status, "Downloading an immutable manifest and detached signature.");
   try {
-    const prepared = await invoke("desktop_prepare_shell_update");
-    detailsNode.textContent = JSON.stringify(prepared, null, 2);
-    if (prepared.state === "candidate-staged" && prepared.healthNonce) {
-      openChannel("candidate", prepared.healthNonce);
+    const prepared = await activeNative.prepareShellUpdate();
+    render(prepared, "The signed assets were staged. Native compatibility verification is isolated.");
+    if (prepared.state === "candidate-staged" || prepared.state === "candidate-pending") {
+      await waitForCandidate();
       return;
     }
-    throw new Error("No usable active or candidate generation was returned.");
+    const refreshed = await activeNative.bootstrapStatus();
+    if (refreshed.activeBuildId) {
+      openActive();
+      return;
+    }
+    throw new Error("The signed release source returned no activatable generation.");
   } catch (error) {
-    statusNode.textContent = "The update source is unavailable. Opening the bundled recovery shell.";
-    detailsNode.textContent = String(error?.message || error);
-    await fetch(`/bootstrap/diagnostic?stage=update-failed&message=${encodeURIComponent(String(error?.message || error).slice(0, 300))}`, { cache: "no-store" }).catch(() => {});
-    window.setTimeout(() => openChannel("fallback"), 250);
+    await openRecovery(String(error?.message || error));
   }
 }
 
 boot().catch((error) => {
-  statusNode.textContent = "Bootstrap stopped safely.";
-  detailsNode.textContent = String(error?.stack || error?.message || error);
-  fetch(`/bootstrap/diagnostic?stage=failed&message=${encodeURIComponent(String(error?.message || error).slice(0, 300))}`, { cache: "no-store" }).catch(() => {});
+  openRecovery("The trusted bootstrap stopped safely.").catch(() => {});
+  detailsNode.textContent = String(error?.message || error);
 });

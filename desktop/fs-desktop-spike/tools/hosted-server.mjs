@@ -1,34 +1,51 @@
 import { createReadStream, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { extname, join, normalize, resolve } from "node:path";
+import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+if (process.argv.includes("--load-check")) {
+  console.log("hosted server helper loaded");
+  process.exit(0);
+}
+
 const argument = (name) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1) || "";
+const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 const mode = process.env.FS_DESKTOP_SPIKE_MODE === "unauthorized" || process.argv.includes("--unauthorized")
   ? "unauthorized"
   : "hosted";
-const root = fileURLToPath(new URL(`../candidates/${mode}/`, import.meta.url));
-const sharedRoot = fileURLToPath(new URL("../candidates/shared/", import.meta.url));
 const port = Number(process.env.FS_DESKTOP_SPIKE_PORT || argument("--port") || (mode === "unauthorized" ? 47843 : 47842));
-const manifestMode = process.env.FS_DESKTOP_MANIFEST_MODE === "incompatible" || process.argv.includes("--incompatible")
-  ? "incompatible"
-  : "normal";
+const requestedReleaseMode = process.env.FS_DESKTOP_MANIFEST_MODE || argument("--release-mode") || "normal";
+const supportedReleaseModes = new Set(["normal", "incompatible", "hanging", "rollback", "invalid-signature", "unknown-key", "modified-asset"]);
+if (mode === "hosted" && !supportedReleaseModes.has(requestedReleaseMode)) {
+  throw new Error(`Unsupported synthetic release mode: ${requestedReleaseMode}`);
+}
+const releaseMode = ["invalid-signature"].includes(requestedReleaseMode)
+  ? "normal"
+  : requestedReleaseMode;
 const configuredNegativeProbePath = process.env.FS_DESKTOP_NEGATIVE_PROBE_PATH || argument("--negative-probe");
-const negativeProbePath = configuredNegativeProbePath
-  ? resolve(configuredNegativeProbePath)
+const negativeProbePath = configuredNegativeProbePath ? resolve(configuredNegativeProbePath) : "";
+const unauthorizedRoot = resolve(packageRoot, "candidates", "unauthorized");
+const pointerPath = resolve(packageRoot, "generated", "pointers", `${releaseMode}.json`);
+const pointer = mode === "hosted" ? JSON.parse(readFileSync(pointerPath, "utf8")) : null;
+const hostedRoot = mode === "hosted"
+  ? resolve(packageRoot, "generated", "releases", pointer.buildId)
   : "";
-const contentTypes = new Map([[".html", "text/html; charset=utf-8"], [".js", "text/javascript; charset=utf-8"], [".mjs", "text/javascript; charset=utf-8"], [".css", "text/css; charset=utf-8"], [".json", "application/json; charset=utf-8"]]);
+const root = mode === "hosted" ? hostedRoot : unauthorizedRoot;
+const contentTypes = new Map([
+  [".html", "text/html; charset=utf-8"],
+  [".js", "text/javascript; charset=utf-8"],
+  [".mjs", "text/javascript; charset=utf-8"],
+  [".css", "text/css; charset=utf-8"],
+  [".json", "application/json; charset=utf-8"],
+  [".sig", "application/json; charset=utf-8"],
+]);
 
 function resolveFile(urlPath) {
-  const cleanPath = decodeURIComponent(urlPath.split("?")[0] || "/");
-  if (cleanPath.startsWith("/shared/")) return join(sharedRoot, normalize(cleanPath.slice(8)));
-  const sharedAliases = new Map([
-    ["/bridge.mjs", "desktop-bridge-contract.mjs"],
-    ["/session-authority.mjs", "session-authority.mjs"],
-    ["/connectivity-state.mjs", "connectivity-state.mjs"],
-  ]);
-  if (sharedAliases.has(cleanPath)) return join(sharedRoot, sharedAliases.get(cleanPath));
-  return join(root, normalize(cleanPath === "/" ? "index.html" : cleanPath.slice(1)));
+  const cleanPath = decodeURIComponent((urlPath || "/").split("?")[0]);
+  const relative = cleanPath === "/" ? "index.html" : cleanPath.replace(/^\/+/, "");
+  const filePath = resolve(root, relative);
+  if (filePath !== root && !filePath.startsWith(`${root}/`)) throw new Error("Not found");
+  return filePath;
 }
 
 async function readJsonBody(request) {
@@ -36,7 +53,7 @@ async function readJsonBody(request) {
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 4096) throw new Error("Probe body too large");
+    if (size > 4_096) throw new Error("Probe body too large");
     chunks.push(chunk);
   }
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -48,7 +65,9 @@ function validateNegativeProbe(value) {
   if (value.origin !== expectedOrigin) throw new Error("Unexpected probe origin");
   if (value.attemptedCommand !== "desktop_runtime_info") throw new Error("Unexpected probe command");
   if (value.allowedCommandRejected !== true) throw new Error("Unauthorized origin reached native command");
-  if (typeof value.rejection !== "string" || value.rejection.length < 1 || value.rejection.length > 180) throw new Error("Invalid rejection evidence");
+  if (typeof value.rejection !== "string" || value.rejection.length < 1 || value.rejection.length > 180) {
+    throw new Error("Invalid rejection evidence");
+  }
   return value;
 }
 
@@ -64,30 +83,43 @@ createServer(async (request, response) => {
       response.end();
       return;
     }
-    const filePath = resolveFile(request.url || "/");
+    if (request.method !== "GET" && request.method !== "HEAD") throw new Error("Not found");
+    const filePath = resolveFile(request.url);
     const stat = statSync(filePath);
-    if (!stat.isFile() || (!filePath.startsWith(root) && !filePath.startsWith(sharedRoot))) throw new Error("Not found");
-    if (mode === "hosted" && manifestMode === "incompatible" && (request.url || "").split("?")[0] === "/manifest.json") {
-      const manifest = JSON.parse(readFileSync(filePath, "utf8"));
-      manifest.localSchemaVersion = 999;
-      response.writeHead(200, {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store",
-        "X-Content-Type-Options": "nosniff",
-      });
-      response.end(`${JSON.stringify(manifest)}\n`);
-      return;
-    }
-    response.writeHead(200, {
+    if (!stat.isFile()) throw new Error("Not found");
+    const headers = {
       "Content-Type": contentTypes.get(extname(filePath)) || "application/octet-stream",
+      "Content-Length": String(stat.size),
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
-    });
-    createReadStream(filePath).pipe(response);
+      "Referrer-Policy": "no-referrer",
+    };
+    if (mode === "hosted" && requestedReleaseMode === "invalid-signature" && filePath.endsWith("manifest.sig")) {
+      const envelope = JSON.parse(readFileSync(filePath, "utf8"));
+      envelope.signatureBase64 = `${envelope.signatureBase64.slice(0, -4)}AAAA`;
+      const bytes = Buffer.from(`${JSON.stringify(envelope)}\n`, "utf8");
+      headers["Content-Length"] = String(bytes.length);
+      response.writeHead(200, headers);
+      if (request.method !== "HEAD") response.end(bytes);
+      else response.end();
+      return;
+    }
+    if (mode === "hosted" && requestedReleaseMode === "modified-asset" && filePath.endsWith("app.js")) {
+      const bytes = Buffer.concat([readFileSync(filePath), Buffer.from("\n// synthetic post-signing modification\n", "utf8")]);
+      headers["Content-Length"] = String(bytes.length);
+      response.writeHead(200, headers);
+      if (request.method !== "HEAD") response.end(bytes);
+      else response.end();
+      return;
+    }
+    response.writeHead(200, headers);
+    if (request.method === "HEAD") response.end();
+    else createReadStream(filePath).pipe(response);
   } catch {
-    response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
     response.end("Not found");
   }
 }).listen(port, "127.0.0.1", () => {
-  console.log(`FS ${mode} spike listening on http://127.0.0.1:${port}`);
+  const detail = mode === "hosted" ? ` (${requestedReleaseMode}: ${pointer.buildId})` : "";
+  console.log(`FS ${mode} synthetic source listening on http://127.0.0.1:${port}${detail}`);
 });

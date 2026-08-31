@@ -1,52 +1,40 @@
-# FS Desktop Offline Vertical-Slice Prototype
+# FS Desktop Signed-Delivery and Offline Prototype
 
-This directory is an isolated local Tauri 2 prototype. It preserves the existing web platform and uses only synthetic identity/data. It is not an installer, production updater, deployed desktop app, or real synchronization client.
+This directory is an isolated local Tauri 2 prototype. It preserves the web platform and uses only synthetic identity/data. It is not an installer, production updater, deployed desktop app or real synchronization client.
 
-## Candidate A
+## Candidate A: controlled frontend code delivery
 
-The preferred candidate uses a native-controlled bootstrap at `http://127.0.0.1:47844` and a fixed synthetic shell source at `http://127.0.0.1:47842`.
+A bundled native bootstrap fetches an immutable manifest and detached Ed25519 signature from the synthetic loopback publication source on port `47842`. Native code verifies the exact manifest bytes before parsing, pins the public verification key at compile time, validates every declared asset and stages it outside the WebView.
 
-Native code, not downloaded JavaScript, controls:
+The native registry owns `candidate`, `active` and `previous` generations, the highest-seen release sequence, native/schema/sync/capability compatibility, nonce/deadline correlation, quarantine/backoff and atomic promotion. An older remote release is denied unless it carries a bounded recovery authorization signed by a distinct pinned recovery key.
 
-- exact source origin and redirect rejection;
-- immutable frontend build ID;
-- native version requirement;
-- local schema and sync protocol versions;
-- required native capability subset;
-- bounded asset list, byte limits and SHA-256 integrity;
-- candidate/active/previous generation registry;
-- application-ready evidence and atomic promotion.
+Privileged content is not served from localhost. It uses role-specific Tauri custom protocols:
 
-The shell cache is an app-data filesystem/SQLite registry named `fs-desktop-native-shell-cache-v1`. It does not use the browser/PWA Cache Storage or a service worker. Only six immutable application-code assets are present. No auth response, token, callback, private JSON, signed URL, user football data or medical data is stored in the shell generation.
+- `fs-active` / `https://fs-active.localhost` for the native bootstrap and active signed generation;
+- `fs-candidate` / `https://fs-candidate.localhost` for a hidden/incognito compatibility-only candidate;
+- `fs-recovery` / `https://fs-recovery.localhost` for bundled read-only recovery.
 
-A running active shell stages a compatible update for the next controlled restart; it does not replace itself while running. Failed download, integrity, compatibility or application-ready checks do not replace the active generation, and the previous generation remains retained.
+macOS/Linux and Windows use different custom-origin shapes. Exact role, window label and navigation checks account for both. New windows, downloads and arbitrary HTTPS navigation are denied.
 
-## Offline slice
+The shell cache is `fs-desktop-native-shell-cache-v2`. It is an app-data filesystem/SQLite registry, not browser/PWA Cache Storage and not a service worker. It contains only signed public code assets; token, auth, private JSON, user football, medical and outbox data are forbidden.
 
-SQLite local schema v2 contains one normalized synthetic Session Planner projection, stable block/player/exercise references, an atomic outbox and durable acknowledgement receipts. The packaged UI reads the selected session offline and remains read-only.
+## Candidate isolation
 
-Two explicit version-1 mutation contracts (`session.rename`, `block.duration.set`) exercise atomic projection/outbox behavior below the UI. An in-process trusted-server test double models tenant authorization, operation allowlisting, revisions, idempotency and accepted-response-loss recovery. No real server endpoint exists.
+The hidden candidate receives exactly three native commands: compatibility status/nonce, confirmation and sanitized failure reporting. It receives no session authority, token, SQLite, domain, outbox, active-shell or recovery privilege. Promotion requires five native-denial checks plus the exact nonce, staged build, release sequence, window and origin. Timeout or interruption quarantines the candidate while the active generation and domain/outbox state remain intact.
 
-The synthetic native Session Authority exposes a credential-free snapshot and validates actor, organization, partition, auth epoch, offline lease and frontend compatibility for every session read/write command. It neither stores nor issues a real token.
+The active, candidate, recovery and bundled windows have separate Tauri capabilities. `withGlobalTauri` is false; frontend code imports frozen typed wrappers and no generic invoke wrapper is exported. Native handlers repeat the exact role/origin validation.
 
-## Native capability boundary
+## Offline slice and local sync boundary
 
-The hosted capability is attached only to the exact `http://127.0.0.1:47844` scheme/host/port origin. Tauri's required URL path matcher is `/*`; no scheme, host or port wildcard is used. The hosted config names only that capability, preventing broad default overlap.
+SQLite local schema v3 contains one normalized synthetic Session Planner projection, stable block/player/exercise references, an atomic outbox, durable acknowledgement receipts and an authorization quarantine sidecar. Two explicit version-1 mutation contracts (`session.rename`, `block.duration.set`) exercise atomic projection/outbox behavior below the read-only UI.
 
-Enumerated commands:
+The branch includes a fail-closed authenticated handler, a private additive Postgres draft and disposable synthetic database. Local E2E reads the selected slice through that contract, normalizes it into file-backed SQLite, performs two offline edits, restarts, safely replays a lost acknowledgement and converges at revision 9. No real database adapter or remote schema is configured.
 
-- `desktop_runtime_info`
-- `desktop_bootstrap_status`
-- `desktop_prepare_shell_update`
-- `desktop_confirm_shell_candidate`
-- `desktop_session_authority`
-- `desktop_read_selected_session`
-- `desktop_apply_session_operation`
-- `record_spike_probe`
+The current identity is synthetic, but SessionAuthority uses real macOS Keychain and Windows Credential Manager adapters for secure refresh custody. Rotation is serialized and durable, account switch/logout/revocation are bounded, and lease duration is compile-time configurable. The frontend receives credential-free actor/organization/team/partition/epoch/lease context only.
 
-There is no generic SQL, filesystem, path, HTTP, shell or process command. `internal_denied_probe` is compiled but deliberately ungranted. A separate unauthorized-origin build proves that even a granted command is rejected from `http://127.0.0.1:47843`.
+## Test signing
 
-Candidate B is a reproducible bundled fallback smoke target with only runtime-info/probe permissions. It is not maintained as a second feature-equivalent desktop product.
+`npm run release:test:generate` creates ignored immutable releases and public build metadata under `generated/`. Test private keys are generated with mode `0600` under the OS/runner temporary directory, outside the repository and uploaded artifacts. The tool refuses `FS_DESKTOP_PRODUCTION_RELEASE=true`. Production signing custody and protected signing CI are not implemented.
 
 ## Verification
 
@@ -59,19 +47,16 @@ npm run tauri:build:bundled
 npm run tauri:build:unauthorized-origin
 ```
 
-`tauri build --no-bundle` produces an unsigned local executable, not an installer. The hosted synthetic source runs with:
+The historical `hosted` identifier is retained in scripts for continuity; it now means Candidate A signed code delivery, not a privileged arbitrary website.
 
-```bash
-npm run host:hosted
-```
-
-The Windows workflow builds the three unsigned executables, runs Node and Rust contracts, exercises WebView2 lifecycle/LKG/origin checks, runs the existing full web QA workflow and uploads sanitized evidence.
+`tauri build --no-bundle` produces an unsigned local executable, not an installer. The synthetic source runs with `npm run host:hosted`. The Windows workflow builds unsigned executables, exercises WebView2 and uploads sanitized evidence without production credentials or private signing keys.
 
 ## Explicit limitations
 
-- no production/staging Supabase schema or data change;
-- no real authentication, Keychain or Windows Credential Manager adapter;
-- no real synchronization endpoint or real account data;
+- no production/staging Supabase schema, data or environment change;
+- no production signing, publication, deployment, installer, notarization or updater;
+- no real authentication provider or account data;
+- macOS Keychain is locally verified with a synthetic secret; Windows Credential Manager remains compile/contract-only pending physical verification;
+- no configured/deployed synchronization database adapter;
 - no encryption-at-rest claim;
-- no installer, signing, notarization, updater or public release;
-- no physical Windows, real network switching, sleep/wake, SmartScreen or physical restart claim.
+- no physical Windows, real adapter switching, sleep/wake, SmartScreen or physical restart claim.

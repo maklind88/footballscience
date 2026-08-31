@@ -20,6 +20,14 @@ const releaseBinary = resolve(packageRoot, "src-tauri", "target", "release", "fs
 const tauriCli = resolve(packageRoot, "node_modules", "@tauri-apps", "cli", "tauri.js");
 mkdirSync(logsRoot, { recursive: true });
 
+const generated = spawnSync(process.execPath, [resolve(packageRoot, "tools", "generate-test-releases.mjs"), "--quiet"], {
+  cwd: packageRoot,
+  encoding: "utf8",
+  env: process.env,
+});
+if (generated.status !== 0) throw new Error(generated.stderr || "Synthetic signed release generation failed.");
+const publicEnvironment = JSON.parse(readFileSync(resolve(packageRoot, "generated", "test-release-public-env.json"), "utf8"));
+
 const candidates = [
   { name: "bundled", config: null },
   { name: "hosted", config: "src-tauri/tauri.hosted.conf.json" },
@@ -29,10 +37,22 @@ const candidates = [
 function runBuild(candidate) {
   const args = [tauriCli, "build", "--no-bundle"];
   if (candidate.config) args.push("--config", candidate.config);
+  const env = {
+    ...process.env,
+    FS_DESKTOP_DELIVERY_MODE: candidate.name,
+  };
+  if (candidate.name === "hosted") {
+    Object.assign(env, {
+      FS_DESKTOP_RELEASE_KEY_ID: publicEnvironment.releaseKeyId,
+      FS_DESKTOP_RELEASE_PUBLIC_KEY_B64: publicEnvironment.releasePublicKeyBase64,
+      FS_DESKTOP_RECOVERY_KEY_ID: publicEnvironment.recoveryKeyId,
+      FS_DESKTOP_RECOVERY_PUBLIC_KEY_B64: publicEnvironment.recoveryPublicKeyBase64,
+    });
+  }
   const result = spawnSync(process.execPath, args, {
     cwd: packageRoot,
     encoding: "utf8",
-    env: process.env,
+    env,
     maxBuffer: 32 * 1024 * 1024,
   });
   const log = [result.stdout || "", result.stderr || ""].join("");
@@ -59,6 +79,17 @@ const manifest = {
   architecture: process.env.PROCESSOR_ARCHITECTURE || process.arch,
   bundlePublished: false,
   installerGenerated: false,
+  productionCredentialsUsed: false,
+  privateSigningKeysArtifacted: false,
+  releaseVerificationKeyId: publicEnvironment.releaseKeyId,
+  expectedNormalBuildId: publicEnvironment.releases.normal.buildId,
+  expectedNegativeBuildIds: {
+    incompatible: publicEnvironment.releases.incompatible.buildId,
+    hanging: publicEnvironment.releases.hanging.buildId,
+    unknownKey: publicEnvironment.releases.unknownKey.buildId,
+    modifiedAsset: publicEnvironment.releases.modifiedAsset.buildId,
+  },
+  credentialBackend: "Windows Credential Manager adapter compiled; physical round trip not executed",
   candidates: candidates.map(runBuild),
 };
 

@@ -1,6 +1,6 @@
 const attemptedCommand = "desktop_runtime_info";
-const invoke = window.__TAURI__?.core?.invoke;
-let allowedCommandRejected = false;
+const invoke = window.__TAURI_INTERNALS__?.invoke;
+let allowedCommandRejected = typeof invoke !== "function";
 let rejection = "native bridge unavailable";
 
 if (typeof invoke === "function") {

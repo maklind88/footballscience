@@ -19,9 +19,34 @@ description = "Allows a fixed-origin, native-controlled shell update check with 
 commands.allow = ["desktop_prepare_shell_update"]
 
 [[permission]]
-identifier = "allow-bootstrap-confirm"
-description = "Allows a staged compatible shell to submit bounded app-ready evidence for atomic promotion."
-commands.allow = ["desktop_confirm_shell_candidate"]
+identifier = "allow-candidate-status"
+description = "Allows only the isolated candidate window to read compatibility status and its native nonce."
+commands.allow = ["desktop_candidate_status"]
+
+[[permission]]
+identifier = "allow-candidate-confirm"
+description = "Allows only the isolated candidate window to submit bounded initialization evidence."
+commands.allow = ["desktop_candidate_confirm"]
+
+[[permission]]
+identifier = "allow-candidate-failure"
+description = "Allows only the isolated candidate window to report a sanitized bounded failure code."
+commands.allow = ["desktop_candidate_report_failure"]
+
+[[permission]]
+identifier = "allow-open-recovery"
+description = "Allows the active shell to request the native read-only recovery surface."
+commands.allow = ["desktop_open_recovery"]
+
+[[permission]]
+identifier = "allow-recovery-status"
+description = "Allows the recovery surface to read credential-free recovery state."
+commands.allow = ["desktop_recovery_status"]
+
+[[permission]]
+identifier = "allow-recovery-read"
+description = "Allows the recovery surface to read only the already-authorized selected-session projection."
+commands.allow = ["desktop_recovery_read_selected_session"]
 
 [[permission]]
 identifier = "allow-session-authority"

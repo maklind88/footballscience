@@ -3,20 +3,10 @@
     "frontendDist": "../candidates"
   },
   "app": {
-    "windows": [
-      {
-        "label": "main",
-        "title": "FS Desktop Architecture Spike — Unauthorized Origin",
-        "width": 900,
-        "height": 620,
-        "minWidth": 720,
-        "minHeight": 480,
-        "resizable": true,
-        "url": "http://127.0.0.1:47843/"
-      }
-    ],
+    "withGlobalTauri": false,
+    "windows": [],
     "security": {
-      "capabilities": ["hosted"],
+      "capabilities": ["active", "candidate", "recovery", "bundled"],
       "csp": null,
       "freezePrototype": true
     }

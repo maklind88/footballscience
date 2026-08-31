@@ -7,9 +7,14 @@ on:
   push:
     branches:
       - codex/fs-desktop-offline-phase0-2
+      - codex/fs-desktop-offline-local-integration
     paths:
       - ".github/workflows/fs-desktop-windows-architecture.yml"
+      - "api/_lib/desktop-session-sync-contract.js"
+      - "api/desktop-session-sync.js"
       - "desktop/fs-desktop-spike/**"
+      - "src/core/permission-matrix.cjs"
+      - "supabase/drafts/**"
 
 permissions:
   contents: read
@@ -55,14 +60,18 @@ jobs:
       - name: Install pinned Rust toolchain
         shell: pwsh
         run: |
-          rustup toolchain install 1.98.0 --profile minimal
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
           rustup default 1.98.0
           rustc --version
           cargo --version
 
       - name: Run native bootstrap, authority, projection and outbox tests
         working-directory: desktop/fs-desktop-spike/src-tauri
-        run: cargo test --lib --locked
+        shell: pwsh
+        run: |
+          cargo fmt --all -- --check
+          cargo test --lib --locked
+          cargo clippy --all-targets --locked
 
       - name: Record Windows and WebView2 runtime environment
         shell: pwsh
@@ -102,6 +111,18 @@ jobs:
       - name: Run WebView2 startup, native cache, LKG, restart, transition and capability probes
         working-directory: desktop/fs-desktop-spike
         run: npm run ci:verify:windows
+
+      - name: Fail if private signing material entered uploaded artifacts
+        shell: pwsh
+        working-directory: desktop/fs-desktop-spike
+        run: |
+          $forbidden = Get-ChildItem -Path artifacts/windows -Recurse -File | Where-Object {
+            $_.Name -match '(?i)(private|secret|token)' -or $_.Extension -match '(?i)^\.(pem|key|p12|pfx)$'
+          }
+          if ($forbidden) {
+            $forbidden | ForEach-Object { Write-Error "Forbidden artifact: $($_.FullName)" }
+            exit 1
+          }
 
       - name: Upload unsigned architecture evidence
         if: always()

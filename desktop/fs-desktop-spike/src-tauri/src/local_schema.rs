@@ -95,6 +95,11 @@ fn migrate(connection: &Connection) -> Result<(), String> {
          ) STRICT;
          CREATE INDEX IF NOT EXISTS session_outbox_partition_state
            ON session_outbox(partition_key, state, created_at_unix_ms);
+         CREATE TABLE IF NOT EXISTS operation_quarantine (
+           operation_id TEXT PRIMARY KEY REFERENCES session_outbox(operation_id) ON DELETE CASCADE,
+           reason_code TEXT NOT NULL CHECK (reason_code IN ('authorization-revoked', 'lease-expired', 'account-switched', 'tenant-denied')),
+           quarantined_at_unix_ms INTEGER NOT NULL
+         ) STRICT;
          CREATE TABLE IF NOT EXISTS operation_receipts (
            operation_id TEXT PRIMARY KEY,
            ack_id TEXT NOT NULL UNIQUE,
@@ -116,18 +121,22 @@ fn migrate(connection: &Connection) -> Result<(), String> {
         .iter()
         .any(|column| column == "team_id");
     if !has_team_id {
-        connection.execute_batch(
-            "ALTER TABLE session_outbox ADD COLUMN team_id TEXT NOT NULL
+        connection
+            .execute_batch(
+                "ALTER TABLE session_outbox ADD COLUMN team_id TEXT NOT NULL
                DEFAULT '00000000-0000-4000-8000-000000000401';",
-        ).map_err(|error| error.to_string())?;
+            )
+            .map_err(|error| error.to_string())?;
     }
-    connection.execute(
-        "INSERT INTO local_meta(key, value) VALUES ('local_schema_version', '2')
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        [],
-    ).map_err(|error| error.to_string())?;
     connection
-        .pragma_update(None, "user_version", 2)
+        .execute(
+            "INSERT INTO local_meta(key, value) VALUES ('local_schema_version', '3')
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    connection
+        .pragma_update(None, "user_version", 3)
         .map_err(|error| error.to_string())
 }
 

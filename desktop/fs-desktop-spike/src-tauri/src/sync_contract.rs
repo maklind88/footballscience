@@ -1,6 +1,6 @@
 use crate::authority::{
-    SYNTHETIC_ACTOR_ID, SYNTHETIC_AUTH_EPOCH, SYNTHETIC_ORGANIZATION_ID,
-    SYNTHETIC_PARTITION_KEY, SYNTHETIC_TEAM_ID, SessionContextProof,
+    SYNTHETIC_ACTOR_ID, SYNTHETIC_AUTH_EPOCH, SYNTHETIC_ORGANIZATION_ID, SYNTHETIC_PARTITION_KEY,
+    SYNTHETIC_TEAM_ID, SessionAuthority, SessionContextProof,
 };
 use crate::local_data::{
     SYNC_PROTOCOL_VERSION, SYNTHETIC_SESSION_ID, SessionOperation, SessionOperationRequest,
@@ -120,6 +120,10 @@ fn next_pending(connection: &Connection) -> Result<Option<PendingOperation>, Str
                     request_sha256
              FROM session_outbox
              WHERE state IN ('pending', 'sending')
+               AND NOT EXISTS (
+                 SELECT 1 FROM operation_quarantine quarantine
+                 WHERE quarantine.operation_id = session_outbox.operation_id
+               )
              ORDER BY created_at_unix_ms, operation_id
              LIMIT 1",
             [],
@@ -162,23 +166,27 @@ fn persist_acknowledgement(
             acknowledged_at_unix_ms,
         ],
     ).map_err(|error| error.to_string())?;
-    let receipt_exists: i64 = transaction.query_row(
-        "SELECT count(*) FROM operation_receipts
+    let receipt_exists: i64 = transaction
+        .query_row(
+            "SELECT count(*) FROM operation_receipts
          WHERE operation_id = ?1 AND ack_id = ?2 AND resulting_revision = ?3",
-        params![
-            acknowledgement.operation_id,
-            acknowledgement.ack_id,
-            acknowledgement.resulting_revision,
-        ],
-        |row| row.get(0),
-    ).map_err(|error| error.to_string())?;
+            params![
+                acknowledgement.operation_id,
+                acknowledgement.ack_id,
+                acknowledgement.resulting_revision,
+            ],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
     if receipt_exists != 1 {
         return Err("durable server acknowledgement did not match the pending operation".into());
     }
-    transaction.execute(
-        "DELETE FROM session_outbox WHERE operation_id = ?1",
-        [&acknowledgement.operation_id],
-    ).map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "DELETE FROM session_outbox WHERE operation_id = ?1",
+            [&acknowledgement.operation_id],
+        )
+        .map_err(|error| error.to_string())?;
     transaction.commit().map_err(|error| error.to_string())
 }
 
@@ -194,7 +202,10 @@ fn sync_one(
 }
 
 fn database_path(label: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("fs-desktop-sync-{label}-{}.sqlite3", Uuid::new_v4()))
+    std::env::temp_dir().join(format!(
+        "fs-desktop-sync-{label}-{}.sqlite3",
+        Uuid::new_v4()
+    ))
 }
 
 fn request(operation_id: String) -> SessionOperationRequest {
@@ -235,12 +246,14 @@ fn reconnect_after_restart_recovers_an_accepted_but_unrecorded_ack() {
     let mut connection = open(&path).unwrap();
     let recovered = sync_one(&mut connection, &mut server, 20_000).unwrap();
     assert_eq!(recovered.acknowledgement, "already-applied");
-    let counts: (i64, i64) = connection.query_row(
-        "SELECT (SELECT count(*) FROM session_outbox),
+    let counts: (i64, i64) = connection
+        .query_row(
+            "SELECT (SELECT count(*) FROM session_outbox),
                 (SELECT count(*) FROM operation_receipts WHERE operation_id = ?1)",
-        [&operation_id],
-        |row| Ok((row.get(0)?, row.get(1)?)),
-    ).unwrap();
+            [&operation_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
     assert_eq!(counts, (0, 1));
     drop(connection);
     let _ = fs::remove_file(path);
@@ -250,12 +263,34 @@ fn reconnect_after_restart_recovers_an_accepted_but_unrecorded_ack() {
 fn synthetic_server_rejects_an_unauthorized_partition() {
     let path = database_path("unauthorized");
     let mut connection = open(&path).unwrap();
-    apply_operation(&mut connection, &request(Uuid::new_v4().to_string()), 10_000).unwrap();
+    apply_operation(
+        &mut connection,
+        &request(Uuid::new_v4().to_string()),
+        10_000,
+    )
+    .unwrap();
     let mut pending = next_pending(&connection).unwrap().unwrap();
     pending.partition_key = "another-tenant".into();
     let mut server = SyntheticTrustedServer::new(7);
     assert!(server.push(SYNC_PROTOCOL_VERSION, &pending).is_err());
     assert!(next_pending(&connection).unwrap().is_some());
+    drop(connection);
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn expired_offline_lease_locks_reads_without_deleting_pending_work() {
+    let path = database_path("expired-lease");
+    let mut connection = open(&path).unwrap();
+    let operation = request(Uuid::new_v4().to_string());
+    apply_operation(&mut connection, &operation, 10_000).unwrap();
+    let authority = SessionAuthority::new_os_synthetic().unwrap();
+    authority.expire_offline_lease_for_test();
+    assert!(authority.validate(&operation.context).is_err());
+    let pending: i64 = connection
+        .query_row("SELECT count(*) FROM session_outbox", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(pending, 1);
     drop(connection);
     let _ = fs::remove_file(path);
 }

@@ -1,0 +1,11 @@
+{
+  "identifier": "candidate",
+  "description": "Compatibility-only candidate commands with no authority, domain, token, SQLite, outbox or recovery access.",
+  "windows": ["candidate"],
+  "platforms": ["macOS", "windows"],
+  "permissions": [
+    "allow-candidate-status",
+    "allow-candidate-confirm",
+    "allow-candidate-failure"
+  ]
+}

@@ -10,9 +10,7 @@ if (process.argv.includes("--load-check")) {
   process.exit(0);
 }
 
-if (process.platform !== "win32") {
-  throw new Error("Windows runtime verification must run on a Windows runner.");
-}
+if (process.platform !== "win32") throw new Error("Windows runtime verification must run on a Windows runner.");
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const artifactsRoot = resolve(packageRoot, "artifacts", "windows");
@@ -24,24 +22,39 @@ const bundledProbePath = resolve(tmpdir(), "fs-desktop-spike-bundled.json");
 const hostedProbePath = resolve(tmpdir(), "fs-desktop-spike-hosted.json");
 const negativeProbePath = resolve(artifactsRoot, "unauthorized-origin-probe.json");
 const evidencePath = resolve(artifactsRoot, "windows-runtime-evidence.json");
-const expectedCacheVersion = "fs-desktop-native-shell-cache-v1";
-const expectedPayloadBuildId = "hosted-spike-v11";
+const publicEnvironment = JSON.parse(readFileSync(resolve(packageRoot, "generated", "test-release-public-env.json"), "utf8"));
+const expected = Object.freeze({
+  cacheVersion: "fs-desktop-native-shell-cache-v2",
+  localSchemaVersion: 3,
+  syncProtocolVersion: 1,
+  normalBuildId: publicEnvironment.releases.normal.buildId,
+  incompatibleBuildId: publicEnvironment.releases.incompatible.buildId,
+  hangingBuildId: publicEnvironment.releases.hanging.buildId,
+  unknownKeyBuildId: publicEnvironment.releases.unknownKey.buildId,
+  modifiedAssetBuildId: publicEnvironment.releases.modifiedAsset.buildId,
+});
 mkdirSync(logsRoot, { recursive: true });
 
 const evidence = {
-  schema: "fs-desktop-windows-runtime-evidence-v1",
+  schema: "fs-desktop-windows-runtime-evidence-v2",
   commit: process.env.GITHUB_SHA || "local",
   runner: process.env.ImageOS || "windows",
   architecture: process.env.PROCESSOR_ARCHITECTURE || process.arch,
   startedAt: new Date().toISOString(),
   productionCredentialsUsed: false,
   productionDataUsed: false,
+  productionSigningKeysUsed: false,
+  installerGenerated: false,
+  releasePublished: false,
+  expected,
   results: [],
   limitations: [
     "GitHub-hosted runner evidence is not physical Windows hardware verification.",
-    "Installer UX, SmartScreen, sleep/wake, Credential Manager, update installation UX, physical restart, and real adapter switching were not tested.",
-    "Network transitions were simulated by starting and stopping a loopback-only synthetic update source.",
-    "The verified shell cache is native app-data storage, isolated from the browser/PWA Cache Storage namespace.",
+    "Installer UX, SmartScreen, sleep/wake, update installation UX, physical restart, and real adapter switching were not tested.",
+    "The Windows Credential Manager backend compiled and its in-memory lifecycle contracts ran; no claim is made that a physical Credential Manager round trip was verified.",
+    "Network transitions were simulated by starting and stopping a loopback-only synthetic release source, not by switching a physical network adapter.",
+    "Process restart was exercised; operating-system restart was not.",
+    "The verified release cache is native app-data storage, isolated from browser/PWA Cache Storage.",
   ],
 };
 
@@ -123,24 +136,14 @@ function startServer({ mode = "hosted", port = 47842, manifestMode = "normal" } 
 }
 
 function startApp(executable) {
-  return spawn(executable, [], {
-    cwd: artifactsRoot,
-    stdio: "ignore",
-    windowsHide: false,
-  });
+  return spawn(executable, [], { cwd: artifactsRoot, stdio: "ignore", windowsHide: false });
 }
 
 async function stopProcess(child) {
   if (!child) return;
   if (child.exitCode === null && child.pid) {
-    spawnSync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], {
-      encoding: "utf8",
-      windowsHide: true,
-    });
-    await Promise.race([
-      new Promise((resolveExit) => child.once("exit", resolveExit)),
-      delay(3_000),
-    ]);
+    spawnSync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { encoding: "utf8", windowsHide: true });
+    await Promise.race([new Promise((resolveExit) => child.once("exit", resolveExit)), delay(3_000)]);
   }
   if (Number.isInteger(child.spikeLogFd)) {
     try { closeSync(child.spikeLogFd); } catch {}
@@ -151,6 +154,30 @@ async function stopProcess(child) {
 function validateCommonProbe(probe, candidate) {
   if (probe?.probe?.candidate !== candidate) throw new Error(`Unexpected ${candidate} probe candidate.`);
   if (probe.probe.unauthorizedCommandRejected !== true) throw new Error("Known ungranted native command was not rejected.");
+  return probe;
+}
+
+function validateHostedProbe(probe, bootMode) {
+  validateCommonProbe(probe, "hosted");
+  if (probe.probe.bootMode !== bootMode) throw new Error(`Expected hosted ${bootMode} probe.`);
+  if (probe.probe.cacheVersion !== expected.cacheVersion) throw new Error("Versioned native cache marker did not match.");
+  if (probe.probe.payloadBuildId !== expected.normalBuildId) throw new Error("Active payload build ID changed unexpectedly.");
+  if (probe.probe.serviceWorkerControlled !== false) throw new Error("Signed shell unexpectedly depended on browser service-worker control.");
+  if (probe.nativeEvidence?.activeBuildId !== expected.normalBuildId) throw new Error("Native registry did not retain the expected active generation.");
+  if (probe.nativeEvidence?.localProjectionLoaded !== true || probe.nativeEvidence?.partitionValidated !== true) {
+    throw new Error("Native Session Planner projection or partition validation evidence is missing.");
+  }
+  if (probe.nativeEvidence?.localSchemaVersion !== expected.localSchemaVersion
+    || probe.nativeEvidence?.syncProtocolVersion !== expected.syncProtocolVersion) {
+    throw new Error("Native data compatibility evidence did not match.");
+  }
+  if (probe.nativeEvidence?.customProtocol !== true) throw new Error("Custom-protocol evidence is missing.");
+  if (probe.nativeEvidence?.contentOrigin !== "https://fs-active.localhost") {
+    throw new Error(`Unexpected Windows custom-protocol origin: ${probe.nativeEvidence?.contentOrigin}`);
+  }
+  if (probe.nativeEvidence?.activeIsolationProofSchema !== "fs-desktop-candidate-isolation-v1") {
+    throw new Error("Promoted generation lacks candidate-isolation proof evidence.");
+  }
   return probe;
 }
 
@@ -170,7 +197,7 @@ async function verifyBundled() {
     ), "bundled");
     if (probe.probe.cacheVersion !== "not-applicable") throw new Error("Bundled probe reported an unexpected cache version.");
     addResult("Candidate B bundled startup", {
-      nativeBridge: "two granted commands",
+      nativeBridge: "two typed commands",
       unauthorizedCommandRejected: true,
       networkDependency: false,
     });
@@ -179,101 +206,126 @@ async function verifyBundled() {
   }
 }
 
-function validateHostedProbe(probe, bootMode) {
-  validateCommonProbe(probe, "hosted");
-  if (probe.probe.bootMode !== bootMode) throw new Error(`Expected hosted ${bootMode} probe.`);
-  if (probe.probe.cacheVersion !== expectedCacheVersion) throw new Error("Versioned cache marker did not match.");
-  if (probe.probe.payloadBuildId !== expectedPayloadBuildId) throw new Error("Cached payload build ID did not match.");
-  if (probe.probe.serviceWorkerControlled !== false) throw new Error("Hosted shell unexpectedly depended on browser service-worker control.");
-  if (bootMode === "offline" && probe.probe.cachedPayload !== true) throw new Error("Offline hosted probe did not use cached payload.");
-  if (probe.nativeEvidence?.activeBuildId !== expectedPayloadBuildId) throw new Error("Native registry did not report the expected active generation.");
-  if (probe.nativeEvidence?.localProjectionLoaded !== true || probe.nativeEvidence?.partitionValidated !== true) {
-    throw new Error("Native Session Planner projection or partition validation evidence is missing.");
-  }
-  if (probe.nativeEvidence?.localSchemaVersion !== 2 || probe.nativeEvidence?.syncProtocolVersion !== 1) {
-    throw new Error("Native data compatibility evidence did not match.");
-  }
-  return probe;
-}
-
 async function verifyHostedLifecycle() {
   let server = startServer();
-  await waitForPort(47842, true);
-
-  removeIfPresent(hostedProbePath);
-  let app = startApp(hostedExe);
+  let app = null;
+  const replaceServer = async (manifestMode) => {
+    removeIfPresent(hostedProbePath);
+    await stopProcess(server);
+    server = null;
+    await waitForPort(47842, false);
+    server = startServer({ manifestMode });
+    await waitForPort(47842, true);
+  };
   try {
-    const warmProbe = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app });
-    validateHostedProbe(warmProbe, "online");
-    addResult("Candidate A verified hosted-shell startup", { bootMode: "online", cacheVersion: expectedCacheVersion, localProjectionLoaded: true });
+    await waitForPort(47842, true);
+    removeIfPresent(hostedProbePath);
+    app = startApp(hostedExe);
+    const initial = validateHostedProbe(await waitForJson(
+      hostedProbePath,
+      (value) => value?.probe?.bootMode === "online" && value?.nativeEvidence?.activeBuildId === expected.normalBuildId,
+      { process: app, timeoutMs: 60_000 },
+    ), "online");
+    addResult("Candidate A signed custom-protocol activation", {
+      activeBuildId: expected.normalBuildId,
+      releaseSequence: publicEnvironment.releases.normal.releaseSequence,
+      candidateIsolationProof: initial.nativeEvidence.activeIsolationProofSchema,
+      privateSigningKeyAvailableToApp: false,
+    });
+
+    await stopProcess(app);
+    removeIfPresent(hostedProbePath);
+    app = startApp(hostedExe);
+    validateHostedProbe(await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app }), "online");
+    addResult("Native active generation and SQLite projection survive process restart", {
+      processRestart: true,
+      physicalWindowsRestart: false,
+    });
+
+    for (const negative of [
+      { mode: "invalid-signature", name: "Invalid detached signature rejected", buildId: expected.normalBuildId },
+      { mode: "unknown-key", name: "Unknown signing key rejected", buildId: expected.unknownKeyBuildId },
+      { mode: "modified-asset", name: "Post-signing asset modification rejected", buildId: expected.modifiedAssetBuildId },
+      { mode: "incompatible", name: "Incompatible candidate rejected", buildId: expected.incompatibleBuildId },
+    ]) {
+      await replaceServer(negative.mode);
+      const rejected = validateHostedProbe(await waitForJson(
+        hostedProbePath,
+        (value) => value?.probe?.bootMode === "compatibility-blocked",
+        { process: app },
+      ), "compatibility-blocked");
+      if (rejected.nativeEvidence?.candidateBuildId) throw new Error(`${negative.mode} unexpectedly reached candidate state.`);
+      addResult(negative.name, {
+        rejectedBuildId: negative.buildId,
+        activeGeneration: expected.normalBuildId,
+        candidatePromoted: false,
+      });
+      await replaceServer("normal");
+      validateHostedProbe(await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app }), "online");
+    }
+
+    await replaceServer("hanging");
+    const timedOut = validateHostedProbe(await waitForJson(
+      hostedProbePath,
+      (value) => value?.nativeEvidence?.latestQuarantine?.buildId === expected.hangingBuildId
+        && value?.nativeEvidence?.latestQuarantine?.failureCode === "timeout",
+      { process: app, timeoutMs: 40_000 },
+    ), "online");
+    if (timedOut.nativeEvidence.candidateBuildId) throw new Error("Timed-out candidate retained candidate authority.");
+    if (!(timedOut.nativeEvidence.latestQuarantine.retryAfterUnixMs > Number(timedOut.recordedAtUnixMs))) {
+      throw new Error("Candidate quarantine backoff evidence is missing.");
+    }
+    addResult("Candidate timeout, quarantine and backoff", {
+      quarantinedBuildId: expected.hangingBuildId,
+      failureCode: "timeout",
+      failureCount: timedOut.nativeEvidence.latestQuarantine.failureCount,
+      activeGenerationUntouched: true,
+      candidateAuthorityCleared: true,
+    });
+
+    await stopProcess(app);
+    removeIfPresent(hostedProbePath);
+    app = startApp(hostedExe);
+    const quarantinedRestart = validateHostedProbe(await waitForJson(
+      hostedProbePath,
+      (value) => value?.nativeEvidence?.latestQuarantine?.buildId === expected.hangingBuildId,
+      { process: app },
+    ), "online");
+    if (quarantinedRestart.nativeEvidence.candidateBuildId) throw new Error("Quarantined generation was retried before backoff elapsed.");
+    addResult("Quarantined candidate is not retried on process restart", {
+      retrySuppressedByBackoff: true,
+      activeGeneration: expected.normalBuildId,
+    });
+
+    await replaceServer("normal");
+    validateHostedProbe(await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app }), "online");
+
+    removeIfPresent(hostedProbePath);
+    await stopProcess(server);
+    server = null;
+    await waitForPort(47842, false);
+    validateHostedProbe(await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "offline", { process: app }), "offline");
+    addResult("Online to offline transition", { mechanism: "loopback synthetic source stopped", realAdapterSwitch: false });
+
+    await stopProcess(app);
+    removeIfPresent(hostedProbePath);
+    app = startApp(hostedExe);
+    validateHostedProbe(await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "offline", { process: app }), "offline");
+    addResult("Offline process restart persistence", {
+      activeGeneration: expected.normalBuildId,
+      localProjectionLoaded: true,
+      physicalWindowsRestart: false,
+    });
+
+    server = startServer();
+    await waitForPort(47842, true);
+    removeIfPresent(hostedProbePath);
+    validateHostedProbe(await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app }), "online");
+    addResult("Offline to online recovery", { sameProcess: true, activeGenerationUnchanged: true });
   } finally {
     await stopProcess(app);
+    await stopProcess(server);
   }
-
-  removeIfPresent(hostedProbePath);
-  app = startApp(hostedExe);
-  let onlineProbe = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app });
-  validateHostedProbe(onlineProbe, "online");
-  addResult("Native active-generation control after restart", { persistedAcrossProcessRestart: true, browserServiceWorkerRequired: false });
-
-  removeIfPresent(hostedProbePath);
-  await stopProcess(server);
-  server = null;
-  await waitForPort(47842, false);
-  server = startServer({ manifestMode: "incompatible" });
-  await waitForPort(47842, true);
-  const compatibilityBlocked = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "compatibility-blocked", { process: app });
-  validateHostedProbe(compatibilityBlocked, "compatibility-blocked");
-  addResult("Incompatible candidate rejected with active LKG retained", {
-    rejectedLocalSchemaVersion: 999,
-    activeGeneration: expectedPayloadBuildId,
-    candidatePromoted: false,
-  });
-
-  await stopProcess(app);
-  removeIfPresent(hostedProbePath);
-  app = startApp(hostedExe);
-  const restartWithBadCandidate = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "compatibility-blocked", { process: app });
-  validateHostedProbe(restartWithBadCandidate, "compatibility-blocked");
-  addResult("LKG restart while incompatible source remained reachable", {
-    activeGeneration: expectedPayloadBuildId,
-    localProjectionLoaded: true,
-  });
-
-  removeIfPresent(hostedProbePath);
-  await stopProcess(server);
-  server = null;
-  await waitForPort(47842, false);
-  server = startServer();
-  await waitForPort(47842, true);
-  const compatibilityRecovered = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app });
-  validateHostedProbe(compatibilityRecovered, "online");
-  addResult("Compatibility source recovery", { sameProcess: true, activeGenerationUnchanged: true });
-
-  removeIfPresent(hostedProbePath);
-  await stopProcess(server);
-  server = null;
-  await waitForPort(47842, false);
-  const transitionOffline = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "offline", { process: app });
-  validateHostedProbe(transitionOffline, "offline");
-  addResult("Online to offline transition", { mechanism: "loopback synthetic update source stopped", cachedProjection: true });
-
-  await stopProcess(app);
-  removeIfPresent(hostedProbePath);
-  app = startApp(hostedExe);
-  const restartOffline = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "offline", { process: app });
-  validateHostedProbe(restartOffline, "offline");
-  addResult("Offline restart persistence", { updateSourceConfirmedUnavailable: true, nativeActiveGeneration: expectedPayloadBuildId, localProjectionLoaded: true });
-
-  removeIfPresent(hostedProbePath);
-  server = startServer();
-  await waitForPort(47842, true);
-  const recovered = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app });
-  validateHostedProbe(recovered, "online");
-  addResult("Offline to online recovery", { sameProcess: true, cachedPayload: false });
-
-  await stopProcess(app);
-  await stopProcess(server);
 }
 
 async function verifyUnauthorizedOrigin() {
@@ -282,14 +334,10 @@ async function verifyUnauthorizedOrigin() {
   await waitForPort(47843, true);
   const app = startApp(unauthorizedExe);
   try {
-    const probe = await waitForJson(
-      negativeProbePath,
-      (value) => value?.allowedCommandRejected === true,
-      { process: app },
-    );
+    const probe = await waitForJson(negativeProbePath, (value) => value?.allowedCommandRejected === true, { process: app });
     if (probe.origin !== "http://127.0.0.1:47843") throw new Error("Negative probe origin mismatch.");
     if (probe.attemptedCommand !== "desktop_runtime_info") throw new Error("Negative probe command mismatch.");
-    addResult("Unauthorized origin rejected", {
+    addResult("Unauthorized origin rejected from native command", {
       origin: probe.origin,
       attemptedGrantedCommand: probe.attemptedCommand,
       rejected: true,

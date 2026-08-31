@@ -1,3 +1,5 @@
+import { activeNative, nativeBridgeAvailable, negativeProbeNative } from "./tauri-invoke.mjs";
+
 const allowedCandidates = new Set(["bundled", "hosted"]);
 const allowedBootModes = new Set(["online", "offline", "compatibility-blocked", "degraded", "auth-required", "unknown"]);
 
@@ -87,42 +89,31 @@ export function validateSpikeProbe(value) {
   });
 }
 
-export async function verifyDeniedNativeCommand(win = globalThis) {
-  const invoke = tauriInvoke(win);
-  if (!invoke) return true;
-  try { await invoke("internal_denied_probe"); return false; } catch { return true; }
+export async function verifyDeniedNativeCommand({ native = negativeProbeNative, isDesktop = nativeBridgeAvailable } = {}) {
+  if (!isDesktop) return true;
+  try { await native.invokeKnownButUngranted(); return false; } catch { return true; }
 }
 
-function tauriInvoke(win) {
-  const invoke = win?.__TAURI__?.core?.invoke;
-  return typeof invoke === "function" ? invoke.bind(win.__TAURI__.core) : null;
-}
-
-export function createDesktopBridge(win = globalThis) {
-  const invoke = tauriInvoke(win);
+export function createDesktopBridge({ native = activeNative, isDesktop = nativeBridgeAvailable } = {}) {
   const browserRuntime = Object.freeze({ nativeAppVersion: "web", runtime: "browser", localSchemaVersion: 0, syncProtocolVersion: 0, capabilities: Object.freeze([]) });
   return Object.freeze({
-    isDesktop: Boolean(invoke),
-    async getRuntimeInfo() { return invoke ? validateRuntimeInfo(await invoke("desktop_runtime_info")) : browserRuntime; },
-    async getBootstrapStatus() { return invoke ? Object.freeze(object(await invoke("desktop_bootstrap_status"), "bootstrap status")) : null; },
-    async prepareShellUpdate() { return invoke ? Object.freeze(object(await invoke("desktop_prepare_shell_update"), "prepare result")) : null; },
-    async confirmShellCandidate(request) {
-      if (!invoke) return null;
-      request = object(request, "candidate confirmation");
-      return Object.freeze(object(await invoke("desktop_confirm_shell_candidate", { request }), "bootstrap status"));
-    },
-    async getSessionAuthority() { return invoke ? validateSessionAuthority(await invoke("desktop_session_authority")) : null; },
+    isDesktop,
+    async getRuntimeInfo() { return isDesktop ? validateRuntimeInfo(await native.runtimeInfo()) : browserRuntime; },
+    async getBootstrapStatus() { return isDesktop ? Object.freeze(object(await native.bootstrapStatus(), "bootstrap status")) : null; },
+    async prepareShellUpdate() { return isDesktop ? Object.freeze(object(await native.prepareShellUpdate(), "prepare result")) : null; },
+    async openRecovery() { return isDesktop ? native.openRecovery() : false; },
+    async getSessionAuthority() { return isDesktop ? validateSessionAuthority(await native.sessionAuthority()) : null; },
     async readSelectedSession(context) {
-      if (!invoke) return null;
-      return validateSessionSlice(await invoke("desktop_read_selected_session", { context: validateSessionContext(context) }));
+      if (!isDesktop) return null;
+      return validateSessionSlice(await native.readSelectedSession(validateSessionContext(context)));
     },
     async applySessionOperation(request) {
-      if (!invoke) return null;
-      return Object.freeze(object(await invoke("desktop_apply_session_operation", { request: object(request, "session operation") }), "operation receipt"));
+      if (!isDesktop) return null;
+      return Object.freeze(object(await native.applySessionOperation(object(request, "session operation")), "operation receipt"));
     },
     async recordProbe(probe) {
-      if (!invoke) return false;
-      await invoke("record_spike_probe", { probe: validateSpikeProbe(probe) });
+      if (!isDesktop) return false;
+      await native.recordProbe(validateSpikeProbe(probe));
       return true;
     },
   });

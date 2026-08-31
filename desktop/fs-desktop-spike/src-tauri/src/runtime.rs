@@ -1,4 +1,5 @@
-use crate::authority::SyntheticSessionAuthority;
+use crate::authority::SessionAuthority;
+use crate::release_trust::ReleaseTrustStore;
 use crate::{bootstrap, local_data};
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
@@ -8,7 +9,23 @@ pub struct DesktopRuntime {
     pub root: PathBuf,
     pub connection: Mutex<Connection>,
     pub shell: RwLock<bootstrap::ShellState>,
-    pub authority: Mutex<SyntheticSessionAuthority>,
+    pub authority: Mutex<SessionAuthority>,
+    pub release_trust: Option<ReleaseTrustStore>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DeliveryMode {
+    Bundled,
+    Hosted,
+    UnauthorizedOrigin,
+}
+
+pub fn delivery_mode() -> DeliveryMode {
+    match option_env!("FS_DESKTOP_DELIVERY_MODE").unwrap_or("bundled") {
+        "hosted" => DeliveryMode::Hosted,
+        "unauthorized-origin" => DeliveryMode::UnauthorizedOrigin,
+        _ => DeliveryMode::Bundled,
+    }
 }
 
 impl DesktopRuntime {
@@ -16,13 +33,28 @@ impl DesktopRuntime {
         let database_path = root.join("fs-desktop-local-v1.sqlite3");
         let connection = local_data::open(&database_path)?;
         bootstrap::migrate(&connection)?;
+        let release_trust = if delivery_mode() == DeliveryMode::Hosted {
+            let trust = ReleaseTrustStore::from_compile_time()?;
+            bootstrap::verify_persisted_registry(root, &connection, &trust)?;
+            Some(trust)
+        } else {
+            None
+        };
+        bootstrap::recover_interrupted_candidate(&connection)?;
         let shell = bootstrap::load_state(&connection)?;
         Ok(Arc::new(Self {
             root: root.to_path_buf(),
             connection: Mutex::new(connection),
             shell: RwLock::new(shell),
-            authority: Mutex::new(SyntheticSessionAuthority::new()?),
+            authority: Mutex::new(SessionAuthority::new_os_synthetic()?),
+            release_trust,
         }))
+    }
+
+    pub fn release_trust(&self) -> Result<&ReleaseTrustStore, String> {
+        self.release_trust.as_ref().ok_or_else(|| {
+            "signed frontend release trust is unavailable in this delivery mode".into()
+        })
     }
 }
 

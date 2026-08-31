@@ -2,7 +2,7 @@
 
 Date: 2026-08-31
 
-Status: recommendation only. No endpoint, RPC, migration, grant, environment variable, remote schema object, or production integration was created.
+Status: implemented and verified as a local-only contract. The handler defaults to fail-closed because no real database adapter, credential, environment variable, remote schema object or production integration was configured.
 
 ## Repository evidence
 
@@ -45,9 +45,9 @@ The resulting boundary is deliberately layered:
 
 Do not expose a generic table gateway, SQL command, arbitrary JSON overwrite, direct service-role key, or unrestricted RPC to the desktop shell.
 
-## Synthetic contract implemented locally
+## Isolated contract implemented locally
 
-The Rust test double enforces the intended properties without network or remote data:
+The branch now contains an authenticated handler, a private additive SQL draft, a disposable synthetic Postgres catalog and a file-backed SQLite E2E harness. They enforce:
 
 - sync protocol and operation version checks;
 - actor, organization, team and partition authorization;
@@ -57,8 +57,12 @@ The Rust test double enforces the intended properties without network or remote 
 - `accepted` followed by deterministic `already-applied` replay behavior;
 - durable local receipt before atomic outbox removal;
 - accepted-but-unrecorded acknowledgement recovery after closing and reopening SQLite.
+- authenticated selected-session reads through a private minimum-role function before SQLite normalization;
+- strict server-side actor/organization/team derivation;
+- cross-tenant and revoked-membership denial without partial mutation;
+- unchanged canonical `football-session-planner-v3` app-state.
 
-This is behavioral evidence, not a real backend implementation.
+This is realistic local implementation evidence, not a deployed backend. The default handler has no database connection and returns a sanitized `503` until a separately authorized server-only adapter is configured.
 
 ## Required future server contract
 

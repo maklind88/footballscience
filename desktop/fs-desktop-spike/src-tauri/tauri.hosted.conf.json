@@ -3,21 +3,11 @@
     "frontendDist": "../candidates"
   },
   "app": {
-    "windows": [
-      {
-        "label": "main",
-        "title": "FS Desktop Architecture Spike — Hosted",
-        "width": 1000,
-        "height": 720,
-        "minWidth": 760,
-        "minHeight": 540,
-        "resizable": true,
-        "url": "http://127.0.0.1:47844/bootstrap/index.html"
-      }
-    ],
+    "withGlobalTauri": false,
+    "windows": [],
     "security": {
-      "capabilities": ["hosted"],
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+      "capabilities": ["active", "candidate", "recovery", "bundled"],
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'none'",
       "freezePrototype": true
     }
   }

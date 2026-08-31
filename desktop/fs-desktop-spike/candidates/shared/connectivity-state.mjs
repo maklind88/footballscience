@@ -25,6 +25,15 @@ function boundedSignal(value, key) {
   return normalized;
 }
 
+const compatibilityFailure = /compatib|unsupported|manifest|integrity|signature|signing key|verification key|pinned key|rollback|asset|declared boundary|content type|origin changed|immutable shell|signed shell/i;
+const transportFailure = /shell source unavailable|shell source returned|connection refused|error sending request|tcp connect|timed? out/i;
+
+export function classifyShellUpdateFailure(error) {
+  const message = String(error?.message || error);
+  if (transportFailure.test(message)) return "offline";
+  return compatibilityFailure.test(message) ? "compatibility-blocked" : "offline";
+}
+
 export class ConnectivityState {
   #state = "starting";
   #history = [];

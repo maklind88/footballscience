@@ -6,22 +6,26 @@ Status: local architecture gate provisionally closed; production-readiness gate 
 
 ## Scope and truth boundary
 
-The spike now proves a bounded Session Planner offline slice as well as the delivery mechanics. It does not connect a real FS account, use production data, add a Supabase migration or endpoint, persist a refresh token, publish an installer, sign an executable, or deploy anything.
+The spike now proves a bounded Session Planner offline slice and a realistic local handler/Postgres boundary as well as the delivery mechanics. It does not connect a real FS account, use production data, add a deployable Supabase migration, configure a real endpoint/database adapter, publish an installer, sign an executable, or deploy anything.
 
 Candidate A and Candidate B share the same Tauri/Rust core. Candidate A is the primary delivery model. Candidate B is retained as rebuildable fallback evidence, not as a second continuously developed product.
 
-## Candidate A — native bootstrap with verified hosted shell generations
+## Candidate A — native bootstrap with signed frontend code delivery
 
-Candidate A no longer relies on a browser service worker. A stable frontend bundled into the native binary asks Rust to fetch a manifest and assets from the single configured update source `http://127.0.0.1:47842` used by the spike. Rust, rather than downloaded JavaScript, controls trust and activation.
+Candidate A no longer relies on a browser service worker. A stable frontend bundled into the native binary asks Rust to fetch a detached signature, exact manifest bytes and assets from the synthetic source `http://127.0.0.1:47842`. That loopback endpoint is test publication only, not a privileged content origin or proposed production URL. Rust, rather than downloaded JavaScript, controls trust and activation.
 
 The native bootstrap:
 
-- accepts one exact, non-redirecting source origin;
+- verifies the detached Ed25519 signature over the exact manifest bytes before parsing or trusting JSON;
+- accepts one exact, non-redirecting synthetic source origin;
 - checks frontend build ID, native app compatibility, sync protocol version, local-schema version and declared capabilities;
 - verifies every asset path, byte count, content type and SHA-256 before it can be staged;
-- serves only bundled or verified assets from the exact internal WebView origin `http://127.0.0.1:47844`;
+- serves bundled/active/candidate/recovery bytes through role-specific Tauri custom protocols, with platform-specific exact origins and no privileged localhost listener;
 - stores `candidate`, `active` and `previous` generations in native app-data, outside browser/PWA Cache Storage;
-- promotes a candidate atomically only after a nonce-bound application-ready confirmation and preserves the prior generation;
+- enforces a persistent highest-seen release sequence; ordinary rollback fails closed and recovery requires a distinct signed authorization;
+- runs the candidate in a hidden/incognito compatibility-only window with three commands and no token/domain/SQLite/outbox authority;
+- promotes a candidate atomically only after nonce/build/window/origin/deadline binding and complete negative privilege evidence;
+- quarantines timeout/interruption with bounded failure codes and backoff while preserving active data and outbox state;
 - retains the active last-known-good generation when a candidate is incompatible or the source is offline.
 
 There is no desktop service worker and no unconditional `skipWaiting`. The shell allowlist excludes tokens, authenticated API responses, medical data, private football data and user data. Domain data and pending mutations live in the local projection/outbox, not in the shell cache.
@@ -30,9 +34,9 @@ There is no desktop service worker and no unconditional `skipWaiting`. The shell
 
 The selected Session Planner session contains normalized session metadata, ordered blocks, player references, exercise references and tenant/organization/team partition context. The approximately 3.10 MB canonical planner document is explicitly excluded.
 
-The packaged shell renders the selected projection read-only. SQLite schema v2 stores the bounded projection plus an atomic outbox and durable acknowledgement receipts. Contract tests cover typed rename/duration operations, transaction rollback, close/reopen persistence, accepted-response loss, idempotent replay, acknowledgement-before-delete and unauthorized partition rejection. The UI is intentionally not yet writable.
+The packaged shell renders the selected projection read-only. SQLite schema v3 stores the bounded projection plus an atomic outbox, durable acknowledgement receipts and a sidecar quarantine that preserves unauthorized pending work while excluding it from resend. Contract tests cover typed rename/duration operations, transaction rollback, close/reopen persistence, accepted-response loss, idempotent replay, acknowledgement-before-delete, expired leases and unauthorized partition/revocation behavior. The UI is intentionally not yet writable.
 
-`SessionAuthority` is native-owned in shape but synthetic in this phase. It supplies actor, organization, team, partition, authentication epoch and bounded offline lease without using frontend `localStorage` or storing a refresh token in SQLite. OS credential-vault integration and real token refresh remain unimplemented gates.
+`SessionAuthority` is native-owned and backed by macOS Keychain/Windows Credential Manager adapters. The local identity remains synthetic, but secure rotation, one-refresh-owner serialization, account switch, logout, revocation and bounded configurable lease behavior are implemented. The frontend receives no token; SQLite/outbox/browser storage receive no refresh token. A real auth provider remains unconfigured.
 
 ## Candidate B — bundled fallback evidence
 
@@ -81,14 +85,14 @@ The Windows runner is a hosted VM. It does not prove physical Windows behavior, 
 
 ## Decision
 
-Candidate A remains the recommended architecture for the next local implementation phase. Candidate B remains a viable fallback only. Candidate C remains unjustified.
+Candidate A remains the recommended architecture for the next local implementation phase. Candidate B remains a viable fallback only. Candidate C is not selected as a separate rail, but Candidate A is now explicitly governed as a code-supply chain and accepts authenticity, anti-rollback, immutable artifact, key lifecycle, retention and incident-response obligations.
 
 The local architecture gate can be provisionally closed because the same bounded slice passed packaged macOS verification and isolated Windows CI, including cold restart, reconnect, compatibility rejection, LKG retention, local projection persistence, bridge restrictions and existing web regression.
 
-This is not production acceptance. Before any public desktop build, Candidate A still needs real auth and secure credential storage, logout/account-switch/revocation behavior, a reviewed real sync boundary, encryption and data-retention decisions, a native candidate watchdog/quarantine path for a compatible build that never reports ready, physical Windows verification, installer/signing/SmartScreen work, sleep/wake and real-network testing.
+This is not production acceptance. Before any public desktop build, Candidate A still needs real auth and secure credential storage, logout/account-switch/revocation behavior, a reviewed real sync boundary, encryption and data-retention decisions, production signing custody/protected publication, physical Windows verification, installer/signing/SmartScreen work, sleep/wake and real-network testing. Candidate timeout/quarantine is implemented locally but still needs Windows CI and fault-injection evidence.
 
 ## Supabase and synchronization boundary
 
 The `60` repository / `49` production / `48` staging histories are now reconciled in `MIGRATION_RECONCILIATION.md`; no history was repaired and no remote object was changed. The trusted future baseline is the reviewed logical ledger plus catalog evidence, not any count by itself.
 
-The recommended public sync boundary is a narrow authenticated Vercel handler that derives identity and scope server-side and later calls one private transactional Postgres routine. Direct desktop-to-Supabase RPC remains a conditional fallback only if it preserves the same authorization, version isolation, observability and idempotency. A new server is not justified.
+The recommended public sync boundary now exists locally as a fail-closed authenticated Vercel handler plus private Postgres snapshot/apply routines and a dedicated minimum executor role. It is verified only against a disposable synthetic PGlite database; the default handler has no real database adapter. Direct desktop-to-Supabase RPC remains a conditional fallback only if it preserves the same authorization, version isolation, observability and idempotency. A new server is not justified.

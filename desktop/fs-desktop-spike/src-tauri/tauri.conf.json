@@ -7,21 +7,10 @@
     "frontendDist": "../candidates"
   },
   "app": {
-    "withGlobalTauri": true,
-    "windows": [
-      {
-        "label": "main",
-        "title": "FS Desktop Architecture Spike — Bundled",
-        "width": 1000,
-        "height": 720,
-        "minWidth": 760,
-        "minHeight": 540,
-        "resizable": true,
-        "url": "bundled/index.html"
-      }
-    ],
+    "withGlobalTauri": false,
+    "windows": [],
     "security": {
-      "capabilities": ["bundled"],
+      "capabilities": ["active", "candidate", "recovery", "bundled"],
       "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
       "freezePrototype": true
     }

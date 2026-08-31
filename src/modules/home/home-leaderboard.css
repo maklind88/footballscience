@@ -4,7 +4,21 @@
 }
 
 .dashboard-leaderboard-slot {
+  grid-column: 1 / -1;
+  justify-self: start;
   width: 100%;
+}
+
+@media (min-width: 720px) {
+  .dashboard-leaderboard-slot {
+    width: calc((100% - 0.55rem) / 2);
+  }
+}
+
+@media (min-width: 1100px) {
+  .dashboard-leaderboard-slot {
+    width: calc((100% - 21.25rem - 1.1rem) / 2);
+  }
 }
 
 .dashboard-leaderboard-summary-mount[hidden] {

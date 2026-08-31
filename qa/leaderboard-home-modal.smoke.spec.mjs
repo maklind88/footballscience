@@ -59,12 +59,20 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
 
   await page.evaluate(async () => {
     document.head.innerHTML = `<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:24px;background:#edf2ee;font-family:Inter,system-ui,sans-serif}#dialogHost{position:relative}</style>`;
-    document.body.innerHTML = `<div id="appShell"><nav id="appNav" aria-hidden="false">Navigation</nav><main id="app"><section id="summary"></section></main><div id="dialogHost"></div></div><aside id="outsideApp" aria-hidden="false">Outside app</aside>`;
-    const stylesheet = document.createElement("link");
-    stylesheet.rel = "stylesheet";
-    stylesheet.href = "/src/modules/leaderboard/leaderboard.css";
-    document.head.append(stylesheet);
-    await new Promise((resolve, reject) => { stylesheet.onload = resolve; stylesheet.onerror = reject; });
+    document.body.innerHTML = `<div id="appShell"><nav id="appNav" aria-hidden="false">Navigation</nav><main id="app"><section class="dashboard-home-grid"><section class="dashboard-presentation-band"><div class="dashboard-presentation-stack"><section class="dashboard-birthday-strip"><article id="birthdayReference" class="dashboard-panel dashboard-birthday-card">Birthday calendar</article></section></div><div class="dashboard-presentation-stack"></div><aside></aside></section><section class="dashboard-leaderboard-slot"><section id="summary"></section></section></section></main><div id="dialogHost"></div></div><aside id="outsideApp" aria-hidden="false">Outside app</aside>`;
+    await Promise.all([
+      "/styles.css",
+      "/presentation-mode.css",
+      "/src/modules/home/home-leaderboard.css",
+      "/src/modules/leaderboard/leaderboard.css",
+    ].map((href) => new Promise((resolve, reject) => {
+      const stylesheet = document.createElement("link");
+      stylesheet.rel = "stylesheet";
+      stylesheet.href = href;
+      stylesheet.onload = resolve;
+      stylesheet.onerror = reject;
+      document.head.append(stylesheet);
+    })));
     const module = await import(`/src/modules/leaderboard/index.mjs?home=${Date.now()}`);
     const context = {
       ui: {
@@ -85,10 +93,17 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   });
 
   const summary = page.locator("#summary");
-  await expect(summary.getByRole("heading", { name: "North Carolina Courage Leaderboard" })).toBeVisible();
+  await expect(summary.getByRole("heading", { name: "NCC Leaderboard" })).toBeVisible();
+  await expect(summary.locator(".leaderboard-team-mark")).toHaveCount(0);
   await expect(summary.locator(".leaderboard-podium-card")).toHaveCount(3);
-  await expect(summary.getByRole("heading", { name: "Team standings" })).toBeVisible();
+  await expect(summary.locator(".leaderboard-home-standings")).toHaveCount(0);
   await expect(summary.getByRole("button", { name: "Open Leaderboard" })).toBeVisible();
+  const homeWidths = await page.evaluate(() => ({
+    birthday: document.querySelector("#birthdayReference")?.getBoundingClientRect().width || 0,
+    leaderboard: document.querySelector(".dashboard-leaderboard-slot")?.getBoundingClientRect().width || 0,
+  }));
+  expect(homeWidths.birthday).toBeGreaterThan(0);
+  expect(Math.abs(homeWidths.leaderboard - homeWidths.birthday)).toBeLessThanOrEqual(1);
 
   await summary.getByRole("button", { name: "Open Leaderboard" }).click();
   const outerDialog = page.locator(".leaderboard-home-dialog");
@@ -106,7 +121,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   expect(await page.locator("#appNav").getAttribute("aria-hidden")).toBe("false");
   expect(await page.locator("#outsideApp").getAttribute("aria-hidden")).toBe("false");
 
-  await summary.locator(".leaderboard-home-standings-list button").first().click();
+  await summary.locator(".leaderboard-podium-card").first().click();
   await expect(outerDialog).toBeVisible();
   const playerDialog = page.getByRole("dialog", { name: "Alex Morgan" });
   await expect(playerDialog).toBeVisible();
@@ -218,7 +233,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
     window.leaderboardHomeContext = context;
     window.leaderboardHomeHandle = window.leaderboardHomeModule.mountLeaderboardHome(context);
   });
-  await expect(summary.getByRole("heading", { name: "Team B Leaderboard" })).toBeVisible();
+  await expect(summary.getByRole("heading", { name: "NCC Leaderboard" })).toBeVisible();
   expect(await page.evaluate(() => window.leaderboardHomeModule.getLeaderboardRuntimeState().ui.pendingAction)).toBe("");
 
   await page.setViewportSize({ width: 390, height: 844 });

@@ -23,7 +23,7 @@
 .leaderboard-shell .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .leaderboard-home-summary { width: 100%; padding: .9rem; border: 1px solid var(--lb-line); border-radius: 26px; background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(240,247,243,.92)); box-shadow: 0 22px 54px rgba(17,37,27,.09); }
-.leaderboard-home-head { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: .8rem; }
+.leaderboard-home-head { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .8rem; }
 .leaderboard-home-head > div { display: grid; gap: .1rem; min-width: 0; }
 .leaderboard-home-head p, .leaderboard-home-standings header p, .leaderboard-home-dialog-head p { margin: 0; color: var(--lb-green-bright); font-size: .64rem; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
 .leaderboard-home-head h2, .leaderboard-home-standings h3, .leaderboard-home-dialog-head h2 { margin: 0; color: var(--lb-ink); }
@@ -31,11 +31,13 @@
 .leaderboard-home-head > div > span { color: var(--lb-muted); font-size: .68rem; font-weight: 750; }
 .leaderboard-home-open { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; min-height: 2.7rem; padding: 0 .9rem; border: 1px solid rgba(31,75,56,.16); border-radius: 13px; background: var(--lb-ink); color: white; font-size: .74rem; font-weight: 950; white-space: nowrap; }
 .leaderboard-home-open span { font-size: .9rem; }
-.leaderboard-home-content { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(19rem,.75fr); gap: .75rem; min-width: 0; }
+.leaderboard-home-content { display: grid; grid-template-columns: minmax(0,1fr); gap: .75rem; min-width: 0; }
 .leaderboard-home-content > :only-child { grid-column: 1/-1; }
-.leaderboard-home-summary .leaderboard-podium { min-height: 100%; padding: .75rem; }
-.leaderboard-home-summary .leaderboard-podium-card { min-height: 5.25rem; padding: .7rem; }
-.leaderboard-home-summary .leaderboard-podium-card.is-place-1 { min-height: 6.2rem; }
+.leaderboard-home-summary .leaderboard-podium { grid-template-areas: "first" "second" "third"; grid-template-columns: minmax(0,1fr); align-items: stretch; gap: .4rem; min-height: 0; padding: .5rem; border-radius: 18px; }
+.leaderboard-home-summary .leaderboard-podium-card, .leaderboard-home-summary .leaderboard-podium-card.is-place-1 { grid-template-columns: auto minmax(0,1fr) auto; min-height: 3.7rem; padding: .55rem .65rem; }
+.leaderboard-home-summary .leaderboard-podium-avatar { width: 2.35rem; height: 2.35rem; border-width: 2px; }
+.leaderboard-home-summary .leaderboard-podium-points { grid-column: auto; justify-items: end; }
+.leaderboard-home-summary .leaderboard-podium-points strong { font-size: 1.1rem; }
 .leaderboard-home-state { grid-column: 1/-1; display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 8rem; padding: 1rem 1.1rem; border: 1px dashed rgba(31,75,56,.2); border-radius: 18px; background: rgba(255,255,255,.62); }
 .leaderboard-home-state > div { display: grid; gap: .18rem; }
 .leaderboard-home-state strong { color: var(--lb-ink); font-size: .95rem; }
@@ -331,7 +333,7 @@ body.is-dark-mode .leaderboard-home-dialog-head h2, body.is-dark-mode .leaderboa
 
 @media (max-width: 760px) {
   .leaderboard-shell.leaderboard-home-summary { padding: .68rem; border-radius: 20px; }
-  .leaderboard-home-head { grid-template-columns: auto minmax(0,1fr); gap: .65rem; }
+  .leaderboard-home-head { grid-template-columns: minmax(0,1fr); gap: .65rem; }
   .leaderboard-home-head h2 { font-size: 1.05rem; }
   .leaderboard-home-open { grid-column: 1/-1; width: 100%; }
   .leaderboard-home-content { grid-template-columns: 1fr; }

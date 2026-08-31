@@ -9,11 +9,16 @@
 }
 
 .video-analysis-ground-truth-studio > header,
-.video-analysis-ground-truth-studio__case,
-.video-analysis-ground-truth-studio__next > div {
+.video-analysis-ground-truth-studio__case {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 7px;
+}
+
+.video-analysis-ground-truth-studio__next > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
   gap: 7px;
 }
 
@@ -248,6 +253,7 @@
 .video-analysis-ground-truth-studio__next button {
   min-width: 0;
   min-height: 30px;
+  overflow: hidden;
   border: 1px solid #c6d2cb;
   border-radius: 5px;
   padding: 5px 7px;
@@ -256,6 +262,8 @@
   font: inherit;
   font-size: 9px;
   font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .video-analysis-ground-truth-studio__next button.is-primary {

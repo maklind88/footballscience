@@ -39,6 +39,8 @@ function firstCheckpointIssue(tracks, truth, benchmarkType) {
 function suggestionActions(review = {}) {
   if (review.current && !review.current.savedForCorrection) return [
     action("preannotation-preview-context", "Review context"),
+    action("preannotation-previous", "Back"),
+    action("preannotation-next", "Next"),
     action(
       "preannotation-accept",
       review.current.entityType === "person" ? "Accept as person" : "Accept suggestion",

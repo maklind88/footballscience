@@ -108,9 +108,13 @@ test("review studio keeps accept and reject decisions explicit", async () => {
   expect(html).toContain("Resolve current suggestion");
   expect(html).toContain("ball at 1.25s | 900ms");
   expect(html).toContain('data-video-analysis-tracking-action="preannotation-preview-context"');
+  expect(html).toContain('data-video-analysis-tracking-action="preannotation-previous"');
+  expect(html).toContain('data-video-analysis-tracking-action="preannotation-next"');
   expect(html).toContain('data-video-analysis-tracking-action="preannotation-accept"');
   expect(html).toContain('data-video-analysis-tracking-action="preannotation-save-current"');
   expect(html).toContain('data-video-analysis-tracking-action="preannotation-reject"');
+  expect(html.indexOf("preannotation-previous")).toBeLessThan(html.indexOf("preannotation-accept"));
+  expect(html.indexOf("preannotation-next")).toBeLessThan(html.indexOf("preannotation-accept"));
   expect(html.indexOf("preannotation-preview-context")).toBeLessThan(html.indexOf("preannotation-accept"));
   expect(html).toContain("0/5 refs");
 });

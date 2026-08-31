@@ -205,6 +205,9 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
       title: "Review next scene checkpoint",
       detail: "Inspect every visible player, ball and referee before confirming the frame.",
       actions: [
+        action("ground-truth-scene-preview-context", "Review context", {
+          videoAnalysisGroundTruthAtMs: scene.nextAtMs ?? truth.range?.endMs ?? 0,
+        }),
         action("ground-truth-scene-next", "Go to checkpoint"),
         action("ground-truth-scene-review", "Confirm & next"),
       ],

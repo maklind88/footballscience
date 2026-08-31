@@ -47,6 +47,7 @@ const groundTruthActions = new Set([
   "ground-truth-suite-remove",
   "ground-truth-suite-mode",
   "ground-truth-runs-download",
+  "ground-truth-scene-preview-context",
   "ground-truth-scene-review",
   "ground-truth-scene-next",
   "ground-truth-scene-reset",
@@ -122,6 +123,8 @@ export function createTrackingGroundTruthController(options = {}) {
     groundTruthState,
     patchGroundTruth,
     currentAtMs: (state) => currentTrackingAtMs(getVideoElement, state, options.getCurrentMatchMs),
+    getCurrentMatchMs: () => currentTrackingAtMs(getVideoElement, getState(), options.getCurrentMatchMs),
+    getVideoElement,
     seekToMatchMs: options.seekToMatchMs || (() => {}),
   });
   const checkpointIssues = createTrackingGroundTruthCheckpointController({
@@ -455,6 +458,7 @@ export function createTrackingGroundTruthController(options = {}) {
     if (action === "ground-truth-suite-download") return downloadSuite();
     if (action === "ground-truth-suite-import") return suiteImport.chooseFile(element);
     if (action === "ground-truth-runs-download") return downloadProviderRuns();
+    if (action === "ground-truth-scene-preview-context") return sceneReview.previewContext(element?.dataset?.videoAnalysisGroundTruthAtMs);
     if (action === "ground-truth-scene-review") return sceneReview.markAndNext();
     if (action === "ground-truth-scene-next") return sceneReview.seekNext();
     if (action === "ground-truth-scene-reset") return sceneReview.reset();
@@ -491,5 +495,6 @@ export function createTrackingGroundTruthController(options = {}) {
     handleField,
     invalidateDraft,
     refreshContext,
+    stopContextPreview: sceneReview.stopContextPreview,
   };
 }

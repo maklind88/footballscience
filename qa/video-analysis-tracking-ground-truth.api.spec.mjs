@@ -413,6 +413,25 @@ test("selected-object controller uses one player target and locks its evidence p
   const ball = objectTrack("ball", "ball", { x: 0.5 });
   player.metadata = { localSourceSha256: sourceFingerprint, angleId: "angle-1" };
   const item = { id: "selected-item", startMs: 0, endMs: 1000, objectTracks: [player, ball] };
+  const listeners = new Map();
+  let playCount = 0;
+  let pauseCount = 0;
+  const video = {
+    videoWidth: 1920,
+    videoHeight: 1080,
+    paused: true,
+    addEventListener: (type, listener) => listeners.set(type, listener),
+    removeEventListener: (type) => listeners.delete(type),
+    play() {
+      playCount += 1;
+      this.paused = false;
+      return Promise.resolve();
+    },
+    pause() {
+      pauseCount += 1;
+      this.paused = true;
+    },
+  };
   let state = {
     presentation: {
       current: { sections: [{ id: "section-1", items: [item] }] },
@@ -442,7 +461,7 @@ test("selected-object controller uses one player target and locks its evidence p
   const controller = createTrackingGroundTruthController({
     getState: () => state,
     updateState: (updater) => { state = updater(state); },
-    getVideoElement: () => ({ videoWidth: 1920, videoHeight: 1080 }),
+    getVideoElement: () => video,
     getReviewer: () => "analyst-1",
     getCurrentMatchMs: () => playheadMs,
     seekToMatchMs: (atMs) => { playheadMs = atMs; },
@@ -472,6 +491,7 @@ test("selected-object controller uses one player target and locks its evidence p
   expect(draftHtml).toContain("Next checkpoint");
   expect(draftHtml).toContain("Selected visible");
   expect(draftHtml).toContain("P 1 | B 0 | R 0");
+  expect(draftHtml).toContain('data-video-analysis-tracking-action="ground-truth-scene-preview-context" data-video-analysis-ground-truth-at-ms="0"');
   expect(draftHtml).toContain("Remove target");
   expect(draftHtml).not.toContain("groundTruthSceneComplete");
   expect(draftHtml).not.toContain('data-video-analysis-tracking-action="ground-truth-target"');
@@ -492,6 +512,30 @@ test("selected-object controller uses one player target and locks its evidence p
   expect(state.presentation.tracking.selectedTrackIds).toEqual([player.id]);
   expect(playheadMs).toBe(500);
   player.status = "verified";
+  playheadMs = 500;
+  expect(controller.handleAction("ground-truth-scene-preview-context", {
+    dataset: { videoAnalysisGroundTruthAtMs: "500" },
+  })).toBe(true);
+  expect(playheadMs).toBe(0);
+  expect(playCount).toBe(1);
+  expect(video.paused).toBe(false);
+  expect([...listeners.keys()]).toEqual(["timeupdate", "ended"]);
+  playheadMs = 999;
+  listeners.get("timeupdate")();
+  expect(video.paused).toBe(false);
+  playheadMs = 1000;
+  listeners.get("timeupdate")();
+  expect(video.paused).toBe(true);
+  expect(pauseCount).toBe(1);
+  expect(listeners.size).toBe(0);
+  playheadMs = 500;
+  expect(controller.handleAction("ground-truth-scene-preview-context", {
+    dataset: { videoAnalysisGroundTruthAtMs: "500" },
+  })).toBe(true);
+  expect(controller.handleAction("ground-truth-scene-next")).toBe(true);
+  expect(video.paused).toBe(true);
+  expect(pauseCount).toBe(2);
+  expect(listeners.size).toBe(0);
   playheadMs = 0;
   expect(controller.handleField("groundTruthSceneComplete", { checked: true })).toBe(false);
   expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);

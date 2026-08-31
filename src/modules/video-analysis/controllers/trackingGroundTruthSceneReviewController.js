@@ -6,6 +6,7 @@ import {
 } from "../services/trackingGroundTruthSceneReviewService.js";
 import { trackingGroundTruthCheckpointDiagnostics } from "../services/trackingGroundTruthCheckpointService.js";
 import { selectedTrackingItem } from "./trackingControllerHelpers.js";
+import { createTrackingContextReplayController } from "./trackingContextReplayController.js";
 
 export function createTrackingGroundTruthSceneReviewController(options = {}) {
   const {
@@ -17,6 +18,7 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
     seekToMatchMs,
     updateState,
   } = options;
+  const contextReplay = createTrackingContextReplayController(options);
 
   function selectedContext() {
     const state = getState();
@@ -30,6 +32,7 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
   }
 
   function markAndNext() {
+    contextReplay.stop();
     const { state, item, itemId, context, truth } = selectedContext();
     if (!itemId || truth.status === "locked") return false;
     const atMs = trackingGroundTruthSceneReviewCheckpointAt(context, currentAtMs(state));
@@ -65,6 +68,7 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
   }
 
   function seekNext() {
+    contextReplay.stop();
     const { itemId, context, truth } = selectedContext();
     if (!itemId) return false;
     const progress = trackingGroundTruthSceneReviewProgress(truth.sceneReview, context);
@@ -73,6 +77,7 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
   }
 
   function reset() {
+    contextReplay.stop();
     const { itemId, context, truth } = selectedContext();
     if (!itemId || truth.status === "locked") return false;
     update(itemId, {
@@ -85,6 +90,7 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
   }
 
   function setAttested(checked = false, exhaustive = false) {
+    contextReplay.stop();
     const { itemId, context, truth } = selectedContext();
     if (!itemId || truth.status === "locked") return false;
     if (checked && !trackingGroundTruthSceneReviewProgress(truth.sceneReview, context).complete) {
@@ -104,6 +110,7 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
   }
 
   function invalidate(itemId = "") {
+    contextReplay.stop();
     if (!itemId) return false;
     updateState((state) => {
       const truth = groundTruthState(state, itemId);
@@ -117,5 +124,33 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
     return true;
   }
 
-  return { invalidate, markAndNext, reset, seekNext, setAttested };
+  function previewContext(requestedAtMs = null) {
+    const { state, itemId, context, truth } = selectedContext();
+    if (!itemId || truth.status === "locked") return false;
+    const requested = Number(requestedAtMs);
+    const hasRequestedCheckpoint = requestedAtMs !== null
+      && requestedAtMs !== undefined
+      && requestedAtMs !== ""
+      && Number.isFinite(requested);
+    const atMs = trackingGroundTruthSceneReviewCheckpointAt(
+      context,
+      hasRequestedCheckpoint ? requested : currentAtMs(state),
+    );
+    return contextReplay.start({
+      startMs: atMs,
+      endMs: atMs,
+      minStartMs: context.range?.startMs,
+      maxEndMs: context.range?.endMs,
+    });
+  }
+
+  return {
+    invalidate,
+    markAndNext,
+    previewContext,
+    reset,
+    seekNext,
+    setAttested,
+    stopContextPreview: contextReplay.stop,
+  };
 }

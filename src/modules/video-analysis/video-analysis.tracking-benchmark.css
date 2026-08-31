@@ -153,6 +153,11 @@
   gap: 6px;
 }
 
+.video-analysis-ground-truth__scene-review > .video-analysis-ground-truth__scene-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .video-analysis-ground-truth__scene-review strong,
 .video-analysis-ground-truth__scene-review span {
   color: #526158;
@@ -286,6 +291,9 @@
   font: inherit;
   font-size: 9px;
   font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .video-analysis-ground-truth__scenarios {

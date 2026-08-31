@@ -153,7 +153,8 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
               ${checkpoint.issues.length > checkpointIssues.length ? `<p>${checkpoint.issues.length - checkpointIssues.length} more checkpoint issues</p>` : ""}
             ` : `<p class="is-ready">Checkpoint tracking ready for source review</p>`}
           </section>
-          <div>
+          <div class="video-analysis-ground-truth__scene-actions">
+            <button type="button" data-video-analysis-tracking-action="ground-truth-scene-preview-context" data-video-analysis-ground-truth-at-ms="${checkpoint.atMs}" ${sceneReview.complete ? "disabled" : ""}>Review context</button>
             <button type="button" data-video-analysis-tracking-action="ground-truth-scene-review" ${sceneReview.complete ? "disabled" : ""}>Review &amp; next</button>
             <button type="button" data-video-analysis-tracking-action="ground-truth-scene-next" ${sceneReview.complete ? "disabled" : ""}>Next unreviewed</button>
             <button type="button" data-video-analysis-tracking-action="ground-truth-scene-reset" ${sceneReview.reviewedSampleCount ? "" : "disabled"}>Reset</button>

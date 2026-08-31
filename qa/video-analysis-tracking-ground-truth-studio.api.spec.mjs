@@ -159,6 +159,48 @@ test("review studio routes the analyst to the first known checkpoint issue", asy
   expect(html).toContain('data-video-analysis-ground-truth-at-ms="0"');
 });
 
+test("review studio exposes bounded motion context before checkpoint confirmation", async () => {
+  const component = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingGroundTruthReviewStudio.js",
+  ));
+  const player = track("p1");
+  const html = component.renderTrackingGroundTruthReviewStudio(state({
+    groundTruth: {
+      suite: { benchmarkType: "multi-object", cases: [] },
+      byItemId: {
+        "item-1": truth({
+          selectedTrackIds: [player.id],
+          benchmarkTargetTrackId: player.id,
+          workloadEvidence: { protocol: "test" },
+        }),
+      },
+    },
+    preannotationReview: {
+      status: "complete",
+      workspaceSha256: "b".repeat(64),
+      caseId: "attacking-third",
+      campaign: {
+        caseCount: 5,
+        completeCaseCount: 1,
+        cases: [{
+          caseId: "attacking-third",
+          complete: true,
+          reviewEffortCoverage: "complete",
+          savedCount: 1,
+        }],
+      },
+    },
+  }), { id: "item-1", objectTracks: [player] });
+
+  expect(html).toContain("Review next scene checkpoint");
+  expect(html).toContain('data-video-analysis-tracking-action="ground-truth-scene-preview-context"');
+  expect(html).toContain('data-video-analysis-ground-truth-at-ms="0"');
+  expect(html).toContain('data-video-analysis-tracking-action="ground-truth-scene-next"');
+  expect(html).toContain('data-video-analysis-tracking-action="ground-truth-scene-review"');
+  expect(html.indexOf("ground-truth-scene-preview-context"))
+    .toBeLessThan(html.indexOf("ground-truth-scene-review"));
+});
+
 test("review studio routes unresolved person roles back to explicit classification", async () => {
   const component = await import(moduleUrl(
     "src/modules/video-analysis/components/TrackingGroundTruthReviewStudio.js",

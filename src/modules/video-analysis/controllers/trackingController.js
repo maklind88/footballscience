@@ -158,7 +158,10 @@ export function createTrackingController(options = {}) {
 
   function setMode(mode = "static") {
     const nextMode = mode === "tracking" ? "tracking" : "static";
-    if (nextMode === "static") preannotationReviewController.stopContextPreview();
+    if (nextMode === "static") {
+      preannotationReviewController.stopContextPreview();
+      groundTruth.stopContextPreview();
+    }
     updateState((state) => trackingPatch(state, {
       mode: nextMode,
       captureMode: "",

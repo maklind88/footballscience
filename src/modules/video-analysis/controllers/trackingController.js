@@ -12,6 +12,7 @@ import {
 import { createTrackingGraphicController } from "./trackingGraphicController.js";
 import { createTrackingReviewController } from "./trackingReviewController.js";
 import { createTrackingCandidateController } from "./trackingCandidateController.js";
+import { createTrackingPreannotationReviewController } from "./trackingPreannotationReviewController.js";
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
 import { normalizeTrackingJobProgress } from "../services/trackingProgressService.js";
 import {
@@ -123,6 +124,14 @@ export function createTrackingController(options = {}) {
     onEvidenceChanged: benchmark.invalidate,
     now,
   });
+  const preannotationReviewController = createTrackingPreannotationReviewController({
+    getState,
+    updateState,
+    getWindow: options.getWindow,
+    seekToMatchMs: options.seekToMatchMs,
+    persistTrack,
+    onEvidenceChanged: benchmark.invalidate,
+  });
 
   function setMode(mode = "static") {
     const nextMode = mode === "tracking" ? "tracking" : "static";
@@ -133,6 +142,7 @@ export function createTrackingController(options = {}) {
       error: "",
     }));
     if (nextMode === "tracking") {
+      preannotationReviewController.sync();
       groundTruth.refreshContext();
       void providerRuns.refresh();
       void options.restoreTrackingWorkspace?.();
@@ -463,6 +473,7 @@ export function createTrackingController(options = {}) {
     if (action === "verify") { void verifySelectedTrack(); return true; }
     if (action === "add-graphic") { void graphicController.add(); return true; }
     if (benchmark.handleAction(action)) return true;
+    if (preannotationReviewController.handleAction(action)) return true;
     if (candidateController.handleAction(action, actionElement)) return true;
     if (reviewController.handleAction(action)) return true;
     if (groundTruth.handleAction(action, actionElement)) return true;
@@ -483,6 +494,7 @@ export function createTrackingController(options = {}) {
     refreshProvider: providerRuns.refresh,
     runBenchmark: benchmark.run,
     candidateController,
+    preannotationReviewController,
     startInteraction,
     updateInteraction,
   };

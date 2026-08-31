@@ -14,6 +14,7 @@ import { renderTrackingGroundTruthPanel } from "./TrackingGroundTruthPanel.js";
 import { renderTrackingBenchmarkSuitePanel } from "./TrackingBenchmarkSuitePanel.js";
 import { renderTrackingCandidatePanel } from "./TrackingCandidatePanel.js";
 import { renderTrackingCapabilityReadiness } from "./TrackingCapabilityReadiness.js";
+import { renderTrackingPreannotationReviewPanel } from "./TrackingPreannotationReviewPanel.js";
 import { renderTrackingReviewPanel } from "./TrackingReviewPanel.js";
 import {
   renderAnalysisPanelTabs,
@@ -394,6 +395,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
       ${renderTrackingReviewPanel(state, primaryTrack, activeTracks)}
       ${renderTrackingGroundTruthPanel(state, item)}
       ${renderTrackingCandidatePanel(state, item)}
+      ${renderTrackingPreannotationReviewPanel(state, item)}
       ${renderTrackingBenchmarkSuitePanel(state)}
       <div class="video-analysis-tracking-graphics">
         <strong>${escapeHtml(`${graphics.length} dynamic graphics`)}</strong>

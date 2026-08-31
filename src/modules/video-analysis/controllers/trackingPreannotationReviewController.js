@@ -1,0 +1,374 @@
+import { normalizeObjectTrack } from "../domain/tracking.model.js";
+import { importTrackingPreannotationReviewCase } from "../services/trackingPreannotationReviewService.js";
+import { trackingSourceFingerprint } from "./trackingGroundTruthController.js";
+import {
+  patchTrackingState,
+  replacePresentationItem,
+  selectedTrackingItem,
+  trackingItemById,
+} from "./trackingControllerHelpers.js";
+
+function invalid(message) {
+  throw new Error(message);
+}
+
+function reviewState(value = {}) {
+  return {
+    status: String(value.status || "idle"),
+    caseId: String(value.caseId || ""),
+    workspaceSha256: String(value.workspaceSha256 || ""),
+    associatedTrackCount: Math.max(0, Number(value.associatedTrackCount) || 0),
+    unassociatedObservationCount: Math.max(0, Number(value.unassociatedObservationCount) || 0),
+    pendingCount: Math.max(0, Number(value.pendingCount) || 0),
+    acceptedCount: Math.max(0, Number(value.acceptedCount) || 0),
+    rejectedCount: Math.max(0, Number(value.rejectedCount) || 0),
+    savedCount: Math.max(0, Number(value.savedCount) || 0),
+    current: value.current && typeof value.current === "object" ? value.current : null,
+    error: String(value.error || ""),
+  };
+}
+
+async function selectedFiles(win = globalThis.window) {
+  if (typeof win?.showOpenFilePicker !== "function") {
+    invalid("This browser cannot open a sealed preannotation workspace.");
+  }
+  const handles = await win.showOpenFilePicker({
+    multiple: true,
+    types: [{
+      description: "FS Player preannotation review",
+      accept: {
+        "application/json": [".json"],
+        "text/plain": [".txt"],
+      },
+    }],
+  });
+  if (handles.length !== 4) {
+    invalid("Select annotation-pack.json, workspace.json, one track-map JSON, and its MOT suggestion file.");
+  }
+  const files = await Promise.all(handles.map((handle) => handle.getFile()));
+  const pack = files.find((file) => file.name === "annotation-pack.json");
+  const workspace = files.find((file) => file.name === "workspace.json");
+  const trackMap = files.find((file) => file.name.endsWith(".track-map.json"));
+  const suggestion = files.find((file) => file.name.endsWith(".suggestions.mot.txt"));
+  const caseId = String(trackMap?.name || "").replace(/\.track-map\.json$/, "");
+  if (!pack || !workspace || !trackMap || !suggestion
+    || suggestion.name !== `${caseId}.suggestions.mot.txt`) {
+    invalid("The selected preannotation files do not describe one matching case.");
+  }
+  const [packBytes, workspaceBytes, trackMapBytes, suggestionBytes] = await Promise.all([
+    pack.arrayBuffer(),
+    workspace.arrayBuffer(),
+    trackMap.arrayBuffer(),
+    suggestion.arrayBuffer(),
+  ]);
+  return { packBytes, workspaceBytes, trackMapBytes, suggestionBytes, caseId };
+}
+
+function queuePriority(entry = {}) {
+  if (entry.track.entityType === "referee") return 0;
+  if (entry.track.entityType === "ball") return 1;
+  if (entry.associationStatus === "associated") return 2;
+  return 3;
+}
+
+function previewTrack(track = {}) {
+  return normalizeObjectTrack({
+    ...track,
+    metadata: {
+      ...(track.metadata || {}),
+      preannotationReviewPreview: true,
+      preannotationReviewState: "pending",
+    },
+  });
+}
+
+function acceptedTrack(track = {}, state = "accepted-local") {
+  return normalizeObjectTrack({
+    ...track,
+    metadata: {
+      ...(track.metadata || {}),
+      preannotationReviewPreview: false,
+      preannotationReviewState: state,
+    },
+  });
+}
+
+export function createTrackingPreannotationReviewController(options = {}) {
+  const getState = options.getState || (() => ({}));
+  const updateState = options.updateState || (() => {});
+  const getWindow = options.getWindow || (() => globalThis.window);
+  const importCase = options.importCase || importTrackingPreannotationReviewCase;
+  const pickFiles = options.pickFiles || (() => selectedFiles(getWindow()));
+  let session = null;
+
+  function patchReview(patch = {}) {
+    updateState((state) => patchTrackingState(state, {
+      preannotationReview: {
+        ...reviewState(state.presentation?.tracking?.preannotationReview),
+        ...patch,
+      },
+    }));
+  }
+
+  function counts() {
+    const values = [...(session?.decisions?.values() || [])];
+    return {
+      pendingCount: Math.max(0, (session?.entries.length || 0) - values.length),
+      acceptedCount: values.filter((value) => value === "accepted").length,
+      rejectedCount: values.filter((value) => value === "rejected").length,
+      savedCount: values.filter((value) => value === "saved").length,
+    };
+  }
+
+  function entryById(id = "") {
+    return session?.entries.find((entry) => entry.track.id === id) || null;
+  }
+
+  function pendingIndex(start = 0) {
+    if (!session?.entries.length) return -1;
+    for (let offset = 0; offset < session.entries.length; offset += 1) {
+      const index = (start + offset) % session.entries.length;
+      if (!session.decisions.has(session.entries[index].track.id)) return index;
+    }
+    return -1;
+  }
+
+  function replaceReviewTracks(state, itemId, removeIds, additions = []) {
+    const item = trackingItemById(state, itemId);
+    if (!item) return state;
+    const remove = new Set(removeIds);
+    const addIds = new Set(additions.map((track) => track.id));
+    return replacePresentationItem(state, itemId, {
+      objectTracks: [
+        ...(item.objectTracks || []).filter((track) => !remove.has(track.id) && !addIds.has(track.id)),
+        ...additions,
+      ],
+    });
+  }
+
+  function sync() {
+    const state = getState();
+    const selected = selectedTrackingItem(state);
+    const sourceSha256 = trackingSourceFingerprint(state);
+    const clipId = String(selected?.clipId || selected?.clip?.id || "");
+    const angleId = String(state.mediaProduction?.activeAngleId || "primary");
+    if (session && selected?.id === session.itemId && clipId === session.clipId
+      && angleId === session.angleId && sourceSha256 === session.sourceSha256) return true;
+    const stale = session;
+    session = null;
+    updateState((state) => {
+      const withoutPreview = stale?.currentId
+        ? replaceReviewTracks(state, stale.itemId, [stale.currentId], [])
+        : state;
+      return patchTrackingState(withoutPreview, {
+        selectedTrackIds: (state.presentation?.tracking?.selectedTrackIds || []).filter(
+          (trackId) => trackId !== stale?.currentId,
+        ),
+        preannotationReview: reviewState(),
+      });
+    });
+    return false;
+  }
+
+  function show(index) {
+    if (!session) return false;
+    const previousId = session.currentId;
+    const entry = index >= 0 ? session.entries[index] : null;
+    session.currentId = entry?.track.id || "";
+    updateState((state) => {
+      let next = replaceReviewTracks(state, session.itemId, previousId ? [previousId] : [], entry
+        ? [previewTrack(entry.track)] : []);
+      next = patchTrackingState(next, {
+        selectedTrackIds: entry ? [entry.track.id] : [],
+        preannotationReview: {
+          ...reviewState(state.presentation?.tracking?.preannotationReview),
+          ...counts(),
+          status: entry ? "review" : "complete",
+          current: entry ? {
+            id: entry.track.id,
+            entityType: entry.track.entityType,
+            associationStatus: entry.associationStatus,
+            atMs: entry.track.startMs,
+            confidence: entry.track.confidence,
+            pointCount: entry.track.segments.reduce((sum, segment) => sum + segment.points.length, 0),
+          } : null,
+          error: "",
+        },
+      });
+      return next;
+    });
+    if (entry) options.seekToMatchMs?.(entry.track.startMs);
+    return true;
+  }
+
+  async function open() {
+    const state = getState();
+    const item = selectedTrackingItem(state);
+    const sourceSha256 = trackingSourceFingerprint(state);
+    const clipId = String(item?.clipId || item?.clip?.id || "");
+    const angleId = String(state.mediaProduction?.activeAngleId || "primary");
+    if (!item || !clipId || !sourceSha256) {
+      patchReview({
+        status: "error",
+        error: !item
+          ? "Select one presentation clip first."
+          : !clipId
+            ? "The selected presentation item has no clip identity."
+          : "Reconnect and prepare the exact normalized benchmark clip first.",
+      });
+      return false;
+    }
+    patchReview({ status: "loading", error: "" });
+    try {
+      const files = await pickFiles();
+      const imported = await importCase({
+        ...files,
+        sourceSha256,
+        itemId: item.id,
+        clipId,
+        angleId,
+      }, { cryptoApi: getWindow()?.crypto || globalThis.crypto });
+      const currentState = getState();
+      const currentItem = selectedTrackingItem(currentState);
+      if (currentItem?.id !== item.id
+        || String(currentItem?.clipId || currentItem?.clip?.id || "") !== clipId
+        || String(currentState.mediaProduction?.activeAngleId || "primary") !== angleId
+        || trackingSourceFingerprint(currentState) !== sourceSha256) {
+        invalid("The selected clip or video source changed while preannotation was opening.");
+      }
+      const entries = [
+        ...imported.tracks.map((track) => ({ track, associationStatus: "associated" })),
+        ...imported.queue.map((entry) => ({ track: entry.track, associationStatus: "unassociated" })),
+      ].sort((first, second) => (
+        queuePriority(first) - queuePriority(second)
+        || first.track.startMs - second.track.startMs
+        || first.track.id.localeCompare(second.track.id)
+      ));
+      const previousSession = session;
+      if (previousSession?.currentId) {
+        updateState((current) => replaceReviewTracks(
+          current,
+          previousSession.itemId,
+          [previousSession.currentId],
+          [],
+        ));
+      }
+      const existingSavedIds = new Set((currentItem.objectTracks || []).filter((track) => (
+        track.metadata?.preannotationWorkspaceSha256 === imported.workspaceSha256
+        && track.metadata?.preannotationCaseId === imported.caseId
+        && track.metadata?.preannotationReviewState === "saved-review"
+      )).map((track) => track.id));
+      session = {
+        itemId: item.id,
+        clipId,
+        angleId,
+        sourceSha256: imported.sourceSha256,
+        workspaceSha256: imported.workspaceSha256,
+        caseId: imported.caseId,
+        entries,
+        decisions: new Map(entries.filter((entry) => existingSavedIds.has(entry.track.id)).map(
+          (entry) => [entry.track.id, "saved"],
+        )),
+        history: [],
+        currentId: "",
+      };
+      patchReview({
+        status: "review",
+        caseId: imported.caseId,
+        workspaceSha256: imported.workspaceSha256,
+        associatedTrackCount: imported.summary.associatedTrackCount,
+        unassociatedObservationCount: imported.summary.unassociatedObservationCount,
+        ...counts(),
+        current: null,
+        error: "",
+      });
+      return show(pendingIndex(0));
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        patchReview({ status: session ? "review" : "idle", error: "" });
+        return false;
+      }
+      patchReview({ status: "error", error: error?.message || "Preannotation review could not be opened." });
+      return false;
+    }
+  }
+
+  function decide(decision) {
+    if (!sync()) return false;
+    const current = entryById(session?.currentId);
+    if (!session || !current || !["accepted", "rejected"].includes(decision)) return false;
+    session.decisions.set(current.track.id, decision);
+    session.history.push({ id: current.track.id, decision });
+    updateState((state) => {
+      const addition = decision === "accepted" ? [acceptedTrack(current.track)] : [];
+      return replaceReviewTracks(state, session.itemId, [current.track.id], addition);
+    });
+    const currentIndex = session.entries.indexOf(current);
+    return show(pendingIndex(currentIndex + 1));
+  }
+
+  function undo() {
+    if (!sync()) return false;
+    if (!session?.history.length) return false;
+    const previous = session.history.pop();
+    if (session.decisions.get(previous.id) === "saved") return false;
+    session.decisions.delete(previous.id);
+    updateState((state) => replaceReviewTracks(state, session.itemId, [previous.id], []));
+    const index = session.entries.findIndex((entry) => entry.track.id === previous.id);
+    return show(index);
+  }
+
+  function next() {
+    if (!sync()) return false;
+    if (!session) return false;
+    const currentIndex = session.entries.findIndex((entry) => entry.track.id === session.currentId);
+    return show(pendingIndex(Math.max(0, currentIndex + 1)));
+  }
+
+  async function saveAccepted() {
+    if (!sync()) return false;
+    if (!session || typeof options.persistTrack !== "function") return false;
+    const entries = session.entries.filter((entry) => session.decisions.get(entry.track.id) === "accepted");
+    if (!entries.length) return false;
+    patchReview({ status: "saving", error: "" });
+    let savedAny = false;
+    try {
+      for (const entry of entries) {
+        const requested = acceptedTrack(entry.track, "saved-review");
+        const track = normalizeObjectTrack(await options.persistTrack(requested) || requested);
+        session.decisions.set(entry.track.id, "saved");
+        savedAny = true;
+        updateState((state) => replaceReviewTracks(state, session.itemId, [entry.track.id], [track]));
+      }
+      updateState((state) => {
+        const summary = counts();
+        return patchTrackingState(state, {
+          preannotationReview: {
+            ...reviewState(state.presentation?.tracking?.preannotationReview),
+            ...summary,
+            status: summary.pendingCount ? "review" : "complete",
+            error: "",
+          },
+        });
+      });
+      options.onEvidenceChanged?.();
+      return true;
+    } catch (error) {
+      patchReview({ status: "error", ...counts(), error: error?.message || "Accepted review tracks could not be saved." });
+      if (savedAny) options.onEvidenceChanged?.();
+      return false;
+    }
+  }
+
+  function handleAction(action = "") {
+    if (action === "preannotation-open") { void open(); return true; }
+    if (action === "preannotation-accept") return decide("accepted");
+    if (action === "preannotation-reject") return decide("rejected");
+    if (action === "preannotation-next") return next();
+    if (action === "preannotation-undo") return undo();
+    if (action === "preannotation-save") { void saveAccepted(); return true; }
+    return false;
+  }
+
+  return { handleAction, open, saveAccepted, sync };
+}

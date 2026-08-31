@@ -537,6 +537,7 @@ async function removeScheduleEventIfPresent(page, title, targetDate) {
   const eventChip = targetDay.locator(".schedule-planner-event-chip").filter({ hasText: title }).first();
   await expect(eventChip).toBeVisible();
   await eventChip.click();
+  await expect(eventChip).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Delete");
   const confirmDialog = page.locator(".platform-confirm-dialog");
   await expect(confirmDialog.locator("h2")).toHaveText("Delete plan?");

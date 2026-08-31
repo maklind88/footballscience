@@ -8,6 +8,8 @@ import {
   trackLocalObject,
   trackLocalObjects,
 } from "./services/localTrackingService.js";
+import { getLocalVideoFile } from "./services/localVideoBridgeService.js";
+import { runTrackingCandidatePipeline } from "./services/trackingCandidatePipelineService.js";
 import {
   cancelLocalTrackingBenchmark,
   evaluateLocalTrackingBenchmark,
@@ -77,6 +79,8 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     getCurrentMatchMs: options.getCurrentMatchMs,
     seekToMatchMs: options.seekToMatchMs,
     getWindow: () => getRuntime()?.context?.win || context.win || window,
+    getStore: () => getRuntime()?.store,
+    getContext: () => getRuntime()?.context || context,
     getReviewer: () => {
       const user = getRuntime()?.context?.currentUser || context.currentUser || {};
       return user.id || user.userId || user.user_id || "local-analyst";
@@ -101,6 +105,36 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
         win: runtime?.context?.win || context.win || window,
       });
     },
+    runCandidatePipeline: (request) => {
+      const runtime = getRuntime();
+      const state = runtime?.store.getState() || {};
+      const angle = activeMediaAngle(state);
+      const reference = mediaReferenceForAngle(state, angle) || state.videoRef;
+      const file = getLocalVideoFile(reference);
+      if (!file) throw new Error("Reconnect the exact local match source before running full-scene candidates.");
+      const item = request.item || {};
+      const clip = item.clip || {};
+      const matchStartMs = Math.max(0, Math.round(Number(item.startMs ?? clip.startMs ?? clip.start_ms) || 0));
+      const matchEndMs = Math.max(matchStartMs + 1, Math.round(
+        Number(item.endMs ?? clip.endMs ?? clip.end_ms) || matchStartMs + 5000,
+      ));
+      const sourceStartMs = angle ? matchTimeToAngleTime(matchStartMs, angle) : matchStartMs;
+      const sourceEndMs = Math.max(sourceStartMs + 1, angle ? matchTimeToAngleTime(matchEndMs, angle) : matchEndMs);
+      return runTrackingCandidatePipeline({
+        win: runtime?.context?.win || context.win || window,
+        providers: request.providers,
+        file,
+        range: { startMs: sourceStartMs, endMs: sourceEndMs },
+        matchRange: { startMs: matchStartMs, endMs: matchEndMs },
+        sync: {
+          angleId: angle?.id || "primary",
+          syncOffsetMs: Number(angle?.syncOffsetMs) || 0,
+          driftPpm: Number(angle?.driftPpm) || 0,
+        },
+        signal: request.signal,
+        onProgress: request.onProgress,
+      });
+    },
     persistTrack: (track) => repository.saveObjectTrack(track),
     persistLocalTrack: workspace.retainTrack,
     removeLocalTrack: workspace.discardTrack,
@@ -117,5 +151,5 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     },
     retryBenchmarkStorage: persistence.retry,
   });
-  return { controller, correctionOutbox, persistence, repository, workspace };
+  return { controller, candidate: controller.candidateController, correctionOutbox, persistence, repository, workspace };
 }

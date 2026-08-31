@@ -60,6 +60,26 @@ function positiveInteger(value, label, maximum) {
   return number;
 }
 
+function optionalString(value, label, maximum = 160) {
+  const text = String(value || "").trim();
+  if (text.length > maximum || /[\r\n]/.test(text)) invalid(`Invalid ${label}.`);
+  return text;
+}
+
+function optionalInteger(value, label, maximum) {
+  if (value === undefined || value === null || value === "") return 0;
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number < 0 || number > maximum) invalid(`Invalid ${label}.`);
+  return number;
+}
+
+function optionalPositiveNumber(value, label, maximum) {
+  if (value === undefined || value === null || value === "") return 0;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0 || number > maximum) invalid(`Invalid ${label}.`);
+  return number;
+}
+
 function httpsUrl(value, label) {
   const text = boundedString(value, label, 2048);
   let url;
@@ -143,6 +163,11 @@ function normalizeModel(value = {}, index = 0) {
 function normalizeRuntime(value = {}) {
   return {
     providerSha256: sha256(value.providerSha256, "provider runtime checksum"),
+    device: optionalString(value.device, "provider runtime device", 80),
+    runtimeMode: optionalString(value.runtimeMode, "provider runtime mode", 100),
+    cpuThreads: optionalInteger(value.cpuThreads, "provider runtime CPU thread count", 256),
+    sampleFps: optionalPositiveNumber(value.sampleFps, "provider runtime sample rate", 240),
+    modelResident: value.modelResident === true,
     maxFrames: positiveInteger(value.maxFrames, "maximum frame count", 1_000_000),
     maxDurationMs: positiveInteger(value.maxDurationMs, "maximum duration", 4 * 60 * 60 * 1000),
     maxWallTimeMs: positiveInteger(value.maxWallTimeMs, "maximum wall time", 24 * 60 * 60 * 1000),

@@ -101,7 +101,7 @@ function assertCandidatePolicy(provider = {}) {
   }
 }
 
-function normalizedTelemetry(value = {}, range = {}) {
+function normalizedTelemetry(value = {}, provider = {}, range = {}) {
   exactKeys(value, [
     "protocol", "isolation", "wallTimeMs", "outputBytes", "stdoutBytes", "stderrBytes", "exitCode",
   ], "Tracking candidate execution");
@@ -118,6 +118,12 @@ function normalizedTelemetry(value = {}, range = {}) {
     stdoutBytes: boundedInteger(value.stdoutBytes, "tracking candidate stdout bytes", 0, 64 * 1024),
     stderrBytes: boundedInteger(value.stderrBytes, "tracking candidate stderr bytes", 0, 64 * 1024),
     exitCode,
+    device: boundedString(provider.runtime.device, "tracking candidate execution device", 80),
+    runtimeMode: boundedString(provider.runtime.runtimeMode, "tracking candidate runtime mode", 100),
+    cpuThreads: boundedInteger(provider.runtime.cpuThreads, "tracking candidate CPU thread count", 1, 256),
+    sampleFps: Number(provider.runtime.sampleFps),
+    modelResident: provider.runtime.modelResident === true,
+    workerReused: false,
   };
 }
 
@@ -132,7 +138,10 @@ function normalizedArtifact(value = {}, providerValue = {}, options = {}) {
   assertCandidatePolicy(provider);
   const request = normalizeTrackingStageRequest(provider, value.request);
   const artifact = validateTrackingStageArtifact(value.artifact, provider, request);
-  const telemetry = normalizedTelemetry(value.telemetry, request.range);
+  const telemetry = normalizedTelemetry(value.telemetry, provider, request.range);
+  if (!Number.isFinite(telemetry.sampleFps) || telemetry.sampleFps <= 0 || telemetry.sampleFps > 240) {
+    invalid("Invalid tracking candidate sample rate.");
+  }
   const createdDate = new Date(options.now?.() ?? value.createdAt ?? Date.now());
   if (!Number.isFinite(createdDate.getTime())) invalid("Invalid candidate evidence creation time.");
   const artifactValue = {
@@ -183,7 +192,8 @@ export function validateTrackingCandidateStageRunArtifact(value = {}, providerVa
   exactKeys(value.result, ["artifactSha256", "payload"], "Tracking candidate result");
   exactKeys(value.execution, [
     "protocol", "isolation", "wallTimeMs", "realTimeFactor", "outputBytes", "stdoutBytes",
-    "stderrBytes", "exitCode",
+    "stderrBytes", "exitCode", "device", "runtimeMode", "cpuThreads", "sampleFps",
+    "modelResident", "workerReused",
   ], "Tracking candidate execution");
   if (Number(value.schemaVersion) !== 1
     || value.protocol !== TRACKING_CANDIDATE_STAGE_RUN_PROTOCOL

@@ -203,6 +203,30 @@ function performanceEvidence(cases = []) {
   };
 }
 
+function providerRuntimeFingerprintPayload(runtime = {}) {
+  const legacy = {
+    providerSha256: runtime.providerSha256,
+    maxFrames: runtime.maxFrames,
+    maxDurationMs: runtime.maxDurationMs,
+    maxWallTimeMs: runtime.maxWallTimeMs,
+    maxMemoryMb: runtime.maxMemoryMb,
+    maxOutputBytes: runtime.maxOutputBytes,
+    maxConcurrentJobs: runtime.maxConcurrentJobs,
+  };
+  const profilePresent = Boolean(
+    runtime.device || runtime.runtimeMode || Number(runtime.cpuThreads) > 0
+    || Number(runtime.sampleFps) > 0 || runtime.modelResident === true,
+  );
+  return profilePresent ? {
+    ...legacy,
+    device: runtime.device,
+    runtimeMode: runtime.runtimeMode,
+    cpuThreads: runtime.cpuThreads,
+    sampleFps: runtime.sampleFps,
+    modelResident: runtime.modelResident === true,
+  } : legacy;
+}
+
 function providerFingerprintPayload(provider = {}) {
   return {
     schemaVersion: provider.schemaVersion,
@@ -215,7 +239,7 @@ function providerFingerprintPayload(provider = {}) {
     capabilities: [...provider.capabilities].sort(),
     upstream: provider.upstream,
     models: provider.models,
-    runtime: provider.runtime,
+    runtime: providerRuntimeFingerprintPayload(provider.runtime),
   };
 }
 

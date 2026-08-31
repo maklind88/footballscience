@@ -11,6 +11,7 @@ import {
 } from "./trackingProviderRunController.js";
 import { createTrackingGraphicController } from "./trackingGraphicController.js";
 import { createTrackingReviewController } from "./trackingReviewController.js";
+import { createTrackingCandidateController } from "./trackingCandidateController.js";
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
 import { normalizeTrackingJobProgress } from "../services/trackingProgressService.js";
 import {
@@ -110,6 +111,18 @@ export function createTrackingController(options = {}) {
     trackObjects: options.trackObjects,
     trackingJob,
   });
+  const candidateController = createTrackingCandidateController({
+    getState,
+    updateState,
+    getStore: options.getStore,
+    getContext: options.getContext,
+    getWindow: options.getWindow,
+    getVideoElement,
+    runPipeline: options.runCandidatePipeline,
+    persistTrack,
+    onEvidenceChanged: benchmark.invalidate,
+    now,
+  });
 
   function setMode(mode = "static") {
     const nextMode = mode === "tracking" ? "tracking" : "static";
@@ -123,6 +136,7 @@ export function createTrackingController(options = {}) {
       groundTruth.refreshContext();
       void providerRuns.refresh();
       void options.restoreTrackingWorkspace?.();
+      void candidateController.restore();
     }
     return true;
   }
@@ -449,6 +463,7 @@ export function createTrackingController(options = {}) {
     if (action === "verify") { void verifySelectedTrack(); return true; }
     if (action === "add-graphic") { void graphicController.add(); return true; }
     if (benchmark.handleAction(action)) return true;
+    if (candidateController.handleAction(action, actionElement)) return true;
     if (reviewController.handleAction(action)) return true;
     if (groundTruth.handleAction(action, actionElement)) return true;
     return false;
@@ -467,6 +482,7 @@ export function createTrackingController(options = {}) {
     handleClick,
     refreshProvider: providerRuns.refresh,
     runBenchmark: benchmark.run,
+    candidateController,
     startInteraction,
     updateInteraction,
   };

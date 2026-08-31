@@ -12,6 +12,7 @@ import { trackingReviewSummary } from "../services/trackingReviewService.js";
 import { escapeHtml } from "./renderHelpers.js";
 import { renderTrackingGroundTruthPanel } from "./TrackingGroundTruthPanel.js";
 import { renderTrackingBenchmarkSuitePanel } from "./TrackingBenchmarkSuitePanel.js";
+import { renderTrackingCandidatePanel } from "./TrackingCandidatePanel.js";
 import { renderTrackingCapabilityReadiness } from "./TrackingCapabilityReadiness.js";
 import { renderTrackingReviewPanel } from "./TrackingReviewPanel.js";
 import {
@@ -382,6 +383,7 @@ export function renderTrackingSidebar(state = {}, item = null) {
       ${renderTrackingContinuation(primaryTrack, item, { providerReady, jobActive: Boolean(tracking.job) })}
       ${renderTrackingReviewPanel(state, primaryTrack, tracks)}
       ${renderTrackingGroundTruthPanel(state, item)}
+      ${renderTrackingCandidatePanel(state, item)}
       ${renderTrackingBenchmarkSuitePanel(state)}
       <div class="video-analysis-tracking-graphics">
         <strong>${escapeHtml(`${graphics.length} dynamic graphics`)}</strong>

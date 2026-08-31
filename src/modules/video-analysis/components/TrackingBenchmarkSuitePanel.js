@@ -13,6 +13,7 @@ import {
   TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT,
 } from "../services/trackingGroundTruthService.js";
 import { trackingBenchmarkWorkflowReadiness } from "../services/trackingBenchmarkWorkflowService.js";
+import { trackingBenchmarkProvider } from "../services/trackingBenchmarkProviderService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
 function minutes(value = 0) {
@@ -127,6 +128,7 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
   const tracking = state.presentation?.tracking || {};
   const workspace = tracking.groundTruth || {};
   const suite = trackingGroundTruthSuiteEntry(workspace);
+  const provider = trackingBenchmarkProvider(tracking, suite.benchmarkType);
   const readiness = groundTruthSuiteReadiness(suite);
   const workflow = trackingBenchmarkWorkflowReadiness(tracking);
   const covered = new Set(readiness.scenarioIds);
@@ -140,7 +142,7 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
   try {
     providerRunCount = trackingProviderRunsForProvider(
       providerRuns,
-      tracking.provider,
+      provider,
     ).length;
   } catch (error) {
     providerRunError = error?.message || "Raw provider run evidence is invalid.";

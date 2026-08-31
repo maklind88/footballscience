@@ -1,5 +1,10 @@
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { runLocalTrackingCandidateStage } from "./localTrackingService.js";
+import {
+  candidateReviewSummary,
+  candidateStageTracks,
+  materializeCandidateTrajectories,
+} from "./trackingCandidateTrackService.js";
 
 export const TRACKING_CANDIDATE_PIPELINE_PROTOCOL = "football-science-tracking-candidate-pipeline-v1";
 
@@ -29,9 +34,23 @@ function sha256(value, label) {
   return text;
 }
 
+function executionProfile(value = {}) {
+  const device = String(value.device || "");
+  const runtimeMode = String(value.runtimeMode || "");
+  const cpuThreads = Number(value.cpuThreads);
+  const sampleFps = Number(value.sampleFps);
+  if (!device || !runtimeMode || !Number.isSafeInteger(cpuThreads) || cpuThreads < 1
+    || cpuThreads > 256 || !(sampleFps > 0) || sampleFps > 240
+    || typeof value.modelResident !== "boolean") {
+    invalid("The benchmark candidate execution profile is incomplete.", "TRACKING_CANDIDATE_PIPELINE_PROVIDER_MISSING");
+  }
+  return { device, runtimeMode, cpuThreads, sampleFps, modelResident: value.modelResident };
+}
+
 function providerForStage(value = {}, stage = "") {
   const capabilities = Array.isArray(value.capabilities) ? [...new Set(value.capabilities.map(String))] : [];
-  if (!value.id || !value.version || value.stage !== stage || value.benchmarkOnly !== true
+  if (!value.id || !value.version || value.protocol !== "football-science-tracking-stage-v1"
+    || value.stage !== stage || value.benchmarkOnly !== true
     || value.executionAvailable !== true
     || requiredCapabilities[stage].some((capability) => !capabilities.includes(capability))) {
     invalid(`The ${stage} benchmark candidate is incomplete or unavailable.`, "TRACKING_CANDIDATE_PIPELINE_PROVIDER_MISSING");
@@ -39,8 +58,12 @@ function providerForStage(value = {}, stage = "") {
   return deepFreeze({
     id: String(value.id),
     version: String(value.version),
+    protocol: String(value.protocol || ""),
     stage,
     capabilities: capabilities.sort(),
+    providerFingerprintSha256: sha256(value.providerFingerprintSha256, `${stage} provider fingerprint`),
+    executionFingerprintSha256: sha256(value.executionFingerprintSha256, `${stage} execution fingerprint`),
+    executionProfile: executionProfile(value.executionProfile),
   });
 }
 
@@ -53,6 +76,24 @@ function boundedRange(value = {}) {
   return { startMs, endMs };
 }
 
+function boundedSync(value = {}) {
+  const syncOffsetMs = Number(value.syncOffsetMs) || 0;
+  const driftPpm = Number(value.driftPpm) || 0;
+  if (!Number.isSafeInteger(syncOffsetMs)
+    || syncOffsetMs < -21_600_000
+    || syncOffsetMs > 21_600_000
+    || !Number.isFinite(driftPpm)
+    || driftPpm < -10_000
+    || driftPpm > 10_000) {
+    invalid("The candidate pipeline camera synchronization is invalid.");
+  }
+  return {
+    angleId: String(value.angleId || "primary").trim().slice(0, 160) || "primary",
+    syncOffsetMs,
+    driftPpm,
+  };
+}
+
 function stageResult(value = {}, provider = {}, sourceFingerprint = "", range = {}) {
   const artifact = value.artifact || {};
   const evidence = value.evidence || {};
@@ -60,6 +101,7 @@ function stageResult(value = {}, provider = {}, sourceFingerprint = "", range = 
     || artifact.protocol !== "football-science-tracking-stage-result-v1"
     || artifact.provider?.id !== provider.id
     || artifact.provider?.version !== provider.version
+    || artifact.provider?.fingerprintSha256 !== provider.providerFingerprintSha256
     || artifact.stage !== provider.stage
     || artifact.sourceFingerprint !== sourceFingerprint
     || artifact.range?.startMs !== range.startMs
@@ -68,6 +110,16 @@ function stageResult(value = {}, provider = {}, sourceFingerprint = "", range = 
     || evidence.benchmarkOnly !== true
     || evidence.provider?.id !== provider.id
     || evidence.provider?.version !== provider.version
+    || evidence.provider?.protocol !== provider.protocol
+    || evidence.provider?.stage !== provider.stage
+    || JSON.stringify([...(evidence.provider?.capabilities || [])].sort()) !== JSON.stringify(provider.capabilities)
+    || evidence.provider?.manifestFingerprintSha256 !== provider.providerFingerprintSha256
+    || evidence.provider?.executionFingerprintSha256 !== provider.executionFingerprintSha256
+    || evidence.execution?.device !== provider.executionProfile.device
+    || evidence.execution?.runtimeMode !== provider.executionProfile.runtimeMode
+    || evidence.execution?.cpuThreads !== provider.executionProfile.cpuThreads
+    || evidence.execution?.sampleFps !== provider.executionProfile.sampleFps
+    || evidence.execution?.modelResident !== provider.executionProfile.modelResident
     || evidence.result?.payload?.requestFingerprint !== artifact.requestFingerprint
     || JSON.stringify(evidence.result?.payload) !== JSON.stringify(artifact)) {
     invalid(`The ${provider.stage} candidate result crossed its evidence boundary.`, "TRACKING_CANDIDATE_PIPELINE_EVIDENCE_MISMATCH");
@@ -82,95 +134,6 @@ function stageResult(value = {}, provider = {}, sourceFingerprint = "", range = 
     sourceArtifactId: String(value.sourceArtifactId || ""),
     execution: evidence.execution,
   };
-}
-
-function materializedTrajectories(association = {}, observations = []) {
-  const byId = new Map(observations.map((observation) => [observation.id, observation]));
-  return (association.trajectories || []).map((trajectory) => ({
-    id: trajectory.id,
-    entityType: trajectory.entityType,
-    observations: trajectory.observationIds.map((id) => {
-      const observation = byId.get(id);
-      if (!observation) invalid("Association output references a missing detection.");
-      return observation;
-    }),
-    confidence: trajectory.confidence,
-    discontinuitiesMs: [...trajectory.discontinuitiesMs],
-  }));
-}
-
-function splitSegments(trajectory = {}) {
-  const breaks = new Set(trajectory.discontinuitiesMs || []);
-  const groups = [];
-  for (const observation of trajectory.observations || []) {
-    if (!groups.length || [...breaks].some((atMs) => (
-      observation.atMs >= atMs && groups.at(-1).at(-1).atMs < atMs
-    ))) groups.push([]);
-    groups.at(-1).push(observation);
-  }
-  return groups.filter((group) => group.length).map((group, index) => ({
-    id: `${trajectory.id}-segment-${index + 1}`,
-    startMs: group[0].atMs,
-    endMs: group.at(-1).atMs,
-    confidence: group.reduce((sum, entry) => sum + entry.confidence, 0) / group.length,
-    discontinuityBefore: index > 0,
-    points: group.map((observation) => ({
-      atMs: observation.atMs,
-      frameIndex: observation.frameIndex,
-      x: observation.box.left + (observation.box.width / 2),
-      y: observation.box.top + (observation.box.height / 2),
-      width: observation.box.width,
-      height: observation.box.height,
-      groundX: observation.box.left + (observation.box.width / 2),
-      groundY: observation.box.top + observation.box.height,
-      confidence: observation.confidence,
-      identityConfidence: trajectory.identityConfidence,
-      occluded: false,
-      source: "automatic",
-    })),
-  }));
-}
-
-function reviewTracks(trajectories = [], identities = [], classifications = [], lineage = {}) {
-  const identityByTrajectory = new Map(identities.map((entry) => [entry.trajectoryId, entry]));
-  const classificationByTrajectory = new Map(classifications.map((entry) => [entry.trajectoryId, entry]));
-  return trajectories.map((trajectory) => {
-    const identity = identityByTrajectory.get(trajectory.id);
-    const classification = classificationByTrajectory.get(trajectory.id) || {};
-    const identityConfidence = trajectory.entityType === "player"
-      ? Number(identity?.confidence) || 0
-      : trajectory.confidence;
-    const value = {
-      ...trajectory,
-      identityConfidence,
-    };
-    return normalizeObjectTrack({
-      id: trajectory.id,
-      entityType: trajectory.entityType,
-      playerId: "",
-      playerLabel: "",
-      teamSide: classification.teamSide || (trajectory.entityType === "referee" ? "official" : ""),
-      shirtNumber: classification.shirtNumber === "unknown" ? "" : classification.shirtNumber || "",
-      status: "review",
-      startMs: lineage.range.startMs,
-      endMs: lineage.range.endMs,
-      confidence: trajectory.confidence,
-      identityConfidence,
-      engine: "tracking-intelligence-v2-pipeline",
-      engineVersion: lineage.fingerprintSha256.slice(0, 16),
-      segments: splitSegments(value),
-      corrections: [],
-      metadata: {
-        candidatePipelineProtocol: TRACKING_CANDIDATE_PIPELINE_PROTOCOL,
-        candidatePipelineFingerprintSha256: lineage.fingerprintSha256,
-        localSourceSha256: lineage.sourceFingerprint,
-        candidateDetectionEvidenceSha256: lineage.evidenceByStage.detection,
-        candidateAssociationEvidenceSha256: lineage.evidenceByStage.association,
-        candidateReidentificationEvidenceSha256: lineage.evidenceByStage.reidentification,
-        candidateClassificationEvidenceSha256: lineage.evidenceByStage.classification,
-      },
-    });
-  });
 }
 
 function canonicalJson(value) {
@@ -188,33 +151,27 @@ async function digest(value, cryptoApi) {
   return [...new Uint8Array(result)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function reviewSummary(tracks = [], observations = [], trajectories = []) {
-  const assigned = new Set(trajectories.flatMap((trajectory) => trajectory.observations.map((entry) => entry.id)));
-  return {
-    trackCount: tracks.length,
-    playerTrackCount: tracks.filter((track) => track.entityType === "player").length,
-    ballTrackCount: tracks.filter((track) => track.entityType === "ball").length,
-    refereeTrackCount: tracks.filter((track) => track.entityType === "referee").length,
-    unassignedObservationCount: observations.filter((observation) => !assigned.has(observation.id)).length,
-    playerIdentityReviewCount: tracks.filter((track) => track.entityType === "player" && !track.playerId).length,
-    lowConfidenceTrackCount: tracks.filter((track) => track.confidence < 0.55 || track.identityConfidence < 0.65).length,
-  };
-}
-
 export async function runTrackingCandidatePipeline(options = {}) {
   const runStage = options.runStage || runLocalTrackingCandidateStage;
   const cryptoApi = options.cryptoApi || options.win?.crypto || globalThis.crypto;
-  const sourceFingerprint = sha256(options.sourceFingerprint, "Candidate source fingerprint");
+  let sourceFingerprint = options.sourceFingerprint
+    ? sha256(options.sourceFingerprint, "Candidate source fingerprint")
+    : "";
   const range = boundedRange(options.range);
+  const matchRange = boundedRange(options.matchRange || options.range);
+  const sync = boundedSync(options.sync);
   const providers = Object.fromEntries(stageOrder.map((stage) => [
     stage,
     providerForStage(options.providers?.[stage], stage),
   ]));
   if (!options.file && !options.sourceArtifactId) invalid("Reconnect the exact local match source before running a candidate pipeline.");
+  if (!sourceFingerprint && !options.file) {
+    invalid("A reused candidate source needs its exact SHA-256 fingerprint.");
+  }
   const runs = [];
   const invoke = async (stage, request, sourceArtifactId = "") => {
     options.onProgress?.({ stage, completedStages: runs.length, totalStages: stageOrder.length });
-    const run = stageResult(await runStage({
+    const result = await runStage({
       win: options.win,
       provider: providers[stage],
       request,
@@ -224,39 +181,60 @@ export async function runTrackingCandidatePipeline(options = {}) {
       timeoutMs: options.timeoutMs,
       onJob: options.onJob,
       onProgress: (progress) => options.onProgress?.({ ...progress, pipelineStage: stage }),
-    }), providers[stage], sourceFingerprint, range);
+    });
+    const resultSourceFingerprint = sha256(
+      result.sourceSha256 || result.artifact?.sourceFingerprint,
+      `${stage} source fingerprint`,
+    );
+    if (sourceFingerprint && resultSourceFingerprint !== sourceFingerprint) {
+      invalid(`The ${stage} candidate changed the match source.`, "TRACKING_CANDIDATE_PIPELINE_EVIDENCE_MISMATCH");
+    }
+    sourceFingerprint ||= resultSourceFingerprint;
+    const run = stageResult(result, providers[stage], sourceFingerprint, range);
     runs.push(run);
     return run;
   };
-  const detection = await invoke("detection", { sourceFingerprint, range }, options.sourceArtifactId);
-  const observations = detection.artifact.payload.observations;
-  const association = await invoke("association", { sourceFingerprint, range, observations });
-  const trajectories = materializedTrajectories(association.artifact.payload, observations);
+  const detection = await invoke("detection", {
+    ...(sourceFingerprint ? { sourceFingerprint } : {}),
+    range,
+  }, options.sourceArtifactId);
   const retainedSourceId = detection.sourceArtifactId || options.sourceArtifactId;
   if (!retainedSourceId) invalid("The candidate pipeline did not retain its session-owned match source.");
+  const observations = detection.artifact.payload.observations;
+  const association = await invoke(
+    "association",
+    { sourceFingerprint, range, observations },
+    retainedSourceId,
+  );
+  const trajectories = materializeCandidateTrajectories(association.artifact.payload, observations);
   const reidentification = await invoke("reidentification", { sourceFingerprint, range, trajectories }, retainedSourceId);
   const classification = await invoke("classification", { sourceFingerprint, range, trajectories }, retainedSourceId);
   const lineageSeed = {
     protocol: TRACKING_CANDIDATE_PIPELINE_PROTOCOL,
     sourceFingerprint,
-    range,
+    sourceRange: range,
+    matchRange,
+    sync,
     providers: Object.fromEntries(stageOrder.map((stage) => [stage, providers[stage]])),
     evidenceByStage: Object.fromEntries(runs.map((run) => [run.stage, run.evidenceSha256])),
     artifactByStage: Object.fromEntries(runs.map((run) => [run.stage, run.artifactSha256])),
   };
   const lineage = { ...lineageSeed, fingerprintSha256: await digest(lineageSeed, cryptoApi) };
-  const tracks = reviewTracks(
-    trajectories,
-    reidentification.artifact.payload.identities,
-    classification.artifact.payload.classifications,
+  const stageTracks = candidateStageTracks({
     lineage,
-  );
+    detection: detection.artifact,
+    association: association.artifact,
+    reidentification: reidentification.artifact,
+    classification: classification.artifact,
+  });
+  const tracks = stageTracks.review.map(normalizeObjectTrack);
   return Object.freeze({
     benchmarkOnly: true,
     sourceArtifactId: retainedSourceId,
     lineage: deepFreeze(lineage),
     rawStageRuns: deepFreeze(runs),
     tracks: Object.freeze(tracks),
-    review: Object.freeze(reviewSummary(tracks, observations, trajectories)),
+    benchmarkTracksByStage: deepFreeze(Object.fromEntries(stageOrder.map((stage) => [stage, stageTracks[stage]]))),
+    review: Object.freeze(candidateReviewSummary(stageTracks)),
   });
 }

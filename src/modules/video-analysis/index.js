@@ -3157,6 +3157,7 @@ async function initialize(context = {}) {
     await run.trackingRuntime.persistence.restore();
     await run.trackingRuntime.workspace.restore();
     await run.trackingRuntime.correctionOutbox.restore();
+    await run.trackingRuntime.candidate.restore();
     run.store.update((current) => ({ ...current, status: current.status === "loading" ? "ready" : current.status }));
   } catch (error) {
     run.store.setState({ status: "ready", error: error.message || "" });
@@ -3164,6 +3165,7 @@ async function initialize(context = {}) {
   run.trackingRuntime.persistence.start();
   run.trackingRuntime.workspace.start();
   run.trackingRuntime.correctionOutbox.start();
+  run.trackingRuntime.candidate.start();
 }
 
 export function render(context = {}) {
@@ -3237,6 +3239,7 @@ export function resetVideoAnalysisRuntimeForTests() {
   void runtime?.trackingRuntime?.persistence?.dispose?.();
   void runtime?.trackingRuntime?.workspace?.dispose?.();
   void runtime?.trackingRuntime?.correctionOutbox?.dispose?.();
+  void runtime?.trackingRuntime?.candidate?.dispose?.();
   runtime?.unsubscribe?.();
   runtime?.workspaceObserver?.disconnect?.();
   runtime?.context?.doc?.documentElement?.classList?.remove?.(

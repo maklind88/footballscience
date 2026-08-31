@@ -271,12 +271,18 @@ async function runLocalTrackingStageRequest(options = {}, benchmarkOnly = false)
     sessionToken: session.sessionToken,
   };
   options.onJob?.(activeJob);
-  const result = await pollTrackingJob(payload.statusUrl, session.sessionToken, {
-    win,
-    signal: options.signal,
-    timeoutMs: options.timeoutMs,
-    onProgress: options.onProgress,
-  });
+  let result;
+  try {
+    result = await pollTrackingJob(payload.statusUrl, session.sessionToken, {
+      win,
+      signal: options.signal,
+      timeoutMs: options.timeoutMs,
+      onProgress: options.onProgress,
+    });
+  } catch (error) {
+    if (options.signal?.aborted) await cancelLocalTrackingJob(activeJob, win).catch(() => false);
+    throw error;
+  }
   if ((result.benchmarkOnly === true) !== benchmarkOnly) {
     throw new Error("The local tracking result crossed its activation boundary.");
   }
@@ -297,7 +303,7 @@ async function runLocalTrackingStageRequest(options = {}, benchmarkOnly = false)
     artifactSha256: result.artifactSha256,
     sessionToken: session.sessionToken,
     signal: options.signal,
-    provider,
+    provider: options.provider,
     sourceSha256: result.sourceSha256,
     artifact,
   }) : null;

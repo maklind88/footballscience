@@ -65,6 +65,12 @@ function candidateEvidence(stageRequest, stageArtifact, overrides = {}) {
       stdoutBytes: 0,
       stderrBytes: 0,
       exitCode: 0,
+      device: "cpu",
+      runtimeMode: "native-stage-process-v1",
+      cpuThreads: 8,
+      sampleFps: 12.5,
+      modelResident: false,
+      workerReused: false,
     },
     createdAt: "2026-08-31T12:00:00.000Z",
     ...overrides,
@@ -135,7 +141,22 @@ test("browser candidate client uses only the benchmark endpoint and requires its
   };
   const result = await localTracking.runLocalTrackingCandidateStage({
     win,
-    provider: { id: "candidate-player-detector", version: "0.1.0" },
+    provider: {
+      id: "candidate-player-detector",
+      version: "0.1.0",
+      protocol: "football-science-tracking-stage-v1",
+      stage: "detection",
+      capabilities: ["detect:player"],
+      providerFingerprintSha256: "a".repeat(64),
+      executionFingerprintSha256: "d".repeat(64),
+      executionProfile: {
+        device: "cpu",
+        runtimeMode: "native-stage-process-v1",
+        cpuThreads: 8,
+        sampleFps: 12.5,
+        modelResident: false,
+      },
+    },
     request: stageRequest,
   });
   expect(requests).toHaveLength(1);
@@ -252,7 +273,7 @@ test("local companion keeps candidate execution separate from activated tracking
     });
     expect(JSON.stringify(capabilities)).not.toContain(cacheDir);
 
-    const stageRequest = request(fingerprint);
+    const stageRequest = { range: { startMs: 0, endMs: 1000 } };
     const response = await fetch(`${baseUrl}/jobs/run-tracking-candidate-stage`, {
       method: "POST",
       headers: {

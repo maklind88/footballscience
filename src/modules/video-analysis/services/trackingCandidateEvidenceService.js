@@ -31,7 +31,17 @@ export function registeredTrackingCandidates(value = {}) {
       activationStatus: boundedText(provider?.activationStatus, 40),
       activationProtocol: boundedText(provider?.activationProtocol, 100),
       activationIsolation: boundedText(provider?.activationIsolation, 100),
+      providerFingerprintSha256: /^[a-f0-9]{64}$/.test(
+        boundedText(provider?.providerFingerprintSha256, 64).toLowerCase(),
+      ) ? boundedText(provider.providerFingerprintSha256, 64).toLowerCase() : "",
       executionFingerprintSha256: /^[a-f0-9]{64}$/.test(fingerprint) ? fingerprint : "",
+      executionProfile: provider?.executionProfile && typeof provider.executionProfile === "object" ? {
+        device: boundedText(provider.executionProfile.device, 80),
+        runtimeMode: boundedText(provider.executionProfile.runtimeMode, 100),
+        cpuThreads: Math.max(0, Math.min(256, Math.round(Number(provider.executionProfile.cpuThreads) || 0))),
+        sampleFps: Math.max(0, Math.min(240, Number(provider.executionProfile.sampleFps) || 0)),
+        modelResident: provider.executionProfile.modelResident === true,
+      } : null,
       reasons: Array.isArray(provider?.reasons)
         ? provider.reasons.map((entry) => boundedText(entry, 80)).filter(Boolean).slice(0, 20)
         : [],
@@ -88,7 +98,7 @@ async function verifiedJsonResponse(response, expectedSha256, win) {
   }
 }
 
-function validateEvidence(value, expected = {}) {
+export function validateTrackingCandidateStageEvidence(value, expected = {}) {
   exactKeys(value, [
     "schemaVersion", "protocol", "id", "benchmarkOnly", "provider", "source", "range",
     "request", "result", "execution", "createdAt",
@@ -102,14 +112,27 @@ function validateEvidence(value, expected = {}) {
   exactKeys(value.result, ["artifactSha256", "payload"]);
   exactKeys(value.execution, [
     "protocol", "isolation", "wallTimeMs", "realTimeFactor", "outputBytes", "stdoutBytes",
-    "stderrBytes", "exitCode",
+    "stderrBytes", "exitCode", "device", "runtimeMode", "cpuThreads", "sampleFps",
+    "modelResident", "workerReused",
   ]);
   const artifact = expected.artifact || {};
+  const expectedCapabilities = Array.isArray(expected.provider?.capabilities)
+    ? [...new Set(expected.provider.capabilities.map(String))].sort()
+    : [];
+  const actualCapabilities = Array.isArray(value.provider.capabilities)
+    ? [...new Set(value.provider.capabilities.map(String))].sort()
+    : [];
+  const profile = expected.provider?.executionProfile || {};
   if (value.schemaVersion !== 1
     || value.protocol !== CANDIDATE_STAGE_RUN_PROTOCOL
     || value.benchmarkOnly !== true
     || value.provider.id !== expected.provider?.id
     || value.provider.version !== expected.provider?.version
+    || value.provider.protocol !== expected.provider?.protocol
+    || value.provider.stage !== expected.provider?.stage
+    || JSON.stringify(actualCapabilities) !== JSON.stringify(expectedCapabilities)
+    || sha256(value.provider.manifestFingerprintSha256) !== sha256(expected.provider?.providerFingerprintSha256)
+    || sha256(value.provider.executionFingerprintSha256) !== sha256(expected.provider?.executionFingerprintSha256)
     || value.source.algorithm !== "sha256"
     || value.source.kind !== "exact-local-file-bytes"
     || sha256(value.source.fingerprintSha256) !== sha256(expected.sourceSha256)
@@ -122,10 +145,38 @@ function validateEvidence(value, expected = {}) {
     || JSON.stringify(value.result.payload) !== JSON.stringify(artifact)
     || value.execution.exitCode !== 0
     || !(Number(value.execution.wallTimeMs) > 0)
+    || !boundedText(value.execution.device, 80)
+    || !boundedText(value.execution.runtimeMode, 100)
+    || !Number.isSafeInteger(value.execution.cpuThreads)
+    || value.execution.cpuThreads < 1
+    || value.execution.cpuThreads > 256
+    || !(Number(value.execution.sampleFps) > 0)
+    || Number(value.execution.sampleFps) > 240
+    || value.execution.device !== profile.device
+    || value.execution.runtimeMode !== profile.runtimeMode
+    || value.execution.cpuThreads !== profile.cpuThreads
+    || value.execution.sampleFps !== profile.sampleFps
+    || value.execution.modelResident !== profile.modelResident
+    || typeof value.execution.modelResident !== "boolean"
+    || typeof value.execution.workerReused !== "boolean"
     || !Number.isFinite(Date.parse(value.createdAt))) {
     invalid();
   }
   return Object.freeze(value);
+}
+
+export async function trackingCandidateEvidenceResponseSha256(value = {}, cryptoApi = globalThis.crypto) {
+  if (!cryptoApi?.subtle) invalid("Secure candidate evidence hashing is unavailable.");
+  let bytes;
+  try {
+    bytes = new TextEncoder().encode(`${JSON.stringify(value)}\n`);
+  } catch {
+    invalid("Tracking candidate evidence is not serializable.");
+  }
+  if (bytes.byteLength < 1 || bytes.byteLength > MAXIMUM_EVIDENCE_BYTES) {
+    invalid("Tracking candidate evidence is too large.");
+  }
+  return hexadecimal(await cryptoApi.subtle.digest("SHA-256", bytes));
 }
 
 export async function fetchTrackingCandidateStageEvidence(options = {}) {
@@ -137,5 +188,5 @@ export async function fetchTrackingCandidateStageEvidence(options = {}) {
   });
   if (!response.ok) invalid("The local tracking candidate evidence could not be opened.");
   const value = await verifiedJsonResponse(response, options.evidenceSha256, win);
-  return validateEvidence(value, options);
+  return validateTrackingCandidateStageEvidence(value, options);
 }

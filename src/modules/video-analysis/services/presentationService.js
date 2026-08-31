@@ -104,6 +104,16 @@ export function createInitialPresentationWorkspace() {
       providerRuns: { byItemId: {}, downloadedAt: "", error: "" },
       benchmarkEvaluation: emptyTrackingBenchmarkEvaluation(),
       benchmarkStorage: { status: "waiting-source", lastSavedAt: "", error: "" },
+      candidatePipeline: {
+        status: "waiting-item",
+        stage: "",
+        progress: 0,
+        activeRunId: "",
+        runs: [],
+        error: "",
+      },
+      candidateBenchmarkProviders: {},
+      candidateBenchmarkProvider: null,
       workspace: {
         status: "waiting-item",
         localOnlyCount: 0,

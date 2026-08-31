@@ -180,6 +180,13 @@ function candidatePolicyReasons(provider = {}) {
   if (provider.approval?.networkAtInference) reasons.push("inference-network-enabled");
   if (!provider.approval?.licenseReviewed) reasons.push("licence-not-reviewed");
   if (provider.benchmark?.status === "passed") reasons.push("approved-provider-registry-required");
+  if (!provider.runtime?.device
+    || !provider.runtime?.runtimeMode
+    || !Number.isSafeInteger(provider.runtime?.cpuThreads)
+    || provider.runtime.cpuThreads < 1
+    || !(Number(provider.runtime?.sampleFps) > 0)) {
+    reasons.push("candidate-execution-profile-incomplete");
+  }
   for (const model of provider.models || []) {
     if (!model.provenance?.trainingDataReviewed) reasons.push("model-training-data-not-reviewed");
     if (model.provenance?.datasets?.some((dataset) => !dataset.rightsReviewed)) {
@@ -209,6 +216,13 @@ function publicCandidate(provider = {}, reasons = []) {
     benchmarkOnly: true,
     providerFingerprintSha256: provider.protocol ? trackingProviderFingerprint(provider) : "",
     executionFingerprintSha256: provider.protocol ? trackingProviderExecutionFingerprint(provider) : "",
+    executionProfile: provider.protocol ? {
+      device: provider.runtime.device,
+      runtimeMode: provider.runtime.runtimeMode,
+      cpuThreads: provider.runtime.cpuThreads,
+      sampleFps: provider.runtime.sampleFps,
+      modelResident: provider.runtime.modelResident,
+    } : null,
     source: ready ? "verified-local-candidate-registry" : "local-candidate-registry-blocked",
     reasons: [...new Set(reasons)].slice(0, 20),
   };

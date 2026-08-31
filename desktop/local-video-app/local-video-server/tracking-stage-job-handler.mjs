@@ -106,13 +106,20 @@ export function createTrackingStageJobHandler(options = {}) {
       if (sourceId && !jsonTransport) {
         throw Object.assign(new Error("A reused tracking source requires a JSON stage request."), { statusCode: 400 });
       }
-      const stageRequest = jsonTransport
+      let stageRequest = jsonTransport
         ? await receiveJson(request, Math.min(
           MAXIMUM_REQUEST_BYTES,
           Number(options.config.maxTrackingStageRequestBytes) || MAXIMUM_REQUEST_BYTES,
         ))
         : requestFromHeader(request);
-      const requestedFingerprint = sourceFingerprint(stageRequest);
+      const requestedFingerprint = stageRequest.sourceFingerprint
+        ? sourceFingerprint(stageRequest)
+        : "";
+      if ((sourceId || jsonTransport) && !requestedFingerprint) {
+        throw Object.assign(new Error("The tracking source fingerprint is required when reusing a source."), {
+          statusCode: 400,
+        });
+      }
       const source = await reusableTrackingSource(options, sourceId, session.token);
       const declaredBytes = source || jsonTransport ? 0 : Math.max(0, Number(request.headers["content-length"] || 0));
       await pruneCache(options.config.cacheDir, {
@@ -155,10 +162,13 @@ export function createTrackingStageJobHandler(options = {}) {
         });
         localSourcePath = inputPath;
       }
-      if (localSourcePath && sourceSha256 !== requestedFingerprint) {
+      if (localSourcePath && requestedFingerprint && sourceSha256 !== requestedFingerprint) {
         throw Object.assign(new Error("The selected video does not match the stage request fingerprint."), {
           statusCode: 409,
         });
+      }
+      if (localSourcePath && !requestedFingerprint) {
+        stageRequest = { ...stageRequest, sourceFingerprint: sourceSha256 };
       }
       options.jobs.enqueue(job.id, async ({ signal, reportProgress }) => {
         try {

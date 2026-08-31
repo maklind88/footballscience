@@ -62,6 +62,11 @@ function manifestValue(overrides = {}) {
     }],
     runtime: {
       providerSha256: "d".repeat(64),
+      device: "cpu",
+      runtimeMode: "native-stage-process-v1",
+      cpuThreads: 8,
+      sampleFps: 12.5,
+      modelResident: false,
       maxFrames: 30_000,
       maxDurationMs: 1_200_000,
       maxWallTimeMs: 7_200_000,

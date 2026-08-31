@@ -171,6 +171,70 @@ async function mountBenchmarkResultFixture(page) {
   });
 }
 
+async function mountCandidatePipelineFixture(page) {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await page.evaluate(async () => {
+    const { renderTrackingCandidatePanel } = await import(
+      "/src/modules/video-analysis/components/TrackingCandidatePanel.js"
+    );
+    const capabilityMap = {
+      detection: ["detect:player", "detect:ball", "detect:referee"],
+      association: ["associate:multi-object"],
+      reidentification: ["reidentify:player"],
+      classification: ["classify:team"],
+    };
+    const providers = Object.fromEntries(Object.keys(capabilityMap).map((stage, index) => [stage, {
+      id: `fs-${stage}`,
+      version: "1.0.0",
+      protocol: "football-science-tracking-stage-v1",
+      stage,
+      capabilities: capabilityMap[stage],
+      providerFingerprintSha256: "9".repeat(64),
+      executionFingerprintSha256: String(index + 1).repeat(64),
+      executionProfile: {
+        device: "cpu",
+        runtimeMode: "native-stage-process-v1",
+        cpuThreads: 8,
+        sampleFps: 12.5,
+        modelResident: false,
+      },
+      benchmarkOnly: true,
+      status: "candidate-ready",
+      available: true,
+      executionAvailable: true,
+      priority: 100,
+    }]));
+    const panel = renderTrackingCandidatePanel({
+      presentation: { tracking: {
+        provider: { candidateStageExecutionAvailable: true, candidates: Object.values(providers) },
+        groundTruth: { suite: { id: "real-match", revision: 1, status: "draft", benchmarkType: "multi-object", cases: [] } },
+        candidatePipeline: {
+          status: "review",
+          progress: 1,
+          activeRunId: "candidate-fixture",
+          runs: [{
+            id: "candidate-fixture",
+            createdAt: "2026-08-31T10:15:00.000Z",
+            sourceFingerprint: "a".repeat(64),
+            serializedBytes: 2_400_000,
+            review: {
+              trackCount: 24,
+              playerIdentityReviewCount: 20,
+              lowConfidenceTrackCount: 3,
+              reidentificationMergeCount: 4,
+              classificationConflictCount: 2,
+              unassignedObservationCount: 1,
+            },
+          }],
+        },
+        candidateBenchmarkProviders: providers,
+        candidateBenchmarkProvider: providers.reidentification,
+      } },
+    }, { id: "item-candidate" });
+    document.body.innerHTML = `<main style="box-sizing:border-box;width:min(360px,calc(100vw - 24px));margin:12px;padding:12px;background:#fff">${panel}</main>`;
+  });
+}
+
 async function mountContinuityReviewFixture(page) {
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
   await page.evaluate(async () => {
@@ -1097,4 +1161,38 @@ test("verified benchmark evidence stays scannable and contained on desktop and m
   expect(measured.pageOverflow).toBeLessThanOrEqual(1);
   expect(measured.elementOverflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath("tracking-benchmark-result-mobile.png"), fullPage: true });
+});
+
+test("candidate pipeline evidence stays operational and contained on desktop and mobile", async ({ page }, testInfo) => {
+  await mountCandidatePipelineFixture(page);
+  const panel = page.locator(".video-analysis-candidate");
+  await expect(panel).toContainText("Tracking Intelligence v2");
+  await expect(panel).toContainText("Review required");
+  await expect(panel).toContainText(/Identity review\s*20/);
+  await expect(panel.locator('[data-video-analysis-tracking-candidate-stage="reidentification"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(panel.locator('[data-video-analysis-tracking-action="candidate-pipeline-run"]')).toBeEnabled();
+  const geometry = async () => panel.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: window.innerWidth,
+      pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      elementOverflow: element.scrollWidth - element.clientWidth,
+    };
+  });
+  let measured = await geometry();
+  expect(measured.left).toBeGreaterThanOrEqual(0);
+  expect(measured.right).toBeLessThanOrEqual(measured.viewportWidth + 1);
+  expect(measured.pageOverflow).toBeLessThanOrEqual(1);
+  expect(measured.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-candidate-desktop.png"), fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  measured = await geometry();
+  expect(measured.left).toBeGreaterThanOrEqual(0);
+  expect(measured.right).toBeLessThanOrEqual(measured.viewportWidth + 1);
+  expect(measured.pageOverflow).toBeLessThanOrEqual(1);
+  expect(measured.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-candidate-mobile.png"), fullPage: true });
 });

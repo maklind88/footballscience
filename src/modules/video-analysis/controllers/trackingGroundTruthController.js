@@ -16,6 +16,7 @@ import {
   trackingGroundTruthSuiteEntry,
 } from "../services/trackingGroundTruthSuiteService.js";
 import { emptyTrackingBenchmarkEvaluation } from "../services/trackingBenchmarkStateService.js";
+import { trackingBenchmarkProvider } from "../services/trackingBenchmarkProviderService.js";
 import {
   createTrackingProviderRunSuiteArtifact,
   trackingProviderRunSuiteArtifactJson,
@@ -328,8 +329,11 @@ export function createTrackingGroundTruthController(options = {}) {
     const tracking = state.presentation?.tracking || {};
     const workspace = trackingProviderRunWorkspaceEntry(tracking.providerRuns);
     try {
-      const runs = trackingProviderRunsForProvider(workspace, tracking.provider);
       const groundTruthSuite = trackingGroundTruthSuiteEntry(tracking.groundTruth || {});
+      const runs = trackingProviderRunsForProvider(
+        workspace,
+        trackingBenchmarkProvider(tracking, groundTruthSuite.benchmarkType),
+      );
       const artifact = createTrackingProviderRunSuiteArtifact({
         id: `${groundTruthSuite.id || "real-match-pilot"}-${runs[0]?.provider.providerId || "provider"}-runs`,
         runs,

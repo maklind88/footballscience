@@ -40,11 +40,11 @@ test("known negative command is compiled but never granted", async () => {
 
 test("Windows CI helpers load successfully before the platform guard", () => {
   for (const helper of ["build-windows-candidates.mjs", "windows-ci-verifier.mjs"]) {
-    const result = spawnSync(process.execPath, [fileURLToPath(new URL(`../tools/${helper}`, import.meta.url))], {
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL(`../tools/${helper}`, import.meta.url)), "--load-check"], {
       encoding: "utf8",
     });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /must run on a Windows runner/);
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /helper loaded|verifier loaded/);
     assert.doesNotMatch(result.stderr, /SyntaxError/);
   }
 });

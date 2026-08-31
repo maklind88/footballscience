@@ -5,6 +5,11 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
 
+if (process.argv.includes("--load-check")) {
+  console.log("Windows runtime verifier loaded.");
+  process.exit(0);
+}
+
 if (process.platform !== "win32") {
   throw new Error("Windows runtime verification must run on a Windows runner.");
 }

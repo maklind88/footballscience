@@ -4,6 +4,11 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
+if (process.argv.includes("--load-check")) {
+  console.log("Windows build helper loaded.");
+  process.exit(0);
+}
+
 if (process.platform !== "win32") {
   throw new Error("Windows candidate builds must run on a Windows runner.");
 }

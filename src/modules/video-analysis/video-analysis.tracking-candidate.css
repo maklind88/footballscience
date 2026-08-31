@@ -455,3 +455,21 @@
   font-size: 9px;
   line-height: 1.35;
 }
+
+.video-analysis-preannotation__draft {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  color: #50656f;
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.video-analysis-preannotation__draft span {
+  color: #7a5a2b;
+}
+
+.video-analysis-preannotation__draft.is-error,
+.video-analysis-preannotation__draft.is-error span {
+  color: #a12626;
+}

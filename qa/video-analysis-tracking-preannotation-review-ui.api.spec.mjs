@@ -25,6 +25,8 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
           acceptedCount: 1,
           rejectedCount: 0,
           savedCount: 0,
+          draftStatus: "restored",
+          restoredDecisionCount: 12,
           current: {
             id: "suggestion-1",
             entityType: "ball",
@@ -43,6 +45,8 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   expect(html).toContain("attacking-third");
   expect(html).toContain("4,341");
   expect(html).toContain("Unassociated ball");
+  expect(html).toContain("Device progress restored");
+  expect(html).toContain("12 decisions");
   expect(html).toContain("1 samples | 40%");
   for (const action of [
     "preannotation-open",

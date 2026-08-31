@@ -9,6 +9,14 @@ const labels = Object.freeze({
   error: "Needs attention",
 });
 
+const draftLabels = Object.freeze({
+  ready: "Progress saved on this device",
+  restored: "Device progress restored",
+  saving: "Saving progress on this device",
+  "session-only": "Progress lasts for this browser session",
+  error: "Device progress needs attention",
+});
+
 function count(value) {
   return Math.max(0, Number(value) || 0).toLocaleString("en-US");
 }
@@ -50,6 +58,12 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
         </div>
       ` : ""}
       ${review.error ? `<p class="video-analysis-preannotation__error">${escapeHtml(review.error)}</p>` : ""}
+      ${hasWorkspace && draftLabels[review.draftStatus] ? `
+        <p class="video-analysis-preannotation__draft ${review.draftStatus === "error" ? "is-error" : ""}">
+          ${escapeHtml(draftLabels[review.draftStatus])}${review.draftStatus === "restored" && review.restoredDecisionCount ? ` | ${count(review.restoredDecisionCount)} decisions` : ""}
+          ${review.draftError ? `<span>${escapeHtml(review.draftError)}</span>` : ""}
+        </p>
+      ` : ""}
       <div class="video-analysis-preannotation__commands">
         <button type="button" data-video-analysis-tracking-action="preannotation-open" ${!item || active ? "disabled" : ""}>Open workspace</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-accept" ${!current || active ? "disabled" : ""}>Accept</button>

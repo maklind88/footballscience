@@ -270,3 +270,95 @@ test("preannotation review refuses an import when the selected source changes wh
   });
   expect(state.presentation.current.sections[0].items[0].objectTracks).toHaveLength(0);
 });
+
+test("preannotation review restores, serializes, and removes exact local decision progress", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingPreannotationReviewController.js",
+  ));
+  let state = initialState();
+  const writes = [];
+  let removals = 0;
+  const first = track("unassociated-ball", "ball", 500, 0.4, "unassociated");
+  const second = track("associated-player", "player", 1000, 0.8, "associated");
+  const scope = { id: "scope-review", clipId: "clip-1" };
+  const controller = service.createTrackingPreannotationReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getWindow: () => ({ crypto: globalThis.crypto }),
+    getDraftScope: () => scope,
+    pickFiles: async () => ({ caseId: "transition" }),
+    importCase: async () => ({
+      workspaceSha256: "b".repeat(64),
+      sourceSha256: "a".repeat(64),
+      caseId: "transition",
+      tracks: [second],
+      queue: [{ track: first }],
+      summary: { associatedTrackCount: 1, unassociatedObservationCount: 1 },
+    }),
+    loadDraft: async (receivedScope, identity) => {
+      expect(receivedScope).toBe(scope);
+      expect(identity).toMatchObject({
+        itemId: "item-1",
+        clipId: "clip-1",
+        workspaceSha256: "b".repeat(64),
+        caseId: "transition",
+      });
+      return {
+        totalSuggestionCount: 2,
+        decisions: [{ trackId: first.id, decision: "rejected" }],
+        history: [{ trackId: first.id, decision: "rejected" }],
+      };
+    },
+    saveDraft: async (receivedScope, value) => {
+      expect(receivedScope).toBe(scope);
+      writes.push(structuredClone(value));
+      return value;
+    },
+    removeDraft: async (receivedScope, identity) => {
+      expect(receivedScope).toBe(scope);
+      expect(identity.workspaceSha256).toBe("b".repeat(64));
+      removals += 1;
+      return true;
+    },
+  });
+
+  expect(await controller.open()).toBe(true);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    status: "review",
+    pendingCount: 1,
+    rejectedCount: 1,
+    restoredDecisionCount: 1,
+    draftStatus: "restored",
+    current: { id: second.id },
+  });
+
+  expect(controller.handleAction("preannotation-accept")).toBe(true);
+  expect(await controller.flushDraft()).toBe(true);
+  expect(writes.at(-1)).toMatchObject({
+    totalSuggestionCount: 2,
+    decisions: [
+      { trackId: first.id, decision: "rejected" },
+      { trackId: second.id, decision: "accepted" },
+    ],
+  });
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    status: "complete",
+    draftStatus: "ready",
+  });
+
+  expect(controller.handleAction("preannotation-undo")).toBe(true);
+  expect(await controller.flushDraft()).toBe(true);
+  expect(writes.at(-1).decisions).toEqual([{ trackId: first.id, decision: "rejected" }]);
+  expect(state.presentation.tracking.preannotationReview.current).toMatchObject({ id: second.id });
+
+  expect(controller.handleAction("preannotation-undo")).toBe(true);
+  expect(await controller.flushDraft()).toBe(true);
+  expect(removals).toBe(1);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    pendingCount: 2,
+    acceptedCount: 0,
+    rejectedCount: 0,
+    draftStatus: "ready",
+    current: { id: first.id },
+  });
+});

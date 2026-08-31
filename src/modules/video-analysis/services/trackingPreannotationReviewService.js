@@ -91,6 +91,9 @@ function validateWorkspace(pack, workspace, caseId) {
   if (typeof workspace.input?.associationEvaluated !== "boolean") {
     invalid("The preannotation workspace has no sealed association state.");
   }
+  if (workspace.summary?.associationEvaluated !== workspace.input.associationEvaluated) {
+    invalid("The preannotation workspace association summary is inconsistent.");
+  }
   if (workspace.pack?.id !== pack.id || workspace.pack?.sourceSha256 !== pack.source?.sha256
     || workspace.pack?.caseCount !== pack.summary?.caseCount
     || workspace.pack?.reviewStatus !== pack.summary?.reviewStatus) {
@@ -308,10 +311,13 @@ export async function importTrackingPreannotationReviewCase(value = {}, options 
     const entityType = String(track.entityType || "");
     const associationStatus = String(track.associationStatus || "");
     const trackRows = rowsByTrackId.get(motTrackId) || [];
+    const framesIncrease = trackRows.every((row, index) => (
+      index === 0 || trackRows[index - 1].frameNumber < row.frameNumber
+    ));
     if (!entityTypes.has(entityType) || !["associated", "unassociated"].includes(associationStatus)
       || identifier(track.suggestionId, "preannotation suggestion id") !== track.suggestionId
       || integer(track.observationCount, "preannotation observation count", 1, 100_000) !== trackRows.length
-      || track.reviewState !== "unreviewed") {
+      || track.reviewState !== "unreviewed" || !framesIncrease) {
       invalid("Preannotation track lineage is inconsistent.");
     }
     const normalizedTrack = {
@@ -345,6 +351,8 @@ export async function importTrackingPreannotationReviewCase(value = {}, options 
   }
   if (rowsByTrackId.size !== mapTracks.length || associatedTracks.length > 1000 || queue.length > 20_000
     || workspaceValidation.descriptor.summary?.trackCount !== mapTracks.length
+    || workspaceValidation.descriptor.summary?.associatedTrackCount !== associatedTracks.length
+    || workspaceValidation.descriptor.summary?.observationCount !== rows.length
     || workspaceValidation.descriptor.summary?.unassociatedObservationCount !== queue.length) {
     invalid("Preannotation review workload is inconsistent or outside its safety limits.");
   }

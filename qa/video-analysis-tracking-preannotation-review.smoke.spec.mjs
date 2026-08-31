@@ -20,6 +20,8 @@ test("preannotation review panel remains compact and actionable", async ({ page 
             acceptedCount: 1,
             rejectedCount: 0,
             savedCount: 0,
+            draftStatus: "restored",
+            restoredDecisionCount: 12,
             current: {
               id: "suggestion-1",
               entityType: "ball",

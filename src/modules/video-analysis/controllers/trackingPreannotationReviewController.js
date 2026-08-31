@@ -1,6 +1,7 @@
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { importTrackingPreannotationReviewCase } from "../services/trackingPreannotationReviewService.js";
 import { trackingSourceFingerprint } from "./trackingGroundTruthController.js";
+import { createTrackingPreannotationReviewDraftController } from "./trackingPreannotationReviewDraftController.js";
 import {
   patchTrackingState,
   replacePresentationItem,
@@ -23,6 +24,9 @@ function reviewState(value = {}) {
     acceptedCount: Math.max(0, Number(value.acceptedCount) || 0),
     rejectedCount: Math.max(0, Number(value.rejectedCount) || 0),
     savedCount: Math.max(0, Number(value.savedCount) || 0),
+    draftStatus: String(value.draftStatus || "idle"),
+    draftError: String(value.draftError || ""),
+    restoredDecisionCount: Math.max(0, Number(value.restoredDecisionCount) || 0),
     current: value.current && typeof value.current === "object" ? value.current : null,
     error: String(value.error || ""),
   };
@@ -99,6 +103,16 @@ export function createTrackingPreannotationReviewController(options = {}) {
   const getWindow = options.getWindow || (() => globalThis.window);
   const importCase = options.importCase || importTrackingPreannotationReviewCase;
   const pickFiles = options.pickFiles || (() => selectedFiles(getWindow()));
+  const draftController = createTrackingPreannotationReviewDraftController({
+    getState,
+    getContext: options.getContext,
+    getWindow,
+    getDraftScope: options.getDraftScope,
+    loadDraft: options.loadDraft,
+    saveDraft: options.saveDraft,
+    removeDraft: options.removeDraft,
+    now: options.now,
+  });
   let session = null;
 
   function patchReview(patch = {}) {
@@ -108,6 +122,13 @@ export function createTrackingPreannotationReviewController(options = {}) {
         ...patch,
       },
     }));
+  }
+
+  function saveDraftProgress() {
+    const target = session;
+    return draftController.save(target, (patch) => {
+      if (session === target) patchReview(patch);
+    });
   }
 
   function counts() {
@@ -244,6 +265,26 @@ export function createTrackingPreannotationReviewController(options = {}) {
         || first.track.startMs - second.track.startMs
         || first.track.id.localeCompare(second.track.id)
       ));
+      const identity = {
+        itemId: item.id,
+        clipId,
+        angleId,
+        sourceSha256: imported.sourceSha256,
+        workspaceSha256: imported.workspaceSha256,
+        caseId: imported.caseId,
+      };
+      const restored = await draftController.restore(identity);
+      const scope = restored.scope;
+      let restoredDraft = restored.draft;
+      let draftError = restored.error;
+      const latestState = getState();
+      const latestItem = selectedTrackingItem(latestState);
+      if (latestItem?.id !== item.id
+        || String(latestItem?.clipId || latestItem?.clip?.id || "") !== clipId
+        || String(latestState.mediaProduction?.activeAngleId || "primary") !== angleId
+        || trackingSourceFingerprint(latestState) !== sourceSha256) {
+        invalid("The selected clip or video source changed while preannotation was opening.");
+      }
       const previousSession = session;
       if (previousSession?.currentId) {
         updateState((current) => replaceReviewTracks(
@@ -253,24 +294,55 @@ export function createTrackingPreannotationReviewController(options = {}) {
           [],
         ));
       }
-      const existingSavedIds = new Set((currentItem.objectTracks || []).filter((track) => (
+      const existingSavedIds = new Set((latestItem.objectTracks || []).filter((track) => (
         track.metadata?.preannotationWorkspaceSha256 === imported.workspaceSha256
         && track.metadata?.preannotationCaseId === imported.caseId
         && track.metadata?.preannotationReviewState === "saved-review"
       )).map((track) => track.id));
+      const entryIds = new Set(entries.map((entry) => entry.track.id));
+      const restoredDecisions = new Map(entries.filter((entry) => existingSavedIds.has(entry.track.id)).map(
+        (entry) => [entry.track.id, "saved"],
+      ));
+      let restoredHistory = [];
+      let restoredDecisionCount = 0;
+      if (restoredDraft) {
+        try {
+          if (restoredDraft.totalSuggestionCount !== entries.length
+            || restoredDraft.decisions.some((entry) => !entryIds.has(entry.trackId))) {
+            invalid("Saved review progress does not match this sealed suggestion queue.");
+          }
+          restoredDraft.decisions.forEach((entry) => {
+            if (!existingSavedIds.has(entry.trackId)) {
+              restoredDecisions.set(entry.trackId, entry.decision);
+              restoredDecisionCount += 1;
+            }
+          });
+          restoredHistory = restoredDraft.history.filter((entry) => (
+            restoredDecisions.get(entry.trackId) === entry.decision
+          )).map((entry) => ({ id: entry.trackId, decision: entry.decision }));
+        } catch (error) {
+          restoredDraft = null;
+          restoredDecisionCount = 0;
+          restoredHistory = [];
+          for (const [trackId, decision] of [...restoredDecisions]) {
+            if (decision !== "saved") restoredDecisions.delete(trackId);
+          }
+          draftError = error?.message || "Saved review progress could not be matched to this workspace.";
+        }
+      }
       session = {
         itemId: item.id,
         clipId,
         angleId,
+        scope,
         sourceSha256: imported.sourceSha256,
         workspaceSha256: imported.workspaceSha256,
         caseId: imported.caseId,
         entries,
-        decisions: new Map(entries.filter((entry) => existingSavedIds.has(entry.track.id)).map(
-          (entry) => [entry.track.id, "saved"],
-        )),
-        history: [],
+        decisions: restoredDecisions,
+        history: restoredHistory,
         currentId: "",
+        draftRevision: 0,
       };
       patchReview({
         status: "review",
@@ -279,6 +351,9 @@ export function createTrackingPreannotationReviewController(options = {}) {
         associatedTrackCount: imported.summary.associatedTrackCount,
         unassociatedObservationCount: imported.summary.unassociatedObservationCount,
         ...counts(),
+        draftStatus: scope ? draftError ? "error" : restoredDraft ? "restored" : "ready" : "session-only",
+        draftError: draftError || (scope ? "" : "Sign in to keep review progress after this browser session."),
+        restoredDecisionCount,
         current: null,
         error: "",
       });
@@ -304,18 +379,26 @@ export function createTrackingPreannotationReviewController(options = {}) {
       return replaceReviewTracks(state, session.itemId, [current.track.id], addition);
     });
     const currentIndex = session.entries.indexOf(current);
-    return show(pendingIndex(currentIndex + 1));
+    const shown = show(pendingIndex(currentIndex + 1));
+    void saveDraftProgress();
+    return shown;
   }
 
   function undo() {
     if (!sync()) return false;
     if (!session?.history.length) return false;
-    const previous = session.history.pop();
-    if (session.decisions.get(previous.id) === "saved") return false;
+    let previous = null;
+    while (session.history.length && !previous) {
+      const candidate = session.history.pop();
+      if (session.decisions.get(candidate.id) !== "saved") previous = candidate;
+    }
+    if (!previous) return false;
     session.decisions.delete(previous.id);
     updateState((state) => replaceReviewTracks(state, session.itemId, [previous.id], []));
     const index = session.entries.findIndex((entry) => entry.track.id === previous.id);
-    return show(index);
+    const shown = show(index);
+    void saveDraftProgress();
+    return shown;
   }
 
   function next() {
@@ -340,6 +423,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
         savedAny = true;
         updateState((state) => replaceReviewTracks(state, session.itemId, [entry.track.id], [track]));
       }
+      session.history = session.history.filter((entry) => session.decisions.get(entry.id) !== "saved");
       updateState((state) => {
         const summary = counts();
         return patchTrackingState(state, {
@@ -351,10 +435,13 @@ export function createTrackingPreannotationReviewController(options = {}) {
           },
         });
       });
+      await saveDraftProgress();
       options.onEvidenceChanged?.();
       return true;
     } catch (error) {
+      session.history = session.history.filter((entry) => session.decisions.get(entry.id) !== "saved");
       patchReview({ status: "error", ...counts(), error: error?.message || "Accepted review tracks could not be saved." });
+      await saveDraftProgress();
       if (savedAny) options.onEvidenceChanged?.();
       return false;
     }
@@ -370,5 +457,11 @@ export function createTrackingPreannotationReviewController(options = {}) {
     return false;
   }
 
-  return { handleAction, open, saveAccepted, sync };
+  return {
+    flushDraft: draftController.flush,
+    handleAction,
+    open,
+    saveAccepted,
+    sync,
+  };
 }

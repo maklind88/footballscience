@@ -127,6 +127,7 @@ export function createTrackingController(options = {}) {
   const preannotationReviewController = createTrackingPreannotationReviewController({
     getState,
     updateState,
+    getContext: options.getContext,
     getWindow: options.getWindow,
     seekToMatchMs: options.seekToMatchMs,
     persistTrack,

@@ -192,6 +192,34 @@ std::vector<std::size_t> Nms(const std::vector<Candidate>& candidates) {
   return keep;
 }
 
+double BoundedNormalizedExtent(double origin, double extent) {
+  double value = std::min(extent, 1.0 - origin);
+  if (origin + value > 1.0) value = std::nextafter(value, 0.0);
+  if (!(value > 0) || origin + value > 1.0) FSProviderFail("detection-box-invalid");
+  return value;
+}
+
+NSDictionary* NormalizedBox(const Candidate& value, std::size_t width, std::size_t height) {
+  const double frameWidth = static_cast<double>(width);
+  const double frameHeight = static_cast<double>(height);
+  const double left = std::clamp(static_cast<double>(value.left), 0.0, frameWidth - 1.0);
+  const double top = std::clamp(static_cast<double>(value.top), 0.0, frameHeight - 1.0);
+  const double right = std::clamp(static_cast<double>(value.right), left + 1.0, frameWidth);
+  const double bottom = std::clamp(static_cast<double>(value.bottom), top + 1.0, frameHeight);
+  const double normalizedLeft = left / frameWidth;
+  const double normalizedTop = top / frameHeight;
+  const double normalizedWidth = BoundedNormalizedExtent(
+      normalizedLeft, (right - left) / frameWidth);
+  const double normalizedHeight = BoundedNormalizedExtent(
+      normalizedTop, (bottom - top) / frameHeight);
+  return @{
+    @"left": @(normalizedLeft),
+    @"top": @(normalizedTop),
+    @"width": @(normalizedWidth),
+    @"height": @(normalizedHeight),
+  };
+}
+
 void CollectClass(
     const float* prediction,
     int classIndex,
@@ -249,18 +277,11 @@ NSArray<NSDictionary*>* FrameDetections(
   NSMutableArray<NSDictionary*>* result = [NSMutableArray arrayWithCapacity:values.size()];
   for (std::size_t ordinal = 0; ordinal < values.size(); ordinal += 1) {
     Candidate value = values[ordinal];
-    const float left = std::min<float>(width - 1, std::max(0.0F, value.left));
-    const float top = std::min<float>(height - 1, std::max(0.0F, value.top));
-    const float right = std::min<float>(width, std::max(left + 1.0F, value.right));
-    const float bottom = std::min<float>(height, std::max(top + 1.0F, value.bottom));
     [result addObject:@{
       @"id": [NSString stringWithFormat:@"det-%lld-%@-%zu", frameIndex, value.entityType, ordinal],
       @"atMs": @(atMs), @"frameIndex": @(frameIndex),
       @"entityType": value.entityType, @"confidence": @(value.confidence),
-      @"box": @{
-        @"left": @(left / width), @"top": @(top / height),
-        @"width": @((right - left) / width), @"height": @((bottom - top) / height),
-      },
+      @"box": NormalizedBox(value, width, height),
     }];
   }
   return result;

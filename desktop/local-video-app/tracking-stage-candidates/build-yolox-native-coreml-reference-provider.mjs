@@ -17,8 +17,8 @@ const FFMPEG_ARCHIVE_SHA256 = "cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1
 const FFMPEG_ARCHIVE_BYTES = 12_036_420;
 const FFMPEG_SIGNATURE_SHA256 = "b613a00005232a1245ace7080088781ac23a916119d3e5b0d6c042368eee0177";
 const FFMPEG_SIGNATURE_BYTES = 520;
-const EXPECTED_RUNTIME_SHA256 = "32da138b7fc6fdc49a87dec0249a1f456a2bb25feece542c8f2881dacad06583";
-const EXPECTED_RUNTIME_BYTES = 29_135_584;
+const EXPECTED_RUNTIME_SHA256 = "1af02eaa25f043b90b14d2c24afadd19888445d1c705635db8a9e209fd0d84e3";
+const EXPECTED_RUNTIME_BYTES = 29_135_648;
 const MAXIMUM_ORT_ARCHIVE_BYTES = 64 * 1024 * 1024;
 const MAXIMUM_FFMPEG_ARCHIVE_BYTES = 32 * 1024 * 1024;
 const MAXIMUM_SIGNATURE_BYTES = 4 * 1024;
@@ -30,7 +30,7 @@ const sourceInputs = Object.freeze([
   ["yolox-native-coreml-provider.hpp", "1ecf58132fa5f1f29b8fa4a5baf5cb006272d95ec2ef316b2946183d09a67ee4"],
   ["yolox-native-coreml-provider.mm", "d1dced6ca412e77a722cda410b6eda482a864126353c31b66925741404f82a08"],
   ["yolox-native-coreml-contract.mm", "0f15ff8539e28a6b5cb8121393cf1375f909e61124ea926c97765f5ef3967c26"],
-  ["yolox-native-coreml-inference.mm", "c0758e78685a05636cb05da2709ff05f36ff91f568f34a12b9715f06cda84b25"],
+  ["yolox-native-coreml-inference.mm", "ff318478171ef567b665e47b3d0590d7be321d702479da06519baae79c807b6d"],
   ["yolox-native-ffmpeg-decoder.hpp", "6599dc36cdaf3fe7461aa46b8b9218e9525747e7473a522d34a8d8cdd48e030f"],
   ["yolox-native-ffmpeg-decoder.cc", "666378bbd71c9a0a323a334a137c68170b93a6b977143da5a19eda029c1c4f1f"],
 ]);

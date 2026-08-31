@@ -2,75 +2,64 @@
 
 Status: Provisionally accepted for local implementation — not production-ready
 
-Date: 2026-08-30; provisional acceptance 2026-08-31
+Date: 2026-08-30; updated with complete local-slice evidence 2026-08-31
 
 ## Context
 
-FS is a frequently deployed static web product with Vercel APIs and Supabase. Desktop must preserve ordinary web update speed while providing true cold-start access to selected offline content. Hosted code must not receive broad native capabilities, and unsynchronized domain work must be independent of frontend cache lifecycle.
+FS is a frequently deployed static web product with Vercel APIs and Supabase. Desktop must preserve that web platform while providing cold-start access to a selected offline slice. Downloaded frontend code must not decide its own native compatibility or receive broad system capabilities. Unsynchronized work must be durable and independent of frontend-cache replacement.
 
 ## Decision
 
-Use Tauri 2 with the trusted hosted FS origin as the primary frontend delivery path (Candidate A), backed by a deliberately small versioned offline shell and last-known-good compatibility behavior.
+Use Tauri 2 with a stable bundled bootstrap and native-controlled, verified hosted shell generations as the primary delivery model (Candidate A).
 
-Keep native capabilities behind one typed, domain-oriented DesktopBridge. Remote access is deny-by-default and every allowed command is restricted by origin, window, input schema, and command-specific permission.
+Rust owns the fixed source origin, asset integrity, native/sync/local-schema compatibility, capability declaration, health confirmation, app-ready promotion and `candidate`/`active`/`previous` state. The WebView sees only bundled or verified assets at one exact internal origin. Desktop shell storage is native app-data and is isolated from the browser/PWA service-worker namespace.
 
-Keep Candidate B as the viable fallback if later physical Windows, production-origin service-worker, or compatibility evidence shows that Candidate A cannot meet cold-start or security requirements. Do not build Candidate C.
+Expose only typed domain/bootstrap commands through an exact-origin DesktopBridge. Do not expose arbitrary filesystem paths, shell/process execution, SQL, generic HTTP or generic storage. Validate compatibility, `SessionAuthority`, partition, organization/team, operation type/version and payload natively.
 
-## Evidence
+Keep Candidate B as an archived/rebuildable fallback if physical Windows or real production-shell evidence later invalidates Candidate A. Do not maintain B as a feature-equivalent parallel product. Do not build Candidate C.
 
-- packaged Tauri/WKWebView hosted service-worker control passed on Apple Silicon macOS;
-- hosted cold start passed after the origin server was confirmed unreachable;
-- online/offline/online transition passed in one packaged process;
-- origin-scoped two-command native bridge passed;
-- bundled local-asset startup passed;
-- Windows Server 2025 x64 CI compiled three unsigned, unbundled release executables from commit `0b1eb419f9a0c0cbb4fb7175b05b82f9625ac0bc`;
-- WebView2 `151.0.4129.101` hosted startup, service-worker control across process restart, synthetic offline cold restart, and recovery passed;
-- the known but ungranted native command was rejected;
-- a granted command invoked from an unauthorized loopback origin was rejected by Tauri ACL;
-- all existing static/security, API-contract, and four browser-shard web QA jobs passed in the same workflow run;
-- current live FS does not yet have the required fetch/cache worker;
-- the Windows evidence is headless CI evidence, not physical Windows or installer evidence.
+## Accepted evidence
 
-Evidence reference: [FS Desktop Windows Architecture Verification run 33355879972](https://github.com/maklind88/footballscience/actions/runs/33355879972) and `docs/desktop-offline/WINDOWS_CI_EVIDENCE.md`.
+- packaged Apple Silicon macOS Candidate A passed verified promotion, online/offline/restart/online, incompatible-candidate rejection and LKG restart;
+- its native cache retained active `hosted-spike-v11` and previous `hosted-spike-v10` independently of browser/PWA caches;
+- the selected synthetic Session Planner projection survived cold restart and loaded read-only;
+- atomic projection/outbox, accepted-response loss, close/reopen replay, durable acknowledgement and unauthorized-partition behavior passed Rust contracts;
+- the synthetic native `SessionAuthority` supplies bounded identity/lease context without a refresh token in SQLite or frontend storage;
+- packaged macOS Candidate B started without a network dependency;
+- [Windows CI run 33397533148](https://github.com/maklind88/footballscience/actions/runs/33397533148) built and ran Candidate A, Candidate B and an unauthorized-origin executable from commit `03524459614364fe1754af143e5d40e3c228700c`;
+- WebView2 `151.0.4129.101` passed active-generation restart, compatibility/LKG, synthetic online/offline/restart/online and local-projection checks;
+- unauthorized origin and unauthorized command attempts were rejected;
+- static/security gates, API contracts and all four Chromium web regression shards passed in the same run;
+- no existing browser/PWA service-worker source was changed.
 
-## Security implications
+Windows CI is VM evidence, not physical-device, installer or Credential Manager evidence.
 
-- hosted frontend compromise can invoke only explicitly allowed narrow commands;
-- no arbitrary filesystem, path, shell, SQL, process, or generic HTTP capability is allowed;
-- frontend assets and compatibility manifests cannot authorize native installer trust;
-- the native updater must independently verify signed artifacts;
-- the refresh token requires one secure session authority, not webview and Rust refreshers racing;
-- medical and other highly sensitive data remain online-only initially.
+## Security and data implications
+
+- shell cache contains only public static allowlisted assets; it excludes tokens, auth responses, medical data and private/user football data;
+- hosted XSS can reach only explicitly granted typed commands and must still pass native identity, partition and operation checks;
+- local projection/outbox holds only the selected bounded slice in this phase;
+- refresh-token custody must belong to one future OS-backed native session authority; the WebView and SQLite must not retain a second copy;
+- medical and other highly sensitive data remain online-only until separately threat-modeled;
+- promotion is fail-closed, but a compatible candidate that never reports ready still requires a native timeout/quarantine policy before production.
 
 ## Consequences
 
-Positive:
+Candidate A preserves ordinary compatible web delivery, avoids a second frontend product and gives the native runtime control of trust, rollback and offline state. Its costs are a native shell-generation subsystem, compatibility discipline, health monitoring and continuing separate macOS/Windows WebView verification.
 
-- ordinary compatible web deployments remain the normal product path;
-- browser and desktop share the same product code and backend behavior;
-- offline data/storage can evolve behind explicit repository and sync contracts;
-- the native runtime remains small and infrequently released.
+Candidate B has simpler runtime delivery but would bind frontend fixes to native releases and risks product drift. Candidate C would add a second signed code-update system with atomicity, rollback and anti-downgrade obligations that are not justified.
 
-Costs:
+## Remaining gates
 
-- FS needs a carefully versioned service-worker/application-shell strategy;
-- compatibility and health checks are required before new hosted builds displace the last-known-good shell;
-- hosted XSS remains a product-security risk even when system access is bounded;
-- macOS and Windows webview behavior must be tested separately.
-- physical Windows, installer, signing, secure credential storage, and updater behavior remain production-readiness work.
+- Real native auth adapter using Keychain/Credential Manager, one refresh owner, logout/account switch and offline revocation policy.
+- Reviewed Vercel sync endpoint/private transactional Postgres design, after the reconciled migration ledger is accepted; no schema exists yet.
+- Encryption-at-rest, retention, device-loss and local-data purge decisions.
+- Candidate ready-timeout/quarantine and real FS shell/version rollout evidence.
+- Physical Windows installer, real network, sleep/wake, physical restart, signing/update and SmartScreen verification.
+- Manual product UX, accessibility and operational recovery checks.
 
-## Rejected alternative
+These items keep production readiness open; they do not reopen the local delivery decision unless new evidence contradicts Candidate A.
 
-Candidate C is rejected because it creates a second executable-code update system while A and B already work mechanically. Its signing, atomic activation, rollback, compatibility, and anti-downgrade surface is not justified.
+## Gate disposition
 
-## Provisional acceptance criteria and remaining gates
-
-- Passed in Windows CI: x64 unbundled release compilation and hosted cold restart with the synthetic origin unavailable.
-- Passed in Windows CI: same-process synthetic online/offline/online recovery.
-- Passed in Windows CI: only the two intended commands are granted; an ungranted command and an unauthorized origin are rejected.
-- Required before the real hosted shell replaces this spike: compatibility gating, health confirmation, and last-known-good cache retention.
-- Required before native auth/sync implementation handles credentials: one session authority and real Windows Credential Manager integration.
-- Required before any new synchronization schema: reconcile and document the `60` repository / `49` production / `48` staging migration histories.
-- Required before production availability: physical Windows testing, installer UX, signing/SmartScreen, real network switching, sleep/wake, update installation/rollback, and physical restart behavior.
-
-The first three criteria provisionally close the delivery-model architecture gate. The remaining items are implementation and production-readiness gates and must not be represented as passed by headless CI.
+The architecture gate is provisionally closed for the next local implementation phase. Candidate A is primary, Candidate B is fallback evidence, and Candidate C is rejected. No deployment, release, installer publication, real credential use or Supabase change is authorized by this ADR.

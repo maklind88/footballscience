@@ -1,140 +1,94 @@
-# Desktop Delivery Architecture Spike
+# Desktop Delivery and Offline Vertical-Slice Architecture Spike
 
-Date: 2026-08-30; Windows evidence added 2026-08-31
+Date: 2026-08-31
 
-Status: delivery-model architecture gate provisionally closed; physical Windows production-readiness gate remains open
+Status: local architecture gate provisionally closed; production-readiness gate open
 
-## Scope
+## Scope and truth boundary
 
-The spike compares delivery mechanics only. It deliberately does not add SQLite, sync tables, Supabase migrations, secure credentials, updater, signing, installer publication, or product UI.
+The spike now proves a bounded Session Planner offline slice as well as the delivery mechanics. It does not connect a real FS account, use production data, add a Supabase migration or endpoint, persist a refresh token, publish an installer, sign an executable, or deploy anything.
 
-The implementation lives in `desktop/fs-desktop-spike`. It uses current Tauri 2 packages and a temporary isolated Rust toolchain on the audited Mac.
+Candidate A and Candidate B share the same Tauri/Rust core. Candidate A is the primary delivery model. Candidate B is retained as rebuildable fallback evidence, not as a second continuously developed product.
 
-## Candidate A — trusted hosted frontend
+## Candidate A — native bootstrap with verified hosted shell generations
 
-Prototype:
+Candidate A no longer relies on a browser service worker. A stable frontend bundled into the native binary asks Rust to fetch a manifest and assets from the single configured update source `http://127.0.0.1:47842` used by the spike. Rust, rather than downloaded JavaScript, controls trust and activation.
 
-- a packaged Tauri window loads one explicitly trusted local HTTP origin standing in for the production HTTPS origin;
-- the origin installs a small network-first service worker;
-- the service worker caches only the shell, shared bridge contract, and one example payload;
-- remote native access is restricted by Tauri capability URL and an explicit two-command `AppManifest`;
-- a sanitized probe records whether boot used network or cache.
+The native bootstrap:
 
-macOS results:
+- accepts one exact, non-redirecting source origin;
+- checks frontend build ID, native app compatibility, sync protocol version, local-schema version and declared capabilities;
+- verifies every asset path, byte count, content type and SHA-256 before it can be staged;
+- serves only bundled or verified assets from the exact internal WebView origin `http://127.0.0.1:47844`;
+- stores `candidate`, `active` and `previous` generations in native app-data, outside browser/PWA Cache Storage;
+- promotes a candidate atomically only after a nonce-bound application-ready confirmation and preserves the prior generation;
+- retains the active last-known-good generation when a candidate is incompatible or the source is offline.
 
-- online packaged launch: passed;
-- service-worker control retained after closing/reopening the process: passed;
-- origin server confirmed unreachable with `curl`: yes;
-- packaged offline cold start after server shutdown: passed;
-- same-process online → offline: passed;
-- same-process offline → online recovery: passed;
-- allowed native version/probe commands: passed;
-- generic filesystem/shell/SQL/HTTP capability: absent;
+There is no desktop service worker and no unconditional `skipWaiting`. The shell allowlist excludes tokens, authenticated API responses, medical data, private football data and user data. Domain data and pending mutations live in the local projection/outbox, not in the shell cache.
 
-This proves the delivery mechanism on WKWebView, not the live FS cache policy. The production worker remains push-only and the current shell would not pass the same test.
+## First offline vertical slice
 
-Windows CI results on exact commit `0b1eb419f9a0c0cbb4fb7175b05b82f9625ac0bc`:
+The selected Session Planner session contains normalized session metadata, ordered blocks, player references, exercise references and tenant/organization/team partition context. The approximately 3.10 MB canonical planner document is explicitly excluded.
 
-- Windows Server 2025 Datacenter x64 runner with WebView2 `151.0.4129.101`: detected and exercised;
-- hosted release compilation and startup: passed;
-- versioned shell cache `fs-desktop-hosted-shell-v3`: installed and controlled after process restart;
-- online → offline transition with the loopback-only synthetic origin stopped: passed from cache;
-- process restart while the synthetic origin remained unavailable: passed with service-worker control retained;
-- offline → online recovery in the same process: passed after the synthetic origin restarted;
-- command compiled into the binary but omitted from capabilities: rejected;
-- granted command invoked from unauthorized origin `http://127.0.0.1:47843`: rejected by ACL.
+The packaged shell renders the selected projection read-only. SQLite schema v2 stores the bounded projection plus an atomic outbox and durable acknowledgement receipts. Contract tests cover typed rename/duration operations, transaction rollback, close/reopen persistence, accepted-response loss, idempotent replay, acknowledgement-before-delete and unauthorized partition rejection. The UI is intentionally not yet writable.
 
-These are automated WebView2 results from a GitHub-hosted Windows VM. The network transition was simulated by stopping and starting an unprivileged loopback server. It is not evidence for a physical PC, real adapter switching, installer UX, sleep/wake, Credential Manager, SmartScreen, update UX, or physical Windows restart. Full evidence is recorded in `WINDOWS_CI_EVIDENCE.md` and [GitHub Actions run 33355879972](https://github.com/maklind88/footballscience/actions/runs/33355879972).
+`SessionAuthority` is native-owned in shape but synthetic in this phase. It supplies actor, organization, team, partition, authentication epoch and bounded offline lease without using frontend `localStorage` or storing a refresh token in SQLite. OS credential-vault integration and real token refresh remain unimplemented gates.
 
-## Candidate B — bundled local frontend
+## Candidate B — bundled fallback evidence
 
-Prototype:
+Candidate B embeds the local frontend and starts without any network dependency. It retains only the minimal two-command spike bridge and passed packaged macOS startup and Windows WebView2 startup. It is viable recovery evidence, but keeping it feature-equivalent would make ordinary frontend changes depend on native releases and create product drift. It therefore remains an archived/rebuildable fallback, not a parallel delivery rail.
 
-- local frontend assets are embedded in the Tauri binary;
-- the same two-command DesktopBridge is used;
-- startup records a probe without contacting a server.
+## Verification results
 
-macOS result: packaged local-asset startup and native bridge passed. Windows CI result: release compilation, local-asset startup, the same two-command bridge, and rejection of the compiled-but-ungranted command passed. Offline reliability is inherently stronger, but every ordinary frontend change in this raw model requires a native release. That conflicts with FS's frequent web deployment model.
+### macOS, verified locally
 
-## Candidate C — separately signed frontend bundle
+On Apple Silicon macOS with a packaged application:
 
-No executable-code updater was built. Candidate C would solve B's update delay at the cost of a second signed code-distribution, compatibility, atomic activation, rollback, and anti-downgrade system. A and B both worked at the mechanical level, so C is not justified at this gate.
+- verified Candidate A download, health confirmation and application-ready promotion passed;
+- online → offline, cold process restart with the source stopped, and offline → online recovery passed;
+- an incompatible local-schema candidate was rejected while active `hosted-spike-v11` and previous `hosted-spike-v10` remained intact;
+- restart while the incompatible source remained reachable loaded the active last-known-good shell and local projection;
+- the selected revision-7 synthetic session projection loaded with partition validation;
+- Candidate B rebuilt and started without a network dependency;
+- origin `http://127.0.0.1:47843` was denied access to a command granted only to the trusted origin.
+
+### Windows, verified through GitHub Actions CI
+
+[Run 33397533148](https://github.com/maklind88/footballscience/actions/runs/33397533148) verified exact commit `03524459614364fe1754af143e5d40e3c228700c` on Windows Server 2025 AMD64 with WebView2 `151.0.4129.101`:
+
+- Candidate A, Candidate B and the unauthorized-origin probe compiled as release executables;
+- Candidate A WebView2 startup, native generation persistence across process restart, incompatible-candidate rejection and last-known-good restart passed;
+- synthetic online → offline, offline process restart and offline → online recovery passed;
+- the local Session Planner projection loaded after restart;
+- Candidate B WebView2 startup without network dependency passed;
+- unauthorized origin and unauthorized native command paths were rejected;
+- native Rust tests, desktop contract tests, static/security gates, API contracts and all four Chromium regression shards passed;
+- an unsigned, checksummed evidence artifact was generated; no installer or release was produced.
+
+The Windows runner is a hosted VM. It does not prove physical Windows behavior, installer UX, sleep/wake, real adapter switching, Credential Manager, signed update UX, SmartScreen or a physical OS restart.
 
 ## Decision matrix
 
-| Criterion | A: hosted + offline shell | B: bundled frontend | C: signed frontend bundle |
+| Criterion | A: verified hosted generations | B: bundled frontend | C: separately signed bundle |
 | --- | --- | --- | --- |
-| Ordinary web update speed | Best fit | Requires native release | Fast after a second update system exists |
-| macOS offline cold start | Passed spike | Passed spike | Expected, not built |
-| Windows offline cold start | Passed in headless Windows CI with synthetic origin unavailable | Passed in headless Windows CI without network dependency | Not tested |
-| Remote/XSS native risk | Acceptable only with origin-scoped, narrow commands | Lower remote-origin risk | High supply-chain/update complexity |
-| Native capability isolation | Passed two-command spike | Passed two-command spike | Would need the same bridge plus bundle verification |
-| Current repo compatibility | Preserves live static app model | Would freeze frontend at installer version | Requires new frontend packaging pipeline |
-| Recovery from broken web deploy | Versioned last-known-good cache required | Installed bundle remains stable | Explicit atomic rollback required |
-| Preserve offline work | Feasible; work must live outside shell cache | Feasible | Feasible but updater must coordinate |
-| Code duplication | Lowest if hosted UI remains primary | Risk of web/desktop drift | Low UI duplication, high platform duplication |
-| Long-term complexity | Medium | Low runtime, high release friction | Highest |
+| Compatible web update speed | Best fit | Requires native release | Fast only after building a second updater |
+| macOS packaged cold restart | Passed | Passed | Not built |
+| Windows CI cold restart | Passed with synthetic source unavailable | Startup passed without network | Not built |
+| Broken/incompatible shell recovery | Active/previous/candidate and LKG passed | Installed binary remains stable | Would need a second atomic rollback system |
+| Native attack surface | Exact origin plus typed commands | Smallest remote-origin surface | Adds updater/supply-chain surface |
+| Browser/PWA isolation | Native cache; no desktop SW | Embedded assets | Would need explicit isolation |
+| Product/release drift | Lowest | High if kept feature-equivalent | Highest operational complexity |
 
-## Recommendation after Windows CI
+## Decision
 
-Candidate A remains the recommended fit, with these mandatory conditions:
+Candidate A remains the recommended architecture for the next local implementation phase. Candidate B remains a viable fallback only. Candidate C remains unjustified.
 
-1. desktop remote capability stays deny-by-default and command-specific;
-2. the shell cache is small, versioned, health-checked, and compatibility-gated;
-3. the previously compatible shell remains available until the new build proves healthy;
-4. offline domain data and pending work live outside Cache Storage;
-5. no broad native API is callable from hosted code;
-6. the live push worker is evolved carefully or desktop caching gets an isolated, testable scope;
-7. physical Windows readiness tests pass before installer or production availability.
+The local architecture gate can be provisionally closed because the same bounded slice passed packaged macOS verification and isolated Windows CI, including cold restart, reconnect, compatibility rejection, LKG retention, local projection persistence, bridge restrictions and existing web regression.
 
-Candidate B remains the recovery fallback if Windows/WebView2 or production-origin service-worker behavior fails. Candidate C remains rejected unless both A and B demonstrably fail the product requirements.
+This is not production acceptance. Before any public desktop build, Candidate A still needs real auth and secure credential storage, logout/account-switch/revocation behavior, a reviewed real sync boundary, encryption and data-retention decisions, a native candidate watchdog/quarantine path for a compatible build that never reports ready, physical Windows verification, installer/signing/SmartScreen work, sleep/wake and real-network testing.
 
-## Proposed session authority
+## Supabase and synchronization boundary
 
-The current browser client remains unchanged for web. Desktop should have one session authority, ultimately native-owned:
+The `60` repository / `49` production / `48` staging histories are now reconciled in `MIGRATION_RECONCILIATION.md`; no history was repaired and no remote object was changed. The trusted future baseline is the reviewed logical ledger plus catalog evidence, not any count by itself.
 
-- native auth code stores the refresh credential in macOS Keychain or Windows Credential Manager;
-- only that authority rotates the refresh token and serializes concurrent refreshes;
-- frontend and sync consumers receive short-lived access tokens, never the persisted refresh token;
-- sign-out clears/invalidates the authority and blocks sync;
-- the webview Supabase client must not auto-refresh a second copy in desktop mode;
-- Realtime and Storage integrations receive updated access tokens through explicit adapters.
-
-The spike includes a unit-tested session-authority contract: twelve concurrent consumers cause one refresh and the consumer snapshot excludes the refresh token. Native secure storage and real Supabase integration are not implemented.
-
-## Proposed first FS sync shape
-
-For the Session Planner vertical slice:
-
-- stable client/server UUIDs for session and block records;
-- server-controlled row revision and cursor;
-- pull snapshot/change page scoped by authorized organization/team and current working window;
-- push operations with `operation_id`, `operation_type`, `operation_version`, entity ID, tenant scope, base revision, and validated payload;
-- server-side idempotency record before acknowledgment;
-- archive/tombstone instead of hard delete;
-- local entity update and outbox insert in one SQLite transaction;
-- outbox removal only after durable accepted/already-applied acknowledgment;
-- Realtime only as a wake-up signal;
-- snapshot fallback preserves and rebases the outbox.
-
-No generic Postgres-to-SQLite replication is proposed.
-
-## Supabase work required after the gate
-
-No Supabase change was applied. Before implementation:
-
-1. reconcile local/production/staging migration histories;
-2. review and complete the undeployed Session Planner domain migration;
-3. add versioned, tenant-checked idempotent sync operations and change cursor/tombstone contracts;
-4. keep direct client grants minimal and RLS intentional;
-5. expose sync through the same guarded server boundary unless direct Supabase access proves simpler without weakening authorization;
-6. add cross-tenant, replay, malformed payload, stale revision, and revocation tests;
-7. apply only to a local/branch or authorized staging environment before production.
-
-The known migration counts remain `60` repository migrations, `49` production migrations, and `48` staging migrations. This spike neither adds a migration nor attempts to repair that history. No new synchronization schema may be introduced until the difference is reconciled and documented.
-
-## Gate disposition
-
-The delivery-model architecture gate is provisionally closed for the next local implementation phase. Windows CI built the exact spike and passed WebView2 startup, synthetic offline cold restart, transition recovery, narrow-command enforcement, unauthorized-command denial, and unauthorized-origin denial. Candidate A therefore remains primary and Candidate B remains a viable recovery fallback.
-
-This does not close production readiness. Physical Windows verification, installer/signing, Credential Manager integration, cache compatibility/last-known-good retention against the real FS shell, and the migration-history reconciliation remain explicit later gates. No installer was generated or published, no release was created, and no staging or production system changed.
+The recommended public sync boundary is a narrow authenticated Vercel handler that derives identity and scope server-side and later calls one private transactional Postgres routine. Direct desktop-to-Supabase RPC remains a conditional fallback only if it preserves the same authorization, version isolation, observability and idempotency. A new server is not justified.

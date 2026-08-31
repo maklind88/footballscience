@@ -1,5 +1,6 @@
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { trackingPointAt } from "./trackingGeometryService.js";
+import { trackingGroundTruthSceneReviewTimes } from "./trackingGroundTruthSceneReviewService.js";
 
 const entityTypes = Object.freeze(["player", "ball", "referee"]);
 
@@ -69,5 +70,31 @@ export function trackingGroundTruthCheckpointDiagnostics(value = {}) {
       entityType,
       visible.filter((entry) => entry.track.entityType === entityType).length,
     ])),
+  };
+}
+
+export function auditTrackingGroundTruthCheckpoints(value = {}) {
+  const checkpoints = trackingGroundTruthSceneReviewTimes(value);
+  const issueCountsByCode = {};
+  let issueCheckpointCount = 0;
+  let issueCount = 0;
+  let firstIssueAtMs = null;
+  checkpoints.forEach((atMs) => {
+    const diagnostics = trackingGroundTruthCheckpointDiagnostics({ ...value, atMs });
+    if (!diagnostics.issues.length) return;
+    issueCheckpointCount += 1;
+    issueCount += diagnostics.issues.length;
+    if (firstIssueAtMs == null) firstIssueAtMs = atMs;
+    diagnostics.issues.forEach((entry) => {
+      issueCountsByCode[entry.code] = (issueCountsByCode[entry.code] || 0) + 1;
+    });
+  });
+  return {
+    ready: issueCount === 0,
+    checkpointCount: checkpoints.length,
+    issueCheckpointCount,
+    issueCount,
+    firstIssueAtMs,
+    issueCountsByCode,
   };
 }

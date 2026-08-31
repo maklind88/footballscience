@@ -16,6 +16,7 @@ import {
 import { sampleTrackAt } from "./trackingBenchmarkMetrics.js";
 import { normalizeTrackingBenchmarkScenarios } from "./trackingBenchmarkScenarioService.js";
 import { normalizeGroundTruthReferenceEvidence } from "./trackingGroundTruthReferenceEvidenceService.js";
+import { auditTrackingGroundTruthCheckpoints } from "./trackingGroundTruthCheckpointService.js";
 import {
   trackingGroundTruthSceneReviewEvidence,
   trackingGroundTruthSceneReviewProgress,
@@ -349,6 +350,15 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
       readiness.issues.map((entry) => entry.message).join(" "),
       "TRACKING_GROUND_TRUTH_REVIEW_REQUIRED",
     );
+  }
+  if (value.requireSceneReview === true) {
+    const checkpointAudit = auditTrackingGroundTruthCheckpoints(value);
+    if (!checkpointAudit.ready) {
+      throw new TrackingGroundTruthError(
+        `Resolve ${checkpointAudit.issueCount} known tracking issues across ${checkpointAudit.issueCheckpointCount} checkpoints before locking.`,
+        "TRACKING_GROUND_TRUTH_CHECKPOINT_ISSUES",
+      );
+    }
   }
   const sourceFingerprint = normalizeBenchmarkFingerprint(value.sourceFingerprint);
   const frame = normalizeBenchmarkFrame(value.frame);

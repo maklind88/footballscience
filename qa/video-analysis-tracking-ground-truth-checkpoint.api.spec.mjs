@@ -96,3 +96,50 @@ test("checkpoint diagnostics expose visible entities, gaps, identity work and ex
     atMs: 500,
   }).unselectedVisibleCount).toBe(0);
 });
+
+test("ground-truth artifact creation re-audits every checkpoint before locking", async () => {
+  const checkpoint = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingGroundTruthCheckpointService.js",
+  ));
+  const groundTruth = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingGroundTruthService.js",
+  ));
+  const sceneReview = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingGroundTruthSceneReviewService.js",
+  ));
+  const selected = [track("player", "player"), track("ball", "ball"), track("referee", "referee")];
+  const outside = track("outside", "player");
+  const input = {
+    sourceFingerprint: "a".repeat(64),
+    angleId: "primary",
+    frame: { width: 1920, height: 1080 },
+    range: { startMs: 0, endMs: 1000 },
+    tracks: [...selected, outside],
+    selectedTrackIds: selected.map((entry) => entry.id),
+    benchmarkTargetTrackId: selected[0].id,
+    benchmarkType: "multi-object",
+    reviewedBy: "analyst-1",
+    attested: true,
+    exhaustiveSceneAttested: true,
+    requireSceneReview: true,
+  };
+  input.sceneReview = sceneReview.trackingGroundTruthSceneReviewTimes(input).reduce(
+    (review, atMs) => sceneReview.reviewTrackingGroundTruthSceneFrame(review, input, atMs),
+    sceneReview.createTrackingGroundTruthSceneReview(input),
+  );
+
+  expect(checkpoint.auditTrackingGroundTruthCheckpoints(input)).toMatchObject({
+    ready: false,
+    checkpointCount: 3,
+    issueCheckpointCount: 3,
+    issueCount: 3,
+    firstIssueAtMs: 0,
+    issueCountsByCode: { "outside-reference": 3 },
+  });
+  expect(() => groundTruth.createGroundTruthArtifact(input, { now: () => 1_800_000_000_000 }))
+    .toThrow(/known tracking issues across 3 checkpoints/i);
+  input.selectedTrackIds.push(outside.id);
+  expect(checkpoint.auditTrackingGroundTruthCheckpoints(input).ready).toBe(true);
+  expect(groundTruth.createGroundTruthArtifact(input, { now: () => 1_800_000_000_000 }))
+    .toMatchObject({ reviewEvidence: { selectedTrackCount: 4 } });
+});

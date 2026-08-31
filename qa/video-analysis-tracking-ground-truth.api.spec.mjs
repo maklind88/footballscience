@@ -241,6 +241,7 @@ test("scene review checkpoints are source-bound, resumable, and complete only on
   const context = {
     sourceFingerprint,
     angleId: "angle-1",
+    reviewedBy: "analyst-1",
     range: { startMs: 0, endMs: 1000 },
   };
   let ledger = review.createTrackingGroundTruthSceneReview(context);
@@ -266,12 +267,18 @@ test("scene review checkpoints are source-bound, resumable, and complete only on
     nextAtMs: null,
   });
   expect(review.trackingGroundTruthSceneReviewEvidence(ledger, context)).toMatchObject({
+    protocol: "football-science-ground-truth-scene-review-v2",
+    reviewedBy: "analyst-1",
     reviewedSampleCount: 3,
     expectedSampleCount: 3,
     coverageRatio: 1,
   });
   const evidence = review.trackingGroundTruthSceneReviewEvidence(ledger, context);
   expect(review.validateTrackingGroundTruthSceneReviewEvidence(evidence, context)).toEqual(evidence);
+  const legacyEvidence = { ...evidence, protocol: "football-science-ground-truth-scene-review-v1" };
+  delete legacyEvidence.reviewedBy;
+  expect(review.validateTrackingGroundTruthSceneReviewEvidence(legacyEvidence, context))
+    .toEqual(legacyEvidence);
   expect(() => review.validateTrackingGroundTruthSceneReviewEvidence({
     ...evidence,
     reviewerClaim: "untrusted-extra-field",
@@ -279,6 +286,10 @@ test("scene review checkpoints are source-bound, resumable, and complete only on
   expect(review.trackingGroundTruthSceneReviewProgress(ledger, {
     ...context,
     sourceFingerprint: "b".repeat(64),
+  })).toMatchObject({ reviewedSampleCount: 0, complete: false });
+  expect(review.trackingGroundTruthSceneReviewProgress(ledger, {
+    ...context,
+    reviewedBy: "analyst-2",
   })).toMatchObject({ reviewedSampleCount: 0, complete: false });
 });
 
@@ -596,7 +607,13 @@ test("selected-object controller uses one player target and locks its evidence p
     reviewEvidence: {
       benchmarkType: "selected-object",
       selectedObjectTargetTrackId: player.id,
-      sceneReview: { reviewedSampleCount: 3, expectedSampleCount: 3, coverageRatio: 1 },
+      sceneReview: {
+        protocol: "football-science-ground-truth-scene-review-v2",
+        reviewedBy: "analyst-1",
+        reviewedSampleCount: 3,
+        expectedSampleCount: 3,
+        coverageRatio: 1,
+      },
     },
   });
   expect(artifact.groundTruth.tracks.map((track) => track.id)).toEqual([player.id]);

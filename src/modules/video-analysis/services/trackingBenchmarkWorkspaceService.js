@@ -16,6 +16,7 @@ import {
   validateGroundTruthArtifact,
 } from "./trackingGroundTruthService.js";
 import { normalizeTrackingGroundTruthSceneReview } from "./trackingGroundTruthSceneReviewService.js";
+import { normalizeTrackingReviewerIdentity } from "./trackingReviewerIdentityService.js";
 import {
   MAX_TRACKING_PROVIDER_RUNS_PER_WORKSPACE,
   MAX_TRACKING_PROVIDER_RUN_WORKSPACE_BYTES,
@@ -102,10 +103,29 @@ function uniqueIds(values = [], label = "id") {
   return ids;
 }
 
+function sameSceneReviewLedger(value = {}, normalized = {}) {
+  return value.protocol === normalized.protocol
+    && value.sourceFingerprint === normalized.sourceFingerprint
+    && value.angleId === normalized.angleId
+    && value.reviewedBy === normalized.reviewedBy
+    && Number(value.range?.startMs) === normalized.range.startMs
+    && Number(value.range?.endMs) === normalized.range.endMs
+    && Number(value.stepMs) === normalized.stepMs
+    && JSON.stringify(value.reviewedAtMs) === JSON.stringify(normalized.reviewedAtMs);
+}
+
 function safeDraft(value = {}, itemId = "") {
   const status = value.status === "locked" ? "locked" : "draft";
   const lockedArtifact = value.lockedArtifact ? validateGroundTruthArtifact(value.lockedArtifact) : null;
   if (status === "locked" && !lockedArtifact) invalid("A locked benchmark draft needs its immutable artifact.");
+  const draftReviewer = normalizeTrackingReviewerIdentity(value.reviewedBy);
+  if (String(value.reviewedBy || "").trim() && !draftReviewer) {
+    invalid("Invalid benchmark reviewer identity.");
+  }
+  const reviewedBy = draftReviewer
+    || normalizeTrackingReviewerIdentity(lockedArtifact?.reviewEvidence?.reviewedBy);
+  const sceneReview = normalizeTrackingGroundTruthSceneReview(value.sceneReview, { ...value, reviewedBy });
+  const reviewLedgerPreserved = sameSceneReviewLedger(value.sceneReview, sceneReview);
   return {
     itemId: identifier(itemId || value.itemId, "benchmark item id"),
     status,
@@ -120,9 +140,14 @@ function safeDraft(value = {}, itemId = "") {
     angleId: identifier(value.angleId, "camera angle id", true),
     frame: safeFrame(value.frame),
     range: safeRange(value.range),
-    sceneReview: normalizeTrackingGroundTruthSceneReview(value.sceneReview, value),
-    attested: value.attested === true,
-    exhaustiveSceneAttested: value.exhaustiveSceneAttested === true,
+    sceneReview,
+    reviewedBy,
+    attested: lockedArtifact
+      ? lockedArtifact.reviewEvidence?.attested === true
+      : reviewLedgerPreserved && value.attested === true,
+    exhaustiveSceneAttested: lockedArtifact
+      ? lockedArtifact.reviewEvidence?.exhaustiveSceneAttested === true
+      : reviewLedgerPreserved && value.exhaustiveSceneAttested === true,
     lockedArtifact,
     lockedAt: optionalIso(value.lockedAt, "benchmark lock time"),
     downloadedAt: optionalIso(value.downloadedAt, "benchmark download time"),

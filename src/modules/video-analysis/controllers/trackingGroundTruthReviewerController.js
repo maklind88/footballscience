@@ -1,4 +1,5 @@
 import { normalizeTrackingReviewerIdentity } from "../services/trackingReviewerIdentityService.js";
+import { createTrackingGroundTruthSceneReview } from "../services/trackingGroundTruthSceneReviewService.js";
 
 export function createTrackingGroundTruthReviewerController(options = {}) {
   const getState = options.getState || (() => ({}));
@@ -24,6 +25,7 @@ export function createTrackingGroundTruthReviewerController(options = {}) {
     }
     updateState((current) => options.patchGroundTruth(current, itemId, {
       reviewedBy,
+      sceneReview: createTrackingGroundTruthSceneReview({ ...truth, reviewedBy }),
       attested: false,
       exhaustiveSceneAttested: false,
       error: String(value || "").trim() && !reviewedBy

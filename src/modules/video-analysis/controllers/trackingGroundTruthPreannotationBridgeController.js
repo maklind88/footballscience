@@ -119,15 +119,16 @@ export function createTrackingGroundTruthPreannotationBridgeController(options =
     const benchmarkTargetTrackId = selectedTrackIds.includes(truth.benchmarkTargetTrackId)
       ? truth.benchmarkTargetTrackId
       : tracks.find((track) => track.entityType === "player")?.id || "";
+    const reviewedBy = normalizeTrackingReviewerIdentity(truth.reviewedBy)
+      || normalizeTrackingReviewerIdentity(getReviewer());
     updateState((current) => patchDraft(current, item.id, {
       ...context,
       status: "draft",
       selectedTrackIds,
       benchmarkTargetTrackId,
       workloadEvidence,
-      sceneReview: createTrackingGroundTruthSceneReview(context),
-      reviewedBy: normalizeTrackingReviewerIdentity(truth.reviewedBy)
-        || normalizeTrackingReviewerIdentity(getReviewer()),
+      sceneReview: createTrackingGroundTruthSceneReview({ ...context, reviewedBy }),
+      reviewedBy,
       attested: false,
       exhaustiveSceneAttested: false,
       error: "",

@@ -1,4 +1,8 @@
+import { normalizeTrackingReviewerIdentity } from "./trackingReviewerIdentityService.js";
+
 export const TRACKING_GROUND_TRUTH_SCENE_REVIEW_PROTOCOL =
+  "football-science-ground-truth-scene-review-v2";
+export const TRACKING_GROUND_TRUTH_SCENE_REVIEW_LEGACY_PROTOCOL =
   "football-science-ground-truth-scene-review-v1";
 export const TRACKING_GROUND_TRUTH_SCENE_REVIEW_STEP_MS = 500;
 
@@ -18,6 +22,9 @@ function normalizedContext(value = {}) {
       ? String(value.sourceFingerprint).toLowerCase()
       : "",
     angleId: String(value.angleId || "").trim().slice(0, 160),
+    reviewedBy: normalizeTrackingReviewerIdentity(
+      value.reviewedBy || value.reviewEvidence?.reviewedBy,
+    ),
     range: { startMs, endMs },
   };
 }
@@ -39,6 +46,7 @@ export function createTrackingGroundTruthSceneReview(contextValue = {}) {
     protocol: TRACKING_GROUND_TRUTH_SCENE_REVIEW_PROTOCOL,
     sourceFingerprint: context.sourceFingerprint,
     angleId: context.angleId,
+    reviewedBy: context.reviewedBy,
     range: context.range,
     stepMs: TRACKING_GROUND_TRUTH_SCENE_REVIEW_STEP_MS,
     reviewedAtMs: [],
@@ -49,6 +57,7 @@ function contextMatches(review = {}, context = {}) {
   return review.protocol === TRACKING_GROUND_TRUTH_SCENE_REVIEW_PROTOCOL
     && review.sourceFingerprint === context.sourceFingerprint
     && review.angleId === context.angleId
+    && review.reviewedBy === context.reviewedBy
     && Number(review.range?.startMs) === context.range.startMs
     && Number(review.range?.endMs) === context.range.endMs
     && Number(review.stepMs) === TRACKING_GROUND_TRUTH_SCENE_REVIEW_STEP_MS;
@@ -104,8 +113,10 @@ export function reviewTrackingGroundTruthSceneFrame(value = {}, contextValue = {
 export function trackingGroundTruthSceneReviewEvidence(value = {}, contextValue = {}) {
   const progress = trackingGroundTruthSceneReviewProgress(value, contextValue);
   if (!progress.complete) throw new Error("Every scene review checkpoint must be completed before locking.");
+  if (!progress.review.reviewedBy) throw new Error("Scene review requires a named human reviewer.");
   return {
     protocol: TRACKING_GROUND_TRUTH_SCENE_REVIEW_PROTOCOL,
+    reviewedBy: progress.review.reviewedBy,
     stepMs: TRACKING_GROUND_TRUTH_SCENE_REVIEW_STEP_MS,
     reviewedSampleCount: progress.reviewedSampleCount,
     expectedSampleCount: progress.expectedSampleCount,
@@ -115,17 +126,23 @@ export function trackingGroundTruthSceneReviewEvidence(value = {}, contextValue 
 
 export function validateTrackingGroundTruthSceneReviewEvidence(value = {}, contextValue = {}) {
   const expected = trackingGroundTruthSceneReviewTimes(contextValue).length;
-  const allowedKeys = [
+  const v1Keys = [
     "coverageRatio",
     "expectedSampleCount",
     "protocol",
     "reviewedSampleCount",
     "stepMs",
   ];
+  const v2Keys = [...v1Keys, "reviewedBy"].sort();
   const keys = Object.keys(value).sort();
+  const legacy = value.protocol === TRACKING_GROUND_TRUTH_SCENE_REVIEW_LEGACY_PROTOCOL;
+  const allowedKeys = legacy ? v1Keys : v2Keys;
+  const reviewedBy = normalizeTrackingReviewerIdentity(value.reviewedBy);
+  const expectedReviewer = normalizedContext(contextValue).reviewedBy;
   if (keys.length !== allowedKeys.length
     || keys.some((key, index) => key !== allowedKeys[index])
-    || value.protocol !== TRACKING_GROUND_TRUTH_SCENE_REVIEW_PROTOCOL
+    || (!legacy && value.protocol !== TRACKING_GROUND_TRUTH_SCENE_REVIEW_PROTOCOL)
+    || (!legacy && (!reviewedBy || reviewedBy !== expectedReviewer))
     || Number(value.stepMs) !== TRACKING_GROUND_TRUTH_SCENE_REVIEW_STEP_MS
     || Number(value.reviewedSampleCount) !== expected
     || Number(value.expectedSampleCount) !== expected
@@ -133,7 +150,8 @@ export function validateTrackingGroundTruthSceneReviewEvidence(value = {}, conte
     throw new Error("Locked scene-review evidence is incomplete or invalid.");
   }
   return {
-    protocol: TRACKING_GROUND_TRUTH_SCENE_REVIEW_PROTOCOL,
+    protocol: value.protocol,
+    ...(!legacy ? { reviewedBy } : {}),
     stepMs: TRACKING_GROUND_TRUTH_SCENE_REVIEW_STEP_MS,
     reviewedSampleCount: expected,
     expectedSampleCount: expected,

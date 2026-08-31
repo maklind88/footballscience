@@ -528,6 +528,7 @@ test("local benchmark workspace is versioned, bounded and tenant scoped", async 
           angleId: artifact.sourceEvidence.angleId,
           frame: artifact.frame,
           range: artifact.range,
+          reviewedBy: artifact.reviewEvidence.reviewedBy,
           attested: true,
           exhaustiveSceneAttested: true,
           lockedArtifact: artifact,
@@ -555,7 +556,7 @@ test("local benchmark workspace is versioned, bounded and tenant scoped", async 
     protocol: "football-science-tracking-benchmark-workspace-v1",
     scope: { organizationId: "org-1", teamId: "team-1", userId: "analyst-1", sourceType: "match" },
     groundTruth: {
-      byItemId: { "item-1": { benchmarkType: "multi-object" } },
+      byItemId: { "item-1": { benchmarkType: "multi-object", reviewedBy: "analyst-1" } },
       suite: { benchmarkType: "multi-object", error: "", cases: [expect.objectContaining({ id: artifact.id })] },
     },
     providerRuns: { error: "", byItemId: { "item-1": [expect.objectContaining({ id: run.id })] } },
@@ -572,6 +573,65 @@ test("local benchmark workspace is versioned, bounded and tenant scoped", async 
   forgedDraftType.groundTruth.byItemId["item-1"].benchmarkType = "selected-object";
   expect(workspaceService.validateTrackingBenchmarkWorkspaceArtifact(forgedDraftType)
     .groundTruth.byItemId["item-1"].benchmarkType).toBe("multi-object");
+  const placeholderReviewer = structuredClone(workspace);
+  placeholderReviewer.groundTruth.byItemId["item-1"].reviewedBy = "local-analyst";
+  expect(() => workspaceService.validateTrackingBenchmarkWorkspaceArtifact(placeholderReviewer))
+    .toThrow(/reviewer identity/i);
+  const draftInput = {
+    groundTruth: {
+      byItemId: {
+        "item-draft": {
+          itemId: "item-draft",
+          status: "draft",
+          revision: 1,
+          benchmarkType: "multi-object",
+          selectedTrackIds: [],
+          benchmarkTargetTrackId: "",
+          scenarioTags: [],
+          sourceFingerprint: artifact.sourceFingerprint,
+          angleId: artifact.sourceEvidence.angleId,
+          frame: artifact.frame,
+          range: artifact.range,
+          reviewedBy: "analyst-1",
+          sceneReview: {
+            protocol: "football-science-ground-truth-scene-review-v2",
+            sourceFingerprint: artifact.sourceFingerprint,
+            angleId: artifact.sourceEvidence.angleId,
+            reviewedBy: "analyst-1",
+            range: artifact.range,
+            stepMs: 500,
+            reviewedAtMs: [artifact.range.startMs],
+          },
+          attested: true,
+          exhaustiveSceneAttested: true,
+        },
+      },
+      suite: {
+        id: "reviewer-bound-draft",
+        revision: 1,
+        status: "draft",
+        benchmarkType: "multi-object",
+        cases: [],
+        downloadedAt: "",
+      },
+    },
+    providerRuns: { byItemId: {}, downloadedAt: "", error: "" },
+  };
+  expect(workspaceService.normalizeTrackingBenchmarkWorkspaceContent(draftInput)
+    .groundTruth.byItemId["item-draft"]).toMatchObject({
+    reviewedBy: "analyst-1",
+    sceneReview: { reviewedBy: "analyst-1", reviewedAtMs: [artifact.range.startMs] },
+    attested: true,
+    exhaustiveSceneAttested: true,
+  });
+  draftInput.groundTruth.byItemId["item-draft"].reviewedBy = "analyst-2";
+  expect(workspaceService.normalizeTrackingBenchmarkWorkspaceContent(draftInput)
+    .groundTruth.byItemId["item-draft"]).toMatchObject({
+    reviewedBy: "analyst-2",
+    sceneReview: { reviewedBy: "analyst-2", reviewedAtMs: [] },
+    attested: false,
+    exhaustiveSceneAttested: false,
+  });
   expect(await workspaceService.trackingBenchmarkWorkspaceContentFingerprint({
     ...workspace,
     benchmarkStorage: { status: "saving", error: "ignored" },

@@ -6,6 +6,7 @@ import {
 } from "../services/trackingGroundTruthSceneReviewService.js";
 import { trackingGroundTruthCheckpointDiagnostics } from "../services/trackingGroundTruthCheckpointService.js";
 import { shouldIgnoreShortcutTarget } from "../services/codingTemplateService.js";
+import { trackingReviewerIdentityReady } from "../services/trackingReviewerIdentityService.js";
 import { selectedTrackingItem } from "./trackingControllerHelpers.js";
 import { createTrackingContextReplayController } from "./trackingContextReplayController.js";
 
@@ -31,7 +32,9 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
     const state = getState();
     const item = selectedTrackingItem(state);
     const itemId = String(item?.id || "");
-    return { state, item, itemId, context: contextFor(state), truth: groundTruthState(state, itemId) };
+    const truth = groundTruthState(state, itemId);
+    const context = { ...contextFor(state), reviewedBy: truth.reviewedBy };
+    return { state, item, itemId, context, truth };
   }
 
   function update(itemId, patch) {
@@ -54,6 +57,14 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
     contextReplay.stop();
     const { state, item, itemId, context, truth } = selectedContext();
     if (!itemId || truth.status === "locked") return false;
+    if (!trackingReviewerIdentityReady(context.reviewedBy)) {
+      update(itemId, {
+        attested: false,
+        exhaustiveSceneAttested: false,
+        error: "Enter a named human reviewer before marking scene checkpoints.",
+      });
+      return true;
+    }
     const atMs = checkpointAt(context, state, requestedAtMs);
     const diagnostics = trackingGroundTruthCheckpointDiagnostics({
       tracks: item?.objectTracks || [],

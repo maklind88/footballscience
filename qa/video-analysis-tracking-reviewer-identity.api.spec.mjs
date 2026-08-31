@@ -56,6 +56,15 @@ test("reviewer changes clear attestations and render the named identity", async 
               itemId: item.id,
               status: "draft",
               reviewedBy: "Analyst One",
+              sceneReview: {
+                protocol: "football-science-ground-truth-scene-review-v2",
+                sourceFingerprint: "",
+                angleId: "",
+                reviewedBy: "Analyst One",
+                range: { startMs: 0, endMs: 1000 },
+                stepMs: 500,
+                reviewedAtMs: [0, 500],
+              },
               attested: true,
               exhaustiveSceneAttested: true,
               range: { startMs: 0, endMs: 1000 },
@@ -73,12 +82,14 @@ test("reviewer changes clear attestations and render the named identity", async 
   expect(controller.handleField("groundTruthReviewer", { value: "Analyst One" })).toBe(true);
   expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
     reviewedBy: "Analyst One",
+    sceneReview: { reviewedBy: "Analyst One", reviewedAtMs: [0, 500] },
     attested: true,
     exhaustiveSceneAttested: true,
   });
   expect(controller.handleField("groundTruthReviewer", { value: "Lead Analyst" })).toBe(true);
   expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
     reviewedBy: "Lead Analyst",
+    sceneReview: { reviewedBy: "Lead Analyst", reviewedAtMs: [] },
     attested: false,
     exhaustiveSceneAttested: false,
   });
@@ -89,6 +100,11 @@ test("reviewer changes clear attestations and render the named identity", async 
   expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
     reviewedBy: "",
     error: expect.stringMatching(/named human reviewer/i),
+  });
+  expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
+    sceneReview: { reviewedAtMs: [] },
+    error: expect.stringMatching(/before marking scene checkpoints/i),
   });
   state.presentation.tracking.groundTruth.byItemId[item.id].status = "locked";
   expect(controller.handleField("groundTruthReviewer", { value: "Another Analyst" })).toBe(false);

@@ -364,6 +364,7 @@ test("review studio campaign matrix keeps roles, scene progress, missing context
               itemId: sceneItem.id,
               sourceFingerprint: sceneSource,
               angleId: "wide",
+              reviewedBy: "analyst-1",
               selectedTrackIds: [scenePlayer.id],
               workloadEvidence: {
                 workspaceSha256,
@@ -372,9 +373,10 @@ test("review studio campaign matrix keeps roles, scene progress, missing context
                 angleId: "wide",
               },
               sceneReview: {
-                protocol: "football-science-ground-truth-scene-review-v1",
+                protocol: "football-science-ground-truth-scene-review-v2",
                 sourceFingerprint: sceneSource,
                 angleId: "wide",
+                reviewedBy: "analyst-1",
                 range: { startMs: 0, endMs: 1000 },
                 stepMs: 500,
                 reviewedAtMs: [0, 500],

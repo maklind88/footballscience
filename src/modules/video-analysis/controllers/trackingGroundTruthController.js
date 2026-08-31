@@ -162,11 +162,12 @@ export function createTrackingGroundTruthController(options = {}) {
       || Number(truth.frame?.height) !== context.frame.height
       || Number(truth.range?.startMs) !== context.range.startMs
       || Number(truth.range?.endMs) !== context.range.endMs;
+    const reviewedBy = reviewer.identityFor(truth);
     updateState((current) => patchGroundTruth(current, context.itemId, {
       ...context,
-      reviewedBy: reviewer.identityFor(truth),
+      reviewedBy,
       ...(contextChanged ? {
-        sceneReview: createTrackingGroundTruthSceneReview(context),
+        sceneReview: createTrackingGroundTruthSceneReview({ ...context, reviewedBy }),
         attested: false,
         exhaustiveSceneAttested: false,
         workloadEvidence: null,
@@ -214,13 +215,14 @@ export function createTrackingGroundTruthController(options = {}) {
           ? trackId
           : truth.benchmarkTargetTrackId || "";
     const context = contextFor(state);
+    const reviewedBy = reviewer.identityFor(truth);
     updateState((current) => patchGroundTruth(current, itemId, {
       ...context,
       status: "draft",
-      reviewedBy: reviewer.identityFor(truth),
+      reviewedBy,
       selectedTrackIds: [...selected],
       benchmarkTargetTrackId,
-      sceneReview: createTrackingGroundTruthSceneReview(context),
+      sceneReview: createTrackingGroundTruthSceneReview({ ...context, reviewedBy }),
       attested: false,
       exhaustiveSceneAttested: false,
       error: "",
@@ -404,6 +406,7 @@ export function createTrackingGroundTruthController(options = {}) {
     const context = contextFor();
     if (!context.itemId) return false;
     const truth = groundTruthState(state, context.itemId);
+    const reviewedBy = reviewer.identityFor(truth, true);
     updateState((current) => patchGroundTruth(current, context.itemId, {
       ...context,
       status: "draft",
@@ -412,8 +415,8 @@ export function createTrackingGroundTruthController(options = {}) {
       benchmarkTargetTrackId: "",
       workloadEvidence: null,
       scenarioTags: [],
-      sceneReview: createTrackingGroundTruthSceneReview(context),
-      reviewedBy: reviewer.identityFor(truth, true),
+      sceneReview: createTrackingGroundTruthSceneReview({ ...context, reviewedBy }),
+      reviewedBy,
       attested: false,
       exhaustiveSceneAttested: false,
       lockedArtifact: null,

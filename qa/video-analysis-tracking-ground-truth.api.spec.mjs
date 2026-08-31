@@ -475,6 +475,21 @@ test("selected-object controller uses one player target and locks its evidence p
   expect(draftHtml).toContain("Remove target");
   expect(draftHtml).not.toContain("groundTruthSceneComplete");
   expect(draftHtml).not.toContain('data-video-analysis-tracking-action="ground-truth-target"');
+  player.status = "review";
+  const issueHtml = renderTrackingGroundTruthPanel(state, item);
+  expect(issueHtml).toContain('data-video-analysis-tracking-action="ground-truth-checkpoint-select"');
+  expect(issueHtml).toContain("Player selected-player: unverified");
+  state.presentation.tracking.selectedTrackIds = [];
+  expect(controller.handleAction("ground-truth-checkpoint-select", {
+    dataset: {
+      videoAnalysisGroundTruthTrackId: player.id,
+      videoAnalysisGroundTruthAtMs: "500",
+    },
+  })).toBe(true);
+  expect(state.presentation.tracking.selectedTrackIds).toEqual([player.id]);
+  expect(playheadMs).toBe(500);
+  player.status = "verified";
+  playheadMs = 0;
   expect(controller.handleField("groundTruthSceneComplete", { checked: true })).toBe(false);
   expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
   expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({

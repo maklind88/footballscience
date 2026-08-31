@@ -32,15 +32,6 @@ function checkpointTime(value = 0) {
   return `${minutes}:${(seconds % 60).toFixed(1).padStart(4, "0")}`;
 }
 
-function checkpointIssues(value = {}) {
-  return [
-    value.samplingGapCount ? `${value.samplingGapCount} selected sample gaps` : "",
-    value.unverifiedCount ? `${value.unverifiedCount} active tracks unverified` : "",
-    value.identityIssueCount ? `${value.identityIssueCount} visible players need identity or team` : "",
-    value.unselectedVisibleCount ? `${value.unselectedVisibleCount} visible tracked objects outside reference` : "",
-  ].filter(Boolean);
-}
-
 function lockedReadiness(truth = {}) {
   const artifact = truth.lockedArtifact || {};
   const tracks = artifact.groundTruth?.tracks || [];
@@ -85,7 +76,7 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
     benchmarkType,
     atMs: sceneReview.nextAtMs ?? sceneReview.expectedAtMs.at(-1) ?? truth.range?.startMs,
   });
-  const checkpointWarnings = checkpointIssues(checkpoint);
+  const checkpointIssues = checkpoint.issues.slice(0, 4);
   const readiness = locked ? lockedReadiness(truth) : groundTruthReadiness({
     tracks,
     selectedTrackIds: referenceIds,
@@ -131,7 +122,7 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
           <button type="button" data-video-analysis-tracking-action="ground-truth-refresh">Refresh evidence</button>
         </div>
         <div class="video-analysis-ground-truth__scene-review">
-          <div>
+          <div class="video-analysis-ground-truth__scene-progress">
             <strong>Scene checkpoints</strong>
             <span>${escapeHtml(`${sceneReview.reviewedSampleCount}/${sceneReview.expectedSampleCount}`)}</span>
           </div>
@@ -145,7 +136,12 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
               <div><dt>Outside reference</dt><dd>${checkpoint.unselectedVisibleCount}</dd></div>
             </dl>
             <p>P ${checkpoint.entityCounts.player} | B ${checkpoint.entityCounts.ball} | R ${checkpoint.entityCounts.referee}</p>
-            ${checkpointWarnings.length ? `<ul>${checkpointWarnings.map((entry) => `<li>${escapeHtml(entry)}</li>`).join("")}</ul>` : `<p class="is-ready">Checkpoint tracking ready for source review</p>`}
+            ${checkpointIssues.length ? `
+              <ul class="video-analysis-ground-truth__checkpoint-issues">
+                ${checkpointIssues.map((entry) => `<li><span>${escapeHtml(entry.label)}</span><button type="button" data-video-analysis-tracking-action="ground-truth-checkpoint-select" data-video-analysis-ground-truth-track-id="${escapeHtml(entry.trackId)}" data-video-analysis-ground-truth-at-ms="${checkpoint.atMs}">Review</button></li>`).join("")}
+              </ul>
+              ${checkpoint.issues.length > checkpointIssues.length ? `<p>${checkpoint.issues.length - checkpointIssues.length} more checkpoint issues</p>` : ""}
+            ` : `<p class="is-ready">Checkpoint tracking ready for source review</p>`}
           </section>
           <div>
             <button type="button" data-video-analysis-tracking-action="ground-truth-scene-review" ${sceneReview.complete ? "disabled" : ""}>Review &amp; next</button>

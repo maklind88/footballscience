@@ -235,6 +235,42 @@
   padding-left: 14px;
 }
 
+.video-analysis-ground-truth__checkpoint-issues {
+  display: grid;
+  gap: 3px;
+  padding-left: 0 !important;
+  list-style: none;
+}
+
+.video-analysis-ground-truth__checkpoint-issues li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  min-width: 0;
+}
+
+.video-analysis-ground-truth__checkpoint-issues span {
+  overflow: hidden;
+  color: #6f542c;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-ground-truth__checkpoint-issues button {
+  flex: 0 0 auto;
+  min-height: 23px;
+  border: 1px solid #cbd5ce;
+  border-radius: 4px;
+  padding: 3px 6px;
+  color: #203129;
+  background: #ffffff;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 750;
+}
+
 .video-analysis-ground-truth__checkpoint p.is-ready {
   color: #26734b;
 }

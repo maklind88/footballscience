@@ -81,6 +81,12 @@ test("checkpoint diagnostics expose visible entities, gaps, identity work and ex
     unselectedVisibleCount: 1,
     unverifiedCount: 1,
     identityIssueCount: 1,
+    issues: [
+      { code: "sample-gap", trackId: "referee", entityType: "referee", label: "Referee: sample gap" },
+      { code: "unverified", trackId: "player", entityType: "player", label: "Player: unverified" },
+      { code: "identity", trackId: "player", entityType: "player", label: "Player: needs identity or team" },
+      { code: "outside-reference", trackId: "outside", entityType: "player", label: "Player outside: outside reference" },
+    ],
     entityCounts: { player: 1, ball: 0, referee: 0 },
   });
   expect(service.trackingGroundTruthCheckpointDiagnostics({

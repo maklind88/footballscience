@@ -25,6 +25,13 @@ function missingPlayerIdentity(track = {}) {
       || !String(track.teamId || track.teamSide || "").trim());
 }
 
+function issue(track = {}, code = "", suffix = "") {
+  const fallback = track.entityType ? `${track.entityType[0].toUpperCase()}${track.entityType.slice(1)}` : "Object";
+  const rawLabel = String(track.playerLabel || track.playerId || fallback).trim();
+  const label = rawLabel ? `${rawLabel[0].toUpperCase()}${rawLabel.slice(1)}` : fallback;
+  return { code, trackId: track.id, entityType: track.entityType, label: `${label}: ${suffix}` };
+}
+
 export function trackingGroundTruthCheckpointDiagnostics(value = {}) {
   const atMs = Math.max(0, Math.round(Number(value.atMs) || 0));
   const selectedIds = new Set((value.selectedTrackIds || []).map(String));
@@ -39,6 +46,15 @@ export function trackingGroundTruthCheckpointDiagnostics(value = {}) {
     .filter((track) => !selectedIds.has(track.id))
     .map((track) => checkpointEntry(track, atMs))
     .filter((entry) => entry.visible);
+  const issues = [
+    ...declared.filter((entry) => !entry.point)
+      .map((entry) => issue(entry.track, "sample-gap", "sample gap")),
+    ...declared.filter((entry) => entry.track.status !== "verified")
+      .map((entry) => issue(entry.track, "unverified", "unverified")),
+    ...visible.filter((entry) => missingPlayerIdentity(entry.track))
+      .map((entry) => issue(entry.track, "identity", "needs identity or team")),
+    ...unselectedVisible.map((entry) => issue(entry.track, "outside-reference", "outside reference")),
+  ];
   return {
     atMs,
     selectedDeclaredCount: declared.length,
@@ -48,6 +64,7 @@ export function trackingGroundTruthCheckpointDiagnostics(value = {}) {
     unselectedVisibleCount: unselectedVisible.length,
     unverifiedCount: declared.filter((entry) => entry.track.status !== "verified").length,
     identityIssueCount: visible.filter((entry) => missingPlayerIdentity(entry.track)).length,
+    issues,
     entityCounts: Object.fromEntries(entityTypes.map((entityType) => [
       entityType,
       visible.filter((entry) => entry.track.entityType === entityType).length,

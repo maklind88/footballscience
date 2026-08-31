@@ -32,6 +32,8 @@ import {
 import { createTrackingGroundTruthSuiteImportController } from "./trackingGroundTruthSuiteImportController.js";
 import { createTrackingGroundTruthSceneReviewController } from "./trackingGroundTruthSceneReviewController.js";
 import { createTrackingGroundTruthSceneReview } from "../services/trackingGroundTruthSceneReviewService.js";
+import { downloadTrackingJson } from "../services/trackingJsonDownloadService.js";
+import { createTrackingGroundTruthCheckpointController } from "./trackingGroundTruthCheckpointController.js";
 
 const groundTruthActions = new Set([
   "ground-truth-toggle",
@@ -80,21 +82,6 @@ function patchGroundTruthSuite(state = {}, suite = {}) {
   });
 }
 
-function downloadJson(win = null, json = "", fileName = "artifact.json") {
-  const anchor = win?.document?.createElement?.("a");
-  const BlobConstructor = win?.Blob || globalThis.Blob;
-  if (!anchor || !BlobConstructor || !win?.URL?.createObjectURL) return false;
-  const objectUrl = win.URL.createObjectURL(new BlobConstructor([json], { type: "application/json" }));
-  anchor.href = objectUrl;
-  anchor.download = fileName;
-  anchor.rel = "noopener";
-  win.document.body?.appendChild?.(anchor);
-  anchor.click();
-  anchor.remove?.();
-  win.setTimeout?.(() => win.URL.revokeObjectURL?.(objectUrl), 0);
-  return true;
-}
-
 export function trackingSourceFingerprint(state = {}) {
   const angle = activeMediaAngle(state);
   const proxyFingerprint = String(
@@ -136,6 +123,11 @@ export function createTrackingGroundTruthController(options = {}) {
     patchGroundTruth,
     currentAtMs: (state) => currentTrackingAtMs(getVideoElement, state, options.getCurrentMatchMs),
     seekToMatchMs: options.seekToMatchMs || (() => {}),
+  });
+  const checkpointIssues = createTrackingGroundTruthCheckpointController({
+    getState,
+    updateState,
+    seekToMatchMs: options.seekToMatchMs,
   });
   const suiteImport = createTrackingGroundTruthSuiteImportController({
     getState,
@@ -305,7 +297,7 @@ export function createTrackingGroundTruthController(options = {}) {
     const artifact = groundTruthState(state, itemId).lockedArtifact;
     if (!artifact) return false;
     const win = getWindow();
-    if (!downloadJson(win, groundTruthArtifactJson(artifact), `fs-player-${artifact.id}.json`)) return false;
+    if (!downloadTrackingJson(win, groundTruthArtifactJson(artifact), `fs-player-${artifact.id}.json`)) return false;
     updateState((current) => patchGroundTruth(current, itemId, { downloadedAt: new Date(now()).toISOString(), error: "" }));
     return true;
   }
@@ -317,7 +309,7 @@ export function createTrackingGroundTruthController(options = {}) {
     try {
       const artifact = createGroundTruthSuiteArtifact(suite, { now });
       const win = getWindow();
-      if (!downloadJson(win, groundTruthSuiteArtifactJson(artifact), `fs-player-${artifact.id}.json`)) return false;
+      if (!downloadTrackingJson(win, groundTruthSuiteArtifactJson(artifact), `fs-player-${artifact.id}.json`)) return false;
       updateState((current) => patchGroundTruthSuite(current, {
         ...suite,
         status: "exported",
@@ -349,7 +341,7 @@ export function createTrackingGroundTruthController(options = {}) {
         runs,
       }, { now });
       const win = getWindow();
-      if (!downloadJson(
+      if (!downloadTrackingJson(
         win,
         trackingProviderRunSuiteArtifactJson(artifact),
         `fs-player-${artifact.id}.json`,
@@ -450,6 +442,7 @@ export function createTrackingGroundTruthController(options = {}) {
   }
 
   function handleAction(action = "", element = null) {
+    if (checkpointIssues.handleAction(action, element)) return true;
     if (!groundTruthActions.has(action)) return false;
     if (action === "ground-truth-toggle") return toggleSelectedTrack();
     if (action === "ground-truth-target") return setBenchmarkTarget();

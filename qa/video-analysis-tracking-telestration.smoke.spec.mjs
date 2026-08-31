@@ -1227,14 +1227,17 @@ test("tracking controls and overlays stay contained on mobile", async ({ page },
   await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-toggle"]')).toHaveText("Remove target");
   await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-target"]')).toHaveCount(0);
   const sceneReview = page.locator(".video-analysis-ground-truth__scene-review");
-  await expect(sceneReview.locator("span")).toHaveText(/^0\/\d+$/);
+  const sceneProgress = sceneReview.locator(".video-analysis-ground-truth__scene-progress span");
+  await expect(sceneProgress).toHaveText(/^0\/\d+$/);
   const checkpoint = sceneReview.locator(".video-analysis-ground-truth__checkpoint");
   await expect(checkpoint).toContainText("Next checkpoint");
   await expect(checkpoint).toContainText("Selected visible");
   await expect(checkpoint).toContainText(/P\s+1\s+\|\s+B\s+0\s+\|\s+R\s+0/);
+  expect(await checkpoint.locator('[data-video-analysis-tracking-action="ground-truth-checkpoint-select"]').count())
+    .toBeGreaterThan(0);
   await expect(page.locator('[data-video-analysis-tracking-field="groundTruthAttested"]')).toBeDisabled();
   await sceneReview.locator('[data-video-analysis-tracking-action="ground-truth-scene-review"]').click();
-  await expect(sceneReview.locator("span")).toHaveText(/^1\/\d+$/);
+  await expect(sceneProgress).toHaveText(/^1\/\d+$/);
   const geometry = await page.locator(".video-analysis-drawing-builder").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {

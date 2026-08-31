@@ -285,6 +285,234 @@ test("review studio routes unresolved person roles back to explicit classificati
   expect(html).not.toContain('data-video-analysis-tracking-action="ground-truth-use-preannotation-case"');
 });
 
+test("review studio campaign matrix keeps roles, scene progress, missing context and locks distinct", async () => {
+  const [component, service] = await Promise.all([
+    import(moduleUrl("src/modules/video-analysis/components/TrackingGroundTruthReviewStudio.js")),
+    import(moduleUrl("src/modules/video-analysis/services/trackingGroundTruthReviewStudioService.js")),
+  ]);
+  const workspaceSha256 = "b".repeat(64);
+  const roleSource = "c".repeat(64);
+  const sceneSource = "d".repeat(64);
+  const missingSource = "e".repeat(64);
+  const lockedSource = "f".repeat(64);
+  const angleSource = "1".repeat(64);
+  const unresolvedPerson = {
+    ...track("role-person"),
+    entityType: "person",
+    metadata: {
+      preannotationReviewState: "saved-review",
+      preannotationWorkspaceSha256: workspaceSha256,
+      preannotationCaseId: "role-case",
+    },
+  };
+  const scenePlayer = {
+    ...track("scene-player"),
+    metadata: {
+      preannotationReviewState: "saved-review",
+      preannotationWorkspaceSha256: workspaceSha256,
+      preannotationCaseId: "scene-case",
+    },
+  };
+  const roleItem = { id: "item-role", clipId: "clip-role", objectTracks: [unresolvedPerson] };
+  const sceneItem = { id: "item-scene", clipId: "clip-scene", objectTracks: [scenePlayer] };
+  const angleItem = { id: "item-angle", clipId: "clip-angle", objectTracks: [] };
+  const pageState = {
+    mediaProduction: { activeAngleId: "primary", primaryAngleId: "primary" },
+    presentation: {
+      selectedItemId: roleItem.id,
+      selectedClipId: roleItem.clipId,
+      current: { sections: [{ id: "section-1", items: [roleItem, sceneItem, angleItem] }] },
+      tracking: {
+        groundTruth: {
+          suite: {
+            benchmarkType: "multi-object",
+            cases: [{
+              id: "locked-reference",
+              sourceFingerprint: lockedSource,
+              sourceEvidence: { angleId: "primary" },
+              workloadEvidence: {
+                workspaceSha256,
+                caseId: "locked-case",
+                sourceFingerprint: lockedSource,
+                angleId: "primary",
+              },
+            }, {
+              id: "wrong-angle-reference",
+              sourceFingerprint: angleSource,
+              sourceEvidence: { angleId: "tactical" },
+              workloadEvidence: {
+                workspaceSha256,
+                caseId: "angle-case",
+                sourceFingerprint: angleSource,
+                angleId: "tactical",
+              },
+            }],
+          },
+          byItemId: {
+            [roleItem.id]: truth({
+              itemId: roleItem.id,
+              sourceFingerprint: roleSource,
+              selectedTrackIds: [unresolvedPerson.id],
+              workloadEvidence: {
+                workspaceSha256,
+                caseId: "role-case",
+                sourceFingerprint: roleSource,
+                angleId: "primary",
+              },
+            }),
+            [sceneItem.id]: truth({
+              itemId: sceneItem.id,
+              sourceFingerprint: sceneSource,
+              angleId: "wide",
+              selectedTrackIds: [scenePlayer.id],
+              workloadEvidence: {
+                workspaceSha256,
+                caseId: "scene-case",
+                sourceFingerprint: sceneSource,
+                angleId: "wide",
+              },
+              sceneReview: {
+                protocol: "football-science-ground-truth-scene-review-v1",
+                sourceFingerprint: sceneSource,
+                angleId: "wide",
+                range: { startMs: 0, endMs: 1000 },
+                stepMs: 500,
+                reviewedAtMs: [0, 500],
+              },
+            }),
+            [angleItem.id]: truth({
+              itemId: angleItem.id,
+              status: "locked",
+              sourceFingerprint: angleSource,
+              angleId: "wide",
+              selectedTrackIds: ["angle-player"],
+              workloadEvidence: {
+                workspaceSha256,
+                caseId: "angle-case",
+                sourceFingerprint: angleSource,
+                angleId: "wide",
+              },
+              lockedArtifact: { id: "local-wide-reference" },
+            }),
+          },
+        },
+        preannotationReview: {
+          status: "complete",
+          draftStatus: "ready",
+          workspaceSha256,
+          caseId: "role-case",
+          campaign: {
+            status: "ready",
+            caseCount: 5,
+            completeCaseCount: 5,
+            cases: [{
+              caseId: "role-case",
+              sourceSha256: roleSource,
+              itemId: roleItem.id,
+              clipId: roleItem.clipId,
+              angleId: "primary",
+              resumeContextReady: true,
+              complete: true,
+              reviewEffortCoverage: "complete",
+              savedCount: 1,
+              decisionCount: 1,
+              totalSuggestionCount: 1,
+            }, {
+              caseId: "scene-case",
+              sourceSha256: sceneSource,
+              itemId: sceneItem.id,
+              clipId: sceneItem.clipId,
+              angleId: "wide",
+              resumeContextReady: true,
+              complete: true,
+              reviewEffortCoverage: "complete",
+              savedCount: 1,
+              decisionCount: 1,
+              totalSuggestionCount: 1,
+            }, {
+              caseId: "missing-context-case",
+              sourceSha256: missingSource,
+              itemId: "item-missing",
+              clipId: "clip-missing",
+              angleId: "tactical",
+              resumeContextReady: true,
+              complete: true,
+              reviewEffortCoverage: "complete",
+              savedCount: 1,
+              decisionCount: 1,
+              totalSuggestionCount: 1,
+            }, {
+              caseId: "locked-case",
+              sourceSha256: lockedSource,
+              itemId: "item-locked",
+              clipId: "clip-locked",
+              angleId: "primary",
+              resumeContextReady: true,
+              complete: true,
+              reviewEffortCoverage: "complete",
+              savedCount: 1,
+              decisionCount: 1,
+              totalSuggestionCount: 1,
+            }, {
+              caseId: "angle-case",
+              sourceSha256: angleSource,
+              itemId: angleItem.id,
+              clipId: angleItem.clipId,
+              angleId: "wide",
+              resumeContextReady: true,
+              complete: true,
+              reviewEffortCoverage: "complete",
+              savedCount: 1,
+              decisionCount: 1,
+              totalSuggestionCount: 1,
+            }],
+          },
+        },
+      },
+    },
+  };
+  const studio = service.trackingGroundTruthReviewStudioState(pageState, roleItem);
+  const byId = Object.fromEntries(studio.campaign.cases.map((entry) => [entry.id, entry]));
+
+  expect(byId["role-case"]).toMatchObject({
+    status: "roles",
+    decisionsComplete: false,
+    unresolvedRoleCount: 1,
+    progressLabel: "1 role unresolved",
+  });
+  expect(byId["scene-case"]).toMatchObject({
+    status: "scene",
+    decisionsComplete: true,
+    referencePrepared: true,
+    progressLabel: "2/3 checkpoints",
+    sceneReview: { reviewedSampleCount: 2, expectedSampleCount: 3, complete: false },
+  });
+  expect(byId["missing-context-case"]).toMatchObject({
+    status: "context",
+    contextReady: false,
+    decisionsComplete: false,
+    progressLabel: "Reconnect case context",
+  });
+  expect(byId["locked-case"]).toMatchObject({
+    status: "locked",
+    referenceLocked: true,
+    progressLabel: "Reference locked",
+  });
+  expect(byId["angle-case"]).toMatchObject({
+    status: "mismatch",
+    referenceLocked: false,
+    progressLabel: "Reference identity mismatch",
+  });
+
+  const html = component.renderTrackingGroundTruthReviewStudio(pageState, roleItem);
+  expect(html).toContain("1 role unresolved");
+  expect(html).toContain("2/3 checkpoints");
+  expect(html).toContain("Reconnect case context");
+  expect(html).toContain("Reference locked");
+  expect(html).toContain("Reference identity mismatch");
+  expect(html).not.toContain("Ready for reference");
+});
+
 test("review studio separates decision completion from locked Match 11 references", async () => {
   const component = await import(moduleUrl(
     "src/modules/video-analysis/components/TrackingGroundTruthReviewStudio.js",
@@ -296,10 +524,12 @@ test("review studio separates decision completion from locked Match 11 reference
         cases: [{
           id: "locked-attacking-third",
           sourceFingerprint: "a".repeat(64),
+          sourceEvidence: { angleId: "primary" },
           workloadEvidence: {
             workspaceSha256: "b".repeat(64),
             caseId: "attacking-third",
             sourceFingerprint: "a".repeat(64),
+            angleId: "primary",
           },
         }],
       },
@@ -319,6 +549,7 @@ test("review studio separates decision completion from locked Match 11 reference
         cases: [{
           caseId: "attacking-third",
           sourceSha256: "a".repeat(64),
+          angleId: "primary",
           complete: true,
           reviewEffortCoverage: "complete",
           savedCount: 10,
@@ -480,10 +711,12 @@ test("review studio keeps an incomplete campaign stable when no next handoff cas
         cases: [{
           id: "locked-attacking-third",
           sourceFingerprint: "a".repeat(64),
+          sourceEvidence: { angleId: "primary" },
           workloadEvidence: {
             workspaceSha256: "b".repeat(64),
             caseId: "attacking-third",
             sourceFingerprint: "a".repeat(64),
+            angleId: "primary",
           },
         }],
       },
@@ -503,6 +736,7 @@ test("review studio keeps an incomplete campaign stable when no next handoff cas
         cases: [{
           caseId: "attacking-third",
           sourceSha256: "a".repeat(64),
+          angleId: "primary",
           complete: true,
           reviewEffortCoverage: "complete",
           savedCount: 10,
@@ -598,7 +832,7 @@ test("review studio never counts a crossed-source workload as a locked campaign 
   }), { id: "item-1", objectTracks: [] });
 
   expect(html).toContain("0/1 refs");
-  expect(html).toContain("Ready for reference");
+  expect(html).toContain("Reference identity mismatch");
   expect(html).not.toContain("Reference locked");
 });
 
@@ -656,10 +890,10 @@ test("review studio accepts the real normalized campaign coverage contract", asy
       caseId: "attacking-third",
       campaign,
     },
-  }), { id: "item-1", objectTracks: [] });
+  }), { id: "item-1", clipId: "clip-1", objectTracks: [] });
 
   expect(campaign.cases[0].reviewEffortCoverage).toBe("complete");
-  expect(html).toContain("Ready for reference");
+  expect(html).toContain("Prepare reference");
   expect(html).toContain("Prepare independent reference");
   expect(html).toContain('data-video-analysis-tracking-action="ground-truth-use-preannotation-case"');
 });

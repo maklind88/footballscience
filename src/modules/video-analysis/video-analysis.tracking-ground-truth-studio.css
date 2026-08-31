@@ -190,6 +190,24 @@
   border-left-color: #26734b;
 }
 
+.video-analysis-ground-truth-studio__campaign li.is-roles,
+.video-analysis-ground-truth-studio__campaign li.is-mismatch {
+  border-left-color: #b6433f;
+}
+
+.video-analysis-ground-truth-studio__campaign li.is-context,
+.video-analysis-ground-truth-studio__campaign li.is-checkpoint {
+  border-left-color: #b7791f;
+}
+
+.video-analysis-ground-truth-studio__campaign li.is-scene {
+  border-left-color: #347a7e;
+}
+
+.video-analysis-ground-truth-studio__campaign li.is-scene-complete {
+  border-left-color: #39714f;
+}
+
 .video-analysis-ground-truth-studio__campaign li > div {
   display: grid;
   gap: 1px;
@@ -227,6 +245,16 @@
   color: #895b16;
 }
 
+.video-analysis-ground-truth-studio__campaign li.is-roles > span,
+.video-analysis-ground-truth-studio__campaign li.is-mismatch > span {
+  color: #9e3030;
+}
+
+.video-analysis-ground-truth-studio__campaign li.is-scene > span {
+  color: #23676b;
+}
+
+.video-analysis-ground-truth-studio__campaign li.is-scene-complete > span,
 .video-analysis-ground-truth-studio__campaign li.is-locked > span {
   color: #17623c;
 }

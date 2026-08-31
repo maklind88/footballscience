@@ -20,11 +20,7 @@ function renderCampaign(campaign = {}) {
         ${campaign.cases.map((entry) => `
           <li class="is-${escapeHtml(entry.status)}${entry.active ? " is-active" : ""}">
             <div><strong>${escapeHtml(entry.id)}</strong><small>${escapeHtml(entry.sourceHint)}</small></div>
-            <span>${escapeHtml(entry.referenceLocked
-    ? "Reference locked"
-    : entry.decisionsComplete
-      ? "Ready for reference"
-      : `${entry.decisionCount}/${entry.totalSuggestionCount} decisions`)}</span>
+            <span>${escapeHtml(entry.progressLabel)}</span>
           </li>
         `).join("")}
       </ol>

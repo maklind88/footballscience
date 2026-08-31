@@ -14,6 +14,7 @@ import {
 } from "./trackingGroundTruthSceneReviewService.js";
 import { trackingPreannotationReviewPersistence } from "./trackingPreannotationReviewPersistenceService.js";
 import { trackingSourceFingerprint } from "./trackingSourceIdentityService.js";
+import { selectedPresentationItem } from "./presentationService.js";
 
 const fingerprintPattern = /^[a-f0-9]{64}$/i;
 
@@ -72,25 +73,118 @@ function sourceHint(value = "") {
     : "Source unavailable";
 }
 
-function campaignReviewCases(review = {}, suite = {}) {
+function campaignPresentationItem(state = {}, activeItem = null, review = {}, entry = {}) {
+  const itemId = String(entry.itemId || "");
+  const clipId = String(entry.clipId || "");
+  let candidate = null;
+  if (activeItem && (
+    (itemId && activeItem.id === itemId)
+    || (!itemId && String(entry.caseId || "") === String(review.caseId || ""))
+  )) {
+    candidate = activeItem;
+  } else if (itemId) {
+    candidate = selectedPresentationItem(state.presentation?.current, itemId, clipId);
+  }
+  if (!candidate) return null;
+  const candidateItemId = String(candidate.id || "");
+  const candidateClipId = String(candidate.clipId || candidate.clip?.id || "");
+  return (itemId && candidateItemId !== itemId) || (clipId && candidateClipId !== clipId)
+    ? null
+    : candidate;
+}
+
+function unresolvedCampaignRoles(item = null, workspaceSha256 = "", caseId = "") {
+  if (!item) return null;
+  return (item.objectTracks || []).filter((track) => (
+    track.metadata?.preannotationReviewState === "saved-review"
+    && track.metadata?.preannotationWorkspaceSha256 === workspaceSha256
+    && track.metadata?.preannotationCaseId === caseId
+    && ["person", "unknown"].includes(track.entityType)
+  )).length;
+}
+
+function campaignReferenceProgress(workspace = {}, item = null, entry = {}, workspaceSha256 = "") {
+  if (!item) return { prepared: false, localLocked: false, scene: null };
+  const truth = trackingGroundTruthEntry(workspace, item.id);
+  const evidence = truth.workloadEvidence || {};
+  const sourceSha256 = String(entry.sourceSha256 || "");
+  const angleId = String(entry.angleId || "");
+  const prepared = fingerprintPattern.test(sourceSha256)
+    && String(truth.itemId || "") === String(item.id || "")
+    && evidence.workspaceSha256 === workspaceSha256
+    && evidence.caseId === String(entry.caseId || "")
+    && evidence.sourceFingerprint === sourceSha256
+    && (!angleId || (evidence.angleId === angleId && truth.angleId === angleId))
+    && truth.sourceFingerprint === sourceSha256
+    && (truth.selectedTrackIds || []).length > 0;
+  return {
+    prepared,
+    localLocked: truth.status === "locked" && Boolean(truth.lockedArtifact),
+    scene: prepared ? trackingGroundTruthSceneReviewProgress(truth.sceneReview, truth) : null,
+  };
+}
+
+function campaignReviewCases(state = {}, activeItem = null, review = {}, suite = {}, workspace = {}, persistence = {}) {
   const workspaceSha256 = String(review.workspaceSha256 || "");
   const lockedCaseKeys = new Set((suite.cases || []).flatMap((artifact) => {
     const evidence = artifact.workloadEvidence || {};
     const sourceFingerprint = String(artifact.sourceFingerprint || "");
+    const angleId = String(evidence.angleId || artifact.sourceEvidence?.angleId || "");
     return evidence.workspaceSha256 === workspaceSha256
       && fingerprintPattern.test(sourceFingerprint)
       && evidence.sourceFingerprint === sourceFingerprint
       && evidence.caseId
-      ? [`${String(evidence.caseId)}:${sourceFingerprint}`]
+      && angleId
+      ? [`${String(evidence.caseId)}:${sourceFingerprint}:${angleId}`]
       : [];
   }));
   return (review.campaign?.cases || []).map((entry) => {
-    const decisionsComplete = entry.complete === true
+    const decisionWorkComplete = entry.complete === true
       && entry.reviewEffortCoverage === "complete"
       && Number(entry.savedCount) > 0;
     const caseId = String(entry.caseId || "");
     const sourceSha256 = String(entry.sourceSha256 || "");
-    const referenceLocked = lockedCaseKeys.has(`${caseId}:${sourceSha256}`);
+    const angleId = String(entry.angleId || "");
+    const referenceLocked = lockedCaseKeys.has(`${caseId}:${sourceSha256}:${angleId}`);
+    const active = caseId === String(review.caseId || "");
+    const item = campaignPresentationItem(state, activeItem, review, entry);
+    const unresolvedRoleCount = unresolvedCampaignRoles(item, workspaceSha256, caseId);
+    const checkpointReady = !active || persistence.ready || referenceLocked;
+    const decisionsComplete = decisionWorkComplete
+      && Boolean(item)
+      && unresolvedRoleCount === 0
+      && checkpointReady;
+    const reference = campaignReferenceProgress(workspace, item, entry, workspaceSha256);
+    let status = decisionsComplete ? "reference" : "decisions";
+    let progressLabel = decisionsComplete
+      ? "Prepare reference"
+      : `${Math.max(0, Number(entry.decisionCount) || 0)}/${Math.max(0, Number(entry.totalSuggestionCount) || 0)} decisions`;
+    if (reference.prepared && decisionsComplete) {
+      status = reference.scene.complete ? "scene-complete" : "scene";
+      progressLabel = reference.scene.complete
+        ? "Scene review complete"
+        : `${reference.scene.reviewedSampleCount}/${reference.scene.expectedSampleCount} checkpoints`;
+    }
+    if (decisionWorkComplete && !item) {
+      status = "context";
+      progressLabel = "Reconnect case context";
+    }
+    if (decisionWorkComplete && !checkpointReady) {
+      status = "checkpoint";
+      progressLabel = "Secure checkpoint";
+    }
+    if (Number(unresolvedRoleCount) > 0) {
+      status = "roles";
+      progressLabel = `${unresolvedRoleCount} role${unresolvedRoleCount === 1 ? "" : "s"} unresolved`;
+    }
+    if (reference.localLocked) {
+      status = "mismatch";
+      progressLabel = "Reference identity mismatch";
+    }
+    if (referenceLocked) {
+      status = "locked";
+      progressLabel = "Reference locked";
+    }
     return {
       id: caseId,
       sourceSha256,
@@ -99,13 +193,19 @@ function campaignReviewCases(review = {}, suite = {}) {
       clipId: String(entry.clipId || ""),
       angleId: String(entry.angleId || ""),
       resumeContextReady: entry.resumeContextReady === true,
-      active: caseId === String(review.caseId || ""),
+      active,
       decisionCount: Math.max(0, Number(entry.decisionCount) || 0),
       totalSuggestionCount: Math.max(0, Number(entry.totalSuggestionCount) || 0),
       pendingCount: Math.max(0, Number(entry.pendingCount) || 0),
+      decisionWorkComplete,
       decisionsComplete,
+      unresolvedRoleCount,
+      contextReady: Boolean(item),
+      referencePrepared: reference.prepared,
+      sceneReview: reference.scene,
       referenceLocked,
-      status: referenceLocked ? "locked" : decisionsComplete ? "reference" : "decisions",
+      status,
+      progressLabel,
     };
   });
 }
@@ -125,7 +225,7 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
   const review = tracking.preannotationReview || {};
   const persistence = trackingPreannotationReviewPersistence(review);
   const campaignCase = review.campaign?.cases?.find((entry) => entry.caseId === review.caseId);
-  const campaignCases = campaignReviewCases(review, suite);
+  const campaignCases = campaignReviewCases(state, item, review, suite, workspace, persistence);
   const tracks = (item?.objectTracks || []).map(normalizeObjectTrack).filter((track) => (
     track.status !== "archived" && track.metadata?.preannotationReviewPreview !== true
   ));

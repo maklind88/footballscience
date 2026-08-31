@@ -1,8 +1,24 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import {
   createScoutingPerformanceMonitor,
   scoutingPerformanceBudgets,
 } from "../src/modules/scouting/index.mjs";
+
+const scoutingClickPerformanceSource = readFileSync(
+  new URL("./scouting-click-performance.smoke.spec.mjs", import.meta.url),
+  "utf8"
+);
+
+test("Scouting search gate measures real browser paint while preserving the strict budget", () => {
+  expect(scoutingClickPerformanceSource).toContain("searchDatabase: budget(1000, 4000)");
+  expect(scoutingClickPerformanceSource).toContain("armScoutingRefreshPaintProbe");
+  expect(scoutingClickPerformanceSource).toContain('clock: "browser-paint"');
+  expect(scoutingClickPerformanceSource).toContain(
+    "requestAnimationFrame(() => requestAnimationFrame(() => resolvePaint(performance.now())))"
+  );
+  expect(scoutingClickPerformanceSource).toContain("await waitForScoutingRows");
+});
 
 test("Scouting performance monitor records bounded timing entries with budgets", () => {
   let now = 100;

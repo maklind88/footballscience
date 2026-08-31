@@ -7,8 +7,9 @@ export const TRACKING_CANDIDATE_PREANNOTATION_TRACK_MAP_PROTOCOL =
   "football-science-tracking-candidate-preannotation-track-map-v1";
 
 const candidateEvidenceProtocol = "football-science-tracking-candidate-stage-run-v1";
-const entityTypes = Object.freeze(["player", "ball", "referee"]);
-const entityOrder = new Map(entityTypes.map((entityType, index) => [entityType, index]));
+const reviewEntityTypes = Object.freeze(["person", "player", "ball", "referee"]);
+const requiredGroundTruthEntityTypes = Object.freeze(["player", "ball", "referee"]);
+const entityOrder = new Map(reviewEntityTypes.map((entityType, index) => [entityType, index]));
 
 export class TrackingCandidatePreannotationError extends Error {
   constructor(message, code = "TRACKING_CANDIDATE_PREANNOTATION_INVALID") {
@@ -131,7 +132,7 @@ function trajectoryEntries(trajectories = [], observations = []) {
     (entityOrder.get(first.entityType) ?? 99) - (entityOrder.get(second.entityType) ?? 99)
     || String(first.id).localeCompare(String(second.id))
   )).map((trajectory) => {
-    if (!entityTypes.includes(trajectory.entityType)) invalid("Suggestion trajectory has an invalid entity type.");
+    if (!reviewEntityTypes.includes(trajectory.entityType)) invalid("Suggestion trajectory has an invalid entity type.");
     const values = trajectory.observationIds.map((observationId) => {
       const observation = byId.get(observationId);
       if (!observation || observation.entityType !== trajectory.entityType || assigned.has(observationId)) {
@@ -199,11 +200,11 @@ export function createTrackingCandidatePreannotationCase(value = {}) {
   const rows = entries.flatMap((entry) => entry.observations.map(
     (observation) => motRow(observation, entry.motTrackId, frame),
   )).sort((first, second) => first.frameNumber - second.frameNumber || first.trackId - second.trackId);
-  const entityObservationCounts = Object.fromEntries(entityTypes.map((entityType) => [
+  const entityObservationCounts = Object.fromEntries(reviewEntityTypes.map((entityType) => [
     entityType,
     observations.filter((observation) => observation.entityType === entityType).length,
   ]));
-  const entityTrackCounts = Object.fromEntries(entityTypes.map((entityType) => [
+  const entityTrackCounts = Object.fromEntries(reviewEntityTypes.map((entityType) => [
     entityType,
     entries.filter((entry) => entry.entityType === entityType).length,
   ]));
@@ -217,7 +218,9 @@ export function createTrackingCandidatePreannotationCase(value = {}) {
     sampledFrameCoverage: Number((sampledFrames / frame.expectedFrames).toFixed(6)),
     entityObservationCounts,
     entityTrackCounts,
-    missingSuggestedEntityTypes: entityTypes.filter((entityType) => entityObservationCounts[entityType] === 0),
+    missingSuggestedEntityTypes: requiredGroundTruthEntityTypes.filter(
+      (entityType) => entityObservationCounts[entityType] === 0,
+    ),
   };
   const trackMap = deepFreeze({
     schemaVersion: 1,
@@ -263,7 +266,7 @@ export function createTrackingCandidatePreannotationWorkspace(pack = {}, associa
     trackMap: fileDescriptor(entry.trackMap, entry.id, "track-map.json", "track map"),
     summary: entry.summary,
   }));
-  const missingSuggestedEntityTypes = entityTypes.filter((entityType) => normalizedCases.some(
+  const missingSuggestedEntityTypes = requiredGroundTruthEntityTypes.filter((entityType) => normalizedCases.some(
     (entry) => entry.summary.entityObservationCounts[entityType] === 0,
   ));
   const associationEvaluated = Boolean(associationManifest.screeningSha256);

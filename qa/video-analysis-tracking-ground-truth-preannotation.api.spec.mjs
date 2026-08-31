@@ -216,3 +216,23 @@ test("preannotation bridge refuses incomplete, selected-object, and locked revie
     expect(current.presentation.tracking.groundTruth.byItemId["item-1"].error).toMatch(message);
   }
 });
+
+test("preannotation bridge refuses unresolved generic-person roles", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingGroundTruthPreannotationBridgeController.js",
+  ));
+  let current = state({
+    tracks: [savedTrack("person-1", "person"), savedTrack("ball-1", "ball")],
+  });
+  const controller = service.createTrackingGroundTruthPreannotationBridgeController({
+    getState: () => current,
+    updateState: (updater) => { current = updater(current); },
+    getContext: context,
+  });
+
+  expect(controller.handleAction("ground-truth-use-preannotation-case")).toBe(true);
+  expect(current.presentation.tracking.groundTruth.byItemId["item-1"].error)
+    .toMatch(/classify 1 saved person track as player or referee/i);
+  expect(current.presentation.tracking.groundTruth.byItemId["item-1"].selectedTrackIds)
+    .toEqual(["manual-extra", "archived-referee"]);
+});

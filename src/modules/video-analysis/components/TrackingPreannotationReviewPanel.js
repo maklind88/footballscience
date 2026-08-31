@@ -82,9 +82,16 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
   const canSave = Number(review.acceptedCount) > 0 && !active;
   const canOpenNextBatch = hasWorkspace && !current && Number(review.scopePendingCount) > 0 && !active;
   const activeCampaignCase = review.campaign?.cases?.find((entry) => entry.caseId === review.caseId);
+  const unresolvedRoleCount = (item?.objectTracks || []).filter((track) => (
+    track.status !== "archived"
+    && track.metadata?.preannotationReviewState === "saved-review"
+    && track.metadata?.preannotationWorkspaceSha256 === review.workspaceSha256
+    && track.metadata?.preannotationCaseId === review.caseId
+    && ["person", "unknown"].includes(track.entityType)
+  )).length;
   const canPrepareGroundTruth = activeCampaignCase?.complete
     && activeCampaignCase.reviewEffortCoverage === "complete"
-    && Number(activeCampaignCase.savedCount) > 0 && !active;
+    && Number(activeCampaignCase.savedCount) > 0 && unresolvedRoleCount === 0 && !active;
   return `
     <section class="video-analysis-preannotation" aria-label="Preannotation review queue">
       <header>
@@ -102,6 +109,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
           <div><dt>Accepted</dt><dd>${count(review.acceptedCount)}</dd></div>
           <div><dt>Rejected</dt><dd>${count(review.rejectedCount)}</dd></div>
           <div><dt>Saved</dt><dd>${count(review.savedCount)}</dd></div>
+          <div><dt>Roles unresolved</dt><dd>${count(unresolvedRoleCount)}</dd></div>
         </dl>
         ${renderCampaign(review.campaign)}
         <div class="video-analysis-preannotation__batchbar">

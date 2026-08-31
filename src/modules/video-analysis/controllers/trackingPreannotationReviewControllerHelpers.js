@@ -3,6 +3,7 @@ import {
   normalizeTrackingPreannotationReviewBatchSize,
   normalizeTrackingPreannotationReviewScope,
 } from "../services/trackingPreannotationReviewPriorityService.js";
+import { selectTrackingPreannotationWorkspaceDirectory } from "../services/trackingPreannotationWorkspacePickerService.js";
 
 function invalid(message) {
   throw new Error(message);
@@ -108,7 +109,10 @@ export function normalizeTrackingPreannotationReviewState(value = {}) {
   };
 }
 
-export async function selectTrackingPreannotationReviewFiles(win = globalThis.window) {
+export async function selectTrackingPreannotationReviewFiles(win = globalThis.window, options = {}) {
+  if (typeof win?.showDirectoryPicker === "function") {
+    return selectTrackingPreannotationWorkspaceDirectory(win, options);
+  }
   if (typeof win?.showOpenFilePicker !== "function") {
     invalid("This browser cannot open a sealed preannotation workspace.");
   }

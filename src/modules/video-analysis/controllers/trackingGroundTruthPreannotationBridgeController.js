@@ -84,6 +84,15 @@ export function createTrackingGroundTruthPreannotationBridgeController(options =
     if (!tracks.length) {
       return fail(item.id, "No saved tracks from this sealed case are available for ground truth.");
     }
+    const unresolvedRoleCount = tracks.filter((track) => (
+      track.entityType === "person" || track.entityType === "unknown"
+    )).length;
+    if (unresolvedRoleCount) {
+      return fail(
+        item.id,
+        `Classify ${unresolvedRoleCount} saved person track${unresolvedRoleCount === 1 ? "" : "s"} as player or referee before preparing ground truth.`,
+      );
+    }
     let workloadEvidence;
     try {
       workloadEvidence = createTrackingReviewWorkloadEvidence({

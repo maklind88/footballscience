@@ -98,6 +98,10 @@ export async function runTrackingCandidatePreannotation(options = {}, dependenci
   try {
     const casesDir = path.join(stagedDir, "cases");
     await fs.mkdir(casesDir, { mode: 0o700 });
+    await writeImmutable(
+      path.join(stagedDir, "annotation-pack.json"),
+      Buffer.from(`${JSON.stringify(loaded.pack, null, 2)}\n`, "utf8"),
+    );
     const cases = [];
     for (const value of loaded.cases) {
       const prepared = createTrackingCandidatePreannotationCase({

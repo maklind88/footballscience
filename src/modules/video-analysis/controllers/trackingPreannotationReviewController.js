@@ -46,7 +46,9 @@ export function createTrackingPreannotationReviewController(options = {}) {
   const updateState = options.updateState || (() => {});
   const getWindow = options.getWindow || (() => globalThis.window);
   const importCase = options.importCase || importTrackingPreannotationReviewCase;
-  const pickFiles = options.pickFiles || (() => selectTrackingPreannotationReviewFiles(getWindow()));
+  const pickFiles = options.pickFiles || ((context) => (
+    selectTrackingPreannotationReviewFiles(getWindow(), context)
+  ));
   const draftController = createTrackingPreannotationReviewDraftController({
     getState,
     getContext: options.getContext,
@@ -207,7 +209,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     }
     patchReview({ status: "loading", error: "" });
     try {
-      const files = await pickFiles();
+      const files = await pickFiles({ sourceSha256 });
       const imported = await importCase({
         ...files,
         sourceSha256,

@@ -4,7 +4,7 @@ import { normalizeTrackingPreannotationCampaign } from "./trackingPreannotationC
 const PACK_PROTOCOL = "football-science-tracking-annotation-pack-v1";
 const WORKSPACE_PROTOCOL = "football-science-tracking-candidate-preannotation-workspace-v1";
 const TRACK_MAP_PROTOCOL = "football-science-tracking-candidate-preannotation-track-map-v1";
-const entityTypes = new Set(["player", "ball", "referee"]);
+const entityTypes = new Set(["person", "player", "ball", "referee"]);
 
 export class TrackingPreannotationReviewError extends Error {
   constructor(message, code = "TRACKING_PREANNOTATION_REVIEW_INVALID") {

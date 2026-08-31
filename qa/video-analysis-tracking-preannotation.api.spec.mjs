@@ -161,6 +161,29 @@ test("preannotation preserves associated and unassociated suggestions without cl
   )).toThrow(/does not permit/i);
 });
 
+test("preannotation preserves generic persons as unresolved roles", async () => {
+  const service = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-candidate-preannotation-workspace.mjs",
+  ));
+  const loaded = fixtures();
+  const detectionObservations = loaded.cases[0].detectionEvidence.result.payload.payload.observations;
+  const requestedObservations = loaded.cases[0].associationEvidence.request.payload.observations;
+  detectionObservations[0].entityType = "person";
+  requestedObservations[0].entityType = "person";
+  loaded.cases[0].associationEvidence.result.payload.payload.trajectories[0].entityType = "person";
+
+  const prepared = service.createTrackingCandidatePreannotationCase({
+    ...loaded.cases[0],
+    extraction: loaded.pack.extraction,
+  });
+  expect(prepared.trackMap.tracks[0]).toMatchObject({ entityType: "person" });
+  expect(prepared.summary).toMatchObject({
+    entityObservationCounts: { person: 1, player: 0 },
+    entityTrackCounts: { person: 1, player: 0 },
+    missingSuggestedEntityTypes: expect.arrayContaining(["player"]),
+  });
+});
+
 test("preannotation refuses partial candidate ranges before generating suggestions", async () => {
   const service = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-candidate-preannotation-workspace.mjs",
@@ -211,6 +234,9 @@ test("preannotation CLI writes a separate immutable workspace and verifier repro
       summary: { associationEvaluated: false, unassociatedObservationCount: 3 },
     });
     expect(await fs.stat(path.join(outputDir, "workspace.json"))).toMatchObject({ mode: expect.any(Number) });
+    const packFile = path.join(outputDir, "annotation-pack.json");
+    expect(JSON.parse(await fs.readFile(packFile, "utf8"))).toEqual(loaded.pack);
+    expect((await fs.stat(packFile)).mode & 0o222).toBe(0);
 
     const verified = await verifier.verifyTrackingCandidatePreannotationWorkspace({
       packPath: "/private/pack.json",

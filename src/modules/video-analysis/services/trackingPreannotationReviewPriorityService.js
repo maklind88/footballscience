@@ -4,7 +4,7 @@ function pointCount(track = {}) {
 
 export const TRACKING_PREANNOTATION_REVIEW_SCOPES = Object.freeze([
   Object.freeze({ value: "all", label: "All pending" }),
-  Object.freeze({ value: "critical", label: "Ball & referee" }),
+  Object.freeze({ value: "critical", label: "Roles, ball & referee" }),
   Object.freeze({ value: "fragments", label: "Fragments" }),
   Object.freeze({ value: "low-confidence", label: "Low confidence" }),
   Object.freeze({ value: "associated", label: "Associated" }),
@@ -30,25 +30,28 @@ function reviewPriority(entry = {}) {
   const points = pointCount(track);
   const durationMs = Math.max(0, Number(track.endMs) - Number(track.startMs));
   const confidence = Math.max(0, Math.min(1, Number(track.confidence) || 0));
+  if (entityType === "person") {
+    return { rank: 0, code: "unresolved-role", label: "Person needs player/referee classification" };
+  }
   if (["ball", "referee"].includes(entityType)) {
-    return { rank: 0, code: "critical-entity", label: "Ball/referee requires manual confirmation" };
+    return { rank: 1, code: "critical-entity", label: "Ball/referee requires manual confirmation" };
   }
   if (associationStatus === "associated" && points <= 1) {
-    return { rank: 1, code: "single-sample", label: "Single-sample associated fragment" };
+    return { rank: 2, code: "single-sample", label: "Single-sample associated fragment" };
   }
   if (associationStatus === "associated" && (points <= 5 || durationMs <= 500)) {
-    return { rank: 2, code: "short-fragment", label: "Short associated fragment" };
+    return { rank: 3, code: "short-fragment", label: "Short associated fragment" };
   }
   if (associationStatus === "associated" && confidence < 0.5) {
-    return { rank: 3, code: "low-confidence", label: "Low-confidence associated trajectory" };
+    return { rank: 4, code: "low-confidence", label: "Low-confidence associated trajectory" };
   }
   if (associationStatus === "associated") {
-    return { rank: 4, code: "stable-associated", label: "Longer associated trajectory" };
+    return { rank: 5, code: "stable-associated", label: "Longer associated trajectory" };
   }
   if (confidence >= 0.6) {
-    return { rank: 5, code: "unassociated-high-confidence", label: "High-confidence unassociated detection" };
+    return { rank: 6, code: "unassociated-high-confidence", label: "High-confidence unassociated detection" };
   }
-  return { rank: 6, code: "unassociated", label: "Unassociated detection" };
+  return { rank: 7, code: "unassociated", label: "Unassociated detection" };
 }
 
 export function prioritizeTrackingPreannotationReviewEntries(entries = []) {
@@ -64,7 +67,9 @@ export function prioritizeTrackingPreannotationReviewEntries(entries = []) {
 
 export function summarizeTrackingPreannotationReviewPriorities(entries = []) {
   return {
-    criticalEntityCount: entries.filter((entry) => entry.priority?.code === "critical-entity").length,
+    criticalEntityCount: entries.filter((entry) => (
+      ["critical-entity", "unresolved-role"].includes(entry.priority?.code)
+    )).length,
     fragmentCount: entries.filter((entry) => (
       ["single-sample", "short-fragment"].includes(entry.priority?.code)
     )).length,
@@ -74,7 +79,9 @@ export function summarizeTrackingPreannotationReviewPriorities(entries = []) {
 
 export function matchesTrackingPreannotationReviewScope(entry = {}, scope = "all") {
   const normalizedScope = normalizeTrackingPreannotationReviewScope(scope);
-  if (normalizedScope === "critical") return entry.priority?.code === "critical-entity";
+  if (normalizedScope === "critical") {
+    return ["critical-entity", "unresolved-role"].includes(entry.priority?.code);
+  }
   if (normalizedScope === "fragments") {
     return ["single-sample", "short-fragment"].includes(entry.priority?.code);
   }

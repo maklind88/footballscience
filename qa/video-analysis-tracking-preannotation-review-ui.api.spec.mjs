@@ -10,7 +10,21 @@ function moduleUrl(relativePath) {
 
 function file(name, value) {
   const bytes = new TextEncoder().encode(value);
-  return { name, arrayBuffer: async () => bytes.buffer };
+  return { name, size: bytes.byteLength, arrayBuffer: async () => bytes.buffer };
+}
+
+function directory(files = {}, directories = {}) {
+  return {
+    kind: "directory",
+    getFileHandle: async (name) => {
+      if (!files[name]) throw new DOMException("Missing", "NotFoundError");
+      return { kind: "file", getFile: async () => files[name] };
+    },
+    getDirectoryHandle: async (name) => {
+      if (!directories[name]) throw new DOMException("Missing", "NotFoundError");
+      return directories[name];
+    },
+  };
 }
 
 test("preannotation panel exposes bounded review decisions and save state", async () => {
@@ -95,7 +109,7 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   expect(html).toContain("Unassociated ball");
   expect(html).toContain("Ball/referee requires manual confirmation");
   expect(html).toContain('data-video-analysis-tracking-field="preannotation-scope"');
-  expect(html).toContain('<option value="critical" selected>Ball &amp; referee</option>');
+  expect(html).toContain('<option value="critical" selected>Roles, ball &amp; referee</option>');
   expect(html).toContain('<option value="50" selected>50</option>');
   expect(html).toContain("17/17");
   expect(html).toContain("Device progress restored");
@@ -222,4 +236,58 @@ test("preannotation file picker rejects a crossed case pair", async () => {
   await expect(helpers.selectTrackingPreannotationReviewFiles({
     showOpenFilePicker: async () => selections[index++].map((entry) => ({ getFile: async () => entry })),
   })).rejects.toThrow(/one matching case/i);
+});
+
+test("preannotation directory picker matches the connected source to one sealed case", async () => {
+  const helpers = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingPreannotationReviewControllerHelpers.js",
+  ));
+  const sourceSha256 = "b".repeat(64);
+  const pack = file("annotation-pack.json", JSON.stringify({
+    cases: [
+      { id: "attacking-third", clip: { sha256: "a".repeat(64) } },
+      { id: "fast-transition", clip: { sha256: sourceSha256 } },
+    ],
+  }));
+  const workspace = file("workspace.json", JSON.stringify({
+    cases: [{ id: "attacking-third" }, { id: "fast-transition" }],
+  }));
+  const root = directory({
+    "annotation-pack.json": pack,
+    "workspace.json": workspace,
+  }, {
+    cases: directory({
+      "fast-transition.track-map.json": file("fast-transition.track-map.json", "map"),
+      "fast-transition.suggestions.mot.txt": file("fast-transition.suggestions.mot.txt", "suggestions"),
+    }),
+  });
+  let pickerOptions = null;
+  const result = await helpers.selectTrackingPreannotationReviewFiles({
+    showDirectoryPicker: async (options) => {
+      pickerOptions = options;
+      return root;
+    },
+  }, { sourceSha256 });
+
+  expect(pickerOptions).toEqual({ id: "fs-player-preannotation", mode: "read" });
+  expect(result.caseId).toBe("fast-transition");
+  expect(new TextDecoder().decode(result.trackMapBytes)).toBe("map");
+  expect(new TextDecoder().decode(result.suggestionBytes)).toBe("suggestions");
+});
+
+test("preannotation directory picker fails closed when the connected source is absent", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingPreannotationWorkspacePickerService.js",
+  ));
+  const root = directory({
+    "annotation-pack.json": file("annotation-pack.json", JSON.stringify({
+      cases: [{ id: "attacking-third", clip: { sha256: "a".repeat(64) } }],
+    })),
+    "workspace.json": file("workspace.json", JSON.stringify({
+      cases: [{ id: "attacking-third" }],
+    })),
+  }, { cases: directory() });
+  await expect(service.selectTrackingPreannotationWorkspaceDirectory({
+    showDirectoryPicker: async () => root,
+  }, { sourceSha256: "b".repeat(64) })).rejects.toThrow(/not part of this annotation workspace/i);
 });

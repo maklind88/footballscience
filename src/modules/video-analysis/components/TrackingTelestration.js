@@ -11,6 +11,7 @@ import { formatTrackingDuration } from "../services/trackingProgressService.js";
 import { trackingReviewSummary } from "../services/trackingReviewService.js";
 import { escapeHtml } from "./renderHelpers.js";
 import { renderTrackingGroundTruthPanel } from "./TrackingGroundTruthPanel.js";
+import { renderTrackingGroundTruthReviewStudio } from "./TrackingGroundTruthReviewStudio.js";
 import { renderTrackingBenchmarkSuitePanel } from "./TrackingBenchmarkSuitePanel.js";
 import { renderTrackingCandidatePanel } from "./TrackingCandidatePanel.js";
 import { renderTrackingCapabilityReadiness } from "./TrackingCapabilityReadiness.js";
@@ -398,9 +399,10 @@ export function renderTrackingSidebar(state = {}, item = null) {
       </ol>
       ${renderTrackingContinuation(reviewablePrimaryTrack, item, { providerReady, jobActive: Boolean(tracking.job) })}
       ${renderTrackingReviewPanel(state, reviewablePrimaryTrack, activeTracks)}
-      ${renderTrackingGroundTruthPanel(state, item)}
       ${renderTrackingCandidatePanel(state, item)}
+      ${renderTrackingGroundTruthReviewStudio(state, item)}
       ${renderTrackingPreannotationReviewPanel(state, item)}
+      ${renderTrackingGroundTruthPanel(state, item)}
       ${renderTrackingBenchmarkSuitePanel(state)}
       <div class="video-analysis-tracking-graphics">
         <strong>${escapeHtml(`${graphics.length} dynamic graphics`)}</strong>

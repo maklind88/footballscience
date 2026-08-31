@@ -150,6 +150,7 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
     ["preannotation-save-current", "C"],
     ["preannotation-save", "S"],
   ]) expect(html).toMatch(new RegExp(`${action}" aria-keyshortcuts="${key}"`));
+  expect(html).toContain('title="Play 1.5 seconds before and after this suggestion (P)"');
 
   const completeState = {
     presentation: {

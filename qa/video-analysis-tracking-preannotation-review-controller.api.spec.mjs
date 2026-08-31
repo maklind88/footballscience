@@ -734,6 +734,28 @@ test("preannotation keyboard review is deliberate, scoped, and repeat-safe", asy
   const associated = track("associated-player", "player", 1000, 0.8, "associated");
   const unassociated = track("unassociated-ball", "ball", 500, 0.4, "unassociated");
   const seeks = [];
+  const listeners = new Map();
+  let currentMatchMs = 0;
+  let playError = null;
+  let playCount = 0;
+  let pauseCount = 0;
+  const video = {
+    paused: true,
+    addEventListener: (type, listener) => listeners.set(type, listener),
+    removeEventListener: (type, listener) => {
+      if (listeners.get(type) === listener) listeners.delete(type);
+    },
+    play() {
+      playCount += 1;
+      if (playError) throw playError;
+      this.paused = false;
+      return Promise.resolve();
+    },
+    pause() {
+      pauseCount += 1;
+      this.paused = true;
+    },
+  };
   const controller = service.createTrackingPreannotationReviewController({
     getState: () => state,
     updateState: (updater) => { state = updater(state); },
@@ -747,7 +769,12 @@ test("preannotation keyboard review is deliberate, scoped, and repeat-safe", asy
       queue: [{ track: unassociated }],
       summary: { associatedTrackCount: 1, unassociatedObservationCount: 1 },
     }),
-    seekToMatchMs: (atMs) => seeks.push(atMs),
+    getVideoElement: () => video,
+    getCurrentMatchMs: () => currentMatchMs,
+    seekToMatchMs: (atMs) => {
+      currentMatchMs = atMs;
+      seeks.push(atMs);
+    },
   });
   const keyboardEvent = (key, overrides = {}) => {
     const calls = { prevented: 0, stopped: 0 };
@@ -771,6 +798,9 @@ test("preannotation keyboard review is deliberate, scoped, and repeat-safe", asy
   expect(controller.handleShortcut(preview)).toBe(true);
   expect(preview.calls).toEqual({ prevented: 1, stopped: 1 });
   expect(seeks).toEqual([500, 0]);
+  expect(playCount).toBe(1);
+  expect(video.paused).toBe(false);
+  expect([...listeners.keys()]).toEqual(["timeupdate", "ended"]);
   expect(state.presentation.tracking.preannotationReview).toMatchObject({
     pendingCount: 2,
     acceptedCount: 0,
@@ -781,6 +811,19 @@ test("preannotation keyboard review is deliberate, scoped, and repeat-safe", asy
       contextLeadMs: 500,
     },
   });
+  currentMatchMs = 2000;
+  listeners.get("timeupdate")();
+  expect(video.paused).toBe(true);
+  expect(pauseCount).toBe(1);
+  expect(listeners.size).toBe(0);
+
+  playError = new Error("Autoplay blocked");
+  expect(controller.handleShortcut(keyboardEvent("p"))).toBe(true);
+  expect(playCount).toBe(2);
+  expect(seeks).toEqual([500, 0, 0]);
+  expect(listeners.size).toBe(0);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({ pendingCount: 2, acceptedCount: 0 });
+  playError = null;
 
   const accept = keyboardEvent("A");
   expect(controller.handleShortcut(accept)).toBe(true);

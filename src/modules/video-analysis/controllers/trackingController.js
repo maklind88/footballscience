@@ -146,6 +146,8 @@ export function createTrackingController(options = {}) {
     updateState,
     getContext: options.getContext,
     getWindow: options.getWindow,
+    getVideoElement,
+    getCurrentMatchMs,
     seekToMatchMs: options.seekToMatchMs,
     persistTrack,
     onEvidenceChanged: (itemId) => {
@@ -156,6 +158,7 @@ export function createTrackingController(options = {}) {
 
   function setMode(mode = "static") {
     const nextMode = mode === "tracking" ? "tracking" : "static";
+    if (nextMode === "static") preannotationReviewController.stopContextPreview();
     updateState((state) => trackingPatch(state, {
       mode: nextMode,
       captureMode: "",

@@ -4,7 +4,6 @@ import {
   createTrackingPreannotationReviewBatch,
   findTrackingPreannotationReviewBatchIndex,
   prioritizeTrackingPreannotationReviewEntries,
-  summarizeTrackingPreannotationReviewBatch,
   summarizeTrackingPreannotationReviewPriorities,
 } from "../services/trackingPreannotationReviewPriorityService.js";
 import { trackingSourceFingerprint } from "./trackingGroundTruthController.js";
@@ -15,8 +14,10 @@ import {
   normalizeTrackingPreannotationReviewState as reviewState,
   previewTrackingPreannotationTrack as previewTrack,
   selectTrackingPreannotationReviewFiles,
-  TRACKING_PREANNOTATION_CONTEXT_LEAD_MS,
+  summarizeTrackingPreannotationReviewSession,
+  TRACKING_PREANNOTATION_SHORTCUT_ACTIONS,
 } from "./trackingPreannotationReviewControllerHelpers.js";
+import { createTrackingPreannotationContextReplayController } from "./trackingPreannotationContextReplayController.js";
 import {
   createTrackingPreannotationReviewDraftController,
   restoreTrackingPreannotationReviewDecisions,
@@ -32,16 +33,6 @@ import {
 function invalid(message) {
   throw new Error(message);
 }
-
-const shortcutActions = Object.freeze({
-  a: "preannotation-accept",
-  r: "preannotation-reject",
-  n: "preannotation-next",
-  p: "preannotation-preview-context",
-  u: "preannotation-undo",
-  c: "preannotation-save-current",
-  s: "preannotation-save",
-});
 
 export function createTrackingPreannotationReviewController(options = {}) {
   const getState = options.getState || (() => ({}));
@@ -67,6 +58,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     saveCampaignCase: options.saveCampaignCase,
     now: options.now,
   });
+  const contextReplay = createTrackingPreannotationContextReplayController(options);
   let session = null;
 
   function patchReview(patch = {}) {
@@ -99,14 +91,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
   }
 
   function counts() {
-    const values = [...(session?.decisions?.values() || [])];
-    return {
-      pendingCount: Math.max(0, (session?.entries.length || 0) - values.length),
-      acceptedCount: values.filter((value) => value === "accepted").length,
-      rejectedCount: values.filter((value) => value === "rejected").length,
-      savedCount: values.filter((value) => value === "saved").length,
-      ...summarizeTrackingPreannotationReviewBatch(session),
-    };
+    return summarizeTrackingPreannotationReviewSession(session);
   }
 
   function entryById(id = "") {
@@ -151,6 +136,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     const angleId = String(state.mediaProduction?.activeAngleId || "primary");
     if (session && selected?.id === session.itemId && clipId === session.clipId
       && angleId === session.angleId && sourceSha256 === session.sourceSha256) return true;
+    contextReplay.stop();
     const stale = session;
     session = null;
     updateState((state) => {
@@ -168,6 +154,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
   }
 
   function show(index) {
+    contextReplay.stop();
     if (!session) return false;
     const previousId = session.currentId;
     const entry = index >= 0 ? session.entries[index] : null;
@@ -193,6 +180,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
   }
 
   async function open() {
+    contextReplay.stop();
     const state = getState();
     const item = selectedTrackingItem(state);
     const sourceSha256 = trackingSourceFingerprint(state);
@@ -379,10 +367,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
   function previewContext() {
     if (!sync()) return false;
     const current = entryById(session?.currentId);
-    if (!current) return false;
-    const startMs = Math.max(0, Number(current.track.startMs) || 0);
-    options.seekToMatchMs?.(Math.max(0, startMs - TRACKING_PREANNOTATION_CONTEXT_LEAD_MS));
-    return true;
+    return contextReplay.start(current?.track || null);
   }
 
   function handleField(field = "", element = null) {
@@ -395,6 +380,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (!sync()) return false;
     const current = entryById(session?.currentId);
     if (!session || !current || typeof options.persistTrack !== "function") return false;
+    contextReplay.stop();
     patchReview({ status: "saving", error: "" });
     try {
       const requested = acceptedTrack(current.track, "saved-review");
@@ -486,7 +472,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
   function handleShortcut(event = {}) {
     if (event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey
       || event.altKey || event.shiftKey || shouldIgnoreShortcutTarget(event.target)) return false;
-    const action = shortcutActions[String(event.key || "").toLowerCase()];
+    const action = TRACKING_PREANNOTATION_SHORTCUT_ACTIONS[String(event.key || "").toLowerCase()];
     if (!action) return false;
     const review = reviewState(getState().presentation?.tracking?.preannotationReview);
     if (!review.workspaceSha256 || ["idle", "loading", "saving"].includes(review.status)) return false;
@@ -508,6 +494,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     previewContext,
     saveAccepted,
     saveCurrentForCorrection,
+    stopContextPreview: contextReplay.stop,
     sync,
   };
 }

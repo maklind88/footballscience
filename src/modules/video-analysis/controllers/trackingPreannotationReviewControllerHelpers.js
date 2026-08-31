@@ -2,10 +2,20 @@ import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import {
   normalizeTrackingPreannotationReviewBatchSize,
   normalizeTrackingPreannotationReviewScope,
+  summarizeTrackingPreannotationReviewBatch,
 } from "../services/trackingPreannotationReviewPriorityService.js";
 import { selectTrackingPreannotationWorkspaceDirectory } from "../services/trackingPreannotationWorkspacePickerService.js";
 
 export const TRACKING_PREANNOTATION_CONTEXT_LEAD_MS = 1500;
+export const TRACKING_PREANNOTATION_SHORTCUT_ACTIONS = Object.freeze({
+  a: "preannotation-accept",
+  r: "preannotation-reject",
+  n: "preannotation-next",
+  p: "preannotation-preview-context",
+  u: "preannotation-undo",
+  c: "preannotation-save-current",
+  s: "preannotation-save",
+});
 
 function invalid(message) {
   throw new Error(message);
@@ -108,6 +118,17 @@ export function normalizeTrackingPreannotationReviewState(value = {}) {
     campaign: normalizeCampaignState(value.campaign),
     current: value.current && typeof value.current === "object" ? value.current : null,
     error: String(value.error || ""),
+  };
+}
+
+export function summarizeTrackingPreannotationReviewSession(session = null) {
+  const values = [...(session?.decisions?.values() || [])];
+  return {
+    pendingCount: Math.max(0, (session?.entries.length || 0) - values.length),
+    acceptedCount: values.filter((value) => value === "accepted").length,
+    rejectedCount: values.filter((value) => value === "rejected").length,
+    savedCount: values.filter((value) => value === "saved").length,
+    ...summarizeTrackingPreannotationReviewBatch(session),
   };
 }
 

@@ -148,7 +148,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
         <button type="button" data-video-analysis-tracking-action="preannotation-open" ${!item || active ? "disabled" : ""}>Open workspace</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-accept" aria-keyshortcuts="A" title="Accept suggestion (A)" ${!pendingSuggestion || active ? "disabled" : ""}>Accept</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-reject" aria-keyshortcuts="R" title="Reject suggestion (R)" ${!pendingSuggestion || active ? "disabled" : ""}>Reject</button>
-        <button type="button" data-video-analysis-tracking-action="preannotation-preview-context" aria-keyshortcuts="P" title="Seek 1.5 seconds before this suggestion (P)" ${!pendingSuggestion || active ? "disabled" : ""}>Context</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-preview-context" aria-keyshortcuts="P" title="Play 1.5 seconds before and after this suggestion (P)" ${!pendingSuggestion || active ? "disabled" : ""}>Context</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-next" aria-keyshortcuts="N" title="Next suggestion (N)" ${(!pendingSuggestion && review.status !== "correcting") || active ? "disabled" : ""}>${review.status === "correcting" ? "Continue" : "Next"}</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-next-batch" ${canOpenNextBatch ? "" : "disabled"}>Next batch</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-undo" aria-keyshortcuts="U" title="Undo decision (U)" ${!hasWorkspace || active ? "disabled" : ""}>Undo</button>

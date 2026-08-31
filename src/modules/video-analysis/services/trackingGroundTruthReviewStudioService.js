@@ -73,21 +73,27 @@ function sourceHint(value = "") {
 
 function campaignReviewCases(review = {}, suite = {}) {
   const workspaceSha256 = String(review.workspaceSha256 || "");
-  const lockedCaseIds = new Set((suite.cases || []).flatMap((artifact) => {
+  const lockedCaseKeys = new Set((suite.cases || []).flatMap((artifact) => {
     const evidence = artifact.workloadEvidence || {};
-    return evidence.workspaceSha256 === workspaceSha256 && evidence.caseId
-      ? [String(evidence.caseId)]
+    const sourceFingerprint = String(artifact.sourceFingerprint || "");
+    return evidence.workspaceSha256 === workspaceSha256
+      && fingerprintPattern.test(sourceFingerprint)
+      && evidence.sourceFingerprint === sourceFingerprint
+      && evidence.caseId
+      ? [`${String(evidence.caseId)}:${sourceFingerprint}`]
       : [];
   }));
   return (review.campaign?.cases || []).map((entry) => {
     const decisionsComplete = entry.complete === true
       && entry.reviewEffortCoverage === "complete"
       && Number(entry.savedCount) > 0;
-    const referenceLocked = lockedCaseIds.has(String(entry.caseId));
+    const caseId = String(entry.caseId || "");
+    const sourceSha256 = String(entry.sourceSha256 || "");
+    const referenceLocked = lockedCaseKeys.has(`${caseId}:${sourceSha256}`);
     return {
-      id: String(entry.caseId || ""),
-      sourceHint: sourceHint(entry.sourceSha256),
-      active: String(entry.caseId || "") === String(review.caseId || ""),
+      id: caseId,
+      sourceHint: sourceHint(sourceSha256),
+      active: caseId === String(review.caseId || ""),
       decisionCount: Math.max(0, Number(entry.decisionCount) || 0),
       totalSuggestionCount: Math.max(0, Number(entry.totalSuggestionCount) || 0),
       pendingCount: Math.max(0, Number(entry.pendingCount) || 0),
@@ -246,7 +252,7 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
           ? `Reconnect ${handoff.id} (${handoff.sourceHint}) and prepare its independent reference.`
           : `Reconnect ${handoff.id} (${handoff.sourceHint}) and resolve ${handoff.pendingCount} remaining suggestions.`
         : suiteReadiness.issues[0]?.message || "Connect the next representative match case.",
-      actions: [],
+      actions: handoff ? [{ label: "Reconnect next case", loadVideo: true }] : [],
     };
   } else if (suiteReadiness.ready && !evaluationComplete) {
     next = {

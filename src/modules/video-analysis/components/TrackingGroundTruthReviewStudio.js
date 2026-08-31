@@ -2,6 +2,9 @@ import { trackingGroundTruthReviewStudioState } from "../services/trackingGround
 import { escapeHtml } from "./renderHelpers.js";
 
 function actionButton(value = {}, primary = false) {
+  if (value.loadVideo) {
+    return `<button type="button" class="${primary ? "is-primary" : ""}" data-video-analysis-load>${escapeHtml(value.label)}</button>`;
+  }
   if (value.trackId) {
     return `<button type="button" class="${primary ? "is-primary" : ""}" data-video-analysis-track-select="${escapeHtml(value.trackId)}">${escapeHtml(value.label)}</button>`;
   }

@@ -295,9 +295,11 @@ test("review studio separates decision completion from locked Match 11 reference
         benchmarkType: "multi-object",
         cases: [{
           id: "locked-attacking-third",
+          sourceFingerprint: "a".repeat(64),
           workloadEvidence: {
             workspaceSha256: "b".repeat(64),
             caseId: "attacking-third",
+            sourceFingerprint: "a".repeat(64),
           },
         }],
       },
@@ -344,7 +346,58 @@ test("review studio separates decision completion from locked Match 11 reference
   expect(html).toContain("4/5 stages");
   expect(html).toContain("3/10 decisions");
   expect(html).toContain("Reconnect fast-transition (cccccc...cccc) and resolve 7 remaining suggestions.");
+  expect(html).toContain('data-video-analysis-load>Reconnect next case</button>');
   expect(html).not.toContain("2/2 references");
+});
+
+test("review studio never counts a crossed-source workload as a locked campaign reference", async () => {
+  const component = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingGroundTruthReviewStudio.js",
+  ));
+  const html = component.renderTrackingGroundTruthReviewStudio(state({
+    groundTruth: {
+      suite: {
+        benchmarkType: "multi-object",
+        cases: [{
+          id: "crossed-reference",
+          sourceFingerprint: "d".repeat(64),
+          workloadEvidence: {
+            workspaceSha256: "b".repeat(64),
+            caseId: "attacking-third",
+            sourceFingerprint: "d".repeat(64),
+          },
+        }],
+      },
+      byItemId: {
+        "item-1": truth({ status: "locked", lockedArtifact: { id: "crossed-reference" } }),
+      },
+    },
+    preannotationReview: {
+      status: "complete",
+      draftStatus: "ready",
+      workspaceSha256: "b".repeat(64),
+      caseId: "attacking-third",
+      campaign: {
+        status: "ready",
+        caseCount: 1,
+        completeCaseCount: 1,
+        cases: [{
+          caseId: "attacking-third",
+          sourceSha256: "a".repeat(64),
+          complete: true,
+          reviewEffortCoverage: "complete",
+          savedCount: 10,
+          decisionCount: 10,
+          totalSuggestionCount: 10,
+          pendingCount: 0,
+        }],
+      },
+    },
+  }), { id: "item-1", objectTracks: [] });
+
+  expect(html).toContain("0/1 refs");
+  expect(html).toContain("Ready for reference");
+  expect(html).not.toContain("Reference locked");
 });
 
 test("review studio accepts the real normalized campaign coverage contract", async () => {

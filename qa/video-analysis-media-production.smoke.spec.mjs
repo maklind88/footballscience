@@ -226,6 +226,40 @@ test("media production switches synchronized cameras and edits replay/export sta
   expect(pageErrors).toEqual([]);
 });
 
+test("media production preserves angle edits while a delayed camera seek settles", async ({ page }) => {
+  await openMediaWorkspace(page);
+  await page.locator('[data-video-analysis-media-action="toggle"]').click();
+
+  await page.evaluate(() => {
+    const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);
+    let heldCallback = null;
+    window.requestAnimationFrame = (callback) => {
+      if (!heldCallback) {
+        heldCallback = callback;
+        return 987654;
+      }
+      return nativeRequestAnimationFrame(callback);
+    };
+    window.__flushHeldMediaFrame = () => {
+      const callback = heldCallback;
+      heldCallback = null;
+      window.requestAnimationFrame = nativeRequestAnimationFrame;
+      callback?.(performance.now());
+    };
+  });
+
+  await page.locator(`[data-video-analysis-media-action="select-angle"][data-video-analysis-media-angle="${tacticalAngleId}"]`).click();
+  const offset = page.locator(`[data-video-analysis-media-angle-field="syncOffsetSeconds"][data-video-analysis-media-angle="${tacticalAngleId}"]`);
+  await offset.fill("3.25");
+  await page.evaluate(() => window.__flushHeldMediaFrame?.());
+  await offset.blur();
+
+  await expect.poll(() => page.evaluate(() => {
+    const requests = window.__videoAnalysisRequests || [];
+    return requests.findLast?.((request) => request.action === "save-media-angle")?.body?.angle?.syncOffsetMs || 0;
+  })).toBe(3250);
+});
+
 test("media production remains contained on mobile", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openMediaWorkspace(page);

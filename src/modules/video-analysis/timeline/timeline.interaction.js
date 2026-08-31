@@ -99,15 +99,22 @@ export function createTimelineScrubController(options = {}) {
 
   function seekToMs(ms = 0, { commit = false } = {}) {
     lockScrollPosition();
-    const durationMs = getTimelineDurationMs(state());
+    const currentState = state();
+    const durationMs = getTimelineDurationMs(currentState);
     const safeMs = Math.min(durationMs, Math.max(0, Math.round(Number(ms || 0))));
     seekVideoToMs(options.getVideoElement?.(), timelineVideoMs(safeMs));
     syncPlayheads(safeMs, durationMs);
     if (commit) {
-      options.updateState?.((current) => ({
-        ...current,
-        timeline: { ...(current.timeline || {}), playheadMs: safeMs },
-      }));
+      const currentPlayheadMs = Number(currentState.timeline?.playheadMs);
+      const normalizedCurrentPlayheadMs = Number.isFinite(currentPlayheadMs)
+        ? Math.min(durationMs, Math.max(0, Math.round(currentPlayheadMs)))
+        : null;
+      if (normalizedCurrentPlayheadMs !== safeMs) {
+        options.updateState?.((current) => ({
+          ...current,
+          timeline: { ...(current.timeline || {}), playheadMs: safeMs },
+        }));
+      }
     }
     return safeMs;
   }

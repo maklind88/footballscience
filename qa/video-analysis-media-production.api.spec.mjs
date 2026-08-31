@@ -107,6 +107,7 @@ test("active secondary duration updates stay isolated from the primary source", 
 test("timeline seeks use camera time while committed state remains match time", async () => {
   const timeline = await import(moduleUrl("src/modules/video-analysis/timeline/timeline.interaction.js"));
   let state = { videoRef: { durationMs: 60_000 }, timeline: { playheadMs: 0 } };
+  let stateUpdates = 0;
   const video = { currentTime: 0 };
   const controller = timeline.createTimelineScrubController({
     getRoot: () => ({ querySelectorAll: () => [] }),
@@ -114,11 +115,17 @@ test("timeline seeks use camera time while committed state remains match time", 
     getVideoElement: () => video,
     timelineToVideoMs: (matchMs) => matchMs + 2400,
     videoToTimelineMs: (videoMs) => videoMs - 2400,
-    updateState: (updater) => { state = updater(state); },
+    updateState: (updater) => {
+      stateUpdates += 1;
+      state = updater(state);
+    },
   });
+  expect(controller.seekToMs(0, { commit: true })).toBe(0);
+  expect(stateUpdates).toBe(0);
   expect(controller.seekToMs(12_000, { commit: true })).toBe(12_000);
   expect(video.currentTime).toBe(14.4);
   expect(state.timeline.playheadMs).toBe(12_000);
+  expect(stateUpdates).toBe(1);
 });
 
 test("export manifest is deterministic, bounded metadata and never embeds local URLs", async () => {

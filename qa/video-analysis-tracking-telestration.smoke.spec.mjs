@@ -44,12 +44,26 @@ async function openTrackingWorkspace(page) {
   await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-runs-download"]')).toBeDisabled();
 }
 
+async function drawingSurfaceBox(page) {
+  const surface = page.locator("[data-video-analysis-drawing-surface]");
+  let box = null;
+  await expect.poll(async () => {
+    try {
+      await surface.scrollIntoViewIfNeeded({ timeout: 250 });
+      box = await surface.boundingBox();
+      return Boolean(box?.width && box?.height);
+    } catch {
+      box = null;
+      return false;
+    }
+  }, { timeout: 10_000 }).toBe(true);
+  return box;
+}
+
 async function createTrackedHighlight(page) {
   await page.locator('[data-video-analysis-tracking-field="playerId"]').selectOption("p1");
   await page.locator('[data-video-analysis-tracking-action="select-target"]').click();
-  const surface = page.locator("[data-video-analysis-drawing-surface]");
-  const box = await surface.boundingBox();
-  expect(box).toBeTruthy();
+  const box = await drawingSurfaceBox(page);
   await page.mouse.move(box.x + (box.width * 0.34), box.y + (box.height * 0.34));
   await page.mouse.down();
   await page.mouse.move(box.x + (box.width * 0.43), box.y + (box.height * 0.62));
@@ -66,9 +80,7 @@ async function createTrackedHighlight(page) {
 
 async function drawTrackingTarget(page, left, top, right, bottom) {
   await page.locator('[data-video-analysis-tracking-action="select-target"]').click();
-  const surface = page.locator("[data-video-analysis-drawing-surface]");
-  const box = await surface.boundingBox();
-  expect(box).toBeTruthy();
+  const box = await drawingSurfaceBox(page);
   await page.mouse.move(box.x + (box.width * left), box.y + (box.height * top));
   await page.mouse.down();
   await page.mouse.move(box.x + (box.width * right), box.y + (box.height * bottom));
@@ -77,10 +89,7 @@ async function drawTrackingTarget(page, left, top, right, bottom) {
 
 async function drawFreehandPath(page) {
   await page.locator('[data-video-analysis-draw-tool="freehand"]').click();
-  const surface = page.locator("[data-video-analysis-drawing-surface]");
-  await surface.scrollIntoViewIfNeeded();
-  const box = await surface.boundingBox();
-  expect(box).toBeTruthy();
+  const box = await drawingSurfaceBox(page);
   await page.mouse.move(box.x + (box.width * 0.18), box.y + (box.height * 0.38));
   await page.mouse.down();
   await page.mouse.move(box.x + (box.width * 0.42), box.y + (box.height * 0.24), { steps: 8 });

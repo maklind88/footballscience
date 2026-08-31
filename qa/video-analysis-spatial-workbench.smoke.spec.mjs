@@ -22,12 +22,26 @@ async function openTelestration(page) {
   await page.locator('[data-video-analysis-tracking-mode="tracking"]').click();
 }
 
+async function drawingSurfaceBox(page) {
+  const surface = page.locator("[data-video-analysis-drawing-surface]");
+  let box = null;
+  await expect.poll(async () => {
+    try {
+      await surface.scrollIntoViewIfNeeded({ timeout: 250 });
+      box = await surface.boundingBox();
+      return Boolean(box?.width && box?.height);
+    } catch {
+      box = null;
+      return false;
+    }
+  }, { timeout: 10_000 }).toBe(true);
+  return box;
+}
+
 async function addManualTrack(page, playerId, startX, startY, endX, endY, expectedCount) {
   await page.locator('[data-video-analysis-tracking-field="playerId"]').selectOption(playerId);
   await page.locator('[data-video-analysis-tracking-action="select-target"]').click();
-  const surface = page.locator("[data-video-analysis-drawing-surface]");
-  const box = await surface.boundingBox();
-  expect(box).toBeTruthy();
+  const box = await drawingSurfaceBox(page);
   await page.mouse.move(box.x + (box.width * startX), box.y + (box.height * startY));
   await page.mouse.down();
   await page.mouse.move(box.x + (box.width * endX), box.y + (box.height * endY));
@@ -39,9 +53,7 @@ async function addManualTrack(page, playerId, startX, startY, endX, endY, expect
 async function placeLandmark(page, landmarkId, x, y, expectedCount) {
   await page.locator('[data-video-analysis-spatial-field="landmark"]').selectOption(landmarkId);
   await page.locator('[data-video-analysis-spatial-action="place"]').click();
-  const surface = page.locator("[data-video-analysis-drawing-surface]");
-  const box = await surface.boundingBox();
-  expect(box).toBeTruthy();
+  const box = await drawingSurfaceBox(page);
   await page.mouse.click(box.x + (box.width * x), box.y + (box.height * y));
   await expect(page.locator(".video-analysis-calibration-point")).toHaveCount(expectedCount);
 }

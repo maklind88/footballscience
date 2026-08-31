@@ -1,4 +1,8 @@
-import { patchTrackingState, trackingItemById } from "./trackingControllerHelpers.js";
+import {
+  patchTrackingState,
+  trackingItemById,
+  trackingItemRange,
+} from "./trackingControllerHelpers.js";
 import { mediaAnglesForState } from "../services/mediaProductionService.js";
 
 const fingerprintPattern = /^[a-f0-9]{64}$/i;
@@ -16,6 +20,10 @@ function handoffFromElement(element = null) {
   const itemId = identifier(data.videoAnalysisGroundTruthHandoffItemId);
   const clipId = identifier(data.videoAnalysisGroundTruthHandoffClipId);
   const angleId = identifier(data.videoAnalysisGroundTruthHandoffAngleId);
+  const requestedAtMs = data.videoAnalysisGroundTruthHandoffAtMs;
+  const atMs = requestedAtMs === undefined || requestedAtMs === ""
+    ? null
+    : Number(requestedAtMs);
   const contextCount = [itemId, clipId, angleId].filter(Boolean).length;
   if (!caseId || !fingerprintPattern.test(sourceSha256)) {
     throw new Error("The next review case is missing its sealed source identity.");
@@ -23,12 +31,16 @@ function handoffFromElement(element = null) {
   if (contextCount && contextCount !== 3) {
     throw new Error("The next review case has an incomplete resume context.");
   }
+  if (atMs !== null && (!Number.isSafeInteger(atMs) || atMs < 0)) {
+    throw new Error("The diagnostic checkpoint time is invalid.");
+  }
   return {
     caseId,
     sourceSha256,
     itemId,
     clipId,
     angleId,
+    ...(atMs !== null ? { atMs } : {}),
     resumeContextReady: contextCount === 3,
     status: "awaiting-source",
   };
@@ -76,6 +88,11 @@ export function createTrackingGroundTruthHandoffController(options = {}) {
     if (!mediaAnglesForState(state).some((angle) => angle.id === handoff.angleId)) {
       return fail(`The saved ${handoff.caseId} camera angle is no longer available.`);
     }
+    const range = trackingItemRange(item);
+    if (Number.isSafeInteger(handoff.atMs)
+      && (handoff.atMs < range.startMs || handoff.atMs > range.endMs)) {
+      return fail(`The measured ${handoff.caseId} checkpoint is outside the saved clip range.`);
+    }
     updateState((current) => ({
       ...current,
       presentation: {
@@ -92,6 +109,7 @@ export function createTrackingGroundTruthHandoffController(options = {}) {
         activeAngleId: handoff.angleId,
       },
     }));
+    if (Number.isSafeInteger(handoff.atMs)) options.seekToMatchMs?.(handoff.atMs);
     return true;
   }
 

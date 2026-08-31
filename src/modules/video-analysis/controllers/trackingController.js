@@ -146,6 +146,7 @@ export function createTrackingController(options = {}) {
     getState,
     updateState,
     openLocalVideoPicker: options.openLocalVideoPicker,
+    seekToMatchMs: options.seekToMatchMs,
   });
   const preannotationReviewController = createTrackingPreannotationReviewController({
     getState,

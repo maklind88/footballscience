@@ -344,6 +344,39 @@
   white-space: normal;
 }
 
+.video-analysis-measurement-intelligence__hotspots details > small {
+  display: block;
+  margin: 5px 0 3px;
+  color: #7a857f;
+  font-size: 6px;
+  font-weight: 700;
+}
+
+.video-analysis-measurement-intelligence__hotspots details > ol {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video-analysis-measurement-intelligence__hotspots details > ol > li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+}
+
+.video-analysis-measurement-intelligence__hotspots details > ol > li > span {
+  min-width: 0;
+  color: #5f6d65;
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .video-analysis-measurement-intelligence__hotspots details button {
   flex: 0 0 auto;
   border: 1px solid #2d6a4f;

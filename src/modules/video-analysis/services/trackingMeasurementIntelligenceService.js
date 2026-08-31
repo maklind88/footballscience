@@ -78,6 +78,102 @@ function sameRange(first = {}, second = {}) {
   return Boolean(left && right && left.startMs === right.startMs && left.endMs === right.endMs);
 }
 
+function diagnosticCount(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : 0;
+}
+
+function diagnosticEntityFrame(value = {}) {
+  const meanIou = finite(value.meanIou);
+  return {
+    falseNegatives: diagnosticCount(value.falseNegatives),
+    falsePositives: diagnosticCount(value.falsePositives),
+    identitySwitches: diagnosticCount(value.identitySwitches),
+    fragmentations: diagnosticCount(value.fragmentations),
+    meanIou: meanIou !== null && meanIou >= 0 && meanIou <= 1 ? meanIou : null,
+  };
+}
+
+function diagnosticFrames(values = [], range = null) {
+  if (!range || !Array.isArray(values)) return [];
+  const seen = new Set();
+  return values.slice(0, 24).flatMap((value) => {
+    const atMs = Number(value.atMs);
+    if (!Number.isSafeInteger(atMs) || atMs < range.startMs || atMs > range.endMs || seen.has(atMs)) return [];
+    seen.add(atMs);
+    return [{
+      atMs,
+      perEntity: Object.fromEntries(entityDefinitions.map((entity) => [
+        entity.id,
+        diagnosticEntityFrame(value.perEntity?.[entity.id]),
+      ])),
+    }];
+  });
+}
+
+function checkpointProfile(frame = {}, entityId = "") {
+  const profile = frame.perEntity?.[entityId] || {};
+  return {
+    errors: diagnosticCount(profile.falseNegatives) + diagnosticCount(profile.falsePositives),
+    continuity: diagnosticCount(profile.identitySwitches) + diagnosticCount(profile.fragmentations),
+    meanIou: finite(profile.meanIou),
+  };
+}
+
+function compareCheckpoints(entityId = "", metricId = "") {
+  return (first, second) => {
+    const left = checkpointProfile(first, entityId);
+    const right = checkpointProfile(second, entityId);
+    if (["AssA", "IDF1"].includes(metricId)) {
+      return right.continuity - left.continuity
+        || right.errors - left.errors
+        || (left.meanIou ?? 1) - (right.meanIou ?? 1)
+        || first.atMs - second.atMs;
+    }
+    if (metricId === "LocA") {
+      return (left.meanIou ?? 1) - (right.meanIou ?? 1)
+        || right.errors - left.errors
+        || first.atMs - second.atMs;
+    }
+    return right.errors - left.errors
+      || right.continuity - left.continuity
+      || (left.meanIou ?? 1) - (right.meanIou ?? 1)
+      || first.atMs - second.atMs;
+  };
+}
+
+function checkpointReason(frame = {}, entityId = "") {
+  const profile = frame.perEntity?.[entityId] || {};
+  const parts = [];
+  if (profile.identitySwitches) parts.push(`${profile.identitySwitches} ID switch${profile.identitySwitches === 1 ? "" : "es"}`);
+  if (profile.fragmentations) parts.push(`${profile.fragmentations} fragment${profile.fragmentations === 1 ? "" : "s"}`);
+  if (profile.falseNegatives) parts.push(`${profile.falseNegatives} miss${profile.falseNegatives === 1 ? "" : "es"}`);
+  if (profile.falsePositives) parts.push(`${profile.falsePositives} false positive${profile.falsePositives === 1 ? "" : "s"}`);
+  if (!parts.length && Number.isFinite(profile.meanIou)) parts.push(`${(profile.meanIou * 100).toFixed(1)}% mean overlap`);
+  return parts.join(" · ");
+}
+
+function diagnosticCheckpoints(entry = {}, entityId = "", metricId = "") {
+  const frames = entry.diagnosticFrames || [];
+  const continuityMetric = ["AssA", "IDF1"].includes(metricId);
+  const localizationMetric = metricId === "LocA";
+  const primary = frames.filter((frame) => {
+    const profile = checkpointProfile(frame, entityId);
+    if (continuityMetric) return profile.continuity > 0;
+    if (localizationMetric) return profile.meanIou !== null;
+    return profile.errors > 0 || profile.continuity > 0;
+  });
+  const candidates = primary.length ? primary : frames.filter((frame) => {
+    const profile = checkpointProfile(frame, entityId);
+    return profile.errors > 0 || profile.meanIou !== null;
+  });
+  return candidates.slice().sort(compareCheckpoints(entityId, metricId)).slice(0, 3).map((frame) => ({
+    atMs: frame.atMs,
+    basis: primary.length ? "internal-event" : "internal-candidate",
+    reason: checkpointReason(frame, entityId) || "Internal frame candidate",
+  }));
+}
+
 function exactEvidenceSet(evaluation = {}) {
   const evidence = evaluation.evidenceSet || {};
   const reportSha256 = String(evaluation.reportSha256 || "").toLowerCase();
@@ -235,12 +331,13 @@ function caseEntry(value = {}, expectedReportSha256 = "") {
   const HOTA = finite(values.HOTA);
   const expectedHOTA = finite(thresholds.minHota);
   const reportSha256 = String(reference.reportSha256 || "").toLowerCase();
+  const range = identityRange(value.range);
   return {
     id: String(value.benchmarkId || ""),
     sourceFingerprint: fingerprintPattern.test(String(value.sourceFingerprint || ""))
       ? String(value.sourceFingerprint).toLowerCase()
       : "",
-    range: identityRange(value.range),
+    range,
     passed: value.verdict?.passed === true,
     referencePassed: reference.passed === true,
     referenceVerified: reference.status === "verified"
@@ -254,6 +351,7 @@ function caseEntry(value = {}, expectedReportSha256 = "") {
     limiter: weakestMetric(metrics),
     metricStatus: metricProfileStatus(metrics),
     entities,
+    diagnosticFrames: diagnosticFrames(value.worstFrames, range),
     diagnosticReady: metricProfileStatus(metrics) !== "missing"
       && entities.every((entry) => entry.status !== "missing"),
     identitySwitches: count(values.identitySwitches),
@@ -291,6 +389,7 @@ function measurementDiagnostics(cases = [], verified = false) {
         identitySwitches: entity.identitySwitches,
         fragmentations: entity.fragmentations,
         reviewTarget: entry.reviewTarget,
+        checkpoints: diagnosticCheckpoints(entry, entity.id, metric.id),
       }))
   )));
   const ready = verified

@@ -700,6 +700,77 @@ test("review handoff remains source-bound until the exact case opens", async () 
   expect(currentState.presentation.tracking.error).toMatch(/missing its sealed source identity/i);
 });
 
+test("measured case handoff seeks only an integer checkpoint inside the exact clip", async () => {
+  const module = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingGroundTruthHandoffController.js",
+  ));
+  let currentState = {
+    mediaProduction: {
+      activeAngleId: "primary",
+      primaryAngleId: "primary",
+      angles: [{ id: "wide", label: "Wide", role: "tactical", status: "available" }],
+    },
+    presentation: {
+      selectedItemId: "item-current",
+      selectedClipId: "clip-current",
+      current: {
+        sections: [{
+          id: "section-1",
+          items: [{
+            id: "item-attacking-third",
+            clipId: "clip-attacking-third",
+            startMs: 10_000,
+            endMs: 20_000,
+            objectTracks: [],
+          }],
+        }],
+      },
+      tracking: {},
+    },
+  };
+  const seeks = [];
+  let pickerCount = 0;
+  const controller = module.createTrackingGroundTruthHandoffController({
+    getState: () => currentState,
+    updateState: (updater) => { currentState = updater(currentState); },
+    openLocalVideoPicker: async () => { pickerCount += 1; return true; },
+    seekToMatchMs: (atMs) => seeks.push(atMs),
+  });
+  const element = {
+    dataset: {
+      videoAnalysisGroundTruthHandoffCaseId: "attacking-third",
+      videoAnalysisGroundTruthHandoffSourceSha256: "c".repeat(64),
+      videoAnalysisGroundTruthHandoffItemId: "item-attacking-third",
+      videoAnalysisGroundTruthHandoffClipId: "clip-attacking-third",
+      videoAnalysisGroundTruthHandoffAngleId: "wide",
+      videoAnalysisGroundTruthHandoffAtMs: "12500",
+    },
+  };
+
+  expect(controller.start(element)).toBe(true);
+  await Promise.resolve();
+  expect(pickerCount).toBe(1);
+  expect(currentState.presentation.tracking.groundTruthHandoff).toMatchObject({
+    caseId: "attacking-third",
+    atMs: 12_500,
+    resumeContextReady: true,
+  });
+  expect(controller.prepare({ sourceSha256: "c".repeat(64) })).toBe(true);
+  expect(seeks).toEqual([12_500]);
+
+  element.dataset.videoAnalysisGroundTruthHandoffAtMs = "25000";
+  expect(controller.start(element)).toBe(true);
+  await Promise.resolve();
+  expect(controller.prepare({ sourceSha256: "c".repeat(64) })).toBe(false);
+  expect(seeks).toEqual([12_500]);
+  expect(currentState.presentation.tracking.error).toMatch(/outside the saved clip range/i);
+
+  element.dataset.videoAnalysisGroundTruthHandoffAtMs = "12.5";
+  expect(controller.start(element)).toBe(true);
+  expect(currentState.presentation.tracking.error).toMatch(/checkpoint time is invalid/i);
+  expect(pickerCount).toBe(2);
+});
+
 test("review studio keeps an incomplete campaign stable when no next handoff case is available", async () => {
   const component = await import(moduleUrl(
     "src/modules/video-analysis/components/TrackingGroundTruthReviewStudio.js",

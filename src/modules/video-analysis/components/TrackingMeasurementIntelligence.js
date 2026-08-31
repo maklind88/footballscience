@@ -15,7 +15,14 @@ function valueOrDash(value) {
   return Number.isInteger(value) ? String(value) : "--";
 }
 
-function reviewTargetButton(entry = {}) {
+function checkpointTime(value = 0) {
+  const totalMs = Math.max(0, Math.round(Number(value) || 0));
+  const minutes = Math.floor(totalMs / 60_000);
+  const seconds = ((totalMs % 60_000) / 1000).toFixed(2).padStart(5, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function reviewTargetButton(entry = {}, atMs = null) {
   const target = entry.reviewTarget;
   if (!target) return `<em>Exact case context unavailable</em>`;
   return `
@@ -25,7 +32,23 @@ function reviewTargetButton(entry = {}) {
       data-video-analysis-ground-truth-handoff-source-sha256="${escapeHtml(target.sourceSha256)}"
       data-video-analysis-ground-truth-handoff-item-id="${escapeHtml(target.itemId)}"
       data-video-analysis-ground-truth-handoff-clip-id="${escapeHtml(target.clipId)}"
-      data-video-analysis-ground-truth-handoff-angle-id="${escapeHtml(target.angleId)}">Reconnect case</button>
+      data-video-analysis-ground-truth-handoff-angle-id="${escapeHtml(target.angleId)}"
+      ${Number.isSafeInteger(atMs) ? `data-video-analysis-ground-truth-handoff-at-ms="${atMs}"` : ""}>${Number.isSafeInteger(atMs) ? `Review ${escapeHtml(checkpointTime(atMs))}` : "Reconnect case"}</button>
+  `;
+}
+
+function diagnosticCheckpoints(entry = {}) {
+  if (!entry.reviewTarget || !entry.checkpoints?.length) return reviewTargetButton(entry);
+  return `
+    <small>Internal diagnostic checkpoints, not TrackEval timestamps</small>
+    <ol>
+      ${entry.checkpoints.map((checkpoint) => `
+        <li>
+          ${reviewTargetButton(entry, checkpoint.atMs)}
+          <span>${escapeHtml(checkpoint.reason)}</span>
+        </li>
+      `).join("")}
+    </ol>
   `;
 }
 
@@ -36,8 +59,8 @@ function diagnosticDetails(entry = {}) {
       <p>${escapeHtml(entry.recommendation)}</p>
       <div>
         <span>${escapeHtml(`${valueOrDash(entry.identitySwitches)} ID switches · ${valueOrDash(entry.fragmentations)} fragments`)}</span>
-        ${reviewTargetButton(entry)}
       </div>
+      ${diagnosticCheckpoints(entry)}
     </details>
   `;
 }

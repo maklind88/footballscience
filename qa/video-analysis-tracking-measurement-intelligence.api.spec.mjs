@@ -267,6 +267,21 @@ test("measurement hotspots reconnect only an exact evidence-bound Match 11 case"
   }))];
   measured.report.cases[0].sourceFingerprint = sourceFingerprint;
   measured.report.cases[0].range = range;
+  measured.report.cases[0].worstFrames = [{
+    atMs: 12_500,
+    perEntity: {
+      player: { falseNegatives: 0, falsePositives: 0, identitySwitches: 0, fragmentations: 0, meanIou: 0.9 },
+      ball: { falseNegatives: 1, falsePositives: 0, identitySwitches: 1, fragmentations: 0, meanIou: 0.42 },
+      referee: { falseNegatives: 0, falsePositives: 0, identitySwitches: 0, fragmentations: 0, meanIou: 0.8 },
+    },
+  }, {
+    atMs: 15_000,
+    perEntity: {
+      player: { falseNegatives: 0, falsePositives: 0, identitySwitches: 0, fragmentations: 0, meanIou: 0.88 },
+      ball: { falseNegatives: 0, falsePositives: 1, identitySwitches: 0, fragmentations: 1, meanIou: 0.5 },
+      referee: { falseNegatives: 0, falsePositives: 0, identitySwitches: 0, fragmentations: 0, meanIou: 0.82 },
+    },
+  }];
   measured.reportSha256 = reportSha256;
   measured.sourceSignature = sourceSignature;
   measured.evidenceSet = {
@@ -279,7 +294,12 @@ test("measurement hotspots reconnect only an exact evidence-bound Match 11 case"
     },
     report: measured.report,
   };
-  const item = { id: "item-attacking-third", clipId: "clip-attacking-third" };
+  const item = {
+    id: "item-attacking-third",
+    clipId: "clip-attacking-third",
+    startMs: range.startMs,
+    endMs: range.endMs,
+  };
   const pageState = {
     presentation: {
       current: { sections: [{ id: "section-1", items: [item] }] },
@@ -325,7 +345,16 @@ test("measurement hotspots reconnect only an exact evidence-bound Match 11 case"
       angleId: "wide",
     },
   });
+  expect(result.diagnostics.hotspots[0].checkpoints).toHaveLength(2);
+  expect(result.diagnostics.hotspots[0].checkpoints[0]).toEqual({
+    atMs: 12_500,
+    basis: "internal-event",
+    reason: "1 ID switch · 1 miss",
+  });
   expect(html).toContain("Measured review focus");
+  expect(html).toContain("Internal diagnostic checkpoints, not TrackEval timestamps");
+  expect(html).toContain("Review 0:12.50");
+  expect(html).toContain('data-video-analysis-ground-truth-handoff-at-ms="12500"');
   expect(html).toContain("Inspect occlusions, camera transitions and fragmented trajectories");
   expect(html).toContain('data-video-analysis-tracking-action="ground-truth-handoff-reconnect"');
   expect(html).toContain(`data-video-analysis-ground-truth-handoff-source-sha256="${sourceFingerprint}"`);

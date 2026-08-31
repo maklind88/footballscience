@@ -165,6 +165,9 @@ requireText(".github/workflows/full-qa.yml", "npm run qa:static", "full QA must 
 requireText(".github/workflows/full-qa.yml", "npm run security:audit", "full QA must retain the dependency security audit");
 requireText("qa/playwright.ci.config.mjs", "baseConfig", "CI Playwright must extend the canonical local configuration");
 requireText("qa/playwright.ci.config.mjs", "fullyParallel: true", "CI Playwright must split long browser files at test level");
+requireText("qa/playwright.config.mjs", "defaultQaPort(rootDir)", "local QA must use a worktree-specific default port");
+requireText("qa/playwright.config.mjs", "url: readyURL", "Playwright may reuse only a server that proves the expected worktree identity");
+requireText("qa/static-server.mjs", "isQaServerReadyPath(parsedUrl.pathname, rootDir)", "the QA server must expose an exact worktree readiness proof");
 requireText(".github/workflows/full-qa.yml", "project: api-contracts", "full QA must run every API contract in a dedicated job");
 for (const shard of [1, 2, 3, 4]) {
   requireText(".github/workflows/full-qa.yml", `name: Browser shard ${shard} of 4`, `browser shard ${shard} must remain required`);

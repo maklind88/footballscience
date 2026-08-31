@@ -55,7 +55,11 @@ function fixtures() {
     cases: [packCase],
   };
   const associationManifest = {
+    benchmarkOnly: true,
+    approvalReady: false,
+    groundTruthEvaluated: false,
     input: { screeningSha256: "b".repeat(64) },
+    reviewGate: { suggestionLayerAllowed: true },
     screeningSha256: "c".repeat(64),
   };
   const loaded = {
@@ -140,6 +144,21 @@ test("preannotation preserves associated and unassociated suggestions without cl
     },
   });
   expect(workspace.workspaceSha256).toMatch(/^[a-f0-9]{64}$/);
+
+  expect(() => service.createTrackingCandidatePreannotationWorkspace(
+    loaded.pack,
+    {
+      ...loaded.associationManifest,
+      reviewGate: { suggestionLayerAllowed: false },
+    },
+    [{
+      id: prepared.id,
+      suggestion: descriptor("cases/transition.suggestions.mot.txt", suggestionBytes),
+      trackMap: descriptor("cases/transition.track-map.json", trackMapBytes),
+      summary: prepared.summary,
+    }],
+    { now: () => "2026-08-31T12:00:00.000Z" },
+  )).toThrow(/does not permit/i);
 });
 
 test("preannotation refuses partial candidate ranges before generating suggestions", async () => {

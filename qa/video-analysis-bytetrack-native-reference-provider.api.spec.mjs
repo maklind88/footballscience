@@ -38,7 +38,7 @@ test("native ByteTrack build accepts only pinned reviewed source inputs", async 
   expect(source).toContain("8586084f71f9bde545ee7fa6d00288b264a2b7ac3607b974e54d13e7162c1c72");
   expect(source).toContain("4c0618b0e44f7ef027ebae05d2cc7812048f7c8f");
   expect(source).toContain("092d0469a28b9854222a6182190816c3b2e04fa291622f97e210cc5e70397d5b");
-  expect(source).toContain("e0322d560d577dce198e5e54f6449d08c373b65dae9ede37fb008f3ab65b019a");
+  expect(source).toContain("bc6f0dd9351e272feab80d24c915d30d7bee91cae3539c60d4cbdb193ba1fb4b");
   expect(source).toContain("cmd LC_UUID");
   expect(source).toContain("-Werror");
   expect(source).not.toMatch(/\b(?:curl|fetch|wget)\b/);
@@ -81,7 +81,7 @@ test("native ByteTrack adapter preserves lineage and strict association boundari
   expect(combined).toContain("bytetrack-entity-mismatch");
   expect(combined).toContain("EcmaNumber");
   expect(combined).toContain("requestFingerprint");
-  expect(combined).toContain("1'000'000 + static_cast<int>(index)");
+  expect(combined).not.toContain("1'000'000 + static_cast<int>(index)");
   expect(combined).toContain("tracks.size() > 1024");
   expect(combined).toContain("O_NOFOLLOW");
   expect(combined).toContain("RENAME_EXCL");

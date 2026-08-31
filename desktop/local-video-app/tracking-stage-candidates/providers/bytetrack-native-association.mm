@@ -162,14 +162,6 @@ NSArray<NSDictionary*>* FSRunByteTrackAssociation(const FSByteTrackInvocation& i
       assigned[index] = true;
     }
   }
-  for (std::size_t index = 0; index < observations.size(); index += 1) {
-    if (!assigned[index]) {
-      tracks.push_back(Trajectory{
-        observations[index].entityType, 1'000'000 + static_cast<int>(index),
-        {static_cast<int>(index)},
-      });
-    }
-  }
   std::sort(tracks.begin(), tracks.end(), [&](const Trajectory& left, const Trajectory& right) {
     if (left.entityType != right.entityType) return left.entityType < right.entityType;
     const Observation& leftFirst = observations[left.observationIndices.front()];

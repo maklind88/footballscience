@@ -267,6 +267,17 @@ export function createTrackingCandidatePreannotationWorkspace(pack = {}, associa
     (entry) => entry.summary.entityObservationCounts[entityType] === 0,
   ));
   const associationEvaluated = Boolean(associationManifest.screeningSha256);
+  if (associationEvaluated && (
+    associationManifest.benchmarkOnly !== true
+    || associationManifest.approvalReady !== false
+    || associationManifest.groundTruthEvaluated !== false
+    || associationManifest.reviewGate?.suggestionLayerAllowed !== true
+  )) {
+    invalid(
+      "Association screening does not permit a preannotation suggestion layer.",
+      "TRACKING_CANDIDATE_PREANNOTATION_ASSOCIATION_BLOCKED",
+    );
+  }
   const payload = {
     schemaVersion: 1,
     protocol: TRACKING_CANDIDATE_PREANNOTATION_WORKSPACE_PROTOCOL,

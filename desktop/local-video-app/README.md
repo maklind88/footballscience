@@ -105,7 +105,7 @@ npm --prefix desktop/local-video-app run tracking:candidate:screen:verify -- \
 
 Verification reopens the exact installed provider, rejects linked or writable evidence, revalidates every candidate-stage artifact, recomputes every case summary, and reproduces the canonical screening SHA-256. One changed byte fails the complete bundle.
 
-After detection has been screened over each complete case (`--sample-ms 120000` for the current two-minute pack), it can seed a separate review workspace. A verified full-range association bundle may be added when that candidate also passes its scale screen:
+After detection has been screened over each complete case (`--sample-ms 120000` for the current two-minute pack), it can seed a separate review workspace. A verified full-range association bundle may be added only when its sealed review gate permits a suggestion layer. A failed association screen remains failed and cannot approve a provider, but its partial trajectories can still reduce analyst work without hiding unassociated detections:
 
 ```bash
 npm --prefix desktop/local-video-app run tracking:candidate:preannotation -- \

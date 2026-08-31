@@ -84,12 +84,17 @@ export function trackingGroundTruthSceneReviewProgress(value = {}, contextValue 
   };
 }
 
+export function trackingGroundTruthSceneReviewCheckpointAt(contextValue = {}, requestedAtMs = 0) {
+  const expectedAtMs = trackingGroundTruthSceneReviewTimes(contextValue);
+  const requested = integer(requestedAtMs, expectedAtMs[0]);
+  return expectedAtMs.reduce((nearest, candidate) => (
+    Math.abs(candidate - requested) < Math.abs(nearest - requested) ? candidate : nearest
+  ), expectedAtMs[0]);
+}
+
 export function reviewTrackingGroundTruthSceneFrame(value = {}, contextValue = {}, requestedAtMs = 0) {
   const progress = trackingGroundTruthSceneReviewProgress(value, contextValue);
-  const requested = integer(requestedAtMs, progress.expectedAtMs[0]);
-  const atMs = progress.expectedAtMs.reduce((nearest, candidate) => (
-    Math.abs(candidate - requested) < Math.abs(nearest - requested) ? candidate : nearest
-  ), progress.expectedAtMs[0]);
+  const atMs = trackingGroundTruthSceneReviewCheckpointAt(contextValue, requestedAtMs);
   return normalizeTrackingGroundTruthSceneReview({
     ...progress.review,
     reviewedAtMs: [...progress.review.reviewedAtMs, atMs],

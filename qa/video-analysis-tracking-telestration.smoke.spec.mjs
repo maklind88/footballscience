@@ -1237,7 +1237,8 @@ test("tracking controls and overlays stay contained on mobile", async ({ page },
     .toBeGreaterThan(0);
   await expect(page.locator('[data-video-analysis-tracking-field="groundTruthAttested"]')).toBeDisabled();
   await sceneReview.locator('[data-video-analysis-tracking-action="ground-truth-scene-review"]').click();
-  await expect(sceneProgress).toHaveText(/^1\/\d+$/);
+  await expect(sceneProgress).toHaveText(/^0\/\d+$/);
+  await expect(page.locator(".video-analysis-ground-truth__status.is-error")).toContainText("known checkpoint issues");
   const geometry = await page.locator(".video-analysis-drawing-builder").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {

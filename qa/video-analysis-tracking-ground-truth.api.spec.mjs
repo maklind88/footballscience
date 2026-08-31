@@ -479,6 +479,9 @@ test("selected-object controller uses one player target and locks its evidence p
   const issueHtml = renderTrackingGroundTruthPanel(state, item);
   expect(issueHtml).toContain('data-video-analysis-tracking-action="ground-truth-checkpoint-select"');
   expect(issueHtml).toContain("Player selected-player: unverified");
+  expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].sceneReview.reviewedAtMs).toEqual([]);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].error).toMatch(/known checkpoint issue/i);
   state.presentation.tracking.selectedTrackIds = [];
   expect(controller.handleAction("ground-truth-checkpoint-select", {
     dataset: {

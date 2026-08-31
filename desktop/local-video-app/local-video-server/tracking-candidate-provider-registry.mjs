@@ -174,7 +174,7 @@ async function installationMarker(providerDir) {
   }
 }
 
-function candidatePolicyReasons(provider = {}) {
+export function trackingCandidatePolicyReasons(provider = {}) {
   const reasons = [];
   if (provider.approval?.status !== "candidate") reasons.push("candidate-status-required");
   if (provider.approval?.networkAtInference) reasons.push("inference-network-enabled");
@@ -257,7 +257,7 @@ async function inspectCandidateDirectory(providerDir, digestCache, includeExecut
       }
       models.push({ ...artifact, filePath: await readArtifact(providerDir, artifact, false, digestCache) });
     }
-    const reasons = candidatePolicyReasons(provider);
+    const reasons = trackingCandidatePolicyReasons(provider);
     const publicValue = publicCandidate(provider, reasons);
     return {
       publicValue,

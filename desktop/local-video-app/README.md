@@ -32,3 +32,20 @@ npm --prefix desktop/local-video-app run tracking:mot:import -- \
 ```
 
 The import is intentionally strict: every MOT track needs an explicit player/ball/referee and identity mapping, dataset rights must be attested, player visibility must cover at least 95% of each full-scene range, and no output is written until ten unique minutes and all required football scenarios are present. See `docs/video-analysis/TRACKING_MOT_IMPORT_MANIFEST.example.json` from the repository root.
+
+Reviewed full-scene stage candidates use a separate benchmark-only registry. The installer never downloads assets, follows links, overwrites an installation, or infers a licence decision. It accepts only a canonical candidate manifest plus exact local native-runtime and model files whose bytes and SHA-256 hashes match that manifest:
+
+```bash
+npm --prefix desktop/local-video-app run tracking:candidate:plan -- \
+  --manifest /absolute/local/provider-manifest.json
+
+npm --prefix desktop/local-video-app run tracking:candidate:install -- \
+  --manifest /absolute/local/provider-manifest.json \
+  --runtime /absolute/local/provider-runtime \
+  --model model-id=/absolute/local/model.bin \
+  --accept-license
+
+npm --prefix desktop/local-video-app run tracking:candidate:preflight
+```
+
+Installation seals the copied runtime and models read-only, writes the installation marker last, and verifies both the candidate registry and the native macOS network-denied sandbox. A successful installation remains `benchmarkOnly`; only passed, reproducible real-match evidence can create a separate approved-provider installation.

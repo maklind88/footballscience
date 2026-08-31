@@ -72,6 +72,17 @@ npm --prefix desktop/local-video-app run tracking:candidate:build:yolox -- \
 
 The Python environment must already contain the pinned ONNX Runtime and OpenCV build dependencies. The command performs no download and never installs or activates the result.
 
+The separate CoreML candidate reuses that exact base provider and model while requiring ONNX Runtime's local CoreML execution provider first:
+
+```bash
+npm --prefix desktop/local-video-app run tracking:candidate:build:yolox-coreml -- \
+  --python /absolute/local/venv/bin/python \
+  --pyinstaller-sdist /absolute/local/pyinstaller-6.15.0.tar.gz \
+  --output /absolute/local/fs-yolox-coreml-reference-detection
+```
+
+Its build pins both provider sources, the no-SysV bootloader patch, architecture, imported symbols, runtime size, and runtime SHA-256. Building does not install, approve, or activate the candidate.
+
 An installed candidate can then be screened across every case in a private annotation pack before expensive ground-truth review:
 
 ```bash

@@ -132,7 +132,7 @@ function darwinSandboxProfile({ providerDir, runtimePath, sourcePath, workDir })
 function minimalEnvironment(workDir) {
   return {
     HOME: workDir,
-    TMPDIR: workDir,
+    TMPDIR: path.join(workDir, "tmp"),
     LANG: "C",
     LC_ALL: "C",
     PATH: "/usr/bin:/bin",
@@ -294,6 +294,7 @@ export function createTrackingStageSandboxExecutor(options = {}) {
     const invocationPath = path.join(workDir, "invocation.json");
     const outputPath = path.join(workDir, "result.json");
     const profilePath = path.join(workDir, "sandbox.sb");
+    await fs.mkdir(path.join(workDir, "tmp"), { mode: 0o700 });
     const invocation = {
       schemaVersion: 1,
       protocol: TRACKING_STAGE_INVOCATION_PROTOCOL,

@@ -445,6 +445,7 @@ test("sandbox executor launches only the sealed runtime with a scrubbed environm
     let invocation = null;
     let profile = "";
     let rssSamples = 0;
+    let temporaryMode = 0;
     const spawnProcess = (command, args, options) => {
       invocation = { command, args, options };
       const child = new EventEmitter();
@@ -456,6 +457,7 @@ test("sandbox executor launches only the sealed runtime with a scrubbed environm
         const outputIndex = args.indexOf("--fs-tracking-stage-output");
         const profileIndex = args.indexOf("-f");
         profile = await fs.readFile(args[profileIndex + 1], "utf8");
+        temporaryMode = (await fs.stat(options.env.TMPDIR)).mode & 0o777;
         await fs.writeFile(args[outputIndex + 1], '{"ok":true}\n', { mode: 0o600 });
         child.emit("close", 0, null);
       }, 60);
@@ -504,6 +506,9 @@ test("sandbox executor launches only the sealed runtime with a scrubbed environm
       },
     });
     expect(invocation.options.cwd.startsWith(`${await fs.realpath(directory)}${path.sep}`)).toBe(true);
+    expect(invocation.options.env.HOME).toBe(invocation.options.cwd);
+    expect(invocation.options.env.TMPDIR).toBe(path.join(invocation.options.cwd, "tmp"));
+    expect(temporaryMode).toBe(0o700);
     expect(invocation.options.env).not.toHaveProperty("SUPABASE_SERVICE_ROLE_KEY");
     expect(profile).toContain("(deny network*)");
     expect(profile).toContain(`(allow process-exec (literal ${JSON.stringify(runtimePath)}))`);

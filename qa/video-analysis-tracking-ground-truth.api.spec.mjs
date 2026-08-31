@@ -469,6 +469,9 @@ test("selected-object controller uses one player target and locks its evidence p
   });
   const draftHtml = renderTrackingGroundTruthPanel(state, item);
   expect(draftHtml).toContain("Selected-object reference");
+  expect(draftHtml).toContain("Next checkpoint");
+  expect(draftHtml).toContain("Selected visible");
+  expect(draftHtml).toContain("P 1 | B 0 | R 0");
   expect(draftHtml).toContain("Remove target");
   expect(draftHtml).not.toContain("groundTruthSceneComplete");
   expect(draftHtml).not.toContain('data-video-analysis-tracking-action="ground-truth-target"');

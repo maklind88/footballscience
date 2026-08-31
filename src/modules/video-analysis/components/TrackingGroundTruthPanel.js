@@ -11,6 +11,7 @@ import {
 } from "../services/trackingGroundTruthSuiteService.js";
 import { escapeHtml } from "./renderHelpers.js";
 import { trackingGroundTruthSceneReviewProgress } from "../services/trackingGroundTruthSceneReviewService.js";
+import { trackingGroundTruthCheckpointDiagnostics } from "../services/trackingGroundTruthCheckpointService.js";
 
 function groundTruthState(state = {}, itemId = "") {
   return trackingGroundTruthEntry(state.presentation?.tracking?.groundTruth || {}, itemId);
@@ -23,6 +24,21 @@ function shortFingerprint(value = "") {
 
 function entityStat(label, count) {
   return `<span><strong>${escapeHtml(String(count || 0))}</strong>${escapeHtml(label)}</span>`;
+}
+
+function checkpointTime(value = 0) {
+  const seconds = Math.max(0, Number(value) || 0) / 1000;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${(seconds % 60).toFixed(1).padStart(4, "0")}`;
+}
+
+function checkpointIssues(value = {}) {
+  return [
+    value.samplingGapCount ? `${value.samplingGapCount} selected sample gaps` : "",
+    value.unverifiedCount ? `${value.unverifiedCount} active tracks unverified` : "",
+    value.identityIssueCount ? `${value.identityIssueCount} visible players need identity or team` : "",
+    value.unselectedVisibleCount ? `${value.unselectedVisibleCount} visible tracked objects outside reference` : "",
+  ].filter(Boolean);
 }
 
 function lockedReadiness(truth = {}) {
@@ -63,6 +79,13 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
   const primaryIsPlayer = primaryTrack?.entityType === "player";
   const primaryCanBeTarget = primaryIncluded && primaryTrack?.entityType === "player";
   const sceneReview = trackingGroundTruthSceneReviewProgress(truth.sceneReview, truth);
+  const checkpoint = trackingGroundTruthCheckpointDiagnostics({
+    tracks,
+    selectedTrackIds: referenceIds,
+    benchmarkType,
+    atMs: sceneReview.nextAtMs ?? sceneReview.expectedAtMs.at(-1) ?? truth.range?.startMs,
+  });
+  const checkpointWarnings = checkpointIssues(checkpoint);
   const readiness = locked ? lockedReadiness(truth) : groundTruthReadiness({
     tracks,
     selectedTrackIds: referenceIds,
@@ -113,6 +136,17 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
             <span>${escapeHtml(`${sceneReview.reviewedSampleCount}/${sceneReview.expectedSampleCount}`)}</span>
           </div>
           <progress max="${sceneReview.expectedSampleCount}" value="${sceneReview.reviewedSampleCount}">${escapeHtml(`${Math.round(sceneReview.coverageRatio * 100)}%`)}</progress>
+          <section class="video-analysis-ground-truth__checkpoint" aria-label="Checkpoint diagnostics">
+            <header><strong>${sceneReview.complete ? "Final checkpoint" : "Next checkpoint"}</strong><time>${escapeHtml(checkpointTime(checkpoint.atMs))}</time></header>
+            <dl>
+              <div><dt>Selected visible</dt><dd>${checkpoint.selectedVisibleCount}</dd></div>
+              <div><dt>Occluded</dt><dd>${checkpoint.occludedCount}</dd></div>
+              <div><dt>Sample gaps</dt><dd>${checkpoint.samplingGapCount}</dd></div>
+              <div><dt>Outside reference</dt><dd>${checkpoint.unselectedVisibleCount}</dd></div>
+            </dl>
+            <p>P ${checkpoint.entityCounts.player} | B ${checkpoint.entityCounts.ball} | R ${checkpoint.entityCounts.referee}</p>
+            ${checkpointWarnings.length ? `<ul>${checkpointWarnings.map((entry) => `<li>${escapeHtml(entry)}</li>`).join("")}</ul>` : `<p class="is-ready">Checkpoint tracking ready for source review</p>`}
+          </section>
           <div>
             <button type="button" data-video-analysis-tracking-action="ground-truth-scene-review" ${sceneReview.complete ? "disabled" : ""}>Review &amp; next</button>
             <button type="button" data-video-analysis-tracking-action="ground-truth-scene-next" ${sceneReview.complete ? "disabled" : ""}>Next unreviewed</button>

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { constants as fsConstants, promises as fs } from "node:fs";
 import path from "node:path";
 import { loadVerifiedTrackingCandidateAssociationBundle } from "./tracking-candidate-association-screening-verifier.mjs";
+import { loadVerifiedTrackingCandidateScreeningBundle } from "./tracking-candidate-screening-verifier.mjs";
 import {
   TRACKING_CANDIDATE_PREANNOTATION_WORKSPACE_PROTOCOL,
   createTrackingCandidatePreannotationCase,
@@ -93,11 +94,17 @@ function preliminaryWorkspace(value = {}) {
 }
 
 export async function verifyTrackingCandidatePreannotationWorkspace(options = {}, dependencies = {}) {
-  const loaded = await (dependencies.loadBundle || loadVerifiedTrackingCandidateAssociationBundle)({
-    packPath: path.resolve(String(options.packPath || "")),
-    detectionScreeningDir: path.resolve(String(options.detectionScreeningDir || "")),
-    screeningDir: path.resolve(String(options.associationScreeningDir || "")),
-  }, dependencies.verifierDependencies);
+  const packPath = path.resolve(String(options.packPath || ""));
+  const detectionScreeningDir = path.resolve(String(options.detectionScreeningDir || ""));
+  const associationScreeningDir = String(options.associationScreeningDir || "").trim();
+  const loaded = await (dependencies.loadBundle || (associationScreeningDir
+    ? loadVerifiedTrackingCandidateAssociationBundle
+    : loadVerifiedTrackingCandidateScreeningBundle))(
+    associationScreeningDir
+      ? { packPath, detectionScreeningDir, screeningDir: path.resolve(associationScreeningDir) }
+      : { packPath, screeningDir: detectionScreeningDir },
+    dependencies.verifierDependencies,
+  );
   const workspaceDir = await canonicalDirectory(options.workspaceDir, "Preannotation workspace directory");
   const workspaceFile = await readStableFile(
     path.join(workspaceDir, "workspace.json"),
@@ -139,9 +146,13 @@ export async function verifyTrackingCandidatePreannotationWorkspace(options = {}
   }
   const rebuilt = createTrackingCandidatePreannotationWorkspace(
     loaded.pack,
-    loaded.associationManifest,
+    loaded.associationManifest || {},
     cases,
-    { id: manifest.id, now: () => manifest.createdAt },
+    {
+      id: manifest.id,
+      now: () => manifest.createdAt,
+      detectionScreeningSha256: loaded.detectionManifest.screeningSha256,
+    },
   );
   if (workspacePrivate.canonicalJson(rebuilt) !== workspacePrivate.canonicalJson(manifest)
     || rebuilt.workspaceSha256 !== sha256(manifest.workspaceSha256, "preannotation workspace checksum")) {

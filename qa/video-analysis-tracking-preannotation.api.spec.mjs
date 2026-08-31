@@ -60,6 +60,7 @@ function fixtures() {
   };
   const loaded = {
     pack,
+    detectionManifest: { screeningSha256: "b".repeat(64) },
     associationManifest,
     cases: [{
       packCase,
@@ -166,26 +167,35 @@ test("preannotation CLI writes a separate immutable workspace and verifier repro
   const verifier = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-candidate-preannotation-workspace-verifier.mjs",
   ));
-  const loaded = fixtures();
+  const fixture = fixtures();
+  const loaded = {
+    pack: fixture.pack,
+    detectionManifest: fixture.detectionManifest,
+    cases: fixture.cases.map(({ associationEvidence, ...entry }) => entry),
+  };
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "fs-tracking-preannotation-"));
   const outputDir = path.join(await fs.realpath(tempDir), "workspace");
   try {
     const result = await cli.runTrackingCandidatePreannotation({
       packPath: "/private/pack.json",
       detectionScreeningDir: "/private/detection",
-      associationScreeningDir: "/private/association",
       outputDir,
     }, {
       loadBundle: async () => loaded,
       now: () => "2026-08-31T12:00:00.000Z",
     });
-    expect(result.workspace).toMatchObject({ suggestionOnly: true, approvalReady: false });
+    expect(result.workspace).toMatchObject({
+      suggestionOnly: true,
+      approvalReady: false,
+      input: { associationScreeningSha256: "", associationEvaluated: false },
+      reviewGate: { associationReviewRequired: true },
+      summary: { associationEvaluated: false, unassociatedObservationCount: 3 },
+    });
     expect(await fs.stat(path.join(outputDir, "workspace.json"))).toMatchObject({ mode: expect.any(Number) });
 
     const verified = await verifier.verifyTrackingCandidatePreannotationWorkspace({
       packPath: "/private/pack.json",
       detectionScreeningDir: "/private/detection",
-      associationScreeningDir: "/private/association",
       workspaceDir: outputDir,
     }, { loadBundle: async () => loaded });
     expect(verified).toMatchObject({ ok: true, caseCount: 1, observationCount: 3 });
@@ -196,7 +206,6 @@ test("preannotation CLI writes a separate immutable workspace and verifier repro
     await expect(verifier.verifyTrackingCandidatePreannotationWorkspace({
       packPath: "/private/pack.json",
       detectionScreeningDir: "/private/detection",
-      associationScreeningDir: "/private/association",
       workspaceDir: outputDir,
     }, { loadBundle: async () => loaded })).rejects.toThrow(/not sealed read-only/i);
   } finally {

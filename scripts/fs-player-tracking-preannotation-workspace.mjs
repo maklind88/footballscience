@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadVerifiedTrackingCandidateAssociationBundle } from "../desktop/local-video-app/local-video-server/tracking-candidate-association-screening-verifier.mjs";
+import { loadVerifiedTrackingCandidateScreeningBundle } from "../desktop/local-video-app/local-video-server/tracking-candidate-screening-verifier.mjs";
 import {
   createTrackingCandidatePreannotationCase,
   createTrackingCandidatePreannotationWorkspace,
@@ -45,9 +46,8 @@ export function parseTrackingCandidatePreannotationArguments(values = []) {
       index += 1;
     } else invalid(`Unknown preannotation option: ${argument}`);
   }
-  if (!options.packPath || !options.detectionScreeningDir
-    || !options.associationScreeningDir || !options.outputDir) {
-    invalid("--pack, --detection-screening, --association-screening, and --output are required.");
+  if (!options.packPath || !options.detectionScreeningDir || !options.outputDir) {
+    invalid("--pack, --detection-screening, and --output are required.");
   }
   return options;
 }
@@ -81,11 +81,17 @@ async function writeImmutable(filePath, bytes) {
 export async function runTrackingCandidatePreannotation(options = {}, dependencies = {}) {
   const outputDir = path.resolve(String(options.outputDir || ""));
   await outputAvailable(outputDir);
-  const loaded = await (dependencies.loadBundle || loadVerifiedTrackingCandidateAssociationBundle)({
-    packPath: path.resolve(String(options.packPath || "")),
-    detectionScreeningDir: path.resolve(String(options.detectionScreeningDir || "")),
-    screeningDir: path.resolve(String(options.associationScreeningDir || "")),
-  }, dependencies.verifierDependencies);
+  const packPath = path.resolve(String(options.packPath || ""));
+  const detectionScreeningDir = path.resolve(String(options.detectionScreeningDir || ""));
+  const associationScreeningDir = String(options.associationScreeningDir || "").trim();
+  const loaded = await (dependencies.loadBundle || (associationScreeningDir
+    ? loadVerifiedTrackingCandidateAssociationBundle
+    : loadVerifiedTrackingCandidateScreeningBundle))(
+    associationScreeningDir
+      ? { packPath, detectionScreeningDir, screeningDir: path.resolve(associationScreeningDir) }
+      : { packPath, screeningDir: detectionScreeningDir },
+    dependencies.verifierDependencies,
+  );
   const parentDir = path.dirname(outputDir);
   await fs.mkdir(parentDir, { recursive: true, mode: 0o700 });
   const stagedDir = await fs.mkdtemp(path.join(parentDir, ".tracking-preannotation-"));
@@ -113,9 +119,13 @@ export async function runTrackingCandidatePreannotation(options = {}, dependenci
     }
     const workspace = createTrackingCandidatePreannotationWorkspace(
       loaded.pack,
-      loaded.associationManifest,
+      loaded.associationManifest || {},
       cases,
-      { id: options.id, now: dependencies.now },
+      {
+        id: options.id,
+        now: dependencies.now,
+        detectionScreeningSha256: loaded.detectionManifest.screeningSha256,
+      },
     );
     await writeImmutable(
       path.join(stagedDir, "workspace.json"),

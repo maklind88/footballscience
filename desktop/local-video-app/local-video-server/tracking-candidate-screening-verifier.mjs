@@ -149,7 +149,7 @@ function preliminaryManifest(value = {}) {
   return value;
 }
 
-export async function verifyTrackingCandidateScreeningBundle(options = {}, dependencies = {}) {
+export async function loadVerifiedTrackingCandidateScreeningBundle(options = {}, dependencies = {}) {
   const packFile = await canonicalRegularFile(options.packPath, MAXIMUM_PACK_BYTES, "Annotation pack");
   const pack = normalizeTrackingCandidateScreeningPack(parseJson(packFile.bytes, "Annotation pack"));
   const screeningDir = await canonicalDirectory(options.screeningDir);
@@ -168,6 +168,7 @@ export async function verifyTrackingCandidateScreeningBundle(options = {}, depen
   const validateEvidence = dependencies.validateEvidence || validateTrackingCandidateStageRunArtifact;
   if (manifest.cases.length !== pack.cases.length) invalid("Screening cases do not match the annotation pack.");
   const caseResults = [];
+  const verifiedCases = [];
   for (let index = 0; index < pack.cases.length; index += 1) {
     const packCase = pack.cases[index];
     const summary = manifest.cases[index];
@@ -185,6 +186,7 @@ export async function verifyTrackingCandidateScreeningBundle(options = {}, depen
       sampleDurationMs: summary.sampleDurationMs,
     });
     caseResults.push({ provider: evidence.provider, summary: rebuiltSummary });
+    verifiedCases.push(Object.freeze({ packCase, detectionEvidence: evidence }));
   }
   const rebuilt = createTrackingCandidateScreeningManifest(pack, caseResults, {
     id: manifest.id,
@@ -194,7 +196,7 @@ export async function verifyTrackingCandidateScreeningBundle(options = {}, depen
     || rebuilt.screeningSha256 !== sha256(manifest.screeningSha256, "screening manifest checksum")) {
     invalid("Screening manifest does not reproduce from its raw evidence.");
   }
-  return Object.freeze({
+  const verification = Object.freeze({
     ok: true,
     protocol: rebuilt.protocol,
     id: rebuilt.id,
@@ -203,4 +205,14 @@ export async function verifyTrackingCandidateScreeningBundle(options = {}, depen
     caseCount: rebuilt.summary.caseCount,
     screeningSha256: rebuilt.screeningSha256,
   });
+  return Object.freeze({
+    verification,
+    pack,
+    detectionManifest: rebuilt,
+    cases: Object.freeze(verifiedCases),
+  });
+}
+
+export async function verifyTrackingCandidateScreeningBundle(options = {}, dependencies = {}) {
+  return (await loadVerifiedTrackingCandidateScreeningBundle(options, dependencies)).verification;
 }

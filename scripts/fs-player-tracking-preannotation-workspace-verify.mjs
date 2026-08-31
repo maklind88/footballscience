@@ -33,9 +33,8 @@ export function parseTrackingCandidatePreannotationVerificationArguments(values 
       index += 1;
     } else invalid(`Unknown preannotation verification option: ${argument}`);
   }
-  if (!options.packPath || !options.detectionScreeningDir
-    || !options.associationScreeningDir || !options.workspaceDir) {
-    invalid("--pack, --detection-screening, --association-screening, and --workspace are required.");
+  if (!options.packPath || !options.detectionScreeningDir || !options.workspaceDir) {
+    invalid("--pack, --detection-screening, and --workspace are required.");
   }
   return options;
 }

@@ -164,11 +164,13 @@ export function createTrackingCandidatePreannotationCase(value = {}) {
   const packCase = value.packCase || {};
   const extraction = value.extraction || {};
   const detection = stageEvidence(value.detectionEvidence, "detection");
-  const association = stageEvidence(value.associationEvidence, "association");
+  const association = value.associationEvidence
+    ? stageEvidence(value.associationEvidence, "association")
+    : null;
   const caseId = identifier(packCase.id, "preannotation case id");
   const durationMs = integer(packCase.durationMs, "preannotation case duration", 1000, 4 * 60 * 1000);
   const sourceSha256 = sha256(packCase.clip?.sha256, "preannotation source checksum");
-  for (const evidence of [detection, association]) {
+  for (const evidence of [detection, ...(association ? [association] : [])]) {
     if (evidence.source?.fingerprintSha256 !== sourceSha256
       || Number(evidence.range?.startMs) !== 0
       || Number(evidence.range?.endMs) !== durationMs) {
@@ -179,8 +181,8 @@ export function createTrackingCandidatePreannotationCase(value = {}) {
     }
   }
   const observations = detection.result.payload.payload.observations;
-  const requestedObservations = association.request?.payload?.observations;
-  const trajectories = association.result.payload.payload.trajectories;
+  const requestedObservations = association?.request?.payload?.observations || observations;
+  const trajectories = association?.result?.payload?.payload?.trajectories || [];
   if (!Array.isArray(observations) || !Array.isArray(requestedObservations) || !Array.isArray(trajectories)
     || canonicalJson(observations) !== canonicalJson(requestedObservations)) {
     invalid("Association evidence is not bound to the exact detection observations.");
@@ -226,7 +228,10 @@ export function createTrackingCandidatePreannotationCase(value = {}) {
     approvalReady: false,
     sourceSha256,
     detectionArtifactSha256: sha256(detection.result.artifactSha256, "detection artifact checksum"),
-    associationArtifactSha256: sha256(association.result.artifactSha256, "association artifact checksum"),
+    associationArtifactSha256: association
+      ? sha256(association.result.artifactSha256, "association artifact checksum")
+      : "",
+    associationEvaluated: Boolean(association),
     tracks: entries.map((entry) => ({
       motTrackId: entry.motTrackId,
       suggestionId: entry.suggestionId,
@@ -261,6 +266,7 @@ export function createTrackingCandidatePreannotationWorkspace(pack = {}, associa
   const missingSuggestedEntityTypes = entityTypes.filter((entityType) => normalizedCases.some(
     (entry) => entry.summary.entityObservationCounts[entityType] === 0,
   ));
+  const associationEvaluated = Boolean(associationManifest.screeningSha256);
   const payload = {
     schemaVersion: 1,
     protocol: TRACKING_CANDIDATE_PREANNOTATION_WORKSPACE_PROTOCOL,
@@ -278,13 +284,13 @@ export function createTrackingCandidatePreannotationWorkspace(pack = {}, associa
     },
     input: {
       detectionScreeningSha256: sha256(
-        associationManifest.input?.screeningSha256,
+        associationManifest.input?.screeningSha256 || options.detectionScreeningSha256,
         "detection screening checksum",
       ),
-      associationScreeningSha256: sha256(
-        associationManifest.screeningSha256,
-        "association screening checksum",
-      ),
+      associationScreeningSha256: associationEvaluated
+        ? sha256(associationManifest.screeningSha256, "association screening checksum")
+        : "",
+      associationEvaluated,
     },
     reviewGate: {
       originalAnnotationMutationAllowed: false,
@@ -293,6 +299,8 @@ export function createTrackingCandidatePreannotationWorkspace(pack = {}, associa
       independentRightsAttestationRequired: true,
       identityAndTeamAssignmentRequired: true,
       missingEntitySearchRequired: missingSuggestedEntityTypes.length > 0,
+      associationReviewRequired: !associationEvaluated
+        || normalizedCases.some((entry) => entry.summary.unassociatedObservationCount > 0),
     },
     summary: {
       caseCount: normalizedCases.length,
@@ -303,6 +311,7 @@ export function createTrackingCandidatePreannotationWorkspace(pack = {}, associa
         (sum, entry) => sum + entry.summary.unassociatedObservationCount,
         0,
       ),
+      associationEvaluated,
       missingSuggestedEntityTypes,
     },
     limitations: [

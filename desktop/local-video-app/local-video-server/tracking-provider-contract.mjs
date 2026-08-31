@@ -17,6 +17,22 @@ const knownCapabilities = new Set(Object.values(stageCapabilities).flat());
 const trackEvalCapabilities = /^(?:detect:|associate:|reidentify:)/;
 const trackEvalMetrics = new Set(["HOTA", "DetA", "AssA", "LocA", "MOTA", "IDF1"]);
 const datasetUsages = new Set(["pretraining", "finetuning", "distillation", "evaluation"]);
+const copyleftProductReviewLicenses = new Set([
+  "agpl-3.0",
+  "agpl-3.0-only",
+  "agpl-3.0-or-later",
+  "gpl-2.0",
+  "gpl-2.0-only",
+  "gpl-2.0-or-later",
+  "gpl-3.0",
+  "gpl-3.0-only",
+  "gpl-3.0-or-later",
+  "sspl-1.0",
+]);
+const nonStandardProductReviewLicenses = new Set([
+  "hippocratic-3.0",
+  "hl3-law-media-mil-soc-sv",
+]);
 
 export class TrackingProviderContractError extends Error {
   constructor(message, code = "TRACKING_PROVIDER_CONTRACT_INVALID") {
@@ -261,10 +277,28 @@ export function normalizeTrackingProviderManifest(value = {}) {
   };
 }
 
+function licencePolicyReason(license, artifact) {
+  const id = String(license || "").trim().toLowerCase();
+  if (copyleftProductReviewLicenses.has(id)) return `${artifact}-copyleft-licence-product-decision-required`;
+  if (nonStandardProductReviewLicenses.has(id)) return `${artifact}-nonstandard-licence-product-decision-required`;
+  return "";
+}
+
+export function trackingProviderLicencePolicyReasons(provider = {}) {
+  const reasons = [];
+  const upstreamReason = licencePolicyReason(provider.upstream?.license, "upstream");
+  if (upstreamReason) reasons.push(upstreamReason);
+  for (const model of provider.models || []) {
+    const modelReason = licencePolicyReason(model.license, "model");
+    if (modelReason) reasons.push(modelReason);
+  }
+  return [...new Set(reasons)];
+}
+
 export function trackingProviderReadiness(value = {}, options = {}) {
   const provider = normalizeTrackingProviderManifest(value);
   const requiredEvaluatorVersion = options.requiredEvaluatorVersion || REQUIRED_EVALUATOR_VERSION;
-  const reasons = [];
+  const reasons = trackingProviderLicencePolicyReasons(provider);
   if (provider.approval.status !== "approved-local-optional") reasons.push("provider-not-approved");
   if (provider.approval.networkAtInference) reasons.push("inference-network-enabled");
   if (!provider.approval.licenseReviewed) reasons.push("licence-not-reviewed");

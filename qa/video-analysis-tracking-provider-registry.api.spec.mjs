@@ -192,6 +192,25 @@ async function installApprovedProvider(registryRoot, directoryName = "team-class
   return { providerDir, runtime, model, manifest, report, evidence, installation };
 }
 
+test("provider readiness blocks known copyleft and nonstandard model licence boundaries", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const runtime = Buffer.from("licence-policy-runtime");
+  const model = Buffer.from("licence-policy-model");
+  const copyleft = providerManifest(runtime, model);
+  copyleft.upstream.license = "GPL-3.0";
+  expect(contract.trackingProviderReadiness(copyleft).reasons).toContain(
+    "upstream-copyleft-licence-product-decision-required",
+  );
+
+  const nonstandard = providerManifest(runtime, model);
+  nonstandard.models[0].license = "Hippocratic-3.0";
+  expect(contract.trackingProviderReadiness(nonstandard).reasons).toContain(
+    "model-nonstandard-licence-product-decision-required",
+  );
+});
+
 test("local provider registry verifies actual runtime, model and evidence without leaking paths", async () => {
   const registryService = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-registry.mjs",

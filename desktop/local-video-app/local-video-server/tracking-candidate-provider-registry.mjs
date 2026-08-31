@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { constants as fsConstants, promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { normalizeTrackingProviderManifest } from "./tracking-provider-contract.mjs";
+import {
+  normalizeTrackingProviderManifest,
+  trackingProviderLicencePolicyReasons,
+} from "./tracking-provider-contract.mjs";
 import {
   trackingProviderExecutionFingerprint,
   trackingProviderFingerprint,
@@ -175,7 +178,7 @@ async function installationMarker(providerDir) {
 }
 
 export function trackingCandidatePolicyReasons(provider = {}) {
-  const reasons = [];
+  const reasons = trackingProviderLicencePolicyReasons(provider);
   if (provider.approval?.status !== "candidate") reasons.push("candidate-status-required");
   if (provider.approval?.networkAtInference) reasons.push("inference-network-enabled");
   if (!provider.approval?.licenseReviewed) reasons.push("licence-not-reviewed");

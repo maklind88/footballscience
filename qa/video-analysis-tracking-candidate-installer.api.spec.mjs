@@ -202,6 +202,9 @@ test("candidate installer requires explicit licence acceptance and canonical rev
   const service = await import(moduleUrl(
     "desktop/local-video-app/tracking-stage-candidates/candidate-install-service.mjs",
   ));
+  const registry = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-candidate-provider-registry.mjs",
+  ));
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fs-tracking-candidate-policy-"));
   try {
     const fixture = await candidateFixture(directory);
@@ -222,6 +225,22 @@ test("candidate installer requires explicit licence acceptance and canonical rev
     await expect(service.readTrackingCandidateManifest(fixture.manifestPath)).rejects.toMatchObject({
       code: "TRACKING_CANDIDATE_POLICY_BLOCKED",
     });
+
+    const copyleft = structuredClone(fixture.manifest);
+    copyleft.upstream.license = "AGPL-3.0";
+    expect(registry.trackingCandidatePolicyReasons(copyleft)).toContain(
+      "upstream-copyleft-licence-product-decision-required",
+    );
+    await fs.writeFile(fixture.manifestPath, JSON.stringify(copyleft));
+    await expect(service.readTrackingCandidateManifest(fixture.manifestPath)).rejects.toMatchObject({
+      code: "TRACKING_CANDIDATE_POLICY_BLOCKED",
+    });
+
+    const nonstandardModel = structuredClone(fixture.manifest);
+    nonstandardModel.models[0].license = "HL3-LAW-MEDIA-MIL-SOC-SV";
+    expect(registry.trackingCandidatePolicyReasons(nonstandardModel)).toContain(
+      "model-nonstandard-licence-product-decision-required",
+    );
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

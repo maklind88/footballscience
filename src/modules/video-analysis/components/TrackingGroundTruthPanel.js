@@ -99,6 +99,10 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
   const issues = readiness.issues.slice(0, 3);
   const fingerprint = locked ? truth.lockedArtifact.sourceFingerprint : truth.sourceFingerprint;
   const frame = locked ? truth.lockedArtifact.frame : truth.frame;
+  const burden = locked ? truth.lockedArtifact.annotationBurdenEvidence : null;
+  const burdenPoints = burden?.pointSummary || {};
+  const burdenTracks = burden?.trackSummary || {};
+  const burdenCorrections = burden?.correctionSummary || {};
   return `
     <section class="video-analysis-ground-truth${locked ? " is-locked" : ""}" aria-label="Benchmark reference">
       <header>
@@ -116,6 +120,8 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
       <dl class="video-analysis-ground-truth__evidence">
         <div><dt>Source SHA-256</dt><dd class="${readiness.sourceFingerprintReady ? "is-ready" : "is-missing"}">${escapeHtml(shortFingerprint(fingerprint))}</dd></div>
         <div><dt>Frame</dt><dd class="${readiness.frameReady ? "is-ready" : "is-missing"}">${escapeHtml(frame?.width && frame?.height ? `${frame.width} x ${frame.height}` : "Missing")}</dd></div>
+        ${burden ? `<div><dt>Manual samples</dt><dd>${escapeHtml(`${burdenPoints.manualPointCount}/${burdenPoints.pointCount} (${Math.round(Number(burdenPoints.manualPointRatio || 0) * 100)}%)`)}</dd></div>` : ""}
+        ${burden ? `<div><dt>Review changes</dt><dd>${escapeHtml(`${burdenTracks.addedOutsidePreannotationCount} added | ${burdenTracks.preannotationExcludedTrackCount} excluded | ${burdenCorrections.correctionOperationCount} corrections`)}</dd></div>` : ""}
       </dl>
       ${locked ? `
         <p class="video-analysis-ground-truth__status is-ready" aria-live="polite">Real-match reference locked ${escapeHtml(truth.lockedAt || "")}</p>

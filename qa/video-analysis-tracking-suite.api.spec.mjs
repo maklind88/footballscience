@@ -881,11 +881,12 @@ test("benchmark suite checksum binds exact review workload evidence without chan
   const workload = await import(moduleUrl(
     "src/modules/video-analysis/services/trackingReviewWorkloadEvidenceService.js",
   ));
-  const baseline = await workflow.prepareTrackingBenchmarkWorkflow(state.presentation.tracking, {
-    now: () => 1_800_000_090_000,
-  });
   const tracking = structuredClone(state.presentation.tracking);
   const benchmarkCase = tracking.groundTruth.suite.cases[0];
+  delete benchmarkCase.annotationBurdenEvidence;
+  const baseline = await workflow.prepareTrackingBenchmarkWorkflow(structuredClone(tracking), {
+    now: () => 1_800_000_090_000,
+  });
   benchmarkCase.workloadEvidence = workload.createTrackingReviewWorkloadEvidence({
     sourceFingerprint: benchmarkCase.sourceFingerprint,
     workspaceSha256: "d".repeat(64),

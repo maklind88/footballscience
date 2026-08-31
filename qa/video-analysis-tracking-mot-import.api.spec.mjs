@@ -177,6 +177,7 @@ test("full-scene evidence cannot inflate duration without player visibility", as
   const legacySparse = JSON.parse(JSON.stringify(
     importer.createGroundTruthArtifactFromMotAnnotations(rows(), descriptor()),
   ));
+  delete legacySparse.annotationBurdenEvidence;
   delete legacySparse.reviewEvidence.sceneCoverageRatio;
   const player = legacySparse.groundTruth.tracks.find((track) => track.entityType === "player");
   player.segments[0].points = player.segments[0].points.slice(0, 2);

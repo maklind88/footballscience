@@ -558,6 +558,16 @@ test("locked real-match references are immutable, media-free and benchmark-ready
       lastActionAt: "2026-08-31T12:10:00.000Z",
     },
   });
+  input.tracks.forEach((track) => {
+    track.metadata = {
+      ...track.metadata,
+      localSourceSha256: sourceFingerprint,
+      angleId: "angle-1",
+      preannotationReviewState: "saved-review",
+      preannotationWorkspaceSha256: "b".repeat(64),
+      preannotationCaseId: "transition-1",
+    };
+  });
   input.tracks[0].segments[0].points = Array.from({ length: 11 }, (_, index) => ({
     atMs: index * 100,
     x: 0.1 + (index * 0.005),
@@ -590,6 +600,19 @@ test("locked real-match references are immutable, media-free and benchmark-ready
       outcome: { totalSuggestionCount: 3, rejectedCount: 0, savedCount: 3 },
       metrics: { reviewActionCount: 4, reviewActionsPer100Suggestions: 133.33 },
     },
+    annotationBurdenEvidence: {
+      protocol: "football-science-tracking-annotation-burden-evidence-v1",
+      workloadBound: true,
+      trackSummary: {
+        selectedTrackCount: 3,
+        preannotationRetainedTrackCount: 3,
+        nonPreannotationTrackCount: 0,
+        preannotationSavedCount: 3,
+        preannotationExcludedTrackCount: 0,
+        addedOutsidePreannotationCount: 0,
+      },
+      correctionSummary: { correctionRecordCount: 3, correctionOperationCount: 3 },
+    },
   });
   expect(artifact.groundTruth.tracks[0]).not.toHaveProperty("metadata");
   expect(artifact.groundTruth.tracks[0]).not.toHaveProperty("confidence");
@@ -606,6 +629,9 @@ test("locked real-match references are immutable, media-free and benchmark-ready
   const forgedWorkload = structuredClone(artifact);
   forgedWorkload.workloadEvidence.metrics.reviewActionCount += 1;
   expect(() => groundTruth.validateGroundTruthArtifact(forgedWorkload)).toThrow(/metrics do not match/i);
+  const forgedBurden = structuredClone(artifact);
+  forgedBurden.annotationBurdenEvidence.pointSummary.manualPointCount += 1;
+  expect(() => groundTruth.validateGroundTruthArtifact(forgedBurden)).toThrow(/point summary does not match/i);
 
   input.tracks[0].segments[0].points[0].x = 0.99;
   expect(artifact.groundTruth.tracks[0].segments[0].points[0].x).toBe(0.1);
@@ -616,6 +642,7 @@ test("locked real-match references are immutable, media-free and benchmark-ready
     performance: { processingMs: 500 },
   });
   expect(benchmarkCase).not.toHaveProperty("workloadEvidence");
+  expect(benchmarkCase).not.toHaveProperty("annotationBurdenEvidence");
   expect(benchmark.evaluateMultiObjectTrackingBenchmarkCase(benchmarkCase)).toMatchObject({
     benchmarkId: "real-match-case-1",
     evidence: {
@@ -669,8 +696,16 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     "src/modules/video-analysis/services/trackingReviewWorkloadEvidenceService.js",
   ));
   const tracks = reviewedInput().tracks;
-  tracks[0].metadata.localSourceSha256 = sourceFingerprint;
-  tracks[0].metadata.angleId = "angle-1";
+  tracks.forEach((track) => {
+    track.metadata = {
+      ...track.metadata,
+      localSourceSha256: sourceFingerprint,
+      angleId: "angle-1",
+      preannotationReviewState: "saved-review",
+      preannotationWorkspaceSha256: "b".repeat(64),
+      preannotationCaseId: "transition-1",
+    };
+  });
   const item = {
     id: "item-1",
     clipId: "clip-1",
@@ -799,9 +834,8 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
   state.presentation.tracking.groundTruth.byItemId[item.id].workloadEvidence = workloadEvidence;
   state.presentation.tracking.selectedTrackIds = [tracks[0].id];
   expect(controller.handleAction("ground-truth-toggle")).toBe(true);
-  expect(state.presentation.tracking.groundTruth.byItemId[item.id].workloadEvidence).toBeNull();
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].workloadEvidence).toEqual(workloadEvidence);
   expect(controller.handleAction("ground-truth-toggle")).toBe(true);
-  state.presentation.tracking.groundTruth.byItemId[item.id].workloadEvidence = workloadEvidence;
   expect(controller.handleField("groundTruthScenario", { value: "transition", checked: true })).toBe(true);
   expect(renderTrackingGroundTruthPanel(state, item)).toMatch(/value="transition"[^>]*checked/);
   expect(renderTrackingGroundTruthPanel(state, item)).toContain("0/3");
@@ -831,6 +865,14 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
         protocol: "football-science-tracking-review-workload-evidence-v1",
         caseId: "transition-1",
       },
+      annotationBurdenEvidence: {
+        protocol: "football-science-tracking-annotation-burden-evidence-v1",
+        trackSummary: {
+          preannotationRetainedTrackCount: 3,
+          preannotationExcludedTrackCount: 0,
+          addedOutsidePreannotationCount: 0,
+        },
+      },
     },
   });
   expect(new Set(state.presentation.tracking.groundTruth.byItemId[item.id].selectedTrackIds).size).toBe(3);
@@ -839,6 +881,8 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     state.presentation.tracking.groundTruth.byItemId[item.id].lockedArtifact.id,
   );
   expect(renderTrackingGroundTruthPanel(state, item)).toContain("Locked reference");
+  expect(renderTrackingGroundTruthPanel(state, item)).toContain("Manual samples");
+  expect(renderTrackingGroundTruthPanel(state, item)).toContain("Review changes");
   expect(renderTrackingBenchmarkSuitePanel(state)).toContain("1</strong> raw provider run");
   expect(renderTrackingGroundTruthPanel(state, { ...item, id: "item-2" })).toContain("Review draft");
   expect(controller.handleAction("ground-truth-download")).toBe(true);

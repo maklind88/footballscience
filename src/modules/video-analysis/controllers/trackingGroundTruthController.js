@@ -223,7 +223,6 @@ export function createTrackingGroundTruthController(options = {}) {
       status: "draft",
       selectedTrackIds: [...selected],
       benchmarkTargetTrackId,
-      workloadEvidence: null,
       sceneReview: createTrackingGroundTruthSceneReview(context),
       attested: false,
       exhaustiveSceneAttested: false,

@@ -10,11 +10,11 @@ The native registry owns `candidate`, `active` and `previous` generations, the h
 
 Privileged content is not served from localhost. It uses role-specific Tauri custom protocols:
 
-- `fs-active` / `https://fs-active.localhost` for the native bootstrap and active signed generation;
-- `fs-candidate` / `https://fs-candidate.localhost` for a hidden/incognito compatibility-only candidate;
-- `fs-recovery` / `https://fs-recovery.localhost` for bundled read-only recovery.
+- `fs-active` / `http://fs-active.localhost` for the native bootstrap and active signed generation;
+- `fs-candidate` / `http://fs-candidate.localhost` for a hidden/incognito compatibility-only candidate;
+- `fs-recovery` / `http://fs-recovery.localhost` for bundled read-only recovery.
 
-macOS/Linux and Windows use different custom-origin shapes. Exact role, window label and navigation checks account for both. New windows, downloads and arbitrary HTTPS navigation are denied.
+macOS/Linux and Windows use different custom-origin shapes. The Windows form is Tauri/WebView2's internally intercepted virtual HTTP origin, not a network listener. It deliberately retains Tauri's default scheme so its internal IPC endpoint is not blocked as mixed content. Exact scheme, host, role, window label and navigation checks account for both; HTTPS lookalikes, new windows, downloads and arbitrary external navigation are denied.
 
 The shell cache is `fs-desktop-native-shell-cache-v2`. It is an app-data filesystem/SQLite registry, not browser/PWA Cache Storage and not a service worker. It contains only signed public code assets; token, auth, private JSON, user football, medical and outbox data are forbidden.
 

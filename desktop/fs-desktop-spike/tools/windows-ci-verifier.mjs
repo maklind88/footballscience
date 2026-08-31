@@ -172,7 +172,7 @@ function validateHostedProbe(probe, bootMode) {
     throw new Error("Native data compatibility evidence did not match.");
   }
   if (probe.nativeEvidence?.customProtocol !== true) throw new Error("Custom-protocol evidence is missing.");
-  if (probe.nativeEvidence?.contentOrigin !== "https://fs-active.localhost") {
+  if (probe.nativeEvidence?.contentOrigin !== "http://fs-active.localhost") {
     throw new Error(`Unexpected Windows custom-protocol origin: ${probe.nativeEvidence?.contentOrigin}`);
   }
   if (probe.nativeEvidence?.activeIsolationProofSchema !== "fs-desktop-candidate-isolation-v1") {

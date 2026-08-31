@@ -167,7 +167,7 @@ fn build_window<R: Runtime>(
         .resizable(true)
         .visible(visible)
         .incognito(incognito)
-        .use_https_scheme(true)
+        .use_https_scheme(false)
         .on_navigation(move |url| navigation_allowed(role, url))
         .on_new_window(|_, _| NewWindowResponse::Deny)
         .on_download(|_, _| false)
@@ -204,11 +204,22 @@ pub fn navigation_allowed(role: WebviewRole, url: &Url) -> bool {
 }
 
 fn custom_origin(url: &Url, scheme: &str) -> bool {
-    let windows_host = format!("{scheme}.localhost");
-    (url.scheme() == scheme && url.host_str() == Some("localhost") && url.port().is_none())
-        || ((url.scheme() == "http" || url.scheme() == "https")
+    custom_origin_for_platform(
+        url,
+        scheme,
+        cfg!(any(target_os = "windows", target_os = "android")),
+    )
+}
+
+fn custom_origin_for_platform(url: &Url, scheme: &str, http_virtual_origin: bool) -> bool {
+    if http_virtual_origin {
+        let windows_host = format!("{scheme}.localhost");
+        url.scheme() == "http"
             && url.host_str() == Some(windows_host.as_str())
-            && url.port().is_none())
+            && url.port().is_none()
+    } else {
+        url.scheme() == scheme && url.host_str() == Some("localhost") && url.port().is_none()
+    }
 }
 
 #[cfg(test)]
@@ -218,15 +229,23 @@ mod tests {
     #[test]
     fn custom_protocol_origin_differences_are_bounded() {
         let mac: Url = "fs-active://localhost/active/index.html".parse().unwrap();
-        let windows: Url = "https://fs-active.localhost/active/index.html"
+        let windows: Url = "http://fs-active.localhost/active/index.html"
             .parse()
             .unwrap();
-        let lookalike: Url = "https://fs-active.evil.example/active/index.html"
+        let https_windows: Url = "https://fs-active.localhost/active/index.html"
             .parse()
             .unwrap();
-        assert!(navigation_allowed(WebviewRole::Active, &mac));
-        assert!(navigation_allowed(WebviewRole::Active, &windows));
-        assert!(!navigation_allowed(WebviewRole::Active, &lookalike));
+        let lookalike: Url = "http://fs-active.evil.example/active/index.html"
+            .parse()
+            .unwrap();
+        assert!(custom_origin_for_platform(&mac, "fs-active", false));
+        assert!(custom_origin_for_platform(&windows, "fs-active", true));
+        assert!(!custom_origin_for_platform(
+            &https_windows,
+            "fs-active",
+            true
+        ));
+        assert!(!custom_origin_for_platform(&lookalike, "fs-active", true));
     }
 
     #[test]

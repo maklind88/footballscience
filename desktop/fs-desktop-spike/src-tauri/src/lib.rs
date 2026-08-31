@@ -147,7 +147,7 @@ fn desktop_runtime_info(
         sync_protocol_version: local_data::SYNC_PROTOCOL_VERSION,
         capabilities: bootstrap::ACTIVE_CAPABILITIES.to_vec(),
         global_tauri_enabled: false,
-        content_origin: "fs-active://localhost (https://fs-active.localhost on Windows)",
+        content_origin: "fs-active://localhost (http://fs-active.localhost on Windows)",
     })
 }
 

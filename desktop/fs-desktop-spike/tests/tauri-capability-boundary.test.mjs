@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const packageRoot = new URL("../", import.meta.url);
@@ -34,4 +36,15 @@ test("known negative command is compiled but never granted", async () => {
   assert.match(build, /"internal_denied_probe"/);
   assert.match(runtime, /fn internal_denied_probe\(\)/);
   assert.match(runtime, /generate_handler![\s\S]*internal_denied_probe/);
+});
+
+test("Windows CI helpers load successfully before the platform guard", () => {
+  for (const helper of ["build-windows-candidates.mjs", "windows-ci-verifier.mjs"]) {
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL(`../tools/${helper}`, import.meta.url))], {
+      encoding: "utf8",
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /must run on a Windows runner/);
+    assert.doesNotMatch(result.stderr, /SyntaxError/);
+  }
 });

@@ -9,6 +9,7 @@
     "tracking:preflight": "node tracking-providers/sam2/preflight.mjs",
     "tracking:benchmark": "node ../../scripts/fs-player-tracking-benchmark.mjs",
     "tracking:assemble": "node ../../scripts/fs-player-tracking-benchmark-assemble.mjs",
+    "tracking:benchmark:prepare": "node ../../scripts/fs-player-tracking-benchmark-prepare.mjs",
     "tracking:mot:import": "node ../../scripts/fs-player-tracking-mot-import.mjs",
     "tracking:candidate:plan": "node tracking-stage-candidates/install-candidate.mjs --plan",
     "tracking:candidate:install": "node tracking-stage-candidates/install-candidate.mjs",

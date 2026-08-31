@@ -33,6 +33,17 @@ npm --prefix desktop/local-video-app run tracking:mot:import -- \
 
 The import is intentionally strict: every MOT track needs an explicit player/ball/referee and identity mapping, dataset rights must be attested, player visibility must cover at least 95% of each full-scene range, and no output is written until ten unique minutes and all required football scenarios are present. See `docs/video-analysis/TRACKING_MOT_IMPORT_MANIFEST.example.json` from the repository root.
 
+A long local match can first be converted into a reproducible annotation pack. The plan must contain 5-20 non-overlapping cases, 10-20 unique minutes, and every required football scenario:
+
+```bash
+npm --prefix desktop/local-video-app run tracking:benchmark:prepare -- \
+  --plan /absolute/local/annotation-plan.json \
+  --source /absolute/local/match.mp4 \
+  --output /absolute/local/fs-player-annotation-pack
+```
+
+The pack contains private normalized clips, empty MOT files, exact source/clip/FFmpeg hashes, and a deliberately non-attested import template. It never records the original local source path. The analyst must complete exhaustive annotations, track mappings, rights review, and both attestations before `tracking:mot:import` can accept it.
+
 Reviewed full-scene stage candidates use a separate benchmark-only registry. The installer never downloads assets, follows links, overwrites an installation, or infers a licence decision. It accepts only a canonical candidate manifest plus exact local native-runtime and model files whose bytes and SHA-256 hashes match that manifest:
 
 ```bash

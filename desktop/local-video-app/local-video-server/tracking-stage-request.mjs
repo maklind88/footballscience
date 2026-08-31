@@ -5,6 +5,7 @@ import { trackingProviderFingerprint } from "./tracking-provider-evidence.mjs";
 export const TRACKING_STAGE_REQUEST_PROTOCOL = "football-science-tracking-stage-request-v1";
 
 const entityTypes = new Set(["person", "player", "ball", "referee"]);
+const roleAnchorTypes = new Set(["player", "referee"]);
 const requestInputFields = Object.freeze({
   detection: "",
   segmentation: "prompts",
@@ -209,6 +210,38 @@ function normalizedTeamAnchors(provider = {}, values = [], trajectories = []) {
   ));
 }
 
+function normalizedRoleAnchors(provider = {}, values = [], trajectories = []) {
+  if (provider.stage !== "classification" || !provider.capabilities.includes("classify:role")) return [];
+  if (!Array.isArray(values) || values.length > 8) {
+    invalid("Classification role anchors are outside their safety limit.", "TRACKING_STAGE_REQUEST_LIMIT");
+  }
+  const people = new Map(trajectories
+    .filter((trajectory) => ["person", "player"].includes(trajectory.entityType))
+    .map((trajectory) => [trajectory.id, trajectory]));
+  const assigned = new Set();
+  const counts = new Map();
+  const anchors = values.map((value, index) => {
+    exactKeys(value, ["role", "trajectoryId"], `Role anchor ${index + 1}`);
+    const role = boundedString(value.role, `role anchor ${index + 1} role`, 20).toLowerCase();
+    const trajectoryId = identifier(value.trajectoryId, `role anchor ${index + 1} trajectory id`);
+    const trajectory = people.get(trajectoryId);
+    if (!roleAnchorTypes.has(role)) invalid("Role anchors may identify only player or referee.");
+    if (!trajectory || assigned.has(trajectoryId) || (trajectory.entityType === "player" && role !== "player")) {
+      invalid(
+        "Role anchors must reference unique compatible person trajectories.",
+        "TRACKING_STAGE_REFERENCE_MISMATCH",
+      );
+    }
+    assigned.add(trajectoryId);
+    counts.set(role, (counts.get(role) || 0) + 1);
+    if (counts.get(role) > 4) invalid("A football role may have at most four anchors.", "TRACKING_STAGE_REQUEST_LIMIT");
+    return { role, trajectoryId };
+  });
+  return anchors.sort((left, right) => (
+    left.role.localeCompare(right.role) || left.trajectoryId.localeCompare(right.trajectoryId)
+  ));
+}
+
 function assertUniqueInputs(provider = {}, inputs = []) {
   const ids = inputs.map((entry) => entry.id);
   if (new Set(ids).size !== ids.length) invalid(`Tracking stage request ${requestInputFields[provider.stage]} ids must be unique.`);
@@ -238,8 +271,11 @@ export function normalizeTrackingStageRequest(providerValue = {}, request = {}) 
   const provider = normalizeTrackingProviderManifest(providerValue);
   const inputField = requestInputFields[provider.stage];
   const acceptsTeamAnchors = provider.stage === "classification" && provider.capabilities.includes("classify:team");
+  const acceptsRoleAnchors = provider.stage === "classification" && provider.capabilities.includes("classify:role");
   exactKeys(request, [
-    "sourceFingerprint", "range", ...(inputField ? [inputField] : []), ...(acceptsTeamAnchors ? ["teamAnchors"] : []),
+    "sourceFingerprint", "range", ...(inputField ? [inputField] : []),
+    ...(acceptsRoleAnchors ? ["roleAnchors"] : []),
+    ...(acceptsTeamAnchors ? ["teamAnchors"] : []),
   ], "Tracking stage request");
   const sourceFingerprint = sha256(request.sourceFingerprint, "tracking request source fingerprint");
   exactKeys(request.range, ["startMs", "endMs"], "Tracking request range");
@@ -259,11 +295,13 @@ export function normalizeTrackingStageRequest(providerValue = {}, request = {}) 
   }
   const inputs = normalizedInputs(provider, rawInputs, range);
   assertUniqueInputs(provider, inputs);
+  const roleAnchors = normalizedRoleAnchors(provider, request.roleAnchors ?? [], inputs);
   const teamAnchors = normalizedTeamAnchors(provider, request.teamAnchors ?? [], inputs);
   const normalized = {
     sourceFingerprint,
     range,
     ...(inputField ? { [inputField]: inputs } : {}),
+    ...(acceptsRoleAnchors ? { roleAnchors } : {}),
     ...(acceptsTeamAnchors ? { teamAnchors } : {}),
   };
   const serialized = canonicalJson(normalized);

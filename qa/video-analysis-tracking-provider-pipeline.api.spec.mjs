@@ -610,6 +610,10 @@ test("generic person detection cannot claim football roles and role classificati
   });
   const classificationRequest = stageRequest({
     trajectories: [trajectory("person-player", 0.1), trajectory("person-referee", 0.7)],
+    roleAnchors: [
+      { role: "player", trajectoryId: "person-player" },
+      { role: "referee", trajectoryId: "person-referee" },
+    ],
     teamAnchors: [{ teamSide: "home", trajectoryId: "person-player" }],
   });
   const classificationResult = stageResult(classifier, evidenceService, artifacts, classificationRequest, {
@@ -629,6 +633,52 @@ test("generic person detection cannot claim football roles and role classificati
     classifier,
     classificationRequest,
   ).payload.classifications).toEqual(classificationResult.payload.classifications);
+
+  const unanchoredRoleRequest = stageRequest({ trajectories: classificationRequest.trajectories });
+  const unanchoredRoleResult = stageResult(
+    classifier,
+    evidenceService,
+    artifacts,
+    unanchoredRoleRequest,
+    classificationResult.payload,
+  );
+  expect(() => artifacts.validateTrackingStageArtifact(
+    unanchoredRoleResult,
+    classifier,
+    unanchoredRoleRequest,
+  )).toThrow(/analyst-bound trajectory anchor/i);
+
+  const abstainedRoleResult = stageResult(classifier, evidenceService, artifacts, unanchoredRoleRequest, {
+    classifications: [
+      { trajectoryId: "person-player", role: "unknown", roleConfidence: 0 },
+      { trajectoryId: "person-referee", role: "unknown", roleConfidence: 0 },
+    ],
+  });
+  expect(artifacts.validateTrackingStageArtifact(
+    abstainedRoleResult,
+    classifier,
+    unanchoredRoleRequest,
+  ).payload.classifications.every((entry) => entry.role === "unknown")).toBe(true);
+
+  const contradictedRole = structuredClone(classificationResult);
+  contradictedRole.payload.classifications[0].role = "referee";
+  delete contradictedRole.payload.classifications[0].teamSide;
+  delete contradictedRole.payload.classifications[0].teamConfidence;
+  expect(() => artifacts.validateTrackingStageArtifact(contradictedRole, classifier, classificationRequest))
+    .toThrow(/contradicted an analyst-bound role anchor/i);
+
+  expect(() => artifacts.normalizeTrackingStageRequest(classifier, {
+    ...classificationRequest,
+    roleAnchors: [{ role: "ball", trajectoryId: "person-player" }],
+  })).toThrow(/only player or referee/i);
+
+  expect(() => artifacts.normalizeTrackingStageRequest(classifier, {
+    ...classificationRequest,
+    roleAnchors: [
+      { role: "player", trajectoryId: "person-player" },
+      { role: "referee", trajectoryId: "person-player" },
+    ],
+  })).toThrow(/unique compatible person trajectories/i);
 
   const refereeWithTeam = structuredClone(classificationResult);
   refereeWithTeam.payload.classifications[1].teamSide = "home";

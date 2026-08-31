@@ -32,7 +32,7 @@ import { createTrackingReviewStructuralActions } from "./trackingReviewStructura
 import { createTrackingReviewEntityActions } from "./trackingReviewEntityActions.js";
 
 const reviewActions = new Set([
-  "review-previous", "review-next", "review-continuity", "review-entity", "review-identity",
+  "review-previous", "review-next", "review-continuity", "review-entity", "review-identity", "review-role-anchor",
   "review-visibility", "review-merge", "review-reject", "review-split",
   "review-identity-swap", "review-undo", "review-redo",
 ]);
@@ -481,6 +481,7 @@ export function createTrackingReviewController(options = {}) {
     if (action === "review-next") return navigate("later");
     if (action === "review-continuity") return confirmContinuity();
     if (action === "review-entity") return reviewEntityActions.applyEntityType();
+    if (action === "review-role-anchor") return reviewEntityActions.confirmRoleAnchor();
     if (action === "review-identity") return reviewEntityActions.applyIdentity();
     if (action === "review-visibility") return toggleVisibility();
     if (action === "review-merge") return reviewStructuralActions.mergeSelectedTracks();

@@ -227,6 +227,19 @@ export async function runTrackingCandidatePipeline(options = {}) {
     { sourceFingerprint, range, observations },
     retainedSourceId,
   );
+  const roleAnchors = Array.isArray(options.roleAnchors) ? options.roleAnchors : [];
+  if (roleAware && roleAnchors.length) {
+    const expectedAssociationArtifact = sha256(
+      options.anchorAssociationArtifactSha256,
+      "Role-anchor association artifact fingerprint",
+    );
+    if (association.artifactSha256 !== expectedAssociationArtifact) {
+      invalid(
+        "The analyst role anchors belong to a different association result. Review the new trajectories before classification.",
+        "TRACKING_CANDIDATE_PIPELINE_ROLE_ANCHOR_STALE",
+      );
+    }
+  }
   const trajectories = materializeCandidateTrajectories(association.artifact.payload, observations);
   let reidentification;
   let classification;
@@ -235,6 +248,7 @@ export async function runTrackingCandidatePipeline(options = {}) {
       sourceFingerprint,
       range,
       trajectories,
+      roleAnchors,
       teamAnchors: Array.isArray(options.teamAnchors) ? options.teamAnchors : [],
     }, retainedSourceId);
     const classifiedTrajectories = applyCandidateRoleClassifications(

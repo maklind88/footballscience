@@ -317,11 +317,22 @@ test("role-aware candidate pipeline classifies people before re-identification",
       { trajectoryId: "trajectory-player", identityKey: "local-cluster-player", confidence: 0.91 },
     ] },
   };
+  const associationArtifactSha256 = sealedRunResult(
+    "association",
+    configuredProviders.association,
+    { sourceFingerprint, range, observations: payloads.detection.observations },
+    payloads.association,
+  ).evidence.result.artifactSha256;
   const result = await pipeline.runTrackingCandidatePipeline({
     providers: configuredProviders,
     sourceFingerprint,
     range,
     file: new Blob(["match"]),
+    roleAnchors: [
+      { role: "player", trajectoryId: "trajectory-player" },
+      { role: "referee", trajectoryId: "trajectory-referee" },
+    ],
+    anchorAssociationArtifactSha256: associationArtifactSha256,
     teamAnchors: [{ teamSide: "home", trajectoryId: "trajectory-player" }],
     cryptoApi: globalThis.crypto,
     runStage: async (options) => {
@@ -338,6 +349,10 @@ test("role-aware candidate pipeline classifies people before re-identification",
   expect(calls.map((call) => call.provider.stage)).toEqual([
     "detection", "association", "classification", "reidentification",
   ]);
+  expect(calls[2].request.roleAnchors).toEqual([
+    { role: "player", trajectoryId: "trajectory-player" },
+    { role: "referee", trajectoryId: "trajectory-referee" },
+  ]);
   expect(calls[3].request.trajectories).toHaveLength(1);
   expect(calls[3].request.trajectories[0]).toMatchObject({
     id: "trajectory-player",
@@ -353,11 +368,20 @@ test("role-aware candidate pipeline classifies people before re-identification",
   });
   expect(result.tracks.find((track) => track.entityType === "player")).toMatchObject({
     teamSide: "home",
-    metadata: { candidateRole: "player", candidateRoleConfidence: 0.97 },
+    metadata: {
+      candidateRole: "player",
+      candidateRoleConfidence: 0.97,
+      candidateTrajectoryIds: ["trajectory-player"],
+      candidateAssociationArtifactSha256: associationArtifactSha256,
+    },
   });
   expect(result.tracks.find((track) => track.entityType === "referee")).toMatchObject({
     teamSide: "official",
-    metadata: { candidateRole: "referee", candidateRoleConfidence: 0.94 },
+    metadata: {
+      candidateRole: "referee",
+      candidateRoleConfidence: 0.94,
+      candidateTrajectoryIds: ["trajectory-referee"],
+    },
   });
   expect(result.tracks.find((track) => track.entityType === "unknown")).toMatchObject({
     identityConfidence: 0,
@@ -372,6 +396,22 @@ test("role-aware candidate pipeline classifies people before re-identification",
   expect(await artifacts.validateTrackingCandidatePipelineArtifact(structuredClone(artifact), {
     cryptoApi: globalThis.crypto,
   })).toEqual(artifact);
+
+  await expect(pipeline.runTrackingCandidatePipeline({
+    providers: configuredProviders,
+    sourceFingerprint,
+    range,
+    file: new Blob(["match"]),
+    roleAnchors: [{ role: "player", trajectoryId: "trajectory-player" }],
+    anchorAssociationArtifactSha256: "0".repeat(64),
+    cryptoApi: globalThis.crypto,
+    runStage: async (options) => sealedRunResult(
+      options.provider.stage,
+      options.provider,
+      options.request,
+      payloads[options.provider.stage],
+    ),
+  })).rejects.toMatchObject({ code: "TRACKING_CANDIDATE_PIPELINE_ROLE_ANCHOR_STALE" });
 });
 
 test("candidate pipeline artifact preserves exact raw evidence and rejects changed review predictions", async () => {

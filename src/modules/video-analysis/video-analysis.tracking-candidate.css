@@ -195,6 +195,37 @@
   font-weight: 800;
 }
 
+.video-analysis-candidate__calibration {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 1px solid rgba(113, 128, 124, 0.24);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.video-analysis-candidate__calibration > div {
+  display: grid;
+  gap: 2px;
+}
+
+.video-analysis-candidate__calibration span,
+.video-analysis-candidate__calibration small {
+  color: var(--video-analysis-muted, #67716e);
+  font-size: 11px;
+}
+
+.video-analysis-candidate__calibration strong {
+  font-size: 12px;
+}
+
+.video-analysis-candidate__calibration.is-calibrated {
+  border-color: rgba(23, 126, 93, 0.34);
+  background: rgba(229, 245, 238, 0.68);
+}
+
 .video-analysis-candidate__benchmark {
   display: grid;
   gap: 6px;

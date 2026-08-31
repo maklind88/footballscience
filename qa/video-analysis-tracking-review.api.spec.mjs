@@ -141,6 +141,102 @@ test("object type correction clears incompatible player identity without rewriti
     .toThrow(/player, ball, or referee/i);
 });
 
+test("candidate role corrections create source-bound analyst anchors and reject mixed evidence", async () => {
+  const correction = await import(moduleUrl("src/modules/video-analysis/services/trackingCorrectionService.js"));
+  const anchors = await import(moduleUrl("src/modules/video-analysis/services/trackingCandidateAnchorService.js"));
+  const review = await import(moduleUrl("src/modules/video-analysis/services/trackingReviewService.js"));
+  const pipelineFingerprintSha256 = "1".repeat(64);
+  const sourceFingerprintSha256 = "2".repeat(64);
+  const associationArtifactSha256 = "3".repeat(64);
+  const candidate = reviewTrack({
+    id: "candidate-unknown-1",
+    entityType: "unknown",
+    playerLabel: "",
+    teamSide: "",
+    shirtNumber: "",
+    metadata: {
+      candidatePipelineProtocol: "football-science-tracking-candidate-pipeline-v1",
+      candidatePipelineFingerprintSha256: pipelineFingerprintSha256,
+      localSourceSha256: sourceFingerprintSha256,
+      candidateAssociationArtifactSha256: associationArtifactSha256,
+      candidateTrajectoryIds: ["trajectory-person-1"],
+    },
+  });
+  const referee = correction.applyTrackingEntityCorrection(candidate, "referee", {
+    atMs: 500,
+    confirmedAt: "2026-08-31T12:00:00.000Z",
+    confirmedBy: "analyst-1",
+    correctedBy: "analyst-1",
+  });
+  expect(referee.metadata.candidateRoleAnchor).toEqual({
+    protocol: anchors.TRACKING_CANDIDATE_ROLE_ANCHOR_PROTOCOL,
+    role: "referee",
+    trajectoryIds: ["trajectory-person-1"],
+    associationArtifactSha256,
+    pipelineFingerprintSha256,
+    sourceFingerprintSha256,
+    confirmedAt: "2026-08-31T12:00:00.000Z",
+    confirmedBy: "analyst-1",
+  });
+
+  const playerRole = correction.confirmTrackingCandidateRoleAnchor(reviewTrack({
+    id: "candidate-player-2",
+    metadata: {
+      ...candidate.metadata,
+      candidateTrajectoryIds: ["trajectory-person-2"],
+    },
+  }), {
+    atMs: 500,
+    confirmedAt: "2026-08-31T12:01:00.000Z",
+    confirmedBy: "analyst-1",
+  });
+  expect(playerRole.corrections.at(-1)).toMatchObject({ correctionType: "role-anchor", startMs: 500 });
+  const player = correction.applyTrackingIdentityCorrection(playerRole, {
+    playerLabel: "Home 8",
+    teamSide: "home",
+    shirtNumber: "8",
+  }, {
+    atMs: 500,
+    correctedAt: "2026-08-31T12:02:00.000Z",
+    correctedBy: "analyst-1",
+  });
+  expect(player.metadata.candidateTeamAnchor).toMatchObject({
+    protocol: anchors.TRACKING_CANDIDATE_TEAM_ANCHOR_PROTOCOL,
+    teamSide: "home",
+    trajectoryIds: ["trajectory-person-2"],
+    associationArtifactSha256,
+  });
+
+  const calibration = anchors.trackingCandidateSemanticAnchors([referee, player], {
+    pipelineFingerprintSha256,
+    sourceFingerprintSha256,
+  });
+  expect(calibration).toMatchObject({
+    roleAnchors: [
+      { role: "player", trajectoryId: "trajectory-person-2" },
+      { role: "referee", trajectoryId: "trajectory-person-1" },
+    ],
+    teamAnchors: [{ teamSide: "home", trajectoryId: "trajectory-person-2" }],
+    associationArtifactSha256,
+    playerCount: 1,
+    refereeCount: 1,
+    homeCount: 1,
+    awayCount: 0,
+    issues: [],
+  });
+  expect(review.trackingMetadataPayload(player).metadata).not.toHaveProperty("candidateRoleAnchor");
+  expect(review.trackingMetadataPayload(player).metadata).not.toHaveProperty("candidateTeamAnchor");
+
+  const crossed = structuredClone(player);
+  crossed.metadata.candidateRoleAnchor.associationArtifactSha256 = "4".repeat(64);
+  expect(anchors.trackingCandidateSemanticAnchors([referee, crossed], {
+    pipelineFingerprintSha256,
+    sourceFingerprintSha256,
+  }).issues).toContain("Semantic anchors belong to different association artifacts.");
+  expect(() => correction.confirmTrackingCandidateRoleAnchor(reviewTrack({ entityType: "ball" })))
+    .toThrow(/only a reviewed player or referee/i);
+});
+
 test("false-positive rejection archives only the review copy and remains explicitly auditable", async () => {
   const review = await import(moduleUrl("src/modules/video-analysis/services/trackingReviewService.js"));
   const rejected = review.rejectTrackingTrack(reviewTrack(), {

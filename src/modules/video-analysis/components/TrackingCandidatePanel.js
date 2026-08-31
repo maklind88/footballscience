@@ -3,6 +3,7 @@ import {
   trackingCandidateBenchmarkProviders,
 } from "../services/trackingBenchmarkProviderService.js";
 import { trackingCandidatePipelineReadiness } from "../services/trackingCandidateSelectionService.js";
+import { trackingCandidateSemanticAnchors } from "../services/trackingCandidateAnchorService.js";
 import { trackingGroundTruthSuiteEntry } from "../services/trackingGroundTruthSuiteService.js";
 import { TRACKING_BENCHMARK_TYPE_MULTI_OBJECT } from "../services/trackingGroundTruthService.js";
 import { escapeHtml } from "./renderHelpers.js";
@@ -89,6 +90,17 @@ function renderReview(summary = null) {
   `;
 }
 
+function renderRoleCalibration(anchors = {}, roleAware = false) {
+  if (!roleAware) return "";
+  const total = (Number(anchors.playerCount) || 0) + (Number(anchors.refereeCount) || 0);
+  return `
+    <div class="video-analysis-candidate__calibration ${total ? "is-calibrated" : ""}">
+      <div><span>Role calibration</span><strong>${total ? `${total} anchored` : "Unanchored"}</strong></div>
+      <small>${Number(anchors.playerCount) || 0} player | ${Number(anchors.refereeCount) || 0} referee | ${Number(anchors.homeCount) || 0}/${Number(anchors.awayCount) || 0} team</small>
+    </div>
+  `;
+}
+
 function renderEvidenceRun(run = {}, activeRunId = "") {
   const id = escapeHtml(run.id || "");
   return `
@@ -116,6 +128,11 @@ export function renderTrackingCandidatePanel(state = {}, item = null) {
   const progress = Math.max(0, Math.min(1, Number(candidate.progress) || 0));
   const runs = Array.isArray(candidate.runs) ? candidate.runs : [];
   const activeRun = runs.find((run) => run.id === candidate.activeRunId) || runs[0] || null;
+  const roleAware = readiness.providers?.classification?.capabilities?.includes("classify:role") === true;
+  const semanticAnchors = trackingCandidateSemanticAnchors(item?.objectTracks || [], {
+    pipelineFingerprintSha256: activeRun?.pipelineFingerprintSha256,
+    sourceFingerprintSha256: activeRun?.sourceFingerprint,
+  });
   const canRun = Boolean(item) && readiness.ready && fullScene && !active;
   const gate = !item
     ? "Select a presentation clip."
@@ -136,13 +153,14 @@ export function renderTrackingCandidatePanel(state = {}, item = null) {
         </div>
       ` : ""}
       ${renderReview(activeRun?.review)}
+      ${renderRoleCalibration(semanticAnchors, roleAware)}
       ${renderBenchmarkSelector(tracking)}
       ${candidate.error ? `<p class="video-analysis-candidate__error">${escapeHtml(candidate.error)}</p>` : ""}
       ${gate && !active ? `<p class="video-analysis-candidate__gate">${escapeHtml(gate)}</p>` : ""}
       <div class="video-analysis-candidate__commands">
         ${active
           ? `<button type="button" data-video-analysis-tracking-action="candidate-pipeline-cancel" ${candidate.status === "cancelling" ? "disabled" : ""}>Cancel pipeline</button>`
-          : `<button type="button" data-video-analysis-tracking-action="candidate-pipeline-run" ${canRun ? "" : "disabled"}>Run full scene</button>`}
+          : `<button type="button" data-video-analysis-tracking-action="candidate-pipeline-run" ${canRun ? "" : "disabled"}>${semanticAnchors.roleAnchors.length || semanticAnchors.teamAnchors.length ? "Re-run with anchors" : "Run full scene"}</button>`}
         <span>${escapeHtml(`${runs.length} device run${runs.length === 1 ? "" : "s"}`)}</span>
       </div>
       <ol class="video-analysis-candidate__runs">

@@ -252,6 +252,8 @@ export function trackingMetadataPayload(trackValue = {}) {
   delete metadata.localWorkspaceStatus;
   delete metadata.localWorkspaceError;
   delete metadata.centralSyncPending;
+  delete metadata.candidateRoleAnchor;
+  delete metadata.candidateTeamAnchor;
   return {
     id: track.id,
     createIfMissing: track.metadata?.clientGeneratedTrackId === true,

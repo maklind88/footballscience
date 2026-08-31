@@ -319,6 +319,8 @@ function validateClassification(payload = {}, provider = {}, request = {}, optio
   const teamEnabled = provider.capabilities.includes("classify:team");
   const shirtEnabled = provider.capabilities.includes("classify:shirt-number");
   const roleEnabled = provider.capabilities.includes("classify:role");
+  const anchoredRoles = new Set((request.roleAnchors || []).map((anchor) => anchor.role));
+  const anchorRoleByTrajectory = new Map((request.roleAnchors || []).map((anchor) => [anchor.trajectoryId, anchor.role]));
   const anchoredTeamSides = new Set((request.teamAnchors || []).map((anchor) => anchor.teamSide));
   const anchorSideByTrajectory = new Map((request.teamAnchors || []).map((anchor) => [anchor.trajectoryId, anchor.teamSide]));
   const allowed = [
@@ -345,6 +347,17 @@ function validateClassification(payload = {}, provider = {}, request = {}, optio
       result.role = role;
       result.roleConfidence = confidence(value.roleConfidence, "football person role confidence");
       resolvedRole = role;
+      if (role !== "unknown" && !anchoredRoles.has(role)) {
+        invalid(
+          "Classification football person role needs an analyst-bound trajectory anchor.",
+          "TRACKING_STAGE_ROLE_ANCHOR_REQUIRED",
+        );
+      }
+      if (role !== "unknown"
+        && anchorRoleByTrajectory.has(trajectoryId)
+        && anchorRoleByTrajectory.get(trajectoryId) !== role) {
+        invalid("Classification contradicted an analyst-bound role anchor.", "TRACKING_STAGE_ROLE_ANCHOR_CONFLICT");
+      }
     }
     const hasTeamFields = value.teamSide !== undefined || value.teamConfidence !== undefined;
     const hasShirtFields = value.shirtNumber !== undefined || value.shirtNumberConfidence !== undefined;

@@ -68,6 +68,11 @@ export function renderTrackingReviewPanel(state = {}, track = null, tracks = [])
   const entityReady = ["player", "ball", "referee"].includes(entityTarget)
     && entityTarget !== track.entityType;
   const identityReady = track.entityType === "player" && Boolean(prompt.playerId || prompt.playerLabel);
+  const roleAnchor = track.metadata?.candidateRoleAnchor || null;
+  const roleAnchorEligible = ["player", "referee"].includes(track.entityType)
+    && Array.isArray(track.metadata?.candidateTrajectoryIds)
+    && track.metadata.candidateTrajectoryIds.length > 0;
+  const roleAnchored = roleAnchor?.role === track.entityType;
   const selectedTrackIds = state.presentation?.tracking?.selectedTrackIds || [];
   const selectedTracks = selectedTrackIds
     .map((trackId) => tracks.find((entry) => entry.id === trackId))
@@ -98,6 +103,7 @@ export function renderTrackingReviewPanel(state = {}, track = null, tracks = [])
       </div>
       <div class="video-analysis-tracking-review__actions">
         <button type="button" data-video-analysis-tracking-action="review-entity" title="${escapeHtml(entityReady ? `Relabel ${track.entityType} as ${entityTarget}` : "Choose a different object type above")}" ${entityReady ? "" : "disabled"}>Apply object type</button>
+        ${roleAnchorEligible ? `<button type="button" data-video-analysis-tracking-action="review-role-anchor" title="Bind this reviewed football role to the sealed candidate trajectory" ${roleAnchored ? "disabled" : ""}>${roleAnchored ? "Role anchored" : "Confirm role"}</button>` : ""}
         ${track.entityType === "player" ? `<button type="button" data-video-analysis-tracking-action="review-identity" ${identityReady ? "" : "disabled"}>Apply identity</button>` : ""}
         <button type="button" data-video-analysis-tracking-action="review-continuity" ${continuityReady ? "" : "disabled"}>Confirm continuity</button>
         <button type="button" data-video-analysis-tracking-action="review-visibility" ${visibility.available ? "" : "disabled"}>${visibility.occluded ? "Mark visible" : "Mark occluded"}</button>

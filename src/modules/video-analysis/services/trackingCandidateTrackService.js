@@ -104,6 +104,7 @@ function pipelineMetadata(lineage = {}) {
     angleId: lineage.sync.angleId,
     candidateDetectionEvidenceSha256: lineage.evidenceByStage.detection,
     candidateAssociationEvidenceSha256: lineage.evidenceByStage.association,
+    candidateAssociationArtifactSha256: lineage.artifactByStage.association,
     candidateReidentificationEvidenceSha256: lineage.evidenceByStage.reidentification,
     candidateClassificationEvidenceSha256: lineage.evidenceByStage.classification,
   };
@@ -149,7 +150,12 @@ function trackForTrajectory(trajectory = {}, lineage = {}, options = {}) {
     segments: splitSegments(trajectory, lineage.sync, options.identityConfidence),
   }, lineage, {
     ...options,
-    metadata: { ...pipelineMetadata(lineage), ...roleMetadata(trajectory), ...(options.metadata || {}) },
+    metadata: {
+      ...pipelineMetadata(lineage),
+      ...roleMetadata(trajectory),
+      candidateTrajectoryIds: [trajectory.id],
+      ...(options.metadata || {}),
+    },
   });
 }
 
@@ -240,6 +246,7 @@ function groupedTrack(group = {}, classifications = new Map(), lineage = {}, wit
           entityType: group.entityType,
           roleConfidence: average(group.trajectories.map((entry) => entry.roleConfidence), 0),
         }),
+        candidateTrajectoryIds: group.trajectories.map((trajectory) => trajectory.id).sort(),
       },
     }),
     classificationConflict: withClassification && (team.conflict || shirt.conflict),

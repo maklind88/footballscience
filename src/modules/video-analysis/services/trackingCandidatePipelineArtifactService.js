@@ -12,9 +12,9 @@ const pipelineProtocol = "football-science-tracking-candidate-pipeline-v1";
 const stageOrder = Object.freeze(["detection", "association", "reidentification", "classification"]);
 const metadataFields = Object.freeze([
   "candidatePipelineProtocol", "candidatePipelineFingerprintSha256", "localSourceSha256", "angleId",
-  "candidateDetectionEvidenceSha256", "candidateAssociationEvidenceSha256",
+  "candidateDetectionEvidenceSha256", "candidateAssociationEvidenceSha256", "candidateAssociationArtifactSha256",
   "candidateReidentificationEvidenceSha256", "candidateClassificationEvidenceSha256",
-  "candidateRole", "candidateRoleConfidence",
+  "candidateRole", "candidateRoleConfidence", "candidateTrajectoryIds",
 ]);
 
 export class TrackingCandidatePipelineArtifactError extends Error {

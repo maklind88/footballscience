@@ -1,6 +1,7 @@
 import {
   applyTrackingEntityCorrection,
   applyTrackingIdentityCorrection,
+  confirmTrackingCandidateRoleAnchor,
 } from "../services/trackingCorrectionService.js";
 
 export function createTrackingReviewEntityActions(options = {}) {
@@ -66,5 +67,33 @@ export function createTrackingReviewEntityActions(options = {}) {
     }
   }
 
-  return { applyEntityType, applyIdentity };
+  function confirmRoleAnchor() {
+    const state = getState();
+    const context = selectedContext(state);
+    if (!context.track) return false;
+    try {
+      const atMs = currentAtMs(state);
+      const corrected = confirmTrackingCandidateRoleAnchor(context.track, {
+        atMs,
+        confirmedAt: new Date().toISOString(),
+        confirmedBy: getReviewer?.() || "",
+        correctedBy: getReviewer?.() || "",
+      });
+      return commitTrackChange(context, corrected, {
+        atMs,
+        correctionType: "role-anchor",
+        reason: `Confirmed ${corrected.entityType} role anchor`,
+        metadata: {
+          role: corrected.entityType,
+          trajectoryCount: corrected.metadata.candidateRoleAnchor.trajectoryIds.length,
+          sourceBound: true,
+        },
+      });
+    } catch (error) {
+      setError(error?.message || "Role anchor could not be confirmed.");
+      return true;
+    }
+  }
+
+  return { applyEntityType, applyIdentity, confirmRoleAnchor };
 }

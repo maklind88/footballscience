@@ -177,6 +177,45 @@ test("candidate readiness accepts the coherent person detection and role classif
   expect(coherent.providers.detection.capabilities).toEqual(["detect:person", "detect:ball"]);
 });
 
+test("role-aware candidate panel reports analyst calibration and offers a bound rerun", async () => {
+  const { renderTrackingCandidatePanel } = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingCandidatePanel.js",
+  ));
+  const state = trackingState();
+  state.presentation.tracking.provider.candidates = Object.keys(capabilities).map((stage) => ({
+    ...candidate(stage),
+    capabilities: stage === "detection"
+      ? ["detect:person", "detect:ball"]
+      : stage === "classification"
+        ? ["classify:role", "classify:team"]
+        : capabilities[stage],
+  }));
+  const activeRun = state.presentation.tracking.candidatePipeline.runs[0];
+  activeRun.pipelineFingerprintSha256 = "1".repeat(64);
+  const item = {
+    id: "item-1",
+    objectTracks: [{
+      id: "candidate-player-1",
+      entityType: "player",
+      metadata: {
+        candidateRoleAnchor: {
+          protocol: "football-science-tracking-role-anchor-v1",
+          role: "player",
+          trajectoryIds: ["trajectory-person-1"],
+          associationArtifactSha256: "3".repeat(64),
+          pipelineFingerprintSha256: activeRun.pipelineFingerprintSha256,
+          sourceFingerprintSha256: activeRun.sourceFingerprint,
+        },
+      },
+    }],
+  };
+  const html = renderTrackingCandidatePanel(state, item);
+  expect(html).toContain("Role calibration");
+  expect(html).toContain("1 anchored");
+  expect(html).toContain("1 player | 0 referee");
+  expect(html).toContain(">Re-run with anchors</button>");
+});
+
 test("candidate benchmark stage switching invalidates stale evaluation evidence", async () => {
   const { createTrackingCandidateController } = await import(moduleUrl(
     "src/modules/video-analysis/controllers/trackingCandidateController.js",

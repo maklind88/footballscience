@@ -10,6 +10,7 @@ import {
 } from "./services/localTrackingService.js";
 import { getLocalVideoFile } from "./services/localVideoBridgeService.js";
 import { runTrackingCandidatePipeline } from "./services/trackingCandidatePipelineService.js";
+import { trackingCandidateSemanticAnchors } from "./services/trackingCandidateAnchorService.js";
 import {
   cancelLocalTrackingBenchmark,
   evaluateLocalTrackingBenchmark,
@@ -120,6 +121,13 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
       ));
       const sourceStartMs = angle ? matchTimeToAngleTime(matchStartMs, angle) : matchStartMs;
       const sourceEndMs = Math.max(sourceStartMs + 1, angle ? matchTimeToAngleTime(matchEndMs, angle) : matchEndMs);
+      const candidate = state.presentation?.tracking?.candidatePipeline || {};
+      const activeRun = (candidate.runs || []).find((run) => run.id === candidate.activeRunId) || null;
+      const semanticAnchors = trackingCandidateSemanticAnchors(item.objectTracks || [], {
+        pipelineFingerprintSha256: activeRun?.pipelineFingerprintSha256,
+        sourceFingerprintSha256: activeRun?.sourceFingerprint,
+      });
+      if (semanticAnchors.issues.length) throw new Error(semanticAnchors.issues[0]);
       return runTrackingCandidatePipeline({
         win: runtime?.context?.win || context.win || window,
         providers: request.providers,
@@ -131,6 +139,9 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
           syncOffsetMs: Number(angle?.syncOffsetMs) || 0,
           driftPpm: Number(angle?.driftPpm) || 0,
         },
+        roleAnchors: semanticAnchors.roleAnchors,
+        teamAnchors: semanticAnchors.teamAnchors,
+        anchorAssociationArtifactSha256: semanticAnchors.associationArtifactSha256,
         signal: request.signal,
         onProgress: request.onProgress,
       });

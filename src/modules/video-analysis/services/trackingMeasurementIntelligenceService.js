@@ -1,3 +1,8 @@
+import { presentationQueue } from "./presentationService.js";
+
+const benchmarkEvidenceSetProtocol = "football-science-tracking-benchmark-evidence-set-v1";
+const fingerprintPattern = /^[a-f0-9]{64}$/i;
+
 const metricDefinitions = Object.freeze([
   Object.freeze({
     id: "HOTA",
@@ -57,6 +62,107 @@ function finite(value) {
 function count(value) {
   const number = Number(value);
   return Number.isInteger(number) && number >= 0 ? number : null;
+}
+
+function identityRange(value = {}) {
+  const startMs = Number(value.startMs);
+  const endMs = Number(value.endMs);
+  return Number.isSafeInteger(startMs) && Number.isSafeInteger(endMs) && startMs >= 0 && endMs > startMs
+    ? { startMs, endMs }
+    : null;
+}
+
+function sameRange(first = {}, second = {}) {
+  const left = identityRange(first);
+  const right = identityRange(second);
+  return Boolean(left && right && left.startMs === right.startMs && left.endMs === right.endMs);
+}
+
+function exactEvidenceSet(evaluation = {}) {
+  const evidence = evaluation.evidenceSet || {};
+  const reportSha256 = String(evaluation.reportSha256 || "").toLowerCase();
+  const sourceSignature = String(evaluation.sourceSignature || "").toLowerCase();
+  const suiteId = String(evaluation.report?.suiteId || "");
+  return evidence.protocol === benchmarkEvidenceSetProtocol
+    && fingerprintPattern.test(reportSha256)
+    && fingerprintPattern.test(sourceSignature)
+    && suiteId
+    && evidence.checksums?.reportSha256 === reportSha256
+    && evidence.sourceSignature === sourceSignature
+    && evidence.report?.benchmarkType === evaluation.report?.benchmarkType
+    && evidence.report?.suiteId === suiteId
+    ? evidence
+    : null;
+}
+
+function exactBenchmarkArtifact(evidence = {}, entry = {}) {
+  const providerId = String(evidence.inputs?.providerRunSuite?.provider?.providerId || "");
+  const cases = evidence.inputs?.groundTruthSuite?.cases || [];
+  if (!providerId || !entry.id || !fingerprintPattern.test(entry.sourceFingerprint) || !entry.range) return null;
+  const matches = cases.filter((artifact) => (
+    `${String(artifact.id || "")}-${providerId}`.slice(0, 120) === entry.id
+    && artifact.sourceFingerprint === entry.sourceFingerprint
+    && sameRange(artifact.range, entry.range)
+  ));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function currentArtifactMatches(tracking = {}, artifact = {}) {
+  const workload = artifact.workloadEvidence || {};
+  const angleId = String(artifact.sourceEvidence?.angleId || "");
+  return (tracking.groundTruth?.suite?.cases || []).some((entry) => (
+    entry.id === artifact.id
+    && entry.sourceFingerprint === artifact.sourceFingerprint
+    && entry.sourceEvidence?.angleId === angleId
+    && sameRange(entry.range, artifact.range)
+    && entry.workloadEvidence?.workspaceSha256 === workload.workspaceSha256
+    && entry.workloadEvidence?.caseId === workload.caseId
+    && entry.workloadEvidence?.sourceFingerprint === workload.sourceFingerprint
+    && entry.workloadEvidence?.angleId === workload.angleId
+  ));
+}
+
+function campaignReviewTarget(evaluation = {}, state = {}, entry = {}) {
+  const evidence = exactEvidenceSet(evaluation);
+  const artifact = exactBenchmarkArtifact(evidence || {}, entry);
+  const tracking = state.presentation?.tracking || {};
+  const review = tracking.preannotationReview || {};
+  const workload = artifact?.workloadEvidence || {};
+  const angleId = String(artifact?.sourceEvidence?.angleId || "");
+  if (!artifact
+    || !currentArtifactMatches(tracking, artifact)
+    || !fingerprintPattern.test(String(workload.workspaceSha256 || ""))
+    || workload.workspaceSha256 !== review.workspaceSha256
+    || workload.sourceFingerprint !== artifact.sourceFingerprint
+    || workload.angleId !== angleId
+    || !sameRange(workload.range, artifact.range)) return null;
+  const campaignMatches = (review.campaign?.cases || []).filter((value) => (
+    value.caseId === workload.caseId
+    && value.sourceSha256 === artifact.sourceFingerprint
+    && value.angleId === angleId
+    && value.resumeContextReady === true
+    && value.itemId
+    && value.clipId
+  ));
+  if (campaignMatches.length !== 1) return null;
+  const campaign = campaignMatches[0];
+  const items = presentationQueue(state.presentation?.current).filter((item) => (
+    item.id === campaign.itemId && String(item.clipId || item.clip?.id || "") === campaign.clipId
+  ));
+  const localTruth = tracking.groundTruth?.byItemId?.[campaign.itemId] || {};
+  if (items.length !== 1
+    || localTruth.status !== "locked"
+    || localTruth.lockedArtifact?.id !== artifact.id
+    || localTruth.sourceFingerprint !== artifact.sourceFingerprint
+    || localTruth.angleId !== angleId) return null;
+  return {
+    benchmarkId: entry.id,
+    caseId: workload.caseId,
+    sourceSha256: artifact.sourceFingerprint,
+    itemId: campaign.itemId,
+    clipId: campaign.clipId,
+    angleId,
+  };
 }
 
 function metricEntry(definition, metrics = {}, thresholds = {}) {
@@ -131,6 +237,10 @@ function caseEntry(value = {}, expectedReportSha256 = "") {
   const reportSha256 = String(reference.reportSha256 || "").toLowerCase();
   return {
     id: String(value.benchmarkId || ""),
+    sourceFingerprint: fingerprintPattern.test(String(value.sourceFingerprint || ""))
+      ? String(value.sourceFingerprint).toLowerCase()
+      : "",
+    range: identityRange(value.range),
     passed: value.verdict?.passed === true,
     referencePassed: reference.passed === true,
     referenceVerified: reference.status === "verified"
@@ -167,6 +277,7 @@ function measurementDiagnostics(cases = [], verified = false) {
       .filter((metric) => metric.status !== "missing")
       .map((metric) => ({
         caseId: entry.id,
+        caseLabel: entry.reviewTarget?.caseId || entry.id,
         entityId: entity.id,
         entityLabel: entity.label,
         metricId: metric.id,
@@ -179,6 +290,7 @@ function measurementDiagnostics(cases = [], verified = false) {
         status: metric.status,
         identitySwitches: entity.identitySwitches,
         fragmentations: entity.fragmentations,
+        reviewTarget: entry.reviewTarget,
       }))
   )));
   const ready = verified
@@ -201,7 +313,7 @@ function measurementDiagnostics(cases = [], verified = false) {
   };
 }
 
-export function trackingMeasurementIntelligence(evaluation = {}) {
+export function trackingMeasurementIntelligence(evaluation = {}, state = {}) {
   const report = evaluation.report || {};
   if (report.benchmarkType !== "multi-object-suite") return null;
   const reference = report.referenceValidation || {};
@@ -212,7 +324,7 @@ export function trackingMeasurementIntelligence(evaluation = {}) {
     reference,
     reference.requiredThresholds,
   ));
-  const cases = (Array.isArray(report.cases) ? report.cases : [])
+  let cases = (Array.isArray(report.cases) ? report.cases : [])
     .map((entry) => caseEntry(entry, reportSha256));
   const missingMetricCount = metrics.filter((entry) => entry.status === "missing").length;
   const failedMetricCount = metrics.filter((entry) => entry.status === "failed").length;
@@ -226,6 +338,10 @@ export function trackingMeasurementIntelligence(evaluation = {}) {
       && entry.crossValidationPassed
       && entry.metricStatus !== "missing"
     ));
+  cases = cases.map((entry) => ({
+    ...entry,
+    reviewTarget: verified ? campaignReviewTarget(evaluation, state, entry) : null,
+  }));
   const limiter = weakestMetric(metrics);
   const weakestEntityValue = weakestEntity(entities);
   const weakestCaseValue = weakestCase(cases);

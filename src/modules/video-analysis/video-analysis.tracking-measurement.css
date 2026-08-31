@@ -299,6 +299,67 @@
   color: #a12626;
 }
 
+.video-analysis-measurement-intelligence__hotspots li > details {
+  grid-column: 1 / -1;
+  min-width: 0;
+  border-left: 2px solid #d7dfda;
+  padding-left: 6px;
+}
+
+.video-analysis-measurement-intelligence__hotspots li.is-failed > details {
+  border-left-color: #c55a55;
+}
+
+.video-analysis-measurement-intelligence__hotspots summary {
+  width: max-content;
+  color: #52645a;
+  cursor: pointer;
+  font-size: 7px;
+  font-weight: 750;
+}
+
+.video-analysis-measurement-intelligence__hotspots details[open] summary {
+  margin-bottom: 4px;
+}
+
+.video-analysis-measurement-intelligence__hotspots details p {
+  margin: 0 0 5px;
+  color: #52645a;
+  font-size: 7px;
+  line-height: 1.35;
+}
+
+.video-analysis-measurement-intelligence__hotspots details > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.video-analysis-measurement-intelligence__hotspots details > div > span,
+.video-analysis-measurement-intelligence__hotspots details > div > em {
+  color: #6d7972;
+  font-size: 7px;
+  font-style: normal;
+  white-space: normal;
+}
+
+.video-analysis-measurement-intelligence__hotspots details button {
+  flex: 0 0 auto;
+  border: 1px solid #2d6a4f;
+  border-radius: 4px;
+  background: #2d6a4f;
+  padding: 4px 7px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 7px;
+  font-weight: 750;
+}
+
+.video-analysis-measurement-intelligence__hotspots details button:hover {
+  background: #245a43;
+}
+
 .video-analysis-measurement-intelligence > footer {
   border-top: 1px solid #e1e7e4;
   padding-top: 6px;

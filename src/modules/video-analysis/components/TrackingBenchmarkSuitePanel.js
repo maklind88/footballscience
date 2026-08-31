@@ -82,7 +82,7 @@ function evaluationMetrics(value = {}) {
   `).join("")}</dl>`;
 }
 
-function renderEvaluation(tracking = {}, workflow = {}) {
+function renderEvaluation(state = {}, tracking = {}, workflow = {}) {
   const evaluation = tracking.benchmarkEvaluation || {};
   const active = ["preparing", "running", "verifying", "cancelling"].includes(evaluation.status);
   const complete = ["passed", "failed"].includes(evaluation.status) && evaluation.evidenceSet;
@@ -108,7 +108,7 @@ function renderEvaluation(tracking = {}, workflow = {}) {
           <strong>${escapeHtml(tracking.provider?.trackEvalAvailable ? "Pinned and available" : "Not installed")}</strong>
         </p>
       ` : ""}
-      ${renderTrackingMeasurementIntelligence(evaluation)}
+      ${renderTrackingMeasurementIntelligence(evaluation, state)}
       ${evaluation.reportSha256 ? `<p class="video-analysis-benchmark-suite__checksum"><span>Report SHA-256</span><code>${escapeHtml(shortFingerprint(evaluation.reportSha256))}</code></p>` : ""}
       ${evaluation.error ? `<p class="video-analysis-benchmark-suite__error">${escapeHtml(evaluation.error)}</p>` : ""}
       ${!workflow.ready && !active && !complete ? `<p class="video-analysis-benchmark-suite__notice">${escapeHtml(issueText)}</p>` : ""}
@@ -184,7 +184,7 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
         <span><strong>${providerRunCount}</strong> raw provider run${providerRunCount === 1 ? "" : "s"}${workflow.matchedCaseCount ? ` | ${workflow.matchedCaseCount}/${readiness.caseCount} cases matched` : ""}</span>
         <button type="button" data-video-analysis-tracking-action="ground-truth-runs-download" ${providerRunCount ? "" : "disabled"}>Export runs</button>
       </div>
-      ${renderEvaluation(tracking, workflow)}
+      ${renderEvaluation(state, tracking, workflow)}
       <div class="video-analysis-benchmark-suite__storage ${benchmarkStorage.status === "error" ? "is-error" : ""}" aria-live="polite">
         <span>${escapeHtml(benchmarkStorageLabel(benchmarkStorage))}</span>
         ${benchmarkStorage.status === "error" ? `<button type="button" data-video-analysis-tracking-action="retry-benchmark-storage">Retry</button>` : ""}

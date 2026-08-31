@@ -15,6 +15,33 @@ function valueOrDash(value) {
   return Number.isInteger(value) ? String(value) : "--";
 }
 
+function reviewTargetButton(entry = {}) {
+  const target = entry.reviewTarget;
+  if (!target) return `<em>Exact case context unavailable</em>`;
+  return `
+    <button type="button"
+      data-video-analysis-tracking-action="ground-truth-handoff-reconnect"
+      data-video-analysis-ground-truth-handoff-case-id="${escapeHtml(target.caseId)}"
+      data-video-analysis-ground-truth-handoff-source-sha256="${escapeHtml(target.sourceSha256)}"
+      data-video-analysis-ground-truth-handoff-item-id="${escapeHtml(target.itemId)}"
+      data-video-analysis-ground-truth-handoff-clip-id="${escapeHtml(target.clipId)}"
+      data-video-analysis-ground-truth-handoff-angle-id="${escapeHtml(target.angleId)}">Reconnect case</button>
+  `;
+}
+
+function diagnosticDetails(entry = {}) {
+  return `
+    <details>
+      <summary>Measured review focus</summary>
+      <p>${escapeHtml(entry.recommendation)}</p>
+      <div>
+        <span>${escapeHtml(`${valueOrDash(entry.identitySwitches)} ID switches · ${valueOrDash(entry.fragmentations)} fragments`)}</span>
+        ${reviewTargetButton(entry)}
+      </div>
+    </details>
+  `;
+}
+
 function statusLabel(status) {
   if (status === "passed") return "Approval gate passed";
   if (status === "failed") return "Below approval gate";
@@ -87,10 +114,11 @@ function diagnosticSummary(intelligence) {
         ${rows.map((entry) => `
           <li class="is-${escapeHtml(entry.status)}">
             <div>
-              <strong>${escapeHtml(`${entry.caseId} · ${entry.entityLabel}`)}</strong>
+              <strong>${escapeHtml(`${entry.caseLabel} · ${entry.entityLabel}`)}</strong>
               <span>${escapeHtml(`${entry.dimension} · ${entry.metricLabel}`)}</span>
             </div>
             <em>${escapeHtml(`${percent(entry.actual)} · ${signedPercent(entry.delta)}`)}</em>
+            ${diagnosticDetails(entry)}
           </li>
         `).join("")}
       </ol>
@@ -98,8 +126,8 @@ function diagnosticSummary(intelligence) {
   `;
 }
 
-export function renderTrackingMeasurementIntelligence(evaluation = {}) {
-  const intelligence = trackingMeasurementIntelligence(evaluation);
+export function renderTrackingMeasurementIntelligence(evaluation = {}, state = {}) {
+  const intelligence = trackingMeasurementIntelligence(evaluation, state);
   if (!intelligence) return "";
   return `
     <section class="video-analysis-measurement-intelligence is-${escapeHtml(intelligence.status)}" aria-label="TrackEval measurement intelligence">

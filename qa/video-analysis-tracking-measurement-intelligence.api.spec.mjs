@@ -236,6 +236,118 @@ test("measurement panel exposes gates, entity profile and evidence-bound next fo
   expect(html).not.toContain("data-video-analysis-tracking-action");
 });
 
+test("measurement hotspots reconnect only an exact evidence-bound Match 11 case", async () => {
+  const [service, component] = await Promise.all([
+    import(moduleUrl("src/modules/video-analysis/services/trackingMeasurementIntelligenceService.js")),
+    import(moduleUrl("src/modules/video-analysis/components/TrackingMeasurementIntelligence.js")),
+  ]);
+  const sourceFingerprint = "b".repeat(64);
+  const workspaceSha256 = "c".repeat(64);
+  const reportSha256 = "d".repeat(64);
+  const sourceSignature = "e".repeat(64);
+  const range = { startMs: 10_000, endMs: 20_000 };
+  const benchmarkId = "locked-attacking-third-provider-1";
+  const artifact = {
+    id: "locked-attacking-third",
+    sourceFingerprint,
+    sourceEvidence: { angleId: "wide" },
+    range,
+    workloadEvidence: {
+      workspaceSha256,
+      caseId: "attacking-third",
+      sourceFingerprint,
+      angleId: "wide",
+      range,
+    },
+  };
+  const measured = evaluation();
+  measured.report.suiteId = "match-11-provider-1";
+  measured.report.cases = [benchmarkCase(benchmarkId, 0.59, false, caseEntities({
+    ball: entityReport({ HOTA: 0.5, DetA: 0.57, AssA: 0.35, LocA: 0.77, MOTA: 0.82, IDF1: 0.6 }),
+  }))];
+  measured.report.cases[0].sourceFingerprint = sourceFingerprint;
+  measured.report.cases[0].range = range;
+  measured.reportSha256 = reportSha256;
+  measured.sourceSignature = sourceSignature;
+  measured.evidenceSet = {
+    protocol: "football-science-tracking-benchmark-evidence-set-v1",
+    sourceSignature,
+    checksums: { reportSha256 },
+    inputs: {
+      groundTruthSuite: { cases: [artifact] },
+      providerRunSuite: { provider: { providerId: "provider-1" } },
+    },
+    report: measured.report,
+  };
+  const item = { id: "item-attacking-third", clipId: "clip-attacking-third" };
+  const pageState = {
+    presentation: {
+      current: { sections: [{ id: "section-1", items: [item] }] },
+      tracking: {
+        groundTruth: {
+          suite: { cases: [artifact] },
+          byItemId: {
+            [item.id]: {
+              status: "locked",
+              lockedArtifact: { id: artifact.id },
+              sourceFingerprint,
+              angleId: "wide",
+            },
+          },
+        },
+        preannotationReview: {
+          workspaceSha256,
+          campaign: {
+            cases: [{
+              caseId: "attacking-third",
+              sourceSha256: sourceFingerprint,
+              itemId: item.id,
+              clipId: item.clipId,
+              angleId: "wide",
+              resumeContextReady: true,
+            }],
+          },
+        },
+      },
+    },
+  };
+  const result = service.trackingMeasurementIntelligence(measured, pageState);
+  const html = component.renderTrackingMeasurementIntelligence(measured, pageState);
+
+  expect(result.diagnostics.hotspots[0]).toMatchObject({
+    caseLabel: "attacking-third",
+    reviewTarget: {
+      benchmarkId,
+      caseId: "attacking-third",
+      sourceSha256: sourceFingerprint,
+      itemId: item.id,
+      clipId: item.clipId,
+      angleId: "wide",
+    },
+  });
+  expect(html).toContain("Measured review focus");
+  expect(html).toContain("Inspect occlusions, camera transitions and fragmented trajectories");
+  expect(html).toContain('data-video-analysis-tracking-action="ground-truth-handoff-reconnect"');
+  expect(html).toContain(`data-video-analysis-ground-truth-handoff-source-sha256="${sourceFingerprint}"`);
+  expect(html).toContain('data-video-analysis-ground-truth-handoff-angle-id="wide"');
+
+  const crossedSource = structuredClone(measured);
+  crossedSource.report.cases[0].sourceFingerprint = "f".repeat(64);
+  expect(service.trackingMeasurementIntelligence(crossedSource, pageState)
+    .diagnostics.hotspots.every((entry) => entry.reviewTarget === null)).toBe(true);
+
+  const crossedEvidence = structuredClone(measured);
+  crossedEvidence.evidenceSet.checksums.reportSha256 = "0".repeat(64);
+  expect(service.trackingMeasurementIntelligence(crossedEvidence, pageState)
+    .diagnostics.hotspots.every((entry) => entry.reviewTarget === null)).toBe(true);
+
+  const crossedAngleState = structuredClone(pageState);
+  crossedAngleState.presentation.tracking.preannotationReview.campaign.cases[0].angleId = "tactical";
+  const crossedHtml = component.renderTrackingMeasurementIntelligence(measured, crossedAngleState);
+  expect(crossedHtml).toContain("Exact case context unavailable");
+  expect(crossedHtml).not.toContain('data-video-analysis-tracking-action="ground-truth-handoff-reconnect"');
+});
+
 test("measurement panel remains absent before a multi-object TrackEval report exists", async () => {
   const component = await import(moduleUrl(
     "src/modules/video-analysis/components/TrackingMeasurementIntelligence.js",

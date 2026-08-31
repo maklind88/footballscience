@@ -157,17 +157,21 @@ function normalizeDataset(value = {}, index = 0, modelIndex = 0) {
   };
 }
 
-function normalizeModel(value = {}, index = 0) {
+function normalizeModel(value = {}, index = 0, stage = "") {
   const datasets = Array.isArray(value.provenance?.datasets)
     ? value.provenance.datasets.map((entry, datasetIndex) => normalizeDataset(entry, datasetIndex, index))
     : [];
   if (!datasets.length || datasets.length > 50) invalid(`Model ${index + 1} needs 1-50 training-data records.`);
+  const capabilities = value.capabilities === undefined
+    ? null
+    : uniqueCapabilities(value.capabilities, stage);
   return {
     id: identifier(value.id, `model ${index + 1} id`),
     sha256: sha256(value.sha256, `model ${index + 1} checksum`),
     bytes: positiveInteger(value.bytes, `model ${index + 1} byte size`, 100 * 1024 * 1024 * 1024),
     license: identifier(value.license, `model ${index + 1} SPDX licence`),
     sourceUrl: httpsUrl(value.sourceUrl, `model ${index + 1} source URL`),
+    ...(capabilities ? { capabilities } : {}),
     provenance: {
       modelCardUrl: httpsUrl(value.provenance?.modelCardUrl, `model ${index + 1} model card URL`),
       trainingDataReviewed: Boolean(value.provenance?.trainingDataReviewed),
@@ -258,8 +262,21 @@ export function normalizeTrackingProviderManifest(value = {}) {
   if (value.protocol !== PROVIDER_PROTOCOL) invalid("Unsupported tracking provider protocol.");
   const stage = boundedString(value.stage, "provider stage", 40);
   if (!stageCapabilities[stage]) invalid("Unknown tracking provider stage.");
-  const models = Array.isArray(value.models) ? value.models.map(normalizeModel) : [];
+  const capabilities = uniqueCapabilities(value.capabilities, stage);
+  const models = Array.isArray(value.models)
+    ? value.models.map((model, index) => normalizeModel(model, index, stage))
+    : [];
   if (stage !== "association" && !models.length) invalid(`${stage} providers must pin at least one model artifact.`);
+  if (models.length > 1 && models.some((model) => !model.capabilities)) {
+    invalid("Multi-model providers must bind every model to explicit stage capabilities.");
+  }
+  const mappedCapabilities = new Set(models.flatMap((model) => model.capabilities || []));
+  if ([...mappedCapabilities].some((capability) => !capabilities.includes(capability))) {
+    invalid("A model capability is not declared by its provider.");
+  }
+  if (mappedCapabilities.size && capabilities.some((capability) => !mappedCapabilities.has(capability))) {
+    invalid("Every provider capability must be bound to at least one model artifact.");
+  }
   return {
     schemaVersion: 1,
     protocol: PROVIDER_PROTOCOL,
@@ -268,7 +285,7 @@ export function normalizeTrackingProviderManifest(value = {}) {
     displayName: boundedString(value.displayName, "provider display name", 160),
     stage,
     priority: Math.max(0, Math.min(1000, Math.round(Number(value.priority) || 0))),
-    capabilities: uniqueCapabilities(value.capabilities, stage),
+    capabilities,
     approval: normalizeApproval(value.approval),
     upstream: normalizeUpstream(value.upstream),
     models,

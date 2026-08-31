@@ -226,12 +226,12 @@ test("candidate pipeline chains exact stage inputs and creates review tracks wit
   expect(result).toMatchObject({
     benchmarkOnly: true,
     review: {
-      trackCount: 3,
-      playerTrackCount: 1,
+      trackCount: 4,
+      playerTrackCount: 2,
       ballTrackCount: 1,
       refereeTrackCount: 1,
       unassignedObservationCount: 1,
-      playerIdentityReviewCount: 1,
+      playerIdentityReviewCount: 2,
     },
   });
   expect(result.lineage.fingerprintSha256).toMatch(/^[a-f0-9]{64}$/);
@@ -246,6 +246,14 @@ test("candidate pipeline chains exact stage inputs and creates review tracks wit
   });
   expect(player.segments).toHaveLength(2);
   expect(player.metadata.candidateDetectionEvidenceSha256).toBe("d".repeat(64));
+  const unassigned = result.tracks.find((track) => track.id.includes("unassociated-observation"));
+  expect(unassigned).toMatchObject({
+    entityType: "player",
+    status: "review",
+    confidence: 0.4,
+    identityConfidence: 0,
+  });
+  expect(unassigned.segments[0].points[0]).toMatchObject({ frameIndex: 50, source: "automatic" });
   expect(Object.isFrozen(result.rawStageRuns[0].evidence.result.payload)).toBe(true);
 
   const corrected = review.applyManualTrackingCorrection(player, {
@@ -318,7 +326,7 @@ test("candidate pipeline artifact preserves exact raw evidence and rejects chang
     protocol: "football-science-tracking-candidate-pipeline-run-v1",
     benchmarkOnly: true,
     stages: [{ stage: "detection" }, { stage: "association" }, { stage: "reidentification" }, { stage: "classification" }],
-    review: { trackCount: 3, unassignedObservationCount: 1 },
+    review: { trackCount: 4, unassignedObservationCount: 1 },
   });
   expect(await artifacts.validateTrackingCandidatePipelineArtifact(structuredClone(artifact), {
     cryptoApi: globalThis.crypto,

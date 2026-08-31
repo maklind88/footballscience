@@ -379,6 +379,43 @@ test("tracking provider rejects capabilities from another pipeline stage", async
   )).toThrow(/does not belong/i);
 });
 
+test("multi-model detection providers bind every declared capability to exact model artifacts", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const manifest = provider("detection", ["detect:player", "detect:ball", "detect:referee"]);
+  manifest.models = [
+    {
+      ...structuredClone(manifest.models[0]),
+      id: "football-player-model",
+      capabilities: ["detect:player"],
+    },
+    {
+      ...structuredClone(manifest.models[0]),
+      id: "football-small-object-model",
+      capabilities: ["detect:ball", "detect:referee"],
+    },
+  ];
+
+  const normalized = contract.normalizeTrackingProviderManifest(manifest);
+  expect(normalized.models.map(({ id, capabilities }) => ({ id, capabilities }))).toEqual([
+    { id: "football-player-model", capabilities: ["detect:player"] },
+    { id: "football-small-object-model", capabilities: ["detect:ball", "detect:referee"] },
+  ]);
+
+  const missingBinding = structuredClone(manifest);
+  delete missingBinding.models[1].capabilities;
+  expect(() => contract.normalizeTrackingProviderManifest(missingBinding)).toThrow(/bind every model/i);
+
+  const uncoveredCapability = structuredClone(manifest);
+  uncoveredCapability.models[1].capabilities = ["detect:ball"];
+  expect(() => contract.normalizeTrackingProviderManifest(uncoveredCapability)).toThrow(/every provider capability/i);
+
+  const undeclaredCapability = structuredClone(manifest);
+  undeclaredCapability.capabilities = ["detect:player", "detect:ball"];
+  expect(() => contract.normalizeTrackingProviderManifest(undeclaredCapability)).toThrow(/not declared/i);
+});
+
 test("multi-object providers require an official TrackEval reference report", async () => {
   const contract = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",

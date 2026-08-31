@@ -121,6 +121,28 @@ function trackForTrajectory(trajectory = {}, lineage = {}, options = {}) {
   }, lineage, options);
 }
 
+function trackForUnassignedObservation(observation = {}, lineage = {}) {
+  const point = pointFromObservation(
+    observation,
+    lineage.sync,
+    observation.entityType === "player" ? 0 : observation.confidence,
+  );
+  return baseTrack({
+    id: `candidate-unassociated-observation-${safeId(observation.id)}`,
+    entityType: observation.entityType,
+    confidence: observation.confidence,
+    identityConfidence: observation.entityType === "player" ? 0 : observation.confidence,
+    segments: [{
+      id: `candidate-unassociated-observation-${safeId(observation.id)}-segment-1`,
+      startMs: point.atMs,
+      endMs: point.atMs,
+      confidence: observation.confidence,
+      discontinuityBefore: false,
+      points: [point],
+    }],
+  }, lineage, { metadata: pipelineMetadata(lineage) });
+}
+
 function groupedTrajectories(trajectories = [], identities = []) {
   const identityByTrajectory = new Map(identities.map((entry) => [entry.trajectoryId, entry]));
   const groups = new Map();
@@ -184,6 +206,12 @@ export function candidateStageTracks(value = {}) {
   const classification = value.classification?.payload || value.classification || {};
   const observations = detection.observations || [];
   const trajectories = materializeCandidateTrajectories(association, observations);
+  const assignedObservationIds = new Set(trajectories.flatMap(
+    (trajectory) => trajectory.observations.map((observation) => observation.id),
+  ));
+  const unassignedObservations = observations.filter(
+    (observation) => !assignedObservationIds.has(observation.id),
+  );
   const classificationByTrajectory = new Map((classification.classifications || []).map((entry) => [entry.trajectoryId, entry]));
   const groups = groupedTrajectories(trajectories, reidentification.identities || []);
   const groupedWithoutLabels = groups.map((group) => groupedTrack(group, classificationByTrajectory, lineage, false));
@@ -212,23 +240,31 @@ export function candidateStageTracks(value = {}) {
         shirtNumber: classificationValue.shirtNumber,
       });
     }),
-    review: groupedWithLabels.map((entry) => entry.track),
+    review: [
+      ...groupedWithLabels.map((entry) => entry.track),
+      ...unassignedObservations.map((observation) => trackForUnassignedObservation(observation, lineage)),
+    ],
     classificationConflictCount: groupedWithLabels.filter((entry) => entry.classificationConflict).length,
     reidentificationMergeCount: groupedWithLabels.reduce((sum, entry) => sum + entry.mergedTrajectoryCount, 0),
     observations,
     trajectories,
+    unassignedObservations,
   };
 }
 
 export function candidateReviewSummary(value = {}) {
   const tracks = value.review || [];
-  const assigned = new Set((value.trajectories || []).flatMap((trajectory) => trajectory.observations.map((entry) => entry.id)));
+  const unassignedObservations = Array.isArray(value.unassignedObservations)
+    ? value.unassignedObservations
+    : (value.observations || []).filter((observation) => !(value.trajectories || []).some(
+      (trajectory) => trajectory.observations.some((entry) => entry.id === observation.id),
+    ));
   return {
     trackCount: tracks.length,
     playerTrackCount: tracks.filter((track) => track.entityType === "player").length,
     ballTrackCount: tracks.filter((track) => track.entityType === "ball").length,
     refereeTrackCount: tracks.filter((track) => track.entityType === "referee").length,
-    unassignedObservationCount: (value.observations || []).filter((observation) => !assigned.has(observation.id)).length,
+    unassignedObservationCount: unassignedObservations.length,
     playerIdentityReviewCount: tracks.filter((track) => track.entityType === "player" && !track.playerId).length,
     lowConfidenceTrackCount: tracks.filter((track) => track.confidence < 0.55 || track.identityConfidence < 0.65).length,
     classificationConflictCount: Number(value.classificationConflictCount) || 0,

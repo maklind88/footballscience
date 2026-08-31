@@ -255,7 +255,7 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
     tracks,
     selectedTrackIds: truth.selectedTrackIds || [],
     benchmarkType: suite.benchmarkType,
-    reviewedBy: "local-analyst",
+    reviewedBy: truth.reviewedBy,
     requireSceneReview: true,
   });
   const evaluation = tracking.benchmarkEvaluation || {};

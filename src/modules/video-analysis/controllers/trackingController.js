@@ -90,6 +90,7 @@ export function createTrackingController(options = {}) {
     getState,
     updateState,
     getContext: groundTruth.contextFor,
+    getReviewer: options.getReviewer,
     onEvidenceChanged: benchmark.invalidate,
   });
   const trackLifecycle = createTrackingTrackLifecycleController({

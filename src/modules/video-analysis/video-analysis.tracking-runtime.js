@@ -85,7 +85,7 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     getContext: () => getRuntime()?.context || context,
     getReviewer: () => {
       const user = getRuntime()?.context?.currentUser || context.currentUser || {};
-      return user.id || user.userId || user.user_id || "local-analyst";
+      return user.id || user.userId || user.user_id || "";
     },
     inspectProvider: () => {
       const runtime = getRuntime();

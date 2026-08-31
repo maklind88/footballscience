@@ -7,6 +7,7 @@ import { trackingGroundTruthSuiteEntry } from "../services/trackingGroundTruthSu
 import { createTrackingGroundTruthSceneReview } from "../services/trackingGroundTruthSceneReviewService.js";
 import { trackingPreannotationReviewPersistence } from "../services/trackingPreannotationReviewPersistenceService.js";
 import { createTrackingReviewWorkloadEvidence } from "../services/trackingReviewWorkloadEvidenceService.js";
+import { normalizeTrackingReviewerIdentity } from "../services/trackingReviewerIdentityService.js";
 import { patchTrackingState, selectedTrackingItem } from "./trackingControllerHelpers.js";
 
 const actionName = "ground-truth-use-preannotation-case";
@@ -44,6 +45,7 @@ export function createTrackingGroundTruthPreannotationBridgeController(options =
   const getState = options.getState || (() => ({}));
   const updateState = options.updateState || (() => {});
   const getContext = options.getContext || (() => ({}));
+  const getReviewer = options.getReviewer || (() => "");
 
   function fail(itemId, message) {
     updateState((state) => patchDraft(state, itemId, { error: message }));
@@ -124,6 +126,8 @@ export function createTrackingGroundTruthPreannotationBridgeController(options =
       benchmarkTargetTrackId,
       workloadEvidence,
       sceneReview: createTrackingGroundTruthSceneReview(context),
+      reviewedBy: normalizeTrackingReviewerIdentity(truth.reviewedBy)
+        || normalizeTrackingReviewerIdentity(getReviewer()),
       attested: false,
       exhaustiveSceneAttested: false,
       error: "",

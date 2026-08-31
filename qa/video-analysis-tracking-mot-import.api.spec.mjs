@@ -315,6 +315,27 @@ test("MOT import command writes and revalidates a complete ten-minute suite", as
       readyForImport: true,
     });
     expect(audit.annotationRowCount).toBe(3600);
+    const placeholderManifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+    placeholderManifest.review.reviewedBy = "local-analyst";
+    await fs.writeFile(manifestPath, JSON.stringify(placeholderManifest));
+    stdout = "";
+    expect(await command.runMotGroundTruthImport([
+      "--manifest", manifestPath,
+      "--audit",
+      "--json",
+    ], {
+      stdout: { write: (value) => { stdout += value; } },
+      stderr: { write: (value) => { stderr += value; } },
+    })).toBe(3);
+    expect(JSON.parse(stdout)).toMatchObject({
+      reviewReady: false,
+      readyForImport: false,
+      issues: expect.arrayContaining([
+        expect.objectContaining({ code: "human-review-incomplete" }),
+      ]),
+    });
+    placeholderManifest.review.reviewedBy = "analyst-1";
+    await fs.writeFile(manifestPath, JSON.stringify(placeholderManifest));
     stdout = "";
     expect(await command.runMotGroundTruthImport([
       "--manifest", manifestPath,

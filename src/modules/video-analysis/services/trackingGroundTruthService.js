@@ -36,6 +36,7 @@ import {
   validateTrackingAnnotationBurdenEvidence,
 } from "./trackingAnnotationBurdenEvidenceService.js";
 import { validateTrackingReviewWorkloadEvidence } from "./trackingReviewWorkloadEvidenceService.js";
+import { normalizeTrackingReviewerIdentity } from "./trackingReviewerIdentityService.js";
 
 export * from "./trackingGroundTruthProfileService.js";
 
@@ -160,6 +161,7 @@ export function groundTruthReadiness(value = {}) {
   const sceneReview = value.requireSceneReview === true && rangeReady(value.range)
     ? trackingGroundTruthSceneReviewProgress(value.sceneReview, value)
     : null;
+  const reviewedBy = normalizeTrackingReviewerIdentity(value.reviewedBy);
   const issues = [];
   const ids = new Set();
   if (!sourceFingerprintPattern.test(String(value.sourceFingerprint || ""))) {
@@ -214,7 +216,10 @@ export function groundTruthReadiness(value = {}) {
       issues.push(issue("player-team-missing", "Assign every reference player to a team side.", track.id));
     }
   }
-  if (!String(value.reviewedBy || "").trim()) issues.push(issue("reviewer-missing", "A local analyst identity is required."));
+  if (!reviewedBy) issues.push(issue(
+    "reviewer-missing",
+    "Enter a named human reviewer or analyst ID before locking the reference.",
+  ));
   if (value.attested !== true) issues.push(issue(
     "attestation-missing",
     value.requireSceneReview === true
@@ -254,6 +259,7 @@ export function groundTruthReadiness(value = {}) {
     reviewedSceneSampleCount: sceneReview?.reviewedSampleCount || 0,
     expectedSceneSampleCount: sceneReview?.expectedSampleCount || 0,
     checkpointAudit,
+    reviewerReady: Boolean(reviewedBy),
     sourceFingerprintReady: sourceFingerprintPattern.test(String(value.sourceFingerprint || "")),
     frameReady: frameReady(value.frame),
     rangeReady: rangeReady(value.range),
@@ -423,7 +429,7 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
     protocol: TRACKING_GROUND_TRUTH_REVIEW_PROTOCOL,
     benchmarkType: readiness.benchmarkType,
     reviewedAt,
-    reviewedBy: String(value.reviewedBy).trim().slice(0, 160),
+    reviewedBy: normalizeTrackingReviewerIdentity(value.reviewedBy),
     attested: true,
     exhaustiveSceneAttested: readiness.benchmarkType === TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
     selectedTrackCount: readiness.selectedTrackCount,

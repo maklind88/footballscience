@@ -142,6 +142,7 @@ test("completed preannotation selects only exact saved case tracks for full-scen
     getState: () => current,
     updateState: (updater) => { current = updater(current); },
     getContext: context,
+    getReviewer: () => "review-lead",
     onEvidenceChanged: () => { invalidated += 1; },
   });
 
@@ -154,6 +155,7 @@ test("completed preannotation selects only exact saved case tracks for full-scen
     angleId: "primary",
     frame: { width: 1920, height: 1080 },
     range: { startMs: 0, endMs: 1000 },
+    reviewedBy: "review-lead",
     attested: false,
     exhaustiveSceneAttested: false,
     workloadEvidence: {

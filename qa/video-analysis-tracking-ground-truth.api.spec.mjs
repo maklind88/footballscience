@@ -483,6 +483,7 @@ test("selected-object controller uses one player target and locks its evidence p
   expect(controller.handleAction("ground-truth-toggle")).toBe(true);
   expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
     benchmarkType: "selected-object",
+    reviewedBy: "analyst-1",
     selectedTrackIds: [player.id],
     benchmarkTargetTrackId: player.id,
   });

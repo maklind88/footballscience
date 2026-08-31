@@ -340,6 +340,33 @@
   white-space: nowrap;
 }
 
+.video-analysis-tracking-side .video-analysis-ground-truth__reviewer {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border-bottom: 1px solid #e3e9e5;
+  padding-block: 7px;
+  color: #34463c;
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: none;
+}
+
+.video-analysis-ground-truth__reviewer input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid #cbd5ce;
+  border-radius: 5px;
+  padding: 4px 7px;
+  color: #203129;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 600;
+}
+
 .video-analysis-ground-truth__footer button:first-child {
   flex: 1 1 auto;
   color: #ffffff;

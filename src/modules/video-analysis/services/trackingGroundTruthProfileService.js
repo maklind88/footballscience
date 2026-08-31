@@ -45,6 +45,7 @@ export function trackingGroundTruthEntry(workspace = {}, itemId = "") {
     frame: { width: 0, height: 0 },
     range: { startMs: 0, endMs: 1 },
     sceneReview: createTrackingGroundTruthSceneReview(),
+    reviewedBy: "",
     attested: false,
     exhaustiveSceneAttested: false,
     lockedArtifact: null,

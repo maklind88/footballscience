@@ -35,6 +35,7 @@ import { createTrackingGroundTruthSceneReview } from "../services/trackingGround
 import { downloadTrackingJson } from "../services/trackingJsonDownloadService.js";
 import { createTrackingGroundTruthCheckpointController } from "./trackingGroundTruthCheckpointController.js";
 import { trackingSourceFingerprint } from "../services/trackingSourceIdentityService.js";
+import { createTrackingGroundTruthReviewerController } from "./trackingGroundTruthReviewerController.js";
 
 export { trackingSourceFingerprint } from "../services/trackingSourceIdentityService.js";
 
@@ -92,18 +93,21 @@ export function trackingFrameSize(video = null) {
   return { width, height };
 }
 
-function reviewerId(value = null) {
-  if (typeof value === "string") return value.trim();
-  return String(value?.id || value?.userId || value?.user_id || "local-analyst").trim();
-}
-
 export function createTrackingGroundTruthController(options = {}) {
   const getState = options.getState || (() => ({}));
   const updateState = options.updateState || (() => {});
   const getVideoElement = options.getVideoElement || (() => null);
   const getWindow = options.getWindow || (() => globalThis.window);
-  const getReviewer = options.getReviewer || (() => "local-analyst");
+  const getReviewer = options.getReviewer || (() => "");
   const now = options.now || Date.now;
+  const reviewer = createTrackingGroundTruthReviewerController({
+    getState,
+    updateState,
+    getReviewer,
+    selectedItemId: (state) => selectedTrackingItem(state)?.id || "",
+    groundTruthState,
+    patchGroundTruth,
+  });
   const sceneReview = createTrackingGroundTruthSceneReviewController({
     getState,
     updateState,
@@ -160,6 +164,7 @@ export function createTrackingGroundTruthController(options = {}) {
       || Number(truth.range?.endMs) !== context.range.endMs;
     updateState((current) => patchGroundTruth(current, context.itemId, {
       ...context,
+      reviewedBy: reviewer.identityFor(truth),
       ...(contextChanged ? {
         sceneReview: createTrackingGroundTruthSceneReview(context),
         attested: false,
@@ -212,6 +217,7 @@ export function createTrackingGroundTruthController(options = {}) {
     updateState((current) => patchGroundTruth(current, itemId, {
       ...context,
       status: "draft",
+      reviewedBy: reviewer.identityFor(truth),
       selectedTrackIds: [...selected],
       benchmarkTargetTrackId,
       sceneReview: createTrackingGroundTruthSceneReview(context),
@@ -256,13 +262,14 @@ export function createTrackingGroundTruthController(options = {}) {
         sceneReview: truth.sceneReview,
         workloadEvidence: truth.workloadEvidence,
         requireSceneReview: true,
-        reviewedBy: reviewerId(getReviewer()),
+        reviewedBy: reviewer.identityFor(truth),
         revision: truth.revision || 1,
       }, { now });
       updateState((current) => {
         const lockedState = patchGroundTruth(current, item.id, {
           ...context,
           status: "locked",
+          reviewedBy: artifact.reviewEvidence.reviewedBy,
           lockedArtifact: artifact,
           lockedAt: artifact.reviewEvidence.reviewedAt,
           error: "",
@@ -406,6 +413,7 @@ export function createTrackingGroundTruthController(options = {}) {
       workloadEvidence: null,
       scenarioTags: [],
       sceneReview: createTrackingGroundTruthSceneReview(context),
+      reviewedBy: reviewer.identityFor(truth, true),
       attested: false,
       exhaustiveSceneAttested: false,
       lockedArtifact: null,
@@ -460,6 +468,7 @@ export function createTrackingGroundTruthController(options = {}) {
   }
 
   function handleField(field = "", element = {}) {
+    if (field === "groundTruthReviewer") return reviewer.set(element.value);
     if (field === "groundTruthAttested") return sceneReview.setAttested(element.checked, false);
     if (field === "groundTruthSceneComplete") {
       const benchmarkType = trackingGroundTruthSuiteEntry(

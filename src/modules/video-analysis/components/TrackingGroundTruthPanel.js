@@ -12,6 +12,7 @@ import {
 import { escapeHtml } from "./renderHelpers.js";
 import { trackingGroundTruthSceneReviewProgress } from "../services/trackingGroundTruthSceneReviewService.js";
 import { trackingGroundTruthCheckpointDiagnostics } from "../services/trackingGroundTruthCheckpointService.js";
+import { normalizeTrackingReviewerIdentity } from "../services/trackingReviewerIdentityService.js";
 
 function groundTruthState(state = {}, itemId = "") {
   return trackingGroundTruthEntry(state.presentation?.tracking?.groundTruth || {}, itemId);
@@ -49,6 +50,7 @@ function lockedReadiness(truth = {}) {
     },
     sourceFingerprintReady: Boolean(artifact.sourceFingerprint),
     frameReady: Boolean(artifact.frame?.width && artifact.frame?.height),
+    reviewerReady: Boolean(normalizeTrackingReviewerIdentity(artifact.reviewEvidence?.reviewedBy)),
   };
 }
 
@@ -78,7 +80,7 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
     angleId: truth.angleId,
     frame: truth.frame,
     range: truth.range,
-    reviewedBy: "local-analyst",
+    reviewedBy: truth.reviewedBy,
     attested: truth.attested === true,
     exhaustiveSceneAttested: truth.exhaustiveSceneAttested === true,
     benchmarkTargetTrackId: truth.benchmarkTargetTrackId,
@@ -169,6 +171,10 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
             </label>
           `).join("")}
         </fieldset>
+        <label class="video-analysis-ground-truth__reviewer">
+          <span>Reviewer identity</span>
+          <input type="text" maxlength="160" autocomplete="off" spellcheck="false" value="${escapeHtml(truth.reviewedBy || "")}" placeholder="Name or analyst ID" data-video-analysis-tracking-field="groundTruthReviewer">
+        </label>
         ${selectedObject ? "" : `
           <label class="video-analysis-ground-truth__attestation">
             <input type="checkbox" data-video-analysis-tracking-field="groundTruthSceneComplete" ${truth.exhaustiveSceneAttested ? "checked" : ""} ${sceneReview.complete ? "" : "disabled"}>

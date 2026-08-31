@@ -10,6 +10,9 @@ import {
   createGroundTruthSuiteArtifact,
 } from "../src/modules/video-analysis/services/trackingGroundTruthSuiteService.js";
 import {
+  normalizeTrackingReviewerIdentity,
+} from "../src/modules/video-analysis/services/trackingReviewerIdentityService.js";
+import {
   TRACKING_MOT_IMPORT_PROTOCOL,
   TrackingMotImportError,
   createGroundTruthArtifactFromMotAnnotations,
@@ -189,7 +192,8 @@ function normalizeCommonManifest(value = {}) {
       annotationUseReviewed: true,
       localBenchmarkOnly: true,
     },
-    reviewedBy: bounded(review.reviewedBy, "reviewer", 160),
+    reviewedBy: normalizeTrackingReviewerIdentity(review.reviewedBy)
+      || invalid("A named human reviewer or analyst ID is required."),
     reviewedAt: new Date(review.reviewedAt).toISOString(),
     sequences: value.sequences,
   };
@@ -218,7 +222,7 @@ function auditCommonEvidence(value = {}) {
   const rightsReady = dataset.videoUseReviewed === true
     && dataset.annotationUseReviewed === true
     && dataset.localBenchmarkOnly === true;
-  const reviewReady = Boolean(String(review.reviewedBy || "").trim())
+  const reviewReady = Boolean(normalizeTrackingReviewerIdentity(review.reviewedBy))
     && Number.isFinite(Date.parse(review.reviewedAt))
     && review.attested === true
     && review.exhaustiveSceneAttested === true;

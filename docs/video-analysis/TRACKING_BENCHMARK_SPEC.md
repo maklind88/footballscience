@@ -218,6 +218,24 @@ An approved future stage is discoverable only through the local `football-scienc
 
 Before approval, a provider can run only through `football-science-tracking-candidate-registry-v1` and `run-tracking-candidate-stage`. The candidate marker binds the canonical manifest, sealed native runtime, and exact models but contains no report or provider evidence. Policy still requires `candidate` status, offline inference, reviewed licence, reviewed training-data provenance and dataset rights, including identity-use review for re-ID and shirt-number capabilities. Candidate execution uses the same sandbox and result validator but every transport layer reports `benchmarkOnly`; it cannot appear in activated capability readiness or normal tracking. Every successful run creates a separate `football-science-tracking-candidate-stage-run-v1` raw-evidence artifact that binds the normalized request and result, source/range, provider manifest and execution fingerprints, sandbox telemetry, output checksum, and measured real-time factor. Its exact response bytes are verified again by the browser. A passed evidence set is used to create a separate approved installation rather than mutating the candidate marker.
 
+After provider evidence reproduces, the only generic activation path is `tracking:provider:plan` followed by `tracking:provider:install` with explicit licence and local-activation acknowledgements. The installer resolves the original candidate from its private registry, derives the approved manifest from the verified evidence, preserves the exact artifact and execution fingerprints, and atomically copies sealed runtime/model/report/evidence files to the separate approved registry. It never mutates or deletes the candidate. A failed report, evidence mismatch, changed candidate byte, registry overlap, existing target, or unavailable network-denied sandbox leaves no approved installation.
+
+```bash
+npm --prefix desktop/local-video-app run tracking:provider:plan -- \
+  --candidate-id <provider-id> \
+  --candidate-version <provider-version> \
+  --report <benchmark-report.json> \
+  --evidence <provider-evidence.json>
+
+npm --prefix desktop/local-video-app run tracking:provider:install -- \
+  --candidate-id <provider-id> \
+  --candidate-version <provider-version> \
+  --report <benchmark-report.json> \
+  --evidence <provider-evidence.json> \
+  --accept-license \
+  --approve-local-activation
+```
+
 All stage outputs use `football-science-tracking-stage-result-v1`. Serialized output is size-bounded and UTF-8 validated before JSON parsing. The local validator then binds the result to the exact provider fingerprint, declared capabilities, source fingerprint, and requested time range before applying nested request and result allowlists. Detection cannot emit player identities; association receives complete boxes/times/confidence and cannot reuse or invent observations; re-identification/classification receive complete ordered trajectories and cannot receive embeddings, frames, paths, or Football Science identities; team/shirt output is limited to known player trajectories; and ball/referee detection is approved and measured independently. Segmentation receives only prompt geometry and synchronized time, and its nested track/segment/point output cannot smuggle media or private metadata. Candidate mode exists only to create benchmark predictions. Activated mode additionally regenerates provider readiness from the exact manifest, report, and evidence and fails closed on any mismatch.
 
 The full-scene candidate orchestrator runs detection, association, re-identification, and classification sequentially against one source fingerprint and range. It materializes association references from the exact detection artifact, binds every stage's raw evidence SHA-256 into one pipeline lineage fingerprint, and converts the composite result into automatic player, ball, and referee tracks in `review` state. These review tracks use the normal correction, split, identity-swap, continuity, visibility, audit, undo, and redo workflow. Raw candidate stage evidence is recursively immutable and is never rewritten by analyst corrections, so correction rate and review effort remain measurable rather than contaminating the prediction under test.

@@ -3,6 +3,10 @@ import {
   saveLocalTrackingPreannotationCampaignCase,
 } from "../services/localTrackingPreannotationCampaignStore.js";
 import { trackingPreannotationCampaignProgress } from "../services/trackingPreannotationCampaignService.js";
+import {
+  normalizeTrackingPreannotationReviewEffort,
+  recordTrackingPreannotationReviewEffort,
+} from "../services/trackingPreannotationReviewEffortService.js";
 
 function caseSnapshot(session = {}, summary = {}, updatedAt = "") {
   return {
@@ -18,8 +22,16 @@ function caseSnapshot(session = {}, summary = {}, updatedAt = "") {
     acceptedCount: summary.acceptedCount,
     rejectedCount: summary.rejectedCount,
     savedCount: summary.savedCount,
+    reviewEffort: normalizeTrackingPreannotationReviewEffort(session.reviewEffort),
     updatedAt,
   };
+}
+
+function sameCaseIdentity(session = {}, record = {}) {
+  return record.itemId === session.itemId
+    && record.clipId === session.clipId
+    && record.angleId === session.angleId
+    && record.sourceSha256 === session.sourceSha256;
 }
 
 export function createTrackingPreannotationCampaignController(options = {}) {
@@ -55,10 +67,33 @@ export function createTrackingPreannotationCampaignController(options = {}) {
 
   async function open(session, summary) {
     if (!session?.campaign) return null;
-    if (!session.scope) return view(session, summary, "session-only");
+    const decided = summary.acceptedCount + summary.rejectedCount + summary.savedCount;
+    session.reviewEffort = normalizeTrackingPreannotationReviewEffort({
+      coverage: decided ? "partial" : "complete",
+    });
+    if (!session.scope) {
+      session.reviewEffort = recordTrackingPreannotationReviewEffort(
+        session.reviewEffort,
+        "open",
+        { now },
+      );
+      return view(session, summary, "session-only");
+    }
     try {
       await lastOperation;
       records = await loadCases(session.scope, session.campaign.workspaceSha256, getWindow());
+      const restored = records.find((entry) => entry.caseId === session.caseId);
+      if (restored && !sameCaseIdentity(session, restored)) {
+        throw new Error("Campaign progress belongs to another clip or match source.");
+      }
+      session.reviewEffort = normalizeTrackingPreannotationReviewEffort(
+        restored?.reviewEffort || session.reviewEffort,
+      );
+      session.reviewEffort = recordTrackingPreannotationReviewEffort(
+        session.reviewEffort,
+        "open",
+        { now },
+      );
       return await persist(session, summary);
     } catch (error) {
       return view(
@@ -97,11 +132,22 @@ export function createTrackingPreannotationCampaignController(options = {}) {
     ));
   }
 
+  function record(session, action, options = {}) {
+    if (!session) return false;
+    session.reviewEffort = recordTrackingPreannotationReviewEffort(
+      session.reviewEffort,
+      action,
+      { ...options, now },
+    );
+    return true;
+  }
+
   return {
     flush: () => lastOperation,
     failed,
     open,
     preview,
+    record,
     save,
   };
 }

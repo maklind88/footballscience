@@ -333,6 +333,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (!session || !current || !["accepted", "rejected"].includes(decision)) return false;
     session.decisions.set(current.track.id, decision);
     session.history.push({ id: current.track.id, decision });
+    campaignController.record(session, decision === "accepted" ? "accept" : "reject");
     updateState((state) => {
       const addition = decision === "accepted" ? [acceptedTrack(current.track)] : [];
       return replaceReviewTracks(state, session.itemId, [current.track.id], addition);
@@ -353,6 +354,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     }
     if (!previous) return false;
     session.decisions.delete(previous.id);
+    campaignController.record(session, "undo");
     updateState((state) => replaceReviewTracks(state, session.itemId, [previous.id], []));
     const index = session.entries.findIndex((entry) => entry.track.id === previous.id);
     const shown = show(index);
@@ -364,7 +366,10 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (!sync()) return false;
     if (!session) return false;
     const currentIndex = session.entries.findIndex((entry) => entry.track.id === session.currentId);
-    return show(pendingIndex(Math.max(0, currentIndex + 1)));
+    const shown = show(pendingIndex(Math.max(0, currentIndex + 1)));
+    if (shown && currentIndex >= 0) campaignController.record(session, "defer");
+    if (shown && currentIndex >= 0) void saveDraftProgress();
+    return shown;
   }
 
   function handleField(field = "", element = null) {
@@ -397,6 +402,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
           },
         });
       });
+      campaignController.record(session, "correction-handoff");
       await saveDraftProgress();
       options.onEvidenceChanged?.(session.itemId);
       return true;
@@ -416,13 +422,13 @@ export function createTrackingPreannotationReviewController(options = {}) {
     const entries = session.entries.filter((entry) => session.decisions.get(entry.track.id) === "accepted");
     if (!entries.length) return false;
     patchReview({ status: "saving", error: "" });
-    let savedAny = false;
+    let savedTrackCount = 0;
     try {
       for (const entry of entries) {
         const requested = acceptedTrack(entry.track, "saved-review");
         const track = normalizeObjectTrack(await options.persistTrack(requested) || requested);
         session.decisions.set(entry.track.id, "saved");
-        savedAny = true;
+        savedTrackCount += 1;
         updateState((state) => replaceReviewTracks(state, session.itemId, [entry.track.id], [track]));
       }
       session.history = session.history.filter((entry) => session.decisions.get(entry.id) !== "saved");
@@ -437,14 +443,16 @@ export function createTrackingPreannotationReviewController(options = {}) {
           },
         });
       });
+      campaignController.record(session, "batch-save", { savedTrackCount: entries.length });
       await saveDraftProgress();
       options.onEvidenceChanged?.(session.itemId);
       return true;
     } catch (error) {
       session.history = session.history.filter((entry) => session.decisions.get(entry.id) !== "saved");
       patchReview({ status: "error", ...counts(), error: error?.message || "Accepted review tracks could not be saved." });
+      if (savedTrackCount) campaignController.record(session, "batch-save", { savedTrackCount });
       await saveDraftProgress();
-      if (savedAny) options.onEvidenceChanged?.(session.itemId);
+      if (savedTrackCount) options.onEvidenceChanged?.(session.itemId);
       return false;
     }
   }

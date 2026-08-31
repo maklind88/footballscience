@@ -1,3 +1,8 @@
+import {
+  normalizeTrackingPreannotationReviewEffort,
+  summarizeTrackingPreannotationReviewEffort,
+} from "./trackingPreannotationReviewEffortService.js";
+
 const maximumCases = 100;
 const maximumSuggestionsPerCase = 25_000;
 const maximumCampaignSuggestions = 100_000;
@@ -103,7 +108,12 @@ function caseProgress(value = {}, campaignCaseValue = {}, campaign = {}) {
       !== progress.totalSuggestionCount) {
     invalid("Campaign progress does not reconcile with its sealed case workload.");
   }
-  return progress;
+  return {
+    ...progress,
+    reviewEffort: normalizeTrackingPreannotationReviewEffort(value.reviewEffort || {
+      coverage: progress.acceptedCount + progress.rejectedCount + progress.savedCount ? "partial" : "complete",
+    }),
+  };
 }
 
 export function trackingPreannotationCampaignProgress(campaignValue = {}, records = [], options = {}) {
@@ -120,13 +130,22 @@ export function trackingPreannotationCampaignProgress(campaignValue = {}, record
       acceptedCount: 0,
       rejectedCount: 0,
       savedCount: 0,
+      reviewEffort: normalizeTrackingPreannotationReviewEffort(),
       updatedAt: "",
     };
+    const effort = summarizeTrackingPreannotationReviewEffort(
+      progress.reviewEffort,
+      progress.totalSuggestionCount,
+    );
     return {
       ...entry,
       ...progress,
+      reviewEffort: effort,
       decisionCount: progress.acceptedCount + progress.rejectedCount + progress.savedCount,
       resolvedCount: progress.rejectedCount + progress.savedCount,
+      reviewActionCount: effort.reviewActionCount,
+      reworkActionCount: effort.reworkActionCount,
+      reviewActionsPer100Suggestions: effort.reviewActionsPer100Suggestions,
       complete: progress.pendingCount === 0 && progress.acceptedCount === 0,
       active: entry.caseId === String(options.activeCaseId || ""),
     };
@@ -142,6 +161,23 @@ export function trackingPreannotationCampaignProgress(campaignValue = {}, record
     totalSuggestionCount: campaign.totalSuggestionCount,
     decisionCount: cases.reduce((sum, entry) => sum + entry.decisionCount, 0),
     resolvedCount: cases.reduce((sum, entry) => sum + entry.resolvedCount, 0),
+    reviewEffortCoverage: cases.some((entry) => entry.reviewEffort.coverage === "partial")
+      ? "partial"
+      : "complete",
+    reviewActionCount: cases.reduce((sum, entry) => sum + entry.reviewActionCount, 0),
+    reworkActionCount: cases.reduce((sum, entry) => sum + entry.reworkActionCount, 0),
+    correctionHandoffCount: cases.reduce(
+      (sum, entry) => sum + entry.reviewEffort.correctionHandoffCount,
+      0,
+    ),
+    savedTrackActionCount: cases.reduce(
+      (sum, entry) => sum + entry.reviewEffort.savedTrackActionCount,
+      0,
+    ),
+    reviewActionsPer100Suggestions: Math.round((cases.reduce(
+      (sum, entry) => sum + entry.reviewActionCount,
+      0,
+    ) / campaign.totalSuggestionCount) * 10_000) / 100,
     cases,
   });
 }

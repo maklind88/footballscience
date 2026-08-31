@@ -46,12 +46,18 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
             completeCaseCount: 1,
             totalSuggestionCount: 30,
             decisionCount: 20,
+            reviewEffortCoverage: "partial",
+            reviewActionCount: 28,
+            reviewActionsPer100Suggestions: 93.33,
             cases: [
               {
                 caseId: "attacking-third",
                 totalSuggestionCount: 20,
                 decisionCount: 10,
                 resolvedCount: 8,
+                reviewActionCount: 18,
+                undoActionCount: 2,
+                correctionHandoffCount: 3,
                 missingSuggestedEntityTypes: ["referee"],
                 active: true,
               },
@@ -60,6 +66,7 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
                 totalSuggestionCount: 10,
                 decisionCount: 10,
                 resolvedCount: 10,
+                reviewActionCount: 10,
                 complete: true,
               },
             ],
@@ -95,6 +102,9 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   expect(html).toContain("12 decisions");
   expect(html).toContain("Annotation campaign");
   expect(html).toContain("20/30 decisions");
+  expect(html).toContain("28 review actions | 93.33/100 suggestions");
+  expect(html).toContain("18 actions | 2 undo | 3 correct");
+  expect(html).toContain("Effort capture partial");
   expect(html).toContain("1/2 complete");
   expect(html).toContain("Find referee");
   expect(html).toContain('aria-current="step"');

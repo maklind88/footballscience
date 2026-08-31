@@ -1,8 +1,12 @@
 import { createLocalTrackingWorkspaceScope } from "./localTrackingWorkspaceContract.js";
+import { normalizeTrackingPreannotationReviewEffort } from "./trackingPreannotationReviewEffortService.js";
 
 export const LOCAL_TRACKING_PREANNOTATION_CAMPAIGN_PROTOCOL =
-  "football-science-local-tracking-preannotation-campaign-case-v1";
-export const LOCAL_TRACKING_PREANNOTATION_CAMPAIGN_VERSION = 1;
+  "football-science-local-tracking-preannotation-campaign-case-v2";
+export const LOCAL_TRACKING_PREANNOTATION_CAMPAIGN_VERSION = 2;
+
+const legacyProtocol = "football-science-local-tracking-preannotation-campaign-case-v1";
+const legacyVersion = 1;
 
 const databaseName = "football-science-tracking-preannotation-campaigns";
 const databaseVersion = 1;
@@ -102,6 +106,12 @@ export function createLocalTrackingPreannotationCampaignCase(value = {}, options
     || pendingCount + acceptedCount + rejectedCount + savedCount !== totalSuggestionCount) {
     invalid("Campaign progress counts do not reconcile.");
   }
+  const reviewEffort = normalizeTrackingPreannotationReviewEffort(value.reviewEffort || {
+    coverage: acceptedCount + rejectedCount + savedCount ? "partial" : "complete",
+  });
+  if (reviewEffort.savedTrackActionCount > totalSuggestionCount) {
+    invalid("Campaign review effort exceeds its sealed suggestion workload.");
+  }
   return Object.freeze({
     version: LOCAL_TRACKING_PREANNOTATION_CAMPAIGN_VERSION,
     protocol: LOCAL_TRACKING_PREANNOTATION_CAMPAIGN_PROTOCOL,
@@ -120,24 +130,34 @@ export function createLocalTrackingPreannotationCampaignCase(value = {}, options
     acceptedCount,
     rejectedCount,
     savedCount,
+    reviewEffort,
     updatedAt: timestamp(options.now?.() ?? value.updatedAt ?? Date.now()),
   });
 }
 
 export function validateLocalTrackingPreannotationCampaignCase(value = {}) {
-  exactKeys(value, [
+  const legacy = Number(value.version) === legacyVersion && value.protocol === legacyProtocol;
+  exactKeys(value, legacy ? [
     "version", "protocol", "id", "campaignId", "scope", "workspaceSha256", "packId", "caseId",
     "itemId", "clipId", "angleId", "sourceSha256", "totalSuggestionCount", "pendingCount",
     "acceptedCount", "rejectedCount", "savedCount", "updatedAt",
+  ] : [
+    "version", "protocol", "id", "campaignId", "scope", "workspaceSha256", "packId", "caseId",
+    "itemId", "clipId", "angleId", "sourceSha256", "totalSuggestionCount", "pendingCount",
+    "acceptedCount", "rejectedCount", "savedCount", "reviewEffort", "updatedAt",
   ], "Local preannotation campaign case");
   exactKeys(value.scope, [
     "organizationId", "teamId", "userId", "sourceType", "sourceId",
   ], "Campaign scope");
-  if (Number(value.version) !== LOCAL_TRACKING_PREANNOTATION_CAMPAIGN_VERSION
-    || value.protocol !== LOCAL_TRACKING_PREANNOTATION_CAMPAIGN_PROTOCOL) {
+  if (!legacy && (Number(value.version) !== LOCAL_TRACKING_PREANNOTATION_CAMPAIGN_VERSION
+    || value.protocol !== LOCAL_TRACKING_PREANNOTATION_CAMPAIGN_PROTOCOL)) {
     invalid("The local preannotation campaign protocol is invalid.");
   }
-  const normalized = createLocalTrackingPreannotationCampaignCase({ ...value, scope: value.scope }, {
+  const normalized = createLocalTrackingPreannotationCampaignCase({
+    ...value,
+    scope: value.scope,
+    reviewEffort: legacy ? { coverage: "partial" } : value.reviewEffort,
+  }, {
     now: () => value.updatedAt,
   });
   if (value.id !== normalized.id || value.campaignId !== normalized.campaignId) {

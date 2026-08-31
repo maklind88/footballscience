@@ -189,12 +189,22 @@ test("preannotation review can save one current suggestion and hand it to correc
   ));
   let state = initialState();
   const persisted = [];
+  const campaignWrites = [];
+  const draftScope = {
+    organizationId: "org-review",
+    teamId: "team-review",
+    userId: "analyst-review",
+    matchId: "match-review",
+    clipId: "clip-1",
+  };
   const associated = track("associated-player", "player", 1000, 0.8, "associated");
   const unassociated = track("unassociated-ball", "ball", 500, 0.4, "unassociated");
   const controller = service.createTrackingPreannotationReviewController({
     getState: () => state,
     updateState: (updater) => { state = updater(state); },
     getWindow: () => ({ crypto: globalThis.crypto }),
+    getDraftScope: () => draftScope,
+    now: () => "2026-08-31T11:00:00.000Z",
     pickFiles: async () => ({ caseId: "transition" }),
     importCase: async () => ({
       workspaceSha256: "b".repeat(64),
@@ -203,7 +213,29 @@ test("preannotation review can save one current suggestion and hand it to correc
       tracks: [associated],
       queue: [{ track: unassociated }],
       summary: { associatedTrackCount: 1, unassociatedObservationCount: 1 },
+      campaign: {
+        workspaceSha256: "b".repeat(64),
+        packId: "real-match-pack",
+        caseCount: 1,
+        totalSuggestionCount: 2,
+        cases: [{
+          caseId: "transition",
+          totalSuggestionCount: 2,
+          associatedTrackCount: 1,
+          unassociatedObservationCount: 1,
+          missingSuggestedEntityTypes: [],
+        }],
+      },
     }),
+    loadDraft: async () => null,
+    saveDraft: async (_scope, value) => value,
+    removeDraft: async () => true,
+    loadCampaignCases: async () => [],
+    saveCampaignCase: async (_scope, value) => {
+      const record = { ...structuredClone(value), updatedAt: "2026-08-31T11:00:00.000Z" };
+      campaignWrites.push(record);
+      return record;
+    },
     persistTrack: async (value) => {
       persisted.push(value);
       return value;
@@ -230,6 +262,12 @@ test("preannotation review can save one current suggestion and hand it to correc
   expect(state.presentation.tracking.selectedTrackIds).toEqual([unassociated.id]);
   expect(state.presentation.current.sections[0].items[0].objectTracks).toHaveLength(1);
   expect(state.presentation.current.sections[0].items[0].objectTracks[0].metadata.preannotationReviewPreview).toBe(false);
+  expect(await controller.flushDraft()).toBe(true);
+  expect(campaignWrites.at(-1).reviewEffort).toMatchObject({
+    correctionHandoffCount: 1,
+    deferActionCount: 0,
+    savedTrackActionCount: 1,
+  });
 
   expect(controller.handleAction("preannotation-next")).toBe(true);
   expect(state.presentation.tracking.preannotationReview).toMatchObject({
@@ -237,6 +275,11 @@ test("preannotation review can save one current suggestion and hand it to correc
     current: { id: associated.id },
   });
   expect(state.presentation.tracking.preannotationReview.current).not.toHaveProperty("savedForCorrection");
+  expect(state.presentation.tracking.preannotationReview.campaign.cases[0]).toMatchObject({
+    reviewActionCount: 1,
+    reworkActionCount: 1,
+  });
+  expect(campaignWrites.at(-1).reviewEffort.deferActionCount).toBe(0);
   expect(state.presentation.tracking.selectedTrackIds).toEqual([associated.id]);
   expect(state.presentation.current.sections[0].items[0].objectTracks).toHaveLength(2);
 });
@@ -249,12 +292,22 @@ test("preannotation review keeps completed saves when a later track fails and re
   const persisted = [];
   let invalidated = 0;
   let failSecond = true;
+  const campaignWrites = [];
+  const draftScope = {
+    organizationId: "org-review",
+    teamId: "team-review",
+    userId: "analyst-review",
+    matchId: "match-review",
+    clipId: "clip-1",
+  };
   const first = track("unassociated-ball", "ball", 500, 0.4, "unassociated");
   const second = track("associated-player", "player", 1000, 0.8, "associated");
   const controller = service.createTrackingPreannotationReviewController({
     getState: () => state,
     updateState: (updater) => { state = updater(state); },
     getWindow: () => ({ crypto: globalThis.crypto }),
+    getDraftScope: () => draftScope,
+    now: () => "2026-08-31T12:00:30.000Z",
     pickFiles: async () => ({ caseId: "transition" }),
     importCase: async () => ({
       workspaceSha256: "b".repeat(64),
@@ -263,7 +316,29 @@ test("preannotation review keeps completed saves when a later track fails and re
       tracks: [second],
       queue: [{ track: first }],
       summary: { associatedTrackCount: 1, unassociatedObservationCount: 1 },
+      campaign: {
+        workspaceSha256: "b".repeat(64),
+        packId: "real-match-pack",
+        caseCount: 1,
+        totalSuggestionCount: 2,
+        cases: [{
+          caseId: "transition",
+          totalSuggestionCount: 2,
+          associatedTrackCount: 1,
+          unassociatedObservationCount: 1,
+          missingSuggestedEntityTypes: [],
+        }],
+      },
     }),
+    loadDraft: async () => null,
+    saveDraft: async (_scope, value) => value,
+    removeDraft: async () => true,
+    loadCampaignCases: async () => [],
+    saveCampaignCase: async (_scope, value) => {
+      const record = { ...structuredClone(value), updatedAt: "2026-08-31T12:00:30.000Z" };
+      campaignWrites.push(record);
+      return record;
+    },
     persistTrack: async (value) => {
       if (value.id === second.id && failSecond) throw new Error("disk unavailable");
       persisted.push(value);
@@ -285,6 +360,12 @@ test("preannotation review keeps completed saves when a later track fails and re
   expect(state.presentation.current.sections[0].items[0].objectTracks).toHaveLength(1);
   expect(persisted.map((entry) => entry.id)).toEqual([first.id]);
   expect(invalidated).toBe(1);
+  expect(await controller.flushDraft()).toBe(true);
+  expect(campaignWrites.at(-1).reviewEffort).toMatchObject({
+    acceptActionCount: 2,
+    batchSaveActionCount: 1,
+    savedTrackActionCount: 1,
+  });
 
   failSecond = false;
   expect(await controller.saveAccepted()).toBe(true);
@@ -297,6 +378,12 @@ test("preannotation review keeps completed saves when a later track fails and re
   expect(state.presentation.current.sections[0].items[0].objectTracks).toHaveLength(2);
   expect(persisted.map((entry) => entry.id)).toEqual([first.id, second.id]);
   expect(invalidated).toBe(2);
+  expect(await controller.flushDraft()).toBe(true);
+  expect(campaignWrites.at(-1).reviewEffort).toMatchObject({
+    acceptActionCount: 2,
+    batchSaveActionCount: 2,
+    savedTrackActionCount: 2,
+  });
 });
 
 test("preannotation review refuses an import when the selected source changes while opening", async () => {
@@ -449,6 +536,7 @@ test("preannotation review restores and advances source-bound campaign progress"
     getState: () => state,
     updateState: (updater) => { state = updater(state); },
     getWindow: () => ({ crypto: globalThis.crypto }),
+    now: () => "2026-08-31T12:00:30.000Z",
     getDraftScope: () => draftScope,
     pickFiles: async () => ({ caseId: "transition" }),
     importCase: async () => ({
@@ -515,6 +603,12 @@ test("preannotation review restores and advances source-bound campaign progress"
     acceptedCount: 0,
     rejectedCount: 0,
     savedCount: 0,
+    reviewEffort: {
+      coverage: "complete",
+      openedCount: 1,
+      acceptActionCount: 0,
+      firstOpenedAt: "2026-08-31T12:00:30.000Z",
+    },
   });
   expect(state.presentation.tracking.preannotationReview.campaign).toMatchObject({
     status: "ready",
@@ -524,8 +618,10 @@ test("preannotation review restores and advances source-bound campaign progress"
     totalSuggestionCount: 5,
     decisionCount: 2,
     resolvedCount: 2,
+    reviewEffortCoverage: "partial",
+    reviewActionCount: 0,
     cases: [
-      { caseId: "transition", pendingCount: 2, decisionCount: 0, active: true },
+      { caseId: "transition", pendingCount: 2, decisionCount: 0, reviewActionCount: 0, active: true },
       { caseId: "other-case", pendingCount: 1, decisionCount: 2, active: false },
     ],
   });
@@ -538,13 +634,20 @@ test("preannotation review restores and advances source-bound campaign progress"
     acceptedCount: 1,
     rejectedCount: 0,
     savedCount: 0,
+    reviewEffort: {
+      coverage: "complete",
+      openedCount: 1,
+      acceptActionCount: 1,
+      lastActionAt: "2026-08-31T12:00:30.000Z",
+    },
   });
   expect(state.presentation.tracking.preannotationReview.campaign).toMatchObject({
     status: "ready",
     decisionCount: 3,
     resolvedCount: 2,
+    reviewActionCount: 1,
     cases: [
-      { caseId: "transition", acceptedCount: 1, complete: false },
+      { caseId: "transition", acceptedCount: 1, reviewActionCount: 1, complete: false },
       { caseId: "other-case", decisionCount: 2, resolvedCount: 2, complete: false },
     ],
   });

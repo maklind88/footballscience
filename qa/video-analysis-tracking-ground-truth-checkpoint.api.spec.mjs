@@ -156,3 +156,76 @@ test("ground-truth artifact creation re-audits every checkpoint before locking",
   expect(groundTruth.createGroundTruthArtifact(input, { now: () => 1_800_000_000_000 }))
     .toMatchObject({ reviewEvidence: { selectedTrackCount: 4 } });
 });
+
+test("completed review returns the analyst to the first historical checkpoint issue", async () => {
+  const panel = await import(moduleUrl(
+    "src/modules/video-analysis/components/TrackingGroundTruthPanel.js",
+  ));
+  const checkpoint = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingGroundTruthCheckpointService.js",
+  ));
+  const sceneReview = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingGroundTruthSceneReviewService.js",
+  ));
+  const selected = [track("player", "player"), track("ball", "ball"), track("referee", "referee")];
+  const outside = track("outside", "player", {
+    points: [0, 400].map((atMs) => ({
+      atMs,
+      x: 0.6,
+      y: 0.5,
+      width: 0.08,
+      height: 0.16,
+      groundX: 0.6,
+      groundY: 0.58,
+      confidence: 0.9,
+      identityConfidence: 0.9,
+    })),
+  });
+  outside.endMs = 400;
+  outside.segments[0].endMs = 400;
+  const truth = {
+    itemId: "clip-1",
+    status: "draft",
+    revision: 1,
+    benchmarkType: "multi-object",
+    sourceFingerprint: "a".repeat(64),
+    angleId: "primary",
+    frame: { width: 1920, height: 1080 },
+    range: { startMs: 0, endMs: 1000 },
+    selectedTrackIds: selected.map((entry) => entry.id),
+    benchmarkTargetTrackId: selected[0].id,
+    reviewedBy: "analyst-1",
+    attested: true,
+    exhaustiveSceneAttested: true,
+    scenarioTags: [],
+    error: "",
+  };
+  truth.sceneReview = sceneReview.trackingGroundTruthSceneReviewTimes(truth).reduce(
+    (review, atMs) => sceneReview.reviewTrackingGroundTruthSceneFrame(review, truth, atMs),
+    sceneReview.createTrackingGroundTruthSceneReview(truth),
+  );
+  expect(checkpoint.trackingGroundTruthCheckpointDiagnostics({
+    tracks: [...selected, outside],
+    selectedTrackIds: truth.selectedTrackIds,
+    benchmarkType: truth.benchmarkType,
+    atMs: 1000,
+  }).issues).toEqual([]);
+
+  const html = panel.renderTrackingGroundTruthPanel({
+    presentation: {
+      tracking: {
+        selectedTrackIds: [selected[0].id],
+        groundTruth: {
+          suite: { benchmarkType: "multi-object" },
+          byItemId: { [truth.itemId]: truth },
+        },
+      },
+    },
+  }, { id: truth.itemId, objectTracks: [...selected, outside] });
+
+  expect(html).toContain("First unresolved checkpoint");
+  expect(html).toContain("<time>0:00.0</time>");
+  expect(html).toContain("Player outside: outside reference");
+  expect(html).toContain('data-video-analysis-ground-truth-at-ms="0"');
+  expect(html).not.toContain("Final checkpoint");
+});

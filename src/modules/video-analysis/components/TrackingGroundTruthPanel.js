@@ -70,13 +70,6 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
   const primaryIsPlayer = primaryTrack?.entityType === "player";
   const primaryCanBeTarget = primaryIncluded && primaryTrack?.entityType === "player";
   const sceneReview = trackingGroundTruthSceneReviewProgress(truth.sceneReview, truth);
-  const checkpoint = trackingGroundTruthCheckpointDiagnostics({
-    tracks,
-    selectedTrackIds: referenceIds,
-    benchmarkType,
-    atMs: sceneReview.nextAtMs ?? sceneReview.expectedAtMs.at(-1) ?? truth.range?.startMs,
-  });
-  const checkpointIssues = checkpoint.issues.slice(0, 4);
   const readiness = locked ? lockedReadiness(truth) : groundTruthReadiness({
     tracks,
     selectedTrackIds: referenceIds,
@@ -92,6 +85,17 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
     sceneReview: truth.sceneReview,
     requireSceneReview: true,
   });
+  const unresolvedCheckpoint = readiness.checkpointAudit?.ready === false
+    && Number.isFinite(readiness.checkpointAudit.firstIssueAtMs);
+  const checkpoint = trackingGroundTruthCheckpointDiagnostics({
+    tracks,
+    selectedTrackIds: referenceIds,
+    benchmarkType,
+    atMs: unresolvedCheckpoint
+      ? readiness.checkpointAudit.firstIssueAtMs
+      : sceneReview.nextAtMs ?? sceneReview.expectedAtMs.at(-1) ?? truth.range?.startMs,
+  });
+  const checkpointIssues = checkpoint.issues.slice(0, 4);
   const issues = readiness.issues.slice(0, 3);
   const fingerprint = locked ? truth.lockedArtifact.sourceFingerprint : truth.sourceFingerprint;
   const frame = locked ? truth.lockedArtifact.frame : truth.frame;
@@ -128,7 +132,7 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
           </div>
           <progress max="${sceneReview.expectedSampleCount}" value="${sceneReview.reviewedSampleCount}">${escapeHtml(`${Math.round(sceneReview.coverageRatio * 100)}%`)}</progress>
           <section class="video-analysis-ground-truth__checkpoint" aria-label="Checkpoint diagnostics">
-            <header><strong>${sceneReview.complete ? "Final checkpoint" : "Next checkpoint"}</strong><time>${escapeHtml(checkpointTime(checkpoint.atMs))}</time></header>
+            <header><strong>${unresolvedCheckpoint ? "First unresolved checkpoint" : sceneReview.complete ? "Final checkpoint" : "Next checkpoint"}</strong><time>${escapeHtml(checkpointTime(checkpoint.atMs))}</time></header>
             <dl>
               <div><dt>Selected visible</dt><dd>${checkpoint.selectedVisibleCount}</dd></div>
               <div><dt>Occluded</dt><dd>${checkpoint.occludedCount}</dd></div>

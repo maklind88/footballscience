@@ -89,6 +89,7 @@ export function createInitialPresentationWorkspace() {
       interaction: null,
       job: null,
       error: "",
+      groundTruthHandoff: null,
       groundTruth: {
         byItemId: {},
         suite: {

@@ -328,6 +328,10 @@ test("review studio separates decision completion from locked Match 11 reference
         }, {
           caseId: "fast-transition",
           sourceSha256: "c".repeat(64),
+          itemId: "item-fast-transition",
+          clipId: "clip-fast-transition",
+          angleId: "wide",
+          resumeContextReady: true,
           complete: false,
           reviewEffortCoverage: "complete",
           savedCount: 2,
@@ -346,8 +350,72 @@ test("review studio separates decision completion from locked Match 11 reference
   expect(html).toContain("4/5 stages");
   expect(html).toContain("3/10 decisions");
   expect(html).toContain("Reconnect fast-transition (cccccc...cccc) and resolve 7 remaining suggestions.");
-  expect(html).toContain('data-video-analysis-load>Reconnect next case</button>');
+  expect(html).toContain('data-video-analysis-tracking-action="ground-truth-handoff-reconnect"');
+  expect(html).toContain(`data-video-analysis-ground-truth-handoff-source-sha256="${"c".repeat(64)}"`);
+  expect(html).toContain('data-video-analysis-ground-truth-handoff-item-id="item-fast-transition"');
   expect(html).not.toContain("2/2 references");
+});
+
+test("review handoff remains source-bound until the exact case opens", async () => {
+  const module = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingGroundTruthHandoffController.js",
+  ));
+  let currentState = state({});
+  let pickerCount = 0;
+  const controller = module.createTrackingGroundTruthHandoffController({
+    getState: () => currentState,
+    updateState: (updater) => { currentState = updater(currentState); },
+    openLocalVideoPicker: async () => { pickerCount += 1; return true; },
+  });
+  const element = {
+    dataset: {
+      videoAnalysisGroundTruthHandoffCaseId: "fast-transition",
+      videoAnalysisGroundTruthHandoffSourceSha256: "c".repeat(64),
+      videoAnalysisGroundTruthHandoffItemId: "item-fast-transition",
+      videoAnalysisGroundTruthHandoffClipId: "clip-fast-transition",
+      videoAnalysisGroundTruthHandoffAngleId: "wide",
+    },
+  };
+
+  expect(controller.handleAction("ground-truth-handoff-reconnect", element)).toBe(true);
+  await Promise.resolve();
+  expect(pickerCount).toBe(1);
+  expect(currentState.presentation.tracking.groundTruthHandoff).toEqual({
+    caseId: "fast-transition",
+    sourceSha256: "c".repeat(64),
+    itemId: "item-fast-transition",
+    clipId: "clip-fast-transition",
+    angleId: "wide",
+    resumeContextReady: true,
+    status: "awaiting-source",
+  });
+  expect(controller.complete({
+    caseId: "fast-transition",
+    sourceSha256: "d".repeat(64),
+  })).toBe(false);
+  expect(currentState.presentation.tracking.groundTruthHandoff).not.toBeNull();
+  expect(controller.complete({
+    caseId: "fast-transition",
+    sourceSha256: "c".repeat(64),
+    itemId: "another-item",
+    clipId: "clip-fast-transition",
+    angleId: "wide",
+  })).toBe(false);
+  expect(currentState.presentation.tracking.groundTruthHandoff).not.toBeNull();
+  expect(controller.complete({
+    caseId: "fast-transition",
+    sourceSha256: "c".repeat(64),
+    itemId: "item-fast-transition",
+    clipId: "clip-fast-transition",
+    angleId: "wide",
+  })).toBe(true);
+  expect(currentState.presentation.tracking.groundTruthHandoff).toBeNull();
+
+  expect(controller.start({
+    dataset: { videoAnalysisGroundTruthHandoffCaseId: "fast-transition" },
+  })).toBe(true);
+  expect(pickerCount).toBe(1);
+  expect(currentState.presentation.tracking.error).toMatch(/missing its sealed source identity/i);
 });
 
 test("review studio never counts a crossed-source workload as a locked campaign reference", async () => {
@@ -422,6 +490,10 @@ test("review studio accepts the real normalized campaign coverage contract", asy
     activeCaseId: "attacking-third",
     current: {
       caseId: "attacking-third",
+      sourceSha256: "a".repeat(64),
+      itemId: "item-1",
+      clipId: "clip-1",
+      angleId: "primary",
       totalSuggestionCount: 2,
       pendingCount: 0,
       acceptedCount: 0,

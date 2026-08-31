@@ -86,6 +86,9 @@ export function createTrackingPreannotationCampaignController(options = {}) {
       if (restored && !sameCaseIdentity(session, restored)) {
         throw new Error("Campaign progress belongs to another clip or match source.");
       }
+      trackingPreannotationCampaignProgress(session.campaign, records, {
+        activeCaseId: session.caseId,
+      });
       session.reviewEffort = normalizeTrackingPreannotationReviewEffort(
         restored?.reviewEffort || session.reviewEffort,
       );
@@ -96,6 +99,7 @@ export function createTrackingPreannotationCampaignController(options = {}) {
       );
       return await persist(session, summary);
     } catch (error) {
+      records = [];
       return view(
         session,
         summary,

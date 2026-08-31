@@ -14,6 +14,7 @@ import { createTrackingGraphicController } from "./trackingGraphicController.js"
 import { createTrackingReviewController } from "./trackingReviewController.js";
 import { createTrackingCandidateController } from "./trackingCandidateController.js";
 import { createTrackingPreannotationReviewController } from "./trackingPreannotationReviewController.js";
+import { createTrackingGroundTruthHandoffController } from "./trackingGroundTruthHandoffController.js";
 import { createTrackingTrackLifecycleController } from "./trackingTrackLifecycleController.js";
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
 import { normalizeTrackingJobProgress } from "../services/trackingProgressService.js";
@@ -141,6 +142,11 @@ export function createTrackingController(options = {}) {
     onEvidenceChanged: benchmark.invalidate,
     now,
   });
+  const groundTruthHandoff = createTrackingGroundTruthHandoffController({
+    getState,
+    updateState,
+    openLocalVideoPicker: options.openLocalVideoPicker,
+  });
   const preannotationReviewController = createTrackingPreannotationReviewController({
     getState,
     updateState,
@@ -150,6 +156,7 @@ export function createTrackingController(options = {}) {
     getCurrentMatchMs,
     seekToMatchMs: options.seekToMatchMs,
     persistTrack,
+    onCaseOpened: groundTruthHandoff.complete,
     onEvidenceChanged: (itemId) => {
       groundTruth.invalidateDraft(itemId);
       benchmark.invalidate();
@@ -431,6 +438,7 @@ export function createTrackingController(options = {}) {
     if (action === "refresh-provider") { void providerRuns.refresh(); return true; }
     if (action === "retry-benchmark-storage") { void options.retryBenchmarkStorage?.(); return true; }
     if (action === "retry-tracking-workspace") { void options.retryTrackingWorkspace?.(); return true; }
+    if (groundTruthHandoff.handleAction(action, actionElement)) return true;
     if (action === "cancel") {
       const cancelled = trackingJob.cancel();
       if (cancelled) updateState((state) => trackingPatch(state, {

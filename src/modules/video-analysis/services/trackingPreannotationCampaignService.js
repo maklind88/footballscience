@@ -27,6 +27,11 @@ function identifier(value, label) {
   return text;
 }
 
+function optionalIdentifier(value, label) {
+  const text = String(value || "").trim();
+  return text ? identifier(text, label) : "";
+}
+
 function integer(value, label, maximum = maximumSuggestionsPerCase) {
   const number = Number(value);
   if (!Number.isSafeInteger(number) || number < 0 || number > maximum) invalid(`Invalid ${label}.`);
@@ -96,8 +101,26 @@ function caseProgress(value = {}, campaignCaseValue = {}, campaign = {}) {
     invalid("Campaign progress belongs to another sealed workspace.");
   }
   const totalSuggestionCount = integer(value.totalSuggestionCount, "campaign progress suggestion count");
+  const sourceSha256 = value.sourceSha256
+    ? sha256(value.sourceSha256, "campaign progress source checksum")
+    : "";
+  if (campaignCaseValue.sourceSha256 && sourceSha256 !== campaignCaseValue.sourceSha256) {
+    invalid("Campaign progress belongs to another sealed case source.");
+  }
+  const itemId = optionalIdentifier(value.itemId, "campaign progress item id");
+  const clipId = optionalIdentifier(value.clipId, "campaign progress clip id");
+  const angleId = optionalIdentifier(value.angleId, "campaign progress angle id");
+  const resumeContextCount = [itemId, clipId, angleId].filter(Boolean).length;
+  if (resumeContextCount && resumeContextCount !== 3) {
+    invalid("Campaign progress resume context is incomplete.");
+  }
   const progress = {
     caseId: identifier(value.caseId, "campaign progress case id"),
+    sourceSha256: campaignCaseValue.sourceSha256 || sourceSha256,
+    itemId,
+    clipId,
+    angleId,
+    resumeContextReady: resumeContextCount === 3,
     totalSuggestionCount,
     pendingCount: integer(value.pendingCount, "campaign pending count"),
     acceptedCount: integer(value.acceptedCount, "campaign accepted count"),
@@ -128,6 +151,11 @@ export function trackingPreannotationCampaignProgress(campaignValue = {}, record
     const stored = byCaseId.get(entry.caseId);
     const progress = stored ? caseProgress(stored, entry, campaign) : {
       caseId: entry.caseId,
+      sourceSha256: entry.sourceSha256,
+      itemId: "",
+      clipId: "",
+      angleId: "",
+      resumeContextReady: false,
       totalSuggestionCount: entry.totalSuggestionCount,
       pendingCount: entry.totalSuggestionCount,
       acceptedCount: 0,

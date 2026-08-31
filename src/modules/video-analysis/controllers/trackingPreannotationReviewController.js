@@ -298,6 +298,13 @@ export function createTrackingPreannotationReviewController(options = {}) {
         current: null,
         error: "",
       });
+      options.onCaseOpened?.({
+        caseId: imported.caseId,
+        sourceSha256: imported.sourceSha256,
+        itemId: item.id,
+        clipId,
+        angleId,
+      });
       return show(pendingIndex(0));
     } catch (error) {
       if (error?.name === "AbortError") {

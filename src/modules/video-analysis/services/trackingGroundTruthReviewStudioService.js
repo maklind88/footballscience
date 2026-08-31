@@ -92,7 +92,12 @@ function campaignReviewCases(review = {}, suite = {}) {
     const referenceLocked = lockedCaseKeys.has(`${caseId}:${sourceSha256}`);
     return {
       id: caseId,
+      sourceSha256,
       sourceHint: sourceHint(sourceSha256),
+      itemId: String(entry.itemId || ""),
+      clipId: String(entry.clipId || ""),
+      angleId: String(entry.angleId || ""),
+      resumeContextReady: entry.resumeContextReady === true,
       active: caseId === String(review.caseId || ""),
       decisionCount: Math.max(0, Number(entry.decisionCount) || 0),
       totalSuggestionCount: Math.max(0, Number(entry.totalSuggestionCount) || 0),
@@ -245,14 +250,27 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
     };
   } else if (locked && !suiteReadiness.ready) {
     const handoff = nextCampaignHandoff(campaignCases, review.caseId);
+    const requested = tracking.groundTruthHandoff;
+    const awaitingHandoff = requested?.caseId === handoff?.id
+      && requested?.sourceSha256 === handoff?.sourceSha256;
     next = {
-      title: "Continue the real-match suite",
+      title: awaitingHandoff ? `Reconnect ${handoff.id}` : "Continue the real-match suite",
       detail: handoff
-        ? handoff.decisionsComplete
+        ? awaitingHandoff
+          ? `Expected source ${handoff.sourceHint}. Open its sealed workspace only after the exact local video is connected.`
+          : handoff.decisionsComplete
           ? `Reconnect ${handoff.id} (${handoff.sourceHint}) and prepare its independent reference.`
           : `Reconnect ${handoff.id} (${handoff.sourceHint}) and resolve ${handoff.pendingCount} remaining suggestions.`
         : suiteReadiness.issues[0]?.message || "Connect the next representative match case.",
-      actions: handoff ? [{ label: "Reconnect next case", loadVideo: true }] : [],
+      actions: handoff ? [action("ground-truth-handoff-reconnect", awaitingHandoff ? "Choose video again" : "Reconnect next case", {
+        videoAnalysisGroundTruthHandoffCaseId: handoff.id,
+        videoAnalysisGroundTruthHandoffSourceSha256: handoff.sourceSha256,
+        ...(handoff.resumeContextReady ? {
+          videoAnalysisGroundTruthHandoffItemId: handoff.itemId,
+          videoAnalysisGroundTruthHandoffClipId: handoff.clipId,
+          videoAnalysisGroundTruthHandoffAngleId: handoff.angleId,
+        } : {}),
+      })] : [],
     };
   } else if (suiteReadiness.ready && !evaluationComplete) {
     next = {

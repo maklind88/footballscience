@@ -54,6 +54,10 @@ test("preannotation campaign reconciles every sealed case and current review dec
   const normalized = service.normalizeTrackingPreannotationCampaign(campaign());
   const progress = service.trackingPreannotationCampaignProgress(normalized, [{
     caseId: "attacking-third",
+    sourceSha256: "a".repeat(64),
+    itemId: "item-attacking-third",
+    clipId: "clip-attacking-third",
+    angleId: "primary",
     totalSuggestionCount: 25,
     pendingCount: 10,
     acceptedCount: 2,
@@ -77,6 +81,10 @@ test("preannotation campaign reconciles every sealed case and current review dec
     activeCaseId: "fast-transition",
     current: {
       caseId: "fast-transition",
+      sourceSha256: "c".repeat(64),
+      itemId: "item-fast-transition",
+      clipId: "clip-fast-transition",
+      angleId: "wide",
       totalSuggestionCount: 15,
       pendingCount: 0,
       acceptedCount: 0,
@@ -122,6 +130,10 @@ test("preannotation campaign reconciles every sealed case and current review dec
         reviewEffortCoverage: "complete",
         undoActionCount: 2,
         correctionHandoffCount: 1,
+        resumeContextReady: true,
+        itemId: "item-attacking-third",
+        clipId: "clip-attacking-third",
+        angleId: "primary",
         complete: false,
         active: false,
       },
@@ -131,6 +143,10 @@ test("preannotation campaign reconciles every sealed case and current review dec
         resolvedCount: 15,
         reviewActionCount: 16,
         reworkActionCount: 0,
+        resumeContextReady: true,
+        itemId: "item-fast-transition",
+        clipId: "clip-fast-transition",
+        angleId: "wide",
         complete: true,
         active: true,
       },
@@ -149,6 +165,10 @@ test("preannotation campaign reconciles every sealed case and current review dec
   expect(() => service.trackingPreannotationCampaignProgress(normalized, [], {
     current: {
       caseId: "fast-transition",
+      sourceSha256: "c".repeat(64),
+      itemId: "item-fast-transition",
+      clipId: "clip-fast-transition",
+      angleId: "wide",
       totalSuggestionCount: 15,
       pendingCount: 1,
       acceptedCount: 1,
@@ -160,6 +180,7 @@ test("preannotation campaign reconciles every sealed case and current review dec
     caseId: "attacking-third",
     workspaceSha256: "c".repeat(64),
     packId: "real-match-pack",
+    sourceSha256: "a".repeat(64),
     totalSuggestionCount: 25,
     pendingCount: 25,
     acceptedCount: 0,
@@ -170,12 +191,39 @@ test("preannotation campaign reconciles every sealed case and current review dec
     caseId: "attacking-third",
     workspaceSha256: "b".repeat(64),
     packId: "another-pack",
+    sourceSha256: "a".repeat(64),
     totalSuggestionCount: 25,
     pendingCount: 25,
     acceptedCount: 0,
     rejectedCount: 0,
     savedCount: 0,
   }])).toThrow(/another sealed workspace/i);
+  expect(() => service.trackingPreannotationCampaignProgress(normalized, [{
+    caseId: "attacking-third",
+    workspaceSha256: "b".repeat(64),
+    packId: "real-match-pack",
+    sourceSha256: "c".repeat(64),
+    itemId: "item-attacking-third",
+    clipId: "clip-attacking-third",
+    angleId: "primary",
+    totalSuggestionCount: 25,
+    pendingCount: 25,
+    acceptedCount: 0,
+    rejectedCount: 0,
+    savedCount: 0,
+  }])).toThrow(/another sealed case source/i);
+  expect(() => service.trackingPreannotationCampaignProgress(normalized, [{
+    caseId: "attacking-third",
+    workspaceSha256: "b".repeat(64),
+    packId: "real-match-pack",
+    sourceSha256: "a".repeat(64),
+    itemId: "item-attacking-third",
+    totalSuggestionCount: 25,
+    pendingCount: 25,
+    acceptedCount: 0,
+    rejectedCount: 0,
+    savedCount: 0,
+  }])).toThrow(/resume context is incomplete/i);
 });
 
 test("local preannotation campaign ledger is tenant, source and workspace bound", async () => {
@@ -339,4 +387,59 @@ test("preannotation campaign refuses effort restored from another exact clip or 
   });
   expect(saveCount).toBe(0);
   expect(session.reviewEffort).toMatchObject({ coverage: "complete", openedCount: 0 });
+});
+
+test("preannotation campaign rejects another case's crossed source before saving the active case", async () => {
+  const controllerModule = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingPreannotationCampaignController.js",
+  ));
+  let saveCount = 0;
+  const controller = controllerModule.createTrackingPreannotationCampaignController({
+    getWindow: () => ({}),
+    now: () => "2026-08-31T15:00:00.000Z",
+    loadCampaignCases: async () => [{
+      workspaceSha256: "b".repeat(64),
+      packId: "real-match-pack",
+      caseId: "fast-transition",
+      itemId: "item-fast-transition",
+      clipId: "clip-fast-transition",
+      angleId: "primary",
+      sourceSha256: "a".repeat(64),
+      totalSuggestionCount: 15,
+      pendingCount: 0,
+      acceptedCount: 0,
+      rejectedCount: 10,
+      savedCount: 5,
+      reviewEffort: { coverage: "complete", openedCount: 1 },
+      updatedAt: "2026-08-31T14:00:00.000Z",
+    }],
+    saveCampaignCase: async () => { saveCount += 1; },
+  });
+  const session = {
+    scope: scope(),
+    campaign: campaign(),
+    caseId: "attacking-third",
+    itemId: "item-attacking-third",
+    clipId: "clip-attacking-third",
+    angleId: "primary",
+    sourceSha256: "a".repeat(64),
+    entries: Array.from({ length: 25 }),
+  };
+  const result = await controller.open(session, {
+    pendingCount: 25,
+    acceptedCount: 0,
+    rejectedCount: 0,
+    savedCount: 0,
+  });
+
+  expect(result).toMatchObject({
+    status: "error",
+    error: "Campaign progress belongs to another sealed case source.",
+  });
+  expect(result.cases.find((entry) => entry.caseId === "fast-transition")).toMatchObject({
+    pendingCount: 15,
+    complete: false,
+    resumeContextReady: false,
+  });
+  expect(saveCount).toBe(0);
 });

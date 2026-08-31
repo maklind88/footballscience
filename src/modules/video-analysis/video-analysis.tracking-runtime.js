@@ -79,6 +79,7 @@ export function createVideoAnalysisTrackingRuntime(options = {}) {
     getVideoElement: options.getVideoElement,
     getCurrentMatchMs: options.getCurrentMatchMs,
     seekToMatchMs: options.seekToMatchMs,
+    openLocalVideoPicker: options.openLocalVideoPicker,
     getWindow: () => getRuntime()?.context?.win || context.win || window,
     getStore: () => getRuntime()?.store,
     getContext: () => getRuntime()?.context || context,

@@ -81,6 +81,7 @@ test("preannotation review decisions stay local, support undo, and persist only 
   let state = initialState();
   const persisted = [];
   const seeks = [];
+  const openedCases = [];
   let invalidated = 0;
   const associated = track("associated-player", "player", 1000, 0.8, "associated");
   const unassociated = track("unassociated-ball", "ball", 500, 0.4, "unassociated");
@@ -111,6 +112,7 @@ test("preannotation review decisions stay local, support undo, and persist only 
       persisted.push(value);
       return value;
     },
+    onCaseOpened: (value) => openedCases.push(value),
     onEvidenceChanged: () => { invalidated += 1; },
   });
 
@@ -133,6 +135,13 @@ test("preannotation review decisions stay local, support undo, and persist only 
   });
   expect(state.presentation.current.sections[0].items[0].objectTracks).toHaveLength(1);
   expect(persisted).toHaveLength(0);
+  expect(openedCases).toEqual([{
+    caseId: "transition",
+    sourceSha256: "a".repeat(64),
+    itemId: "item-1",
+    clipId: "clip-1",
+    angleId: "primary",
+  }]);
 
   expect(controller.handleAction("preannotation-accept")).toBe(true);
   expect(state.presentation.tracking.preannotationReview).toMatchObject({

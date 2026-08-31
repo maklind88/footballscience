@@ -11,11 +11,32 @@ function actionButton(value = {}, primary = false) {
   return `<button type="button" class="${primary ? "is-primary" : ""}" data-video-analysis-tracking-action="${escapeHtml(value.id)}"${data}>${escapeHtml(value.label)}</button>`;
 }
 
+function renderCampaign(campaign = {}) {
+  if (!campaign.cases?.length) return "";
+  return `
+    <div class="video-analysis-ground-truth-studio__campaign">
+      <div><span>Match 11 campaign</span><strong>${escapeHtml(`${campaign.referenceCaseCount}/${campaign.caseCount} references`)}</strong></div>
+      <ol>
+        ${campaign.cases.map((entry) => `
+          <li class="is-${escapeHtml(entry.status)}${entry.active ? " is-active" : ""}">
+            <div><strong>${escapeHtml(entry.id)}</strong><small>${escapeHtml(entry.sourceHint)}</small></div>
+            <span>${escapeHtml(entry.referenceLocked
+    ? "Reference locked"
+    : entry.decisionsComplete
+      ? "Ready for reference"
+      : `${entry.decisionCount}/${entry.totalSuggestionCount} decisions`)}</span>
+          </li>
+        `).join("")}
+      </ol>
+    </div>
+  `;
+}
+
 export function renderTrackingGroundTruthReviewStudio(state = {}, item = null) {
   const studio = trackingGroundTruthReviewStudioState(state, item);
   const completed = studio.stages.filter((entry) => entry.status === "complete").length;
   const campaignLabel = studio.campaign.caseCount
-    ? `${studio.campaign.completeCaseCount}/${studio.campaign.caseCount} cases`
+    ? `${studio.campaign.referenceCaseCount}/${studio.campaign.caseCount} refs`
     : "Pilot review";
   return `
     <section class="video-analysis-ground-truth-studio" aria-label="Ground truth review studio">
@@ -32,6 +53,7 @@ export function renderTrackingGroundTruthReviewStudio(state = {}, item = null) {
           </li>
         `).join("")}
       </ol>
+      ${renderCampaign(studio.campaign)}
       <div class="video-analysis-ground-truth-studio__next" aria-live="polite">
         <span>Next safe action</span>
         <strong>${escapeHtml(studio.next.title)}</strong>

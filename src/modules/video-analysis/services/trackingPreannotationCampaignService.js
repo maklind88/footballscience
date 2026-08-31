@@ -58,6 +58,9 @@ function campaignCase(value = {}) {
   }
   return {
     caseId: identifier(value.caseId, "campaign case id"),
+    sourceSha256: value.sourceSha256
+      ? sha256(value.sourceSha256, "campaign case source checksum")
+      : "",
     totalSuggestionCount,
     associatedTrackCount,
     unassociatedObservationCount,
@@ -141,10 +144,13 @@ export function trackingPreannotationCampaignProgress(campaignValue = {}, record
       ...entry,
       ...progress,
       reviewEffort: effort,
+      reviewEffortCoverage: effort.coverage,
       decisionCount: progress.acceptedCount + progress.rejectedCount + progress.savedCount,
       resolvedCount: progress.rejectedCount + progress.savedCount,
       reviewActionCount: effort.reviewActionCount,
       reworkActionCount: effort.reworkActionCount,
+      undoActionCount: effort.undoActionCount,
+      correctionHandoffCount: effort.correctionHandoffCount,
       reviewActionsPer100Suggestions: effort.reviewActionsPer100Suggestions,
       complete: progress.pendingCount === 0 && progress.acceptedCount === 0,
       active: entry.caseId === String(options.activeCaseId || ""),

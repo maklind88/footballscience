@@ -58,13 +58,13 @@ function renderCampaign(value = null) {
     <section class="video-analysis-preannotation__campaign" aria-label="Annotation campaign progress">
       <header>
         <div><span>Annotation campaign</span><strong>${count(value.decisionCount)}/${count(value.totalSuggestionCount)} decisions</strong><span>${count(value.reviewActionCount)} review actions | ${count(value.reviewActionsPer100Suggestions)}/100 suggestions</span></div>
-        <em>${count(value.completeCaseCount)}/${count(value.caseCount)} complete</em>
+        <em>${count(value.completeCaseCount)}/${count(value.caseCount)} decision queues</em>
       </header>
       <ol>
         ${value.cases.map((entry) => `
           <li class="${entry.active ? "is-active" : ""}${entry.complete ? " is-complete" : ""}" ${entry.active ? 'aria-current="step"' : ""}>
             <div><strong>${escapeHtml(entry.caseId)}</strong><span>${count(entry.decisionCount)}/${count(entry.totalSuggestionCount)} decisions | ${count(entry.resolvedCount)} resolved</span><span>${count(entry.reviewActionCount)} actions | ${count(entry.undoActionCount)} undo | ${count(entry.correctionHandoffCount)} correct</span></div>
-            ${(entry.missingSuggestedEntityTypes || []).length ? `<em>Find ${escapeHtml(entry.missingSuggestedEntityTypes.join(", "))}</em>` : entry.complete ? "<em>Complete</em>" : "<em>Pending</em>"}
+            ${(entry.missingSuggestedEntityTypes || []).length ? `<em>Find ${escapeHtml(entry.missingSuggestedEntityTypes.join(", "))}</em>` : entry.complete ? "<em>Decisions complete</em>" : "<em>Pending decisions</em>"}
           </li>
         `).join("")}
       </ol>

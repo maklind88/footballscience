@@ -134,6 +134,98 @@
   font-size: 8px;
 }
 
+.video-analysis-ground-truth-studio__campaign {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border-block: 1px solid #dde5e0;
+  padding-block: 7px;
+}
+
+.video-analysis-ground-truth-studio__campaign > div,
+.video-analysis-ground-truth-studio__campaign li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+}
+
+.video-analysis-ground-truth-studio__campaign > div span,
+.video-analysis-ground-truth-studio__campaign > div strong {
+  color: #64736b;
+  font-size: 8px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.video-analysis-ground-truth-studio__campaign > div strong {
+  color: #315c47;
+}
+
+.video-analysis-ground-truth-studio__campaign ol {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video-analysis-ground-truth-studio__campaign li {
+  min-height: 30px;
+  border-left: 2px solid #c8d2cc;
+  padding: 4px 0 4px 7px;
+}
+
+.video-analysis-ground-truth-studio__campaign li.is-active {
+  border-left-color: #b7791f;
+}
+
+.video-analysis-ground-truth-studio__campaign li.is-locked {
+  border-left-color: #26734b;
+}
+
+.video-analysis-ground-truth-studio__campaign li > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.video-analysis-ground-truth-studio__campaign li strong,
+.video-analysis-ground-truth-studio__campaign li small,
+.video-analysis-ground-truth-studio__campaign li > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-ground-truth-studio__campaign li strong {
+  color: #2a3b32;
+  font-size: 8px;
+}
+
+.video-analysis-ground-truth-studio__campaign li small {
+  color: #7a867f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 7px;
+}
+
+.video-analysis-ground-truth-studio__campaign li > span {
+  flex: 0 0 auto;
+  max-width: 120px;
+  color: #6b7770;
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.video-analysis-ground-truth-studio__campaign li.is-reference > span {
+  color: #895b16;
+}
+
+.video-analysis-ground-truth-studio__campaign li.is-locked > span {
+  color: #17623c;
+}
+
 .video-analysis-ground-truth-studio__next {
   display: grid;
   gap: 4px;

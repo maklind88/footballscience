@@ -28,6 +28,7 @@ function campaign(overrides = {}) {
     cases: [
       {
         caseId: "attacking-third",
+        sourceSha256: "a".repeat(64),
         totalSuggestionCount: 25,
         associatedTrackCount: 10,
         unassociatedObservationCount: 15,
@@ -35,6 +36,7 @@ function campaign(overrides = {}) {
       },
       {
         caseId: "fast-transition",
+        sourceSha256: "c".repeat(64),
         totalSuggestionCount: 15,
         associatedTrackCount: 5,
         unassociatedObservationCount: 10,
@@ -117,6 +119,9 @@ test("preannotation campaign reconciles every sealed case and current review dec
         resolvedCount: 13,
         reviewActionCount: 19,
         reworkActionCount: 3,
+        reviewEffortCoverage: "complete",
+        undoActionCount: 2,
+        correctionHandoffCount: 1,
         complete: false,
         active: false,
       },
@@ -132,6 +137,13 @@ test("preannotation campaign reconciles every sealed case and current review dec
     ],
   });
   expect(progress.cases[0].missingSuggestedEntityTypes).toEqual(["referee"]);
+  expect(progress.cases.map((entry) => entry.sourceSha256)).toEqual([
+    "a".repeat(64),
+    "c".repeat(64),
+  ]);
+  expect(() => service.normalizeTrackingPreannotationCampaign(campaign({
+    cases: [{ ...campaign().cases[0], sourceSha256: "changed" }, campaign().cases[1]],
+  }))).toThrow(/source checksum/i);
   expect(() => service.normalizeTrackingPreannotationCampaign(campaign({ totalSuggestionCount: 39 })))
     .toThrow(/workload summary/i);
   expect(() => service.trackingPreannotationCampaignProgress(normalized, [], {

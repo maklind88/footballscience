@@ -53,6 +53,46 @@ function suggestionActions(review = {}) {
   return [];
 }
 
+function sourceHint(value = "") {
+  const fingerprint = String(value || "");
+  return fingerprintPattern.test(fingerprint)
+    ? `${fingerprint.slice(0, 6)}...${fingerprint.slice(-4)}`
+    : "Source unavailable";
+}
+
+function campaignReviewCases(review = {}, suite = {}) {
+  const workspaceSha256 = String(review.workspaceSha256 || "");
+  const lockedCaseIds = new Set((suite.cases || []).flatMap((artifact) => {
+    const evidence = artifact.workloadEvidence || {};
+    return evidence.workspaceSha256 === workspaceSha256 && evidence.caseId
+      ? [String(evidence.caseId)]
+      : [];
+  }));
+  return (review.campaign?.cases || []).map((entry) => {
+    const decisionsComplete = entry.complete === true
+      && entry.reviewEffortCoverage === "complete"
+      && Number(entry.savedCount) > 0;
+    const referenceLocked = lockedCaseIds.has(String(entry.caseId));
+    return {
+      id: String(entry.caseId || ""),
+      sourceHint: sourceHint(entry.sourceSha256),
+      active: String(entry.caseId || "") === String(review.caseId || ""),
+      decisionCount: Math.max(0, Number(entry.decisionCount) || 0),
+      totalSuggestionCount: Math.max(0, Number(entry.totalSuggestionCount) || 0),
+      pendingCount: Math.max(0, Number(entry.pendingCount) || 0),
+      decisionsComplete,
+      referenceLocked,
+      status: referenceLocked ? "locked" : decisionsComplete ? "reference" : "decisions",
+    };
+  });
+}
+
+function nextCampaignHandoff(cases = [], currentCaseId = "") {
+  return cases.find((entry) => !entry.referenceLocked && entry.id !== currentCaseId)
+    || cases.find((entry) => !entry.referenceLocked)
+    || null;
+}
+
 export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
   const tracking = state.presentation?.tracking || {};
   const workspace = tracking.groundTruth || {};
@@ -61,6 +101,7 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
   const suiteReadiness = groundTruthSuiteReadiness(suite);
   const review = tracking.preannotationReview || {};
   const campaignCase = review.campaign?.cases?.find((entry) => entry.caseId === review.caseId);
+  const campaignCases = campaignReviewCases(review, suite);
   const tracks = (item?.objectTracks || []).map(normalizeObjectTrack).filter((track) => (
     track.status !== "archived" && track.metadata?.preannotationReviewPreview !== true
   ));
@@ -83,6 +124,7 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
   const decisionsComplete = campaignDecisionsComplete && unresolvedRoles.length === 0;
   const referencePrepared = Boolean(truth.workloadEvidence && (truth.selectedTrackIds || []).length);
   const scene = trackingGroundTruthSceneReviewProgress(truth.sceneReview, truth);
+  const sceneComplete = locked || scene.complete;
   const readiness = locked ? { ready: true, issues: [] } : groundTruthReadiness({
     ...truth,
     tracks,
@@ -103,10 +145,10 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
         : unresolvedRoles.length
           ? `${unresolvedRoles.length} saved roles unresolved`
           : workspaceReady ? `${Number(review.pendingCount) || 0} suggestions pending` : "Waiting for workspace"),
-    stage("scene", "Scene review", scene.complete ? "complete" : decisionsComplete ? "active" : "pending",
-      scene.complete ? `${scene.expectedSampleCount} checkpoints reviewed` : decisionsComplete ? `${scene.reviewedSampleCount}/${scene.expectedSampleCount} checkpoints` : "Waiting for decisions"),
-    stage("lock", "Reference", locked ? "complete" : scene.complete ? "active" : "pending",
-      locked ? `Locked revision ${truth.revision || 1}` : scene.complete ? readiness.issues[0]?.message || "Ready for attestation" : "Waiting for scene review"),
+    stage("scene", "Scene review", sceneComplete ? "complete" : decisionsComplete ? "active" : "pending",
+      locked && !scene.complete ? "Verified by locked reference" : scene.complete ? `${scene.expectedSampleCount} checkpoints reviewed` : decisionsComplete ? `${scene.reviewedSampleCount}/${scene.expectedSampleCount} checkpoints` : "Waiting for decisions"),
+    stage("lock", "Reference", locked ? "complete" : sceneComplete ? "active" : "pending",
+      locked ? `Locked revision ${truth.revision || 1}` : sceneComplete ? readiness.issues[0]?.message || "Ready for attestation" : "Waiting for scene review"),
     stage("measure", "Measurement", evaluationComplete ? "complete" : suiteReadiness.ready ? "active" : "pending",
       evaluationComplete ? "TrackEval evidence complete" : suiteReadiness.ready ? "Ready to run TrackEval" : `${suiteReadiness.caseCount}/5 cases | ${(suiteReadiness.uniqueDurationMs / 60_000).toFixed(1)}/10.0 min`),
   ];
@@ -168,9 +210,14 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
       actions: [],
     };
   } else if (locked && !suiteReadiness.ready) {
+    const handoff = nextCampaignHandoff(campaignCases, review.caseId);
     next = {
       title: "Continue the real-match suite",
-      detail: suiteReadiness.issues[0]?.message || "Connect the next representative match case.",
+      detail: handoff
+        ? handoff.decisionsComplete
+          ? `Reconnect ${handoff.id} (${handoff.sourceHint}) and prepare its independent reference.`
+          : `Reconnect ${handoff.id} (${handoff.sourceHint}) and resolve ${handoff.pendingCount} remaining suggestions.`
+        : suiteReadiness.issues[0]?.message || "Connect the next representative match case.",
       actions: [],
     };
   } else if (suiteReadiness.ready && !evaluationComplete) {
@@ -192,6 +239,8 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
     campaign: {
       caseCount: Math.max(0, Number(review.campaign?.caseCount) || 0),
       completeCaseCount: Math.max(0, Number(review.campaign?.completeCaseCount) || 0),
+      referenceCaseCount: campaignCases.filter((entry) => entry.referenceLocked).length,
+      cases: campaignCases,
     },
     currentStageId: stages.find((entry) => entry.status !== "complete")?.id || "measure",
     stages,

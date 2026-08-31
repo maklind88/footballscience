@@ -266,6 +266,7 @@ export async function importTrackingPreannotationReviewCase(value = {}, options 
     totalSuggestionCount: workspace.summary?.trackCount,
     cases: (workspace.cases || []).map((entry) => ({
       caseId: entry.id,
+      sourceSha256: pack.cases?.find((packCase) => packCase.id === entry.id)?.clip?.sha256,
       totalSuggestionCount: entry.summary?.trackCount,
       associatedTrackCount: entry.summary?.associatedTrackCount,
       unassociatedObservationCount: entry.summary?.unassociatedObservationCount,

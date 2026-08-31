@@ -119,7 +119,8 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   expect(html).toContain("28 review actions | 93.33/100 suggestions");
   expect(html).toContain("18 actions | 2 undo | 3 correct");
   expect(html).toContain("Effort capture partial");
-  expect(html).toContain("1/2 complete");
+  expect(html).toContain("1/2 decision queues");
+  expect(html).toContain("Decisions complete");
   expect(html).toContain("Find referee");
   expect(html).toContain('aria-current="step"');
   expect(html).toContain("Protected on this device");

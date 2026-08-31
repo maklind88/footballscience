@@ -38,6 +38,14 @@ test("known negative command is compiled but never granted", async () => {
   assert.match(runtime, /generate_handler![\s\S]*internal_denied_probe/);
 });
 
+test("Windows resource icon is a valid multi-image ICO", async () => {
+  const config = JSON.parse(await text("src-tauri/tauri.conf.json"));
+  const icon = await readFile(new URL("src-tauri/icons/icon.ico", packageRoot));
+  assert.ok(config.bundle.icon.includes("icons/icon.ico"));
+  assert.deepEqual([...icon.subarray(0, 4)], [0, 0, 1, 0]);
+  assert.ok(icon.readUInt16LE(4) > 1);
+});
+
 test("Windows CI helpers load successfully before the platform guard", () => {
   for (const helper of ["build-windows-candidates.mjs", "windows-ci-verifier.mjs"]) {
     const result = spawnSync(process.execPath, [fileURLToPath(new URL(`../tools/${helper}`, import.meta.url)), "--load-check"], {

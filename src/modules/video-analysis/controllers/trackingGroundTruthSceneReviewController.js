@@ -5,8 +5,15 @@ import {
   trackingGroundTruthSceneReviewProgress,
 } from "../services/trackingGroundTruthSceneReviewService.js";
 import { trackingGroundTruthCheckpointDiagnostics } from "../services/trackingGroundTruthCheckpointService.js";
+import { shouldIgnoreShortcutTarget } from "../services/codingTemplateService.js";
 import { selectedTrackingItem } from "./trackingControllerHelpers.js";
 import { createTrackingContextReplayController } from "./trackingContextReplayController.js";
+
+const SCENE_REVIEW_SHORTCUTS = Object.freeze({
+  n: "next",
+  p: "preview",
+  v: "verify",
+});
 
 export function createTrackingGroundTruthSceneReviewController(options = {}) {
   const {
@@ -31,11 +38,23 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
     updateState((state) => patchGroundTruth(state, itemId, patch));
   }
 
-  function markAndNext() {
+  function checkpointAt(context, state, requestedAtMs = null) {
+    const requested = Number(requestedAtMs);
+    const hasRequestedCheckpoint = requestedAtMs !== null
+      && requestedAtMs !== undefined
+      && requestedAtMs !== ""
+      && Number.isFinite(requested);
+    return trackingGroundTruthSceneReviewCheckpointAt(
+      context,
+      hasRequestedCheckpoint ? requested : currentAtMs(state),
+    );
+  }
+
+  function markAndNext(requestedAtMs = null) {
     contextReplay.stop();
     const { state, item, itemId, context, truth } = selectedContext();
     if (!itemId || truth.status === "locked") return false;
-    const atMs = trackingGroundTruthSceneReviewCheckpointAt(context, currentAtMs(state));
+    const atMs = checkpointAt(context, state, requestedAtMs);
     const diagnostics = trackingGroundTruthCheckpointDiagnostics({
       tracks: item?.objectTracks || [],
       selectedTrackIds: truth.selectedTrackIds || [],
@@ -127,15 +146,7 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
   function previewContext(requestedAtMs = null) {
     const { state, itemId, context, truth } = selectedContext();
     if (!itemId || truth.status === "locked") return false;
-    const requested = Number(requestedAtMs);
-    const hasRequestedCheckpoint = requestedAtMs !== null
-      && requestedAtMs !== undefined
-      && requestedAtMs !== ""
-      && Number.isFinite(requested);
-    const atMs = trackingGroundTruthSceneReviewCheckpointAt(
-      context,
-      hasRequestedCheckpoint ? requested : currentAtMs(state),
-    );
+    const atMs = checkpointAt(context, state, requestedAtMs);
     return contextReplay.start({
       startMs: atMs,
       endMs: atMs,
@@ -144,7 +155,29 @@ export function createTrackingGroundTruthSceneReviewController(options = {}) {
     });
   }
 
+  function handleShortcut(event = {}) {
+    if (event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey
+      || event.altKey || event.shiftKey || shouldIgnoreShortcutTarget(event.target)) return false;
+    const command = SCENE_REVIEW_SHORTCUTS[String(event.key || "").toLowerCase()];
+    if (!command) return false;
+    const { itemId, context, truth } = selectedContext();
+    if (!itemId || truth.status === "locked" || !(truth.selectedTrackIds || []).length
+    ) return false;
+    const progress = trackingGroundTruthSceneReviewProgress(truth.sceneReview, context);
+    if (progress.complete || progress.nextAtMs == null) return false;
+    const handled = command === "preview"
+      ? previewContext(progress.nextAtMs)
+      : command === "next"
+        ? seekNext()
+        : markAndNext(progress.nextAtMs);
+    if (!handled) return false;
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    return true;
+  }
+
   return {
+    handleShortcut,
     invalidate,
     markAndNext,
     previewContext,

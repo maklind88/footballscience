@@ -191,7 +191,8 @@ export function createTrackingController(options = {}) {
 
   function handleShortcut(event = {}) {
     if (getState().presentation?.tracking?.mode !== "tracking") return false;
-    return preannotationReviewController.handleShortcut(event);
+    return preannotationReviewController.handleShortcut(event)
+      || groundTruth.handleShortcut(event);
   }
 
   function beginCapture(captureMode = "prompt", target = null) {

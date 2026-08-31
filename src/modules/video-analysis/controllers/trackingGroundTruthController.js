@@ -459,7 +459,7 @@ export function createTrackingGroundTruthController(options = {}) {
     if (action === "ground-truth-suite-import") return suiteImport.chooseFile(element);
     if (action === "ground-truth-runs-download") return downloadProviderRuns();
     if (action === "ground-truth-scene-preview-context") return sceneReview.previewContext(element?.dataset?.videoAnalysisGroundTruthAtMs);
-    if (action === "ground-truth-scene-review") return sceneReview.markAndNext();
+    if (action === "ground-truth-scene-review") return sceneReview.markAndNext(element?.dataset?.videoAnalysisGroundTruthAtMs);
     if (action === "ground-truth-scene-next") return sceneReview.seekNext();
     if (action === "ground-truth-scene-reset") return sceneReview.reset();
     if (action === "ground-truth-suite-mode") {
@@ -488,11 +488,11 @@ export function createTrackingGroundTruthController(options = {}) {
     }
     return false;
   }
-
   return {
     contextFor,
     handleAction,
     handleField,
+    handleShortcut: sceneReview.handleShortcut,
     invalidateDraft,
     refreshContext,
     stopContextPreview: sceneReview.stopContextPreview,

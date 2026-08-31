@@ -197,6 +197,7 @@ test("review studio exposes bounded motion context before checkpoint confirmatio
   expect(html).toContain('data-video-analysis-ground-truth-at-ms="0"');
   expect(html).toContain('data-video-analysis-tracking-action="ground-truth-scene-next"');
   expect(html).toContain('data-video-analysis-tracking-action="ground-truth-scene-review"');
+  expect(html).toContain('data-video-analysis-tracking-action="ground-truth-scene-review" data-video-analysis-ground-truth-at-ms="0"');
   expect(html.indexOf("ground-truth-scene-preview-context"))
     .toBeLessThan(html.indexOf("ground-truth-scene-review"));
 });

@@ -209,7 +209,9 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
           videoAnalysisGroundTruthAtMs: scene.nextAtMs ?? truth.range?.endMs ?? 0,
         }),
         action("ground-truth-scene-next", "Go to checkpoint"),
-        action("ground-truth-scene-review", "Confirm & next"),
+        action("ground-truth-scene-review", "Confirm & next", {
+          videoAnalysisGroundTruthAtMs: scene.nextAtMs ?? truth.range?.endMs ?? 0,
+        }),
       ],
     };
   } else if (scene.complete && !locked) {

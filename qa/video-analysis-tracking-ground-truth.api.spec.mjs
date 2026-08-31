@@ -492,6 +492,8 @@ test("selected-object controller uses one player target and locks its evidence p
   expect(draftHtml).toContain("Selected visible");
   expect(draftHtml).toContain("P 1 | B 0 | R 0");
   expect(draftHtml).toContain('data-video-analysis-tracking-action="ground-truth-scene-preview-context" data-video-analysis-ground-truth-at-ms="0"');
+  expect(draftHtml).toContain('data-video-analysis-tracking-action="ground-truth-scene-review" data-video-analysis-ground-truth-at-ms="0" aria-keyshortcuts="V"');
+  expect(draftHtml).toContain('data-video-analysis-tracking-action="ground-truth-scene-next" aria-keyshortcuts="N"');
   expect(draftHtml).toContain("Remove target");
   expect(draftHtml).not.toContain("groundTruthSceneComplete");
   expect(draftHtml).not.toContain('data-video-analysis-tracking-action="ground-truth-target"');
@@ -536,6 +538,37 @@ test("selected-object controller uses one player target and locks its evidence p
   expect(video.paused).toBe(true);
   expect(pauseCount).toBe(2);
   expect(listeners.size).toBe(0);
+  const keyboardEvent = (key, overrides = {}) => {
+    const calls = { prevented: 0, stopped: 0 };
+    return {
+      key,
+      target: { tagName: "BODY" },
+      preventDefault: () => { calls.prevented += 1; },
+      stopPropagation: () => { calls.stopped += 1; },
+      calls,
+      ...overrides,
+    };
+  };
+  expect(controller.handleShortcut(keyboardEvent("p", { repeat: true }))).toBe(false);
+  expect(controller.handleShortcut(keyboardEvent("p", { target: { tagName: "INPUT" } }))).toBe(false);
+  expect(controller.handleShortcut(keyboardEvent("p", { ctrlKey: true }))).toBe(false);
+  const previewShortcut = keyboardEvent("P");
+  expect(controller.handleShortcut(previewShortcut)).toBe(true);
+  expect(previewShortcut.calls).toEqual({ prevented: 1, stopped: 1 });
+  expect(playheadMs).toBe(0);
+  expect(playCount).toBe(3);
+  const nextShortcut = keyboardEvent("N");
+  expect(controller.handleShortcut(nextShortcut)).toBe(true);
+  expect(nextShortcut.calls).toEqual({ prevented: 1, stopped: 1 });
+  expect(video.paused).toBe(true);
+  expect(pauseCount).toBe(3);
+  expect(playheadMs).toBe(0);
+  const verifyShortcut = keyboardEvent("V");
+  expect(controller.handleShortcut(verifyShortcut)).toBe(true);
+  expect(verifyShortcut.calls).toEqual({ prevented: 1, stopped: 1 });
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].sceneReview.reviewedAtMs)
+    .toEqual([0]);
+  expect(playheadMs).toBe(500);
   playheadMs = 0;
   expect(controller.handleField("groundTruthSceneComplete", { checked: true })).toBe(false);
   expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
@@ -543,13 +576,17 @@ test("selected-object controller uses one player target and locks its evidence p
     attested: false,
     error: expect.stringMatching(/every scene review checkpoint/i),
   });
-  expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
-  expect(playheadMs).toBe(500);
-  expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
+  playheadMs = 1000;
+  expect(controller.handleAction("ground-truth-scene-review", {
+    dataset: { videoAnalysisGroundTruthAtMs: "500" },
+  })).toBe(true);
   expect(playheadMs).toBe(1000);
-  expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
+  expect(controller.handleAction("ground-truth-scene-review", {
+    dataset: { videoAnalysisGroundTruthAtMs: "1000" },
+  })).toBe(true);
   expect(state.presentation.tracking.groundTruth.byItemId[item.id].sceneReview.reviewedAtMs)
     .toEqual([0, 500, 1000]);
+  expect(controller.handleShortcut(keyboardEvent("P"))).toBe(false);
   expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
   expect(controller.handleAction("ground-truth-lock")).toBe(true);
   const artifact = state.presentation.tracking.groundTruth.byItemId[item.id].lockedArtifact;

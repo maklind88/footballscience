@@ -154,9 +154,9 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
             ` : `<p class="is-ready">Checkpoint tracking ready for source review</p>`}
           </section>
           <div class="video-analysis-ground-truth__scene-actions">
-            <button type="button" data-video-analysis-tracking-action="ground-truth-scene-preview-context" data-video-analysis-ground-truth-at-ms="${checkpoint.atMs}" ${sceneReview.complete ? "disabled" : ""}>Review context</button>
-            <button type="button" data-video-analysis-tracking-action="ground-truth-scene-review" ${sceneReview.complete ? "disabled" : ""}>Review &amp; next</button>
-            <button type="button" data-video-analysis-tracking-action="ground-truth-scene-next" ${sceneReview.complete ? "disabled" : ""}>Next unreviewed</button>
+            <button type="button" data-video-analysis-tracking-action="ground-truth-scene-preview-context" data-video-analysis-ground-truth-at-ms="${checkpoint.atMs}" aria-keyshortcuts="P" title="Review checkpoint context (P)" ${sceneReview.complete ? "disabled" : ""}>Review context</button>
+            <button type="button" data-video-analysis-tracking-action="ground-truth-scene-review" data-video-analysis-ground-truth-at-ms="${checkpoint.atMs}" aria-keyshortcuts="V" title="Verify checkpoint and continue (V)" ${sceneReview.complete ? "disabled" : ""}>Review &amp; next</button>
+            <button type="button" data-video-analysis-tracking-action="ground-truth-scene-next" aria-keyshortcuts="N" title="Go to next unreviewed checkpoint (N)" ${sceneReview.complete ? "disabled" : ""}>Next unreviewed</button>
             <button type="button" data-video-analysis-tracking-action="ground-truth-scene-reset" ${sceneReview.reviewedSampleCount ? "" : "disabled"}>Reset</button>
           </div>
         </div>

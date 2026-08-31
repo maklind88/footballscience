@@ -1,6 +1,10 @@
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { getLocalVideoFile } from "./localVideoBridgeService.js";
 import { localVideoBridgeBaseUrl, openLocalBridgeSession } from "./localPlaybackTranscodeService.js";
+import {
+  fetchTrackingCandidateStageEvidence,
+  registeredTrackingCandidates,
+} from "./trackingCandidateEvidenceService.js";
 
 function encodePrompt(value = {}, win = window) {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
@@ -149,6 +153,7 @@ export async function inspectLocalTrackingProvider(win = window) {
       ? payload.trackingBenchmark
       : {};
     const providers = registeredTrackingProviders(payload.trackingProviderRegistry);
+    const candidates = registeredTrackingCandidates(payload.trackingCandidateRegistry);
     const providerRegistry = validTrackingProviderRegistry(payload.trackingProviderRegistry)
       ? payload.trackingProviderRegistry
       : {};
@@ -177,12 +182,14 @@ export async function inspectLocalTrackingProvider(win = window) {
       maxObjectsPerJob: Math.max(1, Math.min(8, Number(payload.limits?.maxTrackingObjectsPerJob) || 1)),
       benchmarkAvailable: (payload.capabilities || []).includes("evaluate-tracking-benchmark"),
       stageExecutionAvailable: (payload.capabilities || []).includes("run-tracking-stage"),
+      candidateStageExecutionAvailable: (payload.capabilities || []).includes("run-tracking-candidate-stage"),
       trackEvalAvailable: (payload.capabilities || []).includes("tracking-reference:trackeval"),
       referenceEvaluator: String(benchmark.evaluator || ""),
       referenceEvaluatorVersion: String(benchmark.evaluatorVersion || ""),
       referenceEvaluatorCommit: String(benchmark.sourceCommit || ""),
       referenceSourceSha256: String(benchmark.sourceSha256 || ""),
       providers,
+      candidates,
       providerRegistryStatus: boundedText(providerRegistry.status, 40),
       providerRegistryBlockedCount: Math.max(
         0,
@@ -197,6 +204,7 @@ export async function inspectLocalTrackingProvider(win = window) {
       batchAvailable: false,
       benchmarkAvailable: false,
       stageExecutionAvailable: false,
+      candidateStageExecutionAvailable: false,
       trackEvalAvailable: false,
       name: "Local tracking companion",
       version: "",
@@ -217,7 +225,7 @@ function validStageArtifact(value = {}, provider = {}) {
     && value.payload && typeof value.payload === "object";
 }
 
-export async function runLocalTrackingStage(options = {}) {
+async function runLocalTrackingStageRequest(options = {}, benchmarkOnly = false) {
   const win = options.win || window;
   const fetcher = win.fetch?.bind(win) || fetch;
   const baseUrl = localVideoBridgeBaseUrl(win);
@@ -248,7 +256,8 @@ export async function runLocalTrackingStage(options = {}) {
     );
     headers["x-football-science-tracking-stage-request"] = encodePrompt(options.request, win);
   }
-  const response = await fetcher(`${baseUrl}/jobs/run-tracking-stage`, {
+  const endpoint = benchmarkOnly ? "run-tracking-candidate-stage" : "run-tracking-stage";
+  const response = await fetcher(`${baseUrl}/jobs/${endpoint}`, {
     method: "POST",
     headers,
     body: jsonTransport ? JSON.stringify(options.request) : file,
@@ -268,6 +277,9 @@ export async function runLocalTrackingStage(options = {}) {
     timeoutMs: options.timeoutMs,
     onProgress: options.onProgress,
   });
+  if ((result.benchmarkOnly === true) !== benchmarkOnly) {
+    throw new Error("The local tracking result crossed its activation boundary.");
+  }
   const artifactResponse = await fetcher(result.resultUrl, {
     headers: { "x-football-science-session": session.sessionToken },
     signal: options.signal,
@@ -276,13 +288,39 @@ export async function runLocalTrackingStage(options = {}) {
   if (!artifactResponse.ok || !validStageArtifact(artifact, provider)) {
     throw new Error("The local tracking provider returned an invalid stage artifact.");
   }
+  const evidence = benchmarkOnly ? await fetchTrackingCandidateStageEvidence({
+    win,
+    fetcher,
+    baseUrl,
+    evidenceUrl: result.evidenceUrl,
+    evidenceSha256: result.evidenceSha256,
+    artifactSha256: result.artifactSha256,
+    sessionToken: session.sessionToken,
+    signal: options.signal,
+    provider,
+    sourceSha256: result.sourceSha256,
+    artifact,
+  }) : null;
   return {
     artifact,
+    ...(evidence ? {
+      evidence,
+      evidenceSha256: boundedText(result.evidenceSha256, 64).toLowerCase(),
+    } : {}),
     sourceArtifactId: boundedText(result.sourceArtifactId, 80),
     sourceSha256: boundedText(result.sourceSha256, 64).toLowerCase(),
     execution: result.execution && typeof result.execution === "object" ? result.execution : {},
     processingMs: optionalNumber(result.processingMs),
+    benchmarkOnly,
   };
+}
+
+export async function runLocalTrackingStage(options = {}) {
+  return runLocalTrackingStageRequest(options, false);
+}
+
+export async function runLocalTrackingCandidateStage(options = {}) {
+  return runLocalTrackingStageRequest(options, true);
 }
 
 async function queueTrackingJob(options = {}) {

@@ -50,6 +50,7 @@ Optional limits and policy:
 - `POST /jobs/track-object`
 - `POST /jobs/track-objects`
 - `POST /jobs/run-tracking-stage`
+- `POST /jobs/run-tracking-candidate-stage`
 - `POST /jobs/create-proxy`
 - `POST /jobs/create-replay-buffer`
 - `POST /jobs/render-export`
@@ -73,6 +74,12 @@ Object tracking uses a provider boundary instead of embedding an unreviewable mo
 Future full-scene stages use the separate `football-science-tracking-stage-execution-v1` runner. A registered provider becomes executable only when its exact manifest, report, evidence, native runtime, and model bytes reverify and the runtime passes the local sandbox preflight. Runtime, models, and retained match sources must be regular, non-link, read-only files. Their SHA-256, byte length, and descriptor identity are sealed before execution and the identity is checked again before any output is accepted. On macOS the runner denies network access, permits execution of only the sealed native runtime, limits readable provider/source/system paths, scrubs the environment, bounds output and wall time, monitors resident memory for the whole process group, enforces provider concurrency, and validates the returned stage artifact against the exact request fingerprint. A timeout, cancellation, memory/output breach, changed source, changed provider, or malformed result terminates the job fail-closed.
 
 The first stage upload retains one session-owned local source artifact. Later association, re-identification, and classification jobs can reuse that exact source by job id while sending their bounded metadata request as JSON. Another bridge session cannot read or reuse it. The browser receives expiring access only to the normalized result JSON; provider paths, model paths, raw frames, and source paths are never returned. No full-scene provider ships with the companion today, so this boundary does not by itself make detection, re-identification, team, ball, referee, or shirt classification available.
+
+Benchmark candidates use a separate `football-science-tracking-candidate-registry-v1` root and `run-tracking-candidate-stage` route. A candidate installation contains only its canonical `candidate` manifest, native runtime, and model descriptors; it must declare offline inference, reviewed licence and dataset rights, and exact source/runtime/model checksums. It runs through the same network-denied sandbox and file seals, but every registry record, job, and browser result is marked `benchmarkOnly`. Candidate output is never listed as `run-tracking-stage`, never satisfies activated readiness, and must still collect and pass real-match evidence before it can be installed in the approved registry.
+
+Candidate jobs also emit a separate `evidence.json` using `football-science-tracking-candidate-stage-run-v1`. The exact response bytes have their own SHA-256, while the artifact binds the canonical request, provider manifest and execution fingerprints, normalized stage result, source/range, sandbox isolation, wall time, output size, and real-time factor. The browser accepts it only from the same loopback origin and verifies the response checksum plus provider/source/request/result binding. Stage inputs use nested allowlists: association receives complete bounded observations, re-identification and classification receive complete materialized trajectories, and segmentation receives geometry and synchronized times without Football Science player, clip, or file identities.
+
+`tracking-intelligence-v2-pipeline` composes benchmark-only detection, association, re-identification, and classification candidates in that order. Association output is joined back to the exact detection observations before the learned identity stages run. The resulting player, ball, and referee tracks enter the existing analyst review workflow with stage-evidence hashes, confidence, discontinuities, team, and shirt evidence. Raw stage runs are recursively immutable; manual position, continuity, visibility, split, identity-swap, and identity-assignment corrections operate only on review copies.
 
 ## Approved tracking provider
 

@@ -25,11 +25,7 @@ import { createTrackingEngineAdapter } from "./tracking-engine-adapter.mjs";
 import { createTrackingBenchmarkJobHandler } from "./tracking-benchmark-job-handler.mjs";
 import { createTrackingJobHandler } from "./tracking-job-handler.mjs";
 import { createTrackingStageJobHandler } from "./tracking-stage-job-handler.mjs";
-import { createTrackingStageRunner } from "./tracking-stage-runner.mjs";
-import {
-  TRACKING_PROVIDER_REGISTRY_PROTOCOL,
-  createTrackingProviderRegistry,
-} from "./tracking-provider-registry.mjs";
+import { createTrackingStageRuntime } from "./tracking-stage-runtime.mjs";
 
 function safeFileName(value = "match-video") {
   let decoded = String(value || "match-video");
@@ -78,40 +74,13 @@ function publicErrorMessage(error) {
   return String(error?.message || "Could not complete local video processing.").slice(0, 1000);
 }
 
-function blockedTrackingProviderRegistry() {
-  return {
-    protocol: TRACKING_PROVIDER_REGISTRY_PROTOCOL,
-    status: "blocked",
-    providerCount: 0,
-    readyCount: 0,
-    blockedCount: 0,
-    providers: [],
-    reasons: ["provider-registry-unreadable"],
-  };
-}
-
-async function inspectTrackingProviderRegistry(registry = {}, stageRunner = {}) {
-  try {
-    const value = await registry.inspect?.();
-    if (value?.protocol !== TRACKING_PROVIDER_REGISTRY_PROTOCOL) return blockedTrackingProviderRegistry();
-    return typeof stageRunner.decorateRegistry === "function"
-      ? await stageRunner.decorateRegistry(value)
-      : value;
-  } catch {
-    return blockedTrackingProviderRegistry();
-  }
-}
-
 export function createLocalVideoServer(options = {}) {
   const config = options.config || createLocalVideoServerConfig();
   const engine = options.engine || createFfmpegEngine(options.ffmpeg || {});
   const trackingEngine = options.trackingEngine || createTrackingEngineAdapter(options.tracking || {});
-  const trackingProviderRegistry = options.trackingProviderRegistry
-    || createTrackingProviderRegistry(options.trackingProviders || {});
-  const trackingStageRunner = options.trackingStageRunner || createTrackingStageRunner({
-    registry: trackingProviderRegistry,
-    sandbox: options.trackingStageSandbox || {},
-  });
+  const trackingStageRuntime = createTrackingStageRuntime(options);
+  const trackingStageRunner = trackingStageRuntime.stageRunner;
+  const trackingCandidateStageRunner = trackingStageRuntime.candidateStageRunner;
   const portableUploader = options.portableUploader || createPortableUploadClient(options.portableUpload || {});
   const sessions = createBridgeSessionStore({ ttlMs: config.sessionTtlMs });
   const assets = createAssetAccessStore({ ttlMs: config.assetTtlMs });
@@ -208,6 +177,21 @@ export function createLocalVideoServer(options = {}) {
     requestOrigin,
     sendJson,
     stageRunner: trackingStageRunner,
+    statusCodeForError,
+  });
+  const trackingCandidateStage = createTrackingStageJobHandler({
+    assets,
+    authorizeSession,
+    baseUrl,
+    config,
+    corsHeaders,
+    jobOwners,
+    jobs,
+    jobType: "run-tracking-candidate-stage",
+    publicErrorMessage,
+    requestOrigin,
+    sendJson,
+    stageRunner: trackingCandidateStageRunner,
     statusCodeForError,
   });
   const mediaExport = createMediaExportJobHandler({
@@ -362,10 +346,11 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "GET" && url.pathname === "/capabilities") {
       if (!authorizeSession(request, response)) return;
-      const [cache, providerRegistry] = await Promise.all([
+      const [cache, trackingRegistries] = await Promise.all([
         inspectCache(config.cacheDir),
-        inspectTrackingProviderRegistry(trackingProviderRegistry, trackingStageRunner),
+        trackingStageRuntime.inspect(),
       ]);
+      const { providerRegistry, candidateRegistry } = trackingRegistries;
       sendJson(request, response, config, 200, {
         ok: true,
         apiVersion: 2,
@@ -383,10 +368,12 @@ export function createLocalVideoServer(options = {}) {
           "evaluate-tracking-benchmark",
           "tracking-provider-registry",
           ...(providerRegistry.executableCount > 0 ? ["run-tracking-stage"] : []),
+          ...(candidateRegistry.executableCount > 0 ? ["run-tracking-candidate-stage"] : []),
           ...(trackingBenchmark.info().referenceAvailable ? ["tracking-reference:trackeval"] : []),
         ],
         trackingProvider: trackingEngine.info?.() || { available: trackingEngine.available() },
         trackingProviderRegistry: providerRegistry,
+        trackingCandidateRegistry: candidateRegistry,
         trackingBenchmark: trackingBenchmark.info(),
         limits: {
           maxInputBytes: config.maxInputBytes,
@@ -446,6 +433,16 @@ export function createLocalVideoServer(options = {}) {
     }
     if (request.method === "POST" && url.pathname === "/jobs/run-tracking-stage") {
       const jobId = await trackingStage.createJob(request, response);
+      if (!jobId) return;
+      sendJson(request, response, config, 202, {
+        ok: true,
+        job: jobs.get(jobId),
+        statusUrl: `${baseUrl()}/jobs/${jobId}`,
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/jobs/run-tracking-candidate-stage") {
+      const jobId = await trackingCandidateStage.createJob(request, response);
       if (!jobId) return;
       sendJson(request, response, config, 202, {
         ok: true,
@@ -551,6 +548,9 @@ export function createLocalVideoServer(options = {}) {
     if (request.method === "GET" && url.pathname.startsWith("/tracking-stage/")) {
       if (await trackingStage.handleArtifact(request, url, response)) return;
     }
+    if (request.method === "GET" && url.pathname.startsWith("/tracking-candidate-stage/")) {
+      if (await trackingCandidateStage.handleArtifact(request, url, response)) return;
+    }
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/exports/")) {
       if (await mediaExport.handleArtifact(request, url, response)) return;
     }
@@ -568,6 +568,7 @@ export function createLocalVideoServer(options = {}) {
     config,
     jobs,
     trackingStageRunner,
+    trackingCandidateStageRunner,
     listen(port = config.port, host = config.host) {
       return new Promise((resolve, reject) => {
         server.once("error", reject);

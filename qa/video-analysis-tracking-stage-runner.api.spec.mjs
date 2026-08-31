@@ -183,7 +183,20 @@ function request(overrides = {}) {
   return {
     sourceFingerprint: "f".repeat(64),
     range: { startMs: 0, endMs: 2000 },
-    trajectories: [{ id: "track-1", entityType: "player" }],
+    trajectories: [{
+      id: "track-1",
+      entityType: "player",
+      observations: [{
+        id: "observation-1",
+        atMs: 0,
+        frameIndex: 0,
+        entityType: "player",
+        box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 },
+        confidence: 0.96,
+      }],
+      confidence: 0.93,
+      discontinuitiesMs: [],
+    }],
     ...overrides,
   };
 }
@@ -250,14 +263,24 @@ test("tracking stage runner activates only an exact verified provider and valida
   ));
   const installation = await approvedInstallation();
   const stageRequest = request();
+  stageRequest.trajectories[0].observations[0].confidence = "0.96";
   const output = await resultArtifact(installation, stageRequest);
+  let executionRequest;
   const registry = {
     resolve: async (id, version) => {
       expect({ id, version }).toEqual({ id: "verified-team-classifier", version: "1.0.0" });
       return installation;
     },
   };
-  const runner = runnerService.createTrackingStageRunner({ registry, executor: readyExecutor(output) });
+  const runner = runnerService.createTrackingStageRunner({
+    registry,
+    executor: readyExecutor(output, {
+      execute: async (_installation, normalizedRequest) => {
+        executionRequest = normalizedRequest;
+        return readyExecutor(output).execute();
+      },
+    }),
+  });
   const snapshot = await runner.decorateRegistry({
     protocol: "football-science-tracking-provider-registry-v1",
     status: "ready",
@@ -289,6 +312,8 @@ test("tracking stage runner activates only an exact verified provider and valida
   expect(result.artifact.payload.classifications).toEqual([
     { trajectoryId: "track-1", teamSide: "home", teamConfidence: 0.97 },
   ]);
+  expect(executionRequest.trajectories[0].observations[0].confidence).toBe(0.96);
+  expect(Object.isFrozen(executionRequest.trajectories[0].observations[0])).toBe(true);
   expect(result.telemetry).toMatchObject({
     isolation: "test-network-denied-v1",
     wallTimeMs: 120,
@@ -348,7 +373,8 @@ test("tracking stage runner rejects output bound to another request", async () =
   ));
   const installation = await approvedInstallation();
   const stageRequest = request();
-  const changedRequest = request({ range: { startMs: 100, endMs: 2100 } });
+  const changedRequest = structuredClone(stageRequest);
+  changedRequest.trajectories[0].observations[0].confidence = 0.95;
   const mismatchedOutput = await resultArtifact(installation, changedRequest);
   const runner = runnerService.createTrackingStageRunner({
     registry: { resolve: async () => installation },

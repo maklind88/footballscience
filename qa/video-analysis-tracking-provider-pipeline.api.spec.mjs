@@ -525,15 +525,20 @@ test("association result boundary rejects unknown and multiply assigned observat
   ));
   const manifest = contract.normalizeTrackingProviderManifest(provider("association", ["associate:multi-object"]));
   const request = stageRequest({ observations: [
-    { id: "p-1-a", entityType: "player" },
-    { id: "p-1-b", entityType: "player" },
-    { id: "ball-a", entityType: "ball" },
+    { id: "p-1-a", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 },
+    { id: "p-1-b", atMs: 1000, frameIndex: 1, entityType: "player", box: { left: 0.12, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.95 },
+    { id: "ball-a", atMs: 1000, frameIndex: 1, entityType: "ball", box: { left: 0.5, top: 0.6, width: 0.02, height: 0.02 }, confidence: 0.88 },
   ] });
   const result = stageResult(manifest, evidenceService, artifacts, request, { trajectories: [
     { id: "trajectory-player", entityType: "player", observationIds: ["p-1-a", "p-1-b"], confidence: 0.93, discontinuitiesMs: [] },
     { id: "trajectory-ball", entityType: "ball", observationIds: ["ball-a"], confidence: 0.82, discontinuitiesMs: [1000] },
   ] });
   expect(artifacts.validateTrackingStageArtifact(result, manifest, request).payload.trajectories).toHaveLength(2);
+  expect(Object.isFrozen(artifacts.normalizeTrackingStageRequest(manifest, request).observations[0])).toBe(true);
+
+  const hiddenObservationInput = structuredClone(request);
+  hiddenObservationInput.observations[0].sourcePath = "/private/match.mp4";
+  expect(() => artifacts.trackingStageRequestFingerprint(manifest, hiddenObservationInput)).toThrow(/unsupported field/i);
 
   const duplicated = structuredClone(result);
   duplicated.payload.trajectories[1].observationIds = ["p-1-b"];
@@ -575,8 +580,14 @@ test("re-identification boundary returns opaque links and activation remains fai
   const candidate = provider("reidentification", ["reidentify:player"]);
   const manifest = contract.normalizeTrackingProviderManifest(candidate);
   const request = stageRequest({ trajectories: [
-    { id: "trajectory-player", entityType: "player" },
-    { id: "trajectory-ball", entityType: "ball" },
+    {
+      id: "trajectory-player", entityType: "player", confidence: 0.93, discontinuitiesMs: [],
+      observations: [{ id: "p-1", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 }],
+    },
+    {
+      id: "trajectory-ball", entityType: "ball", confidence: 0.82, discontinuitiesMs: [],
+      observations: [{ id: "ball-1", atMs: 0, frameIndex: 0, entityType: "ball", box: { left: 0.5, top: 0.6, width: 0.02, height: 0.02 }, confidence: 0.88 }],
+    },
   ] });
   const result = stageResult(manifest, evidenceService, artifacts, request, { identities: [
     { trajectoryId: "trajectory-player", identityKey: "local-cluster-8", confidence: 0.91 },
@@ -586,6 +597,9 @@ test("re-identification boundary returns opaque links and activation remains fai
     identityKey: "local-cluster-8",
     confidence: 0.91,
   });
+  const hiddenTrajectoryInput = structuredClone(request);
+  hiddenTrajectoryInput.trajectories[0].embedding = [0.1, 0.2];
+  expect(() => artifacts.trackingStageRequestFingerprint(manifest, hiddenTrajectoryInput)).toThrow(/unsupported field/i);
   expect(() => artifacts.validateActivatedTrackingStageArtifact(result, candidate, request)).toThrow(/not activated/i);
 
   const embeddingLeak = structuredClone(result);
@@ -626,8 +640,14 @@ test("team and shirt classification boundary cannot assign players or classify n
     ["classify:team", "classify:shirt-number"],
   ));
   const request = stageRequest({ trajectories: [
-    { id: "trajectory-player", entityType: "player" },
-    { id: "trajectory-referee", entityType: "referee" },
+    {
+      id: "trajectory-player", entityType: "player", confidence: 0.93, discontinuitiesMs: [],
+      observations: [{ id: "p-1", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 }],
+    },
+    {
+      id: "trajectory-referee", entityType: "referee", confidence: 0.91, discontinuitiesMs: [],
+      observations: [{ id: "referee-1", atMs: 0, frameIndex: 0, entityType: "referee", box: { left: 0.7, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.91 }],
+    },
   ] });
   const result = stageResult(manifest, evidenceService, artifacts, request, { classifications: [{
     trajectoryId: "trajectory-player",
@@ -668,6 +688,11 @@ test("segmentation stage result reuses the strict selected-object track boundary
     startMs: 0,
     endMs: 2000,
     promptAtMs: 0,
+    sourceStartMs: 0,
+    sourceEndMs: 2000,
+    sourcePromptAtMs: 0,
+    syncOffsetMs: 0,
+    driftPpm: 0,
     entityType: "player",
     box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 },
   };
@@ -690,6 +715,15 @@ test("segmentation stage result reuses the strict selected-object track boundary
     manifest,
     request,
   );
+  const hiddenPromptInput = structuredClone(request);
+  hiddenPromptInput.prompts[0].sourcePath = "/private/match.mp4";
+  expect(() => artifacts.trackingStageRequestFingerprint(manifest, hiddenPromptInput)).toThrow(/unsupported field/i);
+  const hiddenTrackOutput = structuredClone(result);
+  hiddenTrackOutput.payload.tracks[0].framePath = "/private/frame.jpg";
+  expect(() => artifacts.validateTrackingStageArtifact(hiddenTrackOutput, manifest, request)).toThrow(/unsupported field/i);
+  const hiddenPointOutput = structuredClone(result);
+  hiddenPointOutput.payload.tracks[0].segments[0].points[0].embedding = [0.1, 0.2];
+  expect(() => artifacts.validateTrackingStageArtifact(hiddenPointOutput, manifest, request)).toThrow(/unsupported field/i);
   expect(validated.payload.tracks).toHaveLength(1);
   expect(validated.payload.tracks[0].metadata.promptId).toBe(prompt.id);
 });

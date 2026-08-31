@@ -1,7 +1,9 @@
 import {
+  normalizeTrackingStageRequest,
   parseActivatedTrackingStageArtifact,
-  trackingStageRequestFingerprint,
+  parseTrackingStageArtifact,
 } from "./tracking-stage-artifact-validator.mjs";
+import { createTrackingCandidateStageRunArtifact } from "./tracking-candidate-stage-run-artifact.mjs";
 import { createTrackingStageSandboxExecutor } from "./tracking-stage-sandbox-executor.mjs";
 
 const sourceRequiredStages = new Set([
@@ -70,10 +72,13 @@ function sourceForProvider(provider = {}, request = {}, source = {}) {
   };
 }
 
-function activationStatus(readiness = {}) {
+function activationStatus(readiness = {}, benchmarkOnly = false) {
   return {
     executionAvailable: readiness.ready === true,
-    activationStatus: readiness.ready ? "sandboxed-local" : "blocked",
+    benchmarkOnly,
+    activationStatus: readiness.ready
+      ? (benchmarkOnly ? "benchmark-only" : "sandboxed-local")
+      : "blocked",
     activationProtocol: String(readiness.protocol || "").slice(0, 100),
     activationIsolation: String(readiness.isolation || "").slice(0, 100),
     activationReasons: Array.isArray(readiness.reasons)
@@ -85,6 +90,7 @@ function activationStatus(readiness = {}) {
 export function createTrackingStageRunner(options = {}) {
   const registry = options.registry;
   const executor = options.executor || createTrackingStageSandboxExecutor(options.sandbox || {});
+  const benchmarkOnly = options.executionMode === "benchmark-candidate";
   const activeByProvider = new Map();
   const registryAvailable = Boolean(registry && typeof registry.resolve === "function");
 
@@ -95,26 +101,27 @@ export function createTrackingStageRunner(options = {}) {
         protocol: executor.info?.().protocol,
         isolation: "unavailable",
         reasons: ["tracking-stage-registry-unavailable"],
-      });
+      }, benchmarkOnly);
     }
-    if (provider.status !== "ready" || provider.available === false) {
+    const expectedStatus = benchmarkOnly ? "candidate-ready" : "ready";
+    if (provider.status !== expectedStatus || provider.available === false) {
       return activationStatus({
         ready: false,
         protocol: executor.info?.().protocol,
         isolation: "unavailable",
         reasons: ["provider-installation-not-ready"],
-      });
+      }, benchmarkOnly);
     }
     try {
       const installation = await registry.resolve(provider.id, provider.version);
-      return activationStatus(await executor.inspect(installation));
+      return activationStatus(await executor.inspect(installation), benchmarkOnly);
     } catch (error) {
       return activationStatus({
         ready: false,
         protocol: executor.info?.().protocol,
         isolation: "unavailable",
         reasons: [String(error?.code || "provider-installation-not-ready").toLowerCase().replaceAll("_", "-")],
-      });
+      }, benchmarkOnly);
     }
   }
 
@@ -141,8 +148,8 @@ export function createTrackingStageRunner(options = {}) {
     const providerVersion = identifier(value.providerVersion, "tracking provider version");
     const installation = await registry.resolve(providerId, providerVersion);
     const provider = installation.provider;
-    trackingStageRequestFingerprint(provider, value.request);
-    const source = sourceForProvider(provider, value.request, value.source);
+    const request = normalizeTrackingStageRequest(provider, value.request);
+    const source = sourceForProvider(provider, request, value.source);
     const readiness = await executor.inspect(installation);
     if (!readiness.ready) {
       invalid("Tracking provider activation is not ready.", "TRACKING_STAGE_ACTIVATION_BLOCKED");
@@ -155,26 +162,36 @@ export function createTrackingStageRunner(options = {}) {
     try {
       const execution = await executor.execute(
         installation,
-        value.request,
+        request,
         source,
         {
           signal: runOptions.signal,
           onProgress: runOptions.onProgress,
         },
       );
-      const artifact = parseActivatedTrackingStageArtifact(
+      const artifact = (benchmarkOnly ? parseTrackingStageArtifact : parseActivatedTrackingStageArtifact)(
         execution.output,
         provider,
-        value.request,
+        request,
         {
           report: installation.report,
           evidence: installation.evidence,
           maxBytes: provider.runtime.maxOutputBytes,
         },
       );
+      const telemetry = publicTelemetry(execution.telemetry);
       return Object.freeze({
         artifact,
-        telemetry: publicTelemetry(execution.telemetry),
+        evidence: benchmarkOnly ? createTrackingCandidateStageRunArtifact({
+          request,
+          artifact,
+          telemetry,
+        }, provider, {
+          id: runOptions.evidenceId,
+          now: options.now,
+        }) : null,
+        benchmarkOnly,
+        telemetry,
       });
     } finally {
       const remaining = (activeByProvider.get(providerId) || 1) - 1;
@@ -190,6 +207,7 @@ export function createTrackingStageRunner(options = {}) {
     info() {
       return {
         ...executor.info?.(),
+        executionMode: benchmarkOnly ? "benchmark-candidate" : "activated",
         activeProviderCount: activeByProvider.size,
         activeJobCount: [...activeByProvider.values()].reduce((sum, count) => sum + count, 0),
       };

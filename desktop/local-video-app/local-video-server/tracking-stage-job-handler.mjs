@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { pruneCache, removeCacheEntry } from "./cache-manager.mjs";
@@ -79,6 +80,14 @@ function sourceFingerprint(value = {}) {
 }
 
 export function createTrackingStageJobHandler(options = {}) {
+  const jobType = options.jobType === "run-tracking-candidate-stage"
+    ? "run-tracking-candidate-stage"
+    : "run-tracking-stage";
+  const artifactBasePath = jobType === "run-tracking-candidate-stage"
+    ? "tracking-candidate-stage"
+    : "tracking-stage";
+  const benchmarkOnly = jobType === "run-tracking-candidate-stage";
+
   async function createJob(request, response) {
     const session = options.authorizeSession(request, response);
     if (!session) return null;
@@ -111,7 +120,7 @@ export function createTrackingStageJobHandler(options = {}) {
         reserveBytes: declaredBytes,
         protectedIds: [...options.jobs.activeIds(), ...(source ? [source.id] : [])],
       });
-      job = options.jobs.create("run-tracking-stage", {
+      job = options.jobs.create(jobType, {
         ...provider,
         fileName: source?.fileName || safeTrackingFileName(
           request.headers["x-football-science-file-name"],
@@ -122,6 +131,7 @@ export function createTrackingStageJobHandler(options = {}) {
       const workDir = path.join(options.config.cacheDir, job.id);
       const inputPath = path.join(workDir, `input-${job.metadata.fileName}`);
       const outputPath = path.join(workDir, "result.json");
+      const evidencePath = path.join(workDir, "evidence.json");
       await fs.mkdir(workDir, { recursive: true, mode: 0o700 });
       let sourceSha256 = source?.sourceSha256 || "";
       let sourceSeal = null;
@@ -168,7 +178,20 @@ export function createTrackingStageJobHandler(options = {}) {
               ratio: Math.max(0.22, Number(progress.ratio) || 0.22),
             }),
           });
-          await fs.writeFile(outputPath, `${JSON.stringify(result.artifact)}\n`, { mode: 0o600 });
+          if ((result.benchmarkOnly === true) !== benchmarkOnly) {
+            throw Object.assign(new Error("The tracking stage crossed its activation boundary."), {
+              code: "TRACKING_STAGE_ACTIVATION_BOUNDARY",
+            });
+          }
+          if (benchmarkOnly !== Boolean(result.evidence)) {
+            throw Object.assign(new Error("The tracking candidate evidence boundary is incomplete."), {
+              code: "TRACKING_CANDIDATE_EVIDENCE_BOUNDARY",
+            });
+          }
+          const artifactBytes = Buffer.from(`${JSON.stringify(result.artifact)}\n`);
+          const evidenceBytes = benchmarkOnly ? Buffer.from(`${JSON.stringify(result.evidence)}\n`) : null;
+          await fs.writeFile(outputPath, artifactBytes, { mode: 0o600 });
+          if (evidenceBytes) await fs.writeFile(evidencePath, evidenceBytes, { mode: 0o600 });
           if (source) await fs.rm(inputPath, { force: true });
           const access = options.assets.issue(job.id, session.origin);
           return {
@@ -180,7 +203,13 @@ export function createTrackingStageJobHandler(options = {}) {
             stage: result.artifact.stage,
             capabilities: result.artifact.capabilities,
             requestFingerprint: result.artifact.requestFingerprint,
-            resultUrl: `${options.baseUrl()}/tracking-stage/${job.id}/result.json?access=${encodeURIComponent(access.token)}`,
+            benchmarkOnly,
+            resultUrl: `${options.baseUrl()}/${artifactBasePath}/${job.id}/result.json?access=${encodeURIComponent(access.token)}`,
+            ...(evidenceBytes ? {
+              evidenceUrl: `${options.baseUrl()}/${artifactBasePath}/${job.id}/evidence.json?access=${encodeURIComponent(access.token)}`,
+              evidenceSha256: createHash("sha256").update(evidenceBytes).digest("hex"),
+              artifactSha256: result.evidence.result.artifactSha256,
+            } : {}),
             expiresAt: new Date(access.expiresAtMs).toISOString(),
             execution: result.telemetry,
           };
@@ -205,7 +234,7 @@ export function createTrackingStageJobHandler(options = {}) {
   }
 
   async function handleArtifact(request, url, response) {
-    const match = url.pathname.match(/^\/tracking-stage\/([a-f0-9-]+)\/result\.json$/i);
+    const match = url.pathname.match(new RegExp(`^/${artifactBasePath}/([a-f0-9-]+)/(result|evidence)\\.json$`, "i"));
     if (!match) return false;
     const id = match[1];
     const origin = options.requestOrigin(request);
@@ -217,7 +246,7 @@ export function createTrackingStageJobHandler(options = {}) {
       return true;
     }
     try {
-      const artifactPath = path.join(options.config.cacheDir, id, "result.json");
+      const artifactPath = path.join(options.config.cacheDir, id, `${match[2].toLowerCase()}.json`);
       const stat = await fs.stat(artifactPath);
       response.writeHead(200, options.corsHeaders(request, options.config, {
         "cache-control": "private, max-age=3600",

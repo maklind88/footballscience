@@ -7,8 +7,16 @@ import {
   validateTrackingArtifact,
   validateTrackingArtifacts,
 } from "./tracking-artifact-validator.mjs";
-import { createHash } from "node:crypto";
+import {
+  normalizeTrackingStageRequest,
+  trackingStageRequestFingerprint,
+} from "./tracking-stage-request.mjs";
 import { TextDecoder } from "node:util";
+
+export {
+  normalizeTrackingStageRequest,
+  trackingStageRequestFingerprint,
+} from "./tracking-stage-request.mjs";
 
 export const TRACKING_STAGE_RESULT_PROTOCOL = "football-science-tracking-stage-result-v1";
 
@@ -18,13 +26,6 @@ const entityCapabilities = Object.freeze({
   referee: "detect:referee",
 });
 const teamSides = new Set(["home", "away", "official", "unknown"]);
-const requestInputFields = Object.freeze({
-  detection: "",
-  segmentation: "prompts",
-  association: "observations",
-  reidentification: "trajectories",
-  classification: "trajectories",
-});
 
 export class TrackingStageArtifactError extends Error {
   constructor(message, code = "TRACKING_STAGE_ARTIFACT_INVALID") {
@@ -67,18 +68,6 @@ function sha256(value, label) {
   return text;
 }
 
-function canonicalJson(value) {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function canonicalSha256(value) {
-  return createHash("sha256").update(canonicalJson(value)).digest("hex");
-}
-
 function integer(value, label, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) {
   const number = Number(value);
   if (!Number.isSafeInteger(number) || number < minimum || number > maximum) invalid(`Invalid ${label}.`);
@@ -114,61 +103,6 @@ function deepFreeze(value) {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
   Object.values(value).forEach(deepFreeze);
   return Object.freeze(value);
-}
-
-export function trackingStageRequestFingerprint(providerValue = {}, request = {}) {
-  const provider = normalizeTrackingProviderManifest(providerValue);
-  const inputField = requestInputFields[provider.stage];
-  const allowed = ["sourceFingerprint", "range", ...(inputField ? [inputField] : [])];
-  exactKeys(request, allowed, "Tracking stage request");
-  const sourceFingerprint = sha256(request.sourceFingerprint, "tracking request source fingerprint");
-  exactKeys(request.range, ["startMs", "endMs"], "Tracking request range");
-  const range = {
-    startMs: integer(request.range.startMs, "tracking request start"),
-    endMs: integer(request.range.endMs, "tracking request end"),
-  };
-  if (range.endMs <= range.startMs || range.endMs - range.startMs > provider.runtime.maxDurationMs) {
-    invalid("Tracking request range is invalid.", "TRACKING_STAGE_RANGE_MISMATCH");
-  }
-  const inputs = inputField
-    ? Array.isArray(request[inputField])
-      ? request[inputField]
-      : invalid(`Tracking stage request ${inputField} must be an array.`)
-    : [];
-  const maximumInputs = provider.stage === "segmentation"
-    ? 8
-    : provider.stage === "detection"
-      ? 0
-      : provider.stage === "association"
-        ? 250_000
-        : 1024;
-  if (inputs.length > maximumInputs || (provider.stage === "segmentation" && !inputs.length)) {
-    invalid("Tracking stage request input count is outside its safety limit.", "TRACKING_STAGE_REQUEST_LIMIT");
-  }
-  const payload = {
-    schemaVersion: 1,
-    protocol: "football-science-tracking-stage-request-v1",
-    provider: {
-      id: provider.providerId,
-      version: provider.providerVersion,
-      fingerprintSha256: trackingProviderFingerprint(provider),
-    },
-    stage: provider.stage,
-    capabilities: [...provider.capabilities].sort(),
-    sourceFingerprint,
-    range,
-    ...(inputField ? { [inputField]: inputs } : {}),
-  };
-  let serialized;
-  try {
-    serialized = canonicalJson(payload);
-  } catch {
-    invalid("Tracking stage request is not serializable.");
-  }
-  if (Buffer.byteLength(serialized) > maximumOutputBytes(provider)) {
-    invalid("Tracking stage request exceeds its safety limit.", "TRACKING_STAGE_REQUEST_LIMIT");
-  }
-  return canonicalSha256(payload);
 }
 
 function maximumOutputBytes(provider = {}, options = {}) {
@@ -224,8 +158,9 @@ function normalizedHeader(value = {}, provider = {}, request = {}, options = {})
   if (JSON.stringify(capabilities) !== JSON.stringify([...provider.capabilities].sort())) {
     invalid("Tracking result capabilities do not match its provider.", "TRACKING_STAGE_CAPABILITY_MISMATCH");
   }
+  const normalizedRequest = normalizeTrackingStageRequest(provider, request);
   const sourceFingerprint = sha256(value.sourceFingerprint, "tracking source fingerprint");
-  if (sourceFingerprint !== sha256(request.sourceFingerprint, "requested source fingerprint")) {
+  if (sourceFingerprint !== normalizedRequest.sourceFingerprint) {
     invalid("Tracking result belongs to another video source.", "TRACKING_STAGE_SOURCE_MISMATCH");
   }
   const requestFingerprint = sha256(value.requestFingerprint, "tracking request fingerprint");
@@ -237,7 +172,7 @@ function normalizedHeader(value = {}, provider = {}, request = {}, options = {})
     startMs: integer(value.range.startMs, "tracking result start"),
     endMs: integer(value.range.endMs, "tracking result end"),
   };
-  const requestedRange = request.range || {};
+  const requestedRange = normalizedRequest.range;
   if (range.endMs <= range.startMs
     || range.startMs !== Number(requestedRange.startMs)
     || range.endMs !== Number(requestedRange.endMs)
@@ -253,7 +188,7 @@ function normalizedHeader(value = {}, provider = {}, request = {}, options = {})
   if (Buffer.byteLength(serialized) > maximumOutputBytes(provider, options)) {
     invalid("Tracking stage result exceeds its output limit.", "TRACKING_STAGE_OUTPUT_LIMIT");
   }
-  return { capabilities, range, sourceFingerprint, requestFingerprint };
+  return { capabilities, range, sourceFingerprint, requestFingerprint, request: normalizedRequest };
 }
 
 function validateDetection(payload = {}, provider = {}, range = {}, options = {}) {
@@ -394,10 +329,46 @@ function validateSegmentation(payload = {}, request = {}, options = {}) {
   exactKeys(payload, ["tracks"], "Segmentation result");
   const prompts = Array.isArray(request.prompts) ? request.prompts : [];
   const tracks = Array.isArray(payload.tracks) ? payload.tracks : invalid("Segmentation tracks are required.");
-  if (prompts.length === 1 && tracks.length === 1) {
-    return { tracks: [validateTrackingArtifact(tracks[0], prompts[0], options.validation).artifact] };
+  const strictTracks = tracks.map((track, trackIndex) => {
+    exactKeys(track, [
+      "id", "promptId", "entityType", "status", "startMs", "endMs", "confidence", "segments", "metadata",
+    ], `Segmentation track ${trackIndex + 1}`);
+    if (track.status !== "review") invalid("Segmentation tracks must enter analyst review.");
+    const promptId = identifier(track.promptId, `segmentation track ${trackIndex + 1} prompt id`);
+    if (!prompts.some((prompt) => prompt.id === promptId)) {
+      invalid("Segmentation track references an unknown prompt.", "TRACKING_STAGE_REFERENCE_MISMATCH");
+    }
+    if (!Array.isArray(track.segments)) invalid("Segmentation track segments are required.");
+    track.segments.forEach((segment, segmentIndex) => {
+      exactKeys(segment, [
+        "id", "startMs", "endMs", "confidence", "discontinuityBefore", "points",
+      ], `Segmentation segment ${trackIndex + 1}.${segmentIndex + 1}`);
+      if (!Array.isArray(segment.points)) invalid("Segmentation segment points are required.");
+      segment.points.forEach((point, pointIndex) => {
+        exactKeys(point, [
+          "atMs", "frameIndex", "x", "y", "width", "height", "groundX", "groundY",
+          "confidence", "identityConfidence", "occluded", "source",
+        ], `Segmentation point ${trackIndex + 1}.${segmentIndex + 1}.${pointIndex + 1}`);
+        if (point.source !== undefined && point.source !== "automatic") {
+          invalid("Segmentation points must be automatic provider output.");
+        }
+      });
+    });
+    if (track.metadata !== undefined) {
+      exactKeys(track.metadata, ["model", "device", "providerProtocol", "sampleFps", "promptFrameIndex"], `Segmentation track ${trackIndex + 1} metadata`);
+      ["model", "device", "providerProtocol"].forEach((field) => {
+        const text = String(track.metadata[field] || "");
+        if (text.length > 120 || /[\r\n\\]|^[/~]|(?:^|\/)\.\.(?:\/|$)|^[a-z]+:\/\//i.test(text)) {
+          invalid("Segmentation metadata contains an unsafe value.", "TRACKING_STAGE_FIELD_UNSUPPORTED");
+        }
+      });
+    }
+    return track;
+  });
+  if (prompts.length === 1 && strictTracks.length === 1) {
+    return { tracks: [validateTrackingArtifact(strictTracks[0], prompts[0], options.validation).artifact] };
   }
-  return { tracks: validateTrackingArtifacts({ tracks }, prompts, options.validation).artifacts };
+  return { tracks: validateTrackingArtifacts({ tracks: strictTracks }, prompts, options.validation).artifacts };
 }
 
 export function validateTrackingStageArtifact(value = {}, providerValue = {}, request = {}, options = {}) {
@@ -406,10 +377,10 @@ export function validateTrackingStageArtifact(value = {}, providerValue = {}, re
   const payload = record(value.payload, "Tracking stage payload");
   let normalizedPayload;
   if (provider.stage === "detection") normalizedPayload = validateDetection(payload, provider, header.range, options);
-  else if (provider.stage === "association") normalizedPayload = validateAssociation(payload, request, header.range, options);
-  else if (provider.stage === "reidentification") normalizedPayload = validateReidentification(payload, request, options);
-  else if (provider.stage === "classification") normalizedPayload = validateClassification(payload, provider, request, options);
-  else normalizedPayload = validateSegmentation(payload, request, options);
+  else if (provider.stage === "association") normalizedPayload = validateAssociation(payload, header.request, header.range, options);
+  else if (provider.stage === "reidentification") normalizedPayload = validateReidentification(payload, header.request, options);
+  else if (provider.stage === "classification") normalizedPayload = validateClassification(payload, provider, header.request, options);
+  else normalizedPayload = validateSegmentation(payload, header.request, options);
   return deepFreeze({
     schemaVersion: 1,
     protocol: TRACKING_STAGE_RESULT_PROTOCOL,

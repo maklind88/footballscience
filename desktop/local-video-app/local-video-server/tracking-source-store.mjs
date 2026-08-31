@@ -5,6 +5,7 @@ const reusableJobTypes = new Set([
   "track-object",
   "track-objects",
   "run-tracking-stage",
+  "run-tracking-candidate-stage",
 ]);
 
 export function safeTrackingFileName(value = "tracking-video") {

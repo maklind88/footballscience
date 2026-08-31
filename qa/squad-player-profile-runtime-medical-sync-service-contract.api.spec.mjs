@@ -276,6 +276,90 @@ test("Squad player profile Medical sync service archives removed players by name
   expect(harness.getMedicalState().selectedPlayerId).toBe("");
 });
 
+test("Squad player profile Medical sync service preserves re-added active squad players and recommendations", () => {
+  const harness = createHarness({
+    playerProfilesState: {
+      removedPlayerIds: ["legacy-erica"],
+      rosterVersion: "shared-roster-v1",
+      players: [
+        {
+          id: "current-erica",
+          name: "Erica Parkinson",
+          number: "19",
+          rosterType: "squad",
+          countsInSquad: true,
+        },
+      ],
+      changeLog: [
+        {
+          id: "remove-legacy-erica",
+          type: "player-removed",
+          playerId: "legacy-erica",
+          playerName: "Erica Parkinson",
+          createdAt: "2026-06-01T10:00:00.000Z",
+        },
+      ],
+    },
+    medicalState: {
+      selectedPlayerId: "legacy-erica",
+      rosterVersion: "shared-roster-v1",
+      players: [{ id: "legacy-erica", name: "Erica Parkinson", number: "19" }],
+      records: [{ id: "erica-rec", playerId: "legacy-erica", date: "2026-08-25", participation: 50 }],
+      injuryPlans: [],
+    },
+  });
+
+  expect(harness.service.isMedicalPlayerRemovedFromSquad({
+    id: "legacy-erica",
+    name: "Erica Parkinson",
+    number: "19",
+  })).toBe(false);
+  expect(harness.service.archiveMedicalPlayersRemovedFromSquad()).toEqual([]);
+  expect(harness.getMedicalState().records[0]).not.toHaveProperty("archivedAt");
+});
+
+test("Squad player profile Medical sync service preserves a unique active player after a shirt-number change", () => {
+  const harness = createHarness({
+    playerProfilesState: {
+      removedPlayerIds: ["legacy-vilde"],
+      rosterVersion: "shared-roster-v1",
+      players: [
+        {
+          id: "current-vilde",
+          name: "Vilde Bøe Rise",
+          number: "26",
+          rosterType: "squad",
+          countsInSquad: true,
+        },
+      ],
+      changeLog: [
+        {
+          id: "remove-legacy-vilde",
+          type: "player-removed",
+          playerId: "legacy-vilde",
+          playerName: "Vilde Bøe Rise",
+          createdAt: "2026-06-01T10:00:00.000Z",
+        },
+      ],
+    },
+    medicalState: {
+      selectedPlayerId: "legacy-vilde",
+      rosterVersion: "shared-roster-v1",
+      players: [{ id: "legacy-vilde", name: "Vilde Bøe Rise", number: "18" }],
+      records: [{ id: "vilde-rec", playerId: "legacy-vilde", date: "2026-08-25", participation: 75 }],
+      injuryPlans: [],
+    },
+  });
+
+  expect(harness.service.isMedicalPlayerRemovedFromSquad({
+    id: "legacy-vilde",
+    name: "Vilde Bøe Rise",
+    number: "18",
+  })).toBe(false);
+  expect(harness.service.archiveMedicalPlayersRemovedFromSquad()).toEqual([]);
+  expect(harness.getMedicalState().records[0]).not.toHaveProperty("archivedAt");
+});
+
 test("Squad player profile Medical sync service preserves temporary Medical guests", () => {
   const harness = createHarness({
     playerProfilesState: {

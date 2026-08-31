@@ -21,6 +21,9 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
           workspaceSha256: "a".repeat(64),
           associatedTrackCount: 312,
           unassociatedObservationCount: 4341,
+          criticalEntityCount: 17,
+          fragmentCount: 204,
+          lowConfidenceCount: 48,
           pendingCount: 4652,
           acceptedCount: 1,
           rejectedCount: 0,
@@ -34,6 +37,8 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
             atMs: 1250,
             confidence: 0.4,
             pointCount: 1,
+            priorityCode: "critical-entity",
+            priorityLabel: "Ball/referee requires manual confirmation",
           },
           error: "",
         },
@@ -44,7 +49,10 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   expect(html).toContain("Verified preannotation");
   expect(html).toContain("attacking-third");
   expect(html).toContain("4,341");
+  expect(html).toContain("Critical objects");
+  expect(html).toContain("204");
   expect(html).toContain("Unassociated ball");
+  expect(html).toContain("Ball/referee requires manual confirmation");
   expect(html).toContain("Device progress restored");
   expect(html).toContain("12 decisions");
   expect(html).toContain("1 samples | 40%");

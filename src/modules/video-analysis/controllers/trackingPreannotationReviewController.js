@@ -1,5 +1,9 @@
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { importTrackingPreannotationReviewCase } from "../services/trackingPreannotationReviewService.js";
+import {
+  prioritizeTrackingPreannotationReviewEntries,
+  summarizeTrackingPreannotationReviewPriorities,
+} from "../services/trackingPreannotationReviewPriorityService.js";
 import { trackingSourceFingerprint } from "./trackingGroundTruthController.js";
 import {
   createTrackingPreannotationReviewDraftController,
@@ -23,6 +27,9 @@ function reviewState(value = {}) {
     workspaceSha256: String(value.workspaceSha256 || ""),
     associatedTrackCount: Math.max(0, Number(value.associatedTrackCount) || 0),
     unassociatedObservationCount: Math.max(0, Number(value.unassociatedObservationCount) || 0),
+    criticalEntityCount: Math.max(0, Number(value.criticalEntityCount) || 0),
+    fragmentCount: Math.max(0, Number(value.fragmentCount) || 0),
+    lowConfidenceCount: Math.max(0, Number(value.lowConfidenceCount) || 0),
     pendingCount: Math.max(0, Number(value.pendingCount) || 0),
     acceptedCount: Math.max(0, Number(value.acceptedCount) || 0),
     rejectedCount: Math.max(0, Number(value.rejectedCount) || 0),
@@ -71,13 +78,6 @@ async function selectedFiles(win = globalThis.window) {
   return { packBytes, workspaceBytes, trackMapBytes, suggestionBytes, caseId };
 }
 
-function queuePriority(entry = {}) {
-  if (entry.track.entityType === "referee") return 0;
-  if (entry.track.entityType === "ball") return 1;
-  if (entry.associationStatus === "associated") return 2;
-  return 3;
-}
-
 function previewTrack(track = {}) {
   return normalizeObjectTrack({
     ...track,
@@ -108,6 +108,8 @@ function currentReview(entry = {}, overrides = {}) {
     atMs: entry.track.startMs,
     confidence: entry.track.confidence,
     pointCount: entry.track.segments.reduce((sum, segment) => sum + segment.points.length, 0),
+    priorityCode: entry.priority?.code || "",
+    priorityLabel: entry.priority?.label || "",
     ...overrides,
   };
 }
@@ -265,14 +267,11 @@ export function createTrackingPreannotationReviewController(options = {}) {
         || trackingSourceFingerprint(currentState) !== sourceSha256) {
         invalid("The selected clip or video source changed while preannotation was opening.");
       }
-      const entries = [
+      const entries = prioritizeTrackingPreannotationReviewEntries([
         ...imported.tracks.map((track) => ({ track, associationStatus: "associated" })),
         ...imported.queue.map((entry) => ({ track: entry.track, associationStatus: "unassociated" })),
-      ].sort((first, second) => (
-        queuePriority(first) - queuePriority(second)
-        || first.track.startMs - second.track.startMs
-        || first.track.id.localeCompare(second.track.id)
-      ));
+      ]);
+      const prioritySummary = summarizeTrackingPreannotationReviewPriorities(entries);
       const identity = {
         itemId: item.id,
         clipId,
@@ -340,6 +339,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
         workspaceSha256: imported.workspaceSha256,
         associatedTrackCount: imported.summary.associatedTrackCount,
         unassociatedObservationCount: imported.summary.unassociatedObservationCount,
+        ...prioritySummary,
         ...counts(),
         draftStatus: scope ? draftError ? "error" : restoredDraft ? "restored" : "ready" : "session-only",
         draftError: draftError || (scope ? "" : "Sign in to keep review progress after this browser session."),

@@ -50,13 +50,16 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
         <dl class="video-analysis-preannotation__counts">
           <div><dt>Associated</dt><dd>${count(review.associatedTrackCount)}</dd></div>
           <div><dt>Unassociated</dt><dd>${count(review.unassociatedObservationCount)}</dd></div>
+          <div><dt>Critical objects</dt><dd>${count(review.criticalEntityCount)}</dd></div>
+          <div><dt>Fragments</dt><dd>${count(review.fragmentCount)}</dd></div>
+          <div><dt>Low confidence</dt><dd>${count(review.lowConfidenceCount)}</dd></div>
           <div><dt>Pending</dt><dd>${count(review.pendingCount)}</dd></div>
           <div><dt>Accepted</dt><dd>${count(review.acceptedCount)}</dd></div>
           <div><dt>Rejected</dt><dd>${count(review.rejectedCount)}</dd></div>
           <div><dt>Saved</dt><dd>${count(review.savedCount)}</dd></div>
         </dl>
         <div class="video-analysis-preannotation__current ${current ? "" : "is-empty"}">
-          <div><strong>${escapeHtml(currentLabel(current))}</strong><span>${current ? `${count(current.pointCount)} samples | ${confidence(current.confidence)}` : "Queue reviewed"}</span></div>
+          <div><strong>${escapeHtml(currentLabel(current))}</strong><span>${current ? `${count(current.pointCount)} samples | ${confidence(current.confidence)}${current.priorityLabel ? ` | ${escapeHtml(current.priorityLabel)}` : ""}` : "Queue reviewed"}</span></div>
           <time>${current ? `${(Number(current.atMs) / 1000).toFixed(2)}s` : ""}</time>
         </div>
       ` : ""}

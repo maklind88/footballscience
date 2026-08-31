@@ -16,6 +16,9 @@ test("preannotation review panel remains compact and actionable", async ({ page 
             workspaceSha256: "a".repeat(64),
             associatedTrackCount: 312,
             unassociatedObservationCount: 4341,
+            criticalEntityCount: 17,
+            fragmentCount: 204,
+            lowConfidenceCount: 48,
             pendingCount: 4652,
             acceptedCount: 1,
             rejectedCount: 0,
@@ -29,6 +32,8 @@ test("preannotation review panel remains compact and actionable", async ({ page 
               atMs: 1250,
               confidence: 0.4,
               pointCount: 1,
+              priorityCode: "critical-entity",
+              priorityLabel: "Ball/referee requires manual confirmation",
             },
           },
         },
@@ -39,6 +44,7 @@ test("preannotation review panel remains compact and actionable", async ({ page 
   const panel = page.locator(".video-analysis-preannotation");
   await expect(panel).toBeVisible();
   await expect(panel.getByText("Unassociated ball")).toBeVisible();
+  await expect(panel.getByText(/Ball\/referee requires manual confirmation/)).toBeVisible();
   await expect(panel.getByRole("button", { name: "Accept", exact: true })).toBeEnabled();
   await expect(panel.getByRole("button", { name: "Save accepted", exact: true })).toBeEnabled();
   const layout = await panel.evaluate((element) => ({

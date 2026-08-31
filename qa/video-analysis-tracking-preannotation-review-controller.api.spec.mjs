@@ -120,7 +120,16 @@ test("preannotation review decisions stay local, support undo, and persist only 
     caseId: "transition",
     pendingCount: 2,
     acceptedCount: 0,
-    current: { id: "unassociated-ball", entityType: "ball", associationStatus: "unassociated" },
+    criticalEntityCount: 1,
+    fragmentCount: 1,
+    lowConfidenceCount: 1,
+    current: {
+      id: "unassociated-ball",
+      entityType: "ball",
+      associationStatus: "unassociated",
+      priorityCode: "critical-entity",
+      priorityLabel: "Ball/referee requires manual confirmation",
+    },
   });
   expect(state.presentation.current.sections[0].items[0].objectTracks).toHaveLength(1);
   expect(persisted).toHaveLength(0);
@@ -129,7 +138,7 @@ test("preannotation review decisions stay local, support undo, and persist only 
   expect(state.presentation.tracking.preannotationReview).toMatchObject({
     pendingCount: 1,
     acceptedCount: 1,
-    current: { id: "associated-player", entityType: "player" },
+    current: { id: "associated-player", entityType: "player", priorityCode: "single-sample" },
   });
   expect(persisted).toHaveLength(0);
 

@@ -4,7 +4,11 @@ import {
   leaderboardSamePointPresets,
 } from "./leaderboard-constants.mjs";
 import { escapeLeaderboardHtml } from "./leaderboard-helpers.mjs";
-import { getLeaderboardDraftAwards, getLeaderboardDraftTotal } from "./leaderboard-selectors.mjs";
+import {
+  getLeaderboardDraftAwards,
+  getLeaderboardDraftTotal,
+  getLeaderboardPlayerAvailability,
+} from "./leaderboard-selectors.mjs";
 import { renderLeaderboardAvatar } from "./leaderboard-ui-helpers.mjs";
 
 function renderModeControl(draft = {}) {
@@ -20,22 +24,42 @@ function renderModeControl(draft = {}) {
   `;
 }
 
-function getVisiblePlayers(players = [], searchQuery = "") {
+const availabilitySortOrder = Object.freeze({ available: 0, limited: 1, unknown: 2, unavailable: 3 });
+
+function getVisiblePlayers(players = [], searchQuery = "", dateValue = "") {
   const query = String(searchQuery || "").trim().toLowerCase();
-  return players.filter((player) => !query || `${player.name} ${player.number} ${player.position}`.toLowerCase().includes(query));
+  return players
+    .filter((player) => !query || `${player.name} ${player.number} ${player.position}`.toLowerCase().includes(query))
+    .map((player) => ({ ...player, availability: getLeaderboardPlayerAvailability(player, dateValue) }))
+    .sort((left, right) => (availabilitySortOrder[left.availability.eligibility] ?? 9) - (availabilitySortOrder[right.availability.eligibility] ?? 9)
+      || left.name.localeCompare(right.name));
+}
+
+function renderAvailability(availability = {}) {
+  const eligibility = availability.eligibility || "unknown";
+  const label = eligibility === "available"
+    ? "Available"
+    : eligibility === "limited"
+      ? "Limited"
+      : eligibility === "unavailable"
+        ? "Unavailable"
+        : "Status not set";
+  const participation = eligibility === "unavailable" || eligibility === "unknown" ? "" : ` · ${availability.participation}%`;
+  return `<span class="leaderboard-availability is-${escapeLeaderboardHtml(eligibility)}">${escapeLeaderboardHtml(label + participation)}</span>`;
 }
 
 function renderPlacementPlayer(player, assignment = {}) {
   const placement = Number(assignment.placement) || 0;
+  const unavailable = player.availability?.eligibility === "unavailable";
   return `
-    <article class="leaderboard-award-player${placement ? " is-selected" : ""}">
+    <article class="leaderboard-award-player${placement ? " is-selected" : ""}${unavailable ? " is-unavailable" : ""}">
       <div class="leaderboard-award-player-copy">
         ${renderLeaderboardAvatar(player)}
-        <span><strong>${escapeLeaderboardHtml(player.name)}</strong><small>${escapeLeaderboardHtml([player.number ? `#${player.number}` : "", player.position].filter(Boolean).join(" · ") || "Squad player")}</small></span>
+        <span><strong>${escapeLeaderboardHtml(player.name)}</strong><small>${escapeLeaderboardHtml([player.number ? `#${player.number}` : "", player.position].filter(Boolean).join(" · ") || "Squad player")}</small>${renderAvailability(player.availability)}</span>
       </div>
       <div class="leaderboard-placement-buttons" role="group" aria-label="Placement for ${escapeLeaderboardHtml(player.name)}">
         ${Object.entries(leaderboardPlacementPoints).map(([place, points]) => `
-          <button type="button" class="is-place-${place}${placement === Number(place) ? " is-active" : ""}" data-leaderboard-assign-placement="${place}" data-leaderboard-player-id="${escapeLeaderboardHtml(player.id)}" aria-pressed="${placement === Number(place)}">
+          <button type="button" class="is-place-${place}${placement === Number(place) ? " is-active" : ""}" data-leaderboard-assign-placement="${place}" data-leaderboard-player-id="${escapeLeaderboardHtml(player.id)}" aria-pressed="${placement === Number(place)}" ${unavailable ? "disabled" : ""}>
             <span>${place}</span><small>+${points}</small>
           </button>
         `).join("")}
@@ -46,13 +70,14 @@ function renderPlacementPlayer(player, assignment = {}) {
 
 function renderSamePointsPlayer(player, assignment = {}, points = 0) {
   const selected = Boolean(assignment.selected);
+  const unavailable = player.availability?.eligibility === "unavailable";
   return `
-    <button type="button" class="leaderboard-award-player leaderboard-award-player-toggle${selected ? " is-selected" : ""}" data-leaderboard-toggle-winner="${escapeLeaderboardHtml(player.id)}" aria-pressed="${selected}">
+    <button type="button" class="leaderboard-award-player leaderboard-award-player-toggle${selected ? " is-selected" : ""}${unavailable ? " is-unavailable" : ""}" data-leaderboard-toggle-winner="${escapeLeaderboardHtml(player.id)}" aria-pressed="${selected}" ${unavailable ? "disabled" : ""}>
       <span class="leaderboard-award-player-copy">
         ${renderLeaderboardAvatar(player)}
-        <span><strong>${escapeLeaderboardHtml(player.name)}</strong><small>${escapeLeaderboardHtml([player.number ? `#${player.number}` : "", player.position].filter(Boolean).join(" · ") || "Squad player")}</small></span>
+        <span><strong>${escapeLeaderboardHtml(player.name)}</strong><small>${escapeLeaderboardHtml([player.number ? `#${player.number}` : "", player.position].filter(Boolean).join(" · ") || "Squad player")}</small>${renderAvailability(player.availability)}</span>
       </span>
-      <span class="leaderboard-award-points-chip">${selected ? `+${points}` : "Select"}</span>
+      <span class="leaderboard-award-points-chip">${unavailable ? "Unavailable" : selected ? `+${points}` : "Select"}</span>
     </button>
   `;
 }
@@ -75,7 +100,12 @@ function renderPointPresets(draft = {}) {
 export function renderLeaderboardAwardSheet({ state, players = [], bounds = {}, canEdit = false } = {}) {
   if (!state?.ui?.awardOpen) return "";
   const draft = state.draft || {};
-  const visiblePlayers = getVisiblePlayers(players, draft.searchQuery);
+  const visiblePlayers = getVisiblePlayers(players, draft.searchQuery, draft.occurredOn);
+  const availabilityCounts = visiblePlayers.reduce((counts, player) => {
+    const key = player.availability?.eligibility || "unknown";
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
   const awards = getLeaderboardDraftAwards(draft);
   const selectedCount = awards.length;
   const total = getLeaderboardDraftTotal(draft);
@@ -103,7 +133,7 @@ export function renderLeaderboardAwardSheet({ state, players = [], bounds = {}, 
             `}
             <section class="leaderboard-player-picker" aria-label="Select squad players">
               <div class="leaderboard-picker-head">
-                <div><h3>${draft.mode === "same" ? "Winning players" : "Place players"}</h3><p>${draft.mode === "same" ? "Select everyone who earned the same reward." : "Multiple players can share a placement."}</p></div>
+                <div><h3>${draft.mode === "same" ? "Winning players" : "Place players"}</h3><p>${draft.mode === "same" ? "Select everyone who earned the same reward." : "Multiple players can share a placement."}</p><p class="leaderboard-availability-summary"><strong>${availabilityCounts.available || 0} available</strong><span>${availabilityCounts.limited || 0} limited</span><span>${availabilityCounts.unavailable || 0} unavailable</span></p></div>
                 <label><span class="sr-only">Search squad</span><input type="search" value="${escapeLeaderboardHtml(draft.searchQuery)}" placeholder="Search squad…" data-leaderboard-award-search data-leaderboard-focus-key="award-search" /></label>
               </div>
               <div class="leaderboard-award-player-list">

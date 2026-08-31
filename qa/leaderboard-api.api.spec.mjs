@@ -594,7 +594,16 @@ test("monthly read keeps event award history and rechecks actor tenant scope in 
     p_month_start: "2026-08-01",
   });
   expect(result.snapshot.events).toEqual([event]);
-  expect(result.snapshot.roster).toEqual([{ playerId: "legacy-player-1", displayName: "Team B Player", number: "9", position: "Forward" }]);
+  expect(result.snapshot.roster).toEqual([{
+    playerId: "legacy-player-1",
+    displayName: "Team B Player",
+    number: "9",
+    position: "Forward",
+    photoUrl: "",
+    availabilityStatus: "unknown",
+    updatedAt: "",
+    availabilityByDate: {},
+  }]);
   expect(seenPaths).toContain("/rest/v1/rpc/leaderboard_month_snapshot");
   const linkUrl = new URL(seenUrls.find((url) => url.includes("/platform_tenant_links?")));
   const rosterUrl = new URL(seenUrls.find((url) => url.includes("/squad_roster_memberships?")));

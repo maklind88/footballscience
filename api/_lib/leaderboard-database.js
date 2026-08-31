@@ -1,5 +1,11 @@
 const { buildSupabaseKeyHeaders, readConfig } = require("./supabase-admin.js");
 const { LEADERBOARD_TIMEZONE, canonicalAwardHash, canonicalReverseHash, isUuid, monthStart, normalizeText } = require("./leaderboard-contract.js");
+const {
+  buildAvailabilityByPlayer,
+  findUnavailableAwardPlayerIds,
+  readLeaderboardAvailabilitySources,
+} = require("./leaderboard-availability.js");
+const { ensureSquadRosterProjection } = require("./squad-roster-projection.js");
 
 const ALLOWED_SQUAD_LINK_MODULES = new Set(["squad", "player-profiles"]);
 
@@ -129,7 +135,7 @@ async function resolveSquadTeam(tenant, options = {}) {
 
 async function fetchActiveRoster(squadTeam, options = {}) {
   const roster = await fetchRows("squad_roster_memberships", {
-    select: "id,organization_id,team_id,season_id,player_id,shirt_number,position_label,primary_role,status,updated_at,deleted_at",
+    select: "id,organization_id,team_id,season_id,player_id,shirt_number,position_label,primary_role,availability_status,status,updated_at,deleted_at",
     organization_id: `eq.${squadTeam.organizationId}`,
     team_id: `eq.${squadTeam.id}`,
     status: "eq.active",
@@ -141,7 +147,7 @@ async function fetchActiveRoster(squadTeam, options = {}) {
   if (!roster.rows.length) return options.allowEmpty ? { ok: true, roster: [], players: [] } : failure("No active Squad roster is mapped to this team.", 409);
   const playerIds = Array.from(new Set(roster.rows.map((row) => row.player_id).filter(isUuid)));
   const players = await fetchRows("squad_players", {
-    select: "id,organization_id,display_name,status,metadata,deleted_at",
+    select: "id,organization_id,display_name,status,metadata,updated_at,deleted_at",
     organization_id: `eq.${squadTeam.organizationId}`,
     id: `in.${postgrestInList(playerIds)}`,
     status: "eq.active",
@@ -173,6 +179,9 @@ function createActiveRosterSnapshot(roster = [], players = []) {
       displayName,
       number: normalizeText(membership.shirt_number, 16),
       position: normalizeText(membership.position_label || membership.primary_role, 80),
+      photoUrl: normalizeText(player.metadata?.photoUrl, 1800),
+      availabilityStatus: normalizeText(membership.availability_status, 40) || "unknown",
+      updatedAt: normalizeText(membership.updated_at || player.updated_at, 48),
     });
   }
   if (snapshot.length !== membershipByPlayer.size) {
@@ -224,14 +233,54 @@ async function resolveAwardPlayers(squadTeam, awards, options = {}) {
     mappedPlayerIds.add(matches[0].squad_player_id);
     mappedAwards.push({ ...matches[0], points: award.points, placement: award.placement });
   }
-  return { ok: true, awards: mappedAwards };
+  return { ok: true, awards: mappedAwards, roster: activeRoster.roster, players: activeRoster.players };
+}
+
+async function refreshSquadRosterProjection(context, options = {}) {
+  return ensureSquadRosterProjection(context, { ...options, callRpc });
+}
+
+async function buildRosterAvailability(month, roster, projection, options = {}) {
+  if (!projection?.targetMatched || !roster.length) return { ok: true, availability: {} };
+  const sources = await readLeaderboardAvailabilitySources({
+    ...options,
+    playerProfilesState: projection.sourceState,
+  });
+  if (!sources.ok) return sources;
+  return {
+    ok: true,
+    availability: buildAvailabilityByPlayer({
+      month,
+      roster,
+      playerProfilesState: projection.sourceState || sources.playerProfilesState,
+      medicalState: sources.medicalState,
+    }),
+  };
+}
+
+function attachRosterAvailability(roster = [], availabilityByPlayer = {}) {
+  return roster.map((player) => ({
+    ...player,
+    availabilityByDate: availabilityByPlayer[player.playerId] || {},
+  }));
 }
 
 async function awardPoints(context, command, options = {}) {
+  const projection = await refreshSquadRosterProjection(context, options);
   const team = await resolveSquadTeam(context.tenant, options);
   if (!team.ok) return team;
   const mapped = await resolveAwardPlayers(team.squadTeam, command.awards, options);
-  if (!mapped.ok) return mapped;
+  if (!mapped.ok) return !projection.ok ? projection : mapped;
+  if (projection.ok && projection.targetMatched) {
+    const rosterSnapshot = createActiveRosterSnapshot(mapped.roster, mapped.players);
+    if (!rosterSnapshot.ok) return rosterSnapshot;
+    const availabilityResult = await buildRosterAvailability(command.month, rosterSnapshot.roster, projection, options);
+    if (!availabilityResult.ok) return availabilityResult;
+    const unavailable = findUnavailableAwardPlayerIds(command.awards, command.occurredOn, availabilityResult.availability);
+    if (unavailable.length) {
+      return failure("One or more selected players were unavailable for team activity on the award date.", 409);
+    }
+  }
   const requestHash = canonicalAwardHash(command, mapped.awards);
   const result = await callRpc("leaderboard_award_batch", {
     p_organization_id: context.tenant.organizationId,
@@ -266,12 +315,18 @@ async function reverseEvent(context, command, options = {}) {
 }
 
 async function readMonthSnapshot(context, month, options = {}) {
+  const projection = await refreshSquadRosterProjection(context, options);
   const team = await resolveSquadTeam(context.tenant, options);
   if (!team.ok) return team;
   const activeRoster = await fetchActiveRoster(team.squadTeam, { ...options, allowEmpty: true });
   if (!activeRoster.ok) return activeRoster;
+  if (!activeRoster.roster.length && !projection.ok) return projection;
   const rosterSnapshot = createActiveRosterSnapshot(activeRoster.roster, activeRoster.players);
   if (!rosterSnapshot.ok) return rosterSnapshot;
+  const availabilityResult = projection.ok
+    ? await buildRosterAvailability(month, rosterSnapshot.roster, projection, options)
+    : { ok: false, availability: {} };
+  const availability = availabilityResult.ok ? availabilityResult.availability : {};
   const result = await callRpc("leaderboard_month_snapshot", {
     p_actor_id: context.actor.id,
     p_organization_id: context.tenant.organizationId,
@@ -285,7 +340,7 @@ async function readMonthSnapshot(context, month, options = {}) {
     snapshot: {
       competition: snapshot.competition || null,
       summary: snapshot.summary || { participantCount: 0, totalPoints: 0, eventCount: 0 },
-      roster: rosterSnapshot.roster,
+      roster: attachRosterAvailability(rosterSnapshot.roster, availability),
       standings: Array.isArray(snapshot.standings) ? snapshot.standings : [],
       events: Array.isArray(snapshot.events) ? snapshot.events : [],
     },

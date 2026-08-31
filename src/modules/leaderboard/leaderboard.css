@@ -247,15 +247,22 @@ body.is-leaderboard-dialog-open { overflow: hidden; }
 .leaderboard-picker-head h3, .leaderboard-picker-head p { margin: 0; }
 .leaderboard-picker-head h3 { font-size: .92rem; }
 .leaderboard-picker-head p { color: var(--lb-muted); font-size: .65rem; }
+.leaderboard-picker-head .leaderboard-availability-summary { display: flex; flex-wrap: wrap; gap: .3rem .55rem; margin-top: .28rem; }
+.leaderboard-availability-summary strong { color: var(--lb-green); }
 .leaderboard-picker-head label { width: min(16rem,45%); }
 .leaderboard-award-player-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .42rem; align-content: start; }
 .leaderboard-award-player { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .55rem; min-height: 3.6rem; padding: .5rem; border: 1px solid var(--lb-line); border-radius: 14px; background: white; color: var(--lb-ink); }
 .leaderboard-award-player.is-selected { border-color: rgba(47,143,107,.4); background: rgba(47,143,107,.055); }
+.leaderboard-award-player.is-unavailable { opacity: .62; background: rgba(116,43,35,.045); }
 .leaderboard-award-player-copy { display: flex; align-items: center; gap: .5rem; min-width: 0; text-align: left; }
 .leaderboard-award-player-copy > span { display: grid; gap: .06rem; min-width: 0; }
 .leaderboard-award-player-copy strong, .leaderboard-award-player-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .leaderboard-award-player-copy strong { font-size: .75rem; }
 .leaderboard-award-player-copy small { color: var(--lb-muted); font-size: .61rem; }
+.leaderboard-award-player-copy .leaderboard-availability { justify-self: start; margin-top: .12rem; padding: .1rem .38rem; border-radius: 999px; background: rgba(47,143,107,.1); color: var(--lb-green); font-size: .55rem; font-weight: 900; }
+.leaderboard-award-player-copy .leaderboard-availability.is-limited { background: rgba(183,124,35,.12); color: #8b5d18; }
+.leaderboard-award-player-copy .leaderboard-availability.is-unavailable { background: rgba(156,55,43,.11); color: #87382d; }
+.leaderboard-award-player-copy .leaderboard-availability.is-unknown { background: rgba(96,112,103,.12); color: var(--lb-muted); }
 .leaderboard-placement-buttons { display: flex; gap: .24rem; }
 .leaderboard-placement-buttons button { display: grid; grid-template-columns: auto auto; align-items: center; gap: .18rem; min-width: 2.45rem; height: 2.15rem; padding: 0 .38rem; border: 1px solid var(--lb-line); border-radius: 10px; background: rgba(31,75,56,.05); color: var(--lb-muted); }
 .leaderboard-placement-buttons button.is-active { background: var(--lb-green); color: white; border-color: var(--lb-green); }

@@ -59,7 +59,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
 
   await page.evaluate(async () => {
     document.head.innerHTML = `<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:24px;background:#edf2ee;font-family:Inter,system-ui,sans-serif}#dialogHost{position:relative}</style>`;
-    document.body.innerHTML = `<div id="appShell"><nav id="appNav" aria-hidden="false">Navigation</nav><main id="app"><section class="dashboard-home-grid"><section class="dashboard-presentation-band"><div class="dashboard-presentation-stack"><section class="dashboard-birthday-strip"><article id="birthdayReference" class="dashboard-panel dashboard-birthday-card">Birthday calendar</article></section></div><div class="dashboard-presentation-stack"></div><aside></aside></section><section class="dashboard-leaderboard-slot"><section id="summary"></section></section></section></main><div id="dialogHost"></div></div><aside id="outsideApp" aria-hidden="false">Outside app</aside>`;
+    document.body.innerHTML = `<div id="appShell"><nav id="appNav" aria-hidden="false">Navigation</nav><main id="app"><section class="dashboard-home-grid"><section class="dashboard-presentation-band"><div class="dashboard-presentation-stack"><section class="dashboard-birthday-strip"><article id="birthdayReference" class="dashboard-panel dashboard-birthday-card">Birthday calendar</article></section></div><div class="dashboard-presentation-stack"><article class="dashboard-panel dashboard-presentation-card"><div class="dashboard-presentation-action"><button id="presentationOpenReference" type="button">Open</button></div></article></div><aside></aside></section><section class="dashboard-leaderboard-slot"><section id="summary"></section></section></section></main><div id="dialogHost"></div></div><aside id="outsideApp" aria-hidden="false">Outside app</aside>`;
     await Promise.all([
       "/styles.css",
       "/presentation-mode.css",
@@ -97,15 +97,33 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(summary.locator(".leaderboard-team-mark")).toHaveCount(0);
   await expect(summary.locator(".leaderboard-podium-card")).toHaveCount(3);
   await expect(summary.locator(".leaderboard-home-standings")).toHaveCount(0);
-  await expect(summary.getByRole("button", { name: "Open Leaderboard" })).toBeVisible();
+  const openButton = summary.getByRole("button", { name: "Open", exact: true });
+  await expect(openButton).toBeVisible();
   const homeWidths = await page.evaluate(() => ({
     birthday: document.querySelector("#birthdayReference")?.getBoundingClientRect().width || 0,
     leaderboard: document.querySelector(".dashboard-leaderboard-slot")?.getBoundingClientRect().width || 0,
   }));
   expect(homeWidths.birthday).toBeGreaterThan(0);
   expect(Math.abs(homeWidths.leaderboard - homeWidths.birthday)).toBeLessThanOrEqual(1);
+  const expectedOpenButtonStyles = {
+    minHeight: "43.2px",
+    borderRadius: "7px",
+    backgroundColor: "rgb(29, 29, 31)",
+    color: "rgb(255, 255, 255)",
+    fontSize: "13.44px",
+    fontWeight: "650",
+    paddingLeft: "14.72px",
+    paddingRight: "14.72px",
+  };
+  await expect.poll(() => page.evaluate(() => {
+    const homeButton = document.querySelector("[data-leaderboard-home-open]");
+    const referenceButton = document.querySelector("#presentationOpenReference");
+    const properties = ["minHeight", "borderRadius", "backgroundColor", "color", "fontSize", "fontWeight", "paddingLeft", "paddingRight"];
+    const values = (style) => Object.fromEntries(properties.map((property) => [property, style[property]]));
+    return { home: values(getComputedStyle(homeButton)), reference: values(getComputedStyle(referenceButton)) };
+  })).toEqual({ home: expectedOpenButtonStyles, reference: expectedOpenButtonStyles });
 
-  await summary.getByRole("button", { name: "Open Leaderboard" }).click();
+  await openButton.click();
   const outerDialog = page.locator(".leaderboard-home-dialog");
   await expect(outerDialog).toBeVisible();
   await expect(page.getByRole("button", { name: "Close Leaderboard" })).toBeFocused();
@@ -116,7 +134,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   expect(await page.locator("#appShell").evaluate((node) => node.inert)).toBe(false);
   await page.getByRole("button", { name: "Close Leaderboard" }).click();
   await expect(outerDialog).toBeHidden();
-  await expect(summary.getByRole("button", { name: "Open Leaderboard" })).toBeFocused();
+  await expect(openButton).toBeFocused();
   expect(await page.locator("#app").evaluate((node) => node.inert)).toBe(false);
   expect(await page.locator("#appNav").getAttribute("aria-hidden")).toBe("false");
   expect(await page.locator("#outsideApp").getAttribute("aria-hidden")).toBe("false");
@@ -199,7 +217,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(page.getByRole("dialog", { name: "Award Points" })).toHaveCount(0);
   await page.getByRole("button", { name: "Close Leaderboard" }).click();
 
-  await summary.getByRole("button", { name: "Open Leaderboard" }).click();
+  await summary.getByRole("button", { name: "Open", exact: true }).click();
   const julyResponse = page.waitForResponse((response) => response.url().includes("month=2026-07"));
   await outerDialog.getByRole("button", { name: "Previous month" }).click();
   await julyResponse;
@@ -209,7 +227,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await page.getByRole("button", { name: "Close Leaderboard" }).click();
   expect(await page.evaluate(() => window.leaderboardHomeModule.getLeaderboardRuntimeState().month)).toBe("2026-08");
 
-  await summary.getByRole("button", { name: "Open Leaderboard" }).click();
+  await summary.getByRole("button", { name: "Open", exact: true }).click();
   await page.evaluate(async () => {
     const runtime = (await import("/src/modules/leaderboard/leaderboard-runtime.mjs")).getActiveLeaderboardRuntime();
     runtime.store.setState({ ui: { reverseEventId: "e1", reverseReason: "Correction", pendingAction: "reverse" } });
@@ -237,7 +255,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   expect(await page.evaluate(() => window.leaderboardHomeModule.getLeaderboardRuntimeState().ui.pendingAction)).toBe("");
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await summary.getByRole("button", { name: "Open Leaderboard" }).click();
+  await summary.getByRole("button", { name: "Open", exact: true }).click();
   const bounds = await outerDialog.evaluate((node) => {
     const rect = node.getBoundingClientRect();
     return { width: rect.width, height: rect.height, viewportWidth: innerWidth, viewportHeight: innerHeight };

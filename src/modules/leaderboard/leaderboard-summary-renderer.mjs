@@ -25,7 +25,7 @@ function renderSummaryHeader(snapshot, editable) {
   return `
     <header class="leaderboard-home-head">
       <div><p>Monthly competition</p><h2>NCC Leaderboard</h2><span>${escapeLeaderboardHtml(formatLeaderboardMonth(snapshot.month))} · Live${editable ? "" : " · View only"}</span></div>
-      <button type="button" class="leaderboard-home-open" data-leaderboard-home-open>Open Leaderboard <span aria-hidden="true">↗</span></button>
+      <button type="button" class="leaderboard-home-open" data-leaderboard-home-open>Open</button>
     </header>
   `;
 }

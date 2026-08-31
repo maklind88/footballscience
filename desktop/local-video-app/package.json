@@ -16,6 +16,7 @@
     "tracking:candidate:preflight": "node tracking-stage-candidates/preflight.mjs",
     "tracking:candidate:build:yolox": "node tracking-stage-candidates/build-yolox-reference-provider.mjs",
     "tracking:candidate:build:yolox-coreml": "node tracking-stage-candidates/build-yolox-coreml-reference-provider.mjs",
+    "tracking:candidate:build:yolox-native-coreml": "node tracking-stage-candidates/build-yolox-native-coreml-reference-provider.mjs",
     "tracking:candidate:screen": "node ../../scripts/fs-player-tracking-candidate-screening.mjs",
     "tracking:candidate:screen:verify": "node ../../scripts/fs-player-tracking-candidate-screening-verify.mjs",
     "tracking:smoke": "node ../../scripts/fs-player-tracking-engine-smoke.mjs",

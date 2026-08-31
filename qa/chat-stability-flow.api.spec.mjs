@@ -427,6 +427,60 @@ test("server-first chat runtime ignores legacy local history and does not persis
   expect(writes.some((entry) => entry.key === "football-dashboard-chat-deleted-message-ids-v1")).toBe(false);
 });
 
+test("server-first chat runtime keeps confirmed deletes hidden in memory", () => {
+  let runtimeMessages = [];
+  const writes = [];
+  const normalizeThreadId = (threadId, fallback = "team") => String(threadId || fallback || "team").trim();
+  const normalizeMessage = (message = {}) => ({
+    id: String(message.id || message.messageId || ""),
+    clientMessageId: String(message.clientMessageId || message.client_message_id || ""),
+    userId: String(message.userId || message.authorId || message.author_id || "coach-qa"),
+    threadId: normalizeThreadId(message.threadId || message.thread_id, "team"),
+    text: String(message.text || message.body || ""),
+    createdAt: String(message.createdAt || message.created_at || ""),
+    readBy: [],
+    mentionedUserIds: [],
+    reactions: {},
+    priority: "normal",
+    attachments: [],
+    status: "sent",
+  });
+  const runtime = createDashboardChatMessageRuntime({
+    readMessagesFromStorage: false,
+    persistMessagesToStorage: false,
+    respectDeletedMessageIdsFromStorage: false,
+    persistDeletedMessageIdsToStorage: false,
+    getDashboardChatRuntimeMessages: () => runtimeMessages,
+    setDashboardChatRuntimeMessages: (nextMessages) => {
+      runtimeMessages = nextMessages;
+    },
+    readDashboardJson: () => [],
+    writeDashboardJson: (key, value) => writes.push({ key, value }),
+    normalizeDashboardChatThreadId: normalizeThreadId,
+    normalizeDashboardMessage: normalizeMessage,
+    normalizeDashboardApiMessage: normalizeMessage,
+    getDashboardMessageIdentityKeys: (message = {}) => [message.id, message.clientMessageId].filter(Boolean),
+    getDashboardMessageCreatedAtMs: (message = {}) => Date.parse(message.createdAt || "") || 0,
+    compareDashboardChatMessages: (first, second) =>
+      String(first.id || "").localeCompare(String(second.id || "")),
+    renderDashboardChatWidget: () => {},
+  });
+  const deletedMessage = normalizeMessage({
+    id: "server-delete-1",
+    threadId: "team",
+    text: "Delete me",
+    createdAt: "2026-08-31T10:00:00.000Z",
+  });
+
+  runtime.writeDashboardMessages([deletedMessage], { skipCentralSync: true });
+  runtime.rememberDashboardDeletedMessageId(deletedMessage.id);
+
+  expect(runtime.readDashboardMessages()).toEqual([]);
+  expect(runtimeMessages).toEqual([]);
+  expect(runtime.readDashboardDeletedMessageIds()).toEqual(new Set([deletedMessage.id]));
+  expect(writes).toEqual([]);
+});
+
 test("retryable chat API write failures only use local dev fallback", () => {
   const productionRuntime = createDashboardChatApiDomainRuntime({
     getPlatformAuthStore: () => ({ isDevMode: () => true }),

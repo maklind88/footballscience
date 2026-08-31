@@ -38,10 +38,12 @@ function firstCheckpointIssue(tracks, truth, benchmarkType) {
 
 function suggestionActions(review = {}) {
   if (review.current && !review.current.savedForCorrection) return [
+    action("preannotation-preview-context", "Review context"),
     action(
       "preannotation-accept",
       review.current.entityType === "person" ? "Accept as person" : "Accept suggestion",
     ),
+    action("preannotation-save-current", "Save & correct"),
     action("preannotation-reject", "Reject"),
   ];
   if (Number(review.acceptedCount) > 0) {
@@ -51,6 +53,12 @@ function suggestionActions(review = {}) {
     return [action("preannotation-next-batch", "Open next batch")];
   }
   return [];
+}
+
+function suggestionDuration(value = {}) {
+  const durationMs = Math.max(0, Number(value.durationMs) || 0);
+  if (!durationMs) return "single frame";
+  return durationMs < 1000 ? `${Math.round(durationMs)}ms` : `${(durationMs / 1000).toFixed(2)}s`;
 }
 
 function sourceHint(value = "") {
@@ -172,7 +180,7 @@ export function trackingGroundTruthReviewStudioState(state = {}, item = null) {
     } : {
       title: review.current ? "Resolve current suggestion" : "Continue suggestion review",
       detail: review.current
-        ? `${review.current.entityType || "Object"} at ${((Number(review.current.atMs) || 0) / 1000).toFixed(2)}s`
+        ? `${review.current.entityType || "Object"} at ${((Number(review.current.atMs) || 0) / 1000).toFixed(2)}s | ${suggestionDuration(review.current)}`
         : "Open the next bounded review batch.",
       actions: suggestionActions(review),
     };

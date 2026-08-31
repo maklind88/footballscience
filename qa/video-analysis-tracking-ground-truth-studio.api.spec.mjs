@@ -96,7 +96,7 @@ test("review studio keeps accept and reject decisions explicit", async () => {
       workspaceSha256: "b".repeat(64),
       caseId: "fast-transition",
       pendingCount: 8,
-      current: { id: "suggestion-1", entityType: "ball", atMs: 1250 },
+      current: { id: "suggestion-1", entityType: "ball", atMs: 1250, durationMs: 900 },
       campaign: {
         caseCount: 5,
         completeCaseCount: 1,
@@ -106,9 +106,12 @@ test("review studio keeps accept and reject decisions explicit", async () => {
   }), { id: "item-1", objectTracks: [] });
 
   expect(html).toContain("Resolve current suggestion");
-  expect(html).toContain("ball at 1.25s");
+  expect(html).toContain("ball at 1.25s | 900ms");
+  expect(html).toContain('data-video-analysis-tracking-action="preannotation-preview-context"');
   expect(html).toContain('data-video-analysis-tracking-action="preannotation-accept"');
+  expect(html).toContain('data-video-analysis-tracking-action="preannotation-save-current"');
   expect(html).toContain('data-video-analysis-tracking-action="preannotation-reject"');
+  expect(html.indexOf("preannotation-preview-context")).toBeLessThan(html.indexOf("preannotation-accept"));
   expect(html).toContain("0/5 refs");
 });
 

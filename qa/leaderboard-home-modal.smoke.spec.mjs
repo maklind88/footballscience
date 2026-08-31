@@ -59,7 +59,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
 
   await page.evaluate(async () => {
     document.head.innerHTML = `<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:24px;background:#edf2ee;font-family:Inter,system-ui,sans-serif}#dialogHost{position:relative}</style>`;
-    document.body.innerHTML = `<div id="appShell"><nav id="appNav" aria-hidden="false">Navigation</nav><main id="app"><section class="dashboard-home-grid"><section class="dashboard-presentation-band"><div class="dashboard-presentation-stack"><section class="dashboard-birthday-strip"><article id="birthdayReference" class="dashboard-panel dashboard-birthday-card">Birthday calendar</article></section></div><div class="dashboard-presentation-stack"><article class="dashboard-panel dashboard-presentation-card"><div class="dashboard-presentation-action"><button id="presentationOpenReference" type="button">Open</button></div></article></div><aside></aside></section><section class="dashboard-leaderboard-slot"><section id="summary"></section></section></section></main><div id="dialogHost"></div></div><aside id="outsideApp" aria-hidden="false">Outside app</aside>`;
+    document.body.innerHTML = `<div id="appShell"><nav id="appNav" aria-hidden="false">Navigation</nav><main id="app"><section class="dashboard-home-grid"><section class="dashboard-presentation-band"><div class="dashboard-presentation-stack"><section class="dashboard-birthday-strip"><article id="birthdayReference" class="dashboard-panel dashboard-birthday-card">Birthday calendar</article></section></div><div class="dashboard-presentation-stack"><article class="dashboard-panel dashboard-presentation-card"><div id="presentationVisualReference" class="dashboard-presentation-visual" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8"/></svg></div><div class="dashboard-presentation-action"><button id="presentationOpenReference" type="button">Open</button></div></article></div><aside></aside></section><section class="dashboard-leaderboard-slot"><section id="summary"></section></section></section></main><div id="dialogHost"></div></div><aside id="outsideApp" aria-hidden="false">Outside app</aside>`;
     await Promise.all([
       "/styles.css",
       "/presentation-mode.css",
@@ -94,6 +94,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
 
   const summary = page.locator("#summary");
   await expect(summary.getByRole("heading", { name: "NCC Leaderboard" })).toBeVisible();
+  await expect(summary.locator(".leaderboard-home-visual svg")).toHaveCount(1);
   await expect(summary.locator(".leaderboard-team-mark")).toHaveCount(0);
   await expect(summary.locator(".leaderboard-podium-card")).toHaveCount(3);
   await expect(summary.locator(".leaderboard-home-standings")).toHaveCount(0);
@@ -105,6 +106,14 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   }));
   expect(homeWidths.birthday).toBeGreaterThan(0);
   expect(Math.abs(homeWidths.leaderboard - homeWidths.birthday)).toBeLessThanOrEqual(1);
+  const iconStyles = await page.evaluate(() => {
+    const homeIcon = document.querySelector(".leaderboard-home-visual");
+    const referenceIcon = document.querySelector("#presentationVisualReference");
+    const properties = ["width", "height", "borderRadius", "backgroundColor", "color", "borderTopWidth", "borderTopStyle", "borderTopColor"];
+    const values = (style) => Object.fromEntries(properties.map((property) => [property, style[property]]));
+    return { home: values(getComputedStyle(homeIcon)), reference: values(getComputedStyle(referenceIcon)) };
+  });
+  expect(iconStyles.home).toEqual(iconStyles.reference);
   const expectedOpenButtonStyles = {
     minHeight: "43.2px",
     borderRadius: "7px",

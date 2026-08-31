@@ -13,6 +13,7 @@ import {
 } from "./install-support.mjs";
 import {
   readSam2ProviderManifest,
+  sam2ProviderDependencyPolicySha256,
   sam2ProviderInstallDir,
   sam2ProviderManifestSha256,
   sam2ProviderPaths,
@@ -23,6 +24,12 @@ import {
 } from "./provider-runtime.mjs";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+
+export const SAM2_PYTHON_BOOTSTRAP_PACKAGES = Object.freeze([
+  "pip==26.2.1",
+  "setuptools==84.0.0",
+  "wheel==0.46.2",
+]);
 
 export function parseInstallArguments(values = []) {
   const result = {
@@ -74,6 +81,10 @@ function validateTorchIndex(url = "") {
 
 export function providerInstallPlan(args = {}, options = {}) {
   const manifest = options.manifest || readSam2ProviderManifest();
+  const dependencyPolicySha256 = sam2ProviderDependencyPolicySha256();
+  if (manifest.runtime?.dependencyPolicySha256 !== dependencyPolicySha256) {
+    throw new Error("The SAM 2 dependency policy does not match its approved manifest.");
+  }
   const installDir = args.installDir
     ? path.resolve(args.installDir)
     : sam2ProviderInstallDir({ manifest, env: options.env || process.env, homeDir: options.homeDir });
@@ -103,6 +114,7 @@ export function providerInstallPlan(args = {}, options = {}) {
       maximumJobWallTimeMs: manifest.runtime.maximumJobWallTimeMs,
       deviceDefaults: { ...manifest.runtime.deviceDefaults },
       cpuThreadDefaults: { ...manifest.runtime.cpuThreadDefaults },
+      dependencyPolicySha256,
     },
   };
 }
@@ -126,7 +138,7 @@ async function installPythonRuntime(paths, args, python, manifest) {
   const environment = { ...process.env, SAM2_BUILD_CUDA: "0" };
   await runVisible(paths.python, [
     "-m", "pip", "install", "--disable-pip-version-check", "--no-input",
-    "setuptools==75.1.0", "wheel==0.44.0",
+    ...SAM2_PYTHON_BOOTSTRAP_PACKAGES,
   ], { env: environment });
   const constraints = path.join(moduleDir, "runtime-constraints.txt");
   await runVisible(paths.python, [
@@ -144,6 +156,7 @@ async function installPythonRuntime(paths, args, python, manifest) {
   ];
   if (torchIndex) torchArguments.push("--index-url", torchIndex);
   await runVisible(paths.python, torchArguments, { env: environment });
+  await runVisible(paths.python, ["-m", "pip", "check"], { env: environment });
   await runVisible(paths.python, [
     "-m", "pip", "install", "--disable-pip-version-check", "--no-input",
     "--no-deps", "--no-build-isolation", paths.sourceDir,
@@ -237,6 +250,7 @@ export async function installSam2Provider(args = {}, options = {}) {
       sourceRuntimeSha256: manifest.upstream.runtimeTreeSha256,
       checkpointSha256: manifest.model.checkpointSha256,
       providerSha256: manifest.runtime.providerSha256,
+      dependencyPolicySha256: manifest.runtime.dependencyPolicySha256,
       manifestSha256: sam2ProviderManifestSha256(manifest),
       installedAt: new Date().toISOString(),
       platform: process.platform,

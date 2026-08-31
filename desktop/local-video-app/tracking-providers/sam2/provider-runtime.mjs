@@ -17,6 +17,12 @@ import { trackingProviderExecutionFingerprintSha256 } from "../provider-executio
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const manifestPath = path.join(moduleDir, "manifest.json");
 
+export const SAM2_DEPENDENCY_POLICY_FILES = Object.freeze([
+  "runtime-constraints.txt",
+  "runtime-requirements.txt",
+  "torch-requirements.txt",
+]);
+
 export const SAM2_PROVIDER_RUNTIME_FILES = Object.freeze([
   "provider.py",
   "football_science_sam2/__init__.py",
@@ -49,6 +55,19 @@ function canonicalJson(value) {
 
 export function sam2ProviderManifestSha256(manifest = readSam2ProviderManifest()) {
   return createHash("sha256").update(canonicalJson(manifest)).digest("hex");
+}
+
+export function sam2ProviderDependencyPolicySha256(options = {}) {
+  const policyDir = options.policyDir || moduleDir;
+  const readFile = options.readFile || readFileSync;
+  const digest = createHash("sha256");
+  for (const relativePath of SAM2_DEPENDENCY_POLICY_FILES) {
+    digest.update(relativePath);
+    digest.update("\0");
+    digest.update(readFile(path.join(policyDir, relativePath)));
+    digest.update("\0");
+  }
+  return digest.digest("hex");
 }
 
 export function sam2ProviderPreferredDevice(manifest = readSam2ProviderManifest(), options = {}) {
@@ -84,7 +103,7 @@ export function sam2ProviderInstallDir(options = {}) {
     : path.join(homeDir, ".football-science", "tracking-providers", `${manifest.providerId}-${manifest.providerVersion}`);
 }
 
-function markerMatches(marker = {}, manifest = {}) {
+function markerMatches(marker = {}, manifest = {}, dependencyPolicySha256 = "") {
   return marker.schemaVersion === 1
     && marker.providerId === manifest.providerId
     && marker.providerVersion === manifest.providerVersion
@@ -93,6 +112,7 @@ function markerMatches(marker = {}, manifest = {}) {
     && marker.sourceRuntimeSha256 === manifest.upstream.runtimeTreeSha256
     && marker.checkpointSha256 === manifest.model.checkpointSha256
     && marker.providerSha256 === manifest.runtime.providerSha256
+    && marker.dependencyPolicySha256 === dependencyPolicySha256
     && marker.manifestSha256 === sam2ProviderManifestSha256(manifest);
 }
 
@@ -184,6 +204,7 @@ export function sam2ProviderPaths(options = {}) {
     python,
     providerEntry: path.join(installDir, "runtime", "provider.py"),
     runtimeDir: path.join(installDir, "runtime"),
+    policyDir: path.join(installDir, "policy"),
     checkpoint: path.join(installDir, "checkpoints", manifest.model.fileName),
     sourceDir: path.join(installDir, "source"),
   };
@@ -228,14 +249,19 @@ export function resolveInstalledSam2Provider(options = {}) {
   } catch {
     return null;
   }
-  if (!markerMatches(marker, paths.manifest)) return null;
+  const dependencyPolicySha256 = paths.manifest.runtime?.dependencyPolicySha256;
+  if (!dependencyPolicySha256
+    || dependencyPolicySha256 !== sam2ProviderDependencyPolicySha256()
+    || !markerMatches(marker, paths.manifest, dependencyPolicySha256)) return null;
   try {
     const runtimeSha256 = options.runtimeSha256 || sam2ProviderRuntimeSha256;
     const checkpointSha256 = options.checkpointSha256 || sam2ProviderFileSha256;
     const sourceRuntimeSha256 = options.sourceRuntimeSha256 || sam2ProviderSourceRuntimeSha256;
+    const installedDependencyPolicySha256 = options.dependencyPolicySha256 || sam2ProviderDependencyPolicySha256;
     if (runtimeSha256(paths) !== paths.manifest.runtime.providerSha256
       || checkpointSha256(paths.checkpoint) !== paths.manifest.model.checkpointSha256
-      || sourceRuntimeSha256(paths) !== paths.manifest.upstream.runtimeTreeSha256) return null;
+      || sourceRuntimeSha256(paths) !== paths.manifest.upstream.runtimeTreeSha256
+      || installedDependencyPolicySha256(paths) !== dependencyPolicySha256) return null;
   } catch {
     return null;
   }

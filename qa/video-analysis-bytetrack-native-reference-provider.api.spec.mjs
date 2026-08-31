@@ -38,7 +38,7 @@ test("native ByteTrack build accepts only pinned reviewed source inputs", async 
   expect(source).toContain("8586084f71f9bde545ee7fa6d00288b264a2b7ac3607b974e54d13e7162c1c72");
   expect(source).toContain("4c0618b0e44f7ef027ebae05d2cc7812048f7c8f");
   expect(source).toContain("092d0469a28b9854222a6182190816c3b2e04fa291622f97e210cc5e70397d5b");
-  expect(source).toContain("bcf4db667f95aec73cdb79e2b085493ce8ed5bb399d028eabf4ee7c05dcf9df4");
+  expect(source).toContain("db84c68916bf6b22b9b671d87eb59b70e5ae7e17fe8811055321f8d57a26c690");
   expect(source).toContain("cmd LC_UUID");
   expect(source).toContain("-Werror");
   expect(source).not.toMatch(/\b(?:curl|fetch|wget)\b/);
@@ -84,6 +84,15 @@ test("native ByteTrack adapter preserves lineage and strict association boundari
   expect(combined).toContain("AssociationProfile{30, 0.20F, 0.35F, 0.80F, 0.50F, 0.70F}");
   expect(combined).toContain("second_match_thresh");
   expect(combined).toContain("unconfirmed_match_thresh");
+  expect(combined).toContain("BuildFrameMotionOffsets");
+  expect(combined).toContain("EstimateFrameMotion");
+  expect(combined).toContain("NearestObservation");
+  expect(combined).toContain("candidates.size() < 4");
+  expect(combined).toContain("distance > 0.15F * 0.15F");
+  expect(combined).toContain("std::clamp(3.0F * Median(residuals), 0.008F, 0.06F)");
+  expect(combined).toContain("std::hypot(result.x, result.y) <= 0.08F");
+  expect(combined).toContain("value.left - offset.x");
+  expect(combined).toContain("value.top - offset.y");
   expect(combined).toContain('{"person", "player", "ball", "referee"}');
   expect(combined).toContain('[entity isEqual:@"person"]');
   expect(combined).toContain("bytetrack-entity-mismatch");

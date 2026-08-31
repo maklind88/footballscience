@@ -189,7 +189,7 @@ async function readStableJson(filePath) {
   }
 }
 
-async function digestStableFile(filePath, maximumBytes, label) {
+async function digestStableFile(filePath, maximumBytes, label, options = {}) {
   const source = await openRegular(filePath, maximumBytes, label);
   try {
     const digest = createHash("sha256");
@@ -202,10 +202,23 @@ async function digestStableFile(filePath, maximumBytes, label) {
       digest.update(chunk.subarray(0, bytesRead));
       position += bytesRead;
     }
-    if (fileSignature(source.stat) !== fileSignature(await source.handle.stat({ bigint: true }))) {
+    const hashedStat = await source.handle.stat({ bigint: true });
+    if (fileSignature(source.stat) !== fileSignature(hashedStat)) {
       invalid(`${label} changed while it was hashed.`, "TRACKING_ANNOTATION_FILE_CHANGED");
     }
-    return { bytes, sha256: digest.digest("hex"), signature: fileSignature(source.stat) };
+    let finalStat = hashedStat;
+    if (options.sealReadOnly === true) {
+      await source.handle.chmod(0o400);
+      finalStat = await source.handle.stat({ bigint: true });
+      if (source.stat.dev !== finalStat.dev
+        || source.stat.ino !== finalStat.ino
+        || source.stat.size !== finalStat.size
+        || source.stat.mtimeNs !== finalStat.mtimeNs
+        || (Number(finalStat.mode) & 0o222)) {
+        invalid(`${label} changed while it was sealed.`, "TRACKING_ANNOTATION_FILE_CHANGED");
+      }
+    }
+    return { bytes, sha256: digest.digest("hex"), signature: fileSignature(finalStat) };
   } finally {
     await source.handle.close();
   }
@@ -349,7 +362,9 @@ export async function prepareTrackingAnnotationPack(options = {}, dependencies =
       if (extractedFrames !== expectedFrames) {
         invalid(`Case ${entry.id} did not produce its exact frame count.`, "TRACKING_ANNOTATION_CLIP_INCOMPLETE");
       }
-      const clip = await digestStableFile(destination, MAXIMUM_CASE_BYTES, `Case ${entry.id}`);
+      const clip = await digestStableFile(destination, MAXIMUM_CASE_BYTES, `Case ${entry.id}`, {
+        sealReadOnly: true,
+      });
       await assertStablePath(sourcePath, source.signature, "Match source");
       await fs.writeFile(path.join(stagedDir, annotationFile), "", { flag: "wx", mode: 0o600 });
       cases.push({

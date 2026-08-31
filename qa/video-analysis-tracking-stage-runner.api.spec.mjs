@@ -420,6 +420,11 @@ test("darwin tracking sandbox is network-denied and blocks an unsealed runtime",
     expect(profile).toContain("(deny default)");
     expect(profile).toContain("(deny network*)");
     expect(profile).toContain('(literal "/")');
+    expect(profile).toContain('(subpath "/System/Cryptexes/OS")');
+    expect(profile).toContain('(allow file-read-metadata ');
+    expect(profile).toContain(`(literal ${JSON.stringify(path.dirname(directory))})`);
+    expect(profile).not.toContain('(subpath "/Users")');
+    expect(profile).not.toContain('(subpath "/private")');
     expect(profile).toContain(`(allow process-exec (literal ${JSON.stringify(runtimePath)}))`);
     expect(profile).not.toContain("(allow network");
   } finally {
@@ -498,6 +503,7 @@ test("sandbox executor launches only the sealed runtime with a scrubbed environm
         FS_TRACKING_NETWORK_DISABLED: "1",
       },
     });
+    expect(invocation.options.cwd.startsWith(`${await fs.realpath(directory)}${path.sep}`)).toBe(true);
     expect(invocation.options.env).not.toHaveProperty("SUPABASE_SERVICE_ROLE_KEY");
     expect(profile).toContain("(deny network*)");
     expect(profile).toContain(`(allow process-exec (literal ${JSON.stringify(runtimePath)}))`);
@@ -582,6 +588,30 @@ test("sandbox blocks an owner-writable provider runtime", async () => {
       reasons: ["tracking-stage-artifact-permissions-unsafe"],
     });
   } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("source sealing does not mutate an already read-only match file", async () => {
+  const integrityService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-file-integrity.mjs",
+  ));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fs-stage-already-sealed-"));
+  try {
+    const sourcePath = path.join(directory, "match.mp4");
+    const source = Buffer.from("already-sealed-real-match-source");
+    await fs.writeFile(sourcePath, source, { mode: 0o400 });
+    const before = await fs.stat(sourcePath, { bigint: true });
+    const seal = await integrityService.sealTrackingSourceFile(sourcePath, {
+      expectedSha256: sha256(source),
+      expectedBytes: source.byteLength,
+    });
+    const after = await fs.stat(sourcePath, { bigint: true });
+    expect(seal).toMatchObject({ bytes: source.byteLength, sha256: sha256(source) });
+    expect(after.ctimeNs).toBe(before.ctimeNs);
+    expect(Number(after.mode) & 0o222).toBe(0);
+  } finally {
+    await fs.chmod(path.join(directory, "match.mp4"), 0o600).catch(() => {});
     await fs.rm(directory, { recursive: true, force: true });
   }
 });

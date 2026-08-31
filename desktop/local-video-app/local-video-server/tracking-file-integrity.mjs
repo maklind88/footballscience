@@ -127,7 +127,7 @@ export async function sealTrackingSourceFile(filePath, options = {}) {
     if (options.verifyChecksum !== false && await hashHandle(handle, bytes) !== hash) {
       integrityError("Tracking file checksum does not match its sealed identity.", "TRACKING_FILE_CHECKSUM_MISMATCH");
     }
-    await handle.chmod(0o400);
+    if (Number(stat.mode) & 0o222) await handle.chmod(0o400);
     const sealedStat = await handle.stat({ bigint: true });
     const before = fileIdentity(stat);
     const sealed = fileIdentity(sealedStat);

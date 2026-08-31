@@ -108,6 +108,10 @@ test("annotation pack binds private clips without leaking the local source path 
       sequenceLengthFrames: 3600,
       trackMap: {},
     });
+    for (const entry of result.pack.cases) {
+      const stat = await fs.stat(path.join(outputDir, entry.clipFile));
+      expect(stat.mode & 0o222).toBe(0);
+    }
     expect((await fs.stat(path.join(outputDir, "annotations/attack.txt"))).size).toBe(0);
     await expect(service.prepareTrackingAnnotationPack({ ...values, outputDir }, {
       extractClip: async () => 3600,

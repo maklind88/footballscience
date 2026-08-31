@@ -38,6 +38,18 @@ function sandboxLiteral(value) {
   return JSON.stringify(String(value || ""));
 }
 
+function ancestorDirectories(values = []) {
+  const ancestors = new Set();
+  for (const value of values) {
+    let current = path.resolve(String(value || ""));
+    while (current && current !== path.parse(current).root) {
+      current = path.dirname(current);
+      if (current && current !== path.parse(current).root) ancestors.add(current);
+    }
+  }
+  return [...ancestors].sort((first, second) => first.length - second.length || first.localeCompare(second));
+}
+
 function isNativeExecutableMagic(buffer, platform = process.platform) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 4) return false;
   if (platform === "linux") return buffer.readUInt32BE(0) === 0x7f454c46;
@@ -80,19 +92,30 @@ async function nativeRuntime(filePath, platform) {
 }
 
 function darwinSandboxProfile({ providerDir, runtimePath, sourcePath, workDir }) {
+  const systemReadPaths = [
+    "/System/Library",
+    "/Library/Apple/System/Library",
+    "/System/Cryptexes/OS",
+    "/System/Volumes/Preboot/Cryptexes/OS",
+    "/usr/lib",
+  ];
   const readRules = [
     '(literal "/")',
     `(subpath ${sandboxLiteral(providerDir)})`,
     `(subpath ${sandboxLiteral(workDir)})`,
     ...(sourcePath ? [`(literal ${sandboxLiteral(sourcePath)})`] : []),
-    '(subpath "/System/Library")',
-    '(subpath "/Library/Apple/System/Library")',
-    '(subpath "/System/Volumes/Preboot/Cryptexes/OS")',
-    '(subpath "/usr/lib")',
+    ...systemReadPaths.map((entry) => `(subpath ${sandboxLiteral(entry)})`),
     '(literal "/usr/lib/dyld")',
     '(literal "/dev/null")',
     '(literal "/dev/urandom")',
   ].join(" ");
+  const metadataRules = ancestorDirectories([
+    providerDir,
+    runtimePath,
+    sourcePath,
+    workDir,
+    ...systemReadPaths,
+  ]).map((entry) => `(literal ${sandboxLiteral(entry)})`).join(" ");
   return [
     "(version 1)",
     "(deny default)",
@@ -100,6 +123,7 @@ function darwinSandboxProfile({ providerDir, runtimePath, sourcePath, workDir })
     `(allow process-exec (literal ${sandboxLiteral(runtimePath)}))`,
     "(allow process-fork)",
     "(allow sysctl-read)",
+    `(allow file-read-metadata ${metadataRules})`,
     `(allow file-read* ${readRules})`,
     `(allow file-write* (subpath ${sandboxLiteral(workDir)}))`,
   ].join("\n");
@@ -259,7 +283,14 @@ export function createTrackingStageSandboxExecutor(options = {}) {
     const maximumMemoryMb = boundedInteger(provider.runtime?.maxMemoryMb, 64, 131_072, 8192);
     const sourcePath = source?.filePath ? path.resolve(source.filePath) : "";
     const inputSeals = await captureExecutionInputSeals(installation, source);
-    const workDir = await fs.mkdtemp(path.join(temporaryRoot, "fs-tracking-stage-"));
+    const stagedWorkDir = await fs.mkdtemp(path.join(temporaryRoot, "fs-tracking-stage-"));
+    let workDir;
+    try {
+      workDir = await fs.realpath(stagedWorkDir);
+    } catch (error) {
+      await fs.rm(stagedWorkDir, { recursive: true, force: true }).catch(() => {});
+      throw error;
+    }
     const invocationPath = path.join(workDir, "invocation.json");
     const outputPath = path.join(workDir, "result.json");
     const profilePath = path.join(workDir, "sandbox.sb");
@@ -427,6 +458,7 @@ export function createTrackingStageSandboxExecutor(options = {}) {
 }
 
 export const _private = Object.freeze({
+  ancestorDirectories,
   darwinSandboxProfile,
   captureExecutionInputSeals,
   isNativeExecutableMagic,

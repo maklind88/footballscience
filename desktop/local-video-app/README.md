@@ -60,3 +60,14 @@ npm --prefix desktop/local-video-app run tracking:candidate:preflight
 ```
 
 Installation seals the copied runtime and models read-only, writes the installation marker last, and verifies both the candidate registry and the native macOS network-denied sandbox. A successful installation remains `benchmarkOnly`; only passed, reproducible real-match evidence can create a separate approved-provider installation.
+
+The YOLOX reference runtime has a separate offline arm64 build command. It accepts only the exact official PyInstaller `6.15.0` source distribution, verifies its SHA-256, applies the reviewed macOS no-SysV patch, and rejects any built runtime that still imports `semget`, `semctl`, or `semop`:
+
+```bash
+npm --prefix desktop/local-video-app run tracking:candidate:build:yolox -- \
+  --python /absolute/local/venv/bin/python \
+  --pyinstaller-sdist /absolute/local/pyinstaller-6.15.0.tar.gz \
+  --output /absolute/local/fs-yolox-reference-detection
+```
+
+The Python environment must already contain the pinned ONNX Runtime and OpenCV build dependencies. The command performs no download and never installs or activates the result.

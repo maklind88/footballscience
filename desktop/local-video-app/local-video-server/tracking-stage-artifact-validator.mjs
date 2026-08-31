@@ -25,7 +25,7 @@ const entityCapabilities = Object.freeze({
   ball: "detect:ball",
   referee: "detect:referee",
 });
-const teamSides = new Set(["home", "away", "official", "unknown"]);
+const teamSides = new Set(["home", "away", "unknown"]);
 
 export class TrackingStageArtifactError extends Error {
   constructor(message, code = "TRACKING_STAGE_ARTIFACT_INVALID") {
@@ -316,6 +316,8 @@ function validateClassification(payload = {}, provider = {}, request = {}, optio
   }
   const teamEnabled = provider.capabilities.includes("classify:team");
   const shirtEnabled = provider.capabilities.includes("classify:shirt-number");
+  const anchoredTeamSides = new Set((request.teamAnchors || []).map((anchor) => anchor.teamSide));
+  const anchorSideByTrajectory = new Map((request.teamAnchors || []).map((anchor) => [anchor.trajectoryId, anchor.teamSide]));
   const allowed = [
     "trajectoryId",
     ...(teamEnabled ? ["teamSide", "teamConfidence"] : []),
@@ -333,6 +335,17 @@ function validateClassification(payload = {}, provider = {}, request = {}, optio
     if (teamEnabled) {
       const teamSide = boundedString(value.teamSide, "team side", 20).toLowerCase();
       if (!teamSides.has(teamSide)) invalid("Classification team side is invalid.");
+      if (teamSide !== "unknown" && !anchoredTeamSides.has(teamSide)) {
+        invalid(
+          "Classification team side needs an analyst-bound trajectory anchor.",
+          "TRACKING_STAGE_TEAM_ANCHOR_REQUIRED",
+        );
+      }
+      if (teamSide !== "unknown"
+        && anchorSideByTrajectory.has(trajectoryId)
+        && anchorSideByTrajectory.get(trajectoryId) !== teamSide) {
+        invalid("Classification contradicted an analyst-bound team anchor.", "TRACKING_STAGE_TEAM_ANCHOR_CONFLICT");
+      }
       result.teamSide = teamSide;
       result.teamConfidence = confidence(value.teamConfidence, "team confidence");
     }

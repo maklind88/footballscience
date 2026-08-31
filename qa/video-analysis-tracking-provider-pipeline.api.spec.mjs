@@ -671,7 +671,7 @@ test("team and shirt classification boundary cannot assign players or classify n
       id: "trajectory-referee", entityType: "referee", confidence: 0.91, discontinuitiesMs: [],
       observations: [{ id: "referee-1", atMs: 0, frameIndex: 0, entityType: "referee", box: { left: 0.7, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.91 }],
     },
-  ] });
+  ], teamAnchors: [{ teamSide: "home", trajectoryId: "trajectory-player" }] });
   const result = stageResult(manifest, evidenceService, artifacts, request, { classifications: [{
     trajectoryId: "trajectory-player",
     teamSide: "home",
@@ -683,6 +683,46 @@ test("team and shirt classification boundary cannot assign players or classify n
     teamSide: "home",
     shirtNumber: "8",
   });
+
+  const unanchoredRequest = stageRequest({ trajectories: request.trajectories });
+  const unanchoredResult = stageResult(manifest, evidenceService, artifacts, unanchoredRequest, result.payload);
+  expect(() => artifacts.validateTrackingStageArtifact(unanchoredResult, manifest, unanchoredRequest))
+    .toThrow(/analyst-bound trajectory anchor/i);
+
+  const unknownResult = stageResult(manifest, evidenceService, artifacts, unanchoredRequest, { classifications: [{
+    ...result.payload.classifications[0],
+    teamSide: "unknown",
+  }] });
+  expect(artifacts.validateTrackingStageArtifact(unknownResult, manifest, unanchoredRequest)
+    .payload.classifications[0].teamSide).toBe("unknown");
+
+  const officialResult = stageResult(manifest, evidenceService, artifacts, request, { classifications: [{
+    ...result.payload.classifications[0],
+    teamSide: "official",
+  }] });
+  expect(() => artifacts.validateTrackingStageArtifact(officialResult, manifest, request)).toThrow(/team side is invalid/i);
+
+  const conflictRequest = stageRequest({
+    trajectories: [...request.trajectories, {
+      id: "trajectory-player-away", entityType: "player", confidence: 0.9, discontinuitiesMs: [],
+      observations: [{ id: "p-away-1", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.5, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.92 }],
+    }],
+    teamAnchors: [
+      { teamSide: "home", trajectoryId: "trajectory-player" },
+      { teamSide: "away", trajectoryId: "trajectory-player-away" },
+    ],
+  });
+  const conflictResult = stageResult(manifest, evidenceService, artifacts, conflictRequest, { classifications: [{
+    ...result.payload.classifications[0],
+    teamSide: "away",
+  }] });
+  expect(() => artifacts.validateTrackingStageArtifact(conflictResult, manifest, conflictRequest))
+    .toThrow(/contradicted an analyst-bound team anchor/i);
+
+  expect(() => artifacts.normalizeTrackingStageRequest(manifest, {
+    ...request,
+    teamAnchors: [{ teamSide: "away", trajectoryId: "trajectory-referee" }],
+  })).toThrow(/known player trajectories/i);
 
   const identityLeak = structuredClone(result);
   identityLeak.payload.classifications[0].playerId = "player-8";

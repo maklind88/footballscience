@@ -197,6 +197,7 @@ function request(overrides = {}) {
       confidence: 0.93,
       discontinuitiesMs: [],
     }],
+    teamAnchors: [{ teamSide: "home", trajectoryId: "track-1" }],
     ...overrides,
   };
 }

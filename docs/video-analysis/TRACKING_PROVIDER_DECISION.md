@@ -46,6 +46,8 @@ The re-identification screen now has the same reproducible boundary instead of a
 
 The official Torchreid source remains a useful MIT-licensed implementation reference, and the author's Hugging Face OSNet repository currently labels its model repository MIT. That repository's re-identification weights identify MSMT17 as training data, while the official Torchreid dataset guide points to the external MSMT17 release. Those records do not by themselves establish product-use rights for the underlying person imagery or complete Football Science's separate identity-use review. No OSNet re-identification weight is therefore installed as a candidate yet. The new screen is ready for an exact native provider only after its source, model bytes, model licence, every training dataset, dataset terms, rights decision, and identity-use decision are pinned in the provider manifest.
 
+Team classification now has an explicit semantic anchor boundary. A classification request may carry at most eight metadata-only anchors, each binding `home` or `away` to one already sealed player trajectory; it cannot reference a ball, referee, unknown trajectory, or the same trajectory twice. The normalized anchors are sorted and included in the stage-request fingerprint. A provider may always abstain with `unknown`, but it may emit `home` or `away` only when that side has an analyst-bound anchor, and it may not contradict the anchor assigned to the trajectory it is classifying. `official` is not a valid team label for a player trajectory. This keeps kit clustering replaceable while preventing an arbitrary cluster permutation from silently becoming football semantics.
+
 The reproducible re-identification commands are:
 
 ```bash

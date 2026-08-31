@@ -179,6 +179,34 @@ function normalizedInputs(provider = {}, values = [], range = {}) {
   return [];
 }
 
+function normalizedTeamAnchors(provider = {}, values = [], trajectories = []) {
+  if (provider.stage !== "classification" || !provider.capabilities.includes("classify:team")) return [];
+  if (!Array.isArray(values) || values.length > 8) {
+    invalid("Classification team anchors are outside their safety limit.", "TRACKING_STAGE_REQUEST_LIMIT");
+  }
+  const players = new Map(trajectories
+    .filter((trajectory) => trajectory.entityType === "player")
+    .map((trajectory) => [trajectory.id, trajectory]));
+  const assigned = new Set();
+  const counts = new Map();
+  const anchors = values.map((value, index) => {
+    exactKeys(value, ["teamSide", "trajectoryId"], `Team anchor ${index + 1}`);
+    const teamSide = boundedString(value.teamSide, `team anchor ${index + 1} side`, 20).toLowerCase();
+    const trajectoryId = identifier(value.trajectoryId, `team anchor ${index + 1} trajectory id`);
+    if (!["home", "away"].includes(teamSide)) invalid("Team anchors may identify only home or away.");
+    if (!players.has(trajectoryId) || assigned.has(trajectoryId)) {
+      invalid("Team anchors must reference unique known player trajectories.", "TRACKING_STAGE_REFERENCE_MISMATCH");
+    }
+    assigned.add(trajectoryId);
+    counts.set(teamSide, (counts.get(teamSide) || 0) + 1);
+    if (counts.get(teamSide) > 4) invalid("A team side may have at most four anchors.", "TRACKING_STAGE_REQUEST_LIMIT");
+    return { teamSide, trajectoryId };
+  });
+  return anchors.sort((left, right) => (
+    left.teamSide.localeCompare(right.teamSide) || left.trajectoryId.localeCompare(right.trajectoryId)
+  ));
+}
+
 function assertUniqueInputs(provider = {}, inputs = []) {
   const ids = inputs.map((entry) => entry.id);
   if (new Set(ids).size !== ids.length) invalid(`Tracking stage request ${requestInputFields[provider.stage]} ids must be unique.`);
@@ -207,7 +235,10 @@ function deepFreeze(value) {
 export function normalizeTrackingStageRequest(providerValue = {}, request = {}) {
   const provider = normalizeTrackingProviderManifest(providerValue);
   const inputField = requestInputFields[provider.stage];
-  exactKeys(request, ["sourceFingerprint", "range", ...(inputField ? [inputField] : [])], "Tracking stage request");
+  const acceptsTeamAnchors = provider.stage === "classification" && provider.capabilities.includes("classify:team");
+  exactKeys(request, [
+    "sourceFingerprint", "range", ...(inputField ? [inputField] : []), ...(acceptsTeamAnchors ? ["teamAnchors"] : []),
+  ], "Tracking stage request");
   const sourceFingerprint = sha256(request.sourceFingerprint, "tracking request source fingerprint");
   exactKeys(request.range, ["startMs", "endMs"], "Tracking request range");
   const range = {
@@ -226,7 +257,13 @@ export function normalizeTrackingStageRequest(providerValue = {}, request = {}) 
   }
   const inputs = normalizedInputs(provider, rawInputs, range);
   assertUniqueInputs(provider, inputs);
-  const normalized = { sourceFingerprint, range, ...(inputField ? { [inputField]: inputs } : {}) };
+  const teamAnchors = normalizedTeamAnchors(provider, request.teamAnchors ?? [], inputs);
+  const normalized = {
+    sourceFingerprint,
+    range,
+    ...(inputField ? { [inputField]: inputs } : {}),
+    ...(acceptsTeamAnchors ? { teamAnchors } : {}),
+  };
   const serialized = canonicalJson(normalized);
   if (Buffer.byteLength(serialized) > Math.min(provider.runtime.maxOutputBytes, 64 * 1024 * 1024)) {
     invalid("Tracking stage request exceeds its safety limit.", "TRACKING_STAGE_REQUEST_LIMIT");

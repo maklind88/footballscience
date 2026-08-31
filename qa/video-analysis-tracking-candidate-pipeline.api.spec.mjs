@@ -202,6 +202,7 @@ test("candidate pipeline chains exact stage inputs and creates review tracks wit
     sourceFingerprint,
     range,
     file: new Blob(["match"]),
+    teamAnchors: [{ teamSide: "home", trajectoryId: "trajectory-player" }],
     cryptoApi: globalThis.crypto,
     runStage: async (options) => {
       calls.push(options);
@@ -218,6 +219,9 @@ test("candidate pipeline chains exact stage inputs and creates review tracks wit
     call.sourceArtifactId === "ca11da7e-0000-0000-0000-000000000001"
   ))).toBe(true);
   expect(calls[3].request.trajectories).toEqual(calls[2].request.trajectories);
+  expect(calls[3].request.teamAnchors).toEqual([
+    { teamSide: "home", trajectoryId: "trajectory-player" },
+  ]);
 
   expect(result).toMatchObject({
     benchmarkOnly: true,

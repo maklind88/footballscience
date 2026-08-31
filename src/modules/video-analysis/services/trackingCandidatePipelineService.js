@@ -208,7 +208,12 @@ export async function runTrackingCandidatePipeline(options = {}) {
   );
   const trajectories = materializeCandidateTrajectories(association.artifact.payload, observations);
   const reidentification = await invoke("reidentification", { sourceFingerprint, range, trajectories }, retainedSourceId);
-  const classification = await invoke("classification", { sourceFingerprint, range, trajectories }, retainedSourceId);
+  const classification = await invoke("classification", {
+    sourceFingerprint,
+    range,
+    trajectories,
+    teamAnchors: Array.isArray(options.teamAnchors) ? options.teamAnchors : [],
+  }, retainedSourceId);
   const lineageSeed = {
     protocol: TRACKING_CANDIDATE_PIPELINE_PROTOCOL,
     sourceFingerprint,

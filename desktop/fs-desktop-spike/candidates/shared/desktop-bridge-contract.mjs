@@ -38,9 +38,23 @@ export function validateSpikeProbe(value) {
     candidate,
     bootMode,
     shellVersion: requiredText(value.shellVersion, "shellVersion", 40),
+    cacheVersion: requiredText(value.cacheVersion, "cacheVersion", 80),
+    payloadBuildId: requiredText(value.payloadBuildId, "payloadBuildId", 80),
     cachedPayload: Boolean(value.cachedPayload),
     serviceWorkerControlled: Boolean(value.serviceWorkerControlled),
+    unauthorizedCommandRejected: value.unauthorizedCommandRejected === true,
   });
+}
+
+export async function verifyDeniedNativeCommand(win = globalThis) {
+  const invoke = tauriInvoke(win);
+  if (!invoke) return true;
+  try {
+    await invoke("internal_denied_probe");
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 function tauriInvoke(win) {

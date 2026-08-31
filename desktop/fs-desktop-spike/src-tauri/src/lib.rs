@@ -18,8 +18,11 @@ struct SpikeProbe {
     candidate: String,
     boot_mode: String,
     shell_version: String,
+    cache_version: String,
+    payload_build_id: String,
     cached_payload: bool,
     service_worker_controlled: bool,
+    unauthorized_command_rejected: bool,
 }
 
 #[derive(Serialize)]
@@ -42,6 +45,15 @@ fn validate_probe(probe: &SpikeProbe) -> Result<(), String> {
     }
     if !bounded_text(&probe.shell_version, 40) {
         return Err("invalid shell version".into());
+    }
+    if !bounded_text(&probe.cache_version, 80) {
+        return Err("invalid cache version".into());
+    }
+    if !bounded_text(&probe.payload_build_id, 80) {
+        return Err("invalid payload build ID".into());
+    }
+    if !probe.unauthorized_command_rejected {
+        return Err("ungranted native command was not rejected".into());
     }
     Ok(())
 }
@@ -77,12 +89,18 @@ fn record_spike_probe(probe: SpikeProbe) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn internal_denied_probe() -> bool {
+    true
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             desktop_runtime_info,
-            record_spike_probe
+            record_spike_probe,
+            internal_denied_probe
         ])
         .run(tauri::generate_context!())
         .expect("error while running FS desktop architecture spike");

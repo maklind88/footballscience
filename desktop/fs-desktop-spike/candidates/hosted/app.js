@@ -1,6 +1,7 @@
-import { createDesktopBridge } from "/shared/desktop-bridge-contract.mjs";
+import { createDesktopBridge, verifyDeniedNativeCommand } from "/shared/desktop-bridge-contract.mjs";
 
-const shellVersion = "hosted-spike-v3";
+const shellVersion = "hosted-spike-v4";
+const expectedCacheVersion = "fs-desktop-hosted-shell-v3";
 const payloadKey = "fs-desktop-hosted-spike-payload-v1";
 const ui = Object.fromEntries(["bootMode", "serviceWorker", "payload", "bridge", "details"].map((id) => [id, document.getElementById(id)]));
 
@@ -29,6 +30,8 @@ async function boot() {
   const serviceWorkerControlled = await registerOfflineShell().catch(() => false);
   const bridge = createDesktopBridge(window);
   const runtime = await bridge.getRuntimeInfo();
+  const unauthorizedCommandRejected = await verifyDeniedNativeCommand(window);
+  const cacheVersion = (await caches.keys()).find((entry) => entry === expectedCacheVersion) || "missing";
   ui.serviceWorker.textContent = serviceWorkerControlled ? "controlled" : "registered / activating";
   ui.bridge.textContent = bridge.isDesktop ? "restricted native bridge available" : "browser fallback";
   ui.details.textContent = JSON.stringify(runtime, null, 2);
@@ -47,8 +50,11 @@ async function boot() {
           candidate: "hosted",
           bootMode: payloadState.bootMode,
           shellVersion,
+          cacheVersion,
+          payloadBuildId: payloadState.payload?.buildId || "missing",
           cachedPayload: payloadState.cachedPayload,
           serviceWorkerControlled,
+          unauthorizedCommandRejected,
         });
       }
     } finally {

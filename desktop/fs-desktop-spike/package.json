@@ -4,10 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "ci:build:windows": "node tools/build-windows-candidates.mjs",
+    "ci:verify:windows": "node tools/windows-ci-verifier.mjs",
     "host:hosted": "node tools/hosted-server.mjs",
     "test": "node --test tests/*.test.mjs",
     "tauri:build:bundled": "tauri build --no-bundle",
-    "tauri:build:hosted": "tauri build --no-bundle --config src-tauri/tauri.hosted.conf.json"
+    "tauri:build:hosted": "tauri build --no-bundle --config src-tauri/tauri.hosted.conf.json",
+    "tauri:build:unauthorized-origin": "tauri build --no-bundle --config src-tauri/tauri.unauthorized-origin.conf.json"
   },
   "devDependencies": {
     "@tauri-apps/api": "2.11.1",

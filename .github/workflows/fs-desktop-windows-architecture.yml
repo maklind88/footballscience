@@ -1,0 +1,114 @@
+name: FS Desktop Windows Architecture Verification
+
+run-name: FS Desktop Windows architecture — ${{ github.ref_name }} @ ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/fs-desktop-offline-phase0-2
+    paths:
+      - ".github/workflows/fs-desktop-windows-architecture.yml"
+      - "desktop/fs-desktop-spike/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fs-desktop-windows-architecture-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  web-regression:
+    name: Existing web QA and regression
+    uses: ./.github/workflows/full-qa.yml
+
+  windows-architecture:
+    name: Windows Tauri and WebView2 architecture probe
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CI: "1"
+      FS_DESKTOP_CI: "1"
+    steps:
+      - name: Checkout exact branch commit without persisted credentials
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install root dependencies without scripts
+        run: npm ci --ignore-scripts
+
+      - name: Run repository static regression gates
+        run: npm run qa:static
+
+      - name: Install isolated spike dependencies
+        working-directory: desktop/fs-desktop-spike
+        run: npm ci
+
+      - name: Run desktop contract tests
+        working-directory: desktop/fs-desktop-spike
+        run: npm test
+
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup default 1.98.0
+          rustc --version
+          cargo --version
+
+      - name: Record Windows and WebView2 runtime environment
+        shell: pwsh
+        working-directory: desktop/fs-desktop-spike
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/windows | Out-Null
+          $clientId = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $keys = @(
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\$clientId",
+            "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\$clientId",
+            "HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\$clientId"
+          )
+          $versions = @()
+          foreach ($key in $keys) {
+            if (Test-Path $key) {
+              $value = (Get-ItemProperty -Path $key -ErrorAction SilentlyContinue).pv
+              if ($value) { $versions += $value }
+            }
+          }
+          $os = Get-CimInstance Win32_OperatingSystem
+          $record = [ordered]@{
+            schema = 'fs-desktop-windows-environment-v1'
+            runnerImage = $env:ImageOS
+            osCaption = $os.Caption
+            osVersion = $os.Version
+            architecture = $env:PROCESSOR_ARCHITECTURE
+            webView2RegistryVersions = @($versions | Sort-Object -Unique)
+            runtimeProbeRequired = $true
+            physicalWindowsHardware = $false
+          }
+          $record | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 artifacts/windows/windows-runtime-environment.json
+
+      - name: Compile Windows release candidates and create checksummed artifacts
+        working-directory: desktop/fs-desktop-spike
+        run: npm run ci:build:windows
+
+      - name: Run WebView2 startup, cache, restart, transition and capability probes
+        working-directory: desktop/fs-desktop-spike
+        run: npm run ci:verify:windows
+
+      - name: Upload unsigned architecture evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fs-desktop-windows-architecture-${{ github.run_id }}
+          path: desktop/fs-desktop-spike/artifacts/windows/
+          if-no-files-found: error
+          retention-days: 14

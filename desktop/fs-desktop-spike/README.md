@@ -7,12 +7,14 @@ The spike compares two delivery mechanics without changing the web platform:
 - `hosted`: a trusted HTTP origin inside Tauri with a network-first service worker and cached cold-start shell;
 - `bundled`: frontend assets embedded in the Tauri binary.
 
-Both candidates use the same tiny `DesktopBridge` contract. The native runtime exposes only:
+Both candidates use the same tiny `DesktopBridge` contract. Frontend capabilities expose only:
 
 - `desktop_runtime_info`;
 - `record_spike_probe`.
 
 There is no filesystem, shell, SQL, generic HTTP, process, or arbitrary-path command. `build.rs` registers an explicit Tauri `AppManifest`, and the hosted capability is restricted to `http://127.0.0.1:47842/*`.
+
+A side-effect-free `internal_denied_probe` command is compiled only to prove the ACL boundary. It is never granted to a capability. The hosted frontend must observe its rejection, and a separate build pointed at `http://127.0.0.1:47843/` proves that even an otherwise granted command is rejected outside the allowed origin.
 
 ## Locked dependencies
 
@@ -31,6 +33,7 @@ npm ci
 npm test
 npm run tauri:build:bundled
 npm run tauri:build:hosted
+npm run tauri:build:unauthorized-origin
 ```
 
 The build commands require the current official Tauri prerequisites and Rust toolchain. `tauri build --no-bundle` intentionally produces an unsigned local binary only.
@@ -50,6 +53,7 @@ Run the hosted-configured binary once online, close it, stop the server, and run
 - cached shell content can cold-start while the origin is unreachable;
 - a running hosted app can detect and recover through online/offline transitions;
 - a remote origin can be limited to two explicitly named native commands;
+- a known but ungranted native command is rejected;
 - concurrent access-token consumers can be serialized behind one session authority contract.
 
 ## What it does not prove

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createDesktopBridge, validateSpikeProbe } from "../candidates/shared/desktop-bridge-contract.mjs";
+import { createDesktopBridge, validateSpikeProbe, verifyDeniedNativeCommand } from "../candidates/shared/desktop-bridge-contract.mjs";
 
 test("web fallback exposes no native capabilities", async () => {
   const bridge = createDesktopBridge({});
@@ -30,7 +30,16 @@ test("desktop bridge invokes only the two named commands", async () => {
     } } },
   });
   await bridge.getRuntimeInfo();
-  await bridge.recordProbe({ candidate: "hosted", bootMode: "offline", shellVersion: "v1", cachedPayload: true, serviceWorkerControlled: true });
+  await bridge.recordProbe({
+    candidate: "hosted",
+    bootMode: "offline",
+    shellVersion: "v1",
+    cacheVersion: "cache-v1",
+    payloadBuildId: "payload-v1",
+    cachedPayload: true,
+    serviceWorkerControlled: true,
+    unauthorizedCommandRejected: true,
+  });
   assert.deepEqual(calls.map((call) => call.command), ["desktop_runtime_info", "record_spike_probe"]);
   assert.equal("readFile" in bridge, false);
   assert.equal("executeSql" in bridge, false);
@@ -39,4 +48,16 @@ test("desktop bridge invokes only the two named commands", async () => {
 
 test("probe input rejects unbounded candidate values", () => {
   assert.throws(() => validateSpikeProbe({ candidate: "../../etc", bootMode: "offline", shellVersion: "v1" }), /Unknown spike candidate/);
+});
+
+test("known but ungranted native command must be rejected", async () => {
+  assert.equal(await verifyDeniedNativeCommand({
+    __TAURI__: { core: { invoke: async (command) => {
+      if (command === "internal_denied_probe") throw new Error("not allowed");
+      return null;
+    } } },
+  }), true);
+  assert.equal(await verifyDeniedNativeCommand({
+    __TAURI__: { core: { invoke: async () => true } },
+  }), false);
 });

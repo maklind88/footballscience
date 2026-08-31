@@ -1,4 +1,4 @@
-const cacheName = "fs-desktop-hosted-shell-v2";
+const cacheName = "fs-desktop-hosted-shell-v3";
 const shellAssets = ["/", "/index.html", "/styles.css", "/app.js", "/shared/desktop-bridge-contract.mjs", "/payload.json"];
 
 self.addEventListener("install", (event) => {

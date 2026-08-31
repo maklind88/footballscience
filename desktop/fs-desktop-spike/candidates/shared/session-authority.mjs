@@ -1,68 +1,46 @@
-function requireSession(session) {
-  if (!session || typeof session !== "object" || Array.isArray(session)) {
-    throw new TypeError("Session must be an object.");
+function assertSnapshot(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Session authority snapshot must be an object.");
+  const serialized = JSON.stringify(value).toLowerCase();
+  if (serialized.includes("accesstoken") || serialized.includes("refreshtoken")) throw new TypeError("Session authority adapters must not expose credential material.");
+  if (!value.actorId || !value.organizationId || !value.partitionKey || !Number.isInteger(value.authEpoch)) {
+    throw new TypeError("Session authority snapshot is incomplete.");
   }
-  const accessToken = String(session.accessToken || "");
-  const refreshToken = String(session.refreshToken || "");
-  const expiresAt = Number(session.expiresAt || 0);
-  if (!accessToken || !refreshToken || !Number.isFinite(expiresAt) || expiresAt <= 0) {
-    throw new TypeError("Session requires accessToken, refreshToken and expiresAt.");
-  }
-  return { accessToken, refreshToken, expiresAt };
+  return Object.freeze({ ...value });
 }
 
 export class SessionAuthority {
-  #session = null;
-  #refresh = null;
-  #refreshInFlight = null;
-  #now;
+  #adapter;
+  #snapshot = null;
+  #readInFlight = null;
 
-  constructor({ refresh, now = () => Date.now() } = {}) {
-    if (typeof refresh !== "function") throw new TypeError("A refresh function is required.");
-    this.#refresh = refresh;
-    this.#now = now;
+  constructor({ adapter } = {}) {
+    if (!adapter || typeof adapter.readSnapshot !== "function") throw new TypeError("A native session authority adapter is required.");
+    this.#adapter = adapter;
   }
 
-  replaceSession(session) {
-    this.#session = requireSession(session);
+  async snapshot({ refresh = false } = {}) {
+    if (this.#snapshot && !refresh) return this.#snapshot;
+    if (this.#readInFlight) return this.#readInFlight;
+    this.#readInFlight = Promise.resolve(this.#adapter.readSnapshot()).then(assertSnapshot).then((snapshot) => {
+      this.#snapshot = snapshot;
+      return snapshot;
+    }).finally(() => { this.#readInFlight = null; });
+    return this.#readInFlight;
   }
 
-  clear() {
-    this.#session = null;
-  }
-
-  hasOfflineSession() {
-    return Boolean(this.#session?.accessToken && this.#session?.refreshToken);
-  }
-
-  async getAccessToken({ minimumValidityMs = 60_000 } = {}) {
-    if (!this.#session) return null;
-    if (this.#session.expiresAt - this.#now() > minimumValidityMs) {
-      return this.#session.accessToken;
-    }
-    return this.refreshAccessToken();
-  }
-
-  async refreshAccessToken() {
-    if (!this.#session) return null;
-    if (this.#refreshInFlight) return this.#refreshInFlight;
-    this.#refreshInFlight = (async () => {
-      const currentRefreshToken = this.#session?.refreshToken;
-      if (!currentRefreshToken) return null;
-      const refreshed = requireSession(await this.#refresh({ refreshToken: currentRefreshToken }));
-      this.#session = refreshed;
-      return refreshed.accessToken;
-    })().finally(() => {
-      this.#refreshInFlight = null;
-    });
-    return this.#refreshInFlight;
-  }
-
-  accessTokenSnapshot() {
-    if (!this.#session) return null;
+  async contextProof(frontendBuildId) {
+    const snapshot = await this.snapshot();
+    if (!snapshot.canReadOffline) throw new Error("Native offline authorization is not valid.");
     return Object.freeze({
-      accessToken: this.#session.accessToken,
-      expiresAt: this.#session.expiresAt,
+      actorId: snapshot.actorId,
+      organizationId: snapshot.organizationId,
+      partitionKey: snapshot.partitionKey,
+      authEpoch: snapshot.authEpoch,
+      frontendBuildId: String(frontendBuildId || ""),
     });
+  }
+
+  clearLocalView() {
+    this.#snapshot = null;
   }
 }

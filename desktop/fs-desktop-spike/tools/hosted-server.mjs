@@ -1,20 +1,33 @@
-import { createReadStream, renameSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const mode = process.env.FS_DESKTOP_SPIKE_MODE === "unauthorized" ? "unauthorized" : "hosted";
+const argument = (name) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1) || "";
+const mode = process.env.FS_DESKTOP_SPIKE_MODE === "unauthorized" || process.argv.includes("--unauthorized")
+  ? "unauthorized"
+  : "hosted";
 const root = fileURLToPath(new URL(`../candidates/${mode}/`, import.meta.url));
 const sharedRoot = fileURLToPath(new URL("../candidates/shared/", import.meta.url));
-const port = Number(process.env.FS_DESKTOP_SPIKE_PORT || (mode === "unauthorized" ? 47843 : 47842));
-const negativeProbePath = process.env.FS_DESKTOP_NEGATIVE_PROBE_PATH
-  ? resolve(process.env.FS_DESKTOP_NEGATIVE_PROBE_PATH)
+const port = Number(process.env.FS_DESKTOP_SPIKE_PORT || argument("--port") || (mode === "unauthorized" ? 47843 : 47842));
+const manifestMode = process.env.FS_DESKTOP_MANIFEST_MODE === "incompatible" || process.argv.includes("--incompatible")
+  ? "incompatible"
+  : "normal";
+const configuredNegativeProbePath = process.env.FS_DESKTOP_NEGATIVE_PROBE_PATH || argument("--negative-probe");
+const negativeProbePath = configuredNegativeProbePath
+  ? resolve(configuredNegativeProbePath)
   : "";
 const contentTypes = new Map([[".html", "text/html; charset=utf-8"], [".js", "text/javascript; charset=utf-8"], [".mjs", "text/javascript; charset=utf-8"], [".css", "text/css; charset=utf-8"], [".json", "application/json; charset=utf-8"]]);
 
 function resolveFile(urlPath) {
   const cleanPath = decodeURIComponent(urlPath.split("?")[0] || "/");
   if (cleanPath.startsWith("/shared/")) return join(sharedRoot, normalize(cleanPath.slice(8)));
+  const sharedAliases = new Map([
+    ["/bridge.mjs", "desktop-bridge-contract.mjs"],
+    ["/session-authority.mjs", "session-authority.mjs"],
+    ["/connectivity-state.mjs", "connectivity-state.mjs"],
+  ]);
+  if (sharedAliases.has(cleanPath)) return join(sharedRoot, sharedAliases.get(cleanPath));
   return join(root, normalize(cleanPath === "/" ? "index.html" : cleanPath.slice(1)));
 }
 
@@ -54,10 +67,20 @@ createServer(async (request, response) => {
     const filePath = resolveFile(request.url || "/");
     const stat = statSync(filePath);
     if (!stat.isFile() || (!filePath.startsWith(root) && !filePath.startsWith(sharedRoot))) throw new Error("Not found");
+    if (mode === "hosted" && manifestMode === "incompatible" && (request.url || "").split("?")[0] === "/manifest.json") {
+      const manifest = JSON.parse(readFileSync(filePath, "utf8"));
+      manifest.localSchemaVersion = 999;
+      response.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+      });
+      response.end(`${JSON.stringify(manifest)}\n`);
+      return;
+    }
     response.writeHead(200, {
       "Content-Type": contentTypes.get(extname(filePath)) || "application/octet-stream",
       "Cache-Control": "no-store",
-      "Service-Worker-Allowed": "/",
       "X-Content-Type-Options": "nosniff",
     });
     createReadStream(filePath).pipe(response);

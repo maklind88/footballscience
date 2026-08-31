@@ -12,12 +12,12 @@
         "minWidth": 760,
         "minHeight": 540,
         "resizable": true,
-        "url": "http://127.0.0.1:47842/"
+        "url": "http://127.0.0.1:47844/bootstrap/index.html"
       }
     ],
     "security": {
       "capabilities": ["hosted"],
-      "csp": null,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
       "freezePrototype": true
     }
   }

@@ -24,8 +24,8 @@ const bundledProbePath = resolve(tmpdir(), "fs-desktop-spike-bundled.json");
 const hostedProbePath = resolve(tmpdir(), "fs-desktop-spike-hosted.json");
 const negativeProbePath = resolve(artifactsRoot, "unauthorized-origin-probe.json");
 const evidencePath = resolve(artifactsRoot, "windows-runtime-evidence.json");
-const expectedCacheVersion = "fs-desktop-hosted-shell-v3";
-const expectedPayloadBuildId = "hosted-spike-v4";
+const expectedCacheVersion = "fs-desktop-native-shell-cache-v1";
+const expectedPayloadBuildId = "hosted-spike-v11";
 mkdirSync(logsRoot, { recursive: true });
 
 const evidence = {
@@ -40,7 +40,8 @@ const evidence = {
   limitations: [
     "GitHub-hosted runner evidence is not physical Windows hardware verification.",
     "Installer UX, SmartScreen, sleep/wake, Credential Manager, update installation UX, physical restart, and real adapter switching were not tested.",
-    "Network transitions were simulated by starting and stopping a loopback-only synthetic origin.",
+    "Network transitions were simulated by starting and stopping a loopback-only synthetic update source.",
+    "The verified shell cache is native app-data storage, isolated from the browser/PWA Cache Storage namespace.",
   ],
 };
 
@@ -102,8 +103,8 @@ async function waitForPort(port, expectedOpen, timeoutMs = 20_000) {
   throw new Error(`Port ${port} did not become ${expectedOpen ? "available" : "unavailable"}.`);
 }
 
-function startServer({ mode = "hosted", port = 47842 } = {}) {
-  const logPath = resolve(logsRoot, `${mode}-${port}.log`);
+function startServer({ mode = "hosted", port = 47842, manifestMode = "normal" } = {}) {
+  const logPath = resolve(logsRoot, `${mode}-${manifestMode}-${port}.log`);
   const logFd = openSync(logPath, "a");
   const child = spawn(process.execPath, [resolve(packageRoot, "tools", "hosted-server.mjs")], {
     cwd: packageRoot,
@@ -111,6 +112,7 @@ function startServer({ mode = "hosted", port = 47842 } = {}) {
       ...process.env,
       FS_DESKTOP_SPIKE_MODE: mode,
       FS_DESKTOP_SPIKE_PORT: String(port),
+      FS_DESKTOP_MANIFEST_MODE: manifestMode,
       FS_DESKTOP_NEGATIVE_PROBE_PATH: mode === "unauthorized" ? negativeProbePath : "",
     },
     stdio: ["ignore", logFd, logFd],
@@ -177,13 +179,20 @@ async function verifyBundled() {
   }
 }
 
-function validateHostedProbe(probe, bootMode, requireController = true) {
+function validateHostedProbe(probe, bootMode) {
   validateCommonProbe(probe, "hosted");
   if (probe.probe.bootMode !== bootMode) throw new Error(`Expected hosted ${bootMode} probe.`);
   if (probe.probe.cacheVersion !== expectedCacheVersion) throw new Error("Versioned cache marker did not match.");
   if (probe.probe.payloadBuildId !== expectedPayloadBuildId) throw new Error("Cached payload build ID did not match.");
-  if (requireController && probe.probe.serviceWorkerControlled !== true) throw new Error("Service worker did not control the hosted window.");
+  if (probe.probe.serviceWorkerControlled !== false) throw new Error("Hosted shell unexpectedly depended on browser service-worker control.");
   if (bootMode === "offline" && probe.probe.cachedPayload !== true) throw new Error("Offline hosted probe did not use cached payload.");
+  if (probe.nativeEvidence?.activeBuildId !== expectedPayloadBuildId) throw new Error("Native registry did not report the expected active generation.");
+  if (probe.nativeEvidence?.localProjectionLoaded !== true || probe.nativeEvidence?.partitionValidated !== true) {
+    throw new Error("Native Session Planner projection or partition validation evidence is missing.");
+  }
+  if (probe.nativeEvidence?.localSchemaVersion !== 2 || probe.nativeEvidence?.syncProtocolVersion !== 1) {
+    throw new Error("Native data compatibility evidence did not match.");
+  }
   return probe;
 }
 
@@ -195,8 +204,8 @@ async function verifyHostedLifecycle() {
   let app = startApp(hostedExe);
   try {
     const warmProbe = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app });
-    validateHostedProbe(warmProbe, "online", false);
-    addResult("Candidate A hosted startup", { bootMode: "online", cacheVersion: expectedCacheVersion });
+    validateHostedProbe(warmProbe, "online");
+    addResult("Candidate A verified hosted-shell startup", { bootMode: "online", cacheVersion: expectedCacheVersion, localProjectionLoaded: true });
   } finally {
     await stopProcess(app);
   }
@@ -204,29 +213,63 @@ async function verifyHostedLifecycle() {
   removeIfPresent(hostedProbePath);
   app = startApp(hostedExe);
   let onlineProbe = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app });
-  validateHostedProbe(onlineProbe, "online", true);
-  addResult("Service-worker control after restart", { persistedAcrossProcessRestart: true });
+  validateHostedProbe(onlineProbe, "online");
+  addResult("Native active-generation control after restart", { persistedAcrossProcessRestart: true, browserServiceWorkerRequired: false });
+
+  removeIfPresent(hostedProbePath);
+  await stopProcess(server);
+  server = null;
+  await waitForPort(47842, false);
+  server = startServer({ manifestMode: "incompatible" });
+  await waitForPort(47842, true);
+  const compatibilityBlocked = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "compatibility-blocked", { process: app });
+  validateHostedProbe(compatibilityBlocked, "compatibility-blocked");
+  addResult("Incompatible candidate rejected with active LKG retained", {
+    rejectedLocalSchemaVersion: 999,
+    activeGeneration: expectedPayloadBuildId,
+    candidatePromoted: false,
+  });
+
+  await stopProcess(app);
+  removeIfPresent(hostedProbePath);
+  app = startApp(hostedExe);
+  const restartWithBadCandidate = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "compatibility-blocked", { process: app });
+  validateHostedProbe(restartWithBadCandidate, "compatibility-blocked");
+  addResult("LKG restart while incompatible source remained reachable", {
+    activeGeneration: expectedPayloadBuildId,
+    localProjectionLoaded: true,
+  });
+
+  removeIfPresent(hostedProbePath);
+  await stopProcess(server);
+  server = null;
+  await waitForPort(47842, false);
+  server = startServer();
+  await waitForPort(47842, true);
+  const compatibilityRecovered = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app });
+  validateHostedProbe(compatibilityRecovered, "online");
+  addResult("Compatibility source recovery", { sameProcess: true, activeGenerationUnchanged: true });
 
   removeIfPresent(hostedProbePath);
   await stopProcess(server);
   server = null;
   await waitForPort(47842, false);
   const transitionOffline = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "offline", { process: app });
-  validateHostedProbe(transitionOffline, "offline", true);
-  addResult("Online to offline transition", { mechanism: "loopback synthetic origin stopped", cachedPayload: true });
+  validateHostedProbe(transitionOffline, "offline");
+  addResult("Online to offline transition", { mechanism: "loopback synthetic update source stopped", cachedProjection: true });
 
   await stopProcess(app);
   removeIfPresent(hostedProbePath);
   app = startApp(hostedExe);
   const restartOffline = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "offline", { process: app });
-  validateHostedProbe(restartOffline, "offline", true);
-  addResult("Offline restart persistence", { originConfirmedUnavailable: true, serviceWorkerControlled: true });
+  validateHostedProbe(restartOffline, "offline");
+  addResult("Offline restart persistence", { updateSourceConfirmedUnavailable: true, nativeActiveGeneration: expectedPayloadBuildId, localProjectionLoaded: true });
 
   removeIfPresent(hostedProbePath);
   server = startServer();
   await waitForPort(47842, true);
   const recovered = await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app });
-  validateHostedProbe(recovered, "online", true);
+  validateHostedProbe(recovered, "online");
   addResult("Offline to online recovery", { sameProcess: true, cachedPayload: false });
 
   await stopProcess(app);

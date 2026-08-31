@@ -7,3 +7,6 @@ dl { display: grid; gap: 10px; }
 dl div { display: flex; justify-content: space-between; gap: 24px; padding: 12px 0; border-bottom: 1px solid #ffffff18; }
 dt { color: #aac9be; } dd { margin: 0; font-weight: 700; }
 pre { white-space: pre-wrap; color: #b9d9cd; font-size: 12px; }
+.session { margin-top: 24px; padding: 18px; border-radius: 14px; background: #ffffff0b; }
+.session h2 { margin: 0 0 4px; }
+.session ul { padding-left: 20px; }

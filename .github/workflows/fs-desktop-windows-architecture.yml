@@ -60,6 +60,10 @@ jobs:
           rustc --version
           cargo --version
 
+      - name: Run native bootstrap, authority, projection and outbox tests
+        working-directory: desktop/fs-desktop-spike/src-tauri
+        run: cargo test --lib --locked
+
       - name: Record Windows and WebView2 runtime environment
         shell: pwsh
         working-directory: desktop/fs-desktop-spike
@@ -95,7 +99,7 @@ jobs:
         working-directory: desktop/fs-desktop-spike
         run: npm run ci:build:windows
 
-      - name: Run WebView2 startup, cache, restart, transition and capability probes
+      - name: Run WebView2 startup, native cache, LKG, restart, transition and capability probes
         working-directory: desktop/fs-desktop-spike
         run: npm run ci:verify:windows
 

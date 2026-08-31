@@ -1,0 +1,6 @@
+:root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; background: #06130f; color: #f4faf7; }
+body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: radial-gradient(circle at top, #174a3a, #06130f 60%); }
+main { width: min(680px, calc(100% - 64px)); padding: 36px; border: 1px solid #477868; border-radius: 20px; background: #0b281fe8; }
+.eyebrow { color: #8bd3b8; text-transform: uppercase; letter-spacing: .12em; font-size: 12px; }
+h1 { margin: 8px 0 18px; }
+pre { color: #afd2c5; white-space: pre-wrap; font-size: 12px; }

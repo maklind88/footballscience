@@ -1,68 +1,77 @@
-# FS Desktop Delivery-Model Spike
+# FS Desktop Offline Vertical-Slice Prototype
 
-This is a disposable Phase 2 architecture spike. It is not a production desktop application, installer, updater, local database, or release channel.
+This directory is an isolated local Tauri 2 prototype. It preserves the existing web platform and uses only synthetic identity/data. It is not an installer, production updater, deployed desktop app, or real synchronization client.
 
-The spike compares two delivery mechanics without changing the web platform:
+## Candidate A
 
-- `hosted`: a trusted HTTP origin inside Tauri with a network-first service worker and cached cold-start shell;
-- `bundled`: frontend assets embedded in the Tauri binary.
+The preferred candidate uses a native-controlled bootstrap at `http://127.0.0.1:47844` and a fixed synthetic shell source at `http://127.0.0.1:47842`.
 
-Both candidates use the same tiny `DesktopBridge` contract. Frontend capabilities expose only:
+Native code, not downloaded JavaScript, controls:
 
-- `desktop_runtime_info`;
-- `record_spike_probe`.
+- exact source origin and redirect rejection;
+- immutable frontend build ID;
+- native version requirement;
+- local schema and sync protocol versions;
+- required native capability subset;
+- bounded asset list, byte limits and SHA-256 integrity;
+- candidate/active/previous generation registry;
+- application-ready evidence and atomic promotion.
 
-There is no filesystem, shell, SQL, generic HTTP, process, or arbitrary-path command. `build.rs` registers an explicit Tauri `AppManifest`, and the hosted capability is restricted to `http://127.0.0.1:47842/*`.
+The shell cache is an app-data filesystem/SQLite registry named `fs-desktop-native-shell-cache-v1`. It does not use the browser/PWA Cache Storage or a service worker. Only six immutable application-code assets are present. No auth response, token, callback, private JSON, signed URL, user football data or medical data is stored in the shell generation.
 
-A side-effect-free `internal_denied_probe` command is compiled only to prove the ACL boundary. It is never granted to a capability. The hosted frontend must observe its rejection, and a separate build pointed at `http://127.0.0.1:47843/` proves that even an otherwise granted command is rejected outside the allowed origin.
+A running active shell stages a compatible update for the next controlled restart; it does not replace itself while running. Failed download, integrity, compatibility or application-ready checks do not replace the active generation, and the previous generation remains retained.
 
-## Locked dependencies
+## Offline slice
 
-- Tauri CLI `2.11.4`
-- Tauri JavaScript API `2.11.1`
-- Rust Tauri crate `2.11.5`
-- `tauri-build` `2.6.3`
-- Rust `1.98.0` was used for the macOS evidence run
+SQLite local schema v2 contains one normalized synthetic Session Planner projection, stable block/player/exercise references, an atomic outbox and durable acknowledgement receipts. The packaged UI reads the selected session offline and remains read-only.
 
-The npm and Cargo lockfiles are committed with the spike.
+Two explicit version-1 mutation contracts (`session.rename`, `block.duration.set`) exercise atomic projection/outbox behavior below the UI. An in-process trusted-server test double models tenant authorization, operation allowlisting, revisions, idempotency and accepted-response-loss recovery. No real server endpoint exists.
 
-## Verification commands
+The synthetic native Session Authority exposes a credential-free snapshot and validates actor, organization, partition, auth epoch, offline lease and frontend compatibility for every session read/write command. It neither stores nor issues a real token.
+
+## Native capability boundary
+
+The hosted capability is attached only to the exact `http://127.0.0.1:47844` scheme/host/port origin. Tauri's required URL path matcher is `/*`; no scheme, host or port wildcard is used. The hosted config names only that capability, preventing broad default overlap.
+
+Enumerated commands:
+
+- `desktop_runtime_info`
+- `desktop_bootstrap_status`
+- `desktop_prepare_shell_update`
+- `desktop_confirm_shell_candidate`
+- `desktop_session_authority`
+- `desktop_read_selected_session`
+- `desktop_apply_session_operation`
+- `record_spike_probe`
+
+There is no generic SQL, filesystem, path, HTTP, shell or process command. `internal_denied_probe` is compiled but deliberately ungranted. A separate unauthorized-origin build proves that even a granted command is rejected from `http://127.0.0.1:47843`.
+
+Candidate B is a reproducible bundled fallback smoke target with only runtime-info/probe permissions. It is not maintained as a second feature-equivalent desktop product.
+
+## Verification
 
 ```bash
 npm ci
 npm test
-npm run tauri:build:bundled
+cd src-tauri && cargo test --lib --locked
 npm run tauri:build:hosted
+npm run tauri:build:bundled
 npm run tauri:build:unauthorized-origin
 ```
 
-The build commands require the current official Tauri prerequisites and Rust toolchain. `tauri build --no-bundle` intentionally produces an unsigned local binary only.
-
-For the hosted probe:
+`tauri build --no-bundle` produces an unsigned local executable, not an installer. The hosted synthetic source runs with:
 
 ```bash
 npm run host:hosted
 ```
 
-Run the hosted-configured binary once online, close it, stop the server, and run the same binary again. A sanitized result is atomically written to the operating-system temporary directory as `fs-desktop-spike-hosted.json`. The bundled candidate writes `fs-desktop-spike-bundled.json`.
+The Windows workflow builds the three unsigned executables, runs Node and Rust contracts, exercises WebView2 lifecycle/LKG/origin checks, runs the existing full web QA workflow and uploads sanitized evidence.
 
-## What the spike proves
+## Explicit limitations
 
-- a packaged Tauri app builds and starts on the audited Apple Silicon macOS machine;
-- WKWebView can retain the hosted origin's service worker between app processes;
-- cached shell content can cold-start while the origin is unreachable;
-- a running hosted app can detect and recover through online/offline transitions;
-- a remote origin can be limited to two explicitly named native commands;
-- a known but ungranted native command is rejected;
-- concurrent access-token consumers can be serialized behind one session authority contract.
-
-## What it does not prove
-
-- Windows/WebView2 behavior;
-- production `footballscience.xyz` offline behavior;
-- authenticated offline data access;
-- secure credential storage;
-- SQLite, outbox, sync, conflicts, updater, signing, notarization, or installers;
-- that all current FS assets are safe to cache.
-
-The actual live FS service worker remains push-only. No production service-worker behavior was changed.
+- no production/staging Supabase schema or data change;
+- no real authentication, Keychain or Windows Credential Manager adapter;
+- no real synchronization endpoint or real account data;
+- no encryption-at-rest claim;
+- no installer, signing, notarization, updater or public release;
+- no physical Windows, real network switching, sleep/wake, SmartScreen or physical restart claim.

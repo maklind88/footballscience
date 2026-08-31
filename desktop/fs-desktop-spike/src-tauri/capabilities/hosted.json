@@ -1,10 +1,19 @@
 {
   "identifier": "hosted",
-  "description": "Explicit origin and two-command capability for the trusted hosted spike frontend.",
+  "description": "Exact native-bootstrap origin and narrow domain commands for the verified hosted shell.",
   "windows": ["main"],
   "remote": {
-    "urls": ["http://127.0.0.1:47842/*"]
+    "urls": ["http://127.0.0.1:47844/*"]
   },
   "platforms": ["macOS", "windows"],
-  "permissions": ["allow-runtime-info", "allow-record-probe"]
+  "permissions": [
+    "allow-runtime-info",
+    "allow-bootstrap-status",
+    "allow-bootstrap-update",
+    "allow-bootstrap-confirm",
+    "allow-session-authority",
+    "allow-session-read",
+    "allow-session-operation",
+    "allow-record-probe"
+  ]
 }

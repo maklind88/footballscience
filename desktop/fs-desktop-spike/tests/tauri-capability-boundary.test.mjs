@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -10,18 +11,49 @@ async function text(path) {
   return readFile(new URL(path, packageRoot), "utf8");
 }
 
-test("capabilities grant exactly the two intended native commands", async () => {
+test("capabilities grant only the enumerated bootstrap and domain commands", async () => {
   const permissions = await text("src-tauri/permissions/fs-desktop-spike.toml");
-  assert.match(permissions, /commands\.allow = \["desktop_runtime_info"\]/);
-  assert.match(permissions, /commands\.allow = \["record_spike_probe"\]/);
-  assert.doesNotMatch(permissions, /internal_denied_probe/);
-  assert.doesNotMatch(permissions, /(read_file|execute|shell|sql|http)/i);
+  const commands = [...permissions.matchAll(/commands\.allow = \["([^"]+)"\]/g)].map((match) => match[1]).sort();
+  assert.deepEqual(commands, [
+    "desktop_apply_session_operation",
+    "desktop_bootstrap_status",
+    "desktop_confirm_shell_candidate",
+    "desktop_prepare_shell_update",
+    "desktop_read_selected_session",
+    "desktop_runtime_info",
+    "desktop_session_authority",
+    "record_spike_probe",
+  ]);
+  assert.equal(commands.includes("internal_denied_probe"), false);
+  assert.equal(commands.some((command) => /(read_file|execute|shell_command|sql|http_request|filesystem)/i.test(command)), false);
 });
 
 test("hosted capability is restricted to one exact loopback origin", async () => {
   const capability = JSON.parse(await text("src-tauri/capabilities/hosted.json"));
-  assert.deepEqual(capability.remote.urls, ["http://127.0.0.1:47842/*"]);
-  assert.deepEqual(capability.permissions.sort(), ["allow-record-probe", "allow-runtime-info"]);
+  assert.deepEqual(capability.remote.urls, ["http://127.0.0.1:47844/*"]);
+  assert.deepEqual(capability.permissions.sort(), [
+    "allow-bootstrap-confirm", "allow-bootstrap-status", "allow-bootstrap-update", "allow-record-probe",
+    "allow-runtime-info", "allow-session-authority", "allow-session-operation", "allow-session-read",
+  ]);
+});
+
+test("hosted manifest matches every immutable shell asset", async () => {
+  const manifest = JSON.parse(await text("candidates/hosted/manifest.json"));
+  const source = new Map([
+    ["index.html", "candidates/hosted/index.html"],
+    ["styles.css", "candidates/hosted/styles.css"],
+    ["app.js", "candidates/hosted/app.js"],
+    ["bridge.mjs", "candidates/shared/desktop-bridge-contract.mjs"],
+    ["session-authority.mjs", "candidates/shared/session-authority.mjs"],
+    ["connectivity-state.mjs", "candidates/shared/connectivity-state.mjs"],
+  ]);
+  assert.deepEqual(manifest.assets.map((asset) => asset.path).sort(), [...source.keys()].sort());
+  for (const asset of manifest.assets) {
+    const bytes = await readFile(new URL(source.get(asset.path), packageRoot));
+    assert.equal(asset.bytes, bytes.length, asset.path);
+    assert.equal(asset.sha256, createHash("sha256").update(bytes).digest("hex"), asset.path);
+  }
+  assert.equal(manifest.assets.some((asset) => /payload|session|medical|auth/i.test(asset.path) && !asset.path.includes("session-authority")), false);
 });
 
 test("negative build uses an origin outside the hosted capability", async () => {

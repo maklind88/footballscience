@@ -7,3 +7,33 @@ commands.allow = ["desktop_runtime_info"]
 identifier = "allow-record-probe"
 description = "Allows the architecture spike to write one sanitized result record to the temporary directory."
 commands.allow = ["record_spike_probe"]
+
+[[permission]]
+identifier = "allow-bootstrap-status"
+description = "Allows the verified shell to read native compatibility and generation state."
+commands.allow = ["desktop_bootstrap_status"]
+
+[[permission]]
+identifier = "allow-bootstrap-update"
+description = "Allows a fixed-origin, native-controlled shell update check with no caller-provided URL."
+commands.allow = ["desktop_prepare_shell_update"]
+
+[[permission]]
+identifier = "allow-bootstrap-confirm"
+description = "Allows a staged compatible shell to submit bounded app-ready evidence for atomic promotion."
+commands.allow = ["desktop_confirm_shell_candidate"]
+
+[[permission]]
+identifier = "allow-session-authority"
+description = "Allows the shell to read a credential-free native session and offline-lease snapshot."
+commands.allow = ["desktop_session_authority"]
+
+[[permission]]
+identifier = "allow-session-read"
+description = "Allows a compatible authorized shell to read the one selected normalized Session Planner projection."
+commands.allow = ["desktop_read_selected_session"]
+
+[[permission]]
+identifier = "allow-session-operation"
+description = "Allows only versioned Session Planner domain operations with native partition and revision validation."
+commands.allow = ["desktop_apply_session_operation"]

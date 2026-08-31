@@ -4,11 +4,11 @@ const PROVIDER_PROTOCOL = "football-science-tracking-stage-v1";
 const REQUIRED_EVALUATOR_VERSION = "tracking-benchmark-v1";
 
 const stageCapabilities = Object.freeze({
-  detection: Object.freeze(["detect:player", "detect:ball", "detect:referee"]),
+  detection: Object.freeze(["detect:person", "detect:player", "detect:ball", "detect:referee"]),
   segmentation: Object.freeze(["segment:selected-object", "propagate:selected-object"]),
   association: Object.freeze(["associate:multi-object"]),
   reidentification: Object.freeze(["reidentify:player"]),
-  classification: Object.freeze(["classify:team", "classify:shirt-number"]),
+  classification: Object.freeze(["classify:role", "classify:team", "classify:shirt-number"]),
 });
 
 const approvalStatuses = new Set(["candidate", "approved-local-optional", "blocked"]);
@@ -114,6 +114,11 @@ function uniqueCapabilities(values = [], stage = "") {
   const capabilities = [...new Set(values.map((value) => boundedString(value, "provider capability", 80)))];
   if (capabilities.some((capability) => !allowed.has(capability))) {
     invalid(`A provider capability does not belong to the ${stage} stage.`);
+  }
+  if (stage === "detection"
+    && capabilities.includes("detect:person")
+    && capabilities.some((capability) => ["detect:player", "detect:referee"].includes(capability))) {
+    invalid("Generic person detection cannot also claim player or referee role detection.");
   }
   return capabilities;
 }

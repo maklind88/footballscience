@@ -53,10 +53,12 @@ Prediction samples may be interpolated only inside one continuity segment and on
 - detection precision, recall, F1, IoU, false positives, and false negatives
 - entity, team, shirt/player identity, and confidence calibration
 - identity switches, trajectory fragmentation, mostly tracked/lost, and correction load
-- separate player, ball, and referee coverage
+- separate player, ball, and referee coverage, plus a person-union precision/recall view for generic human detectors
 - internal diagnostic MOTA and IDF1 for immediate review feedback
 
 Internal MOTA and IDF1 are diagnostics, not the independent provider approval result. Provider evidence additionally requires the pinned official TrackEval implementation. TrackEval independently recomputes IoU and returns HOTA, DetA, AssA, LocA, CLEAR/MOTA, and Identity/IDF1 for the full scene and each entity class.
+
+Provider cases are capability-scoped without weakening the profile. A generic `detect:person` provider is gated on the union of player and referee ground truth plus its separately claimed ball capability; player/referee class accuracy is disabled for that detector because it does not claim role semantics. A `classify:role` provider is gated on entity-type accuracy, while team, shirt, association, and re-identification gates remain active only for providers that claim those capabilities. The policy thresholds and every disabled non-applicable threshold remain explicit in the immutable report.
 
 The initial reference gates are explicit and versioned: HOTA 0.65, DetA 0.75, AssA 0.65, LocA 0.75, MOTA 0.80, and IDF1 0.85. These are pilot acceptance thresholds, not claims of universal industry standards. Threshold changes remain part of the benchmark input and report so old evidence stays reproducible.
 

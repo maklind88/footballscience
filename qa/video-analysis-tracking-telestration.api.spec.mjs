@@ -433,6 +433,29 @@ test("tracking capability readiness never promotes partial providers to full-sce
   }));
   expect(trackingCapabilityReadiness({ providers }).mode).toBe("full-scene-verified");
 
+  const roleAwareProviders = [
+    ["detect:person", "detect:ball"],
+    ["associate:multi-object", "reidentify:player"],
+    ["classify:role", "classify:team"],
+  ].map((providerCapabilities, index) => ({
+    id: `role-aware-provider-${index + 1}`,
+    version: "1.0.0",
+    status: "ready",
+    available: true,
+    benchmarkStatus: "passed",
+    capabilities: providerCapabilities,
+  }));
+  const roleAware = trackingCapabilityReadiness({ providers: roleAwareProviders });
+  expect(roleAware.mode).toBe("full-scene-verified");
+  expect(roleAware.entries.find((entry) => entry.id === "detection")).toMatchObject({
+    label: "Person / ball",
+    status: "verified",
+  });
+  expect(roleAware.entries.find((entry) => entry.id === "classification")).toMatchObject({
+    label: "Role / team",
+    status: "verified",
+  });
+
   const activationPending = trackingCapabilityReadiness({
     providers: providers.map((provider) => ({ ...provider, executionAvailable: false })),
   });

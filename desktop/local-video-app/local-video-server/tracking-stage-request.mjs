@@ -4,7 +4,7 @@ import { trackingProviderFingerprint } from "./tracking-provider-evidence.mjs";
 
 export const TRACKING_STAGE_REQUEST_PROTOCOL = "football-science-tracking-stage-request-v1";
 
-const entityTypes = new Set(["player", "ball", "referee"]);
+const entityTypes = new Set(["person", "player", "ball", "referee"]);
 const requestInputFields = Object.freeze({
   detection: "",
   segmentation: "prompts",
@@ -184,8 +184,10 @@ function normalizedTeamAnchors(provider = {}, values = [], trajectories = []) {
   if (!Array.isArray(values) || values.length > 8) {
     invalid("Classification team anchors are outside their safety limit.", "TRACKING_STAGE_REQUEST_LIMIT");
   }
+  const roleAware = provider.capabilities.includes("classify:role");
   const players = new Map(trajectories
-    .filter((trajectory) => trajectory.entityType === "player")
+    .filter((trajectory) => trajectory.entityType === "player"
+      || (roleAware && trajectory.entityType === "person"))
     .map((trajectory) => [trajectory.id, trajectory]));
   const assigned = new Set();
   const counts = new Map();
@@ -195,7 +197,7 @@ function normalizedTeamAnchors(provider = {}, values = [], trajectories = []) {
     const trajectoryId = identifier(value.trajectoryId, `team anchor ${index + 1} trajectory id`);
     if (!["home", "away"].includes(teamSide)) invalid("Team anchors may identify only home or away.");
     if (!players.has(trajectoryId) || assigned.has(trajectoryId)) {
-      invalid("Team anchors must reference unique known player trajectories.", "TRACKING_STAGE_REFERENCE_MISMATCH");
+      invalid("Team anchors must reference unique known player trajectories or role-aware person trajectories.", "TRACKING_STAGE_REFERENCE_MISMATCH");
     }
     assigned.add(trajectoryId);
     counts.set(teamSide, (counts.get(teamSide) || 0) + 1);

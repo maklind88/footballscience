@@ -117,6 +117,8 @@ function multiObjectCase(index = 0) {
       durationMs: 120_000,
     },
     metrics: {
+      personPrecision: 0.95,
+      personRecall: 0.95,
       playerPrecision: 0.95,
       playerRecall: 0.95,
       ballPrecision: 0.9,
@@ -127,6 +129,7 @@ function multiObjectCase(index = 0) {
       identitySwitchesPerMinute: 0.5,
       fragmentationsPerMinute: 1,
       identityF1: 0.93,
+      entityTypeAccuracy: 0.99,
       playerIdentityAccuracy: 0.94,
       teamAccuracy: 0.98,
       shirtNumberAccuracy: 0.95,
@@ -134,6 +137,8 @@ function multiObjectCase(index = 0) {
       realtimeFactor: 0.75,
     },
     thresholds: {
+      minPersonPrecision: 0.9,
+      minPersonRecall: 0.9,
       minPlayerPrecision: 0.9,
       minPlayerRecall: 0.9,
       minBallPrecision: 0.8,
@@ -144,6 +149,7 @@ function multiObjectCase(index = 0) {
       maxIdentitySwitchesPerMinute: 2,
       maxFragmentationsPerMinute: 4,
       minIdentityF1: 0.85,
+      minEntityTypeAccuracy: 0.98,
       minPlayerIdentityAccuracy: 0.9,
       minTeamAccuracy: 0.95,
       minShirtNumberAccuracy: 0.9,
@@ -548,6 +554,117 @@ test("detection result boundary separates player, ball and referee capabilities"
   const wrongSource = structuredClone(result);
   wrongSource.sourceFingerprint = "a".repeat(64);
   expect(() => artifacts.validateTrackingStageArtifact(wrongSource, manifest, request)).toThrow(/another video source/i);
+});
+
+test("generic person detection cannot claim football roles and role classification stays explicit", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const artifacts = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-stage-artifact-validator.mjs",
+  ));
+  const detector = contract.normalizeTrackingProviderManifest(provider(
+    "detection",
+    ["detect:person", "detect:ball"],
+  ));
+  const detectionRequest = stageRequest();
+  const detectionResult = stageResult(detector, evidenceService, artifacts, detectionRequest, { observations: [
+    { id: "person-1", atMs: 0, frameIndex: 0, entityType: "person", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 },
+    { id: "ball-1", atMs: 0, frameIndex: 0, entityType: "ball", box: { left: 0.5, top: 0.6, width: 0.02, height: 0.02 }, confidence: 0.88 },
+  ] });
+  expect(artifacts.validateTrackingStageArtifact(
+    detectionResult,
+    detector,
+    detectionRequest,
+  ).payload.observations.map((entry) => entry.entityType)).toEqual(["person", "ball"]);
+
+  const leakedRole = structuredClone(detectionResult);
+  leakedRole.payload.observations[0].entityType = "player";
+  expect(() => artifacts.validateTrackingStageArtifact(leakedRole, detector, detectionRequest))
+    .toThrow(/not approved to detect player/i);
+  expect(() => contract.normalizeTrackingProviderManifest(provider(
+    "detection",
+    ["detect:person", "detect:player", "detect:ball"],
+  ))).toThrow(/cannot also claim player or referee/i);
+
+  const classifier = contract.normalizeTrackingProviderManifest(provider(
+    "classification",
+    ["classify:role", "classify:team"],
+  ));
+  const trajectory = (id, left) => ({
+    id,
+    entityType: "person",
+    confidence: 0.93,
+    discontinuitiesMs: [],
+    observations: [{
+      id: `${id}-observation`,
+      atMs: 0,
+      frameIndex: 0,
+      entityType: "person",
+      box: { left, top: 0.2, width: 0.08, height: 0.3 },
+      confidence: 0.96,
+    }],
+  });
+  const classificationRequest = stageRequest({
+    trajectories: [trajectory("person-player", 0.1), trajectory("person-referee", 0.7)],
+    teamAnchors: [{ teamSide: "home", trajectoryId: "person-player" }],
+  });
+  const classificationResult = stageResult(classifier, evidenceService, artifacts, classificationRequest, {
+    classifications: [
+      {
+        trajectoryId: "person-player",
+        role: "player",
+        roleConfidence: 0.97,
+        teamSide: "home",
+        teamConfidence: 0.95,
+      },
+      { trajectoryId: "person-referee", role: "referee", roleConfidence: 0.94 },
+    ],
+  });
+  expect(artifacts.validateTrackingStageArtifact(
+    classificationResult,
+    classifier,
+    classificationRequest,
+  ).payload.classifications).toEqual(classificationResult.payload.classifications);
+
+  const refereeWithTeam = structuredClone(classificationResult);
+  refereeWithTeam.payload.classifications[1].teamSide = "home";
+  refereeWithTeam.payload.classifications[1].teamConfidence = 0.9;
+  expect(() => artifacts.validateTrackingStageArtifact(refereeWithTeam, classifier, classificationRequest))
+    .toThrow(/only a player role/i);
+});
+
+test("provider evidence binds generic person detection and football role quality separately", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const detector = approveProvider(
+    contract,
+    evidenceService,
+    provider("detection", ["detect:person", "detect:ball"]),
+  );
+  const classifier = approveProvider(
+    contract,
+    evidenceService,
+    provider("classification", ["classify:role"]),
+  );
+
+  expect(detector.evidence.benchmark.capabilityEvidence).toEqual(expect.arrayContaining([
+    expect.objectContaining({ capability: "detect:person" }),
+    expect.objectContaining({ capability: "detect:ball" }),
+  ]));
+  expect(classifier.evidence.benchmark.capabilityEvidence).toEqual([
+    expect.objectContaining({
+      capability: "classify:role",
+      metrics: [expect.objectContaining({ metric: "entityTypeAccuracy", worst: 0.99 })],
+    }),
+  ]);
 });
 
 test("association result boundary rejects unknown and multiply assigned observations", async () => {

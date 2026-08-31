@@ -616,6 +616,9 @@ export function buildMultiObjectCaseFromGroundTruth(artifactValue = {}, options 
     prediction: { tracks: predictionTracks },
     performance: Number.isFinite(processingMs) && processingMs > 0 ? { processingMs } : {},
     reviewEvidence: { ...artifact.reviewEvidence },
+    ...(options.thresholds && typeof options.thresholds === "object"
+      ? { thresholds: { ...options.thresholds } }
+      : {}),
   };
   assertBenchmarkEnvelope(benchmarkCase);
   return benchmarkCase;

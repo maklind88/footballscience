@@ -444,6 +444,39 @@ test("provider run snapshots raw automatic output before analyst correction", as
   const tampered = structuredClone(run);
   tampered.prediction.sourcePath = "/private/match.mp4";
   expect(() => runs.validateTrackingProviderRunArtifact(tampered)).toThrow(/unsupported field/i);
+
+  const personDetector = {
+    ...provider,
+    providerId: "generic-person-detector",
+    providerVersion: "1.0.0",
+    stage: "detection",
+    capabilities: ["detect:person"],
+  };
+  const personTracks = structuredClone(rawTracks).map((track) => ({
+    ...track,
+    entityType: "person",
+    engine: personDetector.providerId,
+    engineVersion: personDetector.providerVersion,
+  }));
+  expect(runs.createTrackingProviderRunArtifact({
+    provider: personDetector,
+    sourceFingerprint: artifact.sourceFingerprint,
+    angleId: artifact.sourceEvidence.angleId,
+    frame: artifact.frame,
+    range: artifact.range,
+    tracks: personTracks,
+    performance: providerPerformance(18_000),
+  }).prediction.tracks.every((track) => track.entityType === "person")).toBe(true);
+  personTracks[0].entityType = "player";
+  expect(() => runs.createTrackingProviderRunArtifact({
+    provider: personDetector,
+    sourceFingerprint: artifact.sourceFingerprint,
+    angleId: artifact.sourceEvidence.angleId,
+    frame: artifact.frame,
+    range: artifact.range,
+    tracks: personTracks,
+    performance: providerPerformance(18_000),
+  })).toThrow(/unclaimed player entity/i);
 });
 
 test("local benchmark workspace is versioned, bounded and tenant scoped", async () => {

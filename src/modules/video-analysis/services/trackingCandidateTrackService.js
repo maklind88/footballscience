@@ -109,6 +109,35 @@ function pipelineMetadata(lineage = {}) {
   };
 }
 
+function roleMetadata(value = {}) {
+  return Number.isFinite(Number(value.roleConfidence))
+    ? {
+      candidateRole: String(value.entityType || "unknown"),
+      candidateRoleConfidence: Number(value.roleConfidence),
+    }
+    : {};
+}
+
+export function applyCandidateRoleClassifications(trajectories = [], classifications = []) {
+  const classificationByTrajectory = new Map(classifications.map((entry) => [entry.trajectoryId, entry]));
+  return trajectories.map((trajectory) => {
+    const classification = classificationByTrajectory.get(trajectory.id) || {};
+    const role = ["player", "referee"].includes(classification.role)
+      ? classification.role
+      : trajectory.entityType === "person" ? "unknown" : trajectory.entityType;
+    const roleConfidence = classification.role === role ? Number(classification.roleConfidence) || 0 : 0;
+    return {
+      ...trajectory,
+      entityType: role,
+      roleConfidence,
+      observations: (trajectory.observations || []).map((observation) => ({
+        ...observation,
+        entityType: role,
+      })),
+    };
+  });
+}
+
 function trackForTrajectory(trajectory = {}, lineage = {}, options = {}) {
   return baseTrack({
     id: trajectory.id,
@@ -118,20 +147,24 @@ function trackForTrajectory(trajectory = {}, lineage = {}, options = {}) {
     teamSide: options.teamSide,
     shirtNumber: options.shirtNumber,
     segments: splitSegments(trajectory, lineage.sync, options.identityConfidence),
-  }, lineage, options);
+  }, lineage, {
+    ...options,
+    metadata: { ...pipelineMetadata(lineage), ...roleMetadata(trajectory), ...(options.metadata || {}) },
+  });
 }
 
 function trackForUnassignedObservation(observation = {}, lineage = {}) {
+  const entityType = observation.entityType === "person" ? "unknown" : observation.entityType;
   const point = pointFromObservation(
     observation,
     lineage.sync,
-    observation.entityType === "player" ? 0 : observation.confidence,
+    ["person", "player"].includes(observation.entityType) ? 0 : observation.confidence,
   );
   return baseTrack({
     id: `candidate-unassociated-observation-${safeId(observation.id)}`,
-    entityType: observation.entityType,
+    entityType,
     confidence: observation.confidence,
-    identityConfidence: observation.entityType === "player" ? 0 : observation.confidence,
+    identityConfidence: ["unknown", "player"].includes(entityType) ? 0 : observation.confidence,
     segments: [{
       id: `candidate-unassociated-observation-${safeId(observation.id)}-segment-1`,
       startMs: point.atMs,
@@ -140,7 +173,14 @@ function trackForUnassignedObservation(observation = {}, lineage = {}) {
       discontinuityBefore: false,
       points: [point],
     }],
-  }, lineage, { metadata: pipelineMetadata(lineage) });
+  }, lineage, {
+    metadata: {
+      ...pipelineMetadata(lineage),
+      ...(observation.entityType === "person"
+        ? { candidateRole: "unknown", candidateRoleConfidence: 0 }
+        : {}),
+    },
+  });
 }
 
 function groupedTrajectories(trajectories = [], identities = []) {
@@ -165,7 +205,8 @@ function groupedTrajectories(trajectories = [], identities = []) {
 }
 
 function consensus(values = []) {
-  const labels = [...new Set(values.map(String).filter((value) => value && value !== "unknown"))];
+  const labels = [...new Set(values.map((value) => String(value || ""))
+    .filter((value) => value && value !== "unknown"))];
   return { value: labels.length === 1 ? labels[0] : "", conflict: labels.length > 1 };
 }
 
@@ -192,7 +233,15 @@ function groupedTrack(group = {}, classifications = new Map(), lineage = {}, wit
       teamSide: withClassification ? team.value : "",
       shirtNumber: withClassification ? shirt.value : "",
       segments,
-    }, lineage, { metadata: pipelineMetadata(lineage) }),
+    }, lineage, {
+      metadata: {
+        ...pipelineMetadata(lineage),
+        ...roleMetadata({
+          entityType: group.entityType,
+          roleConfidence: average(group.trajectories.map((entry) => entry.roleConfidence), 0),
+        }),
+      },
+    }),
     classificationConflict: withClassification && (team.conflict || shirt.conflict),
     mergedTrajectoryCount: Math.max(0, group.trajectories.length - 1),
   };
@@ -213,7 +262,11 @@ export function candidateStageTracks(value = {}) {
     (observation) => !assignedObservationIds.has(observation.id),
   );
   const classificationByTrajectory = new Map((classification.classifications || []).map((entry) => [entry.trajectoryId, entry]));
-  const groups = groupedTrajectories(trajectories, reidentification.identities || []);
+  const roleAware = lineage.providers?.detection?.capabilities?.includes("detect:person");
+  const classifiedTrajectories = roleAware
+    ? applyCandidateRoleClassifications(trajectories, classification.classifications || [])
+    : trajectories;
+  const groups = groupedTrajectories(classifiedTrajectories, reidentification.identities || []);
   const groupedWithoutLabels = groups.map((group) => groupedTrack(group, classificationByTrajectory, lineage, false));
   const groupedWithLabels = groups.map((group) => groupedTrack(group, classificationByTrajectory, lineage, true));
   return {
@@ -221,19 +274,23 @@ export function candidateStageTracks(value = {}) {
       id: `detection-${observation.id}`,
       entityType: observation.entityType,
       confidence: observation.confidence,
-      identityConfidence: observation.entityType === "player" ? 0 : observation.confidence,
+      identityConfidence: ["person", "player"].includes(observation.entityType) ? 0 : observation.confidence,
       segments: [{
         id: `detection-${observation.id}-segment`,
         startMs: sourceToMatchMs(observation.atMs, lineage.sync),
         endMs: sourceToMatchMs(observation.atMs, lineage.sync),
         confidence: observation.confidence,
         discontinuityBefore: false,
-        points: [pointFromObservation(observation, lineage.sync, observation.entityType === "player" ? 0 : observation.confidence)],
+        points: [pointFromObservation(
+          observation,
+          lineage.sync,
+          ["person", "player"].includes(observation.entityType) ? 0 : observation.confidence,
+        )],
       }],
     }, lineage)),
     association: trajectories.map((trajectory) => trackForTrajectory(trajectory, lineage)),
     reidentification: groupedWithoutLabels.map((entry) => entry.track),
-    classification: trajectories.map((trajectory) => {
+    classification: classifiedTrajectories.map((trajectory) => {
       const classificationValue = classificationByTrajectory.get(trajectory.id) || {};
       return trackForTrajectory(trajectory, lineage, {
         teamSide: classificationValue.teamSide,
@@ -247,7 +304,7 @@ export function candidateStageTracks(value = {}) {
     classificationConflictCount: groupedWithLabels.filter((entry) => entry.classificationConflict).length,
     reidentificationMergeCount: groupedWithLabels.reduce((sum, entry) => sum + entry.mergedTrajectoryCount, 0),
     observations,
-    trajectories,
+    trajectories: classifiedTrajectories,
     unassignedObservations,
   };
 }

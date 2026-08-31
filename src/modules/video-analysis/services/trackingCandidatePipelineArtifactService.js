@@ -14,6 +14,7 @@ const metadataFields = Object.freeze([
   "candidatePipelineProtocol", "candidatePipelineFingerprintSha256", "localSourceSha256", "angleId",
   "candidateDetectionEvidenceSha256", "candidateAssociationEvidenceSha256",
   "candidateReidentificationEvidenceSha256", "candidateClassificationEvidenceSha256",
+  "candidateRole", "candidateRoleConfidence",
 ]);
 
 export class TrackingCandidatePipelineArtifactError extends Error {

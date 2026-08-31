@@ -21,11 +21,13 @@ export {
 export const TRACKING_STAGE_RESULT_PROTOCOL = "football-science-tracking-stage-result-v1";
 
 const entityCapabilities = Object.freeze({
+  person: "detect:person",
   player: "detect:player",
   ball: "detect:ball",
   referee: "detect:referee",
 });
 const teamSides = new Set(["home", "away", "unknown"]);
+const personRoles = new Set(["player", "referee", "unknown"]);
 
 export class TrackingStageArtifactError extends Error {
   constructor(message, code = "TRACKING_STAGE_ARTIFACT_INVALID") {
@@ -316,10 +318,12 @@ function validateClassification(payload = {}, provider = {}, request = {}, optio
   }
   const teamEnabled = provider.capabilities.includes("classify:team");
   const shirtEnabled = provider.capabilities.includes("classify:shirt-number");
+  const roleEnabled = provider.capabilities.includes("classify:role");
   const anchoredTeamSides = new Set((request.teamAnchors || []).map((anchor) => anchor.teamSide));
   const anchorSideByTrajectory = new Map((request.teamAnchors || []).map((anchor) => [anchor.trajectoryId, anchor.teamSide]));
   const allowed = [
     "trajectoryId",
+    ...(roleEnabled ? ["role", "roleConfidence"] : []),
     ...(teamEnabled ? ["teamSide", "teamConfidence"] : []),
     ...(shirtEnabled ? ["shirtNumber", "shirtNumberConfidence"] : []),
   ];
@@ -327,12 +331,27 @@ function validateClassification(payload = {}, provider = {}, request = {}, optio
   return { classifications: values.map((value, index) => {
     exactKeys(value, allowed, `Classification ${index + 1}`);
     const trajectoryId = identifier(value.trajectoryId, "classification trajectory id");
-    if (trajectories.get(trajectoryId)?.entityType !== "player" || assigned.has(trajectoryId)) {
-      invalid("Classification can reference each known player trajectory once.", "TRACKING_STAGE_REFERENCE_MISMATCH");
+    const trajectoryType = trajectories.get(trajectoryId)?.entityType;
+    const roleInput = roleEnabled && ["person", "player"].includes(trajectoryType);
+    if ((!roleInput && trajectoryType !== "player") || assigned.has(trajectoryId)) {
+      invalid("Classification can reference each known player trajectory or role-aware person trajectory once.", "TRACKING_STAGE_REFERENCE_MISMATCH");
     }
     assigned.add(trajectoryId);
     const result = { trajectoryId };
-    if (teamEnabled) {
+    let resolvedRole = trajectoryType;
+    if (roleEnabled) {
+      const role = boundedString(value.role, "football person role", 20).toLowerCase();
+      if (!personRoles.has(role)) invalid("Classification football person role is invalid.");
+      result.role = role;
+      result.roleConfidence = confidence(value.roleConfidence, "football person role confidence");
+      resolvedRole = role;
+    }
+    const hasTeamFields = value.teamSide !== undefined || value.teamConfidence !== undefined;
+    const hasShirtFields = value.shirtNumber !== undefined || value.shirtNumberConfidence !== undefined;
+    if (resolvedRole !== "player" && (hasTeamFields || hasShirtFields)) {
+      invalid("Only a player role may receive team or shirt classification.", "TRACKING_STAGE_REFERENCE_MISMATCH");
+    }
+    if (teamEnabled && resolvedRole === "player") {
       const teamSide = boundedString(value.teamSide, "team side", 20).toLowerCase();
       if (!teamSides.has(teamSide)) invalid("Classification team side is invalid.");
       if (teamSide !== "unknown" && !anchoredTeamSides.has(teamSide)) {
@@ -349,7 +368,7 @@ function validateClassification(payload = {}, provider = {}, request = {}, optio
       result.teamSide = teamSide;
       result.teamConfidence = confidence(value.teamConfidence, "team confidence");
     }
-    if (shirtEnabled) {
+    if (shirtEnabled && resolvedRole === "player") {
       const shirtNumber = boundedString(value.shirtNumber, "shirt number", 7).toLowerCase();
       if (shirtNumber !== "unknown" && !/^\d{1,3}$/.test(shirtNumber)) invalid("Classification shirt number is invalid.");
       result.shirtNumber = shirtNumber;

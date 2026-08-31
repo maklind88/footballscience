@@ -5,6 +5,13 @@ const requirements = Object.freeze({
   classification: Object.freeze(["classify:team"]),
 });
 
+const roleAwareRequirements = Object.freeze({
+  detection: Object.freeze(["detect:person", "detect:ball"]),
+  association: requirements.association,
+  reidentification: requirements.reidentification,
+  classification: Object.freeze(["classify:role", "classify:team"]),
+});
+
 const labels = Object.freeze({
   detection: "Player, ball and referee detection",
   association: "Multi-object association",
@@ -26,9 +33,14 @@ function compareCandidateVersions(first, second) {
   return versionCollator.compare(leftPrerelease.join("-"), rightPrerelease.join("-"));
 }
 
-function readyCandidate(value = {}, stage = "") {
+function readyCandidate(value = {}, stage = "", required = requirements[stage]) {
   const capabilities = new Set(Array.isArray(value.capabilities) ? value.capabilities.map(String) : []);
   const profile = value.executionProfile || {};
+  const genericDetectionIsExclusive = stage !== "detection"
+    || !required.includes("detect:person")
+    || (!["detect:player", "detect:referee"].some((capability) => capabilities.has(capability)));
+  const classificationPathMatches = stage !== "classification"
+    || required.includes("classify:role") === capabilities.has("classify:role");
   return value.stage === stage
     && value.protocol === "football-science-tracking-stage-v1"
     && value.benchmarkOnly === true
@@ -43,11 +55,13 @@ function readyCandidate(value = {}, stage = "") {
     && profile.cpuThreads > 0
     && Number(profile.sampleFps) > 0
     && typeof profile.modelResident === "boolean"
-    && requirements[stage].every((capability) => capabilities.has(capability));
+    && genericDetectionIsExclusive
+    && classificationPathMatches
+    && required.every((capability) => capabilities.has(capability));
 }
 
-function preferredCandidate(values = [], stage = "") {
-  return values.filter((value) => readyCandidate(value, stage)).sort((first, second) => (
+function preferredCandidate(values = [], stage = "", required = requirements[stage]) {
+  return values.filter((value) => readyCandidate(value, stage, required)).sort((first, second) => (
     Number(second.priority || 0) - Number(first.priority || 0)
     || String(first.id).localeCompare(String(second.id))
     || compareCandidateVersions(second.version, first.version)
@@ -56,16 +70,31 @@ function preferredCandidate(values = [], stage = "") {
 
 export function trackingCandidatePipelineReadiness(tracking = {}) {
   const candidates = Array.isArray(tracking.provider?.candidates) ? tracking.provider.candidates : [];
-  const providers = Object.fromEntries(Object.keys(requirements).map((stage) => [
+  const pathProviders = (pathRequirements) => Object.fromEntries(Object.keys(requirements).map((stage) => [
     stage,
-    preferredCandidate(candidates, stage),
+    preferredCandidate(candidates, stage, pathRequirements[stage]),
   ]));
+  const legacyProviders = pathProviders(requirements);
+  const roleAwareProviders = pathProviders(roleAwareRequirements);
+  const readyCount = (values) => Object.values(values).filter(Boolean).length;
+  const legacyReadyCount = readyCount(legacyProviders);
+  const roleAwareReadyCount = readyCount(roleAwareProviders);
+  const roleAware = roleAwareReadyCount === Object.keys(requirements).length
+    ? legacyReadyCount !== Object.keys(requirements).length
+    : roleAwareReadyCount > legacyReadyCount;
+  const selectedRequirements = roleAware ? roleAwareRequirements : requirements;
+  const selectedLabels = roleAware ? {
+    ...labels,
+    detection: "Person and ball detection",
+    classification: "Football role and team classification",
+  } : labels;
+  const providers = roleAware ? roleAwareProviders : legacyProviders;
   const stages = Object.keys(requirements).map((stage) => ({
     id: stage,
-    label: labels[stage],
+    label: selectedLabels[stage],
     provider: providers[stage],
     ready: Boolean(providers[stage]),
-    requiredCapabilities: [...requirements[stage]],
+    requiredCapabilities: [...selectedRequirements[stage]],
   }));
   const issues = [];
   if (tracking.provider?.candidateStageExecutionAvailable !== true) {
@@ -82,4 +111,5 @@ export function trackingCandidatePipelineReadiness(tracking = {}) {
 }
 
 export const TRACKING_CANDIDATE_STAGE_REQUIREMENTS = requirements;
+export const TRACKING_CANDIDATE_ROLE_AWARE_STAGE_REQUIREMENTS = roleAwareRequirements;
 export const _private = Object.freeze({ compareCandidateVersions });

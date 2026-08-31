@@ -1,6 +1,7 @@
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { runLocalTrackingCandidateStage } from "./localTrackingService.js";
 import {
+  applyCandidateRoleClassifications,
   candidateReviewSummary,
   candidateStageTracks,
   materializeCandidateTrajectories,
@@ -8,13 +9,19 @@ import {
 
 export const TRACKING_CANDIDATE_PIPELINE_PROTOCOL = "football-science-tracking-candidate-pipeline-v1";
 
-const requiredCapabilities = Object.freeze({
+const legacyRequiredCapabilities = Object.freeze({
   detection: ["detect:player", "detect:ball", "detect:referee"],
   association: ["associate:multi-object"],
   reidentification: ["reidentify:player"],
   classification: ["classify:team"],
 });
-const stageOrder = Object.freeze(["detection", "association", "reidentification", "classification"]);
+const roleAwareRequiredCapabilities = Object.freeze({
+  detection: ["detect:person", "detect:ball"],
+  association: ["associate:multi-object"],
+  reidentification: ["reidentify:player"],
+  classification: ["classify:role", "classify:team"],
+});
+const artifactStageOrder = Object.freeze(["detection", "association", "reidentification", "classification"]);
 
 function invalid(message, code = "TRACKING_CANDIDATE_PIPELINE_INVALID") {
   const error = new Error(message);
@@ -47,12 +54,14 @@ function executionProfile(value = {}) {
   return { device, runtimeMode, cpuThreads, sampleFps, modelResident: value.modelResident };
 }
 
-function providerForStage(value = {}, stage = "") {
+function providerForStage(value = {}, stage = "", requirements = legacyRequiredCapabilities) {
   const capabilities = Array.isArray(value.capabilities) ? [...new Set(value.capabilities.map(String))] : [];
+  const classificationPathMatches = stage !== "classification"
+    || requirements[stage].includes("classify:role") === capabilities.includes("classify:role");
   if (!value.id || !value.version || value.protocol !== "football-science-tracking-stage-v1"
     || value.stage !== stage || value.benchmarkOnly !== true
-    || value.executionAvailable !== true
-    || requiredCapabilities[stage].some((capability) => !capabilities.includes(capability))) {
+    || value.executionAvailable !== true || !classificationPathMatches
+    || requirements[stage].some((capability) => !capabilities.includes(capability))) {
     invalid(`The ${stage} benchmark candidate is incomplete or unavailable.`, "TRACKING_CANDIDATE_PIPELINE_PROVIDER_MISSING");
   }
   return deepFreeze({
@@ -160,9 +169,21 @@ export async function runTrackingCandidatePipeline(options = {}) {
   const range = boundedRange(options.range);
   const matchRange = boundedRange(options.matchRange || options.range);
   const sync = boundedSync(options.sync);
-  const providers = Object.fromEntries(stageOrder.map((stage) => [
+  const detectionCapabilities = new Set(options.providers?.detection?.capabilities || []);
+  const roleAware = detectionCapabilities.has("detect:person");
+  if (roleAware && ["detect:player", "detect:referee"].some((capability) => detectionCapabilities.has(capability))) {
+    invalid(
+      "Generic person detection cannot also claim player or referee role detection.",
+      "TRACKING_CANDIDATE_PIPELINE_PROVIDER_MISSING",
+    );
+  }
+  const requirements = roleAware ? roleAwareRequiredCapabilities : legacyRequiredCapabilities;
+  const stageOrder = roleAware
+    ? ["detection", "association", "classification", "reidentification"]
+    : [...artifactStageOrder];
+  const providers = Object.fromEntries(artifactStageOrder.map((stage) => [
     stage,
-    providerForStage(options.providers?.[stage], stage),
+    providerForStage(options.providers?.[stage], stage, requirements),
   ]));
   if (!options.file && !options.sourceArtifactId) invalid("Reconnect the exact local match source before running a candidate pipeline.");
   if (!sourceFingerprint && !options.file) {
@@ -207,20 +228,40 @@ export async function runTrackingCandidatePipeline(options = {}) {
     retainedSourceId,
   );
   const trajectories = materializeCandidateTrajectories(association.artifact.payload, observations);
-  const reidentification = await invoke("reidentification", { sourceFingerprint, range, trajectories }, retainedSourceId);
-  const classification = await invoke("classification", {
-    sourceFingerprint,
-    range,
-    trajectories,
-    teamAnchors: Array.isArray(options.teamAnchors) ? options.teamAnchors : [],
-  }, retainedSourceId);
+  let reidentification;
+  let classification;
+  if (roleAware) {
+    classification = await invoke("classification", {
+      sourceFingerprint,
+      range,
+      trajectories,
+      teamAnchors: Array.isArray(options.teamAnchors) ? options.teamAnchors : [],
+    }, retainedSourceId);
+    const classifiedTrajectories = applyCandidateRoleClassifications(
+      trajectories,
+      classification.artifact.payload.classifications,
+    );
+    reidentification = await invoke("reidentification", {
+      sourceFingerprint,
+      range,
+      trajectories: classifiedTrajectories.filter((trajectory) => trajectory.entityType === "player"),
+    }, retainedSourceId);
+  } else {
+    reidentification = await invoke("reidentification", { sourceFingerprint, range, trajectories }, retainedSourceId);
+    classification = await invoke("classification", {
+      sourceFingerprint,
+      range,
+      trajectories,
+      teamAnchors: Array.isArray(options.teamAnchors) ? options.teamAnchors : [],
+    }, retainedSourceId);
+  }
   const lineageSeed = {
     protocol: TRACKING_CANDIDATE_PIPELINE_PROTOCOL,
     sourceFingerprint,
     sourceRange: range,
     matchRange,
     sync,
-    providers: Object.fromEntries(stageOrder.map((stage) => [stage, providers[stage]])),
+    providers: Object.fromEntries(artifactStageOrder.map((stage) => [stage, providers[stage]])),
     evidenceByStage: Object.fromEntries(runs.map((run) => [run.stage, run.evidenceSha256])),
     artifactByStage: Object.fromEntries(runs.map((run) => [run.stage, run.artifactSha256])),
   };
@@ -239,7 +280,7 @@ export async function runTrackingCandidatePipeline(options = {}) {
     lineage: deepFreeze(lineage),
     rawStageRuns: deepFreeze(runs),
     tracks: Object.freeze(tracks),
-    benchmarkTracksByStage: deepFreeze(Object.fromEntries(stageOrder.map((stage) => [stage, stageTracks[stage]]))),
+    benchmarkTracksByStage: deepFreeze(Object.fromEntries(artifactStageOrder.map((stage) => [stage, stageTracks[stage]]))),
     review: Object.freeze(candidateReviewSummary(stageTracks)),
   });
 }

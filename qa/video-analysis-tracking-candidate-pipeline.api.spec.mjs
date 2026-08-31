@@ -128,7 +128,7 @@ function runResult(stage, provider, request, overrides = {}) {
   };
 }
 
-function sealedRunResult(stage, selectedProvider, request) {
+function sealedRunResult(stage, selectedProvider, request, payload = stagePayload(stage)) {
   const normalizedRequest = { sourceFingerprint, ...request };
   const stageArtifact = {
     schemaVersion: 1,
@@ -143,7 +143,7 @@ function sealedRunResult(stage, selectedProvider, request) {
     sourceFingerprint,
     requestFingerprint: digest(canonicalJson({ stage, request: normalizedRequest })),
     range: { ...range },
-    payload: stagePayload(stage),
+    payload,
   };
   const artifactSha256 = digest(canonicalJson(stageArtifact));
   const evidence = {
@@ -284,6 +284,94 @@ test("candidate pipeline maps synchronized source timestamps back to match time"
   expect(player.endMs).toBe(3000);
   expect(player.segments.flatMap((segment) => segment.points.map((point) => point.atMs))).toEqual([1000, 2000]);
   expect(player.metadata.angleId).toBe("tactical");
+});
+
+test("role-aware candidate pipeline classifies people before re-identification", async () => {
+  const pipeline = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingCandidatePipelineService.js",
+  ));
+  const artifacts = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingCandidatePipelineArtifactService.js",
+  ));
+  const configuredProviders = providers();
+  configuredProviders.detection.capabilities = ["detect:person", "detect:ball"];
+  configuredProviders.classification.capabilities = ["classify:role", "classify:team"];
+  const calls = [];
+  const payloads = {
+    detection: { observations: [
+      observation("person-player", 0, 0, "person", 0.1, 0.96),
+      observation("person-referee", 0, 0, "person", 0.7, 0.94),
+      observation("person-unassigned", 1000, 25, "person", 0.8, 0.4),
+      observation("ball-a", 1000, 25, "ball", 0.5, 0.88),
+    ] },
+    association: { trajectories: [
+      { id: "trajectory-player", entityType: "person", observationIds: ["person-player"], confidence: 0.93, discontinuitiesMs: [] },
+      { id: "trajectory-referee", entityType: "person", observationIds: ["person-referee"], confidence: 0.91, discontinuitiesMs: [] },
+      { id: "trajectory-ball", entityType: "ball", observationIds: ["ball-a"], confidence: 0.82, discontinuitiesMs: [] },
+    ] },
+    classification: { classifications: [
+      { trajectoryId: "trajectory-player", role: "player", roleConfidence: 0.97, teamSide: "home", teamConfidence: 0.96 },
+      { trajectoryId: "trajectory-referee", role: "referee", roleConfidence: 0.94 },
+    ] },
+    reidentification: { identities: [
+      { trajectoryId: "trajectory-player", identityKey: "local-cluster-player", confidence: 0.91 },
+    ] },
+  };
+  const result = await pipeline.runTrackingCandidatePipeline({
+    providers: configuredProviders,
+    sourceFingerprint,
+    range,
+    file: new Blob(["match"]),
+    teamAnchors: [{ teamSide: "home", trajectoryId: "trajectory-player" }],
+    cryptoApi: globalThis.crypto,
+    runStage: async (options) => {
+      calls.push(options);
+      return sealedRunResult(
+        options.provider.stage,
+        options.provider,
+        options.request,
+        payloads[options.provider.stage],
+      );
+    },
+  });
+
+  expect(calls.map((call) => call.provider.stage)).toEqual([
+    "detection", "association", "classification", "reidentification",
+  ]);
+  expect(calls[3].request.trajectories).toHaveLength(1);
+  expect(calls[3].request.trajectories[0]).toMatchObject({
+    id: "trajectory-player",
+    entityType: "player",
+    observations: [expect.objectContaining({ entityType: "player" })],
+  });
+  expect(result.review).toMatchObject({
+    trackCount: 4,
+    playerTrackCount: 1,
+    refereeTrackCount: 1,
+    ballTrackCount: 1,
+    unassignedObservationCount: 1,
+  });
+  expect(result.tracks.find((track) => track.entityType === "player")).toMatchObject({
+    teamSide: "home",
+    metadata: { candidateRole: "player", candidateRoleConfidence: 0.97 },
+  });
+  expect(result.tracks.find((track) => track.entityType === "referee")).toMatchObject({
+    teamSide: "official",
+    metadata: { candidateRole: "referee", candidateRoleConfidence: 0.94 },
+  });
+  expect(result.tracks.find((track) => track.entityType === "unknown")).toMatchObject({
+    identityConfidence: 0,
+    metadata: { candidateRole: "unknown", candidateRoleConfidence: 0 },
+  });
+  const artifact = await artifacts.createTrackingCandidatePipelineArtifact({
+    scope: { organizationId: "org-1", teamId: "team-1", userId: "analyst-1", matchId: "match-1" },
+    itemId: "presentation-item-role-aware",
+    frame: { width: 1920, height: 1080 },
+    ...result,
+  }, { cryptoApi: globalThis.crypto, now: () => "2026-08-31T12:05:00.000Z" });
+  expect(await artifacts.validateTrackingCandidatePipelineArtifact(structuredClone(artifact), {
+    cryptoApi: globalThis.crypto,
+  })).toEqual(artifact);
 });
 
 test("candidate pipeline artifact preserves exact raw evidence and rejects changed review predictions", async () => {

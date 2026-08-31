@@ -21,6 +21,20 @@ const groups = Object.freeze([
   }),
 ]);
 
+const roleAwareGroups = Object.freeze([
+  Object.freeze({
+    id: "detection",
+    label: "Person / ball",
+    capabilities: Object.freeze(["detect:person", "detect:ball"]),
+  }),
+  groups.find((group) => group.id === "continuity"),
+  Object.freeze({
+    id: "classification",
+    label: "Role / team",
+    capabilities: Object.freeze(["classify:role", "classify:team"]),
+  }),
+]);
+
 function providersForTracking(tracking = {}) {
   const registered = Array.isArray(tracking.provider?.providers) ? tracking.provider.providers : [];
   const values = Array.isArray(tracking.providers) && tracking.providers.length
@@ -97,9 +111,14 @@ function groupReadiness(group = {}, providers = [], evaluation = {}) {
 export function trackingCapabilityReadiness(tracking = {}) {
   const providers = providersForTracking(tracking);
   const evaluation = tracking.benchmarkEvaluation || {};
-  const entries = groups.map((group) => groupReadiness(group, providers, evaluation));
-  const selected = entries.find((entry) => entry.id === "selected-object");
-  const fullScene = entries.filter((entry) => entry.id !== "selected-object");
+  const selected = groupReadiness(groups[0], providers, evaluation);
+  const legacyFullScene = groups.slice(1).map((group) => groupReadiness(group, providers, evaluation));
+  const roleAwareFullScene = roleAwareGroups.map((group) => groupReadiness(group, providers, evaluation));
+  const statusScore = { missing: 0, failed: 1, partial: 2, installed: 3, verified: 4 };
+  const pathScore = (entries) => entries.reduce((total, entry) => total + statusScore[entry.status], 0);
+  const fullScene = pathScore(roleAwareFullScene) > pathScore(legacyFullScene)
+    ? roleAwareFullScene
+    : legacyFullScene;
   const fullSceneInstalled = fullScene.every((entry) => ["installed", "verified"].includes(entry.status));
   const fullSceneVerified = fullScene.every((entry) => entry.status === "verified");
   const fullSceneActivationPending = fullSceneInstalled
@@ -126,7 +145,8 @@ export function trackingCapabilityReadiness(tracking = {}) {
           ? "Full scene incomplete"
           : selectedAvailable ? "Selected object only" : "Manual tracking only",
     entries: [
-      ...entries,
+      selected,
+      ...fullScene,
       {
         id: "reference",
         label: "TrackEval reference",

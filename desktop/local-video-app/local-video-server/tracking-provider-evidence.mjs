@@ -13,6 +13,12 @@ const maximumReportBytes = 16 * 1024 * 1024;
 const maximumApprovedRealtimeFactor = 1;
 
 const capabilityRules = Object.freeze({
+  "detect:person": Object.freeze([
+    ["metrics.personPrecision", "thresholds.minPersonPrecision", "minimum", 0.9],
+    ["metrics.personRecall", "thresholds.minPersonRecall", "minimum", 0.9],
+    ["referenceValidation.metrics.DetA", "referenceValidation.requiredThresholds.minDetA", "minimum", 0.75],
+    ["referenceValidation.metrics.LocA", "referenceValidation.requiredThresholds.minLocA", "minimum", 0.75],
+  ]),
   "detect:player": Object.freeze([
     ["metrics.playerPrecision", "thresholds.minPlayerPrecision", "minimum", 0.9],
     ["metrics.playerRecall", "thresholds.minPlayerRecall", "minimum", 0.9],
@@ -50,6 +56,9 @@ const capabilityRules = Object.freeze({
     ["metrics.identityF1", "thresholds.minIdentityF1", "minimum", 0.85],
     ["metrics.playerIdentityAccuracy", "thresholds.minPlayerIdentityAccuracy", "minimum", 0.9],
     ["referenceValidation.metrics.IDF1", "referenceValidation.requiredThresholds.minIdf1", "minimum", 0.85],
+  ]),
+  "classify:role": Object.freeze([
+    ["metrics.entityTypeAccuracy", "thresholds.minEntityTypeAccuracy", "minimum", 0.98],
   ]),
   "classify:team": Object.freeze([
     ["metrics.teamAccuracy", "thresholds.minTeamAccuracy", "minimum", 0.95],

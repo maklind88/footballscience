@@ -16,6 +16,7 @@ import {
 } from "./trackingBenchmarkContract.js";
 
 const entityTypes = ["player", "ball", "referee"];
+const personEntityTypes = new Set(["person", "player", "referee"]);
 
 function exactVisiblePoint(track = {}, atMs = 0) {
   for (const segment of track.segments || []) {
@@ -159,7 +160,7 @@ function classificationMetrics(frames = []) {
 }
 
 function perEntityMetrics(frames = []) {
-  return Object.fromEntries(entityTypes.map((entityType) => {
+  const metrics = Object.fromEntries(entityTypes.map((entityType) => {
     let truthCount = 0;
     let predictionCount = 0;
     let truePositives = 0;
@@ -183,6 +184,32 @@ function perEntityMetrics(frames = []) {
       f1: harmonicMean(precision, recall),
     }];
   }));
+  let truthCount = 0;
+  let predictionCount = 0;
+  let truePositives = 0;
+  for (const frame of frames) {
+    truthCount += frame.truth.filter((entry) => personEntityTypes.has(entry.track.entityType)).length;
+    predictionCount += frame.prediction.filter((entry) => personEntityTypes.has(entry.track.entityType)).length;
+    truePositives += frame.matches.filter((match) => (
+      personEntityTypes.has(match.truth.track.entityType)
+      && personEntityTypes.has(match.prediction.track.entityType)
+    )).length;
+  }
+  const precision = safeRatio(truePositives, predictionCount) ?? 0;
+  const recall = safeRatio(truePositives, truthCount) ?? 0;
+  return {
+    ...metrics,
+    person: {
+      truthCount,
+      predictionCount,
+      truePositives,
+      falsePositives: Math.max(0, predictionCount - truePositives),
+      falseNegatives: Math.max(0, truthCount - truePositives),
+      precision,
+      recall,
+      f1: harmonicMean(precision, recall),
+    },
+  };
 }
 
 function worstFrames(frames = []) {

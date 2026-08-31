@@ -140,6 +140,43 @@ test("candidate pipeline prefers the newest natural version when provider priori
   expect(readiness.ready).toBe(true);
 });
 
+test("candidate readiness accepts the coherent person detection and role classification path", async () => {
+  const { trackingCandidatePipelineReadiness } = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingCandidateSelectionService.js",
+  ));
+  const roleAwareCandidates = Object.keys(capabilities).map((stage) => ({
+    ...candidate(stage),
+    capabilities: stage === "detection"
+      ? ["detect:person", "detect:ball"]
+      : stage === "classification"
+        ? ["classify:role", "classify:team"]
+        : capabilities[stage],
+  }));
+  const readiness = trackingCandidatePipelineReadiness({
+    provider: { candidateStageExecutionAvailable: true, candidates: roleAwareCandidates },
+  });
+
+  expect(readiness).toMatchObject({
+    ready: true,
+    providers: {
+      detection: { capabilities: ["detect:person", "detect:ball"] },
+      classification: { capabilities: ["classify:role", "classify:team"] },
+    },
+  });
+  expect(readiness.stages.find((stage) => stage.id === "classification").requiredCapabilities)
+    .toEqual(["classify:role", "classify:team"]);
+
+  const incompleteLegacyDetector = candidate("detection");
+  const coherent = trackingCandidatePipelineReadiness({
+    provider: {
+      candidateStageExecutionAvailable: true,
+      candidates: [...roleAwareCandidates, incompleteLegacyDetector],
+    },
+  });
+  expect(coherent.ready).toBe(true);
+  expect(coherent.providers.detection.capabilities).toEqual(["detect:person", "detect:ball"]);
+});
+
 test("candidate benchmark stage switching invalidates stale evaluation evidence", async () => {
   const { createTrackingCandidateController } = await import(moduleUrl(
     "src/modules/video-analysis/controllers/trackingCandidateController.js",

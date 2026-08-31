@@ -429,3 +429,76 @@ test("preannotation review restores, serializes, and removes exact local decisio
     current: { id: first.id },
   });
 });
+
+test("preannotation review scopes work in explicit bounded batches without bulk decisions", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingPreannotationReviewController.js",
+  ));
+  let state = initialState();
+  const suggestions = Array.from({ length: 30 }, (_, index) => track(
+    `object-${String(index).padStart(2, "0")}`,
+    index < 2 ? "ball" : "player",
+    index * 100,
+    0.7,
+    "unassociated",
+  ));
+  const controller = service.createTrackingPreannotationReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getWindow: () => ({ crypto: globalThis.crypto }),
+    pickFiles: async () => ({ caseId: "transition" }),
+    importCase: async () => ({
+      workspaceSha256: "b".repeat(64),
+      sourceSha256: "a".repeat(64),
+      caseId: "transition",
+      tracks: [],
+      queue: suggestions.map((entry) => ({ track: entry })),
+      summary: { associatedTrackCount: 0, unassociatedObservationCount: suggestions.length },
+    }),
+  });
+
+  expect(await controller.open()).toBe(true);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    pendingCount: 30,
+    reviewScope: "all",
+    scopePendingCount: 30,
+    batchSize: 25,
+    batchPendingCount: 25,
+    batchTotalCount: 25,
+    current: { id: "object-00" },
+  });
+
+  expect(controller.handleField("preannotation-scope", { value: "critical" })).toBe(true);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    reviewScope: "critical",
+    scopePendingCount: 2,
+    batchPendingCount: 2,
+    batchTotalCount: 2,
+    current: { id: "object-00" },
+  });
+  expect(controller.handleField("preannotation-batch-size", { value: "50" })).toBe(true);
+  expect(state.presentation.tracking.preannotationReview.batchSize).toBe(50);
+  expect(controller.handleField("preannotation-scope", { value: "all" })).toBe(true);
+  expect(state.presentation.tracking.preannotationReview.batchTotalCount).toBe(30);
+  expect(controller.handleField("preannotation-batch-size", { value: "25" })).toBe(true);
+
+  for (let index = 0; index < 25; index += 1) {
+    expect(controller.handleAction("preannotation-accept")).toBe(true);
+  }
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    status: "batch-complete",
+    pendingCount: 5,
+    acceptedCount: 25,
+    scopePendingCount: 5,
+    batchPendingCount: 0,
+    batchTotalCount: 25,
+    current: null,
+  });
+  expect(controller.handleAction("preannotation-next-batch")).toBe(true);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    status: "review",
+    batchPendingCount: 5,
+    batchTotalCount: 5,
+    current: { id: "object-25" },
+  });
+});

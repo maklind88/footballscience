@@ -1,10 +1,20 @@
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
 import { importTrackingPreannotationReviewCase } from "../services/trackingPreannotationReviewService.js";
 import {
+  createTrackingPreannotationReviewBatch,
+  findTrackingPreannotationReviewBatchIndex,
   prioritizeTrackingPreannotationReviewEntries,
+  summarizeTrackingPreannotationReviewBatch,
   summarizeTrackingPreannotationReviewPriorities,
 } from "../services/trackingPreannotationReviewPriorityService.js";
 import { trackingSourceFingerprint } from "./trackingGroundTruthController.js";
+import {
+  acceptedTrackingPreannotationTrack as acceptedTrack,
+  currentTrackingPreannotationReview as currentReview,
+  normalizeTrackingPreannotationReviewState as reviewState,
+  previewTrackingPreannotationTrack as previewTrack,
+  selectTrackingPreannotationReviewFiles,
+} from "./trackingPreannotationReviewControllerHelpers.js";
 import {
   createTrackingPreannotationReviewDraftController,
   restoreTrackingPreannotationReviewDecisions,
@@ -20,106 +30,12 @@ function invalid(message) {
   throw new Error(message);
 }
 
-function reviewState(value = {}) {
-  return {
-    status: String(value.status || "idle"),
-    caseId: String(value.caseId || ""),
-    workspaceSha256: String(value.workspaceSha256 || ""),
-    associatedTrackCount: Math.max(0, Number(value.associatedTrackCount) || 0),
-    unassociatedObservationCount: Math.max(0, Number(value.unassociatedObservationCount) || 0),
-    criticalEntityCount: Math.max(0, Number(value.criticalEntityCount) || 0),
-    fragmentCount: Math.max(0, Number(value.fragmentCount) || 0),
-    lowConfidenceCount: Math.max(0, Number(value.lowConfidenceCount) || 0),
-    pendingCount: Math.max(0, Number(value.pendingCount) || 0),
-    acceptedCount: Math.max(0, Number(value.acceptedCount) || 0),
-    rejectedCount: Math.max(0, Number(value.rejectedCount) || 0),
-    savedCount: Math.max(0, Number(value.savedCount) || 0),
-    draftStatus: String(value.draftStatus || "idle"),
-    draftError: String(value.draftError || ""),
-    restoredDecisionCount: Math.max(0, Number(value.restoredDecisionCount) || 0),
-    current: value.current && typeof value.current === "object" ? value.current : null,
-    error: String(value.error || ""),
-  };
-}
-
-async function selectedFiles(win = globalThis.window) {
-  if (typeof win?.showOpenFilePicker !== "function") {
-    invalid("This browser cannot open a sealed preannotation workspace.");
-  }
-  const handles = await win.showOpenFilePicker({
-    multiple: true,
-    types: [{
-      description: "FS Player preannotation review",
-      accept: {
-        "application/json": [".json"],
-        "text/plain": [".txt"],
-      },
-    }],
-  });
-  if (handles.length !== 4) {
-    invalid("Select annotation-pack.json, workspace.json, one track-map JSON, and its MOT suggestion file.");
-  }
-  const files = await Promise.all(handles.map((handle) => handle.getFile()));
-  const pack = files.find((file) => file.name === "annotation-pack.json");
-  const workspace = files.find((file) => file.name === "workspace.json");
-  const trackMap = files.find((file) => file.name.endsWith(".track-map.json"));
-  const suggestion = files.find((file) => file.name.endsWith(".suggestions.mot.txt"));
-  const caseId = String(trackMap?.name || "").replace(/\.track-map\.json$/, "");
-  if (!pack || !workspace || !trackMap || !suggestion
-    || suggestion.name !== `${caseId}.suggestions.mot.txt`) {
-    invalid("The selected preannotation files do not describe one matching case.");
-  }
-  const [packBytes, workspaceBytes, trackMapBytes, suggestionBytes] = await Promise.all([
-    pack.arrayBuffer(),
-    workspace.arrayBuffer(),
-    trackMap.arrayBuffer(),
-    suggestion.arrayBuffer(),
-  ]);
-  return { packBytes, workspaceBytes, trackMapBytes, suggestionBytes, caseId };
-}
-
-function previewTrack(track = {}) {
-  return normalizeObjectTrack({
-    ...track,
-    metadata: {
-      ...(track.metadata || {}),
-      preannotationReviewPreview: true,
-      preannotationReviewState: "pending",
-    },
-  });
-}
-
-function acceptedTrack(track = {}, state = "accepted-local") {
-  return normalizeObjectTrack({
-    ...track,
-    metadata: {
-      ...(track.metadata || {}),
-      preannotationReviewPreview: false,
-      preannotationReviewState: state,
-    },
-  });
-}
-
-function currentReview(entry = {}, overrides = {}) {
-  return {
-    id: entry.track.id,
-    entityType: entry.track.entityType,
-    associationStatus: entry.associationStatus,
-    atMs: entry.track.startMs,
-    confidence: entry.track.confidence,
-    pointCount: entry.track.segments.reduce((sum, segment) => sum + segment.points.length, 0),
-    priorityCode: entry.priority?.code || "",
-    priorityLabel: entry.priority?.label || "",
-    ...overrides,
-  };
-}
-
 export function createTrackingPreannotationReviewController(options = {}) {
   const getState = options.getState || (() => ({}));
   const updateState = options.updateState || (() => {});
   const getWindow = options.getWindow || (() => globalThis.window);
   const importCase = options.importCase || importTrackingPreannotationReviewCase;
-  const pickFiles = options.pickFiles || (() => selectedFiles(getWindow()));
+  const pickFiles = options.pickFiles || (() => selectTrackingPreannotationReviewFiles(getWindow()));
   const draftController = createTrackingPreannotationReviewDraftController({
     getState,
     getContext: options.getContext,
@@ -155,6 +71,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
       acceptedCount: values.filter((value) => value === "accepted").length,
       rejectedCount: values.filter((value) => value === "rejected").length,
       savedCount: values.filter((value) => value === "saved").length,
+      ...summarizeTrackingPreannotationReviewBatch(session),
     };
   }
 
@@ -163,12 +80,20 @@ export function createTrackingPreannotationReviewController(options = {}) {
   }
 
   function pendingIndex(start = 0) {
-    if (!session?.entries.length) return -1;
-    for (let offset = 0; offset < session.entries.length; offset += 1) {
-      const index = (start + offset) % session.entries.length;
-      if (!session.decisions.has(session.entries[index].track.id)) return index;
-    }
-    return -1;
+    return findTrackingPreannotationReviewBatchIndex(session, start);
+  }
+
+  function refreshBatch(options = {}) {
+    if (!session) return false;
+    Object.assign(session, createTrackingPreannotationReviewBatch(
+      session.entries,
+      session.decisions,
+      {
+        reviewScope: options.reviewScope ?? session.reviewScope,
+        batchSize: options.batchSize ?? session.batchSize,
+      },
+    ));
+    return show(pendingIndex(0));
   }
 
   function replaceReviewTracks(state, itemId, removeIds, additions = []) {
@@ -216,12 +141,13 @@ export function createTrackingPreannotationReviewController(options = {}) {
     updateState((state) => {
       let next = replaceReviewTracks(state, session.itemId, previousId ? [previousId] : [], entry
         ? [previewTrack(entry.track)] : []);
+      const summary = counts();
       next = patchTrackingState(next, {
         selectedTrackIds: entry ? [entry.track.id] : [],
         preannotationReview: {
           ...reviewState(state.presentation?.tracking?.preannotationReview),
-          ...counts(),
-          status: entry ? "review" : "complete",
+          ...summary,
+          status: entry ? "review" : summary.pendingCount ? "batch-complete" : "complete",
           current: entry ? currentReview(entry) : null,
           error: "",
         },
@@ -319,6 +245,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
         decisionRestore = restoreTrackingPreannotationReviewDecisions(entries, existingSavedIds, null);
         draftError = error?.message || "Saved review progress could not be matched to this workspace.";
       }
+      const batch = createTrackingPreannotationReviewBatch(entries, decisionRestore.decisions);
       session = {
         itemId: item.id,
         clipId,
@@ -330,6 +257,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
         entries,
         decisions: decisionRestore.decisions,
         history: decisionRestore.history,
+        ...batch,
         currentId: "",
         draftRevision: 0,
       };
@@ -398,6 +326,12 @@ export function createTrackingPreannotationReviewController(options = {}) {
     return show(pendingIndex(Math.max(0, currentIndex + 1)));
   }
 
+  function handleField(field = "", element = null) {
+    if (field === "preannotation-scope") return sync() && refreshBatch({ reviewScope: element?.value });
+    if (field === "preannotation-batch-size") return sync() && refreshBatch({ batchSize: element?.value });
+    return false;
+  }
+
   async function saveCurrentForCorrection() {
     if (!sync()) return false;
     const current = entryById(session?.currentId);
@@ -457,7 +391,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
           preannotationReview: {
             ...reviewState(state.presentation?.tracking?.preannotationReview),
             ...summary,
-            status: summary.pendingCount ? "review" : "complete",
+            status: session.currentId ? "review" : summary.pendingCount ? "batch-complete" : "complete",
             error: "",
           },
         });
@@ -479,6 +413,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (action === "preannotation-accept") return decide("accepted");
     if (action === "preannotation-reject") return decide("rejected");
     if (action === "preannotation-next") return next();
+    if (action === "preannotation-next-batch") return sync() && refreshBatch();
     if (action === "preannotation-undo") return undo();
     if (action === "preannotation-save-current") { void saveCurrentForCorrection(); return true; }
     if (action === "preannotation-save") { void saveAccepted(); return true; }
@@ -488,6 +423,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
   return {
     flushDraft: draftController.flush,
     handleAction,
+    handleField,
     open,
     saveAccepted,
     saveCurrentForCorrection,

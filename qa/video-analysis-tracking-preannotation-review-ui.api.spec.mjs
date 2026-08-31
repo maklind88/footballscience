@@ -28,6 +28,11 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
           acceptedCount: 1,
           rejectedCount: 0,
           savedCount: 0,
+          reviewScope: "critical",
+          scopePendingCount: 17,
+          batchSize: 50,
+          batchPendingCount: 17,
+          batchTotalCount: 17,
           draftStatus: "restored",
           restoredDecisionCount: 12,
           current: {
@@ -53,6 +58,10 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   expect(html).toContain("204");
   expect(html).toContain("Unassociated ball");
   expect(html).toContain("Ball/referee requires manual confirmation");
+  expect(html).toContain('data-video-analysis-tracking-field="preannotation-scope"');
+  expect(html).toContain('<option value="critical" selected>Ball &amp; referee</option>');
+  expect(html).toContain('<option value="50" selected>50</option>');
+  expect(html).toContain("17/17");
   expect(html).toContain("Device progress restored");
   expect(html).toContain("12 decisions");
   expect(html).toContain("1 samples | 40%");
@@ -61,9 +70,11 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
     "preannotation-accept",
     "preannotation-reject",
     "preannotation-next",
+    "preannotation-next-batch",
     "preannotation-undo",
     "preannotation-save-current",
     "preannotation-save",
   ]) expect(html).toContain(`data-video-analysis-tracking-action="${action}"`);
   expect(html).toMatch(/preannotation-save" >Save accepted/);
+  expect(html).toMatch(/preannotation-next-batch" disabled>Next batch/);
 });

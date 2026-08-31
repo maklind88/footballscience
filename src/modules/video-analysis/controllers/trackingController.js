@@ -436,6 +436,7 @@ export function createTrackingController(options = {}) {
   function handleChange(event) {
     const field = eventElement(event)?.closest?.("[data-video-analysis-tracking-field]");
     if (!field) return false;
+    if (preannotationReviewController.handleField(field.dataset.videoAnalysisTrackingField, field)) return true;
     if (groundTruth.handleField(field.dataset.videoAnalysisTrackingField, field)) return true;
     return updateField(field.dataset.videoAnalysisTrackingField, field.value);
   }

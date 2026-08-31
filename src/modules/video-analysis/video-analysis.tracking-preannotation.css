@@ -1,0 +1,48 @@
+.video-analysis-preannotation__batchbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1fr);
+  gap: 5px;
+  align-items: end;
+}
+
+.video-analysis-preannotation__batchbar label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  color: #68767d;
+  font-size: 7px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.video-analysis-preannotation__batchbar select {
+  width: 100%;
+  min-width: 0;
+  height: 27px;
+  border: 1px solid #cbd6dc;
+  border-radius: 4px;
+  padding: 3px 5px;
+  color: #253840;
+  background: #ffffff;
+  font-size: 8px;
+  text-transform: none;
+}
+
+.video-analysis-preannotation__batchbar p {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 5px;
+  min-width: 0;
+  margin: 0;
+  color: #68767d;
+  font-size: 7px;
+}
+
+.video-analysis-preannotation__batchbar p strong {
+  overflow: hidden;
+  color: #253840;
+  font-size: 8px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

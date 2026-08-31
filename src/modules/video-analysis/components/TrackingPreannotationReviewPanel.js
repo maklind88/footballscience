@@ -1,4 +1,8 @@
 import { escapeHtml } from "./renderHelpers.js";
+import {
+  TRACKING_PREANNOTATION_REVIEW_BATCH_SIZES,
+  TRACKING_PREANNOTATION_REVIEW_SCOPES,
+} from "../services/trackingPreannotationReviewPriorityService.js";
 
 const labels = Object.freeze({
   idle: "Not opened",
@@ -6,6 +10,7 @@ const labels = Object.freeze({
   review: "Review in progress",
   saving: "Saving accepted tracks",
   complete: "Queue complete",
+  "batch-complete": "Batch complete",
   correcting: "Correct saved track",
   error: "Needs attention",
 });
@@ -33,6 +38,10 @@ function currentLabel(current = null) {
   return `${association} ${current.entityType || "object"}`;
 }
 
+function selected(value, expected) {
+  return String(value) === String(expected) ? " selected" : "";
+}
+
 export function renderTrackingPreannotationReviewPanel(state = {}, item = null) {
   const review = state.presentation?.tracking?.preannotationReview || {};
   const active = ["loading", "saving"].includes(review.status);
@@ -40,6 +49,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
   const current = review.current || null;
   const pendingSuggestion = current && !current.savedForCorrection;
   const canSave = Number(review.acceptedCount) > 0 && !active;
+  const canOpenNextBatch = hasWorkspace && !current && Number(review.scopePendingCount) > 0 && !active;
   return `
     <section class="video-analysis-preannotation" aria-label="Preannotation review queue">
       <header>
@@ -58,6 +68,21 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
           <div><dt>Rejected</dt><dd>${count(review.rejectedCount)}</dd></div>
           <div><dt>Saved</dt><dd>${count(review.savedCount)}</dd></div>
         </dl>
+        <div class="video-analysis-preannotation__batchbar">
+          <label>
+            <span>Focus</span>
+            <select aria-label="Review focus" data-video-analysis-tracking-field="preannotation-scope">
+              ${TRACKING_PREANNOTATION_REVIEW_SCOPES.map((entry) => `<option value="${entry.value}"${selected(review.reviewScope || "all", entry.value)}>${escapeHtml(entry.label)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>Batch</span>
+            <select aria-label="Review batch size" data-video-analysis-tracking-field="preannotation-batch-size">
+              ${TRACKING_PREANNOTATION_REVIEW_BATCH_SIZES.map((size) => `<option value="${size}"${selected(review.batchSize || 25, size)}>${size}</option>`).join("")}
+            </select>
+          </label>
+          <p><span>Scope</span><strong>${count(review.scopePendingCount)}</strong><span>Batch</span><strong>${count(review.batchPendingCount)}/${count(review.batchTotalCount)}</strong></p>
+        </div>
         <div class="video-analysis-preannotation__current ${current ? "" : "is-empty"}">
           <div><strong>${escapeHtml(currentLabel(current))}</strong><span>${current ? `${count(current.pointCount)} samples | ${confidence(current.confidence)}${current.priorityLabel ? ` | ${escapeHtml(current.priorityLabel)}` : ""}` : "Queue reviewed"}</span></div>
           <time>${current ? `${(Number(current.atMs) / 1000).toFixed(2)}s` : ""}</time>
@@ -75,6 +100,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
         <button type="button" data-video-analysis-tracking-action="preannotation-accept" ${!pendingSuggestion || active ? "disabled" : ""}>Accept</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-reject" ${!pendingSuggestion || active ? "disabled" : ""}>Reject</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-next" ${(!pendingSuggestion && review.status !== "correcting") || active ? "disabled" : ""}>${review.status === "correcting" ? "Continue" : "Next"}</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-next-batch" ${canOpenNextBatch ? "" : "disabled"}>Next batch</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-undo" ${!hasWorkspace || active ? "disabled" : ""}>Undo</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-save-current" ${!pendingSuggestion || active ? "disabled" : ""}>Save &amp; correct</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-save" ${canSave ? "" : "disabled"}>Save accepted</button>

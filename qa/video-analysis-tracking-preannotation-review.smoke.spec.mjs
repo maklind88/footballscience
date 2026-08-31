@@ -23,6 +23,11 @@ test("preannotation review panel remains compact and actionable", async ({ page 
             acceptedCount: 1,
             rejectedCount: 0,
             savedCount: 0,
+            reviewScope: "critical",
+            scopePendingCount: 17,
+            batchSize: 50,
+            batchPendingCount: 17,
+            batchTotalCount: 17,
             draftStatus: "restored",
             restoredDecisionCount: 12,
             current: {
@@ -45,6 +50,8 @@ test("preannotation review panel remains compact and actionable", async ({ page 
   await expect(panel).toBeVisible();
   await expect(panel.getByText("Unassociated ball")).toBeVisible();
   await expect(panel.getByText(/Ball\/referee requires manual confirmation/)).toBeVisible();
+  await expect(panel.getByLabel("Review focus")).toHaveValue("critical");
+  await expect(panel.getByLabel("Review batch size")).toHaveValue("50");
   await expect(panel.getByRole("button", { name: "Accept", exact: true })).toBeEnabled();
   await expect(panel.getByRole("button", { name: "Save accepted", exact: true })).toBeEnabled();
   const layout = await panel.evaluate((element) => ({
@@ -54,8 +61,13 @@ test("preannotation review panel remains compact and actionable", async ({ page 
       width: button.getBoundingClientRect().width,
       scrollWidth: button.scrollWidth,
     })),
+    selects: [...element.querySelectorAll("select")].map((select) => ({
+      width: select.getBoundingClientRect().width,
+      scrollWidth: select.scrollWidth,
+    })),
   }));
   expect(layout.width).toBeLessThanOrEqual(340);
   expect(layout.scrollWidth).toBeLessThanOrEqual(Math.ceil(layout.width));
   expect(layout.buttons.every((button) => button.scrollWidth <= Math.ceil(button.width))).toBe(true);
+  expect(layout.selects.every((select) => select.scrollWidth <= Math.ceil(select.width))).toBe(true);
 });

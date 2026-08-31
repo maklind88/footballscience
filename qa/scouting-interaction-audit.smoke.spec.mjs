@@ -1,4 +1,8 @@
 import { expect, test } from "@playwright/test";
+import {
+  startScoutingDatabaseLoad,
+  waitForScoutingRows,
+} from "./helpers/scouting-database-readiness.mjs";
 
 const workspaceHubKey = "football-workspace-hub-v3";
 const scoutingStorageKey = "football-scouting-v1";
@@ -147,94 +151,6 @@ async function closeScoutingOverlays(page) {
   await nextPaint(page);
 }
 
-async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
-  await page.waitForFunction(
-    () => {
-      const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
-      const grid = workspace?.querySelector("[data-scouting-record-grid]");
-      if (!grid) {
-        return false;
-      }
-      const isVisible = (node) => {
-        const rect = node.getBoundingClientRect();
-        const style = window.getComputedStyle(node);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-      };
-      const rows = Array.from(grid.querySelectorAll("[data-open-scouting-record]")).filter((node) => !node.disabled && isVisible(node));
-      return rows.length > 0 && !workspace.querySelector(":is(.scouting-database-progress, .scouting-database-loader)") && !workspace.querySelector("[data-scouting-retry-database]");
-    },
-    null,
-    { timeout }
-  );
-  await nextPaint(page);
-  await expect(
-    page.locator('[data-workspace-view="scouting"].is-active [data-scouting-record-grid] [data-open-scouting-record]:visible').first()
-  ).toBeEnabled({ timeout: 15_000 });
-}
-
-async function readScoutingDatabaseLoadState(page) {
-  return page.evaluate(() => {
-    const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
-    const isVisible = (node) => {
-      if (!node) {
-        return false;
-      }
-      const rect = node.getBoundingClientRect();
-      const style = window.getComputedStyle(node);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-    };
-    const hasRows = Array.from(workspace?.querySelectorAll("[data-open-scouting-record]") || []).some(
-      (node) => !node.disabled && isVisible(node)
-    );
-    if (hasRows) {
-      return "loaded";
-    }
-    if (isVisible(workspace?.querySelector(":is(.scouting-database-progress, .scouting-database-loader)"))) {
-      return "loading";
-    }
-    const loadTrigger = Array.from(
-      workspace?.querySelectorAll("[data-scouting-load-database], [data-scouting-retry-database]") || []
-    ).find((node) => !node.disabled && isVisible(node));
-    return loadTrigger ? "startable" : "waiting";
-  });
-}
-
-async function startScoutingDatabaseLoad(page) {
-  let state = "waiting";
-  await expect
-    .poll(
-      async () => {
-        state = await readScoutingDatabaseLoadState(page);
-        return state;
-      },
-      {
-        message: "Scouting database never became loaded, loading, or explicitly startable",
-        timeout: interactionBudget(15_000),
-      }
-    )
-    .toMatch(/^(loaded|loading|startable)$/);
-
-  if (state !== "startable") {
-    return;
-  }
-
-  const loadTrigger = page
-    .locator(
-      '[data-workspace-view="scouting"].is-active [data-scouting-load-database]:visible, [data-workspace-view="scouting"].is-active [data-scouting-retry-database]:visible'
-    )
-    .first();
-  await expect(loadTrigger).toBeVisible();
-  await expect(loadTrigger).toBeEnabled();
-  await loadTrigger.click();
-
-  await expect
-    .poll(() => readScoutingDatabaseLoadState(page), {
-      message: "Scouting database did not enter loading or loaded after the explicit load click",
-      timeout: interactionBudget(5_000),
-    })
-    .toMatch(/^(loading|loaded)$/);
-}
-
 async function ensureDatabaseRows(page, results) {
   await clickScoutingTab(page, results, "database", 1000, { phase: "setup" });
   await measure(
@@ -243,7 +159,9 @@ async function ensureDatabaseRows(page, results) {
     "load database",
     10_000,
     async () => {
-      await startScoutingDatabaseLoad(page);
+      await startScoutingDatabaseLoad(page, {
+        startTimeout: interactionBudget(15_000),
+      });
     },
     async () => {
       await waitForScoutingRows(page, { timeout: interactionBudget(45_000) });

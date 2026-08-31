@@ -3,6 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import {
+  startScoutingDatabaseLoad,
+  waitForScoutingRows,
+} from "./helpers/scouting-database-readiness.mjs";
 
 const workspaceHubKey = "football-workspace-hub-v3";
 const playerProfilesKey = "football-player-profiles-v1";
@@ -151,68 +155,8 @@ async function nextPaint(page) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
-async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
-  await page.waitForFunction(
-    () => {
-      const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
-      if (!workspace) {
-        return false;
-      }
-      const grid = workspace.querySelector("[data-scouting-record-grid]");
-      if (!grid) {
-        return false;
-      }
-      const isVisible = (node) => {
-        const rect = node.getBoundingClientRect();
-        const style = window.getComputedStyle(node);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-      };
-      const rows = Array.from(grid.querySelectorAll("[data-open-scouting-record]")).filter((node) => !node.disabled && isVisible(node));
-      const retry = workspace.querySelector("[data-scouting-retry-database]");
-      const loader = workspace.querySelector(":is(.scouting-database-progress, .scouting-database-loader)");
-      return rows.length > 0 && !retry && !loader;
-    },
-    null,
-    { timeout }
-  );
-  await nextPaint(page);
-  const firstRow = page.locator('[data-workspace-view="scouting"].is-active [data-scouting-record-grid] [data-open-scouting-record]:visible').first();
-  await expect(firstRow).toBeEnabled({ timeout: 15_000 });
-  return firstRow;
-}
-
 async function loadScoutingDatabase(page) {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const existingRow = page
-      .locator('[data-workspace-view="scouting"].is-active [data-scouting-record-grid] [data-open-scouting-record]:visible')
-      .first();
-    if ((await existingRow.count()) > 0) {
-      break;
-    }
-
-    const loadButton = page
-      .locator(
-        '[data-workspace-view="scouting"].is-active [data-scouting-load-database]:visible, [data-workspace-view="scouting"].is-active [data-scouting-retry-database]:visible'
-      )
-      .first();
-    if ((await loadButton.count()) === 0) {
-      await nextPaint(page);
-      continue;
-    }
-
-    try {
-      await expect(loadButton).toBeEnabled({ timeout: 5_000 });
-      await loadButton.click({ timeout: 5_000 });
-      break;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("detached") || message.includes("Timeout")) {
-        await nextPaint(page);
-        continue;
-      }
-      throw error;
-    }
-  }
+  await startScoutingDatabaseLoad(page, { startTimeout: 15_000 });
   return waitForScoutingRows(page, { timeout: 75_000 });
 }
 

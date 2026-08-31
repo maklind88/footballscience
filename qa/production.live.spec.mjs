@@ -425,6 +425,19 @@ async function expectStorageContains(page, key, text) {
     .toBe(true);
 }
 
+async function expectStorageExcludes(page, key, text) {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(
+          ({ storageKey, expectedText }) => !window.localStorage.getItem(storageKey)?.includes(expectedText),
+          { storageKey: key, expectedText: text }
+        ),
+      { timeout: 15_000 }
+    )
+    .toBe(true);
+}
+
 async function expectCentralSyncContains(page, key, text) {
   const endpointBase = new URL("/", page.url()).origin;
   const token = await getLiveAccessToken(page);
@@ -454,15 +467,84 @@ async function expectCentralSyncContains(page, key, text) {
     .toBe(true);
 }
 
-async function removeScheduleEventIfPresent(page, title) {
-  await openWorkspace(page, "schedule");
-  const eventChip = page.locator(".schedule-planner-event-chip").filter({ hasText: title }).first();
-  if ((await eventChip.count()) === 0 || !(await eventChip.isVisible())) {
+async function expectCentralSyncExcludes(page, key, text) {
+  const endpointBase = new URL("/", page.url()).origin;
+  const token = await getLiveAccessToken(page);
+
+  await expect
+    .poll(
+      async () => {
+        const localValue = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey) || "", key);
+        if (localValue.includes(text)) {
+          return false;
+        }
+        const centralResponse = await page.request.get(
+          `${endpointBase}/api/app-state?fresh=1&keys=${encodeURIComponent(key)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "x-footballscience-fresh-state": "1",
+            },
+            timeout: 75_000,
+          }
+        );
+        if (!centralResponse.ok()) {
+          return false;
+        }
+        const centralPayload = await centralResponse.json().catch(() => ({}));
+        return !String(centralPayload?.entries?.[key] || "").includes(text);
+      },
+      { timeout: 45_000, intervals: [500, 1_000, 2_000, 3_000] }
+    )
+    .toBe(true);
+}
+
+async function showScheduleDateInPlanner(page, targetDate, maxWindowShifts = 24) {
+  if (!targetDate) {
     return;
   }
+  const targetDay = page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`);
+  for (let attempt = 0; attempt <= maxWindowShifts; attempt += 1) {
+    if ((await targetDay.count()) > 0) {
+      return;
+    }
+    const firstVisibleDate = await page.locator(".schedule-planner-day").first().getAttribute("data-schedule-date");
+    const navigationButton = targetDate < String(firstVisibleDate || "")
+      ? page.locator("#schedulePreviousMonthButton")
+      : page.locator("#scheduleNextMonthButton");
+    await navigationButton.click();
+    await expect
+      .poll(() => page.locator(".schedule-planner-day").first().getAttribute("data-schedule-date"), {
+        timeout: 15_000,
+      })
+      .not.toBe(firstVisibleDate);
+  }
+  throw new Error(`Schedule cleanup could not show ${targetDate} in the planner.`);
+}
+
+async function removeScheduleEventIfPresent(page, title, targetDate) {
+  const localContainsTitle = await page.evaluate(
+    ({ key, expectedTitle }) => window.localStorage.getItem(key)?.includes(expectedTitle) ?? false,
+    { key: scheduleKey, expectedTitle: title }
+  );
+  if (!localContainsTitle) {
+    return false;
+  }
+
+  await openWorkspace(page, "schedule");
+  await showScheduleDateInPlanner(page, targetDate);
+  const targetDay = page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`);
+  const eventChip = targetDay.locator(".schedule-planner-event-chip").filter({ hasText: title }).first();
+  await expect(eventChip).toBeVisible();
   await eventChip.click();
   await page.keyboard.press("Delete");
+  const confirmDialog = page.locator(".platform-confirm-dialog");
+  await expect(confirmDialog.locator("h2")).toHaveText("Delete plan?");
+  await confirmDialog.locator("[data-platform-confirm-ok]").click();
   await expect(page.locator("#schedulePlannerGrid")).not.toContainText(title);
+  await expectStorageExcludes(page, scheduleKey, title);
+  await expectCentralSyncExcludes(page, scheduleKey, title);
+  return true;
 }
 
 async function findEmptySchedulePlannerDay(page, maxWindowShifts = 24) {
@@ -734,6 +816,7 @@ test("production test account can save and reload a schedule record", async ({ p
   });
 
   const title = `QA Live ${Date.now()}`;
+  let targetDate = "";
 
   await signIn(page);
 
@@ -741,7 +824,7 @@ test("production test account can save and reload a schedule record", async ({ p
     await openWorkspace(page, "schedule");
     await page.locator("#scheduleTodayButton").click();
     const targetDay = await findEmptySchedulePlannerDay(page);
-    const targetDate = await targetDay.getAttribute("data-schedule-date");
+    targetDate = (await targetDay.getAttribute("data-schedule-date")) || "";
     expect(targetDate).toBeTruthy();
     await targetDay.dblclick();
     const addInput = page.locator(`[data-schedule-planner-add-date="${targetDate}"] [name="plannerTitle"]`);
@@ -758,6 +841,6 @@ test("production test account can save and reload a schedule record", async ({ p
     await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
     await expectStorageContains(page, scheduleKey, title);
   } finally {
-    await removeScheduleEventIfPresent(page, title).catch(() => {});
+    await removeScheduleEventIfPresent(page, title, targetDate);
   }
 });

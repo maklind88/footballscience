@@ -45,3 +45,18 @@ The test now arms a browser-internal observer immediately before Enter is presse
 Playwright still performs the correctness assertions and verifies real result rows. Its harness timeout is separate from the performance clock so a delayed driver response cannot be reported as application latency. The strict performance assertion remains 1,000 ms and therefore continues to catch worker, render, or paint regressions.
 
 Remaining sensitivity is intentional: browser CPU/render contention still affects the browser-internal timestamp. The measured baseline p95 retains about 32% headroom and the desktop-branch p95 about 44% headroom. No Supabase schema, migration, staging data, or production data was read or changed for this fix.
+
+## Related interaction-audit clock correction
+
+The mandatory Scouting interaction audit used the same external-clock pattern for profile opening and Shadow XI slot navigation. The profile gate had reported 1,108 ms after the modal was already visible, and a controlled ten-run series of the uncorrected Shadow XI step failed five times at 913–999 ms because Playwright scheduling remained inside the measured interval.
+
+The audit now arms a capture-phase click observer in the browser immediately before Playwright clicks. Its application clock starts on the actual matching click and stops only after the expected visible state is present and two animation frames complete. Playwright continues to assert modal visibility, the active database tab, and every subsequent interaction. The profile and Shadow XI budgets remain 1,000 ms and 900 ms respectively.
+
+Ten serial fresh-page runs on the same macOS host and headless Chromium all passed:
+
+| Interaction | Runs | Minimum | Median | p95 | Maximum | Budget |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Profile open to painted modal | 10 | 144 ms | 179.5 ms | 279 ms | 279 ms | 1,000 ms |
+| Shadow XI slot to painted database tab | 10 | 7 ms | 44 ms | 53 ms | 53 ms | 900 ms |
+
+This correction removes only test-driver control-plane latency. Browser CPU, DOM work, rendering, and animation-frame delay remain inside the performance guarantee. No product implementation, fixture, data volume, retry policy, assertion, or timing budget changed.

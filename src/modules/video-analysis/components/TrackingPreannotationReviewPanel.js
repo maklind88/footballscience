@@ -132,13 +132,13 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
       ` : ""}
       <div class="video-analysis-preannotation__commands">
         <button type="button" data-video-analysis-tracking-action="preannotation-open" ${!item || active ? "disabled" : ""}>Open workspace</button>
-        <button type="button" data-video-analysis-tracking-action="preannotation-accept" ${!pendingSuggestion || active ? "disabled" : ""}>Accept</button>
-        <button type="button" data-video-analysis-tracking-action="preannotation-reject" ${!pendingSuggestion || active ? "disabled" : ""}>Reject</button>
-        <button type="button" data-video-analysis-tracking-action="preannotation-next" ${(!pendingSuggestion && review.status !== "correcting") || active ? "disabled" : ""}>${review.status === "correcting" ? "Continue" : "Next"}</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-accept" aria-keyshortcuts="A" title="Accept suggestion (A)" ${!pendingSuggestion || active ? "disabled" : ""}>Accept</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-reject" aria-keyshortcuts="R" title="Reject suggestion (R)" ${!pendingSuggestion || active ? "disabled" : ""}>Reject</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-next" aria-keyshortcuts="N" title="Next suggestion (N)" ${(!pendingSuggestion && review.status !== "correcting") || active ? "disabled" : ""}>${review.status === "correcting" ? "Continue" : "Next"}</button>
         <button type="button" data-video-analysis-tracking-action="preannotation-next-batch" ${canOpenNextBatch ? "" : "disabled"}>Next batch</button>
-        <button type="button" data-video-analysis-tracking-action="preannotation-undo" ${!hasWorkspace || active ? "disabled" : ""}>Undo</button>
-        <button type="button" data-video-analysis-tracking-action="preannotation-save-current" ${!pendingSuggestion || active ? "disabled" : ""}>Save &amp; correct</button>
-        <button type="button" data-video-analysis-tracking-action="preannotation-save" ${canSave ? "" : "disabled"}>Save accepted</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-undo" aria-keyshortcuts="U" title="Undo decision (U)" ${!hasWorkspace || active ? "disabled" : ""}>Undo</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-save-current" aria-keyshortcuts="C" title="Save and correct suggestion (C)" ${!pendingSuggestion || active ? "disabled" : ""}>Save &amp; correct</button>
+        <button type="button" data-video-analysis-tracking-action="preannotation-save" aria-keyshortcuts="S" title="Save accepted suggestions (S)" ${canSave ? "" : "disabled"}>Save accepted</button>
         <button type="button" data-video-analysis-tracking-action="ground-truth-use-preannotation-case" ${canPrepareGroundTruth ? "" : "disabled"}>Use in ground truth</button>
       </div>
     </section>

@@ -622,3 +622,71 @@ test("preannotation review scopes work in explicit bounded batches without bulk 
     current: { id: "object-25" },
   });
 });
+
+test("preannotation keyboard review is deliberate, scoped, and repeat-safe", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingPreannotationReviewController.js",
+  ));
+  let state = initialState();
+  const associated = track("associated-player", "player", 1000, 0.8, "associated");
+  const unassociated = track("unassociated-ball", "ball", 500, 0.4, "unassociated");
+  const controller = service.createTrackingPreannotationReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getWindow: () => ({ crypto: globalThis.crypto }),
+    pickFiles: async () => ({ caseId: "transition" }),
+    importCase: async () => ({
+      workspaceSha256: "b".repeat(64),
+      sourceSha256: "a".repeat(64),
+      caseId: "transition",
+      tracks: [associated],
+      queue: [{ track: unassociated }],
+      summary: { associatedTrackCount: 1, unassociatedObservationCount: 1 },
+    }),
+  });
+  const keyboardEvent = (key, overrides = {}) => {
+    const calls = { prevented: 0, stopped: 0 };
+    return {
+      key,
+      target: { tagName: "BODY" },
+      preventDefault: () => { calls.prevented += 1; },
+      stopPropagation: () => { calls.stopped += 1; },
+      calls,
+      ...overrides,
+    };
+  };
+
+  expect(await controller.open()).toBe(true);
+  expect(controller.handleShortcut(keyboardEvent("a", { repeat: true }))).toBe(false);
+  expect(controller.handleShortcut(keyboardEvent("a", { target: { tagName: "INPUT" } }))).toBe(false);
+  expect(controller.handleShortcut(keyboardEvent("a", { metaKey: true }))).toBe(false);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({ pendingCount: 2, acceptedCount: 0 });
+
+  const accept = keyboardEvent("A");
+  expect(controller.handleShortcut(accept)).toBe(true);
+  expect(accept.calls).toEqual({ prevented: 1, stopped: 1 });
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    pendingCount: 1,
+    acceptedCount: 1,
+    current: { id: associated.id },
+  });
+
+  const reject = keyboardEvent("r");
+  expect(controller.handleShortcut(reject)).toBe(true);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    status: "complete",
+    pendingCount: 0,
+    acceptedCount: 1,
+    rejectedCount: 1,
+  });
+
+  const undo = keyboardEvent("u");
+  expect(controller.handleShortcut(undo)).toBe(true);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    status: "review",
+    pendingCount: 1,
+    rejectedCount: 0,
+    current: { id: associated.id },
+  });
+  expect(controller.handleShortcut(keyboardEvent("x"))).toBe(false);
+});

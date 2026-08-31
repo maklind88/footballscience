@@ -8,6 +8,7 @@ import {
   summarizeTrackingPreannotationReviewPriorities,
 } from "../services/trackingPreannotationReviewPriorityService.js";
 import { trackingSourceFingerprint } from "./trackingGroundTruthController.js";
+import { shouldIgnoreShortcutTarget } from "../services/codingTemplateService.js";
 import {
   acceptedTrackingPreannotationTrack as acceptedTrack,
   currentTrackingPreannotationReview as currentReview,
@@ -30,6 +31,15 @@ import {
 function invalid(message) {
   throw new Error(message);
 }
+
+const shortcutActions = Object.freeze({
+  a: "preannotation-accept",
+  r: "preannotation-reject",
+  n: "preannotation-next",
+  u: "preannotation-undo",
+  c: "preannotation-save-current",
+  s: "preannotation-save",
+});
 
 export function createTrackingPreannotationReviewController(options = {}) {
   const getState = options.getState || (() => ({}));
@@ -451,10 +461,27 @@ export function createTrackingPreannotationReviewController(options = {}) {
     return false;
   }
 
+  function handleShortcut(event = {}) {
+    if (event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey
+      || event.altKey || event.shiftKey || shouldIgnoreShortcutTarget(event.target)) return false;
+    const action = shortcutActions[String(event.key || "").toLowerCase()];
+    if (!action) return false;
+    const review = reviewState(getState().presentation?.tracking?.preannotationReview);
+    if (!review.workspaceSha256 || ["idle", "loading", "saving"].includes(review.status)) return false;
+    if (["preannotation-accept", "preannotation-reject", "preannotation-next", "preannotation-save-current"]
+      .includes(action) && !review.current) return false;
+    if (action === "preannotation-save" && Number(review.acceptedCount) <= 0) return false;
+    if (!handleAction(action)) return false;
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    return true;
+  }
+
   return {
     flushDraft: async () => (await draftController.flush()) && Boolean(await campaignController.flush()),
     handleAction,
     handleField,
+    handleShortcut,
     open,
     saveAccepted,
     saveCurrentForCorrection,

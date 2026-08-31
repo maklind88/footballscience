@@ -183,6 +183,11 @@ export function createTrackingController(options = {}) {
     return true;
   }
 
+  function handleShortcut(event = {}) {
+    if (getState().presentation?.tracking?.mode !== "tracking") return false;
+    return preannotationReviewController.handleShortcut(event);
+  }
+
   function beginCapture(captureMode = "prompt", target = null) {
     target?.closest?.(".video-analysis-drawing-builder")
       ?.querySelector?.("[data-video-analysis-drawing-surface]")
@@ -453,6 +458,7 @@ export function createTrackingController(options = {}) {
     finishInteraction,
     handleChange,
     handleClick,
+    handleShortcut,
     refreshProvider: providerRuns.refresh,
     runBenchmark: benchmark.run,
     candidateController,

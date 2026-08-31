@@ -6261,6 +6261,7 @@ export function handleKeydown(event, context = {}) {
       return true;
     }
   }
+  if (fsPlayerShortcutsActive && run.trackingRuntime.controller.handleShortcut(event)) return true;
   if (fsPlayerShortcutsActive && deleteTimelineSelectionByKeyboard(event, context)) return true;
   if (fsPlayerShortcutsActive && tabToAdjacentTimelineClip(event, context)) return true;
   if (

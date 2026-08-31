@@ -111,9 +111,17 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
     "preannotation-save",
     "ground-truth-use-preannotation-case",
   ]) expect(html).toContain(`data-video-analysis-tracking-action="${action}"`);
-  expect(html).toMatch(/preannotation-save" >Save accepted/);
+  expect(html).toMatch(/preannotation-save"[^>]*>Save accepted/);
   expect(html).toMatch(/preannotation-next-batch" disabled>Next batch/);
   expect(html).toMatch(/ground-truth-use-preannotation-case" disabled>Use in ground truth/);
+  for (const [action, key] of [
+    ["preannotation-accept", "A"],
+    ["preannotation-reject", "R"],
+    ["preannotation-next", "N"],
+    ["preannotation-undo", "U"],
+    ["preannotation-save-current", "C"],
+    ["preannotation-save", "S"],
+  ]) expect(html).toMatch(new RegExp(`${action}" aria-keyshortcuts="${key}"`));
 
   const completeHtml = component.renderTrackingPreannotationReviewPanel({
     presentation: {

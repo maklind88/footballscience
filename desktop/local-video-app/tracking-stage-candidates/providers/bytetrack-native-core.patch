@@ -1,0 +1,102 @@
+diff --git e/deploy/ncnn/cpp/include/BYTETracker.h f/deploy/ncnn/cpp/include/BYTETracker.h
+index e3dda97..418f465 100644
+--- e/deploy/ncnn/cpp/include/BYTETracker.h
++++ f/deploy/ncnn/cpp/include/BYTETracker.h
+@@ -4,0 +5,8 @@
++struct FSRect
++{
++    float x;
++    float y;
++    float width;
++    float height;
++};
++
+@@ -7 +15 @@ struct Object
+-    cv::Rect_<float> rect;
++    FSRect rect;
+@@ -9,0 +18 @@ struct Object
++    int observation_index;
+@@ -19 +27,0 @@ public:
+-	Scalar get_color(int idx);
+@@ -35 +43 @@ private:
+-		bool extend_cost = false, float cost_limit = LONG_MAX, bool return_cost = true);
++		bool extend_cost = false, float cost_limit = numeric_limits<float>::max(), bool return_cost = true);
+diff --git e/deploy/ncnn/cpp/include/STrack.h f/deploy/ncnn/cpp/include/STrack.h
+index 752cbef..f07b95e 100644
+--- e/deploy/ncnn/cpp/include/STrack.h
++++ f/deploy/ncnn/cpp/include/STrack.h
+@@ -3 +3,5 @@
+-#include <opencv2/opencv.hpp>
++#include <algorithm>
++#include <limits>
++#include <map>
++#include <stdexcept>
++#include <vector>
+@@ -6 +9,0 @@
+-using namespace cv;
+@@ -14 +17 @@ public:
+-	STrack(vector<float> tlwh_, float score);
++	STrack(vector<float> tlwh_, float score, int observation_index);
+@@ -46,0 +50 @@ public:
++	vector<int> observation_indices;
+diff --git e/deploy/ncnn/cpp/src/BYTETracker.cpp f/deploy/ncnn/cpp/src/BYTETracker.cpp
+index 7c936b8..08c666e 100644
+--- e/deploy/ncnn/cpp/src/BYTETracker.cpp
++++ f/deploy/ncnn/cpp/src/BYTETracker.cpp
+@@ -12 +11,0 @@ BYTETracker::BYTETracker(int frame_rate, int track_buffer)
+-	cout << "Init ByteTrack!" << endl;
+@@ -54 +53 @@ vector<STrack> BYTETracker::update(const vector<Object>& objects)
+-			STrack strack(STrack::tlbr_to_tlwh(tlbr_), score);
++			STrack strack(STrack::tlbr_to_tlwh(tlbr_), score, objects[i].observation_index);
+diff --git e/deploy/ncnn/cpp/src/STrack.cpp f/deploy/ncnn/cpp/src/STrack.cpp
+index 6b02d07..f49325b 100644
+--- e/deploy/ncnn/cpp/src/STrack.cpp
++++ f/deploy/ncnn/cpp/src/STrack.cpp
+@@ -3 +3 @@
+-STrack::STrack(vector<float> tlwh_, float score)
++STrack::STrack(vector<float> tlwh_, float score, int observation_index)
+@@ -4,0 +5 @@ STrack::STrack(vector<float> tlwh_, float score)
++	observation_indices.push_back(observation_index);
+@@ -80,0 +82 @@ void STrack::re_activate(STrack &new_track, int frame_id, bool new_id)
++	this->observation_indices.insert(this->observation_indices.end(), new_track.observation_indices.begin(), new_track.observation_indices.end());
+@@ -107,0 +110 @@ void STrack::update(STrack &new_track, int frame_id)
++	this->observation_indices.insert(this->observation_indices.end(), new_track.observation_indices.begin(), new_track.observation_indices.end());
+diff --git e/deploy/ncnn/cpp/src/utils.cpp f/deploy/ncnn/cpp/src/utils.cpp
+index 4aa0305..903d9ba 100644
+--- e/deploy/ncnn/cpp/src/utils.cpp
++++ f/deploy/ncnn/cpp/src/utils.cpp
+@@ -288,3 +288 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso
+-			cout << "set extend_cost=True" << endl;
+-			system("pause");
+-			exit(0);
++			throw runtime_error("ByteTrack requires extended assignment costs");
+@@ -294 +292 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso
+-	if (extend_cost || cost_limit < LONG_MAX)
++	if (extend_cost || cost_limit < numeric_limits<float>::max())
+@@ -301 +299 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso
+-		if (cost_limit < LONG_MAX)
++		if (cost_limit < numeric_limits<float>::max())
+@@ -351 +349 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso
+-	cost_ptr = new double *[sizeof(double *) * n];
++	cost_ptr = new double *[n];
+@@ -353 +351 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso
+-		cost_ptr[i] = new double[sizeof(double) * n];
++		cost_ptr[i] = new double[n];
+@@ -363,2 +361,2 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso
+-	int* x_c = new int[sizeof(int) * n];
+-	int *y_c = new int[sizeof(int) * n];
++	int* x_c = new int[n];
++	int *y_c = new int[n];
+@@ -369,3 +367 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso
+-		cout << "Calculate Wrong!" << endl;
+-		system("pause");
+-		exit(0);
++		throw runtime_error("ByteTrack assignment failed");
+@@ -424,6 +419,0 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso
+-
+-Scalar BYTETracker::get_color(int idx)
+-{
+-	idx += 3;
+-	return Scalar(37 * idx % 255, 17 * idx % 255, 29 * idx % 255);
+-}
+\ No newline at end of file

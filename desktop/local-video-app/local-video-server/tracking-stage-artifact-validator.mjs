@@ -233,7 +233,7 @@ function validateAssociation(payload = {}, request = {}, range = {}, options = {
   exactKeys(payload, ["trajectories"], "Association result");
   const observations = referenceMap(request.observations, "observation");
   const values = Array.isArray(payload.trajectories) ? payload.trajectories : invalid("Association trajectories are required.");
-  if (values.length > Math.max(1, Math.min(1024, Number(options.maxTrajectories) || 256))) {
+  if (values.length > Math.max(1, Math.min(1024, Number(options.maxTrajectories) || 1024))) {
     invalid("Association result contains too many trajectories.", "TRACKING_STAGE_RESULT_LIMIT");
   }
   const trajectoryIds = new Set();

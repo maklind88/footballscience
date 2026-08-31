@@ -444,6 +444,7 @@ test("sandbox executor launches only the sealed runtime with a scrubbed environm
     await fs.writeFile(runtimePath, runtime, { mode: 0o555 });
     let invocation = null;
     let profile = "";
+    let requestBinding = "";
     let rssSamples = 0;
     let temporaryMode = 0;
     const spawnProcess = (command, args, options) => {
@@ -455,7 +456,9 @@ test("sandbox executor launches only the sealed runtime with a scrubbed environm
       child.kill = () => true;
       setTimeout(async () => {
         const outputIndex = args.indexOf("--fs-tracking-stage-output");
+        const invocationIndex = args.indexOf("--fs-tracking-stage-invocation");
         const profileIndex = args.indexOf("-f");
+        requestBinding = JSON.parse(await fs.readFile(args[invocationIndex + 1], "utf8")).requestFingerprint;
         profile = await fs.readFile(args[profileIndex + 1], "utf8");
         temporaryMode = (await fs.stat(options.env.TMPDIR)).mode & 0o777;
         await fs.writeFile(args[outputIndex + 1], '{"ok":true}\n', { mode: 0o600 });
@@ -473,7 +476,7 @@ test("sandbox executor launches only the sealed runtime with a scrubbed environm
         return 8 * 1024 * 1024;
       },
     });
-    const result = await executor.execute({
+    const installation = {
       providerDir: directory,
       provider: {
         providerId: "sealed-runtime",
@@ -491,7 +494,18 @@ test("sandbox executor launches only the sealed runtime with a scrubbed environm
         sha256: sha256(runtime),
       },
       models: [],
-    }, request({ observations: [] }), null);
+    };
+    await expect(executor.execute(
+      installation,
+      request({ observations: [] }),
+      null,
+    )).rejects.toMatchObject({ code: "TRACKING_STAGE_INVOCATION_INVALID" });
+    const result = await executor.execute(
+      installation,
+      request({ observations: [] }),
+      null,
+      { requestFingerprint: "a".repeat(64) },
+    );
     expect(JSON.parse(result.output.toString("utf8"))).toEqual({ ok: true });
     expect(rssSamples).toBeGreaterThan(0);
     expect(invocation.command).toBe("/bin/sh");
@@ -509,6 +523,7 @@ test("sandbox executor launches only the sealed runtime with a scrubbed environm
     expect(invocation.options.env.HOME).toBe(invocation.options.cwd);
     expect(invocation.options.env.TMPDIR).toBe(path.join(invocation.options.cwd, "tmp"));
     expect(temporaryMode).toBe(0o700);
+    expect(requestBinding).toBe("a".repeat(64));
     expect(invocation.options.env).not.toHaveProperty("SUPABASE_SERVICE_ROLE_KEY");
     expect(profile).toContain("(deny network*)");
     expect(profile).toContain(`(allow process-exec (literal ${JSON.stringify(runtimePath)}))`);
@@ -563,7 +578,7 @@ test("sandbox executor terminates the provider process group above its memory bu
         sha256: sha256(runtime),
       },
       models: [],
-    }, request({ observations: [] }), null)).rejects.toMatchObject({
+    }, request({ observations: [] }), null, { requestFingerprint: "a".repeat(64) })).rejects.toMatchObject({
       code: "TRACKING_STAGE_MEMORY_LIMIT",
     });
   } finally {
@@ -672,7 +687,7 @@ test("sandbox rejects output when a sealed runtime changes during execution", as
         sha256: sha256(runtime),
       },
       models: [],
-    }, request({ observations: [] }), null)).rejects.toMatchObject({
+    }, request({ observations: [] }), null, { requestFingerprint: "a".repeat(64) })).rejects.toMatchObject({
       code: "TRACKING_FILE_SIZE_MISMATCH",
     });
   } finally {

@@ -2,6 +2,7 @@ import {
   normalizeTrackingStageRequest,
   parseActivatedTrackingStageArtifact,
   parseTrackingStageArtifact,
+  trackingStageRequestFingerprint,
 } from "./tracking-stage-artifact-validator.mjs";
 import { createTrackingCandidateStageRunArtifact } from "./tracking-candidate-stage-run-artifact.mjs";
 import { createTrackingStageSandboxExecutor } from "./tracking-stage-sandbox-executor.mjs";
@@ -167,6 +168,7 @@ export function createTrackingStageRunner(options = {}) {
         {
           signal: runOptions.signal,
           onProgress: runOptions.onProgress,
+          requestFingerprint: trackingStageRequestFingerprint(provider, request),
         },
       );
       const artifact = (benchmarkOnly ? parseTrackingStageArtifact : parseActivatedTrackingStageArtifact)(

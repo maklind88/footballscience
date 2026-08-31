@@ -34,6 +34,14 @@ function boundedInteger(value, minimum, maximum, fallback) {
     : fallback;
 }
 
+function exactFingerprint(value, label) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(text)) {
+    executionError(`${label} must be a SHA-256 hash.`, "TRACKING_STAGE_INVOCATION_INVALID");
+  }
+  return text;
+}
+
 function sandboxLiteral(value) {
   return JSON.stringify(String(value || ""));
 }
@@ -281,6 +289,9 @@ export function createTrackingStageSandboxExecutor(options = {}) {
       2 * 60 * 60 * 1000,
     );
     const maximumMemoryMb = boundedInteger(provider.runtime?.maxMemoryMb, 64, 131_072, 8192);
+    const requestFingerprint = provider.stage === "association"
+      ? exactFingerprint(executionOptions.requestFingerprint, "Association request fingerprint")
+      : "";
     const sourcePath = source?.filePath ? path.resolve(source.filePath) : "";
     const inputSeals = await captureExecutionInputSeals(installation, source);
     const stagedWorkDir = await fs.mkdtemp(path.join(temporaryRoot, "fs-tracking-stage-"));
@@ -304,6 +315,7 @@ export function createTrackingStageSandboxExecutor(options = {}) {
         stage: provider.stage,
       },
       request,
+      ...(requestFingerprint ? { requestFingerprint } : {}),
       source: sourcePath ? { filePath: sourcePath, sha256: source.sha256 } : null,
       models: (installation.models || []).map((model) => ({
         id: model.id,

@@ -30,7 +30,7 @@ async function makeTreeWritable(target) {
   for (const entry of await fs.readdir(target)) await makeTreeWritable(path.join(target, entry));
 }
 
-async function candidateFixture(directory) {
+async function candidateFixture(directory, options = {}) {
   const contract = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
   ));
@@ -40,7 +40,7 @@ async function candidateFixture(directory) {
     schemaVersion: 1,
     protocol: "football-science-tracking-stage-v1",
     providerId: "football-detector-candidate",
-    providerVersion: "0.1.0",
+    providerVersion: options.providerVersion || "0.1.0",
     displayName: "Football Detector Candidate",
     stage: "detection",
     priority: 50,
@@ -100,9 +100,10 @@ async function candidateFixture(directory) {
       profileId: "not-run",
     },
   });
-  const manifestPath = path.join(directory, "candidate-manifest.json");
-  const runtimePath = path.join(directory, "candidate-runtime");
-  const modelPath = path.join(directory, "candidate-model.bin");
+  const suffix = String(options.suffix || "");
+  const manifestPath = path.join(directory, `candidate-manifest${suffix}.json`);
+  const runtimePath = path.join(directory, `candidate-runtime${suffix}`);
+  const modelPath = path.join(directory, `candidate-model${suffix}.bin`);
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
   await fs.writeFile(runtimePath, runtime);
   await fs.writeFile(modelPath, model);
@@ -153,6 +154,8 @@ test("candidate installer seals exact artifacts atomically and passes registry p
         id: fixture.manifest.providerId,
         status: "candidate-ready",
         benchmarkOnly: true,
+        executionAvailable: true,
+        activationStatus: "benchmark-only",
         isolation: { ready: true },
       }],
     });
@@ -165,6 +168,54 @@ test("candidate installer seals exact artifacts atomically and passes registry p
     await expect(service.installTrackingCandidate(installOptions(fixture, registryDir))).rejects.toMatchObject({
       code: "TRACKING_CANDIDATE_ALREADY_INSTALLED",
     });
+  } finally {
+    await makeTreeWritable(registryDir);
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("candidate registry allows separate versions and blocks only duplicate exact identities", async () => {
+  const service = await import(moduleUrl(
+    "desktop/local-video-app/tracking-stage-candidates/candidate-install-service.mjs",
+  ));
+  const registryService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-candidate-provider-registry.mjs",
+  ));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fs-tracking-candidate-versions-"));
+  const registryDir = path.join(directory, "registry");
+  try {
+    const first = await candidateFixture(directory, { providerVersion: "0.1.9", suffix: "-v1" });
+    const second = await candidateFixture(directory, { providerVersion: "0.1.10", suffix: "-v2" });
+    const firstInstall = await service.installTrackingCandidate(installOptions(first, registryDir));
+    await service.installTrackingCandidate(installOptions(second, registryDir));
+    const registry = registryService.createTrackingCandidateProviderRegistry({ rootDir: registryDir });
+    const versions = await registry.inspect();
+    expect(versions).toMatchObject({
+      status: "ready",
+      providerCount: 2,
+      readyCount: 2,
+      blockedCount: 0,
+    });
+    expect(versions.providers.map((provider) => provider.version)).toEqual(["0.1.10", "0.1.9"]);
+    expect((await registry.resolve(first.manifest.providerId, "0.1.9")).provider.providerVersion).toBe("0.1.9");
+    expect((await registry.resolve(second.manifest.providerId, "0.1.10")).provider.providerVersion).toBe("0.1.10");
+    await expect(registry.resolve(first.manifest.providerId)).rejects.toMatchObject({
+      code: "candidate-installation-ambiguous",
+    });
+
+    await fs.cp(firstInstall.plan.installDir, path.join(registryDir, "duplicate-exact-identity"), {
+      recursive: true,
+    });
+    const duplicate = await registry.inspect();
+    expect(duplicate).toMatchObject({ providerCount: 3, readyCount: 1, blockedCount: 2 });
+    expect(duplicate.providers.filter((provider) => provider.version === "0.1.9"))
+      .toHaveLength(2);
+    expect(duplicate.providers.filter((provider) => provider.version === "0.1.9")
+      .every((provider) => provider.reasons.includes("duplicate-candidate-identity"))).toBe(true);
+    await expect(registry.resolve(first.manifest.providerId, "0.1.9")).rejects.toMatchObject({
+      code: "candidate-installation-ambiguous",
+    });
+    expect((await registry.resolve(second.manifest.providerId, "0.1.10")).provider.providerVersion).toBe("0.1.10");
   } finally {
     await makeTreeWritable(registryDir);
     await fs.rm(directory, { recursive: true, force: true });

@@ -148,7 +148,11 @@ async function writeArtifact(providerDir, relativePath, value) {
   return { path: relativePath, bytes: content.length, sha256: sha256(content) };
 }
 
-async function installApprovedProvider(registryRoot, directoryName = "team-classifier") {
+async function installApprovedProvider(
+  registryRoot,
+  directoryName = "team-classifier",
+  providerVersion = "1.0.0",
+) {
   const contract = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
   ));
@@ -157,7 +161,10 @@ async function installApprovedProvider(registryRoot, directoryName = "team-class
   ));
   const runtime = Buffer.from("verified-team-classifier-runtime-v1");
   const model = Buffer.from("verified-team-classifier-model-v1");
-  const candidate = contract.normalizeTrackingProviderManifest(providerManifest(runtime, model));
+  const candidate = contract.normalizeTrackingProviderManifest({
+    ...providerManifest(runtime, model),
+    providerVersion,
+  });
   const executionFingerprintSha256 = evidenceService.trackingProviderExecutionFingerprint(candidate);
   const report = benchmarkReport(candidate, executionFingerprintSha256);
   const evidence = evidenceService.createTrackingProviderEvidence(candidate, report);
@@ -275,7 +282,34 @@ test("local provider registry verifies actual runtime, model and evidence withou
   }
 });
 
-test("local provider registry rejects path escape, symbolic links and duplicate provider ids", async () => {
+test("local provider registry allows separate versions and keeps id-only resolution ambiguous", async () => {
+  const registryService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-registry.mjs",
+  ));
+  const registryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "fs-tracking-registry-versions-"));
+  try {
+    await installApprovedProvider(registryRoot, "team-classifier-v1", "1.9.0");
+    await installApprovedProvider(registryRoot, "team-classifier-v2", "1.10.0");
+    const registry = registryService.createTrackingProviderRegistry({ rootDir: registryRoot });
+    const versions = await registry.inspect();
+    expect(versions).toMatchObject({
+      status: "ready",
+      providerCount: 2,
+      readyCount: 2,
+      blockedCount: 0,
+    });
+    expect(versions.providers.map((provider) => provider.version)).toEqual(["1.10.0", "1.9.0"]);
+    expect((await registry.resolve("team-classifier", "1.9.0")).provider.providerVersion).toBe("1.9.0");
+    expect((await registry.resolve("team-classifier", "1.10.0")).provider.providerVersion).toBe("1.10.0");
+    await expect(registry.resolve("team-classifier")).rejects.toMatchObject({
+      code: "provider-installation-ambiguous",
+    });
+  } finally {
+    await fs.rm(registryRoot, { recursive: true, force: true });
+  }
+});
+
+test("local provider registry rejects path escape, symbolic links and duplicate provider identities", async () => {
   const registryService = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-registry.mjs",
   ));
@@ -309,7 +343,7 @@ test("local provider registry rejects path escape, symbolic links and duplicate 
     const duplicate = await registry.inspect();
     expect(duplicate.readyCount).toBe(0);
     expect(duplicate.blockedCount).toBe(2);
-    expect(duplicate.providers.every((provider) => provider.reasons.includes("duplicate-provider-id"))).toBe(true);
+    expect(duplicate.providers.every((provider) => provider.reasons.includes("duplicate-provider-identity"))).toBe(true);
     await expect(registry.resolve("team-classifier", "1.0.0")).rejects.toMatchObject({
       code: "provider-installation-ambiguous",
     });

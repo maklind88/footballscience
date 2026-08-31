@@ -12,6 +12,20 @@ const labels = Object.freeze({
   classification: "Team classification",
 });
 
+const versionCollator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+function compareCandidateVersions(first, second) {
+  const left = String(first || "");
+  const right = String(second || "");
+  const [leftRelease, ...leftPrerelease] = left.split("-");
+  const [rightRelease, ...rightPrerelease] = right.split("-");
+  const releaseOrder = versionCollator.compare(leftRelease, rightRelease);
+  if (releaseOrder) return releaseOrder;
+  if (!leftPrerelease.length && rightPrerelease.length) return 1;
+  if (leftPrerelease.length && !rightPrerelease.length) return -1;
+  return versionCollator.compare(leftPrerelease.join("-"), rightPrerelease.join("-"));
+}
+
 function readyCandidate(value = {}, stage = "") {
   const capabilities = new Set(Array.isArray(value.capabilities) ? value.capabilities.map(String) : []);
   const profile = value.executionProfile || {};
@@ -36,7 +50,7 @@ function preferredCandidate(values = [], stage = "") {
   return values.filter((value) => readyCandidate(value, stage)).sort((first, second) => (
     Number(second.priority || 0) - Number(first.priority || 0)
     || String(first.id).localeCompare(String(second.id))
-    || String(first.version).localeCompare(String(second.version))
+    || compareCandidateVersions(second.version, first.version)
   ))[0] || null;
 }
 
@@ -68,3 +82,4 @@ export function trackingCandidatePipelineReadiness(tracking = {}) {
 }
 
 export const TRACKING_CANDIDATE_STAGE_REQUIREMENTS = requirements;
+export const _private = Object.freeze({ compareCandidateVersions });

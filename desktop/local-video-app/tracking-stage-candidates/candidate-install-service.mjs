@@ -342,7 +342,14 @@ export async function inspectTrackingCandidateInstallations(options = {}) {
         isolation = { ready: false, status: "blocked", reasons: [String(error?.code || "candidate-preflight-failed")] };
       }
     }
-    providers.push({ ...provider, isolation });
+    providers.push({
+      ...provider,
+      executionAvailable: isolation.ready === true,
+      activationStatus: isolation.ready === true ? "benchmark-only" : "blocked",
+      activationProtocol: String(isolation.protocol || ""),
+      activationIsolation: String(isolation.isolation || ""),
+      isolation,
+    });
   }
   return {
     ok: snapshot.status === "ready" && providers.every((provider) => provider.isolation.ready),

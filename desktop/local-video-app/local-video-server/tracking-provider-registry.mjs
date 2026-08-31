@@ -21,6 +21,7 @@ const MAXIMUM_MANIFEST_BYTES = 2 * 1024 * 1024;
 const MAXIMUM_EVIDENCE_BYTES = 16 * 1024 * 1024;
 const MAXIMUM_RUNTIME_BYTES = 4 * 1024 * 1024 * 1024;
 const MAXIMUM_MODEL_BYTES = 100 * 1024 * 1024 * 1024;
+const versionCollator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
 export class TrackingProviderInstallationError extends Error {
   constructor(code) {
@@ -291,18 +292,32 @@ async function inspectProviderDirectory(providerDir, digestCache, options = {}) 
   }
 }
 
-function blockDuplicateProviderIds(providers = []) {
+function blockDuplicateProviderIdentities(providers = []) {
   const counts = new Map();
+  const identity = (provider) => provider.id && provider.version
+    ? `${provider.id}\u0000${provider.version}`
+    : "";
   for (const provider of providers) {
-    if (provider.id) counts.set(provider.id, (counts.get(provider.id) || 0) + 1);
+    const key = identity(provider);
+    if (key) counts.set(key, (counts.get(key) || 0) + 1);
   }
-  return providers.map((provider) => counts.get(provider.id) > 1 ? {
+  return providers.map((provider) => counts.get(identity(provider)) > 1 ? {
     ...provider,
     status: "blocked",
     available: false,
     benchmarkStatus: "blocked",
-    reasons: [...new Set([...provider.reasons, "duplicate-provider-id"])],
+    reasons: [...new Set([...provider.reasons, "duplicate-provider-identity"])],
   } : provider);
+}
+
+function compareProviderVersions(first, second) {
+  const [leftRelease, ...leftPrerelease] = String(first || "").split("-");
+  const [rightRelease, ...rightPrerelease] = String(second || "").split("-");
+  const releaseOrder = versionCollator.compare(leftRelease, rightRelease);
+  if (releaseOrder) return releaseOrder;
+  if (!leftPrerelease.length && rightPrerelease.length) return 1;
+  if (leftPrerelease.length && !rightPrerelease.length) return -1;
+  return versionCollator.compare(leftPrerelease.join("-"), rightPrerelease.join("-"));
 }
 
 export function trackingProviderRegistryDir(options = {}) {
@@ -432,10 +447,11 @@ export function createTrackingProviderRegistry(options = {}) {
         }
         providers.push(await inspectProviderDirectory(path.join(rootDir, entry.name), digestCache));
       }
-      const safeProviders = blockDuplicateProviderIds(providers).sort((first, second) => (
+      const safeProviders = blockDuplicateProviderIdentities(providers).sort((first, second) => (
         first.stage.localeCompare(second.stage)
         || second.priority - first.priority
         || first.id.localeCompare(second.id)
+        || compareProviderVersions(second.version, first.version)
       ));
       const readyCount = safeProviders.filter((provider) => provider.status === "ready").length;
       const blockedCount = safeProviders.length - readyCount;

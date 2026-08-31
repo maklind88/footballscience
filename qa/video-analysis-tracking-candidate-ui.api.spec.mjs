@@ -120,6 +120,26 @@ test("candidate provider is benchmark-only and selected only for full-scene evid
     .toBe(tracking.provider);
 });
 
+test("candidate pipeline prefers the newest natural version when provider priority is equal", async () => {
+  const { trackingCandidatePipelineReadiness } = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingCandidateSelectionService.js",
+  ));
+  const older = { ...candidate("association"), version: "1.9.0" };
+  const newer = { ...candidate("association"), version: "1.10.0" };
+  const prerelease = { ...candidate("association"), version: "1.10.0-rc.1" };
+  const candidates = Object.keys(capabilities)
+    .filter((stage) => stage !== "association")
+    .map(candidate);
+  const readiness = trackingCandidatePipelineReadiness({
+    provider: {
+      candidateStageExecutionAvailable: true,
+      candidates: [...candidates, older, prerelease, newer],
+    },
+  });
+  expect(readiness.providers.association.version).toBe("1.10.0");
+  expect(readiness.ready).toBe(true);
+});
+
 test("candidate benchmark stage switching invalidates stale evaluation evidence", async () => {
   const { createTrackingCandidateController } = await import(moduleUrl(
     "src/modules/video-analysis/controllers/trackingCandidateController.js",

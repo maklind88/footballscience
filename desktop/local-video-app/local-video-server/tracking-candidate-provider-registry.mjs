@@ -20,6 +20,7 @@ const MAXIMUM_MARKER_BYTES = 256 * 1024;
 const MAXIMUM_MANIFEST_BYTES = 2 * 1024 * 1024;
 const MAXIMUM_RUNTIME_BYTES = 4 * 1024 * 1024 * 1024;
 const MAXIMUM_MODEL_BYTES = 100 * 1024 * 1024 * 1024;
+const versionCollator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
 export class TrackingCandidateInstallationError extends Error {
   constructor(code = "candidate-installation-invalid") {
@@ -281,15 +282,29 @@ async function inspectCandidateDirectory(providerDir, digestCache, includeExecut
   }
 }
 
-function blockDuplicateIds(values = []) {
+function blockDuplicateIdentities(values = []) {
   const counts = new Map();
-  values.forEach((entry) => counts.set(entry.id, (counts.get(entry.id) || 0) + 1));
-  return values.map((entry) => counts.get(entry.id) > 1 ? {
+  const identity = (entry) => entry.id && entry.version ? `${entry.id}\u0000${entry.version}` : "";
+  values.forEach((entry) => {
+    const key = identity(entry);
+    if (key) counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return values.map((entry) => counts.get(identity(entry)) > 1 ? {
     ...entry,
     status: "blocked",
     available: false,
-    reasons: [...new Set([...entry.reasons, "duplicate-candidate-id"])],
+    reasons: [...new Set([...entry.reasons, "duplicate-candidate-identity"])],
   } : entry);
+}
+
+function compareProviderVersions(first, second) {
+  const [leftRelease, ...leftPrerelease] = String(first || "").split("-");
+  const [rightRelease, ...rightPrerelease] = String(second || "").split("-");
+  const releaseOrder = versionCollator.compare(leftRelease, rightRelease);
+  if (releaseOrder) return releaseOrder;
+  if (!leftPrerelease.length && rightPrerelease.length) return 1;
+  if (leftPrerelease.length && !rightPrerelease.length) return -1;
+  return versionCollator.compare(leftPrerelease.join("-"), rightPrerelease.join("-"));
 }
 
 export function trackingCandidateRegistryDir(options = {}) {
@@ -358,7 +373,12 @@ export function createTrackingCandidateProviderRegistry(options = {}) {
           providers.push((await inspectCandidateDirectory(path.join(rootDir, entry.name), digestCache)).publicValue);
         }
       }
-      const deduplicated = blockDuplicateIds(providers);
+      const deduplicated = blockDuplicateIdentities(providers).sort((first, second) => (
+        first.stage.localeCompare(second.stage)
+        || second.priority - first.priority
+        || first.id.localeCompare(second.id)
+        || compareProviderVersions(second.version, first.version)
+      ));
       return {
         protocol: TRACKING_CANDIDATE_REGISTRY_PROTOCOL,
         status: "ready",

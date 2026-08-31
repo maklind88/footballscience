@@ -136,10 +136,23 @@ test("ground-truth artifact creation re-audits every checkpoint before locking",
     firstIssueAtMs: 0,
     issueCountsByCode: { "outside-reference": 3 },
   });
+  expect(groundTruth.groundTruthReadiness(input)).toMatchObject({
+    ready: false,
+    issues: [{ code: "checkpoint-known-issues" }],
+    checkpointAudit: { ready: false, issueCount: 3 },
+  });
   expect(() => groundTruth.createGroundTruthArtifact(input, { now: () => 1_800_000_000_000 }))
-    .toThrow(/known tracking issues across 3 checkpoints/i);
+    .toThrow(expect.objectContaining({
+      code: "TRACKING_GROUND_TRUTH_CHECKPOINT_ISSUES",
+      message: expect.stringMatching(/known tracking issues across 3 checkpoints/i),
+    }));
   input.selectedTrackIds.push(outside.id);
   expect(checkpoint.auditTrackingGroundTruthCheckpoints(input).ready).toBe(true);
+  expect(groundTruth.groundTruthReadiness(input)).toMatchObject({
+    ready: true,
+    issues: [],
+    checkpointAudit: { ready: true, issueCount: 0 },
+  });
   expect(groundTruth.createGroundTruthArtifact(input, { now: () => 1_800_000_000_000 }))
     .toMatchObject({ reviewEvidence: { selectedTrackCount: 4 } });
 });

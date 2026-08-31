@@ -228,6 +228,15 @@ export function groundTruthReadiness(value = {}) {
       "Confirm that every visible player, ball and referee in the range is included.",
     ));
   }
+  const checkpointAudit = issues.length === 0 && value.requireSceneReview === true
+    ? auditTrackingGroundTruthCheckpoints(value)
+    : null;
+  if (checkpointAudit && !checkpointAudit.ready) {
+    issues.push(issue(
+      "checkpoint-known-issues",
+      `Resolve ${checkpointAudit.issueCount} known tracking issues across ${checkpointAudit.issueCheckpointCount} checkpoints before locking.`,
+    ));
+  }
   return {
     ready: issues.length === 0,
     issues,
@@ -239,6 +248,7 @@ export function groundTruthReadiness(value = {}) {
     sceneReviewComplete: sceneReview ? sceneReview.complete : null,
     reviewedSceneSampleCount: sceneReview?.reviewedSampleCount || 0,
     expectedSceneSampleCount: sceneReview?.expectedSampleCount || 0,
+    checkpointAudit,
     sourceFingerprintReady: sourceFingerprintPattern.test(String(value.sourceFingerprint || "")),
     frameReady: frameReady(value.frame),
     rangeReady: rangeReady(value.range),
@@ -346,19 +356,13 @@ function deepFreeze(value) {
 export function createGroundTruthArtifact(value = {}, options = {}) {
   const readiness = groundTruthReadiness(value);
   if (!readiness.ready) {
+    const checkpointIssue = readiness.issues.find((entry) => entry.code === "checkpoint-known-issues");
     throw new TrackingGroundTruthError(
       readiness.issues.map((entry) => entry.message).join(" "),
-      "TRACKING_GROUND_TRUTH_REVIEW_REQUIRED",
+      checkpointIssue
+        ? "TRACKING_GROUND_TRUTH_CHECKPOINT_ISSUES"
+        : "TRACKING_GROUND_TRUTH_REVIEW_REQUIRED",
     );
-  }
-  if (value.requireSceneReview === true) {
-    const checkpointAudit = auditTrackingGroundTruthCheckpoints(value);
-    if (!checkpointAudit.ready) {
-      throw new TrackingGroundTruthError(
-        `Resolve ${checkpointAudit.issueCount} known tracking issues across ${checkpointAudit.issueCheckpointCount} checkpoints before locking.`,
-        "TRACKING_GROUND_TRUTH_CHECKPOINT_ISSUES",
-      );
-    }
   }
   const sourceFingerprint = normalizeBenchmarkFingerprint(value.sourceFingerprint);
   const frame = normalizeBenchmarkFrame(value.frame);

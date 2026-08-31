@@ -8,6 +8,19 @@ function invalid(message) {
   throw new Error(message);
 }
 
+async function selectFiles(win, options, expectedCount) {
+  const { countError, ...pickerOptions } = options;
+  const handles = await win.showOpenFilePicker(pickerOptions);
+  if (handles.length !== expectedCount) invalid(countError);
+  return Promise.all(handles.map((handle) => handle.getFile()));
+}
+
+function selectedFile(files, expectedName, errorMessage) {
+  const file = files.find((entry) => entry.name === expectedName);
+  if (!file) invalid(errorMessage);
+  return file;
+}
+
 export function normalizeTrackingPreannotationReviewState(value = {}) {
   return {
     status: String(value.status || "idle"),
@@ -39,27 +52,39 @@ export async function selectTrackingPreannotationReviewFiles(win = globalThis.wi
   if (typeof win?.showOpenFilePicker !== "function") {
     invalid("This browser cannot open a sealed preannotation workspace.");
   }
-  const handles = await win.showOpenFilePicker({
+  const [pack] = await selectFiles(win, {
+    multiple: false,
+    types: [{
+      description: "Step 1 of 3: annotation-pack.json",
+      accept: { "application/json": [".json"] },
+    }],
+    countError: "Select exactly one annotation-pack.json file.",
+  }, 1);
+  selectedFile([pack], "annotation-pack.json", "Select annotation-pack.json from the benchmark pilot folder.");
+  const [workspace] = await selectFiles(win, {
+    multiple: false,
+    types: [{
+      description: "Step 2 of 3: workspace.json",
+      accept: { "application/json": [".json"] },
+    }],
+    countError: "Select exactly one workspace.json file.",
+  }, 1);
+  selectedFile([workspace], "workspace.json", "Select workspace.json from one sealed preannotation folder.");
+  const caseFiles = await selectFiles(win, {
     multiple: true,
     types: [{
-      description: "FS Player preannotation review",
+      description: "Step 3 of 3: matching case files",
       accept: {
         "application/json": [".json"],
         "text/plain": [".txt"],
       },
     }],
-  });
-  if (handles.length !== 4) {
-    invalid("Select annotation-pack.json, workspace.json, one track-map JSON, and its MOT suggestion file.");
-  }
-  const files = await Promise.all(handles.map((handle) => handle.getFile()));
-  const pack = files.find((file) => file.name === "annotation-pack.json");
-  const workspace = files.find((file) => file.name === "workspace.json");
-  const trackMap = files.find((file) => file.name.endsWith(".track-map.json"));
-  const suggestion = files.find((file) => file.name.endsWith(".suggestions.mot.txt"));
+    countError: "Select one track-map JSON and its matching MOT suggestion file.",
+  }, 2);
+  const trackMap = caseFiles.find((file) => file.name.endsWith(".track-map.json"));
+  const suggestion = caseFiles.find((file) => file.name.endsWith(".suggestions.mot.txt"));
   const caseId = String(trackMap?.name || "").replace(/\.track-map\.json$/, "");
-  if (!pack || !workspace || !trackMap || !suggestion
-    || suggestion.name !== `${caseId}.suggestions.mot.txt`) {
+  if (!trackMap || !suggestion || suggestion.name !== `${caseId}.suggestions.mot.txt`) {
     invalid("The selected preannotation files do not describe one matching case.");
   }
   const [packBytes, workspaceBytes, trackMapBytes, suggestionBytes] = await Promise.all([

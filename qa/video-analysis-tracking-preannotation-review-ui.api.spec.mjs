@@ -8,6 +8,11 @@ function moduleUrl(relativePath) {
   return pathToFileURL(path.join(rootDir, relativePath)).href;
 }
 
+function file(name, value) {
+  const bytes = new TextEncoder().encode(value);
+  return { name, arrayBuffer: async () => bytes.buffer };
+}
+
 test("preannotation panel exposes bounded review decisions and save state", async () => {
   const component = await import(moduleUrl(
     "src/modules/video-analysis/components/TrackingPreannotationReviewPanel.js",
@@ -77,4 +82,57 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   ]) expect(html).toContain(`data-video-analysis-tracking-action="${action}"`);
   expect(html).toMatch(/preannotation-save" >Save accepted/);
   expect(html).toMatch(/preannotation-next-batch" disabled>Next batch/);
+});
+
+test("preannotation file picker opens the three real workspace locations in order", async () => {
+  const helpers = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingPreannotationReviewControllerHelpers.js",
+  ));
+  const selections = [
+    [file("annotation-pack.json", "pack")],
+    [file("workspace.json", "workspace")],
+    [
+      file("attacking-third.track-map.json", "map"),
+      file("attacking-third.suggestions.mot.txt", "suggestions"),
+    ],
+  ];
+  const pickerOptions = [];
+  const result = await helpers.selectTrackingPreannotationReviewFiles({
+    showOpenFilePicker: async (options) => {
+      pickerOptions.push(options);
+      return selections[pickerOptions.length - 1].map((entry) => ({ getFile: async () => entry }));
+    },
+  });
+
+  expect(pickerOptions.map((entry) => ({
+    description: entry.types[0].description,
+    multiple: entry.multiple,
+  }))).toEqual([
+    { description: "Step 1 of 3: annotation-pack.json", multiple: false },
+    { description: "Step 2 of 3: workspace.json", multiple: false },
+    { description: "Step 3 of 3: matching case files", multiple: true },
+  ]);
+  expect(result.caseId).toBe("attacking-third");
+  expect(new TextDecoder().decode(result.packBytes)).toBe("pack");
+  expect(new TextDecoder().decode(result.workspaceBytes)).toBe("workspace");
+  expect(new TextDecoder().decode(result.trackMapBytes)).toBe("map");
+  expect(new TextDecoder().decode(result.suggestionBytes)).toBe("suggestions");
+});
+
+test("preannotation file picker rejects a crossed case pair", async () => {
+  const helpers = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingPreannotationReviewControllerHelpers.js",
+  ));
+  const selections = [
+    [file("annotation-pack.json", "pack")],
+    [file("workspace.json", "workspace")],
+    [
+      file("attacking-third.track-map.json", "map"),
+      file("fast-transition.suggestions.mot.txt", "suggestions"),
+    ],
+  ];
+  let index = 0;
+  await expect(helpers.selectTrackingPreannotationReviewFiles({
+    showOpenFilePicker: async () => selections[index++].map((entry) => ({ getFile: async () => entry })),
+  })).rejects.toThrow(/one matching case/i);
 });

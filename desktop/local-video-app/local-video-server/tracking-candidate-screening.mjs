@@ -4,7 +4,7 @@ import path from "node:path";
 export const TRACKING_CANDIDATE_SCREENING_PROTOCOL = "football-science-tracking-candidate-screening-v1";
 export const TRACKING_ANNOTATION_PACK_PROTOCOL = "football-science-tracking-annotation-pack-v1";
 const candidateEvidenceProtocol = "football-science-tracking-candidate-stage-run-v1";
-const supportedEntities = Object.freeze(["player", "ball", "referee"]);
+const supportedEntities = Object.freeze(["person", "player", "ball", "referee"]);
 
 export class TrackingCandidateScreeningError extends Error {
   constructor(message, code = "TRACKING_CANDIDATE_SCREENING_INVALID") {

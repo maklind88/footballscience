@@ -18,7 +18,7 @@ function provider(stage) {
     version: "1.0.0",
     protocol: "football-science-tracking-stage-v1",
     stage,
-    capabilities: stage === "detection" ? ["detect:ball", "detect:player"] : ["associate:multi-object"],
+    capabilities: stage === "detection" ? ["detect:ball", "detect:person"] : ["associate:multi-object"],
     manifestFingerprintSha256: (stage === "detection" ? "b" : "c").repeat(64),
     executionFingerprintSha256: (stage === "detection" ? "d" : "e").repeat(64),
   };
@@ -49,8 +49,8 @@ function pack() {
 
 function observations() {
   return [
-    { id: "p-1", entityType: "player" },
-    { id: "p-2", entityType: "player" },
+    { id: "p-1", entityType: "person" },
+    { id: "p-2", entityType: "person" },
     { id: "b-1", entityType: "ball" },
   ];
 }
@@ -78,8 +78,8 @@ function evidence() {
         artifactSha256: "3".repeat(64),
         payload: { payload: { trajectories: [
           {
-            id: "player-1",
-            entityType: "player",
+            id: "person-1",
+            entityType: "person",
             observationIds: ["p-1", "p-2"],
             confidence: 0.8,
             discontinuitiesMs: [],
@@ -163,6 +163,8 @@ test("association screening proves complete lineage but never claims identity ap
       trajectoryCount: 2,
       singletonTrajectoryCount: 1,
       discontinuityCount: 1,
+      entityInputTotals: { person: 2, player: 0, ball: 1, referee: 0 },
+      entityTrajectoryTotals: { person: 1, player: 0, ball: 1, referee: 0 },
     },
     reviewGate: {
       groundTruthMutationAllowed: false,

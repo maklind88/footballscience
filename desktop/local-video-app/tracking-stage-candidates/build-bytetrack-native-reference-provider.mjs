@@ -20,7 +20,7 @@ const RYU_ROOT = "ryu-4c0618b";
 const RYU_ARCHIVE_SHA256 = "092d0469a28b9854222a6182190816c3b2e04fa291622f97e210cc5e70397d5b";
 const RYU_ARCHIVE_BYTES = 92_160;
 const RYU_APACHE2_SHA256 = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4";
-const EXPECTED_RUNTIME_SHA256 = "bc6f0dd9351e272feab80d24c915d30d7bee91cae3539c60d4cbdb193ba1fb4b";
+const EXPECTED_RUNTIME_SHA256 = "c777ca4ce1d65b9f0ef149d9ae1be01415ec39b0acfd95345a59248e820c49e2";
 const EXPECTED_RUNTIME_BYTES = 228_352;
 const MAXIMUM_SOURCE_ARCHIVE_BYTES = 4 * 1024 * 1024;
 const MAXIMUM_RUNTIME_BYTES = 4 * 1024 * 1024;
@@ -29,8 +29,8 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const providerDir = path.join(scriptDir, "providers");
 const adapterInputs = Object.freeze([
   ["bytetrack-native-provider.hpp", "d7bcf70a7f5ff2149223edca2348b0384cf79f9da7c2138cf6ccf362f700069c"],
-  ["bytetrack-native-contract.mm", "5d0567201090dfe90ee5421e31ea86feae4a9126cddcad315eb89955571b8105"],
-  ["bytetrack-native-association.mm", "f81585834a4e14ed0e93fdfa18ea521520b99b7e7e7dfa3a2dcbd819ebb67825"],
+  ["bytetrack-native-contract.mm", "3114782185aa66dab5a0f3b29edb4de4bc57ae0fba44905955acab15ab744e15"],
+  ["bytetrack-native-association.mm", "ac8a8cf398877dc38d6046b0dbd9acb36f0e182dcece6fe11ee2d33fc4ddd91b"],
   ["bytetrack-native-core.patch", "88b9a0c2c95244172baf823414abfb85219e047f4ebfb0c55ef5392e3154cd6c"],
 ]);
 const upstreamInputs = Object.freeze([

@@ -38,7 +38,7 @@ test("native ByteTrack build accepts only pinned reviewed source inputs", async 
   expect(source).toContain("8586084f71f9bde545ee7fa6d00288b264a2b7ac3607b974e54d13e7162c1c72");
   expect(source).toContain("4c0618b0e44f7ef027ebae05d2cc7812048f7c8f");
   expect(source).toContain("092d0469a28b9854222a6182190816c3b2e04fa291622f97e210cc5e70397d5b");
-  expect(source).toContain("bc6f0dd9351e272feab80d24c915d30d7bee91cae3539c60d4cbdb193ba1fb4b");
+  expect(source).toContain("c777ca4ce1d65b9f0ef149d9ae1be01415ec39b0acfd95345a59248e820c49e2");
   expect(source).toContain("cmd LC_UUID");
   expect(source).toContain("-Werror");
   expect(source).not.toMatch(/\b(?:curl|fetch|wget)\b/);
@@ -78,6 +78,8 @@ test("native ByteTrack adapter preserves lineage and strict association boundari
   const combined = sources.map(({ source }) => source).join("\n");
   expect(combined).toContain("observation_indices");
   expect(combined).toContain("AssociateEntity");
+  expect(combined).toContain('{"person", "player", "ball", "referee"}');
+  expect(combined).toContain('[entity isEqual:@"person"]');
   expect(combined).toContain("bytetrack-entity-mismatch");
   expect(combined).toContain("EcmaNumber");
   expect(combined).toContain("requestFingerprint");

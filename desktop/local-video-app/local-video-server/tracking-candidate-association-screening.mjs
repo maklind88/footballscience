@@ -6,7 +6,7 @@ export const TRACKING_CANDIDATE_ASSOCIATION_SCREENING_PROTOCOL =
   "football-science-tracking-association-candidate-screening-v1";
 const candidateEvidenceProtocol = "football-science-tracking-candidate-stage-run-v1";
 const detectionScreeningProtocol = "football-science-tracking-candidate-screening-v1";
-const supportedEntities = Object.freeze(["player", "ball", "referee"]);
+const supportedEntities = Object.freeze(["person", "player", "ball", "referee"]);
 
 export class TrackingCandidateAssociationScreeningError extends Error {
   constructor(message, code = "TRACKING_CANDIDATE_ASSOCIATION_SCREENING_INVALID") {

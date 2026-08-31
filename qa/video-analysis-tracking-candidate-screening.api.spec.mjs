@@ -35,8 +35,8 @@ function pack() {
   };
 }
 
-function evidence({ ball = 0, realTimeFactor = 0.8 } = {}) {
-  const observations = [{ frameIndex: 0, entityType: "player", confidence: 0.9 }];
+function evidence({ ball = 0, entityType = "player", realTimeFactor = 0.8 } = {}) {
+  const observations = [{ frameIndex: 0, entityType, confidence: 0.9 }];
   if (ball) observations.push({ frameIndex: 0, entityType: "ball", confidence: 0.6 });
   return {
     schemaVersion: 1,
@@ -47,7 +47,7 @@ function evidence({ ball = 0, realTimeFactor = 0.8 } = {}) {
       version: "1.0.0",
       protocol: "football-science-tracking-stage-v1",
       stage: "detection",
-      capabilities: ["detect:ball", "detect:player"],
+      capabilities: ["detect:ball", `detect:${entityType}`],
       manifestFingerprintSha256: "d".repeat(64),
       executionFingerprintSha256: "e".repeat(64),
     },
@@ -135,6 +135,22 @@ test("screening pass still waits for reviewed ground truth", async () => {
     ...values.values[0],
     provider: { ...values.values[0].provider, untrusted: true },
   }])).toThrow(/unsupported or missing fields/);
+});
+
+test("screening treats a generic person as role-neutral detection evidence", async () => {
+  const service = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-candidate-screening.mjs",
+  ));
+  const sample = evidence({ ball: 1, entityType: "person" });
+  const values = summarizedCase(service, sample);
+  const manifest = service.createTrackingCandidateScreeningManifest(values.packValue, values.values, {
+    now: () => "2026-08-31T12:30:00.000Z",
+  });
+  expect(manifest).toMatchObject({
+    status: "screening-pass-awaiting-ground-truth",
+    policy: { declaredCapabilityCoveragePassed: true, missingCapabilities: [] },
+    summary: { entityTotals: { person: 1, player: 0, ball: 1, referee: 0 } },
+  });
 });
 
 test("candidate screening CLI requires explicit pack, provider, and output", async () => {

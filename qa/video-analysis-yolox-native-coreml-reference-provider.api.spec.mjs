@@ -44,7 +44,7 @@ test("native YOLOX build accepts only pinned offline release inputs", async () =
   const source = await fs.readFile(path.join(rootDir, buildPath), "utf8");
   expect(source).toContain("cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635");
   expect(source).toContain("370c49770e2e1f243e17c7b227bb7f4b3da793b847d02f38016dc0e46c30fbe1");
-  expect(source).toContain("1af02eaa25f043b90b14d2c24afadd19888445d1c705635db8a9e209fd0d84e3");
+  expect(source).toContain("00683295a76dfc720092c2457143812e41aca32047f3115f04df78bd5926306f");
   expect(source).toContain('"--disable-network"');
   expect(source).toContain('"--enable-decoder=h264"');
   expect(source).toContain('"--enable-demuxer=mov"');
@@ -95,6 +95,10 @@ test("native YOLOX provider keeps decoding and inference inside the sealed contr
   expect(sources.inference.source).toContain("COREML_FLAG_ONLY_ALLOW_STATIC_INPUT_SHAPES");
   expect(sources.inference.source).toContain("FSDecodeSampledH264Frames");
   expect(sources.inference.source).toContain("BoundedNormalizedExtent");
+  expect(sources.inference.source).toContain('containsObject:@"detect:person"');
+  expect(sources.inference.source).toContain('kPersonClass, @"person"');
+  expect(sources.contract.source).toContain("genericPerson == roleBoundPlayer");
+  expect(sources.contract.source).toContain('containsObject:@"detect:ball"');
   expect(sources.contract.source).toContain('std::strcmp(std::getenv("FS_TRACKING_NETWORK_DISABLED"), "1")');
   expect(sources.contract.source).toContain("O_NOFOLLOW");
   expect(sources.contract.source).toContain("RENAME_EXCL");
@@ -104,8 +108,10 @@ test("native YOLOX provider keeps decoding and inference inside the sealed contr
   }
   expect(sha256(sources.decoder.bytes))
     .toBe("666378bbd71c9a0a323a334a137c68170b93a6b977143da5a19eda029c1c4f1f");
+  expect(sha256(sources.contract.bytes))
+    .toBe("340d3072dc4e9a6a5e26c4b5a0c505247d4d1e8556195427a1b54f919a6a0914");
   expect(sha256(sources.inference.bytes))
-    .toBe("ff318478171ef567b665e47b3d0590d7be321d702479da06519baae79c807b6d");
+    .toBe("b78f60123eb106a310846d56c2f055c86620debdf068717be196d3a9377157df");
   expect(sources.decoder.source.split("\n").length).toBeLessThanOrEqual(300);
   expect(sources.inference.source.split("\n").length).toBeLessThanOrEqual(400);
 

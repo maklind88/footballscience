@@ -288,6 +288,12 @@ FSProviderInvocation FSLoadProviderInvocation(int argc, char** argv) {
   if (!requestedBytes || !providerBytes) FSProviderFail("output-limit-invalid");
 
   NSArray<NSString*>* capabilities = SortedCapabilities(manifest);
+  const bool genericPerson = [capabilities containsObject:@"detect:person"];
+  const bool roleBoundPlayer = [capabilities containsObject:@"detect:player"];
+  if (capabilities.count != 2 || genericPerson == roleBoundPlayer ||
+      ![capabilities containsObject:@"detect:ball"]) {
+    FSProviderFail("manifest-capabilities-invalid");
+  }
   FSProviderInvocation value;
   value.manifest = manifest;
   value.request = invocation[@"request"];

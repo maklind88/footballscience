@@ -250,7 +250,8 @@ NSArray<NSString*>* ValidateRequest(NSDictionary* request, NSDictionary* manifes
     NSString* identifier = value[@"id"];
     NSString* entity = value[@"entityType"];
     if (!Identifier(identifier) ||
-        (! [entity isEqual:@"player"] && ![entity isEqual:@"ball"] && ![entity isEqual:@"referee"]) ||
+        (! [entity isEqual:@"person"] && ![entity isEqual:@"player"] &&
+         ![entity isEqual:@"ball"] && ![entity isEqual:@"referee"]) ||
         !ids.insert(identifier.UTF8String).second ||
         !IntegerNumber(value[@"atMs"], startMs, endMs) ||
         !IntegerNumber(value[@"frameIndex"], 0,

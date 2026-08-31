@@ -149,7 +149,7 @@ NSArray<NSDictionary*>* FSRunByteTrackAssociation(const FSByteTrackInvocation& i
   for (NSDictionary* value in values) observations.push_back(ParseObservation(value));
 
   std::vector<Trajectory> tracks;
-  for (const std::string& entity : {"player", "ball", "referee"}) {
+  for (const std::string& entity : {"person", "player", "ball", "referee"}) {
     std::vector<Trajectory> values = AssociateEntity(entity, observations, invocation.sampleFps);
     tracks.insert(tracks.end(), std::make_move_iterator(values.begin()), std::make_move_iterator(values.end()));
   }

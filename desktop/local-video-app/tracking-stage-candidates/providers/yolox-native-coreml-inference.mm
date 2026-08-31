@@ -262,7 +262,9 @@ NSArray<NSDictionary*>* FrameDetections(
     std::int64_t atMs,
     std::int64_t frameIndex) {
   std::vector<Candidate> values;
-  if ([capabilities containsObject:@"detect:player"]) {
+  if ([capabilities containsObject:@"detect:person"]) {
+    CollectClass(prediction, kPersonClass, @"person", kPersonThreshold, ratio, &values);
+  } else if ([capabilities containsObject:@"detect:player"]) {
     CollectClass(prediction, kPersonClass, @"player", kPersonThreshold, ratio, &values);
   }
   if ([capabilities containsObject:@"detect:ball"]) {

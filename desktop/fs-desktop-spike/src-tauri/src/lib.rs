@@ -2,6 +2,7 @@ mod authority;
 mod bootstrap;
 #[cfg(test)]
 mod bootstrap_tests;
+mod ci_trace;
 mod local_data;
 mod local_schema;
 mod protocol;
@@ -156,6 +157,7 @@ fn desktop_bootstrap_status(
     window: WebviewWindow,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<BootstrapStatus, String> {
+    ci_trace::record("command desktop_bootstrap_status");
     require_window(&window, windows::WebviewRole::Active)?;
     let runtime = runtime(&state)?;
     let shell = runtime
@@ -171,6 +173,7 @@ async fn desktop_prepare_shell_update(
     window: WebviewWindow,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<PrepareResult, String> {
+    ci_trace::record("command desktop_prepare_shell_update");
     require_window(&window, windows::WebviewRole::Active)?;
     let runtime = runtime(&state)?;
     let worker_runtime = runtime.clone();
@@ -205,6 +208,7 @@ fn desktop_candidate_status(
     window: WebviewWindow,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<CandidateRuntimeStatus, String> {
+    ci_trace::record("command desktop_candidate_status");
     require_window(&window, windows::WebviewRole::Candidate)?;
     let runtime = runtime(&state)?;
     let shell = runtime
@@ -388,6 +392,7 @@ fn record_spike_probe(
     probe: SpikeProbe,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<(), String> {
+    ci_trace::record("command record_spike_probe");
     match probe.candidate.as_str() {
         "hosted" => require_window(&window, windows::WebviewRole::Active)?,
         "bundled" => require_window(&window, windows::WebviewRole::Bundled)?,
@@ -537,19 +542,24 @@ fn internal_denied_probe() -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    ci_trace::record("runtime run entered");
     tauri::Builder::default()
         .manage(DesktopState::default())
         .register_uri_scheme_protocol("fs-active", protocol::active)
         .register_uri_scheme_protocol("fs-candidate", protocol::candidate)
         .register_uri_scheme_protocol("fs-recovery", protocol::recovery)
         .setup(|app| {
+            ci_trace::record("setup entered");
             let root = app
                 .path()
                 .app_data_dir()
                 .map_err(|error| error.to_string())?;
             let runtime = DesktopRuntime::initialize(&root)?;
+            ci_trace::record("desktop runtime initialized");
             app.state::<DesktopState>().install(runtime)?;
+            ci_trace::record("desktop runtime installed");
             windows::create_main(app)?;
+            ci_trace::record("main window created");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

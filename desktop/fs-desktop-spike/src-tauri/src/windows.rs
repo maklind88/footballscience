@@ -1,4 +1,5 @@
 use crate::bootstrap::{self, CANDIDATE_TIMEOUT_MS};
+use crate::ci_trace;
 use crate::runtime::{DeliveryMode, DesktopRuntime, delivery_mode};
 use std::sync::Arc;
 use std::time::Duration;
@@ -160,7 +161,8 @@ fn build_window<R: Runtime>(
     visible: bool,
     incognito: bool,
 ) -> Result<tauri::WebviewWindow<R>, String> {
-    WebviewWindowBuilder::new(app, label, url)
+    ci_trace::record(format!("window build started role={role:?} label={label}"));
+    let window = WebviewWindowBuilder::new(app, label, url)
         .title(title)
         .inner_size(1000.0, 720.0)
         .min_inner_size(760.0, 540.0)
@@ -168,11 +170,28 @@ fn build_window<R: Runtime>(
         .visible(visible)
         .incognito(incognito)
         .use_https_scheme(false)
-        .on_navigation(move |url| navigation_allowed(role, url))
+        .on_navigation(move |url| {
+            let allowed = navigation_allowed(role, url);
+            ci_trace::record(format!(
+                "navigation role={role:?} allowed={allowed} url={url}"
+            ));
+            allowed
+        })
+        .on_page_load(move |_, payload| {
+            ci_trace::record(format!(
+                "page load role={role:?} event={:?} url={}",
+                payload.event(),
+                payload.url()
+            ));
+        })
         .on_new_window(|_, _| NewWindowResponse::Deny)
         .on_download(|_, _| false)
         .build()
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    ci_trace::record(format!(
+        "window build completed role={role:?} label={label}"
+    ));
+    Ok(window)
 }
 
 fn custom_url(value: &str) -> Result<WebviewUrl, String> {

@@ -1,4 +1,4 @@
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -22,6 +22,8 @@ const bundledProbePath = resolve(tmpdir(), "fs-desktop-spike-bundled.json");
 const hostedProbePath = resolve(tmpdir(), "fs-desktop-spike-hosted.json");
 const negativeProbePath = resolve(artifactsRoot, "unauthorized-origin-probe.json");
 const evidencePath = resolve(artifactsRoot, "windows-runtime-evidence.json");
+const runtimeTracePath = resolve(tmpdir(), "fs-desktop-runtime-trace.log");
+const uploadedRuntimeTracePath = resolve(logsRoot, "runtime-trace.log");
 const publicEnvironment = JSON.parse(readFileSync(resolve(packageRoot, "generated", "test-release-public-env.json"), "utf8"));
 const expected = Object.freeze({
   cacheVersion: "fs-desktop-native-shell-cache-v2",
@@ -34,6 +36,7 @@ const expected = Object.freeze({
   modifiedAssetBuildId: publicEnvironment.releases.modifiedAsset.buildId,
 });
 mkdirSync(logsRoot, { recursive: true });
+removeIfPresent(runtimeTracePath);
 
 const evidence = {
   schema: "fs-desktop-windows-runtime-evidence-v2",
@@ -368,5 +371,6 @@ try {
   console.error(evidence.failure);
   process.exitCode = 1;
 } finally {
+  if (existsSync(runtimeTracePath)) copyFileSync(runtimeTracePath, uploadedRuntimeTracePath);
   writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
 }

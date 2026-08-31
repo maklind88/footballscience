@@ -18,6 +18,11 @@ pub fn active<R: Runtime>(
     context: UriSchemeContext<'_, R>,
     request: Request<Vec<u8>>,
 ) -> Response<Cow<'static, [u8]>> {
+    crate::ci_trace::record(format!(
+        "protocol active label={} path={}",
+        context.webview_label(),
+        request.uri().path()
+    ));
     if context.webview_label() != "main" {
         return response(
             StatusCode::FORBIDDEN,
@@ -54,6 +59,11 @@ pub fn candidate<R: Runtime>(
     context: UriSchemeContext<'_, R>,
     request: Request<Vec<u8>>,
 ) -> Response<Cow<'static, [u8]>> {
+    crate::ci_trace::record(format!(
+        "protocol candidate label={} path={}",
+        context.webview_label(),
+        request.uri().path()
+    ));
     if context.webview_label() != "candidate" {
         return response(
             StatusCode::FORBIDDEN,
@@ -80,6 +90,11 @@ pub fn recovery<R: Runtime>(
     context: UriSchemeContext<'_, R>,
     request: Request<Vec<u8>>,
 ) -> Response<Cow<'static, [u8]>> {
+    crate::ci_trace::record(format!(
+        "protocol recovery label={} path={}",
+        context.webview_label(),
+        request.uri().path()
+    ));
     if context.webview_label() != "recovery" {
         return response(
             StatusCode::FORBIDDEN,

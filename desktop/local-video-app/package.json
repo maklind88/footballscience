@@ -15,6 +15,8 @@
     "tracking:candidate:install": "node tracking-stage-candidates/install-candidate.mjs",
     "tracking:candidate:preflight": "node tracking-stage-candidates/preflight.mjs",
     "tracking:candidate:build:yolox": "node tracking-stage-candidates/build-yolox-reference-provider.mjs",
+    "tracking:candidate:screen": "node ../../scripts/fs-player-tracking-candidate-screening.mjs",
+    "tracking:candidate:screen:verify": "node ../../scripts/fs-player-tracking-candidate-screening-verify.mjs",
     "tracking:smoke": "node ../../scripts/fs-player-tracking-engine-smoke.mjs",
     "tracking:trackeval:plan": "node tracking-evaluators/trackeval/install-evaluator.mjs --plan",
     "tracking:trackeval:install": "node tracking-evaluators/trackeval/install-evaluator.mjs",

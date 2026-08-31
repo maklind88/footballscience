@@ -169,6 +169,19 @@ FS Player now creates the reference through the tracking sidebar:
 7. Repeat with at least five reviewed ranges until the suite contains ten unique minutes and covers transition, crowded-box, occlusion, camera-motion/cut, set-piece, and compact-unit scenarios.
 
 For long local footage, `tracking:benchmark:prepare` can materialize those ranges as one private `football-science-tracking-annotation-pack-v1`. Its strict plan requires 5-20 non-overlapping cases, 10-20 unique minutes, even output dimensions, exact frame counts, and all required scenarios. It binds the original source, every normalized clip, and the bundled FFmpeg runtime by SHA-256 while omitting the original path. The generated MOT import template intentionally carries false review and rights attestations plus empty track maps; it is preparation evidence, never ground truth, until an exhaustive human review completes every annotation and explicitly changes those fields.
+
+Before spending analyst time on exhaustive annotation, `tracking:candidate:screen` may run one exact installed detection candidate over the same cases. It writes one immutable raw candidate-stage artifact per case plus a metadata-only `football-science-tracking-candidate-screening-v1` manifest. The screen validates the private pack and source seals, provider/build identity, sandbox isolation, execution profile, per-case real-time factor, observation counts, confidence distribution, and whether every declared detection capability appears anywhere in the sample. The report is always benchmark-only and never approval-ready. It cannot measure or claim precision, recall, identity continuity, team classification, correction burden, or provider quality before independent reviewed ground truth exists. A failed workstation or declared-capability screen should stop expensive prelabelling and model approval work while preserving the raw evidence for comparison.
+
+```bash
+npm --prefix desktop/local-video-app run tracking:candidate:screen -- \
+  --pack /absolute/local/annotation-pack.json \
+  --provider provider-id@provider-version \
+  --sample-ms 5000 \
+  --output /absolute/local/candidate-screening
+```
+
+`tracking:candidate:screen:verify` reopens the strict annotation pack, exact installed provider, read-only report, and every read-only raw case artifact. It validates the complete candidate-stage contracts, source and provider identities, case bytes and SHA-256 values, recomputes the summaries and review gate, and requires the canonical screening SHA-256 to reproduce exactly. Verification performs no inference and returns metadata only. Linked files, writable evidence, provider drift, a changed byte, a hidden manifest field, or a non-reproducing summary fails the complete bundle.
+
 8. Run the benchmark directly in the suite panel and export the immutable `football-science-tracking-benchmark-evidence-set-v1`. Any missing/duplicate target, source/range/frame mismatch, changed provider build, corrected provider point, non-positive processing time, malformed input, TrackEval drift, or checksum mismatch fails closed. Separate suite exports and `fs-player:tracking:assemble` remain available for independent audit.
 
 Locking creates a new revisioned snapshot. Later edits to live tracks do not mutate the locked reference. The artifact contains reviewed normalized trajectories, source fingerprint, frame/range, object identity, and bounded analyst evidence. Provider metadata, confidence values, correction authors, local paths, URLs, video, frames, and binary data are removed. Ground truth is not written through the central tracking repository.

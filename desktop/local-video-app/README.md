@@ -71,3 +71,25 @@ npm --prefix desktop/local-video-app run tracking:candidate:build:yolox -- \
 ```
 
 The Python environment must already contain the pinned ONNX Runtime and OpenCV build dependencies. The command performs no download and never installs or activates the result.
+
+An installed candidate can then be screened across every case in a private annotation pack before expensive ground-truth review:
+
+```bash
+npm --prefix desktop/local-video-app run tracking:candidate:screen -- \
+  --pack /absolute/local/annotation-pack.json \
+  --provider yolox-s-coco-reference@0.1.2 \
+  --sample-ms 5000 \
+  --output /absolute/local/yolox-screening
+```
+
+The output contains immutable raw candidate evidence per case plus one metadata-only screening report. It measures sandbox isolation, wall time, real-time factor, observation counts, confidence distribution, and declared entity coverage. Raw detections may be shown only as a separate suggestion layer: the report always forbids ground-truth mutation and locking and requires exhaustive human review. It deliberately cannot report precision, recall, identity continuity, or provider approval before reviewed ground truth exists.
+
+Reverify a completed bundle without rerunning inference:
+
+```bash
+npm --prefix desktop/local-video-app run tracking:candidate:screen:verify -- \
+  --pack /absolute/local/annotation-pack.json \
+  --screening /absolute/local/yolox-screening
+```
+
+Verification reopens the exact installed provider, rejects linked or writable evidence, revalidates every candidate-stage artifact, recomputes every case summary, and reproduces the canonical screening SHA-256. One changed byte fails the complete bundle.

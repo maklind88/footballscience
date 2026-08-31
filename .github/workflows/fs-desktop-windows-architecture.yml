@@ -28,7 +28,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     env:
-      CI: "1"
+      CI: "true"
       FS_DESKTOP_CI: "1"
     steps:
       - name: Checkout exact branch commit without persisted credentials

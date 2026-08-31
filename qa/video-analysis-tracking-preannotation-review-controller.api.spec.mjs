@@ -733,6 +733,7 @@ test("preannotation keyboard review is deliberate, scoped, and repeat-safe", asy
   let state = initialState();
   const associated = track("associated-player", "player", 1000, 0.8, "associated");
   const unassociated = track("unassociated-ball", "ball", 500, 0.4, "unassociated");
+  const seeks = [];
   const controller = service.createTrackingPreannotationReviewController({
     getState: () => state,
     updateState: (updater) => { state = updater(state); },
@@ -746,6 +747,7 @@ test("preannotation keyboard review is deliberate, scoped, and repeat-safe", asy
       queue: [{ track: unassociated }],
       summary: { associatedTrackCount: 1, unassociatedObservationCount: 1 },
     }),
+    seekToMatchMs: (atMs) => seeks.push(atMs),
   });
   const keyboardEvent = (key, overrides = {}) => {
     const calls = { prevented: 0, stopped: 0 };
@@ -764,6 +766,21 @@ test("preannotation keyboard review is deliberate, scoped, and repeat-safe", asy
   expect(controller.handleShortcut(keyboardEvent("a", { target: { tagName: "INPUT" } }))).toBe(false);
   expect(controller.handleShortcut(keyboardEvent("a", { metaKey: true }))).toBe(false);
   expect(state.presentation.tracking.preannotationReview).toMatchObject({ pendingCount: 2, acceptedCount: 0 });
+
+  const preview = keyboardEvent("P");
+  expect(controller.handleShortcut(preview)).toBe(true);
+  expect(preview.calls).toEqual({ prevented: 1, stopped: 1 });
+  expect(seeks).toEqual([500, 0]);
+  expect(state.presentation.tracking.preannotationReview).toMatchObject({
+    pendingCount: 2,
+    acceptedCount: 0,
+    current: {
+      id: unassociated.id,
+      durationMs: 0,
+      contextStartMs: 0,
+      contextLeadMs: 500,
+    },
+  });
 
   const accept = keyboardEvent("A");
   expect(controller.handleShortcut(accept)).toBe(true);

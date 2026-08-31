@@ -90,6 +90,7 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
             entityType: "ball",
             associationStatus: "unassociated",
             atMs: 1250,
+            durationMs: 900,
             confidence: 0.4,
             pointCount: 1,
             priorityCode: "critical-entity",
@@ -124,11 +125,12 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   expect(html).toContain("Find referee");
   expect(html).toContain('aria-current="step"');
   expect(html).toContain("Protected on this device");
-  expect(html).toContain("1 samples | 40%");
+  expect(html).toContain("1 samples | 900ms | 40%");
   for (const action of [
     "preannotation-open",
     "preannotation-accept",
     "preannotation-reject",
+    "preannotation-preview-context",
     "preannotation-next",
     "preannotation-next-batch",
     "preannotation-undo",
@@ -142,6 +144,7 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   for (const [action, key] of [
     ["preannotation-accept", "A"],
     ["preannotation-reject", "R"],
+    ["preannotation-preview-context", "P"],
     ["preannotation-next", "N"],
     ["preannotation-undo", "U"],
     ["preannotation-save-current", "C"],

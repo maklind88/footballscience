@@ -5,6 +5,8 @@ import {
 } from "../services/trackingPreannotationReviewPriorityService.js";
 import { selectTrackingPreannotationWorkspaceDirectory } from "../services/trackingPreannotationWorkspacePickerService.js";
 
+export const TRACKING_PREANNOTATION_CONTEXT_LEAD_MS = 1500;
+
 function invalid(message) {
   throw new Error(message);
 }
@@ -183,11 +185,17 @@ export function acceptedTrackingPreannotationTrack(track = {}, state = "accepted
 }
 
 export function currentTrackingPreannotationReview(entry = {}, overrides = {}) {
+  const startMs = Math.max(0, Number(entry.track.startMs) || 0);
+  const endMs = Math.max(startMs, Number(entry.track.endMs) || startMs);
   return {
     id: entry.track.id,
     entityType: entry.track.entityType,
     associationStatus: entry.associationStatus,
-    atMs: entry.track.startMs,
+    atMs: startMs,
+    endMs,
+    durationMs: endMs - startMs,
+    contextStartMs: Math.max(0, startMs - TRACKING_PREANNOTATION_CONTEXT_LEAD_MS),
+    contextLeadMs: Math.min(startMs, TRACKING_PREANNOTATION_CONTEXT_LEAD_MS),
     confidence: entry.track.confidence,
     pointCount: entry.track.segments.reduce((sum, segment) => sum + segment.points.length, 0),
     priorityCode: entry.priority?.code || "",

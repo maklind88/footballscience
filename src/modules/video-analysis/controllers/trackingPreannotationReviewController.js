@@ -15,6 +15,7 @@ import {
   normalizeTrackingPreannotationReviewState as reviewState,
   previewTrackingPreannotationTrack as previewTrack,
   selectTrackingPreannotationReviewFiles,
+  TRACKING_PREANNOTATION_CONTEXT_LEAD_MS,
 } from "./trackingPreannotationReviewControllerHelpers.js";
 import {
   createTrackingPreannotationReviewDraftController,
@@ -36,6 +37,7 @@ const shortcutActions = Object.freeze({
   a: "preannotation-accept",
   r: "preannotation-reject",
   n: "preannotation-next",
+  p: "preannotation-preview-context",
   u: "preannotation-undo",
   c: "preannotation-save-current",
   s: "preannotation-save",
@@ -374,6 +376,15 @@ export function createTrackingPreannotationReviewController(options = {}) {
     return shown;
   }
 
+  function previewContext() {
+    if (!sync()) return false;
+    const current = entryById(session?.currentId);
+    if (!current) return false;
+    const startMs = Math.max(0, Number(current.track.startMs) || 0);
+    options.seekToMatchMs?.(Math.max(0, startMs - TRACKING_PREANNOTATION_CONTEXT_LEAD_MS));
+    return true;
+  }
+
   function handleField(field = "", element = null) {
     if (field === "preannotation-scope") return sync() && refreshBatch({ reviewScope: element?.value });
     if (field === "preannotation-batch-size") return sync() && refreshBatch({ batchSize: element?.value });
@@ -464,6 +475,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (action === "preannotation-accept") return decide("accepted");
     if (action === "preannotation-reject") return decide("rejected");
     if (action === "preannotation-next") return next();
+    if (action === "preannotation-preview-context") return previewContext();
     if (action === "preannotation-next-batch") return sync() && refreshBatch();
     if (action === "preannotation-undo") return undo();
     if (action === "preannotation-save-current") { void saveCurrentForCorrection(); return true; }
@@ -478,7 +490,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     if (!action) return false;
     const review = reviewState(getState().presentation?.tracking?.preannotationReview);
     if (!review.workspaceSha256 || ["idle", "loading", "saving"].includes(review.status)) return false;
-    if (["preannotation-accept", "preannotation-reject", "preannotation-next", "preannotation-save-current"]
+    if (["preannotation-accept", "preannotation-reject", "preannotation-next", "preannotation-preview-context", "preannotation-save-current"]
       .includes(action) && !review.current) return false;
     if (action === "preannotation-save" && Number(review.acceptedCount) <= 0) return false;
     if (!handleAction(action)) return false;
@@ -493,6 +505,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
     handleField,
     handleShortcut,
     open,
+    previewContext,
     saveAccepted,
     saveCurrentForCorrection,
     sync,

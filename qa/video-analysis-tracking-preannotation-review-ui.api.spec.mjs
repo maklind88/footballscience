@@ -40,6 +40,30 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
           batchTotalCount: 17,
           draftStatus: "restored",
           restoredDecisionCount: 12,
+          campaign: {
+            status: "ready",
+            caseCount: 2,
+            completeCaseCount: 1,
+            totalSuggestionCount: 30,
+            decisionCount: 20,
+            cases: [
+              {
+                caseId: "attacking-third",
+                totalSuggestionCount: 20,
+                decisionCount: 10,
+                resolvedCount: 8,
+                missingSuggestedEntityTypes: ["referee"],
+                active: true,
+              },
+              {
+                caseId: "fast-transition",
+                totalSuggestionCount: 10,
+                decisionCount: 10,
+                resolvedCount: 10,
+                complete: true,
+              },
+            ],
+          },
           current: {
             id: "suggestion-1",
             entityType: "ball",
@@ -69,6 +93,12 @@ test("preannotation panel exposes bounded review decisions and save state", asyn
   expect(html).toContain("17/17");
   expect(html).toContain("Device progress restored");
   expect(html).toContain("12 decisions");
+  expect(html).toContain("Annotation campaign");
+  expect(html).toContain("20/30 decisions");
+  expect(html).toContain("1/2 complete");
+  expect(html).toContain("Find referee");
+  expect(html).toContain('aria-current="step"');
+  expect(html).toContain("Protected on this device");
   expect(html).toContain("1 samples | 40%");
   for (const action of [
     "preannotation-open",

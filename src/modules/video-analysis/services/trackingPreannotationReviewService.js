@@ -1,4 +1,5 @@
 import { normalizeObjectTrack } from "../domain/tracking.model.js";
+import { normalizeTrackingPreannotationCampaign } from "./trackingPreannotationCampaignService.js";
 
 const PACK_PROTOCOL = "football-science-tracking-annotation-pack-v1";
 const WORKSPACE_PROTOCOL = "football-science-tracking-candidate-preannotation-workspace-v1";
@@ -258,6 +259,19 @@ export async function importTrackingPreannotationReviewCase(value = {}, options 
     "preannotation workspace checksum") !== workspaceValidation.expectedHash) {
     invalid("Preannotation workspace checksum does not reproduce.", "TRACKING_PREANNOTATION_REVIEW_TAMPERED");
   }
+  const campaign = normalizeTrackingPreannotationCampaign({
+    workspaceSha256: workspace.workspaceSha256,
+    packId: pack.id,
+    caseCount: workspace.summary?.caseCount,
+    totalSuggestionCount: workspace.summary?.trackCount,
+    cases: (workspace.cases || []).map((entry) => ({
+      caseId: entry.id,
+      totalSuggestionCount: entry.summary?.trackCount,
+      associatedTrackCount: entry.summary?.associatedTrackCount,
+      unassociatedObservationCount: entry.summary?.unassociatedObservationCount,
+      missingSuggestedEntityTypes: entry.summary?.missingSuggestedEntityTypes,
+    })),
+  });
   const suggestionDescriptor = descriptor(
     workspaceValidation.descriptor.suggestion,
     `cases/${caseId}.suggestions.mot.txt`,
@@ -363,6 +377,7 @@ export async function importTrackingPreannotationReviewCase(value = {}, options 
     workspaceSha256: workspace.workspaceSha256,
     sourceSha256: normalizedPack.case.sourceSha256,
     caseId,
+    campaign,
     tracks: Object.freeze(associatedTracks),
     queue: Object.freeze(queue),
     summary: Object.freeze({

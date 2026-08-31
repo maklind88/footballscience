@@ -42,6 +42,37 @@ function selected(value, expected) {
   return String(value) === String(expected) ? " selected" : "";
 }
 
+function campaignStatus(value = {}) {
+  const labels = {
+    ready: "Protected on this device",
+    saving: "Saving campaign progress",
+    "session-only": "Campaign progress lasts for this session",
+    error: "Campaign progress needs attention",
+  };
+  return labels[value.status] || "Campaign progress";
+}
+
+function renderCampaign(value = null) {
+  if (!value?.caseCount) return "";
+  return `
+    <section class="video-analysis-preannotation__campaign" aria-label="Annotation campaign progress">
+      <header>
+        <div><span>Annotation campaign</span><strong>${count(value.decisionCount)}/${count(value.totalSuggestionCount)} decisions</strong></div>
+        <em>${count(value.completeCaseCount)}/${count(value.caseCount)} complete</em>
+      </header>
+      <ol>
+        ${value.cases.map((entry) => `
+          <li class="${entry.active ? "is-active" : ""}${entry.complete ? " is-complete" : ""}" ${entry.active ? 'aria-current="step"' : ""}>
+            <div><strong>${escapeHtml(entry.caseId)}</strong><span>${count(entry.decisionCount)}/${count(entry.totalSuggestionCount)} decisions | ${count(entry.resolvedCount)} resolved</span></div>
+            ${(entry.missingSuggestedEntityTypes || []).length ? `<em>Find ${escapeHtml(entry.missingSuggestedEntityTypes.join(", "))}</em>` : entry.complete ? "<em>Complete</em>" : "<em>Pending</em>"}
+          </li>
+        `).join("")}
+      </ol>
+      <p class="${value.status === "error" ? "is-error" : ""}">${escapeHtml(campaignStatus(value))}${value.error ? `<span>${escapeHtml(value.error)}</span>` : ""}</p>
+    </section>
+  `;
+}
+
 export function renderTrackingPreannotationReviewPanel(state = {}, item = null) {
   const review = state.presentation?.tracking?.preannotationReview || {};
   const active = ["loading", "saving"].includes(review.status);
@@ -68,6 +99,7 @@ export function renderTrackingPreannotationReviewPanel(state = {}, item = null) 
           <div><dt>Rejected</dt><dd>${count(review.rejectedCount)}</dd></div>
           <div><dt>Saved</dt><dd>${count(review.savedCount)}</dd></div>
         </dl>
+        ${renderCampaign(review.campaign)}
         <div class="video-analysis-preannotation__batchbar">
           <label>
             <span>Focus</span>

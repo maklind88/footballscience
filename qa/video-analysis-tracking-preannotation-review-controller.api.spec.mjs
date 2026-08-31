@@ -430,6 +430,126 @@ test("preannotation review restores, serializes, and removes exact local decisio
   });
 });
 
+test("preannotation review restores and advances source-bound campaign progress", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/controllers/trackingPreannotationReviewController.js",
+  ));
+  let state = initialState();
+  const campaignWrites = [];
+  const draftScope = {
+    organizationId: "org-review",
+    teamId: "team-review",
+    userId: "analyst-review",
+    matchId: "match-review",
+    clipId: "clip-1",
+  };
+  const associated = track("associated-player", "player", 1000, 0.8, "associated");
+  const unassociated = track("unassociated-ball", "ball", 500, 0.4, "unassociated");
+  const controller = service.createTrackingPreannotationReviewController({
+    getState: () => state,
+    updateState: (updater) => { state = updater(state); },
+    getWindow: () => ({ crypto: globalThis.crypto }),
+    getDraftScope: () => draftScope,
+    pickFiles: async () => ({ caseId: "transition" }),
+    importCase: async () => ({
+      workspaceSha256: "b".repeat(64),
+      sourceSha256: "a".repeat(64),
+      caseId: "transition",
+      tracks: [associated],
+      queue: [{ track: unassociated }],
+      summary: { associatedTrackCount: 1, unassociatedObservationCount: 1 },
+      campaign: {
+        workspaceSha256: "b".repeat(64),
+        packId: "real-match-pack",
+        caseCount: 2,
+        totalSuggestionCount: 5,
+        cases: [
+          {
+            caseId: "transition",
+            totalSuggestionCount: 2,
+            associatedTrackCount: 1,
+            unassociatedObservationCount: 1,
+            missingSuggestedEntityTypes: [],
+          },
+          {
+            caseId: "other-case",
+            totalSuggestionCount: 3,
+            associatedTrackCount: 2,
+            unassociatedObservationCount: 1,
+            missingSuggestedEntityTypes: ["referee"],
+          },
+        ],
+      },
+    }),
+    loadDraft: async () => null,
+    saveDraft: async (_scope, value) => value,
+    removeDraft: async () => true,
+    loadCampaignCases: async (scope, workspaceSha256) => {
+      expect(scope).toBe(draftScope);
+      expect(workspaceSha256).toBe("b".repeat(64));
+      return [{
+        workspaceSha256: "b".repeat(64),
+        packId: "real-match-pack",
+        caseId: "other-case",
+        totalSuggestionCount: 3,
+        pendingCount: 1,
+        acceptedCount: 0,
+        rejectedCount: 1,
+        savedCount: 1,
+        updatedAt: "2026-08-31T12:00:00.000Z",
+      }];
+    },
+    saveCampaignCase: async (scope, value) => {
+      expect(scope).toBe(draftScope);
+      const record = { ...structuredClone(value), updatedAt: "2026-08-31T12:01:00.000Z" };
+      campaignWrites.push(record);
+      return record;
+    },
+  });
+
+  expect(await controller.open()).toBe(true);
+  expect(campaignWrites).toHaveLength(1);
+  expect(campaignWrites[0]).toMatchObject({
+    caseId: "transition",
+    pendingCount: 2,
+    acceptedCount: 0,
+    rejectedCount: 0,
+    savedCount: 0,
+  });
+  expect(state.presentation.tracking.preannotationReview.campaign).toMatchObject({
+    status: "ready",
+    caseCount: 2,
+    openedCaseCount: 2,
+    completeCaseCount: 0,
+    totalSuggestionCount: 5,
+    decisionCount: 2,
+    resolvedCount: 2,
+    cases: [
+      { caseId: "transition", pendingCount: 2, decisionCount: 0, active: true },
+      { caseId: "other-case", pendingCount: 1, decisionCount: 2, active: false },
+    ],
+  });
+
+  expect(controller.handleAction("preannotation-accept")).toBe(true);
+  expect(await controller.flushDraft()).toBe(true);
+  expect(campaignWrites.at(-1)).toMatchObject({
+    caseId: "transition",
+    pendingCount: 1,
+    acceptedCount: 1,
+    rejectedCount: 0,
+    savedCount: 0,
+  });
+  expect(state.presentation.tracking.preannotationReview.campaign).toMatchObject({
+    status: "ready",
+    decisionCount: 3,
+    resolvedCount: 2,
+    cases: [
+      { caseId: "transition", acceptedCount: 1, complete: false },
+      { caseId: "other-case", decisionCount: 2, resolvedCount: 2, complete: false },
+    ],
+  });
+});
+
 test("preannotation review scopes work in explicit bounded batches without bulk decisions", async () => {
   const service = await import(moduleUrl(
     "src/modules/video-analysis/controllers/trackingPreannotationReviewController.js",

@@ -21,6 +21,35 @@ function selectedFile(files, expectedName, errorMessage) {
   return file;
 }
 
+function normalizeCampaignState(value = null) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    status: String(value.status || "idle"),
+    error: String(value.error || ""),
+    workspaceSha256: String(value.workspaceSha256 || ""),
+    packId: String(value.packId || ""),
+    caseCount: Math.max(0, Number(value.caseCount) || 0),
+    openedCaseCount: Math.max(0, Number(value.openedCaseCount) || 0),
+    completeCaseCount: Math.max(0, Number(value.completeCaseCount) || 0),
+    totalSuggestionCount: Math.max(0, Number(value.totalSuggestionCount) || 0),
+    decisionCount: Math.max(0, Number(value.decisionCount) || 0),
+    resolvedCount: Math.max(0, Number(value.resolvedCount) || 0),
+    cases: (Array.isArray(value.cases) ? value.cases : []).slice(0, 100).map((entry) => ({
+      caseId: String(entry.caseId || ""),
+      totalSuggestionCount: Math.max(0, Number(entry.totalSuggestionCount) || 0),
+      decisionCount: Math.max(0, Number(entry.decisionCount) || 0),
+      resolvedCount: Math.max(0, Number(entry.resolvedCount) || 0),
+      pendingCount: Math.max(0, Number(entry.pendingCount) || 0),
+      acceptedCount: Math.max(0, Number(entry.acceptedCount) || 0),
+      rejectedCount: Math.max(0, Number(entry.rejectedCount) || 0),
+      savedCount: Math.max(0, Number(entry.savedCount) || 0),
+      missingSuggestedEntityTypes: (entry.missingSuggestedEntityTypes || []).map(String).slice(0, 3),
+      complete: entry.complete === true,
+      active: entry.active === true,
+    })),
+  };
+}
+
 export function normalizeTrackingPreannotationReviewState(value = {}) {
   return {
     status: String(value.status || "idle"),
@@ -43,6 +72,7 @@ export function normalizeTrackingPreannotationReviewState(value = {}) {
     draftStatus: String(value.draftStatus || "idle"),
     draftError: String(value.draftError || ""),
     restoredDecisionCount: Math.max(0, Number(value.restoredDecisionCount) || 0),
+    campaign: normalizeCampaignState(value.campaign),
     current: value.current && typeof value.current === "object" ? value.current : null,
     error: String(value.error || ""),
   };

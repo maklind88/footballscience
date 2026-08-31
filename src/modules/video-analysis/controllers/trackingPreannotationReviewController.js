@@ -19,6 +19,7 @@ import {
   createTrackingPreannotationReviewDraftController,
   restoreTrackingPreannotationReviewDecisions,
 } from "./trackingPreannotationReviewDraftController.js";
+import { createTrackingPreannotationCampaignController } from "./trackingPreannotationCampaignController.js";
 import {
   patchTrackingState,
   replacePresentationItem,
@@ -46,6 +47,12 @@ export function createTrackingPreannotationReviewController(options = {}) {
     removeDraft: options.removeDraft,
     now: options.now,
   });
+  const campaignController = createTrackingPreannotationCampaignController({
+    getWindow,
+    loadCampaignCases: options.loadCampaignCases,
+    saveCampaignCase: options.saveCampaignCase,
+    now: options.now,
+  });
   let session = null;
 
   function patchReview(patch = {}) {
@@ -59,8 +66,21 @@ export function createTrackingPreannotationReviewController(options = {}) {
 
   function saveDraftProgress() {
     const target = session;
+    const summary = counts();
+    const campaign = campaignController.preview(target, summary);
+    if (campaign) patchReview({ campaign });
     return draftController.save(target, (patch) => {
       if (session === target) patchReview(patch);
+    }).then((saved) => {
+      if (target?.scope && !saved) {
+        const failedCampaign = campaignController.failed(target, summary);
+        if (session === target && failedCampaign) patchReview({ campaign: failedCampaign });
+        return false;
+      }
+      return campaignController.save(target, summary).then((nextCampaign) => {
+        if (session === target && nextCampaign) patchReview({ campaign: nextCampaign });
+        return true;
+      });
     });
   }
 
@@ -254,6 +274,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
         sourceSha256: imported.sourceSha256,
         workspaceSha256: imported.workspaceSha256,
         caseId: imported.caseId,
+        campaign: imported.campaign || null,
         entries,
         decisions: decisionRestore.decisions,
         history: decisionRestore.history,
@@ -261,6 +282,15 @@ export function createTrackingPreannotationReviewController(options = {}) {
         currentId: "",
         draftRevision: 0,
       };
+      const campaign = await campaignController.open(session, counts());
+      const openedState = getState();
+      const openedItem = selectedTrackingItem(openedState);
+      if (openedItem?.id !== item.id
+        || String(openedItem?.clipId || openedItem?.clip?.id || "") !== clipId
+        || String(openedState.mediaProduction?.activeAngleId || "primary") !== angleId
+        || trackingSourceFingerprint(openedState) !== sourceSha256) {
+        invalid("The selected clip or video source changed while preannotation was opening.");
+      }
       patchReview({
         status: "review",
         caseId: imported.caseId,
@@ -272,6 +302,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
         draftStatus: scope ? draftError ? "error" : restoredDraft ? "restored" : "ready" : "session-only",
         draftError: draftError || (scope ? "" : "Sign in to keep review progress after this browser session."),
         restoredDecisionCount: decisionRestore.restoredDecisionCount,
+        campaign,
         current: null,
         error: "",
       });
@@ -421,7 +452,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
   }
 
   return {
-    flushDraft: draftController.flush,
+    flushDraft: async () => (await draftController.flush()) && Boolean(await campaignController.flush()),
     handleAction,
     handleField,
     open,

@@ -161,6 +161,18 @@ test("preannotation review import materializes associated tracks and keeps raw d
     approvalReady: false,
     sourceSha256: value.sourceSha256,
     caseId: "transition",
+    campaign: {
+      workspaceSha256: value.workspace.workspaceSha256,
+      packId: "real-match-pack",
+      caseCount: 1,
+      totalSuggestionCount: 2,
+      cases: [{
+        caseId: "transition",
+        totalSuggestionCount: 2,
+        associatedTrackCount: 1,
+        unassociatedObservationCount: 1,
+      }],
+    },
     summary: {
       associatedTrackCount: 1,
       unassociatedObservationCount: 1,

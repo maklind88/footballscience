@@ -21,7 +21,7 @@ Serve privileged application code through Tauri custom protocols:
 - navigation, new-window and download callbacks fail closed;
 - capabilities are disjoint by window label, and native commands repeat the role/origin check rather than relying on ACL configuration alone.
 
-Tauri custom-protocol origins differ by platform. The implementation accepts only `fs-<role>://localhost` on macOS/Linux or Tauri/WebView2's internally intercepted `http://fs-<role>.localhost` virtual origin on Windows. The Windows form is not a localhost listener. `use_https_scheme(true)` is deliberately not enabled because Tauri documents that the HTTPS custom-protocol form blocks mixed HTTP content, which includes its internal IPC transport. Scheme and host lookalikes, arbitrary HTTPS pages, auth providers and product links cannot navigate a privileged window.
+Tauri custom-protocol origins differ by platform. The navigation callback accepts the exact registered `fs-<role>://localhost` request before platform translation. macOS/Linux retain that origin; Windows maps it to Tauri/WebView2's internally intercepted `http://fs-<role>.localhost` virtual origin. The Windows form is not a localhost listener. `use_https_scheme(true)` is deliberately not enabled because Tauri documents that the HTTPS custom-protocol form blocks mixed HTTP content, which includes its internal IPC transport. Scheme and host lookalikes, arbitrary HTTPS pages, auth providers and product links cannot navigate a privileged window.
 
 The synthetic release source on `127.0.0.1:47842` is only a test publication endpoint. It is never a privileged WebView content origin and is not the proposed production publication URL.
 

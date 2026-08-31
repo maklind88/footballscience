@@ -204,11 +204,16 @@ pub fn navigation_allowed(role: WebviewRole, url: &Url) -> bool {
 }
 
 fn custom_origin(url: &Url, scheme: &str) -> bool {
-    custom_origin_for_platform(
-        url,
-        scheme,
-        cfg!(any(target_os = "windows", target_os = "android")),
-    )
+    custom_protocol_request_origin(url, scheme)
+        || custom_origin_for_platform(
+            url,
+            scheme,
+            cfg!(any(target_os = "windows", target_os = "android")),
+        )
+}
+
+fn custom_protocol_request_origin(url: &Url, scheme: &str) -> bool {
+    url.scheme() == scheme && url.host_str() == Some("localhost") && url.port().is_none()
 }
 
 fn custom_origin_for_platform(url: &Url, scheme: &str, http_virtual_origin: bool) -> bool {
@@ -238,6 +243,7 @@ mod tests {
         let lookalike: Url = "http://fs-active.evil.example/active/index.html"
             .parse()
             .unwrap();
+        assert!(custom_protocol_request_origin(&mac, "fs-active"));
         assert!(custom_origin_for_platform(&mac, "fs-active", false));
         assert!(custom_origin_for_platform(&windows, "fs-active", true));
         assert!(!custom_origin_for_platform(

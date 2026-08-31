@@ -14,7 +14,7 @@ Privileged content is not served from localhost. It uses role-specific Tauri cus
 - `fs-candidate` / `http://fs-candidate.localhost` for a hidden/incognito compatibility-only candidate;
 - `fs-recovery` / `http://fs-recovery.localhost` for bundled read-only recovery.
 
-macOS/Linux and Windows use different custom-origin shapes. The Windows form is Tauri/WebView2's internally intercepted virtual HTTP origin, not a network listener. It deliberately retains Tauri's default scheme so its internal IPC endpoint is not blocked as mixed content. Exact scheme, host, role, window label and navigation checks account for both; HTTPS lookalikes, new windows, downloads and arbitrary external navigation are denied.
+macOS/Linux and Windows use different custom-origin shapes. Tauri's navigation callback first observes the exact registered `fs-<role>://localhost` request; Windows then maps it to the internally intercepted virtual HTTP origin. The Windows form is not a network listener and deliberately retains Tauri's default scheme so its internal IPC endpoint is not blocked as mixed content. Exact scheme, host, role, window label and navigation checks account for both stages; HTTPS lookalikes, new windows, downloads and arbitrary external navigation are denied.
 
 The shell cache is `fs-desktop-native-shell-cache-v2`. It is an app-data filesystem/SQLite registry, not browser/PWA Cache Storage and not a service worker. It contains only signed public code assets; token, auth, private JSON, user football, medical and outbox data are forbidden.
 

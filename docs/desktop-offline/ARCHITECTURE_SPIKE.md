@@ -1,8 +1,8 @@
 # Desktop Delivery Architecture Spike
 
-Date: 2026-08-30
+Date: 2026-08-30; Windows evidence added 2026-08-31
 
-Status: macOS evidence complete; Windows gate open
+Status: delivery-model architecture gate provisionally closed; physical Windows production-readiness gate remains open
 
 ## Scope
 
@@ -33,6 +33,19 @@ macOS results:
 
 This proves the delivery mechanism on WKWebView, not the live FS cache policy. The production worker remains push-only and the current shell would not pass the same test.
 
+Windows CI results on exact commit `0b1eb419f9a0c0cbb4fb7175b05b82f9625ac0bc`:
+
+- Windows Server 2025 Datacenter x64 runner with WebView2 `151.0.4129.101`: detected and exercised;
+- hosted release compilation and startup: passed;
+- versioned shell cache `fs-desktop-hosted-shell-v3`: installed and controlled after process restart;
+- online → offline transition with the loopback-only synthetic origin stopped: passed from cache;
+- process restart while the synthetic origin remained unavailable: passed with service-worker control retained;
+- offline → online recovery in the same process: passed after the synthetic origin restarted;
+- command compiled into the binary but omitted from capabilities: rejected;
+- granted command invoked from unauthorized origin `http://127.0.0.1:47843`: rejected by ACL.
+
+These are automated WebView2 results from a GitHub-hosted Windows VM. The network transition was simulated by stopping and starting an unprivileged loopback server. It is not evidence for a physical PC, real adapter switching, installer UX, sleep/wake, Credential Manager, SmartScreen, update UX, or physical Windows restart. Full evidence is recorded in `WINDOWS_CI_EVIDENCE.md` and [GitHub Actions run 33355879972](https://github.com/maklind88/footballscience/actions/runs/33355879972).
+
 ## Candidate B — bundled local frontend
 
 Prototype:
@@ -41,7 +54,7 @@ Prototype:
 - the same two-command DesktopBridge is used;
 - startup records a probe without contacting a server.
 
-macOS result: packaged local-asset startup and native bridge passed. Offline reliability is inherently stronger, but every ordinary frontend change in this raw model requires a native release. That conflicts with FS's frequent web deployment model.
+macOS result: packaged local-asset startup and native bridge passed. Windows CI result: release compilation, local-asset startup, the same two-command bridge, and rejection of the compiled-but-ungranted command passed. Offline reliability is inherently stronger, but every ordinary frontend change in this raw model requires a native release. That conflicts with FS's frequent web deployment model.
 
 ## Candidate C — separately signed frontend bundle
 
@@ -53,7 +66,7 @@ No executable-code updater was built. Candidate C would solve B's update delay a
 | --- | --- | --- | --- |
 | Ordinary web update speed | Best fit | Requires native release | Fast after a second update system exists |
 | macOS offline cold start | Passed spike | Passed spike | Expected, not built |
-| Windows offline cold start | Not yet tested | Not yet tested | Not tested |
+| Windows offline cold start | Passed in headless Windows CI with synthetic origin unavailable | Passed in headless Windows CI without network dependency | Not tested |
 | Remote/XSS native risk | Acceptable only with origin-scoped, narrow commands | Lower remote-origin risk | High supply-chain/update complexity |
 | Native capability isolation | Passed two-command spike | Passed two-command spike | Would need the same bridge plus bundle verification |
 | Current repo compatibility | Preserves live static app model | Would freeze frontend at installer version | Requires new frontend packaging pipeline |
@@ -62,9 +75,9 @@ No executable-code updater was built. Candidate C would solve B's update delay a
 | Code duplication | Lowest if hosted UI remains primary | Risk of web/desktop drift | Low UI duplication, high platform duplication |
 | Long-term complexity | Medium | Low runtime, high release friction | Highest |
 
-## Provisional recommendation
+## Recommendation after Windows CI
 
-Candidate A is the provisional fit, with these mandatory conditions:
+Candidate A remains the recommended fit, with these mandatory conditions:
 
 1. desktop remote capability stays deny-by-default and command-specific;
 2. the shell cache is small, versioned, health-checked, and compatibility-gated;
@@ -72,7 +85,7 @@ Candidate A is the provisional fit, with these mandatory conditions:
 4. offline domain data and pending work live outside Cache Storage;
 5. no broad native API is callable from hosted code;
 6. the live push worker is evolved carefully or desktop caching gets an isolated, testable scope;
-7. Windows packaged cold-start and capability tests pass before ADR acceptance.
+7. physical Windows readiness tests pass before installer or production availability.
 
 Candidate B remains the recovery fallback if Windows/WebView2 or production-origin service-worker behavior fails. Candidate C remains rejected unless both A and B demonstrably fail the product requirements.
 
@@ -118,6 +131,10 @@ No Supabase change was applied. Before implementation:
 6. add cross-tenant, replay, malformed payload, stale revision, and revocation tests;
 7. apply only to a local/branch or authorized staging environment before production.
 
-## Gate still open
+The known migration counts remain `60` repository migrations, `49` production migrations, and `48` staging migrations. This spike neither adds a migration nor attempts to repair that history. No new synchronization schema may be introduced until the difference is reconciled and documented.
 
-ADR acceptance is blocked on Windows evidence, not on a discovered security/data-loss defect. A Windows CI or physical Windows environment must build the exact spike and test WebView2 cold start, transition recovery, and remote capability denial. Installer/signing testing remains later Phase 11 work.
+## Gate disposition
+
+The delivery-model architecture gate is provisionally closed for the next local implementation phase. Windows CI built the exact spike and passed WebView2 startup, synthetic offline cold restart, transition recovery, narrow-command enforcement, unauthorized-command denial, and unauthorized-origin denial. Candidate A therefore remains primary and Candidate B remains a viable recovery fallback.
+
+This does not close production readiness. Physical Windows verification, installer/signing, Credential Manager integration, cache compatibility/last-known-good retention against the real FS shell, and the migration-history reconciliation remain explicit later gates. No installer was generated or published, no release was created, and no staging or production system changed.

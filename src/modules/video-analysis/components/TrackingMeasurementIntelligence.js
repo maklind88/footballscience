@@ -64,6 +64,40 @@ function evidenceSummary(intelligence) {
   `;
 }
 
+function diagnosticSummary(intelligence) {
+  const diagnostics = intelligence.diagnostics;
+  if (!intelligence.verified || !diagnostics) return "";
+  if (diagnostics.status !== "ready") {
+    return `
+      <p class="video-analysis-measurement-intelligence__issue">
+        Per-case entity metrics are incomplete (${escapeHtml(`${diagnostics.measuredMetricCellCount}/${diagnostics.expectedMetricCellCount}`)} verified cells).
+      </p>
+    `;
+  }
+  const failures = diagnostics.hotspots.filter((entry) => entry.status === "failed");
+  const rows = (failures.length ? failures : diagnostics.hotspots).slice(0, 3);
+  if (!rows.length) return "";
+  return `
+    <div class="video-analysis-measurement-intelligence__hotspots">
+      <header>
+        <span>${failures.length ? "Measured hotspots" : "Tightest verified margins"}</span>
+        <em>${escapeHtml(failures.length ? `${failures.length} below target` : "All targets met")}</em>
+      </header>
+      <ol>
+        ${rows.map((entry) => `
+          <li class="is-${escapeHtml(entry.status)}">
+            <div>
+              <strong>${escapeHtml(`${entry.caseId} · ${entry.entityLabel}`)}</strong>
+              <span>${escapeHtml(`${entry.dimension} · ${entry.metricLabel}`)}</span>
+            </div>
+            <em>${escapeHtml(`${percent(entry.actual)} · ${signedPercent(entry.delta)}`)}</em>
+          </li>
+        `).join("")}
+      </ol>
+    </div>
+  `;
+}
+
 export function renderTrackingMeasurementIntelligence(evaluation = {}) {
   const intelligence = trackingMeasurementIntelligence(evaluation);
   if (!intelligence) return "";
@@ -84,6 +118,7 @@ export function renderTrackingMeasurementIntelligence(evaluation = {}) {
         </table>
       </div>
       ${evidenceSummary(intelligence)}
+      ${diagnosticSummary(intelligence)}
       <footer>
         <span>Independent cross-check</span>
         <strong>${escapeHtml(`${intelligence.crossValidation.passedCaseCount}/${intelligence.crossValidation.caseCount} cases`)}</strong>

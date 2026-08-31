@@ -24,6 +24,7 @@
 .video-analysis-measurement-intelligence > header span,
 .video-analysis-measurement-intelligence__entities > span,
 .video-analysis-measurement-intelligence__focus > span,
+.video-analysis-measurement-intelligence__hotspots > header span,
 .video-analysis-measurement-intelligence__evidence dt,
 .video-analysis-measurement-intelligence > footer span {
   color: #66756d;
@@ -220,6 +221,82 @@
   font-weight: 750;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.video-analysis-measurement-intelligence__hotspots {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border-top: 1px solid #e1e7e4;
+  padding-top: 6px;
+}
+
+.video-analysis-measurement-intelligence__hotspots > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.video-analysis-measurement-intelligence__hotspots > header em {
+  color: #8a2b2b;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 750;
+}
+
+.video-analysis-measurement-intelligence__hotspots ol {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video-analysis-measurement-intelligence__hotspots li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border-top: 1px solid #e6ebe8;
+  padding: 5px 2px;
+}
+
+.video-analysis-measurement-intelligence__hotspots li > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.video-analysis-measurement-intelligence__hotspots li strong,
+.video-analysis-measurement-intelligence__hotspots li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-measurement-intelligence__hotspots li strong {
+  color: #30443a;
+  font-size: 8px;
+}
+
+.video-analysis-measurement-intelligence__hotspots li span {
+  color: #6d7972;
+  font-size: 7px;
+}
+
+.video-analysis-measurement-intelligence__hotspots li > em {
+  color: #17623c;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.video-analysis-measurement-intelligence__hotspots li.is-failed > em {
+  color: #a12626;
 }
 
 .video-analysis-measurement-intelligence > footer {

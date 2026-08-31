@@ -46,14 +46,26 @@ function entityReport(overrides = {}) {
   };
 }
 
-function benchmarkCase(id, HOTA, passed = true) {
+function caseEntities(overrides = {}) {
+  return {
+    player: entityReport({ HOTA: 0.77, DetA: 0.85, AssA: 0.72, LocA: 0.86, MOTA: 0.88, IDF1: 0.91 }),
+    ball: entityReport({ HOTA: 0.68, DetA: 0.76, AssA: 0.67, LocA: 0.78, MOTA: 0.81, IDF1: 0.86 }),
+    referee: entityReport({ HOTA: 0.7, DetA: 0.79, AssA: 0.68, LocA: 0.8, MOTA: 0.83, IDF1: 0.87 }),
+    ...overrides,
+  };
+}
+
+function benchmarkCase(id, HOTA, passed = true, perEntity = caseEntities()) {
   return {
     benchmarkId: id,
     verdict: { passed },
     referenceValidation: {
+      status: "verified",
+      reportSha256: "a".repeat(64),
       passed,
-      metrics: metrics({ HOTA }),
+      metrics: metrics({ HOTA, AssA: 0.68 }),
       requiredThresholds: thresholds,
+      perEntity,
       crossValidation: { passed: true },
     },
   };
@@ -78,7 +90,9 @@ function evaluation(overrides = {}) {
       },
       cases: [
         benchmarkCase("attacking-third", 0.7),
-        benchmarkCase("fast-transition", 0.59, false),
+        benchmarkCase("fast-transition", 0.59, false, caseEntities({
+          ball: entityReport({ HOTA: 0.5, DetA: 0.57, AssA: 0.35, LocA: 0.77, MOTA: 0.82, IDF1: 0.6 }),
+        })),
       ],
     },
     ...overrides,
@@ -101,8 +115,23 @@ test("measurement intelligence identifies only measured TrackEval limiters", asy
     weakestCase: { id: "fast-transition", HOTA: 0.59 },
     crossValidation: { passedCaseCount: 2, caseCount: 2 },
     events: { identitySwitches: 7, fragmentations: 12 },
+    diagnostics: {
+      status: "ready",
+      thresholdUse: "diagnostic-target",
+      measuredMetricCellCount: 36,
+      expectedMetricCellCount: 36,
+      belowTargetCount: 4,
+    },
   });
   expect(result.limiter.delta).toBeCloseTo(-0.01, 10);
+  expect(result.diagnostics.hotspots[0]).toMatchObject({
+    caseId: "fast-transition",
+    entityId: "ball",
+    metricId: "AssA",
+    dimension: "Association continuity",
+    status: "failed",
+  });
+  expect(result.diagnostics.hotspots[0].delta).toBeCloseTo(-0.3, 10);
 });
 
 test("measurement intelligence stays incomplete when verified per-entity evidence is absent", async () => {
@@ -116,6 +145,74 @@ test("measurement intelligence stays incomplete when verified per-entity evidenc
   expect(result.status).toBe("incomplete");
   expect(result.verified).toBe(false);
   expect(result.providerApprovalReady).toBe(false);
+  expect(result.diagnostics).toMatchObject({ status: "incomplete", hotspots: [] });
+});
+
+test("measurement diagnostics reject crossed report identity and partial case entity evidence", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingMeasurementIntelligenceService.js",
+  ));
+  const crossed = evaluation();
+  crossed.report.cases[0].referenceValidation.reportSha256 = "f".repeat(64);
+  const crossedResult = service.trackingMeasurementIntelligence(crossed);
+  expect(crossedResult.verified).toBe(false);
+  expect(crossedResult.diagnostics).toMatchObject({ status: "incomplete", hotspots: [] });
+
+  const partial = evaluation();
+  delete partial.report.cases[1].referenceValidation.perEntity.referee;
+  const partialResult = service.trackingMeasurementIntelligence(partial);
+  expect(partialResult.verified).toBe(true);
+  expect(partialResult.diagnostics).toMatchObject({
+    status: "incomplete",
+    measuredMetricCellCount: 30,
+    expectedMetricCellCount: 36,
+    hotspots: [],
+  });
+});
+
+test("measurement intelligence derives approval from measured gates instead of the summary claim", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingMeasurementIntelligenceService.js",
+  ));
+  const claimed = evaluation();
+  claimed.report.summary.providerApprovalReady = true;
+  claimed.report.cases.forEach((entry) => {
+    entry.verdict.passed = true;
+    entry.referenceValidation.passed = true;
+  });
+  const result = service.trackingMeasurementIntelligence(claimed);
+
+  expect(result.verified).toBe(true);
+  expect(result.failedMetricCount).toBe(1);
+  expect(result.providerApprovalReady).toBe(false);
+  expect(result.status).toBe("failed");
+});
+
+test("measurement intelligence keeps a passed report as a target watchlist without false hotspots", async () => {
+  const [service, component] = await Promise.all([
+    import(moduleUrl("src/modules/video-analysis/services/trackingMeasurementIntelligenceService.js")),
+    import(moduleUrl("src/modules/video-analysis/components/TrackingMeasurementIntelligence.js")),
+  ]);
+  const passed = evaluation();
+  passed.status = "passed";
+  passed.report.summary.providerApprovalReady = true;
+  passed.report.referenceValidation.metrics = metrics({ AssA: 0.7 });
+  passed.report.referenceValidation.perEntity = caseEntities();
+  passed.report.cases = [
+    benchmarkCase("attacking-third", 0.7),
+    benchmarkCase("fast-transition", 0.69),
+  ];
+  const result = service.trackingMeasurementIntelligence(passed);
+  const html = component.renderTrackingMeasurementIntelligence(passed);
+
+  expect(result).toMatchObject({
+    status: "passed",
+    providerApprovalReady: true,
+    diagnostics: { status: "ready", belowTargetCount: 0 },
+  });
+  expect(html).toContain("Tightest verified margins");
+  expect(html).toContain("All targets met");
+  expect(html).not.toContain("Measured hotspots");
 });
 
 test("measurement panel exposes gates, entity profile and evidence-bound next focus", async () => {
@@ -132,6 +229,10 @@ test("measurement panel exposes gates, entity profile and evidence-bound next fo
   expect(html).toContain("Ball");
   expect(html).toContain("fast-transition");
   expect(html).toContain("2/2 cases");
+  expect(html).toContain("Measured hotspots");
+  expect(html).toContain("fast-transition · Ball");
+  expect(html).toContain("Association continuity · AssA");
+  expect(html).toContain("-30.0 pp");
   expect(html).not.toContain("data-video-analysis-tracking-action");
 });
 

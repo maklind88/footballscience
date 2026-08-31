@@ -194,6 +194,7 @@ export function createTrackingBatchController(options = {}) {
           error: "",
         });
       });
+      options.invalidateGroundTruth?.(item.id);
       void options.refreshProvider?.();
       return true;
     } catch (error) {

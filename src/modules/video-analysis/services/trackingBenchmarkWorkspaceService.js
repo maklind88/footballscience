@@ -15,6 +15,7 @@ import {
   trackingGroundTruthArtifactBenchmarkType,
   validateGroundTruthArtifact,
 } from "./trackingGroundTruthService.js";
+import { normalizeTrackingGroundTruthSceneReview } from "./trackingGroundTruthSceneReviewService.js";
 import {
   MAX_TRACKING_PROVIDER_RUNS_PER_WORKSPACE,
   MAX_TRACKING_PROVIDER_RUN_WORKSPACE_BYTES,
@@ -119,6 +120,7 @@ function safeDraft(value = {}, itemId = "") {
     angleId: identifier(value.angleId, "camera angle id", true),
     frame: safeFrame(value.frame),
     range: safeRange(value.range),
+    sceneReview: normalizeTrackingGroundTruthSceneReview(value.sceneReview, value),
     attested: value.attested === true,
     exhaustiveSceneAttested: value.exhaustiveSceneAttested === true,
     lockedArtifact,

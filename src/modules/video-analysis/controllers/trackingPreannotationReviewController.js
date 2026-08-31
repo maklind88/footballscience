@@ -423,7 +423,7 @@ export function createTrackingPreannotationReviewController(options = {}) {
         });
       });
       await saveDraftProgress();
-      options.onEvidenceChanged?.();
+      options.onEvidenceChanged?.(session.itemId);
       return true;
     } catch (error) {
       patchReview({
@@ -463,13 +463,13 @@ export function createTrackingPreannotationReviewController(options = {}) {
         });
       });
       await saveDraftProgress();
-      options.onEvidenceChanged?.();
+      options.onEvidenceChanged?.(session.itemId);
       return true;
     } catch (error) {
       session.history = session.history.filter((entry) => session.decisions.get(entry.id) !== "saved");
       patchReview({ status: "error", ...counts(), error: error?.message || "Accepted review tracks could not be saved." });
       await saveDraftProgress();
-      if (savedAny) options.onEvidenceChanged?.();
+      if (savedAny) options.onEvidenceChanged?.(session.itemId);
       return false;
     }
   }

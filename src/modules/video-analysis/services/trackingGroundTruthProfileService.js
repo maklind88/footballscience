@@ -1,3 +1,5 @@
+import { createTrackingGroundTruthSceneReview } from "./trackingGroundTruthSceneReviewService.js";
+
 export const TRACKING_GROUND_TRUTH_PROFILE = "football-scene-pilot-v1";
 export const TRACKING_SELECTED_OBJECT_PROFILE = "selected-player-pilot-v1";
 export const TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT = "selected-object";
@@ -41,6 +43,7 @@ export function trackingGroundTruthEntry(workspace = {}, itemId = "") {
     sourceFingerprint: "",
     frame: { width: 0, height: 0 },
     range: { startMs: 0, endMs: 1 },
+    sceneReview: createTrackingGroundTruthSceneReview(),
     attested: false,
     exhaustiveSceneAttested: false,
     lockedArtifact: null,

@@ -10,6 +10,7 @@ import {
   trackingGroundTruthSuiteEntry,
 } from "../services/trackingGroundTruthSuiteService.js";
 import { escapeHtml } from "./renderHelpers.js";
+import { trackingGroundTruthSceneReviewProgress } from "../services/trackingGroundTruthSceneReviewService.js";
 
 function groundTruthState(state = {}, itemId = "") {
   return trackingGroundTruthEntry(state.presentation?.tracking?.groundTruth || {}, itemId);
@@ -61,6 +62,7 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
   const primaryTrack = tracks.find((track) => track.id === primaryTrackId);
   const primaryIsPlayer = primaryTrack?.entityType === "player";
   const primaryCanBeTarget = primaryIncluded && primaryTrack?.entityType === "player";
+  const sceneReview = trackingGroundTruthSceneReviewProgress(truth.sceneReview, truth);
   const readiness = locked ? lockedReadiness(truth) : groundTruthReadiness({
     tracks,
     selectedTrackIds: referenceIds,
@@ -73,6 +75,8 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
     attested: truth.attested === true,
     exhaustiveSceneAttested: truth.exhaustiveSceneAttested === true,
     benchmarkTargetTrackId: truth.benchmarkTargetTrackId,
+    sceneReview: truth.sceneReview,
+    requireSceneReview: true,
   });
   const issues = readiness.issues.slice(0, 3);
   const fingerprint = locked ? truth.lockedArtifact.sourceFingerprint : truth.sourceFingerprint;
@@ -103,6 +107,18 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
           ${selectedObject ? "" : `<button type="button" data-video-analysis-tracking-action="ground-truth-target" ${primaryCanBeTarget ? "" : "disabled"}>${truth.benchmarkTargetTrackId === primaryTrackId ? "Benchmark target" : "Set target"}</button>`}
           <button type="button" data-video-analysis-tracking-action="ground-truth-refresh">Refresh evidence</button>
         </div>
+        <div class="video-analysis-ground-truth__scene-review">
+          <div>
+            <strong>Scene checkpoints</strong>
+            <span>${escapeHtml(`${sceneReview.reviewedSampleCount}/${sceneReview.expectedSampleCount}`)}</span>
+          </div>
+          <progress max="${sceneReview.expectedSampleCount}" value="${sceneReview.reviewedSampleCount}">${escapeHtml(`${Math.round(sceneReview.coverageRatio * 100)}%`)}</progress>
+          <div>
+            <button type="button" data-video-analysis-tracking-action="ground-truth-scene-review" ${sceneReview.complete ? "disabled" : ""}>Review &amp; next</button>
+            <button type="button" data-video-analysis-tracking-action="ground-truth-scene-next" ${sceneReview.complete ? "disabled" : ""}>Next unreviewed</button>
+            <button type="button" data-video-analysis-tracking-action="ground-truth-scene-reset" ${sceneReview.reviewedSampleCount ? "" : "disabled"}>Reset</button>
+          </div>
+        </div>
         <fieldset class="video-analysis-ground-truth__scenarios">
           <legend>Scenario coverage</legend>
           ${TRACKING_BENCHMARK_SCENARIOS.map((scenario) => `
@@ -114,13 +130,13 @@ export function renderTrackingGroundTruthPanel(state = {}, item = null) {
         </fieldset>
         ${selectedObject ? "" : `
           <label class="video-analysis-ground-truth__attestation">
-            <input type="checkbox" data-video-analysis-tracking-field="groundTruthSceneComplete" ${truth.exhaustiveSceneAttested ? "checked" : ""}>
-            <span>All visible players, ball and referees included</span>
+            <input type="checkbox" data-video-analysis-tracking-field="groundTruthSceneComplete" ${truth.exhaustiveSceneAttested ? "checked" : ""} ${sceneReview.complete ? "" : "disabled"}>
+            <span>All visible players, ball and referees included at every checkpoint</span>
           </label>
         `}
         <label class="video-analysis-ground-truth__attestation">
-          <input type="checkbox" data-video-analysis-tracking-field="groundTruthAttested" ${truth.attested ? "checked" : ""}>
-          <span>${selectedObject ? "Target player reviewed frame by frame" : "Frame-by-frame review complete"}</span>
+          <input type="checkbox" data-video-analysis-tracking-field="groundTruthAttested" ${truth.attested ? "checked" : ""} ${sceneReview.complete ? "" : "disabled"}>
+          <span>${selectedObject ? "Target player reviewed at every checkpoint" : "Every reference track reviewed at each checkpoint"}</span>
         </label>
         ${issues.length ? `<ul class="video-analysis-ground-truth__issues">${issues.map((entry) => `<li>${escapeHtml(entry.message)}</li>`).join("")}</ul>` : `<p class="video-analysis-ground-truth__status is-ready">Ready to lock</p>`}
       `}

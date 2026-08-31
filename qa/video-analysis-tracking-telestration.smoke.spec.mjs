@@ -1226,6 +1226,11 @@ test("tracking controls and overlays stay contained on mobile", async ({ page },
   await page.locator('[data-video-analysis-tracking-action="ground-truth-toggle"]').click();
   await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-toggle"]')).toHaveText("Remove target");
   await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-target"]')).toHaveCount(0);
+  const sceneReview = page.locator(".video-analysis-ground-truth__scene-review");
+  await expect(sceneReview.locator("span")).toHaveText(/^0\/\d+$/);
+  await expect(page.locator('[data-video-analysis-tracking-field="groundTruthAttested"]')).toBeDisabled();
+  await sceneReview.locator('[data-video-analysis-tracking-action="ground-truth-scene-review"]').click();
+  await expect(sceneReview.locator("span")).toHaveText(/^1\/\d+$/);
   const geometry = await page.locator(".video-analysis-drawing-builder").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {

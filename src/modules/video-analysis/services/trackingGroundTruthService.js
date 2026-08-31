@@ -17,6 +17,11 @@ import { sampleTrackAt } from "./trackingBenchmarkMetrics.js";
 import { normalizeTrackingBenchmarkScenarios } from "./trackingBenchmarkScenarioService.js";
 import { normalizeGroundTruthReferenceEvidence } from "./trackingGroundTruthReferenceEvidenceService.js";
 import {
+  trackingGroundTruthSceneReviewEvidence,
+  trackingGroundTruthSceneReviewProgress,
+  validateTrackingGroundTruthSceneReviewEvidence,
+} from "./trackingGroundTruthSceneReviewService.js";
+import {
   TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
   TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT,
   TRACKING_GROUND_TRUTH_PROFILE,
@@ -146,6 +151,9 @@ export function groundTruthReadiness(value = {}) {
     : selected;
   const counts = entityCounts(tracks);
   const sceneCoverageRatio = groundTruthSceneTemporalCoverage(tracks, value.range);
+  const sceneReview = value.requireSceneReview === true && rangeReady(value.range)
+    ? trackingGroundTruthSceneReviewProgress(value.sceneReview, value)
+    : null;
   const issues = [];
   const ids = new Set();
   if (!sourceFingerprintPattern.test(String(value.sourceFingerprint || ""))) {
@@ -201,7 +209,18 @@ export function groundTruthReadiness(value = {}) {
     }
   }
   if (!String(value.reviewedBy || "").trim()) issues.push(issue("reviewer-missing", "A local analyst identity is required."));
-  if (value.attested !== true) issues.push(issue("attestation-missing", "Confirm that every selected track was reviewed frame by frame."));
+  if (value.attested !== true) issues.push(issue(
+    "attestation-missing",
+    value.requireSceneReview === true
+      ? "Confirm that every selected track matches the source at each required checkpoint."
+      : "Confirm that every selected track was reviewed frame by frame.",
+  ));
+  if (sceneReview && !sceneReview.complete) {
+    issues.push(issue(
+      "scene-review-incomplete",
+      `Review every benchmark checkpoint (${sceneReview.reviewedSampleCount}/${sceneReview.expectedSampleCount}).`,
+    ));
+  }
   if (benchmarkType === TRACKING_BENCHMARK_TYPE_MULTI_OBJECT && value.exhaustiveSceneAttested !== true) {
     issues.push(issue(
       "scene-completeness-missing",
@@ -216,6 +235,9 @@ export function groundTruthReadiness(value = {}) {
     verifiedTrackCount: tracks.filter((track) => track.status === "verified").length,
     entityCounts: counts,
     sceneCoverageRatio,
+    sceneReviewComplete: sceneReview ? sceneReview.complete : null,
+    reviewedSceneSampleCount: sceneReview?.reviewedSampleCount || 0,
+    expectedSceneSampleCount: sceneReview?.expectedSampleCount || 0,
     sourceFingerprintReady: sourceFingerprintPattern.test(String(value.sourceFingerprint || "")),
     frameReady: frameReady(value.frame),
     rangeReady: rangeReady(value.range),
@@ -355,6 +377,9 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
   const referenceEvidence = value.referenceEvidence
     ? normalizeGroundTruthReferenceEvidence(value.referenceEvidence)
     : null;
+  const sceneReviewEvidence = value.requireSceneReview === true
+    ? trackingGroundTruthSceneReviewEvidence(value.sceneReview, value)
+    : null;
   const artifact = {
     version: TRACKING_BENCHMARK_SCHEMA_VERSION,
     protocol: TRACKING_GROUND_TRUTH_PROTOCOL,
@@ -382,6 +407,7 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
       selectedObjectTargetTrackId: String(value.benchmarkTargetTrackId),
       entityCounts: readiness.entityCounts,
       sceneCoverageRatio: readiness.sceneCoverageRatio,
+      ...(sceneReviewEvidence ? { sceneReview: sceneReviewEvidence } : {}),
       scenarioTags: normalizeTrackingBenchmarkScenarios(value.scenarioTags),
     },
   };
@@ -406,6 +432,9 @@ export function validateGroundTruthArtifact(artifact = {}) {
   const normalizedScenarioTags = normalizeTrackingBenchmarkScenarios(scenarioTags);
   if (artifact.sourceEvidence?.reference) {
     normalizeGroundTruthReferenceEvidence(artifact.sourceEvidence.reference);
+  }
+  if (artifact.reviewEvidence?.sceneReview) {
+    validateTrackingGroundTruthSceneReviewEvidence(artifact.reviewEvidence.sceneReview, artifact);
   }
   if (artifact.protocol !== TRACKING_GROUND_TRUTH_PROTOCOL
     || Number(artifact.version) !== TRACKING_BENCHMARK_SCHEMA_VERSION

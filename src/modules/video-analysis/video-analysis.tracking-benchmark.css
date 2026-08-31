@@ -139,6 +139,48 @@
   flex: 1 1 0;
 }
 
+.video-analysis-ground-truth__scene-review {
+  display: grid;
+  gap: 6px;
+  border-block: 1px solid #e3e9e5;
+  padding-block: 7px;
+}
+
+.video-analysis-ground-truth__scene-review > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.video-analysis-ground-truth__scene-review strong,
+.video-analysis-ground-truth__scene-review span {
+  color: #526158;
+  font-size: 9px;
+}
+
+.video-analysis-ground-truth__scene-review progress {
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  accent-color: #26734b;
+}
+
+.video-analysis-ground-truth__scene-review button {
+  min-width: 0;
+  min-height: 30px;
+  border: 1px solid #cbd5ce;
+  border-radius: 6px;
+  padding: 5px 7px;
+  color: #203129;
+  background: #ffffff;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 750;
+}
+
 .video-analysis-ground-truth__scenarios {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

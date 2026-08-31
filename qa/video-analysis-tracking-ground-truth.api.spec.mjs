@@ -148,6 +148,27 @@ test("tracking controls create the selected object class end to end", async () =
       tracking: {
         mode: "tracking",
         selectedTrackIds: [],
+        groundTruth: {
+          byItemId: {
+            [item.id]: {
+              itemId: item.id,
+              status: "draft",
+              sourceFingerprint: "",
+              angleId: "",
+              range: { startMs: 0, endMs: 1000 },
+              sceneReview: {
+                protocol: "football-science-ground-truth-scene-review-v1",
+                sourceFingerprint: "",
+                angleId: "",
+                range: { startMs: 0, endMs: 1000 },
+                stepMs: 500,
+                reviewedAtMs: [0, 500, 1000],
+              },
+              attested: true,
+              exhaustiveSceneAttested: true,
+            },
+          },
+        },
         prompt: {
           entityType: "player",
           playerId: "p1",
@@ -187,6 +208,11 @@ test("tracking controls create the selected object class end to end", async () =
   await expect.poll(() => (
     state.presentation.current.sections[0].items[0].objectTracks[0]?.entityType
   )).toBe("ball");
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
+    sceneReview: { reviewedAtMs: [] },
+    attested: false,
+    exhaustiveSceneAttested: false,
+  });
 });
 
 test("tracking provider output honors the requested object class", async () => {
@@ -206,6 +232,54 @@ test("tracking provider output honors the requested object class", async () => {
     playerId: "must-not-survive",
   });
   expect(result.artifact).toMatchObject({ entityType: "ball", status: "review" });
+});
+
+test("scene review checkpoints are source-bound, resumable, and complete only once", async () => {
+  const review = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingGroundTruthSceneReviewService.js",
+  ));
+  const context = {
+    sourceFingerprint,
+    angleId: "angle-1",
+    range: { startMs: 0, endMs: 1000 },
+  };
+  let ledger = review.createTrackingGroundTruthSceneReview(context);
+  expect(review.trackingGroundTruthSceneReviewProgress(ledger, context)).toMatchObject({
+    expectedSampleCount: 3,
+    reviewedSampleCount: 0,
+    coverageRatio: 0,
+    complete: false,
+    nextAtMs: 0,
+  });
+  ledger = review.reviewTrackingGroundTruthSceneFrame(ledger, context, 30);
+  ledger = review.reviewTrackingGroundTruthSceneFrame(ledger, context, 30);
+  expect(review.trackingGroundTruthSceneReviewProgress(ledger, context)).toMatchObject({
+    reviewedSampleCount: 1,
+    nextAtMs: 500,
+  });
+  ledger = review.reviewTrackingGroundTruthSceneFrame(ledger, context, 530);
+  ledger = review.reviewTrackingGroundTruthSceneFrame(ledger, context, 1000);
+  expect(review.trackingGroundTruthSceneReviewProgress(ledger, context)).toMatchObject({
+    reviewedSampleCount: 3,
+    coverageRatio: 1,
+    complete: true,
+    nextAtMs: null,
+  });
+  expect(review.trackingGroundTruthSceneReviewEvidence(ledger, context)).toMatchObject({
+    reviewedSampleCount: 3,
+    expectedSampleCount: 3,
+    coverageRatio: 1,
+  });
+  const evidence = review.trackingGroundTruthSceneReviewEvidence(ledger, context);
+  expect(review.validateTrackingGroundTruthSceneReviewEvidence(evidence, context)).toEqual(evidence);
+  expect(() => review.validateTrackingGroundTruthSceneReviewEvidence({
+    ...evidence,
+    reviewerClaim: "untrusted-extra-field",
+  }, context)).toThrow(/incomplete or invalid/i);
+  expect(review.trackingGroundTruthSceneReviewProgress(ledger, {
+    ...context,
+    sourceFingerprint: "b".repeat(64),
+  })).toMatchObject({ reviewedSampleCount: 0, complete: false });
 });
 
 test("ground-truth readiness fails closed until exact source, entities, verification and attestation exist", async () => {
@@ -364,11 +438,14 @@ test("selected-object controller uses one player target and locks its evidence p
       proxy: { byAngleId: {} },
     },
   };
+  let playheadMs = 0;
   const controller = createTrackingGroundTruthController({
     getState: () => state,
     updateState: (updater) => { state = updater(state); },
     getVideoElement: () => ({ videoWidth: 1920, videoHeight: 1080 }),
     getReviewer: () => "analyst-1",
+    getCurrentMatchMs: () => playheadMs,
+    seekToMatchMs: (atMs) => { playheadMs = atMs; },
     now: () => 1_800_000_000_000,
   });
   expect(controller.handleAction("ground-truth-suite-mode", {
@@ -397,11 +474,27 @@ test("selected-object controller uses one player target and locks its evidence p
   expect(draftHtml).not.toContain('data-video-analysis-tracking-action="ground-truth-target"');
   expect(controller.handleField("groundTruthSceneComplete", { checked: true })).toBe(false);
   expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
+    attested: false,
+    error: expect.stringMatching(/every scene review checkpoint/i),
+  });
+  expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
+  expect(playheadMs).toBe(500);
+  expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
+  expect(playheadMs).toBe(1000);
+  expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].sceneReview.reviewedAtMs)
+    .toEqual([0, 500, 1000]);
+  expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
   expect(controller.handleAction("ground-truth-lock")).toBe(true);
   const artifact = state.presentation.tracking.groundTruth.byItemId[item.id].lockedArtifact;
   expect(artifact).toMatchObject({
     profileId: "selected-player-pilot-v1",
-    reviewEvidence: { benchmarkType: "selected-object", selectedObjectTargetTrackId: player.id },
+    reviewEvidence: {
+      benchmarkType: "selected-object",
+      selectedObjectTargetTrackId: player.id,
+      sceneReview: { reviewedSampleCount: 3, expectedSampleCount: 3, coverageRatio: 1 },
+    },
   });
   expect(artifact.groundTruth.tracks.map((track) => track.id)).toEqual([player.id]);
   expect(controller.handleAction("ground-truth-suite-mode", {
@@ -578,6 +671,7 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     },
   };
   const downloads = [];
+  let playheadMs = 0;
   const win = {
     Blob,
     URL: {
@@ -599,6 +693,8 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     getVideoElement: () => ({ videoWidth: 1920, videoHeight: 1080 }),
     getWindow: () => win,
     getReviewer: () => "analyst-1",
+    getCurrentMatchMs: () => playheadMs,
+    seekToMatchMs: (atMs) => { playheadMs = atMs; },
     now: () => 1_800_000_000_000,
   });
 
@@ -608,6 +704,11 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
   }
   expect(controller.handleField("groundTruthScenario", { value: "transition", checked: true })).toBe(true);
   expect(renderTrackingGroundTruthPanel(state, item)).toMatch(/value="transition"[^>]*checked/);
+  expect(renderTrackingGroundTruthPanel(state, item)).toContain("0/3");
+  for (let index = 0; index < 3; index += 1) {
+    expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
+  }
+  expect(renderTrackingGroundTruthPanel(state, item)).toContain("3/3");
   expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
   expect(controller.handleField("groundTruthSceneComplete", { checked: true })).toBe(true);
   expect(renderTrackingGroundTruthPanel(state, item)).toMatch(/groundTruthSceneComplete" checked/);
@@ -622,7 +723,10 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     selectedTrackIds: tracks.map((track) => track.id),
     lockedArtifact: {
       sourceFingerprint,
-      reviewEvidence: { scenarioTags: ["transition"] },
+      reviewEvidence: {
+        scenarioTags: ["transition"],
+        sceneReview: { reviewedSampleCount: 3, expectedSampleCount: 3, coverageRatio: 1 },
+      },
     },
   });
   expect(state.presentation.tracking.groundTruth.suite.cases).toHaveLength(1);
@@ -656,6 +760,7 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     selectedTrackIds: [],
     benchmarkTargetTrackId: "",
     scenarioTags: [],
+    sceneReview: { reviewedAtMs: [] },
     exhaustiveSceneAttested: false,
     lockedArtifact: null,
   });

@@ -407,11 +407,13 @@ test("candidate controller stores immutable evidence before publishing review tr
     createArtifact: async () => { events.push("artifact"); return artifact; },
     saveArtifact: async () => { events.push("save"); return artifactService.trackingCandidatePipelineSummary(artifact); },
     persistTrack: async (track) => { events.push("track"); return track; },
+    invalidateGroundTruth: (itemId) => events.push(`invalidate:${itemId}`),
     now: () => "2026-08-31T12:05:00.000Z",
   });
   expect(await controller.run()).toBe(true);
   expect(events.slice(0, 2)).toEqual(["artifact", "save"]);
   expect(events.filter((event) => event === "track")).toHaveLength(result.tracks.length);
+  expect(events).toContain(`invalidate:${item.id}`);
   expect(state.presentation.tracking.candidatePipeline.status).toBe("review");
   expect(state.presentation.tracking.candidateBenchmarkProvider.stage).toBe("detection");
   expect(Object.keys(state.presentation.tracking.candidateBenchmarkProviders)).toEqual([

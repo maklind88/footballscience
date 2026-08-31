@@ -23,8 +23,15 @@ import {
   trackingProviderRunWorkspaceEntry,
   trackingProviderRunsForProvider,
 } from "../services/trackingProviderRunService.js";
-import { patchTrackingState, selectedTrackingItem, trackingItemRange } from "./trackingControllerHelpers.js";
+import {
+  currentTrackingAtMs,
+  patchTrackingState,
+  selectedTrackingItem,
+  trackingItemRange,
+} from "./trackingControllerHelpers.js";
 import { createTrackingGroundTruthSuiteImportController } from "./trackingGroundTruthSuiteImportController.js";
+import { createTrackingGroundTruthSceneReviewController } from "./trackingGroundTruthSceneReviewController.js";
+import { createTrackingGroundTruthSceneReview } from "../services/trackingGroundTruthSceneReviewService.js";
 
 const groundTruthActions = new Set([
   "ground-truth-toggle",
@@ -38,6 +45,9 @@ const groundTruthActions = new Set([
   "ground-truth-suite-remove",
   "ground-truth-suite-mode",
   "ground-truth-runs-download",
+  "ground-truth-scene-review",
+  "ground-truth-scene-next",
+  "ground-truth-scene-reset",
 ]);
 
 function groundTruthState(state = {}, itemId = "") {
@@ -118,6 +128,15 @@ export function createTrackingGroundTruthController(options = {}) {
   const getWindow = options.getWindow || (() => globalThis.window);
   const getReviewer = options.getReviewer || (() => "local-analyst");
   const now = options.now || Date.now;
+  const sceneReview = createTrackingGroundTruthSceneReviewController({
+    getState,
+    updateState,
+    contextFor,
+    groundTruthState,
+    patchGroundTruth,
+    currentAtMs: (state) => currentTrackingAtMs(getVideoElement, state, options.getCurrentMatchMs),
+    seekToMatchMs: options.seekToMatchMs || (() => {}),
+  });
   const suiteImport = createTrackingGroundTruthSuiteImportController({
     getState,
     setSuite: (suite) => updateState((state) => patchGroundTruthSuite(state, suite)),
@@ -158,7 +177,11 @@ export function createTrackingGroundTruthController(options = {}) {
       || Number(truth.range?.endMs) !== context.range.endMs;
     updateState((current) => patchGroundTruth(current, context.itemId, {
       ...context,
-      ...(contextChanged ? { attested: false, exhaustiveSceneAttested: false } : {}),
+      ...(contextChanged ? {
+        sceneReview: createTrackingGroundTruthSceneReview(context),
+        attested: false,
+        exhaustiveSceneAttested: false,
+      } : {}),
       error: "",
     }));
     return true;
@@ -207,6 +230,7 @@ export function createTrackingGroundTruthController(options = {}) {
       status: "draft",
       selectedTrackIds: [...selected],
       benchmarkTargetTrackId,
+      sceneReview: createTrackingGroundTruthSceneReview(context),
       attested: false,
       exhaustiveSceneAttested: false,
       error: "",
@@ -229,32 +253,6 @@ export function createTrackingGroundTruthController(options = {}) {
     return true;
   }
 
-  function setAttested(checked = false) {
-    const state = getState();
-    const itemId = selectedTrackingItem(state)?.id || "";
-    if (!itemId || groundTruthState(state, itemId).status === "locked") return false;
-    updateState((current) => patchGroundTruth(current, itemId, { attested: Boolean(checked), error: "" }));
-    return true;
-  }
-
-  function setExhaustiveSceneAttested(checked = false) {
-    const state = getState();
-    const itemId = selectedTrackingItem(state)?.id || "";
-    const truth = groundTruthState(state, itemId);
-    const benchmarkType = trackingGroundTruthSuiteEntry(
-      state.presentation?.tracking?.groundTruth || {},
-    ).benchmarkType;
-    if (!itemId || truth.status === "locked"
-      || benchmarkType === TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT) {
-      return false;
-    }
-    updateState((current) => patchGroundTruth(current, itemId, {
-      exhaustiveSceneAttested: Boolean(checked),
-      error: "",
-    }));
-    return true;
-  }
-
   function lockReference() {
     const state = getState();
     const item = selectedTrackingItem(state);
@@ -271,6 +269,8 @@ export function createTrackingGroundTruthController(options = {}) {
         scenarioTags: truth.scenarioTags || [],
         attested: truth.attested === true,
         exhaustiveSceneAttested: truth.exhaustiveSceneAttested === true,
+        sceneReview: truth.sceneReview,
+        requireSceneReview: true,
         reviewedBy: reviewerId(getReviewer()),
         revision: truth.revision || 1,
       }, { now });
@@ -419,6 +419,7 @@ export function createTrackingGroundTruthController(options = {}) {
       selectedTrackIds: [],
       benchmarkTargetTrackId: "",
       scenarioTags: [],
+      sceneReview: createTrackingGroundTruthSceneReview(context),
       attested: false,
       exhaustiveSceneAttested: false,
       lockedArtifact: null,
@@ -430,18 +431,7 @@ export function createTrackingGroundTruthController(options = {}) {
   }
 
   function invalidateDraft(itemId = "") {
-    if (!itemId) return false;
-    updateState((state) => {
-      const truth = groundTruthState(state, itemId);
-      return truth.status === "locked"
-        ? state
-        : patchGroundTruth(state, itemId, {
-          attested: false,
-          exhaustiveSceneAttested: false,
-          error: "",
-        });
-    });
-    return true;
+    return sceneReview.invalidate(itemId);
   }
 
   function setScenario(scenarioId = "", checked = false) {
@@ -469,6 +459,9 @@ export function createTrackingGroundTruthController(options = {}) {
     if (action === "ground-truth-suite-download") return downloadSuite();
     if (action === "ground-truth-suite-import") return suiteImport.chooseFile(element);
     if (action === "ground-truth-runs-download") return downloadProviderRuns();
+    if (action === "ground-truth-scene-review") return sceneReview.markAndNext();
+    if (action === "ground-truth-scene-next") return sceneReview.seekNext();
+    if (action === "ground-truth-scene-reset") return sceneReview.reset();
     if (action === "ground-truth-suite-mode") {
       return setSuiteBenchmarkType(element?.dataset?.videoAnalysisGroundTruthBenchmarkType);
     }
@@ -479,8 +472,15 @@ export function createTrackingGroundTruthController(options = {}) {
   }
 
   function handleField(field = "", element = {}) {
-    if (field === "groundTruthAttested") return setAttested(element.checked);
-    if (field === "groundTruthSceneComplete") return setExhaustiveSceneAttested(element.checked);
+    if (field === "groundTruthAttested") return sceneReview.setAttested(element.checked, false);
+    if (field === "groundTruthSceneComplete") {
+      const benchmarkType = trackingGroundTruthSuiteEntry(
+        getState().presentation?.tracking?.groundTruth || {},
+      ).benchmarkType;
+      return benchmarkType === TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT
+        ? false
+        : sceneReview.setAttested(element.checked, true);
+    }
     if (field === "groundTruthScenario") return setScenario(element.value, element.checked);
     if (field === "groundTruthSuiteImport") {
       void suiteImport.importFile(element.files?.[0], element);

@@ -173,6 +173,7 @@ export function createTrackingCandidateController(options = {}) {
         },
       });
     });
+    options.invalidateGroundTruth?.(itemId);
     options.onEvidenceChanged?.();
   }
 

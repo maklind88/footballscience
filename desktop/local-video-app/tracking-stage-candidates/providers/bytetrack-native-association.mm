@@ -31,6 +31,22 @@ struct Trajectory {
   std::vector<int> observationIndices;
 };
 
+struct AssociationProfile {
+  int trackBuffer;
+  float trackThreshold;
+  float highThreshold;
+  float matchThreshold;
+  float secondMatchThreshold;
+  float unconfirmedMatchThreshold;
+};
+
+AssociationProfile ProfileForEntity(const std::string& entityType) {
+  if (entityType == "ball") {
+    return AssociationProfile{12, 0.02F, 0.05F, 0.95F, 0.95F, 0.90F};
+  }
+  return AssociationProfile{30, 0.20F, 0.35F, 0.80F, 0.50F, 0.70F};
+}
+
 Observation ParseObservation(NSDictionary* value) {
   NSDictionary* box = value[@"box"];
   return Observation{
@@ -67,7 +83,11 @@ std::vector<Trajectory> AssociateEntity(
   });
   if (indices.empty()) return {};
 
-  BYTETracker tracker(std::max(1, static_cast<int>(std::llround(sampleFps))), 30);
+  const AssociationProfile profile = ProfileForEntity(entityType);
+  BYTETracker tracker(
+      std::max(1, static_cast<int>(std::llround(sampleFps))), profile.trackBuffer,
+      profile.trackThreshold, profile.highThreshold, profile.matchThreshold,
+      profile.secondMatchThreshold, profile.unconfirmedMatchThreshold);
   std::map<int, Trajectory> tracks;
   const double stepMs = 1000.0 / sampleFps;
   long long previousAtMs = observations[indices.front()].atMs;

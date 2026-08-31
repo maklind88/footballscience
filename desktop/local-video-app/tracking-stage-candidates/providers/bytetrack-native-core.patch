@@ -1,5 +1,5 @@
 diff --git e/deploy/ncnn/cpp/include/BYTETracker.h f/deploy/ncnn/cpp/include/BYTETracker.h
-index e3dda97..418f465 100644
+index e3dda973..1c9e213a 100644
 --- e/deploy/ncnn/cpp/include/BYTETracker.h
 +++ f/deploy/ncnn/cpp/include/BYTETracker.h
 @@ -4,0 +5,8 @@
@@ -16,13 +16,25 @@ index e3dda97..418f465 100644
 +    FSRect rect;
 @@ -9,0 +18 @@ struct Object
 +    int observation_index;
-@@ -19 +27,0 @@ public:
+@@ -15 +24,3 @@ public:
+-	BYTETracker(int frame_rate = 30, int track_buffer = 30);
++	BYTETracker(int frame_rate = 30, int track_buffer = 30, float track_thresh = 0.5F,
++		float high_thresh = 0.6F, float match_thresh = 0.8F, float second_match_thresh = 0.5F,
++		float unconfirmed_match_thresh = 0.7F);
+@@ -19 +29,0 @@ public:
 -	Scalar get_color(int idx);
-@@ -35 +43 @@ private:
+@@ -35 +45 @@ private:
 -		bool extend_cost = false, float cost_limit = LONG_MAX, bool return_cost = true);
 +		bool extend_cost = false, float cost_limit = numeric_limits<float>::max(), bool return_cost = true);
+@@ -41,0 +52,2 @@ private:
++	float second_match_thresh;
++	float unconfirmed_match_thresh;
+@@ -49 +61 @@ private:
+-};
+\ No newline at end of file
++};
 diff --git e/deploy/ncnn/cpp/include/STrack.h f/deploy/ncnn/cpp/include/STrack.h
-index 752cbef..f07b95e 100644
+index 752cbefa..f07b95ec 100644
 --- e/deploy/ncnn/cpp/include/STrack.h
 +++ f/deploy/ncnn/cpp/include/STrack.h
 @@ -3 +3,5 @@
@@ -40,16 +52,40 @@ index 752cbef..f07b95e 100644
 @@ -46,0 +50 @@ public:
 +	vector<int> observation_indices;
 diff --git e/deploy/ncnn/cpp/src/BYTETracker.cpp f/deploy/ncnn/cpp/src/BYTETracker.cpp
-index 7c936b8..08c666e 100644
+index 7c936b81..e0c028c2 100644
 --- e/deploy/ncnn/cpp/src/BYTETracker.cpp
 +++ f/deploy/ncnn/cpp/src/BYTETracker.cpp
-@@ -12 +11,0 @@ BYTETracker::BYTETracker(int frame_rate, int track_buffer)
+@@ -4 +4,3 @@
+-BYTETracker::BYTETracker(int frame_rate, int track_buffer)
++BYTETracker::BYTETracker(
++	int frame_rate, int track_buffer, float track_thresh_, float high_thresh_, float match_thresh_,
++	float second_match_thresh_, float unconfirmed_match_thresh_)
+@@ -6,3 +8,5 @@ BYTETracker::BYTETracker(int frame_rate, int track_buffer)
+-	track_thresh = 0.5;
+-	high_thresh = 0.6;
+-	match_thresh = 0.8;
++	track_thresh = track_thresh_;
++	high_thresh = high_thresh_;
++	match_thresh = match_thresh_;
++	second_match_thresh = second_match_thresh_;
++	unconfirmed_match_thresh = unconfirmed_match_thresh_;
+@@ -12 +15,0 @@ BYTETracker::BYTETracker(int frame_rate, int track_buffer)
 -	cout << "Init ByteTrack!" << endl;
-@@ -54 +53 @@ vector<STrack> BYTETracker::update(const vector<Object>& objects)
+@@ -54 +57 @@ vector<STrack> BYTETracker::update(const vector<Object>& objects)
 -			STrack strack(STrack::tlbr_to_tlwh(tlbr_), score);
 +			STrack strack(STrack::tlbr_to_tlwh(tlbr_), score, objects[i].observation_index);
+@@ -126 +129 @@ vector<STrack> BYTETracker::update(const vector<Object>& objects)
+-	linear_assignment(dists, dist_size, dist_size_size, 0.5, matches, u_track, u_detection);
++	linear_assignment(dists, dist_size, dist_size_size, second_match_thresh, matches, u_track, u_detection);
+@@ -164 +167 @@ vector<STrack> BYTETracker::update(const vector<Object>& objects)
+-	linear_assignment(dists, dist_size, dist_size_size, 0.7, matches, u_unconfirmed, u_detection);
++	linear_assignment(dists, dist_size, dist_size_size, unconfirmed_match_thresh, matches, u_unconfirmed, u_detection);
+@@ -241 +244 @@ vector<STrack> BYTETracker::update(const vector<Object>& objects)
+-}
+\ No newline at end of file
++}
 diff --git e/deploy/ncnn/cpp/src/STrack.cpp f/deploy/ncnn/cpp/src/STrack.cpp
-index 6b02d07..f49325b 100644
+index 6b02d071..f49325b7 100644
 --- e/deploy/ncnn/cpp/src/STrack.cpp
 +++ f/deploy/ncnn/cpp/src/STrack.cpp
 @@ -3 +3 @@
@@ -62,7 +98,7 @@ index 6b02d07..f49325b 100644
 @@ -107,0 +110 @@ void STrack::update(STrack &new_track, int frame_id)
 +	this->observation_indices.insert(this->observation_indices.end(), new_track.observation_indices.begin(), new_track.observation_indices.end());
 diff --git e/deploy/ncnn/cpp/src/utils.cpp f/deploy/ncnn/cpp/src/utils.cpp
-index 4aa0305..903d9ba 100644
+index 4aa0305c..903d9bad 100644
 --- e/deploy/ncnn/cpp/src/utils.cpp
 +++ f/deploy/ncnn/cpp/src/utils.cpp
 @@ -288,3 +288 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso

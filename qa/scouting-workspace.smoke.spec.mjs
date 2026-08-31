@@ -367,6 +367,23 @@ test("Scouting database load, search and position filter stay stable", async ({ 
     await waitForScoutingRows(page, { timeout: 45_000 });
   }
   await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
+
+  const advancedToggle = page.locator("[data-toggle-scouting-advanced-filters]").first();
+  await advancedToggle.click();
+  await expect(advancedToggle).toHaveAttribute("aria-expanded", "true");
+  await queryInput.fill("");
+  await page.locator('.scouting-tab[data-scouting-tab="lists"]').click();
+  await page.locator('.scouting-tab[data-scouting-tab="database"]').click();
+  await expect(page.locator('[data-scouting-database-search-form] input[name="query"]').first()).toHaveValue(searchTerm);
+  await expect(page.locator("[data-toggle-scouting-advanced-filters]").first()).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".scouting-database-advanced-filters").first()).toBeHidden();
+
+  await page.locator(".scouting-settings-menu > summary").click();
+  await page.locator('[data-open-scouting-settings-panel="datasource"]').click();
+  const dataFoundation = page.locator(".scouting-data-quality");
+  await expect(dataFoundation).toContainText("source rows");
+  await expect(dataFoundation).toContainText("loaded sample");
+  expect(await dataFoundation.innerText()).not.toMatch(/\b1 rows\s*\//i);
 });
 
 async function expectScoutingDatabaseReachableForRole(page, role) {
@@ -661,6 +678,15 @@ test("Scouting mobile database, Lists action, and profile remain unobstructed", 
   await firstPlayer.click();
   const profile = page.locator("[data-scouting-profile-modal]:visible");
   await expect(profile).toBeVisible();
+  await expect(profile).toHaveAttribute("role", "dialog");
+  await expect(profile).toHaveAttribute("aria-modal", "true");
+  await expect(profile.getByRole("tab")).toHaveCount(7);
+  await expect(profile.getByRole("tab", { selected: true })).toHaveCount(1);
+  await expect(profile.locator('[role="tabpanel"]')).toHaveCount(1);
+  await profile.getByRole("tab", { selected: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(profile.getByRole("tab", { name: "Performance" })).toHaveAttribute("aria-selected", "true");
+  await expect(profile.locator('[role="tabpanel"]')).toHaveAttribute("data-scouting-profile-active-panel", "performance");
   const profileGeometry = await profile.evaluate((modal) => {
     const tablist = modal.querySelector(".scouting-profile-tabs");
     const tablistRect = tablist?.getBoundingClientRect();
@@ -681,6 +707,49 @@ test("Scouting mobile database, Lists action, and profile remain unobstructed", 
   await expect(openDatabase).toBeVisible();
   await openDatabase.click();
   await expect(page.locator('.scouting-tab[data-scouting-tab="database"]')).toHaveClass(/is-active/);
+});
+
+test("Scouting role model stays inside desktop and mobile viewports", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await seedScoutingAccess(page);
+  await prepareScoutingDatabase(page);
+  await page.locator('.scouting-tab[data-scouting-tab="reports"]').click();
+  await page.getByRole("button", { name: "Manage role models" }).click();
+
+  const modal = page.locator(".scouting-role-model-modal:visible");
+  await expect(modal).toBeVisible();
+  const desktopGeometry = await modal.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    const sidebar = document.querySelector(".platform-sidebar")?.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      sidebarRight: sidebar?.right || 0,
+      viewportWidth: window.innerWidth,
+      overflow: node.scrollWidth - node.clientWidth,
+    };
+  });
+  expect(desktopGeometry.left).toBeGreaterThanOrEqual(desktopGeometry.sidebarRight);
+  expect(desktopGeometry.right).toBeLessThanOrEqual(desktopGeometry.viewportWidth);
+  expect(desktopGeometry.overflow).toBe(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(200);
+  const mobileGeometry = await modal.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: window.innerWidth,
+      modalOverflow: node.scrollWidth - node.clientWidth,
+      documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+  expect(mobileGeometry.left).toBeGreaterThanOrEqual(0);
+  expect(mobileGeometry.right).toBeLessThanOrEqual(mobileGeometry.viewportWidth);
+  expect(mobileGeometry.modalOverflow).toBe(0);
+  expect(mobileGeometry.documentOverflow).toBe(0);
 });
 
 test("Scouting dark profile keeps analysis surfaces readable", async ({ page }) => {

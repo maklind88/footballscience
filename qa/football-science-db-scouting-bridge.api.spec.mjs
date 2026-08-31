@@ -42,7 +42,7 @@ test("Scouting worker avoids duplicating the static player database in IndexedDB
 
   expect(worker).not.toContain("indexedDB");
   expect(worker).not.toContain("football-science-scouting-worker-cache");
-  expect(workspace).toContain("loadScoutingDatabaseWithWorker({ previewFirst: false, signal: options.signal })");
+  expect(workspace).toContain("loadScoutingDatabaseWithWorker({ previewFirst: true, signal: options.signal })");
   expect(workspace).not.toContain("manifestScriptUrl:");
 });
 

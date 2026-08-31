@@ -50,6 +50,9 @@ export function createScoutingTabController(deps = {}) {
     if (nextTabId !== "database") {
       deps.cancelDatabaseBackgroundTimers?.();
     }
+    if (previousTab === "database" && nextTabId !== "database") {
+      deps.resetDatabaseTransientUi?.();
+    }
 
     deps.writeState?.({ syncCentral: false });
     deps.syncTabButtonsDom?.(state);

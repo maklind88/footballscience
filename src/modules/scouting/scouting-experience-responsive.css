@@ -121,6 +121,88 @@
     scrollbar-gutter: auto;
   }
 
+  #scoutingWorkspace .scouting-role-model-overlay {
+    place-items: start center;
+    padding: 8px 8px calc(76px + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+    scrollbar-gutter: auto;
+  }
+
+  #scoutingWorkspace .scouting-role-model-modal {
+    width: 100%;
+    max-width: calc(100vw - 16px);
+    min-width: 0;
+    max-height: calc(100dvh - 92px - env(safe-area-inset-bottom));
+    padding: 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+
+  #scoutingWorkspace .scouting-role-model-modal :where(
+    .scouting-role-model-head,
+    .scouting-role-model-modal-grid,
+    .scouting-role-model-form,
+    .scouting-role-model-setup,
+    .scouting-role-metric-picker,
+    .scouting-role-metric-search,
+    .scouting-role-metric-list,
+    .scouting-role-model-side,
+    label,
+    input,
+    select,
+    textarea,
+    button
+  ) {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  #scoutingWorkspace .scouting-role-model-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #scoutingWorkspace .scouting-role-model-head :where(h2, p),
+  #scoutingWorkspace .scouting-role-metric-picker summary :where(span, em) {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  #scoutingWorkspace .scouting-role-model-toolbar {
+    justify-content: flex-start;
+  }
+
+  #scoutingWorkspace .scouting-role-model-setup,
+  #scoutingWorkspace .scouting-role-metric-search,
+  #scoutingWorkspace .scouting-role-metric-picker summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #scoutingWorkspace .scouting-role-metric-picker summary {
+    display: grid;
+    align-items: start;
+  }
+
+  #scoutingWorkspace .scouting-role-metric-search > button {
+    width: 100%;
+  }
+
+  #scoutingWorkspace .scouting-role-metric-row.is-selected {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  #scoutingWorkspace .scouting-role-metric-row.is-selected > :where(label, strong, select, input) {
+    width: 100%;
+    grid-column: 1 !important;
+  }
+
+  #scoutingWorkspace .scouting-role-metric-row.is-selected .scouting-role-metric-remove {
+    grid-column: 1 !important;
+    justify-self: end;
+  }
+
   #scoutingWorkspace .scouting-profile-modal {
     width: 100%;
     max-width: calc(100vw - 16px);

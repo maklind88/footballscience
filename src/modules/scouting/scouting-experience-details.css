@@ -51,6 +51,38 @@
   box-shadow: var(--scout-shadow-strong);
 }
 
+#scoutingWorkspace .scouting-role-model-overlay {
+  padding-inline: 96px 16px;
+  overflow-x: hidden;
+}
+
+#scoutingWorkspace .scouting-role-model-modal {
+  width: min(1280px, calc(100vw - 112px));
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+#scoutingWorkspace :where(
+  .scouting-role-model-head,
+  .scouting-role-model-modal-grid,
+  .scouting-role-model-form,
+  .scouting-role-model-setup,
+  .scouting-role-metric-picker,
+  .scouting-role-metric-search,
+  .scouting-role-metric-list,
+  .scouting-role-model-side
+) {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  #scoutingWorkspace .scouting-role-model-modal-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 #scoutingWorkspace .scouting-profile-modal:focus {
   outline: 0;
 }

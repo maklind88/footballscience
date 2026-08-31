@@ -27,6 +27,11 @@ import {
   createScoutingProfileSpiderService,
   createScoutingProfileTimelineService,
   createScoutingTabController,
+  readScoutingSquadPlayers,
+  renderScoutingProfileTabNavigation,
+  renderScoutingProfileTabPanel,
+  resolveScoutingRoleModelDefaults,
+  scoutingSquadStorageKey,
   createScoutingApiProfileService,
   createFootballScienceDbApiClient,
   createFootballScienceDbProfileService,
@@ -93,6 +98,7 @@ let scoutingDatabaseWorker = null;
 let scoutingDatabaseWorkerPreloadPromise = null;
 let scoutingDatabaseWorkerFullPreloadPromise = null;
 let scoutingDatabaseWorkerFullReady = false;
+const scoutingDatabaseWorkerFullIdleDelayMs = 2500;
 let scoutingDatabaseError = "";
 let scoutingDatabaseOptionCache = null;
 let scoutingDatabaseOptionLoadPromise = null;
@@ -615,6 +621,12 @@ const scoutingTabController = createScoutingTabController({
   getTabs: () => scoutingTabs,
   renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
   resetScrollPosition: resetScoutingTabScrollPosition,
+  resetDatabaseTransientUi: () => {
+    setScoutingDatabaseSearchDraft(null);
+    setScoutingAdvancedDatabaseFiltersOpenState(false);
+    setScoutingDatabaseMetricFilterOpen(false);
+    setScoutingDatabaseMetricFilterQuery("");
+  },
   resetShadowSelection: (state) => {
     preferredScoutingShadowSlotId = "";
     state.shadowXi.selectedSlotId = "";
@@ -2579,6 +2591,7 @@ function applyScoutingApiDatabase(result = {}) {
   const nextOptions = result.options || existing?.options || null;
   const database = {
     source: "api",
+    sourceRows: Math.max(0, Math.floor(Number(result.rowCount || result.sourceRows) || 0)),
     importedAt: result.importedAt || new Date().toISOString(),
     metrics: nextMetrics,
     records: result.records,
@@ -2598,6 +2611,7 @@ function applyScoutingWorkerDatabase(result = {}) {
   }
   const database = {
     source: "worker",
+    sourceRows: Math.max(0, Math.floor(Number(result.sourceRows || existing?.sourceRows) || 0)),
     importedAt: result.importedAt || existing?.importedAt || new Date().toISOString(),
     fileName: result.fileName || existing?.fileName || "",
     sheets: Array.isArray(result.sheets) ? result.sheets : Array.isArray(existing?.sheets) ? existing.sheets : [],
@@ -2888,7 +2902,7 @@ async function loadScoutingPreferredDatabase(options = {}) {
       };
     }
   }
-  return loadScoutingDatabaseWithWorker({ previewFirst: false, signal: options.signal });
+  return loadScoutingDatabaseWithWorker({ previewFirst: true, signal: options.signal });
 }
 function loadScoutingDatabaseFilterOptions() {
   if (!isScoutingApiDatabaseActive()) {
@@ -3049,7 +3063,7 @@ function prewarmScoutingDatabaseWorker() {
     timeoutMs: 8000,
   })
     .then(() => {
-      scheduleFullScoutingDatabaseWorkerPreload(650);
+      scheduleFullScoutingDatabaseWorkerPreload(scoutingDatabaseWorkerFullIdleDelayMs);
       return true;
     })
     .catch(() => false)
@@ -3138,7 +3152,7 @@ function loadScoutingDatabaseWithWorker(options = {}) {
         if (!appliedDatabase) {
           throw new Error("Scouting player database preview returned no records.");
         }
-        scheduleFullScoutingDatabaseWorkerPreload(0);
+        scheduleFullScoutingDatabaseWorkerPreload(scoutingDatabaseWorkerFullIdleDelayMs);
         return appliedDatabase;
       })
       .catch((error) => {
@@ -9199,19 +9213,11 @@ function resetScoutingProfileModalScroll() {
 }
 
 function renderScoutingProfileTabs(activeTab) {
-  return `
-    <nav class="scouting-profile-tabs" aria-label="Scouting profile sections">
-      ${scoutingProfileTabs
-        .map(
-          (tab) => `
-            <button type="button" class="${activeTab === tab.value ? "is-active" : ""}" data-scouting-profile-tab="${escapeHtml(tab.value)}">
-              ${escapeHtml(tab.label)}
-            </button>
-          `
-        )
-        .join("")}
-    </nav>
-  `;
+  return renderScoutingProfileTabNavigation({
+    activeTab,
+    escapeHtml,
+    tabs: scoutingProfileTabs,
+  });
 }
 function getScoutingProfileNavigation(record) {
   const recordId = getScoutingRecordId(record);
@@ -9407,11 +9413,16 @@ function getScoutingSquadFitRows(record, state = ensureScoutingState()) {
   });
 }
 function getScoutingInternalSquadPlayers() {
+  let rawPayload = "";
   const rawCandidates = [];
   try {
-    const raw = window.localStorage?.getItem("football-player-profiles-v1");
-    if (raw) {
-      rawCandidates.push(JSON.parse(raw));
+    rawPayload = window.localStorage?.getItem(scoutingSquadStorageKey) || "";
+    const canonicalPlayers = readScoutingSquadPlayers(rawPayload);
+    if (canonicalPlayers.length) {
+      return canonicalPlayers;
+    }
+    if (rawPayload) {
+      rawCandidates.push(JSON.parse(rawPayload));
     }
   } catch {}
   const found = [];
@@ -11095,6 +11106,9 @@ function getScoutingDataQualitySummary() {
     options.seasons.length,
     options.leagues.length,
     options.positions.length,
+    getScoutingDatabaseTotalCount(database),
+    database?.sourceRows || 0,
+    scoutingDatabaseCapabilitySnapshot?.rowCount || 0,
   ].join("|");
   if (scoutingDataQualitySummaryCache.key === cacheKey && scoutingDataQualitySummaryCache.value) {
     return scoutingDataQualitySummaryCache.value;
@@ -11149,8 +11163,9 @@ function getScoutingDataQualitySummary() {
   const metricAverage = records.length ? Math.round(metricValueCount / records.length) : 0;
   const coreCompleteness = records.length ? Math.round(((records.length - missingCore) / records.length) * 100) : 0;
   const summary = {
-    records: records.length,
-    sheets: database?.sheets?.length || 0,
+    sampleRecords: records.length,
+    players: getScoutingDatabaseTotalCount(database),
+    sourceRows: Math.max(0, Math.floor(Number(scoutingDatabaseCapabilitySnapshot?.rowCount || database?.sourceRows) || 0)),
     metrics: database?.metrics?.length || 0,
     seasons: options.seasons.length,
     leagues: options.leagues.length,
@@ -11182,17 +11197,18 @@ function renderScoutingDataQualityPanel() {
     <section class="scouting-data-quality">
       <div>
         <span>Data foundation</span>
-        <strong>${summary.coreCompleteness}% core completeness</strong>
-        <p>${escapeHtml(`${summary.records.toLocaleString("en-US")} rows / ${summary.sheets} sheets / ${summary.metrics} metrics / ${sourceLabel}`)}</p>
+        <strong>${summary.coreCompleteness}% completeness in loaded sample</strong>
+        <p>${escapeHtml(`${summary.players.toLocaleString("en-US")} players / ${summary.metrics} metrics${summary.sourceRows ? ` / ${summary.sourceRows.toLocaleString("en-US")} source rows` : ""} / ${sourceLabel}`)}</p>
+        <small>${escapeHtml(`${summary.sampleRecords.toLocaleString("en-US")} player rows inspected in the current loaded sample.`)}</small>
         ${capability?.degraded && capability.fallbackReason ? `<small>${escapeHtml(capability.fallbackReason)}</small>` : ""}
       </div>
       <div class="scouting-data-quality-grid">
         <article><span>Seasons</span><strong>${escapeHtml(summary.seasons)}</strong><em>${escapeHtml(summary.leagues)} leagues</em></article>
         <article><span>Positions</span><strong>${escapeHtml(summary.positions)}</strong><em>Parsed role tokens</em></article>
-        <article><span>Metric depth</span><strong>${escapeHtml(summary.metricAverage)}</strong><em>avg values/player</em></article>
-        <article><span>Duplicates</span><strong>${escapeHtml(summary.duplicateRows)}</strong><em>same player/team/season</em></article>
-        <article><span>Trusted metrics</span><strong>${escapeHtml(summary.trustedMetrics)}</strong><em>${escapeHtml(summary.estimatedMetrics)} estimated</em></article>
-        <article><span>Missing metrics</span><strong>${escapeHtml(summary.missingMetrics)}</strong><em>${escapeHtml(summary.missingMinutes)} rows missing minutes</em></article>
+        <article><span>Sample depth</span><strong>${escapeHtml(summary.metricAverage)}</strong><em>avg values/player</em></article>
+        <article><span>Sample duplicates</span><strong>${escapeHtml(summary.duplicateRows)}</strong><em>same player/team/season</em></article>
+        <article><span>Sample trust</span><strong>${escapeHtml(summary.trustedMetrics)}</strong><em>${escapeHtml(summary.estimatedMetrics)} estimated values</em></article>
+        <article><span>Sample gaps</span><strong>${escapeHtml(summary.missingMetrics)}</strong><em>${escapeHtml(summary.missingMinutes)} rows missing minutes</em></article>
       </div>
     </section>
   `;
@@ -11416,17 +11432,34 @@ function renderScoutingRoleModelSlotOptions(selectedSlotId = "") {
     )
     .join("");
 }
-function renderScoutingRoleModelMetricRows(metricOptions, activeModel = null) {
+function renderScoutingRoleModelMetricRows(metricOptions, activeModel = null, defaultSignals = []) {
   const signals = activeModel ? getScoutingRoleModelSignals(activeModel) : [];
   const signalByMetricId = new Map(signals.map((signal) => [normalizeScoutingText(signal.metricId, 120), signal]));
+  const defaultSignalByMetricId = new Map(defaultSignals.map((signal) => [normalizeScoutingText(signal.metricId, 120), signal]));
+  const selectedSignals = activeModel ? signals : defaultSignals;
+  const selectedRankByMetricId = new Map(selectedSignals.map((signal, index) => [normalizeScoutingText(signal.metricId, 120), index]));
   const defaultThreshold = Number.isFinite(Number(activeModel?.minPercentile)) ? Math.max(1, Math.min(99, Math.round(Number(activeModel.minPercentile)))) : 70;
   return metricOptions
-    .map((metric, index) => {
+    .map((metric, index) => ({ metric, index }))
+    .sort((first, second) => {
+      const firstRank = selectedRankByMetricId.get(first.metric.id);
+      const secondRank = selectedRankByMetricId.get(second.metric.id);
+      if (firstRank !== undefined || secondRank !== undefined) {
+        return (firstRank ?? Number.MAX_SAFE_INTEGER) - (secondRank ?? Number.MAX_SAFE_INTEGER);
+      }
+      return first.index - second.index;
+    })
+    .map(({ metric }) => metric)
+    .map((metric) => {
       const signal = signalByMetricId.get(metric.id);
-      const checked = activeModel ? Boolean(signal) : index < 4;
-      const direction = signal?.direction === "lower" ? "lower" : "higher";
-      const threshold = Number.isFinite(Number(signal?.minPercentile)) ? Math.max(1, Math.min(99, Math.round(Number(signal.minPercentile)))) : defaultThreshold;
-      const weight = Number.isFinite(Number(signal?.weight)) ? Math.max(1, Math.min(5, Math.round(Number(signal.weight)))) : 3;
+      const defaultSignal = defaultSignalByMetricId.get(metric.id);
+      const checked = activeModel ? Boolean(signal) : Boolean(defaultSignal);
+      const directionValue = signal?.direction || defaultSignal?.direction || metric.direction;
+      const direction = directionValue === "lower" ? "lower" : "higher";
+      const thresholdValue = signal?.minPercentile ?? defaultSignal?.minPercentile;
+      const threshold = Number.isFinite(Number(thresholdValue)) ? Math.max(1, Math.min(99, Math.round(Number(thresholdValue)))) : defaultThreshold;
+      const weightValue = signal?.weight ?? defaultSignal?.weight;
+      const weight = Number.isFinite(Number(weightValue)) ? Math.max(1, Math.min(5, Math.round(Number(weightValue)))) : 3;
       return `
         <div class="scouting-role-metric-row${checked ? " is-selected" : ""}" data-role-model-metric-row data-metric-id="${escapeHtml(metric.id)}" data-metric-label="${escapeHtml([metric.label, metric.group, metric.id].filter(Boolean).join(" "))}">
           <label class="scouting-role-metric-use">
@@ -11447,7 +11480,7 @@ function renderScoutingRoleModelMetricRows(metricOptions, activeModel = null) {
             <option value="1" ${weight === 1 ? "selected" : ""}>Tie-breaker x1</option>
           </select>
           <button type="button" class="scouting-role-metric-remove" data-remove-role-model-metric="${escapeHtml(metric.id)}" aria-label="Remove ${escapeHtml(metric.label)}">
-            <span aria-hidden="true">🗑</span>
+            <span aria-hidden="true">×</span>
           </button>
         </div>
       `;
@@ -11495,9 +11528,10 @@ function addScoutingRoleModelMetricFromPicker(form) {
   metricRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
   return true;
 }
-function renderScoutingRoleModelMetricPicker(metricOptions, activeModel = null) {
+function renderScoutingRoleModelMetricPicker(metricOptions, activeModel = null, defaultSignals = []) {
   const selectedIds = new Set(
-    (activeModel ? getScoutingRoleModelSignals(activeModel).map((signal) => signal.metricId) : metricOptions.slice(0, 4).map((metric) => metric.id))
+    (activeModel ? getScoutingRoleModelSignals(activeModel) : defaultSignals)
+      .map((signal) => signal.metricId)
       .map((metricId) => normalizeScoutingText(metricId, 120))
       .filter(Boolean)
   );
@@ -11518,6 +11552,8 @@ function renderScoutingRoleModelMetricPicker(metricOptions, activeModel = null) 
 function renderScoutingRoleModelForm(canEdit, metricOptions, activeModel = null) {
   const modelName = activeModel?.name || "";
   const selectedSlotId = activeModel?.slotId || scoutingShadowSlots[0]?.id || "";
+  const selectedSlot = scoutingShadowSlots.find((slot) => slot.id === selectedSlotId);
+  const defaultSignals = activeModel ? [] : resolveScoutingRoleModelDefaults(metricOptions, selectedSlot?.position || selectedSlot?.label || "");
   const defaultThreshold = Number.isFinite(Number(activeModel?.minPercentile)) ? Math.max(1, Math.min(99, Math.round(Number(activeModel.minPercentile)))) : 70;
   return canEdit
     ? `<form class="scouting-role-model-form" data-scouting-role-model-form>
@@ -11545,7 +11581,7 @@ function renderScoutingRoleModelForm(canEdit, metricOptions, activeModel = null)
             <span>Metric blueprint</span>
             <em>Search the database metrics, add KPI, then set direction, threshold and weight.</em>
           </summary>
-          ${renderScoutingRoleModelMetricPicker(metricOptions, activeModel)}
+          ${renderScoutingRoleModelMetricPicker(metricOptions, activeModel, defaultSignals)}
           <div class="scouting-role-metric-head">
             <span>Use</span>
             <span>Metric</span>
@@ -11555,7 +11591,7 @@ function renderScoutingRoleModelForm(canEdit, metricOptions, activeModel = null)
             <span></span>
           </div>
           <div class="scouting-role-metric-list">
-            ${renderScoutingRoleModelMetricRows(metricOptions, activeModel)}
+            ${renderScoutingRoleModelMetricRows(metricOptions, activeModel, defaultSignals)}
           </div>
         </details>
         <label class="scouting-role-model-notes">
@@ -12081,9 +12117,28 @@ function renderScoutingProfileModal() {
   const slotOptions = scoutingShadowSlots
     .map((slot) => `<option value="${escapeHtml(slot.id)}" ${targetSlotId === slot.id ? "selected" : ""}>${escapeHtml(slot.label)} - ${escapeHtml(slot.position)}</option>`)
     .join("");
+  let activeProfileContent = "";
+  if (activeProfileTab === "overview") {
+    activeProfileContent = `
+      ${renderScoutingProfileRoleSpiderGrid(spiderRecord, selectedProfileRoleId, profileRoleProfileId, radarTemplate, profileMetrics, spiderContext)}
+      ${renderScoutingProfileOverviewPanelShell(record)}
+    `;
+  } else if (activeProfileTab === "market") {
+    activeProfileContent = renderScoutingMarketIntelligencePanel(record, state);
+  } else if (activeProfileTab === "performance") {
+    activeProfileContent = renderScoutingProfileRoleSpiderGrid(spiderRecord, selectedProfileRoleId, profileRoleProfileId, radarTemplate, profileMetrics, spiderContext);
+  } else if (activeProfileTab === "squad") {
+    activeProfileContent = renderScoutingSquadFitPanel(record, state);
+  } else if (activeProfileTab === "reports") {
+    activeProfileContent = renderScoutingProfileReportsTab(record, state);
+  } else if (activeProfileTab === "contacts") {
+    activeProfileContent = renderScoutingContactsTab(record, state);
+  } else if (activeProfileTab === "history") {
+    activeProfileContent = renderScoutingProfileHistoryTab(record, playerRows);
+  }
   return `
     <div class="scouting-profile-backdrop" data-close-scouting-profile>
-      <article class="scouting-profile-modal" data-scouting-profile-modal tabindex="-1">
+      <article class="scouting-profile-modal" data-scouting-profile-modal role="dialog" aria-modal="true" aria-labelledby="scouting-profile-dialog-title" tabindex="-1">
         <div class="scouting-profile-top-actions">
           ${renderScoutingProfileNavigation(record)}
         </div>
@@ -12092,7 +12147,7 @@ function renderScoutingProfileModal() {
         </button>
         <header class="scouting-profile-head">
           <div class="scouting-profile-identity">
-            <h2>
+            <h2 id="scouting-profile-dialog-title">
               <span>${escapeHtml(getScoutingRecordName(record))}</span>
               <button
                 type="button"
@@ -12179,32 +12234,7 @@ function renderScoutingProfileModal() {
             </details>
           </div>
         </div>
-        <div class="scouting-profile-tab-panel ${activeProfileTab === "overview" ? "is-active" : ""}">
-          ${activeProfileTab === "overview" ? renderScoutingProfileRoleSpiderGrid(spiderRecord, selectedProfileRoleId, profileRoleProfileId, radarTemplate, profileMetrics, spiderContext) : ""}
-          ${activeProfileTab === "overview" ? renderScoutingProfileOverviewPanelShell(record) : ""}
-        </div>
-        <div class="scouting-profile-tab-panel ${activeProfileTab === "market" ? "is-active" : ""}">
-          ${activeProfileTab === "market" ? renderScoutingMarketIntelligencePanel(record, state) : ""}
-        </div>
-        <div class="scouting-profile-tab-panel ${activeProfileTab === "performance" ? "is-active" : ""}">
-          ${
-            activeProfileTab === "performance"
-              ? renderScoutingProfileRoleSpiderGrid(spiderRecord, selectedProfileRoleId, profileRoleProfileId, radarTemplate, profileMetrics, spiderContext)
-              : ""
-          }
-        </div>
-        <div class="scouting-profile-tab-panel ${activeProfileTab === "squad" ? "is-active" : ""}">
-          ${activeProfileTab === "squad" ? renderScoutingSquadFitPanel(record, state) : ""}
-        </div>
-        <div class="scouting-profile-tab-panel ${activeProfileTab === "reports" ? "is-active" : ""}">
-          ${activeProfileTab === "reports" ? renderScoutingProfileReportsTab(record, state) : ""}
-        </div>
-        <div class="scouting-profile-tab-panel ${activeProfileTab === "contacts" ? "is-active" : ""}">
-          ${activeProfileTab === "contacts" ? renderScoutingContactsTab(record, state) : ""}
-        </div>
-        <div class="scouting-profile-tab-panel ${activeProfileTab === "history" ? "is-active" : ""}">
-          ${activeProfileTab === "history" ? renderScoutingProfileHistoryTab(record, playerRows) : ""}
-        </div>
+        ${renderScoutingProfileTabPanel({ activeTab: activeProfileTab, content: activeProfileContent })}
       </article>
     </div>
   `;
@@ -12358,7 +12388,9 @@ function syncScoutingTabButtonsDom(state = ensureScoutingState()) {
   activePanel?.setAttribute("aria-labelledby", `scouting-tab-${state.activeTab}`);
 }
 function handleScoutingTabKeydown(event) {
-  const currentTab = event?.target?.closest?.('.scouting-tabs [role="tab"][data-scouting-tab]');
+  const currentWorkspaceTab = event?.target?.closest?.('.scouting-tabs [role="tab"][data-scouting-tab]');
+  const currentProfileTab = event?.target?.closest?.('.scouting-profile-tabs [role="tab"][data-scouting-profile-tab]');
+  const currentTab = currentWorkspaceTab || currentProfileTab;
   if (!currentTab) {
     return false;
   }
@@ -12366,7 +12398,10 @@ function handleScoutingTabKeydown(event) {
   if (!keys.has(event.key)) {
     return false;
   }
-  const tabs = Array.from(currentTab.closest('[role="tablist"]')?.querySelectorAll('[role="tab"][data-scouting-tab]') || [])
+  const tabSelector = currentProfileTab
+    ? '[role="tab"][data-scouting-profile-tab]'
+    : '[role="tab"][data-scouting-tab]';
+  const tabs = Array.from(currentTab.closest('[role="tablist"]')?.querySelectorAll(tabSelector) || [])
     .filter((tab) => !tab.disabled && tab.getAttribute("aria-disabled") !== "true");
   const currentIndex = tabs.indexOf(currentTab);
   if (currentIndex < 0 || !tabs.length) {
@@ -12381,7 +12416,11 @@ function handleScoutingTabKeydown(event) {
   event.preventDefault();
   event.stopPropagation();
   nextTab.focus({ preventScroll: true });
-  setScoutingActiveTab(nextTab.dataset.scoutingTab);
+  if (currentProfileTab) {
+    setScoutingProfileTab(nextTab.dataset.scoutingProfileTab);
+  } else {
+    setScoutingActiveTab(nextTab.dataset.scoutingTab);
+  }
   return true;
 }
 function resetScoutingTabScrollPosition() {

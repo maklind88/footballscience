@@ -76,6 +76,7 @@ export * from "./scouting-my-team-pitch-service.mjs";
 export * from "./scouting-my-team-record-service.mjs";
 export * from "./scouting-my-team-spider-controller.mjs";
 export * from "./scouting-profile-modal-controller.mjs";
+export * from "./scouting-profile-tab-view.mjs";
 export * from "./scouting-profile-actions.mjs";
 export * from "./scouting-reports-actions.mjs";
 export * from "./scouting-shadow-xi-actions.mjs";
@@ -85,6 +86,8 @@ export * from "./scouting-database-filter-service.mjs";
 export * from "./scouting-performance.mjs";
 export * from "./scouting-role-additional-profiles.mjs";
 export * from "./scouting-role-spider-profiles.mjs";
+export * from "./scouting-role-model-defaults.mjs";
+export * from "./scouting-squad-read-service.mjs";
 
 export function renderScoutingActiveContentByTab(deps = {}) {
   const activeTab = deps.activeTab || "shadow-xi";

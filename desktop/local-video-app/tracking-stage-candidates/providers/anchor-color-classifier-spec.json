@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "protocol": "football-science-anchor-color-classifier-v1",
+  "feature": {
+    "tensorSize": 640,
+    "hueBins": 12,
+    "achromaticBins": 3,
+    "saturationBins": 3,
+    "torsoLeftRatio": 0.15,
+    "torsoTopRatio": 0.08,
+    "torsoRightRatio": 0.85,
+    "torsoBottomRatio": 0.62,
+    "pixelStride": 3,
+    "minimumPixelCount": 80,
+    "chromaticSaturationMinimum": 0.18,
+    "grassHueMinimumDegrees": 70,
+    "grassHueMaximumDegrees": 170
+  },
+  "decision": {
+    "maximumCosineDistance": 0.42,
+    "minimumDistanceMargin": 0.08,
+    "minimumConfidence": 0.65,
+    "maximumFramesPerTrajectory": 24,
+    "requirePlayerAndRefereeAnchors": true,
+    "requireHomeAndAwayAnchors": true
+  }
+}

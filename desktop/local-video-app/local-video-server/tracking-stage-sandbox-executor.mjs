@@ -289,8 +289,8 @@ export function createTrackingStageSandboxExecutor(options = {}) {
       2 * 60 * 60 * 1000,
     );
     const maximumMemoryMb = boundedInteger(provider.runtime?.maxMemoryMb, 64, 131_072, 8192);
-    const requestFingerprint = provider.stage === "association"
-      ? exactFingerprint(executionOptions.requestFingerprint, "Association request fingerprint")
+    const requestFingerprint = ["association", "classification"].includes(provider.stage)
+      ? exactFingerprint(executionOptions.requestFingerprint, "Stage request fingerprint")
       : "";
     const sourcePath = source?.filePath ? path.resolve(source.filePath) : "";
     const inputSeals = await captureExecutionInputSeals(installation, source);

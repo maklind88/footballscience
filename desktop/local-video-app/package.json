@@ -18,6 +18,8 @@
     "tracking:candidate:build:yolox-coreml": "node tracking-stage-candidates/build-yolox-coreml-reference-provider.mjs",
     "tracking:candidate:build:yolox-native-coreml": "node tracking-stage-candidates/build-yolox-native-coreml-reference-provider.mjs",
     "tracking:candidate:build:bytetrack-native": "node tracking-stage-candidates/build-bytetrack-native-reference-provider.mjs",
+    "tracking:candidate:build:anchor-color": "node tracking-stage-candidates/build-anchor-color-classification-provider.mjs",
+    "tracking:candidate:manifest:anchor-color": "node tracking-stage-candidates/create-anchor-color-classification-manifest.mjs",
     "tracking:candidate:screen": "node ../../scripts/fs-player-tracking-candidate-screening.mjs",
     "tracking:candidate:screen:verify": "node ../../scripts/fs-player-tracking-candidate-screening-verify.mjs",
     "tracking:candidate:screen:association": "node ../../scripts/fs-player-tracking-association-candidate-screening.mjs",

@@ -105,6 +105,8 @@ test("Leaderboard slide stays readable and inside the frame across presentation 
       )));
       const smallestName = Math.min(...[...document.querySelectorAll(".presentation-leaderboard-player-copy strong")]
         .map((node) => Number.parseFloat(getComputedStyle(node).fontSize)));
+      const ordinalOverflow = Math.max(0, ...[...document.querySelectorAll(".presentation-leaderboard-standing-rank")]
+        .map((node) => node.scrollWidth - node.clientWidth));
       return {
         cardCount: cards.length,
         inside,
@@ -112,6 +114,7 @@ test("Leaderboard slide stays readable and inside the frame across presentation 
         layoutOverflowX: layoutNode.scrollWidth - layoutNode.clientWidth,
         layoutOverflowY: layoutNode.scrollHeight - layoutNode.clientHeight,
         smallestName,
+        ordinalOverflow,
       };
     });
 
@@ -121,12 +124,18 @@ test("Leaderboard slide stays readable and inside the frame across presentation 
     expect(result.layoutOverflowX, format.name).toBeLessThanOrEqual(1);
     expect(result.layoutOverflowY, format.name).toBeLessThanOrEqual(1);
     expect(result.smallestName, format.name).toBeGreaterThanOrEqual(14);
+    expect(result.ordinalOverflow, format.name).toBeLessThanOrEqual(1);
 
     const header = await page.locator(".presentation-leaderboard-header").boundingBox();
     const layoutBox = await layout.boundingBox();
     expect(header.y - layoutBox.y, format.name).toBeLessThanOrEqual(24);
     await expect(page.locator(".presentation-leaderboard-trophy, .presentation-leaderboard-kicker")).toHaveCount(0);
     await expect(page.locator(".presentation-leaderboard-avatar img")).toHaveCount(35);
+    await expect(page.locator(".presentation-leaderboard-rank.is-tone-gold")).toHaveCount(1);
+    await expect(page.locator(".presentation-leaderboard-rank.is-tone-silver")).toHaveCount(1);
+    await expect(page.locator(".presentation-leaderboard-rank.is-tone-bronze")).toHaveCount(1);
+    await expect(page.locator(".presentation-leaderboard-standing-rank").first()).toHaveText("4th");
+    await expect(page.locator(".presentation-leaderboard-standing-points span").first()).toHaveText("PTS");
     expect(await page.locator(".presentation-leaderboard-avatar img").evaluateAll((images) => (
       images.every((image) => image.complete && image.naturalWidth > 0)
     )), format.name).toBe(true);

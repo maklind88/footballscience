@@ -774,8 +774,8 @@ test("Leaderboard layout reads the current standings and presents every scorer a
   const renderer = createPresentationModeRenderer();
   const standings = [
     { playerId: "p1", name: "Ada Forward", number: "9", position: "Forward", photoUrl: "/ada.jpg", points: 12, rank: 1 },
-    { playerId: "p2", name: "Bea Midfielder", number: "8", position: "Midfielder", points: 9, rank: 2 },
-    { playerId: "p3", name: "Cara Defender", number: "4", position: "Defender", points: 7, rank: 3 },
+    { playerId: "p2", name: "Bea Midfielder", number: "8", position: "Midfielder", points: 12, rank: 1 },
+    { playerId: "p3", name: "Cara Defender", number: "4", position: "Defender", points: 12, rank: 1 },
     { playerId: "p4", name: "Dana Keeper", number: "1", position: "Goalkeeper", points: 5, rank: 4 },
     { playerId: "p5", name: "Eli Winger", number: "11", position: "Forward", points: 3, rank: 5 },
   ];
@@ -812,6 +812,10 @@ test("Leaderboard layout reads the current standings and presents every scorer a
   expect(markup).not.toContain("presentation-leaderboard-trophy");
   expect(markup).not.toContain("Monthly competition");
   expect(markup).toContain("presentation-leaderboard-podium");
+  expect((markup.match(/presentation-leaderboard-rank is-tone-gold/g) || []).length).toBe(3);
+  expect(markup).toContain('aria-label="Joint rank 1"');
+  expect(markup).toContain('aria-label="Rank 4">4th</span>');
+  expect(markup).toContain("presentation-leaderboard-standing-points");
   expect(markup).toContain("September 2026");
   expect(markup).toContain('data-presentation-text-field="leaderboard.title"');
   expect(markup).toContain('src="/ada.jpg"');

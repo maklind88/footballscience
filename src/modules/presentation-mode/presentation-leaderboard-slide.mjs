@@ -27,11 +27,28 @@ function renderPlayerMeta(escapeHtml, player = {}) {
   return details.length ? `<span>${escapeHtml(details.join(" · "))}</span>` : "";
 }
 
-function renderPodiumPlayer(escapeHtml, player = {}, index = 0) {
+function formatRankOrdinal(value = 0) {
+  const rank = Math.max(0, Number(value) || 0);
+  const lastTwo = rank % 100;
+  if (lastTwo >= 11 && lastTwo <= 13) return `${rank}th`;
+  if (rank % 10 === 1) return `${rank}st`;
+  if (rank % 10 === 2) return `${rank}nd`;
+  if (rank % 10 === 3) return `${rank}rd`;
+  return `${rank}th`;
+}
+
+function renderPodiumPlayer(escapeHtml, player = {}, index = 0, shared = false) {
   const rank = Number(player.rank) || index + 1;
+  const tone = rank === 1 ? "gold" : rank === 2 ? "silver" : "bronze";
   return `
     <article class="presentation-leaderboard-podium-player is-rank-${Math.min(3, rank)}">
-      <span class="presentation-leaderboard-rank" aria-label="Rank ${escapeHtml(rank)}">${escapeHtml(rank)}</span>
+      <span class="presentation-leaderboard-rank is-tone-${tone}" aria-label="${shared ? "Joint rank" : "Rank"} ${escapeHtml(rank)}">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path class="is-cup" d="M7 3h10v6a5 5 0 0 1-10 0V3Z" />
+          <path d="M7 5H4v2a4 4 0 0 0 4 4M17 5h3v2a4 4 0 0 1-4 4M12 14v4M8 21h8M9 18h6" />
+        </svg>
+        <strong aria-hidden="true">${escapeHtml(rank)}</strong>
+      </span>
       ${renderAvatar(escapeHtml, player, "is-podium")}
       <div class="presentation-leaderboard-player-copy">
         <strong title="${escapeHtml(player.name || "Player")}">${escapeHtml(player.name || "Player")}</strong>
@@ -49,13 +66,16 @@ function renderStandingPlayer(escapeHtml, player = {}, index = 0) {
   const rank = Number(player.rank) || index + 4;
   return `
     <article class="presentation-leaderboard-standing">
-      <span class="presentation-leaderboard-standing-rank">${escapeHtml(rank)}</span>
+      <span class="presentation-leaderboard-standing-rank" aria-label="Rank ${escapeHtml(rank)}">${escapeHtml(formatRankOrdinal(rank))}</span>
       ${renderAvatar(escapeHtml, player)}
       <div class="presentation-leaderboard-player-copy">
         <strong title="${escapeHtml(player.name || "Player")}">${escapeHtml(player.name || "Player")}</strong>
         ${renderPlayerMeta(escapeHtml, player)}
       </div>
-      <strong class="presentation-leaderboard-standing-points">${escapeHtml(player.points || 0)}</strong>
+      <span class="presentation-leaderboard-standing-points">
+        <strong>${escapeHtml(player.points || 0)}</strong>
+        <span>PTS</span>
+      </span>
     </article>
   `;
 }
@@ -102,6 +122,11 @@ export function renderPresentationLeaderboardBody({
   const standings = Array.isArray(snapshot.standings) ? snapshot.standings : [];
   const podium = standings.slice(0, 3);
   const remaining = standings.slice(3);
+  const rankCounts = standings.reduce((counts, player) => {
+    const rank = Number(player.rank) || 0;
+    if (rank) counts.set(rank, (counts.get(rank) || 0) + 1);
+    return counts;
+  }, new Map());
   const densityClass = remaining.length > 27
     ? " is-ultra-crowded"
     : remaining.length > 18
@@ -122,7 +147,12 @@ export function renderPresentationLeaderboardBody({
       ${standings.length
         ? `
             <div class="presentation-leaderboard-podium" aria-label="Top three players">
-              ${podium.map((player, index) => renderPodiumPlayer(escapeHtml, player, index)).join("")}
+              ${podium.map((player, index) => renderPodiumPlayer(
+                escapeHtml,
+                player,
+                index,
+                (rankCounts.get(Number(player.rank) || index + 1) || 0) > 1,
+              )).join("")}
             </div>
             ${remaining.length
               ? `

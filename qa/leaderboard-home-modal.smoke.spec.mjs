@@ -154,6 +154,19 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await openButton.click();
   const outerDialog = page.locator(".leaderboard-home-dialog");
   await expect(outerDialog).toBeVisible();
+  const closeButton = page.getByRole("button", { name: "Close Leaderboard" });
+  await expect(closeButton.locator("svg")).toHaveCount(1);
+  expect(await closeButton.evaluate((button) => {
+    const icon = button.querySelector("svg");
+    const buttonRect = button.getBoundingClientRect();
+    const iconRect = icon.getBoundingClientRect();
+    return {
+      horizontalOffset: Math.abs((buttonRect.left + buttonRect.width / 2) - (iconRect.left + iconRect.width / 2)),
+      verticalOffset: Math.abs((buttonRect.top + buttonRect.height / 2) - (iconRect.top + iconRect.height / 2)),
+      iconWidth: iconRect.width,
+      iconHeight: iconRect.height,
+    };
+  })).toEqual({ horizontalOffset: 0, verticalOffset: 0, iconWidth: 16, iconHeight: 16 });
   const commandTitle = outerDialog.locator(".leaderboard-command-title h1");
   await expect(commandTitle).toBeVisible();
   expect(await commandTitle.evaluate((node) => {

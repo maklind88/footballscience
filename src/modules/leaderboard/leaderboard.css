@@ -227,7 +227,8 @@ body.is-leaderboard-dialog-open { overflow: hidden; }
 .leaderboard-home-dialog-head { z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .78rem 1rem; border-bottom: 1px solid rgba(29,29,31,.1); background: rgba(255,255,255,.9); backdrop-filter: saturate(180%) blur(18px); }
 .leaderboard-home-dialog-head > div { min-width: 0; }
 .leaderboard-home-dialog-head h2 { overflow: hidden; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
-.leaderboard-home-dialog-head button { display: grid; place-items: center; width: 2.45rem; height: 2.45rem; border: 0; border-radius: 12px; background: #f0f0f2; color: #1d1d1f; font-size: 1.35rem; font-weight: 700; }
+.leaderboard-home-dialog-head button { display: grid; place-items: center; width: 2.45rem; height: 2.45rem; padding: 0; border: 0; border-radius: 12px; background: #f0f0f2; color: #1d1d1f; }
+.leaderboard-home-dialog-head button svg { display: block; width: 1rem; height: 1rem; overflow: visible; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
 .leaderboard-home-dialog-head button:disabled { cursor: not-allowed; opacity: .45; }
 .leaderboard-home-dialog-scroll { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 1rem; background: #f5f5f7; }
 .leaderboard-home-dialog [data-leaderboard-dialog-workspace], .leaderboard-home-dialog .leaderboard-shell { width: 100%; }

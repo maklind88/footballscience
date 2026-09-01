@@ -17,6 +17,7 @@ const currentMonthPayload = {
 };
 
 test("Presentation snapshot uses the current month and only exposes ranked scorers", () => {
+  const squadRoomPhoto = `data:image/png;base64,${"A".repeat(2400)}`;
   const snapshot = createLeaderboardPresentationSnapshot({
     month: "2026-08",
     status: "ready",
@@ -28,6 +29,9 @@ test("Presentation snapshot uses the current month and only exposes ranked score
     getNow: () => new Date("2026-09-01T12:00:00Z"),
     teamName: "North Carolina Courage",
     teamLogoUrl: "/ncc.png",
+    getPlayerProfilesState: () => ({
+      players: [{ id: "p2", imageUrl: squadRoomPhoto }],
+    }),
   });
 
   expect(snapshot).toMatchObject({
@@ -42,6 +46,8 @@ test("Presentation snapshot uses the current month and only exposes ranked score
     ["Bea Midfielder", 7, 2],
     ["Cara Defender", 5, 3],
   ]);
+  expect(snapshot.standings[0].photoUrl).toBe("/ada.jpg");
+  expect(snapshot.standings[1].photoUrl).toBe(squadRoomPhoto);
   expect(JSON.stringify(snapshot)).not.toContain("Historical Player");
   expect(snapshot.standings.some((player) => player.points === 0)).toBe(false);
   expect(Object.isFrozen(snapshot)).toBe(true);

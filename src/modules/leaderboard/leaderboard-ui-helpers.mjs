@@ -22,9 +22,19 @@ export function resolveLeaderboardProfilePhoto(player = {}, context = {}) {
   try {
     const profiles = context.getPlayerProfilesState()?.players;
     if (!Array.isArray(profiles)) return "";
-    const matches = profiles.filter((profile) => normalizeLeaderboardText(profile?.id, 160) === playerId);
+    const matches = profiles.filter((profile) => normalizeLeaderboardText(
+      profile?.id || profile?.playerId || profile?.player_id,
+      160,
+    ) === playerId);
     if (matches.length !== 1) return "";
-    return normalizeLeaderboardPhotoUrl(matches[0].photoUrl || matches[0].photo_url);
+    return normalizeLeaderboardPhotoUrl(
+      matches[0].photoUrl
+      || matches[0].photo_url
+      || matches[0].imageUrl
+      || matches[0].avatarUrl
+      || matches[0].headshotUrl
+      || matches[0].profileImageUrl,
+    );
   } catch {
     return "";
   }

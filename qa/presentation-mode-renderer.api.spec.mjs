@@ -806,7 +806,8 @@ test("Leaderboard layout reads the current standings and presents every scorer a
   expect(slide.leaderboard.standings).toEqual(standings);
   expect(controls).toContain('data-presentation-add-info="leaderboard"');
   expect(controls).toContain("Current monthly standings");
-  expect(markup).toContain("presentation-leaderboard-trophy");
+  expect(markup).not.toContain("presentation-leaderboard-trophy");
+  expect(markup).not.toContain("Monthly competition");
   expect(markup).toContain("presentation-leaderboard-podium");
   expect(markup).toContain("September 2026");
   expect(markup).toContain('data-presentation-text-field="leaderboard.title"');

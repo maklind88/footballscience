@@ -4,6 +4,7 @@ import {
   normalizeLeaderboardText,
 } from "./leaderboard-helpers.mjs";
 import { getLeaderboardRankedStandings } from "./leaderboard-selectors.mjs";
+import { resolveLeaderboardProfilePhoto } from "./leaderboard-ui-helpers.mjs";
 
 export function getLeaderboardCurrentMonthSnapshot(state = {}, context = {}) {
   const month = getLeaderboardMonthValue(context.getNow?.() || new Date());
@@ -35,7 +36,7 @@ export function createLeaderboardPresentationSnapshot(state = {}, context = {}) 
         name: normalizeLeaderboardText(row.name, 120) || "Player",
         number: normalizeLeaderboardText(row.number, 16),
         position: normalizeLeaderboardText(row.position, 80),
-        photoUrl: normalizeLeaderboardText(row.photoUrl, 1800),
+        photoUrl: resolveLeaderboardProfilePhoto(row, context),
         points: Number(row.points) || 0,
         rank: Number(row.rank) || 0,
         awardCount: Number(row.awardCount) || 0,

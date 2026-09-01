@@ -1,14 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { createPresentationModeRenderer } from "../src/modules/presentation-mode/presentation-mode-renderer.mjs";
 
-function createStandings(count = 23) {
+const profilePhoto = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+function createStandings(count = 35) {
   const positions = ["Goalkeeper", "Defender", "Midfielder", "Forward"];
   return Array.from({ length: count }, (_, index) => ({
     playerId: `player-${index + 1}`,
     name: index === 7 ? "Alexandra Very Long Player Surname" : `Player Surname ${index + 1}`,
     number: String(index + 1),
     position: positions[index % positions.length],
-    photoUrl: "",
+    photoUrl: profilePhoto,
     points: Math.max(1, 30 - index),
     rank: index + 1,
   }));
@@ -75,6 +77,7 @@ test("Leaderboard slide stays readable and inside the frame across presentation 
     { name: "1080p", width: 1920, height: 1080 },
     { name: "4k", width: 3840, height: 2160 },
     { name: "16-10", width: 1920, height: 1200 },
+    { name: "editor-preview", width: 940, height: 529 },
   ];
 
   for (const format of formats) {
@@ -112,12 +115,21 @@ test("Leaderboard slide stays readable and inside the frame across presentation 
       };
     });
 
-    expect(result.cardCount, format.name).toBe(23);
+    expect(result.cardCount, format.name).toBe(35);
     expect(result.inside, format.name).toBe(true);
     expect(result.overlapPairs, format.name).toEqual([]);
     expect(result.layoutOverflowX, format.name).toBeLessThanOrEqual(1);
     expect(result.layoutOverflowY, format.name).toBeLessThanOrEqual(1);
     expect(result.smallestName, format.name).toBeGreaterThanOrEqual(14);
+
+    const header = await page.locator(".presentation-leaderboard-header").boundingBox();
+    const layoutBox = await layout.boundingBox();
+    expect(header.y - layoutBox.y, format.name).toBeLessThanOrEqual(24);
+    await expect(page.locator(".presentation-leaderboard-trophy, .presentation-leaderboard-kicker")).toHaveCount(0);
+    await expect(page.locator(".presentation-leaderboard-avatar img")).toHaveCount(35);
+    expect(await page.locator(".presentation-leaderboard-avatar img").evaluateAll((images) => (
+      images.every((image) => image.complete && image.naturalWidth > 0)
+    )), format.name).toBe(true);
 
     if (format.name === "1080p") {
       await page.screenshot({ path: testInfo.outputPath("leaderboard-1080p.png"), fullPage: true });

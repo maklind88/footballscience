@@ -12,10 +12,9 @@ function getInitials(name = "Player") {
 function renderAvatar(escapeHtml, player = {}, className = "") {
   const photoUrl = String(player.photoUrl || "").trim();
   return `
-    <span class="presentation-leaderboard-avatar${className ? ` ${className}` : ""}">
-      ${photoUrl
-        ? `<img src="${escapeHtml(photoUrl)}" alt="" />`
-        : `<span aria-hidden="true">${escapeHtml(getInitials(player.name))}</span>`}
+    <span class="presentation-leaderboard-avatar${className ? ` ${className}` : ""}${photoUrl ? " has-photo" : ""}">
+      <span class="presentation-leaderboard-avatar-initials" aria-hidden="true">${escapeHtml(getInitials(player.name))}</span>
+      ${photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="" loading="lazy" onerror="this.closest('.presentation-leaderboard-avatar')?.classList.remove('has-photo');this.remove()" />` : ""}
     </span>
   `;
 }
@@ -103,8 +102,10 @@ export function renderPresentationLeaderboardBody({
   const standings = Array.isArray(snapshot.standings) ? snapshot.standings : [];
   const podium = standings.slice(0, 3);
   const remaining = standings.slice(3);
-  const densityClass = remaining.length > 18
-    ? " is-very-crowded"
+  const densityClass = remaining.length > 27
+    ? " is-ultra-crowded"
+    : remaining.length > 18
+      ? " is-very-crowded"
     : remaining.length > 12
       ? " is-crowded"
       : "";
@@ -113,11 +114,7 @@ export function renderPresentationLeaderboardBody({
   return `
     <section class="presentation-leaderboard-layout${densityClass}" data-presentation-leaderboard-status="${escapeHtml(snapshot.status || "loading")}">
       <header class="presentation-leaderboard-header">
-        <span class="presentation-leaderboard-trophy" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H4v1a4 4 0 0 0 4 4M16 6h4v1a4 4 0 0 1-4 4M12 13v4M8 21h8M9 17h6"/></svg>
-        </span>
         <div>
-          <span class="presentation-leaderboard-kicker">Monthly competition</span>
           ${renderEditableElement(model, slide, "leaderboard.title", title, "h1", "class=\"presentation-leaderboard-title\"", { label: "Leaderboard title" })}
           <span class="presentation-leaderboard-month">${escapeHtml(snapshot.monthLabel || "Current month")}</span>
         </div>

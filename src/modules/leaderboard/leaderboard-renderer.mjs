@@ -10,7 +10,6 @@ import {
 import { renderLeaderboardAwardSheet } from "./leaderboard-award-renderer.mjs";
 import {
   renderLeaderboardActivity,
-  renderLeaderboardMetrics,
   renderLeaderboardNotice,
   renderLeaderboardPlayerDrawer,
   renderLeaderboardPodium,
@@ -52,7 +51,6 @@ function renderStandings(state, context, canEdit) {
   if (!allRanked.length) return renderEmptyMonth(canEdit);
   return `
     ${renderLeaderboardPodium(allRanked, context)}
-    ${renderLeaderboardMetrics(state.data || {}, context)}
     <section class="leaderboard-standings-head"><div><p>Point distribution</p><h2>Full standings</h2></div><label><span class="sr-only">Search standings</span><input type="search" value="${escapeLeaderboardHtml(state.ui.standingsSearch)}" placeholder="Search player…" data-leaderboard-standings-search data-leaderboard-focus-key="standings-search" /></label></section>
     ${ranked.length || zeroRows.length ? renderLeaderboardStandingsTable(ranked, zeroRows) : `<section class="leaderboard-empty-state is-compact"><h2>No matching players</h2><p>Try another name, number or position.</p><button type="button" data-leaderboard-clear-search>Clear search</button></section>`}
   `;

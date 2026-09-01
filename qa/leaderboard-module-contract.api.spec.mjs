@@ -288,6 +288,8 @@ test("workspace renderer covers premium standings, activity, empty and read-only
   const standingsMarkup = renderLeaderboardWorkspace(readyState, makeContext());
   expect(standingsMarkup).toContain("North Carolina Courage Leaderboard");
   expect(standingsMarkup).toContain("leaderboard-podium");
+  expect(standingsMarkup).not.toContain("leaderboard-metrics");
+  expect(standingsMarkup).not.toContain("Monthly competition summary");
   expect(standingsMarkup).toContain("Point distribution");
   expect(standingsMarkup).toContain("=1");
   expect(standingsMarkup).toContain("No points yet");

@@ -4,7 +4,6 @@ import {
   getLeaderboardPlayer,
   getLeaderboardPlayerEvents,
   getLeaderboardSquadPlayers,
-  getLeaderboardSummary,
 } from "./leaderboard-selectors.mjs";
 import {
   formatLeaderboardRank,
@@ -14,19 +13,6 @@ import {
 
 function getRankCounts(rows = []) {
   return rows.reduce((counts, row) => counts.set(row.rank, (counts.get(row.rank) || 0) + 1), new Map());
-}
-
-export function renderLeaderboardMetrics(data = {}, context = {}) {
-  const summary = getLeaderboardSummary(data, context);
-  const metrics = [
-    [summary.eventCount, "Scoring events"],
-    [summary.totalPoints, "Points awarded"],
-    [summary.scoredPlayerCount, "Players scored"],
-    [summary.leaderGap === null || summary.leaderGap === undefined ? "—" : summary.leaderGap, "Gap to second"],
-  ];
-  return `<section class="leaderboard-metrics" aria-label="Monthly competition summary">${metrics.map(([value, label]) => `
-    <article><strong>${escapeLeaderboardHtml(value)}</strong><span>${escapeLeaderboardHtml(label)}</span></article>
-  `).join("")}</section>`;
 }
 
 export function renderLeaderboardPodium(rows = [], context = {}) {

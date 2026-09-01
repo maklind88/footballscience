@@ -157,6 +157,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   const fullPodium = outerDialog.locator(".leaderboard-content > .leaderboard-podium");
   await expect(fullPodium.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
   expect(await fullPodium.evaluate((podium) => podium.getBoundingClientRect().height)).toBeLessThan(125);
+  await expect(outerDialog.locator(".leaderboard-metrics")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Close Leaderboard" })).toBeFocused();
   expect(await page.locator("#app").evaluate((node) => node.inert)).toBe(true);
   expect(await page.locator("#appNav").evaluate((node) => node.inert)).toBe(true);

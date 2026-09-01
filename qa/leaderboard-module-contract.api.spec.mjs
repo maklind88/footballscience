@@ -292,9 +292,10 @@ test("workspace renderer covers premium standings, activity, empty and read-only
   expect(standingsMarkup).not.toContain("leaderboard-metrics");
   expect(standingsMarkup).not.toContain("Monthly competition summary");
   expect(standingsMarkup).toContain("Point distribution");
-  expect(standingsMarkup).toContain("=1");
+  expect(standingsMarkup).toContain("leaderboard-podium-trophy");
+  expect(standingsMarkup).toContain("leaderboard-rank-trophy");
   expect(standingsMarkup).toContain('aria-label="Joint rank 1"');
-  expect(standingsMarkup).toContain("leaderboard-rank-tie");
+  expect(standingsMarkup).toContain("leaderboard-trophy is-rank-1");
   expect(standingsMarkup).toContain("No points yet");
   expect(standingsMarkup).toContain("Award Points");
   expect(standingsMarkup).toContain("https://example.com/alex.jpg");
@@ -322,16 +323,16 @@ test("Home podium uses rank-aware trophies and omits shirt numbers", () => {
     { playerId: "p3", name: "Emily Fox", number: 2, points: 3, rank: 3 },
   ];
   const podium = renderLeaderboardPodium(ranked, makeContext(), { variant: "home" });
-  expect(podium).toContain("leaderboard-podium-trophy is-rank-1");
-  expect(podium).toContain("leaderboard-podium-trophy is-rank-2");
-  expect(podium).toContain("leaderboard-podium-trophy is-rank-3");
+  expect(podium).toContain("leaderboard-trophy is-rank-1");
+  expect(podium).toContain("leaderboard-trophy is-rank-2");
+  expect(podium).toContain("leaderboard-trophy is-rank-3");
   expect(podium).not.toContain("#13");
   expect(podium).not.toContain("#17");
   expect(podium).not.toContain("#2");
 
   const tied = renderLeaderboardPodium(ranked.map((row) => ({ ...row, rank: 1 })), makeContext(), { variant: "home" });
-  expect(tied.match(/leaderboard-podium-trophy is-rank-1/g)).toHaveLength(3);
-  expect(tied.match(/<strong>1<\/strong>/g)).toHaveLength(3);
+  expect(tied.match(/leaderboard-trophy is-rank-1/g)).toHaveLength(3);
+  expect(tied.match(/<strong aria-hidden="true">1<\/strong>/g)).toHaveLength(3);
 });
 
 test("completed months are visibly read-only even for coaches with edit permission", async () => {

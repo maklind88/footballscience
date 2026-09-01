@@ -173,6 +173,57 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   const fullPodium = outerDialog.locator(".leaderboard-content > .leaderboard-podium");
   await expect(fullPodium.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
   expect(await fullPodium.evaluate((podium) => podium.getBoundingClientRect().height)).toBeLessThan(125);
+  await expect.poll(() => outerDialog.evaluate((dialog) => {
+    const commandBar = dialog.querySelector(".leaderboard-command-bar");
+    const podium = dialog.querySelector(".leaderboard-content > .leaderboard-podium");
+    const podiumCard = podium.querySelector(".leaderboard-podium-card");
+    const tabs = dialog.querySelector(".leaderboard-tabs");
+    const activeTab = tabs.querySelector(".is-active");
+    const properties = (node) => {
+      const style = getComputedStyle(node);
+      return {
+        backgroundColor: style.backgroundColor,
+        backgroundImage: style.backgroundImage,
+        borderRadius: style.borderRadius,
+      };
+    };
+    return {
+      commandBar: properties(commandBar),
+      podium: properties(podium),
+      podiumCard: properties(podiumCard),
+      tabs: properties(tabs),
+      activeTab: properties(activeTab),
+    };
+  })).toEqual({
+    commandBar: { backgroundColor: "rgba(255, 255, 255, 0.94)", backgroundImage: "none", borderRadius: "16px" },
+    podium: { backgroundColor: "rgb(245, 245, 247)", backgroundImage: "none", borderRadius: "16px" },
+    podiumCard: { backgroundColor: "rgb(255, 250, 240)", backgroundImage: "none", borderRadius: "13px" },
+    tabs: { backgroundColor: "rgb(232, 232, 237)", backgroundImage: "none", borderRadius: "11px" },
+    activeTab: { backgroundColor: "rgb(255, 255, 255)", backgroundImage: "none", borderRadius: "9px" },
+  });
+  await page.evaluate(() => document.body.classList.add("is-dark-mode"));
+  await expect.poll(() => outerDialog.evaluate((dialog) => {
+    const selectors = {
+      dialog: ".leaderboard-home-dialog",
+      commandBar: ".leaderboard-command-bar",
+      podium: ".leaderboard-content > .leaderboard-podium",
+      podiumCard: ".leaderboard-content > .leaderboard-podium .leaderboard-podium-card",
+      tabs: ".leaderboard-tabs",
+      activeTab: ".leaderboard-tabs .is-active",
+    };
+    return Object.fromEntries(Object.entries(selectors).map(([key, selector]) => {
+      const style = getComputedStyle(key === "dialog" ? dialog : dialog.querySelector(selector));
+      return [key, { backgroundColor: style.backgroundColor, backgroundImage: style.backgroundImage }];
+    }));
+  })).toEqual({
+    dialog: { backgroundColor: "rgb(28, 28, 30)", backgroundImage: "none" },
+    commandBar: { backgroundColor: "rgb(28, 28, 30)", backgroundImage: "none" },
+    podium: { backgroundColor: "rgb(28, 28, 30)", backgroundImage: "none" },
+    podiumCard: { backgroundColor: "rgb(51, 47, 36)", backgroundImage: "none" },
+    tabs: { backgroundColor: "rgb(44, 44, 46)", backgroundImage: "none" },
+    activeTab: { backgroundColor: "rgb(72, 72, 74)", backgroundImage: "none" },
+  });
+  await page.evaluate(() => document.body.classList.remove("is-dark-mode"));
   await expect(outerDialog.locator(".leaderboard-metrics")).toHaveCount(0);
   const standingPhotos = outerDialog.locator(".leaderboard-table .leaderboard-player-cell .leaderboard-avatar img");
   await expect(standingPhotos).toHaveCount(3);
@@ -182,9 +233,10 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(tiedRankBadges.first().getByText("Tie", { exact: true })).toBeVisible();
   expect(await tiedRankBadges.first().evaluate((node) => {
     const style = getComputedStyle(node);
-    return { backgroundImage: style.backgroundImage, borderRadius: style.borderRadius, boxShadow: style.boxShadow };
+    return { backgroundColor: style.backgroundColor, backgroundImage: style.backgroundImage, borderRadius: style.borderRadius, boxShadow: style.boxShadow };
   })).toEqual({
-    backgroundImage: expect.stringContaining("linear-gradient"),
+    backgroundColor: "rgb(255, 246, 223)",
+    backgroundImage: "none",
     borderRadius: "14px",
     boxShadow: expect.not.stringContaining("none"),
   });

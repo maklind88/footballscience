@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import * as leaderboardModule from "../src/modules/leaderboard/index.mjs";
 import { createLeaderboardActions } from "../src/modules/leaderboard/leaderboard-actions.mjs";
 import { renderLeaderboardAwardSheet } from "../src/modules/leaderboard/leaderboard-award-renderer.mjs";
+import { renderLeaderboardPodium } from "../src/modules/leaderboard/leaderboard-components.mjs";
 import { renderLeaderboardWorkspace } from "../src/modules/leaderboard/leaderboard-renderer.mjs";
 import {
   getLeaderboardDraftAwards,
@@ -312,6 +313,25 @@ test("workspace renderer covers premium standings, activity, empty and read-only
   const noSquadMarkup = renderLeaderboardWorkspace({ ...readyState, data: makePayload({ roster: [], standings: [], events: [] }) }, makeContext());
   expect(noSquadMarkup).toContain("Leaderboard needs your squad");
   expect(noSquadMarkup).toContain('data-open-workspace="player-profiles"');
+});
+
+test("Home podium uses rank-aware trophies and omits shirt numbers", () => {
+  const ranked = [
+    { playerId: "p1", name: "Alex Morgan", number: 13, points: 9, rank: 1 },
+    { playerId: "p2", name: "Sam Coffey", number: 17, points: 6, rank: 2 },
+    { playerId: "p3", name: "Emily Fox", number: 2, points: 3, rank: 3 },
+  ];
+  const podium = renderLeaderboardPodium(ranked, makeContext(), { variant: "home" });
+  expect(podium).toContain("leaderboard-podium-trophy is-rank-1");
+  expect(podium).toContain("leaderboard-podium-trophy is-rank-2");
+  expect(podium).toContain("leaderboard-podium-trophy is-rank-3");
+  expect(podium).not.toContain("#13");
+  expect(podium).not.toContain("#17");
+  expect(podium).not.toContain("#2");
+
+  const tied = renderLeaderboardPodium(ranked.map((row) => ({ ...row, rank: 1 })), makeContext(), { variant: "home" });
+  expect(tied.match(/leaderboard-podium-trophy is-rank-1/g)).toHaveLength(3);
+  expect(tied.match(/<strong>1<\/strong>/g)).toHaveLength(3);
 });
 
 test("completed months are visibly read-only even for coaches with edit permission", async () => {

@@ -46,6 +46,13 @@
 .leaderboard-home-summary .leaderboard-podium-card.is-place-3 { background: linear-gradient(160deg,#fff,#f6eee9); }
 .leaderboard-home-summary .leaderboard-podium-card:hover { background-color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.05); transform: translateY(-1px); }
 .leaderboard-home-summary .leaderboard-podium-rank { top: .34rem; right: .42rem; color: #6e6e73; }
+.leaderboard-home-summary .leaderboard-podium-trophy { display: grid; place-items: center; width: 1.45rem; height: 1.45rem; color: #b58416; filter: drop-shadow(0 1px 1px rgba(0,0,0,.12)); }
+.leaderboard-home-summary .leaderboard-podium-trophy svg { display: block; width: 100%; height: 100%; overflow: visible; fill: color-mix(in srgb,currentColor 18%,transparent); stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.leaderboard-home-summary .leaderboard-podium-trophy strong { position: absolute; top: .28rem; left: 50%; color: #5f4307; font-size: .5rem; font-weight: 850; line-height: 1; transform: translateX(-50%); }
+.leaderboard-home-summary .leaderboard-podium-trophy.is-rank-2 { color: #858c92; }
+.leaderboard-home-summary .leaderboard-podium-trophy.is-rank-2 strong { color: #454b50; }
+.leaderboard-home-summary .leaderboard-podium-trophy.is-rank-3 { color: #a66642; }
+.leaderboard-home-summary .leaderboard-podium-trophy.is-rank-3 strong { color: #633820; }
 .leaderboard-home-summary .leaderboard-podium-avatar { width: 2.2rem; height: 2.2rem; border: 2px solid #fff; box-shadow: 0 3px 9px rgba(0,0,0,.08); }
 .leaderboard-home-summary .leaderboard-podium-card.is-place-1 .leaderboard-podium-avatar { width: 2.55rem; height: 2.55rem; }
 .leaderboard-home-summary .leaderboard-podium-copy { width: 100%; }
@@ -356,6 +363,12 @@ body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-card.is-place-1 
 body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-card.is-place-2 { background: linear-gradient(160deg,#333638,#292929); }
 body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-card.is-place-3 { background: linear-gradient(160deg,#3a302b,#292929); }
 body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-rank, body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-copy small, body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-points small { color: #98989d; }
+body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-trophy.is-rank-1 { color: #e0b44f; }
+body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-trophy.is-rank-1 strong { color: #f8e4a7; }
+body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-trophy.is-rank-2 { color: #b6bec4; }
+body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-trophy.is-rank-2 strong { color: #eef1f3; }
+body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-trophy.is-rank-3 { color: #c98761; }
+body.is-dark-mode .leaderboard-home-summary .leaderboard-podium-trophy.is-rank-3 strong { color: #f0c1a6; }
 body.is-dark-mode .leaderboard-home-state, body.is-dark-mode .leaderboard-home-standings-list button { background: rgba(15,23,42,.72); color: var(--lb-ink); }
 body.is-dark-mode .leaderboard-home-state button { border-color: var(--lb-line); background: #0f172a; color: var(--lb-ink); }
 body.is-dark-mode .leaderboard-home-dialog { background: #1c1c1e; color: var(--lb-ink); }

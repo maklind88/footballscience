@@ -26,8 +26,21 @@ function renderStandingRank(rank = 0, shared = false) {
   `;
 }
 
-export function renderLeaderboardPodium(rows = [], context = {}) {
+function renderPodiumRank(rank = 0, shared = false, compactHome = false) {
+  if (!compactHome) return `<span class="leaderboard-podium-rank">${formatLeaderboardRank(rank, shared)}</span>`;
+  const cleanRank = Math.max(1, Number(rank) || 1);
+  const tone = cleanRank >= 1 && cleanRank <= 3 ? cleanRank : 3;
+  return `
+    <span class="leaderboard-podium-rank leaderboard-podium-trophy is-rank-${tone}" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M7 3h10v6a5 5 0 0 1-10 0V3Z"/><path d="M7 5H4v2a4 4 0 0 0 4 4M17 5h3v2a4 4 0 0 1-4 4M12 14v4M8 21h8M9 18h6"/></svg>
+      <strong>${cleanRank}</strong>
+    </span>
+  `;
+}
+
+export function renderLeaderboardPodium(rows = [], context = {}, options = {}) {
   if (!rows.length) return "";
+  const compactHome = options.variant === "home";
   const rankCounts = getRankCounts(rows);
   return `
     <section class="leaderboard-podium" aria-label="Top three players">
@@ -37,9 +50,9 @@ export function renderLeaderboardPodium(rows = [], context = {}) {
         const podiumPlayer = { ...row, photoUrl: resolveLeaderboardProfilePhoto(row, context) };
         return `
           <button type="button" class="leaderboard-podium-card is-place-${visualPlace}" data-leaderboard-player-detail="${escapeLeaderboardHtml(row.playerId)}" aria-label="${escapeLeaderboardHtml(`${shared ? "Joint " : ""}rank ${row.rank}, ${row.name}, ${row.points} points`)}">
-            <span class="leaderboard-podium-rank">${formatLeaderboardRank(row.rank, shared)}</span>
+            ${renderPodiumRank(row.rank, shared, compactHome)}
             ${renderLeaderboardAvatar(podiumPlayer, "leaderboard-avatar leaderboard-podium-avatar")}
-            <span class="leaderboard-podium-copy"><strong>${escapeLeaderboardHtml(row.name)}</strong><small>${escapeLeaderboardHtml(row.number ? `#${row.number}` : row.position || "Squad player")}</small></span>
+            <span class="leaderboard-podium-copy"><strong>${escapeLeaderboardHtml(row.name)}</strong>${compactHome ? "" : `<small>${escapeLeaderboardHtml(row.number ? `#${row.number}` : row.position || "Squad player")}</small>`}</span>
             <span class="leaderboard-podium-points"><strong>${row.points}</strong><small>pts</small></span>
           </button>
         `;

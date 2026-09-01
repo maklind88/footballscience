@@ -104,6 +104,12 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(summary.locator(".leaderboard-podium-card")).toHaveCount(3);
   await expect(summary.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
   await expect.poll(() => summary.locator(".leaderboard-podium-avatar img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
+  await expect(summary.locator(".leaderboard-podium-copy small")).toHaveCount(0);
+  await expect(summary.locator(".leaderboard-podium-trophy")).toHaveCount(3);
+  await expect(summary.locator(".leaderboard-podium-trophy.is-rank-1")).toHaveCount(2);
+  await expect(summary.locator(".leaderboard-podium-trophy.is-rank-1 strong")).toHaveText(["1", "1"]);
+  await expect(summary.locator(".leaderboard-podium-trophy.is-rank-3")).toHaveCount(1);
+  await expect(summary.locator(".leaderboard-podium-trophy.is-rank-3 strong")).toHaveText("3");
   await expect(summary.locator(".leaderboard-home-standings")).toHaveCount(0);
   const homePodiumLayout = await summary.locator(".leaderboard-podium").evaluate((podium) => {
     const first = podium.querySelector(".is-place-1").getBoundingClientRect();
@@ -185,6 +191,8 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   })).toEqual({ fullTextInsideHeader: true, lineCount: 1, overflowX: "visible", textOverflow: "clip", whiteSpace: "normal" });
   const fullPodium = outerDialog.locator(".leaderboard-content > .leaderboard-podium");
   await expect(fullPodium.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
+  await expect(fullPodium.locator(".leaderboard-podium-trophy")).toHaveCount(0);
+  await expect(fullPodium.locator(".leaderboard-podium-copy small")).toHaveText(["#13", "#17", "#2"]);
   expect(await fullPodium.evaluate((podium) => podium.getBoundingClientRect().height)).toBeLessThan(125);
   await expect.poll(() => outerDialog.evaluate((dialog) => {
     const commandBar = dialog.querySelector(".leaderboard-command-bar");

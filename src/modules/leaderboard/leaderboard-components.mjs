@@ -6,7 +6,11 @@ import {
   getLeaderboardSquadPlayers,
   getLeaderboardSummary,
 } from "./leaderboard-selectors.mjs";
-import { formatLeaderboardRank, renderLeaderboardAvatar } from "./leaderboard-ui-helpers.mjs";
+import {
+  formatLeaderboardRank,
+  renderLeaderboardAvatar,
+  resolveLeaderboardProfilePhoto,
+} from "./leaderboard-ui-helpers.mjs";
 
 function getRankCounts(rows = []) {
   return rows.reduce((counts, row) => counts.set(row.rank, (counts.get(row.rank) || 0) + 1), new Map());
@@ -25,7 +29,7 @@ export function renderLeaderboardMetrics(data = {}, context = {}) {
   `).join("")}</section>`;
 }
 
-export function renderLeaderboardPodium(rows = []) {
+export function renderLeaderboardPodium(rows = [], context = {}) {
   if (!rows.length) return "";
   const rankCounts = getRankCounts(rows);
   return `
@@ -33,10 +37,11 @@ export function renderLeaderboardPodium(rows = []) {
       ${rows.slice(0, 3).map((row, index) => {
         const visualPlace = index + 1;
         const shared = (rankCounts.get(row.rank) || 0) > 1;
+        const podiumPlayer = { ...row, photoUrl: resolveLeaderboardProfilePhoto(row, context) };
         return `
           <button type="button" class="leaderboard-podium-card is-place-${visualPlace}" data-leaderboard-player-detail="${escapeLeaderboardHtml(row.playerId)}" aria-label="${escapeLeaderboardHtml(`${shared ? "Joint " : ""}rank ${row.rank}, ${row.name}, ${row.points} points`)}">
             <span class="leaderboard-podium-rank">${formatLeaderboardRank(row.rank, shared)}</span>
-            ${renderLeaderboardAvatar(row, "leaderboard-avatar leaderboard-podium-avatar")}
+            ${renderLeaderboardAvatar(podiumPlayer, "leaderboard-avatar leaderboard-podium-avatar")}
             <span class="leaderboard-podium-copy"><strong>${escapeLeaderboardHtml(row.name)}</strong><small>${escapeLeaderboardHtml(row.number ? `#${row.number}` : row.position || "Squad player")}</small></span>
             <span class="leaderboard-podium-points"><strong>${row.points}</strong><small>pts</small></span>
           </button>

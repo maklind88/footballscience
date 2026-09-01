@@ -86,6 +86,11 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
       getAuthToken: () => "",
       getNow: () => new Date("2026-08-25T12:00:00"),
       canEdit: () => true,
+      getPlayerProfilesState: () => ({ players: [
+        { id: "p1", photoUrl: "/assets/football-science-mark.png" },
+        { id: "p2", photoUrl: "/assets/football-science-logo.png" },
+        { id: "p3", photoUrl: "/assets/pwa/icon-192.png" },
+      ] }),
     };
     window.leaderboardHomeContext = context;
     window.leaderboardHomeModule = module;
@@ -97,7 +102,21 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(summary.locator(".leaderboard-home-visual svg")).toHaveCount(1);
   await expect(summary.locator(".leaderboard-team-mark")).toHaveCount(0);
   await expect(summary.locator(".leaderboard-podium-card")).toHaveCount(3);
+  await expect(summary.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
+  await expect.poll(() => summary.locator(".leaderboard-podium-avatar img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
   await expect(summary.locator(".leaderboard-home-standings")).toHaveCount(0);
+  const homePodiumLayout = await summary.locator(".leaderboard-podium").evaluate((podium) => {
+    const first = podium.querySelector(".is-place-1").getBoundingClientRect();
+    const second = podium.querySelector(".is-place-2").getBoundingClientRect();
+    const third = podium.querySelector(".is-place-3").getBoundingClientRect();
+    return {
+      height: podium.getBoundingClientRect().height,
+      centerIsFirst: second.x < first.x && first.x < third.x,
+      firstIsRaised: first.height > second.height && first.height > third.height,
+    };
+  });
+  expect(homePodiumLayout).toEqual({ height: expect.any(Number), centerIsFirst: true, firstIsRaised: true });
+  expect(homePodiumLayout.height).toBeLessThan(112);
   const openButton = summary.getByRole("button", { name: "Open", exact: true });
   await expect(openButton).toBeVisible();
   const homeWidths = await page.evaluate(() => ({
@@ -135,6 +154,9 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await openButton.click();
   const outerDialog = page.locator(".leaderboard-home-dialog");
   await expect(outerDialog).toBeVisible();
+  const fullPodium = outerDialog.locator(".leaderboard-content > .leaderboard-podium");
+  await expect(fullPodium.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
+  expect(await fullPodium.evaluate((podium) => podium.getBoundingClientRect().height)).toBeLessThan(125);
   await expect(page.getByRole("button", { name: "Close Leaderboard" })).toBeFocused();
   expect(await page.locator("#app").evaluate((node) => node.inert)).toBe(true);
   expect(await page.locator("#appNav").evaluate((node) => node.inert)).toBe(true);

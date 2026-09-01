@@ -52,7 +52,7 @@ function renderReadySummary(data, context, editable) {
   if (!squad.length && !ranked.length) return `
     <section class="leaderboard-home-state"><div><strong>Connect your squad</strong><span>Add players in Squad Room before awarding competition points.</span></div></section>
   `;
-  return ranked.length ? renderLeaderboardPodium(ranked) : `
+  return ranked.length ? renderLeaderboardPodium(ranked, context) : `
     <section class="leaderboard-home-state is-empty"><div><strong>This month is ready</strong><span>Award the first points to start the podium.</span></div>${editable ? `<button type="button" data-leaderboard-home-award>Award first points</button>` : ""}</section>
   `;
 }

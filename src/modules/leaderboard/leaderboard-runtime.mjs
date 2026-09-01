@@ -21,6 +21,9 @@ function normalizeContext(context = {}) {
     teamName: context.teamName || team?.name || "",
     teamLogoUrl: context.teamLogoUrl || context.logo || team?.logoUrl || team?.logo_url || "",
     getAuthToken: typeof context.getAuthToken === "function" ? context.getAuthToken : () => "",
+    getPlayerProfilesState: typeof context.getPlayerProfilesState === "function"
+      ? context.getPlayerProfilesState
+      : () => ({}),
     getNow: typeof context.getNow === "function" ? context.getNow : () => new Date(),
     canEdit: typeof context.canEdit === "function" ? context.canEdit : () => Boolean(context.canEdit),
     fetchImpl: context.fetchImpl,

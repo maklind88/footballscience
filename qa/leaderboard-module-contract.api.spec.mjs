@@ -292,6 +292,7 @@ test("workspace renderer covers premium standings, activity, empty and read-only
   expect(standingsMarkup).toContain("=1");
   expect(standingsMarkup).toContain("No points yet");
   expect(standingsMarkup).toContain("Award Points");
+  expect(standingsMarkup).toContain("https://example.com/alex.jpg");
 
   const activityMarkup = renderLeaderboardWorkspace({ ...readyState, ui: { ...readyState.ui, tab: "activity" } }, makeContext());
   expect(activityMarkup).toContain("5v5 tournament");

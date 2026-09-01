@@ -50,13 +50,23 @@ async function waitForViewportSettle(page) {
 }
 
 test("Presentation Mode opens from Home and renders the planned training deck", async ({ page }) => {
-  const dateValue = new Date().toISOString().slice(0, 10);
-  const now = new Date().toISOString();
-  const selectedDayLabel = new Intl.DateTimeFormat("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date(`${dateValue}T00:00:00`));
+  const { dateValue, now, selectedDayLabel } = await page.evaluate(() => {
+    const current = new Date();
+    const localDateValue = [
+      current.getFullYear(),
+      String(current.getMonth() + 1).padStart(2, "0"),
+      String(current.getDate()).padStart(2, "0"),
+    ].join("-");
+    return {
+      dateValue: localDateValue,
+      now: current.toISOString(),
+      selectedDayLabel: new Intl.DateTimeFormat("en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(current),
+    };
+  });
 
   await page.addInitScript(
     ({ dateValue: seededDate, now: seededNow, keys }) => {

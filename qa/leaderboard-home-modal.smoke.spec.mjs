@@ -174,6 +174,9 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(fullPodium.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
   expect(await fullPodium.evaluate((podium) => podium.getBoundingClientRect().height)).toBeLessThan(125);
   await expect(outerDialog.locator(".leaderboard-metrics")).toHaveCount(0);
+  const standingPhotos = outerDialog.locator(".leaderboard-table .leaderboard-player-cell .leaderboard-avatar img");
+  await expect(standingPhotos).toHaveCount(3);
+  await expect.poll(() => standingPhotos.evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
   const tiedRankBadges = outerDialog.locator(".leaderboard-table .leaderboard-rank.is-shared");
   await expect(tiedRankBadges).toHaveCount(2);
   await expect(tiedRankBadges.first().getByText("Tie", { exact: true })).toBeVisible();

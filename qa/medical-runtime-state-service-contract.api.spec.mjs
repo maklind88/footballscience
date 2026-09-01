@@ -23,8 +23,9 @@ function createStorage(initial = {}) {
 
 function createServiceHarness(options = {}) {
   const medicalTeamStorageKey = "football-medical-team-v1";
-  const storage = createStorage(options.storage || {});
+  const storage = options.storageAdapter || createStorage(options.storage || {});
   const rawWrites = [];
+  const centralWrites = [];
   const logs = [];
   let medicalState = options.state || null;
   const service = createMedicalRuntimeStateService({
@@ -75,6 +76,7 @@ function createServiceHarness(options = {}) {
       return cleanValue === "guest-player" ? "guest" : cleanValue;
     },
     playerProfileRosterTypeCountsInSquad: (value) => String(value || "squad").trim().toLowerCase() === "squad",
+    queueCentralStateWrite: (key, value, writeOptions) => centralWrites.push({ key, value, options: writeOptions }),
     rawDataSafetySetItem: (key, value) => {
       rawWrites.push({ key, value });
       storage.setItem(key, value);
@@ -86,6 +88,7 @@ function createServiceHarness(options = {}) {
     win: { localStorage: storage },
   });
   return {
+    centralWrites,
     getState: () => medicalState,
     logs,
     medicalTeamStorageKey,
@@ -357,6 +360,30 @@ test("Medical runtime state service preserves write, sync-status, and profile st
     lastDatabaseSyncEvent: "recommendation-saved",
     lastPayloadHash: "hash-1",
   });
+});
+
+test("Medical runtime state service queues protected central state when browser storage is full", () => {
+  const quotaError = new Error("Setting football-medical-team-v1 exceeded the quota.");
+  quotaError.name = "QuotaExceededError";
+  const storage = {
+    getItem: () => null,
+    setItem: () => { throw quotaError; },
+    value: () => null,
+  };
+  const state = createStoredMedicalState();
+  const harness = createServiceHarness({ canEdit: true, state, storageAdapter: storage });
+
+  harness.service.writeMedicalState();
+
+  expect(harness.centralWrites).toHaveLength(1);
+  expect(harness.centralWrites[0]).toMatchObject({
+    key: harness.medicalTeamStorageKey,
+    options: { automatic: false },
+  });
+  expect(JSON.parse(harness.centralWrites[0].value).injuryPlans[0].id).toBe("plan-1");
+  expect(harness.logs).toContain(
+    "Medical Team browser cache is full; the protected state was queued directly for central sync."
+  );
 });
 
 test("Medical runtime state service materializes active Squad players into Medical roster on ensure", () => {

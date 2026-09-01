@@ -54,13 +54,13 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     actions.recordMedicalDatabaseSyncEvent?.(eventType, payload) ?? { ok: false, stored: false }
   ).catch((error) => ({ ok: false, stored: false, reason: error?.message || "" }));
 
-  const isCanonicalRecommendationConfirmed = (result = {}) => Boolean(
+  const isCanonicalMedicalWriteConfirmed = (result = {}) => Boolean(
     result.ok && (result.canonicalStored === true || result.enabled === false || result.localDev === true)
   );
 
   const recordCanonicalSync = async (eventType, payload) => {
     const firstResult = await recordSync(eventType, payload);
-    if (isCanonicalRecommendationConfirmed(firstResult)) return firstResult;
+    if (isCanonicalMedicalWriteConfirmed(firstResult)) return firstResult;
     return recordSync(eventType, payload);
   };
 
@@ -78,7 +78,7 @@ export function bindMedicalRuntimeBindings(deps = {}) {
         archivedAt: archivedRecord.archivedAt,
         idempotencyKey: `record-archived:${archivedRecord.id}:${archivedRecord.archivedAt || "archive"}`,
       });
-      if (!isCanonicalRecommendationConfirmed(syncResult)) return syncResult;
+      if (!isCanonicalMedicalWriteConfirmed(syncResult)) return syncResult;
     }
     return { ok: true, canonicalStored: true };
   };
@@ -338,11 +338,15 @@ export function bindMedicalRuntimeBindings(deps = {}) {
       ...(result.values || {}),
     });
     if (saved) {
-      recordSync("medical-board-updated", {
+      recordCanonicalSync("medical-board-updated", {
         playerId: saved.playerId,
         planId: saved.id,
         plan: saved,
         idempotencyKey: `medical-board-updated:${saved.id}:${saved.updatedAt || Date.now()}`,
+      }).then((syncResult) => {
+        if (!isCanonicalMedicalWriteConfirmed(syncResult)) {
+          renderWorkspace(getRecommendationSyncFailureMessage(syncResult, "RTP Player Board"));
+        }
       });
       renderWorkspace(message);
       openMedicalBoardEditorOverlay(saved.id);
@@ -878,7 +882,7 @@ ${renderRtpExerciseCards(profile, 3)}
       if (result.cleared && archivedRecords.length) {
         renderWorkspace(`${playerName}: clearing recommendation...`);
         const syncResult = await syncArchivedRecommendationRecords(archivedRecords);
-        if (!isCanonicalRecommendationConfirmed(syncResult)) {
+        if (!isCanonicalMedicalWriteConfirmed(syncResult)) {
           renderWorkspace(getRecommendationSyncFailureMessage(syncResult, `${playerName}'s cleared recommendation`));
           return;
         }
@@ -908,7 +912,7 @@ ${renderRtpExerciseCards(profile, 3)}
           record: recordToConfirm,
           idempotencyKey: `recommendation-saved:${recordToConfirm.id}`,
         });
-        if (!isCanonicalRecommendationConfirmed(syncResult)) {
+        if (!isCanonicalMedicalWriteConfirmed(syncResult)) {
           renderWorkspace(getRecommendationSyncFailureMessage(syncResult, `${playerName}'s recommendation`));
           return;
         }
@@ -920,7 +924,7 @@ ${renderRtpExerciseCards(profile, 3)}
           : [];
       if (archivedRecords.length) {
         const archiveResult = await syncArchivedRecommendationRecords(archivedRecords);
-        if (!isCanonicalRecommendationConfirmed(archiveResult)) {
+        if (!isCanonicalMedicalWriteConfirmed(archiveResult)) {
           renderWorkspace(getRecommendationSyncFailureMessage(archiveResult, `${playerName}'s recommendation update`));
           return;
         }
@@ -1271,13 +1275,15 @@ ${renderRtpExerciseCards(profile, 3)}
         const medicalState = getMedicalState(state);
         const plan = medicalState.injuryPlans.find((entry) => entry.id === planId) ?? null;
         const archivedPlan = actions.removeMedicalInjuryPlan?.(planId);
-        recordSync("availability-plan-archived", {
+        const syncResult = await recordCanonicalSync("availability-plan-archived", {
           playerId: plan?.playerId || "",
           planId,
           plan: archivedPlan || plan,
           idempotencyKey: `availability-plan-archived:${planId}:${archivedPlan?.archivedAt || Date.now()}`,
         });
-        renderWorkspace("Availability plan archived in protected clinical history.");
+        renderWorkspace(isCanonicalMedicalWriteConfirmed(syncResult)
+          ? "Availability plan archived in protected clinical history."
+          : getRecommendationSyncFailureMessage(syncResult, "Medical plan archive"));
       }
       return;
     }
@@ -1636,7 +1642,7 @@ ${renderRtpExerciseCards(profile, 3)}
           date: result.records[0]?.date || getMedicalState(state).selectedDate,
           idempotencyKey: `bulk-recommendation-saved:${result.records.map((record) => record.id).join("|")}`,
         });
-        if (!isCanonicalRecommendationConfirmed(syncResult)) {
+        if (!isCanonicalMedicalWriteConfirmed(syncResult)) {
           renderWorkspace(getRecommendationSyncFailureMessage(syncResult, "Bulk recommendations"));
           return;
         }
@@ -1668,9 +1674,19 @@ ${renderRtpExerciseCards(profile, 3)}
       const draft = actions.getMedicalInjuryPlanFormDraft?.(injuryPlanForm);
       const plan = draft?.planId ? actions.updateMedicalInjuryPlan?.(draft) : actions.addMedicalInjuryPlan?.(draft);
       if (plan) {
-        actions.clearMedicalInjuryPlanDraft?.(plan.playerId);
         const eventType = draft?.planId ? "availability-plan-updated" : "availability-plan-created";
-        recordSync(eventType, { playerId: plan.playerId, planId: plan.id, plan, idempotencyKey: `${eventType}:${plan.id}:${plan.updatedAt || Date.now()}` });
+        renderWorkspace("Saving medical plan centrally...");
+        const syncResult = await recordCanonicalSync(eventType, {
+          playerId: plan.playerId,
+          planId: plan.id,
+          plan,
+          idempotencyKey: `${eventType}:${plan.id}:${plan.updatedAt || Date.now()}`,
+        });
+        if (!isCanonicalMedicalWriteConfirmed(syncResult)) {
+          renderWorkspace(getRecommendationSyncFailureMessage(syncResult, "Medical plan"));
+          return;
+        }
+        actions.clearMedicalInjuryPlanDraft?.(plan.playerId);
       }
       renderWorkspace(plan ? `Availability plan ${draft?.planId ? "updated" : "created"}.` : "Availability plan could not be saved.");
       return;
@@ -1694,7 +1710,7 @@ ${renderRtpExerciseCards(profile, 3)}
           record,
           idempotencyKey: `recommendation-saved:${record.id}`,
         });
-        if (!isCanonicalRecommendationConfirmed(syncResult)) {
+        if (!isCanonicalMedicalWriteConfirmed(syncResult)) {
           renderWorkspace(getRecommendationSyncFailureMessage(syncResult, "Status"));
           return;
         }
@@ -1708,7 +1724,17 @@ ${renderRtpExerciseCards(profile, 3)}
       event.preventDefault();
       if (!canEdit()) return;
       const saved = actions.updateMedicalPlanClearance?.(actions.getPlatformFormValues?.(clearanceForm));
-      if (saved) recordSync("clearance-saved", { playerId: saved.playerId, plan: saved, idempotencyKey: `clearance-saved:${saved.id}:${saved.updatedAt || Date.now()}` });
+      if (saved) {
+        const syncResult = await recordCanonicalSync("clearance-saved", {
+          playerId: saved.playerId,
+          plan: saved,
+          idempotencyKey: `clearance-saved:${saved.id}:${saved.updatedAt || Date.now()}`,
+        });
+        if (!isCanonicalMedicalWriteConfirmed(syncResult)) {
+          renderWorkspace(getRecommendationSyncFailureMessage(syncResult, "Clearance checklist"));
+          return;
+        }
+      }
       renderWorkspace(saved ? "Clearance checklist saved." : "Clearance checklist could not be saved.");
       return;
     }

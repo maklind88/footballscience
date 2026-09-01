@@ -377,6 +377,38 @@ test("Medical runtime bindings preserve quick recommendation, clear, archive, an
   expect(calls).toContainEqual(["render", "Hamstring Strain starter ready in Medical Plan."]);
 });
 
+test("Medical runtime bindings confirm Medical Plans centrally before reporting success", async () => {
+  const success = createHarness();
+  const planForm = { values: { playerId: "p-1" } };
+  await success.workspace.listeners.submit(createEvent(createTarget({
+    closest: { "#medicalInjuryPlanForm": planForm },
+  })));
+
+  expect(success.calls).toContainEqual(["render", "Saving medical plan centrally..."]);
+  expect(success.calls).toContainEqual([
+    "sync",
+    "availability-plan-created",
+    expect.objectContaining({ playerId: "p-1", planId: "plan-2" }),
+  ]);
+  expect(success.calls).toContain("clear-draft:p-1");
+  expect(success.calls).toContainEqual(["render", "Availability plan created."]);
+
+  const failed = createHarness();
+  failed.mutable.syncResult = { ok: false, stored: true, canonicalStored: false };
+  await failed.workspace.listeners.submit(createEvent(createTarget({
+    closest: { "#medicalInjuryPlanForm": planForm },
+  })));
+
+  expect(failed.calls.filter((call) => (
+    Array.isArray(call) && call[0] === "sync" && call[1] === "availability-plan-created"
+  ))).toHaveLength(2);
+  expect(failed.calls).not.toContain("clear-draft:p-1");
+  expect(failed.calls).toContainEqual([
+    "render",
+    "Medical plan is in the recovery journal, but central confirmation failed after retry. Do not re-enter it; notify an administrator.",
+  ]);
+});
+
 test("Medical runtime bindings open and close RTP Library profile overlays", () => {
   const calls = [];
   const guideGroupButtons = [

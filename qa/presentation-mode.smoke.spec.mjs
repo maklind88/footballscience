@@ -50,7 +50,12 @@ async function waitForViewportSettle(page) {
 }
 
 test("Presentation Mode opens from Home and renders the planned training deck", async ({ page }) => {
-  const dateValue = new Date().toISOString().slice(0, 10);
+  const localToday = new Date();
+  const dateValue = [
+    localToday.getFullYear(),
+    String(localToday.getMonth() + 1).padStart(2, "0"),
+    String(localToday.getDate()).padStart(2, "0"),
+  ].join("-");
   const now = new Date().toISOString();
   const selectedDayLabel = new Intl.DateTimeFormat("en-GB", {
     weekday: "long",

@@ -292,6 +292,8 @@ test("workspace renderer covers premium standings, activity, empty and read-only
   expect(standingsMarkup).not.toContain("Monthly competition summary");
   expect(standingsMarkup).toContain("Point distribution");
   expect(standingsMarkup).toContain("=1");
+  expect(standingsMarkup).toContain('aria-label="Joint rank 1"');
+  expect(standingsMarkup).toContain("leaderboard-rank-tie");
   expect(standingsMarkup).toContain("No points yet");
   expect(standingsMarkup).toContain("Award Points");
   expect(standingsMarkup).toContain("https://example.com/alex.jpg");

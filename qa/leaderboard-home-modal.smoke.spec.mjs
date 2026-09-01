@@ -174,6 +174,17 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(fullPodium.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
   expect(await fullPodium.evaluate((podium) => podium.getBoundingClientRect().height)).toBeLessThan(125);
   await expect(outerDialog.locator(".leaderboard-metrics")).toHaveCount(0);
+  const tiedRankBadges = outerDialog.locator(".leaderboard-table .leaderboard-rank.is-shared");
+  await expect(tiedRankBadges).toHaveCount(2);
+  await expect(tiedRankBadges.first().getByText("Tie", { exact: true })).toBeVisible();
+  expect(await tiedRankBadges.first().evaluate((node) => {
+    const style = getComputedStyle(node);
+    return { backgroundImage: style.backgroundImage, borderRadius: style.borderRadius, boxShadow: style.boxShadow };
+  })).toEqual({
+    backgroundImage: expect.stringContaining("linear-gradient"),
+    borderRadius: "14px",
+    boxShadow: expect.not.stringContaining("none"),
+  });
   await expect(page.getByRole("button", { name: "Close Leaderboard" })).toBeFocused();
   expect(await page.locator("#app").evaluate((node) => node.inert)).toBe(true);
   expect(await page.locator("#appNav").evaluate((node) => node.inert)).toBe(true);

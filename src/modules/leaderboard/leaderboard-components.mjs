@@ -15,6 +15,17 @@ function getRankCounts(rows = []) {
   return rows.reduce((counts, row) => counts.set(row.rank, (counts.get(row.rank) || 0) + 1), new Map());
 }
 
+function renderStandingRank(rank = 0, shared = false) {
+  const cleanRank = Math.max(0, Number(rank) || 0);
+  const topClass = cleanRank >= 1 && cleanRank <= 3 ? ` is-top-${cleanRank}` : "";
+  return `
+    <span class="leaderboard-rank${topClass}${shared ? " is-shared" : ""}" aria-label="${shared ? "Joint rank" : "Rank"} ${cleanRank}">
+      <strong aria-hidden="true">${cleanRank || "—"}</strong>
+      ${shared ? `<small class="leaderboard-rank-tie" aria-hidden="true">Tie</small>` : ""}
+    </span>
+  `;
+}
+
 export function renderLeaderboardPodium(rows = [], context = {}) {
   if (!rows.length) return "";
   const rankCounts = getRankCounts(rows);
@@ -43,7 +54,7 @@ function renderStandingRow(row, maxPoints, rankCounts) {
   const lastScored = row.lastScoredOn ? formatLeaderboardDate(row.lastScoredOn) : "Not recorded";
   return `
     <tr data-leaderboard-player-detail="${escapeLeaderboardHtml(row.playerId)}" tabindex="0" role="button" aria-label="Open ${escapeLeaderboardHtml(row.name)} leaderboard detail">
-      <td data-label="Rank"><span class="leaderboard-rank${row.rank <= 3 ? ` is-top-${row.rank}` : ""}">${formatLeaderboardRank(row.rank, shared)}</span></td>
+      <td data-label="Rank">${renderStandingRank(row.rank, shared)}</td>
       <td data-label="Player"><span class="leaderboard-player-cell">${renderLeaderboardAvatar(row)}<span><strong>${escapeLeaderboardHtml(row.name)}</strong><small>${escapeLeaderboardHtml([row.number ? `#${row.number}` : "", row.position, row.archived ? "Former squad" : ""].filter(Boolean).join(" · ") || "Squad player")}</small></span></span></td>
       <td data-label="Points"><span class="leaderboard-points-cell"><strong>${row.points}</strong><small>pts</small></span></td>
       <td data-label="Distribution"><span class="leaderboard-distribution" style="--leaderboard-share:${distribution}%"><i></i><small>${distribution}% of leader</small></span></td>

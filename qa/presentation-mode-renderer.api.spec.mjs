@@ -264,6 +264,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(controlHtml).toContain('data-presentation-add-info="video"');
   expect(controlHtml).toContain('data-presentation-add-info="match-squad"');
   expect(controlHtml).toContain('data-presentation-add-info="starting-xi"');
+  expect(controlHtml).not.toContain('data-presentation-add-info="leaderboard"');
   expect(controlHtml).toContain("Match Squad");
   expect(controlHtml).toContain("Starting XI");
   expect(controlHtml).toContain("Bullets");
@@ -752,6 +753,67 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   }));
   expect(storage.get(dashboardPresentationStorageKey).decks["2026-06-02"].infoSlides).toEqual([]);
   expect(controller.buildModel().slides.map((slide) => slide.type)).toEqual(["cover", "overview", "block"]);
+});
+
+test("Leaderboard layout reads the current standings and presents every scorer after the podium", () => {
+  const dateValue = "2026-09-01";
+  const storage = new Map([
+    [dashboardPresentationStorageKey, {
+      decks: {
+        [dateValue]: {
+          infoSlides: [{ id: "leaderboard-slide", layout: "leaderboard", title: "Leaderboard" }],
+          slideOrder: ["cover", "leaderboard-slide", "overview"],
+        },
+      },
+    }],
+  ]);
+  const harness = createDocumentHarness();
+  const renderer = createPresentationModeRenderer();
+  const standings = [
+    { playerId: "p1", name: "Ada Forward", number: "9", position: "Forward", photoUrl: "/ada.jpg", points: 12, rank: 1 },
+    { playerId: "p2", name: "Bea Midfielder", number: "8", position: "Midfielder", points: 9, rank: 2 },
+    { playerId: "p3", name: "Cara Defender", number: "4", position: "Defender", points: 7, rank: 3 },
+    { playerId: "p4", name: "Dana Keeper", number: "1", position: "Goalkeeper", points: 5, rank: 4 },
+    { playerId: "p5", name: "Eli Winger", number: "11", position: "Forward", points: 3, rank: 5 },
+  ];
+  const controller = createPresentationModeController({
+    documentRef: harness.documentRef,
+    win: {},
+    renderer,
+    readJson: (key, fallback) => storage.get(key) || fallback,
+    writeJson: (key, value) => storage.set(key, value),
+    getTodayValue: () => dateValue,
+    getSessionForDate: () => ({ title: "Team Meeting", blocks: [] }),
+    canViewLeaderboard: () => true,
+    getLeaderboardSnapshot: () => ({
+      status: "ready",
+      month: "2026-09",
+      monthLabel: "September 2026",
+      teamName: "North Carolina Courage",
+      teamLogoUrl: "/ncc.png",
+      requestError: "",
+      standings,
+    }),
+  });
+
+  controller.open(dateValue);
+  const model = controller.buildModel();
+  const slide = model.slides.find((item) => item.type === "leaderboard");
+  const controls = renderer.renderControlBar(model);
+  const markup = renderer.renderLeaderboardSlide({ ...model, slideIndex: slide.index }, slide);
+
+  expect(model.canViewLeaderboard).toBe(true);
+  expect(slide.leaderboard.standings).toEqual(standings);
+  expect(controls).toContain('data-presentation-add-info="leaderboard"');
+  expect(controls).toContain("Current monthly standings");
+  expect(markup).toContain("presentation-leaderboard-trophy");
+  expect(markup).toContain("presentation-leaderboard-podium");
+  expect(markup).toContain("September 2026");
+  expect(markup).toContain('data-presentation-text-field="leaderboard.title"');
+  expect(markup).toContain('src="/ada.jpg"');
+  standings.forEach((player) => expect(markup).toContain(player.name));
+  expect(markup.indexOf("Ada Forward")).toBeLessThan(markup.indexOf("Dana Keeper"));
+  expect(markup).toContain("presentation-leaderboard-standing-grid");
 });
 
 test("Presentation Mode uses the shared warm-up and block thresholds", () => {

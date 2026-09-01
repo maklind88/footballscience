@@ -43,7 +43,7 @@ const maxUndoHistory = 80;
 const shapeTypes = new Set(["rect", "circle", "triangle", "diamond", "line", "arrow", "star"]);
 const textBoxKinds = new Set(["text", "symbol", "image", "video"]);
 const resizeAxes = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
-const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "match-squad", "starting-xi", "set-piece", "blank"]);
+const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "match-squad", "starting-xi", "set-piece", "leaderboard", "blank"]);
 const localMediaKinds = new Set(["image", "video"]);
 const lineupFormationOptions = presentationLineupFormationOptions;
 
@@ -260,6 +260,7 @@ function getSlideTemplateDefaults(template = "bullets") {
     "match-squad": { title: "Match Squad", body: "", fontSize: "48", accentColor: "#22c55e" },
     "starting-xi": { title: "Starting XI", body: "", fontSize: "56", accentColor: "#22c55e" },
     "set-piece": { title: "Set Piece", body: "", fontSize: "56", accentColor: "#22c55e" },
+    leaderboard: { title: "Leaderboard", body: "", fontSize: "56", accentColor: "#22c55e" },
     blank: { title: "Blank", body: "", fontSize: "56", accentColor: "#38bdf8" },
   };
   return {
@@ -840,6 +841,8 @@ export function createPresentationModeController(dependencies = {}) {
     getSetPiecesState = () => ({ plays: [] }),
     getPlayerProfilesState = () => ({ players: [] }),
     getBirthdayCalendar = () => ({ items: [], todayCount: 0 }),
+    canViewLeaderboard = () => false,
+    getLeaderboardSnapshot = () => ({ status: "unavailable", standings: [] }),
     formatDateLabel = defaultFormatDateLabel,
     isEditableTarget = () => false,
     escapeHtml = defaultEscapeHtml,
@@ -883,6 +886,8 @@ export function createPresentationModeController(dependencies = {}) {
   let stageResizeObserver = null;
   let stageMetricsFrame = 0;
   let presentingTextFitFrame = 0;
+  let leaderboardRefreshTimer = 0;
+  let leaderboardRefreshAttempts = 0;
   let fullscreenIntent = false;
 
   function ensureRoot() {
@@ -899,6 +904,48 @@ export function createPresentationModeController(dependencies = {}) {
 
   function readStore() {
     return normalizeStore(readJson(storageKey, {}));
+  }
+
+  function mayViewLeaderboard() {
+    try {
+      return Boolean(canViewLeaderboard());
+    } catch {
+      return false;
+    }
+  }
+
+  function readLeaderboardSnapshot() {
+    if (!mayViewLeaderboard()) return { status: "unavailable", standings: [] };
+    try {
+      return getLeaderboardSnapshot() || { status: "loading", standings: [] };
+    } catch {
+      return { status: "error", requestError: "Leaderboard could not load.", standings: [] };
+    }
+  }
+
+  function clearLeaderboardRefresh() {
+    if (leaderboardRefreshTimer && typeof win?.clearTimeout === "function") {
+      win.clearTimeout(leaderboardRefreshTimer);
+    }
+    leaderboardRefreshTimer = 0;
+  }
+
+  function scheduleLeaderboardRefresh(model = {}) {
+    const isWaiting = model.slides?.some((slide) => (
+      slide.type === "leaderboard"
+      && ["idle", "loading"].includes(String(slide.leaderboard?.status || "loading"))
+    ));
+    if (!isWaiting) {
+      clearLeaderboardRefresh();
+      leaderboardRefreshAttempts = 0;
+      return;
+    }
+    if (leaderboardRefreshTimer || leaderboardRefreshAttempts >= 20 || typeof win?.setTimeout !== "function") return;
+    leaderboardRefreshTimer = win.setTimeout(() => {
+      leaderboardRefreshTimer = 0;
+      leaderboardRefreshAttempts += 1;
+      if (state.isOpen) render();
+    }, 250);
   }
 
   function getSetPieceReferenceUsage(reference = {}) {
@@ -1524,6 +1571,9 @@ export function createPresentationModeController(dependencies = {}) {
   function buildSlides(deck, session, dateValue, matchContext = null, birthdayCalendar = {}) {
     const blocks = Array.isArray(session?.blocks) ? session.blocks : [];
     const lineupPlayerOptions = getLineupPlayerOptions(dateValue);
+    const leaderboardSnapshot = deck.infoSlides.some((infoSlide) => infoSlide.layout === "leaderboard")
+      ? readLeaderboardSnapshot()
+      : null;
     const birthdaySlideDefinition = createPresentationBirthdaySlide({
       birthdayCalendar,
       dateValue,
@@ -1538,8 +1588,25 @@ export function createPresentationModeController(dependencies = {}) {
         const isLineupSlide = infoSlide.layout === "starting-xi";
         const isMatchSquadSlide = infoSlide.layout === "match-squad";
         const isSetPieceSlide = infoSlide.layout === "set-piece";
-        const slideType = isLineupSlide ? "lineup" : isMatchSquadSlide ? "match-squad" : isSetPieceSlide ? "set-piece" : "info";
-        const fallbackLabel = isLineupSlide ? "Starting XI" : isMatchSquadSlide ? "Match Squad" : isSetPieceSlide ? "Set Piece" : "Info";
+        const isLeaderboardSlide = infoSlide.layout === "leaderboard";
+        const slideType = isLineupSlide
+          ? "lineup"
+          : isMatchSquadSlide
+            ? "match-squad"
+            : isSetPieceSlide
+              ? "set-piece"
+              : isLeaderboardSlide
+                ? "leaderboard"
+                : "info";
+        const fallbackLabel = isLineupSlide
+          ? "Starting XI"
+          : isMatchSquadSlide
+            ? "Match Squad"
+            : isSetPieceSlide
+              ? "Set Piece"
+              : isLeaderboardSlide
+                ? "Leaderboard"
+                : "Info";
         const baseSlide = applySlideStyle(
           deck,
           {
@@ -1566,6 +1633,12 @@ export function createPresentationModeController(dependencies = {}) {
           return {
             ...baseSlide,
             setPiece: buildSetPieceModel(infoSlide, baseSlide.id),
+          };
+        }
+        if (isLeaderboardSlide) {
+          return {
+            ...baseSlide,
+            leaderboard: leaderboardSnapshot,
           };
         }
         return baseSlide;
@@ -1630,6 +1703,7 @@ export function createPresentationModeController(dependencies = {}) {
       blockCount: blocks.length,
       blocks,
       brand,
+      canViewLeaderboard: mayViewLeaderboard(),
       dateLabel: formatDateLabel(dateValue),
       dateValue,
       editorOpen: state.editorOpen,
@@ -1865,12 +1939,14 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     const currentRoot = ensureRoot();
+    const model = buildModel();
     currentRoot.hidden = false;
-    currentRoot.innerHTML = renderer.render(buildModel());
+    currentRoot.innerHTML = renderer.render(model);
     documentRef.body.classList.add("is-presentation-mode-open");
     syncTextToolbar();
     observeStageMetrics();
     schedulePresentingTextFit();
+    scheduleLeaderboardRefresh(model);
   }
 
   let activeSetPieceRouteIds = new Set();
@@ -2101,6 +2177,8 @@ export function createPresentationModeController(dependencies = {}) {
     state.slideIndex = 0;
     state.editorOpen = false;
     state.isOpen = true;
+    clearLeaderboardRefresh();
+    leaderboardRefreshAttempts = 0;
     resetUndoHistory();
     const slideType = normalizeOpenSlideType(options.slideType);
     if (slideType) {
@@ -2134,6 +2212,8 @@ export function createPresentationModeController(dependencies = {}) {
     state.isOpen = false;
     state.editorOpen = false;
     state.presenting = false;
+    clearLeaderboardRefresh();
+    leaderboardRefreshAttempts = 0;
     resetUndoHistory();
     if (documentRef.fullscreenElement && root?.contains(documentRef.fullscreenElement)) {
       documentRef.exitFullscreen?.().catch?.(noop);
@@ -3351,6 +3431,9 @@ export function createPresentationModeController(dependencies = {}) {
     if (templateDefaults.layout === "set-piece" && state.meetingType !== "team") {
       return;
     }
+    if (templateDefaults.layout === "leaderboard" && !mayViewLeaderboard()) {
+      return;
+    }
     const setPieceCatalog = templateDefaults.layout === "set-piece"
       ? getSetPiecePresentationCatalog(getSetPiecesState(), getPlayerProfilesState())
       : [];
@@ -3359,7 +3442,7 @@ export function createPresentationModeController(dependencies = {}) {
     const nextId = `info-${state.dateValue}-${Date.now()}`;
     const title = sourceSlide
       ? `${sourceSlide.title || "Information"} Copy`
-      : templateDefaults.layout === "set-piece"
+      : ["set-piece", "leaderboard"].includes(templateDefaults.layout)
         ? templateDefaults.title
         : requestNewSlideTitle(getNewSlideDefaultTitle(templateDefaults.layout, templateDefaults));
     if (!title) {
@@ -3397,7 +3480,13 @@ export function createPresentationModeController(dependencies = {}) {
     state.slideIndex = model.slides.findIndex((slide) => slide.id === nextId);
     const nextSlide = model.slides.find((slide) => slide.id === nextId);
     const activeField =
-      nextSlide?.type === "lineup" ? "lineup.title" : nextSlide?.type === "match-squad" ? "matchSquad.title" : "info.title";
+      nextSlide?.type === "lineup"
+        ? "lineup.title"
+        : nextSlide?.type === "match-squad"
+          ? "matchSquad.title"
+          : nextSlide?.type === "leaderboard"
+            ? "leaderboard.title"
+            : "info.title";
     state.activeTextTarget = nextId ? { field: activeField, infoId: nextId, slideId: nextId } : null;
     state.editorOpen = false;
     render();

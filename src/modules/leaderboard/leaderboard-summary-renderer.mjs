@@ -1,9 +1,12 @@
-import { escapeLeaderboardHtml, formatLeaderboardMonth, getLeaderboardMonthValue } from "./leaderboard-helpers.mjs";
+import { escapeLeaderboardHtml, formatLeaderboardMonth } from "./leaderboard-helpers.mjs";
 import {
   getLeaderboardRankedStandings,
   getLeaderboardSquadPlayers,
 } from "./leaderboard-selectors.mjs";
 import { renderLeaderboardPodium } from "./leaderboard-components.mjs";
+import { getLeaderboardCurrentMonthSnapshot } from "./leaderboard-snapshot.mjs";
+
+export { getLeaderboardCurrentMonthSnapshot } from "./leaderboard-snapshot.mjs";
 
 function canEditLeaderboard(context = {}) {
   try {
@@ -11,14 +14,6 @@ function canEditLeaderboard(context = {}) {
   } catch {
     return false;
   }
-}
-
-export function getLeaderboardCurrentMonthSnapshot(state = {}, context = {}) {
-  const month = getLeaderboardMonthValue(context.getNow?.() || new Date());
-  const cached = state.monthCache?.[month];
-  if (cached) return { month, status: cached.status || "idle", data: cached.data || null, error: cached.error || "" };
-  if (state.month === month) return { month, status: state.status || "idle", data: state.data || null, error: state.requestError || "" };
-  return { month, status: "idle", data: null, error: "" };
 }
 
 function renderSummaryHeader(snapshot, editable) {

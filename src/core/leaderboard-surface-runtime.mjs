@@ -9,6 +9,7 @@ function hasHomeHandleContract(handle) {
     handle
       && typeof handle.openDialog === "function"
       && typeof handle.openAward === "function"
+      && typeof handle.getSnapshot === "function"
       && typeof handle.requestClose === "function"
       && typeof handle.unmount === "function"
   );
@@ -256,6 +257,30 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
     return (await handle.openDialog(opener)) !== false;
   }
 
+  function getSnapshot() {
+    syncScope();
+    const team = getTeamIdentity();
+    const fallback = {
+      status: canView() ? "loading" : "unavailable",
+      month: "",
+      monthLabel: "",
+      teamName: team.name,
+      teamLogoUrl: team.logoUrl,
+      requestError: "",
+      standings: [],
+    };
+    if (!canView()) return fallback;
+    if (typeof homeHandle?.getSnapshot !== "function") {
+      void ensureCommandHandle();
+      return fallback;
+    }
+    try {
+      return homeHandle.getSnapshot() || fallback;
+    } catch {
+      return { ...fallback, status: "error", requestError: "Leaderboard could not load." };
+    }
+  }
+
   async function openAward(command = {}, opener = null) {
     syncScope();
     if (!canEdit()) return false;
@@ -275,6 +300,7 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
     canEdit,
     canView,
     getContext,
+    getSnapshot,
     getTeamIdentity,
     loadModule,
     mountHome,

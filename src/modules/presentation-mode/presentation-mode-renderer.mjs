@@ -7,6 +7,7 @@ import {
   presentationThemeOptions,
 } from "./presentation-mode-themes.mjs";
 import { renderPresentationSetPieceBody } from "./presentation-mode-set-pieces.mjs";
+import { renderPresentationLeaderboardBody } from "./presentation-leaderboard-slide.mjs";
 
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
@@ -141,6 +142,12 @@ const slideTemplateOptions = [
     label: "Set Piece",
     description: "Linked tactical routine",
     preview: ["pitch", "line"],
+  },
+  {
+    value: "leaderboard",
+    label: "Leaderboard",
+    description: "Current monthly standings",
+    preview: ["trophy", "podium"],
   },
   {
     value: "blank",
@@ -615,7 +622,10 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderNewSlideControl(model = {}) {
     const availableTemplates = slideTemplateOptions.filter(
-      (template) => template.value !== "set-piece" || model.meetingType === "team"
+      (template) => (
+        (template.value !== "set-piece" || model.meetingType === "team")
+        && (template.value !== "leaderboard" || model.canViewLeaderboard)
+      )
     );
     return `
       <details class="presentation-new-slide-menu">
@@ -1282,6 +1292,25 @@ export function createPresentationModeRenderer(options = {}) {
           ${renderInfoSlideMedia(model, infoSlide)}
         </section>
       `
+    );
+  }
+
+  function renderLeaderboardSlide(model = {}, slide = {}) {
+    const infoSlide = slide.infoSlide || {};
+    const frameSlide = {
+      ...slide,
+      type: "leaderboard",
+      accentColor: slide.accentColor || infoSlide.accentColor || "#22c55e",
+    };
+    return renderSlideFrame(
+      model,
+      frameSlide,
+      renderPresentationLeaderboardBody({
+        escapeHtml,
+        model,
+        slide: frameSlide,
+        renderEditableElement,
+      })
     );
   }
 
@@ -1969,6 +1998,7 @@ export function createPresentationModeRenderer(options = {}) {
     }
     if (slide.type === "cover") return renderCoverSlide(model, slide);
     if (slide.type === "info") return renderInfoSlide(model, slide);
+    if (slide.type === "leaderboard") return renderLeaderboardSlide(model, slide);
     if (slide.type === "match-squad") return renderMatchSquadSlide(model, slide);
     if (slide.type === "lineup") return renderLineupSlide(model, slide);
     if (slide.type === "set-piece") return renderSetPieceSlide(model, slide);
@@ -1997,6 +2027,7 @@ export function createPresentationModeRenderer(options = {}) {
     renderControlBar,
     renderCoverSlide,
     renderInfoSlide,
+    renderLeaderboardSlide,
     renderLineupSlide,
     renderMatchSquadSlide,
     renderOverviewSlide,

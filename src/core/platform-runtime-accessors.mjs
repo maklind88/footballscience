@@ -109,6 +109,7 @@ export const platformRuntimeAccessorNames = Object.freeze([
   "addTransferRoomTargetFromScoutingSnapshot",
   "canEditLeaderboard",
   "canViewLeaderboard",
+  "getLeaderboardSnapshot",
   "getGameplanContext",
   "getIdpContext",
   "getScoutingAnalysisRoomContext",
@@ -312,6 +313,7 @@ export function canUserEditTransferRoom(...args) { return callAccessorSource("wo
 export function addTransferRoomTargetFromScoutingSnapshot(...args) { return callAccessorSource("workspaceDataRuntimeService", "addTransferRoomTargetFromScoutingSnapshot", args); }
 export function canEditLeaderboard(...args) { return callAccessorSource("workspaceModuleRuntimeController", "canEditLeaderboard", args); }
 export function canViewLeaderboard(...args) { return callAccessorSource("workspaceModuleRuntimeController", "canViewLeaderboard", args); }
+export function getLeaderboardSnapshot(...args) { return callAccessorSource("workspaceModuleRuntimeController", "getLeaderboardSnapshot", args); }
 export function getGameplanContext(...args) { return callAccessorSource("workspaceModuleRuntimeController", "getGameplanContext", args); }
 export function getIdpContext(...args) { return callAccessorSource("workspaceModuleRuntimeController", "getIdpContext", args); }
 export function getScoutingAnalysisRoomContext(...args) { return callAccessorSource("workspaceModuleRuntimeController", "getScoutingAnalysisRoomContext", args); }

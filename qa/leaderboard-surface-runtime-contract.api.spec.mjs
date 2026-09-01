@@ -14,6 +14,14 @@ function createHarness(overrides = {}) {
       calls.mounts.push(context);
       const handleId = calls.mounts.length;
       const handle = {
+        getSnapshot: () => overrides.snapshot || {
+          status: "ready",
+          month: "2026-08",
+          monthLabel: "August 2026",
+          teamName: team.name,
+          teamLogoUrl: team.logoUrl || "",
+          standings: [{ playerId: "player-1", name: "Player One", points: 3, rank: 1 }],
+        },
         openDialog: (opener) => {
           calls.handles.push(["openDialog", opener]);
           return true;
@@ -85,6 +93,11 @@ test("Leaderboard Home surface is lazy, scoped, and forwards the canonical conte
   expect(calls.mounts[0].getPlayerProfilesState().players[0].id).toBe("player-1");
   expect(calls.mounts[0].canView()).toBe(true);
   expect(calls.mounts[0].canEdit()).toBe(true);
+  expect(runtime.getSnapshot()).toMatchObject({
+    status: "ready",
+    teamName: "Team A",
+    standings: [{ playerId: "player-1", points: 3, rank: 1 }],
+  });
 });
 
 test("Leaderboard Home surface fails closed before loading for guests", async () => {
@@ -97,9 +110,21 @@ test("Leaderboard Home surface fails closed before loading for guests", async ()
   expect(await runtime.mountHome({ leaderboardSummary: summary, leaderboardDialogHost: dialogHost })).toBeNull();
   expect(await runtime.openDialog()).toBe(false);
   expect(await runtime.openAward({ occurredOn: "2026-08-25", title: "Training" })).toBe(false);
+  expect(runtime.getSnapshot()).toMatchObject({ status: "unavailable", standings: [] });
   expect(calls.modules).toEqual([]);
   expect(calls.stylesheets).toEqual([]);
   expect(summary.hidden).toBe(true);
+});
+
+test("Leaderboard snapshot starts the lazy surface and becomes ready", async () => {
+  const { calls, runtime } = createHarness();
+
+  expect(runtime.getSnapshot()).toMatchObject({ status: "loading", standings: [] });
+  await expect.poll(() => calls.mounts.length).toBe(1);
+  expect(runtime.getSnapshot()).toMatchObject({
+    status: "ready",
+    standings: [{ playerId: "player-1", points: 3, rank: 1 }],
+  });
 });
 
 test("Leaderboard runtime command returns the module result and only forwards date/title", async () => {

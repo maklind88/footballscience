@@ -47,8 +47,8 @@
 .leaderboard-home-summary .leaderboard-podium-card:hover { background-color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.05); transform: translateY(-1px); }
 .leaderboard-home-summary .leaderboard-podium-rank { top: .34rem; right: .42rem; color: #6e6e73; }
 .leaderboard-home-summary .leaderboard-podium-trophy { width: 1.45rem; height: 1.45rem; }
-.leaderboard-home-summary .leaderboard-podium-avatar { width: 2.2rem; height: 2.2rem; border: 2px solid #fff; box-shadow: 0 3px 9px rgba(0,0,0,.08); }
-.leaderboard-home-summary .leaderboard-podium-card.is-place-1 .leaderboard-podium-avatar { width: 2.55rem; height: 2.55rem; }
+.leaderboard-home-summary .leaderboard-podium-avatar { width: 2.6rem; height: 2.6rem; border: 2px solid #fff; box-shadow: 0 3px 9px rgba(0,0,0,.08); }
+.leaderboard-home-summary .leaderboard-podium-card.is-place-1 .leaderboard-podium-avatar { width: 2.85rem; height: 2.85rem; }
 .leaderboard-home-summary .leaderboard-podium-copy { width: 100%; }
 .leaderboard-home-summary .leaderboard-podium-copy strong { font-size: .7rem; }
 .leaderboard-home-summary .leaderboard-podium-copy small { font-size: .58rem; }
@@ -446,8 +446,8 @@ body.is-dark-mode .leaderboard-home-dialog-scroll { background: #1c1c1e; }
   .leaderboard-home-summary .leaderboard-podium { gap: .25rem; }
   .leaderboard-home-summary .leaderboard-podium-card, .leaderboard-home-summary .leaderboard-podium-card.is-place-1 { min-height: 4.75rem; padding: .45rem .18rem .35rem; }
   .leaderboard-home-summary .leaderboard-podium-card.is-place-1 { min-height: 5.45rem; }
-  .leaderboard-home-summary .leaderboard-podium-avatar { width: 1.9rem; height: 1.9rem; }
-  .leaderboard-home-summary .leaderboard-podium-card.is-place-1 .leaderboard-podium-avatar { width: 2.2rem; height: 2.2rem; }
+  .leaderboard-home-summary .leaderboard-podium-avatar { width: 2.1rem; height: 2.1rem; }
+  .leaderboard-home-summary .leaderboard-podium-card.is-place-1 .leaderboard-podium-avatar { width: 2.35rem; height: 2.35rem; }
   .leaderboard-home-summary .leaderboard-podium-copy strong { font-size: .64rem; }
   .leaderboard-home-summary .leaderboard-podium-copy small { display: none; }
 }

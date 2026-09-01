@@ -154,6 +154,22 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await openButton.click();
   const outerDialog = page.locator(".leaderboard-home-dialog");
   await expect(outerDialog).toBeVisible();
+  const commandTitle = outerDialog.locator(".leaderboard-command-title h1");
+  await expect(commandTitle).toBeVisible();
+  expect(await commandTitle.evaluate((node) => {
+    const style = getComputedStyle(node);
+    const header = node.closest(".leaderboard-command-bar").getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const lines = [...range.getClientRects()];
+    return {
+      fullTextInsideHeader: lines.every((line) => line.left >= header.left && line.right <= header.right),
+      lineCount: lines.length,
+      overflowX: style.overflowX,
+      textOverflow: style.textOverflow,
+      whiteSpace: style.whiteSpace,
+    };
+  })).toEqual({ fullTextInsideHeader: true, lineCount: 1, overflowX: "visible", textOverflow: "clip", whiteSpace: "normal" });
   const fullPodium = outerDialog.locator(".leaderboard-content > .leaderboard-podium");
   await expect(fullPodium.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
   expect(await fullPodium.evaluate((podium) => podium.getBoundingClientRect().height)).toBeLessThan(125);

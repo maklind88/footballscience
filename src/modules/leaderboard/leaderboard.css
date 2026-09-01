@@ -106,7 +106,7 @@
 .leaderboard-team-mark strong { font-size: .78rem; letter-spacing: .04em; }
 .leaderboard-command-title { min-width: 0; }
 .leaderboard-command-title p, .leaderboard-standings-head p, .leaderboard-sheet-header p { margin: 0 0 .16rem; color: var(--lb-green-bright); font-size: .66rem; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
-.leaderboard-command-title h1 { margin: 0; overflow: hidden; color: var(--lb-ink); font-size: clamp(1.2rem, 2vw, 1.72rem); line-height: 1.05; text-overflow: ellipsis; white-space: nowrap; }
+.leaderboard-command-title h1 { width: max-content; max-width: 100%; margin: 0; color: var(--lb-ink); font-size: clamp(1.2rem, 2vw, 1.72rem); line-height: 1.05; overflow-wrap: anywhere; white-space: normal; }
 
 .leaderboard-month-control { display: flex; align-items: center; gap: .3rem; padding: .3rem; border: 1px solid var(--lb-line); border-radius: 15px; background: rgba(255,255,255,.78); }
 .leaderboard-month-control > button, .leaderboard-icon-button { display: grid; place-items: center; min-width: 2.2rem; height: 2.2rem; padding: 0 .6rem; border: 0; border-radius: 11px; background: rgba(31,75,56,.08); color: var(--lb-ink); font-weight: 900; }

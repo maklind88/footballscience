@@ -14,9 +14,10 @@ test("Scouting search gate measures real browser paint while preserving the stri
   expect(scoutingClickPerformanceSource).toContain("searchDatabase: budget(1000, 4000)");
   expect(scoutingClickPerformanceSource).toContain("armScoutingRefreshPaintProbe");
   expect(scoutingClickPerformanceSource).toContain('clock: "browser-paint"');
-  expect(scoutingClickPerformanceSource).toContain(
-    "requestAnimationFrame(() => requestAnimationFrame(() => resolvePaint(performance.now())))"
-  );
+  expect(scoutingClickPerformanceSource).toContain('form.addEventListener("submit", handleSubmit, { capture: true })');
+  expect(scoutingClickPerformanceSource).toContain("startedAt,");
+  expect(scoutingClickPerformanceSource).toContain("completedAt: performance.now()");
+  expect(scoutingClickPerformanceSource).toContain("requestAnimationFrame(() =>");
   expect(scoutingClickPerformanceSource).toContain("await waitForScoutingRows");
 });
 

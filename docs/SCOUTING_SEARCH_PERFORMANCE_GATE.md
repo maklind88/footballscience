@@ -28,23 +28,27 @@ Environment and dataset were held constant: the same macOS host, headless Chromi
 | Desktop branch | Cold browser completion | 10 | 532.6 ms | 540.4 ms | 556.4 ms | 556.4 ms |
 | Desktop branch | Warm browser completion | 50 | 172.1 ms | 380.7 ms | 431.2 ms | 437.6 ms |
 | Corrected strict gate | Full first-search-to-paint check | 10 | 529 ms | 538 ms | 556 ms | 556 ms |
+| Submit-boundary strict gate | Full submit-to-paint check | 10 | 534 ms | 748 ms | 850 ms | 850 ms |
 
 The legacy driver-clock measurement over the same warm operations demonstrates the noise: baseline median 1,593.0 ms, p95 2,469.0 ms, maximum 2,520.2 ms; desktop-branch median 1,268.4 ms, p95 1,851.8 ms, maximum 1,872.2 ms. Earlier uninstrumented strict runs likewise failed on both revisions: baseline 1,015–1,579 ms and desktop branch 979–1,424 ms.
 
 ## Correction and preserved guarantee
 
-The test now arms a browser-internal observer immediately before Enter is pressed. Completion is timestamped only after all of the following occur:
+The test now arms a browser-internal observer immediately before Enter is pressed. The performance clock starts in a capture-phase listener on the real search-form `submit` event, so Playwright scheduling between probe setup and the user action is outside the measurement. Completion is timestamped only after all of the following occur:
 
-1. the Scouting refresh revision advances,
-2. the real worker query returns,
-3. the returned database page is applied,
-4. the result markup is rendered,
-5. `aria-busy` clears, and
-6. two animation frames complete.
+1. the real search form emits `submit`,
+2. the Scouting refresh revision advances,
+3. the real worker query returns,
+4. the returned database page is applied,
+5. the result markup is rendered,
+6. `aria-busy` clears, and
+7. two animation frames complete.
 
 Playwright still performs the correctness assertions and verifies real result rows. Its harness timeout is separate from the performance clock so a delayed driver response cannot be reported as application latency. The strict performance assertion remains 1,000 ms and therefore continues to catch worker, render, or paint regressions.
 
-Remaining sensitivity is intentional: browser CPU/render contention still affects the browser-internal timestamp. The measured baseline p95 retains about 32% headroom and the desktop-branch p95 about 44% headroom. No Supabase schema, migration, staging data, or production data was read or changed for this fix.
+Remaining sensitivity is intentional: browser CPU/render contention still affects the browser-internal timestamp. The final ten-run submit-boundary series retained 15% p95 headroom under the strict budget. No Supabase schema, migration, staging data, or production data was read or changed for this fix.
+
+During the later full desktop QA run, the first correction exposed one remaining harness boundary: the clock was armed before Playwright dispatched Enter. One loaded run therefore reported 1,033 ms although the Playwright action itself took 51 ms. Moving the start timestamp to the actual browser `submit` event removes that pre-action control-plane interval without removing any application, worker, render, or paint work from the strict 1,000 ms guarantee.
 
 ## Related interaction-audit clock correction
 

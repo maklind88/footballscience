@@ -92,7 +92,7 @@ async function nextPaint(page) {
 
 async function measureInteraction(page, results, label, budgetMs, action, ready, timing = {}) {
   await nextPaint(page);
-  const startedAt = timing.arm
+  const armedAt = timing.arm
     ? await timing.arm()
     : await page.evaluate(() => performance.now());
   const actionStartedAt = await page.evaluate(() => performance.now());
@@ -100,9 +100,11 @@ async function measureInteraction(page, results, label, budgetMs, action, ready,
   const actionEndedAt = await page.evaluate(() => performance.now());
   await ready();
   await nextPaint(page);
-  const completedAt = timing.complete
+  const completion = timing.complete
     ? await timing.complete()
     : await page.evaluate(() => performance.now());
+  const startedAt = Number.isFinite(completion?.startedAt) ? completion.startedAt : armedAt;
+  const completedAt = Number.isFinite(completion?.completedAt) ? completion.completedAt : completion;
   const durationMs = completedAt - startedAt;
   const actionMs = Math.round(actionEndedAt - actionStartedAt);
   const rounded = Math.round(durationMs);
@@ -117,10 +119,21 @@ async function armScoutingRefreshPaintProbe(page, previousRevision) {
     if (!panel) {
       throw new Error("Scouting database panel is unavailable before search timing.");
     }
+    const form = panel.querySelector("[data-scouting-database-search-form]");
+    if (!form) {
+      throw new Error("Scouting database search form is unavailable before search timing.");
+    }
     let resolveCompletion;
+    let startedAt = null;
     const completion = new Promise((resolve) => {
       resolveCompletion = resolve;
     });
+    const handleSubmit = () => {
+      if (!Number.isFinite(startedAt)) {
+        startedAt = performance.now();
+      }
+    };
+    form.addEventListener("submit", handleSubmit, { capture: true });
     const observer = new MutationObserver(() => {
       const nextRevision = Number(panel.dataset.scoutingRefreshRevision) || 0;
       if (panel.getAttribute("aria-busy") === "true" || nextRevision <= revision || !resolveCompletion) {
@@ -129,12 +142,20 @@ async function armScoutingRefreshPaintProbe(page, previousRevision) {
       const resolvePaint = resolveCompletion;
       resolveCompletion = null;
       observer.disconnect();
-      requestAnimationFrame(() => requestAnimationFrame(() => resolvePaint(performance.now())));
+      form.removeEventListener("submit", handleSubmit, { capture: true });
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() =>
+          resolvePaint({
+            startedAt,
+            completedAt: performance.now(),
+          })
+        )
+      );
     });
     observer.observe(panel, { attributes: true, attributeFilter: ["aria-busy"] });
-    const startedAt = performance.now();
-    window.__footballScienceScoutingSearchPaintProbe = { completion, observer, startedAt };
-    return startedAt;
+    const armedAt = performance.now();
+    window.__footballScienceScoutingSearchPaintProbe = { completion, observer, armedAt };
+    return armedAt;
   }, previousRevision);
 }
 
@@ -144,7 +165,11 @@ async function getScoutingRefreshPaintCompletion(page) {
     if (!probe?.completion) {
       throw new Error("Scouting database search paint probe was not armed.");
     }
-    return probe.completion;
+    const result = await probe.completion;
+    if (!Number.isFinite(result?.startedAt) || !Number.isFinite(result?.completedAt)) {
+      throw new Error("Scouting database search paint probe did not observe the submit boundary.");
+    }
+    return result;
   });
 }
 

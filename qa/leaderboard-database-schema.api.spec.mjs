@@ -13,6 +13,12 @@ const coachIdentityRepair = fs.readFileSync(
   path.join(rootDir, "supabase", "migrations", coachIdentityRepairName),
   "utf8"
 );
+const staffIdentityRepairName = fs.readdirSync(path.join(rootDir, "supabase", "migrations"))
+  .find((name) => name.endsWith("_leaderboard_active_staff_identity_repair.sql"));
+const staffIdentityRepair = fs.readFileSync(
+  path.join(rootDir, "supabase", "migrations", staffIdentityRepairName),
+  "utf8"
+);
 
 function functionSql(functionName, nextFunctionName) {
   const start = migration.indexOf(`create or replace function public.${functionName}`);
@@ -172,4 +178,25 @@ test("active coach identity repair is production-targeted, role-safe, exact, and
   expect(coachIdentityRepair).toContain("expected six new memberships");
   expect(coachIdentityRepair).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
   expect(coachIdentityRepair).not.toContain("raw_user_meta_data ->> 'role'");
+});
+
+test("active staff identity repair completes the reviewed team scope without trusting user roles", () => {
+  expect(staffIdentityRepairName).toMatch(/^[0-9]{14}_leaderboard_active_staff_identity_repair\.sql$/);
+  const version = staffIdentityRepairName.match(/^([0-9]{14})_leaderboard_active_staff_identity_repair\.sql$/)?.[1];
+  expect(staffIdentityRepair).toContain("leaderboard-live-qa-activation");
+  expect(staffIdentityRepair).toContain("raw_app_meta_data ->> 'role'");
+  expect(staffIdentityRepair).toContain("raw_app_meta_data ->> 'status'");
+  expect(staffIdentityRepair).toContain("'admin','club-admin','team-admin','coach','scout','analyst','performance','medical'");
+  expect(staffIdentityRepair).toContain("reviewed 20/19/1 role population changed");
+  expect(staffIdentityRepair).toContain("reviewed 20/7/13 identity precondition changed");
+  expect(staffIdentityRepair).toContain("all twenty active staff are already canonical; no-op");
+  expect(staffIdentityRepair).toContain("expected thirteen new profiles");
+  expect(staffIdentityRepair).toContain("expected thirteen new memberships");
+  expect(staffIdentityRepair).toContain("membership.role = 'admin' and membership.scope = 'organization'");
+  expect(staffIdentityRepair).toContain("membership.role not in ('admin','club-admin') and membership.scope = 'team'");
+  expect(staffIdentityRepair).toContain("'roleSource', 'app_metadata'");
+  expect(version).toBeTruthy();
+  expect(staffIdentityRepair).toContain(`'migration', '${version}'`);
+  expect(staffIdentityRepair).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  expect(staffIdentityRepair).not.toContain("raw_user_meta_data ->> 'role'");
 });

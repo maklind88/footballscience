@@ -54,7 +54,7 @@ function finishShadowWrite(deps = {}, options = {}, recordId = "") {
 
 export function createScoutingShadowXiActions(deps = {}) {
   function selectSlot(slotId) {
-    const state = getActionState(deps);
+    const state = deps.getCurrentState?.() || getActionState(deps);
     const id = normalizeText(deps, slotId, 40);
     const slot = deps.getShadowSlot?.(id);
     if (!state || !slot) {
@@ -64,7 +64,7 @@ export function createScoutingShadowXiActions(deps = {}) {
     deps.setPreferredSlotId?.(slot.id);
     shadowXi.selectedSlotId = slot.id;
     if (typeof deps.setActiveTab === "function") {
-      deps.setActiveTab("database");
+      deps.setActiveTab("database", { state });
     } else {
       state.activeTab = "database";
       deps.writeState?.({ syncCentral: false });

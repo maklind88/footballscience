@@ -11,6 +11,10 @@ const projectionMigrationPath = resolve(
   __dirname,
   "../supabase/migrations/20260825024500_medical_sync_event_projection.sql"
 );
+const planProjectionMigrationPath = resolve(
+  __dirname,
+  "../supabase/migrations/20260901103202_medical_plan_canonical_projection.sql"
+);
 
 test.describe.configure({ mode: "serial" });
 
@@ -292,6 +296,70 @@ test("medical recommendation POST fails closed when canonical projection is unav
   }
 });
 
+test("medical availability plan POST is projected into canonical Medical state", async () => {
+  const envSnapshot = snapshotMedicalTestEnv();
+  const originalFetch = global.fetch;
+  const requests = [];
+  configureMedicalDatabaseTestEnv();
+  global.fetch = async (url, options = {}) => {
+    const requestUrl = String(url);
+    requests.push({ url: requestUrl, options });
+    if (requestUrl.includes("/rest/v1/medical_state_sync_events?")) {
+      const [row] = JSON.parse(String(options.body || "[]"));
+      return new Response(JSON.stringify([{
+        ...row,
+        id: "4a19192d-c315-463f-a95d-4b8a12c20a21",
+        processing_status: "pending",
+      }]), { status: 201 });
+    }
+    if (requestUrl.endsWith("/rest/v1/rpc/project_medical_state_sync_events")) {
+      return new Response(JSON.stringify([{
+        processed_count: 1,
+        failed_count: 0,
+        revision: 11789,
+        canonical_stored: true,
+      }]), { status: 200 });
+    }
+    return new Response("{}", { status: 500 });
+  };
+
+  try {
+    const req = createJsonRequest({
+      eventType: "availability-plan-created",
+      playerId: "player-1",
+      payload: {
+        plan: {
+          id: "plan-1",
+          playerId: "player-1",
+          startDate: "2026-09-01",
+          endDate: "2026-12-01",
+          participation: 0,
+          updatedAt: "2026-09-01T10:00:00.000Z",
+        },
+      },
+    });
+    const res = createResponse();
+    await medicalDatabase._private.handleMedicalPost(req, res, {
+      id: "0f9a1865-0b2e-4a28-b933-87e137f7e3a4",
+      role: "medical",
+    });
+    const payload = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(200);
+    expect(payload).toMatchObject({
+      ok: true,
+      stored: true,
+      canonicalStored: true,
+      processingStatus: "processed",
+      revision: 11789,
+    });
+    expect(requests.some((request) => request.url.endsWith("/rest/v1/rpc/project_medical_state_sync_events"))).toBe(true);
+  } finally {
+    global.fetch = originalFetch;
+    restoreMedicalTestEnv(envSnapshot);
+  }
+});
+
 test("duplicate medical recommendation retries the same durable event projection", async () => {
   const envSnapshot = snapshotMedicalTestEnv();
   const originalFetch = global.fetch;
@@ -368,6 +436,19 @@ test("medical projection migration serializes canonical state and journal update
   expect(migration).toContain("set revision = records.revision + 1");
   expect(migration).toContain("grant execute on function public.project_medical_state_sync_events(uuid[]) to service_role");
   expect(migration).toContain("revoke all on function public.project_medical_state_sync_events(uuid[]) from public, anon, authenticated");
+});
+
+test("medical plan projection migration restores canonical plans and only automatic roster archives", () => {
+  const migration = readFileSync(planProjectionMigrationPath, "utf8");
+  expect(migration).toContain("app_private.upsert_medical_compat_plan");
+  expect(migration).toContain("'medical-board-updated'");
+  expect(migration).toContain("'clearance-saved'");
+  expect(migration).toContain("archiveReason' = 'Player removed from Squad Room'");
+  expect(migration).toContain("row_number() over");
+  expect(migration).toContain("Superseded by newer canonical Medical Plan data.");
+  expect(migration).not.toContain("Erica Parkinson");
+  expect(migration).not.toContain("Vilde Bøe Rise");
+  expect(migration).not.toContain("Maycee Bell");
 });
 
 test("medical archive events are first-class sync events", () => {

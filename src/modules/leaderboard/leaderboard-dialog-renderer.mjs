@@ -8,7 +8,9 @@ export function renderLeaderboardHomeDialog(context = {}, options = {}) {
       <section class="leaderboard-home-dialog" role="dialog" aria-modal="true" aria-labelledby="leaderboardHomeDialogTitle" data-leaderboard-home-dialog tabindex="-1" aria-busy="${pendingWrite}">
         <header class="leaderboard-home-dialog-head">
           <div><p>Monthly competition</p><h2 id="leaderboardHomeDialogTitle">${escapeLeaderboardHtml(teamName)} Leaderboard</h2></div>
-          <button type="button" data-leaderboard-home-close aria-label="Close Leaderboard" ${pendingWrite ? "disabled" : ""}>×</button>
+          <button type="button" data-leaderboard-home-close aria-label="Close Leaderboard" ${pendingWrite ? "disabled" : ""}>
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 5l10 10M15 5 5 15"/></svg>
+          </button>
         </header>
         <div class="leaderboard-home-dialog-scroll">
           <div data-leaderboard-dialog-workspace></div>

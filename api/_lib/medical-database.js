@@ -24,6 +24,7 @@ const MEDICAL_EVENT_TYPES = new Set([
   "availability-plan-updated",
   "availability-plan-archived",
   "availability-plan-deleted",
+  "medical-board-updated",
   "clearance-saved",
   "governance-saved",
   "player-profile-saved",
@@ -38,6 +39,12 @@ const MEDICAL_PROJECTED_EVENT_TYPES = new Set([
   "recommendation-saved",
   "bulk-recommendation-saved",
   "record-archived",
+  "availability-plan-created",
+  "availability-plan-updated",
+  "availability-plan-archived",
+  "availability-plan-deleted",
+  "clearance-saved",
+  "medical-board-updated",
 ]);
 const MEDICAL_PARTICIPATION_OPTIONS = new Set([0, 10, 25, 50, 75, 100]);
 const BLOCKED_CONTENT_PATTERNS = [
@@ -185,6 +192,27 @@ function validateRecommendationRecord(record, pathLabel = "payload.record") {
   return "";
 }
 
+function validateAvailabilityPlan(plan, pathLabel = "payload.plan", { requireArchivedAt = false } = {}) {
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
+    return `${pathLabel} must be an object.`;
+  }
+  const planId = String(plan.id || "").trim();
+  const playerId = String(plan.playerId || "").trim();
+  if (!planId || planId.length > 180) return `${pathLabel}.id is invalid.`;
+  if (!playerId || playerId.length > 180) return `${pathLabel}.playerId is invalid.`;
+  if (!isDateValue(plan.startDate) || !isDateValue(plan.endDate) || plan.endDate < plan.startDate) {
+    return `${pathLabel} date range is invalid.`;
+  }
+  if (!MEDICAL_PARTICIPATION_OPTIONS.has(Number(plan.participation))) {
+    return `${pathLabel}.participation is unsupported.`;
+  }
+  if (plan.updatedAt && !isTimestampValue(plan.updatedAt)) return `${pathLabel}.updatedAt is invalid.`;
+  if (requireArchivedAt && !isTimestampValue(plan.archivedAt || plan.deletedAt)) {
+    return `${pathLabel}.archivedAt is invalid.`;
+  }
+  return "";
+}
+
 function validateProjectedMedicalEvent(row = {}) {
   if (!MEDICAL_PROJECTED_EVENT_TYPES.has(row.event_type)) {
     return { ok: true, projected: false };
@@ -210,6 +238,19 @@ function validateProjectedMedicalEvent(row = {}) {
       if (issue) return { ok: false, status: 400, reason: issue };
     }
     return { ok: true, projected: true };
+  }
+  if ([
+    "availability-plan-created",
+    "availability-plan-updated",
+    "clearance-saved",
+    "medical-board-updated",
+  ].includes(row.event_type)) {
+    const issue = validateAvailabilityPlan(row.payload?.plan);
+    return issue ? { ok: false, status: 400, reason: issue } : { ok: true, projected: true };
+  }
+  if (["availability-plan-archived", "availability-plan-deleted"].includes(row.event_type)) {
+    const issue = validateAvailabilityPlan(row.payload?.plan, "payload.plan", { requireArchivedAt: true });
+    return issue ? { ok: false, status: 400, reason: issue } : { ok: true, projected: true };
   }
   const recordId = String(row.payload?.recordId || row.payload?.record?.id || "").trim();
   const archivedAt = row.payload?.archivedAt || row.payload?.record?.archivedAt;
@@ -420,7 +461,7 @@ async function handleMedicalPost(req, res, actor) {
       mode: "database",
       stored: false,
       canonicalStored: false,
-      reason: "Medical recommendation could not be confirmed in the recovery journal.",
+      reason: "Medical data could not be confirmed in the recovery journal.",
     });
   }
   if (syncEvent.payload_hash !== normalized.row.payload_hash) {
@@ -473,7 +514,7 @@ async function handleMedicalPost(req, res, actor) {
       eventType: normalized.row.event_type,
       processingStatus: projection?.failedCount ? "failed" : syncEvent.processing_status || "pending",
       payloadHash: normalized.row.payload_hash,
-      reason: projection?.reason || "Medical recommendation reached the recovery journal but canonical save confirmation failed.",
+      reason: projection?.reason || "Medical data reached the recovery journal but canonical save confirmation failed.",
     });
   }
 

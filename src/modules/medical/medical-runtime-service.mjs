@@ -180,6 +180,7 @@ export function createMedicalRuntimeService(deps = {}) {
       normalizeMedicalShareValue: fromHelpers("normalizeMedicalShareValue"),
       normalizePlayerProfileRosterType: deps.normalizePlayerProfileRosterType,
       playerProfileRosterTypeCountsInSquad: deps.playerProfileRosterTypeCountsInSquad,
+      queueCentralStateWrite: deps.queueCentralStateWrite,
       rawDataSafetySetItem: deps.rawDataSafetySetItem,
       sanitizeMedicalGovernancePolicyForCoachView: fromHelpers("sanitizeMedicalGovernancePolicyForCoachView"),
       setMedicalState: deps.setMedicalState,

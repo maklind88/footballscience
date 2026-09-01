@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { promises as fs, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -21,7 +21,7 @@ test("approved SAM 2 provider assets and install plan are immutable", async () =
   ), "utf8"));
   expect(manifest).toMatchObject({
     providerId: "sam2.1-hiera-tiny",
-    providerVersion: "1.3.0",
+    providerVersion: "1.3.1",
     protocol: "football-science-tracking-v1",
     approval: { status: "approved-local-optional", networkAtInference: false, redistributeUpstreamAssets: false },
     upstream: {
@@ -41,7 +41,8 @@ test("approved SAM 2 provider assets and install plan are immutable", async () =
       executionMode: "resident-worker-v1",
       deviceDefaults: { darwin: "cpu", linux: "auto" },
       cpuThreadDefaults: { darwin: 8, linux: 0 },
-      providerSha256: "b3fc5eaefd82f268e963b308be066ef7c232b05fd5cbe43d5e86c39d5a45be57",
+      providerSha256: "5f17d67a528dff3f5b26af6af545851bd466039e07e2d8391b5dd8c96c19ab2d",
+      dependencyPolicySha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     },
   });
   const installer = await import(moduleUrl("desktop/local-video-app/tracking-providers/sam2/install-provider.mjs"));
@@ -60,7 +61,42 @@ test("approved SAM 2 provider assets and install plan are immutable", async () =
     deviceDefaults: { darwin: "cpu", linux: "auto" },
     cpuThreadDefaults: { darwin: 8, linux: 0 },
   });
-  expect(plan.installDir).toContain(".football-science/tracking-providers/sam2.1-hiera-tiny-1.3.0");
+  expect(plan.installDir).toContain(".football-science/tracking-providers/sam2.1-hiera-tiny-1.3.1");
+  expect(plan.runtime.dependencyPolicySha256).toBe(manifest.runtime.dependencyPolicySha256);
+});
+
+test("approved SAM 2 dependency policy is complete and manifest-bound", async () => {
+  const moduleDir = path.join(rootDir, "desktop/local-video-app/tracking-providers/sam2");
+  const installer = await import(moduleUrl("desktop/local-video-app/tracking-providers/sam2/install-provider.mjs"));
+  const runtime = await import(moduleUrl("desktop/local-video-app/tracking-providers/sam2/provider-runtime.mjs"));
+  const manifest = runtime.readSam2ProviderManifest();
+  const runtimeRequirements = await fs.readFile(path.join(moduleDir, "runtime-requirements.txt"), "utf8");
+  const torchRequirements = await fs.readFile(path.join(moduleDir, "torch-requirements.txt"), "utf8");
+  const constraints = await fs.readFile(path.join(moduleDir, "runtime-constraints.txt"), "utf8");
+
+  expect(runtimeRequirements).toContain("hydra-core==1.3.4");
+  expect(runtimeRequirements).toContain("pillow==12.3.0");
+  expect(torchRequirements).toContain("torch==2.13.0");
+  expect(torchRequirements).toContain("torchvision==0.28.0");
+  expect(constraints).toContain("filelock==3.32.4");
+  expect(constraints).toContain("Jinja2==3.1.6");
+  expect(constraints).toContain("packaging==26.3");
+  expect(constraints).toContain("sympy==1.14.0");
+  expect(installer.SAM2_PYTHON_BOOTSTRAP_PACKAGES).toEqual([
+    "pip==26.2.1",
+    "setuptools==84.0.0",
+    "wheel==0.46.2",
+  ]);
+  expect(runtime.sam2ProviderDependencyPolicySha256()).toBe(manifest.runtime.dependencyPolicySha256);
+
+  expect(runtime.sam2ProviderDependencyPolicySha256({
+    readFile(filePath) {
+      const content = readFileSync(filePath);
+      return filePath.endsWith("torch-requirements.txt")
+        ? Buffer.concat([content, Buffer.from("# drift\n")])
+        : content;
+    },
+  })).not.toBe(manifest.runtime.dependencyPolicySha256);
 });
 
 test("packaged provider activates only for an exact verified install marker", async () => {
@@ -87,6 +123,7 @@ test("packaged provider activates only for an exact verified install marker", as
         sourceRuntimeSha256: paths.manifest.upstream.runtimeTreeSha256,
         checkpointSha256: paths.manifest.model.checkpointSha256,
         providerSha256: paths.manifest.runtime.providerSha256,
+        dependencyPolicySha256: paths.manifest.runtime.dependencyPolicySha256,
         manifestSha256: runtime.sam2ProviderManifestSha256(paths.manifest),
       })),
     ]);
@@ -95,11 +132,12 @@ test("packaged provider activates only for an exact verified install marker", as
       runtimeSha256: () => paths.manifest.runtime.providerSha256,
       checkpointSha256: () => paths.manifest.model.checkpointSha256,
       sourceRuntimeSha256: () => paths.manifest.upstream.runtimeTreeSha256,
+      dependencyPolicySha256: () => paths.manifest.runtime.dependencyPolicySha256,
     })).toMatchObject({
       command: paths.python,
       engineName: "sam2.1-hiera-tiny",
       displayName: "Football Science SAM 2.1 Object Tracker",
-      engineVersion: "1.3.0",
+      engineVersion: "1.3.1",
       providerExecutionFingerprintSha256: runtime.sam2ProviderExecutionFingerprintSha256(paths.manifest),
     });
     expect(runtime.sam2ProviderExecutionFingerprintSha256(paths.manifest)).toMatch(/^[a-f0-9]{64}$/);
@@ -112,6 +150,7 @@ test("packaged provider activates only for an exact verified install marker", as
       sourceRuntimeSha256: paths.manifest.upstream.runtimeTreeSha256,
       checkpointSha256: paths.manifest.model.checkpointSha256,
       providerSha256: paths.manifest.runtime.providerSha256,
+      dependencyPolicySha256: paths.manifest.runtime.dependencyPolicySha256,
       manifestSha256: runtime.sam2ProviderManifestSha256(paths.manifest),
     }));
     expect(runtime.resolveInstalledSam2Provider({
@@ -119,6 +158,7 @@ test("packaged provider activates only for an exact verified install marker", as
       runtimeSha256: () => paths.manifest.runtime.providerSha256,
       checkpointSha256: () => paths.manifest.model.checkpointSha256,
       sourceRuntimeSha256: () => paths.manifest.upstream.runtimeTreeSha256,
+      dependencyPolicySha256: () => paths.manifest.runtime.dependencyPolicySha256,
     })).toBeNull();
   } finally {
     await fs.rm(installDir, { recursive: true, force: true });

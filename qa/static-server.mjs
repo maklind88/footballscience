@@ -3,6 +3,11 @@ import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  createQaServerIdentity,
+  isQaServerReadyPath,
+  isQaServerReadyRequest,
+} from "./qa-server-identity.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -16,6 +21,7 @@ const args = new Map(
 );
 const port = Number(args.get("port") || process.env.QA_PORT || 4173);
 const host = "127.0.0.1";
+const qaServerIdentity = createQaServerIdentity(rootDir);
 
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
@@ -123,6 +129,16 @@ function resolveRequestPath(url = "/") {
 }
 
 async function handleRequest(req, res) {
+  const parsedUrl = new URL(req.url || "/", `http://${host}:${port}`);
+  if (isQaServerReadyPath(parsedUrl.pathname, rootDir)) {
+    sendJson(res, 200, { ok: true, identity: qaServerIdentity });
+    return;
+  }
+  if (isQaServerReadyRequest(parsedUrl.pathname)) {
+    sendJson(res, 409, { ok: false, reason: "QA server belongs to a different worktree." });
+    return;
+  }
+
   if (req.url?.startsWith("/api/")) {
     if (handleMockApi(req, res)) {
       return;

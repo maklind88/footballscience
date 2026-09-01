@@ -950,6 +950,7 @@ function getDatabasePage(query = {}) {
   const hasMore = nextOffset < total;
   return {
     source: "worker",
+    sourceRows: Math.max(0, Math.floor(Number(database?.totalRecords) || records.length)),
     importedAt: database?.importedAt || "",
     fileName: database?.fileName || "",
     sheets: Array.isArray(database?.sheets) ? database.sheets : [],

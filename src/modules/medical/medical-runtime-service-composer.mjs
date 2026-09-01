@@ -79,6 +79,7 @@ export function createMedicalRuntimeServiceComposition(deps = {}) {
     parseScheduleDateValue: deps.parseScheduleDateValue,
     playerProfileRosterTypeCountsInSquad: deps.playerProfileRosterTypeCountsInSquad,
     playerProfileStatusOptions: deps.playerProfileStatusOptions,
+    queueCentralStateWrite: deps.queueCentralStateWrite,
     rawDataSafetySetItem: deps.rawDataSafetySetItem,
     renderMedicalMetric: deps.renderMedicalMetric,
     renderMedicalPlayerAvatar: deps.renderMedicalPlayerAvatar,

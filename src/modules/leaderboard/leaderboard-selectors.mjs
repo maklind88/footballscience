@@ -19,6 +19,27 @@ export function getLeaderboardSquadPlayers(data = {}, options = {}) {
   return readLeaderboardSquadPlayers(data, options);
 }
 
+const unavailableSquadStatuses = new Set([
+  "injured",
+  "rehab",
+  "unavailable",
+  "national-team",
+  "vacation",
+  "personal",
+  "suspended",
+  "loan",
+]);
+
+export function getLeaderboardPlayerAvailability(player = {}, dateValue = "") {
+  const dated = player.availabilityByDate?.[dateValue];
+  if (dated) return dated;
+  const status = normalizeLeaderboardText(player.availabilityStatus, 40).toLowerCase() || "unknown";
+  if (unavailableSquadStatuses.has(status)) return { status, participation: 0, eligibility: "unavailable", source: "squad" };
+  if (status === "managed") return { status: "modified", participation: 75, eligibility: "limited", source: "squad" };
+  if (status === "available") return { status: "full", participation: 100, eligibility: "available", source: "squad" };
+  return { status, participation: 100, eligibility: "unknown", source: "squad" };
+}
+
 function normalizeStanding(row = {}, player = null) {
   return {
     playerId: normalizeLeaderboardText(firstValue(row, ["playerId", "player_id", "id"]), 120),

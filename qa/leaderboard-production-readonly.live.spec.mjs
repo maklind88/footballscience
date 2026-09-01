@@ -104,7 +104,7 @@ async function openLeaderboardDialog(page) {
   await expect(dialog).toBeVisible({ timeout: 15_000 });
 }
 
-test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async ({ page }) => {
+test("Leaderboard is authenticated, tenant-bound, internally consistent, and read-only", async ({ page }) => {
   let forbiddenMethodCount = 0;
   let crossOriginApiCount = 0;
   let apiFailureCount = 0;
@@ -186,10 +186,13 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
   const direct = await directResponse.json().catch(() => null);
   expect(directResponse.status()).toBe(200);
   expect(direct?.ok === true && direct?.schema === "footballscience-leaderboard-v1" && direct?.month === month).toBe(true);
-  expect(Number(direct?.summary?.totalPoints)).toBe(0);
-  expect(Number(direct?.summary?.eventCount)).toBe(0);
-  expect(Array.isArray(direct?.events) ? direct.events.length : -1).toBe(0);
-  expect(Array.isArray(direct?.standings) ? direct.standings.length : -1).toBe(0);
+  const standings = Array.isArray(direct?.standings) ? direct.standings : null;
+  const events = Array.isArray(direct?.events) ? direct.events : null;
+  expect(standings).not.toBeNull();
+  expect(events).not.toBeNull();
+  expect(Number(direct?.summary?.participantCount)).toBe(standings.length);
+  expect(Number(direct?.summary?.totalPoints)).toBe(standings.reduce((total, row) => total + Number(row?.points || 0), 0));
+  expect(Number(direct?.summary?.eventCount)).toBe(events.filter((event) => event?.status === "active").length);
 
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "schedule" } })));
   await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
@@ -207,7 +210,7 @@ test("Leaderboard is authenticated, tenant-bound, empty, and read-only", async (
     return `loading:${String(user.role || "unknown")}`;
   }), { timeout: 30_000, intervals: [250, 500, 1_000, 2_000] }).toBe("ready");
   await expect(page.locator("#leaderboardSummary [data-leaderboard-home-root]")).toBeVisible();
-  await expect(page.locator("#leaderboardSummary .leaderboard-home-standings, #leaderboardSummary .leaderboard-home-state").first()).toBeVisible();
+  await expect(page.locator("#leaderboardSummary .leaderboard-podium, #leaderboardSummary .leaderboard-home-state").first()).toBeVisible();
   await expect(page.locator("#leaderboardSummary [data-leaderboard-home-open]")).toBeVisible();
   await openLeaderboardDialog(page);
   await expect(page.locator("[data-leaderboard-dialog-workspace] [data-leaderboard-root]")).toBeVisible({ timeout: 30_000 });

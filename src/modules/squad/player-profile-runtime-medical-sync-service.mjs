@@ -174,8 +174,11 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     if (!nameMatches.length) {
       return false;
     }
-    if (identity.number) {
-      return nameMatches.some((profile) => getMedicalPlayerProfileIdentity(profile).number === identity.number);
+    if (
+      identity.number &&
+      nameMatches.some((profile) => getMedicalPlayerProfileIdentity(profile).number === identity.number)
+    ) {
+      return true;
     }
     return nameMatches.length === 1;
   }
@@ -187,16 +190,25 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     const profileState = context.profileState || getPlayerProfilesStateForMedicalSync();
     const removedNames = context.removedNames || getRemovedSquadPlayerNames(profileState, removedPlayerIdSet);
     const identity = getMedicalPlayerProfileIdentity(player);
+    const activeProfiles = Array.isArray(context.activeProfiles)
+      ? context.activeProfiles
+      : getActiveSquadProfiles(profileState);
+    const activeProfileMatch = hasActiveSquadProfileMatch(
+      player,
+      context.profileState
+        ? { ...context, activeProfiles }
+        : { ...context, profileState, activeProfiles }
+    );
+    if (identity.name && activeProfiles.length && activeProfileMatch) {
+      return false;
+    }
     if (identity.id && removedPlayerIdSet.has(identity.id)) {
       return true;
     }
     if (identity.name && removedNames.has(identity.name)) {
       return true;
     }
-    if (!hasActiveSquadProfileMatch(player, context.profileState ? context : { ...context, profileState })) {
-      return true;
-    }
-    return false;
+    return activeProfiles.length > 0;
   }
 
   function archiveMedicalPlayersRemovedFromSquad(archiveOptions = {}) {

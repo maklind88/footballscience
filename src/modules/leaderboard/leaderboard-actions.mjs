@@ -10,6 +10,7 @@ import {
   getLeaderboardDraftAwards,
   getLeaderboardEvents,
   getLeaderboardMonthBounds,
+  getLeaderboardPlayerAvailability,
   getLeaderboardSquadPlayers,
 } from "./leaderboard-selectors.mjs";
 import { createLeaderboardAwardDraft } from "./leaderboard-state.mjs";
@@ -83,13 +84,18 @@ export function createLeaderboardActions({ store, api, context = {} } = {}) {
     const occurredOn = normalizeLeaderboardDate(state.draft.occurredOn);
     const bounds = getLeaderboardMonthBounds(state.month, getNow());
     const awards = getLeaderboardDraftAwards(state.draft);
-    const squadPlayerIds = new Set(getLeaderboardSquadPlayers(state.data || {}).map((player) => player.id));
+    const squadPlayers = getLeaderboardSquadPlayers(state.data || {});
+    const squadPlayerIds = new Set(squadPlayers.map((player) => player.id));
+    const squadById = new Map(squadPlayers.map((player) => [player.id, player]));
     if (!getCanEdit(context)) return { error: "You do not have permission to award points." };
     if (state.month !== getLeaderboardMonthValue(getNow())) return { error: "Completed Leaderboard months are read-only." };
     if (!occurredOn || occurredOn < bounds.min || occurredOn > bounds.max) return { error: `Choose a date within ${state.month}.` };
     if (!title) return { error: "Add a competition or activity title." };
     if (!awards.length) return { error: "Select at least one player and award points." };
     if (awards.some((award) => !squadPlayerIds.has(award.playerId))) return { error: "One or more selected players are no longer in the active squad." };
+    if (awards.some((award) => getLeaderboardPlayerAvailability(squadById.get(award.playerId), occurredOn).eligibility === "unavailable")) {
+      return { error: "One or more selected players were unavailable for team activity on this date." };
+    }
     if (awards.some((award) => award.points < 1 || award.points > leaderboardMaxPointsPerPlayer)) {
       return { error: `Points must be between 1 and ${leaderboardMaxPointsPerPlayer}.` };
     }

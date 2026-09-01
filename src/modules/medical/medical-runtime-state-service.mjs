@@ -31,12 +31,23 @@ export function createMedicalRuntimeStateService(deps = {}) {
     normalizeMedicalShareValue = (value) => value === true || value === "true" || value === "on" || value === "1",
     normalizePlayerProfileRosterType = (value, fallback = "squad") => String(value || fallback || "squad").trim(),
     playerProfileRosterTypeCountsInSquad = (value) => String(value || "squad").trim() === "squad",
+    queueCentralStateWrite = () => {},
     rawDataSafetySetItem = (key, value) => win.localStorage?.setItem?.(key, value),
     sanitizeMedicalGovernancePolicyForCoachView = () => ({}),
     setMedicalState = () => {},
     win = globalThis,
   } = deps;
   let medicalReadBatchDepth = 0;
+
+  function isStorageQuotaError(error) {
+    return (
+      error?.name === "QuotaExceededError" ||
+      error?.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+      Number(error?.code) === 22 ||
+      Number(error?.code) === 1014 ||
+      /quota/i.test(String(error?.message || ""))
+    );
+  }
 
   function getMedicalStatusOptionForDate(statusKey, dateValue = getMedicalState()?.selectedDate, rtpPhase = "") {
     return getMedicalStatusOptionForDateFromHelper(statusKey, dateValue, rtpPhase);
@@ -491,16 +502,22 @@ export function createMedicalRuntimeStateService(deps = {}) {
     if (!medicalState) {
       return;
     }
+    let nextStateJson = "";
     try {
       const coachSafeOnly = !canViewPrivateMedicalDetails();
       const nextState = coachSafeOnly ? sanitizeMedicalStateForCurrentUser(medicalState) : medicalState;
-      const nextStateJson = JSON.stringify(nextState);
+      nextStateJson = JSON.stringify(nextState);
       const currentStateJson = win.localStorage.getItem(medicalTeamStorageKey);
       if (currentStateJson === nextStateJson) {
         return;
       }
       setMedicalStateStorageValue(nextState, coachSafeOnly);
-    } catch {
+    } catch (error) {
+      if (nextStateJson && canViewPrivateMedicalDetails() && isStorageQuotaError(error)) {
+        queueCentralStateWrite(medicalTeamStorageKey, nextStateJson, { automatic: false });
+        logEvent("Medical Team browser cache is full; the protected state was queued directly for central sync.");
+        return;
+      }
       logEvent("Medical Team data could not be written to local storage.");
     }
   }

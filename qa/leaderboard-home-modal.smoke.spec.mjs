@@ -59,12 +59,20 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
 
   await page.evaluate(async () => {
     document.head.innerHTML = `<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:24px;background:#edf2ee;font-family:Inter,system-ui,sans-serif}#dialogHost{position:relative}</style>`;
-    document.body.innerHTML = `<div id="appShell"><nav id="appNav" aria-hidden="false">Navigation</nav><main id="app"><section id="summary"></section></main><div id="dialogHost"></div></div><aside id="outsideApp" aria-hidden="false">Outside app</aside>`;
-    const stylesheet = document.createElement("link");
-    stylesheet.rel = "stylesheet";
-    stylesheet.href = "/src/modules/leaderboard/leaderboard.css";
-    document.head.append(stylesheet);
-    await new Promise((resolve, reject) => { stylesheet.onload = resolve; stylesheet.onerror = reject; });
+    document.body.innerHTML = `<div id="appShell"><nav id="appNav" aria-hidden="false">Navigation</nav><main id="app"><section class="dashboard-home-grid"><section class="dashboard-presentation-band"><div class="dashboard-presentation-stack"><section class="dashboard-birthday-strip"><article id="birthdayReference" class="dashboard-panel dashboard-birthday-card">Birthday calendar</article></section></div><div class="dashboard-presentation-stack"><article class="dashboard-panel dashboard-presentation-card"><div id="presentationVisualReference" class="dashboard-presentation-visual" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8"/></svg></div><div class="dashboard-presentation-action"><button id="presentationOpenReference" type="button">Open</button></div></article></div><aside></aside></section><section class="dashboard-leaderboard-slot"><section id="summary"></section></section></section></main><div id="dialogHost"></div></div><aside id="outsideApp" aria-hidden="false">Outside app</aside>`;
+    await Promise.all([
+      "/styles.css",
+      "/presentation-mode.css",
+      "/src/modules/home/home-leaderboard.css",
+      "/src/modules/leaderboard/leaderboard.css",
+    ].map((href) => new Promise((resolve, reject) => {
+      const stylesheet = document.createElement("link");
+      stylesheet.rel = "stylesheet";
+      stylesheet.href = href;
+      stylesheet.onload = resolve;
+      stylesheet.onerror = reject;
+      document.head.append(stylesheet);
+    })));
     const module = await import(`/src/modules/leaderboard/index.mjs?home=${Date.now()}`);
     const context = {
       ui: {
@@ -78,6 +86,11 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
       getAuthToken: () => "",
       getNow: () => new Date("2026-08-25T12:00:00"),
       canEdit: () => true,
+      getPlayerProfilesState: () => ({ players: [
+        { id: "p1", photoUrl: "/assets/football-science-mark.png" },
+        { id: "p2", photoUrl: "/assets/football-science-logo.png" },
+        { id: "p3", photoUrl: "/assets/pwa/icon-192.png" },
+      ] }),
     };
     window.leaderboardHomeContext = context;
     window.leaderboardHomeModule = module;
@@ -85,14 +98,161 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   });
 
   const summary = page.locator("#summary");
-  await expect(summary.getByRole("heading", { name: "North Carolina Courage Leaderboard" })).toBeVisible();
+  await expect(summary.getByRole("heading", { name: "NCC Leaderboard" })).toBeVisible();
+  await expect(summary.locator(".leaderboard-home-visual svg")).toHaveCount(1);
+  await expect(summary.locator(".leaderboard-team-mark")).toHaveCount(0);
   await expect(summary.locator(".leaderboard-podium-card")).toHaveCount(3);
-  await expect(summary.getByRole("heading", { name: "Team standings" })).toBeVisible();
-  await expect(summary.getByRole("button", { name: "Open Leaderboard" })).toBeVisible();
+  await expect(summary.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
+  await expect.poll(() => summary.locator(".leaderboard-podium-avatar img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
+  await expect(summary.locator(".leaderboard-home-standings")).toHaveCount(0);
+  const homePodiumLayout = await summary.locator(".leaderboard-podium").evaluate((podium) => {
+    const first = podium.querySelector(".is-place-1").getBoundingClientRect();
+    const second = podium.querySelector(".is-place-2").getBoundingClientRect();
+    const third = podium.querySelector(".is-place-3").getBoundingClientRect();
+    return {
+      height: podium.getBoundingClientRect().height,
+      centerIsFirst: second.x < first.x && first.x < third.x,
+      firstIsRaised: first.height > second.height && first.height > third.height,
+    };
+  });
+  expect(homePodiumLayout).toEqual({ height: expect.any(Number), centerIsFirst: true, firstIsRaised: true });
+  expect(homePodiumLayout.height).toBeLessThan(112);
+  const openButton = summary.getByRole("button", { name: "Open", exact: true });
+  await expect(openButton).toBeVisible();
+  const homeWidths = await page.evaluate(() => ({
+    birthday: document.querySelector("#birthdayReference")?.getBoundingClientRect().width || 0,
+    leaderboard: document.querySelector(".dashboard-leaderboard-slot")?.getBoundingClientRect().width || 0,
+  }));
+  expect(homeWidths.birthday).toBeGreaterThan(0);
+  expect(Math.abs(homeWidths.leaderboard - homeWidths.birthday)).toBeLessThanOrEqual(1);
+  const iconStyles = await page.evaluate(() => {
+    const homeIcon = document.querySelector(".leaderboard-home-visual");
+    const referenceIcon = document.querySelector("#presentationVisualReference");
+    const properties = ["width", "height", "borderRadius", "backgroundColor", "color", "borderTopWidth", "borderTopStyle", "borderTopColor"];
+    const values = (style) => Object.fromEntries(properties.map((property) => [property, style[property]]));
+    return { home: values(getComputedStyle(homeIcon)), reference: values(getComputedStyle(referenceIcon)) };
+  });
+  expect(iconStyles.home).toEqual(iconStyles.reference);
+  const expectedOpenButtonStyles = {
+    minHeight: "43.2px",
+    borderRadius: "7px",
+    backgroundColor: "rgb(29, 29, 31)",
+    color: "rgb(255, 255, 255)",
+    fontSize: "13.44px",
+    fontWeight: "650",
+    paddingLeft: "14.72px",
+    paddingRight: "14.72px",
+  };
+  await expect.poll(() => page.evaluate(() => {
+    const homeButton = document.querySelector("[data-leaderboard-home-open]");
+    const referenceButton = document.querySelector("#presentationOpenReference");
+    const properties = ["minHeight", "borderRadius", "backgroundColor", "color", "fontSize", "fontWeight", "paddingLeft", "paddingRight"];
+    const values = (style) => Object.fromEntries(properties.map((property) => [property, style[property]]));
+    return { home: values(getComputedStyle(homeButton)), reference: values(getComputedStyle(referenceButton)) };
+  })).toEqual({ home: expectedOpenButtonStyles, reference: expectedOpenButtonStyles });
 
-  await summary.getByRole("button", { name: "Open Leaderboard" }).click();
+  await openButton.click();
   const outerDialog = page.locator(".leaderboard-home-dialog");
   await expect(outerDialog).toBeVisible();
+  const closeButton = page.getByRole("button", { name: "Close Leaderboard" });
+  await expect(closeButton.locator("svg")).toHaveCount(1);
+  expect(await closeButton.evaluate((button) => {
+    const icon = button.querySelector("svg");
+    const buttonRect = button.getBoundingClientRect();
+    const iconRect = icon.getBoundingClientRect();
+    return {
+      horizontalOffset: Math.abs((buttonRect.left + buttonRect.width / 2) - (iconRect.left + iconRect.width / 2)),
+      verticalOffset: Math.abs((buttonRect.top + buttonRect.height / 2) - (iconRect.top + iconRect.height / 2)),
+      iconWidth: iconRect.width,
+      iconHeight: iconRect.height,
+    };
+  })).toEqual({ horizontalOffset: 0, verticalOffset: 0, iconWidth: 16, iconHeight: 16 });
+  const commandTitle = outerDialog.locator(".leaderboard-command-title h1");
+  await expect(commandTitle).toBeVisible();
+  expect(await commandTitle.evaluate((node) => {
+    const style = getComputedStyle(node);
+    const header = node.closest(".leaderboard-command-bar").getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const lines = [...range.getClientRects()];
+    return {
+      fullTextInsideHeader: lines.every((line) => line.left >= header.left && line.right <= header.right),
+      lineCount: lines.length,
+      overflowX: style.overflowX,
+      textOverflow: style.textOverflow,
+      whiteSpace: style.whiteSpace,
+    };
+  })).toEqual({ fullTextInsideHeader: true, lineCount: 1, overflowX: "visible", textOverflow: "clip", whiteSpace: "normal" });
+  const fullPodium = outerDialog.locator(".leaderboard-content > .leaderboard-podium");
+  await expect(fullPodium.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
+  expect(await fullPodium.evaluate((podium) => podium.getBoundingClientRect().height)).toBeLessThan(125);
+  await expect.poll(() => outerDialog.evaluate((dialog) => {
+    const commandBar = dialog.querySelector(".leaderboard-command-bar");
+    const podium = dialog.querySelector(".leaderboard-content > .leaderboard-podium");
+    const podiumCard = podium.querySelector(".leaderboard-podium-card");
+    const tabs = dialog.querySelector(".leaderboard-tabs");
+    const activeTab = tabs.querySelector(".is-active");
+    const properties = (node) => {
+      const style = getComputedStyle(node);
+      return {
+        backgroundColor: style.backgroundColor,
+        backgroundImage: style.backgroundImage,
+        borderRadius: style.borderRadius,
+      };
+    };
+    return {
+      commandBar: properties(commandBar),
+      podium: properties(podium),
+      podiumCard: properties(podiumCard),
+      tabs: properties(tabs),
+      activeTab: properties(activeTab),
+    };
+  })).toEqual({
+    commandBar: { backgroundColor: "rgba(255, 255, 255, 0.94)", backgroundImage: "none", borderRadius: "16px" },
+    podium: { backgroundColor: "rgb(245, 245, 247)", backgroundImage: "none", borderRadius: "16px" },
+    podiumCard: { backgroundColor: "rgb(255, 250, 240)", backgroundImage: "none", borderRadius: "13px" },
+    tabs: { backgroundColor: "rgb(232, 232, 237)", backgroundImage: "none", borderRadius: "11px" },
+    activeTab: { backgroundColor: "rgb(255, 255, 255)", backgroundImage: "none", borderRadius: "9px" },
+  });
+  await page.evaluate(() => document.body.classList.add("is-dark-mode"));
+  await expect.poll(() => outerDialog.evaluate((dialog) => {
+    const selectors = {
+      dialog: ".leaderboard-home-dialog",
+      commandBar: ".leaderboard-command-bar",
+      podium: ".leaderboard-content > .leaderboard-podium",
+      podiumCard: ".leaderboard-content > .leaderboard-podium .leaderboard-podium-card",
+      tabs: ".leaderboard-tabs",
+      activeTab: ".leaderboard-tabs .is-active",
+    };
+    return Object.fromEntries(Object.entries(selectors).map(([key, selector]) => {
+      const style = getComputedStyle(key === "dialog" ? dialog : dialog.querySelector(selector));
+      return [key, { backgroundColor: style.backgroundColor, backgroundImage: style.backgroundImage }];
+    }));
+  })).toEqual({
+    dialog: { backgroundColor: "rgb(28, 28, 30)", backgroundImage: "none" },
+    commandBar: { backgroundColor: "rgb(28, 28, 30)", backgroundImage: "none" },
+    podium: { backgroundColor: "rgb(28, 28, 30)", backgroundImage: "none" },
+    podiumCard: { backgroundColor: "rgb(51, 47, 36)", backgroundImage: "none" },
+    tabs: { backgroundColor: "rgb(44, 44, 46)", backgroundImage: "none" },
+    activeTab: { backgroundColor: "rgb(72, 72, 74)", backgroundImage: "none" },
+  });
+  await page.evaluate(() => document.body.classList.remove("is-dark-mode"));
+  await expect(outerDialog.locator(".leaderboard-metrics")).toHaveCount(0);
+  const standingPhotos = outerDialog.locator(".leaderboard-table .leaderboard-player-cell .leaderboard-avatar img");
+  await expect(standingPhotos).toHaveCount(3);
+  await expect.poll(() => standingPhotos.evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
+  const tiedRankBadges = outerDialog.locator(".leaderboard-table .leaderboard-rank.is-shared");
+  await expect(tiedRankBadges).toHaveCount(2);
+  await expect(tiedRankBadges.first().getByText("Tie", { exact: true })).toBeVisible();
+  expect(await tiedRankBadges.first().evaluate((node) => {
+    const style = getComputedStyle(node);
+    return { backgroundColor: style.backgroundColor, backgroundImage: style.backgroundImage, borderRadius: style.borderRadius, boxShadow: style.boxShadow };
+  })).toEqual({
+    backgroundColor: "rgb(255, 246, 223)",
+    backgroundImage: "none",
+    borderRadius: "14px",
+    boxShadow: expect.not.stringContaining("none"),
+  });
   await expect(page.getByRole("button", { name: "Close Leaderboard" })).toBeFocused();
   expect(await page.locator("#app").evaluate((node) => node.inert)).toBe(true);
   expect(await page.locator("#appNav").evaluate((node) => node.inert)).toBe(true);
@@ -101,12 +261,12 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   expect(await page.locator("#appShell").evaluate((node) => node.inert)).toBe(false);
   await page.getByRole("button", { name: "Close Leaderboard" }).click();
   await expect(outerDialog).toBeHidden();
-  await expect(summary.getByRole("button", { name: "Open Leaderboard" })).toBeFocused();
+  await expect(openButton).toBeFocused();
   expect(await page.locator("#app").evaluate((node) => node.inert)).toBe(false);
   expect(await page.locator("#appNav").getAttribute("aria-hidden")).toBe("false");
   expect(await page.locator("#outsideApp").getAttribute("aria-hidden")).toBe("false");
 
-  await summary.locator(".leaderboard-home-standings-list button").first().click();
+  await summary.locator(".leaderboard-podium-card").first().click();
   await expect(outerDialog).toBeVisible();
   const playerDialog = page.getByRole("dialog", { name: "Alex Morgan" });
   await expect(playerDialog).toBeVisible();
@@ -184,7 +344,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(page.getByRole("dialog", { name: "Award Points" })).toHaveCount(0);
   await page.getByRole("button", { name: "Close Leaderboard" }).click();
 
-  await summary.getByRole("button", { name: "Open Leaderboard" }).click();
+  await summary.getByRole("button", { name: "Open", exact: true }).click();
   const julyResponse = page.waitForResponse((response) => response.url().includes("month=2026-07"));
   await outerDialog.getByRole("button", { name: "Previous month" }).click();
   await julyResponse;
@@ -194,7 +354,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await page.getByRole("button", { name: "Close Leaderboard" }).click();
   expect(await page.evaluate(() => window.leaderboardHomeModule.getLeaderboardRuntimeState().month)).toBe("2026-08");
 
-  await summary.getByRole("button", { name: "Open Leaderboard" }).click();
+  await summary.getByRole("button", { name: "Open", exact: true }).click();
   await page.evaluate(async () => {
     const runtime = (await import("/src/modules/leaderboard/leaderboard-runtime.mjs")).getActiveLeaderboardRuntime();
     runtime.store.setState({ ui: { reverseEventId: "e1", reverseReason: "Correction", pendingAction: "reverse" } });
@@ -218,11 +378,11 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
     window.leaderboardHomeContext = context;
     window.leaderboardHomeHandle = window.leaderboardHomeModule.mountLeaderboardHome(context);
   });
-  await expect(summary.getByRole("heading", { name: "Team B Leaderboard" })).toBeVisible();
+  await expect(summary.getByRole("heading", { name: "NCC Leaderboard" })).toBeVisible();
   expect(await page.evaluate(() => window.leaderboardHomeModule.getLeaderboardRuntimeState().ui.pendingAction)).toBe("");
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await summary.getByRole("button", { name: "Open Leaderboard" }).click();
+  await summary.getByRole("button", { name: "Open", exact: true }).click();
   const bounds = await outerDialog.evaluate((node) => {
     const rect = node.getBoundingClientRect();
     return { width: rect.width, height: rect.height, viewportWidth: innerWidth, viewportHeight: innerHeight };

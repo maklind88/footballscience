@@ -27,6 +27,8 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
     renderDashboardChatWidget = () => {},
   } = dependencies;
 
+  const sessionDeletedMessageIds = new Set();
+
   function isDashboardMessageRememberedDeleted(message = {}, deletedMessageIds = readDashboardDeletedMessageIds()) {
     return getDashboardMessageIdentityKeys(message).some((id) => deletedMessageIds.has(id));
   }
@@ -147,11 +149,15 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
   }
 
   function readDashboardDeletedMessageIds() {
-    if (!respectDeletedMessageIdsFromStorage) {
-      return new Set();
+    const deletedMessageIds = new Set(sessionDeletedMessageIds);
+    if (respectDeletedMessageIdsFromStorage) {
+      const parsed = readDashboardJson(dashboardChatDeletedMessageIdsStorageKey, []);
+      (Array.isArray(parsed) ? parsed : [])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+        .forEach((id) => deletedMessageIds.add(id));
     }
-    const parsed = readDashboardJson(dashboardChatDeletedMessageIdsStorageKey, []);
-    return new Set(Array.isArray(parsed) ? parsed.map((id) => String(id || "").trim()).filter(Boolean) : []);
+    return deletedMessageIds;
   }
 
   function rememberDashboardDeletedMessageId(messageId) {
@@ -159,14 +165,14 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
     if (!normalizedMessageId) {
       return;
     }
-    if (!persistDeletedMessageIdsToStorage) {
-      return;
+    sessionDeletedMessageIds.add(normalizedMessageId);
+    if (persistDeletedMessageIdsToStorage) {
+      const nextIds = [
+        normalizedMessageId,
+        ...Array.from(readDashboardDeletedMessageIds()).filter((id) => id !== normalizedMessageId),
+      ].slice(0, 500);
+      writeDashboardJson(dashboardChatDeletedMessageIdsStorageKey, nextIds);
     }
-    const nextIds = [
-      normalizedMessageId,
-      ...Array.from(readDashboardDeletedMessageIds()).filter((id) => id !== normalizedMessageId),
-    ].slice(0, 500);
-    writeDashboardJson(dashboardChatDeletedMessageIdsStorageKey, nextIds);
     purgeDashboardDeletedMessagesFromStorage();
   }
 

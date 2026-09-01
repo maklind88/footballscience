@@ -12,8 +12,9 @@ export function createScoutingTabController(deps = {}) {
     return Array.isArray(tabs) ? tabs : [];
   }
 
-  function renderActiveTabSurface(previousTab, nextTabId) {
+  function renderActiveTabSurface(previousTab, nextTabId, options = {}) {
     const render = () => {
+      options.beforeRender?.();
       deps.renderActiveTabSurfaceOrWorkspace?.({ preserveFocus: false });
       deps.resetScrollPosition?.({ previousTab, tabId: nextTabId });
     };
@@ -27,8 +28,8 @@ export function createScoutingTabController(deps = {}) {
     return { deferred: false };
   }
 
-  function setActiveTab(tabId) {
-    const state = deps.ensureState?.();
+  function setActiveTab(tabId, options = {}) {
+    const state = options.state || deps.ensureState?.();
     const nextTabId = normalizeTabId(tabId);
     if (!state || !hasTab(getTabs(), nextTabId)) {
       return { changed: false, status: "invalid-tab" };
@@ -50,10 +51,18 @@ export function createScoutingTabController(deps = {}) {
     if (nextTabId !== "database") {
       deps.cancelDatabaseBackgroundTimers?.();
     }
+    if (previousTab === "database" && nextTabId !== "database") {
+      deps.resetDatabaseTransientUi?.();
+    }
 
-    deps.writeState?.({ syncCentral: false });
+    const deferStateWrite = options.deferStateWrite === true && deps.shouldDeferTabSurfaceRender?.(nextTabId, previousTab) === true;
+    if (!deferStateWrite) {
+      deps.writeState?.({ syncCentral: false });
+    }
     deps.syncTabButtonsDom?.(state);
-    const renderResult = renderActiveTabSurface(previousTab, nextTabId);
+    const renderResult = renderActiveTabSurface(previousTab, nextTabId, {
+      beforeRender: deferStateWrite ? () => deps.writeState?.({ syncCentral: false }) : null,
+    });
     perf?.end?.({ deferred: renderResult.deferred, from: previousTab, to: nextTabId });
     return { changed: true, previousTab, tabId: nextTabId, status: "updated" };
   }

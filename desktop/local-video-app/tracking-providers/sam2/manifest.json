@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "providerId": "sam2.1-hiera-tiny",
-  "providerVersion": "1.3.0",
+  "providerVersion": "1.3.1",
   "displayName": "Football Science SAM 2.1 Object Tracker",
   "protocol": "football-science-tracking-v1",
   "approval": {
     "status": "approved-local-optional",
     "redistributeUpstreamAssets": false,
     "networkAtInference": false,
-    "reviewedAt": "2026-08-24"
+    "reviewedAt": "2026-08-31"
   },
   "upstream": {
     "repository": "https://github.com/facebookresearch/sam2",
@@ -49,6 +49,7 @@
       "darwin": 8,
       "linux": 0
     },
-    "providerSha256": "b3fc5eaefd82f268e963b308be066ef7c232b05fd5cbe43d5e86c39d5a45be57"
+    "providerSha256": "5f17d67a528dff3f5b26af6af545851bd466039e07e2d8391b5dd8c96c19ab2d",
+    "dependencyPolicySha256": "6fb095c14a2bd7f6a988a7abdb927359be54adee27cb454089e2761482da04f5"
   }
 }

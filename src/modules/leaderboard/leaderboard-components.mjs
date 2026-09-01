@@ -4,28 +4,29 @@ import {
   getLeaderboardPlayer,
   getLeaderboardPlayerEvents,
   getLeaderboardSquadPlayers,
-  getLeaderboardSummary,
 } from "./leaderboard-selectors.mjs";
-import { formatLeaderboardRank, renderLeaderboardAvatar } from "./leaderboard-ui-helpers.mjs";
+import {
+  formatLeaderboardRank,
+  renderLeaderboardAvatar,
+  resolveLeaderboardProfilePhoto,
+} from "./leaderboard-ui-helpers.mjs";
 
 function getRankCounts(rows = []) {
   return rows.reduce((counts, row) => counts.set(row.rank, (counts.get(row.rank) || 0) + 1), new Map());
 }
 
-export function renderLeaderboardMetrics(data = {}, context = {}) {
-  const summary = getLeaderboardSummary(data, context);
-  const metrics = [
-    [summary.eventCount, "Scoring events"],
-    [summary.totalPoints, "Points awarded"],
-    [summary.scoredPlayerCount, "Players scored"],
-    [summary.leaderGap === null || summary.leaderGap === undefined ? "—" : summary.leaderGap, "Gap to second"],
-  ];
-  return `<section class="leaderboard-metrics" aria-label="Monthly competition summary">${metrics.map(([value, label]) => `
-    <article><strong>${escapeLeaderboardHtml(value)}</strong><span>${escapeLeaderboardHtml(label)}</span></article>
-  `).join("")}</section>`;
+function renderStandingRank(rank = 0, shared = false) {
+  const cleanRank = Math.max(0, Number(rank) || 0);
+  const topClass = cleanRank >= 1 && cleanRank <= 3 ? ` is-top-${cleanRank}` : "";
+  return `
+    <span class="leaderboard-rank${topClass}${shared ? " is-shared" : ""}" aria-label="${shared ? "Joint rank" : "Rank"} ${cleanRank}">
+      <strong aria-hidden="true">${cleanRank || "—"}</strong>
+      ${shared ? `<small class="leaderboard-rank-tie" aria-hidden="true">Tie</small>` : ""}
+    </span>
+  `;
 }
 
-export function renderLeaderboardPodium(rows = []) {
+export function renderLeaderboardPodium(rows = [], context = {}) {
   if (!rows.length) return "";
   const rankCounts = getRankCounts(rows);
   return `
@@ -33,10 +34,11 @@ export function renderLeaderboardPodium(rows = []) {
       ${rows.slice(0, 3).map((row, index) => {
         const visualPlace = index + 1;
         const shared = (rankCounts.get(row.rank) || 0) > 1;
+        const podiumPlayer = { ...row, photoUrl: resolveLeaderboardProfilePhoto(row, context) };
         return `
           <button type="button" class="leaderboard-podium-card is-place-${visualPlace}" data-leaderboard-player-detail="${escapeLeaderboardHtml(row.playerId)}" aria-label="${escapeLeaderboardHtml(`${shared ? "Joint " : ""}rank ${row.rank}, ${row.name}, ${row.points} points`)}">
             <span class="leaderboard-podium-rank">${formatLeaderboardRank(row.rank, shared)}</span>
-            ${renderLeaderboardAvatar(row, "leaderboard-avatar leaderboard-podium-avatar")}
+            ${renderLeaderboardAvatar(podiumPlayer, "leaderboard-avatar leaderboard-podium-avatar")}
             <span class="leaderboard-podium-copy"><strong>${escapeLeaderboardHtml(row.name)}</strong><small>${escapeLeaderboardHtml(row.number ? `#${row.number}` : row.position || "Squad player")}</small></span>
             <span class="leaderboard-podium-points"><strong>${row.points}</strong><small>pts</small></span>
           </button>
@@ -46,14 +48,19 @@ export function renderLeaderboardPodium(rows = []) {
   `;
 }
 
-function renderStandingRow(row, maxPoints, rankCounts) {
+function withLeaderboardProfilePhoto(player = {}, context = {}) {
+  return { ...player, photoUrl: resolveLeaderboardProfilePhoto(player, context) };
+}
+
+function renderStandingRow(row, maxPoints, rankCounts, context = {}) {
   const shared = (rankCounts.get(row.rank) || 0) > 1;
   const distribution = maxPoints ? Math.max(4, Math.round((row.points / maxPoints) * 100)) : 0;
   const lastScored = row.lastScoredOn ? formatLeaderboardDate(row.lastScoredOn) : "Not recorded";
+  const displayPlayer = withLeaderboardProfilePhoto(row, context);
   return `
     <tr data-leaderboard-player-detail="${escapeLeaderboardHtml(row.playerId)}" tabindex="0" role="button" aria-label="Open ${escapeLeaderboardHtml(row.name)} leaderboard detail">
-      <td data-label="Rank"><span class="leaderboard-rank${row.rank <= 3 ? ` is-top-${row.rank}` : ""}">${formatLeaderboardRank(row.rank, shared)}</span></td>
-      <td data-label="Player"><span class="leaderboard-player-cell">${renderLeaderboardAvatar(row)}<span><strong>${escapeLeaderboardHtml(row.name)}</strong><small>${escapeLeaderboardHtml([row.number ? `#${row.number}` : "", row.position, row.archived ? "Former squad" : ""].filter(Boolean).join(" · ") || "Squad player")}</small></span></span></td>
+      <td data-label="Rank">${renderStandingRank(row.rank, shared)}</td>
+      <td data-label="Player"><span class="leaderboard-player-cell">${renderLeaderboardAvatar(displayPlayer)}<span><strong>${escapeLeaderboardHtml(row.name)}</strong><small>${escapeLeaderboardHtml([row.number ? `#${row.number}` : "", row.position, row.archived ? "Former squad" : ""].filter(Boolean).join(" · ") || "Squad player")}</small></span></span></td>
       <td data-label="Points"><span class="leaderboard-points-cell"><strong>${row.points}</strong><small>pts</small></span></td>
       <td data-label="Distribution"><span class="leaderboard-distribution" style="--leaderboard-share:${distribution}%"><i></i><small>${distribution}% of leader</small></span></td>
       <td data-label="Awards"><strong class="leaderboard-count-cell">${row.awardCount}</strong></td>
@@ -62,7 +69,7 @@ function renderStandingRow(row, maxPoints, rankCounts) {
   `;
 }
 
-export function renderLeaderboardStandingsTable(rankedRows = [], zeroRows = []) {
+export function renderLeaderboardStandingsTable(rankedRows = [], zeroRows = [], context = {}) {
   const maxPoints = rankedRows[0]?.points || 0;
   const rankCounts = getRankCounts(rankedRows);
   return `
@@ -71,14 +78,14 @@ export function renderLeaderboardStandingsTable(rankedRows = [], zeroRows = []) 
         <table class="leaderboard-table">
           <caption class="sr-only">Monthly leaderboard standings</caption>
           <thead><tr><th>Rank</th><th>Player</th><th>Points</th><th>Distribution</th><th>Awards</th><th>Last scored</th></tr></thead>
-          <tbody>${rankedRows.map((row) => renderStandingRow(row, maxPoints, rankCounts)).join("")}</tbody>
+          <tbody>${rankedRows.map((row) => renderStandingRow(row, maxPoints, rankCounts, context)).join("")}</tbody>
         </table>
       </div>
       ${zeroRows.length ? `
         <details class="leaderboard-zero-group">
           <summary><span><strong>No points yet</strong><small>Unranked this month</small></span><b>${zeroRows.length}</b></summary>
           <div class="leaderboard-zero-list">${zeroRows.map((row) => `
-            <button type="button" data-leaderboard-player-detail="${escapeLeaderboardHtml(row.playerId)}">${renderLeaderboardAvatar(row)}<span><strong>${escapeLeaderboardHtml(row.name)}</strong><small>${escapeLeaderboardHtml(row.number ? `#${row.number}` : row.position || "Squad player")}</small></span><b>0 pts</b></button>
+            <button type="button" data-leaderboard-player-detail="${escapeLeaderboardHtml(row.playerId)}">${renderLeaderboardAvatar(withLeaderboardProfilePhoto(row, context))}<span><strong>${escapeLeaderboardHtml(row.name)}</strong><small>${escapeLeaderboardHtml(row.number ? `#${row.number}` : row.position || "Squad player")}</small></span><b>0 pts</b></button>
           `).join("")}</div>
         </details>
       ` : ""}
@@ -115,12 +122,13 @@ export function renderLeaderboardPlayerDrawer(state = {}, context = {}) {
   if (!playerId) return "";
   const player = getLeaderboardPlayer(state.data || {}, context, playerId);
   if (!player) return "";
+  const displayPlayer = withLeaderboardProfilePhoto(player, context);
   const events = getLeaderboardPlayerEvents(state.data || {}, playerId);
   return `
     <div class="leaderboard-layer leaderboard-drawer-layer" data-leaderboard-close-player>
       <aside class="leaderboard-player-drawer" role="dialog" aria-modal="true" aria-labelledby="leaderboardPlayerTitle" data-leaderboard-modal tabindex="-1">
         <header class="leaderboard-sheet-header"><div><p>Monthly detail</p><h2 id="leaderboardPlayerTitle">${escapeLeaderboardHtml(player.name)}</h2></div><button type="button" class="leaderboard-icon-button" data-leaderboard-close-player aria-label="Close player detail">×</button></header>
-        <section class="leaderboard-player-hero">${renderLeaderboardAvatar(player, "leaderboard-avatar leaderboard-player-hero-avatar")}<div><span>Rank</span><strong>${player.rank ? `#${player.rank}` : "Unranked"}</strong></div><div><span>Points</span><strong>${player.points || 0}</strong></div><div><span>Awards</span><strong>${player.awardCount || events.filter((event) => !event.reversedAt).length}</strong></div></section>
+        <section class="leaderboard-player-hero">${renderLeaderboardAvatar(displayPlayer, "leaderboard-avatar leaderboard-player-hero-avatar")}<div><span>Rank</span><strong>${player.rank ? `#${player.rank}` : "Unranked"}</strong></div><div><span>Points</span><strong>${player.points || 0}</strong></div><div><span>Awards</span><strong>${player.awardCount || events.filter((event) => !event.reversedAt).length}</strong></div></section>
         <div class="leaderboard-player-history"><h3>Point history</h3>${events.length ? events.map((event) => {
           const award = event.awards.find((item) => item.playerId === playerId);
           return `<article class="${event.reversedAt ? "is-reversed" : ""}"><time>${escapeLeaderboardHtml(formatLeaderboardDate(event.occurredOn))}</time><span><strong>${escapeLeaderboardHtml(event.title)}</strong><small>${event.reversedAt ? "Reversed" : award?.placement ? `Placement ${award.placement}` : "Team award"}</small></span><b>+${award?.points || 0}</b></article>`;

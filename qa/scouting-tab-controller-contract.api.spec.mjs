@@ -17,8 +17,11 @@ function createHarness(overrides = {}) {
   const calls = {
     cancelledTimers: 0,
     clearedReports: 0,
+    ensureState: 0,
     perf: [],
     renders: [],
+    resetDatabaseUi: 0,
+    scheduledRenders: [],
     scrollResets: [],
     shadowResets: 0,
     syncedTabs: [],
@@ -31,10 +34,24 @@ function createHarness(overrides = {}) {
     clearReportsExpandedPanels: () => {
       calls.clearedReports += 1;
     },
-    ensureState: () => state,
+    ensureState: () => {
+      calls.ensureState += 1;
+      return state;
+    },
     getTabs: () => tabs,
     renderActiveTabSurfaceOrWorkspace: (options) => calls.renders.push(options),
+    scheduleTabSurfaceRender: (render, detail) => {
+      if (!overrides.deferDatabase) {
+        return false;
+      }
+      calls.scheduledRenders.push({ detail, render });
+      return true;
+    },
+    shouldDeferTabSurfaceRender: (tabId) => overrides.deferDatabase === true && tabId === "database",
     resetScrollPosition: (options) => calls.scrollResets.push(options),
+    resetDatabaseTransientUi: () => {
+      calls.resetDatabaseUi += 1;
+    },
     resetShadowSelection: (currentState) => {
       calls.shadowResets += 1;
       currentState.shadowXi.selectedSlotId = "";
@@ -66,6 +83,7 @@ test("Scouting tab controller switches tab and keeps the refresh path lightweigh
   expect(harness.calls.renders).toEqual([{ preserveFocus: false }]);
   expect(harness.calls.scrollResets).toEqual([{ previousTab: "database", tabId: "lists" }]);
   expect(harness.calls.cancelledTimers).toBe(1);
+  expect(harness.calls.resetDatabaseUi).toBe(1);
   expect(harness.calls.clearedReports).toBe(1);
   expect(harness.calls.perf[0]).toMatchObject({
     label: "tab.switch",
@@ -82,7 +100,40 @@ test("Scouting tab controller preserves database timers when switching into Data
   expect(result.status).toBe("updated");
   expect(harness.state.activeTab).toBe("database");
   expect(harness.calls.cancelledTimers).toBe(0);
+  expect(harness.calls.resetDatabaseUi).toBe(0);
   expect(harness.calls.clearedReports).toBe(1);
+});
+
+test("Scouting tab controller defers state serialization with a deferred Database render", () => {
+  const harness = createHarness({ activeTab: "shadow-xi", deferDatabase: true });
+
+  const result = harness.controller.setActiveTab("database", { deferStateWrite: true });
+
+  expect(result.status).toBe("updated");
+  expect(harness.state.activeTab).toBe("database");
+  expect(harness.calls.syncedTabs).toEqual(["database"]);
+  expect(harness.calls.writes).toEqual([]);
+  expect(harness.calls.renders).toEqual([]);
+  expect(harness.calls.scheduledRenders).toHaveLength(1);
+
+  harness.calls.scheduledRenders[0].render();
+
+  expect(harness.calls.writes).toEqual([{ syncCentral: false }]);
+  expect(harness.calls.renders).toEqual([{ preserveFocus: false }]);
+  expect(harness.calls.scrollResets).toEqual([{ previousTab: "shadow-xi", tabId: "database" }]);
+});
+
+test("Scouting tab controller reuses an already hydrated state for immediate navigation", () => {
+  const harness = createHarness({ activeTab: "shadow-xi", deferDatabase: true });
+
+  const result = harness.controller.setActiveTab("database", {
+    deferStateWrite: true,
+    state: harness.state,
+  });
+
+  expect(result.status).toBe("updated");
+  expect(harness.calls.ensureState).toBe(0);
+  expect(harness.calls.syncedTabs).toEqual(["database"]);
 });
 
 test("Scouting tab controller resets Shadow XI focus when opening Shadow XI", () => {
@@ -94,6 +145,7 @@ test("Scouting tab controller resets Shadow XI focus when opening Shadow XI", ()
   expect(harness.calls.shadowResets).toBe(1);
   expect(harness.state.shadowXi.selectedSlotId).toBe("");
   expect(harness.calls.cancelledTimers).toBe(1);
+  expect(harness.calls.resetDatabaseUi).toBe(0);
 });
 
 test("Scouting tab controller does not mutate state for invalid or unchanged tabs", () => {

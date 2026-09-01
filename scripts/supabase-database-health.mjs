@@ -26,6 +26,10 @@ const weeklyCommands = Object.freeze([
 ]);
 const redSignalCommands = new Set(["blocking", "long-running-queries"]);
 const yellowSignalCommands = new Set(["locks", "bloat"]);
+const bloatReviewRatio = 20;
+const bloatReviewWasteBytes = 10 * 1024 * 1024;
+const bloatPriorityRatio = 40;
+const bloatPriorityWasteBytes = 100 * 1024 * 1024;
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function commandPlan(mode = "daily") {
@@ -118,6 +122,99 @@ function rowValue(row, names) {
     if (match) return match[1];
   }
   return undefined;
+}
+
+function numericValue(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const match = String(value || "").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function byteSize(value) {
+  if (typeof value === "number") return Number.isFinite(value) && value >= 0 ? value : null;
+  const text = String(value || "").trim().toLowerCase().replace(/,/g, "");
+  const amount = numericValue(text);
+  if (amount === null || amount < 0) return null;
+  const unit = text.match(/(?:^|\s)(bytes?|kb|kib|mb|mib|gb|gib|tb|tib)\b/)?.[1] || "bytes";
+  const multipliers = {
+    byte: 1,
+    bytes: 1,
+    kb: 1024,
+    kib: 1024,
+    mb: 1024 ** 2,
+    mib: 1024 ** 2,
+    gb: 1024 ** 3,
+    gib: 1024 ** 3,
+    tb: 1024 ** 4,
+    tib: 1024 ** 4,
+  };
+  return amount * multipliers[unit];
+}
+
+function bloatRatioBucket(value) {
+  if (value === null) return "unknown";
+  if (value < 10) return "under-10-percent";
+  if (value < 20) return "10-20-percent";
+  if (value < 40) return "20-40-percent";
+  return "40-percent-or-more";
+}
+
+function bloatWasteBucket(value) {
+  if (value === null) return "unknown";
+  if (value < 1024 * 1024) return "under-1-mib";
+  if (value < 10 * 1024 * 1024) return "1-10-mib";
+  if (value < 100 * 1024 * 1024) return "10-100-mib";
+  if (value < 1024 * 1024 * 1024) return "100-mib-1-gib";
+  return "1-gib-or-more";
+}
+
+function incrementBucket(target, key) {
+  target[key] = (target[key] || 0) + 1;
+}
+
+function summarizeBloat(payload) {
+  const rows = extractInspectRows(payload);
+  const ratioBuckets = {};
+  const wasteBuckets = {};
+  let measuredRelations = 0;
+  let reviewCandidates = 0;
+  let highPriorityCandidates = 0;
+  let totalWasteBytes = 0;
+  let maxBloatRatio = null;
+  let maxWasteBytes = null;
+
+  for (const row of rows) {
+    const ratio = numericValue(rowValue(row, ["bloat", "bloat ratio", "bloat_ratio", "ratio"]));
+    const waste = byteSize(rowValue(row, ["waste", "wasted bytes", "wasted_bytes", "wasted space"]));
+    incrementBucket(ratioBuckets, bloatRatioBucket(ratio));
+    incrementBucket(wasteBuckets, bloatWasteBucket(waste));
+    if (ratio === null || waste === null) continue;
+    measuredRelations += 1;
+    totalWasteBytes += waste;
+    maxBloatRatio = maxBloatRatio === null ? ratio : Math.max(maxBloatRatio, ratio);
+    maxWasteBytes = maxWasteBytes === null ? waste : Math.max(maxWasteBytes, waste);
+    if (ratio >= bloatReviewRatio && waste >= bloatReviewWasteBytes) reviewCandidates += 1;
+    if (ratio >= bloatPriorityRatio && waste >= bloatPriorityWasteBytes) highPriorityCandidates += 1;
+  }
+
+  return {
+    highPriorityCandidates,
+    inspectedRelations: rows.length,
+    maxBloatBucket: bloatRatioBucket(maxBloatRatio),
+    maxWasteBucket: bloatWasteBucket(maxWasteBytes),
+    measuredRelations,
+    ratioBuckets,
+    reviewCandidates,
+    totalWasteBucket: bloatWasteBucket(totalWasteBytes),
+    wasteBuckets,
+  };
+}
+
+function hasBloatReviewSignal(result) {
+  if (result.command !== "bloat" || result.status !== "completed") return false;
+  return result.bloatSummary ? result.bloatSummary.reviewCandidates > 0 : result.recordCount > 0;
 }
 
 function normalizeStatement(value = "") {
@@ -304,9 +401,13 @@ function assessResults(results = []) {
   const redSignals = results.filter(
     (result) => result.status === "completed" && redSignalCommands.has(result.command) && result.recordCount > 0
   );
-  const yellowSignals = results.filter(
-    (result) => result.status === "completed" && yellowSignalCommands.has(result.command) && result.recordCount > 0
-  );
+  const yellowSignals = results.filter((result) => {
+    if (hasBloatReviewSignal(result)) return true;
+    return result.command !== "bloat"
+      && result.status === "completed"
+      && yellowSignalCommands.has(result.command)
+      && result.recordCount > 0;
+  });
   if (failed.length || redSignals.length) return "RED";
   if (yellowSignals.length) return "YELLOW";
   if (results.some((result) => result.status === "planned")) return "PLAN";
@@ -324,7 +425,7 @@ function assessReportStatus(results = [], investigation = null) {
   }
   if (results.some((result) => result.status === "failed") || investigation.status !== "completed") return "RED";
   if (results.some((result) => result.command === "blocking" && result.recordCount > 0)) return "RED";
-  if (results.some((result) => result.command === "bloat" && result.recordCount > 0)) return "YELLOW";
+  if (results.some((result) => hasBloatReviewSignal(result))) return "YELLOW";
 
   const longRunningCount = results.find((result) => result.command === "long-running-queries")?.recordCount || 0;
   const lockCount = results.find((result) => result.command === "locks")?.recordCount || 0;
@@ -364,7 +465,12 @@ function interpretation(result) {
     return result.recordCount ? "Queries over five minutes need review." : "No long-running query signal.";
   }
   if (result.command === "locks") return result.recordCount ? "Exclusive locks need review." : "No exclusive lock signal.";
-  if (result.command === "bloat") return result.recordCount ? "Relation bloat needs review." : "No bloat signal.";
+  if (result.command === "bloat") {
+    if (!result.bloatSummary) return result.recordCount ? "Relation bloat needs review." : "No bloat signal.";
+    return result.bloatSummary.reviewCandidates
+      ? `${result.bloatSummary.reviewCandidates} relation bloat candidate(s) need review.`
+      : `${result.bloatSummary.inspectedRelations} relations inspected; no material bloat candidate.`;
+  }
   return "Aggregate evidence collected; no automatic decision.";
 }
 
@@ -399,6 +505,23 @@ function buildMarkdownSummary({ generatedAt, investigation, mode, results }) {
           : []),
       ]
     : [];
+  const bloatSummary = results.find((result) => result.command === "bloat")?.bloatSummary;
+  const bloatSection = bloatSummary
+    ? [
+        "",
+        "## Privacy-safe bloat classification",
+        "",
+        "Relation names and raw database values are intentionally omitted.",
+        "",
+        `- Inspected relations: ${bloatSummary.inspectedRelations}`,
+        `- Measured relations: ${bloatSummary.measuredRelations}`,
+        `- Review candidates: ${bloatSummary.reviewCandidates}`,
+        `- High-priority candidates: ${bloatSummary.highPriorityCandidates}`,
+        `- Maximum bloat bucket: ${bloatSummary.maxBloatBucket}`,
+        `- Maximum waste bucket: ${bloatSummary.maxWasteBucket}`,
+        `- Total estimated waste bucket: ${bloatSummary.totalWasteBucket}`,
+      ]
+    : [];
   const probeSection = investigation?.signals?.length
     ? [
         "",
@@ -424,6 +547,7 @@ function buildMarkdownSummary({ generatedAt, investigation, mode, results }) {
     "|---|---:|---:|---|",
     ...rows,
     ...signalSection,
+    ...bloatSection,
     ...probeSection,
     "",
     "## Next decision",
@@ -451,11 +575,14 @@ function runInspectCommand({ command, dryRun = false, investigateSignals = false
   });
   const recordCount = result.status === 0 ? countInspectOutputRecords(result.stdout) : null;
   const completed = result.status === 0 && recordCount !== null;
+  const payload = completed ? parseJsonOutput(result.stdout) : null;
   const safeSignals =
-    completed && investigateSignals ? buildSafeSignalEvidence(command, parseJsonOutput(result.stdout)) : [];
+    completed && investigateSignals ? buildSafeSignalEvidence(command, payload) : [];
+  const bloatSummary = completed && command === "bloat" ? summarizeBloat(payload) : null;
   return {
     command,
     durationMs: Date.now() - startedAt,
+    ...(bloatSummary ? { bloatSummary } : {}),
     ...(safeSignals.length ? { safeSignals } : {}),
     ...(completed
       ? {}
@@ -514,7 +641,7 @@ function writeReport({ investigation = null, mode, outputDir, results, generated
     supabaseCliVersion,
     databaseChanges: false,
     storedDatabaseDetails: false,
-    storedDerivedSignalMetadata: results.some((result) => result.safeSignals?.length),
+    storedDerivedSignalMetadata: results.some((result) => result.safeSignals?.length || result.bloatSummary),
     investigation,
     signalCorrelations: correlateSafeSignals(results),
     results,
@@ -531,6 +658,9 @@ export {
   buildInspectionDbUrl,
   buildMarkdownSummary,
   buildSafeSignalEvidence,
+  byteSize,
+  bloatRatioBucket,
+  bloatWasteBucket,
   classifyStatement,
   classifyInspectFailure,
   commandPlan,
@@ -545,6 +675,7 @@ export {
   runInspectCommand,
   runSafeSignalProbe,
   sanitizeSafeProbeRows,
+  summarizeBloat,
   statementFingerprint,
   supabaseCliVersion,
   weeklyCommands,

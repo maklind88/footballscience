@@ -18,6 +18,9 @@ export function createScoutingProfileModalController(deps = {}) {
   let pendingFocusRecordId = "";
   let pendingFocusUntil = 0;
   let focusTimer = 0;
+  let postOpenTimer = 0;
+  let postOpenGuardModal = null;
+  let postOpenGuardListener = null;
 
   function normalizeText(value = "", limit = 160) {
     return normalizeControllerText(value, limit, deps.normalizeText);
@@ -74,6 +77,62 @@ export function createScoutingProfileModalController(deps = {}) {
     return focusTimer;
   }
 
+  function clearPostOpenQueue() {
+    if (postOpenTimer) {
+      timers.clearTimeout?.(postOpenTimer);
+      postOpenTimer = 0;
+    }
+  }
+
+  function clearPostOpenGuard() {
+    if (postOpenGuardModal && postOpenGuardListener) {
+      postOpenGuardModal.removeEventListener?.("click", postOpenGuardListener, true);
+    }
+    postOpenGuardModal = null;
+    postOpenGuardListener = null;
+  }
+
+  function bindPostOpenGuard(recordId) {
+    clearPostOpenGuard();
+    const modal = deps.getProfileModal?.();
+    if (!modal?.addEventListener) {
+      return;
+    }
+    const targetId = normalizeText(recordId, 160);
+    postOpenGuardListener = () => {
+      if (normalizeText(getState().selectedRecordId, 160) === targetId) {
+        queuePostOpen(targetId);
+      }
+    };
+    postOpenGuardModal = modal;
+    modal.addEventListener("click", postOpenGuardListener, true);
+  }
+
+  function completePostOpen(targetId) {
+    postOpenTimer = 0;
+    const state = getState();
+    if (normalizeText(state.selectedRecordId, 160) !== targetId) {
+      return;
+    }
+    if (deps.isProfileInteractionActive?.()) {
+      postOpenTimer = timers.setTimeout?.(() => completePostOpen(targetId), 180) || 0;
+      return;
+    }
+    clearPostOpenGuard();
+    if (normalizeText(state.profileTab, 40) === "overview") {
+      deps.renderProfileModal?.(targetId);
+    }
+    deps.writeState?.({ syncCentral: false });
+    deps.queueProfileHydration?.(targetId);
+  }
+
+  function queuePostOpen(recordId) {
+    const targetId = normalizeText(recordId, 160);
+    clearPostOpenQueue();
+    postOpenTimer = timers.setTimeout?.(() => completePostOpen(targetId), 700) || 0;
+    return postOpenTimer;
+  }
+
   function openRecord(recordId) {
     const state = getState();
     const normalizedRecordId = normalizeText(recordId, 160);
@@ -91,17 +150,19 @@ export function createScoutingProfileModalController(deps = {}) {
     state.profileSpiderSeasonValue = "";
     pendingFocusRecordId = normalizedRecordId;
     pendingFocusUntil = (deps.now?.() ?? Date.now()) + 1500;
-    deps.writeState?.({ syncCentral: false });
     deps.ensureFocusObserver?.();
-    deps.renderProfileModal?.(normalizedRecordId);
+    deps.renderProfileModal?.(normalizedRecordId, { lightweightOverview: true });
+    bindPostOpenGuard(normalizedRecordId);
     focusModal();
     queueFocus(normalizedRecordId);
-    deps.queueProfileHydration?.(normalizedRecordId);
+    queuePostOpen(normalizedRecordId);
     return { changed: true, recordId: normalizedRecordId, status: "opened" };
   }
 
   function closeRecord() {
     const state = getState();
+    clearPostOpenQueue();
+    clearPostOpenGuard();
     state.selectedRecordId = "";
     deps.writeState?.({ syncCentral: false });
     const backdrop = deps.getProfileBackdrop?.();
@@ -117,6 +178,7 @@ export function createScoutingProfileModalController(deps = {}) {
   function getFocusState() {
     return {
       focusTimer,
+      postOpenTimer,
       pendingFocusRecordId,
       pendingFocusUntil,
     };
@@ -128,6 +190,7 @@ export function createScoutingProfileModalController(deps = {}) {
     getFocusState,
     openRecord,
     queueFocus,
+    queuePostOpen,
     shouldFocus,
   };
 }

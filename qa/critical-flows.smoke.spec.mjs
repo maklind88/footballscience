@@ -5350,6 +5350,8 @@ test("Medical roster overview groups by position and supports row quick recommen
 });
 
 test("Medical operations board separates signals, cases, history and season views", async ({ page }) => {
+  // Keep active-plan assertions independent of the runner's timezone and wall clock.
+  await page.clock.setFixedTime(new Date("2026-08-25T16:00:00.000Z"));
   await page.addInitScript(({ storageKey, playerProfilesStorageKey }) => {
     const localDateOffset = (offsetDays) => {
       const value = new Date();

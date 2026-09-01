@@ -774,6 +774,13 @@ function getMedicalParticipationSortValue(item = {}) {
   return Number.isFinite(value) ? value : 101;
 }
 
+function isTemporaryMedicalRecommendation(item = {}) {
+  const player = item.player || {};
+  if (player.countsInSquad === false) return true;
+  const rosterType = String(player.rosterType || "").trim().toLowerCase();
+  return Boolean(rosterType && rosterType !== "squad");
+}
+
 function sortMedicalRecommendations(first, second) {
   const firstParticipation = getMedicalParticipationSortValue(first);
   const secondParticipation = getMedicalParticipationSortValue(second);
@@ -1389,6 +1396,7 @@ export function createPresentationModeController(dependencies = {}) {
     return getAvailabilityItems(dateValue)
       .map((item) => normalizePlayerItem(item))
       .filter(Boolean)
+      .filter((item) => !isTemporaryMedicalRecommendation(item) || Boolean(item.record))
       .filter((item) => {
         const playerId = String(item.player?.id || "").trim();
         if (!playerId || seenPlayerIds.has(playerId)) {

@@ -20,6 +20,7 @@ function createSelectors(overrides = {}) {
       { id: "p3", name: "Temp Player", temporaryFrom: "2026-06-01", temporaryTo: "2026-06-05" },
       { id: "p4", name: "Removed Player" },
       { id: "p5", name: "Archived Player", archivedAt: "2026-05-01T00:00:00.000Z" },
+      { id: "undated-guest", name: "Undated Guest", rosterType: "guest", countsInSquad: false },
     ],
     records: [
       {
@@ -84,7 +85,7 @@ function createSelectors(overrides = {}) {
     isPlayerBlockedBySquadAvailability: (player) => player?.status === "injured",
     isPlayerRemovedFromSquad: (player, removedIds) => removedIds.has(player.id),
     isScheduleSessionEvent: (event) => event?.type === "training",
-    isTemporaryPlayerProfile: (player) => Boolean(player?.temporaryFrom || player?.temporaryTo),
+    isTemporaryPlayerProfile: (player) => player?.countsInSquad === false || Boolean(player?.temporaryFrom || player?.temporaryTo),
     isTemporaryPlayerProfileActiveOnDate: (player, dateValue) => player.temporaryFrom <= dateValue && player.temporaryTo >= dateValue,
     medicalActualParticipationFallback: "not-logged",
     medicalClearanceRoles: [{ key: "doctor" }, { key: "physio" }],
@@ -141,8 +142,9 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
 
   expect(selectors.getMedicalHeroTeamName()).toBe("North Carolina Courage");
   expect(selectors.getMedicalAccessLabel()).toBe("Coach view");
-  expect(selectors.getActiveMedicalPlayers().map((player) => player.id)).toEqual(["p1", "p2", "p3"]);
+  expect(selectors.getActiveMedicalPlayers().map((player) => player.id)).toEqual(["p1", "p2", "p3", "undated-guest"]);
   expect(selectors.getActiveMedicalPlayersForDate("2026-05-31").map((player) => player.id)).toEqual(["p1", "p2"]);
+  expect(selectors.getActiveMedicalPlayersForDate("2026-06-02").map((player) => player.id)).toEqual(["p1", "p2", "p3"]);
   expect(selectors.getSelectedMedicalPlayer()).toMatchObject({ id: "p1" });
 
   expect(selectors.getLatestMedicalRecord("p2", "2026-05-31")).toMatchObject({

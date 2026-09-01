@@ -6531,6 +6531,125 @@ test("Squad Room shows legacy Medical training guests outside their active dates
   await expect(modal.locator('input[name="temporaryTo"]')).toHaveValue("2026-05-02");
 });
 
+test("Medical recommends date-bound Squad training guests and includes them in Presentation Mode", async ({ page }) => {
+  const today = new Date();
+  const dateValue = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+  const guest = {
+    id: "qa-medical-training-guest",
+    name: "QA Medical Training Guest",
+    number: "94",
+    position: "Forward",
+    primaryRole: "ST",
+    roleGroup: "forward",
+    status: "available",
+    rosterType: "guest",
+    countsInSquad: false,
+    temporaryGroup: "First Team Training",
+    temporaryFrom: dateValue,
+    temporaryTo: dateValue,
+    rosterOrder: 1,
+  };
+
+  await page.addInitScript(
+    ({ dateValue: seededDate, guest: seededGuest, keys }) => {
+      window.localStorage.setItem(
+        keys.schedule,
+        JSON.stringify({
+          selectedDate: seededDate,
+          events: [{ id: "qa-guest-training", date: seededDate, time: "10:00", type: "training", title: "Team Training" }],
+        })
+      );
+      window.localStorage.setItem(
+        keys.profiles,
+        JSON.stringify({
+          rosterVersion: "qa-medical-training-guest-profiles",
+          schemaVersion: 3,
+          selectedPlayerId: seededGuest.id,
+          players: [seededGuest],
+          removedPlayerIds: [],
+        })
+      );
+      window.localStorage.setItem(
+        keys.medical,
+        JSON.stringify({
+          __medicalAutoCloseActual: false,
+          rosterVersion: "qa-medical-training-guest-roster",
+          selectedDate: seededDate,
+          selectedPlayerId: "",
+          players: [],
+          records: [],
+          injuryPlans: [],
+        })
+      );
+      window.localStorage.setItem(
+        keys.sessionPlanner,
+        JSON.stringify({
+          selectedDate: seededDate,
+          sessions: {
+            [seededDate]: {
+              id: "qa-guest-session",
+              date: seededDate,
+              title: "Team Training",
+              selectedBlockId: "qa-guest-block",
+              blocks: [{ id: "qa-guest-block", label: "Block 1", title: "Team Exercise", minutes: 15 }],
+            },
+          },
+        })
+      );
+      window.localStorage.setItem(keys.presentation, JSON.stringify({ decks: {} }));
+    },
+    {
+      dateValue,
+      guest,
+      keys: {
+        schedule: scheduleKey,
+        profiles: playerProfilesKey,
+        medical: medicalKey,
+        sessionPlanner: sessionPlannerKey,
+        presentation: presentationKey,
+      },
+    }
+  );
+
+  await bootApp(page, { path: "/?workspace=medical-team" });
+  const medicalWorkspace = page.locator('[data-workspace-view="medical-team"].is-active');
+  await expect(medicalWorkspace).toBeVisible();
+  await expect(medicalWorkspace.locator("[data-medical-date-picker]")).toHaveValue(dateValue);
+
+  const guestPanel = medicalWorkspace.locator(".medical-temporary-player-panel");
+  const guestRow = guestPanel.locator(`[data-medical-roster-row="${guest.id}"]`);
+  await expect(guestPanel).toContainText("1 active for this date");
+  await expect(guestRow).toContainText(guest.name);
+
+  await guestRow.locator('[data-medical-quick-participation="25"]').click();
+  await expect(
+    medicalWorkspace
+      .locator(`[data-medical-roster-row="${guest.id}"]`)
+      .locator('[data-medical-quick-participation="25"]')
+  ).toHaveClass(/is-active/);
+  await page.waitForFunction(
+    ({ key, playerId, date }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      return state.records?.some((record) => record.playerId === playerId && record.date === date && record.participation === 25);
+    },
+    { key: medicalKey, playerId: guest.id, date: dateValue }
+  );
+
+  await openWorkspace(page, "home");
+  const presentationCard = page.locator('[data-dashboard-presentation-card][data-dashboard-presentation-type="team"]');
+  await presentationCard.locator("[data-dashboard-open-presentation]").click();
+  const presentation = page.locator("[data-presentation-mode-shell]");
+  await expect(presentation).toBeVisible();
+  await presentation.locator('[data-presentation-slide-tab][aria-label="Go to Overview"]').click();
+  const guestRecommendation = presentation.locator(".presentation-medical-player", { hasText: guest.name });
+  await expect(guestRecommendation).toBeVisible();
+  await expect(guestRecommendation).toContainText("25%");
+});
+
 test("Squad profile modal autosaves edits and keeps its size across tabs", async ({ page }) => {
   const coachNote = `QA autosave note ${Date.now()}`;
   await bootApp(page);

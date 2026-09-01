@@ -80,7 +80,9 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
   }
 
   function isMedicalPlayerVisibleForDate(player = {}, dateValue = getSelectedDate()) {
-    return !isTemporaryPlayerProfile(player) || isTemporaryPlayerProfileActiveOnDate(player, dateValue);
+    if (!isTemporaryPlayerProfile(player)) return true;
+    const hasTrainingWindow = Boolean(String(player.temporaryFrom || "").trim() || String(player.temporaryTo || "").trim());
+    return hasTrainingWindow && isTemporaryPlayerProfileActiveOnDate(player, dateValue);
   }
 
   function getActiveMedicalPlayers() {

@@ -198,6 +198,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       { player: { id: "p3", name: "Zoe Striker", position: "Forward" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p4", name: "Cara Defender", position: "Defender" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p5", name: "Mia Midfield", position: "Midfielder" }, participation: 100, status: { label: "Full" } },
+      { player: { id: "guest-1", name: "Recommended Guest", position: "Forward", rosterType: "guest", countsInSquad: false }, record: { id: "guest-r1" }, participation: 25, status: { label: "Modified" } },
+      { player: { id: "guest-2", name: "Unreviewed Guest", position: "Forward", rosterType: "trialist", countsInSquad: false }, participation: null, status: { label: "Not set" } },
     ],
     getCustomPeople: () => [{ id: "staff-1", name: "Coach", kind: "staff", role: "Staff" }],
     createCustomPersonItem: (person) => ({
@@ -218,6 +220,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     "Anna Defender",
     "Bea Mid",
     "Zara Striker",
+    "Recommended Guest",
     "Ada Keeper",
     "Cara Defender",
     "Mia Midfield",
@@ -225,7 +228,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     "Kara Keeper",
   ]);
   const blockSlide = model.slides.find((slide) => slide.type === "block");
-  expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach"]);
+  expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach", "Recommended Guest"]);
   expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid"]);
   expect(harness.root.innerHTML).toContain("Presentation Mode");
   expect(harness.root.innerHTML).toMatch(/<footer class="presentation-footer-nav">[\s\S]*<nav class="presentation-slide-tabs"/);

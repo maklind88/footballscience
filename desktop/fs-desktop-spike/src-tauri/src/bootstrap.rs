@@ -22,13 +22,14 @@ pub const MANIFEST_SCHEMA: &str = "fs-desktop-shell-manifest-v2";
 pub const RECOVERY_SCHEMA: &str = "fs-desktop-signed-recovery-v1";
 pub const CANDIDATE_TIMEOUT_MS: u64 = 8_000;
 pub const NATIVE_SHELL_CACHE_VERSION: &str = "fs-desktop-native-shell-cache-v2";
-pub const ACTIVE_CAPABILITIES: [&str; 7] = [
+pub const ACTIVE_CAPABILITIES: [&str; 8] = [
     "bootstrap.status",
     "bootstrap.update",
     "runtime.info",
     "session.authority",
     "session.operation",
     "session.read",
+    "session.sync-status",
     "spike.probe",
 ];
 pub const CANDIDATE_CAPABILITIES: [&str; 3] =
@@ -135,6 +136,7 @@ pub struct CandidateNegativeChecks {
     pub session_authority_denied: bool,
     pub session_read_denied: bool,
     pub session_operation_denied: bool,
+    pub session_sync_status_denied: bool,
     pub outbox_denied: bool,
     pub active_confirmation_denied: bool,
 }
@@ -802,6 +804,7 @@ pub fn confirm_candidate(
     if !checks.session_authority_denied
         || !checks.session_read_denied
         || !checks.session_operation_denied
+        || !checks.session_sync_status_denied
         || !checks.outbox_denied
         || !checks.active_confirmation_denied
     {

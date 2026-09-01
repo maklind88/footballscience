@@ -80,6 +80,9 @@ pub fn validate_manifest(manifest: &ShellManifest, now_unix_ms: u64) -> Result<(
         "styles.css",
         "app.js",
         "bridge.mjs",
+        "connectivity-state.mjs",
+        "session-authority.mjs",
+        "session-planner-offline.mjs",
         "tauri-invoke.mjs",
     ] {
         if !paths.contains(required_path) {

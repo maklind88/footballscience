@@ -12,6 +12,7 @@ fn main() {
             "desktop_recovery_read_selected_session",
             "desktop_session_authority",
             "desktop_read_selected_session",
+            "desktop_session_sync_status",
             "desktop_apply_session_operation",
             "record_spike_probe",
             "internal_denied_probe",

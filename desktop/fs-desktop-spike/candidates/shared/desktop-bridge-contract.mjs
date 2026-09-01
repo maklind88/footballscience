@@ -2,6 +2,8 @@ import { activeNative, nativeBridgeAvailable, negativeProbeNative } from "./taur
 
 const allowedCandidates = new Set(["bundled", "hosted"]);
 const allowedBootModes = new Set(["online", "offline", "compatibility-blocked", "degraded", "auth-required", "unknown"]);
+const allowedLocalOperationStates = new Set(["pending", "already-pending"]);
+const allowedSyncStates = new Set(["synced", "pending", "blocked", "revoked"]);
 
 function object(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`${label} must be an object.`);
@@ -75,6 +77,36 @@ export function validateSessionSlice(value) {
   });
 }
 
+export function validateOperationReceipt(value) {
+  value = object(value, "Session operation receipt");
+  const state = requiredText(value.state, "operation state", 40);
+  if (!allowedLocalOperationStates.has(state)) throw new TypeError("Unsupported local operation state.");
+  if (value.durableLocally !== true) throw new TypeError("Session operation was not confirmed durable locally.");
+  return Object.freeze({
+    operationId: requiredText(value.operationId, "operationId", 80),
+    state,
+    resultingRevision: boundedInteger(value.resultingRevision, "resultingRevision"),
+    durableLocally: true,
+  });
+}
+
+export function validateSessionSyncStatus(value) {
+  value = object(value, "Session synchronization status");
+  const state = requiredText(value.state, "synchronization state", 40);
+  if (!allowedSyncStates.has(state)) throw new TypeError("Unsupported synchronization state.");
+  const blockedReason = value.blockedReason == null
+    ? null
+    : requiredText(value.blockedReason, "blockedReason", 80);
+  return Object.freeze({
+    schema: requiredText(value.schema, "synchronization schema", 80),
+    partitionKey: requiredText(value.partitionKey, "partitionKey", 120),
+    state,
+    pendingOperationCount: boundedInteger(value.pendingOperationCount, "pendingOperationCount", { max: 10_000 }),
+    quarantinedOperationCount: boundedInteger(value.quarantinedOperationCount, "quarantinedOperationCount", { max: 10_000 }),
+    blockedReason,
+  });
+}
+
 export function validateSpikeProbe(value) {
   value = object(value, "Spike probe");
   const candidate = requiredText(value.candidate, "candidate", 20);
@@ -105,11 +137,21 @@ export function createDesktopBridge({ native = activeNative, isDesktop = nativeB
     async getSessionAuthority() { return isDesktop ? validateSessionAuthority(await native.sessionAuthority()) : null; },
     async readSelectedSession(context) {
       if (!isDesktop) return null;
-      return validateSessionSlice(await native.readSelectedSession(validateSessionContext(context)));
+      const validatedContext = validateSessionContext(context);
+      const slice = validateSessionSlice(await native.readSelectedSession(validatedContext));
+      if (slice.partitionKey !== validatedContext.partitionKey) throw new TypeError("Offline projection crossed its authorized partition.");
+      return slice;
+    },
+    async getSessionSyncStatus(context) {
+      if (!isDesktop) return null;
+      const validatedContext = validateSessionContext(context);
+      const status = validateSessionSyncStatus(await native.sessionSyncStatus(validatedContext));
+      if (status.partitionKey !== validatedContext.partitionKey) throw new TypeError("Synchronization status crossed its authorized partition.");
+      return status;
     },
     async applySessionOperation(request) {
       if (!isDesktop) return null;
-      return Object.freeze(object(await native.applySessionOperation(object(request, "session operation")), "operation receipt"));
+      return validateOperationReceipt(await native.applySessionOperation(object(request, "session operation")));
     },
     async recordProbe(probe) {
       if (!isDesktop) return false;

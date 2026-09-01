@@ -36,6 +36,7 @@ const sources = new Map([
   ["bridge.mjs", join(packageRoot, "candidates", "shared", "desktop-bridge-contract.mjs")],
   ["session-authority.mjs", join(packageRoot, "candidates", "shared", "session-authority.mjs")],
   ["connectivity-state.mjs", join(packageRoot, "candidates", "shared", "connectivity-state.mjs")],
+  ["session-planner-offline.mjs", join(packageRoot, "candidates", "shared", "session-planner-offline.mjs")],
   ["tauri-invoke.mjs", join(packageRoot, "candidates", "shared", "tauri-invoke.mjs")],
 ]);
 
@@ -141,6 +142,7 @@ function writeRelease({ kind, sequence, localSchemaVersion = 3, key = releaseKey
       "session.authority",
       "session.operation",
       "session.read",
+      "session.sync-status",
       "spike.probe",
     ],
     entrypoint: "index.html",

@@ -62,3 +62,8 @@ commands.allow = ["desktop_read_selected_session"]
 identifier = "allow-session-operation"
 description = "Allows only versioned Session Planner domain operations with native partition and revision validation."
 commands.allow = ["desktop_apply_session_operation"]
+
+[[permission]]
+identifier = "allow-session-sync-status"
+description = "Allows a compatible authorized shell to read only bounded Session Planner synchronization state."
+commands.allow = ["desktop_session_sync_status"]

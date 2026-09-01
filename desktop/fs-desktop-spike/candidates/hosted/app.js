@@ -1,12 +1,13 @@
 import { createDesktopBridge, verifyDeniedNativeCommand } from "./bridge.mjs";
 import { SessionAuthority } from "./session-authority.mjs";
 import { classifyShellUpdateFailure, ConnectivityState } from "./connectivity-state.mjs";
+import { SessionPlannerOfflineController } from "./session-planner-offline.mjs";
 import { candidateIsolationProbe, candidateNative } from "./tauri-invoke.mjs";
 
 const localSchemaVersion = 3;
 const syncProtocolVersion = 1;
 const ui = Object.fromEntries(
-  ["shell", "connectivity", "authority", "projection", "bridge", "session", "details"]
+  ["shell", "connectivity", "authority", "projection", "sync", "bridge", "session", "details"]
     .map((id) => [id, document.getElementById(id)]),
 );
 
@@ -38,6 +39,7 @@ async function bootCandidate() {
     ui.connectivity.textContent = "native compatibility only";
     ui.authority.textContent = "denied by candidate ACL";
     ui.projection.textContent = "not loaded";
+    ui.sync.textContent = "not available";
     ui.bridge.textContent = "three candidate-only commands";
     ui.details.textContent = JSON.stringify({
       schema: status.schema,
@@ -55,6 +57,7 @@ async function bootCandidate() {
     const negativeChecks = {
       sessionAuthorityDenied: await denied(candidateIsolationProbe.sessionAuthority),
       sessionReadDenied: await denied(candidateIsolationProbe.sessionRead),
+      sessionSyncStatusDenied: await denied(candidateIsolationProbe.sessionSyncStatus),
       sessionOperationDenied: await denied(candidateIsolationProbe.sessionOperation),
       outboxDenied: await denied(candidateIsolationProbe.outbox),
       activeConfirmationDenied: await denied(candidateIsolationProbe.obsoleteActiveConfirmation),
@@ -78,20 +81,102 @@ async function bootCandidate() {
   }
 }
 
-function renderSession(slice) {
+function renderSession(controller) {
+  const { slice, presentation, feedback, busy } = controller.snapshot();
   ui.session.hidden = false;
   ui.session.replaceChildren();
+  ui.session.dataset.syncState = presentation.state;
+  ui.sync.textContent = presentation.label;
+
+  const heading = document.createElement("div");
+  heading.className = "session-heading";
+  const headingCopy = document.createElement("div");
   const title = document.createElement("h2");
-  title.textContent = slice.session.title;
+  title.textContent = "Selected Session Planner session";
   const summary = document.createElement("p");
-  summary.textContent = `${slice.session.scheduledDate} · revision ${slice.session.revision}`;
-  const list = document.createElement("ul");
+  summary.textContent = `${slice.session.scheduledDate} · local revision ${slice.session.revision}`;
+  headingCopy.append(title, summary);
+  const status = document.createElement("div");
+  status.className = "sync-status";
+  status.dataset.state = presentation.state;
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  const statusLabel = document.createElement("strong");
+  statusLabel.textContent = presentation.label;
+  const statusDetail = document.createElement("span");
+  statusDetail.textContent = presentation.detail;
+  status.append(statusLabel, statusDetail);
+  heading.append(headingCopy, status);
+
+  const titleForm = document.createElement("form");
+  titleForm.className = "editor-row title-editor";
+  const titleLabel = document.createElement("label");
+  titleLabel.textContent = "Session name";
+  titleLabel.htmlFor = "session-title-input";
+  const titleInput = document.createElement("input");
+  titleInput.id = "session-title-input";
+  titleInput.name = "sessionTitle";
+  titleInput.value = slice.session.title;
+  titleInput.maxLength = 120;
+  titleInput.required = true;
+  titleInput.disabled = busy;
+  const titleButton = document.createElement("button");
+  titleButton.type = "submit";
+  titleButton.textContent = "Save name offline";
+  titleButton.disabled = busy;
+  titleForm.append(titleLabel, titleInput, titleButton);
+
+  const blocks = document.createElement("div");
+  blocks.className = "block-list";
   for (const block of slice.blocks) {
-    const item = document.createElement("li");
-    item.textContent = `${block.position}. ${block.title} — ${block.durationMinutes} min`;
-    list.append(item);
+    const form = document.createElement("form");
+    form.className = "editor-row block-editor";
+    const copy = document.createElement("div");
+    const blockTitle = document.createElement("strong");
+    blockTitle.textContent = `${block.position}. ${block.title}`;
+    const blockType = document.createElement("span");
+    blockType.textContent = block.blockType;
+    copy.append(blockTitle, blockType);
+    const durationLabel = document.createElement("label");
+    const durationId = `block-duration-${block.id}`;
+    durationLabel.textContent = "Minutes";
+    durationLabel.htmlFor = durationId;
+    const durationInput = document.createElement("input");
+    durationInput.id = durationId;
+    durationInput.name = "durationMinutes";
+    durationInput.type = "number";
+    durationInput.min = "1";
+    durationInput.max = "240";
+    durationInput.step = "1";
+    durationInput.value = String(block.durationMinutes);
+    durationInput.required = true;
+    durationInput.disabled = busy;
+    const durationButton = document.createElement("button");
+    durationButton.type = "submit";
+    durationButton.textContent = "Save duration offline";
+    durationButton.disabled = busy;
+    form.append(copy, durationLabel, durationInput, durationButton);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const pending = controller.setBlockDuration(block.id, Number(durationInput.value));
+      renderSession(controller);
+      await pending;
+      renderSession(controller);
+    });
+    blocks.append(form);
   }
-  ui.session.append(title, summary, list);
+  titleForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const pending = controller.renameSession(titleInput.value);
+    renderSession(controller);
+    await pending;
+    renderSession(controller);
+  });
+
+  const feedbackLine = document.createElement("p");
+  feedbackLine.className = "session-feedback";
+  feedbackLine.textContent = feedback || "Edits are committed to SQLite and its durable outbox before this screen confirms them.";
+  ui.session.append(heading, titleForm, blocks, feedbackLine);
 }
 
 async function bootActive() {
@@ -109,8 +194,16 @@ async function bootActive() {
   const context = await authority.contextProof(frontendBuildId);
   connectivity.transition("offline-cold-start", "verified native shell and authority available");
   const slice = await bridge.readSelectedSession(context);
+  const syncStatus = await bridge.getSessionSyncStatus(context);
+  const sessionController = new SessionPlannerOfflineController({
+    bridge,
+    context,
+    clientInstanceId: crypto.randomUUID(),
+    initialSlice: slice,
+    initialSyncStatus: syncStatus,
+  });
   connectivity.transition("offline-ready", "selected normalized Session Planner projection loaded");
-  renderSession(slice);
+  renderSession(sessionController);
   const unauthorizedCommandRejected = await verifyDeniedNativeCommand();
   ui.shell.textContent = `${frontendBuildId} (active)`;
   ui.connectivity.textContent = connectivity.snapshot().state;

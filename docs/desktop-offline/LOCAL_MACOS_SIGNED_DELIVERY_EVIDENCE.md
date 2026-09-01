@@ -12,7 +12,7 @@ Machine-readable evidence: `desktop/fs-desktop-spike/artifacts/macos/macos-packa
 
 The verifier launched the actual binary inside `FS Desktop Architecture Spike.app` against a loopback-only synthetic signed-release source. All ten checks passed:
 
-1. exact-byte Ed25519 signed generation `hosted-test-normal-s26-8a801b6ddc65` activated;
+1. exact-byte Ed25519 signed generation `hosted-test-normal-s36-b05719491482`, including the writable offline Session Planner UI asset, activated;
 2. invalid detached signature rejected while the last-known-good generation remained active;
 3. unknown signing key rejected while the last-known-good generation remained active;
 4. post-signing asset modification rejected while the last-known-good generation remained active;
@@ -31,6 +31,8 @@ Native evidence also confirmed:
 - the intentionally compiled but ungranted native command remained rejected;
 - browser/PWA service-worker control remained false;
 - no production signing key was used or included in evidence.
+
+The packaged startup proves that the signed UI module loaded and completed native initialization. Typed UI operation construction and status presentation are separately covered by frontend contracts; projection/outbox durability, restart and lost-ack replay are covered by Rust and local end-to-end tests. No claim is made that this packaged verifier physically clicked the edit controls.
 
 ## Defects found and corrected during verification
 

@@ -20,6 +20,7 @@ export const activeNative = Object.freeze({
   openRecovery: () => call("desktop_open_recovery"),
   sessionAuthority: () => call("desktop_session_authority"),
   readSelectedSession: (context) => call("desktop_read_selected_session", { context }),
+  sessionSyncStatus: (context) => call("desktop_session_sync_status", { context }),
   applySessionOperation: (request) => call("desktop_apply_session_operation", { request }),
   recordProbe: (probe) => call("record_spike_probe", { probe }),
 });
@@ -38,6 +39,7 @@ export const candidateNative = Object.freeze({
 export const candidateIsolationProbe = Object.freeze({
   sessionAuthority: () => call("desktop_session_authority"),
   sessionRead: () => call("desktop_read_selected_session", { context: {} }),
+  sessionSyncStatus: () => call("desktop_session_sync_status", { context: {} }),
   sessionOperation: () => call("desktop_apply_session_operation", { request: {} }),
   outbox: () => call("desktop_outbox_debug"),
   obsoleteActiveConfirmation: () => call("desktop_confirm_shell_candidate", { request: {} }),

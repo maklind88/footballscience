@@ -15,7 +15,7 @@ mod windows;
 
 use authority::{SessionAuthoritySnapshot, SessionContextProof};
 use bootstrap::{BootstrapStatus, CandidateRuntimeStatus, ConfirmCandidateRequest, PrepareResult};
-use local_data::{OperationReceipt, SessionOperationRequest, SessionSlice};
+use local_data::{OperationReceipt, SessionOperationRequest, SessionSlice, SessionSyncStatus};
 use runtime::{DeliveryMode, DesktopRuntime, DesktopState, delivery_mode};
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
@@ -378,6 +378,33 @@ fn desktop_read_selected_session(
 }
 
 #[tauri::command]
+fn desktop_session_sync_status(
+    window: WebviewWindow,
+    context: SessionContextProof,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<SessionSyncStatus, String> {
+    require_active_window(&window)?;
+    let runtime = runtime(&state)?;
+    runtime
+        .authority
+        .lock()
+        .map_err(|_| "session authority lock poisoned".to_string())?
+        .validate(&context)?;
+    {
+        let shell = runtime
+            .shell
+            .read()
+            .map_err(|_| "shell state lock poisoned".to_string())?;
+        bootstrap::validate_active_frontend_build(&shell, &context.frontend_build_id)?;
+    }
+    let connection = runtime
+        .connection
+        .lock()
+        .map_err(|_| "local database lock poisoned".to_string())?;
+    local_data::read_session_sync_status(&connection, &context.partition_key)
+}
+
+#[tauri::command]
 fn desktop_apply_session_operation(
     window: WebviewWindow,
     request: SessionOperationRequest,
@@ -592,6 +619,7 @@ pub fn run() {
             desktop_recovery_read_selected_session,
             desktop_session_authority,
             desktop_read_selected_session,
+            desktop_session_sync_status,
             desktop_apply_session_operation,
             record_spike_probe,
             internal_denied_probe,

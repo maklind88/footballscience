@@ -126,6 +126,17 @@ pub struct OperationReceipt {
     pub durable_locally: bool,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSyncStatus {
+    pub schema: &'static str,
+    pub partition_key: String,
+    pub state: &'static str,
+    pub pending_operation_count: i64,
+    pub quarantined_operation_count: i64,
+    pub blocked_reason: Option<String>,
+}
+
 pub fn open(path: &Path) -> Result<Connection, String> {
     crate::local_schema::open(path)
 }
@@ -193,6 +204,66 @@ pub fn read_selected_session(
         players: read_players(connection)?,
         exercises: read_exercises(connection)?,
         excluded_fields: ["video_blob", "medical_data", "authentication_credentials"],
+    })
+}
+
+pub fn read_session_sync_status(
+    connection: &Connection,
+    partition_key: &str,
+) -> Result<SessionSyncStatus, String> {
+    let selected_session_count = connection
+        .query_row(
+            "SELECT count(*) FROM session_projection WHERE partition_key = ?1 AND selected = 1",
+            [partition_key],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if selected_session_count != 1 {
+        return Err("selected session is outside the authorized local partition".into());
+    }
+    let pending_operation_count = connection
+        .query_row(
+            "SELECT count(*) FROM session_outbox WHERE partition_key = ?1",
+            [partition_key],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let quarantined_operation_count = connection
+        .query_row(
+            "SELECT count(*)
+             FROM operation_quarantine quarantine
+             INNER JOIN session_outbox outbox ON outbox.operation_id = quarantine.operation_id
+             WHERE outbox.partition_key = ?1",
+            [partition_key],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let blocked_reason = connection
+        .query_row(
+            "SELECT quarantine.reason_code
+             FROM operation_quarantine quarantine
+             INNER JOIN session_outbox outbox ON outbox.operation_id = quarantine.operation_id
+             WHERE outbox.partition_key = ?1
+             ORDER BY quarantine.quarantined_at_unix_ms DESC, quarantine.operation_id
+             LIMIT 1",
+            [partition_key],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let state = match blocked_reason.as_deref() {
+        Some("authorization-revoked" | "tenant-denied") => "revoked",
+        Some(_) => "blocked",
+        None if pending_operation_count > 0 => "pending",
+        None => "synced",
+    };
+    Ok(SessionSyncStatus {
+        schema: "fs-session-sync-status-v1",
+        partition_key: partition_key.into(),
+        state,
+        pending_operation_count,
+        quarantined_operation_count,
+        blocked_reason,
     })
 }
 
@@ -442,16 +513,19 @@ mod tests {
     fn projection_and_outbox_survive_connection_restart() {
         let path = database_path("restart");
         let mut connection = open(&path).unwrap();
+        let initial = read_session_sync_status(&connection, SYNTHETIC_PARTITION_KEY).unwrap();
+        assert_eq!(initial.state, "synced");
+        assert_eq!(initial.pending_operation_count, 0);
         let receipt = apply_operation(&mut connection, &request(7), 10_000).unwrap();
         assert_eq!(receipt.resulting_revision, 8);
         drop(connection);
         let connection = open(&path).unwrap();
         let slice = read_selected_session(&connection, SYNTHETIC_PARTITION_KEY).unwrap();
         assert_eq!(slice.session.title, "Persisted restart title");
-        let pending: i64 = connection
-            .query_row("SELECT count(*) FROM session_outbox", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(pending, 1);
+        let status = read_session_sync_status(&connection, SYNTHETIC_PARTITION_KEY).unwrap();
+        assert_eq!(status.state, "pending");
+        assert_eq!(status.pending_operation_count, 1);
+        assert_eq!(status.quarantined_operation_count, 0);
         drop(connection);
         let _ = fs::remove_file(path);
     }
@@ -522,6 +596,14 @@ mod tests {
             20_000,
         )
         .unwrap();
+        let status = read_session_sync_status(&connection, SYNTHETIC_PARTITION_KEY).unwrap();
+        assert_eq!(status.state, "revoked");
+        assert_eq!(status.pending_operation_count, 1);
+        assert_eq!(status.quarantined_operation_count, 1);
+        assert_eq!(
+            status.blocked_reason.as_deref(),
+            Some("authorization-revoked")
+        );
         let counts: (i64, i64) = connection
             .query_row(
                 "SELECT (SELECT count(*) FROM session_outbox),

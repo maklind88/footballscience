@@ -20,13 +20,13 @@ The shell cache is `fs-desktop-native-shell-cache-v2`. It is an app-data filesys
 
 ## Candidate isolation
 
-The hidden candidate receives exactly three native commands: compatibility status/nonce, confirmation and sanitized failure reporting. It receives no session authority, token, SQLite, domain, outbox, active-shell or recovery privilege. Promotion requires five native-denial checks plus the exact nonce, staged build, release sequence, window and origin. Timeout or interruption quarantines the candidate while the active generation and domain/outbox state remain intact.
+The hidden candidate receives exactly three native commands: compatibility status/nonce, confirmation and sanitized failure reporting. It receives no session authority, token, SQLite, domain, synchronization status, outbox, active-shell or recovery privilege. Promotion requires six native-denial checks plus the exact nonce, staged build, release sequence, window and origin. Timeout or interruption quarantines the candidate while the active generation and domain/outbox state remain intact.
 
 The active, candidate, recovery and bundled windows have separate Tauri capabilities. `withGlobalTauri` is false; frontend code imports frozen typed wrappers and no generic invoke wrapper is exported. Native handlers repeat the exact role/origin validation.
 
 ## Offline slice and local sync boundary
 
-SQLite local schema v3 contains one normalized synthetic Session Planner projection, stable block/player/exercise references, an atomic outbox, durable acknowledgement receipts and an authorization quarantine sidecar. Two explicit version-1 mutation contracts (`session.rename`, `block.duration.set`) exercise atomic projection/outbox behavior below the read-only UI.
+SQLite local schema v3 contains one normalized synthetic Session Planner projection, stable block/player/exercise references, an atomic outbox, durable acknowledgement receipts and an authorization quarantine sidecar. Candidate A exposes only two version-1 mutations (`session.rename`, `block.duration.set`) and one bounded synchronization-status read. The UI confirms an edit only after the projection and outbox commit atomically, then shows synced, locally pending, conflict, blocked or revoked state without exposing raw outbox rows.
 
 The branch includes a fail-closed authenticated handler, a private additive Postgres draft and disposable synthetic database. Local E2E reads the selected slice through that contract, normalizes it into file-backed SQLite, performs two offline edits, restarts, safely replays a lost acknowledgement and converges at revision 9. No real database adapter or remote schema is configured.
 

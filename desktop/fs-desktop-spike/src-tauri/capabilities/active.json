@@ -10,6 +10,7 @@
     "allow-open-recovery",
     "allow-session-authority",
     "allow-session-read",
+    "allow-session-sync-status",
     "allow-session-operation",
     "allow-record-probe"
   ]

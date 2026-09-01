@@ -29,6 +29,7 @@ test("permissions contain only the enumerated role-specific commands", async () 
     "desktop_recovery_status",
     "desktop_runtime_info",
     "desktop_session_authority",
+    "desktop_session_sync_status",
     "record_spike_probe",
   ]);
   assert.equal(commands.includes("internal_denied_probe"), false);

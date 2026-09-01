@@ -42,15 +42,15 @@ Downloaded JavaScript cannot declare itself trusted or compatible.
 
 Native app-data holds separate `candidate`, `active` and `previous` generations. On macOS and Windows CI, an incompatible schema-999 candidate failed closed, active `hosted-spike-v11` remained usable, and restart while the bad source remained reachable loaded the active generation and local projection. Compatible source recovery did not replace the running healthy generation unexpectedly.
 
-Remaining hardening: native timeout/quarantine for a compatible candidate that passes manifest checks but never reaches app-ready.
+Native timeout/quarantine for a compatible candidate that never reaches app-ready is implemented and verified locally on macOS and in Windows CI. Real-shell and physical-device behavior remain later gates.
 
 ## 6. Browser/PWA/service-worker regression
 
-Desktop uses `fs-desktop-native-shell-cache-v1`, not Cache Storage or a desktop service worker. Existing web/PWA/push-worker sources were not changed. Local `npm run check` and `npm run qa:static` passed. Windows run `33397533148` passed static/security gates, API contracts and all four Chromium shards. This preserves the existing web platform and separates desktop rollback from browser cache lifecycle.
+Desktop uses `fs-desktop-native-shell-cache-v2`, not Cache Storage or a desktop service worker. Existing web/PWA/push-worker sources were not changed. Local `npm run check` and `npm run qa:static` passed. Windows run `33451341546` passed static/security gates, API contracts and all four Chromium shards. This preserves the existing web platform and separates desktop rollback from browser cache lifecycle.
 
 ## 7. Local Session Planner projection
 
-SQLite schema v2 normalizes one explicitly selected session: metadata, ordered blocks, stable player references, exercise references and tenant/organization/team partition. It excludes the approximately 3.10 MB canonical planner document, unrelated sessions, blobs/video, medical data, credentials, tokens, signed URLs and authenticated response caches. The packaged UI reads revision-7 synthetic data and remains read-only.
+SQLite schema v3 normalizes one explicitly selected session: metadata, ordered blocks, stable player references, exercise references and tenant/organization/team partition. It excludes the approximately 3.10 MB canonical planner document, unrelated sessions, blobs/video, medical data, credentials, tokens, signed URLs and authenticated response caches. The packaged Candidate A UI can rename the session and set block duration through typed revisioned operations; Candidate B and recovery remain non-mutating.
 
 ## 8. Outbox and acknowledgement schemas
 
@@ -83,17 +83,17 @@ Native SessionAuthority (single refresh owner)
                            +--> private server-side Supabase access
 ```
 
-Logout, account switch, token rotation, revoked membership and lease expiry must clear or block the local authority and synchronization. They are not implemented yet.
+Logout, account switch, token rotation, revocation and lease expiry are implemented against synthetic authority/credential adapters and block or quarantine synchronization without deleting pending work. Real provider callbacks, owner-approved lease policy and physical Windows Credential Manager verification remain open.
 
 ## 11. Synchronization boundary recommendation
 
-Use one narrow authenticated Vercel handler as the public desktop sync boundary. It should derive identity/scope server-side, validate protocol and typed operations, and call one future private transactional Postgres function for idempotency, revision and acknowledgement. Direct desktop Supabase RPC is only a conditional fallback if it preserves equivalent authorization, observability and version isolation. A new service is not justified. No real endpoint or RPC was created.
+Use one narrow authenticated Vercel handler as the public desktop sync boundary. The branch contains a fail-closed local handler contract and private additive Postgres draft verified only in disposable PGlite; neither has a real adapter or deployment. Direct desktop Supabase RPC is only a conditional fallback if it preserves equivalent authorization, observability and version isolation. A new service is not justified.
 
 ## 12. Open risks
 
-Must fix before production: real secure auth, membership revocation/offline lease policy, local encryption/purge/device-loss policy, reviewed backend transaction, real conflict/rebase behavior, candidate timeout/quarantine, physical Windows, installers/signing/updates/SmartScreen and real network/sleep/restart behavior.
+Must fix before production: real secure auth, membership revocation/offline lease policy, local encryption/purge/device-loss policy, reviewed backend transaction, real conflict/rebase behavior, physical Windows, installers/signing/updates/SmartScreen and real network/sleep/restart behavior.
 
-Should fix during the next local phase: writable UI for the two typed operations, explicit connectivity-state UX, outbox inspection/retry UX, deterministic account-switch cleanup, more crash/fault injection and production-shell compatibility fixtures.
+Should fix during the next local phase: an authorized non-production sync adapter, conflict review/rebase UX, bounded retry controls, deterministic provider-backed account-switch cleanup, more crash/fault injection and production-shell compatibility fixtures. Raw outbox inspection should not be exposed to downloaded frontend code.
 
 Can wait: Candidate C and broad offline coverage. Should not be done: whole-document replication, generic SQL/filesystem/HTTP bridge, medical-data offline caching, refresh token in SQLite/localStorage or a second feature-equivalent Candidate B UI.
 

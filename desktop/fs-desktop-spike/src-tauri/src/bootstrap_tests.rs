@@ -12,6 +12,12 @@ fn manifest(build_id: &str, sequence: u64) -> ShellManifest {
         ("styles.css", "text/css; charset=utf-8"),
         ("app.js", "text/javascript; charset=utf-8"),
         ("bridge.mjs", "text/javascript; charset=utf-8"),
+        ("connectivity-state.mjs", "text/javascript; charset=utf-8"),
+        ("session-authority.mjs", "text/javascript; charset=utf-8"),
+        (
+            "session-planner-offline.mjs",
+            "text/javascript; charset=utf-8",
+        ),
         ("tauri-invoke.mjs", "text/javascript; charset=utf-8"),
     ]
     .into_iter()
@@ -104,6 +110,7 @@ fn full_isolation_proof() -> CandidateNegativeChecks {
         session_authority_denied: true,
         session_read_denied: true,
         session_operation_denied: true,
+        session_sync_status_denied: true,
         outbox_denied: true,
         active_confirmation_denied: true,
     }

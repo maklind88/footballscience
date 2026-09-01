@@ -2,7 +2,7 @@
 
 Date: 2026-08-31
 
-Status: implemented locally with synthetic identity and synthetic football data. Read-only UI is packaged; mutation/outbox/reconnect behavior is contract-tested below the UI. No real FS account, online state, endpoint, or Supabase row is connected.
+Status: implemented locally with synthetic identity and synthetic football data. The packaged Candidate A UI can rename the selected session and change a block duration offline through the typed native bridge. No real FS account, deployed endpoint or Supabase row is connected.
 
 ## Scope
 
@@ -30,7 +30,7 @@ Explicitly excluded are the approximately 3.10 MB canonical Session Planner docu
 
 The local schema is a bounded projection of the existing Session Planner aggregate, not a new competing canonical model. The local IDs and future typed online rows must be reconciled with the existing deterministic conversion code before real data is imported.
 
-## SQLite schema v2
+## SQLite schema v3
 
 The prototype uses SQLite with foreign keys, WAL, `synchronous=FULL`, strict tables and `trusted_schema=OFF`.
 
@@ -41,10 +41,11 @@ The prototype uses SQLite with foreign keys, WAL, `synchronous=FULL`, strict tab
 - `session_block_players`
 - `session_block_exercises`
 - `session_outbox`
+- `operation_quarantine`
 - `operation_receipts`
 - `local_meta`
 
-The v1→v2 local migration adds explicit `team_id` to outbox envelopes. This is a local prototype migration only and is unrelated to Supabase migrations.
+The v1→v2 local migration adds explicit `team_id` to outbox envelopes, and v3 records the current local compatibility level after the authorization-quarantine hardening. These are local prototype migrations only and are unrelated to Supabase migrations.
 
 ## Versioned operations
 
@@ -84,4 +85,4 @@ Rust contract tests prove:
 - an unauthorized partition is rejected and its local outbox item is preserved;
 - no `refresh_token` column exists anywhere in the SQLite schema.
 
-The packaged UI remains read-only. No hosted shell interaction currently mutates the session.
+The signed UI uses `SessionPlannerOfflineController` to construct only the two versioned envelopes above. Focused tests prove title/duration validation, exact base-revision advancement, local-pending presentation, stale-revision conflict presentation, revoked presentation and rejection of invalid values before the bridge. A bounded native `session.sync-status` command returns only state and counts; it does not expose payloads, SQL or generic outbox access. The packaged macOS app boots this writable asset set successfully, while operation persistence/restart/reconnect/lost-response behavior remains verified at the native and local integration layers rather than by physical UI clicking.

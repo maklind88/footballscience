@@ -10,6 +10,7 @@ Status: passed locally on macOS with synthetic identities and football data only
 - private `SECURITY DEFINER` Postgres read/apply routines under the exact `fs_desktop_sync_executor` role;
 - disposable in-memory PGlite Postgres initialized from the reviewed synthetic catalog and additive SQL draft;
 - file-backed SQLite local projection, two-operation outbox, durable receipts and quarantine sidecar;
+- Candidate A offline UI controller for the two typed writes plus bounded synchronization-state presentation;
 - browser-mode DesktopBridge fallback with no native capabilities.
 
 PGlite runs the Postgres engine locally as WASM. It is suitable deterministic database evidence for this gate, but it is not a claim that Supabase platform services, pooled production connections or remote deployment were exercised.
@@ -53,3 +54,7 @@ Final local state: zero outbox rows, two durable receipts, authoritative session
 - expired lease preserving pending work;
 - authorization quarantine preserving pending work;
 - no refresh/access token fields in SQLite schema, receipts, outbox or browser storage.
+
+## UI/native boundary evidence
+
+Focused frontend contracts verify that rename and duration edits use the current local revision, immutable UUID operation IDs and the credential-free native context. Invalid values never cross the bridge. Native Rust tests verify the same operations commit projection and outbox together, persist across close/reopen and report only bounded synchronization state. The packaged macOS application booted the signed writable asset set and completed its online/offline/restart cycle. This is not a claim of physical UI clicking, real authentication or remote synchronization.

@@ -1,6 +1,6 @@
 # Local Desktop/Offline Implementation Gate
 
-Date: 2026-08-31
+Date: 2026-09-01
 
 Disposition: **provisionally closed for continued local implementation**. Production readiness remains open.
 
@@ -46,7 +46,7 @@ Native timeout/quarantine for a compatible candidate that never reaches app-read
 
 ## 6. Browser/PWA/service-worker regression
 
-Desktop uses `fs-desktop-native-shell-cache-v2`, not Cache Storage or a desktop service worker. Existing web/PWA/push-worker sources were not changed. Local `npm run check` and `npm run qa:static` passed. Windows run `33451341546` passed static/security gates, API contracts and all four Chromium shards. This preserves the existing web platform and separates desktop rollback from browser cache lifecycle.
+Desktop uses `fs-desktop-native-shell-cache-v2`, not Cache Storage or a desktop service worker. Existing web/PWA/push-worker sources were not changed. Local full mandatory QA passed with 2,525 tests passed, one intentional skip and zero failures. Windows run `33499616167` passed static/security gates, API contracts and all four Chromium shards on the exact pushed branch commit. This preserves the existing web platform and separates desktop rollback from browser cache lifecycle.
 
 ## 7. Local Session Planner projection
 

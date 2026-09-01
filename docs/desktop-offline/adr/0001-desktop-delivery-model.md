@@ -2,7 +2,7 @@
 
 Status: Provisionally accepted for continued local hardening — not production-ready
 
-Date: 2026-08-30; updated with complete local-slice evidence 2026-08-31
+Date: 2026-08-30; updated with complete local-slice evidence 2026-09-01
 
 ## Context
 
@@ -26,7 +26,7 @@ Keep Candidate B as an archived/rebuildable fallback if physical Windows or real
 - atomic projection/outbox, accepted-response loss, close/reopen replay, durable acknowledgement and unauthorized-partition behavior passed Rust contracts;
 - the synthetic native `SessionAuthority` supplies bounded identity/lease context without a refresh token in SQLite or frontend storage;
 - packaged macOS Candidate B started without a network dependency;
-- [Windows CI run 33451341546](https://github.com/maklind88/footballscience/actions/runs/33451341546) built and ran Candidate A, Candidate B and an unauthorized-origin executable from commit `a5c15425f0e44c389361e689ac4593f9043e5184`;
+- [Windows CI run 33499616167](https://github.com/maklind88/footballscience/actions/runs/33499616167) built and ran Candidate A, Candidate B and an unauthorized-origin executable from commit `d6df5e85dec615ffd2d0f8acd90ac146d119b222`;
 - WebView2 `151.0.4129.101` passed signed custom-protocol activation, active-generation restart, compatibility/LKG, synthetic online/offline/restart/online and local-projection checks;
 - Windows CI rejected invalid signatures, unknown keys, post-signing asset modification and an incompatible candidate without changing the active generation;
 - Windows CI timed out and quarantined a hanging candidate, cleared its authority, retained active state and suppressed retry after process restart;

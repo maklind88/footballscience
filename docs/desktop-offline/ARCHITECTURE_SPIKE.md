@@ -1,6 +1,6 @@
 # Desktop Delivery and Offline Vertical-Slice Architecture Spike
 
-Date: 2026-08-31
+Date: 2026-09-01
 
 Status: local architecture gate provisionally closed; production-readiness gate open
 
@@ -58,7 +58,7 @@ On Apple Silicon macOS with a packaged application:
 
 ### Windows, verified through GitHub Actions CI
 
-[Run 33451341546](https://github.com/maklind88/footballscience/actions/runs/33451341546) verified exact commit `a5c15425f0e44c389361e689ac4593f9043e5184` on Windows Server 2025 AMD64 with WebView2 `151.0.4129.101`:
+[Run 33499616167](https://github.com/maklind88/footballscience/actions/runs/33499616167) verified exact commit `d6df5e85dec615ffd2d0f8acd90ac146d119b222` on Windows Server 2025 AMD64 with WebView2 `151.0.4129.101`:
 
 - Candidate A, Candidate B and the unauthorized-origin probe compiled as release executables;
 - Candidate A signed custom-protocol activation, native generation persistence across process restart, incompatible-candidate rejection and last-known-good restart passed;
@@ -68,7 +68,7 @@ On Apple Silicon macOS with a packaged application:
 - the local Session Planner projection loaded after restart;
 - Candidate B WebView2 startup without network dependency passed;
 - unauthorized origin and unauthorized native command paths were rejected;
-- native Rust tests, all 34 desktop contract tests, static/security gates, API contracts and all four Chromium regression shards passed;
+- native Rust tests, all 38 desktop contract tests, static/security gates, API contracts and all four Chromium regression shards passed;
 - an unsigned, checksummed evidence artifact was generated; no installer or release was produced.
 
 The Windows runner is a hosted VM. It does not prove physical Windows behavior, installer UX, sleep/wake, real adapter switching, a physical Credential Manager round trip, signed update UX, SmartScreen or a physical OS restart. The earlier failing integration runs are retained as negative evidence; the last failure was a Windows-path 404 in the synthetic hosted server, corrected by portable `path.relative` containment and explicit POSIX/Windows tests in `6ee92acc`.

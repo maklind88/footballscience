@@ -24,7 +24,7 @@
   display: grid;
   grid-template-rows: auto minmax(10rem, .88fr) minmax(7rem, .82fr);
   gap: clamp(.45rem, .9cqh, .8rem);
-  padding: clamp(.55rem, 1.15cqh, 1rem) clamp(1rem, 4.6cqw, 4.6rem) clamp(2rem, 3.2cqh, 2.8rem);
+  padding: clamp(.55rem, 1.15cqh, 1.5rem) clamp(1rem, 4.6cqw, 9.2rem) clamp(2rem, 3.2cqh, 5.6rem);
   color: var(--presentation-slide-text, #f8fafc);
 }
 
@@ -61,7 +61,7 @@
 
 .presentation-leaderboard-month {
   color: var(--presentation-panel-muted-strong, currentColor);
-  font-size: clamp(.9rem, 1.18cqw, 1.2rem);
+  font-size: clamp(.9rem, 1.18cqw, 2.4rem);
   font-weight: 850;
   line-height: 1.1;
 }
@@ -70,14 +70,14 @@
   max-width: 16ch;
   margin: 0;
   color: var(--presentation-slide-text, #f8fafc);
-  font-size: clamp(2.65rem, 4.7cqw, 5rem);
+  font-size: clamp(2.65rem, 4.7cqw, 10rem);
   font-weight: 950;
   line-height: .94;
   overflow-wrap: anywhere;
 }
 
 .presentation-leaderboard-podium {
-  width: min(100%, 63rem);
+  width: min(100%, 126rem);
   min-width: 0;
   min-height: 0;
   justify-self: center;
@@ -92,7 +92,7 @@
 .presentation-leaderboard-podium-player {
   position: relative;
   min-width: 0;
-  min-height: clamp(8rem, 18cqh, 12.2rem);
+  min-height: clamp(8rem, 18cqh, 24.4rem);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: auto auto;
@@ -109,7 +109,7 @@
 
 .presentation-leaderboard-podium-player.is-rank-1 {
   order: 2;
-  min-height: clamp(9.5rem, 22cqh, 14.5rem);
+  min-height: clamp(9.5rem, 22cqh, 29rem);
   border-color: color-mix(in srgb, var(--presentation-accent, #22c55e) 62%, var(--presentation-panel-border));
   background: linear-gradient(180deg, color-mix(in srgb, var(--presentation-accent, #22c55e) 17%, transparent), transparent 54%), var(--presentation-panel-bg-strong, rgba(255, 255, 255, .1));
 }
@@ -118,28 +118,28 @@
 .presentation-leaderboard-podium-player.is-rank-3 { order: 3; }
 
 .presentation-leaderboard-layout.is-very-crowded .presentation-leaderboard-podium-player {
-  min-height: clamp(7.5rem, 15.5cqh, 10.5rem);
+  min-height: clamp(7.5rem, 15.5cqh, 21rem);
 }
 
 .presentation-leaderboard-layout.is-very-crowded .presentation-leaderboard-podium-player.is-rank-1 {
-  min-height: clamp(8.4rem, 17.5cqh, 12rem);
+  min-height: clamp(8.4rem, 17.5cqh, 24rem);
 }
 
 .presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-podium-player {
-  min-height: clamp(6.2rem, 12.5cqh, 8.2rem);
+  min-height: clamp(6.2rem, 12.5cqh, 16.4rem);
   padding: clamp(.42rem, .72cqw, .65rem);
 }
 
 .presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-podium-player.is-rank-1 {
-  min-height: clamp(6.8rem, 13.8cqh, 9rem);
+  min-height: clamp(6.8rem, 13.8cqh, 18rem);
 }
 
 .presentation-leaderboard-rank {
   position: absolute;
   top: clamp(.45rem, .8cqw, .72rem);
   left: clamp(.45rem, .8cqw, .72rem);
-  width: clamp(2.3rem, 3.25cqw, 3.25rem);
-  height: clamp(2.3rem, 3.25cqw, 3.25rem);
+  width: clamp(2.3rem, 3.25cqw, 6.5rem);
+  height: clamp(2.3rem, 3.25cqw, 6.5rem);
   display: grid;
   place-items: center;
   color: var(--presentation-rank-stroke, #854d0e);
@@ -184,15 +184,15 @@
   align-self: start;
   margin-top: 17%;
   color: #18211d;
-  font-size: clamp(.7rem, .92cqw, .9rem);
+  font-size: clamp(.75rem, .92cqw, 1.8rem);
   font-weight: 950;
   line-height: 1;
 }
 
 .presentation-leaderboard-avatar {
   flex: 0 0 auto;
-  width: clamp(2.2rem, 3.6cqw, 3.6rem);
-  height: clamp(2.2rem, 3.6cqw, 3.6rem);
+  width: clamp(2.2rem, 3.6cqw, 7.2rem);
+  height: clamp(2.2rem, 3.6cqw, 7.2rem);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -200,32 +200,32 @@
   border-radius: 50%;
   color: var(--presentation-panel-text, currentColor);
   background: var(--presentation-panel-bg-soft, rgba(255, 255, 255, .08));
-  font-size: clamp(.78rem, 1.08cqw, 1rem);
+  font-size: clamp(.78rem, 1.08cqw, 2rem);
   font-weight: 950;
 }
 
 .presentation-leaderboard-avatar.is-podium {
   grid-column: 1 / -1;
   justify-self: center;
-  width: clamp(4.8rem, 8.2cqw, 8.3rem);
-  height: clamp(4.8rem, 8.2cqw, 8.3rem);
+  width: clamp(4.8rem, 8.2cqw, 16.6rem);
+  height: clamp(4.8rem, 8.2cqw, 16.6rem);
   border-width: 2px;
 }
 
 .presentation-leaderboard-podium-player.is-rank-1 .presentation-leaderboard-avatar.is-podium {
-  width: clamp(5.7rem, 9.4cqw, 9.5rem);
-  height: clamp(5.7rem, 9.4cqw, 9.5rem);
+  width: clamp(5.7rem, 9.4cqw, 19rem);
+  height: clamp(5.7rem, 9.4cqw, 19rem);
   border-color: color-mix(in srgb, #facc15 72%, var(--presentation-panel-border));
 }
 
 .presentation-leaderboard-layout.is-very-crowded .presentation-leaderboard-avatar.is-podium {
-  width: clamp(4.2rem, 6.7cqw, 6.8rem);
-  height: clamp(4.2rem, 6.7cqw, 6.8rem);
+  width: clamp(4.2rem, 6.7cqw, 13.6rem);
+  height: clamp(4.2rem, 6.7cqw, 13.6rem);
 }
 
 .presentation-leaderboard-layout.is-very-crowded .presentation-leaderboard-podium-player.is-rank-1 .presentation-leaderboard-avatar.is-podium {
-  width: clamp(4.8rem, 7.5cqw, 7.6rem);
-  height: clamp(4.8rem, 7.5cqw, 7.6rem);
+  width: clamp(4.8rem, 7.5cqw, 15.2rem);
+  height: clamp(4.8rem, 7.5cqw, 15.2rem);
 }
 
 .presentation-leaderboard-avatar img {
@@ -247,13 +247,13 @@
 }
 
 .presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-avatar.is-podium {
-  width: clamp(3.65rem, 5.6cqw, 5.7rem);
-  height: clamp(3.65rem, 5.6cqw, 5.7rem);
+  width: clamp(3.65rem, 5.6cqw, 11.4rem);
+  height: clamp(3.65rem, 5.6cqw, 11.4rem);
 }
 
 .presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-podium-player.is-rank-1 .presentation-leaderboard-avatar.is-podium {
-  width: clamp(4.15rem, 6.2cqw, 6.3rem);
-  height: clamp(4.15rem, 6.2cqw, 6.3rem);
+  width: clamp(4.15rem, 6.2cqw, 12.6rem);
+  height: clamp(4.15rem, 6.2cqw, 12.6rem);
 }
 
 .presentation-leaderboard-player-copy {
@@ -272,13 +272,13 @@
 
 .presentation-leaderboard-player-copy strong {
   color: var(--presentation-panel-text, currentColor);
-  font-size: clamp(1rem, 1.55cqw, 1.48rem);
+  font-size: clamp(1rem, 1.55cqw, 2.96rem);
   line-height: 1.05;
 }
 
 .presentation-leaderboard-player-copy span {
   color: var(--presentation-panel-muted-strong, currentColor);
-  font-size: clamp(.78rem, 1cqw, 1rem);
+  font-size: clamp(.78rem, 1cqw, 2rem);
   font-weight: 780;
 }
 
@@ -290,12 +290,12 @@
 
 .presentation-leaderboard-points strong {
   color: var(--presentation-panel-text, currentColor);
-  font-size: clamp(1.6rem, 2.75cqw, 2.7rem);
+  font-size: clamp(1.6rem, 2.75cqw, 5.4rem);
 }
 
 .presentation-leaderboard-points span {
   color: var(--presentation-panel-muted-strong, currentColor);
-  font-size: clamp(.68rem, .82cqw, .82rem);
+  font-size: clamp(.75rem, .82cqw, 1.64rem);
   font-weight: 900;
 }
 
@@ -354,18 +354,31 @@
 }
 
 .presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-standing {
-  min-height: 2rem;
+  min-height: 1.45rem;
   gap: clamp(.24rem, .42cqw, .4rem);
-  padding: clamp(.16rem, .28cqw, .26rem) clamp(.28rem, .42cqw, .4rem);
+  padding: clamp(.08rem, .18cqw, .2rem) clamp(.2rem, .34cqw, .34rem);
 }
 
 .presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-standing .presentation-leaderboard-avatar {
-  width: clamp(1.7rem, 2.15cqw, 2.15rem);
-  height: clamp(1.7rem, 2.15cqw, 2.15rem);
+  width: clamp(1.25rem, 2.15cqw, 4.3rem);
+  height: clamp(1.25rem, 2.15cqw, 4.3rem);
+}
+
+.presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-standing .presentation-leaderboard-player-copy span {
+  display: none;
+}
+
+.presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-standing-rank,
+.presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-standing-points span {
+  font-size: clamp(.75rem, .78cqw, 1.56rem);
+}
+
+.presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-standing .presentation-leaderboard-player-copy strong {
+  font-size: clamp(.875rem, .9cqw, 1.8rem);
 }
 
 .presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-standing-rank {
-  width: 2.75rem;
+  width: clamp(2.75rem, 2.3cqw, 5.5rem);
 }
 
 .presentation-leaderboard-layout.is-very-crowded .presentation-leaderboard-standing .presentation-leaderboard-avatar {
@@ -374,7 +387,7 @@
 }
 
 .presentation-leaderboard-standing-rank {
-  width: 2.75rem;
+  width: clamp(2.75rem, 2.3cqw, 5.5rem);
   color: var(--presentation-panel-muted-strong, currentColor);
   font-size: clamp(.8rem, 1cqw, .98rem);
   font-weight: 950;
@@ -404,7 +417,7 @@
 
 .presentation-leaderboard-standing-points span {
   color: var(--presentation-panel-muted-strong, currentColor);
-  font-size: clamp(.62rem, .72cqw, .72rem);
+  font-size: clamp(.75rem, .72cqw, 1.44rem);
   font-weight: 900;
 }
 
@@ -460,9 +473,11 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .presentation-leaderboard-layout.is-crowded .presentation-leaderboard-standing-grid,
-  .presentation-leaderboard-layout.is-very-crowded .presentation-leaderboard-standing-grid,
-  .presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-standing-grid {
+  .presentation-leaderboard-layout.is-very-crowded .presentation-leaderboard-standing-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .presentation-leaderboard-layout.is-ultra-crowded .presentation-leaderboard-standing-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 

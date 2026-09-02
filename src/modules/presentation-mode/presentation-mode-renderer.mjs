@@ -177,7 +177,8 @@ function getSafeSize(value = "", fallback = "56") {
 function getInfoSizeStyle(value = "") {
   const size = Number(getSafeSize(value));
   const remValue = `${Number((size / 16).toFixed(3))}rem`;
-  return `--presentation-info-body-size: ${remValue};`;
+  const responsiveValue = `${Number((size / 12.8).toFixed(3))}cqw`;
+  return `--presentation-info-body-size: max(${remValue}, ${responsiveValue});`;
 }
 
 function getLoadMeterModel(value = "") {

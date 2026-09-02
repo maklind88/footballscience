@@ -365,7 +365,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(infoHtml).toContain('data-presentation-info-field="title"');
   expect(infoHtml).toContain('data-presentation-text-field="info.title"');
   expect(infoHtml).toContain('data-presentation-text-field="info.body"');
-  expect(infoHtml).toContain("--presentation-info-body-size: 3.5rem;");
+  expect(infoHtml).toContain("--presentation-info-body-size: max(3.5rem, 4.375cqw);");
   const videoInfoHtml = renderer.renderInfoSlide(model, {
     ...infoSlide,
     id: "video-slide",

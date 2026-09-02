@@ -13,7 +13,7 @@
 .presentation-system-slide-kicker {
   margin: 0 0 clamp(.55rem, 1.2cqw, 1rem);
   color: var(--presentation-info-accent, #b45309);
-  font-size: clamp(.7rem, 1.25cqw, 1.15rem);
+  font-size: clamp(.75rem, 1.25cqw, 2.3rem);
   font-weight: 850;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -24,7 +24,7 @@
   min-height: 0;
   margin: 0;
   color: var(--presentation-info-color, #1d1d1f);
-  font-size: clamp(3rem, 7.4cqw, 7rem);
+  font-size: clamp(3rem, 7.4cqw, 14rem);
   font-weight: 900;
   letter-spacing: 0;
   line-height: .94;
@@ -40,7 +40,7 @@
   min-height: 0;
   margin: 0;
   color: color-mix(in srgb, var(--presentation-info-color, #1d1d1f) 76%, transparent);
-  font-size: clamp(1.35rem, 3cqw, 3rem);
+  font-size: clamp(1.35rem, 3cqw, 6rem);
   font-weight: 750;
   letter-spacing: 0;
   line-height: 1.2;

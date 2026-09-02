@@ -58,7 +58,6 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
       temporaryCount: players.filter((player) => player.rosterType !== "squad").length,
     }),
     getPlayerProfileRosterTypeOption: (value) => ({ key: value || "squad", shortLabel: value === "guest" ? "Guest" : "Squad" }),
-    getPlayerProfileTemporaryWindowLabel: () => "1 Jun - 7 Jun",
     getSelectedPlayerId: () => "p1",
     getTemporarySectionCollapsed: () => false,
     isTemporaryPlayerProfile: (player) => player.rosterType !== "squad",
@@ -107,7 +106,7 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   expect(markup).toContain("Training guests");
   expect(markup).toContain("Guest Player");
   expect(markup).toContain("Guest / Academy Training Group");
-  expect(markup).toContain("1 Jun - 7 Jun");
+  expect(markup).not.toContain("1 Jun - 7 Jun");
   expect(markup).not.toContain("Squad player");
   expect(medicalSnapshotCalls).toEqual([
     {
@@ -197,7 +196,6 @@ test("Squad roster renderer defaults training guests to hidden", () => {
       temporaryCount: players.filter((player) => player.rosterType !== "squad").length,
     }),
     getPlayerProfileRosterTypeOption: (value) => ({ key: value || "squad", shortLabel: value === "guest" ? "Guest" : "Squad" }),
-    getPlayerProfileTemporaryWindowLabel: () => "1 Jun - 7 Jun",
     getSelectedPlayerId: () => "p1",
     isTemporaryPlayerProfile: (player) => player.rosterType !== "squad",
     playerProfileCountsInSquad: (player) => player.rosterType === "squad",

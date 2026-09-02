@@ -18,7 +18,6 @@ export function createSquadRosterRenderer({
   getPlayerProfileRosterLabel,
   getPlayerProfileRosterSummary,
   getPlayerProfileRosterTypeOption,
-  getPlayerProfileTemporaryWindowLabel,
   getSelectedPlayerId,
   getTemporarySectionCollapsed = () => true,
   isTemporaryPlayerProfile,
@@ -63,11 +62,9 @@ export function createSquadRosterRenderer({
           "Temporary",
       ).trim() ||
       "Temporary";
-    const windowLabel = getPlayerProfileTemporaryWindowLabel(player);
     return `
     <small class="squad-player-temporary-meta">
       ${escapeHtml(rosterLabel)}
-      ${windowLabel ? ` / ${escapeHtml(windowLabel)}` : ""}
     </small>
   `;
   };
@@ -123,7 +120,7 @@ export function createSquadRosterRenderer({
 
   const renderPlayerRow = (player, options = {}) => {
     const indexedMedicalSnapshot = options.medicalSnapshotsByPlayerId?.get(player.id);
-    const availabilityStartDateValue = String(player.temporaryFrom || player.createdAt || "").slice(0, 10);
+    const availabilityStartDateValue = String(player.createdAt || "").slice(0, 10);
     const medicalSnapshot = indexedMedicalSnapshot || getPlayerProfileMedicalSnapshot(player.id, undefined, {
         medicalStateReady: options.medicalStateReady === true,
         includeTrainingAvailability: options.includeTrainingAvailability !== false,

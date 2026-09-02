@@ -9,6 +9,7 @@ import { getLeaderboardPlayerAvailability } from "../src/modules/leaderboard/lea
 
 const require = createRequire(import.meta.url);
 const availability = require("../api/_lib/leaderboard-availability.js");
+const leaderboardDatabase = require("../api/_lib/leaderboard-database.js");
 const projection = require("../api/_lib/squad-roster-projection.js");
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const migrationName = fs.readdirSync(path.join(rootDir, "supabase", "migrations"))
@@ -31,19 +32,20 @@ function sourceState(overrides = {}) {
   };
 }
 
-test("Squad projection accepts only the selected team's ordinary roster and strips unrelated profile fields", () => {
+test("Squad projection accepts the ordinary roster plus available training guests and strips unrelated profile fields", () => {
   const result = projection.normalizeSquadRosterProjection(JSON.stringify(sourceState({
     players: [
       { ...sourceState().players[0], birthDate: "1998-04-02", sourceUrl: "https://private.example/player", coachNotes: "private", medicalSummary: { coachNote: "private" }, attributeRatings: { speed: 5 } },
       sourceState().players[1],
       sourceState().players[2],
-      { id: "academy", name: "Academy Guest", rosterType: "academy", countsInSquad: false },
+      { id: "academy", name: "Academy Guest", rosterType: "academy", countsInSquad: false, status: "unavailable" },
     ],
   })));
 
   expect(result.ok).toBe(true);
-  expect(result.players.map((player) => player.playerId)).toEqual(["p1", "p2"]);
+  expect(result.players.map((player) => player.playerId)).toEqual(["p1", "p2", "guest"]);
   expect(result.players[0]).toMatchObject({ displayName: "Available Player", shirtNumber: "9", availabilityStatus: "available" });
+  expect(result.players[2]).toMatchObject({ displayName: "Training Guest", rosterType: "guest", countsInSquad: false });
   expect(JSON.stringify(result.players)).not.toContain("coachNotes");
   expect(JSON.stringify(result.players)).not.toContain("medicalSummary");
   expect(JSON.stringify(result.players)).not.toContain("attributeRatings");
@@ -68,7 +70,7 @@ test("Squad projection is source-revisioned and invokes one guarded database com
     }),
     callRpc: async (name, body) => {
       calls.push({ name, body });
-      return { ok: true, data: { applied: true, targetMatched: true, projectedPlayers: 2 } };
+      return { ok: true, data: { applied: true, targetMatched: true, projectedPlayers: 3 } };
     },
   });
 
@@ -84,7 +86,27 @@ test("Squad projection is source-revisioned and invokes one guarded database com
       p_source_hash: "a".repeat(64),
     },
   });
-  expect(calls[0].body.p_players.map((player) => player.playerId)).toEqual(["p1", "p2"]);
+  expect(calls[0].body.p_players.map((player) => player.playerId)).toEqual(["p1", "p2", "guest"]);
+});
+
+test("Leaderboard roster snapshots preserve training guest membership from Squad source state", () => {
+  const result = leaderboardDatabase.createActiveRosterSnapshot(
+    [
+      { player_id: "db-squad", availability_status: "available", updated_at: "2026-08-30T12:00:00.000Z" },
+      { player_id: "db-guest", availability_status: "available", updated_at: "2026-08-30T12:00:00.000Z" },
+    ],
+    [
+      { id: "db-squad", display_name: "Squad Player", metadata: { legacyId: "p1" } },
+      { id: "db-guest", display_name: "Training Guest", metadata: { legacyId: "guest" } },
+    ],
+    sourceState()
+  );
+
+  expect(result.ok).toBe(true);
+  expect(result.roster).toEqual(expect.arrayContaining([
+    expect.objectContaining({ playerId: "p1", rosterType: "squad", countsInSquad: true }),
+    expect.objectContaining({ playerId: "guest", rosterType: "guest", countsInSquad: false }),
+  ]));
 });
 
 test("date availability is coach-safe, date-specific, and Squad unavailability wins", () => {
@@ -137,6 +159,16 @@ test("frontend adapter preserves daily availability and defaults safely", () => 
   expect(getLeaderboardPlayerAvailability(players[0], "2026-08-29")).toMatchObject({ eligibility: "available", participation: 100 });
 });
 
+test("frontend adapter keeps available training guests without counting them in the squad", () => {
+  const players = readLeaderboardSquadPlayers({ roster: [
+    { playerId: "squad", displayName: "Squad Player", countsInSquad: true, availabilityStatus: "available" },
+    { playerId: "guest", displayName: "Training Guest", countsInSquad: false, rosterType: "guest", availabilityStatus: "available" },
+  ] });
+
+  expect(players.map((player) => player.id)).toEqual(["squad", "guest"]);
+  expect(players.find((player) => player.id === "guest")).toMatchObject({ countsInSquad: false, availabilityStatus: "available" });
+});
+
 test("Award Points orders the selected-team roster by date availability and disables unavailable players", () => {
   const players = readLeaderboardSquadPlayers({ roster: [
     { playerId: "out", displayName: "Out Player", availabilityByDate: { "2026-08-30": { status: "unavailable", participation: 0, eligibility: "unavailable", source: "squad" } } },
@@ -159,6 +191,27 @@ test("Award Points orders the selected-team roster by date availability and disa
   expect(html).toContain("1 limited");
   expect(html).toContain("1 unavailable");
   expect(html).toMatch(/Out Player[\s\S]*data-leaderboard-player-id="out"[\s\S]*disabled/);
+});
+
+test("Award Points hides unavailable training guests but keeps unavailable squad players visible", () => {
+  const players = readLeaderboardSquadPlayers({ roster: [
+    { playerId: "squad-out", displayName: "Squad Out", countsInSquad: true, availabilityByDate: { "2026-08-30": { status: "unavailable", participation: 0, eligibility: "unavailable", source: "squad" } } },
+    { playerId: "guest-ready", displayName: "Guest Ready", countsInSquad: false, availabilityByDate: { "2026-08-30": { status: "full", participation: 100, eligibility: "available", source: "squad" } } },
+    { playerId: "guest-out", displayName: "Guest Out", countsInSquad: false, availabilityByDate: { "2026-08-30": { status: "unavailable", participation: 0, eligibility: "unavailable", source: "squad" } } },
+  ] });
+  const html = renderLeaderboardAwardSheet({
+    canEdit: true,
+    bounds: { min: "2026-08-01", max: "2026-08-30" },
+    players,
+    state: {
+      ui: { awardOpen: true, pendingAction: "", draftError: "" },
+      draft: { mode: "placement", occurredOn: "2026-08-30", title: "Training", note: "", searchQuery: "", assignments: {} },
+    },
+  });
+
+  expect(html).toContain("Squad Out");
+  expect(html).toContain("Guest Ready");
+  expect(html).not.toContain("Guest Out");
 });
 
 test("projection migration is exact-tenant, idempotent, audited, locked, and service-only", () => {

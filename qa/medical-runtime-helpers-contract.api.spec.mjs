@@ -157,6 +157,39 @@ test("Medical runtime helpers preserve linked Squad availability and player norm
   });
 });
 
+test("Medical runtime helpers apply Squad availability changes on the local calendar date", () => {
+  const player = {
+    id: "local-date-guest",
+    name: "Local Date Guest",
+    number: "91",
+    status: "available",
+    rosterType: "guest",
+    countsInSquad: false,
+    updatedAt: "2026-09-02T02:08:33.622Z",
+  };
+  const helpers = createHelpers({
+    formatDateValue: (date) => {
+      const isoValue = new Date(date).toISOString();
+      return isoValue.startsWith("2026-09-02T02:") ? "2026-09-01" : isoValue.slice(0, 10);
+    },
+    getPlayerProfilesState: () => ({
+      players: [player],
+      changeLog: [{
+        playerId: player.id,
+        createdAt: "2026-09-02T02:08:33.622Z",
+        changes: [{ field: "Availability status", from: "Unavailable", to: "Available" }],
+      }],
+    }),
+    playerProfileStatusOptions: [
+      { key: "available", label: "Available" },
+      { key: "unavailable", label: "Unavailable" },
+    ],
+  });
+
+  expect(helpers.getMedicalPlayerAvailabilityStatusForDate(player, "2026-09-01")).toBe("available");
+  expect(helpers.isMedicalPlayerBlockedBySquadAvailability(player, "2026-09-01")).toBe(false);
+});
+
 test("Medical runtime helpers preserve timestamps, data safety counts, and sorting", () => {
   const helpers = createHelpers();
   const source = {

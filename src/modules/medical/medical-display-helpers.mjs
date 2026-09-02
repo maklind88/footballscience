@@ -15,10 +15,6 @@ export function createMedicalDisplayHelpers(options = {}) {
   const getSelectedDate = typeof options.getSelectedDate === "function" ? options.getSelectedDate : () => "";
   const getPlayerProfileRosterLabel =
     typeof options.getPlayerProfileRosterLabel === "function" ? options.getPlayerProfileRosterLabel : () => "";
-  const getPlayerProfileTemporaryWindowLabel =
-    typeof options.getPlayerProfileTemporaryWindowLabel === "function"
-      ? options.getPlayerProfileTemporaryWindowLabel
-      : () => "";
   const getMedicalPlayerAvailabilityStatusOption =
     typeof options.getMedicalPlayerAvailabilityStatusOption === "function"
       ? options.getMedicalPlayerAvailabilityStatusOption
@@ -28,10 +24,6 @@ export function createMedicalDisplayHelpers(options = {}) {
   const isMedicalPlayerBlockedBySquadAvailability =
     typeof options.isMedicalPlayerBlockedBySquadAvailability === "function"
       ? options.isMedicalPlayerBlockedBySquadAvailability
-      : () => false;
-  const isPlayerProfileTemporaryActiveOnDate =
-    typeof options.isPlayerProfileTemporaryActiveOnDate === "function"
-      ? options.isPlayerProfileTemporaryActiveOnDate
       : () => false;
   const isTemporaryPlayerProfile =
     typeof options.isTemporaryPlayerProfile === "function" ? options.isTemporaryPlayerProfile : () => false;
@@ -68,9 +60,8 @@ export function createMedicalDisplayHelpers(options = {}) {
     if (!isTemporaryPlayerProfile(player)) {
       return "";
     }
-    const windowLabel = getPlayerProfileTemporaryWindowLabel(player);
-    const isActiveToday = isPlayerProfileTemporaryActiveOnDate(player, getSelectedDate());
-    const label = [getPlayerProfileRosterLabel(player), windowLabel].filter(Boolean).join(" / ");
+    const isActiveToday = !isMedicalPlayerBlockedBySquadAvailability(player, getSelectedDate());
+    const label = getPlayerProfileRosterLabel(player) || "Training guest";
     return `<span class="medical-temporary-badge${isActiveToday ? "" : " is-outside-window"}">${escapeHtml(label)}</span>`;
   }
 

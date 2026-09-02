@@ -213,7 +213,7 @@ ${group.players.map(renderRosterRow).join("")}
 <div>
 <span class="medical-temporary-tab">Training guests</span>
 <strong>Temporary players</strong>
-<small>Only shown here when their temporary training dates include ${escapeHtml(formatMedicalDateLabel(getSelectedDate(), "long"))}.</small>
+<small>Available in Squad Room for ${escapeHtml(formatMedicalDateLabel(getSelectedDate(), "long"))}.</small>
 </div>
 <p>${activeCount ? `${activeCount} active for this date` : "None active for this date"}</p>
 </header>

@@ -158,11 +158,16 @@ async function fetchActiveRoster(squadTeam, options = {}) {
   return { ok: true, roster: roster.rows, players: players.rows };
 }
 
-function createActiveRosterSnapshot(roster = [], players = []) {
+function createActiveRosterSnapshot(roster = [], players = [], playerProfilesState = {}) {
   const membershipByPlayer = new Map();
   roster.forEach((membership) => {
     if (!membershipByPlayer.has(membership.player_id)) membershipByPlayer.set(membership.player_id, membership);
   });
+  const sourceProfilesById = new Map(
+    (Array.isArray(playerProfilesState?.players) ? playerProfilesState.players : [])
+      .map((player) => [normalizeText(player?.id, 180), player])
+      .filter(([playerId]) => playerId)
+  );
   const sourceKeys = new Set();
   const snapshot = [];
   for (const player of players) {
@@ -174,6 +179,11 @@ function createActiveRosterSnapshot(roster = [], players = []) {
       return failure("Active Squad roster contains ambiguous player identity.", 409);
     }
     sourceKeys.add(playerId);
+    const sourceProfile = sourceProfilesById.get(playerId) || null;
+    const rosterType = normalizeText(sourceProfile?.rosterType || sourceProfile?.playerType, 40).toLowerCase() || "squad";
+    const countsInSquad = sourceProfile
+      ? sourceProfile.countsInSquad !== false && rosterType === "squad"
+      : player.metadata?.countsInSquad !== false;
     snapshot.push({
       playerId,
       displayName,
@@ -181,6 +191,8 @@ function createActiveRosterSnapshot(roster = [], players = []) {
       position: normalizeText(membership.position_label || membership.primary_role, 80),
       photoUrl: normalizeText(player.metadata?.photoUrl, 1800),
       availabilityStatus: normalizeText(membership.availability_status, 40) || "unknown",
+      rosterType,
+      countsInSquad,
       updatedAt: normalizeText(membership.updated_at || player.updated_at, 48),
     });
   }
@@ -272,7 +284,7 @@ async function awardPoints(context, command, options = {}) {
   const mapped = await resolveAwardPlayers(team.squadTeam, command.awards, options);
   if (!mapped.ok) return !projection.ok ? projection : mapped;
   if (projection.ok && projection.targetMatched) {
-    const rosterSnapshot = createActiveRosterSnapshot(mapped.roster, mapped.players);
+    const rosterSnapshot = createActiveRosterSnapshot(mapped.roster, mapped.players, projection.sourceState);
     if (!rosterSnapshot.ok) return rosterSnapshot;
     const availabilityResult = await buildRosterAvailability(command.month, rosterSnapshot.roster, projection, options);
     if (!availabilityResult.ok) return availabilityResult;
@@ -321,7 +333,7 @@ async function readMonthSnapshot(context, month, options = {}) {
   const activeRoster = await fetchActiveRoster(team.squadTeam, { ...options, allowEmpty: true });
   if (!activeRoster.ok) return activeRoster;
   if (!activeRoster.roster.length && !projection.ok) return projection;
-  const rosterSnapshot = createActiveRosterSnapshot(activeRoster.roster, activeRoster.players);
+  const rosterSnapshot = createActiveRosterSnapshot(activeRoster.roster, activeRoster.players, projection.sourceState);
   if (!rosterSnapshot.ok) return rosterSnapshot;
   const availabilityResult = projection.ok
     ? await buildRosterAvailability(month, rosterSnapshot.roster, projection, options)

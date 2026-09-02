@@ -62,7 +62,6 @@ export function createSessionPlannerRuntimeRenderers(deps = {}) {
     getSessionPlannerPlayerBoardProfileState: deps.getSessionPlannerPlayerBoardProfileState,
     getSessionPlannerPlayerBoardSyncedPlayer: deps.getSessionPlannerPlayerBoardSyncedPlayer,
     isMedicalPlayerBlockedBySquadAvailability: deps.isMedicalPlayerBlockedBySquadAvailability,
-    isPlayerProfileTemporaryActiveOnDate: deps.isPlayerProfileTemporaryActiveOnDate,
     isTemporaryPlayerProfile: deps.isTemporaryPlayerProfile,
   });
 
@@ -70,10 +69,8 @@ export function createSessionPlannerRuntimeRenderers(deps = {}) {
     escapeHtml: deps.escapeHtml,
     getMedicalPlayerAvailabilityStatusOption: deps.getMedicalPlayerAvailabilityStatusOption,
     getPlayerProfileRosterLabel: deps.getPlayerProfileRosterLabel,
-    getPlayerProfileTemporaryWindowLabel: deps.getPlayerProfileTemporaryWindowLabel,
     getSelectedDate: deps.getSelectedMedicalDate,
     isMedicalPlayerBlockedBySquadAvailability: deps.isMedicalPlayerBlockedBySquadAvailability,
-    isPlayerProfileTemporaryActiveOnDate: deps.isPlayerProfileTemporaryActiveOnDate,
     isTemporaryPlayerProfile: deps.isTemporaryPlayerProfile,
     medicalOperationsTabOptions: deps.medicalOperationsTabOptions,
     medicalPlayerModalTabOptions: deps.medicalPlayerModalTabOptions,

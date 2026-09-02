@@ -17,7 +17,7 @@ function createSelectors(overrides = {}) {
     players: [
       { id: "p1", name: "Alex Morgan", updatedAt: "2026-05-30T08:00:00.000Z" },
       { id: "p2", name: "Sam Kerr", status: "injured", updatedAt: "2026-05-31T08:00:00.000Z" },
-      { id: "p3", name: "Temp Player", temporaryFrom: "2026-06-01", temporaryTo: "2026-06-05" },
+      { id: "p3", name: "Temp Player", status: "unavailable", temporaryFrom: "2026-06-01", temporaryTo: "2026-06-05" },
       { id: "p4", name: "Removed Player" },
       { id: "p5", name: "Archived Player", archivedAt: "2026-05-01T00:00:00.000Z" },
       { id: "undated-guest", name: "Undated Guest", rosterType: "guest", countsInSquad: false },
@@ -82,11 +82,10 @@ function createSelectors(overrides = {}) {
     isAdmin: () => false,
     isDateValue: (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")),
     isItemArchived: (item) => Boolean(item?.archivedAt),
-    isPlayerBlockedBySquadAvailability: (player) => player?.status === "injured",
+    isPlayerBlockedBySquadAvailability: (player) => ["injured", "unavailable"].includes(player?.status),
     isPlayerRemovedFromSquad: (player, removedIds) => removedIds.has(player.id),
     isScheduleSessionEvent: (event) => event?.type === "training",
     isTemporaryPlayerProfile: (player) => player?.countsInSquad === false || Boolean(player?.temporaryFrom || player?.temporaryTo),
-    isTemporaryPlayerProfileActiveOnDate: (player, dateValue) => player.temporaryFrom <= dateValue && player.temporaryTo >= dateValue,
     medicalActualParticipationFallback: "not-logged",
     medicalClearanceRoles: [{ key: "doctor" }, { key: "physio" }],
     medicalInjuryPlanDraftsByPlayerId: draftMap,
@@ -143,8 +142,8 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
   expect(selectors.getMedicalHeroTeamName()).toBe("North Carolina Courage");
   expect(selectors.getMedicalAccessLabel()).toBe("Coach view");
   expect(selectors.getActiveMedicalPlayers().map((player) => player.id)).toEqual(["p1", "p2", "p3", "undated-guest"]);
-  expect(selectors.getActiveMedicalPlayersForDate("2026-05-31").map((player) => player.id)).toEqual(["p1", "p2"]);
-  expect(selectors.getActiveMedicalPlayersForDate("2026-06-02").map((player) => player.id)).toEqual(["p1", "p2", "p3"]);
+  expect(selectors.getActiveMedicalPlayersForDate("2026-05-31").map((player) => player.id)).toEqual(["p1", "p2", "undated-guest"]);
+  expect(selectors.getActiveMedicalPlayersForDate("2026-06-02").map((player) => player.id)).toEqual(["p1", "p2", "undated-guest"]);
   expect(selectors.getSelectedMedicalPlayer()).toMatchObject({ id: "p1" });
 
   expect(selectors.getLatestMedicalRecord("p2", "2026-05-31")).toMatchObject({

@@ -78,14 +78,6 @@ export function createSquadProfileSelectedRenderer({
               <span>Temporary group</span>
               <input name="temporaryGroup" value="${escapeHtml(player.temporaryGroup)}" placeholder="Academy Training Group" ${canEdit ? "" : "disabled"} />
             </label>
-            <label class="squad-tab-field-overview">
-              <span>Temporary from</span>
-              <input name="temporaryFrom" type="date" value="${escapeHtml(player.temporaryFrom)}" ${canEdit ? "" : "disabled"} />
-            </label>
-            <label class="squad-tab-field-overview">
-              <span>Temporary to</span>
-              <input name="temporaryTo" type="date" value="${escapeHtml(player.temporaryTo)}" ${canEdit ? "" : "disabled"} />
-            </label>
           `;
     const idpStatusControl =
       activeTab === "idp"

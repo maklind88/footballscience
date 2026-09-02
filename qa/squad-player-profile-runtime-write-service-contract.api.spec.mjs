@@ -171,6 +171,40 @@ test("Squad player profile write service updates status fields", () => {
   });
 });
 
+test("Squad player profile autosave preserves hidden legacy temporary dates", () => {
+  const harness = createHarness({
+    playerProfilesState: {
+      selectedPlayerId: "guest-1",
+      removedPlayerIds: [],
+      players: [{
+        id: "guest-1",
+        name: "Training Guest",
+        primaryRole: "ST",
+        roleGroup: "forward",
+        rosterType: "guest",
+        countsInSquad: false,
+        status: "unavailable",
+        temporaryGroup: "Academy",
+        temporaryFrom: "2026-05-01",
+        temporaryTo: "2026-05-14",
+        attributeRatings: {},
+        idp: {},
+        futureData: {},
+      }],
+    },
+  });
+
+  expect(harness.service.updatePlayerProfile({
+    playerId: "guest-1",
+    status: "available",
+  })).toMatchObject({ ok: true });
+  expect(harness.getState().players[0]).toMatchObject({
+    status: "available",
+    temporaryFrom: "2026-05-01",
+    temporaryTo: "2026-05-14",
+  });
+});
+
 test("Squad player profile write service preserves remove admin guard and Medical archive hook", () => {
   const readOnlyHarness = createHarness({ admin: false });
   expect(readOnlyHarness.service.removePlayerProfile("p1")).toBe(false);

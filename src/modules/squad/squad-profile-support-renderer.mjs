@@ -309,14 +309,6 @@ ${escapeHtml(tab.label)}
             <span>Temporary group</span>
             <input name="temporaryGroup" value="${escapeHtml(getDraftValue(draft, "temporaryGroup"))}" placeholder="Academy Training Group" ${canEdit ? "" : "disabled"} />
           </label>
-          <label>
-            <span>Temporary from</span>
-            <input name="temporaryFrom" type="date" value="${escapeHtml(getDraftValue(draft, "temporaryFrom"))}" ${canEdit ? "" : "disabled"} />
-          </label>
-          <label>
-            <span>Temporary to</span>
-            <input name="temporaryTo" type="date" value="${escapeHtml(getDraftValue(draft, "temporaryTo"))}" ${canEdit ? "" : "disabled"} />
-          </label>
         </div>
         <button type="submit" ${canEdit ? "" : "disabled"}>Add player</button>
       </form>

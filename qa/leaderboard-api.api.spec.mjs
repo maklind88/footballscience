@@ -601,6 +601,8 @@ test("monthly read keeps event award history and rechecks actor tenant scope in 
     position: "Forward",
     photoUrl: "",
     availabilityStatus: "unknown",
+    rosterType: "squad",
+    countsInSquad: true,
     updatedAt: "",
     availabilityByDate: {},
   }]);

@@ -31,6 +31,7 @@ function getVisiblePlayers(players = [], searchQuery = "", dateValue = "") {
   return players
     .filter((player) => !query || `${player.name} ${player.number} ${player.position}`.toLowerCase().includes(query))
     .map((player) => ({ ...player, availability: getLeaderboardPlayerAvailability(player, dateValue) }))
+    .filter((player) => player.countsInSquad || player.availability.eligibility !== "unavailable")
     .sort((left, right) => (availabilitySortOrder[left.availability.eligibility] ?? 9) - (availabilitySortOrder[right.availability.eligibility] ?? 9)
       || left.name.localeCompare(right.name));
 }

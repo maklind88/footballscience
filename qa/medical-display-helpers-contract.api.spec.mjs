@@ -10,10 +10,8 @@ const helpers = createMedicalDisplayHelpers({
       .replaceAll('"', "&quot;"),
   getMedicalPlayerAvailabilityStatusOption: () => ({ key: "unavailable", tone: "danger", label: "Unavailable" }),
   getPlayerProfileRosterLabel: () => "Temporary",
-  getPlayerProfileTemporaryWindowLabel: () => "2 sessions",
   getSelectedDate: () => "2026-05-29",
   isMedicalPlayerBlockedBySquadAvailability: (player = {}) => player.blocked,
-  isPlayerProfileTemporaryActiveOnDate: (_player, dateValue) => dateValue === "2026-05-29",
   isTemporaryPlayerProfile: (player = {}) => player.temporary,
   medicalOperationsTabOptions: [{ key: "availability" }, { key: "system" }],
   medicalPlayerModalTabOptions: [{ key: "availability" }, { key: "clinical" }],
@@ -45,7 +43,10 @@ test("Medical display helpers own player avatar markup", () => {
 test("Medical display helpers own temporary and squad availability badges", () => {
   expect(helpers.renderMedicalTemporaryPlayerBadge({ temporary: false })).toBe("");
   expect(helpers.renderMedicalTemporaryPlayerBadge({ temporary: true })).toContain(
-    '<span class="medical-temporary-badge">Temporary / 2 sessions</span>'
+    '<span class="medical-temporary-badge">Temporary</span>'
+  );
+  expect(helpers.renderMedicalTemporaryPlayerBadge({ temporary: true, blocked: true })).toContain(
+    '<span class="medical-temporary-badge is-outside-window">Temporary</span>'
   );
 
   expect(helpers.renderMedicalSquadAvailabilityBadge({ blocked: false })).toBe("");

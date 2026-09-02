@@ -56,12 +56,15 @@ function normalizeProjectionPlayer(player = {}) {
   const playerId = normalizeText(player.id, 180);
   const displayName = normalizeText(player.name || player.displayName, 180);
   const rosterType = normalizeRosterType(player.rosterType || player.playerType);
-  if (!playerId || !displayName || !SQUAD_ROSTER_TYPES.has(rosterType) || player.countsInSquad === false) return null;
+  const countsInSquad = SQUAD_ROSTER_TYPES.has(rosterType) && player.countsInSquad !== false;
+  const availabilityStatus = normalizeText(player.status || player.availabilityStatus, 40).toLowerCase();
+  const normalizedAvailabilityStatus = AVAILABILITY_STATUSES.has(availabilityStatus) ? availabilityStatus : "available";
+  const isAvailableTrainingGuest = !countsInSquad && normalizedAvailabilityStatus === "available";
+  if (!playerId || !displayName || (!countsInSquad && !isAvailableTrainingGuest)) return null;
   const primaryRole = normalizeText(player.primaryRole, 24).toUpperCase();
   const position = normalizeText(player.position, 80);
   const requestedRoleGroup = normalizeText(player.roleGroup, 40).toLowerCase();
   const roleGroup = ROLE_GROUPS.has(requestedRoleGroup) ? requestedRoleGroup : inferRoleGroup(primaryRole, position);
-  const availabilityStatus = normalizeText(player.status || player.availabilityStatus, 40).toLowerCase();
   const squadStatus = normalizeText(player.squadStatus, 40).toLowerCase();
   return {
     playerId,
@@ -78,8 +81,9 @@ function normalizeProjectionPlayer(player = {}) {
       ? normalizeText(player.preferredSide, 20).toLowerCase()
       : "center",
     squadStatus: SQUAD_STATUSES.has(squadStatus) ? squadStatus : "squad",
-    availabilityStatus: AVAILABILITY_STATUSES.has(availabilityStatus) ? availabilityStatus : "available",
+    availabilityStatus: normalizedAvailabilityStatus,
     rosterType,
+    countsInSquad,
     photoUrl: normalizeText(player.photoUrl, 1800),
     updatedAt: normalizeText(player.updatedAt, 48),
   };

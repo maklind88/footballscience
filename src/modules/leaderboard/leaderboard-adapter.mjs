@@ -43,7 +43,7 @@ export function readLeaderboardSquadPlayers(data = {}, options = {}) {
       archived: isArchivedPlayer(player),
       countsInSquad: player.countsInSquad !== false && player.counts_in_squad !== false,
     }))
-    .filter((player) => player.id && player.countsInSquad && (options.includeArchived || !player.archived))
+    .filter((player) => player.id && (options.includeArchived || !player.archived))
     .sort((first, second) => first.name.localeCompare(second.name, "en", { sensitivity: "base" }));
 }
 

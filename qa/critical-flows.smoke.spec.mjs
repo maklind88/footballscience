@@ -6405,19 +6405,64 @@ test("Academy Squad add is available for session planning without Medical cleara
 
 test("Squad training guests keeps inactive temporary players visible", async ({ page }) => {
   const playerName = `QA Inactive Guest ${Date.now()}`;
+  const today = new Date();
+  const dateValue = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
   await page.addInitScript(
-    ({ storageKey, player }) => {
+    ({ dateValue: seededDate, keys, player }) => {
       window.localStorage.setItem(
-        storageKey,
+        keys.profiles,
         JSON.stringify({
           selectedPlayerId: player.id,
           players: [player],
           updatedAt: "2026-05-27T12:00:00.000Z",
         })
       );
+      window.localStorage.setItem(
+        keys.schedule,
+        JSON.stringify({
+          selectedDate: seededDate,
+          events: [{ id: "qa-inactive-guest-training", date: seededDate, time: "10:00", type: "training", title: "Team Training" }],
+        })
+      );
+      window.localStorage.setItem(
+        keys.medical,
+        JSON.stringify({
+          rosterVersion: "qa-inactive-guest-medical",
+          selectedDate: seededDate,
+          selectedPlayerId: "",
+          players: [],
+          records: [],
+          injuryPlans: [],
+        })
+      );
+      window.localStorage.setItem(
+        keys.sessionPlanner,
+        JSON.stringify({
+          selectedDate: seededDate,
+          sessions: {
+            [seededDate]: {
+              id: "qa-inactive-guest-session",
+              date: seededDate,
+              title: "Team Training",
+              selectedBlockId: "qa-inactive-guest-block",
+              blocks: [{ id: "qa-inactive-guest-block", label: "Block 1", title: "Team Exercise", minutes: 15 }],
+            },
+          },
+        })
+      );
     },
     {
-      storageKey: playerProfilesKey,
+      dateValue,
+      keys: {
+        profiles: playerProfilesKey,
+        schedule: scheduleKey,
+        medical: medicalKey,
+        sessionPlanner: sessionPlannerKey,
+      },
       player: {
         id: "qa-inactive-training-guest",
         name: playerName,
@@ -6453,6 +6498,66 @@ test("Squad training guests keeps inactive temporary players visible", async ({ 
   await expect(guestRow).toContainText("Academy Training Group");
   await expect(guestRow).toContainText("Unavailable");
   await expect(squadSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);
+
+  await openWorkspace(page, "session-planner");
+  let sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
+  await sessionPlannerWorkspace.locator("[data-session-open-player-board]").click();
+  await expect(page.locator(".session-player-board-token", { hasText: playerName })).toHaveCount(0);
+  await page.locator("[data-session-close-player-board]").click();
+
+  await openWorkspace(page, "player-profiles");
+  const reopenedGuestSection = page.locator('[data-squad-roster-section="temporary"]');
+  const reopenedToggle = reopenedGuestSection.locator("[data-squad-temporary-toggle]");
+  if ((await reopenedToggle.getAttribute("aria-expanded")) !== "true") await reopenedToggle.click();
+  await reopenedGuestSection.locator(".squad-player-row", { hasText: playerName }).click();
+  const guestModal = page.locator(".squad-profile-modal:has(#playerProfileEditForm)").first();
+  await guestModal.locator('select[name="status"]').selectOption("available");
+  await expect.poll(() => page.evaluate(
+    ({ key, id }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      return state.players?.find((player) => player.id === id)?.status || "";
+    },
+    { key: playerProfilesKey, id: "qa-inactive-training-guest" }
+  )).toBe("available");
+  await expect.poll(() => page.evaluate((id) => {
+    const state = window.footballSciencePlayerProfiles?.getState?.();
+    const player = state?.players?.find((candidate) => candidate.id === id);
+    return player ? { status: player.status, countsInSquad: player.countsInSquad } : null;
+  }, "qa-inactive-training-guest")).toEqual({ status: "available", countsInSquad: false });
+  await expect.poll(() => page.evaluate(
+    ({ key, id }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      const player = state.players?.find((candidate) => candidate.id === id);
+      return player ? { status: player.status, countsInSquad: player.countsInSquad } : null;
+    },
+    { key: medicalKey, id: "qa-inactive-training-guest" }
+  )).toEqual({ status: "available", countsInSquad: false });
+  await guestModal.locator("[data-player-profile-modal-close]").click();
+
+  await openWorkspace(page, "medical-team");
+  await expect.poll(() => page.evaluate((id) => {
+    const state = window.footballSciencePlayerProfiles?.getState?.();
+    const player = state?.players?.find((candidate) => candidate.id === id);
+    return player ? { status: player.status, countsInSquad: player.countsInSquad } : null;
+  }, "qa-inactive-training-guest")).toEqual({ status: "available", countsInSquad: false });
+
+  await openWorkspace(page, "session-planner");
+  sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
+  await expect.poll(() => page.evaluate(async (id) => {
+    const runtime = await import("/src/modules/session-planner/session-planner-runtime-accessors.mjs");
+    const state = runtime.getSessionPlannerPlayerBoardProfileState();
+    const player = state?.players?.find((candidate) => candidate.id === id);
+    return player ? { status: player.status, countsInSquad: player.countsInSquad } : null;
+  }, "qa-inactive-training-guest")).toEqual({ status: "available", countsInSquad: false });
+  await expect.poll(() => page.evaluate(async ({ date, id }) => {
+    const runtime = await import("/src/modules/session-planner/session-planner-runtime-accessors.mjs");
+    const item = runtime.getSessionPlannerAvailabilityItems(date).find((candidate) => candidate.player?.id === id);
+    return item ? { participation: item.participation, planningOnly: item.planningOnly } : null;
+  }, { date: dateValue, id: "qa-inactive-training-guest" })).toEqual({ participation: 100, planningOnly: true });
+  await sessionPlannerWorkspace.locator("[data-session-open-player-board]").click();
+  await expect(
+    page.locator(`.session-player-board-token[aria-label^="${playerName}, 100% available"]`)
+  ).toBeVisible();
 });
 
 test("Squad Room shows legacy Medical training guests outside their active dates", async ({ page }) => {
@@ -6514,7 +6619,7 @@ test("Squad Room shows legacy Medical training guests outside their active dates
   await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
   await expect(guestRow).toBeVisible();
   await expect(guestRow).toContainText("Academy Training Group");
-  await expect(guestRow).toContainText("2026-05-01 to 2026-05-02");
+  await expect(guestRow).not.toContainText("2026-05-01 to 2026-05-02");
   await page.locator("[data-player-profile-roster-filter]").selectOption("squad");
   await expect(guestRow).toBeVisible();
 
@@ -6527,11 +6632,11 @@ test("Squad Room shows legacy Medical training guests outside their active dates
   await guestRow.click();
   const modal = page.locator(".squad-profile-modal:has(#playerProfileEditForm)").first();
   await expect(modal).toBeVisible();
-  await expect(modal.locator('input[name="temporaryFrom"]')).toHaveValue("2026-05-01");
-  await expect(modal.locator('input[name="temporaryTo"]')).toHaveValue("2026-05-02");
+  await expect(modal.locator('input[name="temporaryFrom"]')).toHaveCount(0);
+  await expect(modal.locator('input[name="temporaryTo"]')).toHaveCount(0);
 });
 
-test("Medical recommends date-bound Squad training guests and includes them in Presentation Mode", async ({ page }) => {
+test("Medical recommends status-activated Squad training guests and includes them in Presentation Mode", async ({ page }) => {
   const today = new Date();
   const dateValue = [
     today.getFullYear(),
@@ -6549,8 +6654,8 @@ test("Medical recommends date-bound Squad training guests and includes them in P
     rosterType: "guest",
     countsInSquad: false,
     temporaryGroup: "First Team Training",
-    temporaryFrom: dateValue,
-    temporaryTo: dateValue,
+    temporaryFrom: "2026-01-01",
+    temporaryTo: "2026-01-02",
     rosterOrder: 1,
   };
 
@@ -6811,9 +6916,9 @@ test("Squad profile roster type moves players between squad and training guests"
 
   await rosterTypeSelect.selectOption("academy");
   await expect(modal.locator('input[name="temporaryGroup"]')).toBeVisible();
+  await expect(modal.locator('input[name="temporaryFrom"]')).toHaveCount(0);
+  await expect(modal.locator('input[name="temporaryTo"]')).toHaveCount(0);
   await modal.locator('input[name="temporaryGroup"]').fill("QA academy call-up");
-  await modal.locator('input[name="temporaryFrom"]').fill("2026-05-01");
-  await modal.locator('input[name="temporaryTo"]').fill("2026-05-14");
   await expect
     .poll(() =>
       page.evaluate(
@@ -6837,8 +6942,8 @@ test("Squad profile roster type moves players between squad and training guests"
       countsInSquad: false,
       rosterType: "academy",
       temporaryGroup: "QA academy call-up",
-      temporaryFrom: "2026-05-01",
-      temporaryTo: "2026-05-14",
+      temporaryFrom: "",
+      temporaryTo: "",
     });
 
   await modal.locator('select[name="rosterType"]').selectOption("squad");

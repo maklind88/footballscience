@@ -147,6 +147,29 @@ export function createMedicalRuntimeHelpers(deps = {}) {
     );
   }
 
+  function getMedicalCalendarDateValue(value = "") {
+    const rawValue = String(value || "").trim();
+    if (!rawValue) {
+      return "";
+    }
+    if (isDateValue(rawValue)) {
+      return rawValue;
+    }
+    const timestamp = Date.parse(rawValue);
+    if (Number.isFinite(timestamp)) {
+      try {
+        const localDateValue = formatDateValue(new Date(timestamp));
+        if (isDateValue(localDateValue)) {
+          return localDateValue;
+        }
+      } catch {
+        // Fall through to the stored calendar date when formatting is unavailable.
+      }
+    }
+    const storedDateValue = rawValue.slice(0, 10);
+    return isDateValue(storedDateValue) ? storedDateValue : "";
+  }
+
   function getProfileAvailabilityStatusChangeEvents(profile = {}) {
     const profileState = getPlayerProfilesState();
     const profileId = String(profile?.id ?? "").trim();
@@ -159,7 +182,7 @@ export function createMedicalRuntimeHelpers(deps = {}) {
         (Array.isArray(entry.changes) ? entry.changes : [])
           .filter((change) => String(change?.field ?? "").trim().toLowerCase() === "availability status")
           .map((change) => ({
-            dateValue: String(entry.createdAt || "").slice(0, 10),
+            dateValue: getMedicalCalendarDateValue(entry.createdAt),
             timestamp: Date.parse(entry.createdAt || ""),
             from: normalizeMedicalPlayerAvailabilityStatus(change.from, ""),
             to: normalizeMedicalPlayerAvailabilityStatus(change.to, ""),
@@ -193,7 +216,7 @@ export function createMedicalRuntimeHelpers(deps = {}) {
       return normalizeMedicalPlayerAvailabilityStatus(status, currentStatus || "available");
     }
     const statusUpdatedDate = [profile?.updatedAt, profile?.updated_at, player.updatedAt, player.updated_at]
-      .map((value) => String(value || "").slice(0, 10))
+      .map(getMedicalCalendarDateValue)
       .find(isDateValue);
     if (
       statusUpdatedDate &&

@@ -33,7 +33,6 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     isPlayerRemovedFromSquad = () => false,
     isScheduleSessionEvent = () => false,
     isTemporaryPlayerProfile = () => false,
-    isTemporaryPlayerProfileActiveOnDate = () => true,
     medicalActualParticipationFallback = "not-logged",
     medicalClearanceRoles = [],
     medicalInjuryPlanDraftsByPlayerId = new Map(),
@@ -81,8 +80,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
 
   function isMedicalPlayerVisibleForDate(player = {}, dateValue = getSelectedDate()) {
     if (!isTemporaryPlayerProfile(player)) return true;
-    const hasTrainingWindow = Boolean(String(player.temporaryFrom || "").trim() || String(player.temporaryTo || "").trim());
-    return hasTrainingWindow && isTemporaryPlayerProfileActiveOnDate(player, dateValue);
+    return !isPlayerBlockedBySquadAvailability(player, dateValue);
   }
 
   function getActiveMedicalPlayers() {

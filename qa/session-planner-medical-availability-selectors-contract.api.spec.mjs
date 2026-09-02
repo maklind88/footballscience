@@ -24,8 +24,7 @@ test("Session Planner medical availability selectors preserve medical, temporary
     getMedicalRecordStatus: (record) => ({ key: record.status, label: record.status }),
     getSessionPlannerPlayerBoardProfileState: () => ({ players: profiles }),
     getSessionPlannerPlayerBoardSyncedPlayer: (player) => player,
-    isMedicalPlayerBlockedBySquadAvailability: (player) => player.id === "blocked",
-    isPlayerProfileTemporaryActiveOnDate: (profile) => profile.active !== false,
+    isMedicalPlayerBlockedBySquadAvailability: (player) => ["blocked", "tmp-3"].includes(player.id),
     isTemporaryPlayerProfile: (player) => player.temporary === true,
   });
 

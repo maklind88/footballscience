@@ -44,7 +44,6 @@ export function createMedicalRuntimeServiceComposition(deps = {}) {
     isMedicalPlayerRemovedFromSquad: deps.isMedicalPlayerRemovedFromSquad,
     isScheduleSessionEvent: deps.isScheduleSessionEvent,
     isTemporaryPlayerProfile: deps.isTemporaryPlayerProfile,
-    isTemporaryPlayerProfileActiveOnDate: deps.isPlayerProfileTemporaryActiveOnDate,
     logEvent: deps.logEvent,
     medicalActualParticipationFallback: deps.medicalActualParticipationFallback,
     medicalClearanceRoles: deps.medicalClearanceRoles,

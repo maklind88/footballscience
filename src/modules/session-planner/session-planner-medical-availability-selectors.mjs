@@ -9,7 +9,6 @@ export function createSessionPlannerMedicalAvailabilitySelectors({
   getSessionPlannerPlayerBoardProfileState = () => ({}),
   getSessionPlannerPlayerBoardSyncedPlayer = (player) => player,
   isMedicalPlayerBlockedBySquadAvailability = () => false,
-  isPlayerProfileTemporaryActiveOnDate = () => true,
   isTemporaryPlayerProfile = () => false,
 } = {}) {
   function getTemporaryProfileAvailabilityItems(dateValue = getSelectedDate(), existingItems = []) {
@@ -27,7 +26,6 @@ export function createSessionPlannerMedicalAvailabilitySelectors({
     );
     return profiles
       .filter((profile) => isTemporaryPlayerProfile(profile))
-      .filter((profile) => isPlayerProfileTemporaryActiveOnDate(profile, dateValue))
       .filter((profile) => !existingIds.has(String(profile.id ?? "").trim()))
       .map((profile) => buildMedicalPlayerFromPlayerProfile(profile))
       .filter((player) => player && player.id && player.name)
@@ -52,7 +50,6 @@ export function createSessionPlannerMedicalAvailabilitySelectors({
         player: getSessionPlannerPlayerBoardSyncedPlayer(item.player),
       }))
       .filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player, dateValue))
-      .filter((item) => !isTemporaryPlayerProfile(item.player) || isPlayerProfileTemporaryActiveOnDate(item.player, dateValue))
       .map((item) =>
         !isTemporaryPlayerProfile(item.player) || item.record
           ? item

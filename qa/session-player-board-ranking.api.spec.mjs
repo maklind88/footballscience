@@ -22,7 +22,8 @@ test("Session Planner Player Board includes active temporary Squad profiles", ()
   expect(availabilitySource).toContain("function getTemporaryProfileAvailabilityItems");
   expect(availabilitySource).toContain("getTemporaryProfileAvailabilityItems,");
   expect(availabilitySource).toContain(".filter((profile) => isTemporaryPlayerProfile(profile))");
-  expect(availabilitySource).toContain(".filter((profile) => isPlayerProfileTemporaryActiveOnDate(profile, dateValue))");
+  expect(availabilitySource).not.toContain("isPlayerProfileTemporaryActiveOnDate");
+  expect(availabilitySource).toContain(".filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player, dateValue))");
   expect(availabilitySource).toContain(".map((profile) => buildMedicalPlayerFromPlayerProfile(profile))");
   expect(availabilitySource).toContain("planningOnly: true");
 });

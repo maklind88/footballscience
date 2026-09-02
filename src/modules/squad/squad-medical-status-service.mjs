@@ -148,7 +148,6 @@ export function createSquadMedicalStatusService(deps = {}) {
           availabilityStartDateValue: String(
             options.availabilityStartDateValue ||
             playerProfile.temporaryFrom ||
-            playerProfile.createdAt ||
             ""
           ).slice(0, 10),
           medicalActualParticipationFallback,

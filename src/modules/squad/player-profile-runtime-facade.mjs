@@ -29,7 +29,6 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
   const getMedicalState = () => call("getMedicalState") || null;
   const setMedicalState = (nextState) => call("setMedicalState", nextState);
   const getNow = () => new Date().toISOString();
-
   function getPlayerProfileFormSignature(form) {
     try {
       return form ? JSON.stringify(call("getPlayerProfileFormValues", form)) : "";
@@ -175,8 +174,6 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     getMedicalRecordStatus: deps.getMedicalRecordStatus,
     getMedicalRtpPhaseOption: deps.getMedicalRtpPhaseOption,
     getMedicalState,
-    getPlayerProfileById: (playerId) =>
-      (getProfilesState()?.players || []).find((player) => player.id === playerId) || null,
     getPlayerAvailabilityStatusForDate: (playerId, dateValue) =>
       deps.getMedicalPlayerAvailabilityStatusForDate?.({ id: playerId }, dateValue) || "",
     getTeamTrainingDateValues: deps.getTeamTrainingDateValues,

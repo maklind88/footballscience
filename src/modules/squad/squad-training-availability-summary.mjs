@@ -99,9 +99,6 @@ function isInjuryAbsenceStatus(value = "") {
 
 function getUnloggedTrainingParticipation(value = "") {
   const status = String(value || "").trim().toLowerCase();
-  if (status === "available") {
-    return 100;
-  }
   if (status === "managed") {
     return 75;
   }

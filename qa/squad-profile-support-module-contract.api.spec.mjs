@@ -172,7 +172,7 @@ test("Squad training availability summary averages against team training opportu
   expect(summary.lastFive).toEqual({ average: 71, count: 5 });
 });
 
-test("Squad training availability summary does not count un-recommended trainings", () => {
+test("Squad training availability summary ignores unrecommended trainings but counts explicit zero recommendations", () => {
   const summary = getSquadTrainingAvailabilitySummary({
     playerId: "p1",
     referenceDateValue: "2026-06-10",
@@ -204,33 +204,27 @@ test("Squad training availability summary does not count un-recommended training
   expect(summary.lastFive).toEqual({ average: 50, count: 3 });
 });
 
-test("Squad training availability summary does not infer attendance from un-recommended dates", () => {
+test("Squad training availability summary starts counting from first recommendation or medical evidence", () => {
   const summary = getSquadTrainingAvailabilitySummary({
     playerId: "p1",
     referenceDateValue: "2026-06-10",
-    records: [
-      { playerId: "p1", date: "2026-06-09", participation: 100, updatedAt: "2026-06-09T14:00:00Z" },
-      { playerId: "p1", date: "2026-06-10", participation: 50, updatedAt: "2026-06-10T14:00:00Z" },
-    ],
+    records: [{ playerId: "p1", date: "2026-06-10", participation: 75, updatedAt: "2026-06-10T14:00:00Z" }],
+    getPlayerAvailabilityStatusForDate: () => "available",
     getTeamTrainingDateValues: () => [
+      "2026-05-20",
+      "2026-05-22",
+      "2026-05-28",
       "2026-06-01",
-      "2026-06-02",
       "2026-06-03",
-      "2026-06-04",
-      "2026-06-05",
-      "2026-06-06",
-      "2026-06-07",
       "2026-06-08",
-      "2026-06-09",
       "2026-06-10",
     ],
   });
 
   expect(summary.hasData).toBe(true);
-  expect(summary.loggedCount).toBe(2);
-  expect(summary.month).toEqual({ average: 75, count: 2 });
-  expect(summary.season).toEqual({ average: 75, count: 2 });
-  expect(summary.lastTwoWeeks).toEqual({ average: 75, count: 2 });
+  expect(summary.loggedCount).toBe(1);
+  expect(summary.season).toEqual({ average: 75, count: 1 });
+  expect(summary.week).toEqual({ average: 75, count: 1 });
 });
 
 test("Squad training availability summary uses actual participation when logged", () => {
@@ -276,6 +270,28 @@ test("Squad training availability summary counts medical plans and injured statu
   expect(summary.season).toEqual({ average: 33, count: 3 });
   expect(summary.lastTwoWeeks).toEqual({ average: 33, count: 3 });
   expect(summary.lastFive).toEqual({ average: 33, count: 3 });
+});
+
+test("Squad training availability summary counts unavailable medical status as absence when no recommendations exist", () => {
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "p1",
+    referenceDateValue: "2026-06-15",
+    records: [],
+    getPlayerAvailabilityStatusForDate: (playerId, dateValue) =>
+      playerId === "p1" && dateValue >= "2026-06-10" ? "unavailable" : "available",
+    getTeamTrainingDateValues: () => ["2026-06-10", "2026-06-12", "2026-06-15"],
+  });
+
+  expect(summary).toEqual({
+    hasData: true,
+    latestDate: "2026-06-15",
+    loggedCount: 3,
+    week: { average: 0, count: 3 },
+    month: { average: 0, count: 3 },
+    season: { average: 0, count: 3 },
+    lastTwoWeeks: { average: 0, count: 3 },
+    lastFive: { average: 0, count: 3 },
+  });
 });
 
 test("Squad training availability summary uses the last fourteen calendar days for recent availability", () => {

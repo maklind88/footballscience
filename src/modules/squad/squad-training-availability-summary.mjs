@@ -84,8 +84,7 @@ function buildWindow(items, predicate) {
 }
 
 const excusedClubAbsenceStatusKeys = new Set(["national-team"]);
-const injuryAbsenceStatusKeys = new Set(["injured", "rehab"]);
-const unavailableClubStatusKeys = new Set(["unavailable", "vacation", "personal", "suspended", "loan"]);
+const injuryAbsenceStatusKeys = new Set(["injured", "rehab", "unavailable"]);
 
 function isExcusedClubAbsenceStatus(value = "") {
   const status = String(value || "").trim().toLowerCase();
@@ -95,17 +94,6 @@ function isExcusedClubAbsenceStatus(value = "") {
 function isInjuryAbsenceStatus(value = "") {
   const status = String(value || "").trim().toLowerCase();
   return injuryAbsenceStatusKeys.has(status);
-}
-
-function getUnloggedTrainingParticipation(value = "") {
-  const status = String(value || "").trim().toLowerCase();
-  if (status === "managed") {
-    return 75;
-  }
-  if (injuryAbsenceStatusKeys.has(status) || unavailableClubStatusKeys.has(status)) {
-    return 0;
-  }
-  return null;
 }
 
 function normalizeDateValue(value = "") {
@@ -187,7 +175,6 @@ export function getSquadTrainingAvailabilitySummary({
   playerId = "",
   records = [],
   referenceDateValue = defaultFormatDateValue(new Date()),
-  availabilityStartDateValue = "",
   medicalActualParticipationFallback = "not-logged",
   getActivityContext = () => null,
   getActiveMedicalInjuryPlan = () => null,
@@ -197,7 +184,6 @@ export function getSquadTrainingAvailabilitySummary({
 } = {}) {
   const cleanPlayerId = String(playerId || "").trim();
   const referenceDate = parseDateValue(referenceDateValue) || parseDateValue(defaultFormatDateValue(new Date()));
-  const availabilityStartDate = parseDateValue(normalizeDateValue(availabilityStartDateValue));
   if (!cleanPlayerId || !referenceDate) {
     return {
       hasData: false,
@@ -233,10 +219,6 @@ export function getSquadTrainingAvailabilitySummary({
   const referenceYear = referenceDate.getUTCFullYear();
   const getAgeDays = (recordDate) => Math.floor((referenceDate - recordDate) / dayMs);
   const playerRecordByDate = getLatestRecordMapByDate(completedRecords);
-  const earliestRecordDate = completedRecords[0]?.dateValue || null;
-  const effectiveAvailabilityStartDate = availabilityStartDate
-    ? new Date(Math.min(availabilityStartDate.getTime(), earliestRecordDate?.getTime() || availabilityStartDate.getTime()))
-    : null;
   const trainingDateValues = Array.isArray(summaryContext?.trainingDateValues)
     ? summaryContext.trainingDateValues
     : getTeamTrainingDateValuesForSummary({
@@ -244,58 +226,62 @@ export function getSquadTrainingAvailabilitySummary({
         getActivityContext,
         getTeamTrainingDateValues,
       });
+  const trainingDateValuesSorted = [...trainingDateValues].sort((first, second) => first.localeCompare(second));
+  const getTrainingOpportunityEvidence = (date) => {
+    const playerRecord = playerRecordByDate.get(date);
+    const status = getPlayerAvailabilityStatusForDate(cleanPlayerId, date, playerRecord);
+    if (isExcusedClubAbsenceStatus(status)) {
+      return "excused";
+    }
+
+    if (playerRecord) {
+      if (playerRecord.actualParticipationValue === null) {
+        return null;
+      }
+      return playerRecord.actualParticipationValue;
+    }
+    const activePlan = getActiveMedicalInjuryPlan(cleanPlayerId, date);
+    const planParticipation = normalizeParticipation(activePlan?.participation);
+    if (planParticipation !== null) {
+      return planParticipation;
+    }
+    if (isInjuryAbsenceStatus(status)) {
+      return 0;
+    }
+    return null;
+  };
+
+  const firstEvidenceDateValue = (() => {
+    for (const date of trainingDateValuesSorted) {
+      const dateValue = parseDateValue(date);
+      if (!dateValue || dateValue > referenceDate) {
+        continue;
+      }
+      const evidence = getTrainingOpportunityEvidence(date);
+      if (Number.isFinite(evidence)) {
+        return dateValue;
+      }
+    }
+    return null;
+  })();
+
   const trainingOpportunities = trainingDateValues
     .map((date) => {
       const dateValue = parseDateValue(date);
       if (!dateValue || dateValue > referenceDate) {
         return null;
       }
-      const playerRecord = playerRecordByDate.get(date);
-      if (!playerRecord) {
-        if (effectiveAvailabilityStartDate && dateValue < effectiveAvailabilityStartDate) {
-          return null;
-        }
-        const status = getPlayerAvailabilityStatusForDate(cleanPlayerId, date, null);
-        if (isExcusedClubAbsenceStatus(status)) {
-          return null;
-        }
-        const activePlan = getActiveMedicalInjuryPlan(cleanPlayerId, date);
-        const planParticipation = normalizeParticipation(activePlan?.participation);
-        if (planParticipation !== null) {
-          return {
-            date,
-            dateValue,
-            participation: planParticipation,
-          };
-        }
-        if (isInjuryAbsenceStatus(status)) {
-          return {
-            date,
-            dateValue,
-            participation: 0,
-          };
-        }
-        const unloggedParticipation = getUnloggedTrainingParticipation(status);
-        if (unloggedParticipation !== null) {
-          return {
-            date,
-            dateValue,
-            participation: unloggedParticipation,
-          };
-        }
+      if (firstEvidenceDateValue && dateValue < firstEvidenceDateValue) {
         return null;
       }
-      const status = getPlayerAvailabilityStatusForDate(cleanPlayerId, date, playerRecord);
-      if (isExcusedClubAbsenceStatus(status)) {
-        return null;
-      }
-      if (playerRecord.actualParticipationValue === null) {
+      const evidence = getTrainingOpportunityEvidence(date);
+      if (evidence === "excused" || evidence === null) {
         return null;
       }
       return {
         date,
         dateValue,
-        participation: playerRecord.actualParticipationValue,
+        participation: evidence,
       };
     })
     .filter(Boolean)

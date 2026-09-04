@@ -18,6 +18,11 @@ import {
   presentationLineupFormationOptions,
 } from "./presentation-lineup-contract.mjs";
 import { getSessionPlannerMedicalBlockRule } from "../session-planner/session-planner-medical-block-rules.mjs";
+import {
+  canPickPresentationMediaHandle,
+  createPresentationLocalMediaStore,
+  pickPresentationMediaHandle,
+} from "./presentation-local-media-store.mjs";
 
 export const dashboardPresentationStorageKey = "football-dashboard-presentation-mode-v1";
 
@@ -45,6 +50,29 @@ const textBoxKinds = new Set(["text", "symbol", "image", "video"]);
 const resizeAxes = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
 const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "match-squad", "starting-xi", "set-piece", "leaderboard", "blank"]);
 const localMediaKinds = new Set(["image", "video"]);
+const infoSlideMergeFields = [
+  "layout",
+  "title",
+  "body",
+  "fontSize",
+  "accentColor",
+  "textColor",
+  "matchSquadPlayerIds",
+  "formation",
+  "lineup",
+  "setPiecePlayId",
+  "setPieceVariantId",
+  "mediaKind",
+  "mediaId",
+  "mediaLocal",
+  "mediaMimeType",
+  "mediaName",
+  "mediaSize",
+  "mediaWidth",
+  "mediaHeight",
+  "mediaOffsetX",
+  "mediaOffsetY",
+];
 const lineupFormationOptions = presentationLineupFormationOptions;
 
 function noop() {}
@@ -183,6 +211,25 @@ function normalizeInfoMediaOffset(value = "", fallback = 0) {
   const numericValue = Number(value);
   const safeFallback = Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
   return Number(Math.min(40, Math.max(-40, Number.isFinite(numericValue) ? numericValue : safeFallback)).toFixed(2));
+}
+
+function normalizeInfoSlideFieldUpdatedAt(value = {}) {
+  const fields = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return Object.fromEntries(
+    Object.entries(fields)
+      .filter(([field, timestamp]) => infoSlideMergeFields.includes(field) && getPresentationTimestampMs(timestamp))
+      .map(([field, timestamp]) => [field, String(timestamp).trim()])
+  );
+}
+
+function markInfoSlideFieldsUpdatedAt(slide = {}, fields = [], updatedAt = new Date().toISOString()) {
+  return {
+    ...slide,
+    fieldUpdatedAt: normalizeInfoSlideFieldUpdatedAt({
+      ...(slide.fieldUpdatedAt || {}),
+      ...Object.fromEntries(fields.map((field) => [field, updatedAt])),
+    }),
+  };
 }
 
 function getSlideLabel(title = "", fallback = "Slide") {
@@ -510,6 +557,7 @@ function normalizeInfoSlide(slide = {}, index = 0, dateValue = "", meetingType =
     mediaHeight: mediaKind === "image" ? normalizeInfoMediaSize(slide.mediaHeight, 100) : 100,
     mediaOffsetX: mediaKind === "image" ? normalizeInfoMediaOffset(slide.mediaOffsetX, 0) : 0,
     mediaOffsetY: mediaKind === "image" ? normalizeInfoMediaOffset(slide.mediaOffsetY, 0) : 0,
+    fieldUpdatedAt: normalizeInfoSlideFieldUpdatedAt(slide.fieldUpdatedAt),
   };
 }
 
@@ -646,6 +694,36 @@ function mergeTextOverrideFieldsPreservingNewest(localDeck = {}, syncedDeck = {}
   };
 }
 
+function getInfoSlideFieldUpdatedAtMs(slide = {}, deck = {}, field = "") {
+  return getPresentationTimestampMs(slide.fieldUpdatedAt?.[field] || deck.updatedAt);
+}
+
+function mergeInfoSlideFieldsPreservingNewest(localDeck = {}, syncedDeck = {}, baseDeck = {}, dateValue = "", meetingType = "team") {
+  const localById = new Map((localDeck.infoSlides || []).map((slide) => [slide.id, slide]));
+  const syncedById = new Map((syncedDeck.infoSlides || []).map((slide) => [slide.id, slide]));
+
+  return (baseDeck.infoSlides || []).map((baseSlide, index) => {
+    const localSlide = localById.get(baseSlide.id);
+    const syncedSlide = syncedById.get(baseSlide.id);
+    if (!localSlide || !syncedSlide) return baseSlide;
+    const merged = { ...baseSlide, fieldUpdatedAt: {} };
+    infoSlideMergeFields.forEach((field) => {
+      const localHasTimestamp = Boolean(getPresentationTimestampMs(localSlide.fieldUpdatedAt?.[field]));
+      const syncedHasTimestamp = Boolean(getPresentationTimestampMs(syncedSlide.fieldUpdatedAt?.[field]));
+      const localUpdatedAt = getInfoSlideFieldUpdatedAtMs(localSlide, localDeck, field);
+      const syncedUpdatedAt = getInfoSlideFieldUpdatedAtMs(syncedSlide, syncedDeck, field);
+      const useLocal =
+        (localHasTimestamp && !syncedHasTimestamp)
+        || (localHasTimestamp === syncedHasTimestamp && localUpdatedAt >= syncedUpdatedAt);
+      const source = useLocal ? localSlide : syncedSlide;
+      merged[field] = clonePlain(source[field]);
+      const timestamp = String(source.fieldUpdatedAt?.[field] || "").trim();
+      if (timestamp) merged.fieldUpdatedAt[field] = timestamp;
+    });
+    return normalizeInfoSlide(merged, index, dateValue, meetingType);
+  });
+}
+
 function mergePresentationDeckBucket(localDecks = {}, syncedDecks = {}, meetingType = "team") {
   const dateValues = new Set([...Object.keys(localDecks || {}), ...Object.keys(syncedDecks || {})]);
   const decks = {};
@@ -671,11 +749,13 @@ function mergePresentationDeckBucket(localDecks = {}, syncedDecks = {}, meetingT
     const syncedUpdatedAt = getPresentationTimestampMs(syncedDeck.updatedAt);
     const baseDeck = syncedUpdatedAt > localUpdatedAt ? syncedDeck : localDeck;
     const mergedOverrides = mergeTextOverrideFieldsPreservingNewest(localDeck, syncedDeck);
+    const mergedInfoSlides = mergeInfoSlideFieldsPreservingNewest(localDeck, syncedDeck, baseDeck, dateValue, meetingType);
 
     decks[dateValue] = normalizeDeck(
       {
         ...baseDeck,
         ...mergedOverrides,
+        infoSlides: mergedInfoSlides,
       },
       dateValue,
       meetingType
@@ -855,6 +935,7 @@ export function createPresentationModeController(dependencies = {}) {
     escapeHtml = defaultEscapeHtml,
     onDeckChange = noop,
   } = dependencies;
+  const localMediaStore = dependencies.localMediaStore || createPresentationLocalMediaStore({ win });
 
   const state = {
     activeShapeTarget: null,
@@ -889,6 +970,7 @@ export function createPresentationModeController(dependencies = {}) {
     undoStack: [],
   };
   const localMediaAttachments = new Map();
+  const localMediaHydrationIds = new Set();
   let root = null;
   let stageResizeObserver = null;
   let stageMetricsFrame = 0;
@@ -1527,6 +1609,50 @@ export function createPresentationModeController(dependencies = {}) {
     };
   }
 
+  function getDeckLocalMediaReferences(deck = {}) {
+    const references = [];
+    (deck.infoSlides || []).forEach((slide) => {
+      if (localMediaKinds.has(slide.mediaKind) && slide.mediaId) {
+        references.push({ id: slide.mediaId, kind: slide.mediaKind });
+      }
+    });
+    Object.values(deck.textBoxes || {}).forEach((boxes) => {
+      (boxes || []).forEach((box) => {
+        if (localMediaKinds.has(box.kind) && box.mediaId) {
+          references.push({ id: box.mediaId, kind: box.kind });
+        }
+      });
+    });
+    return references;
+  }
+
+  function scheduleLocalMediaHydration(deck = {}) {
+    getDeckLocalMediaReferences(deck).forEach(({ id, kind }) => {
+      if (localMediaAttachments.has(id) || localMediaHydrationIds.has(id)) return;
+      localMediaHydrationIds.add(id);
+      Promise.resolve(localMediaStore.resolve(id))
+        .then((record) => {
+          if (record?.status === "ready" && record.file) {
+            cacheLocalMediaAttachment(id, record.file, kind, record);
+            return;
+          }
+          localMediaAttachments.set(id, {
+            kind,
+            name: String(record?.name || "").trim(),
+            status: String(record?.status || "missing"),
+            url: "",
+          });
+        })
+        .catch(() => {
+          localMediaAttachments.set(id, { kind, status: "unavailable", url: "" });
+        })
+        .finally(() => {
+          localMediaHydrationIds.delete(id);
+          if (state.isOpen) render();
+        });
+    });
+  }
+
   function hydrateTextBoxesForRender(textBoxes = []) {
     return (Array.isArray(textBoxes) ? textBoxes : []).map((box) => {
       if (!localMediaKinds.has(String(box.kind || "").trim())) {
@@ -1534,13 +1660,19 @@ export function createPresentationModeController(dependencies = {}) {
       }
       const attachment = localMediaAttachments.get(String(box.mediaId || "").trim());
       if (!attachment?.url) {
-        return box;
+        return {
+          ...box,
+          mediaStatus: localMediaHydrationIds.has(String(box.mediaId || "").trim())
+            ? "loading"
+            : attachment?.status || "missing",
+        };
       }
       return {
         ...box,
         mediaSrc: attachment.url,
         mediaName: box.mediaName || attachment.name,
         mediaMimeType: box.mediaMimeType || attachment.mimeType,
+        mediaStatus: "ready",
       };
     });
   }
@@ -1551,13 +1683,19 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const attachment = localMediaAttachments.get(String(infoSlide.mediaId || "").trim());
     if (!attachment?.url) {
-      return infoSlide;
+      return {
+        ...infoSlide,
+        mediaStatus: localMediaHydrationIds.has(String(infoSlide.mediaId || "").trim())
+          ? "loading"
+          : attachment?.status || "missing",
+      };
     }
     return {
       ...infoSlide,
       mediaSrc: attachment.url,
       mediaName: infoSlide.mediaName || attachment.name,
       mediaMimeType: infoSlide.mediaMimeType || attachment.mimeType,
+      mediaStatus: "ready",
     };
   }
 
@@ -1691,6 +1829,7 @@ export function createPresentationModeController(dependencies = {}) {
     const meetingConfig = getPresentationMeetingConfig(state.meetingType);
     const session = getSessionForDate(dateValue) || { blocks: [] };
     const deck = getDeckForDate(dateValue);
+    scheduleLocalMediaHydration(deck);
     const events = getScheduleEventsForDate(dateValue);
     const event = getScheduleMainEvent(events) || null;
     const periodization = getPeriodizationDay(dateValue) || {};
@@ -2276,12 +2415,13 @@ export function createPresentationModeController(dependencies = {}) {
     if (!allowedFields.has(field) || !slideId) {
       return;
     }
+    const updatedAt = new Date().toISOString();
     writeDeckForDate(state.dateValue, (deck) => ({
       ...deck,
       infoSlides: deck.infoSlides.map((slide) =>
         slide.id === slideId
           ? normalizeInfoSlide(
-              {
+              markInfoSlideFieldsUpdatedAt({
                 ...slide,
                 [field]:
                   field === "fontSize"
@@ -2289,9 +2429,10 @@ export function createPresentationModeController(dependencies = {}) {
                     : field === "accentColor" || field === "textColor"
                       ? normalizeHexColor(value, slide[field])
                       : String(value ?? ""),
-              },
+              }, [field], updatedAt),
               0,
-              state.dateValue
+              state.dateValue,
+              state.meetingType
             )
           : slide
       ),
@@ -2320,18 +2461,19 @@ export function createPresentationModeController(dependencies = {}) {
     if (!safeSlideId) {
       return;
     }
+    const updatedAt = new Date().toISOString();
     writeDeckForDate(state.dateValue, (deck) => ({
       ...deck,
       infoSlides: deck.infoSlides.map((slide) =>
         slide.id === safeSlideId && slide.mediaKind === "image"
           ? normalizeInfoSlide(
-              {
+              markInfoSlideFieldsUpdatedAt({
                 ...slide,
                 mediaWidth: normalizeInfoMediaSize(layout.mediaWidth, slide.mediaWidth),
                 mediaHeight: normalizeInfoMediaSize(layout.mediaHeight, slide.mediaHeight),
                 mediaOffsetX: normalizeInfoMediaOffset(layout.mediaOffsetX, slide.mediaOffsetX),
                 mediaOffsetY: normalizeInfoMediaOffset(layout.mediaOffsetY, slide.mediaOffsetY),
-              },
+              }, ["mediaWidth", "mediaHeight", "mediaOffsetX", "mediaOffsetY"], updatedAt),
               0,
               state.dateValue,
               state.meetingType
@@ -2803,7 +2945,13 @@ export function createPresentationModeController(dependencies = {}) {
     return String(file?.name || (safeKind === "video" ? "Local video" : "Local image")).trim();
   }
 
-  function cacheLocalMediaAttachment(mediaId = "", file = null, safeKind = "image") {
+  function createLocalMediaId(kind = "image", scope = "media") {
+    const safeKind = kind === "video" ? "video" : "image";
+    const uuid = win?.crypto?.randomUUID?.();
+    return `${safeKind}-${scope}-${uuid || Date.now()}`;
+  }
+
+  function cacheLocalMediaAttachment(mediaId = "", file = null, safeKind = "image", metadata = {}) {
     const id = String(mediaId || "").trim();
     const urlApi = win?.URL || globalThis.URL;
     if (!id || !file || typeof urlApi?.createObjectURL !== "function") {
@@ -2820,22 +2968,33 @@ export function createPresentationModeController(dependencies = {}) {
     const url = urlApi.createObjectURL(file);
     localMediaAttachments.set(id, {
       kind: safeKind,
-      mimeType: String(file.type || "").trim(),
-      name: getLocalMediaFileLabel(file, safeKind),
-      size: Math.max(0, Number(file.size) || 0),
+      mimeType: String(metadata.mimeType || file.type || "").trim(),
+      name: String(metadata.name || getLocalMediaFileLabel(file, safeKind)).trim(),
+      size: Math.max(0, Number(metadata.size ?? file.size) || 0),
+      status: "ready",
       url,
     });
     return url;
   }
 
-  function addLocalMediaTextBox(kind = "image", file = null) {
+  function persistLocalMediaAttachment(mediaId = "", kind = "image", file = null, handle = null) {
+    Promise.resolve(localMediaStore.save({ id: mediaId, kind, file, handle })).catch(() => {
+      const attachment = localMediaAttachments.get(mediaId);
+      if (attachment) {
+        localMediaAttachments.set(mediaId, { ...attachment, persistenceStatus: "failed" });
+      }
+    });
+  }
+
+  function addLocalMediaTextBox(kind = "image", file = null, handle = null) {
     const safeKind = kind === "video" ? "video" : "image";
     if (!file) {
       return;
     }
     const mediaName = getLocalMediaFileLabel(file, safeKind);
-    const mediaId = `${safeKind}-media-${Date.now()}`;
+    const mediaId = createLocalMediaId(safeKind, "media");
     cacheLocalMediaAttachment(mediaId, file, safeKind);
+    persistLocalMediaAttachment(mediaId, safeKind, file, handle);
     addTextBox({
       kind: safeKind,
       text: mediaName,
@@ -2853,21 +3012,24 @@ export function createPresentationModeController(dependencies = {}) {
     });
   }
 
-  function attachLocalMediaToInfoSlide(slideId = "", kind = "image", file = null) {
+  function attachLocalMediaToInfoSlide(slideId = "", kind = "image", file = null, handle = null) {
     const safeSlideId = String(slideId || "").trim();
     const safeKind = kind === "video" ? "video" : "image";
     if (!safeSlideId || !file) {
       return;
     }
+    const currentSlide = getDeckForDate().infoSlides.find((slide) => slide.id === safeSlideId);
     const mediaName = getLocalMediaFileLabel(file, safeKind);
-    const mediaId = `${safeKind}-slide-media-${Date.now()}`;
+    const mediaId = String(currentSlide?.mediaId || "").trim() || createLocalMediaId(safeKind, "slide-media");
+    const updatedAt = new Date().toISOString();
     cacheLocalMediaAttachment(mediaId, file, safeKind);
+    persistLocalMediaAttachment(mediaId, safeKind, file, handle);
     writeDeckForDate(state.dateValue, (deck) => ({
       ...deck,
       infoSlides: deck.infoSlides.map((slide) =>
         slide.id === safeSlideId
           ? normalizeInfoSlide(
-              {
+              markInfoSlideFieldsUpdatedAt({
                 ...slide,
                 layout: slide.layout === "video" || slide.layout === "split" || slide.layout === "media" ? slide.layout : safeKind === "video" ? "video" : "media",
                 mediaKind: safeKind,
@@ -2876,9 +3038,10 @@ export function createPresentationModeController(dependencies = {}) {
                 mediaMimeType: String(file.type || "").trim(),
                 mediaName,
                 mediaSize: Math.max(0, Number(file.size) || 0),
-              },
+              }, ["layout", "mediaKind", "mediaId", "mediaLocal", "mediaMimeType", "mediaName", "mediaSize"], updatedAt),
               0,
-              state.dateValue
+              state.dateValue,
+              state.meetingType
             )
           : slide
       ),
@@ -2886,11 +3049,84 @@ export function createPresentationModeController(dependencies = {}) {
     render();
   }
 
+  function attachLocalMediaToTextBox(slideId = "", boxId = "", kind = "image", file = null, handle = null) {
+    const safeSlideId = String(slideId || "").trim();
+    const safeBoxId = String(boxId || "").trim();
+    const safeKind = kind === "video" ? "video" : "image";
+    const currentBox = getDeckForDate().textBoxes?.[safeSlideId]?.find((box) => box.id === safeBoxId);
+    if (!safeSlideId || !safeBoxId || !currentBox || !file) {
+      return;
+    }
+    const mediaName = getLocalMediaFileLabel(file, safeKind);
+    const mediaId = String(currentBox.mediaId || "").trim() || createLocalMediaId(safeKind, "media");
+    const field = getTextBoxField(safeBoxId);
+    const updatedAt = new Date().toISOString();
+    cacheLocalMediaAttachment(mediaId, file, safeKind);
+    persistLocalMediaAttachment(mediaId, safeKind, file, handle);
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      textBoxes: normalizeTextBoxes({
+        ...deck.textBoxes,
+        [safeSlideId]: (deck.textBoxes?.[safeSlideId] || []).map((box) =>
+          box.id === safeBoxId
+            ? {
+                ...box,
+                kind: safeKind,
+                text: mediaName,
+                mediaId,
+                mediaLocal: true,
+                mediaMimeType: String(file.type || "").trim(),
+                mediaName,
+                mediaSize: Math.max(0, Number(file.size) || 0),
+              }
+            : box
+        ),
+      }),
+      textOverrides: normalizeTextOverrides({
+        ...deck.textOverrides,
+        [safeSlideId]: {
+          ...(deck.textOverrides?.[safeSlideId] || {}),
+          [field]: mediaName,
+        },
+      }),
+      textOverrideUpdatedAt: markTextOverrideUpdatedAt(deck, safeSlideId, field, updatedAt),
+    }));
+    render();
+  }
+
+  function usePickedLocalMedia(safeKind = "image", selection = {}, options = {}) {
+    const file = selection?.file || null;
+    if (!file) return;
+    if (options?.infoSlideId) {
+      attachLocalMediaToInfoSlide(options.infoSlideId, safeKind, file, selection.handle || null);
+      return;
+    }
+    if (options?.slideId && options?.textBoxId) {
+      attachLocalMediaToTextBox(options.slideId, options.textBoxId, safeKind, file, selection.handle || null);
+      return;
+    }
+    addLocalMediaTextBox(safeKind, file, selection.handle || null);
+  }
+
   function openLocalMediaPicker(kind = "image", options = {}) {
     const safeKind = kind === "video" ? "video" : "image";
     if (state.presenting || !documentRef?.createElement) {
       return;
     }
+    if (canPickPresentationMediaHandle(safeKind, win)) {
+      Promise.resolve(pickPresentationMediaHandle(safeKind, win))
+        .then((selection) => usePickedLocalMedia(safeKind, selection, options))
+        .catch((error) => {
+          if (error?.name !== "AbortError") {
+            openLocalMediaInput(safeKind, options);
+          }
+        });
+      return;
+    }
+    openLocalMediaInput(safeKind, options);
+  }
+
+  function openLocalMediaInput(safeKind = "image", options = {}) {
     const input = documentRef.createElement("input");
     input.type = "file";
     input.accept = safeKind === "video" ? "video/*" : "image/*";
@@ -2906,11 +3142,7 @@ export function createPresentationModeController(dependencies = {}) {
         if (!file) {
           return;
         }
-        if (options?.infoSlideId) {
-          attachLocalMediaToInfoSlide(options.infoSlideId, safeKind, file);
-          return;
-        }
-        addLocalMediaTextBox(safeKind, file);
+        usePickedLocalMedia(safeKind, { file }, options);
       },
       { once: true }
     );
@@ -4622,6 +4854,14 @@ export function createPresentationModeController(dependencies = {}) {
     }
     if (event.target.closest("[data-presentation-exit-fullscreen]")) {
       exitFullscreen();
+      return;
+    }
+    const relinkMediaButton = event.target.closest("[data-presentation-relink-media]");
+    if (relinkMediaButton) {
+      openLocalMediaPicker(relinkMediaButton.dataset.presentationMediaKind, {
+        slideId: relinkMediaButton.dataset.presentationSlideId,
+        textBoxId: relinkMediaButton.dataset.presentationTextBoxId,
+      });
       return;
     }
     if (event.target.closest("[data-presentation-drag-text-box]")) {

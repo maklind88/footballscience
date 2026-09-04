@@ -2452,6 +2452,55 @@ body.is-presentation-mode-open {
   white-space: nowrap;
 }
 
+.presentation-local-media-box.is-missing,
+.presentation-local-media-box.is-loading {
+  place-items: center;
+  border-style: dashed;
+  background: color-mix(in srgb, var(--presentation-slide-bg, #0f172a) 88%, var(--presentation-accent, #38bdf8));
+  cursor: default;
+}
+
+.presentation-local-media-missing {
+  align-self: end;
+  display: grid;
+  gap: .32rem;
+  padding: .8rem;
+  color: var(--presentation-slide-text, #f8fafc);
+  text-align: center;
+}
+
+.presentation-local-media-missing strong {
+  font-size: clamp(.9rem, 3.4cqw, 1.4rem);
+  line-height: 1.1;
+}
+
+.presentation-local-media-missing small {
+  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 68%, transparent);
+  font-size: clamp(.68rem, 2cqw, .88rem);
+  line-height: 1.2;
+}
+
+.presentation-local-media-relink {
+  align-self: start;
+  min-height: 2rem;
+  margin: .2rem .7rem .7rem;
+  border: 1px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 64%, transparent);
+  border-radius: 6px;
+  padding: .42rem .7rem;
+  color: var(--presentation-slide-text, #f8fafc);
+  background: color-mix(in srgb, var(--presentation-accent, #38bdf8) 24%, var(--presentation-slide-bg, #0f172a));
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.presentation-local-media-relink:hover,
+.presentation-local-media-relink:focus-visible {
+  border-color: var(--presentation-accent, #38bdf8);
+  outline: none;
+}
+
 .presentation-text-box-edge-handle {
   position: absolute;
   z-index: 2;
@@ -2912,6 +2961,17 @@ body.is-presentation-text-field-resizing {
   letter-spacing: 0;
 }
 
+.presentation-info-media-panel.is-missing {
+  border-style: dashed;
+}
+
+.presentation-info-media-panel.is-missing .presentation-info-media-empty-mark {
+  max-width: 78%;
+  font-size: clamp(1.05rem, 2.25cqw, 2rem);
+  line-height: 1.15;
+  text-align: center;
+}
+
 .presentation-info-media-caption {
   display: flex;
   align-items: center;
@@ -3048,6 +3108,10 @@ body.is-presentation-info-media-resizing {
 
 .presentation-mode-shell.is-presenting .presentation-info-media-panel.is-empty {
   opacity: .32;
+}
+
+.presentation-mode-shell.is-presenting .presentation-info-media-panel.is-missing {
+  opacity: 1;
 }
 
 .presentation-info-sheet.is-layout-media .presentation-info-title,

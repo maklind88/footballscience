@@ -238,7 +238,7 @@ test("Squad medical snapshot context preserves future and same-date latest-log s
   })).toEqual(service.getPlayerProfileMedicalSnapshot("p2", "2026-06-07", { medicalStateReady: true }));
 });
 
-test("Squad medical status service applies an explicit roster start to unlogged availability", () => {
+test("Squad medical status service does not infer availability from temporary dates without evidence", () => {
   const service = createSquadMedicalStatusService({
     formatDateValue: () => "2026-08-31",
     getMedicalState: () => ({ records: [] }),
@@ -248,14 +248,14 @@ test("Squad medical status service applies an explicit roster start to unlogged 
   });
 
   expect(service.getPlayerProfileMedicalSnapshot("new-player", "2026-08-31").trainingAvailability).toMatchObject({
-    hasData: true,
-    loggedCount: 3,
-    season: { average: 100, count: 3 },
-    lastTwoWeeks: { average: 100, count: 3 },
+    hasData: false,
+    loggedCount: 0,
+    season: { average: null, count: 0 },
+    lastTwoWeeks: { average: null, count: 0 },
   });
 });
 
-test("Squad medical status service does not treat profile persistence time as roster start", () => {
+test("Squad medical status service does not treat profile persistence time as recommendation evidence", () => {
   const service = createSquadMedicalStatusService({
     formatDateValue: () => "2026-08-31",
     getMedicalState: () => ({ records: [] }),
@@ -265,10 +265,10 @@ test("Squad medical status service does not treat profile persistence time as ro
   });
 
   expect(service.getPlayerProfileMedicalSnapshot("existing-player", "2026-08-31").trainingAvailability).toMatchObject({
-    hasData: true,
-    loggedCount: 4,
-    season: { average: 100, count: 4 },
-    lastTwoWeeks: { average: 100, count: 4 },
+    hasData: false,
+    loggedCount: 0,
+    season: { average: null, count: 0 },
+    lastTwoWeeks: { average: null, count: 0 },
   });
 });
 

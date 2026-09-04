@@ -227,7 +227,7 @@ test("Squad training availability summary starts counting from first recommendat
   expect(summary.week).toEqual({ average: 75, count: 1 });
 });
 
-test("Squad training availability summary uses actual participation when logged", () => {
+test("Squad training availability summary uses actual participation when logged and recommendation otherwise", () => {
   const summary = getSquadTrainingAvailabilitySummary({
     playerId: "p1",
     referenceDateValue: "2026-06-10",
@@ -242,12 +242,90 @@ test("Squad training availability summary uses actual participation when logged"
   });
 
   expect(summary.hasData).toBe(true);
+  expect(summary.loggedCount).toBe(4);
+  expect(summary.week).toEqual({ average: 38, count: 4 });
+  expect(summary.month).toEqual({ average: 38, count: 4 });
+  expect(summary.season).toEqual({ average: 38, count: 4 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 38, count: 4 });
+  expect(summary.lastFive).toEqual({ average: 38, count: 4 });
+});
+
+test("Squad training availability summary preserves roster-removal history without restoring manual archives", () => {
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "p1",
+    referenceDateValue: "2026-06-10",
+    records: [
+      {
+        id: "active-current",
+        playerId: "p1",
+        date: "2026-06-10",
+        participation: 75,
+        actualParticipation: null,
+        createdAt: "2026-06-10T08:00:00Z",
+        updatedAt: "2026-06-10T08:00:00Z",
+      },
+      {
+        id: "archived-duplicate",
+        playerId: "p1",
+        date: "2026-06-10",
+        participation: 25,
+        actualParticipation: 25,
+        createdAt: "2026-06-10T07:00:00Z",
+        updatedAt: "2026-06-12T12:00:00Z",
+        archivedAt: "2026-06-12T12:00:00Z",
+        archiveReason: "Player removed from Squad Room",
+      },
+      {
+        id: "archived-latest",
+        playerId: "p1",
+        date: "2026-06-09",
+        participation: 0,
+        actualParticipation: "not-logged",
+        createdAt: "2026-06-09T12:00:00Z",
+        updatedAt: "2026-06-12T12:00:00Z",
+        archivedAt: "2026-06-12T12:00:00Z",
+        archiveReason: "Player removed from Squad Room",
+      },
+      {
+        id: "archived-older",
+        playerId: "p1",
+        date: "2026-06-09",
+        participation: 100,
+        actualParticipation: 100,
+        createdAt: "2026-06-09T08:00:00Z",
+        updatedAt: "2026-06-12T12:00:00Z",
+        archivedAt: "2026-06-12T12:00:00Z",
+        archiveReason: "Player removed from Squad Room",
+      },
+      {
+        id: "manual-archive",
+        playerId: "p1",
+        date: "2026-06-08",
+        participation: 100,
+        actualParticipation: 100,
+        createdAt: "2026-06-08T08:00:00Z",
+        updatedAt: "2026-06-08T09:00:00Z",
+        archivedAt: "2026-06-08T09:00:00Z",
+        archiveReason: "Manual archive from Medical Room",
+      },
+      {
+        id: "roster-history",
+        playerId: "p1",
+        date: "2026-06-07",
+        participation: 50,
+        actualParticipation: "not-logged",
+        createdAt: "2026-06-07T08:00:00Z",
+        updatedAt: "2026-06-12T12:00:00Z",
+        archivedAt: "2026-06-12T12:00:00Z",
+        archiveReason: "Player removed from Squad Room",
+      },
+    ],
+    getTeamTrainingDateValues: () => ["2026-06-07", "2026-06-08", "2026-06-09", "2026-06-10"],
+  });
+
   expect(summary.loggedCount).toBe(3);
-  expect(summary.week).toEqual({ average: 25, count: 3 });
-  expect(summary.month).toEqual({ average: 25, count: 3 });
-  expect(summary.season).toEqual({ average: 25, count: 3 });
-  expect(summary.lastTwoWeeks).toEqual({ average: 25, count: 3 });
-  expect(summary.lastFive).toEqual({ average: 25, count: 3 });
+  expect(summary.season).toEqual({ average: 42, count: 3 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 42, count: 3 });
 });
 
 test("Squad training availability summary counts medical plans and injured status as absences without manual recommendations", () => {
@@ -292,6 +370,28 @@ test("Squad training availability summary counts unavailable medical status as a
     lastTwoWeeks: { average: 0, count: 3 },
     lastFive: { average: 0, count: 3 },
   });
+});
+
+test("Squad training availability summary counts club absences but excuses international duty", () => {
+  const statusByDate = {
+    "2026-06-10": "vacation",
+    "2026-06-11": "personal",
+    "2026-06-12": "suspended",
+    "2026-06-13": "loan",
+    "2026-06-14": "national-team",
+    "2026-06-15": "available",
+  };
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "p1",
+    referenceDateValue: "2026-06-15",
+    records: [],
+    getPlayerAvailabilityStatusForDate: (_playerId, dateValue) => statusByDate[dateValue],
+    getTeamTrainingDateValues: () => Object.keys(statusByDate),
+  });
+
+  expect(summary.loggedCount).toBe(4);
+  expect(summary.season).toEqual({ average: 0, count: 4 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 0, count: 4 });
 });
 
 test("Squad training availability summary uses the last fourteen calendar days for recent availability", () => {

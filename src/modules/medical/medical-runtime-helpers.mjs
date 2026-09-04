@@ -178,13 +178,8 @@ export function createMedicalRuntimeHelpers(deps = {}) {
     const profile = getMedicalLinkedPlayerProfile(player);
     const events = getProfileAvailabilityStatusChangeEvents(profile);
     if (events.length) {
-      const firstEvent = events[0];
-      let status = firstEvent.from ||
-        (
-          firstEvent.dateValue > cleanDate && medicalSquadAvailabilityBlockStatusKeys.has(currentStatus)
-            ? "available"
-            : currentStatus || "available"
-        );
+      // A return event proves when a status ended, not when an unlogged interval began.
+      let status = "available";
       events.forEach((event) => {
         if (event.dateValue <= cleanDate && event.to) {
           status = event.to;

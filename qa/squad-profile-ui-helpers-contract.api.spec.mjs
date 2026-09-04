@@ -162,13 +162,13 @@ test("Squad medical status service preserves medical snapshot golden-master beha
     isOpenEndedMedicalStatus: false,
     trainingAvailability: {
       hasData: true,
-      latestDate: "2026-06-07",
-      loggedCount: 2,
-      week: { average: 70, count: 2 },
-      month: { average: 70, count: 2 },
-      season: { average: 70, count: 2 },
-      lastTwoWeeks: { average: 70, count: 2 },
-      lastFive: { average: 70, count: 2 },
+      latestDate: "2026-06-05",
+      loggedCount: 1,
+      week: { average: 80, count: 1 },
+      month: { average: 80, count: 1 },
+      season: { average: 80, count: 1 },
+      lastTwoWeeks: { average: 80, count: 1 },
+      lastFive: { average: 80, count: 1 },
     },
   });
   expect(service.getPlayerProfileEffectiveStatus({ id: "p1", status: "available" }, "2026-06-07")).toBe("injured");

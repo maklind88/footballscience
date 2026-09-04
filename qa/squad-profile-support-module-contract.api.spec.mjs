@@ -250,6 +250,48 @@ test("Squad training availability summary uses actual participation when logged 
   expect(summary.lastFive).toEqual({ average: 38, count: 4 });
 });
 
+test("Squad training availability summary does not count today's recommendation before participation is logged", () => {
+  const sharedOptions = {
+    playerId: "new-player",
+    referenceDateValue: "2026-09-04",
+    currentDateValue: "2026-09-04",
+    medicalActualParticipationFallback: "not-logged",
+    getTeamTrainingDateValues: () => ["2026-09-04"],
+  };
+
+  const pendingSummary = getSquadTrainingAvailabilitySummary({
+    ...sharedOptions,
+    records: [{
+      playerId: "new-player",
+      date: "2026-09-04",
+      participation: 100,
+      actualParticipation: "not-logged",
+    }],
+  });
+  expect(pendingSummary).toMatchObject({
+    hasData: false,
+    loggedCount: 0,
+    season: { average: null, count: 0 },
+    lastTwoWeeks: { average: null, count: 0 },
+  });
+
+  const completedSummary = getSquadTrainingAvailabilitySummary({
+    ...sharedOptions,
+    records: [{
+      playerId: "new-player",
+      date: "2026-09-04",
+      participation: 100,
+      actualParticipation: 75,
+    }],
+  });
+  expect(completedSummary).toMatchObject({
+    hasData: true,
+    loggedCount: 1,
+    season: { average: 75, count: 1 },
+    lastTwoWeeks: { average: 75, count: 1 },
+  });
+});
+
 test("Squad training availability summary preserves roster-removal history without restoring manual archives", () => {
   const summary = getSquadTrainingAvailabilitySummary({
     playerId: "p1",

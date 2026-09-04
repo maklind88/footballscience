@@ -35,6 +35,13 @@ function getRecordActualParticipation(record = {}, actualFallback = "not-logged"
   return normalizeParticipation(hasActual ? record.actualParticipation : record.participation);
 }
 
+function hasLoggedActualParticipation(record = {}, actualFallback = "not-logged") {
+  if (!Object.prototype.hasOwnProperty.call(record, "actualParticipation")) {
+    return false;
+  }
+  return record.actualParticipation !== actualFallback && normalizeParticipation(record.actualParticipation) !== null;
+}
+
 function getRecordTimestamp(record = {}) {
   const value = record.updatedAt || record.createdAt || "";
   const timestamp = Date.parse(value);
@@ -222,6 +229,7 @@ export function getSquadTrainingAvailabilitySummary({
   playerId = "",
   records = [],
   referenceDateValue = defaultFormatDateValue(new Date()),
+  currentDateValue = defaultFormatDateValue(new Date()),
   medicalActualParticipationFallback = "not-logged",
   getActivityContext = () => null,
   getActiveMedicalInjuryPlan = () => null,
@@ -231,6 +239,7 @@ export function getSquadTrainingAvailabilitySummary({
 } = {}) {
   const cleanPlayerId = String(playerId || "").trim();
   const referenceDate = parseDateValue(referenceDateValue) || parseDateValue(defaultFormatDateValue(new Date()));
+  const cleanCurrentDateValue = normalizeDateValue(currentDateValue) || defaultFormatDateValue(new Date());
   if (!cleanPlayerId || !referenceDate) {
     return {
       hasData: false,
@@ -258,6 +267,7 @@ export function getSquadTrainingAvailabilitySummary({
         ...record,
         participation: normalizeParticipation(record.participation),
         actualParticipationValue: getRecordActualParticipation(record, medicalActualParticipationFallback),
+        hasLoggedActualParticipation: hasLoggedActualParticipation(record, medicalActualParticipationFallback),
         dateValue: parseDateValue(record.date),
       }))
       .filter((record) => record.participation !== null && record.dateValue && record.dateValue <= referenceDate)
@@ -276,6 +286,9 @@ export function getSquadTrainingAvailabilitySummary({
   const trainingDateValuesSorted = [...trainingDateValues].sort((first, second) => first.localeCompare(second));
   const getTrainingOpportunityEvidence = (date) => {
     const playerRecord = playerRecordByDate.get(date);
+    if (date === cleanCurrentDateValue && !playerRecord?.hasLoggedActualParticipation) {
+      return null;
+    }
     const status = getPlayerAvailabilityStatusForDate(cleanPlayerId, date, playerRecord);
     if (isExcusedClubAbsenceStatus(status)) {
       return "excused";

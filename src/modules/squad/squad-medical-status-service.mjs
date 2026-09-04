@@ -145,6 +145,7 @@ export function createSquadMedicalStatusService(deps = {}) {
           playerId,
           records: getMedicalState().records || [],
           referenceDateValue: dateValue,
+          currentDateValue: formatDateValue(new Date()),
           availabilityStartDateValue: String(
             options.availabilityStartDateValue ||
             playerProfile.temporaryFrom ||

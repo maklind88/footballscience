@@ -423,6 +423,30 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       mediaSrc: "",
     },
   })).not.toContain("presentation-info-media-empty-mark");
+  const missingImageHtml = renderer.renderInfoSlide(model, {
+    ...infoSlide,
+    id: "missing-image-slide",
+    infoSlide: {
+      ...infoSlide.infoSlide,
+      id: "missing-image-slide",
+      layout: "media",
+      mediaKind: "image",
+      mediaId: "local-image-1",
+      mediaStatus: "missing",
+    },
+  });
+  expect(missingImageHtml).toContain("presentation-info-media-panel is-image is-empty is-missing");
+  expect(missingImageHtml).toContain("Image file missing");
+  expect(missingImageHtml).toContain("Relink Image");
+  const blankTitleHtml = renderer.renderInfoSlide(model, {
+    ...infoSlide,
+    infoSlide: {
+      ...infoSlide.infoSlide,
+      title: "",
+    },
+  });
+  expect(blankTitleHtml).toContain('value=""');
+  expect(blankTitleHtml).not.toContain('value="Team Information"');
   expect(renderer.renderInfoSlide({ ...model, presenting: true }, {
     ...infoSlide,
     id: "video-slide",
@@ -1136,6 +1160,66 @@ test("Presentation Mode central merge preserves newer blank text overrides", () 
 
   expect(merged.decks["2026-08-12"].textOverrides["block-1"]["detail.principles.body"]).toBe("");
   expect(merged.decks["2026-08-12"].textOverrides["block-1"]["block.title"]).toBe("Press-Cover Game");
+});
+
+test("Presentation Mode central merge preserves newer blank info fields and local media references", () => {
+  const localValue = JSON.stringify({
+    schema: "footballscience-presentation-mode-v1",
+    version: 1,
+    decks: {
+      "2026-08-12": {
+        updatedAt: "2026-08-12T10:04:00.000Z",
+        infoSlides: [
+          {
+            id: "info-main",
+            layout: "media",
+            title: "",
+            body: "",
+            mediaKind: "image",
+            mediaId: "local-image-1",
+            mediaLocal: true,
+            mediaName: "board.png",
+            fieldUpdatedAt: {
+              title: "2026-08-12T10:04:00.000Z",
+              body: "2026-08-12T10:04:00.000Z",
+              layout: "2026-08-12T10:04:00.000Z",
+              mediaKind: "2026-08-12T10:04:00.000Z",
+              mediaId: "2026-08-12T10:04:00.000Z",
+              mediaLocal: "2026-08-12T10:04:00.000Z",
+              mediaName: "2026-08-12T10:04:00.000Z",
+            },
+          },
+        ],
+      },
+    },
+  });
+  const syncedValue = JSON.stringify({
+    schema: "footballscience-presentation-mode-v1",
+    version: 1,
+    decks: {
+      "2026-08-12": {
+        updatedAt: "2026-08-12T10:05:00.000Z",
+        infoSlides: [
+          {
+            id: "info-main",
+            layout: "bullets",
+            title: "Team Information",
+            body: "Old coaching text",
+          },
+        ],
+      },
+    },
+  });
+
+  const merged = JSON.parse(mergeDashboardPresentationStatePreservingLocalEdits(localValue, syncedValue));
+  const slide = merged.decks["2026-08-12"].infoSlides[0];
+
+  expect(slide.title).toBe("");
+  expect(slide.body).toBe("");
+  expect(slide.layout).toBe("media");
+  expect(slide.mediaId).toBe("local-image-1");
+  expect(slide.mediaLocal).toBe(true);
+  expect(slide.mediaName).toBe("board.png");
 });
 
 test("Presentation Mode central merge preserves Technical Staff Meeting decks", () => {

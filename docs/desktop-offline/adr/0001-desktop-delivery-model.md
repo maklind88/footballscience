@@ -2,7 +2,7 @@
 
 Status: Provisionally accepted for continued local hardening — not production-ready
 
-Date: 2026-08-30; updated with complete local-slice evidence 2026-09-01
+Date: 2026-08-30; updated with local-slice evidence 2026-09-01 and security/evidence clarifications 2026-09-05
 
 Review addendum 2026-09-05: see `../SECURITY_REVIEW_2026-09-05.md` for reproduced and corrected capability, refresh-lifecycle, rollback, storage and wire-contract gaps. The local architecture decision stands; prior green CI is not evidence for the subsequently changed implementation. Current SHA/run evidence belongs to PR #201. Production readiness remains open.
 
@@ -38,7 +38,7 @@ Keep Candidate B as an archived/rebuildable fallback if physical Windows or real
 - exact-manifest signature, unknown-key, modified-manifest, modified-asset, immutable-build-ID, rollback, candidate-isolation and quarantine contracts pass locally and, where applicable, in Windows CI;
 - the native OS-vault SessionAuthority lifecycle verifies one refresh owner, durable two-slot rotation, account switch, logout, revocation and configurable offline lease in local contracts; Windows Credential Manager compiled but was not physically exercised;
 - an isolated macOS Keychain test wrote, read and deleted one uniquely named synthetic credential;
-- a disposable Postgres + authenticated handler + file-backed SQLite E2E passes the complete selected-session, two-offline-edit, restart, lost-ack, replay and receipt-before-remove sequence.
+- a synthetic JavaScript integration harness exercises the local handler, disposable Postgres routine and file-backed SQLite through selected-session, two-offline-edit, restart, lost-ack, replay and receipt-before-remove steps. It models the desktop client and is not proof of packaged Rust transport to a real backend; native Rust contracts are tested separately.
 
 Windows CI is VM evidence, not physical-device, installer or Credential Manager evidence.
 
@@ -60,6 +60,7 @@ Candidate B has simpler runtime delivery but would bind frontend fixes to native
 ## Remaining gates
 
 - Real non-production authentication integration and authorized server-owned credential configuration; only synthetic/local authentication is used now.
+- Explicit allowed-data snapshots, verified session/lease restoration and the actual Rust transport/reconnect path before connecting real user data. Generic snapshot content and synthetic startup authority are not accepted real-data contracts.
 - Acceptance/replay of the reconciled ledger and a separately authorized remote migration proposal; the endpoint/private routines exist only as fail-closed local code and additive drafts.
 - Encryption-at-rest, retention, device-loss and local-data purge decisions.
 - Production signing custody, protected signing CI, rotation/revocation drills, immutable publication and retention enforcement.

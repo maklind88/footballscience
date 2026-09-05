@@ -49,6 +49,16 @@ The download reader was first extracted without changing its read-all behavior s
 - Windows must exercise release compilation, actual WebView2 startup and capability denial on the new commit. Native process restart is not OS reboot.
 - The JavaScript SQLite/PGlite integration harness is a synthetic contract implementation, not a compiled-Rust-to-real-backend test. Native Rust behavior and real wire deserialization have separate coverage. No live sync claim follows from the combined test count.
 
+### Completed local verification after the main refresh
+
+- Normal `QA_PORT=4241 npm run qa`: 2,577 passed, zero failed; one pre-existing optional workbook-import test skipped because its external fixture was not supplied. All static gates passed. The initial sandboxed attempt could not bind the local test server; the unchanged command then ran with local server permission.
+- Scouting database search: 242 ms against the unchanged 1,000 ms guard in the full QA run. No dataset, threshold or assertion was weakened.
+- Desktop: 40/40 JavaScript tests; Rust: 36 passing with the real OS credential test intentionally excluded from the default suite. Formatting, Clippy, clean-worktree preflight and npm security audit passed (zero reported npm vulnerabilities).
+- The OS credential test was additionally run explicitly on macOS: one pass, using a unique synthetic Keychain entry that was written, read, deleted and confirmed absent. This does not verify Windows Credential Manager or real provider authentication.
+- A fresh unsigned Apple Silicon macOS release bundle passed all ten packaged verifier checks. Only the test application identifier was overridden to `xyz.footballscience.desktop.spike.review20260905`, giving this run a fresh app-data directory without touching earlier prototype data. The generated signed assets and executable behavior were otherwise built from the reviewed source. Local evidence: `desktop/fs-desktop-spike/artifacts/macos/macos-packaged-evidence.json`.
+- During verification, `main` advanced by two unrelated Home/Leaderboard UI commits to `78028c45efe07e339334c1df26184eda00b6addb`. The tested candidate remains pinned to the integrated `ee2dff68cbb25116896a1662dde0c7588e2f496f` baseline. Those later UI files do not overlap the desktop diff; they are not represented as included or tested by this review. Release-time freshness remains a separate check.
+- PR #201 records the exact resulting push SHA, Windows run and artifact evidence. A documentation-only verification update does not change the tested executable source; the new Windows workflow still runs against the exact pushed SHA.
+
 ## Remaining conditions for the next implementation phase
 
 Candidate A remains the recommended local-development architecture; Candidate B remains a rebuildable fallback. This review does not make the prototype production-ready.

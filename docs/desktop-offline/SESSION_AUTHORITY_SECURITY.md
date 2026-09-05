@@ -22,7 +22,9 @@ Each account has two OS-vault slots. A rotation:
 6. updates the in-memory access token;
 7. removes the previous slot only after the new slot is verified.
 
-An interrupted write can therefore leave two generations, but startup selects the highest valid generation. A malformed slot fails closed. Operation and identity snapshots never serialize either token.
+An interrupted write can therefore leave two generations; the credential reader selects the highest valid generation when called. This is not implemented real-session restoration: the packaged prototype starts with `new_os_synthetic()` and a fresh synthetic lease. Durable restoration of a verified provider session and lease remains a real-data gate. A malformed slot fails closed. Operation and identity snapshots never serialize either token.
+
+The 2026-09-05 review additionally binds each refresh to an internal session generation. Before persisting a provider response, native code revalidates that generation under the same identity lock used by logout, revocation and account replacement. A late response cannot recreate a removed credential or overwrite a newer session, including replacement by the same actor. Network waiting does not hold the identity lock.
 
 ## Account, logout, lease and revocation behavior
 
@@ -30,6 +32,7 @@ An interrupted write can therefore leave two generations, but startup selects th
 - Account switching zeroizes the prior access token, deletes both prior refresh slots and replaces the visible partition/identity as one authority update.
 - Logout attempts both secure-slot deletions, zeroizes access memory, clears visible identity/partition fields and locks offline access.
 - Revocation performs the same cleanup and marks the authority revoked.
+- Secure-store deletion errors are reported while visible authority is invalidated. Durable recovery from deletion failures and process restart still needs an explicit policy before real credentials are connected; the synthetic lifecycle tests do not prove that policy.
 - An expired offline lease denies local reads but does not delete SQLite, receipts or pending outbox work.
 - Authorization rejection can add a bounded sidecar quarantine record to a pending operation. Quarantined operations are retained but excluded from resend selection.
 

@@ -386,7 +386,6 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
       ? [birthdayToday, ...birthdayItems.filter((item) => getBirthdayItemKey(item) !== getBirthdayItemKey(birthdayToday))]
       : birthdayItems;
     const previewItems = orderedItems.slice(0, 3);
-    const thisMonthCount = Math.max(0, Number(calendar.thisMonthCount) || 0);
     const todayCount = Math.max(
       birthdayItems.filter(isBirthdayToday).length,
       Math.max(0, Number(calendar.todayCount) || 0)
@@ -394,14 +393,9 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     const trackedCount = Math.max(0, Number(calendar.trackedCount) || 0);
     const nextBirthday = previewItems[0] || null;
     const nextItems = previewItems.slice(1);
-    const headActions = [
-      thisMonthCount > 0
-        ? `<span class="dashboard-panel-count">${escapeHtml(String(thisMonthCount))} this month</span>`
-        : "",
-      birthdayItems.length > previewItems.length
-        ? `<button type="button" class="dashboard-birthday-view-all" data-dashboard-open-birthday-calendar>View all</button>`
-        : "",
-    ].filter(Boolean).join("");
+    const headActions = birthdayItems.length > previewItems.length
+      ? `<button type="button" class="dashboard-birthday-view-all" data-dashboard-open-birthday-calendar>View all</button>`
+      : "";
     const emptyText = trackedCount
       ? "Add birth dates in player profiles to show upcoming birthdays."
       : "Add players with birth dates to show upcoming birthdays.";

@@ -4982,7 +4982,11 @@ test("Medical metrics use current-month and planned-session averages", async ({ 
   await bootApp(page);
   await openWorkspace(page, "medical-team");
 
-  const metricCards = page.locator(".medical-metric-card");
+  await expect(page.locator(".medical-availability-workspace .medical-metrics-grid")).toHaveCount(0);
+  await page.locator('[data-medical-ops-tab="season"]').click();
+  await expect(page.locator("[data-medical-reports-workspace]")).toBeVisible();
+
+  const metricCards = page.locator("[data-medical-reports-workspace] .medical-metric-card");
   await expect(metricCards.filter({ hasText: "Month average" })).toContainText("40%");
   await expect(metricCards.filter({ hasText: "Month average" })).not.toContainText("filled");
   await expect(metricCards.filter({ hasText: "5-session average" })).toContainText("38%");

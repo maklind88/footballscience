@@ -12,8 +12,6 @@ test("Medical roster renderer owns availability workspace and roster rows", () =
     getActiveMedicalPlayers: () => [player],
     getFilteredMedicalPlayers: () => [player],
     getLatestMedicalRecord: () => ({ participation: 75 }),
-    getMedicalDailyStats: () => ({ fullCount: 0, modifiedCount: 1, unavailableCount: 0, unloggedCount: 0 }),
-    getMedicalMonthAverageStats: () => ({ averageParticipation: 75 }),
     getMedicalPlayerSquadAvailabilityBlockReason: () => "",
     getMedicalRecommendationActivityContext: () => ({
       isRecommendable: true,
@@ -32,7 +30,6 @@ test("Medical roster renderer owns availability workspace and roster rows", () =
     getMedicalStatusForParticipation: () => "modified",
     getMedicalStatusOptionForDate: () => ({ label: "Modified" }),
     getMedicalVisibleComment: () => "Monitor load",
-    getMedicalWindowAverage: () => 75,
     getMedicalWindowDates: () => ["2026-05-31"],
     getRosterSearchQuery: () => "",
     getSelectedDate: () => "2026-05-31",
@@ -42,7 +39,6 @@ test("Medical roster renderer owns availability workspace and roster rows", () =
     isTemporaryPlayerProfile: () => false,
     medicalParticipationOptions: [0, 75, 100],
     medicalStatusOptions: [{ key: "modified", label: "Modified" }],
-    renderMedicalMetric: (label, value) => `<article>${label}:${value}</article>`,
     renderMedicalOperationsSystem: () => '<section class="ops"></section>',
     renderMedicalPlayerAvatar: () => '<span class="avatar"></span>',
     renderMedicalSquadAvailabilityBadge: () => "",
@@ -53,6 +49,7 @@ test("Medical roster renderer owns availability workspace and roster rows", () =
   expect(workspace).toContain("medical-availability-workspace");
   expect(workspace).toContain("Saved.");
   expect(workspace).toContain("medical-roster-panel");
+  expect(workspace).not.toContain("medical-metrics-grid");
   expect(workspace).toContain("Mak Player");
   expect(workspace).toContain("data-medical-quick-recommend");
   expect(workspace).toContain("data-medical-quick-clear");

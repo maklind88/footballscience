@@ -133,7 +133,8 @@ test("Medical operations renderer owns operations tabs, private system, and coac
     escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
     formatMedicalDateLabel: () => "31 May",
     getMedicalCoachHandoverItems: () => [{ id: "note-1" }],
-    getMedicalDailyStats: () => ({ fullCount: 8, modifiedCount: 2, unavailableCount: 1 }),
+    getMedicalDailyStats: () => ({ fullCount: 8, modifiedCount: 2, unavailableCount: 1, unloggedCount: 3 }),
+    getMedicalMonthAverageStats: () => ({ averageParticipation: 82 }),
     getMedicalHistoryDateFilter: () => "all",
     getMedicalHistoryEvents: () => [
       { player: signal.player, date: "2026-05-31", type: "Recommendation", title: "75% / Modified", detail: "RTP", coachShared: true },
@@ -142,10 +143,13 @@ test("Medical operations renderer owns operations tabs, private system, and coac
     getMedicalHistoryPlayerFilter: () => "all",
     getMedicalHistorySearchQuery: () => "",
     getMedicalRtpPhaseOption: () => ({ label: "Return to train" }),
+    getMedicalWindowAverage: () => 76,
     medicalClearanceRoles: [{ key: "doctor" }],
     medicalLoadGateOptions: [{ key: "load" }],
     renderMedicalCoachHandoverPanel: () => '<section class="handover"></section>',
     renderMedicalDailyHuddle: () => '<section class="huddle"></section>',
+    renderMedicalMetric: (label, value, meta = "", tone = "") =>
+      `<article class="medical-metric-card medical-metric-card-${tone || "neutral"}">${label}:${value}:${meta}</article>`,
   });
 
   expect(renderer.renderTopMenu("availability", [{ key: "availability", label: "Availability" }])).toContain("medical-ops-top-menu");
@@ -315,6 +319,17 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(historyMarkup).toContain("data-medical-history-date-filter");
   expect(historyMarkup).toContain("data-medical-history-player-filter");
   expect(historyMarkup).toContain("Recommendation");
+  const reportsMarkup = renderer.renderPrivateSystem(summary, "season", "2026-05-31");
+  expect(reportsMarkup).toContain("data-medical-reports-workspace");
+  expect(reportsMarkup).toContain("Availability report");
+  expect(reportsMarkup).toContain("31 May");
+  expect(reportsMarkup).toContain("Full:8:100%");
+  expect(reportsMarkup).toContain("Modified:2:10-75%");
+  expect(reportsMarkup).toContain("Unavailable:1:0%");
+  expect(reportsMarkup).toContain("Not set:3:no entry");
+  expect(reportsMarkup).toContain("Month average:82%:");
+  expect(reportsMarkup).toContain("5-session average:76%:planned sessions");
+  expect(reportsMarkup).toContain("Season summary");
   const coachMarkup = renderer.renderCoachSafeSummary("2026-05-31");
   expect(coachMarkup).toContain("Coach-Safe Summary");
   expect(coachMarkup).toContain("Coach notes");

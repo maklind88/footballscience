@@ -15,8 +15,6 @@ export function createMedicalRosterRenderer({
   getActiveMedicalPlayers,
   getFilteredMedicalPlayers,
   getLatestMedicalRecord,
-  getMedicalDailyStats,
-  getMedicalMonthAverageStats,
   getMedicalPlayerSquadAvailabilityBlockReason,
   getMedicalRecommendationActivityContext,
   getMedicalRecordStatus,
@@ -26,7 +24,6 @@ export function createMedicalRosterRenderer({
   getMedicalStatusForParticipation,
   getMedicalStatusOptionForDate,
   getMedicalVisibleComment,
-  getMedicalWindowAverage,
   getMedicalWindowDates,
   getRosterSearchQuery,
   getSelectedDate,
@@ -36,7 +33,6 @@ export function createMedicalRosterRenderer({
   isTemporaryPlayerProfile,
   medicalParticipationOptions = [],
   medicalStatusOptions = [],
-  renderMedicalMetric,
   renderMedicalOperationsSystem,
   renderMedicalPlayerAvatar,
   renderMedicalSquadAvailabilityBadge,
@@ -340,24 +336,12 @@ ${renderTemporaryPlayerSection(temporaryPlayers)}
   };
 
   const renderAvailabilityWorkspace = (message = "") => {
-    const selectedDate = getSelectedDate();
-    const stats = getMedicalDailyStats(selectedDate);
-    const windowAverage = getMedicalWindowAverage();
-    const monthStats = getMedicalMonthAverageStats();
     const hasActivePlayers = getActiveMedicalPlayers().length > 0;
     return `
 <section class="medical-availability-workspace" data-medical-availability-workspace aria-label="Medical availability recommendations">
 ${renderDateStrip()}
 ${renderActivityContextPanel()}
 ${message ? `<div class="medical-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}
-<section class="medical-metrics-grid" aria-label="Medical availability summary">
-${renderMedicalMetric("Full", String(stats.fullCount), "100%", "full")}
-${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
-${renderMedicalMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
-${renderMedicalMetric("Not set", String(stats.unloggedCount), "no entry")}
-${renderMedicalMetric("Month average", monthStats.averageParticipation === null ? "-" : `${monthStats.averageParticipation}%`)}
-${renderMedicalMetric("5-session average", windowAverage === null ? "-" : `${windowAverage}%`, "planned sessions")}
-</section>
 ${
   hasActivePlayers
     ? `

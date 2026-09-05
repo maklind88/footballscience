@@ -940,8 +940,18 @@ test("central hydration keeps Session Planner and Medical view dates local while
       window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "medical-team" } }));
     });
     await expect(tab.page.locator("body")).toHaveAttribute("data-active-workspace", "medical-team");
-    await expect(tab.page.locator(".medical-metric-card").filter({ hasText: "Full" })).toContainText("1");
-    await expect(tab.page.locator(".medical-metric-card").filter({ hasText: "Modified" })).toContainText("1");
+    await expect(tab.page.locator("[data-medical-date-picker]")).toHaveValue("2026-07-20");
+    await expect(tab.page.locator("[data-medical-availability-workspace] .medical-metric-card")).toHaveCount(0);
+
+    await tab.page.locator('[data-medical-ops-tab="season"]').click();
+    const reports = tab.page.locator("[data-medical-reports-workspace]");
+    await expect(reports).toBeVisible();
+    await expect(reports.locator(".medical-reports-heading h2")).toHaveText("Mon 20 Jul");
+    await expect(reports.locator(".medical-metric-card").filter({ hasText: "Full" }).locator("strong")).toHaveText("1");
+    await expect(reports.locator(".medical-metric-card").filter({ hasText: "Modified" }).locator("strong")).toHaveText("1");
+
+    await tab.page.locator('[data-medical-ops-tab="availability"]').click();
+    await expect(tab.page.locator("[data-medical-date-picker]")).toHaveValue("2026-07-20");
   } finally {
     await closeCentralStateContext(tab.context);
   }

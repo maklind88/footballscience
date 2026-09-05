@@ -209,9 +209,9 @@ ${group.players.map(renderRosterRow).join("")}
 <div>
 <span class="medical-temporary-tab">Training guests</span>
 <strong>Temporary players</strong>
-<small>Only shown here when their temporary training dates include ${escapeHtml(formatMedicalDateLabel(getSelectedDate(), "long"))}.</small>
+<small>Training window includes ${escapeHtml(formatMedicalDateLabel(getSelectedDate(), "long"))} and Squad status is Available.</small>
 </div>
-<p>${activeCount ? `${activeCount} active for this date` : "None active for this date"}</p>
+<p>${activeCount ? `${activeCount} available for this date` : "None available for this date"}</p>
 </header>
 ${
   activeCount
@@ -224,7 +224,7 @@ ${
 ${players.map(renderRosterRow).join("")}
 </div>
 `
-    : `<div class="medical-empty-inline medical-temporary-empty">No temporary players are marked as training with the team on this date.</div>`
+    : `<div class="medical-empty-inline medical-temporary-empty">No temporary players are Available in Squad Room for this date.</div>`
 }
 </section>
 `;
@@ -289,11 +289,15 @@ ${renderNewPlayerCard()}
   };
 
   const renderRosterPanel = () => {
+    const selectedDate = getSelectedDate();
     const players = getFilteredMedicalPlayers();
     const squadPlayers = players.filter((player) => !isTemporaryPlayerProfile(player));
-    const temporaryPlayers = players.filter(isTemporaryPlayerProfile);
+    const temporaryPlayers = players.filter(
+      (player) =>
+        isTemporaryPlayerProfile(player) &&
+        !getMedicalPlayerSquadAvailabilityBlockReason(player, selectedDate)
+    );
     const positionGroups = getMedicalRosterPositionGroups(squadPlayers);
-    const selectedDate = getSelectedDate();
     const activityContext = getMedicalRecommendationActivityContext(selectedDate);
     const statusFilter = getStatusFilter();
     return `

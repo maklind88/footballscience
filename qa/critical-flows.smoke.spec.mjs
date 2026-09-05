@@ -6535,7 +6535,7 @@ test("Squad Room shows legacy Medical training guests outside their active dates
   await expect(modal.locator('input[name="temporaryTo"]')).toHaveValue("2026-05-02");
 });
 
-test("Medical recommends date-bound Squad training guests and includes them in Presentation Mode", async ({ page }) => {
+test("Medical recommends only Available date-bound Squad training guests and includes them in Presentation Mode", async ({ page }) => {
   const today = new Date();
   const dateValue = [
     today.getFullYear(),
@@ -6557,9 +6557,17 @@ test("Medical recommends date-bound Squad training guests and includes them in P
     temporaryTo: dateValue,
     rosterOrder: 1,
   };
+  const blockedGuest = {
+    ...guest,
+    id: "qa-medical-unavailable-training-guest",
+    name: "QA Unavailable Training Guest",
+    number: "95",
+    status: "national-team",
+    rosterOrder: 2,
+  };
 
   await page.addInitScript(
-    ({ dateValue: seededDate, guest: seededGuest, keys }) => {
+    ({ dateValue: seededDate, guest: seededGuest, blockedGuest: seededBlockedGuest, keys }) => {
       window.localStorage.setItem(
         keys.schedule,
         JSON.stringify({
@@ -6573,7 +6581,7 @@ test("Medical recommends date-bound Squad training guests and includes them in P
           rosterVersion: "qa-medical-training-guest-profiles",
           schemaVersion: 3,
           selectedPlayerId: seededGuest.id,
-          players: [seededGuest],
+          players: [seededGuest, seededBlockedGuest],
           removedPlayerIds: [],
         })
       );
@@ -6609,6 +6617,7 @@ test("Medical recommends date-bound Squad training guests and includes them in P
     {
       dateValue,
       guest,
+      blockedGuest,
       keys: {
         schedule: scheduleKey,
         profiles: playerProfilesKey,
@@ -6626,8 +6635,9 @@ test("Medical recommends date-bound Squad training guests and includes them in P
 
   const guestPanel = medicalWorkspace.locator(".medical-temporary-player-panel");
   const guestRow = guestPanel.locator(`[data-medical-roster-row="${guest.id}"]`);
-  await expect(guestPanel).toContainText("1 active for this date");
+  await expect(guestPanel).toContainText("1 available for this date");
   await expect(guestRow).toContainText(guest.name);
+  await expect(guestPanel.locator(`[data-medical-roster-row="${blockedGuest.id}"]`)).toHaveCount(0);
 
   await guestRow.locator('[data-medical-quick-participation="25"]').click();
   await expect(
@@ -6652,6 +6662,7 @@ test("Medical recommends date-bound Squad training guests and includes them in P
   const guestRecommendation = presentation.locator(".presentation-medical-player", { hasText: guest.name });
   await expect(guestRecommendation).toBeVisible();
   await expect(guestRecommendation).toContainText("25%");
+  await expect(presentation.locator(".presentation-medical-player", { hasText: blockedGuest.name })).toHaveCount(0);
 });
 
 test("Squad profile modal autosaves edits and keeps its size across tabs", async ({ page }) => {

@@ -200,6 +200,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       { player: { id: "p5", name: "Mia Midfield", position: "Midfielder" }, participation: 100, status: { label: "Full" } },
       { player: { id: "guest-1", name: "Recommended Guest", position: "Forward", rosterType: "guest", countsInSquad: false }, record: { id: "guest-r1" }, participation: 25, status: { label: "Modified" } },
       { player: { id: "guest-2", name: "Unreviewed Guest", position: "Forward", rosterType: "trialist", countsInSquad: false }, participation: null, status: { label: "Not set" } },
+      { player: { id: "guest-3", name: "Unavailable Guest", position: "Defender", rosterType: "guest", countsInSquad: false }, record: { id: "guest-r3" }, participation: 0, status: { label: "Unavailable" } },
     ],
     getCustomPeople: () => [{ id: "staff-1", name: "Coach", kind: "staff", role: "Staff" }],
     createCustomPersonItem: (person) => ({
@@ -227,9 +228,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     "Zoe Striker",
     "Kara Keeper",
   ]);
+  expect(model.medicalRecommendations.map((item) => item.player.name)).not.toContain("Unavailable Guest");
   const blockSlide = model.slides.find((slide) => slide.type === "block");
   expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach", "Recommended Guest"]);
-  expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid"]);
+  expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid", "Unavailable Guest"]);
   expect(harness.root.innerHTML).toContain("Presentation Mode");
   expect(harness.root.innerHTML).toMatch(/<footer class="presentation-footer-nav">[\s\S]*<nav class="presentation-slide-tabs"/);
   expect(harness.root.innerHTML).toMatch(/<nav class="presentation-slide-tabs"[\s\S]*<div class="presentation-footer-pager">/);
@@ -563,10 +565,11 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockHtml).not.toContain("Coaching Points");
   expect(blockHtml).not.toContain("In this block");
   expect(blockHtml).toContain("Not in this block");
-  expect(blockHtml).toContain("(1 Player)");
+  expect(blockHtml).toContain("(2 Players)");
   expect(blockHtml).not.toContain("Ada Keeper");
   expect(blockHtml).not.toContain("Coach");
   expect(blockHtml).toContain("Bea Mid");
+  expect(blockHtml).toContain("Unavailable Guest");
   expect(storage.has(dashboardPresentationStorageKey)).toBe(false);
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({

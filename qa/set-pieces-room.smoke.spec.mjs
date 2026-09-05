@@ -785,24 +785,42 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(loopButton).toHaveAttribute("aria-pressed", "true");
   await loopButton.click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
-  const motionSamples = await page.evaluate(() => new Promise((resolve) => {
+  const playbackEvidence = await page.evaluate(() => new Promise((resolve) => {
     const marker = document.querySelector(".spr-board-element.is-home-player:not(.is-ghost)");
+    const playbackToggle = document.querySelector('[data-set-piece-action="toggle-play"]');
     const samples = [];
     const startedAt = performance.now();
     const sample = (timestamp) => {
-      samples.push({ timestamp, transform: marker?.getAttribute("transform") || "" });
-      if (timestamp - startedAt >= 350) resolve(samples);
-      else requestAnimationFrame(sample);
+      samples.push({
+        timestamp,
+        transform: marker?.getAttribute("transform") || "",
+        routePlaying: Boolean(document.querySelector(".spr-drawing.is-playing")),
+      });
+      if (timestamp - startedAt < 350) {
+        requestAnimationFrame(sample);
+        return;
+      }
+      const playingLabel = playbackToggle?.getAttribute("aria-label") || "";
+      const playingIconPath = playbackToggle?.querySelector("svg path")?.getAttribute("d") || "";
+      if (playingLabel === "Pause") playbackToggle.click();
+      resolve({
+        samples,
+        playingIconPath,
+        playingLabel,
+        pausedLabel: playbackToggle?.getAttribute("aria-label") || "",
+      });
     };
     requestAnimationFrame(sample);
   }));
+  const motionSamples = playbackEvidence.samples;
   expect(motionSamples.length).toBeGreaterThan(10);
   expect(new Set(motionSamples.map((sample) => sample.transform)).size).toBeGreaterThan(8);
-  await expect(page.getByRole("button", { name: "Pause", exact: true }).locator("svg path")).toHaveAttribute("d", "M9 5v14M15 5v14");
-  await expect(page.locator(".spr-drawing.is-playing")).toHaveCount(1);
+  expect(motionSamples.some((sample) => sample.routePlaying)).toBe(true);
+  expect(playbackEvidence.playingIconPath).toBe("M9 5v14M15 5v14");
+  expect(playbackEvidence.playingLabel).toBe("Pause");
+  expect(playbackEvidence.pausedLabel).toBe("Play");
   await expect(page.locator("[data-set-piece-playback-primary]")).toContainText("Phase 1 → 2");
   await expect(page.locator("[data-set-piece-playback-secondary]")).toContainText("/");
-  await page.getByRole("button", { name: "Pause", exact: true }).click();
   const pausedTransform = await page.locator(".spr-board-element.is-home-player:not(.is-ghost)").first().getAttribute("transform");
   await page.waitForTimeout(250);
   await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)").first()).toHaveAttribute("transform", pausedTransform);
@@ -857,12 +875,42 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(presentation.locator("[data-presentation-set-piece-play]")).toBeVisible();
   const teamMeetingPlaybackToggle = presentation.locator('[data-presentation-set-piece-action="toggle"]');
   await teamMeetingPlaybackToggle.evaluate((button) => button.setAttribute("data-playback-control-instance", "stable"));
-  await teamMeetingPlaybackToggle.click();
-  await expect(presentation.getByRole("button", { name: "Pause", exact: true })).toHaveAttribute("data-playback-control-instance", "stable");
-  await page.waitForTimeout(250);
-  await expect(presentation.locator(".spr-drawing.is-playing")).toHaveCount(1);
-  expect(Number(await presentation.locator("[data-presentation-set-piece-scrubber]").inputValue())).toBeGreaterThan(0);
-  await teamMeetingPlaybackToggle.click();
+  const presentationPlaybackEvidence = await presentation.evaluate((root) => new Promise((resolve, reject) => {
+    const playbackToggle = root.querySelector('[data-presentation-set-piece-action="toggle"]');
+    const scrubber = root.querySelector("[data-presentation-set-piece-scrubber]");
+    const startedAt = performance.now();
+    playbackToggle?.click();
+    const sample = (timestamp) => {
+      const progress = Number(scrubber?.value || 0);
+      const routePlaying = Boolean(root.querySelector(".spr-drawing.is-playing"));
+      const playingLabel = playbackToggle?.getAttribute("aria-label") || "";
+      if (routePlaying && progress > 0 && playingLabel === "Pause") {
+        const controlInstance = playbackToggle?.getAttribute("data-playback-control-instance") || "";
+        playbackToggle.click();
+        resolve({
+          controlInstance,
+          pausedLabel: playbackToggle.getAttribute("aria-label") || "",
+          playingLabel,
+          progress,
+          routePlaying,
+        });
+        return;
+      }
+      if (timestamp - startedAt >= 5_000) {
+        reject(new Error("Set Pieces presentation playback did not paint an active route within 5 seconds."));
+        return;
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
+  expect(presentationPlaybackEvidence).toMatchObject({
+    controlInstance: "stable",
+    pausedLabel: "Play",
+    playingLabel: "Pause",
+    routePlaying: true,
+  });
+  expect(presentationPlaybackEvidence.progress).toBeGreaterThan(0);
   await presentation.getByRole("button", { name: "Close presentation" }).click();
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-set-pieces-room]")).toHaveClass(/is-editing/);

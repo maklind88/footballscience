@@ -166,7 +166,7 @@ test("Leaderboard Home rerender force-disposes a pending surface after scope cha
   expect(calls.handles).toContainEqual(["unmount", { force: true }]);
 });
 
-test("Leaderboard commands dispose stale scope before a new user is denied", async () => {
+test("Leaderboard commands dispose stale scope and defer write authorization to the remounted module", async () => {
   let mayEdit = true;
   const { calls, dialogHost, runtime, setTeam } = createHarness({
     canEdit: () => mayEdit,
@@ -176,9 +176,22 @@ test("Leaderboard commands dispose stale scope before a new user is denied", asy
   setTeam({ id: "team-b", name: "Team B" });
   mayEdit = false;
 
-  expect(await runtime.openAward({ occurredOn: "2026-08-25", title: "Denied" })).toBe(false);
+  expect(await runtime.openAward({ occurredOn: "2026-08-25", title: "Server authorized" })).toBe(true);
   expect(calls.handles).toContainEqual(["unmount", { force: true }]);
-  expect(calls.awardHandleIds).toEqual([]);
+  expect(calls.awardHandleIds).toEqual([2]);
+});
+
+test("Leaderboard runtime exposes server write capability over a stale client hint", async () => {
+  const snapshot = {
+    status: "ready",
+    month: "2026-08",
+    monthLabel: "August 2026",
+    access: { canView: true, canAward: true, canReverse: true },
+    standings: [],
+  };
+  const { runtime, dialogHost } = createHarness({ canEdit: () => false, snapshot });
+  await runtime.mountHome({ leaderboardSummary: createRoot(), leaderboardDialogHost: dialogHost });
+  expect(runtime.canEdit()).toBe(true);
 });
 
 test("Leaderboard Home surface force-disposes and remounts when team or user scope changes", async () => {

@@ -80,6 +80,7 @@ test("leaderboard module stays isolated, modular and free of local persistence",
     "src/modules/leaderboard/index.mjs",
     "src/modules/leaderboard/leaderboard-controller.mjs",
     "src/modules/leaderboard/leaderboard-actions.mjs",
+    "src/modules/leaderboard/leaderboard-access.mjs",
     "src/modules/leaderboard/leaderboard-adapter.mjs",
     "src/modules/leaderboard/leaderboard-award-renderer.mjs",
     "src/modules/leaderboard/leaderboard-components.mjs",
@@ -282,6 +283,35 @@ test("award validation rejects out-of-range points and players outside the activ
 
   store.setState({ draft: { customPoints: "5", assignments: { guest: { selected: true } } } });
   expect(actions.validateAward().error).toBe("One or more selected players are no longer in the active squad.");
+});
+
+test("server capabilities override stale client role hints for reads and writes", () => {
+  const readOnlyState = {
+    ...createLeaderboardState(fixedNow),
+    status: "ready",
+    data: makePayload({ access: { canView: true, canAward: false, canReverse: false } }),
+  };
+  const staleCoachContext = makeContext({ canEdit: () => true, requireServerAccess: true });
+  const readOnlyMarkup = renderLeaderboardWorkspace(readOnlyState, staleCoachContext);
+  expect(readOnlyMarkup).toContain("Read-only");
+  expect(readOnlyMarkup).not.toContain("leaderboard-award-trigger");
+  const deniedStore = createLeaderboardStore(readOnlyState);
+  deniedStore.setState({ draft: { occurredOn: "2026-08-24", title: "Denied", assignments: { p1: { placement: 1 } } } });
+  const deniedActions = createLeaderboardActions({ store: deniedStore, api: {}, context: staleCoachContext });
+  expect(deniedActions.validateAward()).toEqual({ error: "You do not have permission to award points." });
+
+  const coachState = {
+    ...createLeaderboardState(fixedNow),
+    status: "ready",
+    data: makePayload({ access: { canView: true, canAward: true, canReverse: true } }),
+  };
+  const staleReadOnlyContext = makeContext({ canEdit: () => false, requireServerAccess: true });
+  const coachMarkup = renderLeaderboardWorkspace(coachState, staleReadOnlyContext);
+  expect(coachMarkup).toContain("leaderboard-award-trigger");
+  const coachStore = createLeaderboardStore(coachState);
+  coachStore.setState({ draft: { occurredOn: "2026-08-24", title: "Authorized", assignments: { p1: { placement: 1 } } } });
+  const coachActions = createLeaderboardActions({ store: coachStore, api: {}, context: staleReadOnlyContext });
+  expect(coachActions.validateAward()).toMatchObject({ awards: [{ playerId: "p1", points: 3, placement: 1 }] });
 });
 
 test("workspace renderer covers premium standings, activity, empty and read-only states", () => {

@@ -1,4 +1,5 @@
 import { leaderboardMaxPointsPerPlayer } from "./leaderboard-constants.mjs";
+import { canAwardLeaderboard } from "./leaderboard-access.mjs";
 import {
   createLeaderboardIdempotencyKey,
   getLeaderboardMonthValue,
@@ -20,20 +21,19 @@ function normalizeResponse(payload = {}, fallbackMonth = "") {
     ok: payload.ok !== false,
     schema: normalizeLeaderboardText(payload.schema, 120),
     month: normalizeLeaderboardMonth(payload.month, fallbackMonth),
+    access: payload.access && typeof payload.access === "object"
+      ? {
+          canView: payload.access.canView === true,
+          canAward: payload.access.canAward === true,
+          canReverse: payload.access.canReverse === true,
+        }
+      : null,
     competition: payload.competition && typeof payload.competition === "object" ? payload.competition : {},
     summary: payload.summary && typeof payload.summary === "object" ? payload.summary : {},
     roster: Array.isArray(payload.roster) ? payload.roster : [],
     standings: Array.isArray(payload.standings) ? payload.standings : [],
     events: Array.isArray(payload.events) ? payload.events : [],
   };
-}
-
-function getCanEdit(context = {}) {
-  try {
-    return typeof context.canEdit === "function" ? Boolean(context.canEdit()) : Boolean(context.canEdit);
-  } catch {
-    return false;
-  }
 }
 
 export function createLeaderboardActions({ store, api, context = {} } = {}) {
@@ -87,7 +87,7 @@ export function createLeaderboardActions({ store, api, context = {} } = {}) {
     const squadPlayers = getLeaderboardSquadPlayers(state.data || {});
     const squadPlayerIds = new Set(squadPlayers.map((player) => player.id));
     const squadById = new Map(squadPlayers.map((player) => [player.id, player]));
-    if (!getCanEdit(context)) return { error: "You do not have permission to award points." };
+    if (!canAwardLeaderboard(state, context)) return { error: "You do not have permission to award points." };
     if (state.month !== getLeaderboardMonthValue(getNow())) return { error: "Completed Leaderboard months are read-only." };
     if (!occurredOn || occurredOn < bounds.min || occurredOn > bounds.max) return { error: `Choose a date within ${state.month}.` };
     if (!title) return { error: "Add a competition or activity title." };
@@ -149,7 +149,7 @@ export function createLeaderboardActions({ store, api, context = {} } = {}) {
 
   async function reverseEvent({ eventId = "", reason = "", idempotencyKey = "" } = {}) {
     const state = store.getState();
-    if (state.ui.pendingAction || !getCanEdit(context)) return null;
+    if (state.ui.pendingAction || !canAwardLeaderboard(state, context)) return null;
     if (state.month !== getLeaderboardMonthValue(getNow())) {
       store.setState({ ui: { draftError: "Completed Leaderboard months are read-only." } });
       return null;

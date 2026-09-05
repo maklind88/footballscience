@@ -29,8 +29,8 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
     getUserTeamId = () => "",
     getAuthToken = () => "",
     getPlayerProfilesState = () => ({}),
-    canView = () => false,
-    canEdit = () => false,
+    canView: canViewHint = () => false,
+    canEdit: canEditHint = () => false,
   } = deps;
 
   let modulePromise = null;
@@ -40,6 +40,20 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
   let activeScopeSignature = "";
   let mountGeneration = 0;
   let detachedSummaryRoot = null;
+
+  function canView() {
+    try { return Boolean(canViewHint()); } catch { return false; }
+  }
+
+  function canEdit() {
+    try {
+      const access = homeHandle?.getSnapshot?.()?.access;
+      if (typeof access?.canAward === "boolean") return access.canAward;
+      return Boolean(canEditHint());
+    } catch {
+      return false;
+    }
+  }
 
   function getTeamIdentity() {
     const currentUser = getCurrentUser() || {};
@@ -91,6 +105,7 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
       getPlayerProfilesState,
       canView,
       canEdit,
+      requireServerAccess: true,
       ...overrides,
     };
   }
@@ -283,7 +298,6 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
 
   async function openAward(command = {}, opener = null) {
     syncScope();
-    if (!canEdit()) return false;
     const handle = await ensureCommandHandle();
     if (!handle) return false;
     return (await handle.openAward({

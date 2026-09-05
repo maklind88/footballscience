@@ -26,6 +26,7 @@ function normalizeContext(context = {}) {
       : () => ({}),
     getNow: typeof context.getNow === "function" ? context.getNow : () => new Date(),
     canEdit: typeof context.canEdit === "function" ? context.canEdit : () => Boolean(context.canEdit),
+    requireServerAccess: context.requireServerAccess === true,
     fetchImpl: context.fetchImpl,
     allowSyntheticTeamId: context.allowSyntheticTeamId === true || !String(context.scopeKey || "").trim(),
   };

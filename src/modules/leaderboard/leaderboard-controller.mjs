@@ -5,6 +5,7 @@ import {
   normalizeLeaderboardText,
   shiftLeaderboardMonth,
 } from "./leaderboard-helpers.mjs";
+import { canAwardLeaderboard } from "./leaderboard-access.mjs";
 import { renderLeaderboardWorkspace } from "./leaderboard-renderer.mjs";
 import { getLeaderboardMonthBounds, isLeaderboardCurrentMonth } from "./leaderboard-selectors.mjs";
 import { createLeaderboardAwardDraft } from "./leaderboard-state.mjs";
@@ -30,11 +31,7 @@ function getDocument(activeRuntime = getActiveLeaderboardRuntime()) {
 }
 
 function canEdit(activeRuntime = getActiveLeaderboardRuntime()) {
-  try {
-    return Boolean(activeRuntime?.context?.canEdit?.());
-  } catch {
-    return false;
-  }
+  return Boolean(activeRuntime && canAwardLeaderboard(activeRuntime.store.getState(), activeRuntime.context));
 }
 
 function capturePaintState(activeRuntime = getActiveLeaderboardRuntime()) {

@@ -1,4 +1,5 @@
 import { escapeLeaderboardHtml, formatLeaderboardMonth } from "./leaderboard-helpers.mjs";
+import { canAwardLeaderboard } from "./leaderboard-access.mjs";
 import {
   getLeaderboardRankedStandings,
   getLeaderboardSquadPlayers,
@@ -7,14 +8,6 @@ import { renderLeaderboardPodium } from "./leaderboard-components.mjs";
 import { getLeaderboardCurrentMonthSnapshot } from "./leaderboard-snapshot.mjs";
 
 export { getLeaderboardCurrentMonthSnapshot } from "./leaderboard-snapshot.mjs";
-
-function canEditLeaderboard(context = {}) {
-  try {
-    return typeof context.canEdit === "function" ? Boolean(context.canEdit()) : Boolean(context.canEdit);
-  } catch {
-    return false;
-  }
-}
 
 function renderSummaryHeader(snapshot, editable) {
   return `
@@ -54,7 +47,7 @@ function renderReadySummary(data, context, editable) {
 
 export function renderLeaderboardHomeSummary(state = {}, context = {}) {
   const snapshot = getLeaderboardCurrentMonthSnapshot(state, context);
-  const editable = canEditLeaderboard(context);
+  const editable = canAwardLeaderboard({ data: snapshot.data }, context);
   const content = snapshot.status === "error"
     ? renderSummaryError(snapshot.error)
     : snapshot.status !== "ready"

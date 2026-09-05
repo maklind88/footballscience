@@ -5,6 +5,7 @@ import {
 } from "./leaderboard-helpers.mjs";
 import { getLeaderboardRankedStandings } from "./leaderboard-selectors.mjs";
 import { resolveLeaderboardProfilePhoto } from "./leaderboard-ui-helpers.mjs";
+import { getLeaderboardAccess } from "./leaderboard-access.mjs";
 
 export function getLeaderboardCurrentMonthSnapshot(state = {}, context = {}) {
   const month = getLeaderboardMonthValue(context.getNow?.() || new Date());
@@ -50,6 +51,7 @@ export function createLeaderboardPresentationSnapshot(state = {}, context = {}) 
     teamName: normalizeLeaderboardText(context.teamName || context.team?.name, 120) || "Team",
     teamLogoUrl: normalizeLeaderboardText(context.teamLogoUrl || context.team?.logoUrl, 1800),
     requestError: normalizeLeaderboardText(current.error, 240),
+    access: getLeaderboardAccess(current.data || {}),
     standings: Object.freeze(standings),
   });
 }

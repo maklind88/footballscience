@@ -7,6 +7,7 @@ function leaderboardPayload(month = "2026-08") {
     ok: true,
     schema: "footballscience-leaderboard-v1",
     month,
+    access: { canView: true, canAward: true, canReverse: true },
     competition: { id: `competition-${month}`, status: current ? "live" : "completed" },
     summary: { eventCount: 1, totalPoints: 21, scoredPlayerCount: 3, leaderGap: 0 },
     roster: [
@@ -86,6 +87,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
       getAuthToken: () => "",
       getNow: () => new Date("2026-08-25T12:00:00"),
       canEdit: () => true,
+      requireServerAccess: true,
       getPlayerProfilesState: () => ({ players: [
         { id: "p1", photoUrl: "/assets/football-science-mark.png" },
         { id: "p2", photoUrl: "/assets/football-science-logo.png" },

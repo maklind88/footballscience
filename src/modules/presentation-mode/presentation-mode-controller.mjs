@@ -1478,7 +1478,11 @@ export function createPresentationModeController(dependencies = {}) {
     return getAvailabilityItems(dateValue)
       .map((item) => normalizePlayerItem(item))
       .filter(Boolean)
-      .filter((item) => !isTemporaryMedicalRecommendation(item) || Boolean(item.record))
+      .filter(
+        (item) =>
+          !isTemporaryMedicalRecommendation(item) ||
+          (Boolean(item.record) && Number(item.participation) > 0)
+      )
       .filter((item) => {
         const playerId = String(item.player?.id || "").trim();
         if (!playerId || seenPlayerIds.has(playerId)) {

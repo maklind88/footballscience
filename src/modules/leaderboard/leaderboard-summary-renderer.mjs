@@ -15,7 +15,7 @@ function renderSummaryHeader(snapshot, editable) {
       <div class="leaderboard-home-visual" aria-hidden="true">
         <svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H4v1a4 4 0 0 0 4 4M16 6h4v1a4 4 0 0 1-4 4M12 13v4M8 21h8M9 17h6"/></svg>
       </div>
-      <div class="leaderboard-home-copy"><p>Monthly competition</p><h2>NCC Leaderboard</h2><span>${escapeLeaderboardHtml(formatLeaderboardMonth(snapshot.month))} · Live${editable ? "" : " · View only"}</span></div>
+      <div class="leaderboard-home-copy"><p>Monthly competition</p><h2>Leaderboard</h2><span>${escapeLeaderboardHtml(formatLeaderboardMonth(snapshot.month))} · Live${editable ? "" : " · View only"}</span></div>
       <button type="button" class="leaderboard-home-open" data-leaderboard-home-open>Open</button>
     </header>
   `;

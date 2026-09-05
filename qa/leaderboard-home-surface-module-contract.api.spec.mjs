@@ -183,7 +183,7 @@ test("Home summary always selects the current-month cache while the full view is
   };
   const markup = renderLeaderboardHomeSummary(state, context(teamAId, "Team A", async () => response(current)));
   expect(markup).toContain("Current Captain");
-  expect(markup).toContain("NCC Leaderboard");
+  expect(markup).toContain("<h2>Leaderboard</h2>");
   expect(markup).toContain('class="leaderboard-home-visual" aria-hidden="true"');
   expect(markup).not.toContain("Team standings");
   expect(markup).not.toContain("Historical Captain");

@@ -78,27 +78,28 @@
   align-items: center;
   justify-content: center;
   min-height: 1.75rem;
-  border: 0;
-  border-radius: 7px;
-  padding: 0 .58rem;
-  background: #233b2d;
-  color: #fff;
+  border: 1px solid rgba(29, 29, 31, .08);
+  border-radius: 8px;
+  padding: 0 .65rem;
+  background: #f5f5f7;
+  color: #1d1d1f;
   box-shadow: none;
   font: inherit;
-  font-size: .68rem;
-  font-weight: 850;
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .dashboard-birthday-view-all:hover,
 .dashboard-birthday-view-all:focus-visible {
-  background: #17251e;
+  background: #e8e8ed;
   transform: none;
 }
 
 .dashboard-birthday-view-all:focus-visible {
-  outline: 3px solid rgba(35, 59, 45, .22);
+  outline: 2px solid #007aff;
   outline-offset: 2px;
 }
 
@@ -208,13 +209,14 @@
 }
 
 body.is-dark-mode .dashboard-birthday-view-all {
-  background: #f5f5f7;
-  color: #1d1d1f;
+  border-color: rgba(255, 255, 255, .1);
+  background: #2c2c2e;
+  color: #f5f5f7;
 }
 
 body.is-dark-mode .dashboard-birthday-view-all:hover,
 body.is-dark-mode .dashboard-birthday-view-all:focus-visible {
-  background: #fff;
+  background: #3a3a3c;
 }
 
 body.is-dark-mode .dashboard-birthday-modal-card .dashboard-modal-head small,

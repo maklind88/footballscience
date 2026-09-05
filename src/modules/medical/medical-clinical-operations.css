@@ -116,6 +116,76 @@
   border-top: 3px solid var(--medical-line-strong);
 }
 
+#medicalTeamWorkspace .medical-reports-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+}
+
+#medicalTeamWorkspace .medical-reports-heading,
+#medicalTeamWorkspace .medical-reports-section-head {
+  min-width: 0;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0.1rem 0.05rem;
+}
+
+#medicalTeamWorkspace .medical-reports-heading > div,
+#medicalTeamWorkspace .medical-reports-section-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+#medicalTeamWorkspace .medical-reports-heading span,
+#medicalTeamWorkspace .medical-reports-section-head span {
+  color: var(--medical-muted);
+  font-size: 0.66rem;
+  font-weight: 740;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+#medicalTeamWorkspace .medical-reports-heading h2 {
+  margin: 0;
+  color: var(--medical-ink);
+  font-size: 1.18rem;
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+
+#medicalTeamWorkspace .medical-reports-heading small {
+  color: var(--medical-muted);
+  font-size: 0.7rem;
+  font-weight: 620;
+  text-align: right;
+}
+
+#medicalTeamWorkspace .medical-reports-section-head {
+  margin-top: 0.15rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--medical-line);
+}
+
+#medicalTeamWorkspace .medical-reports-section-head strong {
+  color: var(--medical-ink);
+  font-size: 0.9rem;
+  font-weight: 740;
+}
+
+#medicalTeamWorkspace .medical-reports-metrics .medical-metric-card-no-meta strong {
+  grid-column: 1 / -1;
+}
+
+#medicalTeamWorkspace .medical-reports-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 0.75rem;
+}
+
 #medicalTeamWorkspace .medical-ops-card {
   padding: 0;
   overflow: hidden;
@@ -461,6 +531,20 @@
 }
 
 @media (max-width: 640px) {
+  #medicalTeamWorkspace .medical-reports-heading {
+    align-items: start;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  #medicalTeamWorkspace .medical-reports-heading small {
+    text-align: left;
+  }
+
+  #medicalTeamWorkspace .medical-reports-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
   #medicalTeamWorkspace .medical-ops-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

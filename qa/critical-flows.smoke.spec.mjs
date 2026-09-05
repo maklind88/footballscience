@@ -4982,7 +4982,11 @@ test("Medical metrics use current-month and planned-session averages", async ({ 
   await bootApp(page);
   await openWorkspace(page, "medical-team");
 
-  const metricCards = page.locator(".medical-metric-card");
+  await expect(page.locator(".medical-availability-workspace .medical-metrics-grid")).toHaveCount(0);
+  await page.locator('[data-medical-ops-tab="season"]').click();
+  await expect(page.locator("[data-medical-reports-workspace]")).toBeVisible();
+
+  const metricCards = page.locator("[data-medical-reports-workspace] .medical-metric-card");
   await expect(metricCards.filter({ hasText: "Month average" })).toContainText("40%");
   await expect(metricCards.filter({ hasText: "Month average" })).not.toContainText("filled");
   await expect(metricCards.filter({ hasText: "5-session average" })).toContainText("38%");
@@ -5715,14 +5719,29 @@ test("Medical availability list keeps participation states after overview remova
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);
   await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();
   await expect(page.locator(".medical-command-card").filter({ hasText: "Recommendation Queue" })).toHaveCount(0);
-  await expect(page.locator(".medical-metric-card").filter({ hasText: "Full" })).toContainText("1");
-  await expect(page.locator(".medical-metric-card").filter({ hasText: "Modified" })).toContainText("1");
-  await expect(page.locator(".medical-metric-card").filter({ hasText: "Unavailable" })).toContainText("1");
-  await expect(page.locator(".medical-metric-card").filter({ hasText: "Not set" })).toContainText("no entry");
-  await expect(page.locator('[data-medical-roster-row="qa-positive-missing"] .medical-quick-rec-button.is-active')).toHaveText("75%");
-  await expect(page.locator('[data-medical-roster-row="qa-unavailable"] .medical-quick-rec-button.is-active')).toHaveText("0%");
-  await expect(page.locator('[data-medical-roster-row="qa-logged"] .medical-quick-rec-button.is-active')).toHaveText("100%");
-  await expect(page.locator('[data-medical-roster-row="qa-not-set"] .medical-quick-rec-button.is-active')).toHaveCount(0);
+  await expect(page.locator("[data-medical-availability-workspace] .medical-metric-card")).toHaveCount(0);
+  const expectParticipationStates = async () => {
+    await expect(page.locator("[data-medical-date-picker]")).toHaveValue("2026-05-15");
+    await expect(page.locator('[data-medical-roster-row="qa-positive-missing"] .medical-quick-rec-button.is-active')).toHaveText("75%");
+    await expect(page.locator('[data-medical-roster-row="qa-unavailable"] .medical-quick-rec-button.is-active')).toHaveText("0%");
+    await expect(page.locator('[data-medical-roster-row="qa-logged"] .medical-quick-rec-button.is-active')).toHaveText("100%");
+    await expect(page.locator('[data-medical-roster-row="qa-not-set"] .medical-quick-rec-button.is-active')).toHaveCount(0);
+  };
+  await expectParticipationStates();
+
+  await operationsMenu.locator('[data-medical-ops-tab="season"]').click();
+  const reports = page.locator("[data-medical-reports-workspace]");
+  await expect(reports).toBeVisible();
+  await expect(reports.locator(".medical-reports-heading h2")).toHaveText("Fri 15 May");
+  const reportMetrics = reports.locator(".medical-metric-card");
+  await expect(reportMetrics.filter({ hasText: "Full" }).locator("strong")).toHaveText("1");
+  await expect(reportMetrics.filter({ hasText: "Modified" }).locator("strong")).toHaveText("1");
+  await expect(reportMetrics.filter({ hasText: "Unavailable" }).locator("strong")).toHaveText("1");
+  await expect(reportMetrics.filter({ hasText: "Not set" })).toContainText("no entry");
+
+  await operationsMenu.locator('[data-medical-ops-tab="availability"]').click();
+  await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();
+  await expectParticipationStates();
 });
 
 test("Squad removal keeps default roster players hidden after reload", async ({ page }) => {
@@ -6541,7 +6560,7 @@ test("Squad Room shows legacy Medical training guests outside their active dates
   await expect(modal.locator('input[name="temporaryTo"]')).toHaveValue("2026-05-02");
 });
 
-test("Medical recommends date-bound Squad training guests and includes them in Presentation Mode", async ({ page }) => {
+test("Medical recommends only Available date-bound Squad training guests and includes them in Presentation Mode", async ({ page }) => {
   const today = new Date();
   const dateValue = [
     today.getFullYear(),
@@ -6563,9 +6582,17 @@ test("Medical recommends date-bound Squad training guests and includes them in P
     temporaryTo: dateValue,
     rosterOrder: 1,
   };
+  const blockedGuest = {
+    ...guest,
+    id: "qa-medical-unavailable-training-guest",
+    name: "QA Unavailable Training Guest",
+    number: "95",
+    status: "national-team",
+    rosterOrder: 2,
+  };
 
   await page.addInitScript(
-    ({ dateValue: seededDate, guest: seededGuest, keys }) => {
+    ({ dateValue: seededDate, guest: seededGuest, blockedGuest: seededBlockedGuest, keys }) => {
       window.localStorage.setItem(
         keys.schedule,
         JSON.stringify({
@@ -6579,7 +6606,7 @@ test("Medical recommends date-bound Squad training guests and includes them in P
           rosterVersion: "qa-medical-training-guest-profiles",
           schemaVersion: 3,
           selectedPlayerId: seededGuest.id,
-          players: [seededGuest],
+          players: [seededGuest, seededBlockedGuest],
           removedPlayerIds: [],
         })
       );
@@ -6615,6 +6642,7 @@ test("Medical recommends date-bound Squad training guests and includes them in P
     {
       dateValue,
       guest,
+      blockedGuest,
       keys: {
         schedule: scheduleKey,
         profiles: playerProfilesKey,
@@ -6632,8 +6660,9 @@ test("Medical recommends date-bound Squad training guests and includes them in P
 
   const guestPanel = medicalWorkspace.locator(".medical-temporary-player-panel");
   const guestRow = guestPanel.locator(`[data-medical-roster-row="${guest.id}"]`);
-  await expect(guestPanel).toContainText("1 active for this date");
+  await expect(guestPanel).toContainText("1 available for this date");
   await expect(guestRow).toContainText(guest.name);
+  await expect(guestPanel.locator(`[data-medical-roster-row="${blockedGuest.id}"]`)).toHaveCount(0);
 
   await guestRow.locator('[data-medical-quick-participation="25"]').click();
   await expect(
@@ -6658,6 +6687,7 @@ test("Medical recommends date-bound Squad training guests and includes them in P
   const guestRecommendation = presentation.locator(".presentation-medical-player", { hasText: guest.name });
   await expect(guestRecommendation).toBeVisible();
   await expect(guestRecommendation).toContainText("25%");
+  await expect(presentation.locator(".presentation-medical-player", { hasText: blockedGuest.name })).toHaveCount(0);
 });
 
 test("Squad profile modal autosaves edits and keeps its size across tabs", async ({ page }) => {

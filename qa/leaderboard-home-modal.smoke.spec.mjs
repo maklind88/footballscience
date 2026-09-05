@@ -100,7 +100,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   });
 
   const summary = page.locator("#summary");
-  await expect(summary.getByRole("heading", { name: "NCC Leaderboard" })).toBeVisible();
+  await expect(summary.getByRole("heading", { name: "Leaderboard", exact: true })).toBeVisible();
   await expect(summary.locator(".leaderboard-home-visual svg")).toHaveCount(1);
   await expect(summary.locator(".leaderboard-team-mark")).toHaveCount(0);
   await expect(summary.locator(".leaderboard-podium-card")).toHaveCount(3);
@@ -110,6 +110,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(summary.locator(".leaderboard-podium-trophy")).toHaveCount(3);
   await expect(summary.locator(".leaderboard-podium-trophy.is-rank-1")).toHaveCount(2);
   await expect(summary.locator(".leaderboard-podium-trophy.is-rank-1 strong")).toHaveText(["1", "1"]);
+  expect(await summary.locator(".leaderboard-podium-trophy.is-rank-1").evaluateAll((trophies) => trophies.map((trophy) => getComputedStyle(trophy).color))).toEqual(["rgb(181, 132, 22)", "rgb(181, 132, 22)"]);
   await expect(summary.locator(".leaderboard-podium-trophy.is-rank-3")).toHaveCount(1);
   await expect(summary.locator(".leaderboard-podium-trophy.is-rank-3 strong")).toHaveText("3");
   await expect(summary.locator(".leaderboard-home-standings")).toHaveCount(0);
@@ -195,6 +196,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(fullPodium.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
   await expect(fullPodium.locator(".leaderboard-podium-trophy")).toHaveCount(3);
   await expect(fullPodium.locator(".leaderboard-podium-trophy.is-rank-1")).toHaveCount(2);
+  expect(await fullPodium.locator(".leaderboard-podium-trophy.is-rank-1").evaluateAll((trophies) => trophies.map((trophy) => getComputedStyle(trophy).color))).toEqual(["rgb(181, 132, 22)", "rgb(181, 132, 22)"]);
   await expect(fullPodium.locator(".leaderboard-podium-trophy.is-rank-3")).toHaveCount(1);
   await expect(fullPodium.locator(".leaderboard-podium-copy small")).toHaveText(["#13", "#17", "#2"]);
   expect(await fullPodium.locator(".leaderboard-podium-points").first().evaluate((node) => {
@@ -231,6 +233,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
     activeTab: { backgroundColor: "rgb(255, 255, 255)", backgroundImage: "none", borderRadius: "9px" },
   });
   await page.evaluate(() => document.body.classList.add("is-dark-mode"));
+  expect(await page.locator(".leaderboard-podium-trophy.is-rank-1").evaluateAll((trophies) => trophies.map((trophy) => getComputedStyle(trophy).color))).toEqual(Array(4).fill("rgb(224, 180, 79)"));
   await expect.poll(() => outerDialog.evaluate((dialog) => {
     const selectors = {
       dialog: ".leaderboard-home-dialog",
@@ -395,7 +398,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
     window.leaderboardHomeContext = context;
     window.leaderboardHomeHandle = window.leaderboardHomeModule.mountLeaderboardHome(context);
   });
-  await expect(summary.getByRole("heading", { name: "NCC Leaderboard" })).toBeVisible();
+  await expect(summary.getByRole("heading", { name: "Leaderboard", exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.leaderboardHomeModule.getLeaderboardRuntimeState().ui.pendingAction)).toBe("");
 
   await page.setViewportSize({ width: 390, height: 844 });

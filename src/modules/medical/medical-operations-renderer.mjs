@@ -18,17 +18,20 @@ export function createMedicalOperationsRenderer({
   formatMedicalDateLabel,
   getMedicalCoachHandoverItems,
   getMedicalDailyStats,
+  getMedicalMonthAverageStats = () => ({ averageParticipation: null }),
   getMedicalHistoryDateFilter = () => "all",
   getMedicalHistoryEvents,
   getMedicalHistoryPlayerFilter = () => "all",
   getMedicalHistorySearchQuery = () => "",
   getMedicalRtpLibraryProfiles = () => defaultMedicalRtpLibraryProfiles,
   getMedicalRtpPhaseOption,
+  getMedicalWindowAverage = () => null,
   medicalClearanceRoles = [],
   medicalLoadGateOptions = [],
   getMedicalPlayerRtpCoachStatus = () => null,
   renderMedicalCoachHandoverPanel,
   renderMedicalDailyHuddle,
+  renderMedicalMetric,
   getSelectedMedicalPlayer = () => null,
 } = {}) {
   const renderOpsStat = (label, value, meta = "", tone = "") => `
@@ -38,6 +41,21 @@ export function createMedicalOperationsRenderer({
 ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
 </article>
 `;
+
+  const renderReportMetric = (label, value, meta = "", tone = "") => {
+    if (typeof renderMedicalMetric === "function") {
+      return renderMedicalMetric(label, value, meta, tone);
+    }
+    const toneClass = tone ? ` medical-metric-card-${escapeHtml(tone)}` : "";
+    const noMetaClass = meta ? "" : " medical-metric-card-no-meta";
+    return `
+<article class="medical-metric-card${toneClass}${noMetaClass}">
+<span>${escapeHtml(label)}</span>
+<strong>${escapeHtml(value)}</strong>
+${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
+</article>
+`;
+  };
 
   const renderSignalDrivers = (signal, limit = 3) => {
     const drivers = signal.drivers.slice(0, limit);
@@ -427,16 +445,42 @@ ${filteredEvents.length > historyPageSize
 `;
   };
 
-  const renderSeason = (summary) => {
+  const renderSeason = (summary, selectedDate = "") => {
     const season = summary.season;
+    const reportDate = selectedDate || summary.selectedDate || summary.clinicalDate || "";
+    const stats = getMedicalDailyStats(reportDate);
+    const monthStats = getMedicalMonthAverageStats();
+    const windowAverage = getMedicalWindowAverage();
     return `
-<div class="medical-ops-season">
+<div class="medical-ops-season medical-reports-workspace" data-medical-reports-workspace>
+<header class="medical-reports-heading">
+<div>
+<span>Availability report</span>
+<h2>${escapeHtml(reportDate ? formatMedicalDateLabel(reportDate) : "Current selection")}</h2>
+</div>
+<small>Squad availability and participation</small>
+</header>
+<section class="medical-metrics-grid medical-reports-metrics" aria-label="Medical availability summary">
+${renderReportMetric("Full", String(stats.fullCount), "100%", "full")}
+${renderReportMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
+${renderReportMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
+${renderReportMetric("Not set", String(stats.unloggedCount), "no entry")}
+${renderReportMetric("Month average", monthStats.averageParticipation === null ? "-" : `${monthStats.averageParticipation}%`)}
+${renderReportMetric("5-session average", windowAverage === null ? "-" : `${windowAverage}%`, "planned sessions")}
+</section>
+<header class="medical-reports-section-head">
+<div>
+<span>Season summary</span>
+<strong>Medical case activity</strong>
+</div>
+</header>
 <div class="medical-ops-stats">
 ${renderOpsStat("Season cases", String(season.plans.length), "medical plans", season.plans.length ? "medium" : "clear")}
 ${renderOpsStat("Active now", String(season.activeCount), "current cases", season.activeCount ? "medium" : "clear")}
 ${renderOpsStat("Returned", String(season.returnedCount), "closed windows", "clear")}
 ${renderOpsStat("Managed days", String(season.managedDays), `${season.unavailableDays} unavailable`, season.managedDays ? "low" : "clear")}
 </div>
+<div class="medical-reports-detail-grid">
 <article class="medical-ops-card">
 <div class="medical-command-head">
 <span>Case Severity</span>
@@ -470,6 +514,7 @@ ${season.topPlayerDays.length
   : `<div class="medical-empty-inline">No managed medical days this season.</div>`}
 </div>
 </article>
+</div>
 </div>
 `;
   };
@@ -509,7 +554,7 @@ ${renderOpsStat("Coach notes", String(items.length), "approved", items.length ? 
               : activeTab === "rtp-library"
                 ? renderRtpLibrary(summary)
                 : activeTab === "season"
-                  ? renderSeason(summary)
+                  ? renderSeason(summary, selectedDate)
                 : renderSignals(summary);
     return `
 <section class="medical-operations-system" data-medical-operations-system aria-label="Medical operations intelligence board">

@@ -15,8 +15,6 @@ export function createMedicalRosterRenderer({
   getActiveMedicalPlayers,
   getFilteredMedicalPlayers,
   getLatestMedicalRecord,
-  getMedicalDailyStats,
-  getMedicalMonthAverageStats,
   getMedicalPlayerSquadAvailabilityBlockReason,
   getMedicalRecommendationActivityContext,
   getMedicalRecordStatus,
@@ -26,7 +24,6 @@ export function createMedicalRosterRenderer({
   getMedicalStatusForParticipation,
   getMedicalStatusOptionForDate,
   getMedicalVisibleComment,
-  getMedicalWindowAverage,
   getMedicalWindowDates,
   getRosterSearchQuery,
   getSelectedDate,
@@ -36,7 +33,6 @@ export function createMedicalRosterRenderer({
   isTemporaryPlayerProfile,
   medicalParticipationOptions = [],
   medicalStatusOptions = [],
-  renderMedicalMetric,
   renderMedicalOperationsSystem,
   renderMedicalPlayerAvatar,
   renderMedicalSquadAvailabilityBadge,
@@ -213,9 +209,9 @@ ${group.players.map(renderRosterRow).join("")}
 <div>
 <span class="medical-temporary-tab">Training guests</span>
 <strong>Temporary players</strong>
-<small>Only shown here when their temporary training dates include ${escapeHtml(formatMedicalDateLabel(getSelectedDate(), "long"))}.</small>
+<small>Training window includes ${escapeHtml(formatMedicalDateLabel(getSelectedDate(), "long"))} and Squad status is Available.</small>
 </div>
-<p>${activeCount ? `${activeCount} active for this date` : "None active for this date"}</p>
+<p>${activeCount ? `${activeCount} available for this date` : "None available for this date"}</p>
 </header>
 ${
   activeCount
@@ -228,7 +224,7 @@ ${
 ${players.map(renderRosterRow).join("")}
 </div>
 `
-    : `<div class="medical-empty-inline medical-temporary-empty">No temporary players are marked as training with the team on this date.</div>`
+    : `<div class="medical-empty-inline medical-temporary-empty">No temporary players are Available in Squad Room for this date.</div>`
 }
 </section>
 `;
@@ -293,11 +289,15 @@ ${renderNewPlayerCard()}
   };
 
   const renderRosterPanel = () => {
+    const selectedDate = getSelectedDate();
     const players = getFilteredMedicalPlayers();
     const squadPlayers = players.filter((player) => !isTemporaryPlayerProfile(player));
-    const temporaryPlayers = players.filter(isTemporaryPlayerProfile);
+    const temporaryPlayers = players.filter(
+      (player) =>
+        isTemporaryPlayerProfile(player) &&
+        !getMedicalPlayerSquadAvailabilityBlockReason(player, selectedDate)
+    );
     const positionGroups = getMedicalRosterPositionGroups(squadPlayers);
-    const selectedDate = getSelectedDate();
     const activityContext = getMedicalRecommendationActivityContext(selectedDate);
     const statusFilter = getStatusFilter();
     return `
@@ -340,24 +340,12 @@ ${renderTemporaryPlayerSection(temporaryPlayers)}
   };
 
   const renderAvailabilityWorkspace = (message = "") => {
-    const selectedDate = getSelectedDate();
-    const stats = getMedicalDailyStats(selectedDate);
-    const windowAverage = getMedicalWindowAverage();
-    const monthStats = getMedicalMonthAverageStats();
     const hasActivePlayers = getActiveMedicalPlayers().length > 0;
     return `
 <section class="medical-availability-workspace" data-medical-availability-workspace aria-label="Medical availability recommendations">
 ${renderDateStrip()}
 ${renderActivityContextPanel()}
 ${message ? `<div class="medical-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}
-<section class="medical-metrics-grid" aria-label="Medical availability summary">
-${renderMedicalMetric("Full", String(stats.fullCount), "100%", "full")}
-${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
-${renderMedicalMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
-${renderMedicalMetric("Not set", String(stats.unloggedCount), "no entry")}
-${renderMedicalMetric("Month average", monthStats.averageParticipation === null ? "-" : `${monthStats.averageParticipation}%`)}
-${renderMedicalMetric("5-session average", windowAverage === null ? "-" : `${windowAverage}%`, "planned sessions")}
-</section>
 ${
   hasActivePlayers
     ? `

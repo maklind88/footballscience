@@ -87,7 +87,7 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(rendered).toContain("Bea Defender");
   expect(rendered).toContain("Clea Striker");
   expect(rendered).not.toContain("Daria Winger");
-  expect(rendered).toContain("3 this month");
+  expect(rendered).not.toContain("this month");
   expect(rendered).toContain("data-dashboard-open-birthday-calendar");
   expect(rendered).toContain("dashboard-birthday-spotlight");
   expect(rendered).toContain("Jul 24 · In 2 days");

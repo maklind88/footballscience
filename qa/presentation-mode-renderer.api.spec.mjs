@@ -198,6 +198,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       { player: { id: "p3", name: "Zoe Striker", position: "Forward" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p4", name: "Cara Defender", position: "Defender" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p5", name: "Mia Midfield", position: "Midfielder" }, participation: 100, status: { label: "Full" } },
+      { player: { id: "guest-1", name: "Recommended Guest", position: "Forward", rosterType: "guest", countsInSquad: false }, record: { id: "guest-r1" }, participation: 25, status: { label: "Modified" } },
+      { player: { id: "guest-2", name: "Unreviewed Guest", position: "Forward", rosterType: "trialist", countsInSquad: false }, participation: null, status: { label: "Not set" } },
+      { player: { id: "guest-3", name: "Unavailable Guest", position: "Defender", rosterType: "guest", countsInSquad: false }, record: { id: "guest-r3" }, participation: 0, status: { label: "Unavailable" } },
     ],
     getCustomPeople: () => [{ id: "staff-1", name: "Coach", kind: "staff", role: "Staff" }],
     createCustomPersonItem: (person) => ({
@@ -218,15 +221,17 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     "Anna Defender",
     "Bea Mid",
     "Zara Striker",
+    "Recommended Guest",
     "Ada Keeper",
     "Cara Defender",
     "Mia Midfield",
     "Zoe Striker",
     "Kara Keeper",
   ]);
+  expect(model.medicalRecommendations.map((item) => item.player.name)).not.toContain("Unavailable Guest");
   const blockSlide = model.slides.find((slide) => slide.type === "block");
-  expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach"]);
-  expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid"]);
+  expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach", "Recommended Guest"]);
+  expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid", "Unavailable Guest"]);
   expect(harness.root.innerHTML).toContain("Presentation Mode");
   expect(harness.root.innerHTML).toMatch(/<footer class="presentation-footer-nav">[\s\S]*<nav class="presentation-slide-tabs"/);
   expect(harness.root.innerHTML).toMatch(/<nav class="presentation-slide-tabs"[\s\S]*<div class="presentation-footer-pager">/);
@@ -264,6 +269,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(controlHtml).toContain('data-presentation-add-info="video"');
   expect(controlHtml).toContain('data-presentation-add-info="match-squad"');
   expect(controlHtml).toContain('data-presentation-add-info="starting-xi"');
+  expect(controlHtml).not.toContain('data-presentation-add-info="leaderboard"');
   expect(controlHtml).toContain("Match Squad");
   expect(controlHtml).toContain("Starting XI");
   expect(controlHtml).toContain("Bullets");
@@ -361,7 +367,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(infoHtml).toContain('data-presentation-info-field="title"');
   expect(infoHtml).toContain('data-presentation-text-field="info.title"');
   expect(infoHtml).toContain('data-presentation-text-field="info.body"');
-  expect(infoHtml).toContain("--presentation-info-body-size: 3.5rem;");
+  expect(infoHtml).toContain("--presentation-info-body-size: max(3.5rem, 4.375cqw);");
   const videoInfoHtml = renderer.renderInfoSlide(model, {
     ...infoSlide,
     id: "video-slide",
@@ -419,6 +425,30 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       mediaSrc: "",
     },
   })).not.toContain("presentation-info-media-empty-mark");
+  const missingImageHtml = renderer.renderInfoSlide(model, {
+    ...infoSlide,
+    id: "missing-image-slide",
+    infoSlide: {
+      ...infoSlide.infoSlide,
+      id: "missing-image-slide",
+      layout: "media",
+      mediaKind: "image",
+      mediaId: "local-image-1",
+      mediaStatus: "missing",
+    },
+  });
+  expect(missingImageHtml).toContain("presentation-info-media-panel is-image is-empty is-missing");
+  expect(missingImageHtml).toContain("Image file missing");
+  expect(missingImageHtml).toContain("Relink Image");
+  const blankTitleHtml = renderer.renderInfoSlide(model, {
+    ...infoSlide,
+    infoSlide: {
+      ...infoSlide.infoSlide,
+      title: "",
+    },
+  });
+  expect(blankTitleHtml).toContain('value=""');
+  expect(blankTitleHtml).not.toContain('value="Team Information"');
   expect(renderer.renderInfoSlide({ ...model, presenting: true }, {
     ...infoSlide,
     id: "video-slide",
@@ -535,10 +565,11 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockHtml).not.toContain("Coaching Points");
   expect(blockHtml).not.toContain("In this block");
   expect(blockHtml).toContain("Not in this block");
-  expect(blockHtml).toContain("(1 Player)");
+  expect(blockHtml).toContain("(2 Players)");
   expect(blockHtml).not.toContain("Ada Keeper");
   expect(blockHtml).not.toContain("Coach");
   expect(blockHtml).toContain("Bea Mid");
+  expect(blockHtml).toContain("Unavailable Guest");
   expect(storage.has(dashboardPresentationStorageKey)).toBe(false);
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({
@@ -752,6 +783,72 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   }));
   expect(storage.get(dashboardPresentationStorageKey).decks["2026-06-02"].infoSlides).toEqual([]);
   expect(controller.buildModel().slides.map((slide) => slide.type)).toEqual(["cover", "overview", "block"]);
+});
+
+test("Leaderboard layout reads the current standings and presents every scorer after the podium", () => {
+  const dateValue = "2026-09-01";
+  const storage = new Map([
+    [dashboardPresentationStorageKey, {
+      decks: {
+        [dateValue]: {
+          infoSlides: [{ id: "leaderboard-slide", layout: "leaderboard", title: "Leaderboard" }],
+          slideOrder: ["cover", "leaderboard-slide", "overview"],
+        },
+      },
+    }],
+  ]);
+  const harness = createDocumentHarness();
+  const renderer = createPresentationModeRenderer();
+  const standings = [
+    { playerId: "p1", name: "Ada Forward", number: "9", position: "Forward", photoUrl: "/ada.jpg", points: 12, rank: 1 },
+    { playerId: "p2", name: "Bea Midfielder", number: "8", position: "Midfielder", points: 12, rank: 1 },
+    { playerId: "p3", name: "Cara Defender", number: "4", position: "Defender", points: 12, rank: 1 },
+    { playerId: "p4", name: "Dana Keeper", number: "1", position: "Goalkeeper", points: 5, rank: 4 },
+    { playerId: "p5", name: "Eli Winger", number: "11", position: "Forward", points: 3, rank: 5 },
+  ];
+  const controller = createPresentationModeController({
+    documentRef: harness.documentRef,
+    win: {},
+    renderer,
+    readJson: (key, fallback) => storage.get(key) || fallback,
+    writeJson: (key, value) => storage.set(key, value),
+    getTodayValue: () => dateValue,
+    getSessionForDate: () => ({ title: "Team Meeting", blocks: [] }),
+    canViewLeaderboard: () => true,
+    getLeaderboardSnapshot: () => ({
+      status: "ready",
+      month: "2026-09",
+      monthLabel: "September 2026",
+      teamName: "North Carolina Courage",
+      teamLogoUrl: "/ncc.png",
+      requestError: "",
+      standings,
+    }),
+  });
+
+  controller.open(dateValue);
+  const model = controller.buildModel();
+  const slide = model.slides.find((item) => item.type === "leaderboard");
+  const controls = renderer.renderControlBar(model);
+  const markup = renderer.renderLeaderboardSlide({ ...model, slideIndex: slide.index }, slide);
+
+  expect(model.canViewLeaderboard).toBe(true);
+  expect(slide.leaderboard.standings).toEqual(standings);
+  expect(controls).toContain('data-presentation-add-info="leaderboard"');
+  expect(controls).toContain("Current monthly standings");
+  expect(markup).not.toContain("presentation-leaderboard-trophy");
+  expect(markup).not.toContain("Monthly competition");
+  expect(markup).toContain("presentation-leaderboard-podium");
+  expect((markup.match(/presentation-leaderboard-rank is-tone-gold/g) || []).length).toBe(3);
+  expect(markup).toContain('aria-label="Joint rank 1"');
+  expect(markup).toContain('aria-label="Rank 4">4th</span>');
+  expect(markup).toContain("presentation-leaderboard-standing-points");
+  expect(markup).toContain("September 2026");
+  expect(markup).toContain('data-presentation-text-field="leaderboard.title"');
+  expect(markup).toContain('src="/ada.jpg"');
+  standings.forEach((player) => expect(markup).toContain(player.name));
+  expect(markup.indexOf("Ada Forward")).toBeLessThan(markup.indexOf("Dana Keeper"));
+  expect(markup).toContain("presentation-leaderboard-standing-grid");
 });
 
 test("Presentation Mode uses the shared warm-up and block thresholds", () => {
@@ -1066,6 +1163,66 @@ test("Presentation Mode central merge preserves newer blank text overrides", () 
 
   expect(merged.decks["2026-08-12"].textOverrides["block-1"]["detail.principles.body"]).toBe("");
   expect(merged.decks["2026-08-12"].textOverrides["block-1"]["block.title"]).toBe("Press-Cover Game");
+});
+
+test("Presentation Mode central merge preserves newer blank info fields and local media references", () => {
+  const localValue = JSON.stringify({
+    schema: "footballscience-presentation-mode-v1",
+    version: 1,
+    decks: {
+      "2026-08-12": {
+        updatedAt: "2026-08-12T10:04:00.000Z",
+        infoSlides: [
+          {
+            id: "info-main",
+            layout: "media",
+            title: "",
+            body: "",
+            mediaKind: "image",
+            mediaId: "local-image-1",
+            mediaLocal: true,
+            mediaName: "board.png",
+            fieldUpdatedAt: {
+              title: "2026-08-12T10:04:00.000Z",
+              body: "2026-08-12T10:04:00.000Z",
+              layout: "2026-08-12T10:04:00.000Z",
+              mediaKind: "2026-08-12T10:04:00.000Z",
+              mediaId: "2026-08-12T10:04:00.000Z",
+              mediaLocal: "2026-08-12T10:04:00.000Z",
+              mediaName: "2026-08-12T10:04:00.000Z",
+            },
+          },
+        ],
+      },
+    },
+  });
+  const syncedValue = JSON.stringify({
+    schema: "footballscience-presentation-mode-v1",
+    version: 1,
+    decks: {
+      "2026-08-12": {
+        updatedAt: "2026-08-12T10:05:00.000Z",
+        infoSlides: [
+          {
+            id: "info-main",
+            layout: "bullets",
+            title: "Team Information",
+            body: "Old coaching text",
+          },
+        ],
+      },
+    },
+  });
+
+  const merged = JSON.parse(mergeDashboardPresentationStatePreservingLocalEdits(localValue, syncedValue));
+  const slide = merged.decks["2026-08-12"].infoSlides[0];
+
+  expect(slide.title).toBe("");
+  expect(slide.body).toBe("");
+  expect(slide.layout).toBe("media");
+  expect(slide.mediaId).toBe("local-image-1");
+  expect(slide.mediaLocal).toBe(true);
+  expect(slide.mediaName).toBe("board.png");
 });
 
 test("Presentation Mode central merge preserves Technical Staff Meeting decks", () => {

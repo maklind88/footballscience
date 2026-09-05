@@ -123,9 +123,11 @@ export function createSquadRosterRenderer({
 
   const renderPlayerRow = (player, options = {}) => {
     const indexedMedicalSnapshot = options.medicalSnapshotsByPlayerId?.get(player.id);
+    const availabilityStartDateValue = String(player.temporaryFrom || player.createdAt || "").slice(0, 10);
     const medicalSnapshot = indexedMedicalSnapshot || getPlayerProfileMedicalSnapshot(player.id, undefined, {
         medicalStateReady: options.medicalStateReady === true,
         includeTrainingAvailability: options.includeTrainingAvailability !== false,
+        ...(availabilityStartDateValue ? { availabilityStartDateValue } : {}),
         snapshotContext: options.medicalSnapshotContext,
       });
     const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);

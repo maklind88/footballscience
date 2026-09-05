@@ -14,6 +14,7 @@ export function createSquadMedicalStatusService(deps = {}) {
     getMedicalRecordStatus = () => ({ label: "" }),
     getMedicalRtpPhaseOption = () => ({ label: "" }),
     getMedicalState = () => ({ records: [] }),
+    getPlayerProfileById = () => null,
     getPlayerAvailabilityStatusForDate = () => "",
     getTeamTrainingDateValues = () => [],
     medicalActualParticipationFallback = "not-logged",
@@ -97,6 +98,7 @@ export function createSquadMedicalStatusService(deps = {}) {
     if (options.medicalStateReady !== true) {
       ensureMedicalState();
     }
+    const playerProfile = getPlayerProfileById(playerId) || {};
     const currentRecord = getLatestMedicalRecord(playerId, dateValue);
     const latestLog = getLatestManualMedicalLog(playerId, {
       medicalStateReady: true,
@@ -143,6 +145,12 @@ export function createSquadMedicalStatusService(deps = {}) {
           playerId,
           records: getMedicalState().records || [],
           referenceDateValue: dateValue,
+          currentDateValue: formatDateValue(new Date()),
+          availabilityStartDateValue: String(
+            options.availabilityStartDateValue ||
+            playerProfile.temporaryFrom ||
+            ""
+          ).slice(0, 10),
           medicalActualParticipationFallback,
           getActivityContext: getMedicalRecommendationActivityContext,
           getActiveMedicalInjuryPlan,

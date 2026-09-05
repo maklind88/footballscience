@@ -151,10 +151,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     };
   }
 
-  function isActiveSquadProfileForMedicalRoster(profile = {}) {
-    if (!profile || profile.archivedAt || profile.deletedAt) {
-      return false;
-    }
+  function getPlayerProfileMedicalRosterMetadata(profile = {}) {
     const rosterType = normalizePlayerProfileRosterType(
       profile.rosterType || profile.playerType || profile.squadType,
       profile.countsInSquad === false ? "guest" : "squad"
@@ -163,11 +160,20 @@ export function createMedicalRuntimeStateService(deps = {}) {
       typeof profile.countsInSquad === "boolean"
         ? profile.countsInSquad
         : playerProfileRosterTypeCountsInSquad(rosterType);
-    return countsInSquad === true && rosterType === "squad";
+    return { rosterType, countsInSquad };
+  }
+
+  function isActivePlayerProfileForMedicalRoster(profile = {}) {
+    if (!profile || profile.archivedAt || profile.deletedAt) {
+      return false;
+    }
+    return Boolean(getProfileMedicalIdentity(profile).name);
   }
 
   function buildMedicalPlayerFromProfile(profile = {}, existingPlayer = null) {
     const now = new Date().toISOString();
+    const { rosterType, countsInSquad } = getPlayerProfileMedicalRosterMetadata(profile);
+    const isTemporaryPlayer = countsInSquad === false || rosterType !== "squad";
     const profileStatus = normalizeMedicalPlayerAvailabilityStatus(
       profile.status || profile.availabilityStatus || profile.availability_status,
       existingPlayer?.status || existingPlayer?.availabilityStatus || existingPlayer?.availability_status || ""
@@ -186,11 +192,11 @@ export function createMedicalRuntimeStateService(deps = {}) {
       roleGroup: profile.roleGroup,
       photoUrl: profile.photoUrl,
       sourceUrl: profile.sourceUrl,
-      rosterType: "squad",
-      countsInSquad: true,
-      temporaryGroup: "",
-      temporaryFrom: "",
-      temporaryTo: "",
+      rosterType,
+      countsInSquad,
+      temporaryGroup: isTemporaryPlayer ? profile.temporaryGroup || profile.subGroup || profile.trainingGroup : "",
+      temporaryFrom: isTemporaryPlayer ? profile.temporaryFrom || profile.startDate : "",
+      temporaryTo: isTemporaryPlayer ? profile.temporaryTo || profile.endDate : "",
       rosterOrder: profile.rosterOrder,
       createdAt: existingPlayer?.createdAt || profile.createdAt || now,
       updatedAt: profile.updatedAt || existingPlayer?.updatedAt || now,
@@ -212,6 +218,9 @@ export function createMedicalRuntimeStateService(deps = {}) {
       "availability_status",
       "rosterType",
       "countsInSquad",
+      "temporaryGroup",
+      "temporaryFrom",
+      "temporaryTo",
       "primaryRole",
       "roleGroup",
       "rosterOrder",
@@ -232,7 +241,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     }
     const profileIndex = createMedicalLinkedPlayerProfileIndex();
     const profiles = (Array.isArray(profileIndex?.profiles) ? profileIndex.profiles : [])
-      .filter(isActiveSquadProfileForMedicalRoster);
+      .filter(isActivePlayerProfileForMedicalRoster);
     if (!profiles.length) {
       return false;
     }

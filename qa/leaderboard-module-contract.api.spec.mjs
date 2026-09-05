@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import * as leaderboardModule from "../src/modules/leaderboard/index.mjs";
 import { createLeaderboardActions } from "../src/modules/leaderboard/leaderboard-actions.mjs";
 import { renderLeaderboardAwardSheet } from "../src/modules/leaderboard/leaderboard-award-renderer.mjs";
+import { renderLeaderboardPodium } from "../src/modules/leaderboard/leaderboard-components.mjs";
 import { renderLeaderboardWorkspace } from "../src/modules/leaderboard/leaderboard-renderer.mjs";
 import {
   getLeaderboardDraftAwards,
@@ -79,6 +80,7 @@ test("leaderboard module stays isolated, modular and free of local persistence",
     "src/modules/leaderboard/index.mjs",
     "src/modules/leaderboard/leaderboard-controller.mjs",
     "src/modules/leaderboard/leaderboard-actions.mjs",
+    "src/modules/leaderboard/leaderboard-access.mjs",
     "src/modules/leaderboard/leaderboard-adapter.mjs",
     "src/modules/leaderboard/leaderboard-award-renderer.mjs",
     "src/modules/leaderboard/leaderboard-components.mjs",
@@ -283,6 +285,35 @@ test("award validation rejects out-of-range points and players outside the activ
   expect(actions.validateAward().error).toBe("One or more selected players are no longer in the active squad.");
 });
 
+test("server capabilities override stale client role hints for reads and writes", () => {
+  const readOnlyState = {
+    ...createLeaderboardState(fixedNow),
+    status: "ready",
+    data: makePayload({ access: { canView: true, canAward: false, canReverse: false } }),
+  };
+  const staleCoachContext = makeContext({ canEdit: () => true, requireServerAccess: true });
+  const readOnlyMarkup = renderLeaderboardWorkspace(readOnlyState, staleCoachContext);
+  expect(readOnlyMarkup).toContain("Read-only");
+  expect(readOnlyMarkup).not.toContain("leaderboard-award-trigger");
+  const deniedStore = createLeaderboardStore(readOnlyState);
+  deniedStore.setState({ draft: { occurredOn: "2026-08-24", title: "Denied", assignments: { p1: { placement: 1 } } } });
+  const deniedActions = createLeaderboardActions({ store: deniedStore, api: {}, context: staleCoachContext });
+  expect(deniedActions.validateAward()).toEqual({ error: "You do not have permission to award points." });
+
+  const coachState = {
+    ...createLeaderboardState(fixedNow),
+    status: "ready",
+    data: makePayload({ access: { canView: true, canAward: true, canReverse: true } }),
+  };
+  const staleReadOnlyContext = makeContext({ canEdit: () => false, requireServerAccess: true });
+  const coachMarkup = renderLeaderboardWorkspace(coachState, staleReadOnlyContext);
+  expect(coachMarkup).toContain("leaderboard-award-trigger");
+  const coachStore = createLeaderboardStore(coachState);
+  coachStore.setState({ draft: { occurredOn: "2026-08-24", title: "Authorized", assignments: { p1: { placement: 1 } } } });
+  const coachActions = createLeaderboardActions({ store: coachStore, api: {}, context: staleReadOnlyContext });
+  expect(coachActions.validateAward()).toMatchObject({ awards: [{ playerId: "p1", points: 3, placement: 1 }] });
+});
+
 test("workspace renderer covers premium standings, activity, empty and read-only states", () => {
   const readyState = { ...createLeaderboardState(fixedNow), status: "ready", data: makePayload() };
   const standingsMarkup = renderLeaderboardWorkspace(readyState, makeContext());
@@ -291,9 +322,10 @@ test("workspace renderer covers premium standings, activity, empty and read-only
   expect(standingsMarkup).not.toContain("leaderboard-metrics");
   expect(standingsMarkup).not.toContain("Monthly competition summary");
   expect(standingsMarkup).toContain("Point distribution");
-  expect(standingsMarkup).toContain("=1");
+  expect(standingsMarkup).toContain("leaderboard-podium-trophy");
+  expect(standingsMarkup).toContain("leaderboard-rank-trophy");
   expect(standingsMarkup).toContain('aria-label="Joint rank 1"');
-  expect(standingsMarkup).toContain("leaderboard-rank-tie");
+  expect(standingsMarkup).toContain("leaderboard-trophy is-rank-1");
   expect(standingsMarkup).toContain("No points yet");
   expect(standingsMarkup).toContain("Award Points");
   expect(standingsMarkup).toContain("https://example.com/alex.jpg");
@@ -312,6 +344,25 @@ test("workspace renderer covers premium standings, activity, empty and read-only
   const noSquadMarkup = renderLeaderboardWorkspace({ ...readyState, data: makePayload({ roster: [], standings: [], events: [] }) }, makeContext());
   expect(noSquadMarkup).toContain("Leaderboard needs your squad");
   expect(noSquadMarkup).toContain('data-open-workspace="player-profiles"');
+});
+
+test("Home podium uses rank-aware trophies and omits shirt numbers", () => {
+  const ranked = [
+    { playerId: "p1", name: "Alex Morgan", number: 13, points: 9, rank: 1 },
+    { playerId: "p2", name: "Sam Coffey", number: 17, points: 6, rank: 2 },
+    { playerId: "p3", name: "Emily Fox", number: 2, points: 3, rank: 3 },
+  ];
+  const podium = renderLeaderboardPodium(ranked, makeContext(), { variant: "home" });
+  expect(podium).toContain("leaderboard-trophy is-rank-1");
+  expect(podium).toContain("leaderboard-trophy is-rank-2");
+  expect(podium).toContain("leaderboard-trophy is-rank-3");
+  expect(podium).not.toContain("#13");
+  expect(podium).not.toContain("#17");
+  expect(podium).not.toContain("#2");
+
+  const tied = renderLeaderboardPodium(ranked.map((row) => ({ ...row, rank: 1 })), makeContext(), { variant: "home" });
+  expect(tied.match(/leaderboard-trophy is-rank-1/g)).toHaveLength(3);
+  expect(tied.match(/<strong aria-hidden="true">1<\/strong>/g)).toHaveLength(3);
 });
 
 test("completed months are visibly read-only even for coaches with edit permission", async () => {

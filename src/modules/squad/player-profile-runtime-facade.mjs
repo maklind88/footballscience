@@ -29,7 +29,6 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
   const getMedicalState = () => call("getMedicalState") || null;
   const setMedicalState = (nextState) => call("setMedicalState", nextState);
   const getNow = () => new Date().toISOString();
-
   function getPlayerProfileFormSignature(form) {
     try {
       return form ? JSON.stringify(call("getPlayerProfileFormValues", form)) : "";

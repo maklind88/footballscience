@@ -7,6 +7,7 @@ function leaderboardPayload(month = "2026-08") {
     ok: true,
     schema: "footballscience-leaderboard-v1",
     month,
+    access: { canView: true, canAward: true, canReverse: true },
     competition: { id: `competition-${month}`, status: current ? "live" : "completed" },
     summary: { eventCount: 1, totalPoints: 21, scoredPlayerCount: 3, leaderGap: 0 },
     roster: [
@@ -86,6 +87,7 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
       getAuthToken: () => "",
       getNow: () => new Date("2026-08-25T12:00:00"),
       canEdit: () => true,
+      requireServerAccess: true,
       getPlayerProfilesState: () => ({ players: [
         { id: "p1", photoUrl: "/assets/football-science-mark.png" },
         { id: "p2", photoUrl: "/assets/football-science-logo.png" },
@@ -104,6 +106,12 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect(summary.locator(".leaderboard-podium-card")).toHaveCount(3);
   await expect(summary.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
   await expect.poll(() => summary.locator(".leaderboard-podium-avatar img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
+  await expect(summary.locator(".leaderboard-podium-copy small")).toHaveCount(0);
+  await expect(summary.locator(".leaderboard-podium-trophy")).toHaveCount(3);
+  await expect(summary.locator(".leaderboard-podium-trophy.is-rank-1")).toHaveCount(2);
+  await expect(summary.locator(".leaderboard-podium-trophy.is-rank-1 strong")).toHaveText(["1", "1"]);
+  await expect(summary.locator(".leaderboard-podium-trophy.is-rank-3")).toHaveCount(1);
+  await expect(summary.locator(".leaderboard-podium-trophy.is-rank-3 strong")).toHaveText("3");
   await expect(summary.locator(".leaderboard-home-standings")).toHaveCount(0);
   const homePodiumLayout = await summary.locator(".leaderboard-podium").evaluate((podium) => {
     const first = podium.querySelector(".is-place-1").getBoundingClientRect();
@@ -185,6 +193,14 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   })).toEqual({ fullTextInsideHeader: true, lineCount: 1, overflowX: "visible", textOverflow: "clip", whiteSpace: "normal" });
   const fullPodium = outerDialog.locator(".leaderboard-content > .leaderboard-podium");
   await expect(fullPodium.locator(".leaderboard-podium-avatar img")).toHaveCount(3);
+  await expect(fullPodium.locator(".leaderboard-podium-trophy")).toHaveCount(3);
+  await expect(fullPodium.locator(".leaderboard-podium-trophy.is-rank-1")).toHaveCount(2);
+  await expect(fullPodium.locator(".leaderboard-podium-trophy.is-rank-3")).toHaveCount(1);
+  await expect(fullPodium.locator(".leaderboard-podium-copy small")).toHaveText(["#13", "#17", "#2"]);
+  expect(await fullPodium.locator(".leaderboard-podium-points").first().evaluate((node) => {
+    const style = getComputedStyle(node);
+    return { backgroundColor: style.backgroundColor, borderRadius: style.borderRadius };
+  })).toEqual({ backgroundColor: "rgb(255, 255, 255)", borderRadius: "999px" });
   expect(await fullPodium.evaluate((podium) => podium.getBoundingClientRect().height)).toBeLessThan(125);
   await expect.poll(() => outerDialog.evaluate((dialog) => {
     const commandBar = dialog.querySelector(".leaderboard-command-bar");
@@ -243,15 +259,16 @@ test("Home summary mounts one shared full-screen Leaderboard dialog with safe ne
   await expect.poll(() => standingPhotos.evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
   const tiedRankBadges = outerDialog.locator(".leaderboard-table .leaderboard-rank.is-shared");
   await expect(tiedRankBadges).toHaveCount(2);
-  await expect(tiedRankBadges.first().getByText("Tie", { exact: true })).toBeVisible();
+  await expect(tiedRankBadges.locator("svg")).toHaveCount(2);
+  await expect(tiedRankBadges.locator("strong")).toHaveText(["1", "1"]);
   expect(await tiedRankBadges.first().evaluate((node) => {
     const style = getComputedStyle(node);
     return { backgroundColor: style.backgroundColor, backgroundImage: style.backgroundImage, borderRadius: style.borderRadius, boxShadow: style.boxShadow };
   })).toEqual({
-    backgroundColor: "rgb(255, 246, 223)",
+    backgroundColor: "rgba(0, 0, 0, 0)",
     backgroundImage: "none",
-    borderRadius: "14px",
-    boxShadow: expect.not.stringContaining("none"),
+    borderRadius: "0px",
+    boxShadow: "none",
   });
   await expect(page.getByRole("button", { name: "Close Leaderboard" })).toBeFocused();
   expect(await page.locator("#app").evaluate((node) => node.inert)).toBe(true);

@@ -162,13 +162,13 @@ test("Squad medical status service preserves medical snapshot golden-master beha
     isOpenEndedMedicalStatus: false,
     trainingAvailability: {
       hasData: true,
-      latestDate: "2026-06-07",
-      loggedCount: 2,
-      week: { average: 70, count: 2 },
-      month: { average: 70, count: 2 },
-      season: { average: 70, count: 2 },
-      lastTwoWeeks: { average: 70, count: 2 },
-      lastFive: { average: 70, count: 2 },
+      latestDate: "2026-06-05",
+      loggedCount: 1,
+      week: { average: 80, count: 1 },
+      month: { average: 80, count: 1 },
+      season: { average: 80, count: 1 },
+      lastTwoWeeks: { average: 80, count: 1 },
+      lastFive: { average: 80, count: 1 },
     },
   });
   expect(service.getPlayerProfileEffectiveStatus({ id: "p1", status: "available" }, "2026-06-07")).toBe("injured");
@@ -236,6 +236,40 @@ test("Squad medical snapshot context preserves future and same-date latest-log s
     medicalStateReady: true,
     snapshotContext,
   })).toEqual(service.getPlayerProfileMedicalSnapshot("p2", "2026-06-07", { medicalStateReady: true }));
+});
+
+test("Squad medical status service does not infer availability from temporary dates without evidence", () => {
+  const service = createSquadMedicalStatusService({
+    formatDateValue: () => "2026-08-31",
+    getMedicalState: () => ({ records: [] }),
+    getPlayerProfileById: () => ({ id: "new-player", temporaryFrom: "2026-08-20" }),
+    getPlayerAvailabilityStatusForDate: () => "available",
+    getTeamTrainingDateValues: () => ["2026-08-18", "2026-08-20", "2026-08-24", "2026-08-31"],
+  });
+
+  expect(service.getPlayerProfileMedicalSnapshot("new-player", "2026-08-31").trainingAvailability).toMatchObject({
+    hasData: false,
+    loggedCount: 0,
+    season: { average: null, count: 0 },
+    lastTwoWeeks: { average: null, count: 0 },
+  });
+});
+
+test("Squad medical status service does not treat profile persistence time as recommendation evidence", () => {
+  const service = createSquadMedicalStatusService({
+    formatDateValue: () => "2026-08-31",
+    getMedicalState: () => ({ records: [] }),
+    getPlayerProfileById: () => ({ id: "existing-player", createdAt: "2026-08-30T12:00:00.000Z" }),
+    getPlayerAvailabilityStatusForDate: () => "available",
+    getTeamTrainingDateValues: () => ["2026-08-18", "2026-08-20", "2026-08-24", "2026-08-31"],
+  });
+
+  expect(service.getPlayerProfileMedicalSnapshot("existing-player", "2026-08-31").trainingAvailability).toMatchObject({
+    hasData: false,
+    loggedCount: 0,
+    season: { average: null, count: 0 },
+    lastTwoWeeks: { average: null, count: 0 },
+  });
 });
 
 test("Squad medical status service is a read-only extracted runtime boundary", () => {

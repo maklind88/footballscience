@@ -534,16 +534,39 @@ test("monthly response contract keeps the required stable shape", () => {
     roster: [],
     standings: [],
     events: [],
+  }, {
+    canView: true,
+    canAward: true,
+    canReverse: true,
   });
   expect(JSON.parse(response.body)).toEqual({
     ok: true,
     schema: "footballscience-leaderboard-v1",
     month: "2026-08",
+    access: { canView: true, canAward: true, canReverse: true },
     competition: null,
     summary: { participantCount: 0, totalPoints: 0, eventCount: 0 },
     roster: [],
     standings: [],
     events: [],
+  });
+});
+
+test("monthly capabilities come from the freshly resolved membership role", () => {
+  expect(service.accessForContext({ actor: { role: "coach" } })).toEqual({
+    canView: true,
+    canAward: true,
+    canReverse: true,
+  });
+  expect(service.accessForContext({ actor: { role: "analyst" } })).toEqual({
+    canView: true,
+    canAward: false,
+    canReverse: false,
+  });
+  expect(service.accessForContext({ actor: { role: "guest" } })).toEqual({
+    canView: false,
+    canAward: false,
+    canReverse: false,
   });
 });
 

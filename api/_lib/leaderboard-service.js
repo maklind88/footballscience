@@ -10,16 +10,31 @@ const {
   readMonthSnapshot,
   reverseEvent,
 } = require("./leaderboard-database.js");
+const { hasModulePermission } = require("../../src/core/permission-matrix.cjs");
 
 function sendFailure(res, result) {
   return sendJson(res, result.status || 500, { ok: false, reason: result.reason || "Leaderboard request failed." });
 }
 
-function sendSnapshot(res, month, snapshot) {
+function accessForContext(context = {}) {
+  const actor = context.actor || {};
+  return {
+    canView: hasModulePermission(actor, "leaderboard", "read"),
+    canAward: hasModulePermission(actor, "leaderboard", "write"),
+    canReverse: hasModulePermission(actor, "leaderboard", "write"),
+  };
+}
+
+function sendSnapshot(res, month, snapshot, access = {}) {
   return sendJson(res, 200, {
     ok: true,
     schema: LEADERBOARD_SCHEMA,
     month,
+    access: {
+      canView: access.canView === true,
+      canAward: access.canAward === true,
+      canReverse: access.canReverse === true,
+    },
     competition: snapshot.competition,
     summary: snapshot.summary,
     roster: Array.isArray(snapshot.roster) ? snapshot.roster : [],
@@ -30,7 +45,7 @@ function sendSnapshot(res, month, snapshot) {
 
 async function readAndSendSnapshot(res, context, month, options = {}) {
   const result = await readMonthSnapshot(context, month, options);
-  return result.ok ? sendSnapshot(res, month, result.snapshot) : sendFailure(res, result);
+  return result.ok ? sendSnapshot(res, month, result.snapshot, accessForContext(context)) : sendFailure(res, result);
 }
 
 async function prepareLeaderboardRequest(req) {
@@ -67,6 +82,7 @@ async function handleLeaderboardRequest(req, res, context, options = {}) {
 }
 
 module.exports = {
+  accessForContext,
   handleLeaderboardRequest,
   prepareLeaderboardRequest,
   sendSnapshot,

@@ -6,7 +6,6 @@ import {
   getLeaderboardSquadPlayers,
 } from "./leaderboard-selectors.mjs";
 import {
-  formatLeaderboardRank,
   renderLeaderboardAvatar,
   resolveLeaderboardProfilePhoto,
 } from "./leaderboard-ui-helpers.mjs";
@@ -15,9 +14,27 @@ function getRankCounts(rows = []) {
   return rows.reduce((counts, row) => counts.set(row.rank, (counts.get(row.rank) || 0) + 1), new Map());
 }
 
+function renderRankTrophy(rank = 1, className = "", ariaLabel = "") {
+  const cleanRank = Math.max(1, Number(rank) || 1);
+  const tone = cleanRank >= 1 && cleanRank <= 3 ? cleanRank : 3;
+  return `
+    <span class="${className} leaderboard-trophy is-rank-${tone}"${ariaLabel ? ` aria-label="${escapeLeaderboardHtml(ariaLabel)}"` : " aria-hidden=\"true\""}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v6a5 5 0 0 1-10 0V3Z"/><path d="M7 5H4v2a4 4 0 0 0 4 4M17 5h3v2a4 4 0 0 1-4 4M12 14v4M8 21h8M9 18h6"/></svg>
+      <strong aria-hidden="true">${cleanRank}</strong>
+    </span>
+  `;
+}
+
 function renderStandingRank(rank = 0, shared = false) {
   const cleanRank = Math.max(0, Number(rank) || 0);
   const topClass = cleanRank >= 1 && cleanRank <= 3 ? ` is-top-${cleanRank}` : "";
+  if (cleanRank >= 1 && cleanRank <= 3) {
+    return renderRankTrophy(
+      cleanRank,
+      `leaderboard-rank leaderboard-rank-trophy${topClass}${shared ? " is-shared" : ""}`,
+      `${shared ? "Joint rank" : "Rank"} ${cleanRank}`,
+    );
+  }
   return `
     <span class="leaderboard-rank${topClass}${shared ? " is-shared" : ""}" aria-label="${shared ? "Joint rank" : "Rank"} ${cleanRank}">
       <strong aria-hidden="true">${cleanRank || "—"}</strong>
@@ -26,20 +43,25 @@ function renderStandingRank(rank = 0, shared = false) {
   `;
 }
 
-export function renderLeaderboardPodium(rows = [], context = {}) {
+function renderPodiumRank(rank = 0) {
+  return renderRankTrophy(rank, "leaderboard-podium-rank leaderboard-podium-trophy");
+}
+
+export function renderLeaderboardPodium(rows = [], context = {}, options = {}) {
   if (!rows.length) return "";
+  const compactHome = options.variant === "home";
   const rankCounts = getRankCounts(rows);
   return `
-    <section class="leaderboard-podium" aria-label="Top three players">
+    <section class="leaderboard-podium is-${compactHome ? "home" : "full"}-podium" aria-label="Top three players">
       ${rows.slice(0, 3).map((row, index) => {
         const visualPlace = index + 1;
         const shared = (rankCounts.get(row.rank) || 0) > 1;
         const podiumPlayer = { ...row, photoUrl: resolveLeaderboardProfilePhoto(row, context) };
         return `
           <button type="button" class="leaderboard-podium-card is-place-${visualPlace}" data-leaderboard-player-detail="${escapeLeaderboardHtml(row.playerId)}" aria-label="${escapeLeaderboardHtml(`${shared ? "Joint " : ""}rank ${row.rank}, ${row.name}, ${row.points} points`)}">
-            <span class="leaderboard-podium-rank">${formatLeaderboardRank(row.rank, shared)}</span>
+            ${renderPodiumRank(row.rank)}
             ${renderLeaderboardAvatar(podiumPlayer, "leaderboard-avatar leaderboard-podium-avatar")}
-            <span class="leaderboard-podium-copy"><strong>${escapeLeaderboardHtml(row.name)}</strong><small>${escapeLeaderboardHtml(row.number ? `#${row.number}` : row.position || "Squad player")}</small></span>
+            <span class="leaderboard-podium-copy"><strong>${escapeLeaderboardHtml(row.name)}</strong>${compactHome ? "" : `<small>${escapeLeaderboardHtml(row.number ? `#${row.number}` : row.position || "Squad player")}</small>`}</span>
             <span class="leaderboard-podium-points"><strong>${row.points}</strong><small>pts</small></span>
           </button>
         `;

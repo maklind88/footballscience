@@ -11,6 +11,7 @@ import {
   runLeaderboardLoad,
 } from "./leaderboard-runtime.mjs";
 import { renderLeaderboardHomeSummary } from "./leaderboard-summary-renderer.mjs";
+import { createLeaderboardPresentationSnapshot } from "./leaderboard-snapshot.mjs";
 
 let activeSurface = null;
 let dialogModulesPromise = null;
@@ -396,6 +397,10 @@ export function mountLeaderboardHome(context = {}) {
     handle: null,
   };
   surface.handle = Object.freeze({
+    getSnapshot: () => createLeaderboardPresentationSnapshot(
+      surface.runtime.store.getState(),
+      surface.runtime.context,
+    ),
     openDialog: (opener = null) => openDialog(surface, opener),
     openAward: (initial = {}, opener = null) => openAward(surface, initial, opener),
     requestClose: () => closeDialog(surface),

@@ -26,7 +26,7 @@
 .presentation-set-piece-heading span,
 .presentation-set-piece-source-controls span {
   color: color-mix(in srgb, var(--presentation-slide-text) 62%, transparent);
-  font-size: .7rem;
+  font-size: .75rem;
   font-weight: 750;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -45,7 +45,7 @@
 .presentation-set-piece-heading p {
   margin: .18rem 0 0;
   color: color-mix(in srgb, var(--presentation-slide-text) 72%, transparent);
-  font-size: .8rem;
+  font-size: clamp(.8rem, 1.05cqw, 2.1rem);
   font-weight: 620;
 }
 
@@ -123,7 +123,7 @@
 .presentation-set-piece-phases span,
 .presentation-set-piece-phases small {
   overflow: hidden;
-  font-size: .62rem;
+  font-size: clamp(.75rem, .82cqw, 1.64rem);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -187,7 +187,7 @@
   min-width: 76px;
   display: grid;
   color: color-mix(in srgb, var(--presentation-slide-text) 66%, transparent);
-  font-size: .62rem;
+  font-size: clamp(.75rem, .82cqw, 1.64rem);
   font-variant-numeric: tabular-nums;
 }
 
@@ -219,7 +219,7 @@
 }
 
 .presentation-mode-shell.is-presenting .presentation-set-piece-heading h2 {
-  font-size: 2.45rem;
+  font-size: clamp(2.45rem, 3.4cqw, 6.8rem);
 }
 
 @media (max-width: 900px) {

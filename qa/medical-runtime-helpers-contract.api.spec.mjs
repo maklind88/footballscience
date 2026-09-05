@@ -28,6 +28,8 @@ function createHelpers(options = {}) {
         { id: "p2", name: "Sam Kerr", number: "20", status: "available" },
         { id: "p3", name: "Future Injury", number: "7", status: "injured", updatedAt: "2026-06-10T09:00:00.000Z" },
         { id: "p4", name: "Future Injury Without From", number: "8", status: "injured", updatedAt: "2026-06-10T10:00:00.000Z" },
+        { id: "p5", name: "Return Without Start", number: "9", status: "available", updatedAt: "2026-06-17T09:00:00.000Z" },
+        { id: "p6", name: "Explicit International Interval", number: "10", status: "available", updatedAt: "2026-06-17T10:00:00.000Z" },
       ],
       changeLog: [
         {
@@ -39,6 +41,21 @@ function createHelpers(options = {}) {
           playerId: "p4",
           createdAt: "2026-06-10T10:00:00.000Z",
           changes: [{ field: "Availability status", to: "Injured" }],
+        },
+        {
+          playerId: "p5",
+          createdAt: "2026-06-17T09:00:00.000Z",
+          changes: [{ field: "Availability status", from: "International duty", to: "Available" }],
+        },
+        {
+          playerId: "p6",
+          createdAt: "2026-06-15T10:00:00.000Z",
+          changes: [{ field: "Availability status", from: "Available", to: "International duty" }],
+        },
+        {
+          playerId: "p6",
+          createdAt: "2026-06-17T10:00:00.000Z",
+          changes: [{ field: "Availability status", from: "International duty", to: "Available" }],
         },
       ],
     }),
@@ -71,6 +88,7 @@ function createHelpers(options = {}) {
     playerProfileStatusOptions: [
       { key: "available", label: "Available" },
       { key: "injured", label: "Injured" },
+      { key: "national-team", label: "International duty" },
     ],
     normalizePlayerProfileName: (value) => String(value || "").trim().toLowerCase(),
     normalizePlayerProfileRole: (value, fallback = "") => String(value || fallback || "").trim(),
@@ -148,6 +166,10 @@ test("Medical runtime helpers preserve linked Squad availability and player norm
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p4", name: "Future Injury Without From", number: "8" }, "2026-06-09")).toBe("available");
   expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ id: "p4", name: "Future Injury Without From", number: "8" }, "2026-06-09")).toBe(false);
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p4", name: "Future Injury Without From", number: "8" }, "2026-06-10")).toBe("injured");
+  expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p5", name: "Return Without Start", number: "9" }, "2026-06-16")).toBe("available");
+  expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p6", name: "Explicit International Interval", number: "10" }, "2026-06-14")).toBe("available");
+  expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p6", name: "Explicit International Interval", number: "10" }, "2026-06-16")).toBe("national-team");
+  expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p6", name: "Explicit International Interval", number: "10" }, "2026-06-17")).toBe("available");
 
   expect(helpers.normalizeMedicalPlayerPosition("striker")).toBe("Forward");
   expect(helpers.normalizeMedicalPlayer({ name: "New Player", position: "cm", rosterType: "trialist" })).toMatchObject({

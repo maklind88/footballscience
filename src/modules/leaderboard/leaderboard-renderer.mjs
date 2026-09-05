@@ -1,4 +1,5 @@
 import { leaderboardTabs } from "./leaderboard-constants.mjs";
+import { canAwardLeaderboard } from "./leaderboard-access.mjs";
 import { escapeLeaderboardHtml, formatLeaderboardMonth } from "./leaderboard-helpers.mjs";
 import {
   getLeaderboardMonthBounds,
@@ -17,14 +18,6 @@ import {
   renderLeaderboardStandingsTable,
 } from "./leaderboard-components.mjs";
 import { renderLeaderboardTeamMark } from "./leaderboard-ui-helpers.mjs";
-
-function canEditLeaderboard(context = {}) {
-  try {
-    return typeof context.canEdit === "function" ? Boolean(context.canEdit()) : Boolean(context.canEdit);
-  } catch {
-    return false;
-  }
-}
 
 function renderLoading() {
   return `<section class="leaderboard-loading" aria-busy="true" aria-label="Loading leaderboard"><div></div><div></div><div></div><div></div></section>`;
@@ -58,7 +51,7 @@ function renderStandings(state, context, canEdit) {
 
 export function renderLeaderboardWorkspace(state = {}, context = {}) {
   const currentMonth = isLeaderboardCurrentMonth(state.month, context.getNow?.() || new Date());
-  const permissionCanEdit = canEditLeaderboard(context);
+  const permissionCanEdit = canAwardLeaderboard(state, context);
   const canEdit = permissionCanEdit && currentMonth;
   const loading = state.status === "idle" || state.status === "loading";
   const monthLabel = formatLeaderboardMonth(state.month);

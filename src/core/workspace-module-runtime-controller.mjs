@@ -531,6 +531,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     bindWorkspaceModuleEvents,
     canEditLeaderboard: leaderboardRuntime.canEdit,
     canViewLeaderboard: leaderboardRuntime.canView,
+    getLeaderboardSnapshot: leaderboardRuntime.getSnapshot,
     getGameplanContext,
     getIdpContext,
     getScoutingAnalysisRoomContext,

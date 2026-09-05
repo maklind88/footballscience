@@ -1,25 +1,13 @@
-import { escapeLeaderboardHtml, formatLeaderboardMonth, getLeaderboardMonthValue } from "./leaderboard-helpers.mjs";
+import { escapeLeaderboardHtml, formatLeaderboardMonth } from "./leaderboard-helpers.mjs";
+import { canAwardLeaderboard } from "./leaderboard-access.mjs";
 import {
   getLeaderboardRankedStandings,
   getLeaderboardSquadPlayers,
 } from "./leaderboard-selectors.mjs";
 import { renderLeaderboardPodium } from "./leaderboard-components.mjs";
+import { getLeaderboardCurrentMonthSnapshot } from "./leaderboard-snapshot.mjs";
 
-function canEditLeaderboard(context = {}) {
-  try {
-    return typeof context.canEdit === "function" ? Boolean(context.canEdit()) : Boolean(context.canEdit);
-  } catch {
-    return false;
-  }
-}
-
-export function getLeaderboardCurrentMonthSnapshot(state = {}, context = {}) {
-  const month = getLeaderboardMonthValue(context.getNow?.() || new Date());
-  const cached = state.monthCache?.[month];
-  if (cached) return { month, status: cached.status || "idle", data: cached.data || null, error: cached.error || "" };
-  if (state.month === month) return { month, status: state.status || "idle", data: state.data || null, error: state.requestError || "" };
-  return { month, status: "idle", data: null, error: "" };
-}
+export { getLeaderboardCurrentMonthSnapshot } from "./leaderboard-snapshot.mjs";
 
 function renderSummaryHeader(snapshot, editable) {
   return `
@@ -52,14 +40,14 @@ function renderReadySummary(data, context, editable) {
   if (!squad.length && !ranked.length) return `
     <section class="leaderboard-home-state"><div><strong>Connect your squad</strong><span>Add players in Squad Room before awarding competition points.</span></div></section>
   `;
-  return ranked.length ? renderLeaderboardPodium(ranked, context) : `
+  return ranked.length ? renderLeaderboardPodium(ranked, context, { variant: "home" }) : `
     <section class="leaderboard-home-state is-empty"><div><strong>This month is ready</strong><span>Award the first points to start the podium.</span></div>${editable ? `<button type="button" data-leaderboard-home-award>Award first points</button>` : ""}</section>
   `;
 }
 
 export function renderLeaderboardHomeSummary(state = {}, context = {}) {
   const snapshot = getLeaderboardCurrentMonthSnapshot(state, context);
-  const editable = canEditLeaderboard(context);
+  const editable = canAwardLeaderboard({ data: snapshot.data }, context);
   const content = snapshot.status === "error"
     ? renderSummaryError(snapshot.error)
     : snapshot.status !== "ready"

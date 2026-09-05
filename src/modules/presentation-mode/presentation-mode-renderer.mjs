@@ -7,6 +7,7 @@ import {
   presentationThemeOptions,
 } from "./presentation-mode-themes.mjs";
 import { renderPresentationSetPieceBody } from "./presentation-mode-set-pieces.mjs";
+import { renderPresentationLeaderboardBody } from "./presentation-leaderboard-slide.mjs";
 
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
@@ -143,6 +144,12 @@ const slideTemplateOptions = [
     preview: ["pitch", "line"],
   },
   {
+    value: "leaderboard",
+    label: "Leaderboard",
+    description: "Current monthly standings",
+    preview: ["trophy", "podium"],
+  },
+  {
     value: "blank",
     label: "Blank",
     description: "Free canvas",
@@ -170,7 +177,8 @@ function getSafeSize(value = "", fallback = "56") {
 function getInfoSizeStyle(value = "") {
   const size = Number(getSafeSize(value));
   const remValue = `${Number((size / 16).toFixed(3))}rem`;
-  return `--presentation-info-body-size: ${remValue};`;
+  const responsiveValue = `${Number((size / 12.8).toFixed(3))}cqw`;
+  return `--presentation-info-body-size: max(${remValue}, ${responsiveValue});`;
 }
 
 function getLoadMeterModel(value = "") {
@@ -615,7 +623,10 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderNewSlideControl(model = {}) {
     const availableTemplates = slideTemplateOptions.filter(
-      (template) => template.value !== "set-piece" || model.meetingType === "team"
+      (template) => (
+        (template.value !== "set-piece" || model.meetingType === "team")
+        && (template.value !== "leaderboard" || model.canViewLeaderboard)
+      )
     );
     return `
       <details class="presentation-new-slide-menu">
@@ -972,6 +983,10 @@ export function createPresentationModeRenderer(options = {}) {
             const kind = ["symbol", "image", "video"].includes(box.kind) ? box.kind : "text";
             const mediaSrc = String(box.mediaSrc || "").trim();
             const mediaName = String(box.mediaName || box.text || (kind === "video" ? "Local video" : "Local image")).trim();
+            const mediaStatus = String(box.mediaStatus || "").trim();
+            const hasMediaReference = Boolean(String(box.mediaId || "").trim());
+            const isMediaLoading = hasMediaReference && !mediaSrc && mediaStatus === "loading";
+            const isMediaMissing = hasMediaReference && !mediaSrc && !isMediaLoading;
             const isActive =
               model.activeTextTarget?.slideId === slide.id && model.activeTextTarget?.textBoxId === box.id;
             const fallbackStyle = {
@@ -1000,6 +1015,32 @@ export function createPresentationModeRenderer(options = {}) {
                     <figcaption>${escapeHtml(mediaName)}</figcaption>
                   </figure>
                 `
+                : (kind === "image" || kind === "video") && hasMediaReference
+                  ? `
+                    <figure
+                      class="presentation-local-media-box is-${escapeHtml(kind)} ${isMediaMissing ? "is-missing" : "is-loading"}"
+                      data-presentation-drag-text-box="${escapeHtml(box.id)}"
+                      data-presentation-slide-id="${escapeHtml(slide.id)}"
+                      aria-label="${escapeHtml(isMediaMissing ? `${kind === "video" ? "Video" : "Image"} file missing` : `Loading local ${kind}`)}"
+                    >
+                      <span class="presentation-local-media-missing">
+                        <strong>${escapeHtml(isMediaMissing ? `${kind === "video" ? "Video" : "Image"} file missing` : `Loading local ${kind}`)}</strong>
+                        ${isMediaMissing && !model.presenting ? `<small>Choose the file again to reconnect it.</small>` : ""}
+                      </span>
+                      ${
+                        isMediaMissing && !model.presenting
+                          ? `<button
+                              type="button"
+                              class="presentation-local-media-relink"
+                              data-presentation-relink-media
+                              data-presentation-media-kind="${escapeHtml(kind)}"
+                              data-presentation-slide-id="${escapeHtml(slide.id)}"
+                              data-presentation-text-box-id="${escapeHtml(box.id)}"
+                            >Relink</button>`
+                          : ""
+                      }
+                    </figure>
+                  `
                 : renderEditableTextArea(
                     model,
                     slide,
@@ -1159,7 +1200,18 @@ export function createPresentationModeRenderer(options = {}) {
     const mediaSrc = String(infoSlide.mediaSrc || "").trim();
     const mediaName = String(infoSlide.mediaName || (mediaKind === "video" ? "Local video" : "Local image")).trim();
     const hasMedia = Boolean(mediaSrc);
-    const chooseLabel = `${hasMedia ? "Replace" : "Choose"} ${mediaKind === "video" ? "Video" : "Image"}`;
+    const mediaStatus = String(infoSlide.mediaStatus || "").trim();
+    const hasMediaReference = Boolean(String(infoSlide.mediaId || "").trim());
+    const isLoading = hasMediaReference && !hasMedia && mediaStatus === "loading";
+    const isMissing = hasMediaReference && !hasMedia && !isLoading;
+    const chooseLabel = `${isMissing ? "Relink" : hasMedia ? "Replace" : "Choose"} ${mediaKind === "video" ? "Video" : "Image"}`;
+    const emptyLabel = isLoading
+      ? `Loading local ${mediaKind}`
+      : isMissing
+        ? `${mediaKind === "video" ? "Video" : "Image"} file missing`
+        : mediaKind === "video"
+          ? "Video"
+          : "";
     const mediaWidth = normalizeInfoMediaSize(infoSlide.mediaWidth, 100);
     const mediaHeight = normalizeInfoMediaSize(infoSlide.mediaHeight, 100);
     const mediaOffsetX = normalizeInfoMediaOffset(infoSlide.mediaOffsetX, 0);
@@ -1180,7 +1232,7 @@ export function createPresentationModeRenderer(options = {}) {
         : "";
     return `
       <figure
-        class="presentation-info-media-panel is-${escapeHtml(mediaKind)}${hasMedia ? " has-media" : " is-empty"}"
+        class="presentation-info-media-panel is-${escapeHtml(mediaKind)}${hasMedia ? " has-media" : " is-empty"}${isLoading ? " is-loading" : ""}${isMissing ? " is-missing" : ""}"
         data-presentation-info-media-panel="${escapeHtml(infoSlide.id)}"
         style="--presentation-info-media-width: ${mediaWidth}%; --presentation-info-media-height: ${mediaHeight}%; transform: translate3d(calc(var(--presentation-slide-width, 1px) * ${mediaOffsetX / 100}), calc(var(--presentation-slide-height, 1px) * ${mediaOffsetY / 100}), 0);"
       >
@@ -1190,8 +1242,8 @@ export function createPresentationModeRenderer(options = {}) {
               ? mediaKind === "video"
                 ? `<video class="presentation-info-media-object" src="${escapeHtml(mediaSrc)}" controls preload="metadata" playsinline title="${escapeHtml(mediaName)}"></video>`
                 : `<img class="presentation-info-media-object" src="${escapeHtml(mediaSrc)}" alt="" />`
-              : mediaKind === "video"
-                ? `<span class="presentation-info-media-empty-mark">Video</span>`
+              : emptyLabel
+                ? `<span class="presentation-info-media-empty-mark">${escapeHtml(emptyLabel)}</span>`
                 : ""
           }
         </div>
@@ -1236,7 +1288,7 @@ export function createPresentationModeRenderer(options = {}) {
       readOnly: slide.readOnly,
       systemGenerated: slide.systemGenerated,
     };
-    const titleValue = infoSlide.title || "Team Information";
+    const titleValue = String(infoSlide.title ?? "");
     const bodyValue = infoSlide.body || "";
     const titleMarkup = systemSlide
       ? `<h1 class="presentation-info-title">${escapeHtml(titleValue)}</h1>`
@@ -1282,6 +1334,25 @@ export function createPresentationModeRenderer(options = {}) {
           ${renderInfoSlideMedia(model, infoSlide)}
         </section>
       `
+    );
+  }
+
+  function renderLeaderboardSlide(model = {}, slide = {}) {
+    const infoSlide = slide.infoSlide || {};
+    const frameSlide = {
+      ...slide,
+      type: "leaderboard",
+      accentColor: slide.accentColor || infoSlide.accentColor || "#22c55e",
+    };
+    return renderSlideFrame(
+      model,
+      frameSlide,
+      renderPresentationLeaderboardBody({
+        escapeHtml,
+        model,
+        slide: frameSlide,
+        renderEditableElement,
+      })
     );
   }
 
@@ -1969,6 +2040,7 @@ export function createPresentationModeRenderer(options = {}) {
     }
     if (slide.type === "cover") return renderCoverSlide(model, slide);
     if (slide.type === "info") return renderInfoSlide(model, slide);
+    if (slide.type === "leaderboard") return renderLeaderboardSlide(model, slide);
     if (slide.type === "match-squad") return renderMatchSquadSlide(model, slide);
     if (slide.type === "lineup") return renderLineupSlide(model, slide);
     if (slide.type === "set-piece") return renderSetPieceSlide(model, slide);
@@ -1997,6 +2069,7 @@ export function createPresentationModeRenderer(options = {}) {
     renderControlBar,
     renderCoverSlide,
     renderInfoSlide,
+    renderLeaderboardSlide,
     renderLineupSlide,
     renderMatchSquadSlide,
     renderOverviewSlide,

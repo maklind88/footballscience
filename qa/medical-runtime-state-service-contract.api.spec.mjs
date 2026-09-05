@@ -386,7 +386,7 @@ test("Medical runtime state service queues protected central state when browser 
   );
 });
 
-test("Medical runtime state service materializes active Squad players into Medical roster on ensure", () => {
+test("Medical runtime state service materializes Squad players and date-bound training guests into Medical roster", () => {
   const storedState = {
     ...createStoredMedicalState(),
     players: [
@@ -426,13 +426,16 @@ test("Medical runtime state service materializes active Squad players into Medic
         position: "Forward",
         rosterType: "academy",
         countsInSquad: false,
+        temporaryGroup: "Academy Training",
+        temporaryFrom: "2026-05-31",
+        temporaryTo: "2026-06-02",
       },
     ],
     state: storedState,
   });
 
   expect(harness.service.syncMedicalRosterFromPlayerProfiles()).toBe(true);
-  expect(harness.getState().players.map((player) => player.id)).toEqual(["p1", "new-squad-player"]);
+  expect(harness.getState().players.map((player) => player.id)).toEqual(["academy-guest", "p1", "new-squad-player"]);
   expect(harness.getState().players.find((player) => player.id === "p1")).toMatchObject({
     status: "Available",
     availabilityStatus: "Available",
@@ -445,7 +448,13 @@ test("Medical runtime state service materializes active Squad players into Medic
     countsInSquad: true,
     primaryRole: "8",
   });
-  expect(harness.getState().players.some((player) => player.id === "academy-guest")).toBe(false);
+  expect(harness.getState().players.find((player) => player.id === "academy-guest")).toMatchObject({
+    rosterType: "academy",
+    countsInSquad: false,
+    temporaryGroup: "Academy Training",
+    temporaryFrom: "2026-05-31",
+    temporaryTo: "2026-06-02",
+  });
 });
 
 test("Medical runtime state service persists roster sync during private Medical ensure", () => {

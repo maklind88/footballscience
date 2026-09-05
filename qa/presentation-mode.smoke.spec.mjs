@@ -50,6 +50,9 @@ async function waitForViewportSettle(page) {
 }
 
 test("Presentation Mode opens from Home and renders the planned training deck", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "showOpenFilePicker", { configurable: true, value: undefined });
+  });
   const { dateValue, now, selectedDayLabel } = await page.evaluate(() => {
     const current = new Date();
     const localDateValue = [

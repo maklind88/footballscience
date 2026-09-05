@@ -9,6 +9,7 @@ function hasHomeHandleContract(handle) {
     handle
       && typeof handle.openDialog === "function"
       && typeof handle.openAward === "function"
+      && typeof handle.getSnapshot === "function"
       && typeof handle.requestClose === "function"
       && typeof handle.unmount === "function"
   );
@@ -28,8 +29,8 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
     getUserTeamId = () => "",
     getAuthToken = () => "",
     getPlayerProfilesState = () => ({}),
-    canView = () => false,
-    canEdit = () => false,
+    canView: canViewHint = () => false,
+    canEdit: canEditHint = () => false,
   } = deps;
 
   let modulePromise = null;
@@ -39,6 +40,20 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
   let activeScopeSignature = "";
   let mountGeneration = 0;
   let detachedSummaryRoot = null;
+
+  function canView() {
+    try { return Boolean(canViewHint()); } catch { return false; }
+  }
+
+  function canEdit() {
+    try {
+      const access = homeHandle?.getSnapshot?.()?.access;
+      if (typeof access?.canAward === "boolean") return access.canAward;
+      return Boolean(canEditHint());
+    } catch {
+      return false;
+    }
+  }
 
   function getTeamIdentity() {
     const currentUser = getCurrentUser() || {};
@@ -90,6 +105,7 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
       getPlayerProfilesState,
       canView,
       canEdit,
+      requireServerAccess: true,
       ...overrides,
     };
   }
@@ -256,9 +272,32 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
     return (await handle.openDialog(opener)) !== false;
   }
 
+  function getSnapshot() {
+    syncScope();
+    const team = getTeamIdentity();
+    const fallback = {
+      status: canView() ? "loading" : "unavailable",
+      month: "",
+      monthLabel: "",
+      teamName: team.name,
+      teamLogoUrl: team.logoUrl,
+      requestError: "",
+      standings: [],
+    };
+    if (!canView()) return fallback;
+    if (typeof homeHandle?.getSnapshot !== "function") {
+      void ensureCommandHandle();
+      return fallback;
+    }
+    try {
+      return homeHandle.getSnapshot() || fallback;
+    } catch {
+      return { ...fallback, status: "error", requestError: "Leaderboard could not load." };
+    }
+  }
+
   async function openAward(command = {}, opener = null) {
     syncScope();
-    if (!canEdit()) return false;
     const handle = await ensureCommandHandle();
     if (!handle) return false;
     return (await handle.openAward({
@@ -275,6 +314,7 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
     canEdit,
     canView,
     getContext,
+    getSnapshot,
     getTeamIdentity,
     loadModule,
     mountHome,

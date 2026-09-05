@@ -9,6 +9,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
+#[cfg(test)]
+#[path = "authority_race_tests.rs"]
+mod race_tests;
+
 pub const SYNTHETIC_ACTOR_ID: &str = "00000000-0000-4000-8000-000000000101";
 pub const SYNTHETIC_ORGANIZATION_ID: &str = "00000000-0000-4000-8000-000000000201";
 pub const SYNTHETIC_TENANT_ID: &str = "00000000-0000-4000-8000-000000000301";
@@ -138,6 +142,7 @@ struct AuthorityState {
     access_token: Option<Zeroizing<String>>,
     access_expires_at_unix_ms: u128,
     revoked: bool,
+    session_generation: u64,
 }
 
 pub struct RefreshedCredentials {
@@ -184,6 +189,7 @@ impl SessionAuthority {
                 access_token: None,
                 access_expires_at_unix_ms: 0,
                 revoked: false,
+                session_generation: 0,
             }),
             refresh_owner: Mutex::new(()),
             vault,
@@ -236,19 +242,17 @@ impl SessionAuthority {
         validate_token(&access_token)?;
         validate_token(&refresh_token)?;
         let next_actor = snapshot.actor_id.clone();
-        let previous_actor = self
+        let mut state = self
             .state
             .lock()
-            .map_err(|_| "session authority lock poisoned".to_string())?
-            .snapshot
-            .actor_id
-            .clone();
+            .map_err(|_| "session authority lock poisoned".to_string())?;
+        let previous_actor = state.snapshot.actor_id.clone();
+        let next_generation = state
+            .session_generation
+            .checked_add(1)
+            .ok_or_else(|| "session generation exhausted".to_string())?;
         self.persist_refresh(&next_actor, &refresh_token)?;
         {
-            let mut state = self
-                .state
-                .lock()
-                .map_err(|_| "session authority lock poisoned".to_string())?;
             state.snapshot = SessionAuthoritySnapshot {
                 state: "online-authorized",
                 synthetic_identity: snapshot.synthetic_identity,
@@ -260,6 +264,7 @@ impl SessionAuthority {
             state.access_token = Some(access_token);
             state.access_expires_at_unix_ms = access_expires_at_unix_ms;
             state.revoked = false;
+            state.session_generation = next_generation;
         }
         if previous_actor != next_actor && Uuid::parse_str(&previous_actor).is_ok() {
             self.delete_refresh(&previous_actor)?;
@@ -293,13 +298,16 @@ impl SessionAuthority {
                 return Ok(self.snapshot());
             }
         }
-        let actor_id = self
-            .state
-            .lock()
-            .map_err(|_| "session authority lock poisoned".to_string())?
-            .snapshot
-            .actor_id
-            .clone();
+        let (actor_id, session_generation) = {
+            let state = self
+                .state
+                .lock()
+                .map_err(|_| "session authority lock poisoned".to_string())?;
+            if state.revoked || state.snapshot.actor_id.is_empty() {
+                return Err("session is unavailable for refresh".into());
+            }
+            (state.snapshot.actor_id.clone(), state.session_generation)
+        };
         let stored = self
             .load_refresh(&actor_id)?
             .ok_or_else(|| "secure refresh credential is unavailable".to_string())?;
@@ -307,42 +315,54 @@ impl SessionAuthority {
         let refreshed = refresh(refresh_token.as_str())?;
         validate_token(&refreshed.access_token)?;
         validate_token(&refreshed.refresh_token)?;
-        self.persist_refresh(&actor_id, &refreshed.refresh_token)?;
         let mut state = self
             .state
             .lock()
             .map_err(|_| "session authority lock poisoned".to_string())?;
-        if state.revoked || state.snapshot.actor_id != actor_id {
+        if state.revoked
+            || state.snapshot.actor_id != actor_id
+            || state.session_generation != session_generation
+        {
             return Err("session changed while refresh was in flight".into());
         }
+        // Keep identity validation and vault commit in the same critical section as logout/switch.
+        self.persist_refresh(&actor_id, &refreshed.refresh_token)?;
         state.access_token = Some(refreshed.access_token);
         state.access_expires_at_unix_ms = refreshed.access_expires_at_unix_ms;
-        state.snapshot.offline_lease_expires_at_unix_ms = now + self.lease_policy.duration_ms;
+        state.snapshot.offline_lease_expires_at_unix_ms =
+            now_unix_ms()? + self.lease_policy.duration_ms;
         state.snapshot.can_sync = true;
         drop(state);
         Ok(self.snapshot())
     }
 
     pub fn logout(&self) -> Result<(), String> {
-        let actor_id = self
+        self.invalidate(false)
+    }
+
+    pub fn revoke(&self) -> Result<(), String> {
+        self.invalidate(true)
+    }
+
+    fn invalidate(&self, revoked: bool) -> Result<(), String> {
+        let mut state = self
             .state
             .lock()
-            .map_err(|_| "session authority lock poisoned".to_string())?
-            .snapshot
-            .actor_id
-            .clone();
+            .map_err(|_| "session authority lock poisoned".to_string())?;
+        let actor_id = state.snapshot.actor_id.clone();
+        state.session_generation = state
+            .session_generation
+            .checked_add(1)
+            .ok_or_else(|| "session generation exhausted".to_string())?;
         let deletion = if Uuid::parse_str(&actor_id).is_ok() {
             self.delete_refresh(&actor_id)
         } else {
             Ok(())
         };
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| "session authority lock poisoned".to_string())?;
         state.access_token.take();
         state.access_expires_at_unix_ms = 0;
-        state.snapshot.state = "signed-out";
+        state.revoked = revoked;
+        state.snapshot.state = if revoked { "revoked" } else { "signed-out" };
         state.snapshot.offline_lease_expires_at_unix_ms = 0;
         state.snapshot.can_read_offline = false;
         state.snapshot.can_sync = false;
@@ -352,17 +372,6 @@ impl SessionAuthority {
         state.snapshot.team_id.clear();
         state.snapshot.partition_key.clear();
         deletion
-    }
-
-    pub fn revoke(&self) -> Result<(), String> {
-        let result = self.logout();
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| "session authority lock poisoned".to_string())?;
-        state.revoked = true;
-        state.snapshot.state = "revoked";
-        result
     }
 
     fn load_refresh(&self, actor_id: &str) -> Result<Option<StoredRefreshCredential>, String> {
@@ -404,8 +413,10 @@ impl SessionAuthority {
             generation: next_generation,
             refresh_token: refresh_token.into(),
         };
-        let mut encoded = serde_json::to_vec(&credential)
-            .map_err(|_| "secure refresh credential serialization failed".to_string())?;
+        let mut encoded = Zeroizing::new(
+            serde_json::to_vec(&credential)
+                .map_err(|_| "secure refresh credential serialization failed".to_string())?,
+        );
         self.vault
             .write(&refresh_slot(actor_id, target), &encoded)?;
         encoded.zeroize();

@@ -2,6 +2,8 @@
 
 Date: 2026-09-01
 
+Historical evidence: the results below apply to their recorded SHA. The 2026-09-05 security review found coverage gaps, including effective bundled permission union and frontend-to-Rust block-duration deserialization. See `SECURITY_REVIEW_2026-09-05.md` and PR #201 for the hardening changes and refreshed verification. Do not infer a full real-data writable desktop test from the earlier startup/contract probes.
+
 Scope: branch-only, unsigned architecture verification. No deployment, installer publication, production/staging secret, Supabase schema, privileged production data or real FS account was used.
 
 ## Immutable accepted run

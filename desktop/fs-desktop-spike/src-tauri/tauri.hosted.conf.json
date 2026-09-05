@@ -6,7 +6,7 @@
     "withGlobalTauri": false,
     "windows": [],
     "security": {
-      "capabilities": ["active", "candidate", "recovery", "bundled"],
+      "capabilities": ["active", "candidate", "recovery"],
       "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'none'",
       "freezePrototype": true
     }

@@ -530,9 +530,14 @@ pub fn download_and_stage(
     }
     shell_contract::validate_manifest(&manifest, now)?;
     let manifest_hash = shell_contract::hex_sha256(&manifest_bytes);
-    if let Some(result) =
-        existing_release_result(connection, state, &manifest, &manifest_hash, now)?
-    {
+    if let Some(result) = existing_release_result(
+        connection,
+        state,
+        &manifest,
+        &manifest_hash,
+        verified.key_role,
+        now,
+    )? {
         return Ok(result);
     }
     enforce_remote_sequence(connection, &manifest, verified.key_role, now)?;
@@ -626,6 +631,7 @@ fn existing_release_result(
     state: &mut ShellState,
     manifest: &ShellManifest,
     manifest_hash: &str,
+    key_role: KeyRole,
     now: u64,
 ) -> Result<Option<PrepareResult>, String> {
     let existing: Option<(String, String, i64, Option<i64>)> = connection
@@ -650,6 +656,14 @@ fn existing_release_result(
             "candidate-quarantined"
         }
         "quarantined" => {
+            // A known immutable release is not exempt from rollback/recovery policy on retry.
+            let highest = highest_seen_sequence(connection)?;
+            if manifest.release_sequence != highest
+                || key_role != KeyRole::Release
+                || manifest.recovery_authorization.is_some()
+            {
+                enforce_remote_sequence(connection, manifest, key_role, now)?;
+            }
             connection
                 .execute(
                     "UPDATE shell_generations SET status = 'candidate', failure_code = NULL,
@@ -961,5 +975,12 @@ pub(crate) fn existing_release_result_for_test(
     manifest_hash: &str,
     now: u64,
 ) -> Result<Option<PrepareResult>, String> {
-    existing_release_result(connection, state, manifest, manifest_hash, now)
+    existing_release_result(
+        connection,
+        state,
+        manifest,
+        manifest_hash,
+        KeyRole::Release,
+        now,
+    )
 }

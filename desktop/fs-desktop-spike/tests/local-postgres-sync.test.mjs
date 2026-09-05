@@ -153,3 +153,18 @@ test("failed block mutation rolls back revision and idempotency ledger atomicall
   assert.equal(ledger.rows[0].count, 0);
   await db.close();
 });
+
+test("security review: revoked membership cannot replay a stored acknowledgement", async () => {
+  const db = await database();
+  try {
+    const operationId = randomUUID();
+    await apply(db, { operationId });
+    await assert.rejects(apply(db, { operationId, actor: null }), /contract rejected/i);
+    await db.query("update public.platform_memberships set deleted_at = clock_timestamp() where user_id = $1", [actorId]);
+    await assert.rejects(apply(db, { operationId }), /membership rejected/i);
+    const ledger = await db.query("select count(*)::integer as count from app_private.session_planner_desktop_operations");
+    assert.equal(ledger.rows[0].count, 1);
+  } finally {
+    await db.close();
+  }
+});

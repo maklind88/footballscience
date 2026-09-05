@@ -11,6 +11,12 @@ pub fn open(path: &Path) -> Result<Connection, String> {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
+    let stored_version: i64 = connection
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    if !(0..=i64::from(crate::local_data::LOCAL_SCHEMA_VERSION)).contains(&stored_version) {
+        return Err("local database schema is newer than this native application".into());
+    }
     connection
         .execute_batch(
             "PRAGMA foreign_keys = ON;

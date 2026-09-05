@@ -62,6 +62,17 @@ test("bundled fallback and recovery cannot mutate Session Planner state", async 
   assert.deepEqual(recovery.permissions, ["allow-recovery-status", "allow-recovery-read"]);
 });
 
+test("security review: effective bundled capabilities remain exactly two commands", async () => {
+  const config = JSON.parse(await text("src-tauri/tauri.conf.json"));
+  const capabilities = await Promise.all(config.app.security.capabilities.map(async (name) =>
+    JSON.parse(await text(`src-tauri/capabilities/${name}.json`))));
+  const effective = [...new Set(capabilities.filter((capability) => capability.windows.includes("main"))
+    .flatMap((capability) => capability.permissions))].sort();
+  assert.deepEqual(effective, ["allow-record-probe", "allow-runtime-info"]);
+  const hosted = JSON.parse(await text("src-tauri/tauri.hosted.conf.json"));
+  assert.deepEqual(hosted.app.security.capabilities, ["active", "candidate", "recovery"]);
+});
+
 test("all native windows are created under exact roles without a global Tauri API", async () => {
   for (const configPath of [
     "src-tauri/tauri.conf.json",

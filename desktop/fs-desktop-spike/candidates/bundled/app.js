@@ -1,4 +1,4 @@
-import { bundledNative, negativeProbeNative } from "../shared/tauri-invoke.mjs";
+import { bundledNative, negativeProbeNative, activeNative } from "../shared/tauri-invoke.mjs";
 
 const runtime = await bundledNative.runtimeInfo();
 let unauthorizedCommandRejected = false;
@@ -7,6 +7,13 @@ try {
 } catch {
   unauthorizedCommandRejected = true;
 }
+let activeAuthorityRejected = false;
+try {
+  await activeNative.sessionAuthority();
+} catch {
+  activeAuthorityRejected = true;
+}
+unauthorizedCommandRejected = unauthorizedCommandRejected && activeAuthorityRejected;
 document.getElementById("status").textContent = "Bundled assets opened without a network dependency.";
 document.getElementById("details").textContent = JSON.stringify(runtime, null, 2);
 await bundledNative.recordProbe({

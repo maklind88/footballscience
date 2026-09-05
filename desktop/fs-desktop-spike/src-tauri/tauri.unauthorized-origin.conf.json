@@ -6,7 +6,7 @@
     "withGlobalTauri": false,
     "windows": [],
     "security": {
-      "capabilities": ["active", "candidate", "recovery", "bundled"],
+      "capabilities": ["bundled"],
       "csp": null,
       "freezePrototype": true
     }

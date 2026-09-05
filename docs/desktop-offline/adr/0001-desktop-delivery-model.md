@@ -4,6 +4,8 @@ Status: Provisionally accepted for continued local hardening — not production-
 
 Date: 2026-08-30; updated with complete local-slice evidence 2026-09-01
 
+Review addendum 2026-09-05: see `../SECURITY_REVIEW_2026-09-05.md` for reproduced and corrected capability, refresh-lifecycle, rollback, storage and wire-contract gaps. The local architecture decision stands; prior green CI is not evidence for the subsequently changed implementation. Current SHA/run evidence belongs to PR #201. Production readiness remains open.
+
 ## Context
 
 FS is a frequently deployed static web product with Vercel APIs and Supabase. Desktop must preserve that web platform while providing cold-start access to a selected offline slice. Downloaded frontend code must not decide its own native compatibility or receive broad system capabilities. Unsynchronized work must be durable and independent of frontend-cache replacement.

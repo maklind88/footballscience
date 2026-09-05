@@ -279,3 +279,44 @@ fn immutable_build_id_cannot_be_reused_with_a_different_manifest_hash() {
     assert!(result.is_err());
     assert_eq!(state.active.as_ref().unwrap().build_id, known.build_id);
 }
+
+#[test]
+fn security_review_quarantined_old_release_cannot_bypass_rollback_check() {
+    let known = manifest("hosted-test-old-quarantine", 9);
+    let mut connection = Connection::open_in_memory().unwrap();
+    migrate(&connection).unwrap();
+    insert_generation(&connection, &known, "quarantined");
+    connection
+        .execute(
+            "UPDATE shell_security_state SET highest_seen_release_sequence = 10",
+            [],
+        )
+        .unwrap();
+    let mut state = ShellState::default();
+    assert!(
+        existing_release_result_for_test(
+            &mut connection,
+            &mut state,
+            &known,
+            &"0".repeat(64),
+            TEST_NOW
+        )
+        .is_err()
+    );
+    assert!(state.candidate.is_none());
+    let status: String = connection
+        .query_row("SELECT status FROM shell_generations", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(status, "quarantined");
+}
+
+#[test]
+fn security_review_release_sequence_must_fit_the_persistent_counter() {
+    assert!(
+        shell_contract::validate_manifest(
+            &manifest("hosted-overflow", i64::MAX as u64 + 1),
+            TEST_NOW
+        )
+        .is_err()
+    );
+}

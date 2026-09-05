@@ -66,7 +66,12 @@ pub struct ExerciseReference {
 }
 
 #[derive(Deserialize, Serialize)]
-#[serde(tag = "operationType", rename_all = "camelCase", deny_unknown_fields)]
+#[serde(
+    tag = "operationType",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum SessionOperation {
     #[serde(rename = "session.rename")]
     RenameSession { title: String },
@@ -329,6 +334,16 @@ pub fn apply_operation(
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|error| error.to_string())?;
+    let acknowledged: bool = transaction
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM operation_receipts WHERE operation_id = ?1)",
+            [&request.operation_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if acknowledged {
+        return Err("operation ID has already been acknowledged and cannot be reused".into());
+    }
     if let Some((stored_hash, revision)) = transaction
         .query_row(
             "SELECT request_sha256, resulting_revision FROM session_outbox WHERE operation_id = ?1",
@@ -579,6 +594,82 @@ mod tests {
             )
             .unwrap();
         assert!(!schema.to_lowercase().contains("refresh_token"));
+        drop(connection);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn security_review_acknowledged_id_cannot_mutate_again_after_restart() {
+        let path = database_path("ack-reuse");
+        let mut connection = open(&path).unwrap();
+        let mut operation = request(7);
+        apply_operation(&mut connection, &operation, 10_000).unwrap();
+        acknowledge_test_operation(
+            &mut connection,
+            &operation.operation_id,
+            &Uuid::new_v4().to_string(),
+            20_000,
+        )
+        .unwrap();
+        drop(connection);
+        let mut connection = open(&path).unwrap();
+        operation.base_revision = 8;
+        operation.operation = SessionOperation::RenameSession {
+            title: "Reused acknowledged ID".into(),
+        };
+        assert!(apply_operation(&mut connection, &operation, 30_000).is_err());
+        assert_eq!(
+            read_selected_session(&connection, SYNTHETIC_PARTITION_KEY)
+                .unwrap()
+                .session
+                .revision,
+            8
+        );
+        assert_eq!(
+            read_session_sync_status(&connection, SYNTHETIC_PARTITION_KEY)
+                .unwrap()
+                .pending_operation_count,
+            0
+        );
+        drop(connection);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn security_review_newer_local_schema_is_never_downgraded() {
+        let path = database_path("future-schema");
+        let connection = open(&path).unwrap();
+        connection.pragma_update(None, "user_version", 4).unwrap();
+        drop(connection);
+        assert!(open(&path).is_err());
+        let connection = Connection::open(&path).unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            4
+        );
+        drop(connection);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn security_review_frontend_block_duration_wire_contract_reaches_sqlite() {
+        let path = database_path("wire-duration");
+        let mut connection = open(&path).unwrap();
+        let mut wire = serde_json::to_value(request(7)).unwrap();
+        wire["operation"] = serde_json::json!({
+            "operationType": "block.duration.set",
+            "blockId": "00000000-0000-4000-8000-000000001101",
+            "durationMinutes": 22
+        });
+        let operation: SessionOperationRequest =
+            serde_json::from_value(wire).expect("frontend camelCase payload must deserialize");
+        apply_operation(&mut connection, &operation, 10_000).unwrap();
+        let slice =
+            read_selected_session(&connection, crate::authority::SYNTHETIC_PARTITION_KEY).unwrap();
+        assert_eq!(slice.blocks[0].duration_minutes, 22);
+        assert_eq!(slice.session.revision, 8);
         drop(connection);
         let _ = fs::remove_file(path);
     }

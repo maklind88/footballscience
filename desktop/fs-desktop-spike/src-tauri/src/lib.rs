@@ -146,7 +146,10 @@ fn desktop_runtime_info(
         },
         local_schema_version: local_data::LOCAL_SCHEMA_VERSION,
         sync_protocol_version: local_data::SYNC_PROTOCOL_VERSION,
-        capabilities: bootstrap::ACTIVE_CAPABILITIES.to_vec(),
+        capabilities: match delivery_mode() {
+            DeliveryMode::Hosted => bootstrap::ACTIVE_CAPABILITIES.to_vec(),
+            _ => vec!["runtime.info", "spike.probe"],
+        },
         global_tauri_enabled: false,
         content_origin: "fs-active://localhost (http://fs-active.localhost on Windows)",
     })
@@ -341,7 +344,7 @@ fn desktop_session_authority(
     window: WebviewWindow,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<SessionAuthoritySnapshot, String> {
-    require_active_window(&window)?;
+    require_window(&window, windows::WebviewRole::Active)?;
     let runtime = runtime(&state)?;
     let authority = runtime
         .authority
@@ -356,7 +359,7 @@ fn desktop_read_selected_session(
     context: SessionContextProof,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<SessionSlice, String> {
-    require_active_window(&window)?;
+    require_window(&window, windows::WebviewRole::Active)?;
     let runtime = runtime(&state)?;
     runtime
         .authority
@@ -383,7 +386,7 @@ fn desktop_session_sync_status(
     context: SessionContextProof,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<SessionSyncStatus, String> {
-    require_active_window(&window)?;
+    require_window(&window, windows::WebviewRole::Active)?;
     let runtime = runtime(&state)?;
     runtime
         .authority
@@ -410,7 +413,7 @@ fn desktop_apply_session_operation(
     request: SessionOperationRequest,
     state: tauri::State<'_, DesktopState>,
 ) -> Result<OperationReceipt, String> {
-    require_active_window(&window)?;
+    require_window(&window, windows::WebviewRole::Active)?;
     let runtime = runtime(&state)?;
     runtime
         .authority

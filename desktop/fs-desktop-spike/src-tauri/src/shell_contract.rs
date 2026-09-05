@@ -8,7 +8,7 @@ use semver::{Version, VersionReq};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 
 pub fn validate_manifest(manifest: &ShellManifest, now_unix_ms: u64) -> Result<(), String> {
@@ -23,6 +23,7 @@ pub fn validate_manifest(manifest: &ShellManifest, now_unix_ms: u64) -> Result<(
         || manifest.frontend_build_id != manifest.build_id
         || manifest.entrypoint != "index.html"
         || manifest.release_sequence == 0
+        || manifest.release_sequence > i64::MAX as u64
     {
         return Err("invalid immutable shell release identity".into());
     }
@@ -136,11 +137,23 @@ fn bounded_get_response(
     {
         return Err("shell source body exceeds declared boundary".into());
     }
-    let bytes = response.bytes().map_err(|error| error.to_string())?;
+    bounded_read(response, max_bytes)
+}
+
+fn bounded_read(reader: impl Read, max_bytes: usize) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    let limit = u64::try_from(max_bytes)
+        .ok()
+        .and_then(|size| size.checked_add(1))
+        .ok_or_else(|| "shell body boundary overflow".to_string())?;
+    reader
+        .take(limit)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
     if bytes.len() > max_bytes {
         return Err("shell source body exceeds declared boundary".into());
     }
-    Ok(bytes.to_vec())
+    Ok(bytes)
 }
 
 pub fn durable_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -228,4 +241,23 @@ fn validate_identifier(value: &str, label: &str) -> Result<(), String> {
 
 pub fn hex_sha256(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn security_review_untrusted_body_stops_at_limit_without_length_header() {
+        let mut reader = Cursor::new(vec![b'x'; 64 * 1024]);
+        assert!(bounded_read(&mut reader, 1024).is_err());
+        assert_eq!(
+            reader.position(),
+            1025,
+            "must stop reading before buffering the entire untrusted body"
+        );
+        assert_eq!(bounded_read(Cursor::new(b"exact"), 5).unwrap(), b"exact");
+        assert_eq!(bounded_read(Cursor::new(b"short"), 8).unwrap(), b"short");
+    }
 }

@@ -89,7 +89,11 @@ declare
   next_duration integer;
   payload_key_count integer;
 begin
-  if p_auth_epoch <= 0
+  if p_actor_id is null or p_organization_id is null or p_team_id is null
+    or p_auth_epoch is null or p_client_instance_id is null or p_operation_id is null
+    or p_session_id is null or p_operation_type is null or p_operation_version is null
+    or p_base_revision is null or p_payload is null or p_payload_sha256 is null or p_request_id is null
+    or p_auth_epoch <= 0
     or p_operation_version <> 1
     or p_operation_type not in ('session.rename', 'block.duration.set')
     or p_base_revision <= 0
@@ -98,6 +102,27 @@ begin
     or p_payload_sha256 !~ '^[a-f0-9]{64}$'
     or char_length(p_request_id) not between 1 and 120 then
     raise exception 'desktop sync contract rejected' using errcode = '22023';
+  end if;
+
+  -- Replays return data too: revalidate current membership before consulting the receipt ledger.
+  if not exists (
+    select 1
+    from public.platform_memberships membership
+    join public.platform_teams team on team.id = p_team_id
+    where membership.user_id = p_actor_id
+      and membership.organization_id = p_organization_id
+      and membership.status = 'active'
+      and membership.deleted_at is null
+      and membership.role in ('admin', 'club-admin', 'team-admin', 'coach')
+      and team.organization_id = p_organization_id
+      and team.status = 'active'
+      and team.deleted_at is null
+      and (
+        membership.scope = 'organization'
+        or (membership.scope = 'team' and membership.team_id = p_team_id)
+      )
+  ) then
+    raise exception 'desktop sync membership rejected' using errcode = '42501';
   end if;
 
   perform pg_advisory_xact_lock(hashtextextended(
@@ -130,26 +155,6 @@ begin
       existing_operation.resulting_revision,
       existing_operation.operation_result;
     return;
-  end if;
-
-  if not exists (
-    select 1
-    from public.platform_memberships membership
-    join public.platform_teams team on team.id = p_team_id
-    where membership.user_id = p_actor_id
-      and membership.organization_id = p_organization_id
-      and membership.status = 'active'
-      and membership.deleted_at is null
-      and membership.role in ('admin', 'club-admin', 'team-admin', 'coach')
-      and team.organization_id = p_organization_id
-      and team.status = 'active'
-      and team.deleted_at is null
-      and (
-        membership.scope = 'organization'
-        or (membership.scope = 'team' and membership.team_id = p_team_id)
-      )
-  ) then
-    raise exception 'desktop sync membership rejected' using errcode = '42501';
   end if;
 
   select * into selected_session

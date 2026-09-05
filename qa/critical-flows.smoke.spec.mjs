@@ -5709,14 +5709,29 @@ test("Medical availability list keeps participation states after overview remova
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);
   await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();
   await expect(page.locator(".medical-command-card").filter({ hasText: "Recommendation Queue" })).toHaveCount(0);
-  await expect(page.locator(".medical-metric-card").filter({ hasText: "Full" })).toContainText("1");
-  await expect(page.locator(".medical-metric-card").filter({ hasText: "Modified" })).toContainText("1");
-  await expect(page.locator(".medical-metric-card").filter({ hasText: "Unavailable" })).toContainText("1");
-  await expect(page.locator(".medical-metric-card").filter({ hasText: "Not set" })).toContainText("no entry");
-  await expect(page.locator('[data-medical-roster-row="qa-positive-missing"] .medical-quick-rec-button.is-active')).toHaveText("75%");
-  await expect(page.locator('[data-medical-roster-row="qa-unavailable"] .medical-quick-rec-button.is-active')).toHaveText("0%");
-  await expect(page.locator('[data-medical-roster-row="qa-logged"] .medical-quick-rec-button.is-active')).toHaveText("100%");
-  await expect(page.locator('[data-medical-roster-row="qa-not-set"] .medical-quick-rec-button.is-active')).toHaveCount(0);
+  await expect(page.locator("[data-medical-availability-workspace] .medical-metric-card")).toHaveCount(0);
+  const expectParticipationStates = async () => {
+    await expect(page.locator("[data-medical-date-picker]")).toHaveValue("2026-05-15");
+    await expect(page.locator('[data-medical-roster-row="qa-positive-missing"] .medical-quick-rec-button.is-active')).toHaveText("75%");
+    await expect(page.locator('[data-medical-roster-row="qa-unavailable"] .medical-quick-rec-button.is-active')).toHaveText("0%");
+    await expect(page.locator('[data-medical-roster-row="qa-logged"] .medical-quick-rec-button.is-active')).toHaveText("100%");
+    await expect(page.locator('[data-medical-roster-row="qa-not-set"] .medical-quick-rec-button.is-active')).toHaveCount(0);
+  };
+  await expectParticipationStates();
+
+  await operationsMenu.locator('[data-medical-ops-tab="season"]').click();
+  const reports = page.locator("[data-medical-reports-workspace]");
+  await expect(reports).toBeVisible();
+  await expect(reports.locator(".medical-reports-heading h2")).toHaveText("Fri 15 May");
+  const reportMetrics = reports.locator(".medical-metric-card");
+  await expect(reportMetrics.filter({ hasText: "Full" }).locator("strong")).toHaveText("1");
+  await expect(reportMetrics.filter({ hasText: "Modified" }).locator("strong")).toHaveText("1");
+  await expect(reportMetrics.filter({ hasText: "Unavailable" }).locator("strong")).toHaveText("1");
+  await expect(reportMetrics.filter({ hasText: "Not set" })).toContainText("no entry");
+
+  await operationsMenu.locator('[data-medical-ops-tab="availability"]').click();
+  await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();
+  await expectParticipationStates();
 });
 
 test("Squad removal keeps default roster players hidden after reload", async ({ page }) => {

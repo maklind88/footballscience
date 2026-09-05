@@ -55,7 +55,7 @@ Candidate A remains the recommended local-development architecture; Candidate B 
 
 Before a real-data pilot:
 
-1. Use the existing migration ledger, revalidate remote drift with the owning database team when authorized, and replay the accepted full foundation in a disposable environment. The 60/49/48 audit is dated 2026-08-31; it is not a fresh remote count or clean-replay proof.
+1. Use the existing migration ledger, revalidate remote drift with the owning database team when authorized, and replay the accepted full foundation in a disposable environment. The 60/49/48 audit is dated 2026-08-31; it is not a fresh remote count or clean-replay proof. The current repository contains 63 migrations; the three already-present additions and their checksums are recorded in the reconciliation addendum, with remote status explicitly unverified.
 2. Replace synthetic identity/lease renewal with verified provider integration. Decide revocation/offline-lease behavior, credential-deletion failure recovery and durable session restoration before real credentials are used.
 3. Replace generic snapshot `content`/block `payload` with an explicit allowed-data contract before the unavailable backend adapter is connected. The current prototype is not proof that arbitrary real snapshots exclude sensitive data.
 4. Prove actual Rust transport/outbox convergence, conflict/rebase behavior, rejected mutation UI recovery, and foundation trigger/audit interaction. The current transport is test-only.

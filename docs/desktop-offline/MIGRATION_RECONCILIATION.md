@@ -2,6 +2,20 @@
 
 Audit date: 2026-08-31
 
+## Local baseline addendum — 2026-09-05
+
+The original 60-file ledger below is historical. The reviewed remote desktop commit `f63458a2` and current main baseline `ee2dff68` already contain **63** repository migrations. This review changes none of them and preserves the original checksum ledger. The three additions after the audit are:
+
+| Repository migration | SHA-256 | Remote status in this review |
+| --- | --- | --- |
+| `20260831120449_squad_roster_projection_for_leaderboard.sql` | `8e9971e16a52bd16145be30a3b737d6952ec7969f4c5b3587eb65966bb2d4e91` | Not reverified |
+| `20260831200058_leaderboard_active_staff_identity_repair.sql` | `46f32282eb978e802d616219657b21261379a84ecfeb9a8f799b56972429f38e` | Not reverified |
+| `20260901103202_medical_plan_canonical_projection.sql` | `546ce187e4a2b927664429809ee9e5966706062f445450566289732ae5949fb1` | Not reverified |
+
+The original **49 production / 48 staging** counts must not be presented as current counts. Revalidate these additions, aliases and catalog drift before connecting a real sync adapter or promoting any SQL draft. This phase only corrects authorization checks in the existing disposable-test draft; it does not create a synchronization migration or repair remote history.
+
+## Original audit
+
 Status: read-only reconciliation complete enough to block unsafe schema work. No migration, history repair, database push, database pull, DDL, DML, Auth change, Storage change, or remote configuration change was executed.
 
 Projects:

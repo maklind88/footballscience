@@ -2,6 +2,7 @@ import {
   getTacticalBoardElementEndpointCoordinates,
   renderTacticalBoardSvgElement,
 } from "../tactical-board/index.mjs";
+import { renderTacticalPlaybackControls } from "./session-planner-tactical-playback-renderer.mjs";
 
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
@@ -796,20 +797,8 @@ const pitchDimensions = getSessionPlannerTacticalPitchDimensionsForBlock(block);
 const pitchMeasurementLabel = `${pitchDimensions.x} x ${pitchDimensions.y} m`;
 const tacticalFrames = ensureSessionPlannerTacticalFrames(block);
 const activeFrameId = getSessionPlannerTacticalActiveFrameId(block);
-const frameButtons = tacticalFrames
-.map((frame, index) => `
-      <button
-        type="button"
-        class="session-tacticalboard-frame${frame.id === activeFrameId ? " is-active" : ""}"
-        data-session-tactical-frame="${escapeHtml(frame.id)}"
-        title="${escapeHtml(frame.label)}"
-        aria-label="${escapeHtml(frame.label)}"
-        aria-pressed="${frame.id === activeFrameId ? "true" : "false"}"
-      >
-        ${index + 1}
-      </button>
-`)
-.join("");
+const editorFrame = tacticalFrames.find((frame) => frame.id === activeFrameId);
+const editorBlock = editorFrame ? { ...block, tacticalElements: editorFrame.elements } : block;
 const frameStatusLabel = `${Math.max(1, tacticalFrames.findIndex((frame) => frame.id === activeFrameId) + 1)} / ${tacticalFrames.length || 1}`;
 const selectedTacticalCount = getSessionPlannerTacticalSelectedElementIds().length;
 const arrangeDisabled = selectedTacticalCount < 2 ? "disabled" : "";
@@ -854,6 +843,7 @@ return `
           </div>
           <button type="button" class="session-library-close-button" data-session-close-tacticalboard aria-label="Close tacticalboard">Close</button>
         </header>
+        ${renderTacticalPlaybackControls(tacticalFrames, activeFrameId, escapeHtml)}
         <div class="session-tacticalboard-layout">
           <aside class="session-tacticalboard-side session-tacticalboard-toolbox">
             <div class="session-tacticalboard-tools" aria-label="Tacticalboard tools">
@@ -884,7 +874,7 @@ ${group.tools
             </div>
           </aside>
           <div class="session-tacticalboard-canvas-wrap" data-session-tactical-canvas-wrap>
-            ${renderSessionPlannerExerciseVisual(block, { large: true, editor: true })}
+            ${renderSessionPlannerExerciseVisual(editorBlock, { large: true, editor: true })}
           </div>
           <aside class="session-tacticalboard-side session-tacticalboard-inspector">
             <div class="session-tacticalboard-settings" aria-label="Drawing settings">
@@ -909,20 +899,6 @@ ${group.tools
                 <span>Style</span>
                 <select data-session-tactical-style>${lineStyleOptions}</select>
               </label>
-            </div>
-            <div class="session-tacticalboard-frames" aria-label="Frames">
-              <div class="session-tacticalboard-panel-head">
-                <span>Frames</span>
-                <small>${escapeHtml(frameStatusLabel)}</small>
-              </div>
-              <div class="session-tacticalboard-frame-list">
-                ${frameButtons}
-              </div>
-              <div class="session-tacticalboard-frame-actions">
-                <button type="button" data-session-add-tactical-frame>New</button>
-                <button type="button" data-session-duplicate-tactical-frame>Duplicate</button>
-                <button type="button" data-session-delete-tactical-frame ${tacticalFrames.length <= 1 ? "disabled" : ""}>Delete</button>
-              </div>
             </div>
             <div class="session-tacticalboard-arrange" aria-label="Arrange selected items">
               <div class="session-tacticalboard-panel-head">

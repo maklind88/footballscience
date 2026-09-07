@@ -207,6 +207,8 @@ export function createSessionPlannerTacticalHelpers(options = {}) {
   }
 
   function cloneSessionPlannerTacticalElement(element = {}) {
+    const optionalCoordinate = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))
+      ? clamp(Number(value), 0, 100) : null;
     const type = element.type || "blue-player";
     const playerBadge = normalizeSessionPlannerTacticalPlayerBadge(element.playerNumber);
     const points = Array.isArray(element.points)
@@ -222,10 +224,10 @@ export function createSessionPlannerTacticalHelpers(options = {}) {
       type,
       x: Number.isFinite(Number(element.x)) ? clamp(Number(element.x), 0, 100) : 50,
       y: Number.isFinite(Number(element.y)) ? clamp(Number(element.y), 0, 100) : 50,
-      x2: Number.isFinite(Number(element.x2)) ? clamp(Number(element.x2), 0, 100) : null,
-      y2: Number.isFinite(Number(element.y2)) ? clamp(Number(element.y2), 0, 100) : null,
-      controlX: Number.isFinite(Number(element.controlX)) ? clamp(Number(element.controlX), 0, 100) : null,
-      controlY: Number.isFinite(Number(element.controlY)) ? clamp(Number(element.controlY), 0, 100) : null,
+      x2: optionalCoordinate(element.x2),
+      y2: optionalCoordinate(element.y2),
+      controlX: optionalCoordinate(element.controlX),
+      controlY: optionalCoordinate(element.controlY),
       label: element.label || "",
       playerNumber: playerBadge || null,
       color: normalizeTacticalColor(element.color, getDefaultTacticalColor(type)),

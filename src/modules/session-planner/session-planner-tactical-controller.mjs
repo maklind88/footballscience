@@ -265,8 +265,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   return;
   }
   block.tacticalPitchMode = nextMode;
-  markSessionPlannerBlockFieldsUpdated(block, ["tacticalPitchMode"]);
-  writeSessionPlannerState();
+  persistSessionPlannerTacticalElements(block);
   refreshSessionPlannerTacticalboardCanvas();
   }
   function openSessionPlannerTacticalNumberPicker(elementId) {
@@ -367,7 +366,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   confirmLabel: "Delete drawings",
   tone: "danger",
   });
-  if (!shouldDeleteAll) {
+  if (!shouldDeleteAll || !canEditSessionPlanner() || block !== getSessionPlannerSelectedBlock()) {
   return;
   }
   block.tacticalElements = [];

@@ -1,4 +1,6 @@
 import { createSessionPlannerPlayerBoardTidyHelpers } from "./session-planner-player-board-tidy-helpers.mjs";
+import { createSessionPlannerTacticalFramesController } from "./session-planner-tactical-frames-controller.mjs";
+import { createSessionPlannerTacticalPlaybackController } from "./session-planner-tactical-playback-controller.mjs";
 import {
   getSessionPlannerMedicalBlockRule,
   isSessionPlannerWarmUpBlock,
@@ -240,6 +242,8 @@ function selectSessionPlannerDate(dateValue) {
 if (!local.sessionPlannerState || !dateValue) {
 return;
 }
+tacticalPlaybackController.stop();
+tacticalFramesController.reset();
 local.sessionPlannerState.selectedDate = dateValue;
 getSessionPlannerPeriodizationBridge?.()?.close({ render: false });
 local.sessionPlannerLibraryOpen = false;
@@ -261,6 +265,8 @@ const session = getSessionPlannerSelectedSession();
 if (!session.blocks.some((block) => block.id === blockId)) {
 return;
 }
+tacticalPlaybackController.stop();
+tacticalFramesController.reset();
 session.selectedBlockId = blockId;
 local.sessionPlannerAddMenuOpen = false;
 local.sessionPlannerVisualPreviewOpen = false;
@@ -519,6 +525,8 @@ syncSessionPlannerPrintModeClass();
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 function setSessionPlannerTacticalboardOpen(isOpen) {
+tacticalPlaybackController.stop();
+tacticalFramesController.reset();
 local.sessionPlannerTacticalboardOpen = Boolean(isOpen);
 if (local.sessionPlannerTacticalboardOpen) {
 local.sessionPlannerAddMenuOpen = false;
@@ -907,180 +915,79 @@ writeSessionPlannerState();
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 showSessionPlannerToast("Players reset to starting positions and default buttons.");
 }
-function getSessionPlannerTacticalFrames(block = getSessionPlannerSelectedBlock()) {
-if (!block) {
-return [];
-}
-const frames = normalizeSessionPlannerTacticalFrames(block.tacticalFrames);
-block.tacticalFrames = frames;
-block.tacticalActiveFrameId = normalizeSessionPlannerTacticalActiveFrameId(block.tacticalActiveFrameId, frames);
-return frames;
-}
-function getSessionPlannerTacticalActiveFrameId(block = getSessionPlannerSelectedBlock()) {
-return normalizeSessionPlannerTacticalActiveFrameId(block?.tacticalActiveFrameId, getSessionPlannerTacticalFrames(block));
-}
-function ensureSessionPlannerTacticalFrames(block = getSessionPlannerSelectedBlock()) {
-if (!block) {
-return [];
-}
-const frames = getSessionPlannerTacticalFrames(block);
-if (frames.length) {
-return frames;
-}
-const firstFrame = cloneSessionPlannerTacticalFrame(
-{
-label: "Frame 1",
-elements: Array.isArray(block.tacticalElements) ? block.tacticalElements : [],
-},
-0
-);
-block.tacticalFrames = [firstFrame];
-block.tacticalActiveFrameId = firstFrame.id;
-return block.tacticalFrames;
-}
-function syncSessionPlannerTacticalActiveFrame(block = getSessionPlannerSelectedBlock()) {
-const frames = ensureSessionPlannerTacticalFrames(block);
-const activeFrameId = getSessionPlannerTacticalActiveFrameId(block);
-const activeFrame = frames.find((frame) => frame.id === activeFrameId);
-if (activeFrame) {
-activeFrame.elements = Array.isArray(block.tacticalElements)
-? block.tacticalElements.map(cloneSessionPlannerTacticalElement)
-: [];
-}
-return frames;
-}
-function persistSessionPlannerTacticalElements(block = getSessionPlannerSelectedBlock()) {
-if (!block) {
-return;
-}
-const fields = ["tacticalElements"];
-if (Array.isArray(block.tacticalFrames) && block.tacticalFrames.length) {
-syncSessionPlannerTacticalActiveFrame(block);
-fields.push("tacticalFrames", "tacticalActiveFrameId");
-}
-markSessionPlannerBlockFieldsUpdated(block, fields);
-writeSessionPlannerState();
-}
-function commitSessionPlannerTacticalFrames(block, frames, activeFrameId) {
-if (!block || !Array.isArray(frames) || !frames.length) {
-return false;
-}
-const normalizedFrames = normalizeSessionPlannerTacticalFrames(frames);
-const nextActiveFrameId = normalizeSessionPlannerTacticalActiveFrameId(activeFrameId, normalizedFrames);
-const activeFrame = normalizedFrames.find((frame) => frame.id === nextActiveFrameId) ?? normalizedFrames[0];
-block.tacticalFrames = normalizedFrames;
-block.tacticalActiveFrameId = activeFrame.id;
-block.tacticalElements = activeFrame.elements.map(cloneSessionPlannerTacticalElement);
+function clearSessionPlannerTacticalFrameInteraction() {
 local.sessionPlannerTacticalPendingPoint = null;
 local.sessionPlannerTacticalDraftLineState = null;
+local.sessionPlannerTacticalFreehandState = null;
+local.sessionPlannerTacticalDragState = null;
 local.sessionPlannerTacticalSelectionState = null;
-clearSessionPlannerTacticalSelection();
-markSessionPlannerBlockFieldsUpdated(block, ["tacticalElements", "tacticalFrames", "tacticalActiveFrameId"]);
-writeSessionPlannerState();
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-return true;
+local.sessionPlannerTacticalNumberPickerElementId = "";
+local.sessionPlannerTacticalSelectedElementIds = [];
+local.sessionPlannerTacticalSelectedElementId = "";
+}
+const tacticalFramesController = createSessionPlannerTacticalFramesController({
+getBlock: getSessionPlannerSelectedBlock,
+getKey: () => `${local.sessionPlannerState?.selectedDate}::${getSessionPlannerSelectedBlock()?.id}`,
+canEdit: canEditSessionPlanner,
+cloneElement: cloneSessionPlannerTacticalElement,
+cloneFrame: cloneSessionPlannerTacticalFrame,
+normalizeFrames: normalizeSessionPlannerTacticalFrames,
+markFields: markSessionPlannerBlockFieldsUpdated,
+writeState: writeSessionPlannerState,
+clearInteraction: clearSessionPlannerTacticalFrameInteraction,
+render: () => renderSessionPlannerWorkspace({ preserveDateStripScroll: true }),
+showToast: showSessionPlannerToast,
+maxFrames: sessionPlannerTacticalMaxFrames,
+confirmDelete: () => confirmSessionPlannerAction({
+title: "Delete frame?", message: "Delete this tactical board frame?", confirmLabel: "Delete", tone: "danger",
+}),
+});
+const tacticalPlaybackController = createSessionPlannerTacticalPlaybackController({
+win,
+getWorkspace: () => ui.sessionPlannerWorkspace,
+getEditorBlock: () => tacticalFramesController.getEditorBlock(),
+canEdit: canEditSessionPlanner,
+renderVisual: (...args) => renderSessionPlannerExerciseVisual(...args),
+});
+function getSessionPlannerTacticalFrames() {
+return tacticalFramesController.getFrames();
+}
+function getSessionPlannerTacticalActiveFrameId() {
+return tacticalFramesController.getActiveId();
+}
+function ensureSessionPlannerTacticalFrames() {
+return tacticalFramesController.getFrames();
+}
+function syncSessionPlannerTacticalActiveFrame() {
+return tacticalFramesController.getFrames();
+}
+function persistSessionPlannerTacticalElements(block) {
+return tacticalFramesController.persist(block);
+}
+function commitSessionPlannerTacticalFrames(block, frames, activeFrameId) {
+return tacticalFramesController.replace(block, frames, activeFrameId);
 }
 function addSessionPlannerTacticalFrame() {
-if (!canEditSessionPlanner()) {
-return;
-}
-const block = getSessionPlannerSelectedBlock();
-if (!block) {
-return;
-}
-const frames = syncSessionPlannerTacticalActiveFrame(block);
-if (frames.length >= sessionPlannerTacticalMaxFrames) {
-showSessionPlannerToast(`Max ${sessionPlannerTacticalMaxFrames} frames per board.`, "warning");
-return;
-}
-const nextFrame = cloneSessionPlannerTacticalFrame(
-{
-label: `Frame ${frames.length + 1}`,
-elements: block.tacticalElements,
-},
-frames.length
-);
-commitSessionPlannerTacticalFrames(block, [...frames, nextFrame], nextFrame.id);
+return tacticalFramesController.next();
 }
 function selectSessionPlannerTacticalFrame(frameId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const block = getSessionPlannerSelectedBlock();
-if (!block) {
-return;
-}
-const frames = syncSessionPlannerTacticalActiveFrame(block);
-const targetFrame = frames.find((frame) => frame.id === frameId);
-if (!targetFrame || targetFrame.id === block.tacticalActiveFrameId) {
-return;
-}
-commitSessionPlannerTacticalFrames(block, frames, targetFrame.id);
+return tacticalFramesController.select(frameId);
 }
 function duplicateSessionPlannerTacticalFrame() {
-if (!canEditSessionPlanner()) {
-return;
+return tacticalFramesController.next();
 }
-const block = getSessionPlannerSelectedBlock();
-if (!block) {
-return;
-}
-const frames = syncSessionPlannerTacticalActiveFrame(block);
-if (frames.length >= sessionPlannerTacticalMaxFrames) {
-showSessionPlannerToast(`Max ${sessionPlannerTacticalMaxFrames} frames per board.`, "warning");
-return;
-}
-const activeFrameId = getSessionPlannerTacticalActiveFrameId(block);
-const activeIndex = Math.max(0, frames.findIndex((frame) => frame.id === activeFrameId));
-const sourceFrame = frames[activeIndex] ?? frames[0];
-const duplicateFrame = cloneSessionPlannerTacticalFrame(
-{
-label: `Frame ${frames.length + 1}`,
-elements: sourceFrame.elements,
-},
-frames.length
-);
-const nextFrames = [...frames];
-nextFrames.splice(activeIndex + 1, 0, duplicateFrame);
-commitSessionPlannerTacticalFrames(block, nextFrames, duplicateFrame.id);
-}
-async function deleteSessionPlannerTacticalFrame() {
-if (!canEditSessionPlanner()) {
-return;
-}
-const block = getSessionPlannerSelectedBlock();
-if (!block) {
-return;
-}
-const frames = syncSessionPlannerTacticalActiveFrame(block);
-if (frames.length <= 1) {
-showSessionPlannerToast("Keep at least one frame on the board.", "warning");
-return;
-}
-const confirmed = await confirmSessionPlannerAction({
-title: "Delete frame?",
-message: "Delete this tactical board frame?",
-confirmLabel: "Delete",
-tone: "danger",
-});
-if (!confirmed) {
-return;
-}
-const activeFrameId = getSessionPlannerTacticalActiveFrameId(block);
-const activeIndex = Math.max(0, frames.findIndex((frame) => frame.id === activeFrameId));
-const nextFrames = frames.filter((frame) => frame.id !== activeFrameId);
-const nextFrame = nextFrames[Math.min(activeIndex, nextFrames.length - 1)] ?? nextFrames[0];
-commitSessionPlannerTacticalFrames(block, nextFrames, nextFrame.id);
+function deleteSessionPlannerTacticalFrame() {
+return tacticalFramesController.remove();
 }
 const sessionPlannerTacticalController = createSessionPlannerTacticalController({
-  canEditSessionPlanner: (...args) => canEditSessionPlanner(...args),
+  canEditSessionPlanner: () => canEditSessionPlanner() && !tacticalPlaybackController.isPreviewing(),
   clamp,
   cloneSessionPlannerTacticalElement,
   createSessionPlannerLineElement,
   createSessionPlannerStableId,
   getDefaultTacticalColor,
   getDefaultTacticalLineStyle,
-  getSessionPlannerSelectedBlock: (...args) => getSessionPlannerSelectedBlock(...args),
+  getSessionPlannerSelectedBlock: () => tacticalFramesController.getEditorBlock(),
   getSessionPlannerTacticalEndpointCoordinates,
   isSessionPlannerTacticalGoalType,
   isSessionPlannerTacticalPlayerType,
@@ -2771,6 +2678,9 @@ return;
 if (!local.sessionPlannerState) {
 local.sessionPlannerState = readSessionPlannerState();
 }
+const retainedTacticalOverlay = local.sessionPlannerTacticalboardOpen ? tacticalPlaybackController.retainOverlay() : null;
+if (!retainedTacticalOverlay) tacticalPlaybackController.stop();
+const retainedTacticalFocus = retainedTacticalOverlay?.contains(document.activeElement) ? document.activeElement : null;
 const previousDateControls = ui.sessionPlannerWorkspace.querySelector(".session-date-controls");
 const previousRenderedSelectedDate =
 previousDateControls?.querySelector(".session-date-pill.is-active")?.dataset.sessionDate ?? "";
@@ -2828,6 +2738,11 @@ sessionMatchDayLabel,
 sessionTitle,
 sessionTotalMinutes,
 });
+if (retainedTacticalOverlay) {
+ui.sessionPlannerWorkspace.querySelector("[data-session-tacticalboard-overlay]")?.replaceWith(retainedTacticalOverlay);
+retainedTacticalFocus?.focus({ preventScroll: true });
+}
+tacticalPlaybackController.mount();
 if (canReuseDateControls) {
 const nextDateControls = ui.sessionPlannerWorkspace.querySelector(".session-date-controls");
 nextDateControls?.replaceWith(previousDateControls);

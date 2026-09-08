@@ -1,4 +1,4 @@
-import { buildVideoLibraryItems, filterVideoLibraryItems } from "../services/videoLibraryService.js";
+import { buildVideoLibraryItems, filterVideoLibraryItems, videoLibraryResultPage } from "../services/videoLibraryService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
 function eventTypeLabel(type = "") {
@@ -133,22 +133,21 @@ function renderCalendarDay(date = "", items = []) {
   const isToday = date === currentIsoDate();
   const preview = items.slice(0, 2);
   return `
-    <div class="video-analysis-calendar-day${items.length ? " has-items" : ""}${isToday ? " is-today" : ""}" aria-label="${escapeHtml(`${isToday ? "Today, " : ""}${formatDate(date)}`)}">
-      <span class="video-analysis-calendar-day__number">${escapeHtml(String(day))}</span>
+    <div role="listitem" class="video-analysis-calendar-day${items.length ? " has-items" : ""}${isToday ? " is-today" : ""}" aria-label="${escapeHtml(`${isToday ? "Today, " : ""}${formatDate(date)}`)}">
+      <button type="button" class="video-analysis-calendar-day__number" data-video-analysis-calendar-day="${escapeHtml(date)}" aria-label="${escapeHtml(`Show activities for ${formatDate(date)}`)}" ${isToday ? 'aria-current="date"' : ""}>${escapeHtml(String(day))}</button>
       ${preview.map((item) => renderCalendarEvent(item)).join("")}
-      ${items.length > preview.length ? `<span class="video-analysis-calendar-more">+${items.length - preview.length}</span>` : ""}
+      ${items.length > preview.length ? `<button type="button" class="video-analysis-calendar-more" data-video-analysis-calendar-day="${escapeHtml(date)}" aria-label="${escapeHtml(`Show all ${items.length} activities for ${formatDate(date)}`)}">+${items.length - preview.length}</button>` : ""}
     </div>
   `;
 }
 
-function renderCalendarOverview(allItems = [], visibleItems = [], filters = {}) {
-  const sourceItems = visibleItems.length ? visibleItems : allItems;
+function renderCalendarOverview(visibleItems = [], filters = {}) {
   const month = isoMonth(filters.calendarMonth) || isoMonth(filters.date) || currentIsoMonth();
   const todayMonth = currentIsoMonth();
   const previousMonth = addMonths(month, -1);
   const nextMonth = addMonths(month, 1);
   const itemsByDate = new Map();
-  for (const item of sourceItems) {
+  for (const item of visibleItems) {
     if (isoMonth(item.matchDate) !== month) continue;
     const list = itemsByDate.get(item.matchDate) || [];
     list.push(item);
@@ -210,11 +209,29 @@ function renderLibrarySearch(library = {}, visibleCount = 0, isActive = false) {
           <option value="match" ${library.filters?.type === "match" ? "selected" : ""}>Matches</option>
           <option value="training" ${library.filters?.type === "training" ? "selected" : ""}>Training</option>
         </select>
-        <button type="button" data-video-analysis-library-refresh>Refresh</button>
+        <button type="button" data-video-analysis-library-refresh ${library.status === "loading" ? "disabled" : ""}>Refresh</button>
       </div>
       ${isActive ? `<span>${escapeHtml(`${visibleCount} results`)}</span>` : ""}
     </section>
   `;
+}
+
+function renderLibraryStatus(library = {}) {
+  if (library.status === "loading") return `<p class="video-analysis-library-status" role="status">Loading video calendar...</p>`;
+  if (!library.error) return "";
+  return `<div class="video-analysis-library-status is-error" role="alert">
+    <span>${escapeHtml(library.error)}</span>
+    <button type="button" data-video-analysis-library-refresh>Retry</button>
+  </div>`;
+}
+
+function renderResultNavigation(resultPage = {}) {
+  if (resultPage.pageCount <= 1) return "";
+  return `<nav class="video-analysis-library-pagination" aria-label="Search result pages">
+    <button type="button" data-video-analysis-library-page="${resultPage.page - 1}" aria-label="Previous results" title="Previous results" ${resultPage.page === 0 ? "disabled" : ""}><span aria-hidden="true">&#8249;</span></button>
+    <span role="status">${resultPage.page + 1} / ${resultPage.pageCount}</span>
+    <button type="button" data-video-analysis-library-page="${resultPage.page + 1}" aria-label="Next results" title="Next results" ${resultPage.page === resultPage.pageCount - 1 ? "disabled" : ""}><span aria-hidden="true">&#8250;</span></button>
+  </nav>`;
 }
 
 function renderLibraryRow(item = {}, state = {}) {
@@ -253,28 +270,28 @@ export function renderVideoLibrary(state = {}) {
   const allItems = buildVideoLibraryItems(state);
   const visibleItems = filterVideoLibraryItems(allItems, library.filters || {});
   const searchIsActive = isLibrarySearchActive(library.filters || {});
-  const archiveItems = visibleItems.slice(0, 8);
+  const resultPage = videoLibraryResultPage(visibleItems, library.resultPage);
+  const archiveItems = resultPage.items;
   return `
-    <section class="video-analysis-library" data-video-analysis-library>
+    <section class="video-analysis-library" data-video-analysis-library aria-busy="${library.status === "loading"}">
       ${renderLibrarySearch(library, visibleItems.length, searchIsActive)}
-      ${renderCalendarOverview(allItems, visibleItems, library.filters || {})}
+      ${renderLibraryStatus(library)}
+      ${renderCalendarOverview(visibleItems, library.filters || {})}
       ${searchIsActive ? `
         <section class="video-analysis-library-archive" aria-label="Search results">
         <div class="video-analysis-panel-title">
           <div>
             <p class="video-analysis-kicker">Results</p>
-            <h3>Matches, training & videos</h3>
+            <h3 tabindex="-1" data-video-analysis-library-results-title>Matches, training & videos</h3>
           </div>
-          <span>${escapeHtml(`${archiveItems.length} of ${visibleItems.length}`)}</span>
+          <span>${escapeHtml(`${resultPage.start}-${resultPage.end} of ${visibleItems.length}`)}</span>
         </div>
         <div class="video-analysis-library__list">
           ${archiveItems.length
             ? archiveItems.map((item) => renderLibraryRow(item, state)).join("")
             : `<p class="video-analysis-muted">No matches or training sessions found.</p>`}
         </div>
-        ${visibleItems.length > archiveItems.length
-          ? `<p class="video-analysis-library-archive__hint">Showing the first ${archiveItems.length}. Use search, date or type to narrow the archive.</p>`
-          : ""}
+        ${renderResultNavigation(resultPage)}
         </section>
       ` : ""}
     </section>

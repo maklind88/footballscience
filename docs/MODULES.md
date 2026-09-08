@@ -220,8 +220,11 @@ Current direction:
 
 - Analysis Room is for the team's own performances, match reviews, and feedback into training.
 - It should not become opposition scouting or recruitment analysis.
-- Keep it as a polished placeholder until the workflow is defined.
-- Placeholder text: `Skunks Work building this` with a premium skunk visual.
+- The existing room shell hosts Overview, FS Player, Presentation, and Clip Library (legacy route `match-report`). It is not a placeholder.
+- Overview consumes schedule and video-library metadata. It owns calendar navigation, activity search, and routing into the selected session, not schedule writes or FS Player media storage.
+- Event IDs distinguish multiple sessions on one day. Date-only legacy entries may be collapsed only when the relationship is unambiguous and neither side has an event ID.
+- Search results are paginated in the browser; calendar overflow opens that day's results. This does not make the current bounded library request a complete server archive search.
+- FS Player owns tagging, playback and its clip-presentation internals. The separate platform Presentation Mode is not owned by Analysis Room.
 
 ## Scouting
 

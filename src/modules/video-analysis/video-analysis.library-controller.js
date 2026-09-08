@@ -3,6 +3,7 @@ import {
   mergeScheduleCandidates,
   normalizeContextScheduleCandidates,
 } from "./services/videoLibraryService.js";
+import { eventElement } from "./video-analysis.dom-events.js";
 
 function contextScheduleCandidates(context = {}) {
   try {
@@ -45,7 +46,7 @@ export function createVideoLibraryController(deps = {}) {
       ...current,
       library: {
         ...(current.library || {}),
-        status: options.silent ? current.library?.status || "ready" : "loading",
+        status: "loading",
         error: "",
       },
     }));
@@ -78,11 +79,71 @@ export function createVideoLibraryController(deps = {}) {
         library: {
           ...(current.library || currentLibrary),
           status: "error",
-          scheduleCandidates: mergeScheduleCandidates(contextScheduleCandidates(run.context)),
+          scheduleCandidates: mergeScheduleCandidates(current.library?.scheduleCandidates, contextScheduleCandidates(run.context)),
           error: error.message || "Could not load video library.",
         },
       }));
     }
+  }
+
+  function updateFilters(patch, context) {
+    ensureRuntime(context).store.update((state) => ({
+      ...state,
+      library: { ...state.library, resultPage: 0, filters: { ...state.library?.filters, ...patch } },
+    }));
+  }
+
+  function focusResults(context) {
+    const win = context.win || globalThis.window;
+    win?.requestAnimationFrame?.(() => {
+      const root = context.ui?.analysisRoomWorkspace;
+      const heading = root?.querySelector("[data-video-analysis-library-results-title]");
+      heading?.focus({ preventScroll: true });
+      heading?.scrollIntoView({ block: "start" });
+    });
+  }
+
+  function handleClick(event, context = {}) {
+    const target = eventElement(event);
+    if (!target?.closest) return false;
+    if (target.closest("[data-video-analysis-library-refresh]")) {
+      loadLibrary();
+      return true;
+    }
+    const month = target.closest("[data-video-analysis-calendar-month]");
+    if (month) {
+      updateFilters({ calendarMonth: month.dataset.videoAnalysisCalendarMonth, date: "" }, context);
+      return true;
+    }
+    const day = target.closest("[data-video-analysis-calendar-day]");
+    if (day) {
+      const date = day.dataset.videoAnalysisCalendarDay;
+      updateFilters({ date, calendarMonth: date.slice(0, 7) }, context);
+      focusResults(context);
+      return true;
+    }
+    const page = target.closest("[data-video-analysis-library-page]");
+    if (page) {
+      ensureRuntime(context).store.update((state) => ({
+        ...state, library: { ...state.library, resultPage: Number(page.dataset.videoAnalysisLibraryPage) || 0 },
+      }));
+      focusResults(context);
+      return true;
+    }
+    const item = target.closest("[data-video-analysis-open-library-item]");
+    if (!item) return false;
+    openLibraryItem(item.dataset.videoAnalysisOpenLibraryItem, context);
+    return true;
+  }
+
+  function handleInput(event, context = {}) {
+    const filter = eventElement(event)?.closest?.("[data-video-analysis-library-filter]");
+    const key = filter?.dataset.videoAnalysisLibraryFilter;
+    if (!["search", "date", "type"].includes(key)) return false;
+    const patch = { [key]: filter.value };
+    if (key === "date" && filter.value) patch.calendarMonth = filter.value.slice(0, 7);
+    updateFilters(patch, context);
+    return true;
   }
 
   async function openLibraryItem(itemKey = "", context = {}, options = {}) {
@@ -180,6 +241,8 @@ export function createVideoLibraryController(deps = {}) {
   }
 
   return Object.freeze({
+    handleClick,
+    handleInput,
     loadLibrary,
     openLibraryItem,
     openLibraryView,

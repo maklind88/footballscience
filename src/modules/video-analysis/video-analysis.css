@@ -167,16 +167,26 @@
 }
 
 .video-analysis-calendar-day__number {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
   color: #4f5e56;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 850;
+  cursor: pointer;
 }
 
 .video-analysis-calendar-day.is-today .video-analysis-calendar-day__number {
   display: inline-grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   color: #ffffff;
   background: #123522;
@@ -239,17 +249,78 @@
   line-height: 1.1;
 }
 
-.video-analysis-calendar-more {
-  display: inline-flex;
-  width: fit-content;
-  border-radius: 999px;
-  padding: 2px 6px;
-  background: #eef3ef;
+.video-analysis-calendar-event small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.video-analysis-calendar-event:focus-visible {
+.video-analysis-calendar-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  min-width: 24px;
+  width: fit-content;
+  max-width: 100%;
+  border: 0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  background: #eef3ef;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.video-analysis-calendar-event:focus-visible,
+.video-analysis-calendar-more:focus-visible,
+.video-analysis-calendar-day__number:focus-visible,
+.video-analysis-library-pagination button:focus-visible {
   outline: 2px solid #d7ba68;
   outline-offset: 2px;
+}
+
+.video-analysis-library-pagination,
+.video-analysis-library-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 0;
+  color: #4f5e56;
+  font: inherit;
+  font-size: 13px;
+}
+
+.video-analysis-library-pagination {
+  justify-content: flex-end;
+}
+
+.video-analysis-library-status span {
+  overflow-wrap: anywhere;
+}
+
+.video-analysis-library-status.is-error {
+  color: #9b2929;
+}
+
+.video-analysis-library-pagination button,
+.video-analysis-library-status button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  min-width: 36px;
+  border: 1px solid #bcc7c0;
+  border-radius: 6px;
+  color: #17201b;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.video-analysis-library-pagination button:disabled,
+.video-analysis-library-search__filters button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .video-analysis-library-search {

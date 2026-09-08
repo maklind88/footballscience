@@ -43,7 +43,7 @@ function dateSearchTerms(value = "") {
 
 function eventType(value = "") {
   const type = text(value).toLowerCase();
-  return type === "match" ? "match" : "training";
+  return ["match", "training"].includes(type) ? type : "";
 }
 
 function inferEventType(value = "", context = {}) {
@@ -58,6 +58,7 @@ function titleFallback(item = {}) {
 }
 
 function scheduleSignature(candidate = {}) {
+  if (candidate.scheduleEventId) return `event:${candidate.scheduleEventId}`;
   return [
     text(candidate.scheduleEventId || candidate.id),
     dateValue(candidate.matchDate || candidate.date),
@@ -67,11 +68,12 @@ function scheduleSignature(candidate = {}) {
 }
 
 export function normalizeScheduleCandidate(event = {}, source = "schedule") {
+  if (!event || typeof event !== "object") return null;
   const matchDate = dateValue(event.matchDate || event.match_date || event.eventDate || event.event_date || event.date);
   const type = eventType(event.eventType || event.event_type || event.type);
   const scheduleEventId = text(event.scheduleEventId || event.schedule_event_id || event.id);
   const title = titleFallback(event);
-  if (!matchDate || !title) return null;
+  if (!matchDate || !type) return null;
   return {
     key: `schedule:${scheduleEventId || `${matchDate}:${type}:${title}`}`,
     kind: "schedule-candidate",
@@ -95,7 +97,6 @@ export function normalizeContextScheduleCandidates(context = {}) {
   const state = context.getScheduleState?.() || context.getScheduleStateForVideoAnalysis?.() || {};
   const events = Array.isArray(state.events) ? state.events : [];
   return events
-    .filter((event) => ["match", "training"].includes(eventType(event.type)))
     .map((event) => normalizeScheduleCandidate(event, "schedule-state"))
     .filter(Boolean);
 }
@@ -105,9 +106,10 @@ export function mergeScheduleCandidates(...candidateLists) {
   const merged = [];
   for (const list of candidateLists) {
     for (const candidate of Array.isArray(list) ? list : []) {
-      const normalized = normalizeScheduleCandidate(candidate, candidate.source || "schedule");
+      const normalized = normalizeScheduleCandidate(candidate, candidate?.source || "schedule");
+      if (!normalized) continue;
       const key = scheduleSignature(normalized);
-      if (!normalized || seen.has(key)) continue;
+      if (seen.has(key)) continue;
       seen.add(key);
       merged.push(normalized);
     }
@@ -146,14 +148,27 @@ export function normalizeLibraryMatch(match = {}) {
 export function buildVideoLibraryItems(state = {}) {
   const matches = (state.library?.matches || []).map(normalizeLibraryMatch).filter((item) => item.id);
   const linkedScheduleIds = new Set(matches.map((item) => item.scheduleEventId).filter(Boolean));
-  const linkedDayKeys = new Set(matches.map((item) => item.scheduleDayKey || item.matchDate).filter(Boolean));
-  const scheduleOnly = (state.library?.scheduleCandidates || [])
-    .map((candidate) => normalizeScheduleCandidate(candidate, candidate.source || "schedule"))
-    .filter(Boolean)
-    .filter((candidate) => {
-      if (candidate.scheduleEventId && linkedScheduleIds.has(candidate.scheduleEventId)) return false;
-      return !linkedDayKeys.has(candidate.scheduleDayKey || candidate.matchDate);
-    });
+  const candidates = mergeScheduleCandidates(state.library?.scheduleCandidates || []);
+  const dayKey = (item) => JSON.stringify([item.scheduleDayKey, item.eventType]);
+  const matchesByDay = new Map();
+  const candidatesByDay = new Map();
+  for (const match of matches) {
+    const key = dayKey(match);
+    const group = matchesByDay.get(key) || [];
+    group.push(match);
+    matchesByDay.set(key, group);
+  }
+  for (const candidate of candidates) {
+    const key = dayKey(candidate);
+    candidatesByDay.set(key, (candidatesByDay.get(key) || 0) + 1);
+  }
+  const scheduleOnly = candidates.filter((candidate) => {
+    if (candidate.scheduleEventId) return !linkedScheduleIds.has(candidate.scheduleEventId);
+    // Date-only links are safe to collapse only when neither side has an event identity and the day is unambiguous.
+    const dayMatches = matchesByDay.get(dayKey(candidate)) || [];
+    const dayCandidateCount = candidatesByDay.get(dayKey(candidate));
+    return !(dayMatches.length === 1 && !dayMatches[0].scheduleEventId && dayCandidateCount === 1);
+  });
   return [...matches, ...scheduleOnly].sort(compareLibraryItems);
 }
 
@@ -189,8 +204,16 @@ export function findScheduleCandidate(state = {}, scheduleEventId = "") {
   const id = text(scheduleEventId);
   if (!id) return null;
   return (state.library?.scheduleCandidates || [])
-    .map((candidate) => normalizeScheduleCandidate(candidate, candidate.source || "schedule"))
-    .find((candidate) => candidate.scheduleEventId === id) || null;
+    .map((candidate) => normalizeScheduleCandidate(candidate, candidate?.source || "schedule"))
+    .find((candidate) => candidate?.scheduleEventId === id) || null;
+}
+
+export function videoLibraryResultPage(items = [], requestedPage = 0) {
+  const pageSize = 8;
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const page = Math.min(pageCount - 1, Math.max(0, Math.floor(Number(requestedPage) || 0)));
+  const offset = page * pageSize;
+  return { page, pageCount, items: items.slice(offset, offset + pageSize), start: items.length ? offset + 1 : 0, end: Math.min(offset + pageSize, items.length) };
 }
 
 function compareLibraryItems(first, second) {

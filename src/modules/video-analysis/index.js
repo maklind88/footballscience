@@ -4756,29 +4756,7 @@ export function handleClick(event, context = {}) {
     savePresentationShareTargets(context);
     return true;
   }
-  if (target.closest("[data-video-analysis-library-refresh]")) {
-    libraryController().loadLibrary();
-    return true;
-  }
-  const calendarMonthButton = target.closest("[data-video-analysis-calendar-month]");
-  if (calendarMonthButton) {
-    run.store.update((state) => ({
-      ...state,
-      library: {
-        ...(state.library || {}),
-        filters: {
-          ...(state.library?.filters || {}),
-          calendarMonth: calendarMonthButton.dataset.videoAnalysisCalendarMonth || "",
-        },
-      },
-    }));
-    return true;
-  }
-  const libraryItem = target.closest("[data-video-analysis-open-library-item]");
-  if (libraryItem) {
-    libraryController().openLibraryItem(libraryItem.dataset.videoAnalysisOpenLibraryItem, context);
-    return true;
-  }
+  if (libraryController().handleClick(event, context)) return true;
   if (target.closest("[data-video-analysis-load]")) {
     openLocalVideoPicker(context);
     return true;
@@ -5853,18 +5831,7 @@ export function handleInput(event, context = {}) {
   if (!target?.closest) return false;
   if (intelligenceControls(context).handleInput(event)) return true;
   if (workspaceTimelineController(context).handleInput(event)) return true;
-  const libraryFilter = target.closest("[data-video-analysis-library-filter]");
-  if (libraryFilter) {
-    const key = libraryFilter.dataset.videoAnalysisLibraryFilter;
-    run.store.update((state) => ({
-      ...state,
-      library: {
-        ...(state.library || {}),
-        filters: { ...(state.library?.filters || {}), [key]: libraryFilter.value },
-      },
-    }));
-    return true;
-  }
+  if (libraryController().handleInput(event, context)) return true;
   const draftField = target.closest("[data-video-analysis-draft]");
   if (draftField) {
     const key = draftField.dataset.videoAnalysisDraft;

@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { expectMacTrackingBuildGuards } from "./helpers/video-analysis-provider-build-guards.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const candidateDir = path.join(rootDir, "desktop/local-video-app/tracking-stage-candidates");
@@ -63,11 +64,11 @@ test("anchor-color build accepts only pinned offline FFmpeg release inputs", asy
       fs.writeFile(archive, "not-reviewed-ffmpeg"),
       fs.writeFile(signature, "not-reviewed-signature"),
     ]);
-    await expect(service.buildAnchorColorClassificationProvider({
+    await expectMacTrackingBuildGuards(moduleUrl(buildPath), "buildAnchorColorClassificationProvider", {
       ffmpegArchivePath: archive,
       ffmpegSignaturePath: signature,
       outputPath: path.join(directory, "provider"),
-    })).rejects.toMatchObject({ code: "TRACKING_ANCHOR_COLOR_BUILD_CHECKSUM_MISMATCH" });
+    }, "TRACKING_ANCHOR_COLOR_BUILD");
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

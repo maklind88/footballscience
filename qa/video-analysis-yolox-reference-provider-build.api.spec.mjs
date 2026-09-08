@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { expectMacTrackingBuildGuards } from "./helpers/video-analysis-provider-build-guards.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -33,9 +34,7 @@ test("YOLOX reference build accepts only explicit offline inputs", async () => {
 });
 
 test("YOLOX reference build pins the no-SysV patch and rejects another source distribution", async () => {
-  const service = await import(moduleUrl(
-    "desktop/local-video-app/tracking-stage-candidates/build-yolox-reference-provider.mjs",
-  ));
+  const buildPath = "desktop/local-video-app/tracking-stage-candidates/build-yolox-reference-provider.mjs";
   const patchPath = path.join(
     rootDir,
     "desktop/local-video-app/tracking-stage-candidates/providers/pyinstaller-6.15.0-darwin-no-sysv.patch",
@@ -49,11 +48,11 @@ test("YOLOX reference build pins the no-SysV patch and rejects another source di
   try {
     const sdistPath = path.join(directory, "pyinstaller.tar.gz");
     await fs.writeFile(sdistPath, "not-the-reviewed-source-distribution");
-    await expect(service.buildYoloxReferenceProvider({
+    await expectMacTrackingBuildGuards(moduleUrl(buildPath), "buildYoloxReferenceProvider", {
       outputPath: path.join(directory, "provider"),
       pythonPath: process.execPath,
       sdistPath,
-    })).rejects.toMatchObject({ code: "TRACKING_CANDIDATE_BUILD_CHECKSUM_MISMATCH" });
+    }, "TRACKING_CANDIDATE_BUILD");
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { expectMacTrackingBuildGuards } from "./helpers/video-analysis-provider-build-guards.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const candidateDir = path.join(
@@ -64,12 +65,12 @@ test("native YOLOX build accepts only pinned offline release inputs", async () =
       fs.writeFile(invalidFfmpeg, "not-reviewed-ffmpeg"),
       fs.writeFile(invalidSignature, "not-reviewed-signature"),
     ]);
-    await expect(service.buildYoloxNativeCoremlReferenceProvider({
+    await expectMacTrackingBuildGuards(moduleUrl(buildPath), "buildYoloxNativeCoremlReferenceProvider", {
       ffmpegArchivePath: invalidFfmpeg,
       ffmpegSignaturePath: invalidSignature,
       onnxruntimeArchivePath: invalidArchive,
       outputPath: path.join(directory, "provider"),
-    })).rejects.toMatchObject({ code: "TRACKING_NATIVE_CANDIDATE_BUILD_CHECKSUM_MISMATCH" });
+    }, "TRACKING_NATIVE_CANDIDATE_BUILD");
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

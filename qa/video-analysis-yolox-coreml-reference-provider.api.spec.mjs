@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { expectMacTrackingBuildGuards } from "./helpers/video-analysis-provider-build-guards.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const providerDir = path.join(
@@ -74,11 +75,11 @@ test("YOLOX CoreML build pins the complete no-SysV runtime and accepts no downlo
   try {
     const sdistPath = path.join(directory, "pyinstaller.tar.gz");
     await fs.writeFile(sdistPath, "not-the-reviewed-source-distribution");
-    await expect(service.buildYoloxCoremlReferenceProvider({
+    await expectMacTrackingBuildGuards(moduleUrl(buildPath), "buildYoloxCoremlReferenceProvider", {
       outputPath: path.join(directory, "provider"),
       pythonPath: process.execPath,
       sdistPath,
-    })).rejects.toMatchObject({ code: "TRACKING_CANDIDATE_BUILD_CHECKSUM_MISMATCH" });
+    }, "TRACKING_CANDIDATE_BUILD");
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

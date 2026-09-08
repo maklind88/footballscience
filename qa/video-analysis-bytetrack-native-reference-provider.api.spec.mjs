@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { expectMacTrackingBuildGuards } from "./helpers/video-analysis-provider-build-guards.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const candidateDir = path.join(rootDir, "desktop/local-video-app/tracking-stage-candidates");
@@ -53,12 +54,12 @@ test("native ByteTrack build accepts only pinned reviewed source inputs", async 
       fs.writeFile(eigenArchive, "not-reviewed-eigen"),
       fs.writeFile(ryuArchive, "not-reviewed-ryu"),
     ]);
-    await expect(service.buildByteTrackNativeReferenceProvider({
+    await expectMacTrackingBuildGuards(moduleUrl(buildPath), "buildByteTrackNativeReferenceProvider", {
       byteTrackArchivePath: byteTrackArchive,
       eigenArchivePath: eigenArchive,
       ryuArchivePath: ryuArchive,
       outputPath: path.join(directory, "provider"),
-    })).rejects.toMatchObject({ code: "TRACKING_BYTETRACK_BUILD_CHECKSUM_MISMATCH" });
+    }, "TRACKING_BYTETRACK_BUILD");
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

@@ -59,7 +59,9 @@
 .session-tactical-playhead { flex: 1 1 6rem; width: 6rem; min-width: 4rem; max-width: 12rem; accent-color: #154e75; }
 .session-tactical-playback output { flex: 0 0 6rem; text-align: center; font-size: .75rem; font-variant-numeric: tabular-nums; }
 .session-tactical-playback select { width: 3.75rem; height: 2rem; min-height: 0; padding: 0 .4rem; font-size: .75rem; border-radius: 6px; }
-.session-tactical-playback-frames { display: flex; gap: .25rem; flex: 1 1 5rem; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.session-tactical-frame-navigation { display: flex; align-items: center; gap: .35rem; flex: 1 1 10rem; min-width: 0; }
+.session-tactical-frame-navigation select { flex: 0 0 4.5rem; width: 4.5rem; }
+.session-tactical-playback-frames { position: relative; display: flex; gap: .25rem; flex: 1; min-width: 0; height: 2.6rem; align-items: center; overflow-x: auto; scrollbar-width: thin; }
 .session-tactical-playback .session-tactical-next-frame { width: auto; gap: .3rem; padding-inline: .55rem; font-size: .75rem; white-space: nowrap; }
 .session-tactical-playback-surface { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; }
 .session-tacticalboard-canvas-wrap .session-tactical-playback-surface > .session-visual-board {
@@ -92,7 +94,7 @@
 
 @media (max-width: 760px) {
   .session-tactical-playback { gap: .3rem; }
-  .session-tactical-playback-frames { order: 2; flex-basis: 100%; }
+  .session-tactical-frame-navigation { order: 2; flex-basis: 100%; }
   .session-tactical-playback button { width: 2.25rem; height: 2.25rem; }
   .session-tactical-playhead { max-width: none; }
   .session-tactical-playback output { flex-basis: 5rem; }

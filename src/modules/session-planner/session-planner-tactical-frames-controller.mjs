@@ -1,3 +1,7 @@
+// Leave headroom under the existing 256 KiB server block limit for coaching text.
+export const tacticalFrameCreationBudgetBytes = 240 * 1024;
+const payloadBytes = (block) => new TextEncoder().encode(JSON.stringify(block)).byteLength;
+
 // The editor owns a draft view. Selecting a frame never mutates the saved block.
 export function createSessionPlannerTacticalFramesController({
   getBlock,
@@ -84,6 +88,14 @@ export function createSessionPlannerTacticalFramesController({
     syncFrame(view);
     const newContent = JSON.stringify([view.tacticalFrames, view.tacticalPitchMode]);
     if (entry.contentStamp === newContent) return false;
+    const candidateBytes = payloadBytes(view);
+    if (candidateBytes > tacticalFrameCreationBudgetBytes && candidateBytes > payloadBytes(source)) {
+      entry = null;
+      clearInteraction();
+      showToast("This board change is too large to save safely. Your saved exercise is unchanged.", "warning");
+      render();
+      return false;
+    }
     source.tacticalFrames = normalizeFrames(view.tacticalFrames);
     source.tacticalActiveFrameId = view.tacticalActiveFrameId;
     source.tacticalElements = view.tacticalElements.map(cloneElement);
@@ -138,6 +150,12 @@ export function createSessionPlannerTacticalFramesController({
     syncFrame(view);
     const index = frames.findIndex((frame) => frame.id === view.tacticalActiveFrameId);
     const frame = cloneFrame({ label: `Frame ${frames.length + 1}`, elements: view.tacticalElements });
+    const candidate = { ...view, tacticalFrames: [...frames.slice(0, index + 1), frame, ...frames.slice(index + 1)],
+      tacticalActiveFrameId: frame.id, tacticalElements: frame.elements };
+    if (payloadBytes(candidate) > tacticalFrameCreationBudgetBytes) {
+      showToast("This exercise is too large to add another frame safely. Your existing frames are unchanged.", "warning");
+      return false;
+    }
     frames.splice(index + 1, 0, frame);
     view.tacticalActiveFrameId = frame.id;
     view.tacticalElements = frame.elements.map(cloneElement);

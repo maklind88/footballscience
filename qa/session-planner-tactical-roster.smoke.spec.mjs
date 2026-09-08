@@ -66,7 +66,7 @@ test("assign a Squad player, change display, copy, undo and reload without chang
   await expect(modal.locator(`${marker} img`)).toBeVisible();
   await expect.poll(() => modal.locator(`${marker} img`).evaluate((img) => img.naturalWidth)).toBe(1);
   expect((await modal.locator(marker).boundingBox()).width).toBeCloseTo(size.width, 1);
-  await mode(modal, "Number");
+  await mode(modal, "Label");
   await expect(modal.locator(`${marker} .session-tactical-player-badge`)).toHaveText("9");
   await modal.locator(marker).focus();
   await page.keyboard.press("W");

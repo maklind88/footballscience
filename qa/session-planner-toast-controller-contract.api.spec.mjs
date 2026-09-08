@@ -68,5 +68,7 @@ test("Session Planner toast controller stays outside persistence boundaries", ()
   expect(composerSource).toContain("createSessionPlannerToastController({");
   expect(appRuntime).toContain("getSessionPlannerToastController: () => sessionPlannerToastController");
   expect(composerSource).toContain("sessionPlannerToastController,");
+  expect(composerSource).toContain("showSessionPlannerToast: sessionPlannerToastController.show");
+  expect(composerSource).toContain("renderSessionPlannerToast: sessionPlannerToastController.render");
   expect(accessorsSource).toContain("function renderSessionPlannerToast()");
 });

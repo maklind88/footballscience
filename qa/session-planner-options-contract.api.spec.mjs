@@ -26,7 +26,7 @@ test("Session Planner options expose stable board, tactical, and print defaults"
   expect(sessionPlannerTacticalPitchModeOptions.map((option) => option.key)).toContain("full-wide");
   expect(sessionPlannerTacticalPitchModeKeys.has("goalkeeper")).toBe(true);
   expect(sessionPlannerTacticalSnapStep).toBe(2.5);
-  expect(sessionPlannerTacticalMaxFrames).toBe(12);
+  expect(sessionPlannerTacticalMaxFrames).toBe(24);
   expect(sessionPlannerPrintPaperOptions.letter.pageSize).toBe("letter landscape");
   expect(sessionPlannerPrintPaperOptions.a4.width).toBe("297mm");
   expect(sessionPlannerPrintSectionOptions.map((option) => option.key)).toContain("medical");

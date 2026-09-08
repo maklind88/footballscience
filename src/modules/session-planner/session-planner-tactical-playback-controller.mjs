@@ -229,6 +229,7 @@ export function createSessionPlannerTacticalPlaybackController({
 
   function onInput(event) {
     if (!modal?.contains(event.target)) return;
+    if (event.target.matches("[data-session-tactical-frame-select]")) stop();
     if (event.target.matches("[data-session-tactical-playhead]") && prepare()) {
       playing = false;
       cancelTick();
@@ -287,6 +288,9 @@ export function createSessionPlannerTacticalPlaybackController({
       }
     }
     syncControls();
+    const frames = modal?.querySelector(".session-tactical-playback-frames");
+    const active = frames?.querySelector('[aria-pressed="true"]');
+    if (active) frames.scrollLeft = active.offsetLeft - (frames.clientWidth - active.offsetWidth) / 2;
     if (modal && !canEdit()) {
       modal.querySelectorAll("[data-session-add-tactical-frame], [data-session-delete-tactical-frame]").forEach((button) => { button.disabled = true; });
     }

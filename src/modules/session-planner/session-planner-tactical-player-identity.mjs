@@ -2,6 +2,10 @@ const playerTypes = new Set(["blue-player", "red-player", "neutral-player"]);
 export const isTacticalRosterPlayer = (element) => playerTypes.has(element?.type);
 const text = (value, length) => String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, length);
 
+export function normalizeTacticalPlayerLabel(value) {
+  return String(value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
+}
+
 export function normalizeTacticalPlayerPhoto(value) {
   const raw = text(value, 2048);
   if (!raw || String(value).length > 2048) return "";
@@ -36,7 +40,7 @@ export function getTacticalPlayerIdentityFields(element) {
 
 export function getTacticalPlayerDisplay(element) {
   const { playerIdentity, playerDisplay } = getTacticalPlayerIdentityFields(element);
-  const number = text(element?.playerNumber, 2).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const number = normalizeTacticalPlayerLabel(element?.playerNumber);
   return {
     label: playerIdentity && playerDisplay !== "number" ? playerIdentity.initials
       : number || playerIdentity?.number || playerIdentity?.initials || "",
@@ -71,7 +75,7 @@ export function updateTacticalPlayerIdentity(block, ids, patch, { allFrames = tr
       if (element.playerIdentity && ["number", "initials", "photo"].includes(patch.playerDisplay)) {
         element.playerDisplay = patch.playerDisplay;
       }
-      if (Object.hasOwn(patch, "playerNumber")) element.playerNumber = patch.playerNumber;
+      if (Object.hasOwn(patch, "playerNumber")) element.playerNumber = normalizeTacticalPlayerLabel(patch.playerNumber) || null;
       changed ||= before !== JSON.stringify([element.playerIdentity, element.playerDisplay, element.playerNumber]);
     }
   }

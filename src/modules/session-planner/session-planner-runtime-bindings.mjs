@@ -186,6 +186,7 @@ export function bindSessionPlannerRuntimeBindings(deps = {}) {
 
   controllers.inputChange = bindSessionPlannerWorkspaceInputChangeController({
     workspaceElement,
+    selectTacticalFrame: runtimeDelegates.selectSessionPlannerTacticalFrame,
     cleanPlayerBoardFormationInput,
     setPlayerBoardFormationInput: (formationInput) => setLocalStateValue(localUiState, "sessionPlannerPlayerBoardFormationInput", formationInput),
     normalizeTacticalColor,

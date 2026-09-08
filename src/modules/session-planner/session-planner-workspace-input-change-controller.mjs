@@ -27,6 +27,7 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
     updatePrintPaper = () => {},
     updatePrintSection = () => {},
     setTacticalPitchMode = () => {},
+    selectTacticalFrame = () => {},
     handleVisualUpload = () => {},
     updateLibraryFilter = () => {},
     updateLibrarySortMode = () => {},
@@ -81,6 +82,12 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
   }
 
   function handleChange(event) {
+    const frameSelect = event.target.closest("[data-session-tactical-frame-select]");
+    if (frameSelect) {
+      selectTacticalFrame(frameSelect.value);
+      workspaceElement?.querySelector?.("[data-session-tactical-frame-select]")?.focus();
+      return;
+    }
     const playerBoardColorSelect = event.target.closest("[data-session-player-board-color-select]");
     if (playerBoardColorSelect) {
       const colorValue = playerBoardColorSelect.value;

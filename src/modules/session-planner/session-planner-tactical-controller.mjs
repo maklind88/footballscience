@@ -292,7 +292,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   const playerBadge = normalizeSessionPlannerTacticalPlayerBadge(rawNumber);
   updateTacticalPlayerIdentity(getSessionPlannerSelectedBlock(), [element.id], {
     playerNumber: playerBadge || null, playerDisplay: "number",
-  }, { allFrames: Boolean(element.playerIdentity) });
+  });
   local.sessionPlannerTacticalNumberPickerElementId = "";
   refreshSessionPlannerTacticalboardCanvas({ persist: true });
   }
@@ -312,7 +312,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   selectedPlayers.forEach((element) => {
   updateTacticalPlayerIdentity(getSessionPlannerSelectedBlock(), [element.id], {
     playerNumber: playerBadge, playerDisplay: "number",
-  }, { allFrames: Boolean(element.playerIdentity) });
+  });
   });
   local.sessionPlannerTacticalNumberPickerElementId = "";
   refreshSessionPlannerTacticalboardCanvas({ persist: true });

@@ -1,6 +1,6 @@
 import { createSessionPlannerPlayerBoardHelpers } from "./session-planner-player-board-helpers.mjs";
 import { isSquadPlayerTemporaryActiveOnDate } from "../squad/players.mjs";
-import { getTacticalPlayerIdentityFields, isTacticalRosterPlayer, normalizeTacticalPlayerIdentity,
+import { getTacticalPlayerIdentityFields, isTacticalRosterPlayer, normalizeTacticalPlayerIdentity, normalizeTacticalPlayerLabel,
   updateTacticalPlayerIdentity } from "./session-planner-tactical-player-identity.mjs";
 
 const { getInitialLabelMap } = createSessionPlannerPlayerBoardHelpers();
@@ -60,9 +60,12 @@ export function createTacticalRosterController({ getWorkspace, getBlock, getSele
     const players = choices();
     const fields = selected.map(getTacticalPlayerIdentityFields);
     const linked = fields.every((field) => field.playerIdentity);
-    const mode = fields.every((field) => field.playerDisplay === fields[0].playerDisplay) ? fields[0].playerDisplay : "";
+    const modes = fields.map((field) => field.playerDisplay || "number");
+    const mode = modes.every((value) => value === modes[0]) ? modes[0] : "";
+    const labels = selected.map((element) => normalizeTacticalPlayerLabel(element.playerNumber));
+    const sameLabel = labels.every((value) => value === labels[0]);
     const identity = selected.length === 1 ? fields[0].playerIdentity : null;
-    const signature = JSON.stringify([key, fields, players, canEdit()]);
+    const signature = JSON.stringify([key, fields, labels, players, canEdit()]);
     if (panel.dataset.renderSignature === signature) return;
     panel.dataset.renderSignature = signature;
     panel.innerHTML = `<fieldset class="session-tactical-roster-fields" ${canEdit() ? "" : "disabled"}>
@@ -73,9 +76,13 @@ export function createTacticalRosterController({ getWorkspace, getBlock, getSele
         </select>` : ""}
       <div class="session-tactical-player-modes" role="group" aria-label="Player display">
         ${["number", "initials", "photo"].map((value) => `<label><input type="radio" name="session-tactical-player-display"
-          value="${value}" data-tactical-roster-display ${linked ? "" : "disabled"} ${mode === value ? "checked" : ""}>
-          <span>${value[0].toUpperCase() + value.slice(1)}</span></label>`).join("")}
+          value="${value}" data-tactical-roster-display ${value === "number" || linked ? "" : "disabled"} ${mode === value ? "checked" : ""}>
+          <span>${value === "number" ? "Label" : value[0].toUpperCase() + value.slice(1)}</span></label>`).join("")}
       </div>
+      <label class="session-tactical-player-label-field">Number / position
+        <input type="text" aria-label="Player label" placeholder="${sameLabel ? "9, CB, RW" : "Mixed"}" maxlength="4"
+          autocomplete="off" spellcheck="false" value="${escapeHtml(sameLabel ? labels[0] : "")}" data-tactical-player-label>
+      </label>
     </fieldset>`;
   }
 
@@ -91,6 +98,8 @@ export function createTacticalRosterController({ getWorkspace, getBlock, getSele
       patch = { playerIdentity: identity || null };
     } else if (event.target.matches("[data-tactical-roster-display]")) {
       patch = { playerDisplay: event.target.value };
+    } else if (event.target.matches("[data-tactical-player-label]")) {
+      patch = { playerNumber: normalizeTacticalPlayerLabel(event.target.value), playerDisplay: "number" };
     }
     if (!patch) return;
     event.stopPropagation();
@@ -114,6 +123,12 @@ export function createTacticalRosterController({ getWorkspace, getBlock, getSele
     if (!mounted.has(root)) {
       root.addEventListener("change", change);
       root.addEventListener("input", search);
+      root.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.isComposing || !event.target.matches?.("[data-tactical-player-label]")) return;
+        event.preventDefault();
+        change(event);
+        root.querySelector("[data-tactical-player-label]")?.focus();
+      });
       mounted.add(root);
     }
     sync();

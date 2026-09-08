@@ -4,7 +4,7 @@ import {
 } from "../tactical-board/index.mjs";
 import { renderTacticalPlaybackControls } from "./session-planner-tactical-playback-renderer.mjs";
 import { renderReadonlyTacticalPlayback } from "./session-planner-readonly-playback-renderer.mjs";
-import { getTacticalPlayerDisplay } from "./session-planner-tactical-player-identity.mjs";
+import { getTacticalPlayerDisplay, normalizeTacticalPlayerLabel } from "./session-planner-tactical-player-identity.mjs";
 
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
@@ -89,7 +89,7 @@ export function createSessionPlannerVisualRenderer(options = {}) {
   const normalizeTacticalRotation =
     typeof options.normalizeTacticalRotation === "function" ? options.normalizeTacticalRotation : (value) => Number(value) || 0;
   const normalizeSessionPlannerTacticalPlayerBadge =
-    typeof options.normalizeTacticalPlayerBadge === "function" ? options.normalizeTacticalPlayerBadge : (value) => String(value ?? "").trim().slice(0, 2);
+    typeof options.normalizeTacticalPlayerBadge === "function" ? options.normalizeTacticalPlayerBadge : normalizeTacticalPlayerLabel;
   const isSessionPlannerTacticalEndpointElement =
     typeof options.isTacticalEndpointElement === "function"
       ? options.isTacticalEndpointElement

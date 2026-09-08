@@ -26,7 +26,7 @@ export const sessionPlannerTacticalPitchDimensions = tacticalBoardPitchDimension
 export const sessionPlannerTacticalPitchModeOptions = tacticalBoardPitchModeOptions;
 export const sessionPlannerTacticalPitchModeKeys = tacticalBoardPitchModeKeys;
 export const sessionPlannerTacticalSnapStep = 2.5;
-export const sessionPlannerTacticalMaxFrames = 12;
+export const sessionPlannerTacticalMaxFrames = 24;
 
 export const sessionPlannerPrintPaperOptions = {
   letter: {

@@ -1,3 +1,5 @@
+import { getReadonlyTacticalView } from "./session-planner-readonly-playback-renderer.mjs";
+
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -185,7 +187,7 @@ export function createSessionPlannerWorkspaceRenderer({
         </div>
         <div class="session-media-drop">
           <div class="session-media-preview">
-            ${renderSessionPlannerExerciseVisual(block)}
+            ${renderSessionPlannerExerciseVisual(getReadonlyTacticalView(block))}
           </div>
           <div class="session-media-actions">
             <button type="button" data-session-preview-visual>

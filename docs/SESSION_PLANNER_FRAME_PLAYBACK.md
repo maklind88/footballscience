@@ -17,6 +17,7 @@ Frames use the existing limit (12). A transition takes 1.5 seconds at 1x speed. 
 ## Read-Only Viewing
 
 - Preview and Presentation Mode always open on the first saved frame, regardless of the editor's last selected frame or compatibility mirror.
+- The Session Planner overview and coach sheet use the same first-frame projection for still images. An empty first frame stays empty; legacy boards without frames keep their existing image and objects. Editing and animation retain their own current-frame views.
 - A compact transport row below the pitch provides play/pause, back to start, stop, loop, seek and speed. Single-frame and legacy boards have no inactive transport bar.
 - Stop returns to the first frame. Pausing holds the current position. Back to start preserves the playing/paused state.
 - Neither surface offers object/frame editing. The existing Presentation Mode text/deck tools retain their separate behavior; they cannot edit the exercise board.

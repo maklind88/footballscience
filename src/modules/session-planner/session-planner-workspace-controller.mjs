@@ -2,6 +2,7 @@ import { createSessionPlannerPlayerBoardTidyHelpers } from "./session-planner-pl
 import { createSessionPlannerTacticalFramesController } from "./session-planner-tactical-frames-controller.mjs";
 import { createSessionPlannerTacticalPlaybackController } from "./session-planner-tactical-playback-controller.mjs";
 import { createReadonlyTacticalPlaybackController } from "./session-planner-readonly-playback-controller.mjs";
+import { createTacticalRosterController } from "./session-planner-tactical-roster-controller.mjs";
 import {
   getSessionPlannerMedicalBlockRule,
   isSessionPlannerWarmUpBlock,
@@ -958,6 +959,19 @@ getWorkspace: () => ui.sessionPlannerWorkspace,
 renderVisual: (...args) => renderSessionPlannerExerciseVisual(...args),
 workspaceId: "session-planner",
 });
+const tacticalRosterController = createTacticalRosterController({
+getWorkspace: () => ui.sessionPlannerWorkspace,
+getBlock: () => tacticalFramesController.getEditorBlock(),
+getSelectedIds: () => sessionPlannerTacticalController.getSessionPlannerTacticalSelectedElementIds(),
+getPlayers: () => getSessionPlannerPlayerBoardProfileState()?.players || [],
+getDate: () => local.sessionPlannerState?.selectedDate,
+canEdit: () => canEditSessionPlanner() && !tacticalPlaybackController.isPreviewing(),
+persist: (block) => tacticalFramesController.persist(block),
+refreshCanvas: () => {
+local.sessionPlannerTacticalNumberPickerElementId = "";
+sessionPlannerTacticalController.refreshSessionPlannerTacticalboardCanvas();
+},
+});
 function getSessionPlannerTacticalFrames() {
 return tacticalFramesController.getFrames();
 }
@@ -989,6 +1003,7 @@ function deleteSessionPlannerTacticalFrame() {
 return tacticalFramesController.remove();
 }
 const sessionPlannerTacticalController = createSessionPlannerTacticalController({
+  onSelectionChange: () => tacticalRosterController.sync(),
   canEditSessionPlanner: () => canEditSessionPlanner() && !tacticalPlaybackController.isPreviewing(),
   clamp,
   cloneSessionPlannerTacticalElement,
@@ -2757,6 +2772,7 @@ ui.sessionPlannerWorkspace.querySelector("[data-session-tacticalboard-overlay]")
 retainedTacticalFocus?.focus({ preventScroll: true });
 }
 tacticalPlaybackController.mount();
+tacticalRosterController.mount();
 if (retainedPreview) {
 ui.sessionPlannerWorkspace.querySelector("[data-session-readonly-playback]")?.replaceWith(retainedPreview);
 retainedPreviewFocus?.focus({ preventScroll: true });

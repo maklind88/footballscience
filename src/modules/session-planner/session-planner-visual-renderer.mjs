@@ -4,6 +4,7 @@ import {
 } from "../tactical-board/index.mjs";
 import { renderTacticalPlaybackControls } from "./session-planner-tactical-playback-renderer.mjs";
 import { renderReadonlyTacticalPlayback } from "./session-planner-readonly-playback-renderer.mjs";
+import { getTacticalPlayerDisplay } from "./session-planner-tactical-player-identity.mjs";
 
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
@@ -206,6 +207,8 @@ freehand: "Freehand line",
 text: "Text",
 };
 const baseLabel = labels[element.type] || "Tactical object";
+const identityName = getTacticalPlayerDisplay(element).name;
+if (identityName) return `${baseLabel}: ${identityName}`;
 if (element.type === "text" && element.label) {
 return `${baseLabel}: ${element.label}`;
 }
@@ -344,16 +347,18 @@ return `
     `;
 }
 if (element.type === "blue-player" || element.type === "red-player" || element.type === "neutral-player") {
-const playerBadge = normalizeSessionPlannerTacticalPlayerBadge(element.playerNumber);
+const display = getTacticalPlayerDisplay(element);
+const playerBadge = display.label;
 const badgeClass = playerBadge ? " has-badge" : "";
-const badgeSizeClass = playerBadge.length > 1 ? " is-wide" : "";
+const badgeSizeClass = playerBadge.length > 3 ? " is-long" : playerBadge.length > 1 ? " is-wide" : "";
 return `
       <span
-        class="session-tactical-marker session-tactical-player session-tactical-${escapeHtml(element.type)}${badgeClass}${selectedClass}"
+        class="session-tactical-marker session-tactical-player session-tactical-${escapeHtml(element.type)}${badgeClass}${selectedClass}${display.linked ? " is-roster-player" : ""}"
         ${dataAttribute}
         ${accessibilityAttributes}
-        style="${style}"
-      >${playerBadge ? `<span class="session-tactical-player-badge${badgeSizeClass}">${escapeHtml(playerBadge)}</span>` : ""}</span>
+        ${display.name ? `title="${escapeHtml(display.name)}"` : ""}
+        style="${style} --session-player-label-length: ${Math.max(2, Array.from(playerBadge).length)};"
+      >${playerBadge ? `<span class="session-tactical-player-badge${badgeSizeClass}">${escapeHtml(playerBadge)}</span>` : ""}${display.photoUrl ? `<img class="session-tactical-player-photo" src="${escapeHtml(display.photoUrl)}" alt="" draggable="false" referrerpolicy="no-referrer" decoding="async" onerror="this.hidden=true">` : ""}</span>
     `;
 }
 return "";
@@ -878,6 +883,7 @@ ${group.tools
             ${renderSessionPlannerExerciseVisual(editorBlock, { large: true, editor: true })}
           </div>
           <aside class="session-tacticalboard-side session-tacticalboard-inspector">
+            <div data-session-tactical-roster-panel hidden></div>
             <div class="session-tacticalboard-settings" aria-label="Drawing settings">
               <label>
                 <span>Pitch view</span>

@@ -1,3 +1,5 @@
+import { getTacticalPlayerIdentityFields } from "./session-planner-tactical-player-identity.mjs";
+
 function defaultClamp(value, min, max) {
   const number = Number(value);
   if (!Number.isFinite(number)) {
@@ -230,6 +232,7 @@ export function createSessionPlannerTacticalHelpers(options = {}) {
       controlY: optionalCoordinate(element.controlY),
       label: element.label || "",
       playerNumber: playerBadge || null,
+      ...getTacticalPlayerIdentityFields(element),
       color: normalizeTacticalColor(element.color, getDefaultTacticalColor(type)),
       lineWidth: normalizeTacticalLineWidth(element.lineWidth),
       lineStyle: normalizeTacticalLineStyle(element.lineStyle || getDefaultTacticalLineStyle(type)),

@@ -1,0 +1,42 @@
+.session-tactical-roster-fields {
+  display: grid;
+  gap: .4rem;
+  min-width: 0;
+  margin: 0;
+  padding: .6rem;
+  border: 1px solid #dfe3e6;
+  border-radius: 8px;
+  background: #fff;
+  color: #25323a;
+  letter-spacing: 0;
+}
+.session-tactical-roster-fields legend { padding: 0 .25rem; font-size: .75rem; font-weight: 750; }
+.session-tactical-roster-fields :is(input[type="search"], select) {
+  width: 100%; min-width: 0; height: 2rem; min-height: 0;
+  padding: .25rem .4rem; border: 1px solid #dfe3e6; border-radius: 6px;
+  font-size: .75rem; color: #25323a; background: #fff;
+}
+.session-tactical-player-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .15rem; }
+.session-tactical-player-modes label { position: relative; min-width: 0; }
+.session-tactical-player-modes input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.session-tactical-player-modes span {
+  display: grid; place-items: center; height: 2rem; border: 1px solid #dfe3e6;
+  border-radius: 5px; font-size: .7rem; background: #f7f8fa; cursor: pointer;
+}
+.session-tactical-player-modes input:checked + span { border-color: #0b5384; background: #e3f1ff; color: #0b5384; }
+.session-tactical-player-modes input:disabled + span { opacity: .5; cursor: default; }
+.session-tactical-player-modes input:focus-visible + span,
+.session-tactical-roster-fields :is(input[type="search"], select):focus-visible { outline: 2px solid #0a84ff; outline-offset: 2px; }
+.session-tactical-player .session-tactical-player-photo {
+  position: absolute; inset: 0; width: 100%; height: 100%; max-width: none;
+  border-radius: inherit; object-fit: cover; pointer-events: none;
+}
+.session-tactical-player .session-tactical-player-photo[hidden] { display: none; }
+.session-tactical-player.is-roster-player { overflow: hidden; }
+.session-tactical-player.is-roster-player .session-tactical-player-badge {
+  min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; box-shadow: none;
+  font-size: min(.58rem, calc(1.1rem / var(--session-player-label-length, 2))); letter-spacing: 0;
+}
+@media print {
+  .session-tactical-player .session-tactical-player-photo { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}

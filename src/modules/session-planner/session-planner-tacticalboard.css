@@ -1,4 +1,5 @@
 @import url("./session-planner-readonly-playback.css");
+@import url("./session-planner-tactical-roster.css");
 
 .session-tacticalboard-overlay {
   padding: clamp(.5rem, 1.25vw, 1rem);

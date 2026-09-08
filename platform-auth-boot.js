@@ -780,6 +780,8 @@ async function getActiveAccessToken() {
   function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, centralValue = "", options = {}) {
     const incomingRevision = Number(metadataEntry?.revision);
     const appliedRevision = Number(centralState.metadata?.[key]?.revision);
+    const localValue = window.localStorage.getItem(key);
+    const hasLocalValue = localValue !== null;
     const allowsAuthoritativeRevisionRecovery =
       shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options) ||
       shouldRecoverSessionPlannerCentralState(key, pendingEntry, metadataEntry, options);
@@ -787,7 +789,10 @@ async function getActiveAccessToken() {
       Number.isInteger(incomingRevision) &&
       incomingRevision > 0 &&
       Number.isInteger(appliedRevision) &&
-      appliedRevision > incomingRevision &&
+      appliedRevision >= incomingRevision &&
+      hasLocalValue &&
+      typeof centralValue === "string" &&
+      localValue !== centralValue &&
       !allowsAuthoritativeRevisionRecovery
     ) {
       return false;
@@ -806,8 +811,6 @@ async function getActiveAccessToken() {
     const manifestServerRevision = Number(pendingEntry?.serverRevision);
     const hasCentralRevision = Number.isInteger(centralRevision) && centralRevision > 0;
     const hasManifestRevision = Number.isInteger(manifestServerRevision) && manifestServerRevision > 0;
-    const localValue = window.localStorage.getItem(key);
-    const hasLocalValue = localValue !== null;
 
     if (
       hasCentralRevision &&

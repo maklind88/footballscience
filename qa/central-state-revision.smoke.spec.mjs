@@ -1427,9 +1427,11 @@ test("stale in-flight hydration cannot replace an acknowledged Schedule save", a
         return null;
       }
       const staleValue = centralStore.entries[scheduleStateKey];
-      const staleMetadata = { ...centralStore.metadataEntries[scheduleStateKey] };
       markStaleReadStarted();
       await staleReadPending;
+      const staleMetadata = {
+        ...createMetadata(centralStore.metadataEntries[scheduleStateKey].revision, staleValue),
+      };
       return {
         status: 200,
         body: {

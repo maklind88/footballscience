@@ -13,18 +13,25 @@ function readProjectFile(relativePath) {
 function createWorkspace() {
   const listeners = {};
   const fileInput = { clicked: false, click() { this.clicked = true; } };
-  return {
+  const workspace = {
+    activeDialog: null,
+    activeModal: null,
     fileInput,
     listeners,
+    ownerDocument: { activeElement: null },
     addEventListener(type, listener) {
       listeners[type] = listener;
     },
     querySelector(selector) {
       if (selector === "[data-squad-data-import-file]") return fileInput;
       if (selector === "#playerProfileEditForm") return { id: "edit-form" };
+      if (selector === '[role="dialog"][aria-modal="true"]') return this.activeDialog;
+      if (selector === "[data-player-profile-new-modal-overlay]") return this.activeModal === "new" ? {} : null;
+      if (selector === "[data-player-profile-modal-overlay]") return this.activeModal === "player" ? {} : null;
       return null;
     },
   };
+  return workspace;
 }
 
 function createTarget(matches = {}) {
@@ -50,6 +57,7 @@ function createEvent(target, extra = {}) {
     preventDefault: extra.preventDefault || (() => {}),
     stopPropagation: extra.stopPropagation || (() => {}),
     key: extra.key || "",
+    shiftKey: Boolean(extra.shiftKey),
   };
 }
 
@@ -229,6 +237,69 @@ test("Player profile runtime bindings handle photo uploads on change only", () =
 
   workspace.listeners.change(createEvent(photoTarget));
   expect(calls).toEqual(["flush-autosave", "photo"]);
+});
+
+test("Player profile runtime bindings reveal guest fields and close dialogs with Escape", () => {
+  const { calls, workspace } = createHarness();
+  const temporaryFields = { hidden: true };
+  const newPlayerForm = {
+    dataset: {},
+    querySelector: (selector) => selector === "[data-player-profile-new-temporary-fields]" ? temporaryFields : null,
+  };
+
+  workspace.listeners.change(createEvent(createTarget({
+    value: "guest",
+    closest: { "#playerProfileNewPlayerForm": newPlayerForm },
+    matches: { 'select[name="rosterType"]': true },
+  })));
+  expect(newPlayerForm.dataset.playerProfileNewRosterType).toBe("guest");
+  expect(temporaryFields.hidden).toBe(false);
+
+  workspace.listeners.change(createEvent(createTarget({
+    value: "squad",
+    closest: { "#playerProfileNewPlayerForm": newPlayerForm },
+    matches: { 'select[name="rosterType"]': true },
+  })));
+  expect(temporaryFields.hidden).toBe(true);
+
+  workspace.activeModal = "new";
+  workspace.listeners.keydown(createEvent(createTarget(), { key: "Escape" }));
+  expect(calls).toContain("close-new-modal");
+
+  workspace.activeModal = "player";
+  workspace.listeners.keydown(createEvent(createTarget(), { key: "Escape" }));
+  expect(calls).toContain("close-modal");
+});
+
+test("Player profile runtime bindings keep keyboard focus inside open dialogs", () => {
+  const { workspace } = createHarness();
+  const first = {
+    focus() { workspace.ownerDocument.activeElement = this; },
+    getAttribute: () => null,
+    closest: () => null,
+  };
+  const last = {
+    focus() { workspace.ownerDocument.activeElement = this; },
+    getAttribute: () => null,
+    closest: () => null,
+  };
+  workspace.activeDialog = {
+    contains: (element) => element === first || element === last,
+    querySelectorAll: () => [first, last],
+  };
+  workspace.ownerDocument.activeElement = last;
+  let prevented = false;
+
+  workspace.listeners.keydown(createEvent(createTarget(), {
+    key: "Tab",
+    preventDefault: () => { prevented = true; },
+  }));
+
+  expect(prevented).toBe(true);
+  expect(workspace.ownerDocument.activeElement).toBe(first);
+
+  workspace.listeners.keydown(createEvent(createTarget(), { key: "Tab", shiftKey: true }));
+  expect(workspace.ownerDocument.activeElement).toBe(last);
 });
 
 test("Player profile runtime bindings save status changes immediately", () => {

@@ -241,6 +241,7 @@ export function createSquadProfileSelectedRenderer({
         role="dialog"
         aria-modal="true"
         aria-label="${escapeHtml(`${player.name} player profile`)}"
+        tabindex="-1"
       >
         <button
           type="button"

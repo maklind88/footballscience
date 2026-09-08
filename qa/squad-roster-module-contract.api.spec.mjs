@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { createSquadRosterRenderer } from "../src/modules/squad/index.mjs";
 
 const getOption = (options, key, fallback = options[0]) => options.find((option) => option.key === key) || fallback || options[0];
@@ -86,6 +87,9 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   expect(markup).toContain("1/1 squad");
   expect(markup).not.toContain("1/1 squad + 1 temporary");
   expect(markup).toContain('data-player-profile-select="p1"');
+  expect(markup).toContain('class="squad-table-player" data-label="Player"');
+  expect(markup).toContain('class="squad-table-season" data-label="Season"');
+  expect(markup).toContain('class="squad-table-recent" data-label="Last 2 weeks"');
   expect(markup).toContain("is-selected");
   expect(markup).toContain("Mak Player");
   expect(markup).not.toContain("<th>Squad</th>");
@@ -159,6 +163,15 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   });
   expect(hydratedMarkup).toContain("88%");
   expect(medicalSnapshotCalls).toEqual([]);
+});
+
+test("Squad roster stylesheet turns narrow tables into labelled player cards", () => {
+  const stylesheet = readFileSync(new URL("../squad-roster-table.css", import.meta.url), "utf8");
+
+  expect(stylesheet).toContain("@media (max-width: 820px)");
+  expect(stylesheet).toContain("grid-template-areas:");
+  expect(stylesheet).toContain("content: attr(data-label)");
+  expect(stylesheet).toContain("height: 100dvh");
 });
 
 test("Squad roster renderer defaults training guests to hidden", () => {

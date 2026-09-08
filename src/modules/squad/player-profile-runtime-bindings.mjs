@@ -20,6 +20,36 @@ function setStateValue(state = {}, key, value) {
   }
 }
 
+function scheduleUiTask(win, callback) {
+  if (typeof win?.requestAnimationFrame === "function") {
+    win.requestAnimationFrame(callback);
+    return;
+  }
+  if (typeof win?.setTimeout === "function") {
+    win.setTimeout(callback, 0);
+    return;
+  }
+  callback();
+}
+
+function syncNewPlayerTemporaryFields(form, rosterType) {
+  if (!form) {
+    return;
+  }
+  const normalizedRosterType = String(rosterType || "squad").trim().toLowerCase();
+  const temporaryFields = form.querySelector?.("[data-player-profile-new-temporary-fields]");
+  form.dataset.playerProfileNewRosterType = normalizedRosterType;
+  if (temporaryFields) {
+    temporaryFields.hidden = normalizedRosterType === "squad";
+  }
+}
+
+function getDialogFocusableElements(dialog) {
+  return Array.from(dialog?.querySelectorAll?.(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  ) || []).filter((element) => element.getAttribute?.("aria-hidden") !== "true" && !element.closest?.("[hidden]"));
+}
+
 export function bindPlayerProfileRuntimeBindings(deps = {}) {
   const workspaceElement = getWorkspace(deps);
   if (!workspaceElement?.addEventListener) {
@@ -36,21 +66,52 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
   const renderWorkspace = actions.renderPlayerProfilesWorkspace ?? (() => {});
   const renderRosterListOnly = actions.renderPlayerProfilesRosterListOnly ?? (() => {});
   const canEdit = actions.canEditPlayerProfiles ?? (() => false);
+  let lastDialogTrigger = { kind: "", playerId: "" };
+
+  const focusOpenDialog = () => scheduleUiTask(win, () => {
+    const dialog = workspaceElement.querySelector?.('[role="dialog"][aria-modal="true"]');
+    const closeButton = dialog?.querySelector?.(".squad-profile-modal-close");
+    (closeButton || dialog)?.focus?.({ preventScroll: true });
+  });
+
+  const restoreDialogTriggerFocus = () => scheduleUiTask(win, () => {
+    if (lastDialogTrigger.kind === "new") {
+      workspaceElement.querySelector?.("[data-player-profile-new-open]")?.focus?.({ preventScroll: true });
+      return;
+    }
+    if (lastDialogTrigger.kind === "player" && lastDialogTrigger.playerId) {
+      Array.from(workspaceElement.querySelectorAll?.("[data-player-profile-select]") || [])
+        .find((row) => row.dataset?.playerProfileSelect === lastDialogTrigger.playerId)
+        ?.focus?.({ preventScroll: true });
+    }
+  });
+
+  const closePlayerDialog = () => {
+    callOptional(actions.closePlayerProfileModal);
+    restoreDialogTriggerFocus();
+  };
+
+  const closeNewPlayerDialog = () => {
+    callOptional(actions.closePlayerProfileNewPlayerModal);
+    restoreDialogTriggerFocus();
+  };
 
   const onClick = async (event) => {
     if (event.target.matches("[data-player-profile-modal-overlay]") || event.target.closest("[data-player-profile-modal-close]")) {
-      callOptional(actions.closePlayerProfileModal);
+      closePlayerDialog();
       return;
     }
     if (
       event.target.matches("[data-player-profile-new-modal-overlay]") ||
       event.target.closest("[data-player-profile-new-modal-close]")
     ) {
-      callOptional(actions.closePlayerProfileNewPlayerModal);
+      closeNewPlayerDialog();
       return;
     }
     if (event.target.closest("[data-player-profile-new-open]")) {
+      lastDialogTrigger = { kind: "new", playerId: "" };
       callOptional(actions.openPlayerProfileNewPlayerModal);
+      focusOpenDialog();
       return;
     }
     const tabButton = event.target.closest("[data-player-profile-tab]");
@@ -145,7 +206,9 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
     }
     const selectButton = event.target.closest("[data-player-profile-select]");
     if (selectButton) {
+      lastDialogTrigger = { kind: "player", playerId: selectButton.dataset.playerProfileSelect || "" };
       callOptional(actions.openPlayerProfileModal, selectButton.dataset.playerProfileSelect);
+      focusOpenDialog();
       return;
     }
     const removeButton = event.target.closest("[data-player-profile-remove]");
@@ -194,6 +257,11 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
   };
 
   const onChange = (event) => {
+    const newPlayerForm = event.target.closest("#playerProfileNewPlayerForm");
+    if (newPlayerForm && event.target.matches('select[name="rosterType"]')) {
+      syncNewPlayerTemporaryFields(newPlayerForm, event.target.value);
+      return;
+    }
     const teamLogoInput = event.target.closest("[data-squad-team-logo-upload]");
     if (teamLogoInput) {
       const file = teamLogoInput.files?.[0] ?? null;
@@ -253,6 +321,34 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
   };
 
   const onKeydown = (event) => {
+    if (event.key === "Escape") {
+      if (workspaceElement.querySelector?.("[data-player-profile-new-modal-overlay]")) {
+        event.preventDefault();
+        closeNewPlayerDialog();
+        return;
+      }
+      if (workspaceElement.querySelector?.("[data-player-profile-modal-overlay]")) {
+        event.preventDefault();
+        closePlayerDialog();
+      }
+      return;
+    }
+    if (event.key === "Tab") {
+      const dialog = workspaceElement.querySelector?.('[role="dialog"][aria-modal="true"]');
+      const focusable = getDialogFocusableElements(dialog);
+      if (!dialog || !focusable.length) {
+        return;
+      }
+      const activeElement = workspaceElement.ownerDocument?.activeElement ?? win?.document?.activeElement;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const focusLeftDialog = !dialog.contains?.(activeElement);
+      if (focusLeftDialog || (event.shiftKey && activeElement === first) || (!event.shiftKey && activeElement === last)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first)?.focus?.({ preventScroll: true });
+      }
+      return;
+    }
     if (event.key !== "Enter" && event.key !== " ") {
       return;
     }

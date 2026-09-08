@@ -133,6 +133,18 @@ test("Squad profile support renderer owns option lists, support panels, and add-
   expect(modalMarkup).toContain('name="number" value="7"');
   expect(modalMarkup).toContain('name="birthDate" type="date" value="1999-01-02"');
   expect(modalMarkup).toContain('value="8" selected');
+  expect(modalMarkup).toContain("data-player-profile-new-temporary-fields");
+  expect(modalMarkup).toContain("data-player-profile-new-temporary-fields\n          hidden");
+  expect(modalMarkup).toContain('tabindex="-1"');
+
+  const guestModalMarkup = renderer.renderNewPlayerModal({
+    name: "Guest Player",
+    rosterType: "guest",
+    temporaryGroup: "Academy",
+  });
+  expect(guestModalMarkup).toContain('data-player-profile-new-roster-type="guest"');
+  expect(guestModalMarkup).toContain("Training guest details");
+  expect(guestModalMarkup).not.toContain("data-player-profile-new-temporary-fields\n          hidden");
 });
 
 test("Squad training availability summary averages against team training opportunities", () => {

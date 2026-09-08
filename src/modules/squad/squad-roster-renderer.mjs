@@ -140,7 +140,7 @@ export function createSquadRosterRenderer({
       data-player-profile-select="${escapeHtml(player.id)}"
       tabindex="0"
     >
-      <td>
+      <td class="squad-table-player" data-label="Player">
         <div class="squad-player-cell">
           ${renderPlayerProfileAvatar(player, "squad-player-avatar")}
           <div>
@@ -150,12 +150,12 @@ export function createSquadRosterRenderer({
           </div>
         </div>
       </td>
-      <td>${renderAgeCell(player)}</td>
-      <td>${renderRoleCell(player)}</td>
-      <td>${renderStatusChip(effectiveStatus, medicalSnapshot)}</td>
-      <td>${renderIdpCell(player)}</td>
-      <td>${renderAvailabilityCell(trainingAvailability.season, availabilityPending ? "Loading availability" : "No season data", { pending: availabilityPending })}</td>
-      <td>${renderAvailabilityCell(trainingAvailability.lastTwoWeeks || trainingAvailability.lastFive, availabilityPending ? "Loading availability" : "No recent data", { pending: availabilityPending, showCount: false })}</td>
+      <td class="squad-table-age" data-label="Age">${renderAgeCell(player)}</td>
+      <td class="squad-table-roles" data-label="Roles">${renderRoleCell(player)}</td>
+      <td class="squad-table-status" data-label="Status">${renderStatusChip(effectiveStatus, medicalSnapshot)}</td>
+      <td class="squad-table-idp" data-label="IDP">${renderIdpCell(player)}</td>
+      <td class="squad-table-season" data-label="Season">${renderAvailabilityCell(trainingAvailability.season, availabilityPending ? "Loading availability" : "No season data", { pending: availabilityPending })}</td>
+      <td class="squad-table-recent" data-label="Last 2 weeks">${renderAvailabilityCell(trainingAvailability.lastTwoWeeks || trainingAvailability.lastFive, availabilityPending ? "Loading availability" : "No recent data", { pending: availabilityPending, showCount: false })}</td>
     </tr>
   `;
   };
@@ -178,7 +178,7 @@ export function createSquadRosterRenderer({
           ${
             players.length
               ? players.map((player) => renderPlayerRow(player, options)).join("")
-              : `<tr><td colspan="7"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
+              : `<tr class="squad-empty-table-row"><td colspan="7"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
           }
         </tbody>
       </table>

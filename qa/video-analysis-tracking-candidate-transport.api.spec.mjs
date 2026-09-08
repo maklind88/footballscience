@@ -262,6 +262,32 @@ test("local companion keeps candidate execution separate from activated tracking
   try {
     const address = await localServer.listen(0);
     const baseUrl = `http://127.0.0.1:${address.port}`;
+    const stageHeaders = [
+      "content-type", "x-football-science-session", "x-football-science-file-name",
+      "x-football-science-tracking-provider-id", "x-football-science-tracking-provider-version",
+      "x-football-science-tracking-stage-request", "x-football-science-tracking-source-id",
+    ];
+    for (const action of ["run-tracking-stage", "run-tracking-candidate-stage"]) {
+      const preflight = await fetch(`${baseUrl}/jobs/${action}`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: origin,
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": stageHeaders.join(","),
+        },
+      });
+      expect(preflight.status).toBe(204);
+      expect(preflight.headers.get("access-control-allow-origin")).toBe(origin);
+      expect(preflight.headers.get("access-control-allow-headers").split(",")).toEqual(
+        expect.arrayContaining(stageHeaders),
+      );
+      const untrusted = await fetch(`${baseUrl}/jobs/${action}`, {
+        method: "OPTIONS",
+        headers: { Origin: "https://untrusted.example", "Access-Control-Request-Method": "POST" },
+      });
+      expect(untrusted.status).toBe(403);
+      expect(untrusted.headers.get("access-control-allow-origin")).toBeNull();
+    }
     const session = await (await fetch(`${baseUrl}/session`, { method: "POST", headers: { Origin: origin } })).json();
     const headers = { Origin: origin, "x-football-science-session": session.sessionToken };
     const capabilities = await (await fetch(`${baseUrl}/capabilities`, { headers })).json();

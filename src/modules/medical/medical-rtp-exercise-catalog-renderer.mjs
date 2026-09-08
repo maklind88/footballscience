@@ -77,9 +77,7 @@ ${renderMedicalRtpExerciseThumbnail(exercise, escapeHtml)}
 <section class="medical-rtp-exercise-catalog" data-medical-rtp-exercise-catalog aria-label="RTP Exercise Bank">
 <header>
 <div>
-<span>RTP Exercise Bank</span>
-<strong>Professional exercise catalogue</strong>
-<small>Search by tissue, phase, movement demand and profile-linked RTP use. Media loads as metadata first, never as heavy frontend payload.</small>
+<strong>Exercises</strong>
 </div>
 <b>${escapeHtml(String(exercises.length))} exercises</b>
 </header>
@@ -94,7 +92,6 @@ ${renderSelect("Risk", "risk", medicalRtpExerciseBankFilterOptions.riskLevels)}
 </form>
 <div class="medical-rtp-library-meta">
 <span><strong data-medical-rtp-exercise-count>${escapeHtml(String(exercises.length))}</strong> exercises visible</span>
-<span>Every card is Medical-safe and can feed Medical Plan starters without becoming player-specific data.</span>
 </div>
 <div class="medical-rtp-exercise-catalog-grid">
 ${exercises.map(renderExerciseCard).join("")}

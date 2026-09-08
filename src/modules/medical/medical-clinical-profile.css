@@ -67,6 +67,38 @@
   padding: 1rem 0;
 }
 
+#medicalTeamWorkspace :is(.medical-rtp-program-summary-meta, .medical-coach-safe-grid) { gap: 0; }
+#medicalTeamWorkspace :is(.medical-rtp-program-summary-meta > span, .medical-coach-safe-grid > div) {
+  padding: 0.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--medical-line);
+  border-radius: 0;
+  background: transparent;
+}
+#medicalTeamWorkspace :is(.medical-rtp-program-summary-meta, .medical-rtp-program-summary-grid, .medical-coach-safe-grid) :is(span, p, li) {
+  font-size: var(--medical-text-body);
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--medical-ink);
+}
+#medicalTeamWorkspace :is(.medical-rtp-program-summary-meta, .medical-rtp-program-summary-grid) :is(strong, h3, h4) {
+  font-size: var(--medical-text-label);
+  font-weight: 500;
+  color: var(--medical-muted);
+  letter-spacing: 0;
+  text-transform: none;
+}
+#medicalTeamWorkspace .medical-rtp-program-summary-grid > section {
+  padding: 1rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--medical-line);
+  border-radius: 0;
+  background: transparent;
+}
+#medicalTeamWorkspace .medical-rtp-program-privacy-note { color: var(--medical-muted); font-weight: 400; line-height: 1.5; }
+
 @media (max-width: 520px) {
   #medicalTeamWorkspace .medical-profile-summary-grid {
     grid-template-columns: 1fr;

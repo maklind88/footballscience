@@ -1,3 +1,7 @@
+@import url("./medical-clinical-library.css");
+@import url("./medical-clinical-tools.css");
+@import url("./medical-clinical-dialogs.css");
+
 #medicalTeamWorkspace .medical-plan-case-section {
   overflow: hidden;
   border: 0;
@@ -109,10 +113,36 @@
 #medicalTeamWorkspace .medical-rtp-program-guide-loader,
 #medicalTeamWorkspace .medical-rtp-guide-preview,
 #medicalTeamWorkspace .medical-rtp-program-field {
-  border-color: var(--medical-line);
-  border-radius: 6px;
+  border: 0;
+  border-bottom: 1px solid var(--medical-line);
+  border-radius: 0;
   background: var(--medical-surface);
   box-shadow: none;
+}
+
+#medicalTeamWorkspace :is(.medical-rtp-program-blueprint, .medical-rtp-program-guide-loader, .medical-rtp-guide-preview, .medical-rtp-program-field) {
+  padding: 0.85rem 0;
+}
+#medicalTeamWorkspace :is(.medical-rtp-program-blueprint, .medical-rtp-program-guide-loader, .medical-rtp-guide-preview, .medical-rtp-program-field) :is(span, small, p, li) {
+  font-size: var(--medical-text-small);
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--medical-muted);
+}
+#medicalTeamWorkspace :is(.medical-rtp-program-blueprint, .medical-rtp-program-guide-loader, .medical-rtp-guide-preview, .medical-rtp-program-field) :is(strong, h3, h4) {
+  font-size: var(--medical-text-body);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--medical-ink);
+}
+#medicalTeamWorkspace .medical-rtp-program-flow {
+  padding: 0.75rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--medical-line);
+  border-radius: 0;
+  background: transparent;
 }
 
 #medicalTeamWorkspace .medical-rtp-exercise-grid-compact {

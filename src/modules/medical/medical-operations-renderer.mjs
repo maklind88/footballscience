@@ -542,6 +542,7 @@ ${renderOpsStat("Coach notes", String(items.length), "approved", items.length ? 
   };
 
   const renderPrivateSystem = (summary, activeTab, selectedDate) => {
+    const title = { signals: "Review Queue", cases: "Active Cases", history: "History" }[activeTab];
     const body =
       activeTab === "signals"
         ? renderSignals(summary)
@@ -558,6 +559,7 @@ ${renderOpsStat("Coach notes", String(items.length), "approved", items.length ? 
                 : renderSignals(summary);
     return `
 <section class="medical-operations-system" data-medical-operations-system aria-label="Medical operations intelligence board">
+${title ? `<header class="medical-view-heading"><h2>${title}</h2></header>` : ""}
 ${body}
 </section>
 `;

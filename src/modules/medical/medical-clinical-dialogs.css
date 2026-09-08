@@ -1,0 +1,288 @@
+/* All Medical dialog families use one frame; only their working layouts differ. */
+#medicalTeamWorkspace :is(.medical-modal-layer, .medical-rtp-profile-modal,
+  .medical-rtp-exercise-overlay, .medical-board-editor-overlay) {
+  position: fixed;
+  inset: 0;
+  padding: 1rem;
+  background: rgb(20 20 24 / 42%);
+  backdrop-filter: blur(4px);
+}
+#medicalTeamWorkspace .medical-rtp-profile-modal { z-index: 470; }
+#medicalTeamWorkspace button.medical-rtp-profile-modal-backdrop { background: transparent; border: 0; }
+
+#medicalTeamWorkspace :is(.medical-rtp-profile-dialog, .medical-rtp-exercise-overlay-panel, .medical-board-editor-modal) {
+  width: min(76rem, 100%);
+  height: auto;
+  min-height: 0;
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  gap: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--medical-line-strong);
+  border-radius: 8px;
+  color: var(--medical-ink);
+  background: var(--medical-surface);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 22%);
+}
+#medicalTeamWorkspace .medical-rtp-profile-dialog:not(.medical-rtp-guide-authoring-dialog) { grid-template-rows: minmax(0, 1fr); }
+#medicalTeamWorkspace .medical-rtp-profile-dialog-content {
+  min-height: 0;
+  max-height: calc(100dvh - 2rem);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+#medicalTeamWorkspace .medical-rtp-guide-authoring-dialog { width: min(48rem, 100%); }
+#medicalTeamWorkspace :is(.medical-rtp-profile-dialog > header, .medical-rtp-profile-dialog-content > header,
+  .medical-rtp-exercise-overlay-header, .medical-board-editor-header) {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--medical-line);
+  border-radius: 0;
+  color: var(--medical-ink);
+  background: var(--medical-surface);
+}
+#medicalTeamWorkspace :is(.medical-rtp-profile-dialog > header, .medical-rtp-profile-dialog-content > header,
+  .medical-rtp-exercise-overlay-header, .medical-board-editor-header) :is(h3, strong) {
+  margin: 0;
+  color: var(--medical-ink);
+  font-size: 1.125rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.4;
+  white-space: normal;
+}
+#medicalTeamWorkspace :is(.medical-rtp-profile-dialog > header, .medical-rtp-profile-dialog-content > header,
+  .medical-rtp-exercise-overlay-header, .medical-board-editor-header) :is(span:not(.medical-program-avatar), small) {
+  color: var(--medical-muted);
+  font-size: var(--medical-text-small);
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+}
+#medicalTeamWorkspace :is(.medical-rtp-profile-header-actions, .medical-board-editor-actions) { flex-wrap: wrap; justify-content: end; }
+#medicalTeamWorkspace :is(.medical-rtp-profile-dialog-body, .medical-rtp-exercise-overlay-body) {
+  min-height: 0;
+  padding: 1.25rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background: var(--medical-surface);
+}
+#medicalTeamWorkspace :is(.medical-rtp-profile-modal-close, .medical-rtp-exercise-close-button, [data-medical-close-board-editor]) {
+  flex: 0 0 auto;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  color: var(--medical-ink);
+  background: var(--medical-surface-muted);
+  border: 1px solid var(--medical-line);
+  border-radius: 6px;
+  font-size: var(--medical-text-label);
+  font-weight: 500;
+}
+#medicalTeamWorkspace button:has(> .medical-close-symbol) {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  flex: 0 0 2.75rem;
+}
+#medicalTeamWorkspace button > .medical-close-symbol {
+  display: block;
+  position: static;
+  width: 1.125rem;
+  height: 1.125rem;
+  background: currentColor;
+  mask: url("./icons/x.svg") center / contain no-repeat;
+  transform: none;
+}
+#medicalTeamWorkspace button > .medical-close-symbol::before,
+#medicalTeamWorkspace button > .medical-close-symbol::after { content: none; }
+#medicalTeamWorkspace .medical-modal-player h2 { white-space: normal; overflow-wrap: anywhere; }
+#medicalTeamWorkspace .medical-coach-safe-body { padding: 1.25rem; }
+
+#medicalTeamWorkspace .medical-board-editor-layout {
+  grid-template-columns: minmax(11rem, 0.6fr) minmax(0, 1.7fr) minmax(11rem, 0.6fr);
+  padding: 1rem;
+  gap: 1rem;
+}
+#medicalTeamWorkspace :is(.medical-board-editor-tools, .medical-board-editor-exercises) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#medicalTeamWorkspace .medical-board-editor-tools > div { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+#medicalTeamWorkspace .medical-board-editor-tools > div > span { grid-column: 1 / -1; }
+#medicalTeamWorkspace button[data-medical-board-tool] { display: grid; place-items: center; min-width: 0; padding: 0; }
+#medicalTeamWorkspace .medical-tool-symbol { display: block; width: 1.25rem; height: 1.25rem; background: currentColor; mask: var(--tool-icon) center / contain no-repeat; }
+#medicalTeamWorkspace [data-medical-board-tool="arrow"] { --tool-icon: url("./icons/arrow-up-right.svg"); }
+#medicalTeamWorkspace [data-medical-board-tool="run"] { --tool-icon: url("./icons/move-up-right.svg"); }
+#medicalTeamWorkspace [data-medical-board-tool="zone"] { --tool-icon: url("./icons/square-dashed.svg"); }
+#medicalTeamWorkspace [data-medical-board-tool="cone"] { --tool-icon: url("./icons/triangle.svg"); }
+#medicalTeamWorkspace [data-medical-board-tool="text"] { --tool-icon: url("./icons/type.svg"); }
+#medicalTeamWorkspace .medical-board-exercise-form label { display: grid; min-width: 0; gap: 0.25rem; }
+#medicalTeamWorkspace .medical-board-editor-surface { border-radius: 6px; background: #1d604e; }
+#medicalTeamWorkspace .medical-board-editor-pitch-lines :is(rect, line, circle:not(.session-pitch-centre-spot):not(.session-pitch-penalty-spot)) {
+  stroke: rgb(255 255 255 / 70%);
+  stroke-width: 1;
+}
+#medicalTeamWorkspace .medical-board-editor-hint { border: 0; border-radius: 0; background: transparent; }
+#medicalTeamWorkspace .medical-board-editor-tools button.is-active {
+  color: var(--medical-action-ink);
+  background: var(--medical-action);
+}
+#medicalTeamWorkspace :is(.medical-board-editor-tools, .medical-board-editor-exercises) :is(span, small, strong) {
+  color: var(--medical-muted);
+  font-size: var(--medical-text-label);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+#medicalTeamWorkspace .medical-board-editor-tools button > .medical-tool-symbol { color: inherit; }
+#medicalTeamWorkspace .medical-board-exercise-item {
+  padding: 0.85rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--medical-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Preserve dangerous action styling and the shared confirmation behavior. */
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-layer {
+  --medical-confirm-surface: #fff;
+  --medical-confirm-ink: #1d1d1f;
+  --medical-confirm-muted: #63636b;
+  --medical-confirm-line: #e1e3e6;
+  background: rgb(20 20 24 / 42%);
+  backdrop-filter: blur(4px);
+}
+body.is-dark-mode:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-layer {
+  --medical-confirm-surface: #202023;
+  --medical-confirm-ink: #f5f5f7;
+  --medical-confirm-muted: #b1b1b9;
+  --medical-confirm-line: #3c3c42;
+}
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  padding: 1.25rem;
+  border: 1px solid var(--medical-confirm-line);
+  border-radius: 8px;
+  background: var(--medical-confirm-surface);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 22%);
+}
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-dialog::before { content: none; }
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-copy { padding: 0.75rem 0 1rem; }
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-copy h2 {
+  color: var(--medical-confirm-ink) !important;
+  font-size: 1.125rem;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-message,
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-message p {
+  color: var(--medical-confirm-muted) !important;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0;
+}
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-identity { padding: 0; }
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-mark { width: 2.5rem; height: 2.5rem; border: 0; box-shadow: none; border-radius: 6px; background: transparent; }
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-mark-fallback { width: 2.5rem; height: 2.5rem; border-radius: 6px; font-size: 0.875rem; }
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-actions { padding: 0; gap: 0.75rem; }
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-button {
+  min-height: 2.75rem;
+  border: 1px solid var(--medical-confirm-line);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  box-shadow: none;
+  transform: none;
+}
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-button.is-secondary {
+  background: var(--medical-confirm-surface) !important;
+  color: var(--medical-confirm-ink) !important;
+}
+body:has(#medicalTeamWorkspace .medical-modal-layer) [data-platform-confirm-tone="danger"] .platform-confirm-button.is-primary {
+  background: #a63f35 !important;
+  color: #fff !important;
+}
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-close {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--medical-confirm-line);
+  border-radius: 6px;
+  background: transparent !important;
+  color: var(--medical-confirm-ink) !important;
+}
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-close span { width: 1.125rem; height: 1.125rem; font-size: 0; background: currentColor; mask: url("./icons/x.svg") center / contain no-repeat; }
+body:has(#medicalTeamWorkspace .medical-modal-layer) .platform-confirm-dialog button:focus-visible {
+  outline: 2px solid var(--medical-confirm-ink) !important;
+  outline-offset: 2px;
+  box-shadow: none !important;
+}
+
+@media (max-width: 1050px) {
+  #medicalTeamWorkspace .medical-board-editor-layout { grid-template-columns: minmax(10rem, 0.5fr) minmax(0, 1fr); }
+  #medicalTeamWorkspace .medical-board-editor-exercises { grid-column: 1 / -1; }
+}
+@media (max-width: 680px) {
+  #medicalTeamWorkspace :is(.medical-modal-layer, .medical-rtp-profile-modal, .medical-rtp-exercise-overlay, .medical-board-editor-overlay) {
+    padding: 0;
+    align-items: stretch;
+  }
+  #medicalTeamWorkspace :is(.medical-rtp-profile-dialog, .medical-rtp-exercise-overlay-panel, .medical-board-editor-modal) {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+  #medicalTeamWorkspace .medical-rtp-profile-dialog-content { max-height: 100dvh; }
+  #medicalTeamWorkspace :is(.medical-rtp-profile-dialog > header, .medical-rtp-profile-dialog-content > header,
+    .medical-rtp-exercise-overlay-header, .medical-board-editor-header) {
+    padding: 0.75rem;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  #medicalTeamWorkspace .medical-rtp-profile-header-actions { width: 100%; justify-content: space-between; }
+  #medicalTeamWorkspace :is(.medical-rtp-profile-dialog-body, .medical-rtp-exercise-overlay-body) {
+    padding: 0.85rem;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  #medicalTeamWorkspace .medical-board-editor-layout { grid-template-columns: minmax(0, 1fr); padding: 0.75rem; }
+  #medicalTeamWorkspace .medical-board-editor-tools > div { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  #medicalTeamWorkspace .medical-board-editor-surface { min-height: 18rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #medicalTeamWorkspace *, #medicalTeamWorkspace *::before, #medicalTeamWorkspace *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}

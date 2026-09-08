@@ -528,33 +528,33 @@ ${element.type === "cone" ? `<i aria-hidden="true"></i>` : ""}
 </div>
 <div class="medical-board-editor-actions">
 <button type="button" data-medical-edit-injury-plan="${escapeHtml(plan.id)}">Open Medical Plan</button>
-<button type="button" data-medical-close-board-editor aria-label="Close RTP Player Board">Close</button>
+<button type="button" data-medical-close-board-editor aria-label="Close RTP Player Board" title="Close RTP Player Board"><span class="medical-close-symbol" aria-hidden="true"></span></button>
 </div>
 </header>
 <div class="medical-board-editor-layout">
 <aside class="medical-board-editor-tools" aria-label="RTP Player Board tools">
 <div>
 <span>Draw</span>
-<button type="button" class="is-active" data-medical-board-tool="arrow">Arrow</button>
-<button type="button" data-medical-board-tool="run">Run</button>
-<button type="button" data-medical-board-tool="zone">Zone</button>
-<button type="button" data-medical-board-tool="cone">Cone</button>
-<button type="button" data-medical-board-tool="text">Text</button>
+<button type="button" class="is-active" data-medical-board-tool="arrow" aria-label="Arrow" title="Arrow"><span class="medical-tool-symbol" aria-hidden="true"></span></button>
+<button type="button" data-medical-board-tool="run" aria-label="Run" title="Run"><span class="medical-tool-symbol" aria-hidden="true"></span></button>
+<button type="button" data-medical-board-tool="zone" aria-label="Zone" title="Zone"><span class="medical-tool-symbol" aria-hidden="true"></span></button>
+<button type="button" data-medical-board-tool="cone" aria-label="Cone" title="Cone"><span class="medical-tool-symbol" aria-hidden="true"></span></button>
+<button type="button" data-medical-board-tool="text" aria-label="Text" title="Text"><span class="medical-tool-symbol" aria-hidden="true"></span></button>
 </div>
 <form class="medical-board-exercise-form" data-medical-board-exercise-form="${escapeHtml(plan.id)}">
 <span>Create exercise</span>
-<input name="title" placeholder="Exercise name" autocomplete="off" />
-<select name="phase">
+<label><span>Exercise name</span><input name="title" placeholder="Exercise name" autocomplete="off" /></label>
+<label><span>Phase</span><select name="phase">
 <option value="Medical restriction">Medical restriction</option>
 <option value="Rehab" selected>Rehab</option>
 <option value="Strength">Strength</option>
 <option value="Modified team">Modified team</option>
 <option value="Field exposure">Field exposure</option>
 <option value="Match return">Match return</option>
-</select>
-<input name="dose" placeholder="Dose, sets, reps or time" autocomplete="off" />
-<select name="focusArea">${renderRehabFocusOptions(getRehabFocusArea(plan.bodyArea, plan.injuryType).key)}</select>
-<textarea name="detail" rows="3" placeholder="Clinical cue, pain response or coaching point"></textarea>
+</select></label>
+<label><span>Dose</span><input name="dose" placeholder="Sets, reps or time" autocomplete="off" /></label>
+<label><span>Focus area</span><select name="focusArea">${renderRehabFocusOptions(getRehabFocusArea(plan.bodyArea, plan.injuryType).key)}</select></label>
+<label><span>Clinical note</span><textarea name="detail" rows="3" placeholder="Clinical cue, pain response or coaching point"></textarea></label>
 <button type="submit">Add exercise</button>
 </form>
 </aside>

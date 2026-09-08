@@ -214,9 +214,20 @@
   font-weight: 600;
 }
 
+#medicalTeamWorkspace .medical-view-heading h2 {
+  margin: 0;
+  color: var(--medical-ink);
+  font-size: 1.25rem;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
 #medicalTeamWorkspace .medical-ops-table {
   min-width: 0;
   overflow: hidden;
+  padding: 0;
+  gap: 0;
 }
 
 #medicalTeamWorkspace .medical-ops-table-head,
@@ -236,8 +247,6 @@
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
-  letter-spacing: 0;
-  text-transform: uppercase;
 }
 
 #medicalTeamWorkspace .medical-ops-table-row {

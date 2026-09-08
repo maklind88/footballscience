@@ -118,7 +118,7 @@ tabindex="-1"
 <h3 id="medical-rtp-profile-title">RTP injury guide</h3>
 <small>Select a guide from the library.</small>
 </div>
-<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close RTP guide">Close</button>
+<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close RTP guide" title="Close guide"><span class="medical-close-symbol" aria-hidden="true"></span></button>
 </header>
 <div class="medical-rtp-profile-dialog-body">
 <div class="medical-empty-inline">Select an RTP injury guide to open the clinical decision support.</div>
@@ -143,21 +143,20 @@ tabindex="-1"
 <div>
 <span>Medical authoring</span>
 <h3 id="medical-rtp-guide-draft-title">Create guide draft</h3>
-<small>Prepare a governed RTP Library contribution without publishing from the browser.</small>
+<small>Template only. Custom guide saving is not available.</small>
 </div>
-<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-guide-draft aria-label="Close injury guide draft">Close</button>
+<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-guide-draft aria-label="Close injury guide draft" title="Close template"><span class="medical-close-symbol" aria-hidden="true"></span></button>
 </header>
 <div class="medical-rtp-profile-dialog-body">
 <div class="medical-rtp-guide-authoring-body">
 <section class="medical-rtp-guide-authoring-panel">
-<h4>Draft workflow</h4>
+<h4>Review stages</h4>
 <div class="medical-rtp-guide-status-strip">
 <span><strong>1</strong> Medical draft</span>
 <span><strong>2</strong> Performance review</span>
 <span><strong>3</strong> Governance approval</span>
 <span><strong>4</strong> Published guide</span>
 </div>
-<p>Permanent saving needs the guarded RTP Library API, RLS and audit events before custom guides become shared knowledge.</p>
 </section>
 <section class="medical-rtp-guide-authoring-panel">
 <h4>Guide fields</h4>
@@ -178,7 +177,6 @@ tabindex="-1"
 </section>
 <section class="medical-rtp-guide-authoring-panel">
 <h4>Authoring template</h4>
-<p>Use the locked Gold Standard template until governed draft saving is enabled.</p>
 <div class="medical-rtp-guide-actions">
 <button type="button" data-medical-copy-rtp-guide-template>Copy guide template</button>
 <small>No custom guide is saved from the browser in this phase.</small>
@@ -209,7 +207,6 @@ data-medical-rtp-library-limit="${MEDICAL_RTP_LIBRARY_PAGE_SIZE}"
 <div>
 <span>RTP Library</span>
 <strong>Injury guides</strong>
-<small>Find the clinical decision support first. Open full detail only when it is needed.</small>
 </div>
 <button type="button" data-medical-open-rtp-guide-draft>Create guide draft</button>
 </header>

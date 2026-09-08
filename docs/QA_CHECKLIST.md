@@ -84,8 +84,11 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 - Home staff chat shows the sender profile image beside the name.
 - Home staff chat shows sent and read receipt status on the current user's messages.
 - Admin can delete a staff chat message and clear the staff chat with confirmation.
-- Schedule Month and Overview modes work.
+- Schedule opens directly in Planner without Month, Week, or Overview tabs.
 - Schedule Today goes to the real current day.
+- Schedule single-select, Cmd/Ctrl multi-select, copy/paste, drag-to-move, double-click edit/create, and right-click notes work.
+- Every Schedule delete and note-clear path requires the shared confirmation dialog.
+- Home shows the current-month Schedule preview with working day details and month navigation.
 - Periodization Today opens the correct day and centered overlay.
 - Periodization week cards remain aligned.
 - Session Planner date strip scrolls smoothly.

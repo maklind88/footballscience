@@ -58,16 +58,18 @@ Current direction:
 
 ## Schedule
 
-Purpose: season calendar and overview.
+Purpose: season calendar and daily planning.
 
 Current behavior:
 
-- Month and Overview modes.
-- Overview supports 3, 6, 9, and 12 months.
+- Schedule opens directly in its Planner-only workspace; the removed Month, Week, and Overview tabs must not be reintroduced.
+- Planner renders a responsive multi-month range with previous, Today, and next navigation.
+- Home owns a separate compact current-month preview that opens selected-day details and provides its own month navigation.
 - Events have color by type.
 - Admin can edit. Non-admin should view only.
-- Native copy/paste should work for day/event workflows where possible.
-- Selected day should remain accessible when scrolling long overview ranges.
+- Single click selects, Cmd/Ctrl-click multi-selects, double-click creates or edits, drag moves, and right-click opens quick actions and day notes.
+- Cmd/Ctrl+C and Cmd/Ctrl+V copy and paste selected Schedule content.
+- Every destructive Schedule path requires the shared platform confirmation dialog before data changes.
 
 ## Periodization
 

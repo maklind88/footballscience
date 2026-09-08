@@ -66,8 +66,9 @@
 
 ## Schedule
 
-- Keep selected day visible/sticky when scrolling long overview ranges.
-- Keep overview colors clear and add small color legend per month.
+- Keep Planner-only navigation, responsive month density, and day interactions predictable.
+- Keep the Home current-month calendar visually independent from the Schedule Planner while sharing the same Schedule data.
+- Preserve click, multi-select, copy/paste, drag, notes, and confirmation behavior with focused regression coverage.
 - Admin edit only; non-admin view only.
 
 ## Analysis Room

@@ -139,6 +139,17 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     const body = JSON.parse(request.postData() || "{}");
     if (body.key !== revisionStateKey) {
       appStateWriteBodies.push(body);
+      if (typeof options.appStateWriteHandler === "function") {
+        const customResponse = await options.appStateWriteHandler({ body, centralStore });
+        if (customResponse) {
+          await route.fulfill({
+            status: Number(customResponse.status) || 200,
+            contentType: "application/json",
+            body: JSON.stringify(customResponse.body || {}),
+          });
+          return;
+        }
+      }
       if (deniedWriteKeys.has(body.key)) {
         await route.fulfill({
           status: 403,
@@ -1230,6 +1241,134 @@ test("two browser tabs send baseRevision and stale tab cannot overwrite newer ce
   } finally {
     await closeCentralStateContext(first.context);
     await closeCentralStateContext(stale.context);
+  }
+});
+
+test("overlapping Schedule saves are serialized and preserve the newest local generation", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const firstScheduleState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 8,
+    selectedDate: "2026-09-08",
+    viewMode: "planner",
+    overviewSpan: 6,
+    events: [{ id: "training-a", date: "2026-09-08", type: "training", title: "First local training" }],
+  };
+  const secondScheduleState = {
+    ...firstScheduleState,
+    events: [
+      ...firstScheduleState.events,
+      { id: "training-b", date: "2026-09-08", type: "training", title: "Newest local training" },
+    ],
+  };
+  const centralScheduleState = {
+    ...firstScheduleState,
+    events: [],
+  };
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: {
+      [scheduleStateKey]: JSON.stringify(centralScheduleState),
+    },
+    metadataEntries: {
+      [scheduleStateKey]: createMetadata(4, JSON.stringify(centralScheduleState)),
+    },
+  };
+  const scheduleWrites = [];
+  let markFirstWriteStarted;
+  const firstWriteStarted = new Promise((resolve) => {
+    markFirstWriteStarted = resolve;
+  });
+  let releaseFirstWrite;
+  const firstWritePending = new Promise((resolve) => {
+    releaseFirstWrite = resolve;
+  });
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "schedule-overlap", {
+    appStateWriteHandler: async ({ body }) => {
+      if (body.key !== scheduleStateKey) {
+        return null;
+      }
+      scheduleWrites.push(body);
+      if (scheduleWrites.length === 1) {
+        markFirstWriteStarted();
+        await firstWritePending;
+      }
+      const currentMetadata = centralStore.metadataEntries[scheduleStateKey];
+      const baseRevision = Number(body?.metadata?.baseRevision ?? body?.baseRevision);
+      if (baseRevision !== currentMetadata.revision) {
+        return {
+          status: 409,
+          body: {
+            ok: false,
+            reason: "Central app-state revision changed before save.",
+            currentRevision: currentMetadata.revision,
+          },
+        };
+      }
+      const value = String(body.value || "");
+      const revision = currentMetadata.revision + 1;
+      centralStore.entries[scheduleStateKey] = value;
+      centralStore.metadataEntries[scheduleStateKey] = createMetadata(revision, value);
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          key: scheduleStateKey,
+          value,
+          revision,
+          metadata: centralStore.metadataEntries[scheduleStateKey],
+        },
+      };
+    },
+  });
+
+  try {
+    await tab.page.evaluate(
+      ({ key, value }) => window.localStorage.setItem(key, value),
+      { key: scheduleStateKey, value: JSON.stringify(firstScheduleState) }
+    );
+    await firstWriteStarted;
+
+    await tab.page.evaluate(
+      ({ key, value }) => window.localStorage.setItem(key, value),
+      { key: scheduleStateKey, value: JSON.stringify(secondScheduleState) }
+    );
+    await tab.page.waitForTimeout(250);
+    expect(scheduleWrites).toHaveLength(1);
+
+    releaseFirstWrite();
+    await expect.poll(() => scheduleWrites.length, { timeout: 10_000 }).toBe(2);
+    await expect
+      .poll(() => centralStore.metadataEntries[scheduleStateKey].revision, { timeout: 10_000 })
+      .toBe(6);
+
+    expect(scheduleWrites.map((body) => body.metadata.baseRevision)).toEqual([4, 5]);
+    expect(scheduleWrites[0].value).toBe(JSON.stringify(firstScheduleState));
+    expect(scheduleWrites[1].value).toBe(JSON.stringify(secondScheduleState));
+    expect(centralStore.entries[scheduleStateKey]).toBe(JSON.stringify(secondScheduleState));
+    await expect
+      .poll(() =>
+        tab.page.evaluate(
+          ({ key, manifestKey }) => {
+            const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+            return {
+              value: window.localStorage.getItem(key),
+              pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+              serverRevision: manifest.entries?.[key]?.serverRevision,
+            };
+          },
+          { key: scheduleStateKey, manifestKey: dataSafetyManifestKey }
+        )
+      )
+      .toEqual({
+        value: JSON.stringify(secondScheduleState),
+        pendingCentralSync: false,
+        serverRevision: 6,
+      });
+  } finally {
+    releaseFirstWrite?.();
+    await closeCentralStateContext(tab.context);
   }
 });
 

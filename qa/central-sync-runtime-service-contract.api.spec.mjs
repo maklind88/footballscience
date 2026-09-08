@@ -39,6 +39,9 @@ function createServiceHarness(options = {}) {
         typeof options.canAutoSyncKey === "function" ? options.canAutoSyncKey(key) : true,
       syncKey: async (key, value, syncOptions) => {
         syncCalls.push({ key, value, options: syncOptions });
+        if (typeof options.syncKey === "function") {
+          return options.syncKey({ key, value, syncOptions });
+        }
         if (Array.isArray(options.syncResults)) {
           const result = options.syncResults[Math.min(syncResultIndex, options.syncResults.length - 1)];
           syncResultIndex += 1;
@@ -157,8 +160,10 @@ test("central sync runtime queues protected writes with revision metadata and fl
 });
 
 test("central sync runtime reports saving and server-confirmed status for Set Pieces", async () => {
-  const harness = createServiceHarness({ syncResult: { ok: true, value: "{\"plays\":[]}", revision: 8 } });
-  harness.service.queueCentralStateWrite("football-set-pieces-room-v1", "{\"plays\":[]}");
+  const value = "{\"plays\":[]}";
+  const harness = createServiceHarness({ syncResult: { ok: true, value, revision: 8 } });
+  harness.rawValues.set("football-set-pieces-room-v1", value);
+  harness.service.queueCentralStateWrite("football-set-pieces-room-v1", value);
   expect(harness.syncStatuses).toContainEqual(["football-set-pieces-room-v1", "saving", "Saving"]);
 
   await harness.service.flushCentralStateWrites();
@@ -187,14 +192,16 @@ test("central sync runtime keeps the highest acknowledged server revision", asyn
 });
 
 test("central sync runtime persists the acknowledged revision after a conflict retry", async () => {
+  const value = "{\"blocks\":[]}";
   const harness = createServiceHarness({
     syncResults: [
       { ok: false, conflict: true, status: 409, currentRevision: 10 },
-      { ok: true, value: "{\"blocks\":[]}", revision: 11 },
+      { ok: true, value, revision: 11 },
     ],
   });
 
-  harness.service.queueCentralStateWrite("football-session-planner-v1", "{\"blocks\":[]}");
+  harness.rawValues.set("football-session-planner-v1", value);
+  harness.service.queueCentralStateWrite("football-session-planner-v1", value);
   await harness.service.flushCentralStateWrites();
 
   expect(harness.syncCalls).toEqual([
@@ -215,13 +222,10 @@ test("central sync runtime persists the acknowledged revision after a conflict r
   });
 });
 
-test("central sync runtime reconciles a non-session conflict before clearing pending state", async () => {
+test("central sync runtime preserves a conflicted Schedule edit instead of force-hydrating it away", async () => {
   const value = "{\"events\":[{\"id\":\"training-1\"}]}";
   const harness = createServiceHarness({
     syncResult: { ok: false, conflict: true, status: 409, currentRevision: 10 },
-    onHydrate: ({ setRevision }) => {
-      setRevision(10);
-    },
   });
   harness.rawValues.set("football-schedule-v1", value);
 
@@ -234,16 +238,106 @@ test("central sync runtime reconciles a non-session conflict before clearing pen
       value,
       options: { removed: false, baseRevision: 7 },
     },
-    {
-      hydrate: true,
-      options: { forceApply: true },
-    },
   ]);
   expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
-    pendingCentralSync: false,
-    serverRevision: 10,
+    pendingCentralSync: true,
   });
-  expect(harness.autosaveStatuses).toContainEqual(["football-schedule-v1", "saved", "Saved"]);
+  expect(harness.rawValues.get("football-schedule-v1")).toBe(value);
+  expect(harness.autosaveStatuses).toContainEqual([
+    "football-schedule-v1",
+    "issue",
+    "Sync needs attention",
+  ]);
+});
+
+test("central sync runtime serializes overlapping Schedule generations and advances the second base revision", async () => {
+  const firstValue = "{\"events\":[{\"id\":\"training-a\"}]}";
+  const secondValue = "{\"events\":[{\"id\":\"training-a\"},{\"id\":\"training-b\"}]}";
+  let releaseFirstWrite;
+  const firstWritePending = new Promise((resolve) => {
+    releaseFirstWrite = resolve;
+  });
+  let callCount = 0;
+  const harness = createServiceHarness({
+    revision: 7,
+    syncKey: async ({ value }) => {
+      callCount += 1;
+      if (callCount === 1) {
+        await firstWritePending;
+        harness.setRevision(8);
+        return { ok: true, value, revision: 8 };
+      }
+      harness.setRevision(9);
+      return { ok: true, value, revision: 9 };
+    },
+  });
+
+  harness.rawValues.set("football-schedule-v1", firstValue);
+  harness.service.queueCentralStateWrite("football-schedule-v1", firstValue);
+  const firstFlush = harness.service.flushCentralStateWrites();
+
+  harness.rawValues.set("football-schedule-v1", secondValue);
+  harness.service.queueCentralStateWrite("football-schedule-v1", secondValue);
+  const overlappingFlush = harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toHaveLength(1);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: true,
+  });
+
+  releaseFirstWrite();
+  await Promise.all([firstFlush, overlappingFlush]);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: true,
+    serverRevision: 8,
+  });
+
+  const nextFlush = Array.from(harness.timers.values()).at(-1);
+  expect(typeof nextFlush).toBe("function");
+  await nextFlush();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key: "football-schedule-v1",
+      value: firstValue,
+      options: { removed: false, baseRevision: 7 },
+    },
+    {
+      key: "football-schedule-v1",
+      value: secondValue,
+      options: { removed: false, baseRevision: 8 },
+    },
+  ]);
+  expect(harness.rawValues.get("football-schedule-v1")).toBe(secondValue);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: false,
+    serverRevision: 9,
+  });
+});
+
+test("central sync runtime does not borrow an unrelated newer bridge revision", async () => {
+  const value = "{\"events\":[{\"id\":\"training-a\"}]}";
+  const harness = createServiceHarness({
+    revision: 7,
+    syncResult: { ok: false, conflict: true, status: 409, currentRevision: 9 },
+  });
+  harness.rawValues.set("football-schedule-v1", value);
+
+  harness.service.queueCentralStateWrite("football-schedule-v1", value);
+  harness.setRevision(9);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key: "football-schedule-v1",
+      value,
+      options: { removed: false, baseRevision: 7 },
+    },
+  ]);
+  expect(harness.rawValues.get("football-schedule-v1")).toBe(value);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: true,
+  });
 });
 
 test("central sync runtime retries presentation mode conflicts so quick deletes do not restore old objects", async () => {
@@ -387,6 +481,7 @@ test("central sync runtime still sends explicit Medical writes to backend author
     syncResult: { ok: true, value, revision: 12 },
   });
 
+  harness.rawValues.set(key, value);
   harness.service.queueCentralStateWrite(key, value);
   await harness.service.flushCentralStateWrites();
 

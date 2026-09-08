@@ -8,6 +8,7 @@ import {
 } from "./presentation-mode-themes.mjs";
 import { renderPresentationSetPieceBody } from "./presentation-mode-set-pieces.mjs";
 import { renderPresentationLeaderboardBody } from "./presentation-leaderboard-slide.mjs";
+import { renderReadonlyTacticalPlayback } from "../session-planner/session-planner-readonly-playback-renderer.mjs";
 
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
@@ -1982,7 +1983,7 @@ export function createPresentationModeRenderer(options = {}) {
   function renderBlockSlide(model = {}, slide = {}) {
     const block = slide.block || {};
     const playerSummary = slide.playerSummary || {};
-    const visual = renderExerciseVisual(block, { large: true });
+    const visual = renderReadonlyTacticalPlayback(block, renderExerciseVisual);
     const phase = formatBlockPhaseLine(block.phase, block.subPhase);
     const blockLabel = [
       block.label || slide.label || "Block",
@@ -2066,6 +2067,7 @@ export function createPresentationModeRenderer(options = {}) {
     render,
     renderActiveSlide,
     renderBlockSlide,
+    renderExerciseVisual,
     renderControlBar,
     renderCoverSlide,
     renderInfoSlide,

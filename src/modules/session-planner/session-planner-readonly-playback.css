@@ -1,0 +1,121 @@
+.session-visual-preview-overlay .session-visual-modal.has-readonly-playback {
+  height: min(92dvh, 960px);
+  max-height: 92dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.session-readonly-playback {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.session-readonly-viewport {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.session-readonly-source {
+  position: absolute;
+  inset: 0;
+}
+
+.session-readonly-playback.is-previewing-animation .session-readonly-source {
+  visibility: hidden;
+}
+
+.session-readonly-playback .session-readonly-source > .session-visual-board,
+.session-readonly-playback .session-tactical-playback-surface > .session-visual-board {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--readonly-board-width);
+  height: var(--readonly-board-height);
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  transform: translate(-50%, -50%) scale(var(--readonly-board-scale, 0));
+  transform-origin: center;
+  transition: none;
+}
+
+.session-readonly-playback .session-tactical-playback-surface > .session-visual-board {
+  transform: translate(-50%, -50%) scale(var(--playback-board-scale, 0));
+}
+
+.session-readonly-playback .session-tactical-playback-surface .session-visual-board-surface {
+  inset: var(--session-visual-runoff);
+}
+
+.session-readonly-playback .session-tactical-playback-surface .has-uploaded-image .session-visual-board-surface {
+  inset: 0;
+}
+
+.session-readonly-playback .session-readonly-controls {
+  flex: 0 0 auto;
+  gap: .35rem;
+  padding: .4rem 0 0;
+  margin: .3rem 0 0;
+  border-bottom: 0;
+  border-color: var(--presentation-panel-border, #dfe3e6);
+  color: var(--presentation-panel-text, #25323a);
+}
+
+.session-readonly-playback .session-readonly-controls button,
+.session-readonly-playback .session-readonly-controls select {
+  color: inherit;
+  border-color: var(--presentation-panel-border, #dfe3e6);
+  background: var(--presentation-panel-bg-strong, #fff);
+  border-radius: 6px;
+}
+
+.session-readonly-playback .session-readonly-controls button[aria-pressed="true"] {
+  color: #fff;
+  background: #155887;
+  border-color: #155887;
+}
+
+.session-readonly-playback .session-readonly-controls :is(button, input, select):focus-visible {
+  outline: 2px solid #2588d1;
+  outline-offset: 2px;
+}
+
+.session-readonly-playback .session-readonly-controls output {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 4.4rem;
+  font-size: .72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@container (max-width: 360px) {
+  .session-readonly-playback .session-readonly-controls { flex-wrap: nowrap; gap: .25rem; }
+  .session-readonly-playback .session-readonly-controls .session-tactical-playback-transport { gap: .2rem; }
+  .session-readonly-playback .session-readonly-controls button { width: 1.75rem; height: 1.75rem; }
+  .session-readonly-playback .session-readonly-controls select { width: 3rem; height: 1.75rem; padding: 0 .1rem; }
+  .session-readonly-playback .session-readonly-controls input { min-width: 1.5rem; width: 0; }
+  .session-readonly-playback .session-readonly-controls output {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    min-width: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+@media print {
+  .session-readonly-playback .session-readonly-controls,
+  .session-readonly-playback .session-tactical-playback-surface { display: none; }
+  .session-readonly-playback.is-previewing-animation .session-readonly-source { visibility: visible; }
+}

@@ -1,6 +1,7 @@
 import { createSessionPlannerPlayerBoardTidyHelpers } from "./session-planner-player-board-tidy-helpers.mjs";
 import { createSessionPlannerTacticalFramesController } from "./session-planner-tactical-frames-controller.mjs";
 import { createSessionPlannerTacticalPlaybackController } from "./session-planner-tactical-playback-controller.mjs";
+import { createReadonlyTacticalPlaybackController } from "./session-planner-readonly-playback-controller.mjs";
 import {
   getSessionPlannerMedicalBlockRule,
   isSessionPlannerWarmUpBlock,
@@ -499,9 +500,11 @@ local.sessionPlannerPrintOverlayOpen = false;
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 function setSessionPlannerVisualPreviewOpen(isOpen) {
+readonlyPlaybackController.reset();
 local.sessionPlannerVisualPreviewOpen = Boolean(isOpen);
 if (local.sessionPlannerVisualPreviewOpen) {
 local.sessionPlannerAddMenuOpen = false;
+local.sessionPlannerTacticalboardOpen = false;
 local.sessionPlannerPlayerBoardOpen = false;
 local.sessionPlannerPrintOverlayOpen = false;
 }
@@ -948,6 +951,12 @@ getWorkspace: () => ui.sessionPlannerWorkspace,
 getEditorBlock: () => tacticalFramesController.getEditorBlock(),
 canEdit: canEditSessionPlanner,
 renderVisual: (...args) => renderSessionPlannerExerciseVisual(...args),
+});
+const readonlyPlaybackController = createReadonlyTacticalPlaybackController({
+win,
+getWorkspace: () => ui.sessionPlannerWorkspace,
+renderVisual: (...args) => renderSessionPlannerExerciseVisual(...args),
+workspaceId: "session-planner",
 });
 function getSessionPlannerTacticalFrames() {
 return tacticalFramesController.getFrames();
@@ -2693,6 +2702,11 @@ ensurePeriodizationState();
 const session = getSessionPlannerSelectedSession();
 const block = getSessionPlannerSelectedBlock();
 const isAdmin = canEditSessionPlanner();
+const retainedPreview = readonlyPlaybackController.retain(
+local.sessionPlannerVisualPreviewOpen ? block : null,
+`${local.sessionPlannerState.selectedDate}:${block?.id}`,
+);
+const retainedPreviewFocus = retainedPreview?.contains(document.activeElement) ? document.activeElement : null;
 const selectedDateLabel = getSessionPlannerDateLabel(local.sessionPlannerState.selectedDate, {
 weekday: "long",
 day: "numeric",
@@ -2743,6 +2757,11 @@ ui.sessionPlannerWorkspace.querySelector("[data-session-tacticalboard-overlay]")
 retainedTacticalFocus?.focus({ preventScroll: true });
 }
 tacticalPlaybackController.mount();
+if (retainedPreview) {
+ui.sessionPlannerWorkspace.querySelector("[data-session-readonly-playback]")?.replaceWith(retainedPreview);
+retainedPreviewFocus?.focus({ preventScroll: true });
+}
+readonlyPlaybackController.mount();
 if (canReuseDateControls) {
 const nextDateControls = ui.sessionPlannerWorkspace.querySelector(".session-date-controls");
 nextDateControls?.replaceWith(previousDateControls);

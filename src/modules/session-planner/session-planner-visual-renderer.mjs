@@ -3,6 +3,7 @@ import {
   renderTacticalBoardSvgElement,
 } from "../tactical-board/index.mjs";
 import { renderTacticalPlaybackControls } from "./session-planner-tactical-playback-renderer.mjs";
+import { renderReadonlyTacticalPlayback } from "./session-planner-readonly-playback-renderer.mjs";
 
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
@@ -687,13 +688,13 @@ upload: `
 };
 return icons[name] ?? "";
 }
-function renderSessionPlannerVisualPreviewOverlay(block) {
+function renderSessionPlannerVisualPreviewOverlay(block, { readOnlyPlayback = false } = {}) {
 if (!getState().visualPreviewOpen || !block) {
 return "";
 }
 return `
     <div class="session-library-overlay session-visual-preview-overlay" data-session-visual-preview-overlay>
-      <section class="session-library-modal session-visual-modal" role="dialog" aria-modal="true" aria-label="Exercise visual preview">
+      <section class="session-library-modal session-visual-modal${readOnlyPlayback ? " has-readonly-playback" : ""}" role="dialog" aria-modal="true" aria-label="Exercise visual preview">
         <header class="session-library-modal-head">
           <div>
             <span>Preview</span>
@@ -701,7 +702,7 @@ return `
           </div>
           <button type="button" class="session-library-close-button" data-session-close-visual-preview aria-label="Close preview">Close</button>
         </header>
-        ${renderSessionPlannerExerciseVisual(block, { large: true })}
+        ${readOnlyPlayback ? renderReadonlyTacticalPlayback(block, renderSessionPlannerExerciseVisual) : renderSessionPlannerExerciseVisual(block, { large: true })}
       </section>
     </div>
   `;

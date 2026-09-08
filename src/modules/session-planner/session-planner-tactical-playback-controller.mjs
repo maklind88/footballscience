@@ -16,6 +16,8 @@ export function createSessionPlannerTacticalPlaybackController({
   getEditorBlock,
   canEdit = () => false,
   renderVisual,
+  readOnly = false,
+  workspaceId = "session-planner",
 }) {
   let modal = null;
   let surface = null;
@@ -34,6 +36,17 @@ export function createSessionPlannerTacticalPlaybackController({
   let boardSize = null;
   let editScroll = null;
   let editableAtStart = false;
+  let viewAtMount = null;
+  let readonlyResizeObserver = null;
+
+  function fitReadonlyBoard() {
+    const wrap = modal?.querySelector(".session-readonly-viewport");
+    const board = wrap?.querySelector(".session-readonly-source > .session-visual-board");
+    if (!board?.clientWidth || !board.clientHeight) return;
+    const scale = Math.min(wrap.clientWidth / board.clientWidth, wrap.clientHeight / board.clientHeight);
+    wrap.style.setProperty("--readonly-board-scale", String(Math.max(0, scale)));
+    board.querySelectorAll(".is-selected").forEach((element) => element.classList.remove("is-selected"));
+  }
 
   function controls() { return modal?.querySelector(".session-tactical-playback"); }
   function cancelAnimations() {
@@ -82,7 +95,7 @@ export function createSessionPlannerTacticalPlaybackController({
     if (bar) {
       bar.querySelector("[data-session-tactical-playhead]").value = "0";
       const view = getEditorBlock();
-      const index = view?.tacticalFrames.findIndex((frame) => frame.id === view.tacticalActiveFrameId) ?? 0;
+      const index = readOnly ? 0 : view?.tacticalFrames.findIndex((frame) => frame.id === view.tacticalActiveFrameId) ?? 0;
       bar.querySelector("[data-session-tactical-playback-status]").textContent = `Frame ${index + 1} / ${view?.tacticalFrames.length || 1}`;
       syncControls();
     }
@@ -99,10 +112,10 @@ export function createSessionPlannerTacticalPlaybackController({
     const view = getEditorBlock();
     const wrap = modal?.querySelector("[data-session-tactical-canvas-wrap]");
     if (!wrap || !view || view.tacticalFrames.length < 2) return false;
-    const board = wrap.querySelector(".session-visual-board-editor");
+    const board = wrap.querySelector(readOnly ? ".session-readonly-source > .session-visual-board" : ".session-visual-board-editor");
     if (!board?.clientWidth || !board.clientHeight) return false;
     boardSize = { width: board.clientWidth, height: board.clientHeight };
-    editScroll = [wrap, modal.querySelector(".session-tacticalboard-layout")]
+    editScroll = [wrap, modal.querySelector(".session-tacticalboard-layout")].filter(Boolean)
       .map((element) => [element, element.scrollLeft, element.scrollTop]);
     source = view;
     editableAtStart = canEdit();
@@ -233,12 +246,20 @@ export function createSessionPlannerTacticalPlaybackController({
   function onKey(event) {
     if (!modal?.isConnected || !modal.getClientRects().length) return;
     if (!modal.contains(event.target) && event.target !== win.document.body) return;
+    if (readOnly) {
+      // Let native controls work without triggering Presentation Mode's slide shortcuts.
+      if (event.target.closest?.(".session-tactical-playback") && !["Tab", "Escape"].includes(event.key)) {
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (event.key !== " " || (getEditorBlock()?.tacticalFrames.length || 0) < 2) return;
+    }
     if (event.target.closest?.("input, textarea, select, [contenteditable='true']")) return;
     if (event.type === "keydown" && event.key === " " && !event.target.closest?.("button") && !event.repeat) {
       toggle();
       event.preventDefault();
       event.stopImmediatePropagation();
-    } else if (snapshot && event.key !== "Tab") {
+    } else if (!readOnly && snapshot && event.key !== "Tab") {
       if (event.key === "Escape") stop();
       if (!event.target.closest?.(".session-tactical-playback button, [data-session-close-tacticalboard]")) {
         event.preventDefault();
@@ -249,10 +270,22 @@ export function createSessionPlannerTacticalPlaybackController({
   }
 
   function mount() {
-    const next = getWorkspace()?.querySelector("[data-session-tacticalboard-overlay] .session-tacticalboard-modal") || null;
+    const next = getWorkspace()?.querySelector(readOnly
+      ? "[data-session-readonly-playback]"
+      : "[data-session-tacticalboard-overlay] .session-tacticalboard-modal") || null;
     if (next === modal) return;
     stop();
+    readonlyResizeObserver?.disconnect();
+    readonlyResizeObserver = null;
     modal = next;
+    viewAtMount = getEditorBlock();
+    if (readOnly && modal) {
+      fitReadonlyBoard();
+      if (win.ResizeObserver) {
+        readonlyResizeObserver = new win.ResizeObserver(fitReadonlyBoard);
+        readonlyResizeObserver.observe(modal.querySelector(".session-readonly-viewport"));
+      }
+    }
     syncControls();
     if (modal && !canEdit()) {
       modal.querySelectorAll("[data-session-add-tactical-frame], [data-session-delete-tactical-frame]").forEach((button) => { button.disabled = true; });
@@ -260,6 +293,7 @@ export function createSessionPlannerTacticalPlaybackController({
   }
 
   function retainOverlay() {
+    if (readOnly && modal?.isConnected && viewAtMount === getEditorBlock()) return modal;
     if (snapshot && modal?.isConnected && source === getEditorBlock() && editableAtStart === canEdit()) {
       return modal.closest("[data-session-tacticalboard-overlay]");
     }
@@ -268,7 +302,7 @@ export function createSessionPlannerTacticalPlaybackController({
   }
 
   const onVisibility = () => { if (win.document.hidden) stop(); };
-  const onWorkspace = (event) => { if (event.detail?.workspaceId !== "session-planner") stop(); };
+  const onWorkspace = (event) => { if (workspaceId && event.detail?.workspaceId !== workspaceId) stop(); };
   const workspace = getWorkspace();
   workspace?.addEventListener?.("click", onClick, true);
   workspace?.addEventListener?.("input", onInput, true);
@@ -279,6 +313,7 @@ export function createSessionPlannerTacticalPlaybackController({
   win.document?.addEventListener?.("visibilitychange", onVisibility);
   return { mount, stop, retainOverlay, isPreviewing: () => Boolean(snapshot), destroy() {
     stop();
+    readonlyResizeObserver?.disconnect();
     workspace?.removeEventListener?.("click", onClick, true);
     workspace?.removeEventListener?.("input", onInput, true);
     workspace?.removeEventListener?.("change", onInput, true);

@@ -11,6 +11,7 @@ import { renderSetPiecePlaybackFrame, updateSetPiecePlaybackView } from "../set-
 import { renderPresentationSetPieceBoard } from "./presentation-mode-set-pieces.mjs";
 import { copyPresentationSlideToDeck } from "./presentation-slide-transfer.mjs";
 import { createPresentationBirthdaySlide } from "./presentation-birthday-slide.mjs";
+import { createReadonlyTacticalPlaybackController } from "../session-planner/session-planner-readonly-playback-controller.mjs";
 import {
   normalizePresentationLineupAssignments,
   normalizePresentationLineupFormation,
@@ -978,6 +979,11 @@ export function createPresentationModeController(dependencies = {}) {
   let leaderboardRefreshTimer = 0;
   let leaderboardRefreshAttempts = 0;
   let fullscreenIntent = false;
+  const exercisePlayback = createReadonlyTacticalPlaybackController({
+    win,
+    getWorkspace: () => ensureRoot(),
+    renderVisual: (...args) => renderer.renderExerciseVisual(...args),
+  });
 
   function ensureRoot() {
     if (root) return root;
@@ -2091,8 +2097,19 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const currentRoot = ensureRoot();
     const model = buildModel();
+    const slide = model.slides[model.slideIndex];
+    const retainedExercise = exercisePlayback.retain(
+      slide?.type === "block" ? slide.block : null,
+      `${model.dateValue}:${slide?.id}`,
+    );
+    const retainedFocus = retainedExercise?.contains(documentRef.activeElement) ? documentRef.activeElement : null;
     currentRoot.hidden = false;
     currentRoot.innerHTML = renderer.render(model);
+    if (retainedExercise) {
+      currentRoot.querySelector("[data-session-readonly-playback]")?.replaceWith(retainedExercise);
+      retainedFocus?.focus({ preventScroll: true });
+    }
+    exercisePlayback.mount();
     documentRef.body.classList.add("is-presentation-mode-open");
     syncTextToolbar();
     observeStageMetrics();
@@ -2345,6 +2362,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function close() {
+    exercisePlayback.reset();
     setPiecePlayback.stop({ resetFrame: false });
     fullscreenIntent = false;
     state.activeShapeTarget = null;

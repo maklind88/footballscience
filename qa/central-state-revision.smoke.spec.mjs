@@ -123,6 +123,17 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
 
     if (method === "GET") {
       appStateGetUrls.push(request.url());
+      if (typeof options.appStateReadHandler === "function") {
+        const customResponse = await options.appStateReadHandler({ request, centralStore });
+        if (customResponse) {
+          await route.fulfill({
+            status: Number(customResponse.status) || 200,
+            contentType: "application/json",
+            body: JSON.stringify(customResponse.body || {}),
+          });
+          return;
+        }
+      }
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -1368,6 +1379,169 @@ test("overlapping Schedule saves are serialized and preserve the newest local ge
       });
   } finally {
     releaseFirstWrite?.();
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("stale in-flight hydration cannot replace an acknowledged Schedule save", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const originalScheduleState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 8,
+    selectedDate: "2026-09-08",
+    viewMode: "planner",
+    overviewSpan: 6,
+    events: [],
+  };
+  const savedScheduleState = {
+    ...originalScheduleState,
+    events: [{ id: "training-latest", date: "2026-09-08", type: "training", title: "Latest acknowledged training" }],
+  };
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: {
+      [scheduleStateKey]: JSON.stringify(originalScheduleState),
+    },
+    metadataEntries: {
+      [scheduleStateKey]: createMetadata(4, JSON.stringify(originalScheduleState)),
+    },
+  };
+  let deferScheduleRead = false;
+  let markStaleReadStarted;
+  const staleReadStarted = new Promise((resolve) => {
+    markStaleReadStarted = resolve;
+  });
+  let releaseStaleRead;
+  const staleReadPending = new Promise((resolve) => {
+    releaseStaleRead = resolve;
+  });
+  const scheduleWrites = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "schedule-stale-hydration", {
+    appStateReadHandler: async ({ request }) => {
+      if (!deferScheduleRead) {
+        return null;
+      }
+      const keys = String(new URL(request.url()).searchParams.get("keys") || "").split(",");
+      if (!keys.includes(scheduleStateKey)) {
+        return null;
+      }
+      const staleValue = centralStore.entries[scheduleStateKey];
+      const staleMetadata = { ...centralStore.metadataEntries[scheduleStateKey] };
+      markStaleReadStarted();
+      await staleReadPending;
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          entries: { [scheduleStateKey]: staleValue },
+          metadata: { [scheduleStateKey]: staleMetadata },
+        },
+      };
+    },
+    appStateWriteHandler: async ({ body }) => {
+      if (body.key !== scheduleStateKey) {
+        return null;
+      }
+      scheduleWrites.push(body);
+      const currentMetadata = centralStore.metadataEntries[scheduleStateKey];
+      const baseRevision = Number(body?.metadata?.baseRevision ?? body?.baseRevision);
+      if (baseRevision !== currentMetadata.revision) {
+        return {
+          status: 409,
+          body: {
+            ok: false,
+            reason: "Central app-state revision changed before save.",
+            currentRevision: currentMetadata.revision,
+          },
+        };
+      }
+      const value = String(body.value || "");
+      const revision = currentMetadata.revision + 1;
+      centralStore.entries[scheduleStateKey] = value;
+      centralStore.metadataEntries[scheduleStateKey] = createMetadata(revision, value);
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          key: scheduleStateKey,
+          value,
+          revision,
+          metadata: centralStore.metadataEntries[scheduleStateKey],
+        },
+      };
+    },
+  });
+
+  try {
+    deferScheduleRead = true;
+    await tab.page.evaluate(() => {
+      window.__qaStaleScheduleHydration = window.footballScienceCentralState.hydrate({ forceApply: true });
+    });
+    await staleReadStarted;
+
+    await tab.page.evaluate(
+      ({ key, value }) => window.localStorage.setItem(key, value),
+      { key: scheduleStateKey, value: JSON.stringify(savedScheduleState) }
+    );
+    await expect.poll(() => scheduleWrites.length, { timeout: 10_000 }).toBe(1);
+    await expect.poll(() => centralStore.metadataEntries[scheduleStateKey].revision, { timeout: 10_000 }).toBe(5);
+    await expect
+      .poll(() =>
+        tab.page.evaluate(
+          ({ key, manifestKey }) => {
+            const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+            return {
+              value: window.localStorage.getItem(key),
+              pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+              serverRevision: manifest.entries?.[key]?.serverRevision,
+            };
+          },
+          { key: scheduleStateKey, manifestKey: dataSafetyManifestKey }
+        )
+      )
+      .toEqual({
+        value: JSON.stringify(savedScheduleState),
+        pendingCentralSync: false,
+        serverRevision: 5,
+      });
+
+    releaseStaleRead();
+    await tab.page.evaluate(() => window.__qaStaleScheduleHydration);
+
+    expect(scheduleWrites[0].metadata.baseRevision).toBe(4);
+    expect(centralStore.entries[scheduleStateKey]).toBe(JSON.stringify(savedScheduleState));
+    await expect
+      .poll(() =>
+        tab.page.evaluate(
+          ({ key, manifestKey }) => {
+            const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+            const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+            return {
+              savedEvent: (state.events || []).find((event) => event.id === "training-latest") || null,
+              pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+              serverRevision: manifest.entries?.[key]?.serverRevision,
+              bridgeRevision: window.footballScienceCentralState.getStatus().metadata?.[key]?.revision,
+            };
+          },
+          { key: scheduleStateKey, manifestKey: dataSafetyManifestKey }
+        )
+      )
+      .toEqual({
+        savedEvent: {
+          id: "training-latest",
+          date: "2026-09-08",
+          time: "",
+          type: "training",
+          title: "Latest acknowledged training",
+          note: "",
+        },
+        pendingCentralSync: false,
+        serverRevision: 5,
+        bridgeRevision: 5,
+      });
+  } finally {
+    releaseStaleRead?.();
     await closeCentralStateContext(tab.context);
   }
 });

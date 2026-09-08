@@ -778,6 +778,20 @@ async function getActiveAccessToken() {
     );
   }
   function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, centralValue = "", options = {}) {
+    const incomingRevision = Number(metadataEntry?.revision);
+    const appliedRevision = Number(centralState.metadata?.[key]?.revision);
+    const allowsAuthoritativeRevisionRecovery =
+      shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options) ||
+      shouldRecoverSessionPlannerCentralState(key, pendingEntry, metadataEntry, options);
+    if (
+      Number.isInteger(incomingRevision) &&
+      incomingRevision > 0 &&
+      Number.isInteger(appliedRevision) &&
+      appliedRevision > incomingRevision &&
+      !allowsAuthoritativeRevisionRecovery
+    ) {
+      return false;
+    }
     if (options.forceApply) {
       return true;
     }

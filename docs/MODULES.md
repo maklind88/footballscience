@@ -223,7 +223,7 @@ Current direction:
 - The existing room shell hosts Overview, FS Player, Presentation, and Clip Library (legacy route `match-report`). It is not a placeholder.
 - Overview consumes schedule and video-library metadata. It owns calendar navigation, activity search, and routing into the selected session, not schedule writes or FS Player media storage.
 - Event IDs distinguish multiple sessions on one day. Date-only legacy entries may be collapsed only when the relationship is unambiguous and neither side has an event ID.
-- Search results are paginated in the browser; calendar overflow opens that day's results. This does not make the current bounded library request a complete server archive search.
+- The archive-read candidate adds server-paginated saved videos and bounded month summaries; Schedule suggestions retain separate local paging. Visible Overview refreshes video metadata every minute. See `docs/analysis-room/ARCHIVE_READS.md` for scope and pending release verification.
 - FS Player owns tagging, playback and its clip-presentation internals. The separate platform Presentation Mode is not owned by Analysis Room.
 
 ## Scouting

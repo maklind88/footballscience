@@ -147,7 +147,11 @@ export function normalizeLibraryMatch(match = {}) {
 
 export function buildVideoLibraryItems(state = {}) {
   const matches = (state.library?.matches || []).map(normalizeLibraryMatch).filter((item) => item.id);
-  const linkedScheduleIds = new Set(matches.map((item) => item.scheduleEventId).filter(Boolean));
+  const linkedScheduleIds = new Set([
+    ...matches.map((item) => item.scheduleEventId).filter(Boolean),
+    ...(state.library?.calendar?.linkedScheduleIds || []),
+    ...(state.library?.archive?.matches || []).map(normalizeLibraryMatch).map((item) => item.scheduleEventId).filter(Boolean),
+  ]);
   const candidates = mergeScheduleCandidates(state.library?.scheduleCandidates || []);
   const dayKey = (item) => JSON.stringify([item.scheduleDayKey, item.eventType]);
   const matchesByDay = new Map();
@@ -197,7 +201,8 @@ export function filterVideoLibraryItems(items = [], filters = {}) {
 }
 
 export function findVideoLibraryItem(state = {}, key = "") {
-  return buildVideoLibraryItems(state).find((item) => item.key === key) || null;
+  return (state.library?.archive?.matches || []).map(normalizeLibraryMatch).find((item) => item.key === key)
+    || buildVideoLibraryItems(state).find((item) => item.key === key) || null;
 }
 
 export function findScheduleCandidate(state = {}, scheduleEventId = "") {

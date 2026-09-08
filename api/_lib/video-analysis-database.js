@@ -23,6 +23,7 @@ const {
   selectRows,
 } = require("./video-analysis-database-core.js");
 const { listMatches, normalizeMetadata, normalizeVideoEventType, updateMatchLink } = require("./video-analysis-library-database.js");
+const { readAnalysisRoomArchive } = require("./analysis-room-archive.js");
 const { listCodingTemplates, saveCodingTemplate } = require("./video-analysis-coding-template-database.js");
 const {
   archivePresentation,
@@ -930,6 +931,8 @@ async function handleVideoAnalysisRequest(req, res, actor) {
     const query = Object.fromEntries(url.searchParams.entries());
     const result = action === "status"
       ? { ok: true, payload: statusPayload(actor) }
+      : action === "library-search" || action === "library-calendar"
+        ? await readAnalysisRoomArchive(query, actor, action === "library-calendar" ? "calendar" : "search")
       : action === "matches"
         ? await listMatches(query, actor)
         : action === "saved-searches"

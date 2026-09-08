@@ -4,6 +4,7 @@ import {
   normalizeContextScheduleCandidates,
 } from "./services/videoLibraryService.js";
 import { eventElement } from "./video-analysis.dom-events.js";
+import { createArchiveReadsController } from "./controllers/archiveReadsController.js";
 
 function contextScheduleCandidates(context = {}) {
   try {
@@ -36,11 +37,15 @@ export function createVideoLibraryController(deps = {}) {
     shouldLoadMetadata,
     localVideoStatusPatch,
   } = deps;
+  const archive = createArchiveReadsController({ getRuntime, scheduleCandidates: contextScheduleCandidates });
 
   async function loadLibrary(options = {}) {
     const run = getRuntime?.();
     if (!run) return;
     const state = run.store.getState();
+    if (state.view === "library" && shouldLoadMetadata(run.context, state)) {
+      return archive.load(options);
+    }
     const currentLibrary = state.library || {};
     run.store.update((current) => ({
       ...current,
@@ -91,13 +96,15 @@ export function createVideoLibraryController(deps = {}) {
       ...state,
       library: { ...state.library, resultPage: 0, filters: { ...state.library?.filters, ...patch } },
     }));
+    if (getRuntime()?.store.getState().library?.remote) archive.filtersChanged(Object.keys(patch)[0]);
   }
 
   function focusResults(context) {
     const win = context.win || globalThis.window;
     win?.requestAnimationFrame?.(() => {
       const root = context.ui?.analysisRoomWorkspace;
-      const heading = root?.querySelector("[data-video-analysis-library-results-title]");
+      const heading = root?.querySelector("[data-video-analysis-library-results-title]")
+        || root?.querySelector("[data-video-analysis-archive-results-title]");
       heading?.focus({ preventScroll: true });
       heading?.scrollIntoView({ block: "start" });
     });
@@ -106,6 +113,8 @@ export function createVideoLibraryController(deps = {}) {
   function handleClick(event, context = {}) {
     const target = eventElement(event);
     if (!target?.closest) return false;
+    const archivePage = target.closest("[data-video-analysis-archive-page]");
+    if (archivePage) return archive.handlePage(archivePage);
     if (target.closest("[data-video-analysis-library-refresh]")) {
       loadLibrary();
       return true;
@@ -241,6 +250,8 @@ export function createVideoLibraryController(deps = {}) {
   }
 
   return Object.freeze({
+    bind: archive.bind,
+    dispose: archive.dispose,
     handleClick,
     handleInput,
     loadLibrary,

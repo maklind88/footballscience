@@ -352,6 +352,7 @@ test("Video Analysis shows a schedule-aware library and autosaves day links", as
   await expect(page.locator(".video-analysis-library__list")).toHaveCount(0);
 
   await page.locator('[data-video-analysis-library-filter="search"]').fill("Angel");
+  await expect(page.locator("[data-video-analysis-library]")).toHaveAttribute("aria-busy", "false");
   await expect(page.locator(".video-analysis-library__list")).toBeVisible();
   await expect(page.locator(".video-analysis-library-row")).toHaveCount(1);
   await expect(page.locator(".video-analysis-library-row")).toContainText("Match #11 @ Angel City");

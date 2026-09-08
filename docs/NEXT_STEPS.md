@@ -74,7 +74,7 @@
 
 - Keep Analysis Room focused on own-team performance review.
 - Overview correctness: preserve separate same-day events, exclude non-video schedule types, keep calendar/search consistent, expose all loaded results and show load failures. Regression coverage lives in `qa/analysis-room-overview.*.spec.mjs`.
-- Next: define server-side archive search, pagination and freshness through the FS Player public API contract. The current Overview request is bounded (`limit: 160`, `scheduleLimit: 160`); client-side paging does not cover the full archive.
+- Candidate: server-side video archive search with keyset pagination, bounded calendar summaries and visibility-aware refresh. See `docs/analysis-room/ARCHIVE_READS.md`. Safe Lane migration/release and authenticated production verification remain pending explicit user authorization; Schedule history/freshness remains under its public contract.
 - Validate Team Performance import ownership and freshness before surfacing imported statistics as current.
 - Define the remaining match review -> observation -> evidence -> coaching action flow before extending Match Report.
 - Keep FS Player clip presentations and the separate platform Presentation Mode within their respective ownership boundaries. Do not revive old cross-module candidates as room work.

@@ -10,6 +10,7 @@
     <main id="analysisRoomWorkspace"></main>
     <script type="module">
       import * as videoAnalysis from "../src/modules/video-analysis/index.js";
+      import { archiveFixturePayload } from "./fixtures/analysis-room-archive-mock.mjs";
 
       const defaultClips = [
         {
@@ -215,7 +216,7 @@
         const action = parsed.searchParams.get("action");
         const body = options.body ? JSON.parse(options.body) : {};
         window.__videoAnalysisRequests = window.__videoAnalysisRequests || [];
-        window.__videoAnalysisRequests.push({ action, body });
+        window.__videoAnalysisRequests.push({ action, body, query: Object.fromEntries(parsed.searchParams) });
         if (parsed.origin === "http://127.0.0.1:47831" && parsed.pathname === "/session") {
           return Response.json({ ok: true, sessionToken: "local-smoke-session", expiresAt: "2099-01-01T00:00:00.000Z" }, { status: 201 });
         }
@@ -234,6 +235,9 @@
         }
         if (action === "status") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2" });
         if (action === "matches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", matches, scheduleCandidates });
+        if (action === "library-search" || action === "library-calendar") {
+          return Response.json({ ok: true, ...archiveFixturePayload(matches, parsed.searchParams, action === "library-calendar") });
+        }
         if (action === "clips") {
           const limit = Math.max(1, Number(parsed.searchParams.get("limit") || clips.length || 1));
           const offset = Math.max(0, Number(parsed.searchParams.get("offset") || 0));

@@ -29,7 +29,8 @@ Fokus:
 - Overview laser schema/video-metadata; ag inte schemats skrivningar, FS Players video/taggning eller dess clip-presentationer.
 - Plattformens separata Presentation Mode ar en annan modul, inte rummets Presentation-flik.
 - Kalendern ska bevara separata aktiviteter samma dag. Sokning och dagsoversikt ska ge tillgang till alla hamtade traffar utan obegransad DOM-lista.
-- Full arkivsokning och automatisk aktualitet aterstar: nuvarande biblioteksanrop ar begransat till 160 matcher och 160 schemaforslag.
+- Kandidaten har serverbaserad videoarkivsokning, sidbladning och begransad minutuppdatering av Overview. Se docs/analysis-room/ARCHIVE_READS.md for kontrakt, tester och kvarvarande Safe Lane-release. Detta ar inte bevis pa Live.
+- Schemats aktualitet och importerad Team Performance-statistik har egna kallagare; videoarkivets uppdatering ersatter inte deras synk.
 - Las docs/NEXT_STEPS.md for kvarvarande arbete. Kandidatkod och lokala tester ar inte bevis pa deploy eller live-verifiering.
 
 Nar du har last dokumenten, bekrafta kort att du jobbar i Analysis Room och vanta pa min konkreta instruktion.

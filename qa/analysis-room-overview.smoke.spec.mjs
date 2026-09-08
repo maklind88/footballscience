@@ -9,6 +9,7 @@ async function openOverview(page) {
       title: `Activity ${String(index + 1).padStart(2, "0")} - Training with a deliberately long session title`,
     }));
     window.__videoAnalysisSmokeScheduleEvents = [
+      ...window.__videoAnalysisSmokeScheduleCandidates,
       { id: "off", date: "2026-06-16", type: "off", title: "Rest day" },
       { id: "meeting", date: "2026-06-16", type: "meeting", title: "Staff meeting" },
     ];
@@ -46,20 +47,31 @@ test("Analysis Room calendar and search agree, including zero results", async ({
 
 test("Analysis Room day overflow opens every activity with keyboard and paginated results", async ({ page }) => {
   await openOverview(page);
+  await page.evaluate(() => {
+    const fetch = window.fetch;
+    window.fetch = async (url, options) => {
+      if (new URL(url, location.origin).searchParams.get("action") === "library-search") {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      return fetch(url, options);
+    };
+  });
   const more = page.getByRole("button", { name: "Show all 12 activities for 15/06/2026" });
   await more.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Filter by date")).toHaveValue("2026-06-15");
   await expect(page.locator("[data-video-analysis-library-results-title]")).toBeFocused();
+  await expect(page.locator("[data-video-analysis-library]")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator("[data-video-analysis-library-results-title]")).toBeFocused();
   await expect(page.locator(".video-analysis-library-row")).toHaveCount(8);
   await expect(page.getByRole("button", { name: "Previous results" })).toBeDisabled();
   await page.getByRole("button", { name: "Next results" }).click();
   await expect(page.locator(".video-analysis-library-row")).toHaveCount(4);
-  await expect(page.locator(".video-analysis-library-archive")).toContainText("9-12 of 12");
+  await expect(page.getByRole("region", { name: "Search results", exact: true })).toContainText("9-12 of 12");
   await expect(page.getByRole("button", { name: "Next results" })).toBeDisabled();
   await page.getByRole("searchbox").fill("Activity 01");
   await expect(page.locator(".video-analysis-library-row")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-library-archive")).toContainText("1-1 of 1");
+  await expect(page.getByRole("region", { name: "Search results", exact: true })).toContainText("1-1 of 1");
   await page.getByRole("searchbox").fill("");
   await page.getByRole("button", { name: "Next results" }).click();
   await page.locator('.video-analysis-library-row [data-video-analysis-open-library-item="schedule:activity-11"]').click();
@@ -94,7 +106,7 @@ test("Analysis Room shows loading and refresh errors without dropping cached act
     const originalFetch = window.fetch;
     window.__failOverviewRefresh = true;
     window.fetch = async (url, options) => {
-      if (new URL(url, location.origin).searchParams.get("action") === "matches") {
+      if (new URL(url, location.origin).searchParams.get("action") === "library-calendar") {
         await new Promise((resolve) => setTimeout(resolve, 350));
         if (window.__failOverviewRefresh) throw new Error("Calendar unavailable");
       }

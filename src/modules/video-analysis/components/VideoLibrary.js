@@ -1,5 +1,6 @@
 import { buildVideoLibraryItems, filterVideoLibraryItems, videoLibraryResultPage } from "../services/videoLibraryService.js";
 import { escapeHtml } from "./renderHelpers.js";
+import { renderVideoArchiveResults } from "./VideoArchiveResults.js";
 
 function eventTypeLabel(type = "") {
   return String(type || "").toLowerCase() === "match" ? "Match" : "Training";
@@ -128,7 +129,7 @@ function renderCalendarEvent(item = {}) {
   `;
 }
 
-function renderCalendarDay(date = "", items = []) {
+function renderCalendarDay(date = "", items = [], count = items.length) {
   const day = Number(String(date).slice(-2)) || "";
   const isToday = date === currentIsoDate();
   const preview = items.slice(0, 2);
@@ -136,17 +137,18 @@ function renderCalendarDay(date = "", items = []) {
     <div role="listitem" class="video-analysis-calendar-day${items.length ? " has-items" : ""}${isToday ? " is-today" : ""}" aria-label="${escapeHtml(`${isToday ? "Today, " : ""}${formatDate(date)}`)}">
       <button type="button" class="video-analysis-calendar-day__number" data-video-analysis-calendar-day="${escapeHtml(date)}" aria-label="${escapeHtml(`Show activities for ${formatDate(date)}`)}" ${isToday ? 'aria-current="date"' : ""}>${escapeHtml(String(day))}</button>
       ${preview.map((item) => renderCalendarEvent(item)).join("")}
-      ${items.length > preview.length ? `<button type="button" class="video-analysis-calendar-more" data-video-analysis-calendar-day="${escapeHtml(date)}" aria-label="${escapeHtml(`Show all ${items.length} activities for ${formatDate(date)}`)}">+${items.length - preview.length}</button>` : ""}
+      ${count > preview.length ? `<button type="button" class="video-analysis-calendar-more" data-video-analysis-calendar-day="${escapeHtml(date)}" aria-label="${escapeHtml(`Show all ${count} activities for ${formatDate(date)}`)}">+${count - preview.length}</button>` : ""}
     </div>
   `;
 }
 
-function renderCalendarOverview(visibleItems = [], filters = {}) {
+function renderCalendarOverview(visibleItems = [], filters = {}, calendar = {}) {
   const month = isoMonth(filters.calendarMonth) || isoMonth(filters.date) || currentIsoMonth();
   const todayMonth = currentIsoMonth();
   const previousMonth = addMonths(month, -1);
   const nextMonth = addMonths(month, 1);
   const itemsByDate = new Map();
+  const counts = new Map((calendar.days || []).map((day) => [day.date, day.count]));
   for (const item of visibleItems) {
     if (isoMonth(item.matchDate) !== month) continue;
     const list = itemsByDate.get(item.matchDate) || [];
@@ -180,7 +182,9 @@ function renderCalendarOverview(visibleItems = [], filters = {}) {
       </div>
       <div class="video-analysis-calendar-month" role="list">
         ${cells.map((date) => date
-          ? renderCalendarDay(date, itemsByDate.get(date) || [])
+          ? renderCalendarDay(date, itemsByDate.get(date) || [], counts.has(date)
+            ? counts.get(date) + (itemsByDate.get(date) || []).filter((item) => item.kind === "schedule-candidate").length
+            : (itemsByDate.get(date) || []).length)
           : `<div class="video-analysis-calendar-day is-empty" aria-hidden="true"></div>`).join("")}
       </div>
     </section>
@@ -192,6 +196,7 @@ function renderLibrarySearch(library = {}, visibleCount = 0, isActive = false) {
     <section class="video-analysis-library-search${isActive ? " is-active" : ""}" aria-label="Search videos and match days">
       <input
         type="search"
+        maxlength="120"
         placeholder="Search day, video, match, team or date"
         value="${escapeHtml(library.filters?.search || "")}"
         data-video-analysis-library-filter="search"
@@ -211,7 +216,7 @@ function renderLibrarySearch(library = {}, visibleCount = 0, isActive = false) {
         </select>
         <button type="button" data-video-analysis-library-refresh ${library.status === "loading" ? "disabled" : ""}>Refresh</button>
       </div>
-      ${isActive ? `<span>${escapeHtml(`${visibleCount} results`)}</span>` : ""}
+      ${isActive && !library.remote ? `<span>${escapeHtml(`${visibleCount} results`)}</span>` : ""}
     </section>
   `;
 }
@@ -268,7 +273,9 @@ function renderLibraryRow(item = {}, state = {}) {
 export function renderVideoLibrary(state = {}) {
   const library = state.library || {};
   const allItems = buildVideoLibraryItems(state);
-  const visibleItems = filterVideoLibraryItems(allItems, library.filters || {});
+  const localItems = library.remote ? allItems.filter((item) => item.kind === "schedule-candidate") : allItems;
+  const visibleItems = filterVideoLibraryItems(localItems, library.filters || {});
+  const calendarItems = library.remote ? [...allItems.filter((item) => item.kind === "match"), ...visibleItems] : visibleItems;
   const searchIsActive = isLibrarySearchActive(library.filters || {});
   const resultPage = videoLibraryResultPage(visibleItems, library.resultPage);
   const archiveItems = resultPage.items;
@@ -276,13 +283,14 @@ export function renderVideoLibrary(state = {}) {
     <section class="video-analysis-library" data-video-analysis-library aria-busy="${library.status === "loading"}">
       ${renderLibrarySearch(library, visibleItems.length, searchIsActive)}
       ${renderLibraryStatus(library)}
-      ${renderCalendarOverview(visibleItems, library.filters || {})}
-      ${searchIsActive ? `
+      ${renderCalendarOverview(calendarItems, library.filters || {}, library.remote ? library.calendar : {})}
+      ${searchIsActive && library.remote ? renderVideoArchiveResults(state, renderLibraryRow) : ""}
+      ${searchIsActive && (!library.remote || visibleItems.length || (library.archive?.status === "ready" && !library.archive?.matches?.length)) ? `
         <section class="video-analysis-library-archive" aria-label="Search results">
         <div class="video-analysis-panel-title">
           <div>
             <p class="video-analysis-kicker">Results</p>
-            <h3 tabindex="-1" data-video-analysis-library-results-title>Matches, training & videos</h3>
+            <h3 tabindex="-1" data-video-analysis-library-results-title>${library.remote ? "Schedule activities" : "Matches, training & videos"}</h3>
           </div>
           <span>${escapeHtml(`${resultPage.start}-${resultPage.end} of ${visibleItems.length}`)}</span>
         </div>

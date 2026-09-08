@@ -1628,6 +1628,8 @@ function paint(root, state) {
   const focusedDraft = root.querySelector("[data-video-analysis-draft]:focus")?.dataset.videoAnalysisDraft || "";
   const focusedFilter = root.querySelector("[data-video-analysis-filter]:focus")?.dataset.videoAnalysisFilter || "";
   const focusedLibraryFilter = root.querySelector("[data-video-analysis-library-filter]:focus")?.dataset.videoAnalysisLibraryFilter || "";
+  const focusedLibraryHeading = ["library-results-title", "archive-results-title"]
+    .find((name) => root.querySelector(`[data-video-analysis-${name}]:focus`));
   const focusedIntelligenceQuery = Boolean(root.querySelector("[data-video-analysis-intelligence-query]:focus"));
   const focusedReviewNote = root.querySelector("[data-video-analysis-review-note]:focus")?.dataset.videoAnalysisReviewNote || "";
   const focusedButtonField = root.querySelector("[data-video-analysis-button-field]:focus")?.dataset.videoAnalysisButtonField || "";
@@ -1689,6 +1691,7 @@ function paint(root, state) {
     </section>
   `;
   const timelineWorkspaceEditor = root.querySelector("[data-video-analysis-workspace-editor]");
+  if (focusedLibraryHeading) root.querySelector(`[data-video-analysis-${focusedLibraryHeading}]`)?.focus({ preventScroll: true });
   if (timelineWorkspaceEditor) root.appendChild(timelineWorkspaceEditor);
   bindPaintedVideoControls(root, {
     handleFileSelection,
@@ -3227,10 +3230,12 @@ export function render(context = {}) {
   const currentState = run.store.getState();
   scheduleToastDismiss(context, currentState);
   paint(root, currentState);
+  libraryController().bind();
   if (run.store.getState().status === "idle") initialize(context);
 }
 
 export function resetVideoAnalysisRuntimeForTests() {
+  videoLibraryController?.dispose();
   clearToastDismissTimer(runtime);
   void runtime?.collaborationRuntime?.dispose?.();
   void runtime?.mediaRuntime?.dispose?.();

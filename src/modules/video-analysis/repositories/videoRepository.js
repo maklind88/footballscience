@@ -32,6 +32,12 @@ export function createVideoRepository(context = {}) {
       const params = typeof options === "number" ? { limit: options } : options;
       return requestJson(buildVideoAnalysisApiUrl("matches", params), { method: "GET" }, getAuthToken);
     },
+    searchArchive(query = {}, { signal } = {}) {
+      return requestJson(buildVideoAnalysisApiUrl("library-search", query), { method: "GET", signal, cache: "no-store" }, getAuthToken);
+    },
+    archiveCalendar(query = {}, { signal } = {}) {
+      return requestJson(buildVideoAnalysisApiUrl("library-calendar", query), { method: "GET", signal, cache: "no-store" }, getAuthToken);
+    },
     updateMatchLink(payload = {}) {
       return requestJson(
         buildVideoAnalysisApiUrl("update-match-link"),

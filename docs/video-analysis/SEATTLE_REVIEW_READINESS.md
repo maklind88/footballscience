@@ -3,6 +3,10 @@
 Checked on 2026-09-08. This is local candidate preparation for practical testing,
 not a production release or tracking-quality approval.
 
+Release follow-up: the subsequently discovered remote schema gap has been
+repaired and verified in both environments. See `DATABASE_RELEASE_20260908.md`
+for the exact migration set, preservation checks and remaining code-release gate.
+
 ## Candidate
 
 - Working branch: `codex/fs-player-seattle-review-20260908`.

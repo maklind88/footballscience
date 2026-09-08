@@ -9,7 +9,7 @@ const localDate = () => {
   return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
 };
 
-async function boot(page, { presentation = false, pitchMode = "full-wide", frames = true, visualImage = "" } = {}) {
+async function boot(page, { presentation = false, pitchMode = "full-wide", frames = true, visualImage = "", blockCount = 2 } = {}) {
   const date = localDate();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -22,17 +22,20 @@ async function boot(page, { presentation = false, pitchMode = "full-wide", frame
     ...(frames ? { tacticalActiveFrameId: "second", tacticalFrames: [
       { id: "first", label: "Frame 1", elements }, { id: "second", label: "Frame 2", elements: second },
     ] } : {}) };
-  await page.addInitScript(({ key, date, block }) => {
+  await page.addInitScript(({ key, date, block, blockCount }) => {
     if (localStorage.getItem(key)) return;
     localStorage.setItem(key, JSON.stringify({ selectedDate: date, sessions: { [date]: {
       id: "qa-readonly-session", date, title: "QA Training", selectedBlockId: block.id,
-      blocks: [block, { ...block, id: "qa-second", label: "Block 2", title: "Second exercise" }],
+      blocks: Array.from({ length: blockCount }, (_, index) => index === 0 ? block : {
+        ...block, id: index === 1 ? "qa-second" : `qa-block-${index + 1}`,
+        label: `Block ${index + 1}`, title: index === 1 ? "Second exercise" : `Exercise ${index + 1}`,
+      }),
     } } }));
     localStorage.setItem("football-schedule-v1", JSON.stringify({ selectedDate: date,
       events: [{ id: "qa-training", date, type: "training", time: "10:30", title: "QA Training" }] }));
     localStorage.setItem("football-periodization-v2", JSON.stringify({ selectedDate: date,
       days: { [date]: { sessionType: "Training", matchDay: "Match Day -1" } } }));
-  }, { key, date, block });
+  }, { key, date, block, blockCount });
   await page.goto(presentation ? "/?workspace=home" : "/?workspace=session-planner", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
   await page.evaluate(() => document.querySelector("[data-dashboard-news-dismiss], [data-dashboard-modal-close]")?.click());
@@ -127,6 +130,36 @@ test("Preview starts on frame one, plays without editing, and resets on reopenin
   await page.locator("[data-session-close-visual-preview]").click();
   await page.locator("[data-session-preview-visual]").click();
   await assertFirst(view);
+  expect(await storage(page)).toBe(before);
+  expect(await page.evaluate(() => window.qaPlaybackWrites)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("overview and both coach sheet pages keep frame one after preview playback", async ({ page }, testInfo) => {
+  const { view, errors } = await boot(page, { blockCount: 4 });
+  const before = await storage(page);
+  await seek(view, 1);
+  expect((await position(view.locator(`${animated} ${player}`))).x).toBeCloseTo(40, 1);
+  await page.locator("[data-session-close-visual-preview]").click();
+  const overview = page.locator(`.session-media-preview ${player}`);
+  await expect(overview).toBeVisible();
+  expect((await position(overview)).x).toBeCloseTo(20, 1);
+  await page.locator("[data-session-open-print]").click();
+  const pages = page.locator(".session-print-page");
+  await expect(pages).toHaveCount(2);
+  for (const paper of ["letter", "a4"]) {
+    await page.locator("select[data-session-print-paper]").selectOption(paper);
+    for (const sheet of await pages.all()) {
+      const markers = sheet.locator(player);
+      await expect(markers).toHaveCount(2);
+      expect(await markers.evaluateAll((items) => items.map((item) => [item.style.left, item.style.top])))
+        .toEqual([["20%", "40%"], ["20%", "40%"]]);
+    }
+  }
+  await page.screenshot({ path: testInfo.outputPath("first-frame-coach-sheet.png") });
+  await page.locator("[data-session-close-print]").click();
+  await page.locator("[data-session-preview-visual]").click();
+  await assertFirst(page.locator(widget));
   expect(await storage(page)).toBe(before);
   expect(await page.evaluate(() => window.qaPlaybackWrites)).toEqual([]);
   expect(errors).toEqual([]);

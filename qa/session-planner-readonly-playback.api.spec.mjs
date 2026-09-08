@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { getReadonlyTacticalView, renderReadonlyTacticalPlayback } from "../src/modules/session-planner/session-planner-readonly-playback-renderer.mjs";
 import { createReadonlyTacticalPlaybackController } from "../src/modules/session-planner/session-planner-readonly-playback-controller.mjs";
 import { createSessionPlannerVisualRenderer } from "../src/modules/session-planner/session-planner-visual-renderer.mjs";
+import { createSessionPlannerWorkspaceRenderer } from "../src/modules/session-planner/session-planner-workspace-renderer.mjs";
+import { createSessionPlannerPrintRenderer } from "../src/modules/session-planner/session-planner-print-renderer.mjs";
 
 function block() {
   return { id: "block", title: "Exercise", objective: "Private notes", tacticalPitchMode: "full-wide",
@@ -35,6 +37,38 @@ test("shared visual previews stay static unless their controller explicitly opts
   expect(preview).toContain("has-readonly-playback");
   expect(preview).toContain("data-session-readonly-playback");
   expect(source).toEqual(before);
+});
+
+test("overview and printed stills use the first frame without changing source or legacy boards", () => {
+  const views = [];
+  const renderVisual = (view) => { views.push(view); return "<div>Pitch</div>"; };
+  const workspace = createSessionPlannerWorkspaceRenderer({
+    renderSessionPlannerExerciseVisual: renderVisual,
+    renderSessionPlannerActionIcon: () => "",
+    renderSessionPlannerPlayerBoard: () => "",
+  });
+  const print = createSessionPlannerPrintRenderer({
+    getState: () => ({ printSections: { visuals: true } }),
+    renderExerciseVisual: renderVisual,
+  });
+  const source = block();
+  const emptyFirst = { ...block(), tacticalFrames: [{ id: "empty", elements: [] }, block().tacticalFrames[1]] };
+  const legacy = { id: "legacy", visualImage: "/pitch.png", tacticalElements: [{ id: "player", x: 55, y: 40 }] };
+  for (const [input, expectedElements] of [
+    [source, source.tacticalFrames[0].elements], [emptyFirst, []], [legacy, legacy.tacticalElements],
+  ]) {
+    const before = structuredClone(input);
+    views.length = 0;
+    expect(workspace.renderToolsPanel(input)).toContain("<div>Pitch</div>");
+    expect(print.renderVisual(input)).toContain("<div>Pitch</div>");
+    expect(print.renderVisual(input, { landscape: true })).toContain("<div>Pitch</div>");
+    expect(views).toHaveLength(3);
+    for (const view of views) {
+      expect(view.tacticalElements).toEqual(expectedElements);
+      expect(view.visualImage).toBe(input.visualImage);
+    }
+    expect(input).toEqual(before);
+  }
 });
 
 test("readonly renderer preserves legacy images, pitch modes and only offers transport controls", () => {

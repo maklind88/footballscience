@@ -137,6 +137,40 @@ test("chat thread sorting is driven by pinned state and message activity, not se
   expect(chatThreadRuntimeSource).not.toContain("secondIsSelectedEmptyGroup");
 });
 
+test("chat summary refresh preserves the currently selected verified DM when the summary page omits it", () => {
+  const selectedThreadId = "dm:coach-qa:teammate-qa";
+  let apiThreads = [
+    { threadId: "team", type: "team", title: "Team" },
+    { threadId: selectedThreadId, type: "dm", title: "Direct message" },
+  ];
+  const runtime = createDashboardChatApiRuntime({
+    getDashboardApiThreads: () => apiThreads,
+    setDashboardApiThreads: (nextThreads) => {
+      apiThreads = nextThreads;
+    },
+    getDashboardChatCurrentViewState: () => ({ isOpen: true, selectedThreadId }),
+    normalizeDashboardApiThread: (thread) => thread,
+    normalizeDashboardChatThreadId: (threadId, fallback = "team") => String(threadId || fallback || "team"),
+  });
+
+  runtime.updateDashboardChatApiThreads(
+    [{ threadId: "team", type: "team", title: "Team" }],
+    { replace: true }
+  );
+
+  expect(apiThreads.map((thread) => thread.threadId)).toEqual([selectedThreadId, "team"]);
+
+  apiThreads = apiThreads.map((thread) =>
+    thread.threadId === selectedThreadId ? { ...thread, archivedAt: "2026-09-08T16:00:00.000Z" } : thread
+  );
+  runtime.updateDashboardChatApiThreads(
+    [{ threadId: "team", type: "team", title: "Team" }],
+    { replace: true }
+  );
+
+  expect(apiThreads.map((thread) => thread.threadId)).toEqual(["team"]);
+});
+
 test("direct and group chats expose baseline private cleanup permissions from thread data", () => {
   const currentUser = { id: "coach-qa", firstName: "Casey", lastName: "Coach", role: "coach", status: "active" };
   const teammate = { id: "teammate-qa", firstName: "Taylor", lastName: "Teammate", role: "analyst", status: "active" };

@@ -413,6 +413,15 @@ async function openTeamChat(page) {
   await expect(page.locator("[data-dashboard-chat-input]")).toBeVisible({ timeout: 20_000 });
 }
 
+async function openLiveChatThread(page, threadId) {
+  const threadButton = page.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
+  await expect(threadButton).toBeVisible({ timeout: 45_000 });
+  await threadButton.click();
+  const activeThread = page.locator(`[data-dashboard-chat-list][data-dashboard-chat-active-thread="${threadId}"]`);
+  await expect(activeThread).toBeVisible({ timeout: 20_000 });
+  return activeThread;
+}
+
 async function expectStorageContains(page, key, text) {
   await expect
     .poll(
@@ -812,8 +821,8 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
     const peerThreadButton = peerPage.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
     await expect(peerThreadButton).toBeVisible({ timeout: 45_000 });
     await expect(peerThreadButton.locator(".dashboard-chat-thread-unread")).toContainText("1", { timeout: 15_000 });
-    await peerThreadButton.click();
-    await expect(peerPage.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
+    const peerActiveThread = await openLiveChatThread(peerPage, threadId);
+    await expect(peerActiveThread).toContainText(messageText, { timeout: 45_000 });
 
     await expect
       .poll(
@@ -830,10 +839,8 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
     await signIn(page);
     primaryToken = await getLiveAccessToken(page);
     await openTeamChat(page);
-    const primaryThreadButton = page.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
-    await expect(primaryThreadButton).toBeVisible({ timeout: 45_000 });
-    await primaryThreadButton.click();
-    await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
+    const primaryActiveThread = await openLiveChatThread(page, threadId);
+    await expect(primaryActiveThread).toContainText(messageText, { timeout: 45_000 });
     const readReceiptStatus = page.locator('[data-dashboard-chat-message-delivery-status="read"]').last();
     await expect(readReceiptStatus).toHaveAttribute("title", /Read by 1/, { timeout: 45_000 });
 

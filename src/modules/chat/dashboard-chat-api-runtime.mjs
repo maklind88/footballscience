@@ -460,19 +460,18 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     const existingThreads = getApiThreads().filter((thread) => thread?.threadId && !isArchivedApiThread(thread));
     const normalizedThreads = threads.map(normalizeDashboardApiThread).filter((thread) => thread?.threadId);
     const selectedThreadId = normalizeDashboardChatThreadId(getDashboardChatCurrentViewState?.().selectedThreadId || "", "");
-    const shouldPreserveSelectedGroup = Boolean(
+    const shouldPreserveSelectedThread = Boolean(
       options.replace &&
         selectedThreadId &&
-        (selectedThreadId.startsWith("group-") || selectedThreadId.startsWith("group:")) &&
         existingThreads.some((thread) => thread.threadId === selectedThreadId) &&
         !normalizedThreads.some((thread) => thread.threadId === selectedThreadId)
     );
-    const preservedSelectedGroup = shouldPreserveSelectedGroup
+    const preservedSelectedThread = shouldPreserveSelectedThread
       ? existingThreads.find((thread) => thread.threadId === selectedThreadId)
       : null;
     const existingById = new Map(existingThreads.map((thread) => [thread.threadId, thread]));
     const byId = new Map(
-      (options.replace ? [preservedSelectedGroup].filter(Boolean) : existingThreads).map((thread) => [thread.threadId, thread])
+      (options.replace ? [preservedSelectedThread].filter(Boolean) : existingThreads).map((thread) => [thread.threadId, thread])
     );
     normalizedThreads.forEach((thread) => {
       if (isArchivedApiThread(thread)) {

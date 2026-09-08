@@ -34,7 +34,7 @@
         ? window.__videoAnalysisSmokeClips
         : defaultClips
       ).map((clip) => ({ ...clip }));
-      const matches = [
+      const matches = window.__videoAnalysisSmokeMatches || [
         {
           id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
           title: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
@@ -57,7 +57,7 @@
           source_count: 1,
         },
       ];
-      const scheduleCandidates = [
+      const scheduleCandidates = window.__videoAnalysisSmokeScheduleCandidates || [
         {
           id: "schedule-training-1",
           scheduleEventId: "schedule-training-1",
@@ -614,7 +614,7 @@
         canEdit: () => true,
         videoAnalysisInitialState: initialStateFromQuery,
         getScheduleState: () => ({
-          events: [
+          events: window.__videoAnalysisSmokeScheduleEvents || [
             { id: "schedule-match-1", date: "2026-05-31", type: "match", title: "Angel City away" },
             { id: "schedule-training-1", date: "2026-06-02", type: "training", title: "MD+2 Training" },
           ],

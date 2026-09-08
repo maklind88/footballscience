@@ -37,6 +37,7 @@ Only player marker types may carry these optional additive fields:
 - Number/Initials/Photo share the existing player marker dimensions in each surface. Photos are clipped inside the team-coloured marker; changing display never enlarges it. The editor retains its existing touch sizing; read-only playback retains canonical pitch scaling and print retains existing print size adjustments.
 - The animation engine retains native coordinate interpolation. Rendering only replaces a segment at frame boundaries, not each animation tick. Browsers reuse normal HTTPS image caching.
 - No assignment controls exist in read-only previews/presentations. Both the inspector and existing frame persistence enforce edit permission. Search/selection/playback are not saves.
+- Read-only frames reconcile the saved active-frame element mirror exactly as the editor does before choosing frame one. This preserves older drawings with stale frame snapshots without writing a migration or filling deliberately empty non-active frames.
 
 ## Verification
 

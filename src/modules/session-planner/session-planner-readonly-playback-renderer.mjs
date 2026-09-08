@@ -4,7 +4,11 @@ import { renderTacticalPlaybackIcon } from "./session-planner-tactical-playback-
 export function getReadonlyTacticalView(block) {
   if (!block) return null;
   const frames = (Array.isArray(block.tacticalFrames) ? block.tacticalFrames : [])
-    .filter((frame) => frame && Array.isArray(frame.elements));
+    .filter((frame) => frame && Array.isArray(frame.elements))
+    // Match the editor's legacy active-frame mirror before selecting frame one.
+    .map((frame) => frame.id && frame.id === block.tacticalActiveFrameId && Array.isArray(block.tacticalElements)
+      ? { ...frame, elements: block.tacticalElements }
+      : frame);
   return {
     id: block.id,
     diagram: block.diagram,

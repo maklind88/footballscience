@@ -9,7 +9,7 @@ const localDate = () => {
   return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
 };
 
-async function boot(page, { presentation = false, pitchMode = "full-wide", frames = true, visualImage = "", blockCount = 2 } = {}) {
+async function boot(page, { presentation = false, pitchMode = "full-wide", frames = true, visualImage = "", blockCount = 2, legacyFrameMirror = false } = {}) {
   const date = localDate();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -22,6 +22,9 @@ async function boot(page, { presentation = false, pitchMode = "full-wide", frame
     ...(frames ? { tacticalActiveFrameId: "second", tacticalFrames: [
       { id: "first", label: "Frame 1", elements }, { id: "second", label: "Frame 2", elements: second },
     ] } : {}) };
+  if (legacyFrameMirror) Object.assign(block, {
+    tacticalActiveFrameId: "first", tacticalFrames: [{ id: "first", label: "Frame 1", elements: [] }],
+  });
   await page.addInitScript(({ key, date, block, blockCount }) => {
     if (localStorage.getItem(key)) return;
     localStorage.setItem(key, JSON.stringify({ selectedDate: date, sessions: { [date]: {
@@ -164,6 +167,31 @@ test("overview and both coach sheet pages keep frame one after preview playback"
   expect(await page.evaluate(() => window.qaPlaybackWrites)).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+for (const presentation of [false, true]) {
+  test(`legacy frame mirror stays visible without saves in ${presentation ? "Presentation" : "preview, overview and print"}`, async ({ page }) => {
+    const { view, errors } = await boot(page, { presentation, legacyFrameMirror: true, blockCount: 4 });
+    const before = await storage(page);
+    const marker = view.locator(`.session-readonly-source ${player}`);
+    await expect(marker).toBeVisible();
+    expect((await position(marker)).x).toBeCloseTo(40, 1);
+    await expect(view.locator(".session-readonly-controls")).toHaveCount(0);
+    if (!presentation) {
+      await page.locator("[data-session-close-visual-preview]").click();
+      const overview = page.locator(`.session-media-preview ${player}`);
+      await expect(overview).toBeVisible();
+      expect((await position(overview)).x).toBeCloseTo(40, 1);
+      await page.locator("[data-session-open-print]").click();
+      const printed = page.locator(`.session-print-page ${player}`);
+      await expect(printed).toHaveCount(4);
+      expect(await printed.evaluateAll((items) => items.map((item) => item.style.left)))
+        .toEqual(["40%", "40%", "40%", "40%"]);
+    }
+    expect(await storage(page)).toBe(before);
+    expect(await page.evaluate(() => window.qaPlaybackWrites)).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+}
 
 test("Preview retains paused playback through refresh but resets for changed source or block", async ({ page }) => {
   const { view } = await boot(page);

@@ -26,6 +26,27 @@ test("readonly projection starts at the first frame and excludes unrelated sessi
   expect(getReadonlyTacticalView(source).tacticalElements).toEqual([]);
 });
 
+test("readonly frames honor the editor's legacy active-frame mirror without changing saved data", () => {
+  const source = block();
+  source.tacticalFrames[1].elements = [];
+  const before = structuredClone(source);
+  const view = getReadonlyTacticalView(source);
+  expect(view.tacticalElements).toEqual(source.tacticalFrames[0].elements);
+  expect(view.tacticalFrames[1].elements).toEqual(source.tacticalElements);
+  expect(source).toEqual(before);
+
+  source.tacticalFrames = [{ id: "first", elements: [] }];
+  source.tacticalActiveFrameId = "first";
+  expect(getReadonlyTacticalView(source).tacticalElements).toEqual(source.tacticalElements);
+  expect(source.tacticalFrames[0].elements).toEqual([]);
+
+  source.tacticalFrames[0].elements = before.tacticalElements;
+  source.tacticalElements = [];
+  expect(getReadonlyTacticalView(source).tacticalElements).toEqual([]);
+  delete source.tacticalElements;
+  expect(getReadonlyTacticalView(source).tacticalElements).toEqual(before.tacticalElements);
+});
+
 test("shared visual previews stay static unless their controller explicitly opts in", () => {
   const renderer = createSessionPlannerVisualRenderer({ getState: () => ({ visualPreviewOpen: true }) });
   const source = block();
@@ -103,7 +124,8 @@ test("equivalent source updates retain readonly playback; changed content, day o
   expect(controller.retain(source, "day:block")).toBeNull();
   controller.mount();
   expect(controller.retain(structuredClone(source), "day:block")).toBe(modal);
-  expect(controller.retain({ ...source, objective: "Updated notes", tacticalActiveFrameId: "first" }, "day:block")).toBe(modal);
+  expect(controller.retain({ ...source, objective: "Updated notes", tacticalActiveFrameId: "first",
+    tacticalElements: source.tacticalFrames[0].elements }, "day:block")).toBe(modal);
   expect(controller.retain(source, "other-day:block")).toBeNull();
   expect(controller.retain(source, "day:other-block")).toBeNull();
   source.tacticalFrames[0].elements[0].x = 30;

@@ -628,6 +628,15 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       (!previousComposerRawDraft || previousComposerRawDraft.trim() === submittedComposerDraft);
     const previousComposerDraft = shouldClearSubmittedComposerDraft ? "" : previousComposerRawDraft;
     const previousOpenMessageMenuState = readOpenDashboardChatMessageMenu(root);
+    const previousCreateMenu = root.querySelector("[data-dashboard-chat-thread-presets]");
+    const wasCreateMenuOpen = previousCreateMenu?.open === true;
+    const previousCreateMenuFocus = wasCreateMenuOpen && previousCreateMenu.contains(activeElement)
+      ? [
+          "data-dashboard-chat-create-menu-trigger",
+          "data-dashboard-chat-open-direct-creator",
+          "data-dashboard-chat-open-group-creator",
+        ].find((attribute) => activeElement.hasAttribute(attribute))
+      : "";
 
     const existingThreadList = root.querySelector("[data-dashboard-chat-thread-list]");
     const previousThreadListScrollTop = existingThreadList?.scrollTop ?? 0;
@@ -777,6 +786,13 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     root.dataset.dashboardChatRenderSignature = renderSignature;
     applyDashboardChatWidgetToastState(root, dashboardChatWidgetToastState);
     restoreOpenDashboardChatMessageMenu(root, previousOpenMessageMenuState);
+    if (wasCreateMenuOpen && state.isOpen && !getDashboardChatGroupCreatorOpen()) {
+      const nextCreateMenu = root.querySelector("[data-dashboard-chat-thread-presets]");
+      nextCreateMenu?.setAttribute("open", "");
+      if (previousCreateMenuFocus) {
+        focusDashboardChatElement(nextCreateMenu?.querySelector(`[${previousCreateMenuFocus}]`));
+      }
+    }
     restoreDashboardChatDialogDrafts(root, previousDialogDrafts);
     if (shouldClearSubmittedComposerDraft) {
       dashboardChatSubmittedComposerDrafts.delete(previousComposerThreadId);

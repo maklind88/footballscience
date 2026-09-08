@@ -1,5 +1,7 @@
 # Medical Room Design Coverage
 
+Follow [AGENTS.md](../../AGENTS.md), including user-controlled release authorization and module ownership.
+
 Status: verified local candidate, not released. Owner: Medical Room.
 Branch: `codex/medical-complete-design-20260908`.
 Baseline: `da14e839`.

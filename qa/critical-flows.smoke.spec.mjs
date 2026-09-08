@@ -6653,7 +6653,7 @@ test("Medical recommends only Available date-bound Squad training guests and inc
 
   const guestPanel = medicalWorkspace.locator(".medical-temporary-player-panel");
   const guestRow = guestPanel.locator(`[data-medical-roster-row="${guest.id}"]`);
-  await expect(guestPanel).toContainText("1 available for this date");
+  await expect(guestPanel.locator(".medical-temporary-player-head > p")).toHaveText("1 player");
   await expect(guestRow).toContainText(guest.name);
   await expect(guestPanel.locator(`[data-medical-roster-row="${blockedGuest.id}"]`)).toHaveCount(0);
 

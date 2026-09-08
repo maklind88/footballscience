@@ -11,7 +11,7 @@
 #medicalTeamWorkspace .medical-ops-season,
 #medicalTeamWorkspace .medical-rtp-case-layout {
   display: grid;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 #medicalTeamWorkspace .medical-ops-brief,
@@ -37,23 +37,23 @@
 #medicalTeamWorkspace .medical-ops-brief > span,
 #medicalTeamWorkspace .medical-command-head > span {
   color: var(--medical-muted);
-  font-size: 0.68rem;
-  font-weight: 760;
+  font-size: var(--medical-text-label);
+  font-weight: 500;
   letter-spacing: 0;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 #medicalTeamWorkspace .medical-ops-brief strong {
   min-width: 0;
   color: var(--medical-ink);
-  font-size: 0.86rem;
-  font-weight: 740;
+  font-size: var(--medical-text-body);
+  font-weight: 600;
 }
 
 #medicalTeamWorkspace .medical-ops-brief small {
   color: var(--medical-muted);
-  font-size: 0.68rem;
-  font-weight: 640;
+  font-size: var(--medical-text-small);
+  font-weight: 400;
 }
 
 #medicalTeamWorkspace .medical-ops-stats {
@@ -67,7 +67,7 @@
 }
 
 #medicalTeamWorkspace .medical-ops-stat {
-  min-height: 4.5rem;
+  min-height: 5rem;
   display: grid;
   align-content: center;
   gap: 0.1rem;
@@ -87,15 +87,17 @@
 #medicalTeamWorkspace .medical-ops-stat span,
 #medicalTeamWorkspace .medical-ops-stat small {
   color: var(--medical-muted);
-  font-size: 0.65rem;
-  font-weight: 680;
+  font-size: var(--medical-text-small);
+  font-weight: 400;
   letter-spacing: 0;
+  text-transform: none;
 }
 
 #medicalTeamWorkspace .medical-ops-stat strong {
   color: var(--medical-ink);
-  font-size: 1.16rem;
-  font-weight: 780;
+  font-size: 1.5rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0;
 }
 
@@ -118,7 +120,7 @@
 
 #medicalTeamWorkspace .medical-reports-workspace {
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.85rem;
+  gap: 1rem;
 }
 
 #medicalTeamWorkspace .medical-reports-heading,
@@ -141,25 +143,25 @@
 #medicalTeamWorkspace .medical-reports-heading span,
 #medicalTeamWorkspace .medical-reports-section-head span {
   color: var(--medical-muted);
-  font-size: 0.66rem;
-  font-weight: 740;
+  font-size: var(--medical-text-label);
+  font-weight: 500;
   letter-spacing: 0;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 #medicalTeamWorkspace .medical-reports-heading h2 {
   margin: 0;
   color: var(--medical-ink);
   font-size: 1.18rem;
-  font-weight: 760;
+  font-weight: 650;
   letter-spacing: 0;
-  line-height: 1.15;
+  line-height: 1.35;
 }
 
 #medicalTeamWorkspace .medical-reports-heading small {
   color: var(--medical-muted);
-  font-size: 0.7rem;
-  font-weight: 620;
+  font-size: var(--medical-text-small);
+  font-weight: 400;
   text-align: right;
 }
 
@@ -172,7 +174,7 @@
 #medicalTeamWorkspace .medical-reports-section-head strong {
   color: var(--medical-ink);
   font-size: 0.9rem;
-  font-weight: 740;
+  font-weight: 600;
 }
 
 #medicalTeamWorkspace .medical-reports-metrics .medical-metric-card-no-meta strong {
@@ -183,7 +185,11 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
-  gap: 0.75rem;
+  gap: 1rem;
+}
+
+#medicalTeamWorkspace .medical-reports-detail-grid > .medical-ops-card {
+  min-height: 0;
 }
 
 #medicalTeamWorkspace .medical-ops-card {
@@ -199,13 +205,13 @@
   gap: 0.75rem;
   padding: 0.62rem 0.85rem;
   border-bottom: 1px solid var(--medical-line);
-  background: var(--medical-surface-muted);
+  background: var(--medical-surface);
 }
 
 #medicalTeamWorkspace .medical-command-head strong {
   color: var(--medical-ink);
-  font-size: 0.82rem;
-  font-weight: 760;
+  font-size: var(--medical-text-body);
+  font-weight: 600;
 }
 
 #medicalTeamWorkspace .medical-ops-table {
@@ -226,8 +232,10 @@
   border-bottom: 1px solid var(--medical-line);
   color: var(--medical-muted);
   background: var(--medical-surface-muted);
-  font-size: 0.64rem;
-  font-weight: 740;
+  font-size: var(--medical-text-small);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -275,18 +283,23 @@
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--medical-ink);
-  font-size: 0.76rem;
-  font-weight: 710;
-  line-height: 1.25;
+  font-size: var(--medical-text-body);
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 #medicalTeamWorkspace .medical-ops-table-row small {
   display: block;
   margin-top: 0.15rem;
   color: var(--medical-muted);
-  font-size: 0.65rem;
-  font-weight: 610;
-  line-height: 1.3;
+  font-size: var(--medical-text-small);
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+#medicalTeamWorkspace .medical-ops-table-row > [data-label="Player"],
+#medicalTeamWorkspace .medical-ops-table-row > [data-label="Next action"] {
+  font-weight: 600;
 }
 
 #medicalTeamWorkspace .medical-ops-chip {
@@ -299,8 +312,8 @@
   border-radius: 4px;
   color: var(--medical-muted);
   background: var(--medical-surface-muted);
-  font-size: 0.62rem;
-  font-weight: 720;
+  font-size: var(--medical-text-small);
+  font-weight: 500;
 }
 
 #medicalTeamWorkspace .medical-ops-chip-high {
@@ -378,24 +391,24 @@
 
 #medicalTeamWorkspace .medical-ops-history-controls label > span {
   color: var(--medical-muted);
-  font-size: 0.64rem;
-  font-weight: 740;
-  text-transform: uppercase;
+  font-size: var(--medical-text-small);
+  font-weight: 500;
+  text-transform: none;
 }
 
 #medicalTeamWorkspace .medical-ops-history-controls input,
 #medicalTeamWorkspace .medical-ops-history-controls select,
 #medicalTeamWorkspace .medical-ops-history-search-button {
   min-width: 0;
-  min-height: 2.35rem;
+  min-height: var(--medical-control-height);
   border: 1px solid var(--medical-line);
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--medical-ink);
   background: var(--medical-surface);
   box-shadow: none;
   font: inherit;
-  font-size: 0.74rem;
-  font-weight: 650;
+  font-size: var(--medical-text-label);
+  font-weight: 400;
 }
 
 #medicalTeamWorkspace .medical-ops-history-search-button {
@@ -433,8 +446,10 @@
 
 #medicalTeamWorkspace .medical-ops-severity-grid span {
   color: var(--medical-muted);
-  font-size: 0.66rem;
-  font-weight: 690;
+  font-size: var(--medical-text-label);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 #medicalTeamWorkspace .medical-ops-severity-grid strong {
@@ -471,8 +486,8 @@
 
 #medicalTeamWorkspace .medical-program-row-action,
 #medicalTeamWorkspace .medical-rtp-library-more {
-  min-height: 2.15rem;
-  border-radius: 5px;
+  min-height: var(--medical-control-height);
+  border-radius: 6px;
   box-shadow: none;
 }
 
@@ -510,8 +525,9 @@
   border-radius: 0;
   color: var(--medical-muted);
   background: var(--medical-surface-muted);
-  font-size: 0.76rem;
-  font-weight: 650;
+  font-size: var(--medical-text-body);
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 @media (max-width: 900px) {
@@ -531,6 +547,41 @@
 }
 
 @media (max-width: 640px) {
+  #medicalTeamWorkspace .medical-ops-table-head {
+    display: none;
+  }
+
+  #medicalTeamWorkspace .medical-ops-table-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 0.85rem 1rem;
+    padding: 1rem;
+  }
+
+  #medicalTeamWorkspace .medical-ops-table-row > [data-label="Player"] {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    font-size: 1rem;
+  }
+
+  #medicalTeamWorkspace .medical-ops-table-row > [data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--medical-muted);
+    font-size: var(--medical-text-small);
+    font-weight: 400;
+  }
+
+  #medicalTeamWorkspace .medical-ops-table-row > [data-label="Player"]::before {
+    display: none;
+  }
+
+  #medicalTeamWorkspace .medical-ops-history-controls input,
+  #medicalTeamWorkspace .medical-ops-history-controls select {
+    font-size: 1rem;
+  }
+
   #medicalTeamWorkspace .medical-reports-heading {
     align-items: start;
     flex-direction: column;

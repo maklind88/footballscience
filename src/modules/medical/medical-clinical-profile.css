@@ -29,16 +29,16 @@
 #medicalTeamWorkspace .medical-profile-summary-grid span,
 #medicalTeamWorkspace .medical-profile-summary-foot span {
   color: var(--medical-muted);
-  font-size: 0.65rem;
-  font-weight: 650;
+  font-size: var(--medical-text-small);
+  font-weight: 400;
 }
 
 #medicalTeamWorkspace .medical-profile-summary-grid strong,
 #medicalTeamWorkspace .medical-profile-summary-foot strong {
   overflow-wrap: anywhere;
   color: var(--medical-ink);
-  font-size: 0.76rem;
-  font-weight: 740;
+  font-size: var(--medical-text-body);
+  font-weight: 600;
 }
 
 #medicalTeamWorkspace .medical-profile-summary-foot {
@@ -57,13 +57,14 @@
   border-top: 1px solid var(--medical-line);
   color: var(--medical-ink);
   background: var(--medical-accent-soft);
-  font-size: 0.72rem;
-  line-height: 1.4;
+  font-size: var(--medical-text-body);
+  line-height: 1.55;
 }
 
 #medicalTeamWorkspace .medical-profile-form {
-  gap: 0.7rem;
-  padding: 0.75rem;
+  gap: 1rem;
+  margin: 0;
+  padding: 1rem 0;
 }
 
 @media (max-width: 520px) {

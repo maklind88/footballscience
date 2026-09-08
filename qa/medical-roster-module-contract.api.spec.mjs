@@ -55,7 +55,13 @@ test("Medical roster renderer owns availability workspace and roster rows", () =
   expect(workspace).toContain("Mak Player");
   expect(workspace).toContain("Available Guest");
   expect(workspace).not.toContain("Unavailable Guest");
-  expect(workspace).toContain("1 available for this date");
+  expect(workspace).toContain("<strong>Training guests</strong>");
+  expect(workspace).toContain("<p>1 player</p>");
+  expect(workspace).toContain("medical-position-count\">1 player</span>");
+  expect(workspace).toContain("<span>1 modified</span>");
+  expect(workspace).not.toContain("<span>0 full</span>");
+  expect(workspace).not.toContain("<span>0 unavailable</span>");
+  expect(workspace).not.toContain("<span>0 not set</span>");
   expect(workspace).toContain("data-medical-quick-recommend");
   expect(workspace).toContain("data-medical-quick-clear");
   expect(workspace).toContain("medical-quick-rec-row has-clear");

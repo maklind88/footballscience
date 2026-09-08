@@ -181,14 +181,18 @@ ${latestComment ? `<p class="medical-row-comment">${escapeHtml(latestComment)}</
 
   const renderPositionGroup = (group) => {
     const stats = getMedicalRosterPositionStats(group.players);
+    const summary = [[stats.full, "full"], [stats.modified, "modified"], [stats.unavailable, "unavailable"], [stats.missing, "not set"]]
+      .filter(([count]) => count > 0)
+      .map(([count, label]) => `<span>${count} ${label}</span>`)
+      .join("");
     return `
 <section class="medical-position-group">
 <header class="medical-position-group-head">
 <div>
-<span>Position</span>
 <strong>${escapeHtml(group.position)}</strong>
+<span class="medical-position-count">${stats.total} ${stats.total === 1 ? "player" : "players"}</span>
 </div>
-<p>${stats.total} players / ${stats.full} full / ${stats.modified} modified / ${stats.unavailable} unavailable / ${stats.missing} not set</p>
+<p>${summary}</p>
 </header>
 <div class="medical-roster-list">
 <div class="medical-roster-list-head" aria-hidden="true">
@@ -207,11 +211,10 @@ ${group.players.map(renderRosterRow).join("")}
 <section class="medical-temporary-player-panel" aria-label="Temporary training guests for selected date">
 <header class="medical-temporary-player-head">
 <div>
-<span class="medical-temporary-tab">Training guests</span>
-<strong>Temporary players</strong>
-<small>Training window includes ${escapeHtml(formatMedicalDateLabel(getSelectedDate(), "long"))} and Squad status is Available.</small>
+<strong>Training guests</strong>
+<small>${escapeHtml(formatMedicalDateLabel(getSelectedDate(), "long"))}</small>
 </div>
-<p>${activeCount ? `${activeCount} available for this date` : "None available for this date"}</p>
+${activeCount ? `<p>${activeCount} ${activeCount === 1 ? "player" : "players"}</p>` : ""}
 </header>
 ${
   activeCount

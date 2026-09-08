@@ -274,11 +274,11 @@ ${signals.length
       : "No active case";
     return `
 <button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-table-row medical-ops-tone-${escapeHtml(signal.tone)}">
-<span>${escapeHtml(signal.player.name)}<small>${escapeHtml(signal.player.position || "Position")}</small></span>
-<strong>${signal.record ? `${signal.record.participation}%` : "Not set"}<small>${escapeHtml(signal.status.label)}</small></strong>
-<span>${escapeHtml(planLabel)}<small>${signal.trailing.average === null ? "No 7-day trend" : `${signal.trailing.average}% trailing average`}</small></span>
-<span class="medical-ops-driver-cell">${renderSignalDrivers(signal, 4)}</span>
-<strong>${escapeHtml(signal.actionSeverity ? signal.actionLabel : signal.label)}<small>${escapeHtml(signal.actionSeverity ? signal.primaryActionDriver : "No action")}</small></strong>
+<span data-label="Player">${escapeHtml(signal.player.name)}<small>${escapeHtml(signal.player.position || "Position")}</small></span>
+<strong data-label="Availability">${signal.record ? `${signal.record.participation}%` : "Not set"}<small>${escapeHtml(signal.status.label)}</small></strong>
+<span data-label="Case / RTP">${escapeHtml(planLabel)}<small>${signal.trailing.average === null ? "No 7-day trend" : `${signal.trailing.average}% trailing average`}</small></span>
+<span data-label="Signals" class="medical-ops-driver-cell">${renderSignalDrivers(signal, 4)}</span>
+<strong data-label="Next action">${escapeHtml(signal.actionSeverity ? signal.actionLabel : signal.label)}<small>${escapeHtml(signal.actionSeverity ? signal.primaryActionDriver : "No action")}</small></strong>
 </button>
 `;
   }).join("")
@@ -302,11 +302,11 @@ ${summary.activeCases.length
       .map(
         ({ player, plan, severity, daysRemaining, elapsedDays, review, clearance }) => `
 <button type="button" data-medical-select-player="${escapeHtml(player.id)}" class="medical-ops-table-row medical-ops-tone-${escapeHtml(severity.tone)}">
-<span>${escapeHtml(player.name)}<small>${escapeHtml(player.position || "Position")}</small></span>
-<strong>${escapeHtml(plan.injuryType)}<small>${escapeHtml([plan.bodyArea, severity.label].filter(Boolean).join(" / "))}</small></strong>
-<span>${escapeHtml(formatMedicalDateLabel(plan.startDate))} - ${escapeHtml(formatMedicalDateLabel(plan.endDate))}<small>${elapsedDays} done / ${daysRemaining} left</small></span>
-<strong>${escapeHtml(getMedicalRtpPhaseOption(plan.rtpPhase).label)}<small>${plan.participation}% recommended</small></strong>
-<span>${clearance.signOffCount}/${medicalClearanceRoles.length} sign-off<small>${clearance.gatePassCount}/${medicalLoadGateOptions.length} gates / ${escapeHtml(review.label)}</small></span>
+<span data-label="Player">${escapeHtml(player.name)}<small>${escapeHtml(player.position || "Position")}</small></span>
+<strong data-label="Case">${escapeHtml(plan.injuryType)}<small>${escapeHtml([plan.bodyArea, severity.label].filter(Boolean).join(" / "))}</small></strong>
+<span data-label="Plan dates">${escapeHtml(formatMedicalDateLabel(plan.startDate))} - ${escapeHtml(formatMedicalDateLabel(plan.endDate))}<small>${elapsedDays} done / ${daysRemaining} left</small></span>
+<strong data-label="RTP / Recommendation">${escapeHtml(getMedicalRtpPhaseOption(plan.rtpPhase).label)}<small>${plan.participation}% recommended</small></strong>
+<span data-label="Clearance / Review">${clearance.signOffCount}/${medicalClearanceRoles.length} sign-off<small>${clearance.gatePassCount}/${medicalLoadGateOptions.length} gates / ${escapeHtml(review.label)}</small></span>
 </button>
 `
       )
@@ -423,11 +423,11 @@ data-medical-history-row-visible="${index < initialVisibleCount ? "true" : "fals
 class="medical-ops-table-row"
 ${index < initialVisibleCount ? "" : "hidden"}
 >
-<span>${escapeHtml(formatMedicalDateLabel(event.date))}</span>
-<strong>${escapeHtml(event.player.name)}<small>${escapeHtml(event.player.position || "Position")}</small></strong>
-<span>${escapeHtml(event.type)}</span>
-<span>${escapeHtml(event.title)}<small>${escapeHtml(event.detail)}</small></span>
-<strong>${event.coachShared ? "Approved" : "Private"}<small>${event.coachShared ? "coach-safe" : "medical only"}</small></strong>
+<span data-label="Date">${escapeHtml(formatMedicalDateLabel(event.date))}</span>
+<strong data-label="Player">${escapeHtml(event.player.name)}<small>${escapeHtml(event.player.position || "Position")}</small></strong>
+<span data-label="Type">${escapeHtml(event.type)}</span>
+<span data-label="Detail">${escapeHtml(event.title)}<small>${escapeHtml(event.detail)}</small></span>
+<strong data-label="Visibility">${event.coachShared ? "Approved" : "Private"}<small>${event.coachShared ? "coach-safe" : "medical only"}</small></strong>
 </button>
 `
       )

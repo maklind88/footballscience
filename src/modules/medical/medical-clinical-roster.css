@@ -270,15 +270,56 @@
 }
 
 #medicalTeamWorkspace .medical-quick-rec-button.is-active {
-  border-color: var(--medical-accent);
-  color: #ffffff;
-  background: var(--medical-accent);
+  border-color: var(--medical-rec-border, #1f5b45);
+  color: var(--medical-rec-ink, #ffffff);
+  background: var(--medical-rec-fill, #1f5b45);
   box-shadow: none;
+  opacity: 1;
 }
 
-#medicalTeamWorkspace .medical-quick-rec-button.medical-quick-unavailable.is-active {
-  border-color: var(--medical-danger);
-  background: var(--medical-danger);
+#medicalTeamWorkspace .medical-quick-rec-button[data-medical-quick-participation="0"] {
+  --medical-rec-fill: #a63f35;
+  --medical-rec-border: #a63f35;
+}
+
+#medicalTeamWorkspace .medical-quick-rec-button[data-medical-quick-participation="10"] {
+  --medical-rec-fill: #f2b4b0;
+  --medical-rec-border: #c56a63;
+  --medical-rec-ink: #61241e;
+}
+
+#medicalTeamWorkspace .medical-quick-rec-button[data-medical-quick-participation="25"] {
+  --medical-rec-fill: #f0a24b;
+  --medical-rec-border: #a86620;
+  --medical-rec-ink: #562e0a;
+}
+
+#medicalTeamWorkspace .medical-quick-rec-button[data-medical-quick-participation="50"] {
+  --medical-rec-fill: #f6dc75;
+  --medical-rec-border: #927616;
+  --medical-rec-ink: #493b05;
+}
+
+#medicalTeamWorkspace .medical-quick-rec-button[data-medical-quick-participation="75"] {
+  --medical-rec-fill: #c2dda5;
+  --medical-rec-border: #5d8540;
+  --medical-rec-ink: #23411d;
+}
+
+/* Preserve percentage colors over the platform's important dark button rules. */
+body.is-dark-mode #medicalTeamWorkspace .medical-quick-rec-button.is-active {
+  border-color: var(--medical-rec-border, #1f5b45) !important;
+  color: var(--medical-rec-ink, #ffffff) !important;
+  background: var(--medical-rec-fill, #1f5b45) !important;
+}
+
+#medicalTeamWorkspace .medical-quick-rec-button:focus-visible {
+  outline: 2px solid var(--medical-ink);
+  outline-offset: 2px;
+}
+
+body.is-dark-mode #medicalTeamWorkspace .medical-quick-rec-button:focus-visible {
+  outline: 2px solid var(--medical-ink) !important;
 }
 
 #medicalTeamWorkspace .medical-quick-rec-button.medical-quick-clear {

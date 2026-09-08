@@ -6560,6 +6560,9 @@ test("Medical recommends only Available date-bound Squad training guests and inc
   const guest = {
     id: "qa-medical-training-guest",
     name: "QA Medical Training Guest",
+    // The seeded status is already effective on the training date, even after UTC midnight.
+    createdAt: `${dateValue}T00:00:00.000Z`,
+    updatedAt: `${dateValue}T00:00:00.000Z`,
     number: "94",
     position: "Forward",
     primaryRole: "ST",

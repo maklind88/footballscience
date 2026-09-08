@@ -83,15 +83,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  min-height: 2.55rem;
-  padding: 0.52rem 0.9rem;
+  min-height: 2.85rem;
+  padding: 0.65rem 0.9rem;
   border: 0;
-  border-bottom: 1px solid var(--medical-line);
-  background: var(--medical-surface-muted);
+  border-bottom: 1px solid #292c30;
+  background: #34373b;
 }
 
 #medicalTeamWorkspace .medical-position-group-head > div {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.45rem;
 }
@@ -107,13 +108,22 @@
 }
 
 #medicalTeamWorkspace .medical-position-group-head strong {
-  color: var(--medical-ink);
-  font-size: 0.84rem;
+  color: #ffffff;
+  font-size: 0.98rem;
   font-weight: 780;
+  line-height: 1.3;
+}
+
+#medicalTeamWorkspace .medical-position-group-head span,
+#medicalTeamWorkspace .medical-position-group-head p {
+  color: #d7dadd;
 }
 
 #medicalTeamWorkspace .medical-position-group-head p {
   margin: 0;
+  min-width: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
   text-align: right;
 }
 

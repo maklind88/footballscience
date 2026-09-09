@@ -98,6 +98,28 @@ environment in this isolated worktree. Authenticated release checks run in GitHu
   affected Sessions specs and the unchanged Video spec passed: 33 tests total.
   A new full Safe Lane run must still pass, including staging and production gates.
 
+### IDP validation prerequisite
+
+The user authorized resolving the subsequent IDP/Scouting QA blocker as part of
+the Sessions release. Sessions owns this narrow task/release; IDP, Squad and
+Scouting retain their production data and runtime ownership.
+
+The IDP cache-recovery test previously asserted radar content while its lazy-loaded
+profile dataset request was still pending. Two full runs failed at that assertion;
+three isolated repetitions and three repetitions of the whole click-audit file
+passed. This did not establish a production runtime defect or a suite-order cause.
+
+`qa/platform-click-audit.smoke.spec.mjs` now explicitly waits for the real profile
+dataset response and completed download, verifies HTTP success, and attaches its
+load duration before running every existing radar/content/data-source assertion.
+No dataset is mocked, no timeout is increased, and no IDP, Squad or Scouting product
+code is changed. This separates network readiness from content recovery and keeps
+either failure blocking release.
+
+Validation: six tests passed over three whole-file repetitions, followed by full
+`npm run qa`: 2,868 passed and 3 existing fixture-dependent skips. Staging and
+production verification remain required for the exact committed candidate.
+
 ## Release and recovery cautions
 
 Before release, fetch/rebase the isolated candidate on the current main, repeat

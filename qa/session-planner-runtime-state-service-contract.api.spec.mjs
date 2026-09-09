@@ -30,6 +30,14 @@ function createSnapshotDatabase(snapshots = []) {
     transaction: () => {
       const transaction = {};
       const store = {
+        get: (id) => {
+          const request = {};
+          queueMicrotask(() => {
+            request.result = records.get(id);
+            request.onsuccess?.();
+          });
+          return request;
+        },
         getAll: () => {
           const request = {};
           queueMicrotask(() => {
@@ -97,6 +105,7 @@ function createHarness(options = {}) {
     findWorkspaceFieldElements: () => options.fields || [],
     formatMultiValue: (value) => String(value || "").split(",").map((item) => item.trim()).filter(Boolean),
     getActiveWorkspaceId: () => options.activeWorkspaceId || "session-planner",
+    getRecoveryContext: () => ({ scope: "synthetic-coach-and-team", revision: 1, ready: true }),
     getSelectedBlock: () => stateRef.current.sessions["2026-05-01"].blocks[0],
     getSessionPlannerState: () => stateRef.current,
     logEvent: (message) => calls.push(["log", message]),
@@ -258,7 +267,7 @@ test("Session Planner runtime state service durably falls back and queues centra
   expect(service.writeState()).toBe(true);
   expect(await service.flushQuotaFallback()).toBe(true);
 
-  const snapshot = snapshotDatabase.records.get(`${storageKey}-quota-fallback`);
+  const snapshot = snapshotDatabase.records.get(`${storageKey}-quota-fallback:synthetic-coach-and-team`);
   expect(JSON.parse(snapshot.storage[storageKey]).sessions["2026-05-01"].blocks[0].title).toBe("Old");
   expect(calls).toContainEqual([
     "cache",
@@ -284,7 +293,7 @@ test("Session Planner quota fallback keeps the latest of rapid consecutive edits
   expect(service.writeState()).toBe(true);
   expect(await service.flushQuotaFallback()).toBe(true);
 
-  const snapshot = snapshotDatabase.records.get(`${storageKey}-quota-fallback`);
+  const snapshot = snapshotDatabase.records.get(`${storageKey}-quota-fallback:synthetic-coach-and-team`);
   expect(JSON.parse(snapshot.storage[storageKey]).sessions["2026-05-01"].blocks[0].title).toBe("Latest rapid edit");
 });
 
@@ -401,6 +410,21 @@ test("Session Planner runtime state service returns the default state when local
 
   expect(state).toEqual({ selectedDate: "default", sessions: {} });
 });
+
+for (const failure of ["invalid JSON", "read failure"]) {
+  test(`Session Planner keeps the central cache when local storage has ${failure}`, () => {
+    const key = "football-session-planner-v3";
+    const centralState = { selectedDate: "2026-09-08", sessions: { "2026-09-08": { blocks: [{ id: "saved" }] } } };
+    const { service, localStorage, calls } = createHarness({
+      initialStorage: { [key]: "broken-json" },
+      centralCachedValues: { [key]: JSON.stringify(centralState) },
+    });
+    if (failure === "read failure") localStorage.getItem = () => { throw new Error("Storage unavailable"); };
+    expect(service.readState()).toEqual(centralState);
+    expect(calls).toEqual([]);
+    expect(localStorage.setItemCalls).toEqual([]);
+  });
+}
 
 test("Session Planner runtime state service recovers sessions from data safety snapshots", async () => {
   const storageKey = "football-session-planner-v3";

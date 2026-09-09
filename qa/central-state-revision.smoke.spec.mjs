@@ -673,26 +673,35 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
       return write ? JSON.parse(write.value).sessions?.["2026-07-21"]?.blocks?.[0]?.title || "" : "";
     }, { timeout: 10_000 }).toBe("Quota fallback saved edit");
 
-    await expect.poll(() => tab.page.evaluate(async ({ databaseName, key, snapshotId, storeName }) => {
+    await expect.poll(() => tab.page.evaluate(async ({ databaseName, key, userId, storeName }) => {
       const database = await new Promise((resolve, reject) => {
         const request = window.indexedDB.open(databaseName, 1);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
-      const snapshot = await new Promise((resolve, reject) => {
-        const request = database.transaction(storeName, "readonly").objectStore(storeName).get(snapshotId);
-        request.onsuccess = () => resolve(request.result || null);
+      const snapshots = await new Promise((resolve, reject) => {
+        const request = database.transaction(storeName, "readonly").objectStore(storeName).getAll();
+        request.onsuccess = () => resolve(request.result || []);
         request.onerror = () => reject(request.error);
       });
       database.close();
+      const snapshot = snapshots.find((entry) => entry.reason === "session-planner-quota-fallback" &&
+        entry.recovery?.scope && JSON.parse(entry.recovery.scope)[0] === userId);
       const fallbackState = snapshot?.storage?.[key] ? JSON.parse(snapshot.storage[key]) : null;
-      return fallbackState?.sessions?.["2026-07-21"]?.blocks?.[0]?.title || "";
+      return {
+        title: fallbackState?.sessions?.["2026-07-21"]?.blocks?.[0]?.title || "",
+        organization: snapshot?.recovery?.scope ? JSON.parse(snapshot.recovery.scope)[1] : "",
+        baseRevision: snapshot?.recovery?.baseRevision,
+        scopedId: snapshot?.id === `${key}-quota-fallback:${encodeURIComponent(snapshot?.recovery?.scope)}`,
+      };
     }, {
       databaseName: "football-science-data-safety-v1",
       key: sessionPlannerStateKey,
-      snapshotId: `${sessionPlannerStateKey}-quota-fallback`,
+      userId: qaUser.id,
       storeName: "snapshots",
-    }), { timeout: 10_000 }).toBe("Quota fallback saved edit");
+    }), { timeout: 10_000 }).toEqual({
+      title: "Quota fallback saved edit", organization: "org-qa", baseRevision: 106, scopedId: true,
+    });
   } finally {
     await closeCentralStateContext(tab.context);
   }

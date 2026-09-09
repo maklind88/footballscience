@@ -17,6 +17,7 @@ export function createCentralAppStateReloadService(deps = {}) {
   let refreshTimer = null;
   let lastRefreshAt = 0;
   let refreshInFlight = false;
+  let lastSessionPlannerReloadKey = "";
 
   const call = (name, ...args) => deps[name]?.(...args);
   const getHubState = () => call("getHubState") || null;
@@ -34,26 +35,30 @@ export function createCentralAppStateReloadService(deps = {}) {
 
   function readSessionPlannerStatePreservingUiSelection(previousSelection = getCurrentSessionPlannerUiSelection()) {
     const nextState = call("readSessionPlannerState");
-    if (getHubState()?.activeWorkspaceId !== "session-planner" || !previousSelection.dateValue) {
-      return nextState;
-    }
-    const previousSession = nextState.sessions?.[previousSelection.dateValue];
-    if (!previousSession) {
+    if (!previousSelection.dateValue) {
       return nextState;
     }
     nextState.selectedDate = previousSelection.dateValue;
-    if (previousSession.blocks.some((block) => block.id === previousSelection.blockId)) {
+    const previousSession = nextState.sessions?.[previousSelection.dateValue];
+    if (previousSession?.blocks?.some((block) => block.id === previousSelection.blockId)) {
       previousSession.selectedBlockId = previousSelection.blockId;
     }
     return nextState;
   }
 
   function reloadCentralizedAppStateFromStorage() {
-    if (!call("getCurrentPlatformUser")) {
+    const currentUser = call("getCurrentPlatformUser");
+    if (!currentUser) {
+      lastSessionPlannerReloadKey = "";
       return;
     }
     const previousSessionPlannerSelection = getCurrentSessionPlannerUiSelection();
     const previousWorkspaceId = getHubState()?.activeWorkspaceId || defaultActiveWorkspaceId;
+    const metadata = call("getCentralStateBridge")?.getStatus?.()?.metadata;
+    const sessionRevision = metadata?.["football-session-planner-v3"]?.revision;
+    const reloadKey = previousWorkspaceId === "session-planner" && Number.isInteger(sessionRevision)
+      ? JSON.stringify([currentUser, metadata, previousSessionPlannerSelection])
+      : "";
     if (getHubState()?.activeWorkspaceId === "session-planner") {
       call("syncSelectedSessionPlannerBlockFieldsFromDom");
     }
@@ -71,7 +76,9 @@ export function createCentralAppStateReloadService(deps = {}) {
     call("setSessionPlannerExerciseLibrary", call("readSessionPlannerExerciseLibrary"));
     call("syncGameSimulatorSavedSequencesFromStorage");
     call("queueSessionPlannerSnapshotRecovery");
-    call("renderWorkspaceChrome");
+    // Identical acknowledged revisions must not rebuild the coach's current view.
+    if (!reloadKey || reloadKey !== lastSessionPlannerReloadKey) call("renderWorkspaceChrome");
+    lastSessionPlannerReloadKey = reloadKey;
     call("scheduleDashboardLoginPopups");
   }
 

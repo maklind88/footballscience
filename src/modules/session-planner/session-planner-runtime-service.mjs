@@ -1,5 +1,6 @@
 import { createSessionPlannerBoardHistoryController } from "./session-planner-board-history-controller.mjs";
 import { createSessionPlannerRuntimeStateService } from "./session-planner-runtime-state-service.mjs";
+import { getSessionPlannerRecoveryContext } from "./session-planner-recovery-controller.mjs";
 import { createSessionPlannerTacticalController } from "./session-planner-tactical-controller.mjs";
 import { createSessionPlannerVisualUploadHelpers } from "./session-planner-visual-upload.mjs";
 import { createSessionPlannerWorkspaceController } from "./session-planner-workspace-controller.mjs";
@@ -30,6 +31,12 @@ export function createSessionPlannerRuntimeService(deps = {}) {
     findWorkspaceFieldElements: () => Array.from(deps.ui?.sessionPlannerWorkspace?.querySelectorAll("[data-session-field]") || []),
     formatMultiValue: deps.formatSessionPlannerMultiValue,
     getActiveWorkspaceId: deps.getActiveWorkspaceId,
+    getRecoveryContext: () => getSessionPlannerRecoveryContext({
+      user: deps.getPlatformAuthStore?.()?.getCurrentUser?.(),
+      bridge: deps.win?.footballScienceCentralState,
+      storageKey: deps.sessionPlannerStorageKey,
+      canEdit: deps.canEditSessionPlanner?.() === true,
+    }),
     getSelectedBlock: delegates.getSessionPlannerSelectedBlock,
     getSessionPlannerState,
     logEvent: deps.logEvent,
@@ -45,6 +52,7 @@ export function createSessionPlannerRuntimeService(deps = {}) {
     sessionPlannerMultiSelectFields: deps.sessionPlannerMultiSelectFields,
     sessionPlannerStorageKey: deps.sessionPlannerStorageKey,
     setSessionPlannerState: deps.setSessionPlannerState,
+    shouldDeferRecovery: deps.shouldDeferRecovery,
     showToast: showSessionPlannerToast,
     win: deps.win,
   });

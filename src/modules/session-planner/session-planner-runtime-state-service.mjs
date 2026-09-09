@@ -1,3 +1,5 @@
+import { createSessionPlannerRecoveryController, getSessionPlannerQuotaSnapshotId } from "./session-planner-recovery-controller.mjs";
+
 export function createSessionPlannerRuntimeStateService(deps = {}) {
   const {
     canWriteCentralBackedCache = () => false,
@@ -9,6 +11,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     findWorkspaceFieldElements = () => [],
     formatMultiValue = (value) => value,
     getActiveWorkspaceId = () => "",
+    getRecoveryContext = () => null,
     getSelectedBlock = () => null,
     getSessionPlannerState = () => null,
     logEvent = () => {},
@@ -27,15 +30,40 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     sessionPlannerMultiSelectFields = new Set(),
     sessionPlannerStorageKey = "football-session-planner-v3",
     setSessionPlannerState = () => {},
+    shouldDeferRecovery = () => false,
     showToast = () => {},
     win = globalThis,
   } = deps;
 
-  const quotaFallbackSnapshotId = `${sessionPlannerStorageKey}-quota-fallback`;
-  let snapshotRecoveryQueued = false;
   let pendingQuotaFallback = null;
   let quotaFallbackDrainPromise = null;
   let quotaFallbackLastResult = true;
+  const recovery = createSessionPlannerRecoveryController({
+    cloneState,
+    getContext: getRecoveryContext,
+    getState: getSessionPlannerState,
+    getStorageValue: () => rawDataSafetyGetItem(sessionPlannerStorageKey),
+    hasPendingWrite: () => Boolean(pendingQuotaFallback || quotaFallbackDrainPromise),
+    mergeState: (current, fallback) => mergeQuotaFallbackState(current, fallback, true),
+    openDatabase: openDataSafetyDatabase,
+    reportIssue: (message) => setSaveStatus("issue", message),
+    restoreState: (state) => {
+      const previousState = getSessionPlannerState();
+      setSessionPlannerState(state);
+      if (!writeState()) {
+        setSessionPlannerState(previousState);
+        return false;
+      }
+      if (getActiveWorkspaceId() === "session-planner") {
+        renderWorkspace({ preserveDateStripScroll: true });
+        showToast("Local session changes recovered; syncing.");
+      }
+      return true;
+    },
+    shouldDefer: shouldDeferRecovery,
+    snapshotStoreName: dataSafetySnapshotStoreName,
+    storageKey: sessionPlannerStorageKey,
+  });
 
   function isStorageQuotaError(error) {
     return (
@@ -63,15 +91,16 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     ));
   }
 
-  async function persistQuotaFallbackSnapshot(value) {
+  async function persistQuotaFallbackSnapshot({ value, context }) {
     const database = await openDataSafetyDatabase();
     if (!database) throw new Error("Local backup storage is not available.");
     const snapshot = {
-      id: quotaFallbackSnapshotId,
+      id: getSessionPlannerQuotaSnapshotId(sessionPlannerStorageKey, context),
       schema: "football-science-backup-v1",
       app: "Football Science",
       createdAt: new Date().toISOString(),
       reason: "session-planner-quota-fallback",
+      recovery: context ? { scope: context.scope, baseRevision: context.revision } : null,
       storage: { [sessionPlannerStorageKey]: value },
     };
     await new Promise((resolve, reject) => {
@@ -90,8 +119,10 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
       const currentFallback = pendingQuotaFallback;
       pendingQuotaFallback = null;
       try {
-        await persistQuotaFallbackSnapshot(currentFallback.value);
-        if (!canWriteCentralBackedCache()) {
+        await persistQuotaFallbackSnapshot(currentFallback);
+        if (pendingQuotaFallback && pendingQuotaFallback.context?.scope === currentFallback.context?.scope) continue;
+        if (!canWriteCentralBackedCache() || !currentFallback.context?.scope ||
+            getRecoveryContext()?.scope !== currentFallback.context.scope) {
           succeeded = false;
           setSaveStatus("issue", "Saved locally; sync pending");
           continue;
@@ -118,7 +149,8 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
   }
 
   function queueQuotaFallback(value) {
-    pendingQuotaFallback = { value };
+    const context = getRecoveryContext();
+    pendingQuotaFallback = { value, context: context ? { ...context } : null };
     cacheQuotaFallbackValue(value);
     setSaveStatus("saving", "Saving");
     ensureQuotaFallbackDrain();
@@ -219,7 +251,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
       }
       return state;
     } catch {
-      return createDefaultState();
+      return readCentralCacheFallbackState() || createDefaultState();
     }
   }
 
@@ -281,22 +313,10 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
   }
 
   function queueSnapshotRecovery() {
-    if (snapshotRecoveryQueued) return;
-    snapshotRecoveryQueued = true;
-    const currentState = getSessionPlannerState() || readState();
-    findStateInSnapshots(currentState).then((recoveredState) => {
-      snapshotRecoveryQueued = false;
-      if (!recoveredState) return;
-      setSessionPlannerState(recoveredState);
-      if (!writeState()) return;
-      if (getActiveWorkspaceId() === "session-planner") {
-        renderWorkspace({ preserveDateStripScroll: true });
-        showToast("Session planner restored from local backup.");
-      }
-    });
+    return recovery.queue();
   }
 
-  function mergeQuotaFallbackState(currentState, fallbackState) {
+  function mergeQuotaFallbackState(currentState, fallbackState, preferCurrent = false) {
     const currentSelectedDate = currentState?.selectedDate || "";
     const currentSelectedBlockIds = Object.fromEntries(
       Object.entries(currentState?.sessions || {}).map(([dateValue, session]) => [
@@ -304,7 +324,9 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         session?.selectedBlockId || "",
       ])
     );
-    const mergedState = mergeStateForWrite(currentState, fallbackState);
+    const mergedState = preferCurrent
+      ? mergeStateForWrite(fallbackState, currentState)
+      : mergeStateForWrite(currentState, fallbackState);
     mergedState.selectedDate = currentSelectedDate || mergedState.selectedDate;
     Object.entries(currentSelectedBlockIds).forEach(([dateValue, selectedBlockId]) => {
       const mergedSession = mergedState.sessions?.[dateValue];

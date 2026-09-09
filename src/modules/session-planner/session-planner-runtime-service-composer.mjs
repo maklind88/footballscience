@@ -93,6 +93,7 @@ export function createSessionPlannerRuntimeServiceComposition(deps = {}) {
     setPlatformAutosaveStatusForKey: deps.setPlatformAutosaveStatusForKey,
     setSessionPlannerExerciseLibrary: deps.setSessionPlannerExerciseLibrary,
     setSessionPlannerState: deps.setSessionPlannerState,
+    shouldDeferRecovery: deps.shouldDeferRecovery,
     showSessionPlannerToast: sessionPlannerToastController.show,
     stateMergeHelpers: sessionPlannerStateMergeHelpers,
     tacticalHelpers: deps.sessionPlannerTacticalHelpers,

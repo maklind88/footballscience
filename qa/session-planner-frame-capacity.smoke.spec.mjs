@@ -6,6 +6,8 @@ const marker = '[data-session-tactical-element-id="player"]';
 const read = (page) => page.evaluate(({ key, date }) => JSON.parse(localStorage.getItem(key)).sessions[date].blocks[0], { key, date });
 const raw = (page) => page.evaluate((key) => localStorage.getItem(key), key);
 async function boot(page, { count = 23, oversized = false, presentation = false } = {}) {
+  // Home opens today's presentation, so its clock must match the seeded session.
+  if (presentation) await page.clock.setFixedTime(new Date(`${date}T12:00:00Z`));
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(({ key, date, count, oversized }) => {

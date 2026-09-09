@@ -12,6 +12,8 @@ const elements = [{ id: "marker-1", type: "blue-player", x: 20, y: 40, playerNum
   { id: "ball", type: "ball", x: 30, y: 50 },
   { id: "generic", type: "red-player", x: 60, y: 40, playerNumber: "4" }];
 async function boot(page, { brokenPhoto = false, presentation = false, linked = false } = {}) {
+  // Home opens today's presentation, so its clock must match the seeded session.
+  if (presentation) await page.clock.setFixedTime(new Date(`${date}T12:00:00Z`));
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route(photo, (route) => brokenPhoto ? route.fulfill({ status: 404, body: "missing" }) : route.fulfill({

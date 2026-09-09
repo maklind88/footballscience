@@ -3,7 +3,7 @@
 Candidate prepared 2026-09-08 from `origin/main` at `f4b36bf7`.
 Owner: Sessions. Shared boundary: Sessions-specific central reload wiring.
 Risk: Safe Lane (local persistence, recovery and central-state consumption).
-Status: implementation and local QA only; deployment requires a new direct user command.
+Status: user-authorized Safe Lane release in progress; no production release yet.
 
 ## Problem and scope
 
@@ -79,8 +79,24 @@ baseline revision rather than looking up the legacy unscoped ID. Its central
 write and durability assertions remain in place.
 
 Static QA reports existing module-size warnings and absent live/staging QA login
-environment in this isolated worktree. No authenticated production verification,
-Safe Lane release gate or staging deployment was run for this candidate.
+environment in this isolated worktree. Authenticated release checks run in GitHub.
+
+### Release validation follow-up
+
+- Full local QA passed twice: 2,868 passed, 3 existing fixture-dependent skips.
+  The isolated installation first needed `npm rebuild ffmpeg-static` to install
+  its already-locked executable; no dependency or package changes were made.
+- Staging run `34296418760` stopped before deployment. API/static checks and
+  browser shards 1/2 passed. Two Sessions Presentation tests used 8 September
+  fixture data but opened today's presentation after UTC midnight on 9 September.
+  Both failures were reproduced locally with `TZ=UTC`.
+- Those two fixture helpers now fix the browser date to the fixture date only for
+  Presentation. Playback timers still run. No production code, assertion, timeout,
+  or test coverage was weakened to fix this setup mismatch.
+- An unchanged standalone Video Analysis spatial-workbench test also timed out in
+  staging. Its code is outside this candidate. Three local UTC repetitions of both
+  affected Sessions specs and the unchanged Video spec passed: 33 tests total.
+  A new full Safe Lane run must still pass, including staging and production gates.
 
 ## Release and recovery cautions
 

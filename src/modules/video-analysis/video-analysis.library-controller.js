@@ -3,6 +3,7 @@ import {
   mergeScheduleCandidates,
   normalizeContextScheduleCandidates,
 } from "./services/videoLibraryService.js";
+import { createArchiveSearchController } from "./controllers/archiveSearchController.js";
 
 function contextScheduleCandidates(context = {}) {
   try {
@@ -35,6 +36,7 @@ export function createVideoLibraryController(deps = {}) {
     shouldLoadMetadata,
     localVideoStatusPatch,
   } = deps;
+  const archive = createArchiveSearchController({ getRuntime, shouldLoadMetadata });
 
   async function loadLibrary(options = {}) {
     const run = getRuntime?.();
@@ -83,6 +85,7 @@ export function createVideoLibraryController(deps = {}) {
         },
       }));
     }
+    await archive.load();
   }
 
   async function openLibraryItem(itemKey = "", context = {}, options = {}) {
@@ -180,6 +183,7 @@ export function createVideoLibraryController(deps = {}) {
   }
 
   return Object.freeze({
+    archive,
     loadLibrary,
     openLibraryItem,
     openLibraryView,

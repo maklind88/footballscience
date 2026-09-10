@@ -1,0 +1,68 @@
+.video-analysis-archive-results .video-analysis-panel-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.video-analysis-archive-results h3 {
+  min-width: 0;
+  margin: 0;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.video-analysis-archive-pagination {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.video-analysis-archive-pagination button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--video-analysis-border, #cbd6d0);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.video-analysis-archive-pagination button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.video-analysis-archive-pagination button > span {
+  display: block;
+  padding: 0;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.video-analysis-archive-pagination button:focus-visible,
+.video-analysis-archive-results h3:focus-visible {
+  outline: 2px solid var(--video-analysis-accent, #174d34);
+  outline-offset: 3px;
+}
+
+.video-analysis-archive-pagination > span,
+.video-analysis-archive-status {
+  font-size: 12px;
+}
+
+.video-analysis-archive-status {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.video-analysis-archive-results .video-analysis-library-row__body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

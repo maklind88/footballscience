@@ -182,6 +182,8 @@ export function filterVideoLibraryItems(items = [], filters = {}) {
 }
 
 export function findVideoLibraryItem(state = {}, key = "") {
+  const archiveItem = (state.library?.archive?.matches || []).map(normalizeLibraryMatch).find((item) => item.key === key);
+  if (archiveItem) return archiveItem;
   return buildVideoLibraryItems(state).find((item) => item.key === key) || null;
 }
 

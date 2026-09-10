@@ -1,5 +1,6 @@
 import { buildVideoLibraryItems, filterVideoLibraryItems } from "../services/videoLibraryService.js";
 import { escapeHtml } from "./renderHelpers.js";
+import { renderVideoArchiveResults } from "./VideoArchiveResults.js";
 
 function eventTypeLabel(type = "") {
   return String(type || "").toLowerCase() === "match" ? "Match" : "Training";
@@ -193,6 +194,7 @@ function renderLibrarySearch(library = {}, visibleCount = 0, isActive = false) {
     <section class="video-analysis-library-search${isActive ? " is-active" : ""}" aria-label="Search videos and match days">
       <input
         type="search"
+        maxlength="120"
         placeholder="Search day, video, match, team or date"
         value="${escapeHtml(library.filters?.search || "")}"
         data-video-analysis-library-filter="search"
@@ -212,7 +214,7 @@ function renderLibrarySearch(library = {}, visibleCount = 0, isActive = false) {
         </select>
         <button type="button" data-video-analysis-library-refresh>Refresh</button>
       </div>
-      ${isActive ? `<span>${escapeHtml(`${visibleCount} results`)}</span>` : ""}
+      ${isActive && !library.archive ? `<span>${escapeHtml(`${visibleCount} results`)}</span>` : ""}
     </section>
   `;
 }
@@ -258,7 +260,9 @@ export function renderVideoLibrary(state = {}) {
     <section class="video-analysis-library" data-video-analysis-library>
       ${renderLibrarySearch(library, visibleItems.length, searchIsActive)}
       ${renderCalendarOverview(allItems, visibleItems, library.filters || {})}
-      ${searchIsActive ? `
+      ${searchIsActive && library.archive
+        ? renderVideoArchiveResults(state, visibleItems.filter((item) => item.kind === "schedule-candidate"), renderLibraryRow)
+        : searchIsActive ? `
         <section class="video-analysis-library-archive" aria-label="Search results">
         <div class="video-analysis-panel-title">
           <div>

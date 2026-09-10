@@ -42,5 +42,12 @@ export function createVideoRepository(context = {}) {
         getAuthToken
       );
     },
+    searchArchive(query = {}, { signal } = {}) {
+      return requestJson(
+        buildVideoAnalysisApiUrl("library-search", query),
+        { method: "GET", cache: "no-store", signal },
+        getAuthToken
+      );
+    },
   };
 }

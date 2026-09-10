@@ -1629,6 +1629,7 @@ function paint(root, state) {
   const focusedDraft = root.querySelector("[data-video-analysis-draft]:focus")?.dataset.videoAnalysisDraft || "";
   const focusedFilter = root.querySelector("[data-video-analysis-filter]:focus")?.dataset.videoAnalysisFilter || "";
   const focusedLibraryFilter = root.querySelector("[data-video-analysis-library-filter]:focus")?.dataset.videoAnalysisLibraryFilter || "";
+  const focusedArchiveHeading = Boolean(root.querySelector("[data-video-analysis-archive-results-title]:focus"));
   const focusedIntelligenceQuery = Boolean(root.querySelector("[data-video-analysis-intelligence-query]:focus"));
   const focusedReviewNote = root.querySelector("[data-video-analysis-review-note]:focus")?.dataset.videoAnalysisReviewNote || "";
   const focusedButtonField = root.querySelector("[data-video-analysis-button-field]:focus")?.dataset.videoAnalysisButtonField || "";
@@ -1743,6 +1744,7 @@ function paint(root, state) {
                                       : focusedMgPrincipleSearch
                                         ? root.querySelector("[data-video-analysis-mg-principle-search]")
                                         : null;
+  if (focusedArchiveHeading) root.querySelector("[data-video-analysis-archive-results-title]")?.focus({ preventScroll: true });
   if (nextFocus) {
     nextFocus.focus();
     if (Number.isFinite(selectionStart) && typeof nextFocus.setSelectionRange === "function") {
@@ -3227,6 +3229,7 @@ export function render(context = {}) {
     });
     run.pointerGuardBound = true;
   }
+  libraryController().archive.bind();
   const currentState = run.store.getState();
   scheduleToastDismiss(context, currentState);
   paint(root, currentState);
@@ -3234,6 +3237,7 @@ export function render(context = {}) {
 }
 
 export function resetVideoAnalysisRuntimeForTests() {
+  videoLibraryController?.archive.dispose();
   clearToastDismissTimer(runtime);
   void runtime?.collaborationRuntime?.dispose?.();
   void runtime?.mediaRuntime?.dispose?.();
@@ -4764,6 +4768,20 @@ export function handleClick(event, context = {}) {
     libraryController().loadLibrary();
     return true;
   }
+  const archivePage = target.closest("[data-video-analysis-archive-page]");
+  if (archivePage) return libraryController().archive.handlePage(archivePage);
+  const scheduleSearchPage = target.closest("[data-video-analysis-schedule-search-page]");
+  if (scheduleSearchPage && !scheduleSearchPage.disabled) {
+    run.store.update((state) => ({
+      ...state,
+      library: { ...state.library, scheduleSearchPage: Math.max(0, Number(scheduleSearchPage.dataset.videoAnalysisScheduleSearchPage) || 0) },
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-archive-retry]")) {
+    void libraryController().archive.load();
+    return true;
+  }
   const calendarMonthButton = target.closest("[data-video-analysis-calendar-month]");
   if (calendarMonthButton) {
     run.store.update((state) => ({
@@ -5865,8 +5883,10 @@ export function handleInput(event, context = {}) {
       library: {
         ...(state.library || {}),
         filters: { ...(state.library?.filters || {}), [key]: libraryFilter.value },
+        scheduleSearchPage: 0,
       },
     }));
+    libraryController().archive.filtersChanged(key);
     return true;
   }
   const draftField = target.closest("[data-video-analysis-draft]");

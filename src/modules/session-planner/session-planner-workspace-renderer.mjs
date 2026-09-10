@@ -175,6 +175,7 @@ export function createSessionPlannerWorkspaceRenderer({
         </div>
         <p class="session-empty-state">Select a block to work with media and player setup.</p>
         ${renderHistoryPanel(historyContext)}
+        ${historyContext.canEdit ? '<button type="button" data-session-review-local>Review local saves</button>' : ""}
       </aside>
     `;
     }
@@ -208,6 +209,7 @@ export function createSessionPlannerWorkspaceRenderer({
       </section>
       ${renderSessionPlannerPlayerBoard(block)}
       ${renderHistoryPanel(historyContext)}
+      ${historyContext.canEdit ? '<button type="button" data-session-review-local>Review local saves</button>' : ""}
     </aside>
   `;
   };

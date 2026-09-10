@@ -333,8 +333,10 @@ export function createDataSafetyRuntimeService(deps = {}) {
       request.onsuccess = () => resolve(Array.from(request.result || []));
       request.onerror = () => reject(request.error);
     });
-    if (keys.length <= maxSnapshots) return;
-    const keysToDelete = keys.sort().slice(0, keys.length - maxSnapshots);
+    // Pending Sessions recovery copies are not rotating historical snapshots.
+    const rotatingKeys = keys.filter((key) => !String(key).startsWith("football-session-planner-v3-quota-fallback"));
+    if (rotatingKeys.length <= maxSnapshots) return;
+    const keysToDelete = rotatingKeys.sort().slice(0, rotatingKeys.length - maxSnapshots);
     const transaction = database.transaction(snapshotStoreName, "readwrite");
     const store = transaction.objectStore(snapshotStoreName);
     keysToDelete.forEach((key) => store.delete(key));
@@ -599,9 +601,11 @@ export function createDataSafetyRuntimeService(deps = {}) {
         throw error;
       }
       const previousValue = rawGetItem(normalizedKey);
+      const previousPending = normalizedKey === "football-session-planner-v3" && Boolean(readManifest().entries?.[normalizedKey]?.pendingCentralSync);
       try {
         const result = rawSetItem(normalizedKey, normalizedValue);
-        if (previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue);
+        if (previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue,
+          normalizedKey === "football-session-planner-v3" ? { previousValue, previousPending } : {});
         return result;
       } catch (error) {
         handleWriteError(normalizedKey, error);

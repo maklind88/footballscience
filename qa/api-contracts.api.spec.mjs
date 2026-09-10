@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
+import { createSessionDateChanges } from "../src/modules/session-planner/session-save-protocol.mjs";
 
 const require = createRequire(import.meta.url);
 const { encodeSessionStateValue, decodeSessionStateValue } = require("../api/_lib/session-state-transport.js");
@@ -1043,6 +1044,65 @@ test("compressed Sessions API saves and reloads a plan larger than the request l
     });
     expect(rejected.status).toBe(400);
     expect(storage.writes).toHaveLength(writesBefore);
+  } finally { global.fetch = originalFetch; restoreEnv(env); }
+});
+
+test("date-scoped Sessions API preserves other training, returns a bounded receipt, and refuses conflicts", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const date = "2026-09-10";
+  const before = { sessions: {
+    [date]: { date, title: "Training", blocks: [{ id: "a", title: "Press", objective: "Before", minutes: 15 }] },
+    "2026-09-09": { date: "2026-09-09", title: "Yesterday", blocks: [{ id: "y", title: "Keep", organization: "Old exercise. ".repeat(20000) }] },
+  } };
+  const storage = createAppStateFetchMock({ [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, JSON.stringify(before)) });
+  global.fetch = storage.fetchMock;
+  const url = "/api/app-state?sessionTransport=gzip-base64-v1";
+  const headers = { authorization: "Bearer test-access-token" };
+  try {
+    const handler = loadFreshAppStateHandler();
+    const after = structuredClone(before); after.sessions[date].blocks[0].objective = "New objective";
+    const change = createSessionDateChanges(before, after, () => "date-change-one")[0];
+    const request = { method: "POST", url, headers, body: JSON.stringify({ key: appStateSessionPlannerKey, baseRevision: 1, sessionChange: JSON.stringify(change) }) };
+    expect(request.body.length).toBeLessThan(2000);
+    const saved = await callHandler(handler, request);
+    expect(saved.status).toBe(200);
+    expect(saved.payload.value).toBeUndefined();
+    const receipt = JSON.parse(await decodeSessionStateValue(appStateSessionPlannerKey, saved.payload.sessionChange));
+    expect(receipt).toMatchObject({ id: change.id, date, value: { session: { blocks: [{ objective: "New objective" }] } } });
+    expect(JSON.stringify(saved.payload).length).toBeLessThan(3000);
+    const stored = JSON.parse(storage.objects.get(appStateSessionPlannerPath).value);
+    expect(stored.sessions["2026-09-09"]).toEqual(before.sessions["2026-09-09"]);
+    const competing = structuredClone(before); competing.sessions[date].blocks[0].objective = "Different objective";
+    const conflictChange = createSessionDateChanges(before, competing, () => "date-change-two")[0];
+    const conflict = await callHandler(handler, { method: "POST", url, headers, body: JSON.stringify({ key: appStateSessionPlannerKey, baseRevision: saved.payload.revision, sessionChange: JSON.stringify(conflictChange) }) });
+    expect(conflict.status).toBe(409);
+    expect(conflict.payload.conflicts).toContain(`${date}.session.blocks.a.objective`);
+    expect(JSON.parse(storage.objects.get(appStateSessionPlannerPath).value)).toEqual(stored);
+  } finally { global.fetch = originalFetch; restoreEnv(env); }
+});
+
+test("date-scoped Sessions rejects read-only actors before returning conflict or central content", async () => {
+  const env = snapshotEnv(supabaseEnvKeys), originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const value = JSON.stringify({ sessions: { "2026-09-10": { date: "2026-09-10", title: "Private training", blocks: [] } } });
+  const storage = createAppStateFetchMock({ [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, value) }, "guest");
+  global.fetch = storage.fetchMock;
+  try {
+    const response = await callHandler(loadFreshAppStateHandler(), { method: "POST", url: "/api/app-state", headers: { authorization: "Bearer test-access-token" }, body: JSON.stringify({ key: appStateSessionPlannerKey, baseRevision: 1, sessionChange: "malformed" }) });
+    expect(response.status).toBe(403);
+    expect(response.payload.conflicts).toBeUndefined();
+    expect(response.payload.value).toBeUndefined();
+    expect(response.payload.sessionChange).toBeUndefined();
+    expect(storage.objects.get(appStateSessionPlannerPath).value).toBe(value);
+    expect(storage.writes.filter((write) => write.objectPath === appStateSessionPlannerPath)).toEqual([]);
   } finally { global.fetch = originalFetch; restoreEnv(env); }
 });
 

@@ -3670,7 +3670,26 @@ module.exports = async (req, res) => {
     const contract = dataSafetyRegistry.requireByKey(key);
     const previousEntry = await readStateObject(key, { fresh: true });
     const clientBaseRevision = getClientBaseRevision(body?.metadata || body, key);
-    const incomingValue = key === SESSION_PLANNER_KEY ? await decodeSessionStateValue(key, body?.value) : body?.value;
+    let sessionChange = null;
+    let sessionProtocol = null;
+    let incomingValue;
+    if (body?.sessionChange !== undefined) {
+      if (key !== SESSION_PLANNER_KEY) return sendJson(res, 400, { ok: false, reason: "Date changes are only supported for Sessions." });
+      // Authorize before returning any central content or conflict information.
+      const access = await authorizeStateWrite(actor, key, previousEntry?.value || '{"sessions":{}}', false, { previousEntry, clientBaseRevision });
+      if (!access.ok) return sendJson(res, access.status || 403, { ok: false, reason: access.reason });
+      sessionProtocol = await import("../src/modules/session-planner/session-save-protocol.mjs");
+      try {
+        sessionChange = JSON.parse(await decodeSessionStateValue(key, body.sessionChange));
+        const merged = sessionProtocol.applySessionDateChange(JSON.parse(previousEntry?.value || '{"sessions":{}}'), sessionChange);
+        if (!merged.ok) return sendJson(res, 409, { ok: false, reason: "This training has conflicting changes. Review your local edit.", conflicts: merged.conflicts, currentRevision: previousEntry?.revision || 0 });
+        incomingValue = JSON.stringify(merged.state);
+      } catch (error) {
+        return sendJson(res, error.status || 400, { ok: false, reason: error.message || "Invalid session date change." });
+      }
+    } else {
+      incomingValue = key === SESSION_PLANNER_KEY ? await decodeSessionStateValue(key, body?.value) : body?.value;
+    }
     const authorization = await authorizeStateWrite(actor, key, incomingValue, false, {
       previousEntry,
       clientBaseRevision,
@@ -3678,6 +3697,10 @@ module.exports = async (req, res) => {
     if (!authorization.ok) {
       return sendJson(res, authorization.status || 403, { ok: false, ...authorization });
     }
+
+    // The date protocol has already performed a three-way merge against fresh server content.
+    // Legacy timestamp heuristics must not silently undo an explicitly reviewed change.
+    if (sessionChange) authorization.value = incomingValue;
 
     const contentSafety = validateCentralStateContent(key, authorization.value, contract);
     if (!contentSafety.ok) {
@@ -3696,7 +3719,12 @@ module.exports = async (req, res) => {
 
     const entry = normalizeStateEntry(key, authorization.value, actor, false, previousEntry);
     // Verify the reply fits before committing, not after a durable write has succeeded.
-    const responseValue = await encodeSessionStateValue(req, key, entry.value);
+    const responseValue = sessionChange ? undefined : await encodeSessionStateValue(req, key, entry.value);
+    const dateReceipt = sessionChange ? {
+      id: sessionChange.id, date: sessionChange.date,
+      value: sessionProtocol.sessionDateValue(JSON.parse(entry.value), sessionChange.date),
+    } : undefined;
+    const encodedReceipt = dateReceipt ? await encodeSessionStateValue(req, key, JSON.stringify(dateReceipt)) : undefined;
     const result = await writeStateObject(entry);
     if (!result.ok) {
       return sendJson(res, result.status || 400, {
@@ -3761,6 +3789,7 @@ module.exports = async (req, res) => {
       organizationId: persistedEntry.organizationId,
       moduleId: persistedEntry.moduleId,
       value: responseValue,
+      ...(dateReceipt ? { sessionChange: encodedReceipt } : {}),
       metadata: getStateEntryMetadata(persistedEntry),
       merged: Boolean(authorization.merged),
     });

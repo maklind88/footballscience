@@ -142,8 +142,35 @@ function createHarness(options = {}) {
     showToast: (message) => calls.push(["toast", message]),
     win,
   });
-  return { calls, localStorage, service, snapshotDatabase, stateRef, storageKey };
+  return { calls, localStorage, service, snapshotDatabase, stateRef, storageKey, win };
 }
+
+test("quota journal coalescing retains all edits while the first stage is pending", async () => {
+  const h = createHarness();
+  const staged = [];
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  let cache = JSON.stringify(h.stateRef.current);
+  h.localStorage.getItem = (key) => key === h.storageKey ? cache : null;
+  h.localStorage.setItem = () => { throw Object.assign(new Error("Quota exceeded"), { name: "QuotaExceededError" }); };
+  h.win.footballScienceCentralState.setCachedValue = (_key, value) => { cache = value; return true; };
+  h.win.footballScienceCentralState.stageSessionWrite = async (value, options) => {
+    staged.push({ value: JSON.parse(value), before: JSON.parse(options.previousValue) });
+    if (staged.length === 1) await gate;
+    return { ok: true };
+  };
+  h.stateRef.current.sessions["2026-05-01"].blocks[0].title = "First";
+  h.service.writeState();
+  h.stateRef.current.sessions["2026-05-01"].blocks[0].minutes = 25;
+  h.service.writeState();
+  h.stateRef.current.sessions["2026-05-01"].blocks[0].intensity = 4;
+  h.service.writeState();
+  release();
+  expect(await h.service.flushQuotaFallback()).toBe(true);
+  expect(staged).toHaveLength(2);
+  expect(staged[1].before.sessions["2026-05-01"].blocks[0]).toMatchObject({ title: "First", minutes: 10, intensity: 2 });
+  expect(staged[1].value.sessions["2026-05-01"].blocks[0]).toMatchObject({ title: "First", minutes: 25, intensity: 4 });
+});
 
 test("Session Planner runtime state service owns read write and recovery bodies outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
@@ -277,7 +304,8 @@ test("Session Planner runtime state service durably falls back and queues centra
   ]);
   expect(calls).toContainEqual(["record", storageKey, snapshot.storage[storageKey]]);
   expect(calls).not.toContainEqual(["autosave-status", storageKey, "issue", "Save failed"]);
-  expect(calls).toContainEqual(["autosave-status", storageKey, "saved", "Saved"]);
+  expect(calls).toContainEqual(["autosave-status", storageKey, "saving", "Saved locally; syncing"]);
+  expect(calls).not.toContainEqual(["autosave-status", storageKey, "saved", "Saved"]);
 });
 
 test("Session Planner quota fallback keeps the latest of rapid consecutive edits", async () => {
@@ -362,7 +390,7 @@ test("Session Planner production state merge stays idempotent for unchanged cont
   expect(localStorage.setItemCalls).toHaveLength(0);
 });
 
-test("Session Planner runtime state service preserves normalized reads and central record scheduling", () => {
+test("Session Planner runtime state service normalizes the cache without saving on read", () => {
   const storageKey = "football-session-planner-v3";
   const rawState = {
     selectedDate: "2026-05-02",
@@ -381,7 +409,7 @@ test("Session Planner runtime state service preserves normalized reads and centr
 
   expect(state.selectedDate).toBe("2026-05-02");
   expect(localStorage.getItem(storageKey)).toContain("2026-05-02");
-  expect(calls.some((call) => Array.isArray(call) && call[0] === "record" && call[1] === storageKey)).toBe(true);
+  expect(calls.some((call) => Array.isArray(call) && call[0] === "record" && call[1] === storageKey)).toBe(false);
 });
 
 test("Session Planner runtime state service falls back to the central cache when local storage was evicted by quota", () => {

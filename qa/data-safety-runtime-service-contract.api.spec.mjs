@@ -129,7 +129,7 @@ function createHarness(options = {}) {
     snapshotStoreName: "snapshots",
     latestStoreName: "latest",
     maxSnapshots: 30,
-    protectedStorageKeys: ["football-schedule-v1", "football-medical-team-v1"],
+    protectedStorageKeys: ["football-schedule-v1", "football-medical-team-v1", "football-session-planner-v3"],
     storageLabels: {
       "football-schedule-v1": "Schedule",
       "football-medical-team-v1": "Medical Room",
@@ -146,6 +146,20 @@ function createHarness(options = {}) {
   });
   return { centralCache, centralCacheInfo, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
+
+test("only Sessions receives its exact pre-edit cache through the protected storage boundary", () => {
+  const h = createHarness();
+  h.service.install();
+  const key = "football-session-planner-v3";
+  h.localStorage.setItem(key, "before");
+  h.localStorage.setItem(key, "after");
+  expect(h.queuedWrites.at(-1)).toEqual([key, "after", { previousValue: "before", previousPending: false }]);
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: { pendingCentralSync: true } } }));
+  h.localStorage.setItem(key, "third");
+  expect(h.queuedWrites.at(-1)).toEqual([key, "third", { previousValue: "after", previousPending: true }]);
+  h.localStorage.setItem("football-schedule-v1", "schedule");
+  expect(h.queuedWrites.at(-1)).toEqual(["football-schedule-v1", "schedule", {}]);
+});
 
 test("data safety runtime service owns protected storage body outside app-runtime", () => {
   const runtimeSource = readProjectFile("app-runtime.js");

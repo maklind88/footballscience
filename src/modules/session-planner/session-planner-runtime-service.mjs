@@ -57,6 +57,12 @@ export function createSessionPlannerRuntimeService(deps = {}) {
     win: deps.win,
   });
 
+  deps.ui?.sessionPlannerWorkspace?.addEventListener?.("click", (event) => {
+    if (event.target?.closest?.("[data-session-review-local]") && deps.canEditSessionPlanner?.()) {
+      stateService.openLocalSaveReview().catch(() => showSessionPlannerToast("Local saves could not be read.", "warning"));
+    }
+  });
+
   boardHistory = createSessionPlannerBoardHistoryController({
     canEdit: deps.canEditSessionPlanner,
     clearTacticalSelection: delegates.clearSessionPlannerTacticalSelection,

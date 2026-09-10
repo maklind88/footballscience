@@ -256,6 +256,19 @@ test("already-synced quota content is a no-op without Saved notices or re-render
   expect(h.control.renders).toEqual([]);
 });
 
+test("an explicitly reviewed date never reopens recovery or replaces the central version", async () => {
+  const h = createHarness();
+  const snapshot = h.addPending();
+  snapshot.reviewedDates = { [day]: newTime };
+  h.control.context.revision = 6;
+  const previous = clone(h.control.state);
+  await h.recover();
+  expect(h.control.state).toEqual(previous);
+  expect(h.control.statuses).toEqual([]);
+  expect(h.control.writes).toEqual([]);
+  expect(h.snapshots.size).toBe(1);
+});
+
 test("current equal-timestamp values and deletion tombstones win over fallback", async () => {
   const h = createHarness();
   h.addPending();

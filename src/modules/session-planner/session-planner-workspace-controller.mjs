@@ -2520,6 +2520,7 @@ const dateValue = local.sessionPlannerState?.selectedDate || "";
 return {
 entries: local.sessionPlannerHistoryEntries,
 isAdmin: isCurrentPlatformUserAdmin(),
+canEdit: canEditSessionPlanner(),
 isLoading: local.sessionPlannerHistoryLoading,
 loadedDate: local.sessionPlannerHistoryLoadedDate,
 loadError: local.sessionPlannerHistoryLoadError,

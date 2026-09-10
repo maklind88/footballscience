@@ -1,3 +1,5 @@
+import { sameSessionValue } from "./session-save-protocol.mjs";
+
 export function getSessionPlannerRecoveryContext({ user, bridge, storageKey, canEdit = false } = {}) {
   if (!user?.id || !canEdit || bridge?.canAutoSyncKey?.(storageKey) === false) return null;
   const status = bridge?.getStatus?.() || {};
@@ -87,8 +89,13 @@ export function createSessionPlannerRecoveryController({
       if (typeof raw !== "string") return;
       const current = cloneState(getState());
       const baseline = mergeState(current, current);
-      const next = mergeState(current, cloneState(JSON.parse(raw)));
-      if (JSON.stringify(next) === JSON.stringify(baseline)) {
+      const pending = cloneState(JSON.parse(raw));
+      for (const date of Object.keys(snapshot.reviewedDates || {})) {
+        delete pending.sessions?.[date];
+        delete pending.blockDeletionTombstones?.[date];
+      }
+      const next = mergeState(current, pending);
+      if (sameSessionValue(next, baseline)) {
         checkedContext = key;
         return;
       }

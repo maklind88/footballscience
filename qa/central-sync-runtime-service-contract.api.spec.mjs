@@ -104,6 +104,7 @@ function createServiceHarness(options = {}) {
     queueStatusRefresh: () => {},
     rawGetItem: (key) => rawValues.get(key) ?? null,
     rawSetItem: (key, value) => {
+      if (key === options.failCacheKey) throw new Error("Browser cache quota exceeded");
       rawValues.set(key, value);
     },
     retryConflictStorageKeys: options.retryConflictStorageKeys || [],
@@ -136,6 +137,31 @@ function createServiceHarness(options = {}) {
   };
 }
 
+test("an acknowledged Sessions save with a cache failure does not discard other modules' queued writes", async () => {
+  const session = "football-session-planner-v1", other = "football-medical-team-v1";
+  const h = createServiceHarness({ failCacheKey: session, syncKey: async ({ key, value }) => ({ ok: true, value: key === session ? "merged central training" : value, metadata: { revision: 8 } }) });
+  h.rawValues.set(session, "local training"); h.rawValues.set(other, "medical edit");
+  h.service.queueCentralStateWrite(session, "local training");
+  h.service.queueCentralStateWrite(other, "medical edit");
+  expect(await h.service.flushCentralStateWrites()).toBe(true);
+  expect(h.syncCalls.map((call) => call.key)).toEqual([session, other]);
+  expect(h.manifest.entries[session].pendingCentralSync).toBe(false);
+  expect(h.rawValues.get(session)).toBe("local training");
+  expect(h.autosaveStatuses).toContainEqual([session, "issue", "Training saved centrally; browser cache could not be refreshed."]);
+  expect(h.autosaveStatuses.some(([key, status]) => key === session && status === "saved")).toBe(false);
+});
+
+test("denied durable Sessions writes remain pending without blocking another module", async () => {
+  const key = "football-session-planner-v1", other = "football-medical-team-v1";
+  const h = createServiceHarness({ syncKey: async ({ key: current, value }) => current === key ? { ok: false, status: 403, durablePending: true, reason: "Access denied; local edit retained" } : { ok: true, value } });
+  h.rawValues.set(key, "local draft"); h.rawValues.set(other, "permitted edit");
+  h.service.queueCentralStateWrite(key, "local draft"); h.service.queueCentralStateWrite(other, "permitted edit");
+  expect(await h.service.flushCentralStateWrites()).toBe(true);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.syncCalls.map((call) => call.key)).toEqual([key, other]);
+  expect(h.autosaveStatuses.some(([current, status]) => current === key && status === "saved")).toBe(false);
+});
+
 test("central sync runtime queues protected writes with revision metadata and flushes through the bridge", async () => {
   const harness = createServiceHarness({
     syncResult: {
@@ -146,6 +172,7 @@ test("central sync runtime queues protected writes with revision metadata and fl
     },
   });
 
+  harness.rawValues.set("football-session-planner-v1", "{\"blocks\":[]}");
   harness.service.queueCentralStateWrite("football-session-planner-v1", "{\"blocks\":[]}");
   expect(harness.manifest.entries["football-session-planner-v1"]).toMatchObject({
     label: "Label football-session-planner-v1",
@@ -181,6 +208,21 @@ test("central sync runtime reports saving and server-confirmed status for Set Pi
   await harness.service.flushCentralStateWrites();
 
   expect(harness.syncStatuses).toContainEqual(["football-set-pieces-room-v1", "saved", "Saved"]);
+});
+
+test("a Sessions acknowledgement cannot report Saved for a newer local generation", async () => {
+  const key = "football-session-planner-v1";
+  let finish;
+  const h = createServiceHarness({ syncKey: () => new Promise((resolve) => { finish = resolve; }) });
+  h.rawValues.set(key, "first");
+  h.service.queueCentralStateWrite(key, "first");
+  const flushing = h.service.flushCentralStateWrites();
+  h.rawValues.set(key, "second");
+  h.service.queueCentralStateWrite(key, "second");
+  finish({ ok: true, value: "first", revision: 8 });
+  await flushing;
+  expect(h.autosaveStatuses.filter(([, state]) => state === "saved")).toEqual([]);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
 });
 
 test("central sync runtime keeps the highest acknowledged server revision", async () => {

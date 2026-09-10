@@ -9,6 +9,7 @@ const {
 } = require("./_lib/supabase-admin.js");
 const { appendAuditLog } = require("./_lib/audit-log.js");
 const { appendSessionPlannerHistory } = require("./_lib/session-history.js");
+const { decodeSessionStateValue, encodeSessionStateValue } = require("./_lib/session-state-transport.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
 const { protectGameplanStateWrite } = require("./_lib/gameplan-state-authorization.js");
 const { protectSetPiecesStateWrite } = require("./_lib/set-pieces-state-authorization.js");
@@ -3601,7 +3602,10 @@ module.exports = async (req, res) => {
         : selectStateListResultKeys({ entries: actorEntries }, requestedKeys).entries;
       return sendJson(res, 200, {
         ok: true,
-        entries,
+        entries: Object.hasOwn(entries, SESSION_PLANNER_KEY) ? {
+          ...entries,
+          [SESSION_PLANNER_KEY]: await encodeSessionStateValue(req, SESSION_PLANNER_KEY, entries[SESSION_PLANNER_KEY]),
+        } : entries,
         metadata: filterStateMetadataForEntries(stateObjects.metadata, entries),
         updatedAt: new Date().toISOString(),
       });
@@ -3666,7 +3670,8 @@ module.exports = async (req, res) => {
     const contract = dataSafetyRegistry.requireByKey(key);
     const previousEntry = await readStateObject(key, { fresh: true });
     const clientBaseRevision = getClientBaseRevision(body?.metadata || body, key);
-    const authorization = await authorizeStateWrite(actor, key, body?.value, false, {
+    const incomingValue = key === SESSION_PLANNER_KEY ? await decodeSessionStateValue(key, body?.value) : body?.value;
+    const authorization = await authorizeStateWrite(actor, key, incomingValue, false, {
       previousEntry,
       clientBaseRevision,
     });
@@ -3690,6 +3695,8 @@ module.exports = async (req, res) => {
     }
 
     const entry = normalizeStateEntry(key, authorization.value, actor, false, previousEntry);
+    // Verify the reply fits before committing, not after a durable write has succeeded.
+    const responseValue = await encodeSessionStateValue(req, key, entry.value);
     const result = await writeStateObject(entry);
     if (!result.ok) {
       return sendJson(res, result.status || 400, {
@@ -3753,11 +3760,14 @@ module.exports = async (req, res) => {
       revision: persistedEntry.revision,
       organizationId: persistedEntry.organizationId,
       moduleId: persistedEntry.moduleId,
-      value: persistedEntry.value,
+      value: responseValue,
       metadata: getStateEntryMetadata(persistedEntry),
       merged: Boolean(authorization.merged),
     });
   } catch (error) {
+    if (error?.code === "SESSION_TRANSPORT") {
+      return sendJson(res, error.status || 400, { ok: false, reason: error.message });
+    }
     if (error?.code === "BODY_TOO_LARGE") {
       return sendJson(res, 413, { ok: false, reason: error.message || "Request body is too large." });
     }

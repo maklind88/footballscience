@@ -45,6 +45,10 @@ function createHarness(options = {}) {
         getAll: () => { throw new Error("Background recovery must not scan historical backups"); },
         put: (snapshot) => {
           snapshots.set(snapshot.id, clone(snapshot));
+          if (snapshot.reason === "session-planner-recovery-review") {
+            queueMicrotask(() => transaction.oncomplete());
+            return {};
+          }
           finishWrite = () => transaction.oncomplete();
           return {};
         },
@@ -222,7 +226,7 @@ test("missing auth or hydration never starts a local recovery read", async () =>
 
 test("newer central content is never replaced by an older quota snapshot", async () => {
   const h = createHarness();
-  h.addPending();
+  const pending = h.addPending();
   h.control.context.revision = 6;
   const original = clone(h.control.state);
   await h.recover();
@@ -230,7 +234,14 @@ test("newer central content is never replaced by an older quota snapshot", async
   expect(h.control.state).toEqual(original);
   expect(h.control.writes).toEqual([]);
   expect(h.control.statuses).toEqual([["issue", "Local changes need review"]]);
-  expect(h.snapshots.size).toBe(1);
+  expect(h.snapshots.size).toBe(2);
+  const archiveId = `${pending.id}:review:5`;
+  expect(h.snapshots.get(archiveId)).toEqual({ ...pending, id: archiveId, reason: "session-planner-recovery-review" });
+  h.control.quota = true;
+  h.control.state.sessions[day].blocks[0].title = "Later edit";
+  h.service.writeState();
+  await h.finishFallbackWrite();
+  expect(h.snapshots.get(archiveId).storage).toEqual(pending.storage);
 });
 
 test("already-synced quota content is a no-op without Saved notices or re-rendering", async () => {

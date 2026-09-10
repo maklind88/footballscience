@@ -10,6 +10,17 @@ function createManifest() {
   };
 }
 
+test("retry never acknowledges the read-only Sessions baseline as the missing pending edit", async () => {
+  const harness = createServiceHarness({ cachedInfo: { source: "central-pending-baseline", serverBacked: true } });
+  const key = "football-session-planner-v1";
+  harness.rawValues.set(key, "central baseline");
+  harness.manifest.entries[key] = { pendingCentralSync: true, hash: "local-unsaved" };
+  harness.service.retryCentral(() => harness.manifest);
+  await harness.service.flushCentralStateWrites();
+  expect(harness.syncCalls).toEqual([]);
+  expect(harness.manifest.entries[key]).toEqual({ pendingCentralSync: true, hash: "local-unsaved" });
+});
+
 function createServiceHarness(options = {}) {
   const manifest = createManifest();
   const rawValues = new Map();
@@ -34,6 +45,7 @@ function createServiceHarness(options = {}) {
         },
       }),
       isCentralKey: () => true,
+      getCachedValueInfo: () => options.cachedInfo || {},
       isHydrated: () => hydrated,
       canAutoSyncKey: (key) =>
         typeof options.canAutoSyncKey === "function" ? options.canAutoSyncKey(key) : true,

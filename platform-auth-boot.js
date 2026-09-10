@@ -640,6 +640,9 @@ async function getActiveAccessToken() {
     if (options.forceApply || options.fresh) {
       query.set("fresh", "1");
     }
+    if (keys.includes(SESSION_PLANNER_STATE_KEY) && typeof DecompressionStream === "function") {
+      query.set("sessionTransport", "gzip-base64-v1");
+    }
     return `${API_APP_STATE}?${query.toString()}`;
   }
   async function readCentralStateBatches(options = {}) {
@@ -654,6 +657,8 @@ async function getActiveAccessToken() {
     if (failedResponse) {
       return failedResponse;
     }
+    const sessionTransport = await import("./src/modules/session-planner/session-state-transport.mjs");
+    for (const response of responses) await sessionTransport.decodeSessionResponse(response.payload);
     return responses.reduce((combined, response) => {
       Object.assign(combined.payload.entries, response.payload?.entries || {});
       Object.assign(combined.payload.metadata, response.payload?.metadata || {});
@@ -778,6 +783,8 @@ async function getActiveAccessToken() {
     );
   }
   function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, centralValue = "", options = {}) {
+    if (key === SESSION_PLANNER_STATE_KEY && pendingEntry?.pendingCentralSync &&
+        getCentralCachedValueInfo(key).source === "central-pending-baseline") return false;
     const incomingRevision = Number(metadataEntry?.revision);
     const appliedRevision = Number(centralState.metadata?.[key]?.revision);
     const localValue = window.localStorage.getItem(key);
@@ -1459,6 +1466,18 @@ async function getActiveAccessToken() {
           return;
         }
         if (!shouldApplyCentralStateEntry(key, pendingEntry, metadataEntry, value, options)) {
+          // A pending disk snapshot must not hide the server when the local cache was evicted.
+          // Keep this baseline read-only to automatic retry; it is not the pending local edit.
+          const cached = getCentralCachedValueInfo(key);
+          if (key === SESSION_PLANNER_STATE_KEY && pendingEntry?.pendingCentralSync &&
+              (window.localStorage.getItem(key) === null || cached.source === "central-pending-baseline") &&
+              Number(metadataEntry.revision || 0) >= Number(centralState.metadata[key]?.revision || 0) &&
+              (cached.value === undefined || cached.source === "central-pending-baseline")) {
+            setCentralCachedValue(key, stripCentralStateLocalUiFields(value, SESSION_PLANNER_LOCAL_UI_FIELDS), {
+              source: "central-pending-baseline", durable: false, serverBacked: true,
+            });
+            setCentralCacheFallbackState(key, true);
+          }
           return;
         }
         if (pendingEntry?.pendingCentralSync) {
@@ -1621,22 +1640,26 @@ async function getActiveAccessToken() {
       const baseRevision = Number.isInteger(Number(options.baseRevision))
         ? Number(options.baseRevision)
         : getCentralStateBaseRevision(baseMetadata);
-      const response = await apiRequest(API_APP_STATE, {
+      const transport = key === SESSION_PLANNER_STATE_KEY
+        ? await import("./src/modules/session-planner/session-state-transport.mjs") : null;
+      const body = JSON.stringify({
+        key,
+        value: options.removed ? "" : transport ? await transport.encodeSessionTransport(key, String(value ?? "")) : String(value ?? ""),
+        removed: Boolean(options.removed),
+        baseRevision,
+        baseHash: baseMetadata.hash || "",
+        baseUpdatedAt: baseMetadata.updatedAt || "",
+        metadata: {
+          baseRevision, revision: baseRevision, hash: baseMetadata.hash || "", updatedAt: baseMetadata.updatedAt || "",
+        },
+      });
+      if (transport && new Blob([body]).size > 4 * 1024 * 1024) {
+        throw new Error("Session data exceeds the transfer limit. Changes remain pending.");
+      }
+      const path = transport?.canDecodeSessionTransport() ? `${API_APP_STATE}?sessionTransport=gzip-base64-v1` : API_APP_STATE;
+      const response = await apiRequest(path, {
         method: options.removed ? "DELETE" : "POST",
-        body: JSON.stringify({
-          key,
-          value: String(value ?? ""),
-          removed: Boolean(options.removed),
-          baseRevision,
-          baseHash: baseMetadata.hash || "",
-          baseUpdatedAt: baseMetadata.updatedAt || "",
-          metadata: {
-            baseRevision,
-            revision: baseRevision,
-            hash: baseMetadata.hash || "",
-            updatedAt: baseMetadata.updatedAt || "",
-          },
-        }),
+        body,
       });
       if (!response.ok) {
         centralState.lastWriteError = response.payload?.reason || "Sync failed.";
@@ -1648,6 +1671,7 @@ async function getActiveAccessToken() {
           reason: centralState.lastWriteError,
         };
       }
+      if (transport) await transport.decodeSessionResponse(response.payload);
       centralState.lastWriteError = "";
       centralState.lastSyncedAt = new Date().toISOString();
       if (response.payload?.metadata) {

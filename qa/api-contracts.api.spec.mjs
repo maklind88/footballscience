@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
+const { encodeSessionStateValue, decodeSessionStateValue } = require("../api/_lib/session-state-transport.js");
 const authHealthHandler = require("../api/auth-health.js");
 const clientConfigHandler = require("../api/client-config.js");
 const appStateHandler = require("../api/app-state.js");
@@ -1006,6 +1007,43 @@ test("app-state invalidates the shared read snapshot after central state writes"
     global.fetch = originalFetch;
     restoreEnv(env);
   }
+});
+
+test("compressed Sessions API saves and reloads a plan larger than the request limit without changing its content", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const storage = createAppStateFetchMock({});
+  global.fetch = storage.fetchMock;
+  const url = "/api/app-state?sessionTransport=gzip-base64-v1";
+  const headers = { authorization: "Bearer test-access-token" };
+  const state = { sessions: { "2026-09-10": { date: "2026-09-10", blocks: Array.from({ length: 100 }, (_, i) => ({
+    id: `large-${i}`, title: `Exercise ${i}`, organization: "Keep possession. ".repeat(3000),
+  })) } } };
+  const raw = JSON.stringify(state);
+  expect(Buffer.byteLength(JSON.stringify({ value: raw }))).toBeGreaterThan(4 * 1024 * 1024);
+  try {
+    const handler = loadFreshAppStateHandler();
+    const value = await encodeSessionStateValue({ url }, appStateSessionPlannerKey, raw);
+    const saved = await callHandler(handler, { method: "POST", url, headers,
+      body: JSON.stringify({ key: appStateSessionPlannerKey, value, metadata: { baseRevision: 0 } }),
+    });
+    expect(saved.status).toBe(200);
+    expect(JSON.parse(await decodeSessionStateValue(appStateSessionPlannerKey, saved.payload.value))).toEqual(state);
+    const read = await callHandler(handler, { method: "GET", url: `${url}&fresh=1&keys=${appStateSessionPlannerKey}`, headers });
+    expect(read.status).toBe(200);
+    expect(read.payload.entries[appStateSessionPlannerKey].encoding).toBe("gzip-base64-v1");
+    expect(JSON.parse(await decodeSessionStateValue(appStateSessionPlannerKey, read.payload.entries[appStateSessionPlannerKey]))).toEqual(state);
+    const writesBefore = storage.writes.length;
+    const rejected = await callHandler(handler, { method: "POST", url, headers,
+      body: JSON.stringify({ key: appStateSessionPlannerKey, value: { encoding: "gzip-base64-v1", data: "invalid" } }),
+    });
+    expect(rejected.status).toBe(400);
+    expect(storage.writes).toHaveLength(writesBefore);
+  } finally { global.fetch = originalFetch; restoreEnv(env); }
 });
 
 test("app-state accepts Session Planner saves above the shared small JSON limit", async () => {

@@ -50,6 +50,23 @@ export function createSessionPlannerRecoveryController({
     return context?.ready ? JSON.stringify([context.scope, context.revision]) : "";
   }
 
+  async function preserveReviewSnapshot(snapshot) {
+    const database = await openDatabase();
+    if (!database) throw new Error("Local backup storage is not available.");
+    // Keep unresolved edits separate before a later edit replaces the active quota snapshot.
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(snapshotStoreName, "readwrite");
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+      transaction.objectStore(snapshotStoreName).put({
+        ...snapshot,
+        id: `${snapshot.id}:review:${snapshot.recovery.baseRevision}`,
+        reason: "session-planner-recovery-review",
+      });
+    });
+  }
+
   function queue() {
     const currentContext = getContext();
     const context = currentContext ? { ...currentContext } : null;
@@ -57,7 +74,7 @@ export function createSessionPlannerRecoveryController({
     if (inFlight || !key || key === checkedContext || hasPendingWrite() || shouldDefer()) return inFlight;
     const stateValue = JSON.stringify(getState());
     const storageValue = getStorageValue();
-    inFlight = readPendingSnapshot(context).then((snapshot) => {
+    inFlight = readPendingSnapshot(context).then(async (snapshot) => {
       // A read must never take over edits, navigation, auth changes, or a newer hydration.
       if (contextKey(getContext()) !== key || getContext()?.hydrating || JSON.stringify(getState()) !== stateValue ||
           getStorageValue() !== storageValue || hasPendingWrite() || shouldDefer()) return;
@@ -76,6 +93,8 @@ export function createSessionPlannerRecoveryController({
         return;
       }
       if (snapshot.recovery.baseRevision !== context.revision) {
+        await preserveReviewSnapshot(snapshot);
+        if (contextKey(getContext()) !== key) return;
         checkedContext = key;
         reportIssue("Local changes need review");
         return;

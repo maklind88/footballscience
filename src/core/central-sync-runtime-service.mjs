@@ -145,6 +145,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (centralStateWriteTimer || centralStateWriteQueue.size || win.__footballScienceCentralHydrating || !getCurrentUser() || !getCentralStateBridge()?.syncKey) return;
     const manifest = typeof readManifest === "function" ? readManifest() : {};
     for (const [key, entry] of Object.entries(manifest.entries || {})) {
+      if (key === sessionPlannerStorageKey &&
+          getCentralStateBridge()?.getCachedValueInfo?.(key)?.source === "central-pending-baseline") continue;
       const value = rawGetItem(key);
       if (
         entry?.pendingCentralSync &&

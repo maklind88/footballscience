@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { decodeSessionStateValue, encodeSessionStateValue } = require("../api/_lib/session-state-transport.js");
 
 const revisionStateKey = "football-simulator-sequence-v1";
 const periodizationStateKey = "football-periodization-v2";
@@ -148,10 +151,11 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     }
 
     const body = JSON.parse(request.postData() || "{}");
+    if (body.key === sessionPlannerStateKey) body.value = await decodeSessionStateValue(body.key, body.value);
     if (body.key !== revisionStateKey) {
       appStateWriteBodies.push(body);
       if (typeof options.appStateWriteHandler === "function") {
-        const customResponse = await options.appStateWriteHandler({ body, centralStore });
+        const customResponse = await options.appStateWriteHandler({ body, centralStore, request });
         if (customResponse) {
           await route.fulfill({
             status: Number(customResponse.status) || 200,
@@ -228,6 +232,122 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     });
   });
 }
+
+test("pending Sessions snapshot with an evicted cache still shows central training without retrying the baseline", async ({ browser, baseURL }) => {
+  const day = "2026-09-10";
+  const sessionValue = JSON.stringify({ selectedDate: "2026-08-01", sessions: {
+    [day]: { date: day, title: "Central training", blocks: [{ id: "central-one", title: "Saved pressing exercise", minutes: 20 }] },
+  } });
+  const initial = createStateValue("Original central sequence");
+  const centralStore = { value: initial, metadata: createMetadata(1, initial),
+    entries: { [sessionPlannerStateKey]: sessionValue },
+    metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(18601, sessionValue), moduleId: "session-planner" } },
+  };
+  const writes = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "missing-session-cache", {
+    appStateWriteBodies: writes,
+    initScript: ({ key, manifestKey }) => {
+      const nativeSet = Storage.prototype.setItem;
+      nativeSet.call(localStorage, manifestKey, JSON.stringify({ entries: {
+        [key]: { pendingCentralSync: true, serverRevision: 18590, hash: "unsaved-local-training" },
+      } }));
+      Storage.prototype.setItem = function (storageKey, value) {
+        if (storageKey === key) throw new DOMException("quota", "QuotaExceededError");
+        return nativeSet.call(this, storageKey, value);
+      };
+    },
+    initArg: { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey },
+  });
+  try {
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey, day }) => {
+      const cached = window.footballScienceCentralState.getCachedValueInfo(key);
+      return {
+        titles: JSON.parse(cached.value || "{}").sessions?.[day]?.blocks?.map((block) => block.title),
+        source: cached.source,
+        pending: JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+        hash: JSON.parse(localStorage.getItem(manifestKey)).entries[key].hash,
+      };
+    }, { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey, day })).toEqual({
+      titles: ["Saved pressing exercise"], source: "central-pending-baseline", pending: true, hash: "unsaved-local-training",
+    });
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    await tab.page.locator(`[data-session-date="${day}"]`).click();
+    await expect(tab.page.locator('[data-session-field="title"]').first()).toHaveValue("Saved pressing exercise");
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+    await expect(tab.page.locator(`[data-session-date="${day}"]`)).toHaveClass(/is-active|is-selected/);
+    expect(await tab.page.evaluate(({ key, manifestKey }) => JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+      { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey })).toBe(true);
+    expect(writes.filter((write) => write.key === sessionPlannerStateKey)).toEqual([]);
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await expect.poll(() => tab.page.evaluate((key) => window.footballScienceCentralState?.getCachedValueInfo?.(key)?.source, sessionPlannerStateKey)).toBe("central-pending-baseline");
+    expect(writes.filter((write) => write.key === sessionPlannerStateKey)).toEqual([]);
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
+test("large Sessions hydrate, edit, save and reload through compressed browser transport", async ({ browser, baseURL }) => {
+  const day = "2026-09-10";
+  const sessions = {};
+  for (let i = 0; i < 36; i += 1) {
+    const date = new Date(Date.UTC(2026, 7, 6 + i)).toISOString().slice(0, 10);
+    sessions[date] = { date, title: "Training", blocks: Array.from({ length: 4 }, (_, b) => ({
+      id: `${date}-${b}`, title: `Pressing ${b + 1}`, minutes: 15, organization: "Keep possession. ".repeat(2200),
+    })) };
+  }
+  const sessionValue = JSON.stringify({ sessions });
+  expect(Buffer.byteLength(sessionValue)).toBeGreaterThan(4 * 1024 * 1024);
+  const initial = createStateValue("Original central sequence");
+  const centralStore = { value: initial, metadata: createMetadata(1, initial),
+    entries: { [sessionPlannerStateKey]: sessionValue },
+    metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(5, sessionValue), moduleId: "session-planner" } },
+  };
+  const wires = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "large-session-transport", {
+    initScript: (key) => {
+      const nativeSet = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (storageKey, value) {
+        if (storageKey === key) throw new DOMException("quota", "QuotaExceededError");
+        return nativeSet.call(this, storageKey, value);
+      };
+    },
+    initArg: sessionPlannerStateKey,
+    appStateReadHandler: async ({ request }) => {
+      const requested = new URL(request.url()).searchParams.get("keys")?.split(",") || [];
+      const entries = { [revisionStateKey]: centralStore.value };
+      if (requested.includes(sessionPlannerStateKey)) {
+        entries[sessionPlannerStateKey] = await encodeSessionStateValue({ url: request.url() }, sessionPlannerStateKey, centralStore.entries[sessionPlannerStateKey]);
+      }
+      return { body: { ok: true, entries, metadata: { [revisionStateKey]: centralStore.metadata, ...centralStore.metadataEntries } } };
+    },
+    appStateWriteHandler: async ({ body, request }) => {
+      if (body.key !== sessionPlannerStateKey) return null;
+      wires.push(request.postData());
+      const revision = Number(body.baseRevision) + 1;
+      centralStore.entries[sessionPlannerStateKey] = body.value;
+      centralStore.metadataEntries[sessionPlannerStateKey] = { ...createMetadata(revision, body.value), moduleId: "session-planner" };
+      return { body: { ok: true, key: body.key, revision, metadata: centralStore.metadataEntries[body.key],
+        value: await encodeSessionStateValue({ url: request.url() }, body.key, body.value) } };
+    },
+  });
+  try {
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    await tab.page.locator(`[data-session-date="${day}"]`).click();
+    const title = tab.page.locator('[data-session-field="title"]').first();
+    await expect(title).toHaveValue("Pressing 1");
+    await title.fill("Saved large plan edit");
+    await title.dispatchEvent("change");
+    await expect.poll(() => JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions[day].blocks[0].title).toBe("Saved large plan edit");
+    expect(wires.length).toBeGreaterThan(0);
+    for (const wire of wires) {
+      expect(Buffer.byteLength(wire)).toBeLessThan(4 * 1024 * 1024);
+      expect(JSON.parse(wire).value.encoding).toBe("gzip-base64-v1");
+    }
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    await tab.page.locator(`[data-session-date="${day}"]`).click();
+    await expect(title).toHaveValue("Saved large plan edit");
+    expect(Object.keys(JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions)).toHaveLength(36);
+  } finally { await closeCentralStateContext(tab.context); }
+});
 
 async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabName, options = {}) {
   const context = await browser.newContext();

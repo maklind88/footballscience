@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import {
   compareContent, contentTableDDL, identifier, maxRecoveryBytes, metadataQuery, productionPooler,
   productionRef, recoveryPlan, recoveryTables, requireExecution, snapshotTransaction,
@@ -133,9 +134,37 @@ test("CLI is offline by default, accepts no execution mode and emits no supplied
   assert.equal(result.status, 0);
   const plan = JSON.parse(result.stdout);
   assert.equal(plan.executionEnabled, false);
-  assert.equal(plan.destinationApproval, "pending");
+  assert.equal(plan.destinationApproval, "approved-temporary-github-runner");
+  assert.equal(plan.executionEntry, "manual-reviewed-github-job-only");
   assert.ok(!`${result.stdout}${result.stderr}`.includes(env.SUPABASE_DB_PASSWORD));
   const rejected = spawnSync(process.execPath, [command.pathname, "--execute"], { env, encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.match(rejected.stderr, /not enabled/);
+});
+
+test("execution CLI rejects local use before any network access and suppresses sensitive diagnostics", () => {
+  const command = new URL("../scripts/github-data-content-recovery.mjs", import.meta.url);
+  for (const args of [[], ["--execute"], ["--execute", "--destination", "example.com"]]) {
+    const env = { ...process.env, GITHUB_ACTIONS: "false", SUPABASE_DB_PASSWORD: "synthetic-never-log" };
+    const result = spawnSync(process.execPath, [command.pathname, ...args], { env, encoding: "utf8", timeout: 5000 });
+    assert.equal(result.status, 1);
+    assert.ok(!`${result.stdout}${result.stderr}`.includes(env.SUPABASE_DB_PASSWORD));
+    assert.ok(!result.stderr.includes("Error:"));
+  }
+});
+
+test("manual workflow has no artifacts, caches, installs with secrets, deploys or alternate destination", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/data-content-recovery.yml", import.meta.url), "utf8");
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /pull_request:|push:|schedule:|upload-artifact|actions\/cache|npm ci|npm install|deploy:|workflow_run:/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /environment: platform-production/);
+  assert.match(workflow, /cancel-in-progress: false/);
+  assert.match(workflow, /test "\$GITHUB_REF" = refs\/heads\/main/);
+  assert.match(workflow, /test "\$EXPECTED_SHA" = "\$GITHUB_SHA"/);
+  assert.match(workflow, /ulimit -c 0/);
+  assert.equal((workflow.match(/secrets\.SUPABASE_DB_PASSWORD/g) || []).length, 1);
+  assert.ok(workflow.indexOf("apt-get install") < workflow.indexOf("SUPABASE_DB_PASSWORD:"));
+  assert.ok(workflow.indexOf("npm run qa:data-recovery-native") < workflow.indexOf("SUPABASE_DB_PASSWORD:"));
+  for (const action of workflow.matchAll(/uses: ([^\s]+)/g)) assert.match(action[1], /@[a-f0-9]{40}$/);
 });

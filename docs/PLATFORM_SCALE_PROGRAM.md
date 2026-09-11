@@ -10,6 +10,8 @@ Read `docs/architecture/PLATFORM_DATA_SCALE_AUDIT_2026-09-11.md` before selectin
 
 The audit recommends identity/recovery evidence first, followed by a Medical recommendation pilot with Squad identity validation, then Exercise Library/Sessions/Schedule dependencies. Scouting query scaling is a separate owner-scoped track. No checkpoint, runtime mode, source of truth or release is changed by this baseline.
 
+Offline work is a required compatibility constraint, not a later optional cache layer. Read the offline requirements and pinned FS Desktop APP / draft PR #201 references in `docs/architecture/PLATFORM_DATA_FOUNDATION_CHECKPOINT_2026-09-11.md` before any domain cutover. Preserve scoped durable pending operations, stable IDs, receipts, conflicts and old-client recovery across schema changes; a server snapshot cannot account for drafts on disconnected devices. Reuse the existing Tauri/SQLite/native-session direction rather than inventing another desktop sync engine; preserve the web Sessions and Video Analysis journals. The desktop's first offline slice is selected Session Planner content, while Medical/RTP remain online-only initially. Platform-wide offline behavior is not yet certified or deployed by this work.
+
 ## Operating Rule
 
 Do not rewrite the platform in one large move. Build a server-owned spine beside the current app, then migrate one module at a time with app-state fallback, tests, audit, and rollback intact.

@@ -67,4 +67,4 @@ Daily database backups alone may leave a substantial interval of newer database 
 - Read-only identity classification and the backup-configuration check are complete for the observed snapshots.
 - Eight new review contracts passed; the focused identity/snapshot/inventory/data-safety matrix passed **62/62**. These include fixtures, not live mutation or physical restore.
 - Actual identity backfill, actual isolated restore, journal reconciliation and offline end-to-end recovery remain incomplete and block a source-of-truth cutover.
-- Next implementation is a synthetic identity/membership migration proof against the reviewed boundaries, alongside preparation of the approved isolated recovery destination. No deployment is authorized.
+- The synthetic identity/membership database proof is now implemented separately; see `PLATFORM_IDENTITY_SYNTHETIC_PROOF_2026-09-11.md` for its executed invariants and limits. It is not the actual identity backfill or production restore. No deployment is authorized.

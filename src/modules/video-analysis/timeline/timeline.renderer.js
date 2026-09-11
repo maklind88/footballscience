@@ -17,12 +17,13 @@ import {
 import {
   clipValue,
   getClipEndMs,
-  getClipPrimaryLabel,
   getClipSecondaryLabel,
   getClipStartMs,
 } from "./timeline.selectors.js";
-import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { timelineSelectedClipIds } from "../services/clipEditingService.js";
+import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
+import { formatClipEditorTime } from "./timeline.clip-editor.renderer.js";
+import { timelineClipHitInsets } from "./timeline.clip-targets.js";
 
 function outcomeClass(outcome = "") {
   const value = String(outcome || "neutral").trim().toLowerCase();
@@ -140,31 +141,22 @@ function renderTimelinePlayhead(playheadMs = 0, window = {}) {
   `;
 }
 
-function renderClipBlock(clip = {}, window = {}, laneMode = "phase", selectedClipIds = new Set(), clipNumber = 1, categorySelected = false, button = null, density = {}, rowColor = "") {
+function renderClipBlock(clip = {}, window = {}, label = "", selectedClipIds = new Set(), hitInsets = "", categorySelected = false, button = null, rowColor = "") {
   const startMs = getClipStartMs(clip);
   const endMs = getClipEndMs(clip);
   const outcome = clip.outcome || "Neutral";
   const selected = selectedClipIds.has(String(clip.id || ""));
-  const primaryLabel = getClipPrimaryLabel(clip, laneMode);
-  const secondaryLabel = getClipSecondaryLabel(clip);
   const buttonColor = safeHexColor(button?.color) || safeHexColor(rowColor);
-  const buttonLabel = button?.label || "";
-  const miniGameLabels = clipMiniGamePrincipleLabels(clip);
-  const miniGameText = miniGameLabels.length
-    ? `${miniGameLabels.slice(0, 3).join(" + ")}${miniGameLabels.length > 3 ? ` +${miniGameLabels.length - 3}` : ""}`
-    : "";
+  const principles = clipMiniGamePrincipleLabels(clip).filter(value => value !== label).join(" + ");
+  const description = [label, `${formatClipEditorTime(startMs)} - ${formatClipEditorTime(endMs)}`,
+    `Duration: ${(endMs - startMs) / 1000} s`, principles].filter(Boolean).join(" · ");
   return `
     <button type="button" class="video-analysis-clip-block${outcomeClass(outcome)}${selected ? " is-selected" : ""}${categorySelected ? " is-category-selected" : ""}"
-      style="${clipBlockStyle(clip, window.durationMs, { windowStartMs: window.startMs, windowDurationMs: window.durationMs })}${buttonColor ? `--video-analysis-clip-color:${escapeHtml(buttonColor)};` : ""}"
+      style="${clipBlockStyle(clip, window.durationMs, { windowStartMs: window.startMs, windowDurationMs: window.durationMs })}${hitInsets}${buttonColor ? `--video-analysis-clip-color:${escapeHtml(buttonColor)};` : ""}"
       data-video-analysis-seek="${escapeHtml(clip.id)}"
       aria-pressed="${selected ? "true" : "false"}"
-      title="${escapeHtml(`#${clipNumber} · ${buttonLabel || primaryLabel} · ${formatVideoTime(startMs)} - ${formatVideoTime(endMs)} · ${secondaryLabel}`)}">
-      <span class="video-analysis-clip-block__copy">
-        <strong>${escapeHtml(String(clipNumber))}</strong>
-        ${miniGameText && !density.isDense ? `<em>${escapeHtml(miniGameText)}</em>` : ""}
-        ${density.isDense ? "" : `<small>${escapeHtml(formatVideoTime(startMs))}</small>`}
-      </span>
-    </button>
+      aria-label="${escapeHtml(description)}"
+      title="${escapeHtml(description)}"></button>
   `;
 }
 
@@ -201,6 +193,7 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
     `;
   }
   return visibleLanes.map(({ lane, visibleClips }) => {
+    const hitInsets = timelineClipHitInsets(visibleClips, window);
     const countLabel = window.mode === "focus" && visibleClips.length !== lane.clips.length
       ? `${visibleClips.length}/${lane.clips.length}`
       : String(lane.clips.length);
@@ -224,15 +217,14 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
           data-video-analysis-timeline-duration-ms="${escapeHtml(window.durationMs)}"
           data-video-analysis-timeline-window-start-ms="${escapeHtml(window.startMs)}"
         >
-          ${visibleClips.map((clip) => renderClipBlock(
+          ${visibleClips.map((clip, index) => renderClipBlock(
             clip,
             window,
-            laneMode,
+            laneDisplayLabel(lane.label, laneMode),
             selectedClipIds,
-            lane.clips.indexOf(clip) + 1,
+            hitInsets[index],
             isActiveCategory(timeline, laneMode, lane.label),
             findClipButton(clip, buttonLookup),
-            density,
             lane.color
           )).join("")}
         </div>

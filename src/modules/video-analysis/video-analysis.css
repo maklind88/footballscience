@@ -1704,26 +1704,6 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   box-shadow: inset 0 0 0 1px rgba(15, 29, 22, 0.3);
 }
 
-.video-analysis-fs-player-timeline .video-analysis-clip-block__copy {
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-}
-
-.video-analysis-fs-player-timeline .video-analysis-clip-block__copy strong {
-  display: inline-grid;
-  place-items: center;
-  min-width: 0;
-  height: 12px;
-  font-size: 8px;
-  line-height: 1;
-}
-
-.video-analysis-fs-player-timeline .video-analysis-clip-block__copy em,
-.video-analysis-fs-player-timeline .video-analysis-clip-block__copy small {
-  display: none;
-}
-
 .video-analysis-fs-player-timeline .video-analysis-clip-block__handle {
   width: 5px;
   opacity: 0;
@@ -4059,7 +4039,7 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   min-width: 0;
   height: 100%;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   border: 0;
   border-radius: 0;
   padding: 0;
@@ -4088,36 +4068,24 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   background: color-mix(in srgb, var(--video-analysis-clip-color, #3268b7) 78%, transparent);
 }
 
-.video-analysis-clip-block__copy {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 4px;
-  min-width: 0;
-  width: 100%;
-  line-height: 1;
+.video-analysis-clip-block::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-1 * min(var(--video-analysis-clip-hit-before, 0%), max(0px, (16px - 100%) / 2)));
+  right: calc(-1 * min(var(--video-analysis-clip-hit-after, 0%), max(0px, (16px - 100%) / 2)));
+  content: "";
+}
+
+.video-analysis-clip-block::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: max(0px, 1px - 100%);
+  background: inherit;
+  content: "";
   pointer-events: none;
-}
-
-.video-analysis-clip-block__copy strong,
-.video-analysis-clip-block__copy small,
-.video-analysis-clip-block__copy em {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.video-analysis-clip-block__copy em {
-  min-width: 0;
-  max-width: 70%;
-  color: rgba(255,255,255,0.88);
-  font-size: 8px;
-  font-style: normal;
-}
-
-.video-analysis-clip-block__copy small {
-  color: rgba(255,255,255,0.78);
-  font-size: 8px;
 }
 
 .video-analysis-clip-block__handle {

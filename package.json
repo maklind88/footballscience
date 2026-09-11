@@ -44,6 +44,8 @@
     "platform:scale:audit": "node scripts/audit-platform-data-scale.mjs",
     "qa:identity-proof": "node --test qa/identity-migration-proof.test.mjs",
     "qa:local-recovery": "node --test qa/local-postgres-recovery.test.mjs",
+    "recovery:data:plan": "node scripts/data-content-recovery-plan.mjs",
+    "qa:data-recovery-plan": "node --test qa/data-content-recovery.test.mjs",
     "platform:identity:backfill": "node scripts/platform-identity-backfill.mjs",
     "platform:identity:snapshot": "node scripts/platform-identity-snapshot.mjs",
     "platform:identity:backfill:env": "node scripts/verify-platform-identity-backfill-env.mjs",

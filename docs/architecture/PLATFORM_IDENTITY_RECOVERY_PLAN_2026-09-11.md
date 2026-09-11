@@ -51,6 +51,8 @@ Use a disposable, access-restricted recovery destination, never production or th
 
 User decision after this review: no new paid restore project; reuse existing resources. The clone confirmation was cancelled without creating a project. Native PostgreSQL 17 is now prepared and synthetic logical export/restore checks passed locally; see `PLATFORM_LOCAL_RECOVERY_2026-09-11.md`. Real export access is still missing. Shared staging is not a disposable full-restore destination and must not be overwritten. This local logical path does not certify the provider's physical backup.
 
+Access follow-up: local export access remains unavailable, but the existing GitHub production environment has working database-health credentials. `PLATFORM_GITHUB_RECOVERY_PLAN_2026-09-11.md` prepares a data-content-only alternative. Copying real sensitive data into that external runner requires explicit destination approval; no workflow/export is enabled and full recovery remains unverified.
+
 | Step | Required evidence / stop condition |
 | --- | --- |
 | Destination preflight | Record source/destination project identity, snapshot time, allowed operators and cleanup plan. Destination must not serve the live domain. Disable external jobs/webhooks and prevent test clients from reaching production before exercising restored data. |

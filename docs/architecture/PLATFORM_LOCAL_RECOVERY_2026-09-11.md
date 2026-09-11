@@ -45,4 +45,6 @@ Restore only into a new local, isolated destination. Do not overwrite Live or th
 - Database backups do not contain Storage object bytes or disconnected device drafts. Their recovery evidence stays separate.
 - Real recovery remains incomplete until approved access, consistent export, private local restore and content/relationship/security comparisons pass. Keep the identity backfill, Medical reconciliation and source-of-truth cutover blocked in the meantime.
 
-Next prerequisite: establish secure export access without exposing a password, then execute the actual recovery checklist in `PLATFORM_IDENTITY_RECOVERY_PLAN_2026-09-11.md`. No new paid project is needed for the logical local path.
+Follow-up: the verified TLS connection reached the production session pooler, but the user does not have the current database password. No password was saved or reset. Existing GitHub `platform-production` credentials successfully ran database health inspection on 2026-09-11. See `PLATFORM_GITHUB_RECOVERY_PLAN_2026-09-11.md` for the proposed alternative: a bounded data-content drill using that credential inside an ephemeral runner. The external destination still needs explicit approval; no executor, workflow or real export has been enabled.
+
+The complete recovery checklist in `PLATFORM_IDENTITY_RECOVERY_PLAN_2026-09-11.md` remains required. Neither a connection check nor the proposed data-only drill certifies full recovery. No new paid Supabase project is needed for the proposed path.

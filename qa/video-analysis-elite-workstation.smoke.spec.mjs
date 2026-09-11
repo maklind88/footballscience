@@ -35,9 +35,10 @@ for (const width of [1388, 390]) {
     await expect(page.locator("[data-video-analysis-workspace-timeline-add]")).toHaveCount(0);
     await expect(page.locator("[data-video-analysis-workspace-save]")).toHaveCount(0);
     await expect(page.locator("[data-video-analysis-workspace-collaboration]")).toHaveCount(0);
-    await expect(timeline.locator(":scope > :first-child")).toHaveClass("video-analysis-timeline-window-controls");
-    await expect(timeline.locator('[data-video-analysis-timeline-view="overview"]')).toBeVisible();
-    await expect(timeline.locator("[data-video-analysis-timeline-undo]")).toBeVisible();
+    await expect(timeline.locator(":scope > :first-child")).toHaveClass("video-analysis-timeline-scroll");
+    await expect(timeline.locator(".video-analysis-timeline-window-controls")).toHaveCount(0);
+    await expect(timeline.locator("[data-video-analysis-timeline-view], [data-video-analysis-timeline-zoom], [data-video-analysis-timeline-undo]")).toHaveCount(0);
+    await expect(timeline.locator("[data-video-analysis-timeline-ruler]")).toBeVisible();
     await expect(timeline.locator('[data-video-analysis-timeline-category-label="High press"]')).toHaveCount(0);
     await timeline.scrollIntoViewIfNeeded();
     const bounds = await timeline.boundingBox();
@@ -51,20 +52,19 @@ for (const width of [1388, 390]) {
   });
 }
 
-test("single match timeline retains zoom, focus, category actions and code mode", async ({ page }) => {
+test("single match timeline retains wheel zoom, clip selection, category actions and code mode", async ({ page }) => {
   await openMatchTimeline(page);
   const timeline = page.locator("[data-video-analysis-timeline-module]");
-  await timeline.locator('[data-video-analysis-timeline-zoom="1"]').click();
+  await timeline.locator("[data-video-analysis-timeline-pan]").dispatchEvent("wheel", { deltaY: -100, ctrlKey: true });
   await expect(timeline.locator(".video-analysis-timeline-canvas")).not.toHaveAttribute("style", "width:100%;");
-  await timeline.locator('[data-video-analysis-timeline-view="focus"]').click();
-  await expect(timeline.locator('[data-video-analysis-timeline-view="focus"]')).toHaveAttribute("aria-pressed", "true");
-  await timeline.locator('[data-video-analysis-timeline-view="overview"]').click();
-  await expect(timeline.locator('[data-video-analysis-timeline-view="overview"]')).toHaveAttribute("aria-pressed", "true");
+  await timeline.locator('.video-analysis-clip-block[data-video-analysis-seek="clip-1"]').first().click();
+  await expect(timeline.locator("[data-video-analysis-timeline-focus]")).toBeVisible();
   await timeline.locator("[data-video-analysis-timeline-category]").first().click({ button: "right" });
   await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("Play active");
   await page.locator("[data-video-analysis-timeline-category-close]").click();
   await page.locator("[data-video-analysis-code-mode]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
   await expect(page.locator(".video-analysis-workspace-bar")).toHaveCount(0);
-  await expect(timeline.locator('[data-video-analysis-timeline-view="overview"]')).toBeVisible();
+  await expect(timeline.locator(".video-analysis-timeline-window-controls")).toHaveCount(0);
+  await expect(timeline.locator("[data-video-analysis-timeline-ruler]")).toBeVisible();
 });

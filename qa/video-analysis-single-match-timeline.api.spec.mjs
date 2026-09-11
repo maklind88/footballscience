@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { renderTimeline } from "../src/modules/video-analysis/timeline/timeline.renderer.js";
+import { renderPlayerHeaderActions } from "../src/modules/video-analysis/components/PlayerHeaderActions.js";
 
 function matchState() {
   return {
@@ -39,17 +40,28 @@ test("single match timeline ignores extra timeline row filters without changing 
   expect(state).toEqual(before);
 });
 
-test("single match timeline keeps focus, zoom and clip editing controls", () => {
+test("single match timeline starts at the ruler and ignores stale focus without hiding clips", () => {
   const state = matchState();
   state.selectedClipId = "press";
   state.timeline = { ...state.timeline, viewMode: "focus", selectedClipIds: ["press"] };
   const html = renderTimeline(state);
-  expect(html).toContain('data-video-analysis-timeline-view="overview"');
-  expect(html).toContain('data-video-analysis-timeline-view="focus"');
-  expect(html).toContain('data-video-analysis-timeline-zoom="1"');
-  expect(html).toContain("data-video-analysis-timeline-undo");
+  expect(html).not.toContain("video-analysis-timeline-window-controls");
+  expect(html).not.toContain("data-video-analysis-timeline-view=");
+  expect(html).not.toContain("data-video-analysis-timeline-zoom=");
+  expect(html).not.toContain("data-video-analysis-timeline-undo");
+  expect(html).toContain('data-video-analysis-timeline-window-duration-ms="600000"');
+  expect(html).toContain('data-video-analysis-timeline-window-start-ms="0"');
+  expect(html).toContain('data-video-analysis-seek="build"');
   expect(html).toContain("data-video-analysis-timeline-focus");
   expect(html).toContain("0:00:30");
   expect(html).toContain("0:00:45");
   expect(html).toContain("0:00:15");
+});
+
+test("player settings retain undo only for editable tag history", () => {
+  const state = matchState();
+  expect(renderPlayerHeaderActions(state)).not.toContain("data-video-analysis-timeline-undo");
+  state.timeline.history = [{ type: "archive", clipIds: ["press"] }];
+  expect(renderPlayerHeaderActions(state)).toContain("data-video-analysis-timeline-undo");
+  expect(renderPlayerHeaderActions({ ...state, canEdit: false })).not.toContain("data-video-analysis-timeline-undo");
 });

@@ -142,44 +142,6 @@ function renderTimelinePlayhead(playheadMs = 0, window = {}) {
   `;
 }
 
-function renderTimelineWindowControls(window = {}, timeline = {}, selectedCount = 0, canEdit = false) {
-  const focusAvailable = selectedCount > 0;
-  const historyCount = Array.isArray(timeline.history) ? timeline.history.length : 0;
-  return `
-    <div class="video-analysis-timeline-window-controls">
-      <div class="video-analysis-timeline-tabs" role="group" aria-label="Timeline scale">
-        <button
-          type="button"
-          class="${window.mode === "overview" ? "is-active" : ""}"
-          data-video-analysis-timeline-view="overview"
-          aria-pressed="${window.mode === "overview" ? "true" : "false"}"
-        >Overview</button>
-        <button
-          type="button"
-          class="${window.mode === "focus" ? "is-active" : ""}"
-          data-video-analysis-timeline-view="focus"
-          aria-pressed="${window.mode === "focus" ? "true" : "false"}"
-          ${focusAvailable ? "" : "disabled"}
-        >Focus</button>
-      </div>
-      <div class="video-analysis-timeline-window-range">
-        <span>${escapeHtml(`${formatVideoTime(window.startMs)} - ${formatVideoTime(window.endMs)}`)}</span>
-        <button type="button" data-video-analysis-timeline-zoom="-1" aria-label="Zoom out">-</button>
-        <strong>${escapeHtml(`${Math.round(Number(timeline.zoom || 1) * 10) / 10}x`)}</strong>
-        <button type="button" data-video-analysis-timeline-zoom="1" aria-label="Zoom in">+</button>
-      </div>
-      <div class="video-analysis-timeline-window-actions">
-        ${selectedCount > 1 ? `<button type="button" data-video-analysis-timeline-clear-selection>Clear selection</button>` : ""}
-        <button
-          type="button"
-          data-video-analysis-timeline-undo
-          ${canEdit && historyCount ? "" : "disabled"}
-        >Undo${historyCount ? ` (${historyCount})` : ""}</button>
-      </div>
-    </div>
-  `;
-}
-
 function selectedTimelineClip(clips = [], timeline = {}, selectedClipId = "") {
   const selectedId = String(selectedClipId || timeline.selectedCategory?.activeClipId || "").trim();
   if (!selectedId) return null;
@@ -365,9 +327,8 @@ export function renderTimeline(state = {}) {
   const selectedClip = selectedTimelineClip(clips, timeline, state.selectedClipId);
   const selectedClipIds = new Set(timelineSelectedClipIds(state));
   const selectedClips = clips.filter((clip) => selectedClipIds.has(String(clip.id || "")));
-  const timelineWindow = getTimelineWindow(totalMs, timeline, selectedClip);
+  const timelineWindow = getTimelineWindow(totalMs);
   const ticks = buildTimelineWindowTicks(timelineWindow, { zoom });
-  const canvasZoom = timelineWindow.mode === "focus" ? 1 : zoom;
   return `
     <section
       class="video-analysis-timeline video-analysis-timeline-module${density.isDense ? " is-dense" : ""}"
@@ -378,9 +339,8 @@ export function renderTimeline(state = {}) {
       data-video-analysis-timeline-density="${density.isDense ? "dense" : "normal"}"
       data-video-analysis-timeline-clip-count="${escapeHtml(density.clipCount)}"
     >
-      ${renderTimelineWindowControls(timelineWindow, timeline, selectedClips.length, Boolean(state.canEdit))}
       <div class="video-analysis-timeline-scroll" data-video-analysis-timeline-pan>
-        <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(canvasZoom)}">
+        <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">
           <div class="video-analysis-timeline-toolbar">
             ${renderLaneSelector(laneMode, density.clipCount, laneModeCounts)}
             ${renderTimelineRuler(ticks, timelineWindow)}

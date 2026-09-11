@@ -95,9 +95,10 @@ for (const viewport of [{ width: 1468, height: 900 }, { width: 390, height: 844 
     expect(await blocks.first().evaluate((element) => parseFloat(element.style.width)))
       .toBeCloseTo(15_000 / overviewDuration * 100, 3);
     await blocks.first().click();
-    await page.locator('[data-video-analysis-timeline-view="focus"]').click();
-    await expect(timeline).toHaveAttribute("data-video-analysis-timeline-window-duration-ms", "60000");
-    await expect(blocks.first()).toHaveAttribute("style", /width:25%/);
+    await expect(timeline).toHaveAttribute("data-video-analysis-timeline-window-duration-ms", String(overviewDuration));
+    await expect(timeline.locator("[data-video-analysis-timeline-focus]")).toContainText("0:00:15");
+    expect(await blocks.first().evaluate((element) => parseFloat(element.style.width)))
+      .toBeCloseTo(15_000 / overviewDuration * 100, 3);
 
     const firstPixels = await decodedPixels(video, startSeconds + 9);
     const visiblePixels = firstPixels.filter((value, index) => index % 4 !== 3 && value > 20).length;

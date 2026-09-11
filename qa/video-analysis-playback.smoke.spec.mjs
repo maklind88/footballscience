@@ -2,6 +2,11 @@ import { expect, test } from "@playwright/test";
 
 const h264Mp4Fixture = Buffer.from("ftypisommp42moovtrakmdiahdlrstsdavc1", "latin1");
 
+async function undoTimelineChange(page) {
+  await page.locator("[data-video-analysis-player-settings]").click();
+  await page.locator("[data-video-analysis-timeline-undo]").click();
+}
+
 async function installDeterministicMedia(page) {
   await page.addInitScript(() => {
     Object.defineProperty(HTMLMediaElement.prototype, "error", {
@@ -433,9 +438,8 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-presentation")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-header")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
-  await expect(page.locator(".video-analysis-timeline-tabs")).toBeVisible();
-  await expect(page.locator('[data-video-analysis-timeline-view="overview"]')).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator('[data-video-analysis-timeline-view="focus"]')).toBeDisabled();
+  await expect(page.locator(".video-analysis-timeline-window-controls")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-timeline-tabs")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-view-select")).toContainText("Timeline");
   await expect(page.locator("[data-video-analysis-timeline-lane-select]")).toHaveValue("all");
   await expect(page.locator("[data-video-analysis-timeline-lane-select] option")).toHaveCount(6);
@@ -926,16 +930,15 @@ test("Video Analysis Timeline keeps true scale, stacks overlaps, and undoes merg
   ]));
 
   await highPressClips.first().click();
-  await page.locator('[data-video-analysis-timeline-view="focus"]').click();
   await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveAttribute(
     "data-video-analysis-timeline-window-duration-ms",
-    "60000"
+    "120000"
   );
   await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveAttribute(
     "data-video-analysis-timeline-window-start-ms",
     "0"
   );
-  await expect(highPressClips.first()).toHaveAttribute("style", /width:25%/);
+  await expect(highPressClips.first()).toHaveAttribute("style", /width:12.5%/);
 
   await highPressClips.nth(1).click({ modifiers: ["Shift"] });
   await expect(page.locator("[data-video-analysis-timeline-focus]")).toContainText("2 clips selected");
@@ -947,7 +950,7 @@ test("Video Analysis Timeline keeps true scale, stacks overlaps, and undoes merg
   await expect(page.locator('[data-video-analysis-timeline-category-label="High Press"]')).toContainText("High Press (1)");
   await expect(page.locator("[data-video-analysis-timeline-undo]")).toBeEnabled();
 
-  await page.locator("[data-video-analysis-timeline-undo]").click();
+  await undoTimelineChange(page);
   await expect.poll(() => page.evaluate(() => {
     const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "restore-clips");
     return request?.body?.ids || [];
@@ -976,7 +979,7 @@ test("Video Analysis Timeline keeps true scale, stacks overlaps, and undoes merg
     tags: ["press", "regain"],
     note: "Corrected after review.",
   });
-  await page.locator("[data-video-analysis-timeline-undo]").click();
+  await undoTimelineChange(page);
   await expect.poll(() => page.evaluate(() => {
     const requests = (window.__videoAnalysisRequests || []).filter((item) => (
       item.action === "save-clip" && item.body?.clip?.id === "overlap-1"
@@ -1044,7 +1047,7 @@ test("Video Analysis deletes a selected timeline tag with the Delete key", async
   await expect(page.locator(".video-analysis-clip-block")).toHaveCount(1);
   await expect(page.locator(".video-analysis-toast")).toContainText("Timeline tag deleted.");
   await expect(page.locator("[data-video-analysis-timeline-undo]")).toBeEnabled();
-  await page.locator("[data-video-analysis-timeline-undo]").click();
+  await undoTimelineChange(page);
   await expect.poll(() => page.evaluate(() => (
     [...(window.__videoAnalysisRequests || [])].reverse().find((request) => request.action === "restore-clips")?.body?.ids || []
   ))).toEqual(["clip-delete-1"]);

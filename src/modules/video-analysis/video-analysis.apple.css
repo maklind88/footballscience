@@ -427,7 +427,7 @@
   color: #7a827c;
 }
 
-#analysisRoomWorkspace .video-analysis-lane__label {
+#analysisRoomWorkspace .video-analysis-lane:not(.is-selected) .video-analysis-lane__label {
   border-color: rgba(24, 34, 29, 0.07);
   background: rgba(239, 243, 240, 0.76);
 }

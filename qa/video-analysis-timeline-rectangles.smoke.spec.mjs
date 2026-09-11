@@ -16,6 +16,8 @@ async function openTimeline(page) {
       { ...base, id: "tiny", start_ms: 95000, end_ms: 95100 },
       { ...base, id: "long-name", start_ms: 105000, end_ms: 120000,
         players: [{ player_label: "A Very Long Player Name That Must Not Widen The Timeline", player_id: "p2" }] },
+      { ...base, id: "phase", start_ms: 10000, end_ms: 25000,
+        phase: "In Possession", sub_phase: "Phase", players: [], mini_game_principle_id: "drive-past-press" },
     ];
     window.__videoAnalysisInitialState = {
       view: "workspace", match: { id: matchId, title: "Timeline preview" },
@@ -27,6 +29,31 @@ async function openTimeline(page) {
   }, { matchId, videoId });
   await page.goto("/qa/video-analysis-browser-smoke.html?rectangles=1");
   await expect(page.locator('[data-video-analysis-timeline-category-label="Sub-phase / High Press"]')).toBeVisible();
+}
+
+async function expectSelectedContrast(category) {
+  await expect(category).toHaveAttribute("aria-pressed", "true");
+  const contrast = await category.evaluate(element => {
+    const rgba = value => value.match(/[\d.]+/g).map(Number);
+    const background = rgba(getComputedStyle(element).backgroundColor);
+    const luminance = rgb => rgb.map(value => value / 255)
+      .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+      .reduce((total, value, i) => total + value * [0.2126, 0.7152, 0.0722][i], 0);
+    return {
+      backgroundAlpha: background[3] ?? 1,
+      ratios: [...element.querySelectorAll(".video-analysis-lane__name, .video-analysis-lane__count")].map(label => {
+        const foreground = rgba(getComputedStyle(label).color);
+        const alpha = foreground[3] ?? 1;
+        const text = foreground.slice(0, 3).map((value, i) => value * alpha + background[i] * (1 - alpha));
+        const light = luminance(text);
+        const dark = luminance(background.slice(0, 3));
+        return (Math.max(light, dark) + 0.05) / (Math.min(light, dark) + 0.05);
+      }),
+    };
+  });
+  expect(contrast.backgroundAlpha).toBe(1);
+  expect(contrast.ratios).toHaveLength(2);
+  for (const ratio of contrast.ratios) expect(ratio).toBeGreaterThanOrEqual(4.5);
 }
 
 for (const width of [1470, 390]) {
@@ -41,6 +68,10 @@ for (const width of [1470, 390]) {
     await expect(category).toHaveText("High Press (7)");
     await expect(timeline.locator('[data-video-analysis-timeline-category-label="Player / Ally Schlegel"]'))
       .toHaveText("Ally Schlegel (6)");
+    const phase = timeline.locator('[data-video-analysis-timeline-category-label="Phase / In Possession"]');
+    const principle = timeline.locator('[data-video-analysis-timeline-category-label="MG Principle / Drive past press"]');
+    await expect(phase).toHaveText("In Possession (1)");
+    await expect(principle).toHaveText("Drive past press (1)");
     expect((await category.boundingBox()).width).toBe(width < 600 ? 160 : 200);
 
     async function geometry() {
@@ -77,6 +108,10 @@ for (const width of [1470, 390]) {
     expect(byId["duplicate-time"].x).toBe(byId.long.x);
     expect(byId["duplicate-time"].width).toBe(byId.long.width);
 
+    for (const row of [phase, principle, category]) {
+      await row.click();
+      await expectSelectedContrast(row);
+    }
     await timeline.scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath(`timeline-rectangles-${width}.png`) });
     const bounds = await timeline.boundingBox();
@@ -91,6 +126,14 @@ for (const width of [1470, 390]) {
     const code = await geometry();
     for (const block of code.blocks) expect(block.height).toBe(code.height);
     expect(code.blocks.find(block => block.id === "tiny").width).toBeCloseTo(code.width * 100 / 120000, 1);
+    await category.click();
+    await expectSelectedContrast(category);
+    await principle.dblclick();
+    const popup = page.locator("[data-video-analysis-clip-editor]");
+    await expect(popup.getByRole("heading")).toHaveText("Drive past press (1)");
+    await popup.getByRole("button", { name: "Close", exact: true }).first().click();
+    await expect(popup).not.toBeVisible();
+    await expectSelectedContrast(principle);
     expect(errors).toEqual([]);
   });
 }

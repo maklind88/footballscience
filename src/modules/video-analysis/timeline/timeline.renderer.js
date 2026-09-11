@@ -174,7 +174,7 @@ function isActiveCategory(timeline = {}, laneMode = "phase", label = "") {
 }
 
 function laneDisplayLabel(label = "", laneMode = "phase") {
-  return laneMode === "all" ? label.replace(/^(Sub-phase|Player) \/ /, "") : label;
+  return laneMode === "all" ? label.replace(/^(Phase|Sub-phase|MG Principle|Player) \/ /, "") : label;
 }
 
 function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", selectedClipIds = new Set(), timeline = {}, buttonLookup = {}, density = {}) {

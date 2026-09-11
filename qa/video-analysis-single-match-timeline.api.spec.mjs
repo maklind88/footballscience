@@ -71,14 +71,22 @@ test("timeline shortens visible names without changing category identity or save
   const state = matchState();
   state.timeline.laneMode = "all";
   state.clips[0].players = [{ player_label: "Ally Schlegel" }];
+  state.clips[0].miniGamePrincipleId = "drive-past-press";
+  state.clips.push({ id: "phase", startMs: 30000, endMs: 45000, phase: "In Possession", subPhase: "Phase" });
   const before = structuredClone(state);
   const html = renderTimeline(state);
   expect(html).toContain('data-video-analysis-timeline-category-label="Sub-phase / High Press"');
   expect(html).toContain('data-video-analysis-timeline-category-label="Player / Ally Schlegel"');
+  expect(html).toContain('data-video-analysis-timeline-category-label="Phase / In Possession"');
+  expect(html).toContain('data-video-analysis-timeline-category-label="MG Principle / Drive past press"');
   expect(html).toContain('class="video-analysis-lane__name">High Press</span>');
   expect(html).toContain('class="video-analysis-lane__name">Ally Schlegel</span>');
+  expect(html).toContain('class="video-analysis-lane__name">In Possession</span>');
+  expect(html).toContain('class="video-analysis-lane__name">Drive past press</span>');
   expect(html).not.toContain('class="video-analysis-lane__name">Sub-phase /');
   expect(html).not.toContain('class="video-analysis-lane__name">Player /');
+  expect(html).not.toContain('class="video-analysis-lane__name">Phase /');
+  expect(html).not.toContain('class="video-analysis-lane__name">MG Principle /');
   expect(state).toEqual(before);
 });
 

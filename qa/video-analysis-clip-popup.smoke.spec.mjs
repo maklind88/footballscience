@@ -106,6 +106,14 @@ test("clip popup saves times and tags together, retains context, and supports un
   });
 });
 
+test("clip popup uses the clicked row name in All Tags", async ({ page }) => {
+  await openTimeline(page);
+  await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("all");
+  const lane = page.locator('[data-video-analysis-timeline-category-label="Player / Uno Shiragaki"]').locator("..");
+  await lane.locator(clipSelector).dblclick();
+  await expect(page.locator(popupSelector).getByRole("heading")).toHaveText("Uno Shiragaki");
+});
+
 test("clip popup rejects invalid ranges and cancelling never writes", async ({ page }) => {
   await openTimeline(page);
   await page.locator(clipSelector).dblclick();

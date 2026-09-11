@@ -24,7 +24,7 @@ function timeField(label, name, value) {
   return `<label><span>${label}</span><input type="text" required autocomplete="off" aria-label="${label}" data-video-analysis-timeline-edit-field="${name}" value="${escapeHtml(formatClipEditorTime(value))}"></label>`;
 }
 
-export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false } = {}) {
+export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false, title = "" } = {}) {
   const start = getClipStartMs(clip);
   const end = getClipEndMs(clip);
   const principles = new Set(clipMiniGamePrincipleLabels(clip));
@@ -32,7 +32,7 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false 
   const phases = [...new Set([subPhase, ...videoAnalysisSubPhases])];
   return `
     <header>
-      <div><span>${canEdit ? "Edit clip" : "Clip"}</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(getClipPrimaryLabel(clip, laneMode) || "Selected clip")}</h2></div>
+      <div><span>${canEdit ? "Edit clip" : "Clip"}</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(title || getClipPrimaryLabel(clip, laneMode) || "Selected clip")}</h2></div>
       <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" title="Close">${playerHeaderIcon("x")}</button>
     </header>
     <form data-video-analysis-timeline-editor novalidate>

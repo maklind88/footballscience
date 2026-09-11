@@ -114,7 +114,8 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     dialog.className = "video-analysis-clip-editor";
     dialog.setAttribute("aria-labelledby", "video-analysis-clip-editor-title");
     dialog.setAttribute("data-video-analysis-clip-editor", clip.id);
-    dialog.innerHTML = renderClipEditor(clip, { laneMode: getState().timeline?.laneMode, canEdit: getState().canEdit });
+    const title = trigger?.closest(".video-analysis-lane")?.querySelector(".video-analysis-lane__name")?.textContent || "";
+    dialog.innerHTML = renderClipEditor(clip, { laneMode: getState().timeline?.laneMode, canEdit: getState().canEdit, title });
     dialog.addEventListener("cancel", event => { event.preventDefault(); close(); });
     dialog.addEventListener("input", timingChanged);
     dialog.addEventListener("submit", submit);

@@ -59,3 +59,66 @@ export function assessIdentityFoundation(evidence, { expectedSources, now = Date
     blockers,
   };
 }
+
+// Planning coverage can be complete while actual target mappings remain incomplete.
+export function assessIdentityReview(evidence, options = {}) {
+  const foundation = assessIdentityFoundation(evidence, options);
+  const blockers = foundation.blockers.filter((code) => !code.startsWith("unmapped:"));
+  const groups = Array.isArray(evidence?.identityReview) ? evidence.identityReview : [];
+  const collections = Array.isArray(evidence?.collections) ? evidence.collections : [];
+  const dimensions = ["label", "roster_type", "archived", "counts_in_squad", "in_squad_source", "target_state"];
+  const counts = ["players", "medical_records", "medical_plans", "source_disagreements"];
+  const seen = new Set();
+  const proposals = [];
+  for (const group of groups) {
+    if (!["squad-players", "medical-players"].includes(group?.label)
+      || !["squad", "academy", "trialist", "guest"].includes(group?.roster_type)
+      || !["true", "false"].includes(group?.counts_in_squad)
+      || typeof group?.archived !== "boolean" || typeof group?.in_squad_source !== "boolean"
+      || !["current-target", "historical-target", "missing-target"].includes(group?.target_state)
+      || !counts.every((key) => Number.isSafeInteger(group?.[key]) && group[key] >= 0)
+      || group.players === 0 || group.source_disagreements > group.players) {
+      blockers.push("invalid-identity-review-group");
+      continue;
+    }
+    const signature = JSON.stringify(dimensions.map((key) => group[key]));
+    if (seen.has(signature)) blockers.push("duplicate-identity-review-group");
+    seen.add(signature);
+    proposals.push({
+      source: group.label,
+      rosterType: group.roster_type,
+      archived: group.archived,
+      players: group.players,
+      medicalRecords: group.medical_records,
+      medicalPlans: group.medical_plans,
+      policyDisagreements: group.source_disagreements,
+      decision: group.target_state === "current-target" ? "retain-existing-identity"
+        : group.target_state === "historical-target" ? "review-historical-identity" : "plan-missing-identity",
+      activeRosterChangeAuthorized: false,
+    });
+  }
+  for (const label of ["squad-players", "medical-players"]) {
+    const collection = collections.find((row) => row?.label === label);
+    const rows = groups.filter((row) => row?.label === label);
+    const total = (field, predicate = () => true) => rows.filter(predicate).reduce((sum, row) => sum + row[field], 0);
+    if (!rows.length || total("players") !== collection?.items
+      || total("players", (row) => row.target_state === "current-target") !== collection?.mapped) {
+      blockers.push(`identity-review-coverage:${label}`);
+    }
+    if (label === "medical-players") {
+      for (const [field, reference] of [["medical_records", "medical-records"], ["medical_plans", "medical-plans"]]) {
+        if (total(field) !== collections.find((row) => row?.label === reference)?.items) {
+          blockers.push(`identity-review-reference-coverage:${reference}`);
+        }
+      }
+    }
+  }
+  return {
+    planningEvidenceComplete: blockers.length === 0,
+    crosswalkComplete: foundation.crosswalkComplete,
+    migrationAuthorized: false,
+    recoveryVerified: false,
+    blockers: [...new Set(blockers)],
+    proposals: blockers.length ? [] : proposals,
+  };
+}

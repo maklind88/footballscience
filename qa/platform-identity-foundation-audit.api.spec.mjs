@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { assessIdentityFoundation, FOUNDATION_COLLECTIONS } from "../scripts/lib/platform-identity-foundation-audit.mjs";
+import { assessIdentityFoundation, assessIdentityReview, FOUNDATION_COLLECTIONS } from "../scripts/lib/platform-identity-foundation-audit.mjs";
 
 const now = Date.parse("2026-09-11T12:00:00Z");
 function fixture() {
@@ -117,4 +117,90 @@ test("Creating a player after the audit invalidates the old source evidence", ()
   evidence.collections[0].unmapped -= 1;
   evidence.collections[0].mapped += 1;
   expect(assess(evidence, current).crosswalkComplete).toBe(true);
+});
+
+function reviewFixture() {
+  const evidence = fixture();
+  evidence.identityReview = ["squad-players", "medical-players"].map((label) => ({
+    label, roster_type: "squad", archived: false, counts_in_squad: "true",
+    in_squad_source: true, target_state: "current-target", players: 2,
+    medical_records: 2, medical_plans: 2, source_disagreements: 0,
+  }));
+  return evidence;
+}
+function review(evidence) {
+  return assessIdentityReview(evidence, { now, expectedSources: evidence?.sources });
+}
+
+test("Identity review separates a complete proposal from actual mapping and recovery", () => {
+  const evidence = reviewFixture();
+  const group = evidence.identityReview[1];
+  Object.assign(group, { roster_type: "guest", archived: true, in_squad_source: false, target_state: "missing-target" });
+  Object.assign(evidence.collections[1], { mapped: 0, unmapped: 2 });
+  const result = review(evidence);
+  expect(result).toMatchObject({ planningEvidenceComplete: true, crosswalkComplete: false, migrationAuthorized: false, recoveryVerified: false });
+  expect(result.proposals[1]).toMatchObject({ decision: "plan-missing-identity", archived: true, activeRosterChangeAuthorized: false, medicalRecords: 2 });
+});
+
+test("A changed roster classification retains an existing ID and reports policy drift", () => {
+  const evidence = reviewFixture();
+  Object.assign(evidence.identityReview[1], { roster_type: "trialist", counts_in_squad: "false", source_disagreements: 1 });
+  expect(review(evidence).proposals[1]).toMatchObject({
+    decision: "retain-existing-identity", policyDisagreements: 1, activeRosterChangeAuthorized: false,
+  });
+});
+
+test("Historical target is reviewed, never replaced or automatically reactivated", () => {
+  const evidence = reviewFixture();
+  Object.assign(evidence.identityReview[1], { archived: true, target_state: "historical-target" });
+  Object.assign(evidence.collections[1], { mapped: 0, unmapped: 2 });
+  expect(review(evidence).proposals[1]).toMatchObject({ decision: "review-historical-identity", activeRosterChangeAuthorized: false });
+});
+
+test("Omitted players or recommendation histories block a partial review", () => {
+  for (const field of ["players", "medical_records", "medical_plans"]) {
+    const evidence = reviewFixture();
+    evidence.identityReview[1][field] -= 1;
+    expect(review(evidence)).toMatchObject({ planningEvidenceComplete: false, proposals: [] });
+  }
+});
+
+test("Unknown and ambiguous identity groups cannot become actionable proposals", () => {
+  for (const [field, value] of [["roster_type", "unknown"], ["target_state", "ambiguous"], ["counts_in_squad", "unknown"], ["archived", "false"], ["players", -1]]) {
+    const evidence = reviewFixture();
+    evidence.identityReview[1][field] = value;
+    expect(review(evidence)).toMatchObject({ planningEvidenceComplete: false, proposals: [] });
+  }
+});
+
+test("Missing, duplicate or malformed identity evidence fails closed without throwing", () => {
+  for (const evidence of [null, {}, { ...reviewFixture(), collections: {} }, { ...reviewFixture(), collections: [null] }, { ...reviewFixture(), identityReview: [null] }]) {
+    expect(review(evidence).planningEvidenceComplete).toBe(false);
+  }
+  const evidence = reviewFixture();
+  evidence.identityReview.push({ ...evidence.identityReview[0] });
+  expect(review(evidence).blockers).toContain("duplicate-identity-review-group");
+});
+
+test("New player and source revision require refreshed planning evidence", () => {
+  const evidence = reviewFixture();
+  evidence.collections[1].items += 1;
+  evidence.collections[1].unmapped += 1;
+  expect(review(evidence).blockers).toContain("identity-review-coverage:medical-players");
+  evidence.identityReview.push({ ...evidence.identityReview[1], roster_type: "academy", players: 1, target_state: "missing-target", medical_records: 0, medical_plans: 0 });
+  expect(review(evidence).planningEvidenceComplete).toBe(true);
+  const expectedSources = structuredClone(evidence.sources);
+  expectedSources[0].revision += 1;
+  expect(assessIdentityReview(evidence, { now, expectedSources }).planningEvidenceComplete).toBe(false);
+});
+
+test("Review output contains no source identifiers or private contents and never mutates input", () => {
+  const evidence = reviewFixture();
+  evidence.identityReview[1].name = "Private example";
+  evidence.identityReview[1].legacyId = "private-player-id";
+  const before = JSON.stringify(evidence);
+  const output = JSON.stringify(review(evidence));
+  expect(JSON.stringify(evidence)).toBe(before);
+  expect(output).not.toContain("Private example");
+  expect(output).not.toContain("private-player-id");
 });

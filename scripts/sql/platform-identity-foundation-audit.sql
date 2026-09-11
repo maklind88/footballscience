@@ -37,14 +37,20 @@ with legacy_teams as (
   ) c(state_key, label, field, reference_field) on c.state_key = s.state_key
 ), source_items as (
   select c.label, nullif(btrim(p ->> 'id'), '') as item_id,
-    nullif(btrim(p ->> c.reference_field), '') as legacy_id
+    nullif(btrim(p ->> c.reference_field), '') as legacy_id,
+    case when lower(btrim(p ->> 'rosterType')) in ('squad', 'academy', 'trialist', 'guest')
+      then lower(btrim(p ->> 'rosterType')) else 'unknown' end as roster_type,
+    coalesce(nullif(btrim(p ->> 'archivedAt'), ''), nullif(btrim(p ->> 'deletedAt'), '')) is not null as archived,
+    case when jsonb_typeof(p -> 'countsInSquad') = 'boolean' then p ->> 'countsInSquad' else 'unknown' end as counts_in_squad
   from collections c
   cross join lateral jsonb_array_elements(case when c.valid then c.doc -> c.field else '[]'::jsonb end) p
-), target_players as (
-  select p.id, p.organization_id, nullif(btrim(p.metadata ->> 'legacyId'), '') as legacy_id
+), all_target_players as (
+  select p.id, p.organization_id, p.status, p.deleted_at,
+    nullif(btrim(p.metadata ->> 'legacyId'), '') as legacy_id
   from public.squad_players p
-  where p.deleted_at is null and p.status <> 'archived'
-    and exists (select 1 from legacy_teams t where t.organization_id = p.organization_id)
+  where exists (select 1 from legacy_teams t where t.organization_id = p.organization_id)
+), target_players as (
+  select * from all_target_players where deleted_at is null and status <> 'archived'
 ), player_matches as (
   select legacy_id, count(*) as matches from target_players group by legacy_id
 ), membership_matches as (
@@ -71,6 +77,27 @@ with legacy_teams as (
   left join player_matches p on p.legacy_id = i.legacy_id
   left join membership_matches m on m.legacy_id = i.legacy_id
   group by c.label, c.valid
+), identity_rows as (
+  select i.*, exists (
+      select 1 from source_items s where s.label = 'squad-players' and s.legacy_id = i.legacy_id
+    ) as in_squad_source,
+    case
+      when (select count(*) from all_target_players t where t.legacy_id = i.legacy_id) > 1 then 'ambiguous'
+      when exists (select 1 from target_players t where t.legacy_id = i.legacy_id) then 'current-target'
+      when exists (select 1 from all_target_players t where t.legacy_id = i.legacy_id) then 'historical-target'
+      else 'missing-target'
+    end as target_state,
+    (select count(*) from source_items r where r.label = 'medical-records' and r.legacy_id = i.legacy_id) as medical_records,
+    (select count(*) from source_items r where r.label = 'medical-plans' and r.legacy_id = i.legacy_id) as medical_plans,
+    exists (select 1 from source_items s where s.label = 'squad-players' and s.legacy_id = i.legacy_id
+      and (s.roster_type <> i.roster_type or s.counts_in_squad <> i.counts_in_squad or s.archived <> i.archived)) as source_disagreement
+  from source_items i where i.label in ('squad-players', 'medical-players')
+), identity_groups as (
+  select label, roster_type, archived, counts_in_squad, in_squad_source, target_state,
+    count(*) as players, sum(medical_records) as medical_records, sum(medical_plans) as medical_plans,
+    count(*) filter (where source_disagreement) as source_disagreements
+  from identity_rows
+  group by label, roster_type, archived, counts_in_squad, in_squad_source, target_state
 )
 select jsonb_build_object(
   'schema', 'footballscience-identity-foundation-evidence-v1',
@@ -80,5 +107,7 @@ select jsonb_build_object(
   'sources', (select jsonb_agg(jsonb_build_object(
     'key', state_key, 'revision', revision, 'updatedAt', updated_at, 'valueHash', value_hash
   ) order by state_key) from sources),
-  'collections', (select jsonb_agg(to_jsonb(m) order by label) from measures m)
+  'collections', (select jsonb_agg(to_jsonb(m) order by label) from measures m),
+  'identityReview', coalesce((select jsonb_agg(to_jsonb(g) order by label, roster_type, archived, counts_in_squad, in_squad_source, target_state)
+    from identity_groups g), '[]'::jsonb)
 ) as evidence;

@@ -3,6 +3,8 @@
 Owner: System / Security / Release. Affected data owners: Squad, Medical; later Exercise Library, Schedule, Sessions and Periodization. No other task has been activated.
 Source baseline: `d7e263ec594af4c48f59553ed5087bd12a7d60fe`. Production observations: 2026-09-11, latest crosswalk snapshot at 13:39:18 UTC.
 
+Follow-up: `docs/architecture/PLATFORM_IDENTITY_RECOVERY_PLAN_2026-09-11.md` records the newer 14:02 UTC classification, source-version drift, verified scheduled backup/PITR configuration and the unexecuted isolated restore drill. The original observations below remain historical evidence, not current roster limits.
+
 ## Decision
 
 Do not start a data migration or switch Medical reads. The existing data is still in the current app-state layer; the incomplete target crosswalk is a migration prerequisite failure, not evidence that these records have been lost.
@@ -56,7 +58,7 @@ Supabase database backups do not include Storage object bytes: [official backup 
 ## Repeatable Check
 
 1. Run `scripts/sql/platform-identity-foundation-audit.sql` through the approved read-only database connection for the explicitly selected environment. It is one SELECT statement/consistent snapshot, not a migration. Schema absence or malformed JSON must be investigated, not replaced with an empty success.
-2. Review the aggregate `evidence` output. It contains source revisions/hashes and counts, no names or recommendation contents.
+2. Review the aggregate `evidence` output. It contains source revisions/hashes, counts and `identityReview` groups, no names or recommendation contents. `assessIdentityReview` checks complete planning coverage separately from current-target completeness; it never authorizes active-roster changes or migration.
 3. Independently re-read the two current source revisions/hashes before comparing with `assessIdentityFoundation(evidence, { expectedSources, now })` in `scripts/lib/platform-identity-foundation-audit.mjs`. Do not use old evidence as its own current-source comparison.
 4. Any new/unmapped player, duplicate ID, ambiguous mapping, missing collection, changed source or stale evidence blocks a complete crosswalk claim. The default freshness window is one hour for this audit, not a production SLA or migration lock.
 5. A complete crosswalk still returns `migrationAuthorized: false` and `recoveryVerified: false`. This utility is not connected to deployment and cannot approve writes. Re-read mapping/identity data and validate transactional preconditions at the eventual migration boundary; a local evidence check cannot prevent later changes.

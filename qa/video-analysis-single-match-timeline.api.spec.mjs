@@ -54,10 +54,9 @@ test("single match timeline starts at the ruler and ignores stale focus without 
   expect(html).toContain('data-video-analysis-timeline-window-duration-ms="600000"');
   expect(html).toContain('data-video-analysis-timeline-window-start-ms="0"');
   expect(html).toContain('data-video-analysis-seek="build"');
-  expect(html).toContain("data-video-analysis-timeline-focus");
+  expect(html).not.toContain("data-video-analysis-timeline-focus");
   expect(html).toContain("0:00:30");
   expect(html).toContain("0:00:45");
-  expect(html).toContain("0:00:15");
 });
 
 test("player settings retain undo only for editable tag history", () => {

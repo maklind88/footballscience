@@ -1,7 +1,6 @@
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml } from "../components/renderHelpers.js";
 import { TIMELINE_LANE_MODES } from "./timeline.constants.js";
-import { renderSelectedClipFocus } from "./timeline.focus.renderer.js";
 import {
   buildTimelineIndex,
   buildTimelineWindowTicks,
@@ -139,12 +138,6 @@ function renderTimelinePlayhead(playheadMs = 0, window = {}) {
       aria-hidden="true"
     >${escapeHtml(formatVideoTime(playheadMs))}</div>
   `;
-}
-
-function selectedTimelineClip(clips = [], timeline = {}, selectedClipId = "") {
-  const selectedId = String(selectedClipId || timeline.selectedCategory?.activeClipId || "").trim();
-  if (!selectedId) return null;
-  return clips.find((clip) => String(clip.id || "") === selectedId) || null;
 }
 
 function renderClipBlock(clip = {}, window = {}, laneMode = "phase", selectedClipIds = new Set(), clipNumber = 1, categorySelected = false, button = null, density = {}, rowColor = "") {
@@ -324,9 +317,7 @@ export function renderTimeline(state = {}) {
   const density = getTimelineDensity(timelineIndex, totalMs);
   const selectedLane = selectedTimelineLane(lanes, laneMode, timeline);
   const buttonLookup = buildTemplateButtonLookup(state.template || {});
-  const selectedClip = selectedTimelineClip(clips, timeline, state.selectedClipId);
   const selectedClipIds = new Set(timelineSelectedClipIds(state));
-  const selectedClips = clips.filter((clip) => selectedClipIds.has(String(clip.id || "")));
   const timelineWindow = getTimelineWindow(totalMs);
   const ticks = buildTimelineWindowTicks(timelineWindow, { zoom });
   return `
@@ -358,15 +349,6 @@ export function renderTimeline(state = {}) {
           </div>
         </div>
       </div>
-      ${renderSelectedClipFocus(
-        selectedClip,
-        selectedClips,
-        totalMs,
-        laneMode,
-        timeline,
-        selectedClip ? findClipButton(selectedClip, buttonLookup) : null,
-        Boolean(state.canEdit)
-      )}
       ${renderTimelineCategoryTray(selectedLane, laneMode, timeline)}
     </section>
   `;

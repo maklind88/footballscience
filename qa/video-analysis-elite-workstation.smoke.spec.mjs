@@ -58,7 +58,8 @@ test("single match timeline retains wheel zoom, clip selection, category actions
   await timeline.locator("[data-video-analysis-timeline-pan]").dispatchEvent("wheel", { deltaY: -100, ctrlKey: true });
   await expect(timeline.locator(".video-analysis-timeline-canvas")).not.toHaveAttribute("style", "width:100%;");
   await timeline.locator('.video-analysis-clip-block[data-video-analysis-seek="clip-1"]').first().click();
-  await expect(timeline.locator("[data-video-analysis-timeline-focus]")).toBeVisible();
+  await expect(timeline.locator("[data-video-analysis-timeline-focus]")).toHaveCount(0);
+  await expect(timeline.locator('.video-analysis-clip-block[data-video-analysis-seek="clip-1"]').first()).toHaveAttribute("aria-pressed", "true");
   await timeline.locator("[data-video-analysis-timeline-category]").first().click({ button: "right" });
   await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("Play active");
   await page.locator("[data-video-analysis-timeline-category-close]").click();

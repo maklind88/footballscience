@@ -212,6 +212,8 @@ export function editTimelineClip(clip = {}, values = {}) {
     : String(values.tags || "").split(",").map(stringValue).filter(Boolean);
   return withMiniGamePrinciples(normalizeClipInstance({
     ...clip,
+    startMs: values.startMs ?? clip.startMs ?? clip.start_ms,
+    endMs: values.endMs ?? clip.endMs ?? clip.end_ms,
     phase: phaseForSubPhase(subPhase, clip.phase),
     subPhase,
     outcome: stringValue(values.outcome || clip.outcome),

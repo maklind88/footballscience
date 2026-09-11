@@ -55,3 +55,14 @@ test-only commit checks the current clip-editor files and verifies the rendered
 fallback action, without changing Video Analysis runtime code. All 37 focused
 module-contract and clip-popup tests pass after that correction. The full release
 gate still has to pass; no tests are skipped or bypassed.
+
+After rebasing onto `f5cad1f4`, upstream already includes the mobile clip-popup
+layout polling fix and the current player-component contract assertions. The
+approved Code Mode browser test now waits for native fullscreen before opening
+Settings: Code Mode's class changes before its asynchronous fullscreen/layout
+update finishes. Escape is sent from the focused menu item, with assertions for
+menu closure, trigger focus and retained Code Mode. No Video Analysis product
+code is changed. This test passed 20 consecutive runs. The combined Sessions
+storage/frame/recovery/playback/marker and Video Analysis header/clip-popup/module
+contract regression passed all 123 tests. Production verification remains part
+of the official Safe Lane release, not a claim from these local results.

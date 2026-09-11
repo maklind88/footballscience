@@ -82,10 +82,19 @@ test("settings dismiss outside and preserve permission reconnect and keyboard na
 test("camera and settings remain reachable in code mode", async ({ page }) => {
   await openPlayer(page);
   await page.locator("[data-video-analysis-code-mode]").click();
+  // Code Mode requests native fullscreen asynchronously and then renders its final layout.
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
   await expect(page.getByRole("button", { name: "Cameras and media", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await expect(page.getByRole("menu", { name: "Player settings" })).toBeVisible();
-  await page.getByRole("menu", { name: "Player settings" }).press("Escape");
+  const settings = page.getByRole("button", { name: "Settings", exact: true });
+  const menu = page.getByRole("menu", { name: "Player settings" });
+  await settings.click();
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Reconnect local file" })).toBeFocused();
+  // Keep focus on the real menu item; focusing the container can scroll and close the popover.
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(settings).toBeFocused();
+  await expect(settings).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
 });

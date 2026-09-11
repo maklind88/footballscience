@@ -84,6 +84,8 @@ Take a consistent baseline, track subsequent accepted changes with durable per-d
 
 User requirement added 2026-09-11: the platform is planned to support offline work. Every domain migration must preserve that possibility, including records created after a device disconnects. This section records requirements, not a completed offline implementation or an approval to cache all data.
 
+The permanent, module-wide review checklist is **Platform-Wide Offline Data Contract** in `docs/PLATFORM_SCALE_PROGRAM.md`. It covers every registered module, additional surface and future persistent feature. Use it alongside this checkpoint's pinned Desktop plan, not as a competing implementation specification. Completing this document does not make all modules offline-ready.
+
 Existing source building blocks: `src/modules/session-planner/session-save-store.mjs` provides scoped IndexedDB journal records outside rotating snapshots; `session-save-client.mjs` retains immutable changes pending matching receipts; `session-save-protocol.mjs` defines change IDs, merge rules and deletion tombstones. Video Analysis has its own scoped correction outbox. These are domain contracts to preserve and review, not evidence of platform-wide offline readiness or a reason to replace them with a generic queue.
 
 The earlier `docs/MOBILE_APP_SHELL.md` is not the complete desktop/offline specification. Current `footballscience-sw.js` handles push/notification lifecycle, not fetch caching; an installable shell is not proof of cold-start offline operation. Shared accepted state remains server-authoritative; an unsynced local draft is separate, retained user work, not a second independently writable server source of truth.
@@ -126,6 +128,8 @@ Required future regression matrix: disconnect before/after server commit and rec
 3. Before implementing the pilot, reconcile it with PR #201's working-set, privacy, native-session and command/receipt contracts. Medical remains online-only initially; selected Session Planner offline support is a separate sequence from Medical database scaling. Resolve supported disconnected duration and web/native compatibility without activating other tasks.
 4. Only after those prerequisites pass, compare the Medical journal and complete source payloads read-only, then build the synthetic shadow migration with ongoing-create/edit/delete and disconnected-client recovery tests.
 5. No real backfill/cutover occurs before backup-bound approval and Safe Lane evidence. The user must explicitly authorize deploy in this task.
+
+The next deliverable is the identity/recovery decision, not an offline rollout: classify the 16 Squad and 20 Medical source identities missing from the current projection, keep historical membership separate from active-roster selection, and specify how a newly created player obtains the same stable cross-domain identity. Counts are the observed baseline, not fixed acceptance limits. Present unresolved mappings and recovery prerequisites before writing any real data. This preserves Medical history while leaving future offline references stable.
 
 This checkpoint is preparation. It does not complete the platform modernization or prove million-record performance.
 

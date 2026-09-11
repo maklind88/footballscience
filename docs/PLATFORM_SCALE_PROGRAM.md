@@ -12,6 +12,30 @@ The audit recommends identity/recovery evidence first, followed by a Medical rec
 
 Offline work is a required compatibility constraint, not a later optional cache layer. Read the offline requirements and pinned FS Desktop APP / draft PR #201 references in `docs/architecture/PLATFORM_DATA_FOUNDATION_CHECKPOINT_2026-09-11.md` before any domain cutover. Preserve scoped durable pending operations, stable IDs, receipts, conflicts and old-client recovery across schema changes; a server snapshot cannot account for drafts on disconnected devices. Reuse the existing Tauri/SQLite/native-session direction rather than inventing another desktop sync engine; preserve the web Sessions and Video Analysis journals. The desktop's first offline slice is selected Session Planner content, while Medical/RTP remain online-only initially. Platform-wide offline behavior is not yet certified or deployed by this work.
 
+## Platform-Wide Offline Data Contract
+
+Permanent user requirement, confirmed 2026-09-11: database evolution must support future offline operation across the platform. This applies to every module in `docs/architecture/platform-data-scale-inventory.json`, its additional surfaces, and all future modules. It applies to newly created teams, players, exercises, sessions, schedules and periodization, not only today's migration dataset.
+
+**Offline-compatible data design is not permission to download or edit all data offline.** Each module must separately declare `online-only`, `offline-read` or `offline-edit`, the approved fields/working set and supported client types. Preserve the FS Desktop APP plan; Medical/RTP and other excluded sensitive content remain online-only until their own security/product approval. An online-only decision must be explicit, not an excuse for an unscoped or unversioned data model.
+
+For each domain migration or new persistent feature, record the following evidence with the module's migration plan. System / Security owns this shared contract; module owners retain their data semantics and Desktop owns its client implementation. Do not create another generic sync engine or alter unrelated modules to satisfy a documentation checklist.
+
+| Boundary | Required design and acceptance evidence |
+| --- | --- |
+| Identity and ownership | Stable entity IDs, canonical server-derived organization/team membership and explicit parent/version references. Supported offline creates need collision-resistant pre-ack identity or a durable temporary-ID mapping. New tenants never inherit another tenant's legacy data. |
+| Atomic accepted changes | A guarded domain API validates the current actor and operation; the domain change and idempotency result commit together. A lost response/repeated operation must not duplicate the accepted effect. A reused operation ID with a different payload must be rejected. |
+| Versions and acknowledgements | Bind receipts to scope, operation, entity, protocol and accepted revision. A receipt for A cannot clear newer B; local durability and server acceptance remain different states. Preserve the existing web and native command semantics when adapting storage. |
+| Dependent creation | Define ordered/dependent creates and partial-failure recovery, such as exercise -> version -> session block. Offline drafts cannot create memberships or grant access. Preserve historical player identity without adding archived players to an active roster. |
+| Bounded reads and change delivery | Define indexed scope/entity/date queries, bounded pagination and a consistent snapshot/change-cursor handoff where offline reads are enabled. Reconnect must not download the whole platform or silently miss changes between snapshot and incremental reads. |
+| Conflicts and deletion | Version-check updates/deletes and apply only approved domain merge rules. Retain deletion evidence and receipts for the supported disconnected/retry window, or require explicit stale-client reconciliation without resurrecting deleted data. Device timestamps are not authority. |
+| Security and local lifecycle | Approve minimum downloadable fields, device protection, access expiry and secure account-change recovery. Recheck permission on reconnect; denied operations must not bypass access checks or be silently treated as saved. Never adopt another principal's queue. |
+| Schema and recovery | Version commands, local projections and server schemas compatibly. Define what an old client and an outstanding queue do after migration, rollback or server restore, including cursor/receipt invalidation where required. A server backup does not contain disconnected drafts. |
+| Operational evidence | Measure pending age, retry/conflict rates, failed receipts and reconciliation lag without logging private payloads. Prove bounded reads and sustained creation/update behavior at realistic volumes; an inventory check is not a load test. |
+
+Before an affected module is declared ready, its evidence must cover disconnect/restart, lost acknowledgement, repeated create, concurrent devices, linked new entities, deletion with a stale client, permission/account changes, storage failure and old-client return after migration/restore. Run only applicable offline scenarios for the module's approved capability; justify exclusions explicitly. Inapplicable scenarios do not certify offline editing. Production support is a separate verified rollout, never inferred from this contract or a synthetic prototype.
+
+Current status: requirements recorded; module-by-module implementation, compatibility tests and recovery/load evidence remain incomplete. No blanket offline-readiness claim is permitted.
+
 ## Operating Rule
 
 Do not rewrite the platform in one large move. Build a server-owned spine beside the current app, then migrate one module at a time with app-state fallback, tests, audit, and rollback intact.
@@ -46,6 +70,7 @@ Each phase is only complete when all of these are true:
 - Destructive user-facing actions are soft-delete/archive first.
 - Audit or history tables capture enough metadata for rollback/restore analysis.
 - Permission matrix and docs are updated in the same phase.
+- The Platform-Wide Offline Data Contract above has an explicit capability decision and applicable evidence for the affected module; disconnected clients and future entity creation are included in its cutover plan.
 - Focused API/contract tests pass before release.
 - `npm run qa:supabase`, `npm run security:platform`, and `npm run check` pass before any deploy touching auth/data/API.
 - The responsible platform specialist prepares the Safe Lane candidate, but starts release only after a direct user `Deploy safe` or equally explicit release instruction in that chat.

@@ -64,7 +64,7 @@ for (const width of [1470, 390]) {
     const pencilBox = await timingToggle.boundingBox();
     const closeBox = await popup.getByRole("button", { name: "Close", exact: true }).boundingBox();
     expect(pencilBox.x + pencilBox.width).toBeLessThanOrEqual(closeBox.x);
-    expect(pencilBox.y).toBe(closeBox.y);
+    expect(pencilBox.y + pencilBox.height / 2).toBe(closeBox.y + closeBox.height / 2);
     await expect(popup.locator("[data-video-analysis-clip-preview]")).toHaveCount(1);
     await expect(popup.getByRole("button", { name: "Reconnect local file" })).toBeVisible();
     await expect(popup.getByRole("button", { name: "Play clip", exact: true })).toBeDisabled();

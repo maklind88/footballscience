@@ -34,6 +34,7 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
   let review = null;
   let baseline = null;
   let editorTitle = "";
+  let restoreViewport = null;
   const contextKey = () => `${getState().match?.id || ""}:${getState().video?.id || ""}`;
   const field = name => dialog?.querySelector(`[data-video-analysis-timeline-edit-field="${name}"]`);
 
@@ -58,6 +59,8 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     preview = null;
     dialog.close();
     dialog.remove();
+    if (contextKey() === originalContext) restoreViewport?.();
+    restoreViewport = null;
     dialog = null;
     activeClip = null;
     lastClick = null;
@@ -227,6 +230,7 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
 
   function open(clip, trigger, rowClips = null) {
     if (!clip?.id || dialog) return false;
+    restoreViewport = preserveTimelineViewport(getRoot());
     pause();
     originalContext = contextKey();
     returnLane = trigger?.closest(".video-analysis-lane")?.querySelector("[data-video-analysis-timeline-category-label]")?.dataset.videoAnalysisTimelineCategoryLabel || "";

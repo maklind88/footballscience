@@ -45,7 +45,7 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
       <div><span>${canEdit ? "Edit clip" : "Clip"}</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(title || getClipPrimaryLabel(clip, laneMode) || "Selected clip")}${review ? ` (${review.entries.length})` : ""}</h2></div>
       <div class="video-analysis-clip-editor__tools">
         ${canEdit ? `<button type="button" class="video-analysis-clip-editor__timing-toggle" data-clip-timing-toggle aria-label="Edit clip timing" title="Edit clip timing" aria-expanded="false" aria-controls="video-analysis-clip-timing">${playerHeaderIcon("pencil")}</button>` : ""}
-        <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" title="Close">${playerHeaderIcon("x")}</button>
+        <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" aria-description="Return to the timeline" title="Close and return to timeline">${playerHeaderIcon("x")}</button>
       </div>
     </header>
     <form data-video-analysis-timeline-editor novalidate>

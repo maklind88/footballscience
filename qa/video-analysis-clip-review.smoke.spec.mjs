@@ -50,6 +50,9 @@ for (const [width, height] of [[1470, 772], [1280, 720], [1920, 1080], [844, 390
     page.on("pageerror", error => errors.push(error.message));
     await page.setViewportSize({ width, height });
     await openTimeline(page, { media: true });
+    await page.locator(highPress).scrollIntoViewIfNeeded();
+    const originalViewport = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
+    const mainTime = await page.locator("[data-video-analysis-video]").evaluate(el => el.currentTime);
     await page.locator(highPress).dblclick();
     await expect(page.locator(popup)).toBeVisible();
     await expect(page.locator(popup).getByRole("heading")).toHaveText("High Press (4)");
@@ -71,6 +74,13 @@ for (const [width, height] of [[1470, 772], [1280, 720], [1920, 1080], [844, 390
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(width);
     expect(box.y + box.height).toBeLessThanOrEqual(height);
+    const close = page.locator(".video-analysis-clip-editor__close");
+    await expect(close).toHaveAttribute("title", "Close and return to timeline");
+    const closeBox = await close.boundingBox();
+    expect(closeBox.width).toBeGreaterThanOrEqual(44);
+    expect(closeBox.height).toBeGreaterThanOrEqual(44);
+    expect(closeBox.y).toBeGreaterThanOrEqual(0);
+    expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(width);
     expect(await page.locator(popup).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     const save = await page.locator("[data-video-analysis-timeline-edit-save]").boundingBox();
     expect(save.y).toBeGreaterThanOrEqual(0);
@@ -89,9 +99,12 @@ for (const [width, height] of [[1470, 772], [1280, 720], [1920, 1080], [844, 390
     await page.locator(select(4)).click();
     await expect(page.locator(field("note"))).toHaveValue("Note 4");
     await expect(page.locator(popup).getByRole("button", { name: "Next clip" })).toBeDisabled();
-    await page.keyboard.press("Escape");
+    if (width === 1470 || width === 390) await close.click();
+    else await page.keyboard.press("Escape");
     await expect(page.locator(popup)).toHaveCount(0);
     await expect(page.locator(highPress)).toBeFocused();
+    await expect.poll(() => page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }))).toEqual(originalViewport);
+    expect(await page.locator("[data-video-analysis-video]").evaluate(el => el.currentTime)).toBeCloseTo(mainTime, 2);
     expect(await writes(page)).toEqual([]);
     expect(errors).toEqual([]);
   });
@@ -186,6 +199,8 @@ test("row review delete removes one clip, keeps the other three and remains undo
 
 test("row review saves a clip repeatedly using its latest revision", async ({ page }) => {
   await openTimeline(page);
+  await page.locator(highPress).scrollIntoViewIfNeeded();
+  const originalViewport = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
   await page.locator(highPress).dblclick();
   await page.locator(field("note")).fill("First revision");
   await page.keyboard.press("Escape");
@@ -203,8 +218,10 @@ test("row review saves a clip repeatedly using its latest revision", async ({ pa
   expect(saves).toHaveLength(2);
   expect(saves[0].body.clip).toMatchObject({ id: "row-clip-1", expectedRevision: 3, note: "First revision" });
   expect(saves[1].body.clip).toMatchObject({ id: "row-clip-1", expectedRevision: 4, note: "Second revision" });
-  await page.keyboard.press("Escape");
+  await page.locator(".video-analysis-clip-editor__close").click();
   await expect(page.locator(popup)).toHaveCount(0);
+  await expect(page.locator(highPress)).toBeFocused();
+  await expect.poll(() => page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }))).toEqual(originalViewport);
 });
 
 test("player rows use the same popup and readonly users cannot edit", async ({ page }) => {

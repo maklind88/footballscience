@@ -3,6 +3,7 @@ import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import { renderClipList } from "./components/ClipList.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderFsPlayerWorkspace } from "./components/FsPlayerWorkspace.js";
+import { handlePlayerHeaderClick, handlePlayerHeaderKeydown } from "./controllers/playerHeaderController.js";
 import {
   activeAnalysisRoomTab,
   renderAnalysisRoomHeader,
@@ -4564,6 +4565,7 @@ export function handleClick(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (handlePlayerHeaderClick(event, getRoot(context))) return true;
   if (run.mediaRuntime.controller.handleClick(event)) return true;
   if (run.spatialRuntime.controller.handleClick(event)) return true;
   if (run.trackingRuntime.controller.handleClick(event)) return true;
@@ -6245,6 +6247,7 @@ export function handleKeydown(event, context = {}) {
   if (!isAnalysisRoomWorkspaceActive(context)) return false;
   const run = ensureRuntime(context);
   const root = getRoot(context);
+  if (handlePlayerHeaderKeydown(event, root)) return true;
   const state = run.store.getState();
   const fsPlayerShortcutsActive = isFsPlayerInteractionActive(context, state);
   const keyTarget = eventElement(event);

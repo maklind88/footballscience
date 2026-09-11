@@ -163,7 +163,7 @@ async function openMediaWorkspace(page) {
     };
   }, { matchId, videoId, primaryAngleId, tacticalAngleId });
   await page.goto("/qa/video-analysis-browser-smoke.html?elite=1", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("[data-video-analysis-media-production]")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cameras and media", exact: true })).toBeVisible();
 }
 
 test("media production switches synchronized cameras and edits replay/export state", async ({ page }, testInfo) => {

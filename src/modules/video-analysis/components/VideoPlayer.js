@@ -3,6 +3,7 @@ import { activeMediaAngle, activeMediaReference } from "../services/mediaProduct
 import { getTimelineDurationMs } from "../timeline/timeline.service.js";
 import { renderMediaSecondaryFeeds } from "./MediaProductionPanel.js";
 import { escapeHtml } from "./renderHelpers.js";
+import { renderPlayerHeaderActions } from "./PlayerHeaderActions.js";
 
 const PLAYBACK_RATES = [0.5, 1, 1.5, 2, 3];
 
@@ -82,12 +83,7 @@ export function renderVideoPlayer(state = {}) {
           <p class="video-analysis-kicker">FS Player</p>
           <h2>${escapeHtml(title)}</h2>
         </div>
-        <div class="video-analysis-player__actions">
-          <input class="video-analysis-file-input" type="file" accept="video/*" data-video-analysis-file hidden>
-          ${showPermissionReconnect ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-restore-local-file title="Reconnect local file">Reconnect local file</button>` : ""}
-          ${showPermissionReconnect && !hasVideo ? "" : `<button type="button" class="video-analysis-icon-button" data-video-analysis-load title="${needsReconnect ? "Reconnect local video" : "Link local video"}">${loadLabel}</button>`}
-          ${needsPrepare || showPrepared ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-prepare-playback ${needsPrepare ? "" : "disabled"} title="Prepare browser-safe playback copy">${showPrepared ? "Prepared" : "Prepare"}</button>` : ""}
-        </div>
+        ${renderPlayerHeaderActions(state, { hasVideo, showPermissionReconnect, needsReconnect, loadLabel, needsPrepare, showPrepared })}
       </div>
       <div class="video-analysis-video-frame${state.mediaProduction?.viewMode === "compare" && !portablePlayback ? " is-media-compare" : ""}" data-video-analysis-video-shuttle>
         ${

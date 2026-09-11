@@ -9,6 +9,7 @@ import {
 import { selectedPresentationItem } from "../services/presentationService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml, optionList } from "./renderHelpers.js";
+import { playerHeaderIcon } from "./playerHeaderIcons.js";
 
 const ANGLE_ROLES = ["primary", "tactical", "broadcast", "end-zone", "bench", "custom"];
 const EXPORT_PRESETS = [
@@ -366,21 +367,21 @@ export function renderMediaSecondaryFeeds(state = {}) {
   }).join("");
 }
 
-export function renderMediaProductionPanel(state = {}) {
+export function renderMediaProductionToggle(state = {}) {
   const media = state.mediaProduction || {};
   const angles = mediaAnglesForState(state);
   const connected = connectedAngles(state).length;
   const active = activeMediaAngle(state);
   const reference = activeMediaReference(state);
+  return `<button type="button" class="video-analysis-player-header-button video-analysis-player-camera-button" data-video-analysis-media-action="toggle" aria-label="Cameras and media" title="${escapeHtml(`Cameras and media: ${connected}/${angles.length} cameras / ${reference?.objectUrl ? active?.label || "Primary" : "reconnect"}`)}" aria-expanded="${Boolean(media.panelOpen)}" aria-controls="video-analysis-media-panel">${playerHeaderIcon("camera")}</button>`;
+}
+
+export function renderMediaProductionPanel(state = {}) {
+  const media = state.mediaProduction || {};
   return `
-    <section class="video-analysis-media-production${media.panelOpen ? " is-open" : ""}" data-video-analysis-media-production>
+    <section id="video-analysis-media-panel" class="video-analysis-media-production${media.panelOpen ? " is-open" : ""}" data-video-analysis-media-production ${media.panelOpen ? "" : "hidden"}>
       <header>
-        <button type="button" class="video-analysis-media-production__toggle" data-video-analysis-media-action="toggle" aria-expanded="${Boolean(media.panelOpen)}">
-          <span aria-hidden="true">CAM</span>
-          <strong>Media</strong>
-          <small>${escapeHtml(`${connected}/${angles.length} cameras / ${reference?.objectUrl ? active?.label || "Primary" : "reconnect"}`)}</small>
-        </button>
-        <nav aria-label="Media production" ${media.panelOpen ? "" : "hidden"}>
+        <nav aria-label="Media production">
           ${["angles", "capture", "proxy", "replay", "export", "share"].map((panel) => `<button type="button" class="${media.panel === panel ? "is-active" : ""}" data-video-analysis-media-panel="${panel}" aria-pressed="${media.panel === panel}">${panel[0].toUpperCase()}${panel.slice(1)}</button>`).join("")}
         </nav>
       </header>

@@ -1,3 +1,5 @@
+@import url("./video-analysis.player-header.css");
+
 #analysisRoomWorkspace .video-analysis-media-production {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   color: #f5f7f6;
@@ -32,41 +34,6 @@
 #analysisRoomWorkspace .video-analysis-media-production button:disabled {
   cursor: not-allowed;
   opacity: 0.42;
-}
-
-#analysisRoomWorkspace .video-analysis-media-production__toggle {
-  display: grid;
-  grid-template-columns: 32px auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  padding: 0 8px 0 0;
-  border: 0 !important;
-  background: transparent !important;
-  text-align: left;
-}
-
-#analysisRoomWorkspace .video-analysis-media-production__toggle > span {
-  display: grid;
-  width: 32px;
-  height: 26px;
-  place-items: center;
-  border-radius: 5px;
-  color: #08120e;
-  background: #f1cf66;
-  font-size: 9px;
-  font-weight: 900;
-}
-
-#analysisRoomWorkspace .video-analysis-media-production__toggle strong {
-  font-size: 12px;
-}
-
-#analysisRoomWorkspace .video-analysis-media-production__toggle small {
-  overflow: hidden;
-  color: #9fb0a8;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 #analysisRoomWorkspace .video-analysis-media-production nav,

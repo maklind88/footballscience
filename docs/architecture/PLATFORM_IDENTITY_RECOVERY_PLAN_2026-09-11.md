@@ -49,6 +49,8 @@ The in-app browser was signed out. The existing Chrome session allowed this veri
 
 Use a disposable, access-restricted recovery destination, never production or the shared staging database. A provider-created restore destination can incur cost and must be explicitly approved before creation. A local destination instead requires an approved logical export and a compatible database environment. Do not improvise a production export or restore using a browser token.
 
+User decision after this review: no new paid restore project; reuse existing resources. The clone confirmation was cancelled without creating a project. Native PostgreSQL 17 is now prepared and synthetic logical export/restore checks passed locally; see `PLATFORM_LOCAL_RECOVERY_2026-09-11.md`. Real export access is still missing. Shared staging is not a disposable full-restore destination and must not be overwritten. This local logical path does not certify the provider's physical backup.
+
 | Step | Required evidence / stop condition |
 | --- | --- |
 | Destination preflight | Record source/destination project identity, snapshot time, allowed operators and cleanup plan. Destination must not serve the live domain. Disable external jobs/webhooks and prevent test clients from reaching production before exercising restored data. |

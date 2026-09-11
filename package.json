@@ -43,6 +43,7 @@
     "platform:health": "node scripts/platform-health-report.mjs",
     "platform:scale:audit": "node scripts/audit-platform-data-scale.mjs",
     "qa:identity-proof": "node --test qa/identity-migration-proof.test.mjs",
+    "qa:local-recovery": "node --test qa/local-postgres-recovery.test.mjs",
     "platform:identity:backfill": "node scripts/platform-identity-backfill.mjs",
     "platform:identity:snapshot": "node scripts/platform-identity-snapshot.mjs",
     "platform:identity:backfill:env": "node scripts/verify-platform-identity-backfill-env.mjs",

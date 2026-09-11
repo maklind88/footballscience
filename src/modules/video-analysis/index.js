@@ -14,6 +14,7 @@ import {
 } from "./components/AnalysisRoomShell.js";
 import { escapeHtml } from "./components/renderHelpers.js";
 import { createDrawingController } from "./controllers/drawingController.js";
+import { runTagButtonAction } from "./services/tagButtonFeedbackService.js";
 import { createPresentationController } from "./controllers/presentationController.js";
 import { createPresenterController } from "./controllers/presenterController.js";
 import { createThumbnailController } from "./controllers/thumbnailController.js";
@@ -3386,7 +3387,7 @@ async function saveDraftClip(context = {}, stateOverride = null) {
   const state = stateOverride || run.store.getState();
   try {
     const clip = buildClipPayload(state);
-    run.store.setState({ status: "saving-clip", error: "" });
+    run.store.setState({ status: "saving-clip", message: "", error: "" });
     const payload = await run.clips.save(toApiClipPayload(clip));
     const savedClip = normalizeClipInstance(payload?.clip || clip);
     const nextDurationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
@@ -3413,7 +3414,7 @@ async function saveDraftClip(context = {}, stateOverride = null) {
     await loadClips();
     return savedClip;
   } catch (error) {
-    run.store.setState({ status: "error", error: error.message || "Could not save clip." });
+    run.store.setState({ status: "error", message: "", error: error.message || "Could not save clip." });
     return false;
   }
 }
@@ -4456,8 +4457,7 @@ async function applyCodeButton(buttonId = "", context = {}) {
       return true;
     }
     run.store.update(() => nextState);
-    await saveDraftClip(context, nextState);
-    return true;
+    return Boolean(await saveDraftClip(context, nextState));
   }
   if (action.shouldCreateClip && (!state.match?.id || !state.video?.id)) {
     run.store.update(() => ({
@@ -5048,12 +5048,12 @@ export function handleClick(event, context = {}) {
   }
   const unitTagButton = target.closest("[data-video-analysis-unit-tag]");
   if (unitTagButton) {
-    createUnitTagFromCapture(unitTagButton.dataset.videoAnalysisUnitTag, context);
+    runTagButtonAction(run.store, "unit", () => createUnitTagFromCapture(unitTagButton.dataset.videoAnalysisUnitTag, context));
     return true;
   }
   const outcomeTagButton = target.closest("[data-video-analysis-outcome-tag]");
   if (outcomeTagButton) {
-    applyOutcomeQuickTag(outcomeTagButton.dataset.videoAnalysisOutcomeTag, context);
+    runTagButtonAction(run.store, "outcome", () => applyOutcomeQuickTag(outcomeTagButton.dataset.videoAnalysisOutcomeTag, context));
     return true;
   }
   if (target.closest("[data-video-analysis-mg-principles-open]")) {
@@ -5066,7 +5066,7 @@ export function handleClick(event, context = {}) {
   const miniGameToggle = target.closest("[data-video-analysis-mg-principle-toggle]");
   if (miniGameToggle) {
     const id = miniGameToggle.dataset.videoAnalysisMgPrincipleToggle;
-    toggleMiniGamePrincipleForActiveClip(id, context);
+    runTagButtonAction(run.store, "mg", () => toggleMiniGamePrincipleForActiveClip(id, context));
     return true;
   }
   if (target.closest("[data-video-analysis-mg-principles-clear]")) {
@@ -5087,12 +5087,14 @@ export function handleClick(event, context = {}) {
   }
   const codeButton = target.closest("[data-video-analysis-code-button]");
   if (codeButton) {
-    applyCodeButton(codeButton.dataset.videoAnalysisCodeButton, context);
+    const id = codeButton.dataset.videoAnalysisCodeButton;
+    runTagButtonAction(run.store, `code:${id}`, () => applyCodeButton(id, context));
     return true;
   }
   const playerTagButton = target.closest("[data-video-analysis-player-tag]");
   if (playerTagButton) {
-    applyPlayerQuickTag(playerTagButton.dataset.videoAnalysisPlayerTag, context);
+    const id = playerTagButton.dataset.videoAnalysisPlayerTag;
+    runTagButtonAction(run.store, `player:${id}`, () => applyPlayerQuickTag(id, context));
     return true;
   }
   const descriptorButton = target.closest("[data-video-analysis-descriptor-button]");
@@ -6371,7 +6373,7 @@ export function handleKeydown(event, context = {}) {
   }
   if (!fsPlayerShortcutsActive) return false;
   return handleVideoAnalysisShortcut(event, {
-    applyCodeButton: (buttonId) => applyCodeButton(buttonId, context),
+    applyCodeButton: (id) => runTagButtonAction(run.store, `code:${id}`, () => applyCodeButton(id, context)),
     getCurrentMs: () => currentPlayheadMs(context, run.store.getState()),
     getState: run.store.getState,
     root,

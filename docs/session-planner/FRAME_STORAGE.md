@@ -66,3 +66,13 @@ code is changed. This test passed 20 consecutive runs. The combined Sessions
 storage/frame/recovery/playback/marker and Video Analysis header/clip-popup/module
 contract regression passed all 123 tests. Production verification remains part
 of the official Safe Lane release, not a claim from these local results.
+
+The next full QA run passed 2,994 tests but stopped before publication on two
+unrelated tests. With explicit user approval, the package contract now recognizes
+only the three exact manual recovery commands already added in `c793a9f0`; every
+other package field and the lockfile still match the immutable baseline. The row
+review browser test retries only scrolling the row during metadata hydration;
+save counts, revisions, drafts, focus and viewport-restoration assertions remain.
+Both corrected cases passed 20 repetitions each, followed by all 55 tests in the
+affected release-contract, recovery-contract and player/clip browser files. No
+release runner, workflow, package file or Video Analysis product code was changed.

@@ -68,7 +68,7 @@ test("baseline locks candidate, Files API, disabled production, and exact infra-
   expect(baseline.environments).toEqual({ plan: "leaderboard-production-code-release-plan", previewApply: "leaderboard-production-code-release-apply", reviewer: "maklind88", reviewerId: 279889782, externalOwnerAdminPredispatchAudit: { authority: "owner-admin-read-only", environmentSecrets: 0, environmentVariables: 0, runtimeVerified: false, status: "required-fresh-before-dispatch" } });
 });
 
-test("package delta is three isolated scripts and no dependency or hook", () => {
+test("package delta is limited to release checks and manual recovery scripts without dependencies or hooks", () => {
   const gitShow = (file) => execFileSync("git", ["-c", `safe.directory=${path.resolve(rootDir)}`, "show", `${baseline.candidate.sha}:${file}`], { cwd: rootDir, encoding: "utf8", env: { ...process.env, GIT_TEST_ASSUME_DIFFERENT_OWNER: "1" } });
   const candidate = JSON.parse(gitShow("package.json"));
   const additions = {
@@ -76,8 +76,15 @@ test("package delta is three isolated scripts and no dependency or hook", () => 
     "qa:contracts:leaderboard-production-release": "playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/leaderboard-production-code-release.api.spec.mjs qa/leaderboard-production-files-manifest.api.spec.mjs qa/leaderboard-production-vercel-files.api.spec.mjs",
     "qa:live:leaderboard:readonly": "playwright test --config=qa/leaderboard-production-readonly.playwright.config.mjs qa/leaderboard-production-readonly.live.spec.mjs",
   };
-  for (const [key, value] of Object.entries(additions)) expect(packageJson.scripts[key]).toBe(value);
-  const without = structuredClone(packageJson); for (const key of Object.keys(additions)) delete without.scripts[key];
+  // Recovery tooling was independently added in c793a9f0. Allow only those exact commands.
+  const recoveryScripts = {
+    "recovery:data:plan": "node scripts/data-content-recovery-plan.mjs",
+    "qa:data-recovery-plan": "node --test qa/data-content-recovery.test.mjs",
+    "qa:data-recovery-native": "node --test qa/data-content-recovery-native.test.mjs",
+  };
+  const allowedAdditions = { ...additions, ...recoveryScripts };
+  for (const [key, value] of Object.entries(allowedAdditions)) expect(packageJson.scripts[key]).toBe(value);
+  const without = structuredClone(packageJson); for (const key of Object.keys(allowedAdditions)) delete without.scripts[key];
   expect(without).toEqual(candidate); expect(read("package-lock.json")).toBe(gitShow("package-lock.json"));
 });
 

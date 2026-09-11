@@ -12,6 +12,14 @@ const select = index => `[data-clip-review-select="row-clip-${index}"]`;
 const writes = page => page.evaluate(() => window.__videoAnalysisRequests.filter(r => r.action === "save-clip"));
 let mediaPath;
 
+async function scrollReviewRowIntoView(page) {
+  // Metadata hydration can replace the row during scrolling; retry only this read-only setup.
+  await expect(async () => {
+    await page.locator(highPress).scrollIntoViewIfNeeded();
+    await expect(page.locator(highPress)).toBeInViewport();
+  }).toPass({ timeout: 10000 });
+}
+
 test.beforeAll(() => {
   mediaPath = path.join(mkdtempSync(path.join(os.tmpdir(), "fs-row-review-qa-")), "row-review.mp4");
   execFileSync(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15", "-t", "5", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-y", mediaPath]);
@@ -50,7 +58,7 @@ for (const [width, height] of [[1470, 772], [1280, 720], [1920, 1080], [844, 390
     page.on("pageerror", error => errors.push(error.message));
     await page.setViewportSize({ width, height });
     await openTimeline(page, { media: true });
-    await page.locator(highPress).scrollIntoViewIfNeeded();
+    await scrollReviewRowIntoView(page);
     const originalViewport = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
     const mainTime = await page.locator("[data-video-analysis-video]").evaluate(el => el.currentTime);
     await page.locator(highPress).dblclick();
@@ -199,7 +207,7 @@ test("row review delete removes one clip, keeps the other three and remains undo
 
 test("row review saves a clip repeatedly using its latest revision", async ({ page }) => {
   await openTimeline(page);
-  await page.locator(highPress).scrollIntoViewIfNeeded();
+  await scrollReviewRowIntoView(page);
   const originalViewport = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
   await page.locator(highPress).dblclick();
   await page.locator(field("note")).fill("First revision");

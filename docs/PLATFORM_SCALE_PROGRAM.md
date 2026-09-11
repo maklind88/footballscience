@@ -2,6 +2,14 @@
 
 This program tracks the long-term work needed to make Football Science safe to grow from a live coaching platform into a multi-tenant product that can support very large usage.
 
+## Evidence Baseline (2026-09-11)
+
+Read `docs/architecture/PLATFORM_DATA_SCALE_AUDIT_2026-09-11.md` before selecting the next data migration. It distinguishes current source paths, production metadata observations, unverified runtime modes and proposed work. Older foundation statuses below and database migration checkpoints are not proof that a module is database-primary.
+
+`npm run platform:scale:audit` validates the accompanying inventory against registered modules, protected storage contracts and module folders. The same coverage contract runs in the existing API-contract suite. Passing it proves inventory coverage only, not production capacity, permission correctness or migration completion.
+
+The audit recommends identity/recovery evidence first, followed by a Medical recommendation pilot with Squad identity validation, then Exercise Library/Sessions/Schedule dependencies. Scouting query scaling is a separate owner-scoped track. No checkpoint, runtime mode, source of truth or release is changed by this baseline.
+
 ## Operating Rule
 
 Do not rewrite the platform in one large move. Build a server-owned spine beside the current app, then migrate one module at a time with app-state fallback, tests, audit, and rollback intact.

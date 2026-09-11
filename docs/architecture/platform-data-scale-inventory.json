@@ -1,0 +1,159 @@
+{
+  "schema": "footballscience-data-scale-inventory-v1",
+  "reviewedAt": "2026-09-11",
+  "sourceCommit": "d7e263ec594af4c48f59553ed5087bd12a7d60fe",
+  "scope": "Source-path inventory, not a capacity certification or runtime feature flag",
+  "modules": [
+    {
+      "id": "platform-shell", "owner": "Platform Shell + System/Security", "model": "shared-state",
+      "folders": ["platform"], "keys": ["football-workspace-hub-v3", "football-platform-structure-v1"],
+      "evidence": ["src/core/data-safety-contracts.cjs", "src/modules/platform/platform-structure-runtime-service.mjs", "api/app-state.js"],
+      "next": "Separate preferences from access/tenant records; prove canonical scope before multi-club expansion."
+    },
+    {
+      "id": "platform-readiness", "owner": "System/Security", "model": "derived",
+      "folders": [], "keys": [],
+      "evidence": ["src/core/platform-readiness-contracts.mjs", "api/platform-readiness.js"],
+      "next": "Distinguish static readiness checks, deployed feature modes, observed health and measured capacity."
+    },
+    {
+      "id": "platform-appearance", "owner": "Platform Shell/Design", "model": "shared-state",
+      "folders": [], "keys": ["football-platform-appearance-v1"],
+      "evidence": ["src/core/data-safety-contracts.cjs"],
+      "next": "Keep bounded configuration; do not normalize small appearance objects solely for row counts."
+    },
+    {
+      "id": "platform-identity", "owner": "System/Security", "model": "relational",
+      "folders": [], "keys": [],
+      "evidence": ["api/_lib/platform-identity.js", "api/_lib/platform-tenant-bootstrap.js"],
+      "next": "Verify organization/team/player crosswalks and negative cross-tenant tests before each migration."
+    },
+    {
+      "id": "home", "owner": "Home/Dashboard", "model": "shared-state",
+      "folders": ["home", "presentation-mode"],
+      "keys": ["football-dashboard-tasks-v1", "football-dashboard-notification-seen-v1", "football-dashboard-tutorial-prefs-v1", "football-dashboard-news-seen-v1", "football-dashboard-presentation-mode-v1"],
+      "evidence": ["src/core/data-safety-contracts.cjs", "src/modules/presentation-mode/index.mjs"],
+      "next": "Separate personal preferences, tasks and presentation references; never duplicate clinical/source content."
+    },
+    {
+      "id": "chat", "owner": "Chat", "model": "hybrid",
+      "folders": ["chat"], "keys": ["football-dashboard-chat-v1"],
+      "evidence": ["api/chat.js", "docs/MODULE_CONTRACTS.md"],
+      "next": "Retain dedicated chat tables; test bounded thread/message reads, receipts, retention and reconnect load."
+    },
+    {
+      "id": "schedule", "owner": "Schedule", "model": "shared-state",
+      "folders": ["schedule"], "keys": ["football-schedule-v1"],
+      "evidence": ["api/_lib/schedule-database.js", "src/core/data-safety-contracts.cjs"],
+      "next": "Prove per-event identity, versions and date-window reads; preserve Sessions/Periodization links."
+    },
+    {
+      "id": "gameplan", "owner": "Gameplan", "model": "shared-state",
+      "folders": ["gameplan"], "keys": ["football-gameplan-v1"],
+      "evidence": ["gameplan-state.js", "api/_lib/gameplan-state-authorization.js"],
+      "next": "Scope plans by match/team; preserve player-brief permissions and linked evidence."
+    },
+    {
+      "id": "set-pieces-room", "owner": "Set Pieces", "model": "shared-state",
+      "folders": ["set-pieces-room"], "keys": ["football-set-pieces-room-v1"],
+      "evidence": ["src/modules/set-pieces-room/persistence.mjs", "api/_lib/set-pieces-state-authorization.js"],
+      "next": "Inventory actual storage mode separately; preserve play/phase IDs and drawing coordinates in versioned aggregates."
+    },
+    {
+      "id": "video-analysis", "owner": "FS Player/Video Analysis", "model": "hybrid",
+      "folders": ["video-analysis"], "keys": [],
+      "evidence": ["api/_lib/video-analysis-database.js", "docs/MODULE_CONTRACTS.md"],
+      "next": "Keep relational metadata separate from device-local media/tracking; prove local export/recovery and bounded reads."
+    },
+    {
+      "id": "idp", "owner": "IDP", "model": "relational",
+      "folders": ["idp"], "keys": [],
+      "evidence": ["api/idp.js", "docs/MODULE_CONTRACTS.md"],
+      "next": "Retain dedicated tables; test profile/history pagination and exact Squad/clip references."
+    },
+    {
+      "id": "exercise-library", "owner": "Exercise Library", "model": "shared-state",
+      "folders": ["exercise-library"],
+      "keys": ["football-session-exercise-library-v1", "football-session-exercise-library-backup-v1", "football-session-exercise-library-folders-v1", "football-session-exercise-library-folders-backup-v1"],
+      "evidence": ["src/core/data-safety-contracts.cjs", "src/modules/exercise-library/index.mjs"],
+      "next": "Preserve every exercise/version and independent folder membership; prove archive/restore and existing-session rendering."
+    },
+    {
+      "id": "session-planner", "owner": "Sessions", "model": "hybrid",
+      "folders": ["session-planner", "tactical-board"], "keys": ["football-session-planner-v3"],
+      "evidence": ["src/modules/session-planner/session-save-client.mjs", "api/_lib/session-planner-database.js", "api/_lib/session-planner-domain-records.js"],
+      "next": "Keep durable per-session change protocol; finish bounded session/block database path without losing board/print geometry."
+    },
+    {
+      "id": "periodization", "owner": "Periodization", "model": "shared-state",
+      "folders": ["periodization"], "keys": ["football-periodization-v2"],
+      "evidence": ["src/core/data-safety-contracts.cjs", "src/modules/periodization/periodization-session-bridge.mjs"],
+      "next": "Migrate day/cycle records after calendar identities are stable; preserve shared planning callbacks."
+    },
+    {
+      "id": "medical-team", "owner": "Medical + System/Security migration", "model": "hybrid",
+      "folders": ["medical"], "keys": ["football-medical-team-v1"],
+      "evidence": ["api/_lib/medical-database.js", "supabase/migrations/20260901103202_medical_plan_canonical_projection.sql"],
+      "next": "Reconcile the journal read-only, prove canonical player/team mapping, then migrate recommendation/plan records with coach-safe views."
+    },
+    {
+      "id": "player-profiles", "owner": "Squad Room", "model": "hybrid",
+      "folders": ["squad"], "keys": ["football-player-profiles-v1"],
+      "evidence": ["src/modules/squad/player-profile-runtime-state-service.mjs", "api/_lib/squad-roster-projection.js"],
+      "next": "Separate player identity, membership, season and history; preserve temporary/non-squad players absent from the current projection."
+    },
+    {
+      "id": "leaderboard", "owner": "Leaderboard", "model": "relational",
+      "folders": ["leaderboard"], "keys": [],
+      "evidence": ["api/_lib/leaderboard-database.js", "api/_lib/leaderboard-scope.js"],
+      "next": "Retain transactional ledger; measure standings cost and remove legacy roster dependency only after Squad cutover."
+    },
+    {
+      "id": "football-science-db", "owner": "Scouting/FSDB", "model": "relational",
+      "folders": [], "keys": [],
+      "evidence": ["api/_lib/football-science-db.js"],
+      "next": "Keep keyset pagination and source crosswalks; benchmark searches and bounded profile hydration on synthetic large datasets."
+    },
+    {
+      "id": "scouting", "owner": "Scouting/FSDB", "model": "hybrid",
+      "folders": ["scouting"], "keys": ["football-scouting-v1"],
+      "evidence": ["scouting-workspace.js", "api/_lib/scouting-database.js", "api/_lib/scouting-dataset-import.js"],
+      "next": "Verify deployed dataset mode; replace up-to-50000-row filter scans with measured database queries; separate imports from recruitment decisions."
+    },
+    {
+      "id": "transfer-room", "owner": "Transfer Room", "model": "shared-state",
+      "folders": [], "keys": ["football-transfer-room-v1"],
+      "evidence": ["transfer-room-state.js", "api/app-state.js"],
+      "next": "Prove per-team confidentiality before normalization of access grants, targets, decisions and financial scenarios."
+    },
+    {
+      "id": "game-simulator", "owner": "Game Simulator", "model": "shared-state",
+      "folders": ["game-simulator"], "keys": ["football-simulator-sequence-v1", "football-simulator-sequence-library-v2"],
+      "evidence": ["src/core/data-safety-contracts.cjs", "src/modules/game-simulator/index.mjs"],
+      "next": "Keep replay semantics; migrate sequences/versions only after higher-risk clinical and coaching data."
+    }
+  ],
+  "surfaces": [
+    {
+      "id": "admin-profile-staff", "owner": "Admin/Auth + Profile + Staff", "model": "hybrid",
+      "folders": ["admin", "profile", "staff"],
+      "evidence": ["platform-auth-boot.js", "api/admin-users.js", "src/modules/staff/index.mjs"],
+      "next": "Verify server identity, bounded staff queries, image storage, lifecycle and tenant isolation; no duplicate roster ownership."
+    },
+    {
+      "id": "rtp-library", "owner": "RTP Library", "model": "hybrid", "folders": [],
+      "evidence": ["api/_lib/rtp-library-database.js"],
+      "next": "Separate published catalogue from clinical cases; replace fixed caps/client filtering with complete pagination before catalogue growth."
+    },
+    {
+      "id": "rtp-performance", "owner": "Medical + Performance", "model": "derived", "folders": [],
+      "evidence": ["api/_lib/rtp-database.js", "api/_lib/rtp-performance-readiness.js"],
+      "next": "Map actual load/GPS ingestion before scale claims; clinical clearance remains Medical-owned."
+    },
+    {
+      "id": "analysis-room", "owner": "Analysis Room + FS Player", "model": "derived", "folders": [],
+      "evidence": ["src/core/workspace-defaults.mjs", "src/modules/video-analysis/components/AnalysisRoomShell.js"],
+      "next": "Map each observation/report source and avoid full match-history hydration; verify which UI is active before migration."
+    }
+  ]
+}

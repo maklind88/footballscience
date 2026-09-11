@@ -1331,7 +1331,7 @@ test("local video architecture remains browser-first with bridge fallback only",
   expect(sessionService).toContain("restoreLocalVideoHandleForState");
   expect(sessionService).toContain("persistLocalVideoHandle");
   expect(sessionService).not.toContain("createPlayableLocalCopy");
-  expect(player).toContain("data-video-analysis-prepare-playback");
+  expect(read("src/modules/video-analysis/components/PlayerHeaderActions.js")).toContain("data-video-analysis-prepare-playback");
   expect(player).toContain("bridgeFallbackRecommended");
   expect(read("src/modules/video-analysis/components/VideoPlayer.js")).not.toMatch(/showOpenFilePicker|indexedDB|createPlayableLocalCopy|fetch\(/);
 });

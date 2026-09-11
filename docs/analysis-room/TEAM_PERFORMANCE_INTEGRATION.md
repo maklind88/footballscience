@@ -159,3 +159,13 @@ PGlite imported 50,000 synthetic events in approximately 11.7 seconds; one filte
 read took approximately 2 seconds with a 26.8 KB detail-page response. These measurements
 are functional test evidence only, not native Postgres or production capacity proof.
 No remote migration, production import or deployment was performed.
+
+Rebased on origin/main `d7e263ec`, preserving its FS Player camera/menu and single
+timeline changes. One existing local-video contract assertion followed the Prepare
+action to `PlayerHeaderActions.js`; no FS Player behavior was changed for that repair.
+Post-rebase regression passed all 70 targeted tests, including the new player-header
+browser checks and single-match timeline contracts. The local preview was also opened
+and inspected interactively; source-update review and cancellation worked without
+database access. The repeated 50,000-event SQL run passed (5.5 s import, 1.1 s filtered
+read, same 26.8 KB response). Syntax, platform security, migration and architecture
+checks were rerun successfully on the rebased candidate.

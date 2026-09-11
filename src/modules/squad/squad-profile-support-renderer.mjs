@@ -42,6 +42,20 @@ export function createSquadProfileSupportRenderer({
       .join("");
   };
 
+  const renderSecondaryRoleChoices = (selectedRoles = [], { disabled = false } = {}) => {
+    const selected = new Set(selectedRoles);
+    return playerProfileRoleOptions
+      .map(
+        (role) => `
+                <label class="squad-secondary-role-option">
+                  <input type="checkbox" name="secondaryRoles" value="${escapeHtml(role)}" ${selected.has(role) ? "checked" : ""} ${disabled ? "disabled" : ""} />
+                  <span>${escapeHtml(role)}</span>
+                </label>
+              `
+      )
+      .join("");
+  };
+
   const renderOptionSet = (options, selectedKey = "") =>
     options
       .map((option) => `<option value="${escapeHtml(option.key)}" ${option.key === selectedKey ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
@@ -366,6 +380,7 @@ ${escapeHtml(tab.label)}
   return {
     renderRoleOptions,
     renderSecondaryRoleOptions,
+    renderSecondaryRoleChoices,
     renderOptionSet,
     renderMedicalPanel,
     renderFuturePanel,

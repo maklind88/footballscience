@@ -269,7 +269,8 @@ export function createPlatformWorkspaceRenderers(deps = {}) {
     renderPlayerProfileMedicalPanel: (player) => squadProfileSupportRenderer.renderMedicalPanel(player),
     renderPlayerProfileOptionSet: (options, selectedKey) => squadProfileSupportRenderer.renderOptionSet(options, selectedKey),
     renderPlayerProfileRoleOptions: (selectedRole) => squadProfileSupportRenderer.renderRoleOptions(selectedRole),
-    renderPlayerProfileSecondaryRoleOptions: (selectedRoles) => squadProfileSupportRenderer.renderSecondaryRoleOptions(selectedRoles),
+    renderPlayerProfileSecondaryRoleChoices: (selectedRoles, options) =>
+      squadProfileSupportRenderer.renderSecondaryRoleChoices(selectedRoles, options),
     renderPlayerProfileStatusChip,
     renderPlayerProfileTabs: () => squadProfileSupportRenderer.renderTabs(),
   });

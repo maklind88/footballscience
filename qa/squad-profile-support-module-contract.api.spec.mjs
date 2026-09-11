@@ -96,6 +96,10 @@ test("Squad profile support renderer owns option lists, support panels, and add-
 
   expect(renderer.renderRoleOptions("CB")).toContain('value="CB" selected');
   expect(renderer.renderSecondaryRoleOptions(["8"])).toContain('value="8" selected');
+  const secondaryRoleChoices = renderer.renderSecondaryRoleChoices(["8"]);
+  expect(secondaryRoleChoices).toContain('type="checkbox" name="secondaryRoles" value="8" checked');
+  expect(secondaryRoleChoices).toContain('<span>8</span>');
+  expect(renderer.renderSecondaryRoleChoices([], { disabled: true })).toContain('value="GK"  disabled');
   expect(renderer.renderOptionSet([{ key: "active", label: "Active" }], "active")).toContain("Active");
   const medicalPanel = renderer.renderMedicalPanel(player);
   expect(medicalPanel).toContain("Medical Snapshot");

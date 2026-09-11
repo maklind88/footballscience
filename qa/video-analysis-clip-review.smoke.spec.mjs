@@ -44,7 +44,7 @@ async function openTimeline(page, { media = false, canEdit = true } = {}) {
   await expect(page.locator(highPress)).toBeVisible();
 }
 
-for (const [width, height] of [[1470, 772], [1280, 720], [390, 844]]) {
+for (const [width, height] of [[1470, 772], [1280, 720], [1920, 1080], [844, 390], [390, 844]]) {
   test(`row double click opens all four clips with video and editing at ${width}px`, async ({ page }, testInfo) => {
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -66,12 +66,25 @@ for (const [width, height] of [[1470, 772], [1280, 720], [390, 844]]) {
     await expect.poll(() => video.evaluate(el => el.currentTime)).toBeGreaterThanOrEqual(1.1);
     await expect.poll(() => video.evaluate(el => el.paused && Math.abs(el.currentTime - 1.6) < .02)).toBe(true);
     const box = await page.locator(popup).boundingBox();
+    expect(box.width).toBeGreaterThanOrEqual(width - 20);
+    expect(box.height).toBeGreaterThanOrEqual(height - 20);
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(width);
     expect(box.y + box.height).toBeLessThanOrEqual(height);
     expect(await page.locator(popup).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     const save = await page.locator("[data-video-analysis-timeline-edit-save]").boundingBox();
+    expect(save.y).toBeGreaterThanOrEqual(0);
     expect(save.y + save.height).toBeLessThanOrEqual(height);
+    if (width >= 1000) {
+      const screen = page.locator(".video-analysis-clip-editor__screen");
+      const before = await screen.boundingBox();
+      expect(before.width).toBeGreaterThan(width * .7);
+      expect(before.height).toBeGreaterThan(height * .58);
+      await page.locator(".video-analysis-clip-editor__principles summary").click();
+      await page.locator(field("note")).focus();
+      expect(await screen.boundingBox()).toEqual(before);
+      await page.locator(".video-analysis-clip-editor__principles summary").click();
+    }
     await page.screenshot({ path: testInfo.outputPath(`row-review-${width}.png`) });
     await page.locator(select(4)).click();
     await expect(page.locator(field("note"))).toHaveValue("Note 4");

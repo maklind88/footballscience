@@ -44,7 +44,7 @@ async function open(page, { media = true, canEdit = true } = {}) {
   await expect(page.locator(popup)).toBeVisible();
 }
 
-for (const [width, height] of [[1470, 844], [1280, 720], [390, 844]]) {
+for (const [width, height] of [[1470, 844], [1280, 720], [1920, 1080], [844, 390], [390, 844]]) {
   test(`clip preview plays actual video within clip boundaries and fits at ${width}px`, async ({ page }, testInfo) => {
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -72,6 +72,8 @@ for (const [width, height] of [[1470, 844], [1280, 720], [390, 844]]) {
     await expect.poll(() => video.evaluate(el => el.currentTime)).toBeCloseTo(1.75, 2);
     await expect(video).toBeVisible();
     const box = await page.locator(popup).boundingBox();
+    expect(box.width).toBeGreaterThanOrEqual(width - 20);
+    expect(box.height).toBeGreaterThanOrEqual(height - 20);
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(width);
     expect(box.y + box.height).toBeLessThanOrEqual(height);
@@ -79,6 +81,12 @@ for (const [width, height] of [[1470, 844], [1280, 720], [390, 844]]) {
     expect(saveBox.y).toBeGreaterThanOrEqual(0);
     expect(saveBox.y + saveBox.height).toBeLessThanOrEqual(height);
     expect(await page.locator(popup).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    const screen = await page.locator(".video-analysis-clip-editor__screen").boundingBox();
+    if (width >= 1000) {
+      expect(screen.width).toBeGreaterThan(width * .7);
+      expect(screen.height).toBeGreaterThan(height * .58);
+    }
+    expect(await video.evaluate(el => getComputedStyle(el).objectFit)).toBe("contain");
     await page.screenshot({ path: testInfo.outputPath(`clip-preview-${width}.png`) });
     await page.getByRole("button", { name: "Edit clip timing" }).click();
     await fieldLocator(page, "startMs").fill("0:00:02");

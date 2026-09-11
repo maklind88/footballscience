@@ -146,6 +146,16 @@ requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "envir
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "summary.dryRun !== true", "platform identity snapshot inspection must verify read-only mode");
 forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--capture", "platform identity snapshot inspection must not capture data");
 forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--apply", "platform identity snapshot inspection must not apply identity writes");
+requireText(".github/workflows/data-content-recovery.yml", "workflow_dispatch:", "data content recovery must remain manually authorized");
+requireText(".github/workflows/data-content-recovery.yml", "environment: platform-production", "data content recovery must use the existing protected environment");
+requireText(".github/workflows/data-content-recovery.yml", 'test "$EXPECTED_SHA" = "$GITHUB_SHA"', "data recovery must bind the reviewed main SHA");
+requireText(".github/workflows/data-content-recovery.yml", "npm run qa:data-recovery-native", "data recovery must prove the native toolchain before credential access");
+for (const trigger of ["schedule:", "pull_request:", "push:", "workflow_run:", "upload-artifact", "continue-on-error"]) {
+  forbidText(".github/workflows/data-content-recovery.yml", trigger, "sensitive data recovery must not be automatic, optional or retain data artifacts");
+}
+requireText("scripts/github-data-content-recovery.mjs", 'PGSSLMODE: "verify-full"', "data recovery must verify the production TLS identity");
+requireText("scripts/lib/data-content-recovery-drill.mjs", "fullRecoveryVerified: false", "content-only recovery must not certify full platform recovery");
+requireText("qa/data-content-recovery-contract.api.spec.mjs", "qa/data-content-recovery.test.mjs", "API QA must include offline recovery safety contracts");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platform identity backfill tests must prove server-owned role derivation");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "stale plan before any write", "platform identity tests must prove stale plans cannot write");
 requireText("qa/platform-identity-snapshot.api.spec.mjs", "tenant scope changes", "identity rollback must fail closed on tenant scope drift");

@@ -7,6 +7,7 @@ import { videoAnalysisPhases } from "../constants/phases.js";
 import { phaseForSubPhase } from "../services/footballLanguageService.js";
 import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { getClipPrimaryLabel, getClipStartMs, getClipEndMs } from "./timeline.selectors.js";
+import { renderClipReview } from "./timeline.clip-review.js";
 
 export function formatClipEditorTime(ms = 0) {
   const value = Math.max(0, Math.round(ms));
@@ -32,7 +33,7 @@ export function clipEditorSubPhaseOptions(phase, current = "") {
   return `<option value="">Choose sub-phase</option>${optionList(choices, current)}`;
 }
 
-export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false, title = "" } = {}) {
+export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false, title = "", review = null } = {}) {
   const start = getClipStartMs(clip);
   const end = getClipEndMs(clip);
   const principles = new Set(clipMiniGamePrincipleLabels(clip));
@@ -41,10 +42,11 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
   const phases = [...new Set([phase, ...videoAnalysisPhases])].filter(Boolean);
   return `
     <header>
-      <div><span>${canEdit ? "Edit clip" : "Clip"}</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(title || getClipPrimaryLabel(clip, laneMode) || "Selected clip")}</h2></div>
+      <div><span>${canEdit ? "Edit clip" : "Clip"}</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(title || getClipPrimaryLabel(clip, laneMode) || "Selected clip")}${review ? ` (${review.entries.length})` : ""}</h2></div>
       <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" title="Close">${playerHeaderIcon("x")}</button>
     </header>
     <form data-video-analysis-timeline-editor novalidate>
+      ${renderClipReview(review, clip.id)}
       <div class="video-analysis-clip-editor__layout">
       <section class="video-analysis-clip-editor__media" aria-label="Clip preview">
         <div class="video-analysis-clip-editor__screen">
@@ -86,10 +88,16 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
         <button type="button" data-video-analysis-clip-editor-keep>Cancel</button>
         <button type="button" data-video-analysis-clip-editor-delete-confirm>Delete clip</button>
       </div>
+      ${review ? `<div class="video-analysis-clip-editor__confirm" data-clip-review-close-confirm hidden>
+        <span>Discard unsaved changes?</span>
+        <button type="button" data-clip-review-keep>Keep editing</button>
+        <button type="button" data-clip-review-discard>Discard</button>
+      </div>` : ""}
       <footer>
         ${canEdit ? '<button type="button" class="video-analysis-clip-editor__delete" data-video-analysis-clip-editor-delete>Delete</button>' : ""}
-        <button type="button" data-video-analysis-timeline-edit-cancel>${canEdit ? "Cancel" : "Close"}</button>
-        ${canEdit ? '<button type="submit" class="video-analysis-clip-editor__save" data-video-analysis-timeline-edit-save>Save</button>' : ""}
+        ${review ? '<span class="video-analysis-clip-review__notice" data-clip-review-notice role="status"></span>' : ""}
+        <button type="button" data-video-analysis-timeline-edit-cancel>${canEdit && !review ? "Cancel" : "Close"}</button>
+        ${canEdit ? `<button type="submit" class="video-analysis-clip-editor__save" data-video-analysis-timeline-edit-save>${review ? "Save clip" : "Save"}</button>` : ""}
       </footer>
     </form>
   `;

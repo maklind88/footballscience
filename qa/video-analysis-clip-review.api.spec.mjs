@@ -1,0 +1,49 @@
+import { test, expect } from "@playwright/test";
+import { createClipReview, renderClipReview } from "../src/modules/video-analysis/timeline/timeline.clip-review.js";
+
+const clips = [{ id: "b", revision: 2, startMs: 5000, endMs: 9000 }, { id: "a", revision: 3, startMs: 1000, endMs: 3000 }];
+
+test("row review keeps a chronological unique snapshot without mutating source clips", () => {
+  const review = createClipReview([...clips, clips[0]], "High Press");
+  expect(review.entries.map(entry => entry.clip.id)).toEqual(["a", "b"]);
+  review.entries[0].clip.startMs = 1500;
+  expect(clips[1].startMs).toBe(1000);
+  expect(createClipReview([null, {}, { id: "" }]).entries).toEqual([]);
+});
+
+test("row review drafts stay separate and retain original revisions until each clip is saved", () => {
+  const review = createClipReview(clips);
+  const baseline = { fields: { note: "" }, principles: [] };
+  const a = { fields: { note: "A", endMs: "invalid" }, principles: ["support"] };
+  const b = { fields: { note: "B" }, principles: ["press"] };
+  review.remember("a", a, baseline);
+  review.remember("b", b, baseline);
+  a.fields.note = "Mutated outside";
+  expect(review.entries[0]).toMatchObject({ clip: { id: "a", revision: 3 }, draft: { fields: { note: "A", endMs: "invalid" } } });
+  review.saved({ ...clips[0], revision: 3 });
+  expect(review.entries[1]).toMatchObject({ clip: { revision: 3 }, draft: null });
+  expect(review.hasDrafts()).toBe(true);
+  review.remember("a", baseline, baseline);
+  expect(review.hasDrafts()).toBe(false);
+});
+
+test("row review removes only the requested clip and chooses a remaining neighbor", () => {
+  const review = createClipReview(clips);
+  expect(review.remove("a").id).toBe("b");
+  expect(review.entries.map(entry => entry.clip.id)).toEqual(["b"]);
+  expect(review.remove("not-present")).toBeNull();
+  expect(review.remove("b")).toBeNull();
+  expect(review.entries).toEqual([]);
+});
+
+test("row review navigation escapes labels and exposes selection and unsaved state", () => {
+  const review = createClipReview([{ ...clips[0], id: 'x" onclick="bad()' }], '<img src=x>');
+  review.remember(review.entries[0].clip.id, { note: "changed" }, {});
+  const html = renderClipReview(review, review.entries[0].clip.id);
+  expect(html).not.toContain("<img");
+  expect(html).not.toContain(' onclick="bad()');
+  expect(html).toContain('aria-pressed="true"');
+  expect(html).toContain("Unsaved");
+  expect(html).toContain('title="Previous clip" disabled');
+  expect(html).toContain('title="Next clip" disabled');
+});

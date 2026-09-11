@@ -5257,6 +5257,8 @@ export function handleClick(event, context = {}) {
   if (categorySelectButton) {
     const { laneMode, label } = categoryPayloadFromButton(categorySelectButton);
     const clips = findTimelineCategoryClips(run.store.getState(), laneMode, label);
+    if (timelineClipEditor(context).handleRowClick(event, clips, categorySelectButton)) return true;
+    const restoreViewport = preserveTimelineViewport(getRoot(context));
     run.store.update((current) => ({
       ...current,
       selectedClipId: clips[0]?.id || current.selectedClipId || "",
@@ -5274,6 +5276,7 @@ export function handleClick(event, context = {}) {
         },
       },
     }));
+    restoreViewport();
     return true;
   }
   const categoryCloseButton = target.closest("[data-video-analysis-timeline-category-close]");
@@ -6258,6 +6261,12 @@ export function handleKeydown(event, context = {}) {
   if (clipButton && event.key === "F2") {
     event.preventDefault();
     return timelineClipEditor(context).open(clipByIdFromState(state, clipButton.dataset.videoAnalysisSeek), clipButton);
+  }
+  const rowButton = keyTarget?.closest?.("[data-video-analysis-timeline-category]");
+  if (rowButton && event.key === "F2") {
+    event.preventDefault();
+    const { laneMode, label } = categoryPayloadFromButton(rowButton);
+    return timelineClipEditor(context).openRow(findTimelineCategoryClips(state, laneMode, label), rowButton);
   }
   const mgPrincipleSearch = keyTarget?.closest?.("[data-video-analysis-mg-principle-search]");
   if (mgPrincipleSearch && event.key === "Enter") {

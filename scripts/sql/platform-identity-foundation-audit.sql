@@ -1,0 +1,84 @@
+-- Read-only, one statement/consistent snapshot. Returns counts, never player content.
+-- Current legacy owner is resolved from SERVER metadata, not names/browser metadata.
+-- No matching owner, missing source, or incomplete mapping must block migration.
+with legacy_teams as (
+  select t.id as team_id, t.organization_id, t.club_id
+  from public.platform_teams t
+  join public.platform_clubs c on c.id = t.club_id and c.organization_id = t.organization_id
+  join public.platform_organizations o on o.id = t.organization_id
+  where t.status = 'active' and c.status = 'active' and o.status = 'active'
+    and t.deleted_at is null and c.deleted_at is null and o.deleted_at is null
+    and t.metadata ->> 'legacyTeamId' = 'team-north-carolina-courage'
+    and o.metadata ->> 'legacyOrganization' = 'football-science-live'
+), linked_teams as (
+  select l.organization_id, l.team_id, l.module_record_id as squad_team_id
+  from public.platform_tenant_links l
+  join legacy_teams t on t.team_id = l.team_id
+    and t.organization_id = l.organization_id and t.club_id = l.club_id
+  join public.squad_teams s on s.id = l.module_record_id
+    and s.organization_id = l.organization_id and s.id = l.team_id
+  where l.status = 'active' and l.module_id = 'player-profiles'
+    and l.module_table = 'squad_teams' and s.status = 'active'
+), sources as (
+  select k.state_key, r.revision, r.updated_at, r.value_hash,
+    case when not r.removed then r.value::jsonb end as doc
+  from (values ('football-player-profiles-v1'), ('football-medical-team-v1')) k(state_key)
+  left join public.platform_app_state_records r
+    on r.state_key = k.state_key and r.organization_id = 'global'
+), collections as (
+  select s.*, c.label, c.field, c.reference_field,
+    coalesce(jsonb_typeof(s.doc) = 'object' and jsonb_typeof(s.doc -> c.field) = 'array', false) as valid
+  from sources s
+  join (values
+    ('football-player-profiles-v1', 'squad-players', 'players', 'id'),
+    ('football-medical-team-v1', 'medical-players', 'players', 'id'),
+    ('football-medical-team-v1', 'medical-records', 'records', 'playerId'),
+    ('football-medical-team-v1', 'medical-plans', 'injuryPlans', 'playerId')
+  ) c(state_key, label, field, reference_field) on c.state_key = s.state_key
+), source_items as (
+  select c.label, nullif(btrim(p ->> 'id'), '') as item_id,
+    nullif(btrim(p ->> c.reference_field), '') as legacy_id
+  from collections c
+  cross join lateral jsonb_array_elements(case when c.valid then c.doc -> c.field else '[]'::jsonb end) p
+), target_players as (
+  select p.id, p.organization_id, nullif(btrim(p.metadata ->> 'legacyId'), '') as legacy_id
+  from public.squad_players p
+  where p.deleted_at is null and p.status <> 'archived'
+    and exists (select 1 from legacy_teams t where t.organization_id = p.organization_id)
+), player_matches as (
+  select legacy_id, count(*) as matches from target_players group by legacy_id
+), membership_matches as (
+  select p.legacy_id, count(*) as matches
+  from target_players p
+  join public.squad_roster_memberships m on m.player_id = p.id and m.organization_id = p.organization_id
+  where m.deleted_at is null and m.status = 'active'
+    and exists (select 1 from linked_teams t where t.squad_team_id = m.team_id and t.organization_id = m.organization_id)
+  group by p.legacy_id
+), measures as (
+  select c.label, c.valid, count(i.label) as items,
+    count(distinct i.legacy_id) as distinct_players,
+    count(i.label) filter (where i.item_id is null or i.legacy_id is null) as missing_ids,
+    count(i.item_id) - count(distinct i.item_id) as duplicate_ids,
+    count(i.label) filter (where coalesce(p.matches, 0) = 0) as unmapped,
+    count(i.label) filter (where p.matches > 1) as ambiguous,
+    count(i.label) filter (where p.matches = 1) as mapped,
+    count(i.label) filter (where p.matches = 1 and coalesce(m.matches, 0) <> 1) as membership_gaps,
+    count(i.label) filter (where c.reference_field = 'playerId' and not exists (
+      select 1 from source_items medical where medical.label = 'medical-players' and medical.legacy_id = i.legacy_id
+    )) as missing_medical_source_player
+  from collections c
+  left join source_items i on i.label = c.label
+  left join player_matches p on p.legacy_id = i.legacy_id
+  left join membership_matches m on m.legacy_id = i.legacy_id
+  group by c.label, c.valid
+)
+select jsonb_build_object(
+  'schema', 'footballscience-identity-foundation-evidence-v1',
+  'observedAt', now(),
+  'legacyOwnerTeams', (select count(*) from legacy_teams),
+  'canonicalSquadLinks', (select count(*) from linked_teams),
+  'sources', (select jsonb_agg(jsonb_build_object(
+    'key', state_key, 'revision', revision, 'updatedAt', updated_at, 'valueHash', value_hash
+  ) order by state_key) from sources),
+  'collections', (select jsonb_agg(to_jsonb(m) order by label) from measures m)
+) as evidence;

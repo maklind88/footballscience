@@ -25,8 +25,8 @@
     {
       "id": "platform-identity", "owner": "System/Security", "model": "relational",
       "folders": [], "keys": [],
-      "evidence": ["api/_lib/platform-identity.js", "api/_lib/platform-tenant-bootstrap.js"],
-      "next": "Verify organization/team/player crosswalks and negative cross-tenant tests before each migration."
+      "evidence": ["api/_lib/platform-identity.js", "api/_lib/platform-tenant-bootstrap.js", "scripts/sql/platform-identity-foundation-audit.sql", "scripts/lib/platform-identity-foundation-audit.mjs", "docs/architecture/PLATFORM_DATA_FOUNDATION_CHECKPOINT_2026-09-11.md"],
+      "next": "Resolve temporary/historical-player crosswalk gaps; prove recovery and continuous creation before migration."
     },
     {
       "id": "home", "owner": "Home/Dashboard", "model": "shared-state",

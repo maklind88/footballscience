@@ -38,6 +38,11 @@
   align-content: center;
 }
 
+.squad-table-season .squad-availability-cell,
+.squad-table-recent .squad-availability-cell {
+  grid-template-rows: minmax(0.86rem, auto) 0.36rem minmax(0.78rem, auto);
+}
+
 .squad-availability-cell strong {
   color: #15231d;
   font-size: 0.86rem;

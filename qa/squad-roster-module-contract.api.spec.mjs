@@ -172,6 +172,8 @@ test("Squad roster stylesheet turns narrow tables into labelled player cards", (
   expect(stylesheet).toContain("grid-template-areas:");
   expect(stylesheet).toContain("content: attr(data-label)");
   expect(stylesheet).toContain("height: 100dvh");
+  expect(stylesheet).toContain(".squad-table-season .squad-availability-cell,");
+  expect(stylesheet).toContain("grid-template-rows: minmax(0.86rem, auto) 0.36rem minmax(0.78rem, auto);");
 });
 
 test("Squad roster renderer defaults training guests to hidden", () => {

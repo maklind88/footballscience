@@ -427,7 +427,8 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
         && Math.abs(timeline.right - deck.right) < 8
         && timeline.top >= deck.bottom
         && timeline.top - deck.bottom <= 16
-        && Math.abs(ruler.left - deck.left) < 8
+        && ruler.left < deck.left
+        && Math.abs(ruler.left - timeline.left - 207) < 3
         && Math.abs(ruler.right - deck.right) < 8
     );
   })).toBe(true);
@@ -447,7 +448,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect.poll(() => page.locator("[data-video-analysis-timeline-lane-select] option").evaluateAll((options) => (
     options.map((option) => option.value)
   ))).toEqual(["all", "phase", "subPhase", "miniGamePrinciple", "player", "unit"]);
-  await expect(page.locator(".video-analysis-lane__label").first()).toContainText("Sub-phase / Build Up");
+  await expect(page.locator(".video-analysis-lane__label").first()).toHaveText("Build Up (1)");
   await expect(page.locator(".video-analysis-timeline-controls")).toHaveCount(0);
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
   await expect(page.locator(".video-analysis-intelligence")).toHaveCount(0);
@@ -854,7 +855,7 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
   ))).toBe(3);
 });
 
-test("Video Analysis Timeline keeps true scale, stacks overlaps, and undoes merges", async ({ page }) => {
+test("Video Analysis Timeline keeps true scale, overlays clips, and undoes merges", async ({ page }) => {
   await page.addInitScript(() => {
     window.__videoAnalysisSmokeClips = [
       {
@@ -918,18 +919,17 @@ test("Video Analysis Timeline keeps true scale, stacks overlaps, and undoes merg
   const highPressLane = page.locator('[data-video-analysis-timeline-category-label="High Press"]').locator("..");
   const highPressClips = highPressLane.locator(".video-analysis-clip-block");
   await expect(highPressClips).toHaveCount(2);
-  await expect(highPressLane.locator("[data-video-analysis-timeline-track]")).toHaveAttribute(
-    "style",
-    /--video-analysis-lane-rows:2/
-  );
+  const overlapBounds = await highPressClips.evaluateAll((clips) => clips.map((clip) => {
+    const rect = clip.getBoundingClientRect();
+    return { top: rect.top, height: rect.height };
+  }));
+  expect(overlapBounds[0]).toEqual(overlapBounds[1]);
   const overviewStyles = await highPressClips.evaluateAll((clips) => clips.map((clip) => clip.getAttribute("style")));
   expect(overviewStyles).toEqual(expect.arrayContaining([
     expect.stringContaining("width:12.5%"),
-    expect.stringContaining("--video-analysis-clip-row:0"),
-    expect.stringContaining("--video-analysis-clip-row:1"),
   ]));
 
-  await highPressClips.first().click();
+  await highPressClips.first().click({ position: { x: 3, y: 8 } });
   await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveAttribute(
     "data-video-analysis-timeline-window-duration-ms",
     "120000"
@@ -940,7 +940,8 @@ test("Video Analysis Timeline keeps true scale, stacks overlaps, and undoes merg
   );
   await expect(highPressClips.first()).toHaveAttribute("style", /width:12.5%/);
 
-  await highPressClips.nth(1).click({ modifiers: ["Shift"] });
+  const secondBounds = await highPressClips.nth(1).boundingBox();
+  await highPressClips.nth(1).click({ modifiers: ["Shift"], position: { x: secondBounds.width - 3, y: 8 } });
   await expect(page.locator("[data-video-analysis-timeline-focus]")).toContainText("2 clips selected");
   await page.locator("[data-video-analysis-timeline-merge]").click();
   await expect.poll(() => page.evaluate(() => {
@@ -962,7 +963,7 @@ test("Video Analysis Timeline keeps true scale, stacks overlaps, and undoes merg
     .locator('[data-video-analysis-timeline-category-label="High Press"]')
     .locator("..")
     .locator(".video-analysis-clip-block");
-  await restoredHighPressClips.first().click();
+  await restoredHighPressClips.first().click({ position: { x: 3, y: 8 } });
   await page.locator("[data-video-analysis-timeline-edit]").click();
   await page.locator('[data-video-analysis-timeline-edit-field="outcome"]').selectOption("Neutral");
   await page.locator('[data-video-analysis-timeline-edit-field="tags"]').fill("press, regain");
@@ -1521,7 +1522,8 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   expect(Math.abs(timelineLayout.frameRight - timelineLayout.videoRight)).toBeLessThanOrEqual(3);
   expect(Math.abs(timelineLayout.scrollLeft - timelineLayout.frameLeft)).toBeLessThanOrEqual(3);
   expect(Math.abs(timelineLayout.scrollWidth - timelineLayout.frameWidth)).toBeLessThanOrEqual(3);
-  expect(Math.abs(timelineLayout.rulerLeft - timelineLayout.videoLeft)).toBeLessThanOrEqual(3);
+  expect(timelineLayout.rulerLeft).toBeLessThan(timelineLayout.videoLeft);
+  expect(Math.abs(timelineLayout.rulerLeft - timelineLayout.frameLeft - 207)).toBeLessThanOrEqual(3);
   expect(Math.abs(timelineLayout.rulerRight - timelineLayout.videoRight)).toBeLessThanOrEqual(3);
   expect(timelineLayout.labelRight).toBeLessThanOrEqual(timelineLayout.rulerLeft + 1);
   expect(timelineLayout.canvasWidth).toBeGreaterThanOrEqual(timelineLayout.scrollClientWidth - 2);

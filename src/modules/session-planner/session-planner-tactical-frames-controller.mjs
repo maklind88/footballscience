@@ -1,6 +1,8 @@
-// Leave headroom under the existing 256 KiB server block limit for coaching text.
+import { getTacticalStorageBytes } from "./session-tactical-storage.mjs";
+
+// Measure the persisted representation, leaving headroom under the 256 KiB block limit.
 export const tacticalFrameCreationBudgetBytes = 240 * 1024;
-const payloadBytes = (block) => new TextEncoder().encode(JSON.stringify(block)).byteLength;
+const payloadBytes = getTacticalStorageBytes;
 
 // The editor owns a draft view. Selecting a frame never mutates the saved block.
 export function createSessionPlannerTacticalFramesController({
@@ -88,7 +90,8 @@ export function createSessionPlannerTacticalFramesController({
     syncFrame(view);
     const newContent = JSON.stringify([view.tacticalFrames, view.tacticalPitchMode]);
     if (entry.contentStamp === newContent) return false;
-    const candidateBytes = payloadBytes(view);
+    const candidate = { ...source, ...Object.fromEntries(fields.map((field) => [field, view[field]])) };
+    const candidateBytes = payloadBytes(candidate);
     if (candidateBytes > tacticalFrameCreationBudgetBytes && candidateBytes > payloadBytes(source)) {
       entry = null;
       clearInteraction();
@@ -150,7 +153,8 @@ export function createSessionPlannerTacticalFramesController({
     syncFrame(view);
     const index = frames.findIndex((frame) => frame.id === view.tacticalActiveFrameId);
     const frame = cloneFrame({ label: `Frame ${frames.length + 1}`, elements: view.tacticalElements });
-    const candidate = { ...view, tacticalFrames: [...frames.slice(0, index + 1), frame, ...frames.slice(index + 1)],
+    const candidate = { ...getBlock(), tacticalPitchMode: view.tacticalPitchMode,
+      tacticalFrames: [...frames.slice(0, index + 1), frame, ...frames.slice(index + 1)],
       tacticalActiveFrameId: frame.id, tacticalElements: frame.elements };
     if (payloadBytes(candidate) > tacticalFrameCreationBudgetBytes) {
       showToast("This exercise is too large to add another frame safely. Your existing frames are unchanged.", "warning");

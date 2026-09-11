@@ -1,5 +1,6 @@
 import { createSessionPlannerRecoveryController, getSessionPlannerQuotaSnapshotId } from "./session-planner-recovery-controller.mjs";
 import { createSessionLocalReviewService } from "./session-local-review-service.mjs";
+import { sessionStateForStorage } from "./session-tactical-storage.mjs";
 
 export function createSessionPlannerRuntimeStateService(deps = {}) {
   const {
@@ -264,9 +265,10 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         if (fallbackState) return fallbackState;
         return createDefaultState();
       }
-      const state = cloneState(JSON.parse(raw));
-      if (JSON.stringify(state) !== raw) {
-        persistNormalizedState(state);
+      const storedState = JSON.parse(raw);
+      const state = cloneState(storedState);
+      if (JSON.stringify(sessionStateForStorage(state, storedState)) !== raw) {
+        persistNormalizedState(state, storedState);
       }
       return state;
     } catch {
@@ -274,8 +276,8 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     }
   }
 
-  function persistNormalizedState(nextState) {
-    const nextValue = JSON.stringify(nextState);
+  function persistNormalizedState(nextState, previousState = null) {
+    const nextValue = JSON.stringify(sessionStateForStorage(nextState, previousState));
     try {
       rawDataSafetySetItem(sessionPlannerStorageKey, nextValue);
     } catch {
@@ -374,17 +376,19 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     let previousValue = null;
     try {
       let existingState = null;
+      let storedState = null;
       let rawExistingState = null;
       try {
         rawExistingState = win.localStorage.getItem(sessionPlannerStorageKey);
         previousValue = rawExistingState;
-        existingState = rawExistingState ? cloneState(JSON.parse(rawExistingState)) : null;
+        storedState = rawExistingState ? JSON.parse(rawExistingState) : null;
+        existingState = storedState ? cloneState(storedState) : null;
       } catch {
         existingState = null;
         rawExistingState = null;
       }
       const nextState = existingState ? mergeStateForWrite(existingState, state) : cloneState(state);
-      nextValue = JSON.stringify(nextState);
+      nextValue = JSON.stringify(sessionStateForStorage(nextState, storedState));
       if (rawExistingState === nextValue) {
         setSessionPlannerState(nextState);
         return true;

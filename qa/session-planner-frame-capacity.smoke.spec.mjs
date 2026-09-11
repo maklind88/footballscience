@@ -1,29 +1,33 @@
 import { expect, test } from "@playwright/test";
+import { createSessionPlannerTacticalHelpers } from "../src/modules/session-planner/session-planner-tactical-helpers.mjs";
+import { denseTacticalBlock } from "./fixtures/session-tactical-capacity.mjs";
+
+const { normalizeTacticalFrames } = createSessionPlannerTacticalHelpers();
 
 const key = "football-session-planner-v3";
 const date = "2026-09-08";
 const marker = '[data-session-tactical-element-id="player"]';
 const read = (page) => page.evaluate(({ key, date }) => JSON.parse(localStorage.getItem(key)).sessions[date].blocks[0], { key, date });
 const raw = (page) => page.evaluate((key) => localStorage.getItem(key), key);
-async function boot(page, { count = 23, oversized = false, presentation = false } = {}) {
+async function boot(page, { count = 23, oversized = false, presentation = false, dense = false } = {}) {
   // Home opens today's presentation, so its clock must match the seeded session.
   if (presentation) await page.clock.setFixedTime(new Date(`${date}T12:00:00Z`));
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript(({ key, date, count, oversized }) => {
+  await page.addInitScript(({ key, date, count, oversized, denseBlock }) => {
     if (localStorage.getItem(key)) return;
     const frames = Array.from({ length: count }, (_, index) => ({ id: `f-${index}`, label: `Frame ${index + 1}`,
       elements: [{ id: "player", type: "blue-player", x: 16 + index / 2, y: 30, playerNumber: "LCB" },
         { id: "other", type: "red-player", x: 70, y: 40, playerNumber: "RW" },
         { id: "ball", type: "ball", x: 20 + index / 2, y: 33 }] }));
-    const block = { id: "qa-capacity", label: "Block 1", title: "Long sequence", minutes: 15, diagram: "empty",
+    const block = denseBlock || { id: "qa-capacity", label: "Block 1", title: "Long sequence", minutes: 15, diagram: "empty",
       tacticalPitchMode: "full-wide", tacticalElements: frames.at(-1).elements, tacticalFrames: frames,
       tacticalActiveFrameId: frames.at(-1).id, organization: oversized ? "x".repeat(245000) : "Keep all frames" };
     localStorage.setItem(key, JSON.stringify({ selectedDate: date, sessions: { [date]: {
       id: "qa-session", date, title: "QA Training", selectedBlockId: block.id, blocks: [block] } } }));
     localStorage.setItem("football-schedule-v1", JSON.stringify({ selectedDate: date, events: [{ id: "qa", date, type: "training", title: "QA Training" }] }));
     localStorage.setItem("football-periodization-v2", JSON.stringify({ selectedDate: date, days: { [date]: { sessionType: "Training" } } }));
-  }, { key, date, count, oversized });
+  }, { key, date, count, oversized, denseBlock: dense ? denseTacticalBlock(count) : null });
   await page.goto(presentation ? "/?workspace=home" : "/?workspace=session-planner", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
   await page.evaluate(() => document.querySelector("[data-dashboard-news-dismiss], [data-dashboard-modal-close]")?.click());
@@ -91,7 +95,7 @@ for (const width of [1470, 390]) {
     await page.locator("[data-session-save-exercise]").click();
     const library = await page.evaluate(() => JSON.parse(localStorage.getItem("football-session-exercise-library-v1") || "[]")
       .find((exercise) => exercise.title === "Long sequence"));
-    expect(library.tacticalFrames).toEqual(saved.tacticalFrames);
+    expect(normalizeTacticalFrames(library.tacticalFrames)).toEqual(normalizeTacticalFrames(saved.tacticalFrames));
     await page.reload();
     await page.waitForFunction(() => window.__footballScienceAppReady);
     const idle = await raw(page);
@@ -113,6 +117,40 @@ for (const width of [1470, 390]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("a dense exercise grows from 12 to 24 frames and keeps geometry through reload and playback", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1470, height: 850 });
+  const { modal, errors } = await boot(page, { count: 12, dense: true });
+  const before = normalizeTacticalFrames((await read(page)).tacticalFrames);
+  for (let count = 13; count <= 24; count++) {
+    await modal.getByRole("button", { name: "Next frame", exact: true }).click();
+    await expect(modal.locator("[data-session-tactical-playback-status]")).toHaveText(`Frame ${count} / ${count}`);
+  }
+  const stored = await read(page);
+  expect(Buffer.byteLength(JSON.stringify(stored))).toBeLessThan(240 * 1024);
+  const savedFrames = normalizeTacticalFrames(stored.tacticalFrames);
+  expect(savedFrames.slice(0, 12)).toEqual(before);
+  expect(savedFrames.slice(12).every((frame) => JSON.stringify(frame.elements) === JSON.stringify(before.at(-1).elements))).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("dense-24-frames.png") });
+  await page.reload();
+  await page.waitForFunction(() => window.__footballScienceAppReady);
+  expect(normalizeTacticalFrames((await read(page)).tacticalFrames)).toEqual(savedFrames);
+  expect(Buffer.byteLength(JSON.stringify(await read(page)))).toBeLessThan(240 * 1024);
+  const unchanged = await raw(page);
+  await page.locator("[data-session-open-tacticalboard]").click();
+  await modal.getByLabel("Go to frame", { exact: true }).selectOption("dense-frame-0");
+  await modal.getByRole("button", { name: "Play", exact: true }).click();
+  await modal.getByRole("slider", { name: "Animation position" }).fill("1");
+  await expect(modal.locator("[data-session-tactical-playback-status]")).toHaveText("Frame 24 / 24");
+  await modal.getByRole("button", { name: "Back to editing", exact: true }).click();
+  expect(await raw(page)).toBe(unchanged);
+  await modal.getByRole("button", { name: "Close tacticalboard", exact: true }).click();
+  await page.locator("[data-session-save-exercise]").click();
+  const library = await page.evaluate(() => JSON.parse(localStorage.getItem("football-session-exercise-library-v1") || "[]")
+    .find((exercise) => exercise.title === "Dense sequence"));
+  expect(normalizeTacticalFrames(library.tacticalFrames)).toEqual(savedFrames);
+  expect(errors).toEqual([]);
+});
 
 test("oversized frame creation is refused without writes or removing existing frames", async ({ page }) => {
   const { modal } = await boot(page, { count: 2, oversized: true });

@@ -49,6 +49,9 @@ architecture-budget checks also passed.
 A broader API run also exposed two failures in unchanged Video Analysis code at
 base `99c06420`: the module contract still expects the removed
 `timeline.focus.renderer.js` file and an inline `data-video-analysis-prepare-playback`
-attribute that has moved into `PlayerHeaderActions.js`. No Video Analysis files
-are changed by this candidate. These failures remain for that module's owner;
-the broad gate must not be described as green or bypassed for release.
+attribute that has moved into `PlayerHeaderActions.js`. The user explicitly
+approved correcting only these two tests as a release prerequisite. A separate
+test-only commit checks the current clip-editor files and verifies the rendered
+fallback action, without changing Video Analysis runtime code. All 37 focused
+module-contract and clip-popup tests pass after that correction. The full release
+gate still has to pass; no tests are skipped or bypassed.

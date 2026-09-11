@@ -37,6 +37,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "api/_lib/video-analysis-portable-storage.js",
     "api/_lib/video-analysis-library-database.js",
     "src/modules/video-analysis/components/VideoPlayer.js",
+    "src/modules/video-analysis/components/PlayerHeaderActions.js",
     "src/modules/video-analysis/components/AnalysisRoomShell.js",
     "src/modules/video-analysis/components/FsPlayerWorkspace.js",
     "src/modules/video-analysis/components/VideoLibrary.js",
@@ -1318,7 +1319,7 @@ test("analysis room tabs use icons without status labels", () => {
   expect(source).not.toContain('state: "Next"');
 });
 
-test("local video architecture remains browser-first with bridge fallback only", () => {
+test("local video architecture remains browser-first with bridge fallback only", async () => {
   const handleStore = read("src/modules/video-analysis/services/localVideoHandleStore.js");
   const sessionService = read("src/modules/video-analysis/services/localVideoSessionService.js");
   const player = read("src/modules/video-analysis/components/VideoPlayer.js");
@@ -1338,6 +1339,11 @@ test("local video architecture remains browser-first with bridge fallback only",
   expect(header).toContain("data-video-analysis-prepare-playback");
   expect(header).toContain("needsPrepare || showPrepared");
   expect(header).not.toMatch(/showOpenFilePicker|indexedDB|createPlayableLocalCopy|fetch\(/);
+  const { renderVideoPlayer } = await import(pathToFileURL(path.join(rootDir, "src/modules/video-analysis/components/VideoPlayer.js")).href);
+  const nativeVideo = { videoRef: { objectUrl: "blob:qa-native-video", durationMs: 60000 } };
+  expect(renderVideoPlayer(nativeVideo)).not.toContain("data-video-analysis-prepare-playback");
+  expect(renderVideoPlayer({ ...nativeVideo, bridgeFallbackRecommended: true })).toContain("data-video-analysis-prepare-playback");
+  expect(renderVideoPlayer({ bridgeFallbackRecommended: true })).not.toContain("data-video-analysis-prepare-playback");
   expect(player).toContain("bridgeFallbackRecommended");
   expect(read("src/modules/video-analysis/components/VideoPlayer.js")).not.toMatch(/showOpenFilePicker|indexedDB|createPlayableLocalCopy|fetch\(/);
 });

@@ -89,12 +89,12 @@ for (const viewport of [{ width: 1468, height: 900 }, { width: 390, height: 844 
     const lane = page.locator('[data-video-analysis-timeline-category-label="Build Up"]').locator("..");
     const blocks = lane.locator(".video-analysis-clip-block");
     await expect(blocks).toHaveCount(2);
-    await expect(lane.locator("[data-video-analysis-timeline-track]")).toHaveAttribute("style", /--video-analysis-lane-rows:2/);
+    expect((await blocks.first().boundingBox()).y).toBe((await blocks.nth(1).boundingBox()).y);
     const overviewDuration = Number(await timeline.getAttribute("data-video-analysis-timeline-window-duration-ms"));
     expect(overviewDuration / 1000).toBeCloseTo(media.durationSeconds, 1);
     expect(await blocks.first().evaluate((element) => parseFloat(element.style.width)))
       .toBeCloseTo(15_000 / overviewDuration * 100, 3);
-    await blocks.first().click();
+    await blocks.first().click({ position: { x: 2, y: 8 } });
     await expect(timeline).toHaveAttribute("data-video-analysis-timeline-window-duration-ms", String(overviewDuration));
     await expect(timeline.locator("[data-video-analysis-timeline-focus]")).toContainText("0:00:15");
     expect(await blocks.first().evaluate((element) => parseFloat(element.style.width)))

@@ -12,7 +12,6 @@ import {
   getTimelineWindow,
   normalizeTimelineLaneMode,
   normalizeTimelineZoom,
-  packTimelineLaneClips,
   playheadStyle,
   timelineCanvasStyle,
 } from "./timeline.service.js";
@@ -148,7 +147,7 @@ function selectedTimelineClip(clips = [], timeline = {}, selectedClipId = "") {
   return clips.find((clip) => String(clip.id || "") === selectedId) || null;
 }
 
-function renderClipBlock(clip = {}, window = {}, laneMode = "phase", selectedClipIds = new Set(), clipNumber = 1, categorySelected = false, button = null, density = {}, row = 0, rowColor = "") {
+function renderClipBlock(clip = {}, window = {}, laneMode = "phase", selectedClipIds = new Set(), clipNumber = 1, categorySelected = false, button = null, density = {}, rowColor = "") {
   const startMs = getClipStartMs(clip);
   const endMs = getClipEndMs(clip);
   const outcome = clip.outcome || "Neutral";
@@ -163,7 +162,7 @@ function renderClipBlock(clip = {}, window = {}, laneMode = "phase", selectedCli
     : "";
   return `
     <button type="button" class="video-analysis-clip-block${outcomeClass(outcome)}${selected ? " is-selected" : ""}${categorySelected ? " is-category-selected" : ""}"
-      style="${clipBlockStyle(clip, window.durationMs, { windowStartMs: window.startMs, windowDurationMs: window.durationMs })}--video-analysis-clip-row:${escapeHtml(String(row))};${buttonColor ? `--video-analysis-clip-color:${escapeHtml(buttonColor)};` : ""}"
+      style="${clipBlockStyle(clip, window.durationMs, { windowStartMs: window.startMs, windowDurationMs: window.durationMs })}${buttonColor ? `--video-analysis-clip-color:${escapeHtml(buttonColor)};` : ""}"
       data-video-analysis-seek="${escapeHtml(clip.id)}"
       aria-pressed="${selected ? "true" : "false"}"
       title="${escapeHtml(`#${clipNumber} · ${buttonLabel || primaryLabel} · ${formatVideoTime(startMs)} - ${formatVideoTime(endMs)} · ${secondaryLabel}`)}">
@@ -179,6 +178,10 @@ function renderClipBlock(clip = {}, window = {}, laneMode = "phase", selectedCli
 function isActiveCategory(timeline = {}, laneMode = "phase", label = "") {
   const selected = timeline.selectedCategory || {};
   return selected.laneMode === laneMode && selected.label === label;
+}
+
+function laneDisplayLabel(label = "", laneMode = "phase") {
+  return laneMode === "all" ? label.replace(/^(Sub-phase|Player) \/ /, "") : label;
 }
 
 function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", selectedClipIds = new Set(), timeline = {}, buttonLookup = {}, density = {}) {
@@ -205,7 +208,6 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
     `;
   }
   return visibleLanes.map(({ lane, visibleClips }) => {
-    const packed = packTimelineLaneClips(visibleClips);
     const countLabel = window.mode === "focus" && visibleClips.length !== lane.clips.length
       ? `${visibleClips.length}/${lane.clips.length}`
       : String(lane.clips.length);
@@ -220,17 +222,16 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
           aria-pressed="${isActiveCategory(timeline, laneMode, lane.label) ? "true" : "false"}"
           title="${escapeHtml(`Select all ${lane.label} clips`)}"
         >
-          <strong>${escapeHtml(lane.label)} <span class="video-analysis-lane__count">(${escapeHtml(countLabel)})</span></strong>
+          <strong><span class="video-analysis-lane__name">${escapeHtml(laneDisplayLabel(lane.label, laneMode))}</span> <span class="video-analysis-lane__count">(${escapeHtml(countLabel)})</span></strong>
           ${density.isDense && lane.clipCount ? `<span>${escapeHtml(`${formatVideoTime(lane.firstStartMs)} - ${formatVideoTime(lane.lastEndMs)}`)}</span>` : ""}
         </button>
         <div
           class="video-analysis-lane__track"
-          style="--video-analysis-lane-rows:${escapeHtml(String(packed.rowCount))};"
           data-video-analysis-timeline-track
           data-video-analysis-timeline-duration-ms="${escapeHtml(window.durationMs)}"
           data-video-analysis-timeline-window-start-ms="${escapeHtml(window.startMs)}"
         >
-          ${packed.items.map(({ clip, row }) => renderClipBlock(
+          ${visibleClips.map((clip) => renderClipBlock(
             clip,
             window,
             laneMode,
@@ -239,7 +240,6 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
             isActiveCategory(timeline, laneMode, lane.label),
             findClipButton(clip, buttonLookup),
             density,
-            row,
             lane.color
           )).join("")}
         </div>

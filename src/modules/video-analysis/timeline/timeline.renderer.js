@@ -25,9 +25,6 @@ import {
 } from "./timeline.selectors.js";
 import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { timelineSelectedClipIds } from "../services/clipEditingService.js";
-import { activeAnalysisTimeline, normalizeTimelineWorkspace } from "../domain/timelineWorkspace.model.js";
-import { timelineWorkspaceLanes } from "../services/timelineWorkspaceService.js";
-import { renderTimelineWorkspaceControls } from "./timeline.workspace.renderer.js";
 
 function outcomeClass(outcome = "") {
   const value = String(outcome || "neutral").trim().toLowerCase();
@@ -357,22 +354,11 @@ export function renderTimeline(state = {}) {
   const allClips = Array.isArray(state.allClips) ? state.allClips : clips;
   const totalMs = getTimelineDurationMs({ ...state, clips: allClips.length ? allClips : clips });
   const timeline = state.timeline || {};
-  const configuredLaneMode = normalizeTimelineLaneMode(timeline.laneMode);
-  const timelineWorkspace = normalizeTimelineWorkspace(state.timelineWorkspace);
-  const activeWorkspaceTimeline = activeAnalysisTimeline(timelineWorkspace);
-  const useWorkspaceRows = Boolean(activeWorkspaceTimeline?.rows?.length);
-  const laneMode = useWorkspaceRows ? "workspace" : configuredLaneMode;
+  const laneMode = normalizeTimelineLaneMode(timeline.laneMode);
   const zoom = normalizeTimelineZoom(timeline.zoom);
-  const generatedTimelineIndex = buildTimelineIndex(clips, configuredLaneMode);
-  const workspaceLanes = useWorkspaceRows ? timelineWorkspaceLanes(timelineWorkspace, clips) : [];
-  const timelineIndex = useWorkspaceRows ? {
-    lanes: workspaceLanes,
-    clipCount: new Set(workspaceLanes.flatMap((lane) => lane.clips.map((clip) => clip.id))).size,
-    laneCount: workspaceLanes.length,
-    maxClipsInLane: workspaceLanes.reduce((maximum, lane) => Math.max(maximum, lane.clips.length), 0),
-  } : generatedTimelineIndex;
+  const timelineIndex = buildTimelineIndex(clips, laneMode);
   const lanes = timelineIndex.lanes;
-  const laneModeCounts = useWorkspaceRows ? {} : buildTimelineLaneModeCounts(clips);
+  const laneModeCounts = buildTimelineLaneModeCounts(clips);
   const density = getTimelineDensity(timelineIndex, totalMs);
   const selectedLane = selectedTimelineLane(lanes, laneMode, timeline);
   const buttonLookup = buildTemplateButtonLookup(state.template || {});
@@ -392,7 +378,6 @@ export function renderTimeline(state = {}) {
       data-video-analysis-timeline-density="${density.isDense ? "dense" : "normal"}"
       data-video-analysis-timeline-clip-count="${escapeHtml(density.clipCount)}"
     >
-      ${renderTimelineWorkspaceControls(timelineWorkspace, Boolean(state.canEdit), selectedClips.length)}
       ${renderTimelineWindowControls(timelineWindow, timeline, selectedClips.length, Boolean(state.canEdit))}
       <div class="video-analysis-timeline-scroll" data-video-analysis-timeline-pan>
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(canvasZoom)}">

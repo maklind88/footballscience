@@ -42,6 +42,14 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     if (error) { error.textContent = message; error.hidden = !message; }
   }
 
+  function setTimingOpen(open, focus = false) {
+    const button = dialog.querySelector("[data-clip-timing-toggle]");
+    if (!button || pending) return;
+    button.setAttribute("aria-expanded", String(open));
+    dialog.querySelector("#video-analysis-clip-timing").hidden = !open;
+    if (focus) (open ? field("startMs") : button).focus({ preventScroll: !open });
+  }
+
   function close() {
     if (!dialog || pending) return;
     const clipId = activeClip?.id;
@@ -104,11 +112,13 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
 
   function renderCurrentClip(clip) {
     preview?.dispose();
+    const timingOpen = dialog.querySelector("[data-clip-timing-toggle]")?.getAttribute("aria-expanded") === "true";
     activeClip = structuredClone(clip);
     dialog.setAttribute("data-video-analysis-clip-editor", clip.id);
     dialog.innerHTML = renderClipEditor(clip, { laneMode: getState().timeline?.laneMode, canEdit: getState().canEdit, title: editorTitle, review });
     baseline = readClipEditorDraft(dialog);
     restoreDraft(review?.entries.find(entry => entry.clip.id === clip.id)?.draft);
+    setTimingOpen(timingOpen);
     preview = createClipPreview({
       dialog, getState, subscribe, reconnect, selectFile,
       getRange: () => ({
@@ -161,10 +171,15 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     const state = getState();
     if (contextKey() !== originalContext) throw new Error("The selected video has changed. Reopen this clip.");
     const totalMs = Number(state.videoRef?.durationMs || state.video?.durationMs || state.video?.duration_ms || 0);
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) throw new Error("Enter a time such as 0:01:07.");
-    if (endMs <= startMs) throw new Error("End must be after start.");
-    if (!(field("duration").valueAsNumber > 0)) throw new Error("Duration must be greater than zero.");
-    if (totalMs > 0 && endMs > totalMs) throw new Error(`End cannot exceed ${formatClipEditorTime(totalMs)}.`);
+    const invalidTime = (message, name) => {
+      setTimingOpen(true);
+      field(name).focus();
+      throw new Error(message);
+    };
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) invalidTime("Enter a time such as 0:01:07.", Number.isFinite(startMs) ? "endMs" : "startMs");
+    if (endMs <= startMs) invalidTime("End must be after start.", "endMs");
+    if (!(field("duration").valueAsNumber > 0)) invalidTime("Duration must be greater than zero.", "duration");
+    if (totalMs > 0 && endMs > totalMs) invalidTime(`End cannot exceed ${formatClipEditorTime(totalMs)}.`, "endMs");
     if (!field("subPhase").value) throw new Error("Choose a sub-phase.");
     return {
       startMs, endMs,
@@ -222,12 +237,18 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     dialog.setAttribute("aria-labelledby", "video-analysis-clip-editor-title");
     editorTitle = trigger?.closest(".video-analysis-lane")?.querySelector(".video-analysis-lane__name")?.textContent || "";
     if (review) review.title = editorTitle || "Clips";
-    dialog.addEventListener("cancel", event => { event.preventDefault(); requestClose(); });
+    dialog.addEventListener("cancel", event => {
+      event.preventDefault();
+      if (dialog.querySelector("[data-clip-timing-toggle]")?.getAttribute("aria-expanded") === "true") setTimingOpen(false, true);
+      else requestClose();
+    });
     dialog.addEventListener("input", timingChanged);
     dialog.addEventListener("submit", submit);
     dialog.addEventListener("click", async event => {
       if (event.target.closest("[data-video-analysis-timeline-edit-cancel]")) { requestClose(); return; }
       if (pending) return;
+      const timingToggle = event.target.closest("[data-clip-timing-toggle]");
+      if (timingToggle) { setTimingOpen(timingToggle.getAttribute("aria-expanded") !== "true", true); return; }
       if (event.target.closest("[data-clip-review-discard]")) { close(); return; }
       if (event.target.closest("[data-clip-review-keep]")) {
         dialog.querySelector("[data-clip-review-close-confirm]").hidden = true;

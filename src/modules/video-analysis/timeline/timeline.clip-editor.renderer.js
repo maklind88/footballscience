@@ -43,9 +43,19 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
   return `
     <header>
       <div><span>${canEdit ? "Edit clip" : "Clip"}</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(title || getClipPrimaryLabel(clip, laneMode) || "Selected clip")}${review ? ` (${review.entries.length})` : ""}</h2></div>
-      <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" title="Close">${playerHeaderIcon("x")}</button>
+      <div class="video-analysis-clip-editor__tools">
+        ${canEdit ? `<button type="button" class="video-analysis-clip-editor__timing-toggle" data-clip-timing-toggle aria-label="Edit clip timing" title="Edit clip timing" aria-expanded="false" aria-controls="video-analysis-clip-timing">${playerHeaderIcon("pencil")}</button>` : ""}
+        <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" title="Close">${playerHeaderIcon("x")}</button>
+      </div>
     </header>
     <form data-video-analysis-timeline-editor novalidate>
+      <fieldset id="video-analysis-clip-timing" class="video-analysis-clip-editor__timing-panel" aria-label="Clip timing" hidden ${canEdit ? "" : "disabled"}>
+        <div class="video-analysis-clip-editor__timing">
+          ${timeField("Start", "startMs", start)}
+          ${timeField("End", "endMs", end)}
+          <label><span>Duration (s)</span><input type="number" min="0.001" step="0.001" required aria-label="Duration (s)" data-video-analysis-timeline-edit-field="duration" value="${(end - start) / 1000}"></label>
+        </div>
+      </fieldset>
       ${renderClipReview(review, clip.id)}
       <div class="video-analysis-clip-editor__layout">
       <section class="video-analysis-clip-editor__media" aria-label="Clip preview">
@@ -62,13 +72,6 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
           <input type="range" data-clip-preview-seek aria-label="Clip position" min="0" max="${end - start}" step="1" value="0" disabled>
           <output data-clip-preview-time aria-live="off"></output>
         </div>
-      <fieldset ${canEdit ? "" : "disabled"}>
-        <div class="video-analysis-clip-editor__timing">
-          ${timeField("Start", "startMs", start)}
-          ${timeField("End", "endMs", end)}
-          <label><span>Duration (s)</span><input type="number" min="0.001" step="0.001" required aria-label="Duration (s)" data-video-analysis-timeline-edit-field="duration" value="${(end - start) / 1000}"></label>
-        </div>
-      </fieldset>
       </section>
       <fieldset class="video-analysis-clip-editor__metadata" ${canEdit ? "" : "disabled"}>
           <label><span>Phase</span><select data-video-analysis-timeline-edit-field="phase">${optionList(phases, phase)}</select></label>

@@ -80,9 +80,11 @@ for (const [width, height] of [[1470, 844], [1280, 720], [390, 844]]) {
     expect(saveBox.y + saveBox.height).toBeLessThanOrEqual(height);
     expect(await page.locator(popup).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`clip-preview-${width}.png`) });
+    await page.getByRole("button", { name: "Edit clip timing" }).click();
     await fieldLocator(page, "startMs").fill("0:00:02");
     await fieldLocator(page, "duration").fill("2");
     await expect(fieldLocator(page, "endMs")).toHaveValue("0:00:04");
+    await page.getByRole("button", { name: "Edit clip timing" }).click();
     await seek.fill("1800");
     await expect.poll(() => video.evaluate(el => el.currentTime)).toBeCloseTo(3.8, 2);
     await page.locator("[data-clip-preview-play]").click();

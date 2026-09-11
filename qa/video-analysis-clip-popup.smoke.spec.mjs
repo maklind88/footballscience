@@ -37,12 +37,17 @@ for (const width of [1470, 390]) {
     await page.setViewportSize({ width, height: 772 });
     await openTimeline(page);
     const timeline = page.locator("[data-video-analysis-timeline-module]");
-    const height = (await timeline.boundingBox()).height;
+    let timelineBox;
+    await expect.poll(async () => {
+      timelineBox = await timeline.boundingBox();
+      return timelineBox?.height || 0;
+    }).toBeGreaterThan(0);
+    const height = timelineBox.height;
     await page.locator(clipSelector).click();
     await expect(page.locator(clipSelector)).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(popupSelector)).toHaveCount(0);
     await expect(page.locator("[data-video-analysis-timeline-focus]")).toHaveCount(0);
-    expect((await timeline.boundingBox()).height).toBe(height);
+    await expect.poll(async () => (await timeline.boundingBox())?.height).toBe(height);
     // Start a separate double click after the first selection.
     await page.waitForTimeout(460);
     await page.locator(clipSelector).dblclick();
@@ -52,6 +57,14 @@ for (const width of [1470, 390]) {
     await expect(field(page, "startMs")).toHaveValue("0:01:07.025");
     await expect(field(page, "endMs")).toHaveValue("0:01:22.025");
     await expect(field(page, "duration")).toHaveValue("15");
+    await expect(field(page, "startMs")).toBeHidden();
+    const timingToggle = popup.getByRole("button", { name: "Edit clip timing" });
+    await expect(timingToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(timingToggle).toHaveAttribute("title", "Edit clip timing");
+    const pencilBox = await timingToggle.boundingBox();
+    const closeBox = await popup.getByRole("button", { name: "Close", exact: true }).boundingBox();
+    expect(pencilBox.x + pencilBox.width).toBeLessThanOrEqual(closeBox.x);
+    expect(pencilBox.y).toBe(closeBox.y);
     await expect(popup.locator("[data-video-analysis-clip-preview]")).toHaveCount(1);
     await expect(popup.getByRole("button", { name: "Reconnect local file" })).toBeVisible();
     await expect(popup.getByRole("button", { name: "Play clip", exact: true })).toBeDisabled();
@@ -61,6 +74,18 @@ for (const width of [1470, 390]) {
     expect(box.y + box.height).toBeLessThanOrEqual(772);
     expect(await popup.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`clip-popup-${width}.png`) });
+    await timingToggle.click();
+    await expect(field(page, "startMs")).toBeVisible();
+    await expect(field(page, "startMs")).toBeFocused();
+    expect(await popup.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`clip-timing-tool-${width}.png`) });
+    await field(page, "duration").fill("16");
+    await page.keyboard.press("Escape");
+    await expect(field(page, "startMs")).toBeHidden();
+    await expect(timingToggle).toBeFocused();
+    await timingToggle.click();
+    await expect(field(page, "duration")).toHaveValue("16");
+    await timingToggle.click();
     await field(page, "note").fill("Unsaved note");
     await popup.getByRole("button", { name: "Cancel", exact: true }).last().focus();
     await page.keyboard.press("Tab");
@@ -79,9 +104,11 @@ for (const width of [1470, 390]) {
 test("clip popup saves times and tags together, retains context, and supports undo", async ({ page }) => {
   await openTimeline(page);
   await page.locator(clipSelector).dblclick();
+  await page.getByRole("button", { name: "Edit clip timing" }).click();
   await field(page, "startMs").fill("0:01:05");
   await field(page, "duration").fill("20");
   await expect(field(page, "endMs")).toHaveValue("0:01:25");
+  await page.getByRole("button", { name: "Edit clip timing" }).click();
   await field(page, "outcome").selectOption("Positive");
   await field(page, "tags").fill("press, regain");
   await field(page, "note").fill("Distance grows between the lines.");
@@ -148,10 +175,14 @@ test("clip popup rejects invalid ranges and cancelling never writes", async ({ p
   await openTimeline(page);
   await page.locator(clipSelector).dblclick();
   const popup = page.locator(popupSelector);
+  await page.getByRole("button", { name: "Edit clip timing" }).click();
   for (const [end, message] of [["0:99:00", "Enter a time"], ["0:01:00", "End must be after"], ["0:15:00", "End cannot exceed"]]) {
     await field(page, "endMs").fill(end);
+    await page.getByRole("button", { name: "Edit clip timing" }).click();
     await popup.getByRole("button", { name: "Save", exact: true }).click();
     await expect(popup.getByRole("alert")).toContainText(message);
+    await expect(field(page, "endMs")).toBeVisible();
+    await expect(field(page, "endMs")).toBeFocused();
   }
   await popup.getByRole("button", { name: "Cancel", exact: true }).last().click();
   expect(await writes(page)).toEqual([]);
@@ -184,6 +215,7 @@ test("clip popup is read only without editing permission", async ({ page }) => {
   await openTimeline(page, false);
   await page.locator(clipSelector).dblclick();
   await expect(field(page, "startMs")).toBeDisabled();
+  await expect(page.locator("[data-clip-timing-toggle]")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-edit-save]")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-clip-editor-delete]")).toHaveCount(0);
   await page.keyboard.press("Escape");
@@ -219,6 +251,7 @@ test("clip popup preserves code mode and keeps keyboard tagging out of the edito
 test("clip popup can extend the last clip when media duration is unknown", async ({ page }) => {
   await openTimeline(page, true, 0);
   await page.locator(clipSelector).dblclick();
+  await page.getByRole("button", { name: "Edit clip timing" }).click();
   await field(page, "endMs").fill("0:02:00");
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
   await expect(page.locator(popupSelector)).toHaveCount(0);

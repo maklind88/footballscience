@@ -88,6 +88,9 @@ test("row editing retains per-clip drafts and saves only the selected clip", asy
   await openTimeline(page);
   await page.locator(highPress).dblclick();
   await page.locator(field("note")).fill("Unsaved first clip");
+  await page.getByRole("button", { name: "Edit clip timing" }).click();
+  await page.locator(field("duration")).fill("0.6");
+  await page.getByRole("button", { name: "Edit clip timing" }).click();
   await page.locator(".video-analysis-clip-editor__principles summary").click();
   await page.locator("[data-video-analysis-timeline-edit-principle]").first().check();
   await expect(page.locator(select(1)).getByText("Unsaved", { exact: true })).toBeVisible();
@@ -97,6 +100,7 @@ test("row editing retains per-clip drafts and saves only the selected clip", asy
   await page.locator(field("note")).fill("Saved second clip");
   await page.locator(select(1)).click();
   await expect(page.locator(field("note"))).toHaveValue("Unsaved first clip");
+  await expect(page.locator(field("duration"))).toHaveValue("0.6");
   await expect(page.locator("[data-video-analysis-timeline-edit-principle]:checked")).toHaveCount(1);
   await page.locator(select(2)).click();
   await expect(page.locator(field("phase"))).toHaveValue("In Possession");
@@ -124,10 +128,12 @@ test("row editing retains per-clip drafts and saves only the selected clip", asy
 test("row review preserves invalid drafts and failed saves without leaving the selected clip", async ({ page }) => {
   await openTimeline(page);
   await page.locator(highPress).dblclick();
+  await page.getByRole("button", { name: "Edit clip timing" }).click();
   await page.locator(field("endMs")).fill("invalid");
   await page.locator(select(2)).click();
   await page.locator(select(1)).click();
   await expect(page.locator(field("endMs"))).toHaveValue("invalid");
+  await expect(page.locator(field("endMs"))).toBeVisible();
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
   await expect(page.locator(popup).getByRole("alert")).toContainText("Enter a time");
   expect(await writes(page)).toHaveLength(0);

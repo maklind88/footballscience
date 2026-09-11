@@ -96,7 +96,7 @@ for (const viewport of [{ width: 1468, height: 900 }, { width: 390, height: 844 
       .toBeCloseTo(15_000 / overviewDuration * 100, 3);
     await blocks.first().click({ position: { x: 2, y: 8 } });
     await expect(timeline).toHaveAttribute("data-video-analysis-timeline-window-duration-ms", String(overviewDuration));
-    await expect(timeline.locator("[data-video-analysis-timeline-focus]")).toContainText("0:00:15");
+    await expect(timeline.locator("[data-video-analysis-timeline-focus]")).toHaveCount(0);
     expect(await blocks.first().evaluate((element) => parseFloat(element.style.width)))
       .toBeCloseTo(15_000 / overviewDuration * 100, 3);
 

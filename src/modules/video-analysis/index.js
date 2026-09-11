@@ -3,6 +3,7 @@ import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import { renderClipList } from "./components/ClipList.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderFsPlayerWorkspace } from "./components/FsPlayerWorkspace.js";
+import { createTimelineClipEditor, preserveTimelineViewport } from "./timeline/timeline.clip-editor.controller.js";
 import { handlePlayerHeaderClick, handlePlayerHeaderKeydown } from "./controllers/playerHeaderController.js";
 import {
   activeAnalysisRoomTab,
@@ -310,6 +311,24 @@ function timelineController(context = {}) {
 
 function workspaceTimelineController(context = {}) {
   return ensureRuntime(context).timelineWorkspaceRuntime.controller;
+}
+
+function timelineClipEditor(context = {}) {
+  const run = ensureRuntime(context);
+  if (!run.timelineClipEditor) {
+    run.timelineClipEditor = createTimelineClipEditor({
+      getState: () => run.store.getState(),
+      getRoot: () => getRoot(run.context || context),
+      save: (values, clip) => saveTimelineClipEdits(run.context || context, values, clip),
+      remove: id => archiveTimelineClips(run.context || context, [id]),
+      pause: () => {
+        const video = videoElement(run.context || context);
+        video?.pause();
+        if (video) syncPlaybackControls(run.context || context, video, false);
+      },
+    });
+  }
+  return run.timelineClipEditor;
 }
 
 function drawingControls(context = {}) {
@@ -2513,15 +2532,20 @@ async function archiveTimelineClips(context = {}, clipIds = [], options = {}) {
   }
 }
 
-async function saveTimelineClipEdits(context = {}, values = {}) {
+async function saveTimelineClipEdits(context = {}, values = {}, originalClip = null) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
-  const clips = clipsForTimelineSelection(state);
+  if (!state.canEdit || state.status === "saving-clip") return false;
+  const clips = originalClip ? [originalClip] : clipsForTimelineSelection(state);
   if (clips.length !== 1) {
     run.store.update((current) => ({ ...current, error: "Select one clip to edit." }));
     return false;
   }
   const before = normalizeClipInstance(clips[0]);
+  if (!clipByIdFromState(state, before.id) || before.videoId !== state.video?.id) {
+    run.store.update(current => ({ ...current, error: "This clip is no longer available in the current video." }));
+    return false;
+  }
   const nextClip = editTimelineClip(before, values);
   try {
     run.store.update((current) => ({ ...current, status: "saving-clip", error: "", message: "Saving clip changes." }));
@@ -3235,6 +3259,7 @@ export function render(context = {}) {
 }
 
 export function resetVideoAnalysisRuntimeForTests() {
+  runtime?.timelineClipEditor?.close();
   clearToastDismissTimer(runtime);
   void runtime?.collaborationRuntime?.dispose?.();
   void runtime?.mediaRuntime?.dispose?.();
@@ -5130,39 +5155,6 @@ export function handleClick(event, context = {}) {
     run.store.update((state) => clearTimelineClipSelection(state));
     return true;
   }
-  if (target.closest("[data-video-analysis-timeline-edit]")) {
-    run.store.update((state) => ({
-      ...state,
-      timeline: {
-        ...(state.timeline || {}),
-        editorOpen: !state.timeline?.editorOpen,
-      },
-    }));
-    return true;
-  }
-  if (target.closest("[data-video-analysis-timeline-edit-cancel]")) {
-    run.store.update((state) => ({
-      ...state,
-      timeline: {
-        ...(state.timeline || {}),
-        editorOpen: false,
-      },
-    }));
-    return true;
-  }
-  if (target.closest("[data-video-analysis-timeline-edit-save]")) {
-    const form = target.closest("[data-video-analysis-timeline-editor]");
-    const field = (name) => form?.querySelector(`[data-video-analysis-timeline-edit-field="${name}"]`);
-    const principleSelect = field("miniGamePrincipleIds");
-    void saveTimelineClipEdits(context, {
-      subPhase: field("subPhase")?.value || "",
-      outcome: field("outcome")?.value || "",
-      miniGamePrincipleIds: [...(principleSelect?.selectedOptions || [])].map((option) => option.value),
-      tags: field("tags")?.value || "",
-      note: field("note")?.value || "",
-    });
-    return true;
-  }
   const timelineNudgeButton = target.closest("[data-video-analysis-timeline-nudge]");
   if (timelineNudgeButton) {
     const [edge, deltaMs] = String(timelineNudgeButton.dataset.videoAnalysisTimelineNudge || "").split(":");
@@ -5196,6 +5188,8 @@ export function handleClick(event, context = {}) {
   if (seekButton) {
     const state = run.store.getState();
     const clip = selectedClipFromPresentationSources(state, seekButton.dataset.videoAnalysisSeek);
+    if (seekButton.matches(".video-analysis-clip-block") && timelineClipEditor(context).handleClipClick(event, clip, seekButton)) return true;
+    const restoreViewport = seekButton.matches(".video-analysis-clip-block") ? preserveTimelineViewport(getRoot(context)) : null;
     const startMs = clip?.startMs ?? clip?.start_ms ?? 0;
     if (clip?.id) seekVideoToMs(videoElement(context), startMs);
     const toggleSelection = Boolean(event.shiftKey || event.metaKey || event.ctrlKey);
@@ -5219,6 +5213,7 @@ export function handleClick(event, context = {}) {
       },
       };
     });
+    restoreViewport?.();
     return true;
   }
   const tagFilterTrigger = target.closest("[data-video-analysis-tag-filter-trigger]");
@@ -6246,11 +6241,18 @@ export function handleContextMenu(event, context = {}) {
 export function handleKeydown(event, context = {}) {
   if (!isAnalysisRoomWorkspaceActive(context)) return false;
   const run = ensureRuntime(context);
+  // A native modal owns its keys, including Escape, Space, Enter and Tab.
+  if (run.timelineClipEditor?.isOpen()) return false;
   const root = getRoot(context);
   if (handlePlayerHeaderKeydown(event, root)) return true;
   const state = run.store.getState();
   const fsPlayerShortcutsActive = isFsPlayerInteractionActive(context, state);
   const keyTarget = eventElement(event);
+  const clipButton = keyTarget?.closest?.(".video-analysis-clip-block[data-video-analysis-seek]");
+  if (clipButton && event.key === "F2") {
+    event.preventDefault();
+    return timelineClipEditor(context).open(clipByIdFromState(state, clipButton.dataset.videoAnalysisSeek), clipButton);
+  }
   const mgPrincipleSearch = keyTarget?.closest?.("[data-video-analysis-mg-principle-search]");
   if (mgPrincipleSearch && event.key === "Enter") {
     const firstId = String(
@@ -6382,6 +6384,7 @@ export function handleKeydown(event, context = {}) {
 
 export function handleKeyup(event, context = {}) {
   if (!isAnalysisRoomWorkspaceActive(context)) return false;
+  if (runtime?.timelineClipEditor?.isOpen()) return false;
   const state = ensureRuntime(context).store.getState();
   if (
     isFsPlayerInteractionActive(context, state)

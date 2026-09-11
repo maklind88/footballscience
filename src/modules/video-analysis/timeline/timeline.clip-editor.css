@@ -1,0 +1,97 @@
+.video-analysis-clip-editor {
+  box-sizing: border-box;
+  width: min(520px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #cbd4ce;
+  border-radius: 8px;
+  color: #17291f;
+  background: #fff;
+  box-shadow: 0 16px 60px #10241a33;
+  font-family: var(--font-family, system-ui, -apple-system, sans-serif);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.video-analysis-clip-editor::backdrop { background: #07170f66; }
+
+.video-analysis-clip-editor > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #dce3de;
+}
+
+.video-analysis-clip-editor header span { color: #66756c; font-size: 12px; }
+.video-analysis-clip-editor h2 { margin: 3px 0 0; font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
+.video-analysis-clip-editor form { padding: 18px 20px; }
+.video-analysis-clip-editor fieldset { display: grid; gap: 16px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.video-analysis-clip-editor label { display: grid; gap: 6px; min-width: 0; }
+.video-analysis-clip-editor label > span { font-size: 12px; font-weight: 650; }
+.video-analysis-clip-editor__timing { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.video-analysis-clip-editor__tags { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+.video-analysis-clip-editor input:not([type="checkbox"]),
+.video-analysis-clip-editor select,
+.video-analysis-clip-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid #bac8c0;
+  border-radius: 4px;
+  padding: 8px 9px;
+  font: inherit;
+  color: #152d20;
+  background: #fff;
+}
+
+.video-analysis-clip-editor textarea { resize: vertical; }
+.video-analysis-clip-editor__timing input { font-variant-numeric: tabular-nums; }
+.video-analysis-clip-editor__principles { border-block: 1px solid #dce3de; padding-block: 10px; }
+.video-analysis-clip-editor__principles summary { cursor: pointer; font-size: 13px; font-weight: 650; }
+.video-analysis-clip-editor__principles summary span { color: #53665a; margin-left: 4px; }
+.video-analysis-clip-editor__principles > div { display: grid; gap: 9px; max-height: 170px; overflow: auto; padding-top: 12px; }
+.video-analysis-clip-editor__principles label { display: flex; align-items: center; gap: 8px; }
+.video-analysis-clip-editor input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; accent-color: #15573c; }
+
+.video-analysis-clip-editor button {
+  border: 1px solid #c3cfc7;
+  border-radius: 4px;
+  min-height: 36px;
+  padding: 7px 14px;
+  color: #213b2b;
+  background: #fff;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.video-analysis-clip-editor button:hover { background: #eef4f0; }
+.video-analysis-clip-editor button:disabled { opacity: .5; cursor: wait; }
+.video-analysis-clip-editor :focus-visible { outline: 2px solid #2369b0; outline-offset: 2px; }
+.video-analysis-clip-editor button.video-analysis-clip-editor__close { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; padding: 0; border: 0; }
+.video-analysis-clip-editor footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 20px; }
+.video-analysis-clip-editor button.video-analysis-clip-editor__delete { margin-right: auto; color: #a52e28; border-color: transparent; }
+.video-analysis-clip-editor button.video-analysis-clip-editor__save { color: #fff; background: #15573c; border-color: #15573c; }
+.video-analysis-clip-editor button.video-analysis-clip-editor__save:hover { background: #103f2c; }
+.video-analysis-clip-editor__error { color: #a32f27; margin: 12px 0 0; font-size: 13px; }
+.video-analysis-clip-editor__confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #dce3de; }
+.video-analysis-clip-editor__confirm span { margin-right: auto; }
+.video-analysis-clip-editor__confirm [data-video-analysis-clip-editor-delete-confirm] { color: #a52e28; border-color: #d7aaa5; }
+.video-analysis-clip-editor [hidden] { display: none; }
+
+@media (max-width: 480px) {
+  .video-analysis-clip-editor form { padding: 14px; }
+  .video-analysis-clip-editor > header { padding: 14px; }
+  .video-analysis-clip-editor input:not([type="checkbox"]),
+  .video-analysis-clip-editor select,
+  .video-analysis-clip-editor textarea { font-size: 16px; padding-inline: 5px; }
+  .video-analysis-clip-editor__timing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .video-analysis-clip-editor__timing label:last-child { grid-column: 1 / -1; }
+  .video-analysis-clip-editor footer { position: sticky; bottom: -14px; padding-block: 14px; background: #fff; }
+}

@@ -459,7 +459,7 @@ test("video analysis timeline can show one coded moment in every involved player
   expect(index.clipIdsByLane.get("Player Nine")).toEqual(["clip-high-press"]);
 });
 
-test("video analysis timeline shows exact timing for the selected clip", async () => {
+test("video analysis timeline retains exact timing without a persistent focus panel", async () => {
   const timelineRenderer = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.renderer.js")).href);
   const html = timelineRenderer.renderTimeline({
     selectedClipId: "clip-high-press",
@@ -477,12 +477,11 @@ test("video analysis timeline shows exact timing for the selected clip", async (
     }],
   });
 
-  expect(html).toContain("data-video-analysis-timeline-focus");
-  expect(html).toContain("data-video-analysis-timeline-focus-window");
+  expect(html).not.toContain("data-video-analysis-timeline-focus");
+  expect(html).not.toContain("data-video-analysis-timeline-focus-window");
   expect(html).toContain("High Press");
   expect(html).toContain("0:00:30");
   expect(html).toContain("0:00:45");
-  expect(html).toContain("0:00:15");
   expect(html).toContain("Press (within press-radius)");
 });
 

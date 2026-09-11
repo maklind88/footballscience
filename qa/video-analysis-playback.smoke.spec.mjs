@@ -942,7 +942,8 @@ test("Video Analysis Timeline keeps true scale, overlays clips, and undoes merge
 
   const secondBounds = await highPressClips.nth(1).boundingBox();
   await highPressClips.nth(1).click({ modifiers: ["Shift"], position: { x: secondBounds.width - 3, y: 8 } });
-  await expect(page.locator("[data-video-analysis-timeline-focus]")).toContainText("2 clips selected");
+  await expect(highPressLane.locator('.video-analysis-clip-block[aria-pressed="true"]')).toHaveCount(2);
+  await page.locator("[data-video-analysis-player-settings]").click();
   await page.locator("[data-video-analysis-timeline-merge]").click();
   await expect.poll(() => page.evaluate(() => {
     const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "archive-clips");
@@ -963,8 +964,8 @@ test("Video Analysis Timeline keeps true scale, overlays clips, and undoes merge
     .locator('[data-video-analysis-timeline-category-label="High Press"]')
     .locator("..")
     .locator(".video-analysis-clip-block");
-  await restoredHighPressClips.first().click({ position: { x: 3, y: 8 } });
-  await page.locator("[data-video-analysis-timeline-edit]").click();
+  await restoredHighPressClips.first().dblclick({ position: { x: 3, y: 8 } });
+  await expect(page.locator("[data-video-analysis-clip-editor]")).toBeVisible();
   await page.locator('[data-video-analysis-timeline-edit-field="outcome"]').selectOption("Neutral");
   await page.locator('[data-video-analysis-timeline-edit-field="tags"]').fill("press, regain");
   await page.locator('[data-video-analysis-timeline-edit-field="note"]').fill("Corrected after review.");

@@ -521,7 +521,7 @@
                 : [],
             tags: input.tags || [],
             descriptors: input.descriptors || [],
-            notes: input.notes || [],
+            notes: typeof input.note === "string" ? (input.note ? [{ note: input.note }] : []) : input.notes || [],
           };
           if (existingClip) Object.assign(existingClip, clip);
           else clips.push(clip);

@@ -214,7 +214,7 @@ export function editTimelineClip(clip = {}, values = {}) {
     ...clip,
     startMs: values.startMs ?? clip.startMs ?? clip.start_ms,
     endMs: values.endMs ?? clip.endMs ?? clip.end_ms,
-    phase: phaseForSubPhase(subPhase, clip.phase),
+    phase: phaseForSubPhase(subPhase, values.phase || clip.phase),
     subPhase,
     outcome: stringValue(values.outcome || clip.outcome),
     tags,

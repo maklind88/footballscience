@@ -133,7 +133,10 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/timeline/timeline.constants.js",
     "src/modules/video-analysis/timeline/timeline.interaction.js",
     "src/modules/video-analysis/timeline/timeline.renderer.js",
-    "src/modules/video-analysis/timeline/timeline.focus.renderer.js",
+    "src/modules/video-analysis/timeline/timeline.clip-editor.renderer.js",
+    "src/modules/video-analysis/timeline/timeline.clip-editor.controller.js",
+    "src/modules/video-analysis/timeline/timeline.clip-editor.css",
+    "src/modules/video-analysis/timeline/timeline.clip-preview.controller.js",
     "src/modules/video-analysis/timeline/timeline.selectors.js",
     "src/modules/video-analysis/timeline/timeline.service.js",
   ]) {
@@ -1330,7 +1333,11 @@ test("local video architecture remains browser-first with bridge fallback only",
   expect(sessionService).toContain("restoreLocalVideoHandleForState");
   expect(sessionService).toContain("persistLocalVideoHandle");
   expect(sessionService).not.toContain("createPlayableLocalCopy");
-  expect(player).toContain("data-video-analysis-prepare-playback");
+  expect(player).toContain("renderPlayerHeaderActions");
+  const header = read("src/modules/video-analysis/components/PlayerHeaderActions.js");
+  expect(header).toContain("data-video-analysis-prepare-playback");
+  expect(header).toContain("needsPrepare || showPrepared");
+  expect(header).not.toMatch(/showOpenFilePicker|indexedDB|createPlayableLocalCopy|fetch\(/);
   expect(player).toContain("bridgeFallbackRecommended");
   expect(read("src/modules/video-analysis/components/VideoPlayer.js")).not.toMatch(/showOpenFilePicker|indexedDB|createPlayableLocalCopy|fetch\(/);
 });

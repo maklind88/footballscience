@@ -1,4 +1,6 @@
-import { renderClipEditor, formatClipEditorTime, parseClipEditorTime } from "./timeline.clip-editor.renderer.js";
+import { renderClipEditor, formatClipEditorTime, parseClipEditorTime, clipEditorSubPhaseOptions } from "./timeline.clip-editor.renderer.js";
+import { createClipPreview } from "./timeline.clip-preview.controller.js";
+import { phaseForSubPhase } from "../services/footballLanguageService.js";
 
 export function preserveTimelineViewport(root) {
   const ancestors = [];
@@ -20,12 +22,15 @@ export function preserveTimelineViewport(root) {
   };
 }
 
-export function createTimelineClipEditor({ getState, getRoot, save, remove, pause }) {
+export function createTimelineClipEditor({ getState, getRoot, save, remove, pause, subscribe, reconnect, selectFile }) {
   let dialog = null;
   let activeClip = null;
   let pending = false;
   let lastClick = null;
   let returnLane = "";
+  let preview = null;
+  let originalContext = "";
+  const contextKey = () => `${getState().match?.id || ""}:${getState().video?.id || ""}`;
   const field = name => dialog?.querySelector(`[data-video-analysis-timeline-edit-field="${name}"]`);
 
   function showError(message = "") {
@@ -36,6 +41,8 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
   function close() {
     if (!dialog || pending) return;
     const clipId = activeClip?.id;
+    preview?.dispose();
+    preview = null;
     dialog.close();
     dialog.remove();
     dialog = null;
@@ -50,6 +57,7 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
 
   function timingChanged(event) {
     const name = event.target.dataset.videoAnalysisTimelineEditField;
+    if (!name && !event.target.hasAttribute("data-video-analysis-timeline-edit-principle")) return;
     const start = parseClipEditorTime(field("startMs").value);
     if (name === "duration") {
       const duration = field("duration").valueAsNumber;
@@ -60,6 +68,12 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
       const end = parseClipEditorTime(field("endMs").value);
       field("duration").value = Number.isFinite(start) && Number.isFinite(end) && end > start ? (end - start) / 1000 : "";
     }
+    if (name === "phase") {
+      const current = field("subPhase").value;
+      field("subPhase").innerHTML = clipEditorSubPhaseOptions(field("phase").value, current);
+      if (phaseForSubPhase(current, field("phase").value) !== field("phase").value) field("subPhase").value = "";
+    }
+    if (["startMs", "endMs", "duration"].includes(name)) preview?.updateRange();
     const count = dialog.querySelectorAll("[data-video-analysis-timeline-edit-principle]:checked").length;
     dialog.querySelector("[data-video-analysis-principle-count]").textContent = count || "";
     showError();
@@ -69,13 +83,16 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     const startMs = parseClipEditorTime(field("startMs").value);
     const endMs = parseClipEditorTime(field("endMs").value);
     const state = getState();
+    if (contextKey() !== originalContext) throw new Error("The selected video has changed. Reopen this clip.");
     const totalMs = Number(state.videoRef?.durationMs || state.video?.durationMs || state.video?.duration_ms || 0);
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) throw new Error("Enter a time such as 0:01:07.");
     if (endMs <= startMs) throw new Error("End must be after start.");
     if (!(field("duration").valueAsNumber > 0)) throw new Error("Duration must be greater than zero.");
     if (totalMs > 0 && endMs > totalMs) throw new Error(`End cannot exceed ${formatClipEditorTime(totalMs)}.`);
+    if (!field("subPhase").value) throw new Error("Choose a sub-phase.");
     return {
       startMs, endMs,
+      phase: field("phase").value,
       subPhase: field("subPhase").value,
       outcome: field("outcome").value,
       tags: field("tags").value,
@@ -90,17 +107,20 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     let edits;
     try { edits = values(); } catch (error) { showError(error.message); return; }
     pending = true;
+    preview?.setBusy(true);
     dialog.setAttribute("aria-busy", "true");
-    dialog.querySelector("fieldset").disabled = true;
+    dialog.querySelectorAll("fieldset").forEach(element => { element.disabled = true; });
     dialog.querySelectorAll("button").forEach(button => { button.disabled = true; });
     let success = false;
     try { success = await save(edits, activeClip); }
     catch (error) { showError(error.message || "Could not save clip."); }
     pending = false;
+    if (contextKey() !== originalContext) { close(); return; }
     if (success) { close(); return; }
     dialog.removeAttribute("aria-busy");
-    dialog.querySelector("fieldset").disabled = false;
+    dialog.querySelectorAll("fieldset").forEach(element => { element.disabled = !getState().canEdit; });
     dialog.querySelectorAll("button").forEach(button => { button.disabled = false; });
+    preview?.setBusy(false);
     showError(getState().error || "Could not save clip. Your changes are still here.");
   }
 
@@ -108,6 +128,7 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     if (!clip?.id || dialog) return false;
     pause();
     activeClip = structuredClone(clip);
+    originalContext = contextKey();
     returnLane = trigger?.closest(".video-analysis-lane")?.querySelector("[data-video-analysis-timeline-category-label]")?.dataset.videoAnalysisTimelineCategoryLabel || "";
     const doc = getRoot().ownerDocument;
     dialog = doc.createElement("dialog");
@@ -130,6 +151,7 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
       }
       if (event.target.closest("[data-video-analysis-clip-editor-delete-confirm]") && !pending && getState().canEdit) {
         pending = true;
+        preview?.setBusy(true);
         try {
           const deleted = await remove(activeClip.id);
           pending = false;
@@ -137,13 +159,21 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
           else showError(getState().error || "");
         } catch (error) {
           showError(error.message || "Could not delete clip.");
-        } finally { pending = false; }
+        } finally { pending = false; preview?.setBusy(false); }
       }
     });
     // Outside the repainted workspace: background state updates must not erase an unsaved draft.
     doc.body.appendChild(dialog);
     dialog.showModal();
-    field("startMs")?.focus();
+    preview = createClipPreview({
+      dialog, getState, subscribe, reconnect, selectFile,
+      getRange: () => ({
+        startMs: parseClipEditorTime(field("startMs").value),
+        endMs: field("duration").valueAsNumber > 0 ? parseClipEditorTime(field("endMs").value) : NaN,
+      }),
+      onContextChange: close,
+    });
+    dialog.querySelector(".video-analysis-clip-editor__close")?.focus({ preventScroll: true });
     return true;
   }
 

@@ -320,6 +320,9 @@ function timelineClipEditor(context = {}) {
     run.timelineClipEditor = createTimelineClipEditor({
       getState: () => run.store.getState(),
       getRoot: () => getRoot(run.context || context),
+      subscribe: listener => run.store.subscribe(listener),
+      reconnect: fileInput => openLocalVideoPicker(run.context || context, { fileInput }),
+      selectFile: file => handleFileSelection(file, run.context || context),
       save: (values, clip) => saveTimelineClipEdits(run.context || context, values, clip),
       remove: id => archiveTimelineClips(run.context || context, [id]),
       pause: () => {
@@ -1414,6 +1417,7 @@ function handleFsPlayerGlobalWheel(event = {}, context = {}) {
   if (!videoShuttleHasHorizontalIntent(event)) return false;
 
   const run = ensureRuntime(context);
+  if (run.timelineClipEditor?.isOpen()) return false;
   const state = run.store.getState();
   if (!isFsPlayerInteractionActive(context, state)) return false;
 
@@ -1488,15 +1492,15 @@ function isFilePickerUserGestureError(error = {}) {
   return error?.name === "NotAllowedError" || message.includes("Must be handling a user gesture");
 }
 
-function openFileInputFallback(context = {}) {
-  const fileInput = getRoot(context)?.querySelector("[data-video-analysis-file]");
+function openFileInputFallback(context = {}, suppliedInput = null) {
+  const fileInput = suppliedInput || getRoot(context)?.querySelector("[data-video-analysis-file]");
   if (!fileInput) return false;
   fileInput.value = "";
   fileInput.click();
   return true;
 }
 
-async function openLocalVideoPicker(context = {}) {
+async function openLocalVideoPicker(context = {}, options = {}) {
   const run = ensureRuntime(context);
   const win = context.win || window;
   const capabilities = browserFileAccessCapabilities(win);
@@ -1511,7 +1515,7 @@ async function openLocalVideoPicker(context = {}) {
       return true;
     } catch (error) {
       if (isAbortError(error)) return true;
-      if (isFilePickerUserGestureError(error) && openFileInputFallback(context)) {
+      if (isFilePickerUserGestureError(error) && openFileInputFallback(context, options.fileInput)) {
         run.store.setState({
           ...capabilities,
           status: "ready",
@@ -1525,7 +1529,7 @@ async function openLocalVideoPicker(context = {}) {
     }
   }
   run.store.setState(capabilities);
-  return openFileInputFallback(context);
+  return openFileInputFallback(context, options.fileInput);
 }
 
 async function restoreLocalVideoHandle(context = {}, options = {}) {

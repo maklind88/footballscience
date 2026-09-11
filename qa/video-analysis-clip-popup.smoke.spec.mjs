@@ -52,7 +52,9 @@ for (const width of [1470, 390]) {
     await expect(field(page, "startMs")).toHaveValue("0:01:07.025");
     await expect(field(page, "endMs")).toHaveValue("0:01:22.025");
     await expect(field(page, "duration")).toHaveValue("15");
-    await expect(popup.locator("video, [data-video-analysis-play]")).toHaveCount(0);
+    await expect(popup.locator("[data-video-analysis-clip-preview]")).toHaveCount(1);
+    await expect(popup.getByRole("button", { name: "Reconnect local file" })).toBeVisible();
+    await expect(popup.getByRole("button", { name: "Play clip", exact: true })).toBeDisabled();
     const box = await popup.boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(width);
@@ -104,6 +106,34 @@ test("clip popup saves times and tags together, retains context, and supports un
   expect((await writes(page))[1].body.clip).toMatchObject({
     id: "popup-clip", startMs: 67025, endMs: 82025, tags: ["press"], note: "Original note", outcome: "Neutral",
   });
+});
+
+test("clip popup changes phase, sub-phase and principles without creating a new clip", async ({ page }) => {
+  await openTimeline(page);
+  await page.locator(clipSelector).dblclick();
+  await field(page, "phase").selectOption("In Possession");
+  await expect(field(page, "subPhase")).toHaveValue("");
+  await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await expect(page.locator(popupSelector).getByRole("alert")).toContainText("Choose a sub-phase");
+  expect(await writes(page)).toEqual([]);
+  await field(page, "subPhase").selectOption("Build Up");
+  await page.locator(".video-analysis-clip-editor__principles summary").click();
+  await page.locator("[data-video-analysis-timeline-edit-principle]").first().check();
+  await field(page, "note").fill("Build up with support");
+  await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await expect(page.locator(popupSelector)).toHaveCount(0);
+  expect(await writes(page)).toHaveLength(1);
+  expect((await writes(page))[0].body.clip).toMatchObject({
+    id: "popup-clip", expectedRevision: 3, phase: "In Possession", subPhase: "Build Up", note: "Build up with support",
+  });
+  await page.locator(clipSelector).dblclick();
+  await expect(field(page, "phase")).toHaveValue("In Possession");
+  await expect(page.locator("[data-video-analysis-timeline-edit-principle]:checked")).toHaveCount(1);
+  await field(page, "phase").selectOption("Offensive Transition");
+  await field(page, "subPhase").selectOption("Offensive Transition");
+  await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await expect(page.locator(popupSelector)).toHaveCount(0);
+  expect((await writes(page))[1].body.clip.phase).toBe("Offensive Transition");
 });
 
 test("clip popup uses the clicked row name in All Tags", async ({ page }) => {

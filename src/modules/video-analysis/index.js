@@ -4,6 +4,7 @@ import { renderClipList } from "./components/ClipList.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderFsPlayerWorkspace } from "./components/FsPlayerWorkspace.js";
 import { handlePlayerHeaderClick, handlePlayerHeaderKeydown } from "./controllers/playerHeaderController.js";
+import { createTeamPerformanceController } from "../analysis-room/team-performance-controller.mjs";
 import {
   activeAnalysisRoomTab,
   renderAnalysisRoomHeader,
@@ -232,6 +233,7 @@ function createRuntime(context = {}) {
   return {
     context,
     store,
+    teamPerformance: createTeamPerformanceController(() => runtime?.context || context),
     templates: createCodingTemplateRepository(context),
     clips: createClipRepository({
       ...context,
@@ -1690,6 +1692,7 @@ function paint(root, state) {
       </section>
     </section>
   `;
+  runtime?.teamPerformance?.mount(root.querySelector("[data-team-performance-mount]"));
   const timelineWorkspaceEditor = root.querySelector("[data-video-analysis-workspace-editor]");
   if (timelineWorkspaceEditor) root.appendChild(timelineWorkspaceEditor);
   bindPaintedVideoControls(root, {
@@ -3236,6 +3239,7 @@ export function render(context = {}) {
 
 export function resetVideoAnalysisRuntimeForTests() {
   clearToastDismissTimer(runtime);
+  runtime?.teamPerformance?.unmount();
   void runtime?.collaborationRuntime?.dispose?.();
   void runtime?.mediaRuntime?.dispose?.();
   void runtime?.trackingRuntime?.persistence?.dispose?.();
@@ -4579,7 +4583,7 @@ export function handleClick(event, context = {}) {
       libraryController().openLibraryView(context);
       return true;
     }
-    if (tabId === "fs-player" || tabId === "presentation" || tabId === "match-report") {
+    if (tabId === "fs-player" || tabId === "presentation" || tabId === "match-report" || tabId === "team-performance") {
       if (tabId !== "fs-player") pauseFsPlayerPlayback(context);
       run.store.update((state) => ({
         ...state,

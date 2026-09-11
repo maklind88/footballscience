@@ -8,6 +8,7 @@
 @import url("./video-analysis.intelligence.css");
 @import url("./video-analysis.analysis-report.css");
 @import url("./video-analysis.shell.css");
+@import url("../analysis-room/team-performance.css");
 
 .video-analysis-library {
   display: grid;

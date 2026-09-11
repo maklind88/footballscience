@@ -5,12 +5,10 @@ import { escapeHtml } from "./renderHelpers.js";
 const analysisRoomTabs = Object.freeze([
   { id: "overview", label: "Overview", icon: "overview" },
   { id: "fs-player", label: "FS Player", icon: "play" },
-  { id: "team-performance", label: "Team Performance", icon: "numbers", disabled: true },
+  { id: "team-performance", label: "Team Performance", icon: "numbers" },
   { id: "presentation", label: "Presentation", icon: "presentation" },
   { id: "match-report", label: "Clip Library", icon: "report" },
 ]);
-
-const TEAM_PERFORMANCE_DASHBOARD_URL = "https://ncskunk-harris.github.io/Team_Match_Performance_Dashboard/";
 
 const analysisRoomTabIcons = Object.freeze({
   overview: `
@@ -138,6 +136,7 @@ export function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player"
 
 export function activeAnalysisRoomTab(state = {}) {
   if (state.view === "library") return "overview";
+  if (state.activeAnalysisRoomTab === "team-performance") return "team-performance";
   if (state.activeAnalysisRoomTab === "presentation") return "presentation";
   if (state.activeAnalysisRoomTab === "match-report") return "match-report";
   return "fs-player";
@@ -152,16 +151,5 @@ export function renderClipLibraryWorkspace(state = {}) {
 }
 
 export function renderTeamPerformanceWorkspace() {
-  return `
-    <section class="analysis-room-team-performance-workspace" aria-label="Team Performance">
-      <iframe
-        class="analysis-room-team-performance-frame"
-        title="Team Performance"
-        src="${escapeHtml(TEAM_PERFORMANCE_DASHBOARD_URL)}"
-        sandbox="allow-scripts allow-modals allow-same-origin"
-        referrerpolicy="no-referrer"
-        loading="lazy"
-      ></iframe>
-    </section>
-  `;
+  return `<section data-team-performance-mount aria-label="Team Performance"></section>`;
 }

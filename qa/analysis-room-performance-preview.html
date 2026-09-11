@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Team Performance - synthetic QA preview</title>
+  <link rel="stylesheet" href="../src/modules/video-analysis/video-analysis.shell.css">
+  <link rel="stylesheet" href="../src/modules/analysis-room/team-performance.css">
+  <style>
+    body { margin: 0; background: #f1f4f2; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .preview-label { margin: 0; padding: 8px 18px; font-size: 12px; color: #45574d; background: #e7ece9; }
+    main { max-width: 1440px; margin: 0 auto; }
+    .analysis-room-header { flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <p class="preview-label">Local QA preview · Synthetic data, not team statistics</p>
+  <main id="analysisRoomWorkspace"></main>
+  <script type="module">
+    import { renderAnalysisRoomHeader } from "../src/modules/video-analysis/components/AnalysisRoomShell.js";
+    import { createTeamPerformanceController } from "../src/modules/analysis-room/team-performance-controller.mjs";
+    import { performanceSnapshot } from "./helpers/analysis-performance-snapshot.mjs";
+    const root = document.querySelector("main");
+    root.innerHTML = `<section class="analysis-room-shell">${renderAnalysisRoomHeader({ teamName: "North Carolina Courage", teamLogoUrl: "../assets/team-logos/north-carolina-courage.svg" }, "team-performance")}<div id="performance"></div></section>`;
+    let imported = false;
+    const controller = createTeamPerformanceController(() => ({ currentUser: { id: "qa" } }), {
+      request: async (filters, command) => {
+        if (command?.action === "preview-import") return { ok: true, preview: { matchCount: 2, eventCount: 126, previousMatchCount: 2, previousEventCount: 120, hash: "a".repeat(64), expectedRevision: 2 } };
+        if (command?.action === "confirm-import") { imported = true; return { ok: true, receipt: { revision: 3, unchanged: false } }; }
+        const snapshot = performanceSnapshot(filters, imported ? 126 : 120);
+        if (imported) { snapshot.currentRevision = 3; if (!filters.versionId) snapshot.version.revision = 3; }
+        return snapshot;
+      },
+    });
+    controller.mount(document.querySelector("#performance"));
+  </script>
+</body>
+</html>

@@ -158,7 +158,8 @@ test("analysis room shell owns pure navigation and alternate workspace rendering
   expect(header).not.toContain("<script>");
   expect(shell.activeAnalysisRoomTab({ view: "library" })).toBe("overview");
   expect(shell.activeAnalysisRoomTab({ view: "workspace", activeAnalysisRoomTab: "presentation" })).toBe("presentation");
-  expect(shell.renderTeamPerformanceWorkspace()).toContain('sandbox="allow-scripts allow-modals allow-same-origin"');
+  expect(shell.renderTeamPerformanceWorkspace()).toContain("data-team-performance-mount");
+  expect(shell.activeAnalysisRoomTab({ view: "workspace", activeAnalysisRoomTab: "team-performance" })).toBe("team-performance");
   expect(shellSource).not.toMatch(/fetch\(|supabase|\/api\/video-analysis/i);
   expect(shellCss).toContain(".analysis-room-header {");
   expect(shellCss).toContain(".analysis-room-team-performance-frame {");
@@ -1259,13 +1260,12 @@ test("analysis room tabs use icons without status labels", () => {
   expect(shell).toContain("analysis-room-tab-icon");
   expect(shell).toContain("FS Player");
   expect(shell).toContain("Team Performance");
-  expect(shell).toContain('{ id: "team-performance", label: "Team Performance", icon: "numbers", disabled: true }');
+  expect(shell).toContain('{ id: "team-performance", label: "Team Performance", icon: "numbers" }');
   expect(shell).toContain("analysisRoomTabs.filter((tab) => tab.disabled !== true)");
-  expect(shell).not.toContain('if (state.activeAnalysisRoomTab === "team-performance") return "team-performance";');
-  expect(shell).toContain("TEAM_PERFORMANCE_DASHBOARD_URL");
-  expect(shell).toContain("https://ncskunk-harris.github.io/Team_Match_Performance_Dashboard/");
-  expect(shell).toContain('sandbox="allow-scripts allow-modals allow-same-origin"');
-  expect(shell).toContain('referrerpolicy="no-referrer"');
+  expect(shell).toContain('if (state.activeAnalysisRoomTab === "team-performance") return "team-performance";');
+  expect(shell).toContain("data-team-performance-mount");
+  expect(shell).not.toContain("<iframe");
+  expect(source).toContain("createTeamPerformanceController");
   expect(shell).toContain("Presentation");
   expect(shell).toContain("Clip Library");
   expect(shell).toContain("renderClipLibrary");

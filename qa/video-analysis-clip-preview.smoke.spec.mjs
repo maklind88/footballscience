@@ -11,6 +11,8 @@ const clip = '.video-analysis-clip-block[data-video-analysis-seek="preview-clip"
 const popup = "[data-video-analysis-clip-editor]";
 const preview = "[data-video-analysis-clip-preview]";
 const field = name => `[data-video-analysis-timeline-edit-field="${name}"]`;
+const edit = page => page.getByRole("button", { name: "Edit clip", exact: true }).click();
+const back = page => page.getByRole("button", { name: "Back to video", exact: true }).click();
 let mediaPath;
 
 test.beforeAll(() => {
@@ -77,13 +79,12 @@ for (const [width, height] of [[1470, 844], [1280, 720], [1920, 1080], [844, 390
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(width);
     expect(box.y + box.height).toBeLessThanOrEqual(height);
-    const saveBox = await page.locator("[data-video-analysis-timeline-edit-save]").boundingBox();
-    expect(saveBox.y).toBeGreaterThanOrEqual(0);
-    expect(saveBox.y + saveBox.height).toBeLessThanOrEqual(height);
+    await expect(page.locator("[data-video-analysis-timeline-edit-save]")).toBeHidden();
+    await expect(fieldLocator(page, "phase")).toBeHidden();
     expect(await page.locator(popup).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     const screen = await page.locator(".video-analysis-clip-editor__screen").boundingBox();
     if (width >= 1000) {
-      expect(screen.width).toBeGreaterThan(width * .7);
+      expect(screen.width).toBeGreaterThan(width * .95);
       expect(screen.height).toBeGreaterThan(height * .58);
     }
     expect(await video.evaluate(el => getComputedStyle(el).objectFit)).toBe("contain");
@@ -100,16 +101,29 @@ for (const [width, height] of [[1470, 844], [1280, 720], [1920, 1080], [844, 390
     expect(await transport.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     expect(await seek.evaluate(el => el.style.getPropertyValue("--clip-preview-progress"))).toBe("37.5%");
     await page.screenshot({ path: testInfo.outputPath(`clip-preview-${width}.png`) });
-    await page.getByRole("button", { name: "Edit clip timing" }).click();
+    await edit(page);
+    await expect(video).toHaveJSProperty("paused", true);
+    const editPopup = page.getByRole("dialog", { name: "Edit clip", exact: true });
+    await expect(editPopup).toBeVisible();
+    const editBox = await editPopup.boundingBox();
+    expect(editBox.x).toBeGreaterThanOrEqual(0);
+    expect(editBox.y).toBeGreaterThanOrEqual(0);
+    expect(editBox.x + editBox.width).toBeLessThanOrEqual(width);
+    expect(editBox.y + editBox.height).toBeLessThanOrEqual(height);
+    const saveBox = await editPopup.locator("[data-video-analysis-timeline-edit-save]").boundingBox();
+    expect(saveBox.y + saveBox.height).toBeLessThanOrEqual(height);
+    expect(await editPopup.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`clip-edit-${width}.png`) });
     await fieldLocator(page, "startMs").fill("0:00:02");
     await fieldLocator(page, "duration").fill("2");
     await expect(fieldLocator(page, "endMs")).toHaveValue("0:00:04");
-    await page.getByRole("button", { name: "Edit clip timing" }).click();
+    await back(page);
     await seek.fill("1800");
     await expect.poll(() => video.evaluate(el => el.currentTime)).toBeCloseTo(3.8, 2);
     await page.locator("[data-clip-preview-play]").click();
     await expect.poll(() => video.evaluate(el => el.paused && Math.abs(el.currentTime - 4) < .02)).toBe(true);
     await page.keyboard.press("Escape");
+    await page.locator("[data-clip-review-discard]").click();
     await expect(page.locator(popup)).toHaveCount(0);
     const main = page.locator("[data-video-analysis-video]");
     await page.locator("[data-video-analysis-play]").first().click();
@@ -121,16 +135,48 @@ for (const [width, height] of [[1470, 844], [1280, 720], [1920, 1080], [844, 390
 
 function fieldLocator(page, name) { return page.locator(field(name)); }
 
+test("editing pauses a shuttle and saving returns to the same video without resetting its position", async ({ page }) => {
+  await open(page);
+  const video = page.locator(preview);
+  await page.locator("[data-clip-preview-seek]").fill("1000");
+  const main = page.locator("[data-video-analysis-video]");
+  const mainTime = await main.evaluate(el => el.currentTime);
+  await page.locator(".video-analysis-clip-editor__screen").hover();
+  await page.mouse.wheel(8, 0);
+  await edit(page);
+  await expect(page.locator(".video-analysis-clip-editor__media")).not.toHaveClass(/is-clip-shuttling/);
+  await expect(video).toHaveJSProperty("paused", true);
+  const position = await video.evaluate(el => el.currentTime);
+  await fieldLocator(page, "note").fill("Review the space");
+  await page.waitForTimeout(550);
+  expect(await video.evaluate(el => el.currentTime)).toBe(position);
+  await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await expect(page.locator("#video-analysis-clip-edit-dialog")).not.toBeVisible();
+  await expect(page.locator(popup)).toBeVisible();
+  await expect(page.locator("[data-clip-edit-open]")).toBeFocused();
+  expect(await video.evaluate(el => el.currentTime)).toBe(position);
+  await page.getByRole("button", { name: "Play clip", exact: true }).click();
+  await expect.poll(() => video.evaluate(el => !el.paused)).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(popup)).toHaveCount(0);
+  expect(await main.evaluate(el => ({ paused: el.paused, time: el.currentTime })))
+    .toEqual({ paused: true, time: mainTime });
+});
+
 test("clip preview reconnects from the modal and preserves unsaved fields across repaint", async ({ page }) => {
   await open(page, { media: false });
+  await edit(page);
   await fieldLocator(page, "note").fill("Keep my draft");
+  await back(page);
   const chooser = page.waitForEvent("filechooser");
   await page.locator(popup).getByRole("button", { name: "Reconnect local file" }).click();
   await (await chooser).setFiles(mediaPath);
   await expect.poll(() => page.locator(preview).evaluate(el => el.readyState)).toBeGreaterThanOrEqual(2);
   await expect(fieldLocator(page, "note")).toHaveValue("Keep my draft");
+  await edit(page);
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
-  await expect(page.locator(popup)).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Edit clip", exact: true })).toBeHidden();
+  await expect(page.locator(popup)).toBeVisible();
   const writes = await page.evaluate(() => window.__videoAnalysisRequests.filter(r => r.action === "save-clip"));
   expect(writes).toHaveLength(1);
   expect(writes[0].body.clip).toMatchObject({ id: "preview-clip", videoId, startMs: 1000, endMs: 3000, note: "Keep my draft" });
@@ -164,6 +210,7 @@ test("blocked autoplay leaves a usable Play button and media errors allow reconn
   await expect(page.locator("[data-clip-preview-status]")).toHaveText("Video unavailable");
   await expect(page.locator(popup).getByRole("button", { name: "Reconnect local file" })).toBeVisible();
   await expect(page.locator("[data-clip-preview-play]")).toBeDisabled();
+  await edit(page);
   await expect(fieldLocator(page, "note")).toBeEditable();
 });
 
@@ -210,9 +257,9 @@ test("clip transport shuttles both ways, stops at clip boundaries and leaves the
 test("shuttle restores playback after idle and Pause interrupts an active gesture", async ({ page }) => {
   await open(page);
   const video = page.locator(preview), surface = page.locator(".video-analysis-clip-editor__media");
-  await page.getByRole("button", { name: "Edit clip timing" }).click();
+  await edit(page);
   await fieldLocator(page, "duration").fill("3.8");
-  await page.getByRole("button", { name: "Edit clip timing" }).click();
+  await back(page);
   await page.locator("[data-clip-preview-seek]").fill("50");
   await video.evaluate(el => { el.playbackRate = 1.25; el.muted = true; });
   await page.getByRole("button", { name: "Play clip", exact: true }).click();
@@ -240,10 +287,12 @@ test("preview keeps vertical scrolling, pinch gestures and note entry independen
   for (const values of [{ deltaX: 0, deltaY: 80 }, { deltaX: 60, ctrlKey: true }, { deltaX: 60, metaKey: true }]) {
     expect(await surface.evaluate((el, values) => el.dispatchEvent(new WheelEvent("wheel", { ...values, bubbles: true, cancelable: true })), values)).toBe(true);
   }
+  await edit(page);
   await fieldLocator(page, "note").fill("My note");
   await page.keyboard.press("Space");
   await expect(fieldLocator(page, "note")).toHaveValue("My note ");
   expect(await video.evaluate(el => el.currentTime)).toBeCloseTo(2, 2);
+  await back(page);
   await video.focus();
   await page.keyboard.press("Space");
   await expect.poll(() => video.evaluate(el => el.paused)).toBe(false);

@@ -10,6 +10,8 @@ const highPress = '[data-video-analysis-timeline-category-label="Sub-phase / Hig
 const field = name => `[data-video-analysis-timeline-edit-field="${name}"]`;
 const select = index => `[data-clip-review-select="row-clip-${index}"]`;
 const writes = page => page.evaluate(() => window.__videoAnalysisRequests.filter(r => r.action === "save-clip"));
+const edit = page => page.getByRole("button", { name: "Edit clip", exact: true }).click();
+const back = page => page.getByRole("button", { name: "Back to video", exact: true }).click();
 let mediaPath;
 
 async function scrollReviewRowIntoView(page) {
@@ -90,20 +92,24 @@ for (const [width, height] of [[1470, 772], [1280, 720], [1920, 1080], [844, 390
     expect(closeBox.y).toBeGreaterThanOrEqual(0);
     expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(width);
     expect(await page.locator(popup).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await expect(page.locator(field("phase"))).toBeHidden();
+    await page.screenshot({ path: testInfo.outputPath(`row-review-${width}.png`) });
+    const screen = page.locator(".video-analysis-clip-editor__screen");
+    const before = await screen.boundingBox();
+    await edit(page);
     const save = await page.locator("[data-video-analysis-timeline-edit-save]").boundingBox();
     expect(save.y).toBeGreaterThanOrEqual(0);
     expect(save.y + save.height).toBeLessThanOrEqual(height);
     if (width >= 1000) {
-      const screen = page.locator(".video-analysis-clip-editor__screen");
-      const before = await screen.boundingBox();
-      expect(before.width).toBeGreaterThan(width * .7);
+      expect(before.width).toBeGreaterThan(width * .95);
       expect(before.height).toBeGreaterThan(height * .58);
       await page.locator(".video-analysis-clip-editor__principles summary").click();
       await page.locator(field("note")).focus();
       expect(await screen.boundingBox()).toEqual(before);
       await page.locator(".video-analysis-clip-editor__principles summary").click();
     }
-    await page.screenshot({ path: testInfo.outputPath(`row-review-${width}.png`) });
+    await page.screenshot({ path: testInfo.outputPath(`row-edit-${width}.png`) });
+    await back(page);
     await page.locator(select(4)).click();
     await expect(page.locator(field("note"))).toHaveValue("Note 4");
     await expect(page.locator(popup).getByRole("button", { name: "Next clip" })).toBeDisabled();
@@ -121,23 +127,26 @@ for (const [width, height] of [[1470, 772], [1280, 720], [1920, 1080], [844, 390
 test("row editing retains per-clip drafts and saves only the selected clip", async ({ page }) => {
   await openTimeline(page);
   await page.locator(highPress).dblclick();
+  await edit(page);
   await page.locator(field("note")).fill("Unsaved first clip");
-  await page.getByRole("button", { name: "Edit clip timing" }).click();
   await page.locator(field("duration")).fill("0.6");
-  await page.getByRole("button", { name: "Edit clip timing" }).click();
   await page.locator(".video-analysis-clip-editor__principles summary").click();
   await page.locator("[data-video-analysis-timeline-edit-principle]").first().check();
+  await back(page);
   await expect(page.locator(select(1)).getByText("Unsaved", { exact: true })).toBeVisible();
   await page.locator(select(2)).click();
+  await edit(page);
   await page.locator(field("phase")).selectOption("In Possession");
   await page.locator(field("subPhase")).selectOption("Build Up");
   await page.locator(field("note")).fill("Saved second clip");
+  await back(page);
   await page.locator(select(1)).click();
   await expect(page.locator(field("note"))).toHaveValue("Unsaved first clip");
   await expect(page.locator(field("duration"))).toHaveValue("0.6");
   await expect(page.locator("[data-video-analysis-timeline-edit-principle]:checked")).toHaveCount(1);
   await page.locator(select(2)).click();
   await expect(page.locator(field("phase"))).toHaveValue("In Possession");
+  await edit(page);
   await page.locator(popup).getByRole("button", { name: "Save clip", exact: true }).click();
   await expect(page.locator("[data-clip-review-notice]")).toHaveText("Clip saved");
   await expect(page.locator("[data-clip-review-select]")).toHaveCount(4);
@@ -162,10 +171,12 @@ test("row editing retains per-clip drafts and saves only the selected clip", asy
 test("row review preserves invalid drafts and failed saves without leaving the selected clip", async ({ page }) => {
   await openTimeline(page);
   await page.locator(highPress).dblclick();
-  await page.getByRole("button", { name: "Edit clip timing" }).click();
+  await edit(page);
   await page.locator(field("endMs")).fill("invalid");
+  await back(page);
   await page.locator(select(2)).click();
   await page.locator(select(1)).click();
+  await edit(page);
   await expect(page.locator(field("endMs"))).toHaveValue("invalid");
   await expect(page.locator(field("endMs"))).toBeVisible();
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
@@ -188,15 +199,17 @@ test("row review preserves invalid drafts and failed saves without leaving the s
   await expect(page.locator(popup).getByRole("alert")).toBeVisible();
   await expect(page.locator(select(1))).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(field("note"))).toHaveValue("Preserve this draft");
-  await expect(page.locator(popup).getByRole("button", { name: "Previous clip" })).toBeDisabled();
+  await expect(page.locator(popup).getByRole("button", { name: "Previous clip", includeHidden: true })).toBeDisabled();
 });
 
 test("row review delete removes one clip, keeps the other three and remains undoable", async ({ page }) => {
   await openTimeline(page);
   await page.locator(highPress).dblclick();
+  await edit(page);
   await page.locator("[data-video-analysis-clip-editor-delete]").click();
   await page.locator("[data-video-analysis-clip-editor-delete-confirm]").click();
-  await expect(page.locator(popup).getByRole("heading")).toHaveText("High Press (3)");
+  await expect(page.locator("#video-analysis-clip-editor-title")).toHaveText("High Press (3)");
+  await expect(page.locator("#video-analysis-clip-edit-dialog")).not.toBeVisible();
   await expect(page.locator(select(1))).toHaveCount(0);
   await expect(page.locator(select(2))).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Escape");
@@ -210,15 +223,20 @@ test("row review saves a clip repeatedly using its latest revision", async ({ pa
   await scrollReviewRowIntoView(page);
   const originalViewport = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
   await page.locator(highPress).dblclick();
+  await edit(page);
   await page.locator(field("note")).fill("First revision");
+  await back(page);
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-clip-review-close-confirm]")).toBeVisible();
+  await page.locator("[data-clip-review-keep]").click();
+  await edit(page);
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
   await expect(page.locator("[data-clip-review-notice]")).toHaveText("Clip saved");
   await expect(page.locator("[data-clip-review-close-confirm]")).toBeHidden();
   await page.locator(select(2)).click();
   await page.locator(select(1)).click();
   await expect(page.locator(field("note"))).toHaveValue("First revision");
+  await edit(page);
   await page.locator(field("note")).fill("Second revision");
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
   await expect(page.locator("[data-clip-review-notice]")).toHaveText("Clip saved");

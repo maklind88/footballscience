@@ -42,20 +42,14 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
   const phases = [...new Set([phase, ...videoAnalysisPhases])].filter(Boolean);
   return `
     <header>
-      <div><span>${canEdit ? "Edit clip" : "Clip"}</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(title || getClipPrimaryLabel(clip, laneMode) || "Selected clip")}${review ? ` (${review.entries.length})` : ""}</h2></div>
+      <div><span>Clip</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(title || getClipPrimaryLabel(clip, laneMode) || "Selected clip")}${review ? ` (${review.entries.length})` : ""}</h2></div>
       <div class="video-analysis-clip-editor__tools">
-        ${canEdit ? `<button type="button" class="video-analysis-clip-editor__timing-toggle" data-clip-timing-toggle aria-label="Edit clip timing" title="Edit clip timing" aria-expanded="false" aria-controls="video-analysis-clip-timing">${playerHeaderIcon("pencil")}</button>` : ""}
+        <span class="video-analysis-clip-review__notice" data-clip-review-notice role="status"></span>
+        <button type="button" ${canEdit ? "data-clip-edit-open" : "data-clip-details-open"} aria-label="${canEdit ? "Edit clip" : "Clip details"}" title="${canEdit ? "Edit clip" : "Clip details"}" aria-haspopup="dialog" aria-expanded="false" aria-controls="video-analysis-clip-edit-dialog">${playerHeaderIcon(canEdit ? "pencil" : "info")}</button>
         <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" aria-description="Return to the timeline" title="Close and return to timeline">${playerHeaderIcon("x")}</button>
       </div>
     </header>
     <form data-video-analysis-timeline-editor novalidate>
-      <fieldset id="video-analysis-clip-timing" class="video-analysis-clip-editor__timing-panel" aria-label="Clip timing" hidden ${canEdit ? "" : "disabled"}>
-        <div class="video-analysis-clip-editor__timing">
-          ${timeField("Start", "startMs", start)}
-          ${timeField("End", "endMs", end)}
-          <label><span>Duration (s)</span><input type="number" min="0.001" step="0.001" required aria-label="Duration (s)" data-video-analysis-timeline-edit-field="duration" value="${(end - start) / 1000}"></label>
-        </div>
-      </fieldset>
       ${renderClipReview(review, clip.id)}
       <div class="video-analysis-clip-editor__layout">
       <section class="video-analysis-clip-editor__media" aria-label="Clip preview">
@@ -73,10 +67,31 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
           <output data-clip-preview-time aria-live="off"></output>
         </div>
       </section>
+      </div>
+      <div class="video-analysis-clip-editor__confirm" data-clip-review-close-confirm hidden>
+        <span>Discard unsaved changes?</span>
+        <button type="button" data-clip-review-keep>Keep editing</button>
+        <button type="button" data-clip-review-discard>Discard</button>
+      </div>
+      <dialog id="video-analysis-clip-edit-dialog" class="video-analysis-clip-editor__edit-dialog" aria-labelledby="video-analysis-clip-edit-title">
+        <header>
+          <h2 id="video-analysis-clip-edit-title">${canEdit ? "Edit clip" : "Clip details"}</h2>
+          <button type="button" data-clip-edit-back aria-label="Back to video" title="Back to video">${playerHeaderIcon("x")}</button>
+        </header>
+        <div class="video-analysis-clip-editor__edit-fields">
+      <fieldset class="video-analysis-clip-editor__timing-panel" aria-label="Clip timing" ${canEdit ? "" : "disabled"}>
+        <div class="video-analysis-clip-editor__timing">
+          ${timeField("Start", "startMs", start)}
+          ${timeField("End", "endMs", end)}
+          <label><span>Duration (s)</span><input type="number" min="0.001" step="0.001" required aria-label="Duration (s)" data-video-analysis-timeline-edit-field="duration" value="${(end - start) / 1000}"></label>
+        </div>
+      </fieldset>
       <fieldset class="video-analysis-clip-editor__metadata" ${canEdit ? "" : "disabled"}>
+        <div class="video-analysis-clip-editor__classification">
           <label><span>Phase</span><select data-video-analysis-timeline-edit-field="phase">${optionList(phases, phase)}</select></label>
           <label><span>Sub-phase</span><select data-video-analysis-timeline-edit-field="subPhase">${clipEditorSubPhaseOptions(phase, subPhase)}</select></label>
           <label><span>Outcome</span><select data-video-analysis-timeline-edit-field="outcome">${optionList(videoAnalysisOutcomes, clip.outcome)}</select></label>
+        </div>
         <details class="video-analysis-clip-editor__principles">
           <summary>MG principles <span data-video-analysis-principle-count>${principles.size || ""}</span></summary>
           <div>${miniGamePrinciples.map(principle => `<label><input type="checkbox" data-video-analysis-timeline-edit-principle value="${escapeHtml(principle.id)}"${principles.has(principle.label) ? " checked" : ""}><span>${escapeHtml(principle.label)}</span></label>`).join("")}</div>
@@ -91,17 +106,12 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
         <button type="button" data-video-analysis-clip-editor-keep>Cancel</button>
         <button type="button" data-video-analysis-clip-editor-delete-confirm>Delete clip</button>
       </div>
-      ${review ? `<div class="video-analysis-clip-editor__confirm" data-clip-review-close-confirm hidden>
-        <span>Discard unsaved changes?</span>
-        <button type="button" data-clip-review-keep>Keep editing</button>
-        <button type="button" data-clip-review-discard>Discard</button>
-      </div>` : ""}
       <footer>
         ${canEdit ? '<button type="button" class="video-analysis-clip-editor__delete" data-video-analysis-clip-editor-delete>Delete</button>' : ""}
-        ${review ? '<span class="video-analysis-clip-review__notice" data-clip-review-notice role="status"></span>' : ""}
-        <button type="button" data-video-analysis-timeline-edit-cancel>${canEdit && !review ? "Cancel" : "Close"}</button>
+        <button type="button" data-clip-edit-back>Back</button>
         ${canEdit ? `<button type="submit" class="video-analysis-clip-editor__save" data-video-analysis-timeline-edit-save>${review ? "Save clip" : "Save"}</button>` : ""}
       </footer>
+      </dialog>
     </form>
   `;
 }

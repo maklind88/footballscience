@@ -14,9 +14,9 @@ test("clip popup escapes saved content and keeps readonly fields disabled", () =
   expect(html).not.toContain("<script>");
   expect(html).not.toContain("<img");
   expect(html).toContain("&lt;script&gt;");
-  expect(html).toContain('aria-label="Clip timing" hidden disabled');
+  expect(html).toContain('aria-label="Clip timing" disabled');
   expect(html).toContain('class="video-analysis-clip-editor__metadata" disabled');
-  expect(html).not.toContain("data-clip-timing-toggle");
+  expect(html).not.toContain("data-clip-edit-open");
   expect(html).not.toContain("data-video-analysis-timeline-edit-save");
 });
 

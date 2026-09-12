@@ -43,12 +43,22 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     if (error) { error.textContent = message; error.hidden = !message; }
   }
 
-  function setTimingOpen(open, focus = false) {
-    const button = dialog.querySelector("[data-clip-timing-toggle]");
+  const editDialog = () => dialog?.querySelector("#video-analysis-clip-edit-dialog");
+
+  function setEditingOpen(open, focus = false) {
+    const button = dialog?.querySelector("[data-clip-edit-open], [data-clip-details-open]");
     if (!button || pending) return;
     button.setAttribute("aria-expanded", String(open));
-    dialog.querySelector("#video-analysis-clip-timing").hidden = !open;
-    if (focus) (open ? field("startMs") : button).focus({ preventScroll: !open });
+    if (open) {
+      preview?.setBusy(true);
+      dialog.querySelector("[data-clip-review-close-confirm]").hidden = true;
+      if (!editDialog().open) editDialog().showModal();
+    } else {
+      editDialog().close();
+      preview?.setBusy(false);
+    }
+    const focusTarget = getState().canEdit ? field("startMs") : editDialog().querySelector("[data-clip-edit-back]");
+    if (focus) (open ? focusTarget : button).focus({ preventScroll: !open });
   }
 
   function close() {
@@ -57,6 +67,7 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     const returnToRow = Boolean(review);
     preview?.dispose();
     preview = null;
+    editDialog()?.close();
     dialog.close();
     dialog.remove();
     if (contextKey() === originalContext) restoreViewport?.();
@@ -80,7 +91,8 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
 
   function requestClose() {
     if (!dialog || pending) return;
-    if (!review?.hasDrafts()) { close(); return; }
+    const dirty = review ? review.hasDrafts() : JSON.stringify(readClipEditorDraft(dialog)) !== JSON.stringify(baseline);
+    if (!dirty) { close(); return; }
     preview?.setBusy(true);
     const confirmation = dialog.querySelector("[data-clip-review-close-confirm]");
     confirmation.hidden = false;
@@ -94,15 +106,16 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
   }
 
   function rememberDraft() {
+    const draft = readClipEditorDraft(dialog);
+    dialog.querySelector("[data-clip-review-notice]").textContent = JSON.stringify(draft) === JSON.stringify(baseline) ? "" : "Unsaved";
     if (!review) return;
-    review.remember(activeClip.id, readClipEditorDraft(dialog), baseline);
+    review.remember(activeClip.id, draft, baseline);
     const entry = review.entries.find(item => item.clip.id === activeClip.id);
     const button = [...dialog.querySelectorAll("[data-clip-review-select]")].find(item => item.dataset.clipReviewSelect === activeClip.id);
     if (button) {
       button.querySelector("[data-clip-review-dirty]").hidden = !entry?.draft;
       button.setAttribute("aria-description", entry?.draft ? "Unsaved changes" : "");
     }
-    dialog.querySelector("[data-clip-review-notice]").textContent = "";
   }
 
   function restoreDraft(draft) {
@@ -115,13 +128,29 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
 
   function renderCurrentClip(clip) {
     preview?.dispose();
-    const timingOpen = dialog.querySelector("[data-clip-timing-toggle]")?.getAttribute("aria-expanded") === "true";
+    editDialog()?.close();
     activeClip = structuredClone(clip);
     dialog.setAttribute("data-video-analysis-clip-editor", clip.id);
     dialog.innerHTML = renderClipEditor(clip, { laneMode: getState().timeline?.laneMode, canEdit: getState().canEdit, title: editorTitle, review });
     baseline = readClipEditorDraft(dialog);
     restoreDraft(review?.entries.find(entry => entry.clip.id === clip.id)?.draft);
-    setTimingOpen(timingOpen);
+    editDialog().addEventListener("cancel", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      setEditingOpen(false, true);
+    });
+    editDialog().addEventListener("keydown", event => {
+      if (event.key !== "Tab") return;
+      const focusable = [...editDialog().querySelectorAll("button, input, select, textarea, summary, [tabindex]")]
+        .filter(element => !element.matches(":disabled") && element.tabIndex >= 0 && element.getClientRects().length);
+      const first = focusable[0], last = focusable.at(-1);
+      const active = dialog.ownerDocument.activeElement;
+      if ((event.shiftKey && active === first) || (!event.shiftKey && active === last)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first)?.focus();
+      }
+    });
+    rememberDraft();
     preview = createClipPreview({
       dialog, getState, subscribe, reconnect, selectFile,
       getRange: () => ({
@@ -133,7 +162,7 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
   }
 
   function selectReviewClip(id) {
-    if (pending || !review || id === activeClip.id) return;
+    if (pending || editDialog()?.open || !review || id === activeClip.id) return;
     const entry = review.entries.find(item => item.clip.id === id);
     if (!entry) return;
     rememberDraft();
@@ -175,7 +204,7 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     if (contextKey() !== originalContext) throw new Error("The selected video has changed. Reopen this clip.");
     const totalMs = Number(state.videoRef?.durationMs || state.video?.durationMs || state.video?.duration_ms || 0);
     const invalidTime = (message, name) => {
-      setTimingOpen(true);
+      setEditingOpen(true);
       field(name).focus();
       throw new Error(message);
     };
@@ -197,7 +226,7 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
 
   async function submit(event) {
     event.preventDefault();
-    if (pending || !getState().canEdit) return;
+    if (pending || !editDialog()?.open || !getState().canEdit) return;
     let edits;
     try { edits = values(); } catch (error) { showError(error.message); return; }
     pending = true;
@@ -210,18 +239,18 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     catch (error) { showError(error.message || "Could not save clip."); }
     pending = false;
     if (contextKey() !== originalContext) { close(); return; }
-    if (success && !review) { close(); return; }
     dialog.removeAttribute("aria-busy");
     dialog.querySelectorAll("fieldset").forEach(element => { element.disabled = !getState().canEdit; });
     dialog.querySelectorAll("button").forEach(button => { button.disabled = false; });
-    preview?.setBusy(false);
+    preview?.setBusy(true);
     if (success) {
       const savedClip = getState().clips.find(clip => clip.id === activeClip.id);
-      if (savedClip) { activeClip = structuredClone(savedClip); review.saved(savedClip); }
+      if (savedClip) { activeClip = structuredClone(savedClip); review?.saved(savedClip); }
       baseline = readClipEditorDraft(dialog);
       refreshReviewNav();
       dialog.querySelector("[data-clip-review-close-confirm]").hidden = true;
       dialog.querySelector("[data-clip-review-notice]").textContent = "Clip saved";
+      setEditingOpen(false, true);
       return;
     }
     refreshReviewNav();
@@ -243,7 +272,13 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     if (review) review.title = editorTitle || "Clips";
     dialog.addEventListener("cancel", event => {
       event.preventDefault();
-      if (dialog.querySelector("[data-clip-timing-toggle]")?.getAttribute("aria-expanded") === "true") setTimingOpen(false, true);
+      if (event.target === dialog) requestClose();
+    });
+    dialog.addEventListener("keydown", event => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (editDialog()?.open) setEditingOpen(false, true);
       else requestClose();
     });
     dialog.addEventListener("input", timingChanged);
@@ -251,8 +286,8 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
     dialog.addEventListener("click", async event => {
       if (event.target.closest("[data-video-analysis-timeline-edit-cancel]")) { requestClose(); return; }
       if (pending) return;
-      const timingToggle = event.target.closest("[data-clip-timing-toggle]");
-      if (timingToggle) { setTimingOpen(timingToggle.getAttribute("aria-expanded") !== "true", true); return; }
+      if (event.target.closest("[data-clip-edit-open], [data-clip-details-open]")) { setEditingOpen(true, true); return; }
+      if (event.target.closest("[data-clip-edit-back]")) { setEditingOpen(false, true); return; }
       if (event.target.closest("[data-clip-review-discard]")) { close(); return; }
       if (event.target.closest("[data-clip-review-keep]")) {
         dialog.querySelector("[data-clip-review-close-confirm]").hidden = true;
@@ -286,7 +321,7 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
           else showError(getState().error || "");
         } catch (error) {
           showError(error.message || "Could not delete clip.");
-        } finally { pending = false; preview?.setBusy(false); }
+        } finally { pending = false; preview?.setBusy(Boolean(editDialog()?.open)); }
       }
     });
     // Outside the repainted workspace: background state updates must not erase an unsaved draft.

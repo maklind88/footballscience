@@ -46,14 +46,24 @@
 .video-analysis-clip-editor__layout { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr) 250px; gap: 14px; }
 .video-analysis-clip-editor__media { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-width: 0; min-height: 0; }
 .video-analysis-clip-editor fieldset.video-analysis-clip-editor__metadata { min-height: 0; overflow: auto; padding-left: 14px; border-left: 1px solid #dce3de; }
-.video-analysis-clip-editor__screen { position: relative; width: 100%; height: 100%; min-height: 0; background: #080d0b; }
+.video-analysis-clip-editor__screen { position: relative; width: 100%; height: 100%; min-height: 0; background: #080d0b; touch-action: pan-y pinch-zoom; }
 .video-analysis-clip-editor__screen video { display: block; width: 100%; height: 100%; object-fit: contain; }
 .video-analysis-clip-editor__media-state { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 12px; color: #fff; padding: 16px; text-align: center; }
 .video-analysis-clip-editor__media-state [role="status"]:empty { display: none; }
-.video-analysis-clip-editor__transport { display: grid; grid-template-columns: 36px minmax(40px, 1fr) auto; align-items: center; gap: 12px; min-height: 44px; }
-.video-analysis-clip-editor__transport button { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; }
-.video-analysis-clip-editor__transport input[type="range"] { width: 100%; min-width: 0; margin: 0; accent-color: #2466a4; cursor: pointer; }
-.video-analysis-clip-editor__transport output { font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.video-analysis-clip-editor__transport { display: grid; grid-template-columns: 44px minmax(40px, 1fr) auto; align-items: center; gap: 12px; min-height: 56px; padding-inline: 8px; border-top: 1px solid #c7d5cc; background: #f3f7f4; touch-action: pan-y pinch-zoom; }
+.video-analysis-clip-editor .video-analysis-clip-editor__transport button { display: grid; place-items: center; width: 44px; height: 40px; padding: 0; color: #fff; background: #15573c; border-color: #15573c; }
+.video-analysis-clip-editor .video-analysis-clip-editor__transport button:hover { background: #103f2c; }
+.video-analysis-clip-editor .video-analysis-clip-editor__transport button:disabled { color: #65796c; background: #e0e8e2; border-color: #bccbc2; opacity: 1; cursor: default; }
+.video-analysis-clip-editor__transport button svg { width: 22px; height: 22px; fill: currentColor; }
+.video-analysis-clip-editor__transport input[type="range"] { appearance: none; width: 100%; min-width: 0; height: 32px; margin: 0; background: transparent; cursor: pointer; }
+.video-analysis-clip-editor__transport input::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, #15573c var(--clip-preview-progress, 0%), #c7d5cc var(--clip-preview-progress, 0%)); }
+.video-analysis-clip-editor__transport input::-webkit-slider-thumb { appearance: none; box-sizing: border-box; width: 16px; height: 16px; margin-top: -5px; border: 2px solid #fff; border-radius: 50%; background: #15573c; box-shadow: 0 0 0 1px #15573c; }
+.video-analysis-clip-editor__transport input::-moz-range-track { height: 6px; border-radius: 3px; background: #c7d5cc; }
+.video-analysis-clip-editor__transport input::-moz-range-progress { height: 6px; border-radius: 3px; background: #15573c; }
+.video-analysis-clip-editor__transport input::-moz-range-thumb { box-sizing: border-box; width: 16px; height: 16px; border: 2px solid #fff; border-radius: 50%; background: #15573c; box-shadow: 0 0 0 1px #15573c; }
+.video-analysis-clip-editor__transport input:disabled { opacity: .55; cursor: default; }
+.video-analysis-clip-editor__transport output { min-width: 132px; color: #203d2c; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.video-analysis-clip-editor__media.is-clip-shuttling .video-analysis-clip-editor__screen { box-shadow: inset 0 -2px #3d8c64; }
 
 .video-analysis-clip-editor input:not([type="checkbox"]):not([type="range"]),
 .video-analysis-clip-editor select,

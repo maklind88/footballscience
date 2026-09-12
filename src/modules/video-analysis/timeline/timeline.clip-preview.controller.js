@@ -1,6 +1,7 @@
 import { activeMediaReference, activeVideoTimeFromMatchMs, matchTimeFromActiveVideoMs } from "../services/mediaProductionService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { playerHeaderIcon } from "../components/playerHeaderIcons.js";
+import { createClipShuttle } from "./timeline.clip-shuttle.js";
 
 export function clipPreviewRange(state, startMs, endMs, durationMs = 0) {
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || endMs <= startMs) return null;
@@ -33,6 +34,8 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
   let disposed = false;
   let locked = false;
   let mediaError = false;
+  let shuttle = null;
+  const ready = () => Boolean(source && range && video.readyState >= 1 && !mediaError && !locked && !disposed);
 
   function cancelFrame() {
     if (frame != null) win.cancelAnimationFrame(frame);
@@ -41,14 +44,14 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
 
   function updateTransport() {
     if (disposed) return;
-    const ready = Boolean(source && range && video.readyState >= 1 && !mediaError && !locked);
-    play.disabled = !ready;
-    seek.disabled = !ready;
-    const label = video.paused ? "Play clip" : "Pause clip";
+    play.disabled = !ready();
+    seek.disabled = !ready();
+    const paused = video.paused && !shuttle?.isActive();
+    const label = paused ? "Play clip" : "Pause clip";
     play.setAttribute("aria-label", label);
     play.title = label;
     if (play.dataset.icon !== label) {
-      play.innerHTML = playerHeaderIcon(video.paused ? "play" : "pause");
+      play.innerHTML = playerHeaderIcon(paused ? "play" : "pause");
       play.dataset.icon = label;
     }
     const draft = getRange();
@@ -56,11 +59,13 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
     const elapsed = range ? Math.max(0, Math.min(duration, (video.currentTime * 1000 - range.start) / (range.end - range.start) * duration)) : 0;
     seek.max = String(duration);
     seek.value = String(Math.round(elapsed));
+    seek.style.setProperty("--clip-preview-progress", `${duration ? elapsed / duration * 100 : 0}%`);
     seek.setAttribute("aria-valuetext", `${formatVideoTime(elapsed)} / ${formatVideoTime(duration)}`);
     output.textContent = `${formatVideoTime(elapsed)} / ${formatVideoTime(duration)}`;
   }
 
   function stop() {
+    shuttle?.cancel();
     video.pause();
     cancelFrame();
     updateTransport();
@@ -98,7 +103,9 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
     const draft = getRange();
     const actualDuration = Number.isFinite(video.duration) ? video.duration * 1000 : 0;
     const declaredDuration = activeMediaReference(state)?.durationMs || 0;
-    range = clipPreviewRange(state, draft.startMs, draft.endMs, actualDuration || declaredDuration);
+    const nextRange = clipPreviewRange(state, draft.startMs, draft.endMs, actualDuration || declaredDuration);
+    if (nextRange?.start !== range?.start || nextRange?.end !== range?.end) shuttle?.cancel();
+    range = nextRange;
     empty.hidden = Boolean(source && range && !mediaError);
     status.textContent = mediaError ? "Video unavailable" : source && !range ? "Clip outside available video" : "";
     connect.hidden = Boolean(source && !mediaError);
@@ -123,6 +130,12 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
     } else updateRange();
   }
 
+  const surface = dialog.querySelector(".video-analysis-clip-editor__media");
+  shuttle = createClipShuttle({ surface, video, getRange: () => range, isReady: ready, seekTo, onChange: updateTransport, signal: events.signal });
+  function toggle() {
+    if (shuttle.isActive() || !video.paused) stop();
+    else void start();
+  }
   const listen = (element, type, callback) => element.addEventListener(type, callback, { signal: events.signal });
   listen(video, "loadedmetadata", () => { updateRange({ rewind: true }); void start(); });
   listen(video, "play", () => { cancelFrame(); tick(); });
@@ -131,7 +144,14 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
   listen(video, "timeupdate", enforceRange);
   listen(video, "seeking", enforceRange);
   listen(video, "error", () => { mediaError = true; stop(); updateRange(); });
-  listen(play, "click", () => { if (video.paused) void start(); else stop(); });
+  listen(play, "click", toggle);
+  listen(surface, "keydown", event => {
+    if (event.code !== "Space" || event.repeat || event.ctrlKey || event.metaKey || event.altKey
+      || event.target.closest("button, input, textarea, select, [contenteditable=true]")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggle();
+  });
   listen(seek, "input", () => {
     if (!range || locked) return;
     const position = Number(seek.value);
@@ -156,6 +176,7 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
     setBusy(value) { locked = value; if (value) stop(); updateTransport(); },
     dispose() {
       disposed = true;
+      shuttle.cancel();
       unsubscribe();
       events.abort();
       cancelFrame();

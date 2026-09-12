@@ -5,6 +5,8 @@ import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderFsPlayerWorkspace } from "./components/FsPlayerWorkspace.js";
 import { createTimelineClipEditor, preserveTimelineViewport } from "./timeline/timeline.clip-editor.controller.js";
 import { createTimelineRowOrderController } from "./timeline/timeline.row-order.controller.js";
+import { VIDEO_SHUTTLE_MIN_SPEED, VIDEO_SHUTTLE_MIN_DELTA_PX, VIDEO_SHUTTLE_IDLE_MS, VIDEO_SHUTTLE_MAX_FRAME_MS,
+  videoShuttleHorizontalDelta, videoShuttleHasHorizontalIntent, videoShuttleSpeedFromDelta } from "./services/videoShuttleGesture.js";
 import { handlePlayerHeaderClick, handlePlayerHeaderKeydown } from "./controllers/playerHeaderController.js";
 import {
   activeAnalysisRoomTab,
@@ -167,15 +169,6 @@ const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
 const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2, 3];
 const KEYBOARD_CLIP_TRIM_MIN_MS = 1000;
-const VIDEO_SHUTTLE_MIN_SPEED = 4;
-const VIDEO_SHUTTLE_MAX_SPEED = 7;
-const VIDEO_SHUTTLE_SPEED_DELTA_PX = 60;
-const VIDEO_SHUTTLE_MIN_DELTA_PX = 6;
-const VIDEO_SHUTTLE_CONTAIN_DELTA_PX = 2;
-const VIDEO_SHUTTLE_CONTAIN_RATIO = 0.6;
-const VIDEO_SHUTTLE_DOMINANCE_RATIO = 1.35;
-const VIDEO_SHUTTLE_IDLE_MS = 520;
-const VIDEO_SHUTTLE_MAX_FRAME_MS = 80;
 const VIDEO_ANALYSIS_TOAST_DISMISS_MS = 1600;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
 const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
@@ -1063,50 +1056,6 @@ function videoShuttleCurrentMs(state = {}, video = null) {
   const videoMs = getVideoCurrentMs(video);
   if (videoMs > 0 || Number(video?.readyState || 0) > 0) return matchTimeFromActiveVideoMs(state, videoMs);
   return Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
-}
-
-function wheelDeltaPixelValue(value = 0, deltaMode = 0) {
-  const numeric = Number(value || 0);
-  if (!numeric) return 0;
-  if (Number(deltaMode) === 1) return numeric * 16;
-  if (Number(deltaMode) === 2) return numeric * 800;
-  return numeric;
-}
-
-function wheelDeltaX(event = {}) {
-  if ("deltaX" in event) return Number(event.deltaX || 0);
-  const wheelDeltaXValue = Number(event.wheelDeltaX || 0);
-  return wheelDeltaXValue ? -wheelDeltaXValue : 0;
-}
-
-function wheelDeltaY(event = {}) {
-  if ("deltaY" in event) return Number(event.deltaY || 0);
-  const wheelDeltaYValue = Number(event.wheelDeltaY || event.wheelDelta || 0);
-  return wheelDeltaYValue ? -wheelDeltaYValue : 0;
-}
-
-function videoShuttleHorizontalDelta(event = {}) {
-  const deltaMode = Number(event.deltaMode || 0);
-  const deltaX = wheelDeltaPixelValue(wheelDeltaX(event), deltaMode);
-  const deltaY = wheelDeltaPixelValue(wheelDeltaY(event), deltaMode);
-  if (event.shiftKey && Math.abs(deltaY) >= VIDEO_SHUTTLE_MIN_DELTA_PX) return deltaY;
-  if (Math.abs(deltaX) < Math.max(VIDEO_SHUTTLE_MIN_DELTA_PX, Math.abs(deltaY) * VIDEO_SHUTTLE_DOMINANCE_RATIO)) return 0;
-  return deltaX;
-}
-
-function videoShuttleHasHorizontalIntent(event = {}) {
-  const deltaMode = Number(event.deltaMode || 0);
-  const deltaX = wheelDeltaPixelValue(wheelDeltaX(event), deltaMode);
-  const deltaY = wheelDeltaPixelValue(wheelDeltaY(event), deltaMode);
-  if (event.shiftKey && Math.abs(deltaY) >= VIDEO_SHUTTLE_CONTAIN_DELTA_PX) return true;
-  return Math.abs(deltaX) >= VIDEO_SHUTTLE_CONTAIN_DELTA_PX
-    && Math.abs(deltaX) >= Math.abs(deltaY) * VIDEO_SHUTTLE_CONTAIN_RATIO;
-}
-
-function videoShuttleSpeedFromDelta(deltaPx = 0) {
-  const intensity = Math.min(1, Math.abs(Number(deltaPx || 0)) / VIDEO_SHUTTLE_SPEED_DELTA_PX);
-  const speed = VIDEO_SHUTTLE_MIN_SPEED + ((VIDEO_SHUTTLE_MAX_SPEED - VIDEO_SHUTTLE_MIN_SPEED) * intensity);
-  return Math.round(speed * 10) / 10;
 }
 
 function commitVideoShuttlePlayhead(context = {}, video = null) {

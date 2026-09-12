@@ -60,14 +60,14 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
       <div class="video-analysis-clip-editor__layout">
       <section class="video-analysis-clip-editor__media" aria-label="Clip preview">
         <div class="video-analysis-clip-editor__screen">
-          <video data-video-analysis-clip-preview playsinline preload="metadata" aria-label="Selected clip"></video>
+          <video data-video-analysis-clip-preview playsinline preload="metadata" tabindex="0" aria-label="Selected clip" aria-keyshortcuts="Space"></video>
           <div class="video-analysis-clip-editor__media-state" data-clip-preview-empty>
             <span data-clip-preview-status role="status"></span>
             <button type="button" data-clip-preview-reconnect>Reconnect local file</button>
           </div>
           <input type="file" accept="video/*,.mkv,.mov,.m4v" data-clip-preview-file hidden>
         </div>
-        <div class="video-analysis-clip-editor__transport">
+        <div class="video-analysis-clip-editor__transport" role="group" aria-label="Clip playback">
           <button type="button" data-clip-preview-play aria-label="Play clip" title="Play clip" disabled>${playerHeaderIcon("play")}</button>
           <input type="range" data-clip-preview-seek aria-label="Clip position" min="0" max="${end - start}" step="1" value="0" disabled>
           <output data-clip-preview-time aria-live="off"></output>

@@ -134,6 +134,10 @@ for (const width of [1470, 390]) {
     expect(await page.evaluate(() => (window.__videoAnalysisRequests || []).filter(request => request.action === "save-clip")))
       .toEqual([]);
     await page.locator("[data-video-analysis-code-mode]").click();
+    // Native fullscreen finishes asynchronously before the final code-mode render.
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
+    await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
+    await expect.poll(async () => (await geometry()).blocks.every(block => Number.isFinite(block.markerWidth))).toBe(true);
     const code = await geometry();
     for (const block of code.blocks) {
       expect(block.height).toBe(code.height);

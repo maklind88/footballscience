@@ -531,6 +531,12 @@ const apiRouteSecurity = Object.freeze({
     rateLimits: Object.freeze({ restore: 20 }),
     enforcePermission: true,
   }),
+  "/api/desktop-session-sync": Object.freeze({
+    moduleId: "session-planner",
+    actions: Object.freeze({ GET: "read", POST: "write" }),
+    rateLimits: Object.freeze({ read: 30, write: 30 }),
+    enforcePermission: true,
+  }),
   "/api/user-lookup": Object.freeze({
     moduleId: "admin-users",
     public: true,

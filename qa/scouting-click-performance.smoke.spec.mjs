@@ -7,6 +7,7 @@ const releaseQaBudgets =
   !strictScoutingPerf && (Boolean(process.env.CI) || releaseQaLifecycleEvents.has(process.env.npm_lifecycle_event || ""));
 const budget = (strictMilliseconds, releaseMilliseconds = strictMilliseconds) =>
   releaseQaBudgets ? releaseMilliseconds : strictMilliseconds;
+const scoutingInteractionHarnessTimeout = 10_000;
 
 const budgets = {
   openWorkspace: budget(1200, 3000),
@@ -89,20 +90,87 @@ async function nextPaint(page) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
-async function measureInteraction(page, results, label, budgetMs, action, ready) {
+async function measureInteraction(page, results, label, budgetMs, action, ready, timing = {}) {
   await nextPaint(page);
-  const startedAt = await page.evaluate(() => performance.now());
+  const armedAt = timing.arm
+    ? await timing.arm()
+    : await page.evaluate(() => performance.now());
   const actionStartedAt = await page.evaluate(() => performance.now());
   await action();
   const actionEndedAt = await page.evaluate(() => performance.now());
   await ready();
   await nextPaint(page);
-  const durationMs = await page.evaluate((start) => performance.now() - start, startedAt);
+  const completion = timing.complete
+    ? await timing.complete()
+    : await page.evaluate(() => performance.now());
+  const startedAt = Number.isFinite(completion?.startedAt) ? completion.startedAt : armedAt;
+  const completedAt = Number.isFinite(completion?.completedAt) ? completion.completedAt : completion;
+  const durationMs = completedAt - startedAt;
   const actionMs = Math.round(actionEndedAt - actionStartedAt);
   const rounded = Math.round(durationMs);
-  results.push({ label, ms: rounded, actionMs, budgetMs });
+  results.push({ label, ms: rounded, actionMs, budgetMs, clock: timing.clock || "playwright" });
   console.log(`[scouting-click-performance] ${label}: ${rounded}ms / ${budgetMs}ms (action ${actionMs}ms)`);
   expect(durationMs, `${label} took ${rounded}ms, budget ${budgetMs}ms`).toBeLessThanOrEqual(budgetMs);
+}
+
+async function armScoutingRefreshPaintProbe(page, previousRevision) {
+  return page.evaluate((revision) => {
+    const panel = document.querySelector('[data-workspace-view="scouting"].is-active .scouting-database-panel');
+    if (!panel) {
+      throw new Error("Scouting database panel is unavailable before search timing.");
+    }
+    const form = panel.querySelector("[data-scouting-database-search-form]");
+    if (!form) {
+      throw new Error("Scouting database search form is unavailable before search timing.");
+    }
+    let resolveCompletion;
+    let startedAt = null;
+    const completion = new Promise((resolve) => {
+      resolveCompletion = resolve;
+    });
+    const handleSubmit = () => {
+      if (!Number.isFinite(startedAt)) {
+        startedAt = performance.now();
+      }
+    };
+    form.addEventListener("submit", handleSubmit, { capture: true });
+    const observer = new MutationObserver(() => {
+      const nextRevision = Number(panel.dataset.scoutingRefreshRevision) || 0;
+      if (panel.getAttribute("aria-busy") === "true" || nextRevision <= revision || !resolveCompletion) {
+        return;
+      }
+      const resolvePaint = resolveCompletion;
+      resolveCompletion = null;
+      observer.disconnect();
+      form.removeEventListener("submit", handleSubmit, { capture: true });
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() =>
+          resolvePaint({
+            startedAt,
+            completedAt: performance.now(),
+          })
+        )
+      );
+    });
+    observer.observe(panel, { attributes: true, attributeFilter: ["aria-busy"] });
+    const armedAt = performance.now();
+    window.__footballScienceScoutingSearchPaintProbe = { completion, observer, armedAt };
+    return armedAt;
+  }, previousRevision);
+}
+
+async function getScoutingRefreshPaintCompletion(page) {
+  return page.evaluate(async () => {
+    const probe = window.__footballScienceScoutingSearchPaintProbe;
+    if (!probe?.completion) {
+      throw new Error("Scouting database search paint probe was not armed.");
+    }
+    const result = await probe.completion;
+    if (!Number.isFinite(result?.startedAt) || !Number.isFinite(result?.completedAt)) {
+      throw new Error("Scouting database search paint probe did not observe the submit boundary.");
+    }
+    return result;
+  });
 }
 
 async function getVisibleCenter(locator) {
@@ -347,13 +415,18 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
     async () => {
       await expect(queryInput).toHaveValue(searchTerm);
       const searchStateAfter = await waitForScoutingRefresh(page, searchStateBefore.refreshRevision, {
-        timeout: budgets.searchDatabase,
+        timeout: scoutingInteractionHarnessTimeout,
       });
       expect(
         searchStateAfter.summary !== searchStateBefore.summary ||
           searchStateAfter.recordIds.join("|") !== searchStateBefore.recordIds.join("|")
       ).toBe(true);
-      await waitForScoutingRows(page, { timeout: budgets.searchDatabase });
+      await waitForScoutingRows(page, { timeout: scoutingInteractionHarnessTimeout });
+    },
+    {
+      arm: () => armScoutingRefreshPaintProbe(page, searchStateBefore.refreshRevision),
+      complete: () => getScoutingRefreshPaintCompletion(page),
+      clock: "browser-paint",
     }
   );
 

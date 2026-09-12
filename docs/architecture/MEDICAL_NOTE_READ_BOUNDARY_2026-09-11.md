@@ -1,8 +1,9 @@
 # Medical Note Read Boundary
 
 Date: 2026-09-11. Owner: System / Security. Affected domain: Medical.
-Status: release authorized; QA blocker corrected with user approval. Remote
-migration and production verification remain required.
+Status: release authorized; migration applied and SQL-verified on staging only.
+Additional QA corrections are locally verified; authenticated staging HTTP
+verification, green full CI and production rollout remain required.
 Risk class: Safe Lane (database permissions and private clinical text).
 
 ## Scope And Decision
@@ -93,7 +94,7 @@ successful apply, prefer a forward correction; do not restore broad note grants
 as a routine rollback, since that reopens the original exposure. No data restore
 should be necessary for this schema-only patch.
 
-## Release Attempt: 2026-09-12
+## Initial Release Attempt: 2026-09-12
 
 - Rebased cleanly on `origin/main` at `eb6492a68f2a6b672239f56c790b563804382c4b`.
 - Native PostgreSQL checks passed again: 36/36. `npm run check` and diff-check
@@ -121,6 +122,52 @@ merge and undo assertions remain; no product code or timeout was changed.
 The corrected regression passed 3/3 repetitions; the related playback, clip
 preview and clip review browser matrix passed 53/53. Full release gates must
 still pass before this candidate is considered released.
+
+### Subsequent Staging Attempt And Follow-Up
+
+- Candidate `9dee4f944d0410fb1cb29510c459ef6a12c35a99` passed the full local
+  Safe Lane: 3035 passed, 3 skipped. Branch and staging were pushed; main stayed
+  at `eb6492a68f2a6b672239f56c790b563804382c4b`.
+- GitHub staging run [34704398341](https://github.com/maklind88/footballscience/actions/runs/34704398341)
+  failed three other FS Player browser tests. Its deployment job was skipped;
+  no new Vercel staging or production deployment came from that run.
+- The exact Medical migration was applied to the existing staging database.
+  A real PostgreSQL transaction verified sharing, foreign-team denial,
+  membership revocation and allowed server writes, then rolled back every
+  synthetic row. Counts and the existing policy/trigger/constraint/view
+  contracts were unchanged. No clinical content was retrieved for comparison.
+- Production has not received this migration. The successful staging SQL proof
+  is distinct from an authenticated PostgREST/JWT proof.
+
+The user authorized resolving the remaining blockers. System / Security owns
+this candidate; FS Player changes are limited to these three existing tests:
+
+1. Active-tab colors: replace detached-node-prone one-shot CSS reads with
+   Playwright locator assertions. All three exact expected colors are retained.
+2. Spatial target capture: use an actionable locator drag and require the real
+   prompt/manual button to be ready before continuing. Track assertions remain.
+3. Timeline row reorder: hover the actual visible start point before pointerdown.
+   The old partly clipped start missed the row in 5/10 local repetitions.
+
+No FS Player product source, assertion threshold, timeout or retry count changed.
+Each corrected case passed 10/10; the four-file playback/spatial/row-order/tracking
+browser matrix passed 51/51. Medical API/schema/write and staging-probe contracts
+passed 43/43. `qa:static` passed, including syntax, release, storage, security,
+Supabase, performance and architecture guards.
+
+`scripts/verify-medical-note-staging.mjs` and the dedicated PR workflow add the
+remaining authenticated HTTP proof using the existing staging QA credentials
+in GitHub. They verify the canonical staging backend before login, verify the
+session with Auth, and run eleven `limit=0` probes. Safe view/raw columns must
+be accessible; private raw columns, anonymous view reads and exposed access to
+`app_private` must be denied with their exact HTTP/SQLSTATE codes. The probe
+retrieves no clinical rows, performs no clinical writes, and revokes only its
+own new QA session. It fails closed on missing credentials or wrong backend.
+
+These zero-row requests prove the HTTP/column boundary, not shared-note contents
+or foreign-team row filtering. Those semantics are covered by the synthetic
+native and staging SQL tests above. A green mock test is not a completed remote
+HTTP verification; the dedicated exact-candidate workflow must also pass.
 
 ## Remaining Work
 

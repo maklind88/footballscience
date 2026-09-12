@@ -177,9 +177,9 @@ test("long timelines auto-scroll while dragging and escape preserves code mode",
   await page.mouse.up();
   await expect.poll(() => order(page)).not.toEqual(before);
   const after = await order(page);
-  await build.scrollIntoViewIfNeeded();
+  // A partly clipped row has a bounding box but may not receive pointerdown.
+  await build.hover({ position: { x: 45, y: 8 } });
   const moved = await build.boundingBox();
-  await page.mouse.move(moved.x + 45, moved.y + moved.height / 2);
   await page.mouse.down();
   await page.mouse.move(moved.x + 45, moved.y - 10, { steps: 2 });
   await expect(page.locator(".video-analysis-row-ghost")).toBeVisible();

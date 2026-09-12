@@ -41,11 +41,15 @@ async function drawingSurfaceBox(page) {
 async function addManualTrack(page, playerId, startX, startY, endX, endY, expectedCount) {
   await page.locator('[data-video-analysis-tracking-field="playerId"]').selectOption(playerId);
   await page.locator('[data-video-analysis-tracking-action="select-target"]').click();
-  const box = await drawingSurfaceBox(page);
-  await page.mouse.move(box.x + (box.width * startX), box.y + (box.height * startY));
-  await page.mouse.down();
-  await page.mouse.move(box.x + (box.width * endX), box.y + (box.height * endY));
-  await page.mouse.up();
+  const surface = page.locator("[data-video-analysis-drawing-surface]");
+  const size = await drawingSurfaceBox(page);
+  // Track rows can move the scroller; make the actual start point actionable.
+  await surface.dragTo(surface, {
+    sourcePosition: { x: size.width * startX, y: size.height * startY },
+    targetPosition: { x: size.width * endX, y: size.height * endY },
+  });
+  await expect(page.locator(".video-analysis-track-prompt:not(.is-queued)")).toBeVisible();
+  await expect(page.locator('[data-video-analysis-tracking-action="manual"]')).toBeEnabled();
   await page.locator('[data-video-analysis-tracking-action="manual"]').click();
   await expect(page.locator(".video-analysis-tracking-list li")).toHaveCount(expectedCount);
 }

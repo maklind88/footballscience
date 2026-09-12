@@ -1597,21 +1597,11 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   }
   await expect.poll(() => page.locator(".video-analysis-fs-player-timeline .video-analysis-timeline-tick b").allTextContents())
     .toContain("0:01:00");
-  const timelineClipBlock = await page.evaluate(() => {
-    const block = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-clip-block");
-    const detail = block?.querySelector("em");
-    const time = block?.querySelector("small");
-    return {
-      visibleText: block?.innerText.trim() || "",
-      detailDisplay: detail ? getComputedStyle(detail).display : "",
-      timeDisplay: time ? getComputedStyle(time).display : "",
-    };
-  });
-  expect(timelineClipBlock).toMatchObject({
-    visibleText: "1",
-    detailDisplay: "none",
-    timeDisplay: "none",
-  });
+  const timelineClipBlock = page.locator(".video-analysis-fs-player-timeline .video-analysis-clip-block").first();
+  await expect(timelineClipBlock).toHaveText("");
+  await expect(timelineClipBlock.locator("strong, em, small")).toHaveCount(0);
+  await expect(timelineClipBlock).toHaveAttribute("title", /.+ · 0:00:12 - 0:00:18 · Duration: 6 s/);
+  await expect(timelineClipBlock).toHaveAccessibleName(await timelineClipBlock.getAttribute("title"));
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Code Window");
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Football Science Tag Panel");
   await expect(page.locator('[data-video-analysis-code-button="subPhase-build-up"]')).not.toContainText("15s");
@@ -1683,18 +1673,11 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   expect(Math.abs(codeModeAfterTag.height - codeModeBeforeTag.height)).toBeLessThanOrEqual(4);
   expect(Math.abs(codeModeAfterTag.width - codeModeBeforeTag.width)).toBeLessThanOrEqual(4);
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:01:23");
-  await expect.poll(() => page.evaluate(() => {
-    const block = [...document.querySelectorAll(".video-analysis-clip-block")]
-      .find((item) => String(item.getAttribute("title") || "").includes("0:01:23"));
-    const playhead = document.querySelector(".video-analysis-playhead");
-    return {
-      blockNumber: block?.querySelector("strong")?.textContent || "",
-      blockLeft: block ? Number.parseFloat(block.style.left || "0") : null,
-      playheadLeft: playhead ? Number.parseFloat(playhead.style.left || "0") : null,
-    };
-  })).toMatchObject({
-    blockNumber: "1",
-  });
+  const createdTimelineClip = page.locator('.video-analysis-clip-block[title*="0:01:23"]').first();
+  await expect(createdTimelineClip).toHaveText("");
+  await expect(createdTimelineClip.locator("strong, em, small")).toHaveCount(0);
+  await expect(createdTimelineClip).toHaveAttribute("title", /.+ · 0:01:23 - 0:01:38 · Duration: 15 s/);
+  await expect(createdTimelineClip).toHaveAccessibleName(await createdTimelineClip.getAttribute("title"));
   const alignment = await page.evaluate(() => {
     const block = [...document.querySelectorAll(".video-analysis-clip-block")]
       .find((item) => String(item.getAttribute("title") || "").includes("0:01:23"));
@@ -2176,16 +2159,12 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
   });
   await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("all");
   await expect(page.locator(".video-analysis-lane__label").filter({ hasText: "Tag / Jump press" })).toBeVisible();
-  const jumpPressBlock = await page.evaluate(() => {
-    const block = [...document.querySelectorAll(".video-analysis-clip-block")]
-      .find((item) => String(item.getAttribute("title") || "").includes("Jump press"));
-    return {
-      number: block?.querySelector("strong")?.textContent || "",
-      style: block?.getAttribute("style") || "",
-    };
-  });
-  expect(jumpPressBlock.number).toBe("1");
-  expect(jumpPressBlock.style).toContain("--video-analysis-clip-color:#dc2626;");
+  const jumpPressBlock = page.locator('.video-analysis-clip-block[title*="Jump press"]').first();
+  await expect(jumpPressBlock).toHaveText("");
+  await expect(jumpPressBlock.locator("strong, em, small")).toHaveCount(0);
+  await expect(jumpPressBlock).toHaveAttribute("title", "Tag / Jump press · 0:00:10 - 0:00:22 · Duration: 12 s");
+  await expect(jumpPressBlock).toHaveAccessibleName("Tag / Jump press · 0:00:10 - 0:00:22 · Duration: 12 s");
+  await expect(jumpPressBlock).toHaveAttribute("style", /--video-analysis-clip-color:#dc2626;/);
 });
 
 test("Video Analysis Label selected buttons update the selected timeline clip", async ({ page }) => {

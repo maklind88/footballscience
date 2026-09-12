@@ -164,6 +164,8 @@ for (const width of [1470, 390]) {
       await centerTimelineClip(tiny);
       await expect(tiny).toBeVisible();
     }).toPass({ timeout: 5000 });
+    // Metadata hydration can replace the timeline and reset its scroll position.
+    await tiny.hover({ trial: true });
     const target = await tiny.evaluate(element => {
       const rect = element.getBoundingClientRect();
       const hit = getComputedStyle(element, "::before");

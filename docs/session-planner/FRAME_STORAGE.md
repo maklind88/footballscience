@@ -76,3 +76,15 @@ save counts, revisions, drafts, focus and viewport-restoration assertions remain
 Both corrected cases passed 20 repetitions each, followed by all 55 tests in the
 affected release-contract, recovery-contract and player/clip browser files. No
 release runner, workflow, package file or Video Analysis product code was changed.
+
+After rebasing onto `a044d582`, full QA passed 3,001 tests and stopped before
+publication on two playback tests expecting the timeline's removed clip numbers.
+The approved test correction verifies empty rectangles with descriptive titles
+and accessible names instead; clip save payloads, timing, geometry and custom
+colour assertions remain. The two cases passed three repetitions each. A broader
+run exposed a transient tiny-target test failure during timeline hydration (the
+unmodified case passed ten isolated repetitions). Its setup now waits for a stable,
+actionable target before measuring the same off-centre mouse hit; no click-area
+assertions were relaxed. All 30 playback/rectangle tests then passed three full
+repetitions, 90/90, including desktop and mobile. No product code outside Sessions
+was changed. Full Safe Lane and production verification still determine release.

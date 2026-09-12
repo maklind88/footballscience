@@ -396,20 +396,11 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toBeVisible();
   await expect(page.locator(".video-analysis-fs-player-timeline [data-video-analysis-timeline-module]")).toBeVisible();
   await expect(page.locator(".video-analysis-code-window-dock [data-video-analysis-code-window]")).toBeVisible();
-  const activeRoomTabStyle = await page.locator(".analysis-room-tab.is-active").evaluate((tab) => {
-    const icon = tab.querySelector(".analysis-room-tab-icon");
-    const label = tab.querySelector("span");
-    return {
-      iconColor: icon ? getComputedStyle(icon).color : "",
-      labelColor: label ? getComputedStyle(label).color : "",
-      tabColor: getComputedStyle(tab).color,
-    };
-  });
-  expect(activeRoomTabStyle).toEqual({
-    iconColor: "rgb(248, 255, 249)",
-    labelColor: "rgb(248, 255, 249)",
-    tabColor: "rgb(248, 255, 249)",
-  });
+  const activeRoomTab = page.locator(".analysis-room-tab.is-active");
+  // Metadata loading can replace the tab between resolving it and reading CSS.
+  await expect(activeRoomTab).toHaveCSS("color", "rgb(248, 255, 249)");
+  await expect(activeRoomTab.locator(".analysis-room-tab-icon")).toHaveCSS("color", "rgb(248, 255, 249)");
+  await expect(activeRoomTab.locator("span")).toHaveCSS("color", "rgb(248, 255, 249)");
   await expect.poll(() => page.evaluate(() => {
     const workspace = document.querySelector("[data-video-analysis-fs-player-workstation]")?.getBoundingClientRect();
     const code = document.querySelector(".video-analysis-code-window-dock")?.getBoundingClientRect();
@@ -966,6 +957,8 @@ test("Video Analysis Timeline keeps true scale, overlays clips, and undoes merge
     .locator(".video-analysis-clip-block");
   await restoredHighPressClips.first().dblclick({ position: { x: 3, y: 8 } });
   await expect(page.locator("[data-video-analysis-clip-editor]")).toBeVisible();
+  await page.getByRole("button", { name: "Edit clip", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Edit clip", exact: true })).toBeVisible();
   await page.locator('[data-video-analysis-timeline-edit-field="outcome"]').selectOption("Neutral");
   await page.locator('[data-video-analysis-timeline-edit-field="tags"]').fill("press, regain");
   await page.locator('[data-video-analysis-timeline-edit-field="note"]').fill("Corrected after review.");
@@ -981,6 +974,9 @@ test("Video Analysis Timeline keeps true scale, overlays clips, and undoes merge
     tags: ["press", "regain"],
     note: "Corrected after review.",
   });
+  await expect(page.getByRole("dialog", { name: "Edit clip", exact: true })).toBeHidden();
+  await page.locator("[data-video-analysis-timeline-edit-cancel]").click();
+  await expect(page.locator("[data-video-analysis-clip-editor]")).toBeHidden();
   await undoTimelineChange(page);
   await expect.poll(() => page.evaluate(() => {
     const requests = (window.__videoAnalysisRequests || []).filter((item) => (

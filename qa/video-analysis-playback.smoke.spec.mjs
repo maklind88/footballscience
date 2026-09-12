@@ -966,6 +966,8 @@ test("Video Analysis Timeline keeps true scale, overlays clips, and undoes merge
     .locator(".video-analysis-clip-block");
   await restoredHighPressClips.first().dblclick({ position: { x: 3, y: 8 } });
   await expect(page.locator("[data-video-analysis-clip-editor]")).toBeVisible();
+  await page.getByRole("button", { name: "Edit clip", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Edit clip", exact: true })).toBeVisible();
   await page.locator('[data-video-analysis-timeline-edit-field="outcome"]').selectOption("Neutral");
   await page.locator('[data-video-analysis-timeline-edit-field="tags"]').fill("press, regain");
   await page.locator('[data-video-analysis-timeline-edit-field="note"]').fill("Corrected after review.");
@@ -981,6 +983,9 @@ test("Video Analysis Timeline keeps true scale, overlays clips, and undoes merge
     tags: ["press", "regain"],
     note: "Corrected after review.",
   });
+  await expect(page.getByRole("dialog", { name: "Edit clip", exact: true })).toBeHidden();
+  await page.locator("[data-video-analysis-timeline-edit-cancel]").click();
+  await expect(page.locator("[data-video-analysis-clip-editor]")).toBeHidden();
   await undoTimelineChange(page);
   await expect.poll(() => page.evaluate(() => {
     const requests = (window.__videoAnalysisRequests || []).filter((item) => (

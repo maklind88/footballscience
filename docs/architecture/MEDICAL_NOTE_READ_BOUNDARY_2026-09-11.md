@@ -1,7 +1,8 @@
 # Medical Note Read Boundary
 
 Date: 2026-09-11. Owner: System / Security. Affected domain: Medical.
-Status: release authorized, blocked in local QA; no remote migration or deploy.
+Status: release authorized; QA blocker corrected with user approval. Remote
+migration and production verification remain required.
 Risk class: Safe Lane (database permissions and private clinical text).
 
 ## Scope And Decision
@@ -110,6 +111,16 @@ should be necessary for this schema-only patch.
   performed. Resolve the module test blocker, rerun the required full gate, then
   complete the staging/database/release verification above. This is not a green
   release or a completed database rollout.
+
+### Authorized Test Correction
+
+The user authorized the narrow FS Player test correction and continued Safe Lane.
+The playback test now opens Edit clip, verifies that dialog is visible, and closes
+the saved clip preview before using timeline Undo. All original save, metadata,
+merge and undo assertions remain; no product code or timeout was changed.
+The corrected regression passed 3/3 repetitions; the related playback, clip
+preview and clip review browser matrix passed 53/53. Full release gates must
+still pass before this candidate is considered released.
 
 ## Remaining Work
 

@@ -24,6 +24,8 @@ import { timelineSelectedClipIds } from "../services/clipEditingService.js";
 import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { formatClipEditorTime } from "./timeline.clip-editor.renderer.js";
 import { timelineClipHitInsets } from "./timeline.clip-targets.js";
+import { orderTimelineLanes } from "./timeline.row-order.js";
+import { playerHeaderIcon } from "../components/playerHeaderIcons.js";
 
 function outcomeClass(outcome = "") {
   const value = String(outcome || "neutral").trim().toLowerCase();
@@ -198,16 +200,19 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
       ? `${visibleClips.length}/${lane.clips.length}`
       : String(lane.clips.length);
     return `
-      <div class="video-analysis-lane${isActiveCategory(timeline, laneMode, lane.label) ? " is-selected" : ""}"${safeHexColor(lane.color) ? ` style="--video-analysis-lane-color:${escapeHtml(safeHexColor(lane.color))};"` : ""}>
+      <div class="video-analysis-lane${isActiveCategory(timeline, laneMode, lane.label) ? " is-selected" : ""}" data-video-analysis-row-key="${escapeHtml(lane.id)}"${safeHexColor(lane.color) ? ` style="--video-analysis-lane-color:${escapeHtml(safeHexColor(lane.color))};"` : ""}>
         <button
           type="button"
           class="video-analysis-lane__label"
           data-video-analysis-timeline-category
           data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}"
           data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}"
+          data-video-analysis-row-drag="${escapeHtml(lane.id)}"
+          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
           aria-pressed="${isActiveCategory(timeline, laneMode, lane.label) ? "true" : "false"}"
-          title="${escapeHtml(`Select all ${lane.label} clips`)}"
+          title="${escapeHtml(`${laneDisplayLabel(lane.label, laneMode)}: drag to reorder`)}"
         >
+          <span class="video-analysis-row-grip" data-video-analysis-row-grip aria-hidden="true">${playerHeaderIcon("gripVertical")}</span>
           <strong><span class="video-analysis-lane__name">${escapeHtml(laneDisplayLabel(lane.label, laneMode))}</span> <span class="video-analysis-lane__count">(${escapeHtml(countLabel)})</span></strong>
           ${density.isDense && lane.clipCount ? `<span>${escapeHtml(`${formatVideoTime(lane.firstStartMs)} - ${formatVideoTime(lane.lastEndMs)}`)}</span>` : ""}
         </button>
@@ -304,7 +309,7 @@ export function renderTimeline(state = {}) {
   const laneMode = normalizeTimelineLaneMode(timeline.laneMode);
   const zoom = normalizeTimelineZoom(timeline.zoom);
   const timelineIndex = buildTimelineIndex(clips, laneMode);
-  const lanes = timelineIndex.lanes;
+  const lanes = orderTimelineLanes(timelineIndex.lanes, timeline.rowOrder);
   const laneModeCounts = buildTimelineLaneModeCounts(clips);
   const density = getTimelineDensity(timelineIndex, totalMs);
   const selectedLane = selectedTimelineLane(lanes, laneMode, timeline);
@@ -342,6 +347,7 @@ export function renderTimeline(state = {}) {
         </div>
       </div>
       ${renderTimelineCategoryTray(selectedLane, laneMode, timeline)}
+      <div class="video-analysis-row-order-status" data-video-analysis-row-order-status role="status" aria-live="polite"></div>
     </section>
   `;
 }

@@ -9,6 +9,7 @@
 @import url("./video-analysis.analysis-report.css");
 @import url("./video-analysis.shell.css");
 @import url("./timeline/timeline.clip-editor.css");
+@import url("./timeline/timeline.row-order.css");
 @import url("./components/tag-button-feedback.css");
 
 .video-analysis-library {

@@ -4,6 +4,7 @@ import { renderClipList } from "./components/ClipList.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderFsPlayerWorkspace } from "./components/FsPlayerWorkspace.js";
 import { createTimelineClipEditor, preserveTimelineViewport } from "./timeline/timeline.clip-editor.controller.js";
+import { createTimelineRowOrderController } from "./timeline/timeline.row-order.controller.js";
 import { handlePlayerHeaderClick, handlePlayerHeaderKeydown } from "./controllers/playerHeaderController.js";
 import {
   activeAnalysisRoomTab,
@@ -196,6 +197,9 @@ function getRoot(context = {}) {
 
 function createRuntime(context = {}) {
   const store = createVideoAnalysisStore(context);
+  const timelineRowOrder = createTimelineRowOrderController({
+    store, getContext: () => runtime?.context || context, getRoot: () => getRoot(runtime?.context || context),
+  });
   let collaborationRuntime = null;
   const timelineWorkspaceRuntime = createVideoAnalysisTimelineWorkspaceRuntime({
     context,
@@ -234,6 +238,7 @@ function createRuntime(context = {}) {
   return {
     context,
     store,
+    timelineRowOrder,
     templates: createCodingTemplateRepository(context),
     clips: createClipRepository({
       ...context,
@@ -1645,6 +1650,7 @@ async function ensureMetadataForRestoredReference(run, context = {}, reference =
 }
 
 function paint(root, state) {
+  state = runtime?.timelineRowOrder.prepare(state) || state;
   const previousFsPlayerVideo = root.querySelector(".video-analysis-fs-player-deck [data-video-analysis-video]");
   const previousVideo = previousFsPlayerVideo || root.querySelector("[data-video-analysis-video]");
   const previousSrc = previousVideo?.currentSrc || previousVideo?.src || "";
@@ -2214,7 +2220,7 @@ function findTimelineCategoryClips(state = {}, laneMode = "", label = "") {
 function visibleTimelineLanes(state = {}) {
   const laneMode = normalizeTimelineLaneMode(state.timeline?.laneMode);
   const lanes = buildTimelineLanes(Array.isArray(state.clips) ? state.clips : [], laneMode);
-  return { laneMode, lanes };
+  return { laneMode, lanes: runtime?.timelineRowOrder.orderLanes(lanes, state) || lanes };
 }
 
 function categoryPayloadFromButton(button = {}) {
@@ -3203,6 +3209,7 @@ export function render(context = {}) {
   const run = ensureRuntime(context);
   const root = getRoot(context);
   if (!root) return;
+  run.timelineRowOrder.bind(root);
   bindRootEventFallback(root, context, {
     change: handleChange,
     click: handleClick,
@@ -3264,6 +3271,7 @@ export function render(context = {}) {
 }
 
 export function resetVideoAnalysisRuntimeForTests() {
+  runtime?.timelineRowOrder?.dispose();
   runtime?.timelineClipEditor?.close();
   clearToastDismissTimer(runtime);
   void runtime?.collaborationRuntime?.dispose?.();

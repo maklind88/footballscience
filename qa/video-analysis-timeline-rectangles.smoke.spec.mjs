@@ -90,8 +90,10 @@ for (const width of [1470, 390]) {
           blocks: [...track.querySelectorAll(".video-analysis-clip-block")].map(block => {
             const rect = block.getBoundingClientRect();
             const css = getComputedStyle(block);
+            const marker = getComputedStyle(block, "::after");
             return { id: block.dataset.videoAnalysisSeek, x: rect.x - trackRect.x - track.clientLeft,
               y: rect.y - trackRect.y - track.clientTop, width: rect.width, height: rect.height,
+              markerWidth: parseFloat(marker.width), markerHeight: parseFloat(marker.height),
               radius: css.borderRadius, padding: css.padding, background: css.backgroundColor };
           }),
         };
@@ -105,6 +107,8 @@ for (const width of [1470, 390]) {
       expect(block.height).toBe(result.height);
       expect(block.radius).toBe("0px");
       expect(block.padding).toBe("0px");
+      expect(block.markerWidth).toBeCloseTo(Math.max(6, block.width), 1);
+      expect(block.markerHeight).toBe(block.height);
     }
     expect(byId.short.width).toBeCloseTo(result.width * 15000 / 120000, 1);
     expect(byId.long.width).toBeCloseTo(byId.short.width * 2, 1);
@@ -131,7 +135,10 @@ for (const width of [1470, 390]) {
       .toEqual([]);
     await page.locator("[data-video-analysis-code-mode]").click();
     const code = await geometry();
-    for (const block of code.blocks) expect(block.height).toBe(code.height);
+    for (const block of code.blocks) {
+      expect(block.height).toBe(code.height);
+      expect(block.markerWidth).toBeCloseTo(Math.max(6, block.width), 1);
+    }
     expect(code.blocks.find(block => block.id === "tiny").width).toBeCloseTo(code.width * 100 / 120000, 1);
     await category.click();
     await expectSelectedContrast(category);
@@ -174,13 +181,14 @@ for (const width of [1470, 390]) {
         hitLeft: parseFloat(hit.left), hitRight: parseFloat(hit.right), markerWidth: parseFloat(marker.width) };
     });
     expect(target.width).toBeLessThan(2);
-    expect(target.width + target.markerWidth).toBeGreaterThanOrEqual(0.98);
+    expect(target.markerWidth).toBe(6);
     expect(target.width - target.hitLeft - target.hitRight).toBeCloseTo(16, 1);
     await page.mouse.move(target.x - 4, target.y);
     expect(await tiny.evaluate(element => element.matches(":hover"))).toBe(true);
     await page.mouse.click(target.x - 4, target.y);
     await expect(tiny).toHaveAttribute("aria-pressed", "true");
-    await page.mouse.dblclick(target.x - 4, target.y);
+    // The visible minimum, not only the padded hit area, opens the same clip.
+    await page.mouse.dblclick(target.x + 5, target.y);
     const popup = page.locator("[data-video-analysis-clip-editor]");
     await expect(popup).toHaveAttribute("data-video-analysis-clip-editor", "tiny");
     await popup.getByRole("button", { name: "Close", exact: true }).first().click();
@@ -194,8 +202,8 @@ for (const width of [1470, 390]) {
         return { left: parseFloat(css.left), right: parseFloat(css.right) };
       });
       expect(id === "near-a" ? insets.right : insets.left).toBe(0);
-      // Subpixel neighbours share screen pixels; use their distinct outward hit areas.
-      await page.mouse.click(id === "near-a" ? rect.x - 3 : rect.x + rect.width + 3, rect.y + rect.height / 2);
+      // Minimum-width neighbours may overlap; each retains its outward hit area.
+      await page.mouse.click(id === "near-a" ? rect.x - 3 : rect.x + rect.width + 7, rect.y + rect.height / 2);
       await expect(button).toHaveAttribute("aria-pressed", "true");
     }
     for (const id of ["visible-a", "visible-b"]) {
@@ -217,11 +225,16 @@ for (const width of [1470, 390]) {
         const track = element.parentElement;
         const bounds = track.getBoundingClientRect();
         const hit = getComputedStyle(element, "::before");
+        const marker = getComputedStyle(element, "::after");
         return { left: rect.left + parseFloat(hit.left) - bounds.left - track.clientLeft,
-          right: rect.right - parseFloat(hit.right) - bounds.left - track.clientLeft, width: track.clientWidth };
+          right: rect.right - parseFloat(hit.right) - bounds.left - track.clientLeft, width: track.clientWidth,
+          markerLeft: rect.left + parseFloat(marker.left) - bounds.left - track.clientLeft,
+          markerRight: rect.left + parseFloat(marker.left) + parseFloat(marker.width) - bounds.left - track.clientLeft };
       });
       expect(edges.left).toBeGreaterThanOrEqual(-0.05);
       expect(edges.right).toBeLessThanOrEqual(edges.width + 0.05);
+      expect(edges.markerLeft).toBeGreaterThanOrEqual(-0.05);
+      expect(edges.markerRight).toBeLessThanOrEqual(edges.width + 0.05);
     }
     expect(await page.evaluate(() => window.__videoAnalysisRequests.filter(request => request.action === "save-clip"))).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`timeline-tiny-targets-${width}.png`) });

@@ -107,8 +107,8 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
         <button type="button" data-video-analysis-clip-editor-delete-confirm>Delete clip</button>
       </div>
       <footer>
-        ${canEdit ? '<button type="button" class="video-analysis-clip-editor__delete" data-video-analysis-clip-editor-delete>Delete</button>' : ""}
         <button type="button" data-clip-edit-back>Back</button>
+        ${canEdit ? '<button type="button" class="video-analysis-clip-editor__delete" data-video-analysis-clip-editor-delete>Delete</button>' : ""}
         ${canEdit ? `<button type="submit" class="video-analysis-clip-editor__save" data-video-analysis-timeline-edit-save>${review ? "Save clip" : "Save"}</button>` : ""}
       </footer>
       </dialog>

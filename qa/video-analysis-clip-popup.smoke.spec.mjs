@@ -87,6 +87,12 @@ for (const width of [1470, 390]) {
     await expect(field(page, "startMs")).toBeVisible();
     await expect(field(page, "startMs")).toBeFocused();
     expect(await popup.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    const deleteButton = popup.locator("[data-video-analysis-clip-editor-delete]");
+    await expect(deleteButton.locator("+ [data-video-analysis-timeline-edit-save]")).toHaveCount(1);
+    const deleteBox = await deleteButton.boundingBox();
+    const saveBox = await popup.locator("[data-video-analysis-timeline-edit-save]").boundingBox();
+    expect(saveBox.x - deleteBox.x - deleteBox.width).toBeCloseTo(8, 1);
+    expect(saveBox.y).toBe(deleteBox.y);
     await page.screenshot({ path: testInfo.outputPath(`clip-timing-tool-${width}.png`) });
     await field(page, "duration").fill("16");
     await page.keyboard.press("Escape");

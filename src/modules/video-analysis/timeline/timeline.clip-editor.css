@@ -111,7 +111,7 @@
 .video-analysis-clip-editor__tools .video-analysis-clip-editor__close:hover { background: #dae8df; }
 .video-analysis-clip-editor__tools [aria-expanded="true"] { color: #15573c; background: #eaf3ed; }
 .video-analysis-clip-editor footer { z-index: 1; display: flex; flex-shrink: 0; justify-content: flex-end; gap: 8px; padding-top: 8px; background: #fff; border-top: 1px solid #dce3de; }
-.video-analysis-clip-editor button.video-analysis-clip-editor__delete { margin-right: auto; color: #a52e28; border-color: transparent; }
+.video-analysis-clip-editor button.video-analysis-clip-editor__delete { color: #a52e28; border-color: transparent; }
 .video-analysis-clip-editor button.video-analysis-clip-editor__save { color: #fff; background: #15573c; border-color: #15573c; }
 .video-analysis-clip-editor button.video-analysis-clip-editor__save:hover { background: #103f2c; }
 .video-analysis-clip-editor__error { flex-shrink: 0; color: #a32f27; margin: 0; font-size: 13px; }

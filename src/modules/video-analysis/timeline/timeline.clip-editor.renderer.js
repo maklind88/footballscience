@@ -50,7 +50,6 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
       </div>
     </header>
     <form data-video-analysis-timeline-editor novalidate>
-      ${renderClipReview(review, clip.id)}
       <div class="video-analysis-clip-editor__layout">
       <section class="video-analysis-clip-editor__media" aria-label="Clip preview">
         <div class="video-analysis-clip-editor__screen">
@@ -68,6 +67,7 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
         </div>
       </section>
       </div>
+      ${renderClipReview(review, clip.id, clip)}
       <div class="video-analysis-clip-editor__confirm" data-clip-review-close-confirm hidden>
         <span>Discard unsaved changes?</span>
         <button type="button" data-clip-review-keep>Keep editing</button>

@@ -3,9 +3,11 @@ import { playerHeaderIcon } from "../components/playerHeaderIcons.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { getClipStartMs, getClipEndMs } from "./timeline.selectors.js";
 
+const byClipTime = (a, b) => getClipStartMs(a) - getClipStartMs(b) || getClipEndMs(a) - getClipEndMs(b);
+
 export function createClipReview(clips = [], title = "Clips") {
   const unique = [...new Map(clips.filter(clip => clip?.id).map(clip => [clip.id, clip])).values()];
-  const entries = unique.sort((a, b) => getClipStartMs(a) - getClipStartMs(b) || getClipEndMs(a) - getClipEndMs(b))
+  const entries = unique.sort(byClipTime)
     .map(clip => ({ clip: structuredClone(clip), draft: null }));
   return {
     title, entries,
@@ -16,6 +18,7 @@ export function createClipReview(clips = [], title = "Clips") {
     saved(clip) {
       const entry = entries.find(item => item.clip.id === clip?.id);
       if (entry) { entry.clip = structuredClone(clip); entry.draft = null; }
+      entries.sort((a, b) => byClipTime(a.clip, b.clip));
     },
     remove(id) {
       const index = entries.findIndex(item => item.clip.id === id);
@@ -27,8 +30,11 @@ export function createClipReview(clips = [], title = "Clips") {
   };
 }
 
-export function renderClipReview(review, activeId) {
-  if (!review) return "";
+export function renderClipReview(review, activeId, singleClip = null) {
+  if (!review) {
+    if (!singleClip?.id) return "";
+    review = { title: "Selected", entries: [{ clip: singleClip, draft: null }] };
+  }
   const index = review.entries.findIndex(entry => entry.clip.id === activeId);
   return `<nav class="video-analysis-clip-review" data-clip-review-nav aria-label="${escapeHtml(review.title)} clips">
     <div class="video-analysis-clip-review__position">

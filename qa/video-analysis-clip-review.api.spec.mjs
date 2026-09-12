@@ -36,6 +36,26 @@ test("row review removes only the requested clip and chooses a remaining neighbo
   expect(review.entries).toEqual([]);
 });
 
+test("saving new times reorders the review without losing another clip's draft", () => {
+  const review = createClipReview(clips);
+  review.remember("b", { fields: { note: "Keep this" }, principles: [] }, {});
+  review.saved({ ...clips[1], revision: 4, startMs: 10000, endMs: 12000 });
+  expect(review.entries.map(entry => entry.clip.id)).toEqual(["b", "a"]);
+  expect(review.entries[0].draft.fields.note).toBe("Keep this");
+  expect(review.entries[1]).toMatchObject({ clip: { id: "a", revision: 4 }, draft: null });
+  expect(clips[1].startMs).toBe(1000);
+});
+
+test("a single clip uses the same numbered strip with no unrelated clips", () => {
+  const html = renderClipReview(null, "a", clips[1]);
+  expect(html.match(/data-clip-review-select=/g)).toHaveLength(1);
+  expect(html).toContain('data-clip-review-select="a" aria-pressed="true"');
+  expect(html).toContain("0:00:01 - 0:00:03");
+  expect(html).toContain('title="Previous clip" disabled');
+  expect(html).toContain('title="Next clip" disabled');
+  expect(renderClipReview(null, "a")).toBe("");
+});
+
 test("row review navigation escapes labels and exposes selection and unsaved state", () => {
   const review = createClipReview([{ ...clips[0], id: 'x" onclick="bad()' }], '<img src=x>');
   review.remember(review.entries[0].clip.id, { note: "changed" }, {});

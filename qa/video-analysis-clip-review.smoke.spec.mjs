@@ -92,6 +92,13 @@ for (const [width, height] of [[1470, 772], [1280, 720], [1920, 1080], [844, 390
     expect(closeBox.y).toBeGreaterThanOrEqual(0);
     expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(width);
     expect(await page.locator(popup).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    const strip = page.locator("[data-clip-review-nav]");
+    const stripBox = await strip.boundingBox();
+    const transportBox = await page.locator(".video-analysis-clip-editor__transport").boundingBox();
+    expect(stripBox.y).toBeGreaterThanOrEqual(transportBox.y + transportBox.height);
+    expect(stripBox.y + stripBox.height).toBeLessThanOrEqual(height);
+    expect(stripBox.height).toBeLessThanOrEqual(70);
+    expect(await page.locator(select(2)).evaluate(el => getComputedStyle(el).color)).toBe("rgb(18, 63, 43)");
     await expect(page.locator(field("phase"))).toBeHidden();
     await page.screenshot({ path: testInfo.outputPath(`row-review-${width}.png`) });
     const screen = page.locator(".video-analysis-clip-editor__screen");
@@ -111,6 +118,10 @@ for (const [width, height] of [[1470, 772], [1280, 720], [1920, 1080], [844, 390
     await page.screenshot({ path: testInfo.outputPath(`row-edit-${width}.png`) });
     await back(page);
     await page.locator(select(4)).click();
+    const lastBox = await page.locator(select(4)).boundingBox();
+    const listBox = await strip.locator("ol").boundingBox();
+    expect(lastBox.x).toBeGreaterThanOrEqual(listBox.x);
+    expect(lastBox.x + lastBox.width).toBeLessThanOrEqual(listBox.x + listBox.width + 1);
     await expect(page.locator(field("note"))).toHaveValue("Note 4");
     await expect(page.locator(popup).getByRole("button", { name: "Next clip" })).toBeDisabled();
     if (width === 1470 || width === 390) await close.click();
@@ -216,6 +227,26 @@ test("row review delete removes one clip, keeps the other three and remains undo
   await page.locator("[data-video-analysis-player-settings]").click();
   await page.locator("[data-video-analysis-timeline-undo]").click();
   await expect(page.locator(highPress)).toContainText("(4)");
+});
+
+test("saved timing edits keep the bottom strip chronological and the same clip selected", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTimeline(page);
+  await page.locator(highPress).dblclick();
+  await edit(page);
+  await page.locator(field("endMs")).fill("0:00:04.600");
+  await page.locator(field("startMs")).fill("0:00:04.100");
+  await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await expect(page.locator("#video-analysis-clip-edit-dialog")).not.toBeVisible();
+  expect(await page.locator("[data-clip-review-select]").evaluateAll(items => items.map(el => el.dataset.clipReviewSelect)))
+    .toEqual(["row-clip-2", "row-clip-3", "row-clip-4", "row-clip-1"]);
+  await expect(page.locator(select(1))).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(select(1)).locator("strong")).toHaveText("4");
+  const active = await page.locator(select(1)).boundingBox();
+  const list = await page.locator("[data-clip-review-nav] ol").boundingBox();
+  expect(active.x).toBeGreaterThanOrEqual(list.x);
+  expect(active.x + active.width).toBeLessThanOrEqual(list.x + list.width + 1);
+  expect((await writes(page))[0].body.clip).toMatchObject({ id: "row-clip-1", startMs: 4100, endMs: 4600 });
 });
 
 test("row review saves a clip repeatedly using its latest revision", async ({ page }) => {

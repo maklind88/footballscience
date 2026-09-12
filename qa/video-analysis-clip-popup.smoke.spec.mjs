@@ -77,6 +77,11 @@ for (const width of [1470, 390]) {
     await expect(popup.locator("[data-video-analysis-clip-preview]")).toHaveCount(1);
     await expect(popup.getByRole("button", { name: "Reconnect local file" })).toBeVisible();
     await expect(popup.getByRole("button", { name: "Play clip", exact: true })).toBeDisabled();
+    await expect(popup.locator("[data-clip-review-select]")).toHaveCount(1);
+    await expect(popup.locator("[data-clip-review-select]")).toHaveAttribute("aria-pressed", "true");
+    const stripBox = await popup.locator("[data-clip-review-nav]").boundingBox();
+    const transportBox = await popup.locator(".video-analysis-clip-editor__transport").boundingBox();
+    expect(stripBox.y).toBeGreaterThanOrEqual(transportBox.y + transportBox.height);
     const box = await popup.boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(width);

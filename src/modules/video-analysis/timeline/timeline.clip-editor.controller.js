@@ -101,20 +101,21 @@ export function createTimelineClipEditor({ getState, getRoot, save, remove, paus
   }
 
   function refreshReviewNav() {
-    if (!review || !dialog) return;
-    dialog.querySelector("[data-clip-review-nav]").outerHTML = renderClipReview(review, activeClip.id);
+    if (!dialog) return;
+    dialog.querySelector("[data-clip-review-nav]").outerHTML = renderClipReview(review, activeClip.id, activeClip);
+    rememberDraft();
+    dialog.querySelector('[data-clip-review-select][aria-pressed="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   function rememberDraft() {
     const draft = readClipEditorDraft(dialog);
-    dialog.querySelector("[data-clip-review-notice]").textContent = JSON.stringify(draft) === JSON.stringify(baseline) ? "" : "Unsaved";
-    if (!review) return;
-    review.remember(activeClip.id, draft, baseline);
-    const entry = review.entries.find(item => item.clip.id === activeClip.id);
+    const dirty = JSON.stringify(draft) !== JSON.stringify(baseline);
+    dialog.querySelector("[data-clip-review-notice]").textContent = dirty ? "Unsaved" : "";
+    review?.remember(activeClip.id, draft, baseline);
     const button = [...dialog.querySelectorAll("[data-clip-review-select]")].find(item => item.dataset.clipReviewSelect === activeClip.id);
     if (button) {
-      button.querySelector("[data-clip-review-dirty]").hidden = !entry?.draft;
-      button.setAttribute("aria-description", entry?.draft ? "Unsaved changes" : "");
+      button.querySelector("[data-clip-review-dirty]").hidden = !dirty;
+      button.setAttribute("aria-description", dirty ? "Unsaved changes" : "");
     }
   }
 

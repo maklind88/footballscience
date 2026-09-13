@@ -43,15 +43,19 @@ async function addManualTrack(page, playerId, startX, startY, endX, endY, expect
   await page.locator('[data-video-analysis-tracking-action="select-target"]').click();
   const surface = page.locator("[data-video-analysis-drawing-surface]");
   const size = await drawingSurfaceBox(page);
-  // Track rows can move the scroller; make the actual start point actionable.
-  await surface.dragTo(surface, {
-    sourcePosition: { x: size.width * startX, y: size.height * startY },
-    targetPosition: { x: size.width * endX, y: size.height * endY },
-  });
+  // Settle scrolling before capture; dragTo may scroll its target during a drag.
+  await surface.hover({ position: { x: size.width * startX, y: size.height * startY } });
+  const box = await surface.boundingBox();
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * endX, box.y + box.height * endY);
+  await page.mouse.up();
   await expect(page.locator(".video-analysis-track-prompt:not(.is-queued)")).toBeVisible();
   await expect(page.locator('[data-video-analysis-tracking-action="manual"]')).toBeEnabled();
   await page.locator('[data-video-analysis-tracking-action="manual"]').click();
   await expect(page.locator(".video-analysis-tracking-list li")).toHaveCount(expectedCount);
+  // The local track appears before metadata persistence completes and clears the prompt.
+  await expect(page.locator(".video-analysis-track-prompt:not(.is-queued)")).toHaveCount(0);
+  await expect(page.locator('[data-video-analysis-tracking-action="manual"]')).toBeDisabled();
 }
 
 async function placeLandmark(page, landmarkId, x, y, expectedCount) {

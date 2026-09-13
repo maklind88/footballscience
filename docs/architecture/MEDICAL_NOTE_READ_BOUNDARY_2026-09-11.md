@@ -1,9 +1,10 @@
 # Medical Note Read Boundary
 
 Date: 2026-09-11. Owner: System / Security. Affected domain: Medical.
-Status: release authorized; migration applied and SQL-verified on staging only.
-Additional QA corrections are locally verified; authenticated staging HTTP
-verification, green full CI and production rollout remain required.
+Status: release authorized; the exact migration is applied and verified on
+staging and production. Authenticated production HTTP checks passed. Application
+rollout remains blocked by browser-test failures on main; this is not a completed
+application release.
 Risk class: Safe Lane (database permissions and private clinical text).
 
 ## Scope And Decision
@@ -112,6 +113,29 @@ out of scope. The migration SQL is unchanged.
 - New probe contracts passed 27/27, including wrong-target and elevated-token
   rejection. Production application and database release are not yet declared
   complete by this preparation evidence.
+
+### Database Rollout And Application Gate
+
+- Applied only the reviewed migration to production on 2026-09-13. Its SHA-256 is
+  `31ca34323b2acb7b3a30320973f7bf25d37ea6a294776b80ab4045780a60de1c`.
+  The migration history was aligned to canonical version `20260911185738` only
+  after verifying the exact stored SQL digest and a single matching history row.
+- Source counts/content digests, existing RLS policies, view contracts and
+  backend write grants were unchanged. Read-only role probes confirmed safe
+  reads and private-note denials. Security advisors reported no lints.
+- Production Monitor run `34743670588` passed all seven live checks, including
+  the 11 authenticated/anonymous zero-row Medical HTTP assertions and existing
+  backup freshness, restore readiness and no-write restore drill.
+- Candidate `3238000a` passed local QA (3,055 passed, three existing skips),
+  branch CI and staging deploy `34743661193`. Main and staging reached that SHA.
+  The production application workflow was not started: main QA `34744205424`
+  failed an FS Player spatial interaction and a Scouting mobile keyboard test.
+- The FS Player test now settles scrolling before its pointer gesture and waits
+  for the manual-track prompt to clear after persistence before selecting the
+  next player. Its desktop/mobile matrix passed 20 repeated checks. No tracking
+  engine, Medical SQL, Scouting source or release guard was changed.
+- A green complete release gate and verified production application deployment
+  remain required. Do not remove the verified database protection while waiting.
 
 ## Initial Release Attempt: 2026-09-12
 

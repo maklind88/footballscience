@@ -94,6 +94,25 @@ successful apply, prefer a forward correction; do not restore broad note grants
 as a routine rollback, since that reopens the original exposure. No data restore
 should be necessary for this schema-only patch.
 
+## Scoped Release Takeover: 2026-09-13
+
+The user explicitly transferred this single release to the FS Player task so it
+can complete before the independent playlist release. Other Medical work remains
+out of scope. The migration SQL is unchanged.
+
+- Candidate `fc972a8e` passed full GitHub QA and authenticated staging HTTP proof
+  (11/11 zero-row checks). Native PostgreSQL 17 tests passed again: 36/36.
+- Production Monitor run `34738653273` verified backup freshness, restore
+  readiness, a no-write restore drill, staging isolation and authenticated smoke.
+- Production metadata matches the audited tables, invoker views, team policies,
+  role helper and service-role write grants. Security advisors reported no lints.
+- The live QA suite now repeats the same zero-row HTTP checks after deployment.
+  Staging and production entry points are separately pinned to their canonical
+  project and origin rules; public config is checked before credentials are sent.
+- New probe contracts passed 27/27, including wrong-target and elevated-token
+  rejection. Production application and database release are not yet declared
+  complete by this preparation evidence.
+
 ## Initial Release Attempt: 2026-09-12
 
 - Rebased cleanly on `origin/main` at `eb6492a68f2a6b672239f56c790b563804382c4b`.

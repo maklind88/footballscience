@@ -1,7 +1,5 @@
 import { pathToFileURL } from "node:url";
 
-const stagingRef = "pokrksgempkuraueglpu";
-const supabaseOrigin = `https://${stagingRef}.supabase.co`;
 const surfaces = [
   ["medical_availability_recommendations", "medical_coach_availability"],
   ["medical_availability_plans", "medical_coach_availability_plans"],
@@ -18,15 +16,21 @@ function jwtClaims(token) {
 
 // This complements the synthetic PostgreSQL row-policy tests. limit=0 checks
 // HTTP authentication/column privileges without retrieving any clinical rows.
-export async function verifyMedicalNoteStaging({ env = process.env, fetchImpl = fetch, report = console.log } = {}) {
-  for (const name of ["STAGING_QA_BASE_URL", "STAGING_SUPABASE_PROJECT_REF", "STAGING_QA_USERNAME", "STAGING_QA_PASSWORD"]) {
+async function verifyMedicalNoteBoundary({ env = process.env, fetchImpl = fetch, report = console.log } = {}, production = false) {
+  const prefix = production ? "LIVE" : "STAGING";
+  const label = production ? "Production" : "Staging";
+  const projectRef = production ? "bustidorxevacosqhkcz" : "pokrksgempkuraueglpu";
+  const supabaseOrigin = `https://${projectRef}.supabase.co`;
+  const refKey = production ? "SUPABASE_PROJECT_REF" : "STAGING_SUPABASE_PROJECT_REF";
+  for (const name of [`${prefix}_QA_BASE_URL`, refKey, `${prefix}_QA_USERNAME`, `${prefix}_QA_PASSWORD`]) {
     requireCheck(Boolean(env[name]?.trim()), `Missing ${name}`);
   }
-  requireCheck(env.STAGING_SUPABASE_PROJECT_REF === stagingRef, "Expected canonical staging Supabase ref");
-  const base = new URL(env.STAGING_QA_BASE_URL);
+  requireCheck(env[refKey] === projectRef, `Expected canonical ${label} Supabase ref`);
+  const base = new URL(env[`${prefix}_QA_BASE_URL`]);
   requireCheck(base.protocol === "https:" && !base.username && !base.password
     && base.pathname === "/" && !base.search && !base.hash
-    && !["footballscience.xyz", "www.footballscience.xyz"].includes(base.hostname), "Expected isolated staging origin");
+    && (production ? base.hostname === "footballscience.xyz"
+      : !["footballscience.xyz", "www.footballscience.xyz"].includes(base.hostname)), `Expected ${label} origin`);
 
   async function request(url, options = {}) {
     const response = await fetchImpl(url, { ...options, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(30_000) });
@@ -35,23 +39,23 @@ export async function verifyMedicalNoteStaging({ env = process.env, fetchImpl = 
   }
   const configUrl = new URL("/api/client-config", base).href;
   const config = await request(configUrl);
-  requireCheck(config.status === 200 && config.payload?.ok === true, "Staging client config unavailable");
-  requireCheck(config.payload.url?.replace(/\/$/, "") === supabaseOrigin, "Staging backend mismatch; login not attempted");
+  requireCheck(config.status === 200 && config.payload?.ok === true, `${label} client config unavailable`);
+  requireCheck(config.payload.url?.replace(/\/$/, "") === supabaseOrigin, `${label} backend mismatch; login not attempted`);
   const apiKey = config.payload.anonKey;
   requireCheck(typeof apiKey === "string" && apiKey.length > 0, "Missing publishable API key");
   if (!apiKey.startsWith("sb_publishable_")) {
     const claims = jwtClaims(apiKey);
-    requireCheck(claims.role === "anon" && claims.ref === stagingRef, "Expected staging public API key, never server privileges");
+    requireCheck(claims.role === "anon" && claims.ref === projectRef, `Expected ${label} public API key, never server privileges`);
   }
   const login = await request(configUrl, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: env.STAGING_QA_USERNAME, password: env.STAGING_QA_PASSWORD }),
+    body: JSON.stringify({ email: env[`${prefix}_QA_USERNAME`], password: env[`${prefix}_QA_PASSWORD`] }),
   });
-  requireCheck(login.status === 200 && login.payload?.session?.access_token, "Staging QA login failed");
+  requireCheck(login.status === 200 && login.payload?.session?.access_token, `${label} QA login failed`);
   const token = login.payload.session.access_token;
   const claims = jwtClaims(token);
   requireCheck(claims.iss === `${supabaseOrigin}/auth/v1` && claims.role === "authenticated"
-    && typeof claims.sub === "string" && claims.sub.length > 0, "QA session is not a staging authenticated principal");
+    && typeof claims.sub === "string" && claims.sub.length > 0, `QA session is not a ${label} authenticated principal`);
   const headers = { apikey: apiKey, Authorization: `Bearer ${token}` };
   let checks = 0;
   async function read(relation, columns, expectedStatus, code, anonymous = false, schema = "public") {
@@ -86,8 +90,16 @@ export async function verifyMedicalNoteStaging({ env = process.env, fetchImpl = 
     const logout = await request(`${supabaseOrigin}/auth/v1/logout?scope=local`, { method: "POST", headers });
     requireCheck(logout.status === 204, "QA session cleanup failed");
   }
-  report(`Medical staging HTTP boundary: ${checks}/${checks} passed; no clinical rows fetched or changed.`);
+  report(`Medical ${label.toLowerCase()} HTTP boundary: ${checks}/${checks} passed; no clinical rows fetched or changed.`);
   return { checks, clinicalRowsRead: 0, dataWrites: 0 };
+}
+
+export function verifyMedicalNoteStaging(options) {
+  return verifyMedicalNoteBoundary(options, false);
+}
+
+export function verifyMedicalNoteProduction(options) {
+  return verifyMedicalNoteBoundary(options, true);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

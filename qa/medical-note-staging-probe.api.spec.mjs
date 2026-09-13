@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { verifyMedicalNoteStaging } from "../scripts/verify-medical-note-staging.mjs";
+import { verifyMedicalNoteProduction, verifyMedicalNoteStaging } from "../scripts/verify-medical-note-staging.mjs";
 
 const ref = "pokrksgempkuraueglpu";
 const origin = `https://${ref}.supabase.co`;
@@ -10,17 +10,24 @@ const env = {
   STAGING_QA_PASSWORD: "synthetic-test-password",
 };
 const jwt = claims => `test.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.test`;
+const productionEnv = {
+  LIVE_QA_BASE_URL: "https://footballscience.xyz",
+  SUPABASE_PROJECT_REF: "bustidorxevacosqhkcz",
+  LIVE_QA_USERNAME: "synthetic-qa@example.test",
+  LIVE_QA_PASSWORD: "synthetic-test-password",
+};
 
 function harness(overrides = {}) {
   const requests = [], messages = [];
-  const token = jwt({ iss: `${origin}/auth/v1`, role: "authenticated", sub: "synthetic-user", ...overrides.claims });
+  const backend = overrides.production ? "https://bustidorxevacosqhkcz.supabase.co" : origin;
+  const token = jwt({ iss: `${backend}/auth/v1`, role: "authenticated", sub: "synthetic-user", ...overrides.claims });
   const fetchImpl = async (address, options = {}) => {
     const url = new URL(address);
     requests.push({ url, options });
     const response = (status, payload) => ({ status, json: async () => payload });
     if (url.pathname === "/api/client-config") {
       if (options.method === "POST") return response(200, { session: { access_token: token } });
-      return response(200, { ok: true, url: overrides.backend || origin, anonKey: "sb_publishable_synthetic" });
+      return response(200, { ok: true, url: overrides.backend || backend, anonKey: "sb_publishable_synthetic" });
     }
     if (url.pathname === "/auth/v1/user") return response(200, { id: overrides.userId || "synthetic-user" });
     if (url.pathname === "/auth/v1/logout") return response(overrides.logoutStatus || 204, {});
@@ -31,7 +38,8 @@ function harness(overrides = {}) {
     if (["coach_note", "internal_note"].includes(url.searchParams.get("select"))) return response(403, { code: "42501" });
     return response(200, []);
   };
-  return { requests, messages, run: nextEnv => verifyMedicalNoteStaging({ env: nextEnv || env, fetchImpl, report: value => messages.push(value) }) };
+  const verify = overrides.production ? verifyMedicalNoteProduction : verifyMedicalNoteStaging;
+  return { requests, messages, run: nextEnv => verify({ env: nextEnv || (overrides.production ? productionEnv : env), fetchImpl, report: value => messages.push(value) }) };
 }
 
 test("staging probe verifies eleven HTTP boundaries with no row reads, writes or global logout", async () => {
@@ -96,4 +104,41 @@ test("cleanup failure is not reported as successful verification", async () => {
   const h = harness({ logoutStatus: 500 });
   await expect(h.run()).rejects.toThrow("cleanup failed");
   expect(h.messages.some(m => m.includes("passed"))).toBe(false);
+});
+
+test("production probe is pinned to Live and reads zero rows with a non-service session", async () => {
+  const h = harness({ production: true });
+  expect(await h.run()).toEqual({ checks: 11, clinicalRowsRead: 0, dataWrites: 0 });
+  const reads = h.requests.filter(r => r.url.pathname.startsWith("/rest/v1/"));
+  expect(reads).toHaveLength(11);
+  expect(reads.every(r => r.url.origin === "https://bustidorxevacosqhkcz.supabase.co"
+    && r.url.searchParams.get("limit") === "0" && !r.options.method)).toBe(true);
+  expect(h.requests.at(-1).url.searchParams.get("scope")).toBe("local");
+  expect(h.messages.join("\n")).not.toContain(productionEnv.LIVE_QA_PASSWORD);
+});
+
+for (const patch of [
+  { LIVE_QA_BASE_URL: "https://qa.example.test" },
+  { SUPABASE_PROJECT_REF: ref },
+  { LIVE_QA_BASE_URL: "http://footballscience.xyz" },
+  { LIVE_QA_PASSWORD: "" },
+]) {
+  test(`production probe rejects wrong target or missing credentials: ${JSON.stringify(patch)}`, async () => {
+    const h = harness({ production: true });
+    await expect(h.run({ ...productionEnv, ...patch })).rejects.toThrow();
+    expect(h.requests).toHaveLength(0);
+  });
+}
+
+test("production probe stops before credentials on a staging backend", async () => {
+  const h = harness({ production: true, backend: origin });
+  await expect(h.run()).rejects.toThrow("backend mismatch");
+  expect(h.requests).toHaveLength(1);
+});
+
+test("production probe rejects a service-role token and readable private columns", async () => {
+  await expect(harness({ production: true, claims: { role: "service_role" } }).run()).rejects.toThrow("authenticated principal");
+  const h = harness({ production: true, rest: (url, options, response) => response(200, []) });
+  await expect(h.run()).rejects.toThrow();
+  expect(h.requests.at(-1).url.pathname).toBe("/auth/v1/logout");
 });

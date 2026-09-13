@@ -36,5 +36,6 @@ test("overview clips have descriptive names and precise times without visible nu
   expect(html).not.toContain("video-analysis-clip-block__copy");
   expect(html).not.toContain("<strong>1</strong>");
   expect(html).toContain('aria-label="High Press · 0:00:10 - 0:00:10.100 · Duration: 0.1 s · Drive past press"');
-  expect(html).toContain('title="Drive past press · 0:00:10 - 0:00:10.100 · Duration: 0.1 s"');
+  expect(html).toContain('title="High Press · 0:00:10 - 0:00:10.100 · Duration: 0.1 s · Drive past press"');
+  expect(html).not.toContain('data-video-analysis-timeline-category-label="MG Principle / Drive past press"');
 });

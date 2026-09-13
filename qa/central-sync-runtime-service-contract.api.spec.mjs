@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { createCentralSyncRuntimeService } from "../src/core/central-sync-runtime-service.mjs";
+import { createSessionSaveClient } from "../src/modules/session-planner/session-save-client.mjs";
+import { applySessionDateChange, sessionDateValue } from "../src/modules/session-planner/session-save-protocol.mjs";
 
 function createManifest() {
   return {
@@ -160,6 +162,183 @@ test("denied durable Sessions writes remain pending without blocking another mod
   expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
   expect(h.syncCalls.map((call) => call.key)).toEqual([key, other]);
   expect(h.autosaveStatuses.some(([current, status]) => current === key && status === "saved")).toBe(false);
+});
+
+test("an external retry resumes a timed-out queued Sessions save without losing the local edit", async () => {
+  const key = "football-session-planner-v1";
+  const value = "synthetic unsynced training for two days";
+  const h = createServiceHarness({ syncResults: [
+    { ok: false, status: 0, durablePending: true, reason: "Request timed out. Try again." },
+    { ok: true, value, metadata: { revision: 8 } },
+  ] });
+  const fireTimer = async () => {
+    expect(h.timers.size).toBe(1);
+    const [id, callback] = [...h.timers][0];
+    h.timers.delete(id);
+    await callback();
+  };
+  h.rawValues.set(key, value);
+  h.service.queueCentralStateWrite(key, value);
+  await fireTimer();
+  expect(h.syncCalls).toHaveLength(1);
+  expect(h.timers.size).toBe(0);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.rawValues.get(key)).toBe(value);
+  expect(h.autosaveStatuses.some(([, status]) => status === "saved")).toBe(false);
+
+  await h.service.retryCentral(() => h.manifest);
+  await h.service.retryCentral(() => h.manifest);
+  await fireTimer();
+  expect(h.syncCalls).toHaveLength(2);
+  expect(h.syncCalls[1].value).toBe(value);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+  expect(h.rawValues.get(key)).toBe(value);
+  expect(h.autosaveStatuses.at(-1)).toEqual([key, "saved", "Saved"]);
+  expect(h.timers.size).toBe(0);
+});
+
+test("external recovery drains the real Sessions journal after a lost reply with server revision checks", async () => {
+  const key = "football-session-planner-v1", date = "2026-09-14", scope = "qa-coach:qa-org:qa-team";
+  const before = { sessions: { [date]: { date, title: "Training", blocks: [{ id: "block-a", title: "Press", minutes: 15 }] } } };
+  before.blockDeletionTombstones = { [date]: {} };
+  const desired = structuredClone(before);
+  desired.sessions[date].blocks[0].title = "Press together";
+  let server = structuredClone(before), revision = 7, id = 0, acknowledge;
+  const rows = new Map(), posts = [];
+  const client = createSessionSaveClient({
+    getScope: () => scope,
+    makeId: () => `recovery-edit-${++id}`,
+    store: {
+      list: async (owner) => [...rows.values()].filter((row) => row.scope === owner).map((row) => structuredClone(row)),
+      put: async (row) => { rows.set(row.change.id, structuredClone(row)); },
+      remove: async (rowId) => { rows.delete(rowId); },
+    },
+    send: async (change, baseRevision) => {
+      posts.push({ change: structuredClone(change), baseRevision });
+      if (baseRevision !== revision) return { ok: false, status: 409, payload: { currentRevision: revision } };
+      const applied = applySessionDateChange(server, change);
+      expect(applied.ok).toBe(true);
+      server = applied.state;
+      revision++;
+      if (posts.length === 1) return { ok: false, status: 0, payload: { reason: "Request timed out. Try again." } };
+      await new Promise((resolve) => { acknowledge = resolve; });
+      return { ok: true, payload: { sessionChange: { id: change.id, date, value: sessionDateValue(server, date) }, metadata: { revision } } };
+    },
+  });
+  client.observe(JSON.stringify(before), { revision });
+  const h = createServiceHarness({ syncKey: async () => client.replay() });
+  h.win.footballScienceCentralState.stageSessionWrite = client.stage;
+  h.win.footballScienceCentralState.getSessionPendingState = client.pendingState;
+  const value = JSON.stringify(desired);
+  h.rawValues.set(key, value);
+  h.service.queueCentralStateWrite(key, value, { previousValue: JSON.stringify(before) });
+  const fireTimer = () => {
+    expect(h.timers.size).toBe(1);
+    const [timer, callback] = [...h.timers][0];
+    h.timers.delete(timer);
+    return callback();
+  };
+  expect(await fireTimer()).toBe(false);
+  expect(server).toEqual(desired);
+  expect(rows.size).toBe(1);
+  expect(h.timers.size).toBe(0);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  await h.service.retryCentral(() => h.manifest);
+  const retry = fireTimer();
+  await expect.poll(() => typeof acknowledge).toBe("function");
+  expect(posts.map((post) => post.baseRevision)).toEqual([7, 7, 8]);
+  expect(new Set(posts.map((post) => post.change.id)).size).toBe(1);
+  expect(rows.size).toBe(1);
+  expect(h.rawValues.get(key)).toBe(value);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.autosaveStatuses.some(([, status]) => status === "saved")).toBe(false);
+  acknowledge();
+  expect(await retry).toBe(true);
+  expect(server).toEqual(desired);
+  expect(server.sessions[date].blocks).toHaveLength(1);
+  expect(rows.size).toBe(0);
+  expect(await client.isSettled()).toBe(true);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+  expect(h.autosaveStatuses.at(-1)).toEqual([key, "saved", "Saved"]);
+  expect(h.timers.size).toBe(0);
+});
+
+test("a retry that times out again preserves pending data without a self-scheduled loop", async () => {
+  const key = "football-session-planner-v1";
+  const h = createServiceHarness({ syncResult: {
+    ok: false, status: 0, durablePending: true, reason: "Request timed out. Try again.",
+  } });
+  h.rawValues.set(key, "local training");
+  h.service.queueCentralStateWrite(key, "local training");
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    expect(h.timers.size).toBe(1);
+    const [id, callback] = [...h.timers][0];
+    h.timers.delete(id);
+    await callback();
+    expect(h.syncCalls).toHaveLength(attempt);
+    expect(h.timers.size).toBe(0);
+    expect(h.rawValues.get(key)).toBe("local training");
+    expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+    if (attempt === 1) await h.service.retryCentral(() => h.manifest);
+  }
+  expect(h.autosaveStatuses.some(([, status]) => status === "saved")).toBe(false);
+});
+
+test("a timed-out retry acknowledgement cannot clear a newer queued local edit", async () => {
+  const key = "football-session-planner-v1";
+  let attempt = 0, finishRetry;
+  const h = createServiceHarness({ syncKey: async ({ value }) => {
+    attempt += 1;
+    if (attempt === 1) return { ok: false, status: 0, durablePending: true };
+    if (attempt === 2) return new Promise((resolve) => { finishRetry = resolve; });
+    return { ok: true, value, revision: 9 };
+  } });
+  const fire = () => {
+    expect(h.timers.size).toBe(1);
+    const [id, callback] = [...h.timers][0];
+    h.timers.delete(id);
+    return callback();
+  };
+  h.rawValues.set(key, "A");
+  h.service.queueCentralStateWrite(key, "A");
+  await fire();
+  await h.service.retryCentral(() => h.manifest);
+  const retry = fire();
+  h.rawValues.set(key, "B");
+  h.service.queueCentralStateWrite(key, "B");
+  await h.service.retryCentral(() => h.manifest);
+  finishRetry({ ok: true, value: "A", revision: 8 });
+  await retry;
+  expect(h.rawValues.get(key)).toBe("B");
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.autosaveStatuses.some(([, status]) => status === "saved")).toBe(false);
+  await fire();
+  expect(h.syncCalls.map((call) => call.value)).toEqual(["A", "A", "B"]);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+  expect(h.rawValues.get(key)).toBe("B");
+  expect(h.timers.size).toBe(0);
+});
+
+test("external retry still checks automatic write access before sending a retained write", async () => {
+  const key = "football-medical-team-v1";
+  let allowed = true;
+  const h = createServiceHarness({ canAutoSyncKey: () => allowed, syncResult: { ok: false, status: 0 } });
+  h.rawValues.set(key, "private draft");
+  h.service.queueCentralStateWrite(key, "private draft", { automatic: true });
+  const fire = async () => {
+    const [id, callback] = [...h.timers][0];
+    h.timers.delete(id);
+    await callback();
+  };
+  await fire();
+  await h.service.retryCentral(() => h.manifest);
+  allowed = false;
+  await fire();
+  expect(h.syncCalls).toHaveLength(1);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.rawValues.get(key)).toBe("private draft");
+  expect(h.autosaveStatuses.some(([, status]) => status === "saved")).toBe(false);
+  expect(h.timers.size).toBe(0);
 });
 
 test("central sync runtime queues protected writes with revision metadata and flushes through the bridge", async () => {

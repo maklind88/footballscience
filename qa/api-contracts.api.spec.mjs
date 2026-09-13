@@ -1071,6 +1071,10 @@ test("date-scoped Sessions API preserves other training, returns a bounded recei
     expect(request.body.length).toBeLessThan(2000);
     const saved = await callHandler(handler, request);
     expect(saved.status).toBe(200);
+    for (const phase of ["auth", "bucket", "read", "authorize", "receipt", "state", "history"]) {
+      expect(saved.headers["server-timing"]).toMatch(new RegExp(`(?:^|, )${phase};dur=\\d+\\.\\d`));
+    }
+    expect(saved.headers["server-timing"]).not.toContain("New objective");
     expect(saved.payload.value).toBeUndefined();
     const receipt = JSON.parse(await decodeSessionStateValue(appStateSessionPlannerKey, saved.payload.sessionChange));
     expect(receipt).toMatchObject({ id: change.id, date, value: { session: { blocks: [{ objective: "New objective" }] } } });

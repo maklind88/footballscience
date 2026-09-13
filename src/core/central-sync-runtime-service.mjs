@@ -142,7 +142,12 @@ export function createCentralSyncRuntimeService(deps = {}) {
   }
 
   async function retryCentral(readManifest) {
-    if (centralStateWriteTimer || centralStateWriteQueue.size || centralStateWriteFlushPromise || win.__footballScienceCentralHydrating || !getCurrentUser() || !getCentralStateBridge()?.syncKey) return;
+    if (centralStateWriteTimer || centralStateWriteFlushPromise || win.__footballScienceCentralHydrating || !getCurrentUser() || !getCentralStateBridge()?.syncKey) return;
+    if (centralStateWriteQueue.size) {
+      // Resume retained writes on an external recovery event, never a failure loop.
+      centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
+      return;
+    }
     const userId = getCurrentUser()?.id;
     try {
       const durableState = getCentralStateBridge()?.getSessionPendingState ? await getCentralStateBridge().getSessionPendingState() : null;

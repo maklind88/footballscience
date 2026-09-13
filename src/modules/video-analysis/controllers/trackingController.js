@@ -360,15 +360,28 @@ export function createTrackingController(options = {}) {
     const captureMode = state.presentation?.tracking?.captureMode;
     if (!captureMode) return false;
     const start = normalizedPointer(event, surface);
-    activeInteraction = { captureMode, start, surface, pointerId: event.pointerId };
+    activeInteraction = { captureMode, start, surface, pointerId: event.pointerId, itemId: selectedItem(state)?.id };
     event.preventDefault?.();
     surface?.setPointerCapture?.(event.pointerId);
     return true;
   }
 
+  function interactionSurface(interaction) {
+    const state = getState();
+    if (selectedItem(state)?.id !== interaction.itemId
+      || state.presentation?.tracking?.captureMode !== interaction.captureMode) return null;
+    const surface = interaction.surface;
+    // Autosave can repaint the canvas during capture; detached nodes have zero bounds.
+    return surface?.isConnected === false
+      ? surface.ownerDocument?.querySelector?.("[data-video-analysis-drawing-surface]") || null
+      : surface;
+  }
+
   function updateInteraction(event) {
     if (!activeInteraction) return false;
-    activeInteraction.end = normalizedPointer(event, activeInteraction.surface);
+    const surface = interactionSurface(activeInteraction);
+    if (!surface) return false;
+    activeInteraction.end = normalizedPointer(event, surface);
     event.preventDefault?.();
     return true;
   }
@@ -377,7 +390,9 @@ export function createTrackingController(options = {}) {
     if (!activeInteraction) return false;
     const interaction = activeInteraction;
     activeInteraction = null;
-    const end = normalizedPointer(event, interaction.surface);
+    const surface = interactionSurface(interaction);
+    if (!surface) return true;
+    const end = normalizedPointer(event, surface);
     const state = getState();
     const item = selectedItem(state);
     const current = state.presentation?.tracking?.prompt || trackingPrompt(itemRange(item || {}));

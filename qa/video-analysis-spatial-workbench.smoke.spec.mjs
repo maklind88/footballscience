@@ -47,9 +47,17 @@ async function addManualTrack(page, playerId, startX, startY, endX, endY, expect
   await surface.hover({ position: { x: size.width * startX, y: size.height * startY } });
   const box = await surface.boundingBox();
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width * endX, box.y + box.height * endY);
+  await page.mouse.move(box.x + box.width * endX, box.y + box.height * endY, { steps: 8 });
   await page.mouse.up();
-  await expect(page.locator(".video-analysis-track-prompt:not(.is-queued)")).toBeVisible();
+  const prompt = page.locator(".video-analysis-track-prompt:not(.is-queued)");
+  await expect(prompt).toBeVisible();
+  const geometry = await prompt.evaluate(element => Object.fromEntries(
+    ["left", "top", "width", "height"].map(key => [key, parseFloat(element.style[key])]),
+  ));
+  expect(geometry.left).toBeCloseTo(startX * 100, 1);
+  expect(geometry.top).toBeCloseTo(startY * 100, 1);
+  expect(geometry.width).toBeCloseTo((endX - startX) * 100, 1);
+  expect(geometry.height).toBeCloseTo((endY - startY) * 100, 1);
   await expect(page.locator('[data-video-analysis-tracking-action="manual"]')).toBeEnabled();
   await page.locator('[data-video-analysis-tracking-action="manual"]').click();
   await expect(page.locator(".video-analysis-tracking-list li")).toHaveCount(expectedCount);

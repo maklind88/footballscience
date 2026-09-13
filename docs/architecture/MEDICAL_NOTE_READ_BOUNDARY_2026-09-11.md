@@ -137,6 +137,28 @@ out of scope. The migration SQL is unchanged.
 - A green complete release gate and verified production application deployment
   remain required. Do not remove the verified database protection while waiting.
 
+### Tracking Repaint Defect Found At The Production Gate
+
+Candidate `60d88d5b0254b3111b752dc8f4e46c4cbd000504` passed the complete
+local gate, staging deployment `34745720969` (including authenticated Medical
+HTTP checks) and main QA `34746232401`. Production workflow `34746657266`
+then reproduced the spatial-target failure; its deployment job was skipped.
+The application was not published by that run.
+
+A slower eight-step pointer gesture reproduced a real controller defect.
+Benchmark autosave repaints the drawing surface during capture. The controller
+retained the detached element, whose zero bounds produced fallback coordinates
+and an oversized target. The next target gesture then hit the wrong track.
+
+The narrowly scoped FS Player correction resolves the live replacement surface
+before reading coordinates and cancels when the selected clip, capture mode or
+surface no longer matches. Six contracts cover unchanged/replaced/scrolled
+surfaces and cancellation. Browser assertions now check the exact target box
+geometry during realistic multi-step gestures. The desktop/mobile browser and
+contract matrix passed all 80 repeated checks. Medical SQL, saved clinical data,
+Scouting code and release guards are unchanged. A new complete Safe Lane release
+and production verification are still required.
+
 ## Initial Release Attempt: 2026-09-12
 
 - Rebased cleanly on `origin/main` at `eb6492a68f2a6b672239f56c790b563804382c4b`.

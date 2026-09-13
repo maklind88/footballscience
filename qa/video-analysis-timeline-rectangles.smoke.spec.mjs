@@ -75,7 +75,7 @@ for (const width of [1470, 390]) {
     const phase = timeline.locator('[data-video-analysis-timeline-category-label="Phase / In Possession"]');
     const principle = timeline.locator('[data-video-analysis-timeline-category-label="MG Principle / Drive past press"]');
     await expect(phase).toHaveText("In Possession (1)");
-    await expect(principle).toHaveText("Drive past press (1)");
+    await expect(principle).toHaveCount(0);
     await expect(timeline.locator(".video-analysis-clip-block").first()).toHaveText("");
     await expect(lane.locator('[data-video-analysis-seek="short"]'))
       .toHaveAttribute("title", "High Press · 0:00:10 - 0:00:25 · Duration: 15 s");
@@ -119,7 +119,7 @@ for (const width of [1470, 390]) {
     expect(byId["duplicate-time"].x).toBe(byId.long.x);
     expect(byId["duplicate-time"].width).toBe(byId.long.width);
 
-    for (const row of [phase, principle, category]) {
+    for (const row of [phase, category]) {
       await row.click();
       await expectSelectedContrast(row);
     }
@@ -146,13 +146,14 @@ for (const width of [1470, 390]) {
     expect(code.blocks.find(block => block.id === "tiny").width).toBeCloseTo(code.width * 100 / 120000, 1);
     await category.click();
     await expectSelectedContrast(category);
-    await principle.dblclick();
+    await phase.dblclick();
     const popup = page.locator("[data-video-analysis-clip-editor]");
-    await expect(popup.getByRole("heading")).toHaveText("Drive past press (1)");
+    await expect(popup.getByRole("heading")).toHaveText("In Possession");
     await expect(popup.locator("[data-clip-review-select] strong")).toHaveText("1");
+    await expect(popup.locator("[data-video-analysis-principle-count]")).toHaveText("1");
     await popup.getByRole("button", { name: "Close", exact: true }).first().click();
     await expect(popup).not.toBeVisible();
-    await expectSelectedContrast(principle);
+    await expectSelectedContrast(phase);
     expect(errors).toEqual([]);
   });
 

@@ -78,11 +78,11 @@ test("timeline shortens visible names without changing category identity or save
   expect(html).toContain('data-video-analysis-timeline-category-label="Sub-phase / High Press"');
   expect(html).toContain('data-video-analysis-timeline-category-label="Player / Ally Schlegel"');
   expect(html).toContain('data-video-analysis-timeline-category-label="Phase / In Possession"');
-  expect(html).toContain('data-video-analysis-timeline-category-label="MG Principle / Drive past press"');
+  expect(html).not.toContain('data-video-analysis-timeline-category-label="MG Principle / Drive past press"');
   expect(html).toContain('class="video-analysis-lane__name">High Press</span>');
   expect(html).toContain('class="video-analysis-lane__name">Ally Schlegel</span>');
   expect(html).toContain('class="video-analysis-lane__name">In Possession</span>');
-  expect(html).toContain('class="video-analysis-lane__name">Drive past press</span>');
+  expect(html).toContain("Drive past press");
   expect(html).not.toContain('class="video-analysis-lane__name">Sub-phase /');
   expect(html).not.toContain('class="video-analysis-lane__name">Player /');
   expect(html).not.toContain('class="video-analysis-lane__name">Phase /');

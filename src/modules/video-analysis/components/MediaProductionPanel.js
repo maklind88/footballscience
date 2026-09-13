@@ -30,7 +30,7 @@ function renderAngleButton(state = {}, angle = {}, activeId = "") {
   const connected = Boolean(mediaReferenceForAngle(state, angle)?.objectUrl);
   return `
     <div class="video-analysis-media-angle${angle.id === activeId ? " is-active" : ""}${connected ? " is-connected" : " is-missing"}">
-      <button type="button" data-video-analysis-media-action="select-angle" data-video-analysis-media-angle="${escapeHtml(angle.id)}" aria-pressed="${angle.id === activeId}" ${connected ? "" : "disabled"}>
+      <button type="button" data-video-analysis-media-action="select-angle" data-video-analysis-media-angle="${escapeHtml(angle.id)}" aria-pressed="${angle.id === activeId}" ${connected && !state.mediaProduction?.portable?.playback?.active ? "" : "disabled"}>
         <span>${escapeHtml(angle.role === "primary" ? "P" : angle.role.slice(0, 1).toUpperCase())}</span>
         <strong>${escapeHtml(angle.label || "Camera angle")}</strong>
         <small>${escapeHtml(connected ? `${(angle.syncOffsetMs / 1000).toFixed(2)} s` : "Reconnect")}</small>
@@ -373,19 +373,21 @@ export function renderMediaProductionToggle(state = {}) {
   const connected = connectedAngles(state).length;
   const active = activeMediaAngle(state);
   const reference = activeMediaReference(state);
-  return `<button type="button" class="video-analysis-player-header-button video-analysis-player-camera-button" data-video-analysis-media-action="toggle" aria-label="Cameras and media" title="${escapeHtml(`Cameras and media: ${connected}/${angles.length} cameras / ${reference?.objectUrl ? active?.label || "Primary" : "reconnect"}`)}" aria-expanded="${Boolean(media.panelOpen)}" aria-controls="video-analysis-media-panel">${playerHeaderIcon("camera")}</button>`;
+  return `<button type="button" class="video-analysis-player-header-button video-analysis-player-camera-button" data-video-analysis-media-action="toggle" aria-label="Cameras and media" title="${escapeHtml(`Cameras and media: ${connected}/${angles.length} cameras / ${reference?.objectUrl ? active?.label || "Primary" : "reconnect"}. Next camera: Alt+C. Previous: Alt+Shift+C.`)}" aria-keyshortcuts="Alt+C Alt+Shift+C" aria-haspopup="dialog" aria-expanded="${Boolean(media.panelOpen)}" aria-controls="video-analysis-media-panel">${playerHeaderIcon("camera")}</button>`;
 }
 
 export function renderMediaProductionPanel(state = {}) {
   const media = state.mediaProduction || {};
   return `
-    <section id="video-analysis-media-panel" class="video-analysis-media-production${media.panelOpen ? " is-open" : ""}" data-video-analysis-media-production ${media.panelOpen ? "" : "hidden"}>
+    <dialog id="video-analysis-media-panel" class="video-analysis-media-production${media.panelOpen ? " is-open" : ""}" data-video-analysis-media-production aria-labelledby="video-analysis-camera-title" ${media.panelOpen ? "" : "hidden"}>
       <header>
-        <nav aria-label="Media production">
-          ${["angles", "capture", "proxy", "replay", "export", "share"].map((panel) => `<button type="button" class="${media.panel === panel ? "is-active" : ""}" data-video-analysis-media-panel="${panel}" aria-pressed="${media.panel === panel}">${panel[0].toUpperCase()}${panel.slice(1)}</button>`).join("")}
-        </nav>
+        <h2 id="video-analysis-camera-title">Cameras and media</h2>
+        <button type="button" class="video-analysis-camera-close" data-video-analysis-media-action="close" aria-label="Close cameras and media" title="Close" autofocus>${playerHeaderIcon("x")}</button>
       </header>
+      <nav aria-label="Media production">
+        ${["angles", "capture", "proxy", "replay", "export", "share"].map((panel) => `<button type="button" class="${media.panel === panel ? "is-active" : ""}" data-video-analysis-media-panel="${panel}" aria-pressed="${media.panel === panel}">${panel[0].toUpperCase()}${panel.slice(1)}</button>`).join("")}
+      </nav>
       ${media.panelOpen ? `<div class="video-analysis-media-production__body">${renderPanelBody(state)}${media.error ? `<p class="video-analysis-media-warning">${escapeHtml(media.error)}</p>` : ""}</div>` : ""}
-    </section>
+    </dialog>
   `;
 }

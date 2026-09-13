@@ -927,7 +927,7 @@ test("legacy phase clips do not appear as Phase lanes in sub-phase timeline", as
   expect(phaseIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Out of Possession:2"]);
 });
 
-test("timeline MG Principle view only shows clips with tagged MG principles", async () => {
+test("saved MG timeline view falls back to clips grouped by sub-phase", async () => {
   const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
   const clips = [
     {
@@ -954,11 +954,11 @@ test("timeline MG Principle view only shows clips with tagged MG principles", as
   ];
 
   const miniGameIndex = timelineService.buildTimelineIndex(clips, "miniGamePrinciple");
-  expect(miniGameIndex.clipCount).toBe(1);
-  expect(miniGameIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Third Player:1"]);
+  expect(miniGameIndex.clipCount).toBe(2);
+  expect(miniGameIndex.lanes.map(lane => lane.label).sort()).toEqual(["Sub-phase / Build Up", "Sub-phase / High Press"]);
 });
 
-test("MG principle clip kind stays out of Sub-phase lanes while keeping its own MG lane", async () => {
+test("historical MG clips remain reachable in All Tags under their existing sub-phase", async () => {
   const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
   const clips = [
     {
@@ -990,8 +990,8 @@ test("MG principle clip kind stays out of Sub-phase lanes while keeping its own 
   expect(subPhaseIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["High Press:1"]);
 
   const miniGameIndex = timelineService.buildTimelineIndex(clips, "miniGamePrinciple");
-  expect(miniGameIndex.clipCount).toBe(1);
-  expect(miniGameIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Press (within press-radius):1"]);
+  expect(miniGameIndex.clipCount).toBe(2);
+  expect(miniGameIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Sub-phase / High Press:2"]);
 });
 
 test("MG principles derive their searchable sub-phase from the principle group", async () => {

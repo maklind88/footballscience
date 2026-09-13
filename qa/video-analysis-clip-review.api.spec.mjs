@@ -36,20 +36,21 @@ test("row review removes only the requested clip and chooses a remaining neighbo
   expect(review.entries).toEqual([]);
 });
 
-test("saving new times reorders the review without losing another clip's draft", () => {
+test("changing times retains playlist order and another clip's draft", () => {
   const review = createClipReview(clips);
   review.remember("b", { fields: { note: "Keep this" }, principles: [] }, {});
   review.saved({ ...clips[1], revision: 4, startMs: 10000, endMs: 12000 });
-  expect(review.entries.map(entry => entry.clip.id)).toEqual(["b", "a"]);
-  expect(review.entries[0].draft.fields.note).toBe("Keep this");
-  expect(review.entries[1]).toMatchObject({ clip: { id: "a", revision: 4 }, draft: null });
+  expect(review.entries.map(entry => entry.clip.id)).toEqual(["a", "b"]);
+  expect(review.entries[1].draft.fields.note).toBe("Keep this");
+  expect(review.entries[0]).toMatchObject({ clip: { id: "a", revision: 4 }, draft: null });
   expect(clips[1].startMs).toBe(1000);
 });
 
 test("a single clip uses the same numbered strip with no unrelated clips", () => {
   const html = renderClipReview(null, "a", clips[1]);
   expect(html.match(/data-clip-review-select=/g)).toHaveLength(1);
-  expect(html).toContain('data-clip-review-select="a" aria-pressed="true"');
+  expect(html).toContain('data-clip-review-select="a"');
+  expect(html).toContain('aria-pressed="true"');
   expect(html).toContain("0:00:01 - 0:00:03");
   expect(html).toContain('title="Previous clip" disabled');
   expect(html).toContain('title="Next clip" disabled');

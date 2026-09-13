@@ -5,9 +5,9 @@ import { getClipStartMs, getClipEndMs } from "./timeline.selectors.js";
 
 const byClipTime = (a, b) => getClipStartMs(a) - getClipStartMs(b) || getClipEndMs(a) - getClipEndMs(b);
 
-export function createClipReview(clips = [], title = "Clips") {
+export function createClipReview(clips = [], title = "Clips", { preserveOrder = false } = {}) {
   const unique = [...new Map(clips.filter(clip => clip?.id).map(clip => [clip.id, clip])).values()];
-  const entries = unique.sort(byClipTime)
+  const entries = (preserveOrder ? unique : unique.sort(byClipTime))
     .map(clip => ({ clip: structuredClone(clip), draft: null }));
   return {
     title, entries,
@@ -18,7 +18,14 @@ export function createClipReview(clips = [], title = "Clips") {
     saved(clip) {
       const entry = entries.find(item => item.clip.id === clip?.id);
       if (entry) { entry.clip = structuredClone(clip); entry.draft = null; }
-      entries.sort((a, b) => byClipTime(a.clip, b.clip));
+    },
+    move(id, targetId, after = false) {
+      const from = entries.findIndex(entry => entry.clip.id === id);
+      if (from < 0 || id === targetId || !entries.some(entry => entry.clip.id === targetId)) return false;
+      const [entry] = entries.splice(from, 1);
+      const target = entries.findIndex(item => item.clip.id === targetId);
+      entries.splice(target + (after ? 1 : 0), 0, entry);
+      return true;
     },
     remove(id) {
       const index = entries.findIndex(item => item.clip.id === id);
@@ -43,7 +50,7 @@ export function renderClipReview(review, activeId, singleClip = null) {
       <button type="button" data-clip-review-step="1" aria-label="Next clip" title="Next clip" ${index >= review.entries.length - 1 ? "disabled" : ""}>${playerHeaderIcon("chevronRight")}</button>
     </div>
     <ol>${review.entries.map(({ clip, draft }, itemIndex) => `<li>
-      <button type="button" data-clip-review-select="${escapeHtml(clip.id)}" aria-pressed="${clip.id === activeId}" aria-description="${draft ? "Unsaved changes" : ""}" aria-label="Clip ${itemIndex + 1}, ${formatVideoTime(getClipStartMs(clip))} to ${formatVideoTime(getClipEndMs(clip))}">
+      <button type="button" data-clip-review-select="${escapeHtml(clip.id)}" draggable="true" aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight" title="Move clip: drag or Alt+Left/Right" aria-pressed="${clip.id === activeId}" aria-description="${draft ? "Unsaved changes" : ""}" aria-label="Clip ${itemIndex + 1}, ${formatVideoTime(getClipStartMs(clip))} to ${formatVideoTime(getClipEndMs(clip))}">
         <strong>${itemIndex + 1}</strong><span>${formatVideoTime(getClipStartMs(clip))} - ${formatVideoTime(getClipEndMs(clip))}</span>
         <small data-clip-review-dirty ${draft ? "" : "hidden"}>Unsaved</small>
       </button>

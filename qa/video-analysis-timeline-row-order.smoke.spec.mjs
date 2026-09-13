@@ -69,7 +69,7 @@ test("drag moves the whole row, persists after reload and leaves clip times unto
   await expect(press).toHaveAttribute("aria-pressed", "true");
   await press.dblclick();
   await expect(page.locator("[data-video-analysis-clip-editor]")).toBeVisible();
-  await expect(page.locator("[data-video-analysis-clip-editor]").getByRole("heading")).toHaveText("High Press (1)");
+  await expect(page.locator("[data-video-analysis-clip-editor]").getByRole("heading")).toHaveText("High Press");
   await page.locator("[data-video-analysis-clip-editor]").getByRole("button", { name: "Close", exact: true }).first().click();
   await expect(press).toBeFocused();
   expect(await page.evaluate(() => window.__videoAnalysisRequests.filter(request => request.action === "save-clip"))).toEqual([]);

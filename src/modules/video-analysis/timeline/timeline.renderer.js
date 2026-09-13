@@ -26,6 +26,7 @@ import { formatClipEditorTime } from "./timeline.clip-editor.renderer.js";
 import { timelineClipHitInsets } from "./timeline.clip-targets.js";
 import { orderTimelineLanes } from "./timeline.row-order.js";
 import { playerHeaderIcon } from "../components/playerHeaderIcons.js";
+import { playlistTimelineLanes } from "./timeline.playlist-rows.js";
 
 function outcomeClass(outcome = "") {
   const value = String(outcome || "neutral").trim().toLowerCase();
@@ -162,11 +163,6 @@ function renderClipBlock(clip = {}, window = {}, label = "", selectedClipIds = n
   `;
 }
 
-function isActiveCategory(timeline = {}, laneMode = "phase", label = "") {
-  const selected = timeline.selectedCategory || {};
-  return selected.laneMode === laneMode && selected.label === label;
-}
-
 function laneDisplayLabel(label = "", laneMode = "phase") {
   return laneMode === "all" ? label.replace(/^(Phase|Sub-phase|MG Principle|Player) \/ /, "") : label;
 }
@@ -195,21 +191,23 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
     `;
   }
   return visibleLanes.map(({ lane, visibleClips }) => {
+    const selected = lane.clips.length > 0 && lane.clips.every(clip => selectedClipIds.has(clip.id));
     const hitInsets = timelineClipHitInsets(visibleClips, window);
     const countLabel = window.mode === "focus" && visibleClips.length !== lane.clips.length
       ? `${visibleClips.length}/${lane.clips.length}`
       : String(lane.clips.length);
     return `
-      <div class="video-analysis-lane${isActiveCategory(timeline, laneMode, lane.label) ? " is-selected" : ""}" data-video-analysis-row-key="${escapeHtml(lane.id)}"${safeHexColor(lane.color) ? ` style="--video-analysis-lane-color:${escapeHtml(safeHexColor(lane.color))};"` : ""}>
+      <div class="video-analysis-lane${selected ? " is-selected" : ""}" data-video-analysis-row-key="${escapeHtml(lane.id)}"${safeHexColor(lane.color) ? ` style="--video-analysis-lane-color:${escapeHtml(safeHexColor(lane.color))};"` : ""}>
         <button
           type="button"
           class="video-analysis-lane__label"
           data-video-analysis-timeline-category
           data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}"
           data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}"
+          ${lane.playlistRow ? `data-video-analysis-playlist-row="${escapeHtml(lane.id)}"` : ""}
           data-video-analysis-row-drag="${escapeHtml(lane.id)}"
           aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-          aria-pressed="${isActiveCategory(timeline, laneMode, lane.label) ? "true" : "false"}"
+          aria-pressed="${selected ? "true" : "false"}"
           title="${escapeHtml(`${laneDisplayLabel(lane.label, laneMode)}: drag to reorder`)}"
         >
           <span class="video-analysis-row-grip" data-video-analysis-row-grip aria-hidden="true">${playerHeaderIcon("gripVertical")}</span>
@@ -228,7 +226,7 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
             laneDisplayLabel(lane.label, laneMode),
             selectedClipIds,
             hitInsets[index],
-            isActiveCategory(timeline, laneMode, lane.label),
+            selected,
             findClipButton(clip, buttonLookup),
             lane.color
           )).join("")}
@@ -309,7 +307,7 @@ export function renderTimeline(state = {}) {
   const laneMode = normalizeTimelineLaneMode(timeline.laneMode);
   const zoom = normalizeTimelineZoom(timeline.zoom);
   const timelineIndex = buildTimelineIndex(clips, laneMode);
-  const lanes = orderTimelineLanes(timelineIndex.lanes, timeline.rowOrder);
+  const lanes = orderTimelineLanes([...timelineIndex.lanes, ...playlistTimelineLanes(state)], timeline.rowOrder);
   const laneModeCounts = buildTimelineLaneModeCounts(clips);
   const density = getTimelineDensity(timelineIndex, totalMs);
   const selectedLane = selectedTimelineLane(lanes, laneMode, timeline);

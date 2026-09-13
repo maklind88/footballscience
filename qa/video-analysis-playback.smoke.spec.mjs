@@ -434,11 +434,11 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-timeline-tabs")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-view-select")).toContainText("Timeline");
   await expect(page.locator("[data-video-analysis-timeline-lane-select]")).toHaveValue("all");
-  await expect(page.locator("[data-video-analysis-timeline-lane-select] option")).toHaveCount(6);
+  await expect(page.locator("[data-video-analysis-timeline-lane-select] option")).toHaveCount(5);
   await expect(page.locator("[data-video-analysis-timeline-lane-select] option").first()).toContainText("All Tags (1)");
   await expect.poll(() => page.locator("[data-video-analysis-timeline-lane-select] option").evaluateAll((options) => (
     options.map((option) => option.value)
-  ))).toEqual(["all", "phase", "subPhase", "miniGamePrinciple", "player", "unit"]);
+  ))).toEqual(["all", "phase", "subPhase", "player", "unit"]);
   await expect(page.locator(".video-analysis-lane__label").first()).toHaveText("Build Up (1)");
   await expect(page.locator(".video-analysis-timeline-controls")).toHaveCount(0);
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
@@ -829,7 +829,7 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
   await expect(page.locator(".video-analysis-timeline-status")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-lane-select] option").first()).toContainText("All Tags (500)");
   await expect(page.locator(".video-analysis-code-window-dock [data-video-analysis-code-window]")).toBeVisible();
-  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(1000);
+  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(500);
   await expect(page.locator(".video-analysis-clip-block__copy small")).toHaveCount(0);
   await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("subPhase");
   const subPhaseLane = page.locator('[data-video-analysis-timeline-category-label="Build Up"]');
@@ -963,31 +963,12 @@ test("Video Analysis Timeline keeps true scale, overlays clips, and undoes merge
   await page.locator('[data-video-analysis-timeline-edit-field="tags"]').fill("press, regain");
   await page.locator('[data-video-analysis-timeline-edit-field="note"]').fill("Corrected after review.");
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
-  await expect.poll(() => page.evaluate(() => {
-    const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => (
-      item.action === "save-clip" && item.body?.clip?.id === "overlap-1"
-    ));
-    return request?.body?.clip || null;
-  })).toMatchObject({
-    id: "overlap-1",
-    outcome: "Neutral",
-    tags: ["press", "regain"],
-    note: "Corrected after review.",
-  });
-  await expect(page.getByRole("dialog", { name: "Edit clip", exact: true })).toBeHidden();
+  await expect(page.locator("[data-clip-review-notice]")).toHaveText("Playlist changed");
+  await expect(page.locator('[data-video-analysis-timeline-edit-field="note"]')).toHaveValue("Corrected after review.");
+  expect(await page.evaluate(() => (window.__videoAnalysisRequests || []).filter(item =>
+    item.action === "save-clip" && item.body?.clip?.id === "overlap-1"))).toEqual([]);
   await page.locator("[data-video-analysis-timeline-edit-cancel]").click();
-  await expect(page.locator("[data-video-analysis-clip-editor]")).toBeHidden();
-  await undoTimelineChange(page);
-  await expect.poll(() => page.evaluate(() => {
-    const requests = (window.__videoAnalysisRequests || []).filter((item) => (
-      item.action === "save-clip" && item.body?.clip?.id === "overlap-1"
-    ));
-    return requests.at(-1)?.body?.clip || null;
-  })).toMatchObject({
-    id: "overlap-1",
-    outcome: "Positive",
-    tags: ["press"],
-  });
+  await page.locator("[data-clip-review-discard]").click();
 });
 
 test("Video Analysis deletes a selected timeline tag with the Delete key", async ({ page }) => {

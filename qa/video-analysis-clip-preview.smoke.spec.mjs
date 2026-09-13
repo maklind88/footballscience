@@ -158,6 +158,7 @@ test("editing pauses a shuttle and saving returns to the same video without rese
   await page.getByRole("button", { name: "Play clip", exact: true }).click();
   await expect.poll(() => video.evaluate(el => !el.paused)).toBe(true);
   await page.keyboard.press("Escape");
+  await page.locator("[data-clip-review-discard]").click();
   await expect(page.locator(popup)).toHaveCount(0);
   expect(await main.evaluate(el => ({ paused: el.paused, time: el.currentTime })))
     .toEqual({ paused: true, time: mainTime });
@@ -178,8 +179,9 @@ test("clip preview reconnects from the modal and preserves unsaved fields across
   await expect(page.getByRole("dialog", { name: "Edit clip", exact: true })).toBeHidden();
   await expect(page.locator(popup)).toBeVisible();
   const writes = await page.evaluate(() => window.__videoAnalysisRequests.filter(r => r.action === "save-clip"));
-  expect(writes).toHaveLength(1);
-  expect(writes[0].body.clip).toMatchObject({ id: "preview-clip", videoId, startMs: 1000, endMs: 3000, note: "Keep my draft" });
+  expect(writes).toHaveLength(0);
+  await expect(fieldLocator(page, "note")).toHaveValue("Keep my draft");
+  await expect(page.locator("[data-playlist-status]")).toHaveText("Unsaved");
 });
 
 test("readonly clip preview still plays but cannot edit or save", async ({ page }) => {

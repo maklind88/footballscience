@@ -53,6 +53,7 @@ export function createVideoAnalysisMediaRuntime(options = {}) {
     updateState: (updater) => getRuntime()?.store.update(updater),
   });
   const controller = {
+    camera: productionController.camera,
     handleChange: (event) => proxyController.handleChange(event) || productionController.handleChange(event),
     handleClick: (event) => portableController.handleClick(event) || captureController.handleClick(event) || proxyController.handleClick(event) || productionController.handleClick(event),
     handleVideoTimeUpdate: (video) => proxyController.handleVideoTimeUpdate(video) || productionController.handleVideoTimeUpdate(video),
@@ -67,7 +68,7 @@ export function createVideoAnalysisMediaRuntime(options = {}) {
   return {
     captureController,
     controller,
-    dispose: () => Promise.all([captureController.dispose(), portableController.dispose(), proxyController.dispose()]),
+    dispose: () => Promise.all([productionController.camera.dispose(), captureController.dispose(), portableController.dispose(), proxyController.dispose()]),
     portableController,
     proxyController,
     repository,

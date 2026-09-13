@@ -99,14 +99,19 @@ function prefixedLaneLabels(prefix = "", labels = []) {
 }
 
 export function getAllTimelineLaneValues(clip = {}) {
-  return [
+  const lanes = [
     ...getTimelineLaneValues(clip, "phase").map((label) => `Phase / ${label}`),
     ...getTimelineLaneValues(clip, "subPhase").map((label) => `Sub-phase / ${label}`),
-    ...prefixedLaneLabels("MG Principle", getClipMiniGamePrincipleLaneLabels(clip)),
     ...prefixedLaneLabels("Tag", tagLaneLabels(clip)),
     ...prefixedLaneLabels("Player", playerLaneLabels(clip)),
     ...prefixedLaneLabels("Unit", getTimelineLaneValues(clip, "unit")),
   ];
+  if (lanes.length || (!isMiniGamePrincipleOnlyClip(clip) && !getClipMiniGamePrincipleLaneLabels(clip).length)) return lanes;
+  // Keep historical standalone principle clips reachable without inventing new links or times.
+  const subPhase = String(clipValue(clip, "subPhase", "sub_phase")).trim();
+  if (subPhaseLabels.has(subPhase)) return [`Sub-phase / ${subPhase}`];
+  const phase = String(clipValue(clip, "phase", "phase")).trim();
+  return phaseLabels.has(phase) ? [`Phase / ${phase}`] : ["Unclassified clips"];
 }
 
 export function getTimelineLaneValues(clip = {}, laneMode = "phase") {

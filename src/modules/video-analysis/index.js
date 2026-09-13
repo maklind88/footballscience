@@ -5,6 +5,8 @@ import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderFsPlayerWorkspace } from "./components/FsPlayerWorkspace.js";
 import { createTimelineClipEditor, preserveTimelineViewport } from "./timeline/timeline.clip-editor.controller.js";
 import { createTimelineRowOrderController } from "./timeline/timeline.row-order.controller.js";
+import { selectTimelineGroup } from "./timeline/timeline.selection.js";
+import { playlistTimelineLanes } from "./timeline/timeline.playlist-rows.js";
 import { VIDEO_SHUTTLE_MIN_SPEED, VIDEO_SHUTTLE_MIN_DELTA_PX, VIDEO_SHUTTLE_IDLE_MS, VIDEO_SHUTTLE_MAX_FRAME_MS,
   videoShuttleHorizontalDelta, videoShuttleHasHorizontalIntent, videoShuttleSpeedFromDelta } from "./services/videoShuttleGesture.js";
 import { handlePlayerHeaderClick, handlePlayerHeaderKeydown } from "./controllers/playerHeaderController.js";
@@ -44,7 +46,6 @@ import {
 import {
   clearTimelineClipSelection,
   clipsForTimelineSelection,
-  editTimelineClip,
   mergeTimelineClips,
   popTimelineHistory,
   pushTimelineHistory,
@@ -321,8 +322,7 @@ function timelineClipEditor(context = {}) {
       subscribe: listener => run.store.subscribe(listener),
       reconnect: fileInput => openLocalVideoPicker(run.context || context, { fileInput }),
       selectFile: file => handleFileSelection(file, run.context || context),
-      save: (values, clip) => saveTimelineClipEdits(run.context || context, values, clip),
-      remove: id => archiveTimelineClips(run.context || context, [id]),
+      savePlaylist: draft => run.timelineWorkspaceRuntime.savePlaylist(draft),
       pause: () => {
         const video = videoElement(run.context || context);
         video?.pause();
@@ -429,12 +429,14 @@ function markNativePlaybackReady(video) {
   const nextStatus = preparedPlayback ? "prepared" : "native-ready";
   updateVideoDurationFromElement(video);
   if (angle && !angle.primary) {
-    runtime?.store.update((current) => ({
-      ...current,
-      status: "ready",
-      error: "",
-      mediaProduction: { ...(current.mediaProduction || {}), error: "" },
-    }));
+    if (state.status !== "ready" || state.error || state.mediaProduction?.error) {
+      runtime?.store.update((current) => ({
+        ...current,
+        status: "ready",
+        error: "",
+        mediaProduction: { ...(current.mediaProduction || {}), error: "" },
+      }));
+    }
     runtime?.mediaRuntime?.controller.syncSecondaryVideos(video);
     return;
   }
@@ -1599,6 +1601,7 @@ async function ensureMetadataForRestoredReference(run, context = {}, reference =
 }
 
 function paint(root, state) {
+  const cameraFocus = runtime?.mediaRuntime?.controller.camera.beforePaint();
   state = runtime?.timelineRowOrder.prepare(state) || state;
   const previousFsPlayerVideo = root.querySelector(".video-analysis-fs-player-deck [data-video-analysis-video]");
   const previousVideo = previousFsPlayerVideo || root.querySelector("[data-video-analysis-video]");
@@ -1744,6 +1747,7 @@ function paint(root, state) {
     if (video.readyState >= 1) markNativePlaybackReady(video);
   }
   setupClipLibraryPreview(root, displayState);
+  runtime?.mediaRuntime?.controller.camera.afterPaint(cameraFocus);
   if (activeTabId === "presentation") thumbnails(runtime?.context || {}).ensureThumbnails();
 }
 
@@ -2160,7 +2164,8 @@ function currentPlayheadMs(context = {}, state = {}) {
   return videoReady ? matchTimeFromActiveVideoMs(state, videoMs) : timelineMs;
 }
 
-function findTimelineCategoryClips(state = {}, laneMode = "", label = "") {
+function findTimelineCategoryClips(state = {}, laneMode = "", label = "", rowId = "") {
+  if (rowId) return playlistTimelineLanes(state).find(lane => lane.id === rowId)?.clips || [];
   const normalizedLaneMode = normalizeTimelineLaneMode(laneMode);
   const lanes = buildTimelineLanes(Array.isArray(state.clips) ? state.clips : [], normalizedLaneMode);
   return lanes.find((lane) => lane.label === label)?.clips || [];
@@ -2168,7 +2173,7 @@ function findTimelineCategoryClips(state = {}, laneMode = "", label = "") {
 
 function visibleTimelineLanes(state = {}) {
   const laneMode = normalizeTimelineLaneMode(state.timeline?.laneMode);
-  const lanes = buildTimelineLanes(Array.isArray(state.clips) ? state.clips : [], laneMode);
+  const lanes = [...buildTimelineLanes(Array.isArray(state.clips) ? state.clips : [], laneMode), ...playlistTimelineLanes(state)];
   return { laneMode, lanes: runtime?.timelineRowOrder.orderLanes(lanes, state) || lanes };
 }
 
@@ -2183,6 +2188,7 @@ function categoryPayloadFromButton(button = {}) {
   return {
     laneMode: button.dataset.videoAnalysisTimelineCategoryMode || valueMode || "",
     label: button.dataset.videoAnalysisTimelineCategoryLabel || labelParts.join(":") || "",
+    rowId: button.dataset.videoAnalysisPlaylistRow || "",
   };
 }
 
@@ -2492,53 +2498,6 @@ async function archiveTimelineClips(context = {}, clipIds = [], options = {}) {
   }
 }
 
-async function saveTimelineClipEdits(context = {}, values = {}, originalClip = null) {
-  const run = ensureRuntime(context);
-  const state = run.store.getState();
-  if (!state.canEdit || state.status === "saving-clip") return false;
-  const clips = originalClip ? [originalClip] : clipsForTimelineSelection(state);
-  if (clips.length !== 1) {
-    run.store.update((current) => ({ ...current, error: "Select one clip to edit." }));
-    return false;
-  }
-  const before = normalizeClipInstance(clips[0]);
-  if (!clipByIdFromState(state, before.id) || before.videoId !== state.video?.id) {
-    run.store.update(current => ({ ...current, error: "This clip is no longer available in the current video." }));
-    return false;
-  }
-  const nextClip = editTimelineClip(before, values);
-  try {
-    run.store.update((current) => ({ ...current, status: "saving-clip", error: "", message: "Saving clip changes." }));
-    const result = await run.clips.save(toApiClipPayload(nextClip));
-    const savedClip = normalizeClipInstance(result.clip || nextClip);
-    run.store.update((current) => pushTimelineHistory({
-      ...replaceClipInState(current, savedClip),
-      status: "ready",
-      selectedClipId: savedClip.id,
-      timeline: {
-        ...(current.timeline || {}),
-        selectedClipIds: [savedClip.id],
-        editorOpen: false,
-      },
-      message: "Clip updated.",
-      error: "",
-    }, {
-      type: "edit",
-      clipId: savedClip.id,
-      before,
-      after: savedClip,
-    }));
-    return true;
-  } catch (error) {
-    run.store.update((current) => ({
-      ...current,
-      status: "error",
-      error: error.message || "Could not update clip.",
-    }));
-    return false;
-  }
-}
-
 async function mergeTimelineSelection(context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
@@ -2686,15 +2645,18 @@ function timelineDeleteIntent(event = {}, state = {}, context = {}) {
   const target = timelineDeleteEventTarget(event, context);
   const categoryButton = target?.closest?.("[data-video-analysis-timeline-category]");
   if (categoryButton) {
+    if (categoryButton.dataset.videoAnalysisPlaylistRow) return null;
     const { laneMode, label } = categoryPayloadFromButton(categoryButton);
     const clips = findTimelineCategoryClips(state, laneMode, label);
     return clips.length ? { type: "category", laneMode, label, clipIds: clips.map((clip) => clip.id) } : null;
   }
   const clipButton = target?.closest?.(".video-analysis-timeline-module [data-video-analysis-seek]");
   if (clipButton?.dataset?.videoAnalysisSeek) {
+    if (clipButton.closest(".video-analysis-lane")?.querySelector("[data-video-analysis-playlist-row]")) return null;
     return { type: "clip", clipIds: [clipButton.dataset.videoAnalysisSeek] };
   }
   const selectedClipId = String(state.selectedClipId || state.timeline?.selectedCategory?.activeClipId || "");
+  if (state.timeline?.selectedCategory?.rowId) return null;
   if (
     state.timeline?.selectedCategory?.keyboardDeleteScope === "category"
     && state.timeline.selectedCategory.laneMode
@@ -5150,7 +5112,9 @@ export function handleClick(event, context = {}) {
   const seekButton = target.closest("[data-video-analysis-seek]");
   if (seekButton) {
     const state = run.store.getState();
-    const clip = selectedClipFromPresentationSources(state, seekButton.dataset.videoAnalysisSeek);
+    const playlistLane = playlistTimelineLanes(state).find(lane => lane.id === seekButton.closest(".video-analysis-lane")?.dataset.videoAnalysisRowKey);
+    const clip = playlistLane?.clips.find(item => item.id === seekButton.dataset.videoAnalysisSeek)
+      || selectedClipFromPresentationSources(state, seekButton.dataset.videoAnalysisSeek);
     if (seekButton.matches(".video-analysis-clip-block") && timelineClipEditor(context).handleClipClick(event, clip, seekButton)) return true;
     const restoreViewport = seekButton.matches(".video-analysis-clip-block") ? preserveTimelineViewport(getRoot(context)) : null;
     const startMs = clip?.startMs ?? clip?.start_ms ?? 0;
@@ -5158,7 +5122,9 @@ export function handleClick(event, context = {}) {
     const toggleSelection = Boolean(event.shiftKey || event.metaKey || event.ctrlKey);
     run.store.update((current) => {
       const selectedState = clip?.id
-        ? updateTimelineClipSelection(current, clip.id, { toggle: toggleSelection })
+        ? seekButton.matches(".video-analysis-clip-block")
+          ? selectTimelineGroup(current, [clip], { toggle: toggleSelection })
+          : updateTimelineClipSelection(current, clip.id, { toggle: toggleSelection })
         : current;
       return {
         ...selectedState,
@@ -5212,26 +5178,13 @@ export function handleClick(event, context = {}) {
   }
   const categorySelectButton = target.closest("[data-video-analysis-timeline-category]");
   if (categorySelectButton) {
-    const { laneMode, label } = categoryPayloadFromButton(categorySelectButton);
-    const clips = findTimelineCategoryClips(run.store.getState(), laneMode, label);
+    const { laneMode, label, rowId } = categoryPayloadFromButton(categorySelectButton);
+    const clips = findTimelineCategoryClips(run.store.getState(), laneMode, label, rowId);
     if (timelineClipEditor(context).handleRowClick(event, clips, categorySelectButton)) return true;
     const restoreViewport = preserveTimelineViewport(getRoot(context));
-    run.store.update((current) => ({
-      ...current,
-      selectedClipId: clips[0]?.id || current.selectedClipId || "",
-      timeline: {
-        ...(current.timeline || {}),
-        selectedClipIds: clips.map((clip) => clip.id).filter(Boolean),
-        editorOpen: false,
-        selectedCategory: {
-          laneMode: normalizeTimelineLaneMode(laneMode),
-          label,
-          viewOpen: false,
-          menuOpen: false,
-          activeClipId: clips[0]?.id || "",
-          keyboardDeleteScope: "category",
-        },
-      },
+    run.store.update(current => selectTimelineGroup(current, clips, {
+      toggle: Boolean(event.metaKey || event.ctrlKey || event.shiftKey),
+      category: { laneMode: normalizeTimelineLaneMode(laneMode), label, rowId },
     }));
     restoreViewport();
     return true;
@@ -6176,6 +6129,7 @@ export function handleContextMenu(event, context = {}) {
   if (!target?.closest) return false;
   const categorySelectButton = target.closest("[data-video-analysis-timeline-category]");
   if (!categorySelectButton) return false;
+  if (categorySelectButton.dataset.videoAnalysisPlaylistRow) { event.preventDefault(); return true; }
   const { laneMode, label } = categoryPayloadFromButton(categorySelectButton);
   const clips = findTimelineCategoryClips(run.store.getState(), laneMode, label);
   if (!clips.length) return false;
@@ -6213,6 +6167,8 @@ export function handleKeydown(event, context = {}) {
   if (handlePlayerHeaderKeydown(event, root)) return true;
   const state = run.store.getState();
   const fsPlayerShortcutsActive = isFsPlayerInteractionActive(context, state);
+  if (fsPlayerShortcutsActive && run.mediaRuntime.controller.camera.handleShortcut(event)) return true;
+  if (root.querySelector("[data-video-analysis-media-production][open]")) return false;
   const keyTarget = eventElement(event);
   const clipButton = keyTarget?.closest?.(".video-analysis-clip-block[data-video-analysis-seek]");
   if (clipButton && event.key === "F2") {
@@ -6222,8 +6178,8 @@ export function handleKeydown(event, context = {}) {
   const rowButton = keyTarget?.closest?.("[data-video-analysis-timeline-category]");
   if (rowButton && event.key === "F2") {
     event.preventDefault();
-    const { laneMode, label } = categoryPayloadFromButton(rowButton);
-    return timelineClipEditor(context).openRow(findTimelineCategoryClips(state, laneMode, label), rowButton);
+    const { laneMode, label, rowId } = categoryPayloadFromButton(rowButton);
+    return timelineClipEditor(context).openRow(findTimelineCategoryClips(state, laneMode, label, rowId), rowButton);
   }
   const mgPrincipleSearch = keyTarget?.closest?.("[data-video-analysis-mg-principle-search]");
   if (mgPrincipleSearch && event.key === "Enter") {
@@ -6357,6 +6313,7 @@ export function handleKeydown(event, context = {}) {
 export function handleKeyup(event, context = {}) {
   if (!isAnalysisRoomWorkspaceActive(context)) return false;
   if (runtime?.timelineClipEditor?.isOpen()) return false;
+  if (getRoot(context)?.querySelector("[data-video-analysis-media-production][open]")) return false;
   const state = ensureRuntime(context).store.getState();
   if (
     isFsPlayerInteractionActive(context, state)

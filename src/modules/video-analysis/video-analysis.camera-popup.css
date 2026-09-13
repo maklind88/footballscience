@@ -1,0 +1,102 @@
+#analysisRoomWorkspace dialog.video-analysis-media-production {
+  box-sizing: border-box;
+  width: min(820px, calc(100vw - 24px));
+  max-width: none;
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #63746b;
+  border-radius: 8px;
+  box-shadow: 0 16px 60px #0006;
+  font-size: 13px;
+  letter-spacing: 0;
+  color-scheme: dark;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production::backdrop {
+  background: #07100b80;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production > header {
+  flex-direction: row;
+  align-items: center;
+  min-height: 52px;
+  padding: 8px 12px;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production h2 {
+  margin: 0;
+  color: #f5f7f6;
+  font-size: 16px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production .video-analysis-camera-close {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production > nav {
+  display: flex;
+  width: auto;
+  margin: 0 12px 12px;
+  flex-wrap: wrap;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production > nav button {
+  flex: 1 0 auto;
+  min-height: 34px;
+  font-size: 12px;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production .video-analysis-media-production__body {
+  padding: 16px 12px;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production .video-analysis-media-angles-panel {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production .video-analysis-media-angle-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  gap: 8px;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production .video-analysis-media-angle > button:first-child {
+  min-height: 64px;
+  padding: 10px 36px 10px 10px;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production .video-analysis-media-angle strong {
+  font-size: 13px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production .video-analysis-media-angle small {
+  font-size: 11px;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production label {
+  font-size: 11px;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production input,
+#analysisRoomWorkspace dialog.video-analysis-media-production select {
+  min-height: 36px;
+  font-size: 13px;
+}
+
+#analysisRoomWorkspace dialog.video-analysis-media-production :focus-visible {
+  outline: 2px solid #f1cf66;
+  outline-offset: 2px;
+}

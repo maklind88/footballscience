@@ -89,7 +89,7 @@
         shareTargets: [],
       };
       let savedCodingTemplate = null;
-      let savedTimelines = [];
+      let savedTimelines = structuredClone(window.__videoAnalysisSmokeTimelines || []);
       let collaborationSession = null;
       let collaborationParticipants = [];
       let collaborationOperations = Array.isArray(window.__videoAnalysisSmokeCollaborationOperations)

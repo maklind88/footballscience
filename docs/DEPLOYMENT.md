@@ -49,6 +49,8 @@ npm run deploy:safe
 `npm run deploy:safe` runs the full QA/safety path and should be used for API, data, auth, security, Supabase, migration, backup/restore, or broad multi-module changes.
 It uses the release traffic guard before Vercel-facing work and the shared GitHub production-edge queue for staging, production, and rollback.
 
+Full QA, staging deploy, and production deploy install dependencies through `node scripts/ci-install.mjs`. It runs unmodified `npm ci`, with at most two additional attempts (after 15 and 30 seconds) only when the FFmpeg GitHub release download returns HTTP 429, 502, 503, or 504. Lockfile checks, install scripts, and all QA gates remain enabled. Other errors, cancellation, or a third failed attempt stop the job; this does not retry deployments or production writes.
+
 ### Advanced Release Automation
 
 Use direct `release:ship` commands only when you need explicit staging or commit control:

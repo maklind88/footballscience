@@ -57,7 +57,7 @@ jobs:
           node-version: 24
           cache: npm
 
-      - run: npm ci
+      - run: node scripts/ci-install.mjs
 
       - run: npm run release:ci-env
       - run: npm run release:vercel-token

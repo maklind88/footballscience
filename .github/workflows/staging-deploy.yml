@@ -45,7 +45,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: node scripts/ci-install.mjs
 
       - name: Check staging deploy config
         id: staging-env

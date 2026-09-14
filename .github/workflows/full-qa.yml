@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: node scripts/ci-install.mjs
       - run: npm run release:preflight
       - run: npm run security:audit
       - run: npm run qa:static
@@ -60,5 +60,5 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: node scripts/ci-install.mjs
       - run: npm run qa:playwright:ci -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.total }}

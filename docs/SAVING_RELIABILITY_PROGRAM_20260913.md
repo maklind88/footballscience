@@ -123,9 +123,9 @@ These are acceptance requirements, not a claim all modules satisfy them today.
 | Step | Current state | Required exit evidence |
 | --- | --- | --- |
 | 1. Diagnose and measure | Partial: code/reproduction/read-only size and schema evidence; timing implemented locally | Correlate an authorized synthetic save with queue age, network response, phase timings and fresh read; original timeout not yet attributed |
-| 2. Stabilize recovery | Local candidate: retained queue can resume on external retry | Timeout/lost reply/repeated retry/newer edit/revoked access tests; staging and live verification after direct authorization |
+| 2. Stabilize recovery | First checkpoint Live at `4996e806`; retained queue can resume on external retry | Further recovery hardening remains; this is not proof the original timeout is fully resolved |
 | 3. Shared invariants | Written here; existing save contracts inspected | Module-by-module compliance evidence, not a second generic save framework |
-| 4. Reduce redundant saves | Hazard analyzed; no coalescing change yet | Atomic claim/replace semantics and old-client compatibility before compacting unsent compatible text edits |
+| 4. Reduce redundant saves | In-flight replay-trigger coalescing candidate below; journal compaction not enabled | Atomic claim/replace semantics and old-client compatibility before compacting unsent compatible text edits |
 | 5. Domain-record pilot | Existing inert schema/transformer/read adapter/dry-run retained; readiness checked | Identity and library dependencies, verified backup, exact hash/count round trip, local DB transaction tests, authorized staging backfill/shadow/canary |
 | 6. Short commit path | Not implemented | Data + receipt + mandatory audit + background outbox enqueue atomic; bounded worker retry, monitoring and restore proof |
 | 7. Realistic pilot proof | Existing local browser/contracts plus new failure-chain regression | Cross-tab/two-account/offline/crash/quota/permissions/load/rolling-version cases against the actual selected pipeline |
@@ -231,3 +231,71 @@ save/reload/read proof, and no changes to real coaching content. A code rollback
 must remain compatible with pending operations; never restore old data merely
 to roll back code. Do not call the whole eight-step program complete at the
 first green candidate or first release.
+
+## 2026-09-14: Replay-Trigger Coalescing Checkpoint
+
+Base: `4996e80657503aca7ec9462968ad1913525863a4`, the completed first
+stabilization release. Its production verification passed all seven authenticated
+live checks. This next checkpoint is local/candidate work only, not another
+deployment. System owns this narrow save-client boundary inside Sessions;
+Sessions content, controls, drawing/medical rules, API, and database are unchanged.
+
+The existing serial replay queue can multiply identical failed attempts:
+18 concurrent `replay()` calls against one durable operation caused 18 sends
+for network status 0, HTTP 403, and HTTP 503. This is a synthetic reproduction,
+not a measured explanation of the user's original incident. It is distinct
+from the 18-character/18-unique-operation example above.
+
+The candidate shares an in-flight result only for the same scope, staging
+barrier, observed central snapshot generation, and serial-queue tail. A new
+stage, fresh observation, or explicit review resolution retains its own place
+in the queue. Awaiting that stage ensures its durable row is available before
+delivery. Each caller receives an independent result object because the auth
+bridge customizes returned view fields.
+
+A joined trigger during successful delivery causes a fresh journal read, so
+another tab's newly persisted row is not missed. A failed network/permission
+attempt does not repeat merely because several callers joined. A later external
+retry remains allowed. The existing single 409 CAS retry and review handling
+are unchanged; no timer, timeout, permission bypass, or background loop is added.
+An empty recheck retains receipt metadata only for the same confirmed revision.
+
+Unchanged compatibility and safety boundaries:
+
+- Journal rows, operation IDs, before/after payloads and IndexedDB schema/prefix
+  are unchanged. Nothing is compacted, deleted early, or moved to a new queue.
+- A's acknowledgement cannot clear B's separate durable row. Errors, unknown
+  receipts and account changes leave unresolved data in place.
+- Two contexts of this client can still independently send the same immutable
+  operation. This is not a cross-tab claim protocol or exactly-once guarantee.
+- An old client can still read the same journal. It does not benefit from the
+  new in-memory optimization, but there is no storage format migration to undo.
+- This change does not reduce writes for distinct keystrokes, guarantee lower
+  production latency, or remove the full-calendar server-write bottleneck.
+
+Regressions cover retry bursts, thrown errors, 403/503, double 409, mismatched
+receipts, external recovery, B while A is in flight, pending staging, fresh
+observations, account change, review ordering and independent receipt objects.
+Browser tests use real IndexedDB, reload, and two real Pages in one shared
+BrowserContext, with a single revision-checked synthetic server. No real coaching
+data is used. Tests live in `qa/session-replay-coalescing.api.spec.mjs` and
+`qa/session-replay-coalescing.smoke.spec.mjs`.
+
+Final local evidence for this candidate:
+
+- All 16 new API/browser risk cases repeated ten times: 160/160 passed.
+- Full `npm run qa:api`: 2,782 passed.
+- Central revisions, recovery stability, durable store/review and replay browser
+  matrix: 33/33 passed. This includes the real two-page journal interleave.
+- `npm run qa:static` passed, including check, release rules, incident readiness,
+  storage/security, migration policy, performance and architecture guards.
+- Explicit changed-module syntax and `git diff --check` passed. Existing large
+  module size warnings remain; no budgets were changed.
+
+These are local synthetic checks, not new staging or production verification.
+
+Next: versioned claim/replace semantics and mixed-version proof before any
+durable text-operation compaction. Do not change a `pending` row simply because
+it looks unsent. The large-document commit path remains a separate subsequent
+step, with transactional receipt/audit/outbox guarantees before removing any
+awaited safety work.

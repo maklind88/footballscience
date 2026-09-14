@@ -7,6 +7,8 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
   let scope = "";
   let serial = Promise.resolve();
   let staging = Promise.resolve();
+  let replayFlight = null;
+  let observation = 0;
   const unstaged = new Map();
   let sequence = 0;
   const writer = makeId ? makeId() : globalThis.crypto.randomUUID();
@@ -21,6 +23,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
     if (Number(metadata.revision || 0) < revision) return;
     baseline = JSON.parse(value);
     revision = Number(metadata.revision || 0);
+    observation++;
   }
 
   async function drain(expected) {
@@ -102,12 +105,35 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
 
   function replay() {
     const expected = getScope();
+    const staged = staging;
+    // Share only an identical request. New edits, observations and review actions
+    // keep their own place in the serial queue; journal rows remain immutable.
+    if (replayFlight?.expected === expected && replayFlight.staged === staged &&
+        replayFlight.observation === observation && replayFlight.tail === serial) {
+      replayFlight.recheck = true;
+      return replayFlight.work.then(copy);
+    }
+    const flight = { expected, staged, observation, recheck: false };
     const work = serial.then(async () => {
+      await staged;
       if (!current(expected) || !baseline) return failure("Central training is still loading. Local changes were retained.");
-      return drain(expected);
-    }).catch((error) => failure(error?.message || "Saved locally; central sync pending", { durablePending: true }));
+      let result;
+      do {
+        flight.recheck = false;
+        const next = await drain(expected);
+        if (result?.metadata && result.metadata.revision === next.metadata?.revision) {
+          next.metadata = { ...result.metadata, ...next.metadata };
+        }
+        result = next;
+        // A joined trigger may represent another tab's newly durable row.
+        // Reread after success/review, never multiply a failed network attempt.
+      } while (flight.recheck && (result.ok || result.reviewRequired));
+      return result;
+    }).catch((error) => failure(error?.message || "Saved locally; central sync pending", { durablePending: true }))
+      .finally(() => { if (replayFlight?.work === work) replayFlight = null; });
     serial = work.then(() => {});
-    return work;
+    replayFlight = Object.assign(flight, { work, tail: serial });
+    return work.then(copy);
   }
 
   async function save(value, options) {

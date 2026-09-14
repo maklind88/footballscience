@@ -36,7 +36,7 @@ export function createScoutingProfileModalController(deps = {}) {
       return false;
     }
     const activeElement = deps.documentRef?.activeElement || null;
-    if (modal.contains?.(activeElement) && activeElement?.matches?.("input, textarea, select, [contenteditable='true']")) {
+    if (activeElement !== modal && modal.contains?.(activeElement)) {
       return false;
     }
     try {

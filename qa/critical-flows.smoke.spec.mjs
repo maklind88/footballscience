@@ -5357,6 +5357,16 @@ test("Medical operations board separates signals, cases, history and season view
   // Keep active-plan assertions independent of the runner's timezone and wall clock.
   await page.clock.setFixedTime(new Date("2026-08-25T16:00:00.000Z"));
   await page.addInitScript(({ storageKey, playerProfilesStorageKey }) => {
+    const localDateOffset = (offsetDays) => {
+      const value = new Date();
+      value.setHours(12, 0, 0, 0);
+      value.setDate(value.getDate() + offsetDays);
+      return [
+        value.getFullYear(),
+        String(value.getMonth() + 1).padStart(2, "0"),
+        String(value.getDate()).padStart(2, "0"),
+      ].join("-");
+    };
     const players = [
       { id: "qa-risk", name: "QA Risk Player", position: "Forward", rosterType: "squad", countsInSquad: true, rosterOrder: 1 },
       { id: "qa-clear", name: "QA Clear Player", position: "Midfielder", rosterType: "squad", countsInSquad: true, rosterOrder: 2 },
@@ -5418,13 +5428,13 @@ test("Medical operations board separates signals, cases, history and season view
             playerId: "qa-risk",
             injuryType: "ACL injury",
             bodyArea: "Knee",
-            startDate: "2026-05-01",
-            endDate: "2026-08-31",
+            startDate: localDateOffset(-30),
+            endDate: localDateOffset(90),
             duration: 4,
             durationUnit: "months",
             status: "modified",
             participation: 75,
-            reviewDate: "2026-05-14",
+            reviewDate: localDateOffset(-1),
             rtpPhase: "modified-team",
             phase: "Modified team integration",
             clearance: { doctor: false, physio: true, performance: false },
@@ -5442,13 +5452,13 @@ test("Medical operations board separates signals, cases, history and season view
             playerId: "qa-long-term",
             injuryType: "ACL injury",
             bodyArea: "Knee",
-            startDate: "2026-05-01",
-            endDate: "2026-09-30",
+            startDate: localDateOffset(-120),
+            endDate: localDateOffset(30),
             duration: 5,
             durationUnit: "months",
             status: "unavailable",
             participation: 0,
-            reviewDate: "2026-07-15",
+            reviewDate: localDateOffset(-45),
             rtpPhase: "medical-restriction",
             phase: "Protected rehab",
             clearance: { doctor: false, physio: false, performance: false },

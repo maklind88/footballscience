@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPlayerProfileRuntimeStateService } from "../src/modules/squad/index.mjs";
+import { createPlayerProfileHelpers } from "../src/modules/squad/player-profile-helpers.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -137,15 +138,7 @@ function createHarness(options = {}) {
     normalizePlayerProfileChangeLog: (entries = []) => (Array.isArray(entries) ? entries : []).map(normalizeChangeLogEntry),
     normalizePlayerProfileChangeLogEntry: normalizeChangeLogEntry,
     normalizePlayerProfileRemovedIds: (value = []) => Array.from(new Set((Array.isArray(value) ? value : []).map((entry) => String(entry || "").trim()).filter(Boolean))),
-    normalizePlayerProfileRosterType: (value, fallback = "squad") => {
-      const cleanValue = String(value || "").trim().toLowerCase();
-      if (["squad", "squad player"].includes(cleanValue)) return "squad";
-      if (["academy", "academy training"].includes(cleanValue)) return "academy";
-      if (["trialist", "trial"].includes(cleanValue)) return "trialist";
-      if (["guest", "guest player"].includes(cleanValue)) return "guest";
-      if (["loan", "loan / external"].includes(cleanValue)) return "loan";
-      return fallback;
-    },
+    normalizePlayerProfileRosterType: createPlayerProfileHelpers().normalizePlayerProfileRosterType,
     playerProfileAgeCacheStorageKey,
     playerProfileCountsInSquad,
     playerProfileRosterTypeCountsInSquad: (value) => String(value || "squad").trim() === "squad",

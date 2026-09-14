@@ -146,6 +146,7 @@ export const playerProfileRosterTypeOptions = [
 ];
 
 export const playerProfileRosterTypeAliases = Object.freeze({
+  "squad-player": "squad",
   trial: "trialist",
   "trial-player": "trialist",
   trialist: "trialist",

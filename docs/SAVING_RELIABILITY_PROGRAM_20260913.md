@@ -1157,3 +1157,116 @@ Overall program estimate: approximately 52%. Risk remains Safe Lane on future
 activation; this checkpoint is prepared locally, not a finished platform-wide
 rollout. Remaining limitations above still apply, including the unproven
 original timeout attribution and the need for bounded domain-record reads.
+
+## Versioned Cross-Tab Queue Checkpoint (2026-09-16)
+
+### Decision And Scope
+
+System owns this incremental save-boundary change. No Sessions UI, coaching
+semantics, active API route, database schema or other module is changed. The
+queued pilot remains unwired. The shared Sessions save client has optional
+store coordination/iteration/acknowledgement hooks; the existing v1 store does
+not implement these and retains its existing behavior. Its regressions must
+remain green before this candidate is saved.
+
+Do not compact a v1 operation: an older tab might already have sent it without
+a durable claim. Use a separate `football-science-session-outbox-v2` IndexedDB
+database and `sessions-queue-v2` protocol. Existing v1 pending rows and legacy
+recovery copies are not adopted, rekeyed, migrated or deleted. Legacy recovery
+requires an explicit reviewed onboarding path before activation.
+
+### Invariants
+
+- Edits become durable through a strict IndexedDB transaction before network
+  scheduling. Stage errors propagate; no memory-only fallback claims success.
+- A per-scope Web Lock serializes replay and review resolution across real
+  same-origin pages. Scope includes actor, organization, club and team. It is
+  unrelated to release orchestration and is not a machine-wide release lock.
+  Waiting is bounded to 15 seconds; an active owner is never stolen. Missing
+  Web Locks fails closed with local changes retained. Page closure releases
+  browser ownership; a lost response reuses the exact immutable operation ID.
+- Each next-row claim completes its read/write IDB transaction before send.
+  `attempted: true` is permanent, including timeout, permission denial and
+  response loss. Every subsequent iteration reads the current queue, not a
+  stale array captured before another edit was compacted.
+- Compaction requires one writer, scope, date, continuous before/after values,
+  a never-attempted pending tail and the same single existing text field within
+  two seconds. Allowed fields are session title and block title/objective.
+  Creates, deletes/tombstones, reorder, numeric/mixed changes, other writers and
+  reviews remain separate. The original before and newest after form the new
+  operation; server merge/conflict/receipt rules are unchanged.
+- The surviving operation receives the newest ID. A small immutable ID/hash
+  ledger retains retired/acknowledged IDs, so delayed stages cannot resurrect
+  discarded intermediate edits. Compaction, ID evidence and durable ordinal
+  allocation share one transaction. Ordinals, not wall clocks, order delivery.
+- Queue acknowledgement is exact-row CAS. Row removal and the scope's highest
+  confirmed server revision commit atomically. Review changes prevent stale
+  acknowledgements from clearing the new row. Corrupt ordering/claim/revision
+  metadata stops replay without deleting the underlying payload.
+- If another tab drained this tab's edit, an empty queue is not proof that its
+  old view is current. A newer durable confirmed revision returns
+  `reconcileRequired` without a stale `value`; `isSettled` also remains false
+  until a fresh observation reaches that revision. This is a fail-closed guard,
+  not automatic cross-tab view refresh or a new authenticated bootstrap API.
+- Only network delivery uses a 250ms quiet period, capped at a one-second
+  typing window. Each local stage is independently durable. Account/epoch
+  changes during the wait retain the previous account's operation and do not
+  post it with a new principal. Network/permission failures do not start an
+  automatic retry loop.
+
+The browser transaction and ownership choices follow the documented
+[IndexedDB transaction completion](https://developer.mozilla.org/en-US/docs/Web/API/IDBTransaction/complete_event)
+and [Web Locks lifecycle](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API).
+Neither is an authentication boundary; the existing canonical server checks
+and atomic receipt/effect transaction still authorize every request.
+
+### Activation Boundaries
+
+This improves the inactive pilot, not today's deployed keystroke behavior. A
+single text field plus domain timestamp/default changes deliberately does not
+compact yet. Domain-specific normalization needs explicit integration evidence;
+do not ignore real field differences just to reduce request counts.
+
+Before activation: authenticated initial/fresh reads (including passive tabs),
+legacy identity/review onboarding, module integration, bounded domain records,
+effect consumers, backup/restore compatibility, cross-browser/offline support,
+staging/canary and user-authorized Safe Lane still remain. Web Lock acquisition
+is bounded, but the injected authenticated transport must also remain bounded.
+ID-ledger retention/compaction requires a reviewed policy; no automatic pruning
+or silent queue cap is introduced. Browser eviction/private-mode durability is
+not guaranteed by these local tests. The original production timeout still has
+not been causally attributed by this pilot.
+
+### Terminal Evidence
+
+- Full final API suite: 2914/2914 passed (16 new compaction/protocol contracts).
+- Thirteen real IndexedDB/Web Locks cases passed ten repetitions: 130/130.
+  Includes real shared-origin pages writing different dates, owner closure,
+  bounded wait without theft, durable claim, exact review/ack CAS, transaction
+  abort, retired IDs, malformed ordering and preserved v1 data.
+- Ten new PostgreSQL/Chromium cases passed ten final repetitions: 100/100.
+  Full combined pilot browser suite passed 25/25. Includes 18 edits to one
+  server effect, continuous typing, A in flight plus compacted B/C, two-page
+  replay and newer-view detection, owner closure, response loss/reload,
+  aborted claim, account change and real HTTP rate limiting without retries.
+- Existing storage/replay/atomicity/central revision browser cases: 47/47.
+  Native SQL history/receipt/authorization tests: 60/60 (57 cases plus parents).
+- The first combined browser run exposed a test-isolation error: independent
+  synthetic databases shared a process-local actor rate bucket and hit 429.
+  The fixture now starts each independent synthetic server with empty counters.
+  No production limits changed. The new real-limit case exhausts the actual
+  allowance within one case and proves the durable draft survives 429 with no
+  retry timer or database commit. Final full and repeated runs both pass.
+- `check`, changed-file syntax, `security:platform`, `storage:guard`,
+  `release:rules`, `qa:supabase`, `qa:perf`, `architecture:budgets` and diff
+  checks passed. Seventy migrations and 83 existing size warnings are unchanged.
+- Ten intended files: four save-boundary runtime files, five QA/config/helper
+  files and this document. No CSS/UI/business-rule, active API/auth, SQL,
+  package/release configuration or other module changes in this increment.
+- Latest fetched main: `1061639cefedcbe3040724a14068637459d81f20`, behind 0.
+  No remote database writes, staging/production action or pilot activation.
+
+Overall saving-program estimate: approximately 58%, not a platform-wide rollout.
+Next checkpoint: authenticated initial/fresh-read lifecycle with scope/epoch
+validation, including passive-tab reconciliation. Preserve pending generations
+through that lifecycle before enabling this queue in the Sessions runtime.

@@ -5,6 +5,7 @@ import { syntheticPostgres, id } from "./relations-permissions-postgres.mjs";
 
 const require = createRequire(import.meta.url);
 const { createSessionSavePilotHandler } = require("../../api/_lib/session-save-pilot-http.js");
+const { rateLimitBuckets } = require("../../api/_lib/platform-security.js");
 export const date = "2026-09-16";
 export const initial = { sessions: { [date]: { date, title: "Original", blocks: [{ id: "a", title: "Press", minutes: 15 }] } } };
 export const principal = { actorId: id(1), organizationId: id(101), clubId: id(201), teamId: id(301), epoch: "login-a" };
@@ -14,6 +15,9 @@ export const hash = (value) => createHash("sha256").update(value).digest("hex");
 // The external Auth service is synthetic; actor parsing/cache and API guards
 // are real. Unexpected network requests fail, never fall through to Supabase.
 export function syntheticAuth() {
+  // Each case owns a fresh synthetic server/database, not the prior case's
+  // process-local rate counters. Guards remain real for every request in it.
+  rateLimitBuckets.clear();
   const env = Object.fromEntries(["SUPABASE_URL", "SUPABASE_ANON_KEY"].map((key) => [key, process.env[key]]));
   const nativeFetch = global.fetch, token = randomUUID(), peerToken = randomUUID();
   process.env.SUPABASE_URL = "https://session-save.synthetic.invalid";

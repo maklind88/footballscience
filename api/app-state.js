@@ -3807,3 +3807,21 @@ module.exports = async (req, res) => {
     return sendJson(res, 500, { ok: false, reason: error?.message || "Central state API failed." });
   }
 };
+
+// Unwired server-pilot policy: reuse the exact Sessions permission/content
+// rules, but with canonical roles and an explicitly scoped fresh hub snapshot.
+// This export does not enable a route, database mode or alternate write path.
+async function validateSessionSavePilot({ roles, workspaceHub, previousEntry, value } = {}) {
+  if (!Array.isArray(roles) || !previousEntry || typeof workspaceHub !== "string") return { ok: false, status: 403 };
+  const access = getWorkspaceAccessConfigFromHubValue(workspaceHub);
+  if (!roles.some((role) => canActorEditWorkspace({ role }, "session-planner", access))) return { ok: false, status: 403 };
+  const protectedValue = await protectSessionPlannerStateValue(value, { previousEntry });
+  if (!protectedValue.ok) return protectedValue;
+  // Same as the live date-change path: the three-way merge is authoritative,
+  // not the legacy timestamp merge. Executable-content validation still applies.
+  return validateCentralStateContent(SESSION_PLANNER_KEY, value, dataSafetyRegistry.requireByKey(SESSION_PLANNER_KEY));
+}
+
+module.exports.createSessionSavePilot = (options = {}) => require("./_lib/session-save-pilot.js").createSessionSavePilot({
+  ...options, authorize: validateSessionSavePilot,
+});

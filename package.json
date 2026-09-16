@@ -44,8 +44,6 @@
     "recovery:data:plan": "node scripts/data-content-recovery-plan.mjs",
     "qa:data-recovery-plan": "node --test qa/data-content-recovery.test.mjs",
     "qa:data-recovery-native": "node --test qa/data-content-recovery-native.test.mjs",
-    "qa:session-receipts-native": "node --test qa/session-save-receipts-native.test.mjs",
-    "qa:session-history-native": "node --test qa/session-save-history-native.test.mjs",
     "platform:identity:backfill": "node scripts/platform-identity-backfill.mjs",
     "platform:identity:snapshot": "node scripts/platform-identity-snapshot.mjs",
     "platform:identity:backfill:env": "node scripts/verify-platform-identity-backfill-env.mjs",

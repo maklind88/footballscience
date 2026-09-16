@@ -682,7 +682,7 @@ not replace table grants/RLS. See also the official
 
 ### Real PostgreSQL Evidence
 
-`npm run qa:session-receipts-native` requires `FS_RECOVERY_PG_BIN` pointing to a
+`node --test qa/session-save-receipts-native.test.mjs` requires `FS_RECOVERY_PG_BIN` pointing to a
 verified PostgreSQL 17 toolchain. It reuses the existing synthetic recovery
 harness: a new private Unix-socket instance, no TCP listener, inherited PG
 credentials excluded, no external URL accepted, and cleanup in `finally`.
@@ -793,7 +793,7 @@ different function security or read snapshot contract.
 
 ### Regression Evidence And Remaining Gates
 
-`qa:session-history-native` applies the actual SQL to the existing isolated
+`node --test qa/session-save-history-native.test.mjs` applies the actual SQL to the existing isolated
 PostgreSQL 17 synthetic harness, never Supabase. The existing receipt native
 suite now also applies this additive migration, so its collision, lock-wait,
 revoke, restart and legacy-CAS cases exercise the new history index too.
@@ -838,3 +838,109 @@ the new SQL in the existing receipt tests, and one package command. Latest
 fetched `origin/main` remains `1061639c`; no rebase is needed. Overall saving
 program estimate is approximately 40%, not a claim that the Live saving issue
 or all modules are fixed. No remote migration, main/staging change or deploy.
+
+## Authorized Server Adapter Checkpoint (2026-09-16)
+
+### Decision And Scope
+
+System/Security owns this inactive saving adapter. Sessions keeps its existing
+workspace permission matrix, date-change protocol, merge semantics and content
+filters; no module UI or active HTTP route changes. The previous canonical
+membership resolver does not grant Sessions edit permission by itself.
+
+`api/_lib/session-save-pilot.js` now combines the actual date-change protocol
+with an authorization callback supplied by `api/app-state.js`. That factory
+reuses `canActorEditWorkspace`, `protectSessionPlannerStateValue` and
+`validateCentralStateContent`; options cannot override it. The existing HTTP
+handler is byte-identical to the preceding checkpoint. Only an unused factory
+export is appended. There is no feature flag, new route or automatic caller.
+
+The adapter captures immutable operation bytes before awaiting, obtains the
+canonical actor/team scope from the database, authorizes both initial writes
+and receipt replay, merges only the requested date, and checks exact receipt
+identity, revision, hash and value. One fresh, reauthorized reconcile is allowed
+after a CAS/context conflict. Transport/body-read uncertainty is not silently
+retried or reported as saved. A later call must reuse the same operation ID.
+An older replayed receipt is immutable evidence, not permission to overwrite
+newer server or browser state.
+
+`20260916170114_session_save_authorized_context.sql` adds server-only functions
+for a fresh context and guarded commit. Both calendar and workspace-hub records
+must already exist in the canonical organization and carry the exact team ID;
+missing/global/removed/unbound records are not seeded or adopted. The context
+token binds canonical scope/roles and the hub revision/value. A commit acquires
+the existing calendar row lock, identity read locks and the hub read lock,
+then rechecks the context after waiting. Revoke cannot cross the final
+authorization/commit boundary. The underlying state/receipt/effect transaction
+remains all-or-nothing.
+
+Only the small identity-lock helper is SECURITY DEFINER, in `app_private` with
+fully qualified tables and pinned `pg_catalog`. It performs no data mutation.
+It avoids granting identity UPDATE to service_role merely for FOR SHARE.
+Public functions remain SECURITY INVOKER; all three revoke public/anon/
+authenticated execution and grant only service_role. The native test proves
+identity UPDATE is still denied. This follows the official
+[Supabase function security guidance](https://supabase.com/docs/guides/database/functions)
+and [PostgreSQL row-lock semantics](https://www.postgresql.org/docs/17/explicit-locking.html).
+These are short database transaction locks, not a local release lock or
+cross-request browser lease. Deadlock/timeout remains a failed/uncertain
+transaction, never a successful receipt.
+
+### Evidence And Boundaries
+
+`qa/session-save-pilot-native.test.mjs` executes the actual JavaScript adapter,
+app-state authorization/content functions and real PostgreSQL RPCs in the
+existing private local synthetic harness. Fifteen cases include real role
+and workspace revoke during row-lock waits, same-ID concurrent saves, committed
+response loss, newer colleague edits, one fresh conflict merge, invalid content,
+cross-scope rejection, new training, explicit exercise deletion, and an effect
+insert failure that rolls back the whole save before a successful same-ID retry.
+The lock-retention case deliberately holds an outer test transaction after SQL
+returns; it proves locks, not HTTP acknowledgement before COMMIT.
+
+Together with 20 history/scope and 22 receipt cases, 57 behavioral cases passed
+in each of 10 PostgreSQL runs: 570 case executions. Node reports 60 per run
+because it also counts three parent tests. The 27 new API contracts cover
+malformed context/receipt, stale acknowledgement, immutable request capture,
+two consecutive conflicts, mandatory existing authorization and bounded,
+sanitized transport. No fresh browser end-to-end or remote Supabase advisor
+evidence is claimed for this inactive server increment.
+
+The first full API run returned 2849/2850. Its sole failure was a historical
+release contract disallowing the three optional native-test package aliases.
+Those aliases (two from earlier checkpoints and this increment's one) were
+removed, not allowlisted; the guard and lockfile remain unchanged and
+`package.json` now exactly matches origin/main. Native tests remain intact:
+
+```sh
+FS_RECOVERY_PG_BIN=<verified-local-pg17-bin> node --test \
+  qa/session-save-pilot-native.test.mjs \
+  qa/session-save-history-native.test.mjs \
+  qa/session-save-receipts-native.test.mjs
+```
+
+Before activation, the real HTTP caller must verify the token, derive actor ID
+from trusted authentication (never request JSON), run `guardApiRequest`, enforce
+body/response size and compression limits, and connect the receipt to the
+durable browser journal without clearing newer generations. Backup, audit,
+activity/Storage compatibility, retention, shadow comparison, explicit legacy
+onboarding and old/new-client tests remain cutover gates. No compatibility
+effect consumer is activated here. The full-calendar org/key bridge is still
+not the bounded multi-team/million-record architecture.
+
+Next: prove the API-to-browser journal acknowledgement/reconciliation contract
+with real authentication guards and uncertain/old receipt cases, still without
+enabling this pilot on Live. Overall program estimate is approximately 44%.
+No remote migration, real training data, main, staging or production changed.
+
+Terminal evidence: the corrected full API suite passed 2850/2850. `check`,
+`security:platform`, `release:rules`, `storage:guard`, `qa:supabase` (70 migration
+files), `qa:perf`, `architecture:budgets` and diff checks passed. The 83 existing
+architecture warnings are unchanged. All owned tests ended; no test server on
+the isolated port 4349 or owned native database run remains. Unrelated running
+servers were not touched. Fresh origin/main is still `1061639c`, behind 0.
+
+Increment scope is seven files: app-state's unused policy factory, the new
+server adapter, the additive SQL, two test files, removal of optional package
+aliases and this evidence record. The cumulative candidate is not Live and
+still requires the activation gates above, review and explicit deploy approval.

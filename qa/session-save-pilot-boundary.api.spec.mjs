@@ -17,7 +17,7 @@ test("unwired HTTP boundary requires verified auth, POST, valid body and preserv
     expect((await invoke(handler, { token: "forged" })).status).toBe(401);
     expect((await invoke(handler, { method: "OPTIONS" })).status).toBe(204);
     expect((await invoke(handler, { token: auth.token, method: "GET" })).status).toBe(405);
-    for (const body of [{}, { key: "football-medical-team-v1" }, { key, removed: true }, { key, value: "{}" },
+    for (const body of [{}, { key: "football-medical-team-v1" }, { key, removed: true }, { key, value: "{}" }, { key, action: "force" },
       { key, sessionChange: "broken JSON" }, { key, sessionChange: { encoding: "gzip-base64-v1", data: "invalid" } }]) {
       expect((await invoke(handler, { token: auth.token, body })).status).toBe(400);
     }

@@ -61,7 +61,7 @@ function validReceipt(receipt, context, change) {
 // Unwired server component. actorId MUST come from the HTTP handler's verified
 // authentication, never request JSON. The handler must also run guardApiRequest.
 // authorize is mandatory and supplied by the existing app-state policy below.
-function createSessionSavePilot({ authorize, request = createSessionSaveRpcTransport(), prepareReceipt = async () => {} } = {}) {
+function createSessionSavePilot({ authorize, request = createSessionSaveRpcTransport(), prepareReceipt = async () => {}, readOnly = false } = {}) {
   if (typeof authorize !== "function") throw new Error("Sessions pilot requires the existing server authorization policy.");
   return async ({ actorId, teamId, change: input } = {}) => {
     if (!uuid(actorId) || !uuid(teamId)) return failure(400, "Canonical Sessions actor and team are required.");
@@ -91,6 +91,17 @@ function createSessionSavePilot({ authorize, request = createSessionSaveRpcTrans
       } catch { return failure(503, "Sessions permission check is unavailable."); }
 
       if (context.operation.found && !context.operation.matches) return failure(409, "Sessions operation identity was reused.");
+      if (readOnly) {
+        // Recovery reads use the same fresh canonical scope and edit policy,
+        // but never call the commit RPC or acknowledge a local journal row.
+        if (!context.operation.found || !validReceipt(context.operation.receipt, context, change)
+          || context.operation.receipt.revision > context.entry.revision) {
+          return failure(409, "Sessions operation must be confirmed before reconciliation.");
+        }
+        return { ok: true, snapshot: { schema: "session-save-snapshot-v1", key: KEY,
+          ...context.scope, operationId: change.id, date: change.date,
+          revision: context.entry.revision, hash: context.entry.hash, value: context.entry.value } };
+      }
       let value = context.entry.value;
       if (!context.operation.found) {
         let merged;

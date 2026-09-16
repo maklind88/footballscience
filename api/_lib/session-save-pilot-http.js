@@ -16,6 +16,14 @@ async function receiptPayload(req, receipt, replayed) {
   return payload;
 }
 
+async function snapshotPayload(req, snapshot) {
+  const payload = { ok: true, snapshot: { ...snapshot, value: await encodeSessionStateValue(req, KEY, snapshot.value) } };
+  if (Buffer.byteLength(JSON.stringify(payload)) > MAX_WIRE_BYTES - 65536) {
+    throw Object.assign(new Error("Sessions snapshot exceeds the transfer limit."), { code: "BODY_TOO_LARGE" });
+  }
+  return payload;
+}
+
 // Constructor only, not a deployed route. Authentication and rate guards are
 // fixed here; only the server-side database transport is injectable.
 function createSessionSavePilotHandler({ request } = {}) {
@@ -30,7 +38,8 @@ function createSessionSavePilotHandler({ request } = {}) {
         requireAuth: true, enforcePermission: false }).ok) return;
       if (req.method !== "POST") return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
       const body = await parseJsonBody(req, { maxBytes: MAX_WIRE_BYTES });
-      if (body?.key !== KEY || body.removed || body.entries || body.value !== undefined) {
+      if (body?.key !== KEY || body.removed || body.entries || body.value !== undefined
+        || (body.action !== undefined && body.action !== "reconcile")) {
         return sendJson(res, 400, { ok: false, reason: "A Sessions date operation is required." });
       }
       const raw = await decodeSessionStateValue(KEY, body.sessionChange);
@@ -41,10 +50,12 @@ function createSessionSavePilotHandler({ request } = {}) {
       try { change = JSON.parse(raw); }
       catch { return sendJson(res, 400, { ok: false, reason: "Invalid Sessions date operation." }); }
       const save = require("../app-state.js").createSessionSavePilot({ request,
+        readOnly: body.action === "reconcile",
         prepareReceipt: (receipt) => receiptPayload(req, receipt, false),
       });
       const result = await save({ actorId: actor.id, teamId: body.teamId, change });
       if (!result.ok) return sendJson(res, result.status || 503, result);
+      if (body.action === "reconcile") return sendJson(res, 200, await snapshotPayload(req, result.snapshot));
       return sendJson(res, 200, await receiptPayload(req, result.receipt, result.replayed));
     } catch (error) {
       const status = error?.code === "BODY_TOO_LARGE" ? 413 : error?.code === "SESSION_TRANSPORT" ? error.status || 400 : 503;

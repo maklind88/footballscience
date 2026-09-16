@@ -6,7 +6,7 @@ let db, auth;
 test.beforeEach(async () => { db = await sessionPilotDatabase(); auth = syntheticAuth(); });
 test.afterEach(async () => { auth?.close(); await db?.close(); });
 
-async function boot(page, intercept) {
+async function boot(page, intercept, { identity = principal, token = auth.token } = {}) {
   await page.route("**/qa/save-pilot-page", (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Saving proof</title>" }));
   await page.route("**/api/qa-save-pilot", async (route) => {
     const response = await invoke(db.handler, { raw: route.request().postData(), token: route.request().headers().authorization?.replace(/^Bearer /, "") });
@@ -26,7 +26,7 @@ async function boot(page, intercept) {
       return { ok: res.ok, status: res.status, payload: await res.json() };
     } });
     window.client.observe(JSON.stringify(initial), { revision: 10, hash, organizationId: principal.organizationId, teamId: principal.teamId });
-  }, { principal, initial, hash: hash(JSON.stringify(initial)), token: auth.token });
+  }, { principal: identity, initial, hash: hash(JSON.stringify(initial)), token });
 }
 async function stage(page, title) {
   return page.evaluate(async ({ initial, date, title }) => {
@@ -146,30 +146,153 @@ test("canonical permission denial after reload keeps the durable operation witho
 });
 
 test("compressed request and receipt cross the real HTTP boundary without losing training content", async ({ page }) => {
-  let compressedReceipt = false;
-  await boot(page, async (_route, response) => { compressedReceipt = response.payload.receipt?.encoding === "gzip-base64-v1"; });
+  let compressedReceipt = false, compressedSnapshot = false;
+  await boot(page, async (_route, response) => {
+    compressedReceipt ||= response.payload.receipt?.encoding === "gzip-base64-v1";
+    compressedSnapshot ||= response.payload.snapshot?.value?.encoding === "gzip-base64-v1";
+  });
+  await colleagueDay();
   const objective = "Ball retention and coordinated pressure. ".repeat(9000);
   const result = await page.evaluate(async ({ initial, date, objective }) => {
     const desired = structuredClone(initial); desired.sessions[date].blocks[0].objective = objective;
     return window.client.save(JSON.stringify(desired));
   }, { initial, date, objective });
-  expect(result.ok).toBe(true); expect(compressedReceipt).toBe(true);
+  expect(result.ok).toBe(true); expect(compressedReceipt).toBe(true); expect(compressedSnapshot).toBe(true);
   expect((await db.state()).value.sessions[date].blocks[0].objective).toBe(objective);
-  expect(await rows(page)).toEqual([]); expect(await db.evidence()).toEqual({ receipts: 1, effects: 1 });
+  expect(await rows(page)).toEqual([]); expect(await db.evidence()).toEqual({ receipts: 2, effects: 2 });
 });
 
-test("a calendar revision gap requires fresh hydration before clearing the date receipt", async ({ page }) => {
+test("a calendar revision gap is reconciled through authenticated HTTP before clearing the date receipt", async ({ page }) => {
   await boot(page); await stage(page, "Local day"); const pending = await rows(page);
   const peer = structuredClone(initial), peerDate = "2026-09-17";
   peer.sessions[peerDate] = { date: peerDate, title: "Colleague day", blocks: [] };
   const change = createSessionDateChanges(initial, peer)[0];
   expect((await invoke(db.handler, { token: auth.token, body: { key: "football-session-planner-v3",
     teamId: principal.teamId, sessionChange: JSON.stringify(change) } })).status).toBe(200);
-  const result = await page.evaluate(() => window.client.replay());
-  expect(result).toMatchObject({ ok: false, reconcileRequired: true, durablePending: true });
-  expect(await rows(page)).toEqual(pending); expect((await db.state()).revision).toBe(12);
-  await page.evaluate((fresh) => window.client.observe(JSON.stringify(fresh.value), fresh), await db.state());
   const replayed = await page.evaluate(() => window.client.replay());
   expect(replayed.ok).toBe(true); expect(JSON.parse(replayed.value).sessions[peerDate].title).toBe("Colleague day");
+  expect(replayed.metadata).toMatchObject({ revision: 12, hash: (await db.state()).hash });
+  expect(await page.evaluate(() => window.posts)).toBe(2);
+  expect(commits().filter((call) => call.body.p_change.id === pending[0].change.id)).toHaveLength(1);
   expect(await rows(page)).toEqual([]); expect(await db.evidence()).toEqual({ receipts: 2, effects: 2 });
+});
+
+async function colleagueDay() {
+  const peer = structuredClone(initial), otherDate = "2026-09-17";
+  peer.sessions[otherDate] = { date: otherDate, title: "Colleague", blocks: [] };
+  const change = createSessionDateChanges(initial, peer)[0];
+  expect((await invoke(db.handler, { token: auth.token, body: { key: "football-session-planner-v3",
+    teamId: principal.teamId, sessionChange: JSON.stringify(change) } })).status).toBe(200);
+}
+
+test("fresh read is read-only, no-store and fails closed for uncommitted or reused operations and wrong teams", async () => {
+  const desired = structuredClone(initial); desired.sessions[date].title = "A";
+  const change = createSessionDateChanges(initial, desired)[0];
+  const body = { key: "football-session-planner-v3", teamId: principal.teamId, sessionChange: JSON.stringify(change) };
+  const read = (extra = {}) => invoke(db.handler, { token: auth.token, body: { ...body, action: "reconcile", ...extra } });
+  expect((await read()).status).toBe(409); expect(commits()).toHaveLength(0);
+  expect((await invoke(db.handler, { token: auth.token, body })).status).toBe(200);
+  const evidence = await db.evidence(), state = await db.state();
+  const response = await read();
+  expect(response.status).toBe(200); expect(response.headers["cache-control"]).toBe("no-store");
+  expect(response.payload.snapshot).toMatchObject({ actorId: principal.actorId, organizationId: principal.organizationId,
+    clubId: principal.clubId, teamId: principal.teamId, revision: 11, operationId: change.id, hash: state.hash });
+  expect(hash(response.payload.snapshot.value)).toBe(state.hash);
+  expect(JSON.parse(response.payload.snapshot.value)).toEqual(state.value);
+  const reused = structuredClone(change); reused.after.session.title = "Changed ID payload";
+  expect((await read({ sessionChange: JSON.stringify(reused) })).status).toBe(409);
+  expect((await read({ teamId: "00000000-0000-4000-8000-000000000999" })).status).toBe(403);
+  await db.sql("UPDATE platform_memberships SET role='coach' WHERE user_id='00000000-0000-4000-8000-000000000003'");
+  const otherActor = await invoke(db.handler, { token: auth.peerToken, body: { ...body, action: "reconcile" } });
+  expect(otherActor.status).toBe(409); expect(otherActor.payload.snapshot).toBeUndefined();
+  expect(await db.state()).toEqual(state); expect(await db.evidence()).toEqual(evidence); expect(commits()).toHaveLength(1);
+});
+
+test("newer local B survives A's held recovery read and later commits exactly once", async ({ page }) => {
+  const held = barrier();
+  await boot(page, async (route) => { if (route.request().postDataJSON().action === "reconcile") { held.enter(); await held.wait; } });
+  await colleagueDay(); await stage(page, "A");
+  await page.evaluate(() => { window.saving = window.client.replay(); }); await held.ready;
+  const a = structuredClone(initial); a.sessions[date].title = "A";
+  const b = structuredClone(a); b.sessions[date].blocks[0].minutes = 27;
+  let pendingB;
+  try {
+    expect(await page.evaluate(({ a, b }) => window.client.stage(JSON.stringify(b), { previousValue: JSON.stringify(a) }), { a, b })).toMatchObject({ ok: true });
+    const pending = await rows(page); expect(pending).toHaveLength(2); pendingB = pending[1];
+  } finally { held.release(); }
+  expect(await page.evaluate(() => window.saving)).toMatchObject({ ok: true });
+  expect(await rows(page)).toEqual([pendingB]); expect(await page.evaluate(() => window.client.isSettled())).toBe(false);
+  expect(await page.evaluate(() => window.client.replay())).toMatchObject({ ok: true });
+  const state = await db.state();
+  expect(state.value.sessions[date].blocks[0].minutes).toBe(27);
+  expect(state.value.sessions["2026-09-17"].title).toBe("Colleague");
+  expect(commits().filter((call) => call.body.p_change.id === pendingB.change.id)).toHaveLength(1);
+  expect(await rows(page)).toEqual([]); expect(await db.evidence()).toEqual({ receipts: 3, effects: 3 });
+});
+
+test("failed fresh read keeps exact operation across reload then recovers without duplicate effect", async ({ page }) => {
+  let fail = true;
+  await boot(page, async (route) => {
+    if (fail && route.request().postDataJSON().action === "reconcile") {
+      fail = false; await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false }) }); return true;
+    }
+  });
+  await colleagueDay(); await stage(page, "A"); const pending = await rows(page);
+  expect(await page.evaluate(() => window.client.replay())).toMatchObject({ ok: false, status: 503, reconcileRequired: true });
+  expect(await rows(page)).toEqual(pending); expect(await page.evaluate(() => window.posts)).toBe(2);
+  expect(await db.evidence()).toEqual({ receipts: 2, effects: 2 });
+  await page.unroute("**/api/qa-save-pilot"); await boot(page);
+  const recovered = await page.evaluate(() => window.client.replay());
+  expect(recovered.ok).toBe(true); expect(recovered.metadata.revision).toBe(12);
+  expect(JSON.parse(recovered.value).sessions["2026-09-17"].title).toBe("Colleague");
+  expect(await rows(page)).toEqual([]); expect(await db.evidence()).toEqual({ receipts: 2, effects: 2 });
+});
+
+test("canonical permission revoked before fresh read cannot expose a snapshot or clear the operation", async ({ page }) => {
+  await boot(page, async (route, response) => {
+    if (!route.request().postDataJSON().action && response.status === 200) await db.sql("UPDATE platform_memberships SET role='medical'");
+    if (route.request().postDataJSON().action === "reconcile") { expect(response.status).toBe(403); expect(response.payload.snapshot).toBeUndefined(); }
+  });
+  await colleagueDay(); await stage(page, "A"); const pending = await rows(page);
+  expect(await page.evaluate(() => window.client.replay())).toMatchObject({ ok: false, status: 403, reconcileRequired: true });
+  expect(await rows(page)).toEqual(pending); expect(await page.evaluate(() => window.posts)).toBe(2);
+  expect(JSON.parse(await page.evaluate(() => window.client.centralValue()))).toEqual(initial);
+  expect(await db.evidence()).toEqual({ receipts: 2, effects: 2 });
+});
+
+test("auth epoch changes during fresh read leave old account snapshot and pending untouched", async ({ page }) => {
+  const held = barrier();
+  await boot(page, async (route) => { if (route.request().postDataJSON().action === "reconcile") { held.enter(); await held.wait; } });
+  await colleagueDay(); await stage(page, "A"); const pending = await rows(page);
+  await page.evaluate(() => { window.saving = window.client.replay(); }); await held.ready;
+  try { await page.evaluate(() => { window.context = { ...window.context, epoch: "later-login" }; }); }
+  finally { held.release(); }
+  expect(await page.evaluate(() => window.saving)).toMatchObject({ ok: false, reconcileRequired: true });
+  expect(await rows(page)).toEqual(pending);
+  expect(JSON.parse(await page.evaluate(() => window.client.centralValue()))).toEqual(initial);
+  expect(await page.evaluate(() => window.client.replay())).toMatchObject({ ok: true });
+  expect(await rows(page)).toEqual([]); expect(await db.evidence()).toEqual({ receipts: 2, effects: 2 });
+});
+
+test("a delayed recovery snapshot cannot replace a newer observed generation from another authorized account", async ({ page, browser }) => {
+  const held = barrier();
+  await boot(page, async (route) => { if (route.request().postDataJSON().action === "reconcile") { held.enter(); await held.wait; } });
+  await colleagueDay(); await stage(page, "A");
+  await page.evaluate(() => { window.saving = window.client.replay(); }); await held.ready;
+  const device = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  try {
+    await db.sql("UPDATE platform_memberships SET role='coach' WHERE user_id='00000000-0000-4000-8000-000000000003'");
+    const peerIdentity = { ...principal, actorId: "00000000-0000-4000-8000-000000000003", epoch: "peer-login" };
+    const peer = await device.newPage(); await boot(peer, undefined, { identity: peerIdentity, token: auth.peerToken });
+    const a = await db.state(), b = structuredClone(a.value); b.sessions[date].title = "Newer colleague";
+    await peer.evaluate((a) => window.client.observe(JSON.stringify(a.value), a), a);
+    expect(await peer.evaluate(({ a, b }) => window.client.save(JSON.stringify(b), { previousValue: JSON.stringify(a.value) }), { a, b })).toMatchObject({ ok: true });
+    const latest = await db.state(); expect(latest.revision).toBe(13);
+    await page.evaluate((latest) => window.client.observe(JSON.stringify(latest.value), latest), latest);
+    held.release(); const result = await page.evaluate(() => window.saving);
+    expect(result.ok).toBe(true); expect(JSON.parse(result.value)).toEqual(latest.value);
+    expect(result.metadata).toMatchObject({ revision: 13, hash: latest.hash });
+    expect(commits().at(-1).body.p_actor_id).toBe(peerIdentity.actorId);
+    expect(await rows(page)).toEqual([]); expect(await db.evidence()).toEqual({ receipts: 3, effects: 3 });
+  } finally { held.release(); await device.close(); }
 });

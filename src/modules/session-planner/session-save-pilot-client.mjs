@@ -1,6 +1,7 @@
 import { createSessionSaveClient } from "./session-save-client.mjs";
 import { validateSessionDateChange } from "./session-save-protocol.mjs";
 import { encodeSessionTransport, decodeSessionTransport } from "./session-state-transport.mjs";
+import { verifySessionSaveSnapshot } from "./session-save-snapshot.mjs";
 
 const KEY = "football-session-planner-v3";
 const uuid = (value) => typeof value === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value);
@@ -22,7 +23,7 @@ const failure = (reason, status = 502) => ({ ok: false, status, payload: { ok: f
 export function createSessionSavePilotClient({ getContext, request, store, makeId, onReview } = {}) {
   if (typeof getContext !== "function" || typeof request !== "function") throw new Error("Verified Sessions context and transport are required.");
   const getScope = () => { const context = getContext(); return attempt(context) ? identity(context) : ""; };
-  return createSessionSaveClient({ getScope, store, makeId, onReview, retryRevisionConflict: false,
+  const client = createSessionSaveClient({ getScope, store, makeId, onReview, retryRevisionConflict: false,
     send: async (input, baseRevision, expected) => {
       const context = structuredClone(getContext()), owner = attempt(context);
       const current = () => Boolean(owner && expected === identity(context) && owner === attempt(getContext()));
@@ -50,11 +51,21 @@ export function createSessionSavePilotClient({ getContext, request, store, makeI
           || typeof receipt.updatedAt !== "string" || !Number.isFinite(Date.parse(receipt.updatedAt))) throw new Error("Receipt identity mismatch.");
         validateSessionDateChange({ schema: change.schema, id: change.id, date: change.date,
           before: { session: null, tombstones: {} }, after: receipt.value });
-        // A date receipt cannot fill gaps in a whole-calendar snapshot. Keep
-        // the immutable row until authenticated hydration observes its commit.
+        // One bounded read, not another write/retry loop. Failed or stale
+        // reconciliation leaves the exact durable operation for later replay.
         if (receipt.revision > baseRevision + 1 || (response.payload.replayed && receipt.revision > baseRevision)) {
-          return { ...failure("Training saved centrally. Refresh central training before acknowledging this operation.", 409),
-            payload: { ok: false, reason: "Training saved centrally. Fresh central training is required.", reconcileRequired: true } };
+          let status = 502;
+          try {
+            const fresh = await request({ method: "POST", body: JSON.stringify({ ...JSON.parse(body), action: "reconcile" }), isCurrent: current });
+            if (Number.isInteger(fresh?.status) && fresh.status >= 400 && fresh.status <= 599) status = fresh.status;
+            if (!current() || fresh?.ok !== true || fresh.payload?.ok !== true) throw new Error("Fresh Sessions read failed.");
+            const snapshot = await verifySessionSaveSnapshot(fresh.payload.snapshot, { context, change, receipt, current });
+            if (!current()) throw new Error("Sessions identity changed.");
+            client.observe(snapshot.value, snapshot.metadata);
+          } catch {
+            return { ...failure("Training saved centrally. Fresh central training is required.", status),
+              payload: { ok: false, reason: "Training saved centrally; fresh training could not be verified. Local operation retained.", reconcileRequired: true } };
+          }
         }
         return { ok: true, payload: { sessionChange: { id: receipt.id, date: receipt.date, value: receipt.value },
           metadata: { key: KEY, organizationId: receipt.organizationId, teamId: receipt.teamId,
@@ -62,4 +73,5 @@ export function createSessionSavePilotClient({ getContext, request, store, makeI
       } catch { return failure("Central save was not confirmed. Local changes were retained."); }
     },
   });
+  return client;
 }

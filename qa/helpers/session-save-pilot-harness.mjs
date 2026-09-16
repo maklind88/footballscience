@@ -15,16 +15,17 @@ export const hash = (value) => createHash("sha256").update(value).digest("hex");
 // are real. Unexpected network requests fail, never fall through to Supabase.
 export function syntheticAuth() {
   const env = Object.fromEntries(["SUPABASE_URL", "SUPABASE_ANON_KEY"].map((key) => [key, process.env[key]]));
-  const nativeFetch = global.fetch, token = randomUUID();
+  const nativeFetch = global.fetch, token = randomUUID(), peerToken = randomUUID();
   process.env.SUPABASE_URL = "https://session-save.synthetic.invalid";
   process.env.SUPABASE_ANON_KEY = "synthetic-anon";
   global.fetch = async (url, options) => {
     if (String(url) !== "https://session-save.synthetic.invalid/auth/v1/user") throw new Error("Unexpected network request");
-    const authorized = options.headers.Authorization === `Bearer ${token}`;
-    return new Response(JSON.stringify(authorized ? { id: id(1), app_metadata: { role: "guest", status: "active" },
-      user_metadata: { role: "admin", organizationId: id(999), teamId: id(999) } } : {}), { status: authorized ? 200 : 401 });
+    const actorId = options.headers.Authorization === `Bearer ${token}` ? id(1)
+      : options.headers.Authorization === `Bearer ${peerToken}` ? id(3) : null;
+    return new Response(JSON.stringify(actorId ? { id: actorId, app_metadata: { role: "guest", status: "active" },
+      user_metadata: { role: "admin", organizationId: id(999), teamId: id(999) } } : {}), { status: actorId ? 200 : 401 });
   };
-  return { token, close() {
+  return { token, peerToken, close() {
     global.fetch = nativeFetch;
     for (const [key, value] of Object.entries(env)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   } };

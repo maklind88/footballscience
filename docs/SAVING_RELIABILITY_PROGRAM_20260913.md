@@ -1056,3 +1056,104 @@ Risk classification remains Safe Lane for future activation: this is an
 inactive tested foundation, not a rollout-ready or production-verified save
 path. The next checkpoint must prove authenticated canonical read/reconcile
 without adopting legacy pending rows or discarding newer local operations.
+
+## Authenticated Recovery Read Checkpoint (2026-09-16)
+
+### Decision And Boundaries
+
+The receipt-boundary checkpoint deliberately held pending operations when a
+date receipt skipped a full-calendar revision. A receipt proves that one
+operation committed; it does not contain a colleague's other-date changes.
+This checkpoint closes that recovery-read gap in the inactive pilot, not in
+the deployed client. System remains the saving-boundary owner. No Sessions
+UI/business rules, active auth wiring, other module, SQL migration or remote
+data is changed. The existing live save client and API handler are unchanged.
+
+Reuse the existing service-only `read_session_save_context` RPC rather than
+introducing another database function or a cached/global fallback. The HTTP
+constructor now accepts an explicit `action: "reconcile"` carrying the same
+immutable operation. This uses POST solely to carry the bounded operation
+body, not to commit data. The existing verified Auth actor, API guard/rate
+limit, canonical active membership/team resolution, current workspace policy
+and content validation all still run. The operation must already have a
+matching committed receipt. Missing, uncommitted, reused-ID or wrong-team
+operations cannot receive a snapshot. Recovery is deliberately restricted to
+authorized editors, not a new general-purpose reader or read-only-role grant.
+
+The response includes the raw current calendar, its stored SHA-256/revision,
+canonical actor/org/club/team and the exact operation/date. It is no-store,
+uses existing bounded gzip transport and never invokes the commit RPC, writes
+history/effects or changes a journal. The browser verifies the complete scope,
+auth epoch, safe integer revision at least as new as the receipt, decoded size,
+SHA-256 of the exact raw server bytes and calendar/date/block structure. A
+same-revision snapshot must also match the receipt hash and date value. Raw
+hash verification happens before parse/observe; this does not claim that later
+browser JSON serialization has identical key ordering to server text.
+
+### Recovery Invariants
+
+- A revision gap or newer replay performs at most one recovery read in that
+  send attempt. It never automatically repeats the write or starts a timer.
+- A failed read, corrupt hash, oversized/invalid snapshot, scope/epoch change
+  or authorization revoke leaves the exact durable journal row pending. An
+  available HTTP failure status is retained rather than converted to a timeout.
+- Only a verified snapshot reaches `observe`. The existing monotonic observer
+  rejects a delayed snapshot when a newer calendar is already observed.
+- Applying a fresh server baseline does not overwrite the journal, rebase an
+  immutable edit or touch browser raw/localStorage cache. The later receipt
+  acknowledgement still uses the existing exact-row IndexedDB transaction.
+- B staged while A's read waits survives A's acknowledgement unchanged; B
+  subsequently commits once with its original before/after semantics.
+- A read failure after server commit survives reload. Replay uses the same
+  operation ID, reads current authorized state and cannot duplicate its effect.
+
+### Evidence And Remaining Work
+
+The real local PostgreSQL/Chromium harness now crosses the HTTP recovery
+boundary instead of supplying `db.state()` directly to the revision-gap case.
+It also covers denied/uncommitted recovery without writes, held read plus B,
+read failure/reload, permission revoke, auth epoch change, compressed snapshots
+and a delayed read overtaken by a newer observation from a second canonical
+account in an independent browser context. The second editor cannot read the
+first actor's private operation receipt through the recovery route. A test fixture
+initially compared reserialized PostgreSQL JSONB to the raw server string;
+the correction checks both parsed content and the hash of the exact returned
+bytes against the stored hash. No product check was loosened for this fixture.
+External Auth and browser-to-handler routing remain synthetic. This is not
+proof of deployed login, real Supabase network latency or production recovery.
+
+Current Supabase changelog and server `getUser` guidance were rechecked; no
+relevant breaking change affects this checkpoint's existing Auth/RPC APIs.
+
+Next: versioned cross-tab replay ownership and safe compaction of compatible,
+never-attempted edits. Keep already journaled operations immutable until that
+protocol and old-client handling are proven. Initial authenticated bootstrap,
+legacy identity/onboarding, module integration, effect consumers and backup/
+restore compatibility, bounded domain records, staging/canary and explicit
+Safe Lane authorization remain mandatory before any pilot activation. Full
+calendar recovery is a compatibility bridge, not the final scalable read model.
+
+Terminal evidence:
+
+- Full API suite on the final tree: 2898/2898 passed, including 25 new
+  snapshot/reconcile contracts. The earlier targeted API run passed 74/74.
+- Fifteen native PostgreSQL/Chromium cases passed 10 repetitions (150/150).
+  After strengthening two cases to use distinct canonical actors/tokens, those
+  cases passed another 10 repetitions (20/20); the complete final 15/15 also
+  passed. Auth-service replies remain synthetic, not production login proof.
+- Existing storage/replay/atomicity/central revision browser cases: 47/47.
+- Native SQL receipt/history/authorization regressions: 57 behavioral cases
+  plus three parent tests, Node 60/60, no skipped or cancelled tests.
+- `check`, touched-file syntax, `security:platform`, `storage:guard`,
+  `release:rules`, `qa:supabase`, `qa:perf`, `architecture:budgets` and diff
+  checks passed. The 70 migrations and 83 prior size warnings are unchanged.
+- Exactly nine intended files: four inactive runtime/server files, four
+  QA/helper files and this document. Active API/auth wiring, shared legacy
+  client, package scripts and all migrations are unchanged in this increment.
+- Latest fetched main is `1061639cefedcbe3040724a14068637459d81f20`, behind 0.
+  No production/staging action, remote database write or pilot activation.
+
+Overall program estimate: approximately 52%. Risk remains Safe Lane on future
+activation; this checkpoint is prepared locally, not a finished platform-wide
+rollout. Remaining limitations above still apply, including the unproven
+original timeout attribution and the need for bounded domain-record reads.

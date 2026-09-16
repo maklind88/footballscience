@@ -641,10 +641,11 @@ async function getActiveAccessToken() {
   }
   function collectCentralLocalStateEntries() {
     const entries = {};
+    const pendingEntries = readCentralSyncManifestEntries();
     try {
       for (let index = 0; index < window.localStorage.length; index += 1) {
         const key = window.localStorage.key(index);
-        if (isCentralStateKey(key)) {
+        if (isCentralStateKey(key) && !pendingEntries[key]?.centralSyncReview) {
           entries[key] = window.localStorage.getItem(key) ?? "";
         }
       }
@@ -1493,6 +1494,11 @@ async function getActiveAccessToken() {
           centralState.metadata[key] || {},
           options
         );
+        if (pendingEntry?.pendingCentralSync && pendingEntry.centralSyncReview) {
+          // Refused drafts need reconciliation, not a new base revision or cache replacement.
+          nextMetadata[key] = { ...(centralState.metadata[key] || {}), revision: pendingEntry.centralSyncReview.baseRevision };
+          return;
+        }
         if (key === MEDICAL_TEAM_STATE_KEY && pendingEntry?.pendingCentralSync && !canAutomaticallyWrite) {
           return;
         }

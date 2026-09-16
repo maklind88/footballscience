@@ -748,3 +748,93 @@ Scope: one additive migration, its native integration test, one package command,
 and this record. Fresh `origin/main` remains `1061639c`. Overall program estimate
 is approximately 38%. No real training content, remote database, main, staging,
 production, runtime caller or permission matrix was changed.
+
+## Canonical Scope And Receipt-Backed History Checkpoint (2026-09-16)
+
+### Decision And Boundary
+
+The active `api/session-history.js` remains admin-only and its Storage history
+remains global, bounded to 160 entries. It is not replaced or migrated here.
+The new receipt transaction already persists complete before/after date evidence.
+For the pilot, read history metadata directly from those immutable receipts
+instead of adding another history worker, queue, or independently mutable copy.
+This removes a future dual-write dependency for this list only, not the existing
+audit, backup, activity, Storage compatibility or restore responsibilities.
+
+The additive `20260916165132_session_save_scope_history.sql` is inactive:
+
+- `resolve_session_save_scope` requires an explicit team UUID and a server-verified
+  actor UUID. It derives organization/club/team and matching roles from canonical
+  database rows. Active, nondeleted profile, membership, organization, team and
+  any parent club are required. Membership must cover that exact team's canonical
+  ancestry; inconsistent club/org references fail closed. No display aliases,
+  profile primary-team preference, JWT role, user_metadata or global fallback is
+  authorization. New teams need a matching active membership, not a code change.
+- `read_session_save_history` rechecks that scope on every request and requires a
+  matching canonical `admin` membership. Coach, Medical, team-admin or admin of a
+  different team cannot read this history. This preserves the existing history
+  role boundary while narrowing it to canonical membership. Legacy admins without
+  a canonical membership must be onboarded explicitly; no automatic adoption.
+- Reads use one statement snapshot, not a cross-request permission cache. Both
+  functions are STABLE, SECURITY INVOKER, pin `pg_catalog` and allow execution only
+  by service_role. Browser roles cannot call them with a forged actor ID. A future
+  API caller must authenticate the actor and run the existing security/module
+  guards; the scope resolver deliberately makes no Sessions edit-access claim.
+- A date-scoped, indexed revision cursor returns 25 metadata entries by default,
+  at most 50. Only operation ID, actor ID, date, revision and commit time appear
+  in the list. Full coaching values stay in the existing private evidence rows.
+  Older-page cursors exclude newer commits without offset skips or duplicates.
+  The limit bounds each response; it does not delete older/offline evidence.
+
+This follows the official [Supabase function security guidance](https://supabase.com/docs/guides/database/functions)
+and [PostgreSQL STABLE snapshot contract](https://www.postgresql.org/docs/17/xfunc-volatility.html).
+The current Supabase changelog was checked; no relevant API change requires a
+different function security or read snapshot contract.
+
+### Regression Evidence And Remaining Gates
+
+`qa:session-history-native` applies the actual SQL to the existing isolated
+PostgreSQL 17 synthetic harness, never Supabase. The existing receipt native
+suite now also applies this additive migration, so its collision, lock-wait,
+revoke, restart and legacy-CAS cases exercise the new history index too.
+
+The history cases prove canonical ancestry, metadata/role spoof rejection,
+missing/inactive/deleted identities, different-team admin isolation, new team
+onboarding, per-page revocation, committed response replay, restart persistence,
+before/after retention, metadata-only output, date/org/team filtering, cursor
+paging across newer commits, the 50-entry ceiling, input validation, actual
+browser-role denial and read-only transactions with byte-identical evidence
+before/after. EXPLAIN demonstrates an indexable bounded date/revision query, not
+a claim of million-record load testing. Initial additional fixtures attempted
+hard deletion of identity rows; the existing guard correctly rejected them.
+Fixtures now use incomplete synthetic identities and transaction rollback,
+without disabling any trigger or changing product behavior.
+
+The resolver is not yet wired to the commit RPC, API, browser journal or old
+history. In particular, current browser scopes are not silently rekeyed to a new
+organization, existing global training is not adopted, and legacy history is
+not imported/deleted. The one-org/calendar pilot still needs the bounded
+multi-team record migration plan. No claiming, compaction, consumer, permission
+matrix rewrite, detail/restore endpoint, retention job or feature flag was added.
+
+Next: prove a server adapter that combines the canonical scope with the current
+Sessions edit/security guards on both initial writes and replays; validate the
+merge/receipt/history path together without activating it. Shadow comparison,
+explicit legacy migration, compatibility effects, offline/cross-tab end-to-end
+tests, backup readiness and user-authorized Safe Lane remain cutover gates.
+
+Terminal evidence: 20 history/scope cases plus 22 receipt cases passed in each
+of 10 local PostgreSQL runs (420 behavioral case executions; the Node runner
+counts two additional parent tests per run). All 146 targeted API, identity,
+history, domain, facade, data-safety and sync contracts passed. `check`,
+`security:platform`, `storage:guard`, `release:rules`, `qa:supabase` (69 migration
+files), `qa:perf`, `architecture:budgets` and diff checks passed. The existing
+83 architecture warnings are unchanged. No fresh browser or remote Supabase
+advisor/staging proof is claimed for this inactive database-only increment.
+All owned test processes finished and synthetic instances cleaned up.
+
+Scope is five files: this record, the additive SQL, its native test, applying
+the new SQL in the existing receipt tests, and one package command. Latest
+fetched `origin/main` remains `1061639c`; no rebase is needed. Overall saving
+program estimate is approximately 40%, not a claim that the Live saving issue
+or all modules are fixed. No remote migration, main/staging change or deploy.

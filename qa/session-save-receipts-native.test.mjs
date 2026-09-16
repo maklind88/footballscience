@@ -5,6 +5,7 @@ import { syntheticPostgres, id, statementOutcome } from "./helpers/relations-per
 import { applySessionDateChange, createSessionDateChanges } from "../src/modules/session-planner/session-save-protocol.mjs";
 
 const migration = readFileSync(new URL("../supabase/migrations/20260916163623_session_save_atomic_receipts.sql", import.meta.url), "utf8");
+const historyMigration = readFileSync(new URL("../supabase/migrations/20260916165132_session_save_scope_history.sql", import.meta.url), "utf8");
 const literal = (value) => `'${String(value).replaceAll("'", "''")}'`;
 const json = (value) => `${literal(JSON.stringify(value))}::jsonb`;
 const date = "2026-09-16";
@@ -44,6 +45,7 @@ test("Sessions atomic receipts in isolated PostgreSQL 17 (never Supabase)", asyn
       assert.equal((await sql("SELECT to_regclass('app_private.session_save_receipts') IS NULL")).trim(), "t");
       assert.equal((await sql("SELECT to_regprocedure('public.commit_session_save_operation(uuid,uuid,uuid,text,jsonb,bigint,text)') IS NULL")).trim(), "t");
       await sql(migration);
+      await sql(historyMigration);
       await reset();
     });
     await t.test("lost response, database restart and replay yield one state change and one intent", async () => {

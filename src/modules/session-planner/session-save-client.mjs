@@ -16,6 +16,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
   const copy = (value) => JSON.parse(JSON.stringify(value));
   const current = (expected) => expected && expected === getScope() && expected === scope;
   const failure = (reason, extra = {}) => ({ ok: false, reason, ...extra });
+  const coordinate = (expected, work) => store.withReplay ? store.withReplay(expected, work) : work();
 
   function observe(value, metadata = {}) {
     const nextScope = getScope();
@@ -29,12 +30,12 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
   }
 
   async function drain(expected) {
-    const rows = await store.list(expected);
+    const rows = store.replayRows ? store.replayRows(expected) : await store.list(expected);
     if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
     const blocked = new Set();
     let metadata = { ...baselineMetadata };
     let issue = "";
-    for (const row of rows) {
+    for await (const row of rows) {
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       if (row.status === "archived") continue;
       if (row.status === "review" || blocked.has(row.change.date)) {
@@ -63,7 +64,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
         return failure("Central save was not confirmed. Local changes were retained.", { durablePending: true });
       }
       // The exact scoped row must still exist when its receipt is committed locally.
-      if (!await store.remove(row)) return failure("Local save changed in another tab. Its current version was retained.", { durablePending: true });
+      if (!await store.remove(row, result.payload.metadata)) return failure("Local save changed in another tab. Its current version was retained.", { durablePending: true });
       if (!current(expected)) return failure("Account or team changed. Central training must be loaded again.");
       if (Number(result.payload.metadata.revision) >= revision) {
         baseline = replaceSessionDate(baseline, receipt.date, receipt.value);
@@ -75,6 +76,11 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
       metadata = { ...baselineMetadata };
     }
     if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+    if (store.confirmedRevision) {
+      const confirmed = await store.confirmedRevision(expected);
+      if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+      if (confirmed > revision) return failure("Training changed in another tab. Fresh central training is required.", { reconcileRequired: true });
+    }
     if (issue) {
       onReview();
       return failure(issue, { reviewRequired: true, durablePending: true, value: JSON.stringify(baseline), metadata });
@@ -132,7 +138,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
       return replayFlight.work.then(copy);
     }
     const flight = { expected, staged, observation, recheck: false };
-    const work = serial.then(async () => {
+    const work = serial.then(() => coordinate(expected, async () => {
       await staged;
       if (!current(expected) || !baseline) return failure("Central training is still loading. Local changes were retained.");
       let result;
@@ -147,7 +153,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
         // Reread after success/review, never multiply a failed network attempt.
       } while (flight.recheck && (result.ok || result.reviewRequired));
       return result;
-    }).catch((error) => failure(error?.message || "Saved locally; central sync pending", { durablePending: true }))
+    })).catch((error) => failure(error?.message || "Saved locally; central sync pending", { durablePending: true }))
       .finally(() => { if (replayFlight?.work === work) replayFlight = null; });
     serial = work.then(() => {});
     replayFlight = Object.assign(flight, { work, tail: serial });
@@ -179,12 +185,13 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
     const expected = getScope();
     await staging;
     const rows = await store.list(expected);
-    return Boolean(current(expected) && baseline && !unstaged.has(expected) && rows.every((row) => row.status === "archived"));
+    const confirmed = store.confirmedRevision ? await store.confirmedRevision(expected) : 0;
+    return Boolean(current(expected) && baseline && revision >= confirmed && !unstaged.has(expected) && rows.every((row) => row.status === "archived"));
   }
 
   function resolve(id, keepLocal, expectedCentral) {
     const expected = getScope();
-    const work = serial.then(async () => {
+    const work = serial.then(() => coordinate(expected, async () => {
       if (!current(expected) || !baseline) return failure("Account or team changed.");
       const row = (await store.list(expected)).find((item) => item.change.id === id && item.status === "review");
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
@@ -199,7 +206,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
       if (!await store.resolveReview(row, replacement)) return failure("This review has changed. Open it again.");
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       return drain(expected);
-    }).catch((error) => failure(error.message));
+    })).catch((error) => failure(error.message));
     serial = work.then(() => {});
     return work;
   }

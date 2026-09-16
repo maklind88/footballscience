@@ -402,3 +402,152 @@ product behavior or final assertion was weakened to accommodate the harness.
 5. Expand module by module using the inventory above. Keep offline readiness,
    new team/player/exercise/session IDs and dependency ordering as mandatory
    gates. Do not declare all modules certified from aggregate test counts.
+
+## 2026-09-16: Shared Rejection Contract Checkpoint (Not A Release)
+
+The preceding acknowledgement/cache checkpoint was subsequently released as
+`1061639cefedcbe3040724a14068637459d81f20`: Safe Lane completed, production run
+`35104065432` succeeded, and authenticated Live smoke passed 7/7. This updates
+the historical "not deployed" status above, not the entire program's status.
+That release does not certify every module's saving behavior. Seven app-state
+409 responses were observed during the live-smoke window (six Home stale-write
+guards and one Medical destructive-reduction guard). They are evidence of
+refused operations, not proof of data loss or of the original user's cause.
+
+Current isolated investigation: `codex/system-save-contracts-20260916`, based
+on that same SHA. System owns shared save/receipt/hydration contracts; affected
+module boundaries are Schedule, Medical, Squad/Player Profiles, Periodization,
+Exercise Library and Home Tasks. No module business rules, API permissions,
+database schema, real coaching content or production configuration were edited.
+No new release was authorized for this checkpoint.
+
+### Reproductions And Limits
+
+| Contract | Current evidence on unchanged product code |
+| --- | --- |
+| Refusal is not a save receipt | 403 clears `pendingCentralSync` in the shared runtime for non-Sessions keys; six parameterized service cases fail |
+| Conflict must not replace/acknowledge an unsaved draft | Shared non-Schedule/non-Sessions 409 handling calls force hydration, then may clear pending without a successful POST; realistic service hydration writes an older raw snapshot |
+| Refused operation must not replay automatically at a fresh base | Acceptance cases require a persisted review hold across runtime restart; not implemented, and the tests stop at earlier failed assertions, so restart is not yet certified |
+| One refusal must not acknowledge that key while another saves | Queued Medical denial plus Schedule acceptance sends both but incorrectly clears Medical pending |
+| Late A refusal must not block queued B | New deterministic deferred-response service case passes |
+| Actual Medical protected storage pipeline | Chromium, real app and protected `localStorage.setItem`, synthetic injury plan, HTTP 403: plan remains local but pending becomes false |
+| Actual Squad protected storage pipeline | Chromium, real app, synthetic player-name edit, HTTP 409: name remains local but pending becomes false |
+| Schedule negative path | Real training event survives the tested 409, reload, fresh force hydration and focus, with pending true and one refused POST |
+
+The browser tests observe the real auth bridge result without replacing it;
+their HTTP endpoints and auth accounts are synthetic. Medical and Squad fail
+before reload, so their later reload/focus assertions remain unverified. The
+first fixture used an unknown test field and a transient global error string;
+the final fixture uses actual injury-plan/name/training fields and observes
+the relevant bridge result. Unknown-field normalization is not reported as
+lost training. No user browser storage was cleared or altered.
+
+Terminal local results:
+
+- Core sync/facade/data-safety matrix: 62 passed, 13 failed. All 61 pre-existing
+  cases passed; the 13 failures belong to the 14 newly added acceptance cases.
+- Focused real-app browser matrix: 1 passed, 2 failed.
+- Both edited QA files pass `node --check`; `git diff --check` passes.
+- These failures represent missing protections, not a green release gate.
+  No commit, push, staging, deploy, migration or remote user-data write occurred.
+
+### Blocker And Next Safe Change
+
+The tool security review rejected the proposed shared runtime/hydration/manifest
+patch before it was applied, citing the cross-module recovery risk and need for
+a narrower, better-proven change. Product code remains byte-identical to the
+base. Only QA and this checkpoint are modified. The user was asked to approve
+an isolated correction of the common rejection/reload boundary, without deploy.
+
+Next implementation must preserve rejected pending generations, prevent forced
+hydration from treating them as acknowledged, and stop automatic replay of the
+same refused operation without poisoning a later legitimate explicit edit.
+Retain server 403/409 checks and allow unrelated keys to save. A hold must not
+be imposed on newer B by A's late refusal. Persisted review state, normal
+Medical merges, Schedule revision guards, tombstones and explicit recovery all
+need tests before this can be a candidate. Do not silently turn a fresh server
+revision into permission to overwrite a colleague's changes.
+
+Remaining subsequent stages are unchanged: generation-bound durable storage
+(including quota/crash/cross-tab cases), versioned coalescing/idempotency, and
+the additive domain-record/short-commit pilot before broader module rollout.
+The existing whole-manifest storage mutations do not prove atomic cross-tab
+durability; this checkpoint must not be presented as solving that separate risk.
+
+## 2026-09-16: Approved Narrow Rejection Preservation
+
+The user approved the isolated common-boundary correction ("Ja, om det ar det
+basta"), explicitly without deploy. This supersedes the implementation stop in
+the preceding investigation checkpoint. Owner: System. The same six files are
+in scope: this record, shared sync service/facade, the hydration boundary in
+`platform-auth-boot.js`, and the two existing central-state QA files. No module
+product file, server authorization, API handler, migration or Live data changes.
+
+### Behavior
+
+- A rejected non-Sessions 403 or unresolved 409 stays pending. Its manifest
+  entry carries `centralSyncReview` with status and the actual attempted base
+  revision, not a fetched revision that would silently rebase the draft.
+- Only the still-current raw value, queue and manifest generation may receive
+  this hold. A late refusal for A cannot mark newer queued B, or a same-value
+  manifest generation with a different hash/write-count/timestamp/deletion token.
+- Automatic retry checks the hold both when queueing and before sending. A
+  fresh access snapshot does not override an operation-level refusal. Other
+  keys continue through the queue and successful saves keep their normal path.
+- Fresh/forced hydration does not replace, acknowledge, merge/write back or
+  advance the base of a held draft. It is excluded from automatic empty-state
+  seeding. The server remains the source of truth for confirmed shared data.
+- A new ordinary protected write clears its previous hold and is judged by the
+  unchanged backend. It is not an overwrite override: unresolved revision
+  conflicts can still return 409 and require an explicit domain-aware review.
+- Delete holds remain tombstones, with no automatic resurrection or retry.
+  A later new set clears the tombstone and uses the normal acknowledged path.
+- Sessions keeps its existing immutable journal/review protocol and bounded
+  conflict retry. Presentation's existing one-retry policy is unchanged; an
+  unresolved refusal no longer turns forced hydration into a false receipt.
+
+The older two-client simulator test previously required replacement of the
+refused local draft. Its server revision/isolation assertions are retained; the
+last assertion now requires both the accepted server version AND the pending
+local draft to survive, including an explicit fresh force-hydration.
+
+### Scope Limits
+
+This is a rejection-preservation fix, not a complete conflict-resolution UI or
+a new durable offline journal for every module. A review hold must never be
+removed automatically merely to make an indicator green. Resolving genuinely
+divergent documents needs the separately planned domain-aware review/merge.
+
+The existing manifest remains whole-object localStorage with known quota,
+crash and cross-tab atomicity limits. The new generation comparison is not a
+claim of cross-tab transactionality. Older clients that do not understand the
+review field and generic cross-account/tenant pending storage still need the
+versioned/scoped journal gates in the next durability phase; they are not
+certified by this checkpoint. No guarantee of universal offline readiness or
+of recovery of the user's historical lost training is made.
+
+Release risk remains Safe Lane. No main/staging integration, database mutation
+or production deployment is authorized by this implementation approval.
+
+### Terminal Local Verification
+
+- Full API/contracts project: 2,821 passed. This includes six shared storage
+  keys under both 403 and 409, runtime restart, independent-key progress,
+  late rejection versus newer generation, tombstones and send-time hold checks.
+- Central-state and Sessions storage browser files: 33 passed, using the
+  canonical Chromium configuration and a local QA server with synthetic data.
+  The empty-state seeding case also proves a held draft is not included in the
+  seed request and both the pending draft and newer server value survive.
+- Medical 403, Squad 409, Schedule 409 and the two-client revision conflict:
+  ten repetitions each, 40/40 passed.
+- `check`, `security:platform`, `release:rules`, `storage:guard`, `qa:supabase`,
+  `qa:perf`, `architecture:budgets` and `git diff --check` passed. Existing
+  long-term size warnings are unchanged; no threshold or timeout was raised.
+- Fresh `git fetch origin` still resolves `origin/main` to
+  `1061639cefedcbe3040724a14068637459d81f20`. Only the six intended files differ.
+
+The implementation checkpoint is ready to preserve on its isolated candidate
+branch, not yet production verified. No full-platform browser run or new Live
+test is claimed. Overall program completion remains approximately 30%; the
+next checkpoint is generation-bound durable storage and its quota/crash,
+cross-tab and account/team-change acceptance tests before broader rollout.

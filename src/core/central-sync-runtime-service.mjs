@@ -13,6 +13,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     mergePeriodizationStatePreservingLocalUi = (_currentValue, syncedValue) => syncedValue,
     mergeScheduleStatePreservingLocalUi = (_currentValue, syncedValue) => syncedValue,
     mutateManifest = () => ({}),
+    readManifest = () => ({}),
     queueStatusRefresh = () => {},
     queueSnapshot = () => {},
     rawGetItem = () => null,
@@ -108,7 +109,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function createCentralBackedStorageError() { return new Error("Central sync is not ready."); }
 
-  function setCentralSyncPendingState(key, isPending = false, isRemoved = false) {
+  function setCentralSyncPendingState(key, isPending = false, isRemoved = false, clearReview = false) {
     const normalizedKey = String(key || "");
     mutateManifest((manifest) => {
       const currentEntry = manifest.entries[normalizedKey] || {};
@@ -118,6 +119,23 @@ export function createCentralSyncRuntimeService(deps = {}) {
         pendingCentralSync: Boolean(isPending),
         deletedAt: isRemoved ? getDataSafetyNow() : "",
       };
+      if (clearReview || !isPending) delete manifest.entries[normalizedKey].centralSyncReview;
+    });
+    queueStatusRefresh();
+  }
+
+  function getPendingGeneration(entry = {}) {
+    return JSON.stringify([entry.hash, entry.writes, entry.updatedAt, entry.deletedAt]);
+  }
+
+  function retainRejectedWrite(write, status) {
+    if (!isCentralStateWriteGenerationCurrent(write)) return;
+    mutateManifest((manifest) => {
+      const entry = manifest.entries[write.key];
+      if (!entry || getPendingGeneration(entry) !== write.pendingGeneration) return;
+      entry.pendingCentralSync = true;
+      // Rejection is not a receipt. Keep the hold across reload and focus retries.
+      entry.centralSyncReview = { status, baseRevision: getCentralStateWriteBaseRevision(write) };
     });
     queueStatusRefresh();
   }
@@ -166,6 +184,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       const value = rawGetItem(key);
       if (
         entry?.pendingCentralSync &&
+        !entry.centralSyncReview &&
         (entry.deletedAt || value !== null) &&
         getCentralStateBridge()?.canAutoSyncKey?.(key) !== false
       ) {
@@ -356,13 +375,14 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (typeof bridge?.isCentralKey === "function" && !bridge.isCentralKey(normalizedKey)) {
       return;
     }
+    if (options.automatic && readManifest().entries?.[normalizedKey]?.centralSyncReview) return;
     if (!getCurrentUser() || !bridge?.syncKey) {
       queueCentralStateStatus("Central sync unavailable.");
       reportSyncStatus(normalizedKey, "issue", "Central sync unavailable.");
       return;
     }
     reportSyncStatus(normalizedKey, "saving", "Saving");
-    setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed));
+    setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed), !options.automatic);
     const stage = normalizedKey === sessionPlannerStorageKey && !options.removed && bridge.stageSessionWrite
       ? () => options.sessionReplay ? Promise.resolve({ ok: true }) : bridge.stageSessionWrite(String(value ?? ""), { previousValue: options.previousValue, previousPending: options.previousPending })
       : null;
@@ -371,6 +391,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       value: String(value ?? ""),
       removed: Boolean(options.removed),
       automatic: Boolean(options.automatic),
+      pendingGeneration: getPendingGeneration(readManifest().entries?.[normalizedKey]),
       baseRevision: isCentralStateBridgeHydrated(bridge) ? getCentralStateRevisionForKey(normalizedKey) : null,
       followsActiveWrite: centralStateActiveWriteKeys.has(normalizedKey),
       ...(stage ? { stage, staged: Promise.resolve().then(stage).catch((error) => ({ ok: false, reason: error.message })) } : {}),
@@ -398,7 +419,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     centralStateWriteQueue.clear();
     for (let index = 0; index < writes.length; index += 1) {
       const write = writes[index];
-      if (write.automatic && bridge.canAutoSyncKey?.(write.key) === false) {
+      if (write.automatic && (bridge.canAutoSyncKey?.(write.key) === false || readManifest().entries?.[write.key]?.centralSyncReview)) {
         continue;
       }
       centralStateActiveWriteKeys.add(write.key);
@@ -406,9 +427,10 @@ export function createCentralSyncRuntimeService(deps = {}) {
       try {
         const staged = write.stage ? await (write.staged || write.stage()) : { ok: true };
         write.staged = null;
+        write.baseRevision = getCentralStateWriteBaseRevision(write);
         result = !staged.ok ? staged : await bridge.syncKey(write.key, write.value, {
           removed: write.removed,
-          baseRevision: getCentralStateWriteBaseRevision(write),
+          baseRevision: write.baseRevision,
           ...(write.stage ? { sessionStaged: true } : {}),
         });
       } catch (error) {
@@ -430,42 +452,22 @@ export function createCentralSyncRuntimeService(deps = {}) {
             flushIssue = finishAcknowledgedWrite(write, retryResult) || flushIssue;
             continue;
           }
-          if (write.key === scheduleStorageKey) {
-            // Schedule is a shared revision-guarded blob. A forced hydration
-            // here would replace the unsynced local edit, while retrying the
-            // whole blob at a newer revision could overwrite a colleague.
-          } else if (write.key !== sessionPlannerStorageKey) {
-            const hydrated = await bridge.hydrate?.({ forceApply: true }).catch(() => false);
-            if (hydrated) {
-              persistCentralStateServerRevision(write.key, {
-                revision: getCentralStateRevisionForKey(write.key),
-              });
-              if (isCentralStateWriteGenerationCurrent(write)) {
-                setCentralSyncPendingState(write.key, false, write.removed);
-                queueCentralStateStatus("");
-                reportSyncStatus(write.key, "saved", "Saved");
-                continue;
-              }
-            }
-          }
-          queueCentralStateStatus(result?.reason || "Central newer.");
+          // No generic force-hydration/rebase: it can discard this draft or overwrite a colleague.
+          if (write.key !== sessionPlannerStorageKey) retainRejectedWrite(write, 409);
+          flushIssue = result?.reason || "Local changes retained; central data needs review.";
+          queueCentralStateStatus(flushIssue);
           registerSessionPlannerCentralSyncConflict(write, result);
           reportSyncStatus(write.key, "issue", "Sync needs attention");
           continue;
         }
         if (result?.status === 403) {
-          // A 403 means the server permanently refused this specific key for
-          // the current actor (e.g. a role without edit access to that
-          // workspace). That will never succeed on retry, so drop it instead
-          // of requeueing forever and blocking every other pending write
-          // behind it, and keep this key's own denial local instead of
-          // pinning the global sync status.
+          // Leave this draft pending, without blocking unrelated writes or retrying a refusal forever.
           if (write.key === sessionPlannerStorageKey && result.durablePending) {
             setCentralSyncPendingState(write.key, true, false);
-            flushIssue = result.reason || "Local changes retained; access denied.";
-          } else if (isCentralStateWriteGenerationCurrent(write)) {
-            setCentralSyncPendingState(write.key, false, write.removed);
+          } else if (write.key !== sessionPlannerStorageKey) {
+            retainRejectedWrite(write, 403);
           }
+          flushIssue = result.reason || "Local changes retained; access denied.";
           reportSyncStatus(write.key, "issue", result?.reason || "Not authorized for this data.");
           continue;
         }

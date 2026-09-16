@@ -123,7 +123,7 @@ These are acceptance requirements, not a claim all modules satisfy them today.
 | Step | Current state | Required exit evidence |
 | --- | --- | --- |
 | 1. Diagnose and measure | Partial: code/reproduction/read-only size and schema evidence; timing implemented locally | Correlate an authorized synthetic save with queue age, network response, phase timings and fresh read; original timeout not yet attributed |
-| 2. Stabilize recovery | First checkpoint Live at `4996e806`; retained queue can resume on external retry | Further recovery hardening remains; this is not proof the original timeout is fully resolved |
+| 2. Stabilize recovery | First checkpoint Live at `4996e806`; retained queue can resume on external retry. Acknowledgement/cache checkpoint below is local only | Further recovery hardening remains; this is not proof the original timeout is fully resolved |
 | 3. Shared invariants | Written here; existing save contracts inspected | Module-by-module compliance evidence, not a second generic save framework |
 | 4. Reduce redundant saves | In-flight replay-trigger coalescing candidate below; journal compaction not enabled | Atomic claim/replace semantics and old-client compatibility before compacting unsent compatible text edits |
 | 5. Domain-record pilot | Existing inert schema/transformer/read adapter/dry-run retained; readiness checked | Identity and library dependencies, verified backup, exact hash/count round trip, local DB transaction tests, authorized staging backfill/shadow/canary |
@@ -299,3 +299,106 @@ durable text-operation compaction. Do not change a `pending` row simply because
 it looks unsent. The large-document commit path remains a separate subsequent
 step, with transactional receipt/audit/outbox guarantees before removing any
 awaited safety work.
+
+## 2026-09-16: Acknowledgement And Browser Reconciliation
+
+Base: `5c28c83e731094e6bef26abf3d2f4d6c438cd3f8`. System owns this
+checkpoint: three shared core runtime files, focused QA and this record. No
+module business rules, API, database schema, permissions, journal format,
+release scripts, other task's files or real coaching content are changed.
+This checkpoint is not deployed. The eight-step program remains incomplete.
+
+### Evidence And Root-Cause Limits
+
+The reported sequence was Saving, then "Training saved centrally; browser cache
+could not be refreshed", then "Local changes need review". The first failure
+message was generated after a successful Sessions bridge result. Its catch
+covered native storage, recovery manifest, snapshot scheduling AND rendering,
+and discarded the original error. It cannot prove quota was the user's cause.
+Review status can independently mean a real conflicting journal operation or a
+legacy recovery snapshot at a different revision. Never auto-resolve either.
+
+The user opened and signed in to a new in-app browser tab. Read-only navigation
+to Sessions showed no active sync warning. No training was edited to provoke
+one; no original failing request/stack was recovered. This observation does not
+establish that pending data in another browser/tab is safe or resolved.
+
+Deterministic regressions reproduced two additional common-boundary defects:
+an acknowledgement followed by a callback's newer B edit could clear B's pending
+flag, and a non-Sessions view exception could abort the flush after its memory
+queue was emptied, leaving later writes unsent. These are synthetic proofs of
+specific defects, not attribution of all historical data-loss reports.
+
+### Narrow Fix And Invariants
+
+- Both initial and successful 409-retry receipts use the same acknowledgement
+  completion boundary. Recheck the current raw value and same-key queue after
+  callbacks, before clearing pending or reporting Saved. A newer B remains
+  pending. An earlier receipt does not acknowledge B.
+- Preserve the caller's hydration flag around the internal cache write.
+- Cache, manifest, snapshot and view exceptions have distinct, bounded
+  diagnostics: key, phase and allowlisted error class only. Never log payloads,
+  raw exception messages, player names, tokens or coaching text. Surface a local
+  refresh issue without resending an already acknowledged operation or dropping
+  the remaining modules' queue.
+- Only the Sessions acknowledged-cache path gets quota fallback in this pilot.
+  It reuses the existing central read-cache metadata: serverBacked true,
+  durable false. It never converts an unsent edit to memory-only success.
+  Ordinary local writes still fail on quota, and non-quota errors remain errors.
+- A previous native value is retained as a recovery copy. Backup export still
+  describes that native copy, never the newer memory value as durable local
+  storage. On reload, fetch the verified central value. This is NOT a guarantee
+  of offline access to all previously acknowledged data after eviction/restart.
+  That requires the separately planned bounded durable offline read cache.
+- No journal row is compacted, discarded, auto-reviewed or adopted by another
+  account. No 403/409 check, timeout, permission or budget is weakened.
+
+### Closure Matrix
+
+| Contract | Evidence |
+| --- | --- |
+| A cannot acknowledge B during refresh | Deterministic service callback interleave, with view failure; raw B/pending survive |
+| Successful conflict retry cannot acknowledge newer raw B | Revisioned 409/200 service case, exact B manifest preserved |
+| Local display failure cannot drop the next module | Medical view exception followed by a queued Schedule write |
+| Error classification is truthful and non-sensitive | ReferenceError reports view phase, raw error message excluded |
+| Quota fallback requires a server acknowledgement | Data-safety tests plus unchanged ordinary-write quota rejection |
+| Missing cache bridge/security error fail closed | No accepting bridge and SecurityError cases retain native value |
+| Real product cache/merge/reload | Full app, real IndexedDB and quota injection; one revision-guarded mock for every Sessions POST/409 retry; compatible colleague field and local field survive, pending clears, reload has no false review |
+| Repetition | New full-app browser case passed 10/10 |
+| Wider regressions | 2,803/2,803 API/contracts and 34/34 relevant browser tests passed |
+
+The new full-app test follows the actual protected writer, immutable journal,
+auth bridge, central runtime, cache and renderer. It does not mock the renderer
+or accept stale POST base revisions. It uses synthetic data, not Live writes.
+
+Final local checks also passed: `npm run check`, `security:platform`,
+`storage:guard`, `release:rules`, `architecture:budgets`, `qa:perf` and
+`git diff --check`. Existing architecture/long-term CSS size warnings remain;
+no limits were raised. A fresh fetch still matched the base above. There was
+no staging, production, database migration or real-data write verification.
+
+The first browser run exposed a fixture label mismatch, and the next exposed
+an assertion reading before post-reload hydration. The test now uses its
+existing boot fixture and polls for actual hydration; no timeout, permission,
+product behavior or final assertion was weakened to accommodate the harness.
+
+### Remaining Work In Order
+
+1. Verify this exact candidate through Safe Lane and authenticated save/reload
+   only after a new direct user deploy command. Capture phase diagnostics if
+   the original Live symptom recurs; do not label it resolved without proof.
+2. Certify shared pending/receipt/durability contracts, starting with Schedule,
+   Medical and Squad, then Periodization and Exercise Library. Their differing
+   permission/clinical/roster semantics must remain intact. Dedicated Chat,
+   Scouting, IDP, Video and Leaderboard APIs need their own equivalent proofs,
+   not replacement with the document sync writer.
+3. Proceed with versioned journal claim/coalescing and server receipt
+   idempotency. Require cross-tab, old-client, lost-response, tombstone and
+   parent-dependency tests before reducing writes for distinct keystrokes.
+4. Continue the existing additive domain-record pilot and transactional short
+   commit path, with backup, dry-run count/hash verification, staging drill and
+   explicit migration/release authorization. No new paid infrastructure is
+   required by this checkpoint.
+5. Expand module by module using the inventory above. Keep offline readiness,
+   new team/player/exercise/session IDs and dependency ordering as mandatory
+   gates. Do not declare all modules certified from aggregate test counts.

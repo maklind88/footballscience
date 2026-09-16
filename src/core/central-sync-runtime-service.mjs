@@ -17,6 +17,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     queueSnapshot = () => {},
     rawGetItem = () => null,
     rawSetItem = () => {},
+    cacheAcknowledgedValue = rawSetItem,
     retryConflictStorageKeys = [],
     dashboardPresentationStorageKey = "",
     getSessionPlannerLocalUiState = () => ({ state: {} }),
@@ -189,25 +190,56 @@ export function createCentralSyncRuntimeService(deps = {}) {
           : key === dashboardPresentationStorageKey
             ? mergeDashboardPresentationStatePreservingLocalEdits(rawGetItem(key), syncedValue)
             : syncedValue;
-    win.__footballScienceCentralHydrating = true;
+    let phase = "cache";
+    let appliedValue = write.value;
     try {
-      rawSetItem(key, valueToApply);
-    } finally {
-      win.__footballScienceCentralHydrating = false;
+      const wasHydrating = win.__footballScienceCentralHydrating;
+      win.__footballScienceCentralHydrating = true;
+      try {
+        (key === sessionPlannerStorageKey ? cacheAcknowledgedValue : rawSetItem)(key, valueToApply);
+        appliedValue = valueToApply;
+      } finally {
+        win.__footballScienceCentralHydrating = wasHydrating;
+      }
+      phase = "manifest";
+      mutateManifest((manifest) => {
+        const currentEntry = manifest.entries[key] || {};
+        manifest.entries[key] = {
+          ...(currentEntry?.label ? currentEntry : { label: getStorageLabel(key), writes: 0 }),
+          ...currentEntry,
+          updatedAt: getDataSafetyNow(),
+          size: valueToApply.length,
+          hash: hashString(valueToApply),
+          pendingCentralSync: false,
+        };
+      });
+      phase = "snapshot";
+      queueSnapshot("central-merge");
+      phase = "view";
+      handleSyncedStateValue(key, valueToApply);
+      return { appliedValue };
+    } catch (error) {
+      const errorType = ["QuotaExceededError", "SecurityError", "ReferenceError", "TypeError"].includes(error?.name) ? error.name : "Error";
+      try { win.console?.warn?.("Central save acknowledgement refresh failed", { key, phase, errorType }); } catch {}
+      const prefix = key === sessionPlannerStorageKey ? "Training saved centrally" : "Changes saved centrally";
+      const issue = phase === "view" ? `${prefix}; the view could not be refreshed.`
+        : phase === "cache" ? `${prefix}; browser cache could not be refreshed.`
+          : `${prefix}; local recovery metadata could not be refreshed.`;
+      return { appliedValue, issue };
     }
-    mutateManifest((manifest) => {
-      const currentEntry = manifest.entries[key] || {};
-      manifest.entries[key] = {
-        ...(currentEntry?.label ? currentEntry : { label: getStorageLabel(key), writes: 0 }),
-        ...currentEntry,
-        updatedAt: getDataSafetyNow(),
-        size: valueToApply.length,
-        hash: hashString(valueToApply),
-        pendingCentralSync: false,
-      };
-    });
-    queueSnapshot("central-merge");
-    handleSyncedStateValue(key, valueToApply);
+  }
+
+  function finishAcknowledgedWrite(write, result) {
+    advanceQueuedWriteBaseRevision(write.key, result);
+    persistCentralStateServerRevision(write.key, result);
+    const currentBeforeApply = isCentralStateWriteGenerationCurrent(write);
+    const applied = applyCentralSyncedStateValue(write, result.value);
+    // Refresh callbacks can create a newer edit. Never acknowledge it with A's receipt.
+    if (currentBeforeApply && isCentralStateWriteGenerationCurrent({ ...write, value: applied?.appliedValue ?? write.value })) {
+      setCentralSyncPendingState(write.key, false, write.removed);
+      reportSyncStatus(write.key, applied?.issue ? "issue" : "saved", applied?.issue || "Saved");
+    }
+    return applied?.issue || "";
   }
 
   function persistCentralStateServerRevision(key, result = {}) {
@@ -295,7 +327,6 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (!retryResult?.ok) {
       return retryResult || null;
     }
-    applyCentralSyncedStateValue(write, retryResult.value);
     if (String(write.key || "") === sessionPlannerStorageKey && retryResult?.merged) {
       showSessionPlannerCentralSyncNotice("Session synced with the latest team changes.");
     }
@@ -396,13 +427,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         if (result?.conflict || result?.status === 409) {
           const retryResult = await retryCentralStateWriteAfterConflict(write, result, bridge);
           if (retryResult?.ok) {
-            advanceQueuedWriteBaseRevision(write.key, retryResult);
-            persistCentralStateServerRevision(write.key, retryResult);
-            if (isCentralStateWriteGenerationCurrent(write)) {
-              setCentralSyncPendingState(write.key, false, write.removed);
-              queueCentralStateStatus("");
-              reportSyncStatus(write.key, "saved", "Saved");
-            }
+            flushIssue = finishAcknowledgedWrite(write, retryResult) || flushIssue;
             continue;
           }
           if (write.key === scheduleStorageKey) {
@@ -454,25 +479,9 @@ export function createCentralSyncRuntimeService(deps = {}) {
         reportSyncStatus(write.key, "issue", result?.reason || "Sync failed.");
         return false;
       }
-      advanceQueuedWriteBaseRevision(write.key, result);
-      persistCentralStateServerRevision(write.key, result);
-      const acknowledgedCurrentGeneration = isCentralStateWriteGenerationCurrent(write);
-      try {
-        applyCentralSyncedStateValue(write, result.value);
-      } catch (error) {
-        if (write.key !== sessionPlannerStorageKey) throw error;
-        // The server receipt is durable even if refreshing this browser's cache fails.
-        if (acknowledgedCurrentGeneration) setCentralSyncPendingState(write.key, false, write.removed);
-        flushIssue = "Training saved centrally; browser cache could not be refreshed.";
-        reportSyncStatus(write.key, "issue", flushIssue);
-        continue;
-      }
+      flushIssue = finishAcknowledgedWrite(write, result) || flushIssue;
       if (result?.merged && write.key === sessionPlannerStorageKey && getActiveWorkspaceId() === "session-planner") {
         showSessionPlannerToast("Central sync merged.", "warning");
-      }
-      if (acknowledgedCurrentGeneration) {
-        setCentralSyncPendingState(write.key, false, write.removed);
-        reportSyncStatus(write.key, "saved", "Saved");
       }
     }
     queueCentralStateStatus(flushIssue);

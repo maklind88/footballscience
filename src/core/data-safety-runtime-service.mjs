@@ -74,8 +74,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
     return typeof value === "string" ? { value, source: "legacy", durable: true } : {};
   }
 
-  function setCentralCachedValue(key, value) {
-    return Boolean(getCentralStateBridge()?.setCachedValue?.(String(key || ""), String(value ?? "")));
+  function setCentralCachedValue(key, value, options = {}) {
+    return Boolean(getCentralStateBridge()?.setCachedValue?.(String(key || ""), String(value ?? ""), options));
   }
 
   function removeCentralCachedValue(key) {
@@ -105,7 +105,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     return nativeGetItem.call(storage, key);
   }
 
-  function rawSetItem(key, value) {
+  function rawSetItem(key, value, options = {}) {
     const storage = getStorage();
     if (!storage || !nativeSetItem) return;
     const normalizedKey = String(key || "");
@@ -118,6 +118,11 @@ export function createDataSafetyRuntimeService(deps = {}) {
       if (isProtectedStorageKey(normalizedKey)) setCentralCachedValue(normalizedKey, normalizedValue);
     } catch (error) {
       if (isProtectedStorageKey(normalizedKey) && isStorageQuotaError(error)) {
+        // Only a verified server acknowledgement may replace the read cache
+        // without local durability. Preserve the previous native recovery copy.
+        if (options.serverAcknowledged && setCentralCachedValue(normalizedKey, normalizedValue, {
+          source: "central-acknowledgement", durable: false, serverBacked: true,
+        })) return;
         const cachedInfo = getCentralCachedValueInfo(normalizedKey);
         if (previousNativeValue === null) {
           if (!(cachedInfo.serverBacked && cachedInfo.durable === false)) {
@@ -130,6 +135,11 @@ export function createDataSafetyRuntimeService(deps = {}) {
       }
       throw error;
     }
+  }
+
+  function cacheAcknowledgedValue(key, value) {
+    if (!getStorage() || !nativeSetItem) throw new Error("Browser cache is unavailable.");
+    rawSetItem(key, value, { serverAcknowledged: true });
   }
 
   function rawRemoveItem(key) {
@@ -674,6 +684,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     isProtectedStorageKey,
     rawGetItem,
     rawSetItem,
+    cacheAcknowledgedValue,
     rawRemoveItem,
     rawKey,
     createManifest,

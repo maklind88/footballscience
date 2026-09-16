@@ -89,7 +89,10 @@ function createServiceHarness(options = {}) {
     getCurrentUser: () => options.currentUser ?? { id: "coach-1" },
     getDataSafetyNow: () => "2026-06-08T12:00:00.000Z",
     getStorageLabel: (key) => `Label ${key}`,
-    handleSyncedStateValue: (key, value) => handledKeys.push({ key, value }),
+    handleSyncedStateValue: (key, value) => {
+      handledKeys.push({ key, value });
+      options.onApply?.({ key, value, rawValues, manifest, service });
+    },
     handleSyncStatus: (...args) => syncStatuses.push(args),
     hashString: (value) => `hash-${String(value).length}`,
     isProtectedStorageKey: (key) => key.startsWith("football-"),
@@ -151,6 +154,77 @@ test("an acknowledged Sessions save with a cache failure does not discard other 
   expect(h.rawValues.get(session)).toBe("local training");
   expect(h.autosaveStatuses).toContainEqual([session, "issue", "Training saved centrally; browser cache could not be refreshed."]);
   expect(h.autosaveStatuses.some(([key, status]) => key === session && status === "saved")).toBe(false);
+});
+
+test("a Sessions view failure is distinguished from a cache failure after acknowledgement", async () => {
+  const key = "football-session-planner-v1", other = "football-medical-team-v1";
+  const h = createServiceHarness({
+    syncKey: async ({ key: current, value }) => ({ ok: true, value: current === key ? "server merge" : value, metadata: { revision: 8 } }),
+    onApply: () => { throw new ReferenceError("private coaching text must not enter diagnostics"); },
+  });
+  const diagnostics = [];
+  h.win.console = { warn: (...args) => diagnostics.push(args) };
+  h.rawValues.set(key, "A"); h.rawValues.set(other, "medical");
+  h.service.queueCentralStateWrite(key, "A"); h.service.queueCentralStateWrite(other, "medical");
+  expect(await h.service.flushCentralStateWrites()).toBe(true);
+  expect(h.rawValues.get(key)).toBe("server merge");
+  expect(h.syncCalls.map((call) => call.key)).toEqual([key, other]);
+  expect(h.autosaveStatuses).toContainEqual([key, "issue", "Training saved centrally; the view could not be refreshed."]);
+  expect(JSON.stringify(diagnostics)).not.toContain("private coaching text");
+  expect(diagnostics).toContainEqual(["Central save acknowledgement refresh failed", { key, phase: "view", errorType: "ReferenceError" }]);
+});
+
+test("a newer Sessions edit made during acknowledgement refresh keeps its pending status", async () => {
+  const key = "football-session-planner-v1";
+  const h = createServiceHarness({
+    syncKey: async () => ({ ok: true, value: "server A", metadata: { revision: 8 } }),
+    onApply: ({ rawValues, service }) => {
+      rawValues.set(key, "B"); service.queueCentralStateWrite(key, "B");
+      throw new Error("view failed after a new edit");
+    },
+  });
+  h.rawValues.set(key, "A"); h.service.queueCentralStateWrite(key, "A");
+  await h.service.flushCentralStateWrites();
+  expect(h.rawValues.get(key)).toBe("B");
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.autosaveStatuses.at(-1)).toEqual([key, "saving", "Saving"]);
+  expect(h.syncCalls).toHaveLength(1);
+});
+
+test("acknowledgement cache application restores its caller's hydration flag", () => {
+  const h = createServiceHarness();
+  const key = "football-session-planner-v1";
+  h.rawValues.set(key, "A"); h.win.__footballScienceCentralHydrating = true;
+  h.service.applyCentralSyncedStateValue({ key, value: "A" }, "server A");
+  expect(h.win.__footballScienceCentralHydrating).toBe(true);
+});
+
+test("a shared module view failure cannot drop the remaining acknowledged-save queue", async () => {
+  const key = "football-medical-team-v1", other = "football-schedule-v1";
+  const h = createServiceHarness({ syncKey: async ({ key: current, value }) => ({ ok: true, value: current === key ? "server medical" : value }),
+    onApply: () => { throw new Error("synthetic view failure"); },
+  });
+  h.rawValues.set(key, "medical"); h.rawValues.set(other, "schedule");
+  h.service.queueCentralStateWrite(key, "medical"); h.service.queueCentralStateWrite(other, "schedule");
+  expect(await h.service.flushCentralStateWrites()).toBe(true);
+  expect(h.syncCalls.map((call) => call.key)).toEqual([key, other]);
+  expect(h.manifest.entries[other].pendingCentralSync).toBe(false);
+  expect(h.autosaveStatuses).toContainEqual([key, "issue", "Changes saved centrally; the view could not be refreshed."]);
+});
+
+test("a newer raw Sessions value is not acknowledged by an earlier successful conflict retry", async () => {
+  const key = "football-session-planner-v1";
+  const h = createServiceHarness({ syncResults: [{ ok: false, status: 409, revision: 8 }, { ok: true, value: "server A", revision: 9 }],
+    onApply: ({ rawValues, manifest }) => {
+      rawValues.set(key, "B"); manifest.entries[key] = { pendingCentralSync: true, hash: "B", writes: 20 };
+    },
+  });
+  h.rawValues.set(key, "A"); h.service.queueCentralStateWrite(key, "A");
+  await h.service.flushCentralStateWrites();
+  expect(h.rawValues.get(key)).toBe("B");
+  expect(h.manifest.entries[key]).toEqual({ pendingCentralSync: true, hash: "B", writes: 20 });
+  expect(h.autosaveStatuses.some(([, state]) => state === "saved")).toBe(false);
+  expect(h.syncCalls).toHaveLength(2);
 });
 
 test("denied durable Sessions writes remain pending without blocking another module", async () => {

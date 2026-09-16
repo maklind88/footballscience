@@ -930,6 +930,69 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
   }
 });
 
+test("Sessions merged acknowledgement survives full browser cache and reload without a false review", async ({ browser, baseURL }) => {
+  const day = "2026-09-10", initial = createStateValue("Original central sequence");
+  const state = { selectedDate: day, sessions: { [day]: { date: day, title: "Training", selectedBlockId: "a", blocks: [
+    { id: "a", title: "Press", objective: "Before", minutes: 15 },
+  ] } } };
+  const value = JSON.stringify(state);
+  const centralStore = { value: initial, metadata: createMetadata(1, initial), entries: { [sessionPlannerStateKey]: value },
+    metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(7, value), moduleId: "session-planner" } } };
+  const posts = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "ack-quota-merge", {
+    initScript: (key) => {
+      const nativeSet = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (storageKey, next) {
+        if (storageKey === key) throw new DOMException("synthetic full cache", "QuotaExceededError");
+        return nativeSet.call(this, storageKey, next);
+      };
+    }, initArg: sessionPlannerStateKey,
+    appStateWriteHandler: ({ body }) => {
+      if (body.key !== sessionPlannerStateKey || !body.sessionChange) return null;
+      const revision = centralStore.metadataEntries[sessionPlannerStateKey].revision;
+      const base = Number(body.metadata?.baseRevision ?? body.baseRevision);
+      posts.push({ base, revision });
+      if (base !== revision) return { status: 409, body: { ok: false, currentRevision: revision } };
+      const merged = applySessionDateChange(JSON.parse(centralStore.entries[sessionPlannerStateKey]), body.sessionChange);
+      if (!merged.ok) return { status: 409, body: { ok: false, conflicts: merged.conflicts, currentRevision: revision } };
+      const next = JSON.stringify(merged.state);
+      centralStore.entries[sessionPlannerStateKey] = next;
+      centralStore.metadataEntries[sessionPlannerStateKey] = { ...createMetadata(revision + 1, next), moduleId: "session-planner" };
+      return { body: { ok: true, metadata: centralStore.metadataEntries[sessionPlannerStateKey], sessionChange: JSON.stringify({
+        id: body.sessionChange.id, date: day, value: sessionDateValue(merged.state, day),
+      }) } };
+    },
+  });
+  try {
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    await tab.page.locator(`[data-session-date="${day}"]`).click();
+    const colleague = JSON.parse(centralStore.entries[sessionPlannerStateKey]);
+    colleague.sessions[day].blocks[0].objective = "Compatible colleague edit";
+    centralStore.entries[sessionPlannerStateKey] = JSON.stringify(colleague);
+    centralStore.metadataEntries[sessionPlannerStateKey].revision++;
+    const field = tab.page.locator('[data-session-field="title"]').first();
+    await field.fill("Press together"); await field.dispatchEvent("change");
+    const read = () => tab.page.evaluate(async ({ key, manifestKey, day }) => {
+      const bridge = window.footballScienceCentralState;
+      if (!bridge?.isHydrated?.()) return { loading: true };
+      const cached = bridge.getCachedValueInfo(key);
+      const block = JSON.parse(localStorage.getItem(key) || "{}").sessions?.[day]?.blocks?.[0];
+      if (!block) return { loading: true };
+      return { title: block.title, objective: block.objective, durable: cached.durable, serverBacked: cached.serverBacked,
+        pending: Boolean(JSON.parse(localStorage.getItem(manifestKey) || "{}").entries?.[key]?.pendingCentralSync),
+        journal: await bridge.getSessionPendingState(), hydrating: Boolean(window.__footballScienceCentralHydrating) };
+    }, { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey, day });
+    await expect.poll(read).toEqual({ title: "Press together", objective: "Compatible colleague edit", durable: false,
+      serverBacked: true, pending: false, journal: null, hydrating: false });
+    await expect(tab.page.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
+    expect(posts.some((post) => post.base !== post.revision)).toBe(true);
+    expect(JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions[day].blocks[0]).toMatchObject({ title: "Press together", objective: "Compatible colleague edit" });
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await expect.poll(read).toMatchObject({ title: "Press together", objective: "Compatible colleague edit", pending: false, journal: null, hydrating: false });
+    await expect(tab.page.getByText("Local changes need review", { exact: true })).toHaveCount(0);
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
 test("large Player Profiles central hydration stays server-backed when localStorage quota is full", async ({ browser, baseURL }) => {
   const centralPlayerProfilesState = {
     players: [

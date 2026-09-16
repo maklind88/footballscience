@@ -127,8 +127,8 @@ These are acceptance requirements, not a claim all modules satisfy them today.
 | 3. Shared invariants | Written here; existing save contracts inspected | Module-by-module compliance evidence, not a second generic save framework |
 | 4. Reduce redundant saves | In-flight replay-trigger coalescing candidate below; journal compaction not enabled | Atomic claim/replace semantics and old-client compatibility before compacting unsent compatible text edits |
 | 5. Domain-record pilot | Existing inert schema/transformer/read adapter/dry-run retained; readiness checked | Identity and library dependencies, verified backup, exact hash/count round trip, local DB transaction tests, authorized staging backfill/shadow/canary |
-| 6. Short commit path | Not implemented | Data + receipt + mandatory audit + background outbox enqueue atomic; bounded worker retry, monitoring and restore proof |
-| 7. Realistic pilot proof | Existing local browser/contracts plus new failure-chain regression | Cross-tab/two-account/offline/crash/quota/permissions/load/rolling-version cases against the actual selected pipeline |
+| 6. Short commit path | Inactive atomic state/receipt/effect foundation and guarded server adapter; no deployed caller or effect consumer | Data + receipt + mandatory audit + background outbox enqueue atomic; bounded worker retry, monitoring and restore proof |
+| 7. Realistic pilot proof | Local real PostgreSQL + browser journal pilot, plus existing active-flow regressions; not a staging/production proof | Cross-tab/two-account/offline/crash/quota/permissions/load/rolling-version cases against the actual selected pipeline |
 | 8. Selective expansion | Registry/API boundary inventory below, no module migration | Prioritize remaining large documents; preserve already database-primary paths and validate each module before cutover |
 
 Step 4 must not mutate an already journaled row merely because its status is
@@ -944,3 +944,115 @@ Increment scope is seven files: app-state's unused policy factory, the new
 server adapter, the additive SQL, two test files, removal of optional package
 aliases and this evidence record. The cumulative candidate is not Live and
 still requires the activation gates above, review and explicit deploy approval.
+
+## Browser Receipt Boundary Checkpoint (2026-09-16)
+
+### Implementation And Ownership
+
+System owns the saving/authentication boundary in this checkpoint; Sessions
+date/block semantics, workspace permissions and UI remain unchanged. Two new
+constructors are deliberately unwired: `session-save-pilot-http.js` and
+`session-save-pilot-client.mjs`. No active route, auth-boot import, feature flag,
+database mode, migration or legacy scope adoption is added.
+
+The HTTP constructor uses the existing `getCurrentActor`, `guardApiRequest`,
+bounded body parser and Sessions compression. Actor ID comes only from the
+verified Auth response, never body/JWT metadata; canonical SQL checks still
+decide active membership, organization/team and module edit access. Browser
+claims about roles/org cannot replace those checks. It accepts POST date
+operations only, emits no-store, preserves rate limiting, and preflights the
+merged/replayed receipt's encoded size before any commit. The actual response
+is bounded again after commit. Uncertainty leaves the same immutable operation
+available to replay, never an invented successful acknowledgement.
+
+The browser constructor requires a verified actor/org/club/team context plus
+an auth epoch. It uses a distinct `sessions-receipts-v1` journal namespace and
+never rekeys legacy rows. Scope and epoch are checked across asynchronous
+encoding, request and receipt decoding, including logout/relogin as the same
+actor. Its send adapter validates receipt identity, operation/date, revision,
+hash format and date payload before the existing exact-row IndexedDB deletion
+transaction can run. Pilot conflicts are not retried again by the client
+because its server adapter already permits at most one fresh reconcile.
+Existing live client behavior keeps its default retry policy.
+
+A date receipt alone cannot cover a calendar revision gap. The pilot retains
+the immutable journal row and reports `reconcileRequired` when the commit
+skipped over the client's baseline, or a replay is newer than that baseline.
+Only after authenticated hydration observes that committed revision can the
+same operation be acknowledged. A real two-date case proves that a colleague's
+other date survives the resulting fresh read/replay. The read in that local
+test is supplied from PostgreSQL to `observe`; wiring an authenticated canonical
+read/hydration caller remains a mandatory pre-activation step. This is not an
+automatic fresh-read implementation or a claim about byte-identical browser
+serialization of the server's full-calendar hash.
+
+One narrow correction affects the shared client: it now retains the complete
+latest observed metadata with its baseline. A late older receipt can acknowledge
+its own immutable journal row but cannot attach its old hash/time to a newer
+revision. A later local row or peer-updated review row is still protected by
+the existing IndexedDB transaction/CAS, not by a memory-only comparison.
+
+### Realistic Verification Boundary
+
+The opt-in `qa/session-save-pilot.playwright.config.mjs` reuses the canonical
+Chromium/static-server configuration and fails if the verified PG17 toolchain
+is missing. It is separate from ordinary full QA because it requires a native
+database binary, not a silently skipped test. Its harness starts the existing
+private Unix-socket PostgreSQL instance, applies the real dependency migrations
+and receipt/context SQL, and uses the actual server policy/protocol/RPCs.
+Browser IndexedDB, two pages, independent browser storage, HTTP encode/decode,
+handler authentication parsing, rate guard and database transactions are real.
+The external Auth response and browser-to-handler routing are synthetic; no
+real Supabase token, TLS/network availability or live login proof is claimed.
+All unexpected Auth fetches fail instead of reaching an external service.
+
+Cases cover A's delayed acknowledgement with newer durable B, committed response
+loss followed by reload/same-ID replay, newer colleague observation and exact
+hash/revision retention, a peer moving A to review while its receipt waits,
+journal delete abort after its request succeeded, logout/relogin epoch change,
+canonical permission revoke, and compressed training round trip. Every case
+checks the final database and journal, not just a green UI status. Synthetic
+Auth metadata deliberately disagrees with the canonical membership role.
+
+Additional API contracts reject unauthenticated/forged requests, invalid methods
+and bodies, oversize input, rate-limit exhaustion, malformed scoped receipts,
+missing canonical organization, multiplied retries and receipt preflight
+failure before database commit. Supabase's current changelog and
+[server-verified user guidance](https://supabase.com/docs/reference/javascript/auth-getuser)
+were checked; no new relevant API change requires replacing the existing
+authentication helper. Its existing short actor cache is unchanged; canonical
+database permission checks are fresh on every pilot request/replay.
+
+Next: finish the authenticated canonical fresh-read/reconciliation boundary,
+then versioned cross-tab replay ownership and compatible unsent-edit compaction,
+followed by effects/backup compatibility and the bounded-record cutover.
+This checkpoint does not make the full-calendar bridge scalable to
+millions of records, process existing pending migration events, activate offline
+rollout, or prove the original user's timeout is eliminated. Pilot activation
+still requires legacy onboarding, canonical identity verification, read-path
+integration, old/new-client and staging/restore evidence plus explicit release
+authorization. Overall program estimate is approximately 48%, not completion.
+
+### Terminal Checkpoint Evidence
+
+- Full API suite: 2873/2873 passed, including 23 new HTTP/receipt contracts.
+- Real PostgreSQL plus Chromium/IndexedDB: nine scenarios repeated ten times,
+  90/90 passed. This includes the calendar revision-gap/fresh-observation case.
+- Existing Sessions storage/replay/atomicity and central revision browser
+  regressions: 47/47 passed.
+- Native receipt/history/authorization SQL regression: 57 behavioral cases and
+  three parent tests passed (Node reports 60/60), with no skip or cancellation.
+- Final `check`, `security:platform`, `storage:guard`, `release:rules`,
+  `qa:supabase`, `qa:perf`, `architecture:budgets` and diff checks passed.
+  Migration count remains 70 and the 83 architecture warnings are pre-existing.
+- Increment: nine intended files, comprising four runtime/server files, four
+  QA/config/helper files and this evidence record. Active `api/app-state.js`,
+  `platform-auth-boot.js` and package scripts are unchanged in this increment.
+- Latest fetched main remains `1061639cefedcbe3040724a14068637459d81f20`;
+  candidate is behind 0. No main/staging integration, migration, remote data
+  write, pilot activation or production deployment was performed.
+
+Risk classification remains Safe Lane for future activation: this is an
+inactive tested foundation, not a rollout-ready or production-verified save
+path. The next checkpoint must prove authenticated canonical read/reconcile
+without adopting legacy pending rows or discarding newer local operations.

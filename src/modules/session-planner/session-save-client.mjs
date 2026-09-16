@@ -1,9 +1,10 @@
 import { createSessionDateChanges, replaceSessionDate, sameSessionValue, sessionDateValue } from "./session-save-protocol.mjs";
 import { createSessionSaveStore } from "./session-save-store.mjs";
 
-export function createSessionSaveClient({ getScope, send, store = createSessionSaveStore(), makeId, onReview = () => {} }) {
+export function createSessionSaveClient({ getScope, send, store = createSessionSaveStore(), makeId, onReview = () => {}, retryRevisionConflict = true }) {
   let baseline = null;
   let revision = 0;
+  let baselineMetadata = {};
   let scope = "";
   let serial = Promise.resolve();
   let staging = Promise.resolve();
@@ -19,10 +20,11 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
   function observe(value, metadata = {}) {
     const nextScope = getScope();
     if (!nextScope) return;
-    if (scope !== nextScope) { baseline = null; revision = 0; scope = nextScope; }
+    if (scope !== nextScope) { baseline = null; revision = 0; baselineMetadata = {}; scope = nextScope; }
     if (Number(metadata.revision || 0) < revision) return;
     baseline = JSON.parse(value);
     revision = Number(metadata.revision || 0);
+    baselineMetadata = { ...metadata, revision };
     observation++;
   }
 
@@ -30,7 +32,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
     const rows = await store.list(expected);
     if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
     const blocked = new Set();
-    let metadata = { revision };
+    let metadata = { ...baselineMetadata };
     let issue = "";
     for (const row of rows) {
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
@@ -44,7 +46,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
       let result = await send(row.change, revision, expected);
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       // Retry a database CAS race once with the same immutable change, never a rebased edit.
-      if (!result.ok && result.status === 409 && !result.payload?.conflicts?.length) result = await send(row.change, result.payload?.currentRevision || revision, expected);
+      if (retryRevisionConflict && !result.ok && result.status === 409 && !result.payload?.conflicts?.length) result = await send(row.change, result.payload?.currentRevision || revision, expected);
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       if (!result.ok) {
         if (result.status === 409 && result.payload?.conflicts?.length) {
@@ -53,7 +55,8 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
           }
           blocked.add(row.change.date); issue = "Local changes need review"; continue;
         }
-        return failure(result.payload?.reason || "Saved locally; central sync pending", { status: result.status, durablePending: true });
+        return failure(result.payload?.reason || "Saved locally; central sync pending", { status: result.status, durablePending: true,
+          ...(result.payload?.reconcileRequired ? { reconcileRequired: true } : {}) });
       }
       const receipt = result.payload?.sessionChange;
       if (receipt?.id !== row.change.id || receipt?.date !== row.change.date || !receipt?.value?.session || !result.payload?.metadata?.revision) {
@@ -62,9 +65,14 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
       // The exact scoped row must still exist when its receipt is committed locally.
       if (!await store.remove(row)) return failure("Local save changed in another tab. Its current version was retained.", { durablePending: true });
       if (!current(expected)) return failure("Account or team changed. Central training must be loaded again.");
-      if (Number(result.payload.metadata.revision) >= revision) baseline = replaceSessionDate(baseline, receipt.date, receipt.value);
-      metadata = { ...result.payload.metadata, revision: Math.max(revision, Number(result.payload.metadata.revision)) };
-      revision = Math.max(revision, Number(metadata.revision));
+      if (Number(result.payload.metadata.revision) >= revision) {
+        baseline = replaceSessionDate(baseline, receipt.date, receipt.value);
+        revision = Number(result.payload.metadata.revision);
+        baselineMetadata = { ...result.payload.metadata, revision };
+      }
+      // A late receipt may acknowledge its row, never relabel an old hash as
+      // the newer observed revision or discard that revision's metadata.
+      metadata = { ...baselineMetadata };
     }
     if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
     if (issue) {

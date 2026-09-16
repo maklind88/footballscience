@@ -61,7 +61,7 @@ function validReceipt(receipt, context, change) {
 // Unwired server component. actorId MUST come from the HTTP handler's verified
 // authentication, never request JSON. The handler must also run guardApiRequest.
 // authorize is mandatory and supplied by the existing app-state policy below.
-function createSessionSavePilot({ authorize, request = createSessionSaveRpcTransport() } = {}) {
+function createSessionSavePilot({ authorize, request = createSessionSaveRpcTransport(), prepareReceipt = async () => {} } = {}) {
   if (typeof authorize !== "function") throw new Error("Sessions pilot requires the existing server authorization policy.");
   return async ({ actorId, teamId, change: input } = {}) => {
     if (!uuid(actorId) || !uuid(teamId)) return failure(400, "Canonical Sessions actor and team are required.");
@@ -106,6 +106,15 @@ function createSessionSavePilot({ authorize, request = createSessionSaveRpcTrans
         const content = await authorizeValue(value);
         if (content?.ok !== true) return failure(content?.status || 403, "Sessions content was not authorized.");
       } catch { return failure(503, "Sessions content check is unavailable."); }
+
+      try {
+        await prepareReceipt(context.operation.found ? context.operation.receipt : {
+          schema: "session-save-receipt-v1", key: KEY, id: change.id, date: change.date,
+          actorId, teamId, organizationId: context.scope.organizationId,
+          revision: context.entry.revision + 1, hash: hash(value), updatedAt: "9999-12-31T23:59:59.999999+00:00",
+          value: protocol.sessionDateValue(JSON.parse(value), change.date),
+        });
+      } catch { return failure(413, "Sessions receipt exceeds the transfer limit. Nothing new was saved."); }
 
       let result;
       try {

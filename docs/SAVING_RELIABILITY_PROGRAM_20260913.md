@@ -551,3 +551,89 @@ branch, not yet production verified. No full-platform browser run or new Live
 test is claimed. Overall program completion remains approximately 30%; the
 next checkpoint is generation-bound durable storage and its quota/crash,
 cross-tab and account/team-change acceptance tests before broader rollout.
+
+## 2026-09-16: Transactional Journal Pilot (Not A Release)
+
+The user's "Kor basta steg" authorizes the next isolated implementation, not a
+deploy. System owns this persistence checkpoint. Sessions is the existing pilot;
+no Sessions UI, coaching semantics, other module writer, API authorization or
+database migration changes. Continue on `codex/system-save-contracts-20260916`,
+after the pushed rejection-preservation checkpoint `3f90d9c3`.
+
+### Decision And Invariants
+
+Reuse the existing Sessions IndexedDB journal, database version and record
+format. Do not add a second platform-wide save framework or switch every module
+to a new writer at once. The previous store allowed a plain `put` to replace a
+pending operation's scope/payload and removed rows by ID without comparing the
+read generation. Multi-date staging and review replacement used separate
+transactions. Five new negative browser contracts failed against that boundary.
+
+- Stage all date operations from one local edit in one read/write transaction.
+  A later request failure aborts the whole batch; no partial new batch is sent.
+- Snapshot/validate journal records before awaiting database access. Existing pending
+  operation IDs cannot be reused for another payload, owner or status. Exact
+  duplicate insertions remain idempotent.
+- Compare the complete scoped expected record and update/remove it in the SAME
+  read/write transaction. A newer review/status/payload generation survives a
+  delayed receipt. A mismatch remains an explicit failure, not a save receipt.
+- Archive a reviewed row and insert its chosen replacement atomically. A quota
+  failure or competing review cannot leave a replacement without its archive,
+  or archive the only retained version without its replacement.
+- Wait for transaction completion, not individual request success. Request
+  strict transaction durability; do not use memory as a durable fallback.
+  IndexedDB completion/durability constraints are documented by
+  [MDN](https://developer.mozilla.org/en-US/docs/Web/API/IDBTransaction).
+- Preserve the existing account/team scope, and recheck it after asynchronous
+  reads/commits before publishing a receipt or sending a reviewed replacement.
+  Missing/mixed scope batches are rejected; an existing unscoped record cannot
+  be silently adopted by an insertion with the same ID.
+
+### Evidence And Remaining Boundaries
+
+The risk suite uses real Chromium IndexedDB and two Pages in one BrowserContext
+with shared origin storage. Both competing transactions queue behind a held
+IndexedDB transaction before it is released. No production lock or storage
+lease was added. The interrupted-tab case closes a Page after a successful
+request but before transaction completion and checks the survivor after reload.
+Quota/abort cases inject explicit failures into real transactions; they do not
+claim to reproduce every browser/OS disk-full condition or a machine power loss.
+
+Fourteen focused browser cases passed 10 times each (140/140). They cover batch
+abort and reload, late receipt versus peer review, simultaneous distinct rows
+and same-ID collisions, atomic review failure/retry, quota rejection with zero
+network sends followed by successful recovery, account/team switch/reload and
+failed local acknowledgement cleanup followed by retry of the same operation.
+The existing conflict/merge, tombstone and payload rules remain unchanged.
+
+This is local journal atomicity, not an all-dates server transaction or an
+exactly-once side-effect guarantee. Server receipt idempotency, cross-tab replay
+claiming, compatible unsent-edit compaction and old-client rollout still need
+their own protocol/tests. No new claim is made about canonical organization
+resolution: the existing bridge scope is unchanged. Local scope partitioning
+does not replace server authorization or provide encrypted storage on a shared
+device. Browser storage eviction and full offline app loading are separate risks.
+
+Other modules' whole-document localStorage pending records are NOT migrated by
+this pilot. Medical retention/permissions, Squad identity, offline parent-child
+creation and module-specific conflict resolution remain explicit later gates.
+Overall program completion is approximately 35%, not completion of all eight
+steps. No main/staging/production or real coaching data was changed.
+
+Terminal validation: full API/contracts 2,823/2,823; all four relevant Chromium
+files 47/47; risk repetitions 140/140; `check`, `release:rules`,
+`security:platform`, `storage:guard`, `qa:supabase`, `qa:perf`,
+`architecture:budgets` and `git diff --check` passed. The first broad API run had
+one outdated memory-store test double; its method contract was updated without
+changing recovery/server assertions, and the full matrix then passed. The
+test-only transaction barrier initially opened the database before the normal
+store initialization; fixing that harness ordering required no product change.
+Existing architecture warnings remain unchanged. No budget, timeout or
+permission was relaxed. Safari/iPad and mixed old/new deployed clients are not
+certified by this local Chromium checkpoint.
+
+The increment contains two product files (`session-save-store.mjs` and
+`session-save-client.mjs`), five related QA files and this program record.
+Fresh `origin/main` remains `1061639cefedcbe3040724a14068637459d81f20`.
+Next: versioned cross-tab replay claiming and server receipt idempotency before
+unsent-edit compaction or applying this journal pattern to another module.

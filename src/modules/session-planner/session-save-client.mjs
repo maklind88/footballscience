@@ -28,6 +28,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
 
   async function drain(expected) {
     const rows = await store.list(expected);
+    if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
     const blocked = new Set();
     let metadata = { revision };
     let issue = "";
@@ -35,7 +36,9 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       if (row.status === "archived") continue;
       if (row.status === "review" || blocked.has(row.change.date)) {
-        if (row.status !== "review") await store.put({ ...row, status: "review", conflicts: ["An earlier local version needs review."] });
+        if (row.status !== "review" && !await store.update(row, { ...row, status: "review", conflicts: ["An earlier local version needs review."] })) {
+          return failure("Local save changed in another tab. Retry to read its current version.", { durablePending: true });
+        }
         blocked.add(row.change.date); issue = "Local changes need review"; continue;
       }
       let result = await send(row.change, revision, expected);
@@ -45,7 +48,9 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       if (!result.ok) {
         if (result.status === 409 && result.payload?.conflicts?.length) {
-          await store.put({ ...row, status: "review", conflicts: result.payload.conflicts });
+          if (!await store.update(row, { ...row, status: "review", conflicts: result.payload.conflicts })) {
+            return failure("Local save changed in another tab. Retry to read its current version.", { durablePending: true });
+          }
           blocked.add(row.change.date); issue = "Local changes need review"; continue;
         }
         return failure(result.payload?.reason || "Saved locally; central sync pending", { status: result.status, durablePending: true });
@@ -54,12 +59,14 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
       if (receipt?.id !== row.change.id || receipt?.date !== row.change.date || !receipt?.value?.session || !result.payload?.metadata?.revision) {
         return failure("Central save was not confirmed. Local changes were retained.", { durablePending: true });
       }
+      // The exact scoped row must still exist when its receipt is committed locally.
+      if (!await store.remove(row)) return failure("Local save changed in another tab. Its current version was retained.", { durablePending: true });
+      if (!current(expected)) return failure("Account or team changed. Central training must be loaded again.");
       if (Number(result.payload.metadata.revision) >= revision) baseline = replaceSessionDate(baseline, receipt.date, receipt.value);
       metadata = { ...result.payload.metadata, revision: Math.max(revision, Number(result.payload.metadata.revision)) };
       revision = Math.max(revision, Number(metadata.revision));
-      // Remove only this acknowledged generation; a later edit has its own immutable row.
-      await store.remove(row.change.id);
     }
+    if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
     if (issue) {
       onReview();
       return failure(issue, { reviewRequired: true, durablePending: true, value: JSON.stringify(baseline), metadata });
@@ -86,13 +93,16 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
         if (row.status !== "archived" && row.writer === writer) logicalBase = replaceSessionDate(logicalBase, row.change.date, row.change.after);
       }
       const changes = createSessionDateChanges(baseAtEdit, desired, makeId);
+      const records = [];
       for (const change of changes) {
         // Repeated retry of the same edit must not add another journal row.
         if (sameSessionValue(sessionDateValue(logicalBase, change.date), change.after)) continue;
         const previous = pending.filter((row) => row.writer === writer && row.status !== "archived" && row.change.date === change.date).at(-1);
         if (previous && typeof options.previousValue !== "string") change.before = previous.change.after;
-        await store.put({ change, writer, scope: expected, status: "pending", createdAt: Date.now() * 1000 + sequence++ });
+        records.push({ change, writer, scope: expected, status: "pending", createdAt: Date.now() * 1000 + sequence++ });
       }
+      await store.putMany(records);
+      if (!current(expected)) return failure("Account or team changed. Local changes were retained.", { durablePending: true });
       unstaged.delete(expected);
       return { ok: true };
     }).catch((error) => {
@@ -169,14 +179,17 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
     const work = serial.then(async () => {
       if (!current(expected) || !baseline) return failure("Account or team changed.");
       const row = (await store.list(expected)).find((item) => item.change.id === id && item.status === "review");
+      if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       if (!row) return failure("This review has changed. Open it again.");
       const central = sessionDateValue(baseline, row.change.date);
       if (!sameSessionValue(central, expectedCentral)) return failure("Training changed since review. Review the latest version.");
+      let replacement = null;
       if (keepLocal) {
         const change = { ...row.change, id: makeId ? makeId() : globalThis.crypto.randomUUID(), before: central };
-        await store.put({ change, scope: expected, status: "pending", createdAt: Date.now() * 1000 + sequence++ });
+        replacement = { change, scope: expected, status: "pending", createdAt: Date.now() * 1000 + sequence++ };
       }
-      await store.put({ ...row, status: "archived", resolvedAt: new Date().toISOString() });
+      if (!await store.resolveReview(row, replacement)) return failure("This review has changed. Open it again.");
+      if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       return drain(expected);
     }).catch((error) => failure(error.message));
     serial = work.then(() => {});

@@ -393,7 +393,7 @@ test("an external retry resumes a timed-out queued Sessions save without losing 
   expect(h.timers.size).toBe(0);
 });
 
-test("external recovery drains the real Sessions journal after a lost reply with server revision checks", async () => {
+test("external recovery drains the real Sessions client after a lost reply with server revision checks", async () => {
   const key = "football-session-planner-v1", date = "2026-09-14", scope = "qa-coach:qa-org:qa-team";
   const before = { sessions: { [date]: { date, title: "Training", blocks: [{ id: "block-a", title: "Press", minutes: 15 }] } } };
   before.blockDeletionTombstones = { [date]: {} };
@@ -406,8 +406,11 @@ test("external recovery drains the real Sessions journal after a lost reply with
     makeId: () => `recovery-edit-${++id}`,
     store: {
       list: async (owner) => [...rows.values()].filter((row) => row.scope === owner).map((row) => structuredClone(row)),
-      put: async (row) => { rows.set(row.change.id, structuredClone(row)); },
-      remove: async (rowId) => { rows.delete(rowId); },
+      putMany: async (batch) => { for (const row of batch) rows.set(row.change.id, structuredClone(row)); },
+      remove: async (expected) => {
+        if (JSON.stringify(rows.get(expected.change.id)) !== JSON.stringify(expected)) return false;
+        rows.delete(expected.change.id); return true;
+      },
     },
     send: async (change, baseRevision) => {
       posts.push({ change: structuredClone(change), baseRevision });

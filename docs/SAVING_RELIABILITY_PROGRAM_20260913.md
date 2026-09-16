@@ -637,3 +637,114 @@ The increment contains two product files (`session-save-store.mjs` and
 Fresh `origin/main` remains `1061639cefedcbe3040724a14068637459d81f20`.
 Next: versioned cross-tab replay claiming and server receipt idempotency before
 unsent-edit compaction or applying this journal pattern to another module.
+
+## 2026-09-16: Atomic Server Receipt Foundation (Inactive)
+
+The next-step instruction authorizes an isolated implementation/proof, not a
+release or remote schema/data write. System remains the owner; Sessions domain
+merge, UI, permissions and the active API route are unchanged. Base is the
+transactional local journal checkpoint `ed4a9791` on Live base `1061639c`.
+
+### Decision
+
+The active date-change path in `api/app-state.js` still merges against a fresh
+calendar, writes it through the revision RPC, then separately awaits Storage,
+audit, history and activity. It has no persistent operation-ID receipt. A
+content-idempotent merge does not make revision/history work exactly once.
+
+Prepare an additive, **unwired** database primitive first. The CLI-created
+`20260916163623_session_save_atomic_receipts.sql` installs a server-only
+`commit_session_save_operation` RPC and private append-only receipt/effect
+tables. There is no feature flag or runtime caller enabling it. No remote
+migration was run. This is not an active fix for retries in Live.
+
+- One transaction takes the existing calendar row lock, checks active canonical
+  org/team/club/profile/membership after waiting, applies the revision CAS, and
+  inserts the immutable receipt plus a durable before/after date effect intent.
+  Failure inserting either record rolls back the state write too.
+- Receipt identity is `(organization, team, actor, operation ID)` plus a hash
+  of the immutable date change. JSONB normalizes object key order. A reused ID
+  with different content is refused. A replay returns the original receipt,
+  not a new revision or a stale rewrite of the current calendar.
+- The RPC only accepts an existing, nondeleted, canonical org record with an
+  exact `metadata.teamId`. It cannot seed/adopt `global`, another team's state,
+  or an unbound calendar. It forbids changes outside the operation's date.
+- Private tables have RLS, no anon/authenticated/public privileges, and only
+  server SELECT/INSERT grants. The public RPC is SECURITY INVOKER and executable
+  only by service_role. Explicit server SELECT grants on identity tables avoid
+  depending on Supabase default privileges. No client grant was broadened.
+
+PostgREST executes each RPC request transactionally and rolls back on database
+failure: [transaction contract](https://docs.postgrest.org/en/stable/references/transactions.html).
+The Supabase changelog was checked; the relevant Data API exposure change does
+not replace table grants/RLS. See also the official
+[database function security guidance](https://supabase.com/docs/guides/database/functions).
+
+### Real PostgreSQL Evidence
+
+`npm run qa:session-receipts-native` requires `FS_RECOVERY_PG_BIN` pointing to a
+verified PostgreSQL 17 toolchain. It reuses the existing synthetic recovery
+harness: a new private Unix-socket instance, no TCP listener, inherited PG
+credentials excluded, no external URL accepted, and cleanup in `finally`.
+It applies the real dependency migrations and this migration, not SQL mocks.
+
+Twenty-two behavioral cases cover transactional schema rollback, committed
+response loss plus database restart, identical receipt replay, different-content
+ID collision, actor/tenant separation, paused principal/scope, missing/global/
+deleted state, unrelated-date rejection, receipt/effect insert failures, real
+role denial, concurrent same/different operations, access revoke during lock
+wait, legacy CAS competition, and disconnect before COMMIT. Two independent
+psql processes must both be visibly waiting on a held row before the barrier
+is released. The SQLSTATE is asserted for negative database cases.
+
+An initial native run caught missing explicit service-role identity SELECT
+grants and another caught SQL JSON operator precedence; both were corrected
+in the migration, not bypassed in the fixture. Native tests are a separate
+required migration proof, not silently skipped or counted as part of ordinary
+Playwright API QA. No claim of full Supabase migration-history replay is made.
+
+### Activation Gates And Limitations
+
+This checkpoint proves at-most-one committed state/receipt/effect-intent per
+scoped operation in this RPC. It does NOT prove exactly-once delivery of history
+or compatibility effects: no consumer exists yet. Existing history/audit/backup
+work is not removed, bypassed or moved into fire-and-forget work.
+
+Before any caller/cutover is enabled, all of the following remain required:
+
+1. Prove canonical server actor/org/team resolution and the existing Sessions
+   edit permission on every initial request AND receipt replay. Membership in
+   the RPC is defense in depth, not a replacement for module authorization.
+2. Resolve the legacy global calendar through an explicitly reviewed data
+   migration/shadow comparison. Do not copy/adopt it in a normal GET or write.
+   The current app-state primary key still holds one document per org/key; this
+bridge is **not** the multi-team bounded-record architecture. New teams and
+   millions of records require the existing domain-record plan before rollout.
+3. Implement and verify idempotent effect consumers, operational retry/status,
+   audit/history/backup compatibility and retention/offline replay policy.
+   Receipt/effect rows currently have no automatic deletion or processing.
+4. Integrate the API's existing validation and three-way merge with this RPC;
+   the supplied full value must be server-computed/authorized, never taken as
+   authoritative browser input. Replayed older receipts require fresh client
+   reconciliation without overwriting newer local/server work.
+5. Verify real browser/API cross-tab replay, old/new clients, tenant isolation,
+   backup readiness and staging migration under a user-authorized Safe Lane.
+
+Cross-tab send claiming, edit compaction, and other modules remain later steps.
+The full-calendar commit cost is unchanged. This foundation is safe to review
+in isolation, not a claim the complete saving program is ready for release.
+
+Terminal checkpoint: 22 native PostgreSQL cases passed in each of 10 runs
+(220 behavioral case executions; the Node runner also counts its parent test).
+The 130 targeted API, sync, transport, domain, facade and data-safety contracts
+passed. `check`, `security:platform`, `release:rules`, `storage:guard`,
+`qa:supabase` (68 migration files), `qa:perf`, `architecture:budgets` and diff
+checks passed; existing 83 architecture warnings are unchanged. No browser
+suite was rerun for this SQL-only increment; the preceding local-journal
+browser evidence is recorded above and is not reclassified as fresh evidence.
+All synthetic database processes and data directories were closed/removed.
+
+Scope: one additive migration, its native integration test, one package command,
+and this record. Fresh `origin/main` remains `1061639c`. Overall program estimate
+is approximately 38%. No real training content, remote database, main, staging,
+production, runtime caller or permission matrix was changed.

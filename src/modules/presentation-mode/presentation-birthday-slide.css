@@ -4,10 +4,134 @@
 }
 
 .presentation-info-sheet.is-system-birthday {
+  display: block;
+  max-width: none;
+  margin: 0;
+  padding: clamp(2rem, 5cqw, 5.5rem) clamp(2rem, 7cqw, 7rem) clamp(2rem, 4cqw, 4rem);
+}
+
+.presentation-birthday-layout {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, .62fr);
+  align-items: center;
+  gap: clamp(1.2rem, 4cqw, 4.2rem);
+}
+
+.presentation-birthday-copy {
+  min-width: 0;
+  display: grid;
   align-content: center;
-  grid-template-rows: auto auto auto auto;
-  max-width: 88%;
-  margin: 0 auto;
+  justify-items: start;
+}
+
+.presentation-birthday-gallery {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-content: center;
+  gap: clamp(.7rem, 1.6cqw, 1.5rem);
+}
+
+.presentation-birthday-gallery.is-multi {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.presentation-birthday-player {
+  width: min(100%, 20rem);
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: clamp(.5rem, 1cqw, .9rem);
+  text-align: center;
+}
+
+.presentation-birthday-gallery.is-multi .presentation-birthday-player {
+  width: 100%;
+}
+
+.presentation-birthday-player-portrait {
+  position: relative;
+  width: min(100%, 19rem);
+  aspect-ratio: 4 / 5;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  border: clamp(2px, .28cqw, 5px) solid var(--presentation-info-accent, #b45309);
+  border-radius: 8px;
+  background: linear-gradient(145deg, #fff, #f5dfc1);
+  box-shadow: 0 1.5rem 3.5rem rgba(77, 44, 13, .18), inset 0 0 0 1px rgba(255, 255, 255, .72);
+}
+
+.presentation-birthday-player-portrait img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.presentation-birthday-player-portrait.has-photo .presentation-birthday-player-initials {
+  display: none;
+}
+
+.presentation-birthday-player-initials {
+  color: var(--presentation-info-color, #1d1d1f);
+  font-size: clamp(2rem, 5cqw, 5rem);
+  font-weight: 950;
+  letter-spacing: .04em;
+}
+
+.presentation-birthday-cake {
+  position: absolute;
+  right: clamp(-1.2rem, -1.8cqw, -.65rem);
+  bottom: clamp(-1rem, -1.5cqw, -.5rem);
+  width: clamp(3.3rem, 6cqw, 6.2rem);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  color: #b45309;
+  border: clamp(2px, .22cqw, 4px) solid #fff;
+  border-radius: 999px;
+  background: #fff8ed;
+  box-shadow: 0 .8rem 1.8rem rgba(77, 44, 13, .2);
+  transform: rotate(7deg);
+}
+
+.presentation-birthday-cake svg {
+  width: 66%;
+  height: 66%;
+}
+
+.presentation-birthday-player figcaption {
+  min-width: 0;
+  display: grid;
+  gap: .18rem;
+}
+
+.presentation-birthday-player figcaption strong,
+.presentation-birthday-player figcaption small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-birthday-player figcaption strong {
+  color: var(--presentation-info-color, #1d1d1f);
+  font-size: clamp(1rem, 1.55cqw, 1.8rem);
+  font-weight: 950;
+}
+
+.presentation-birthday-player figcaption small {
+  color: color-mix(in srgb, var(--presentation-info-color, #1d1d1f) 66%, transparent);
+  font-size: clamp(.78rem, 1.05cqw, 5rem);
+  font-weight: 850;
 }
 
 .presentation-system-slide-kicker {
@@ -20,7 +144,7 @@
 }
 
 .presentation-info-sheet.is-system-birthday .presentation-info-title {
-  max-width: 14ch;
+  max-width: 12ch;
   min-height: 0;
   margin: 0;
   color: var(--presentation-info-color, #1d1d1f);
@@ -44,4 +168,27 @@
   font-weight: 750;
   letter-spacing: 0;
   line-height: 1.2;
+}
+
+@container (max-width: 720px) {
+  .presentation-birthday-layout {
+    grid-template-columns: minmax(0, 1.15fr) minmax(9rem, .62fr);
+    gap: clamp(.8rem, 3cqw, 1.8rem);
+  }
+
+  .presentation-birthday-gallery.is-multi {
+    gap: .45rem;
+  }
+
+  .presentation-birthday-player-portrait {
+    width: min(100%, 11rem);
+  }
+
+  .presentation-info-sheet.is-system-birthday .presentation-info-title {
+    font-size: clamp(2.4rem, 7.4cqw, 5.8rem);
+  }
+
+  .presentation-info-sheet.is-system-birthday .presentation-info-body {
+    font-size: clamp(1rem, 2.7cqw, 2.2rem);
+  }
 }

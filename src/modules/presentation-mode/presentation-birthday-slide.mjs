@@ -39,6 +39,12 @@ export function createPresentationBirthdaySlide({ birthdayCalendar = {}, dateVal
   const multipleBirthdays = birthdayItems.length > 1;
   const title = multipleBirthdays ? "Happy Birthday!" : `Happy Birthday, ${firstName}!`;
   const body = birthdayItems.map(getBirthdayLine).join("\n");
+  const birthdayPlayers = birthdayItems.slice(0, 4).map((item) => ({
+    id: String(item.id || "").trim(),
+    name: String(item.name || "Player").trim() || "Player",
+    photoUrl: String(item.photoUrl || "").trim(),
+    turningAge: normalizeAge(item.turningAge),
+  }));
   const id = `system-birthday-${dateValue}`;
   const style = {
     theme: "custom",
@@ -61,6 +67,7 @@ export function createPresentationBirthdaySlide({ birthdayCalendar = {}, dateVal
       layout: "title-subtitle",
       title,
       body,
+      birthdayPlayers,
       fontSize: "60",
       accentColor: style.accentColor,
       textColor: style.textColor,

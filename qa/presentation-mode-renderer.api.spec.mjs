@@ -52,6 +52,7 @@ test("birthday slide builder is deterministic, date-bound and Team Meeting only"
         nextBirthday: "2026-09-12",
         daysUntil: 0,
         turningAge: 25,
+        photoUrl: "https://example.com/evelyn.jpg",
       },
       {
         id: "p2",
@@ -75,6 +76,10 @@ test("birthday slide builder is deterministic, date-bound and Team Meeting only"
   expect(slide.infoSlide.title).toBe("Happy Birthday!");
   expect(slide.infoSlide.body).toContain("Evelyn Ijeh turns 25 today.");
   expect(slide.infoSlide.body).toContain("Maycee Bell turns 26 today.");
+  expect(slide.infoSlide.birthdayPlayers).toEqual([
+    { id: "p1", name: "Evelyn Ijeh", photoUrl: "https://example.com/evelyn.jpg", turningAge: 25 },
+    { id: "p2", name: "Maycee Bell", photoUrl: "", turningAge: 26 },
+  ]);
   expect(
     createPresentationBirthdaySlide({ birthdayCalendar, dateValue: "2026-09-12", meetingType: "technical" })
   ).toBeNull();
@@ -110,6 +115,7 @@ test("Team Meeting pins a read-only birthday slide after cover without persistin
             nextBirthday: "2026-09-12",
             daysUntil: 0,
             turningAge: 25,
+            photoUrl: "https://example.com/evelyn.jpg",
           },
         ],
         todayCount: 1,
@@ -130,6 +136,9 @@ test("Team Meeting pins a read-only birthday slide after cover without persistin
   expect(birthdayHtml).toContain("Happy Birthday, Evelyn Ijeh!");
   expect(birthdayHtml).toContain("Evelyn Ijeh turns 25 today.");
   expect(birthdayHtml).toContain("is-system-birthday");
+  expect(birthdayHtml).toContain("presentation-birthday-player");
+  expect(birthdayHtml).toContain("https://example.com/evelyn.jpg");
+  expect(birthdayHtml).toContain("presentation-birthday-cake");
   expect(birthdayHtml).not.toContain("data-presentation-info-field");
   expect(birthdayHtml).not.toContain('contenteditable="true"');
   expect(birthdayControls).not.toContain("Generated from player profiles");

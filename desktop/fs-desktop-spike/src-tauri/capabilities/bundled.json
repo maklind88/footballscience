@@ -1,0 +1,7 @@
+{
+  "identifier": "bundled",
+  "description": "Two-command capability for the bundled local spike frontend.",
+  "windows": ["main"],
+  "platforms": ["macOS", "windows"],
+  "permissions": ["allow-runtime-info", "allow-record-probe"]
+}

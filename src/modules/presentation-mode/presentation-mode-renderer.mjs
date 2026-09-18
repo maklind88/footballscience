@@ -939,6 +939,7 @@ export function createPresentationModeRenderer(options = {}) {
                 data-presentation-goto="${index}"
                 data-presentation-slide-tab
                 data-presentation-slide-index="${index}"
+                data-presentation-slide-read-only="${slide.readOnly ? "true" : "false"}"
                 draggable="${slide.readOnly ? "false" : "true"}"
                 aria-label="${escapeHtml(`Go to ${slide.label}`)}"
                 title="${escapeHtml(slide.readOnly ? `${slide.label} is generated from player profiles` : `Drag to reorder ${slide.label}`)}"

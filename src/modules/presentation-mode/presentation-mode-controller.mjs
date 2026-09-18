@@ -946,6 +946,7 @@ export function createPresentationModeController(dependencies = {}) {
     dateValue: "",
     drawShape: null,
     dragSlideIndex: null,
+    dragSlideModel: null,
     dragShape: null,
     dragTextField: null,
     dragTextBox: null,
@@ -957,6 +958,7 @@ export function createPresentationModeController(dependencies = {}) {
     resizeInfoMedia: null,
     resizeTextField: null,
     resizeTextBox: null,
+    slideDropTarget: null,
     setPiecePhaseBySlide: {},
     setPiecePlayback: {
       isPlaying: false,
@@ -3873,6 +3875,8 @@ export function createPresentationModeController(dependencies = {}) {
     const nextActiveIndex = nextModel.slides.findIndex((slide) => slide.id === activeSlideId);
     state.slideIndex = nextActiveIndex >= 0 ? nextActiveIndex : Math.min(to, Math.max(0, nextModel.slides.length - 1));
     state.dragSlideIndex = null;
+    state.dragSlideModel = null;
+    state.slideDropTarget = null;
     render();
     return true;
   }
@@ -5355,7 +5359,8 @@ export function createPresentationModeController(dependencies = {}) {
       return null;
     }
     const index = Number(tab.dataset.presentationSlideIndex);
-    if (!Number.isInteger(index) || buildModel().slides[index]?.readOnly) {
+    const dragModel = state.dragSlideModel || buildModel();
+    if (!Number.isInteger(index) || dragModel.slides[index]?.readOnly) {
       return null;
     }
     return {
@@ -5375,6 +5380,8 @@ export function createPresentationModeController(dependencies = {}) {
 
   function clearSlideDragState() {
     state.dragSlideIndex = null;
+    state.dragSlideModel = null;
+    state.slideDropTarget = null;
     clearSlideDropIndicators();
     root?.querySelectorAll?.("[data-presentation-slide-tab].is-dragging").forEach((tab) => {
       tab.classList.remove("is-dragging");
@@ -5384,10 +5391,17 @@ export function createPresentationModeController(dependencies = {}) {
 
   function updateSlideDropIndicator(event) {
     const target = getSlideDropTarget(event);
-    clearSlideDropIndicators();
     if (!target || state.dragSlideIndex === null) {
+      clearSlideDropIndicators();
+      state.slideDropTarget = null;
       return null;
     }
+    const targetKey = `${target.insertIndex}:${target.side}`;
+    if (state.slideDropTarget === targetKey) {
+      return target;
+    }
+    clearSlideDropIndicators();
+    state.slideDropTarget = targetKey;
     const isCurrentPosition =
       target.insertIndex === state.dragSlideIndex || target.insertIndex === state.dragSlideIndex + 1;
     if (!isCurrentPosition) {
@@ -5405,9 +5419,11 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     const index = Number(tab.dataset.presentationSlideIndex);
-    if (!Number.isInteger(index) || buildModel().slides[index]?.readOnly) {
+    if (!Number.isInteger(index) || tab.dataset.presentationSlideReadOnly === "true") {
       return;
     }
+    state.dragSlideModel = buildModel();
+    state.slideDropTarget = null;
     state.dragSlideIndex = index;
     tab.classList.add("is-dragging");
     tab.closest(".presentation-slide-tabs")?.classList.add("is-reordering");
@@ -5421,7 +5437,7 @@ export function createPresentationModeController(dependencies = {}) {
     if (state.dragSlideIndex === null || state.presenting || !root?.contains(event.target)) {
       return;
     }
-    const target = getSlideDropTarget(event);
+    const target = updateSlideDropIndicator(event);
     if (!target) {
       return;
     }
@@ -5429,7 +5445,6 @@ export function createPresentationModeController(dependencies = {}) {
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = "move";
     }
-    updateSlideDropIndicator(event);
   }
 
   function handleSlideDrop(event) {

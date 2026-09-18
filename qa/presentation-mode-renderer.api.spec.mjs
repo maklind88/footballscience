@@ -146,6 +146,7 @@ test("Team Meeting pins a read-only birthday slide after cover without persistin
   expect(birthdayControls).not.toContain("data-presentation-theme-menu");
   expect(birthdayControls).toContain("data-presentation-delete-slide disabled");
   expect(footerHtml).toContain('draggable="false"');
+  expect(footerHtml).toContain('data-presentation-slide-read-only="true"');
   expect(writes).toHaveLength(0);
 
   controller.open("2026-09-12", "technical");
@@ -245,6 +246,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(harness.root.innerHTML).toMatch(/<footer class="presentation-footer-nav">[\s\S]*<nav class="presentation-slide-tabs"/);
   expect(harness.root.innerHTML).toMatch(/<nav class="presentation-slide-tabs"[\s\S]*<div class="presentation-footer-pager">/);
   expect(harness.root.innerHTML).toContain("data-presentation-slide-tab");
+  expect(harness.root.innerHTML).toContain('data-presentation-slide-read-only="false"');
   expect(harness.root.innerHTML).toContain('draggable="true"');
   const controlHtml = renderer.renderControlBar(model);
   expect(controlHtml).toContain("<strong>Presentation Mode</strong>");

@@ -858,6 +858,24 @@ test("Leaderboard layout reads the current standings and presents every scorer a
   standings.forEach((player) => expect(markup).toContain(player.name));
   expect(markup.indexOf("Ada Forward")).toBeLessThan(markup.indexOf("Dana Keeper"));
   expect(markup).toContain("presentation-leaderboard-standing-grid");
+
+  const tieBreakStandings = [
+    { playerId: "leader", name: "Leader Center", points: 8, rank: 1, lastScoredOn: "2026-09-17" },
+    { playerId: "newer", name: "Newer Second", points: 7, rank: 2, lastScoredOn: "2026-09-18" },
+    { playerId: "older", name: "Older Third", points: 7, rank: 2, lastScoredOn: "2026-09-16" },
+  ];
+  const tieBreakMarkup = renderer.renderLeaderboardSlide({
+    ...model,
+    slideIndex: slide.index,
+  }, {
+    ...slide,
+    leaderboard: { ...slide.leaderboard, standings: tieBreakStandings },
+  });
+  expect(tieBreakMarkup.indexOf("Newer Second")).toBeLessThan(tieBreakMarkup.indexOf("Leader Center"));
+  expect(tieBreakMarkup.indexOf("Leader Center")).toBeLessThan(tieBreakMarkup.indexOf("Older Third"));
+  expect(tieBreakMarkup).toContain("is-podium-left");
+  expect(tieBreakMarkup).toContain("is-podium-center");
+  expect(tieBreakMarkup).toContain("is-podium-right");
 });
 
 test("Presentation Mode uses the shared warm-up and block thresholds", () => {

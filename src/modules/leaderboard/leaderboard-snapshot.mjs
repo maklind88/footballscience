@@ -41,6 +41,7 @@ export function createLeaderboardPresentationSnapshot(state = {}, context = {}) 
         points: Number(row.points) || 0,
         rank: Number(row.rank) || 0,
         awardCount: Number(row.awardCount) || 0,
+        lastScoredOn: normalizeLeaderboardText(row.lastScoredOn, 32),
       }))
     : [];
 

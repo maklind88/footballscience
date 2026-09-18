@@ -124,7 +124,7 @@ function createScenarios() {
     dateValue: "2026-09-05",
     meetingType: "team",
     birthdayCalendar: {
-      items: [{ id: "birthday-1", name: "Evelyn Ijeh", nextBirthday: "2026-09-05", daysUntil: 0, turningAge: 25 }],
+      items: [{ id: "birthday-1", name: "Evelyn Ijeh", nextBirthday: "2026-09-05", daysUntil: 0, turningAge: 25, photoUrl: photo }],
     },
   });
   return [
@@ -134,7 +134,7 @@ function createScenarios() {
     { name: "image", slide: { ...base("image", "info", "Image", "stadium"), infoSlide: { id: "image", layout: "media", title: "Opponent Shape", body: "Recognize the weak-side space.", mediaKind: "image", mediaSrc: photo, mediaName: "Opponent shape", fontSize: "44" } }, boxes: ".presentation-info-title, .presentation-info-body, .presentation-info-media-panel", primary: ".presentation-info-title, .presentation-info-body" },
     { name: "split", slide: { ...base("split", "info", "Split", "tactical"), infoSlide: { id: "split", layout: "split", title: "Build-up Reference", body: "Create the free player behind the first line.\nProtect the next action.", mediaKind: "image", mediaSrc: photo, mediaName: "Build-up", fontSize: "40" } }, boxes: ".presentation-info-title, .presentation-info-body, .presentation-info-media-panel", primary: ".presentation-info-title, .presentation-info-body" },
     { name: "video", slide: { ...base("video", "info", "Video", "recovery"), infoSlide: { id: "video", layout: "video", title: "Video Review", body: "Pause, scrub and compare the line height.", mediaKind: "video", mediaSrc: video, mediaName: "Pressing clip", fontSize: "40" } }, boxes: ".presentation-info-title, .presentation-info-body, .presentation-info-media-panel", primary: ".presentation-info-title, .presentation-info-body" },
-    { name: "birthday", teamOnly: true, slide: birthday, boxes: ".presentation-info-title, .presentation-info-body", primary: ".presentation-info-title, .presentation-info-body" },
+    { name: "birthday", teamOnly: true, slide: birthday, boxes: ".presentation-birthday-copy, .presentation-birthday-player", primary: ".presentation-info-title, .presentation-info-body", support: ".presentation-birthday-player figcaption small" },
     { name: "match-squad", slide: { ...base("squad", "match-squad", "Match Squad", "filmroom"), infoSlide: { id: "squad", title: "Match Squad" }, matchSquad: { selectedPlayers: players.slice(0, 20), selectedIds: players.slice(0, 20).map((player) => player.id), playerOptions: players, matchContext: { opponentLabel: "Houston", dateLabel: "Saturday, 5 September 2026" } } }, boxes: ".presentation-match-squad-card", primary: ".presentation-match-squad-heading h2, .presentation-match-squad-card strong", support: ".presentation-match-squad-card small" },
     { name: "starting-xi", slide: { ...base("lineup", "lineup", "Starting XI", "whiteboard"), infoSlide: { id: "lineup", title: "Starting XI" }, lineup: createLineup(players) }, boxes: ".presentation-lineup-slot", primary: ".presentation-lineup-heading h2, .presentation-lineup-slot strong" },
     { name: "set-piece", slide: { ...base("set-piece", "set-piece", "Set Piece", "medical"), infoSlide: { id: "set-piece" }, setPiece: createSetPiece() }, boxes: ".presentation-set-piece-heading, .presentation-set-piece-board, .presentation-set-piece-phases, .presentation-set-piece-playback", primary: ".presentation-set-piece-heading h2", support: ".presentation-set-piece-heading p, .presentation-set-piece-phases span, .presentation-set-piece-phases small, .presentation-set-piece-counter" },

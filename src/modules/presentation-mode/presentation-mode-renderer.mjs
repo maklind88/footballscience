@@ -1224,6 +1224,70 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function getBirthdayInitials(name = "Player") {
+    return String(name || "Player")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0))
+      .join("")
+      .toUpperCase() || "P";
+  }
+
+  function renderBirthdayCakeIcon() {
+    return `
+      <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+        <path d="M16 17V10M24 17V8M32 17V10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3" />
+        <path d="M14 10.5c0-1.7 2.6-1.7 2.6 0s2.6 1.7 2.6 0M22 8.5c0-1.7 2.6-1.7 2.6 0s2.6 1.7 2.6 0M30 10.5c0-1.7 2.6-1.7 2.6 0s2.6 1.7 2.6 0" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" />
+        <path d="M10 19h28v7c0 3.3-2.7 6-6 6H16c-3.3 0-6-2.7-6-6v-7Z" fill="currentColor" opacity=".92" />
+        <path d="M10 25c2.3 0 2.3 2.2 4.7 2.2s2.3-2.2 4.7-2.2 2.3 2.2 4.7 2.2 2.3-2.2 4.7-2.2 2.3 2.2 4.7 2.2 2.3-2.2 4.7-2.2" fill="none" stroke="#fff8ed" stroke-linecap="round" stroke-width="2" />
+        <path d="M13 32h22v6H13z" fill="currentColor" opacity=".74" />
+        <path d="M10 39h28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3" />
+      </svg>
+    `;
+  }
+
+  function renderBirthdayPlayer(player = {}, index = 0) {
+    const name = String(player.name || "Player").trim() || "Player";
+    const photoUrl = String(player.photoUrl || "").trim();
+    const age = Number.isInteger(Number(player.turningAge)) ? Number(player.turningAge) : null;
+    const playerClass = photoUrl ? "has-photo" : "is-fallback";
+    return `
+      <figure class="presentation-birthday-player${index === 0 ? " is-primary" : ""}">
+        <div class="presentation-birthday-player-portrait ${playerClass}">
+          ${photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="" loading="eager" onerror="this.hidden=true;this.parentElement.classList.remove('has-photo');this.parentElement.classList.add('is-fallback');" />` : ""}
+          <span class="presentation-birthday-player-initials">${escapeHtml(getBirthdayInitials(name))}</span>
+          ${index === 0 ? `<span class="presentation-birthday-cake" aria-hidden="true">${renderBirthdayCakeIcon()}</span>` : ""}
+        </div>
+        <figcaption>
+          <strong>${escapeHtml(name)}</strong>
+          <small>${age === null ? "Birthday player" : `Turns ${age}`}</small>
+        </figcaption>
+      </figure>
+    `;
+  }
+
+  function renderBirthdaySlideLayout(infoSlide = {}) {
+    const titleValue = infoSlide.title || "Happy Birthday!";
+    const bodyValue = infoSlide.body || "";
+    const birthdayPlayers = Array.isArray(infoSlide.birthdayPlayers) ? infoSlide.birthdayPlayers.slice(0, 4) : [];
+    const galleryClass = birthdayPlayers.length > 1 ? " is-multi" : " is-single";
+    return `
+      <div class="presentation-birthday-layout">
+        <div class="presentation-birthday-copy">
+          <span class="presentation-system-slide-kicker">Team moment</span>
+          <h1 class="presentation-info-title">${escapeHtml(titleValue)}</h1>
+          <span class="presentation-info-rule" aria-hidden="true"></span>
+          <p class="presentation-info-body">${escapeHtml(bodyValue).replaceAll("\n", "<br>")}</p>
+        </div>
+        <div class="presentation-birthday-gallery${galleryClass}" aria-label="Birthday player${birthdayPlayers.length > 1 ? "s" : ""}">
+          ${birthdayPlayers.map((player, index) => renderBirthdayPlayer(player, index)).join("")}
+        </div>
+      </div>
+    `;
+  }
+
   function renderInfoSlide(model = {}, slide = {}) {
     const infoSlide = slide.infoSlide || {};
     const slideStyle = normalizePresentationSlideStyle(slide.style, {
@@ -1234,6 +1298,7 @@ export function createPresentationModeRenderer(options = {}) {
     const textColor = normalizeHexColor(slideStyle.textColor, "#f8fafc");
     const readonly = model.presenting || slide.readOnly ? "readonly" : "";
     const systemSlide = Boolean(slide.systemGenerated || infoSlide.systemGenerated);
+    const birthdaySystemSlide = systemSlide && infoSlide.systemKind === "birthday";
     const frameSlide = {
       id: slide.id,
       type: "info",
@@ -1286,11 +1351,7 @@ export function createPresentationModeRenderer(options = {}) {
           class="presentation-info-sheet is-layout-${escapeHtml(infoSlide.layout || "bullets")}${systemSlide ? ` is-system-generated is-system-${escapeHtml(infoSlide.systemKind || "slide")}` : ""}"
           style="--presentation-info-color: ${escapeHtml(textColor)}; --presentation-info-accent: ${escapeHtml(accentColor)}; ${escapeHtml(getInfoSizeStyle(infoSlide.fontSize))}"
         >
-          ${systemSlide ? `<span class="presentation-system-slide-kicker">Team moment</span>` : ""}
-          ${titleMarkup}
-          <span class="presentation-info-rule" aria-hidden="true"></span>
-          ${bodyMarkup}
-          ${renderInfoSlideMedia(model, infoSlide)}
+          ${birthdaySystemSlide ? renderBirthdaySlideLayout(infoSlide) : `${systemSlide ? `<span class="presentation-system-slide-kicker">Team moment</span>` : ""}${titleMarkup}<span class="presentation-info-rule" aria-hidden="true"></span>${bodyMarkup}${renderInfoSlideMedia(model, infoSlide)}`}
         </section>
       `
     );

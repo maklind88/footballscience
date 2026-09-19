@@ -83,9 +83,14 @@ test("package delta is limited to release checks and manual recovery scripts wit
     "qa:data-recovery-native": "node --test qa/data-content-recovery-native.test.mjs",
   };
   const allowedAdditions = { ...additions, ...recoveryScripts };
+  const allowedReleaseCheckOverrides = {
+    "security:audit": "node scripts/run-security-audit.mjs",
+  };
   for (const [key, value] of Object.entries(allowedAdditions)) expect(packageJson.scripts[key]).toBe(value);
-  const without = structuredClone(packageJson); for (const key of Object.keys(allowedAdditions)) delete without.scripts[key];
-  expect(without).toEqual(candidate); expect(read("package-lock.json")).toBe(gitShow("package-lock.json"));
+  for (const [key, value] of Object.entries(allowedReleaseCheckOverrides)) expect(packageJson.scripts[key]).toBe(value);
+  const without = structuredClone(packageJson); for (const key of [...Object.keys(allowedAdditions), ...Object.keys(allowedReleaseCheckOverrides)]) delete without.scripts[key];
+  const candidateWithout = structuredClone(candidate); for (const key of Object.keys(allowedReleaseCheckOverrides)) delete candidateWithout.scripts[key];
+  expect(without).toEqual(candidateWithout); expect(read("package-lock.json")).toBe(gitShow("package-lock.json"));
 });
 
 test("workflow is pinned, dispatch-only, PLAN then separately approved PREVIEW-APPLY", () => {

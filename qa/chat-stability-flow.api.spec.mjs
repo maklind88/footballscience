@@ -629,6 +629,67 @@ test("server-visible chat history clears stale local deleted tombstones", () => 
   expect(storage.get("football-dashboard-chat-deleted-message-ids-v1")).toEqual([]);
 });
 
+test("current-session chat deletes survive delayed server history", () => {
+  let runtimeMessages = [];
+  const storage = new Map([
+    ["football-dashboard-chat-v1", []],
+    ["football-dashboard-chat-deleted-message-ids-v1", []],
+  ]);
+  const normalizeThreadId = (threadId, fallback = "team") => String(threadId || fallback || "team").trim();
+  const normalizeMessage = (message = {}) => ({
+    id: String(message.id || message.messageId || ""),
+    clientMessageId: String(message.clientMessageId || message.client_message_id || ""),
+    userId: String(message.userId || message.authorId || message.author_id || "coach-qa"),
+    threadId: normalizeThreadId(message.threadId || message.thread_id, "team"),
+    text: String(message.text || message.body || ""),
+    createdAt: String(message.createdAt || message.created_at || ""),
+    readBy: [],
+    mentionedUserIds: [],
+    reactions: {},
+    priority: "normal",
+    attachments: [],
+    status: "sent",
+  });
+  const messageTime = (message = {}) => Date.parse(message.createdAt || message.created_at || "") || 0;
+  const runtime = createDashboardChatMessageRuntime({
+    getDashboardChatRuntimeMessages: () => runtimeMessages,
+    setDashboardChatRuntimeMessages: (nextMessages) => {
+      runtimeMessages = nextMessages;
+    },
+    readDashboardJson: (key, fallback) => storage.get(key) ?? fallback,
+    writeDashboardJson: (key, value) => {
+      storage.set(key, value);
+    },
+    normalizeDashboardChatThreadId: normalizeThreadId,
+    normalizeDashboardMessage: normalizeMessage,
+    normalizeDashboardApiMessage: normalizeMessage,
+    getDashboardMessageIdentityKeys: (message = {}) => [message.id, message.messageId, message.clientMessageId].filter(Boolean),
+    getDashboardMessageCreatedAtMs: messageTime,
+    compareDashboardChatMessages: (first, second) =>
+      messageTime(first) - messageTime(second) || String(first.id || "").localeCompare(String(second.id || "")),
+    renderDashboardChatWidget: () => {},
+  });
+
+  runtime.rememberDashboardDeletedMessageId("server-delete-race-1");
+  const mergedMessages = runtime.mergeDashboardChatApiMessages(
+    [
+      {
+        id: "server-delete-race-1",
+        thread_id: "team",
+        author_id: coachActor.id,
+        body: "Delayed pre-delete response",
+        created_at: "2026-06-04T11:45:22.000Z",
+        deleted_at: null,
+      },
+    ],
+    { thread: { threadId: "team" }, replaceThreadId: "team", render: false }
+  );
+
+  expect(mergedMessages).toEqual([]);
+  expect(runtimeMessages).toEqual([]);
+  expect(storage.get("football-dashboard-chat-deleted-message-ids-v1")).toEqual(["server-delete-race-1"]);
+});
+
 test("closed chat receives realtime summary refresh for unread notifications", async () => {
   const fetchCalls = [];
   const timers = [];

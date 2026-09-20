@@ -68,6 +68,8 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
   let dashboardChatWidgetToastTimer = null;
   let dashboardChatWidgetToastState = null;
   let dashboardChatMessageRegionUpdateDeferred = false;
+  let dashboardChatThreadListUpdateDeferred = false;
+  let dashboardChatThreadListRefreshQueued = false;
   let dashboardChatScrollToLatestRequest = { threadId: "", requestedAt: 0 };
   const dashboardChatHydrationAttemptAtByThread = new Map();
   const dashboardChatComposerDraftsByThread = new Map();
@@ -716,6 +718,38 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     });
   }
 
+  function getDashboardChatActiveThreadIdFromList(threadList = null) {
+    return String(
+      threadList?.querySelector?.("[data-dashboard-chat-thread].is-active")?.dataset?.dashboardChatThread || ""
+    ).trim();
+  }
+
+  function queueDashboardChatThreadListRefreshAfterPointerLeave(threadList = null) {
+    if (!threadList?.addEventListener || dashboardChatThreadListRefreshQueued) {
+      return;
+    }
+    dashboardChatThreadListRefreshQueued = true;
+    threadList.addEventListener(
+      "pointerleave",
+      () => {
+        dashboardChatThreadListRefreshQueued = false;
+        renderDashboardChatWidget();
+      },
+      { once: true }
+    );
+  }
+
+  function shouldDeferDashboardChatThreadListUpdate(currentList = null, nextList = null) {
+    const hoveredThread = currentList?.querySelector?.("[data-dashboard-chat-thread]:hover");
+    if (!hoveredThread) {
+      return false;
+    }
+    return (
+      getDashboardChatActiveThreadIdFromList(currentList) ===
+      getDashboardChatActiveThreadIdFromList(nextList)
+    );
+  }
+
   function reconcileDashboardChatRegions(currentParent, nextParent) {
     const currentChildren = Array.from(currentParent?.children || []);
     const currentByKey = new Map(currentChildren.map((child) => [getDashboardChatRegionKey(child), child]));
@@ -730,6 +764,12 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       } else if (["dashboard-chat-widget-body", "dashboard-chat-thread-list", "dashboard-chat-conversation"].includes(key)) {
         syncDashboardChatRegionAttributes(currentChild, nextChild);
         reconcileDashboardChatRegions(currentChild, nextChild);
+      } else if (
+        key === "dashboard-chat-thread-scroll" &&
+        shouldDeferDashboardChatThreadListUpdate(currentChild, nextChild)
+      ) {
+        dashboardChatThreadListUpdateDeferred = true;
+        queueDashboardChatThreadListRefreshAfterPointerLeave(currentChild);
       } else if (key === "dashboard-chat-list") {
         reconcileDashboardChatMessageList(currentChild, nextChild);
       } else if (key === "dashboard-chat-form") {
@@ -772,6 +812,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     }
     syncDashboardChatRegionAttributes(currentWidget, nextWidget);
     dashboardChatMessageRegionUpdateDeferred = false;
+    dashboardChatThreadListUpdateDeferred = false;
     reconcileDashboardChatRegions(currentWidget, nextWidget);
     return true;
   }
@@ -994,7 +1035,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     if (!patchDashboardChatStableShell(root, renderedWidget.html)) {
       root.innerHTML = renderedWidget.html;
     }
-    if (dashboardChatMessageRegionUpdateDeferred) {
+    if (dashboardChatMessageRegionUpdateDeferred || dashboardChatThreadListUpdateDeferred) {
       delete root.dataset.dashboardChatRenderSignature;
     } else {
       root.dataset.dashboardChatRenderSignature = renderSignature;

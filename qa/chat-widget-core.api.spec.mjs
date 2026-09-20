@@ -1161,6 +1161,14 @@ test("chat runtime preserves open message action menus across background rerende
   expect(appRuntimeSource).toContain("closeChatMenus();\nawait toggleDashboardMessageReactionWithApi(");
 });
 
+test("chat runtime defers background thread-list updates while a thread is hovered", () => {
+  expect(widgetRuntimeSource).toContain("function shouldDeferDashboardChatThreadListUpdate(currentList = null, nextList = null)");
+  expect(widgetRuntimeSource).toContain('"[data-dashboard-chat-thread]:hover"');
+  expect(widgetRuntimeSource).toContain("getDashboardChatActiveThreadIdFromList(currentList) ===");
+  expect(widgetRuntimeSource).toContain('threadList.addEventListener(\n      "pointerleave",');
+  expect(widgetRuntimeSource).toContain("dashboardChatThreadListUpdateDeferred = true;");
+});
+
 test("chat runtime supports browser notification permission and delivery hook", () => {
   expect(appRuntimeSource).toContain("sendDashboardChatBrowserNotification");
   expect(appRuntimeSource).toContain("dashboardChatPushClient.toggleFromNotificationLevel");

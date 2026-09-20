@@ -49,7 +49,7 @@ export async function sessionPilotDatabase() {
   const sql = (query) => db.pg.sql(db.source, query);
   const calls = [];
   try {
-    for (const name of ["20260916163623_session_save_atomic_receipts.sql", "20260916165132_session_save_scope_history.sql", "20260916170114_session_save_authorized_context.sql"]) {
+    for (const name of ["20260916163623_session_save_atomic_receipts.sql", "20260916165132_session_save_scope_history.sql", "20260916170114_session_save_authorized_context.sql", "20260916182913_session_save_initial_read.sql"]) {
       await sql(readFileSync(new URL(`../../supabase/migrations/${name}`, import.meta.url), "utf8"));
     }
     const raw = JSON.stringify(initial);

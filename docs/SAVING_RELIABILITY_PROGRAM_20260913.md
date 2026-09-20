@@ -1270,3 +1270,57 @@ Overall saving-program estimate: approximately 58%, not a platform-wide rollout.
 Next checkpoint: authenticated initial/fresh-read lifecycle with scope/epoch
 validation, including passive-tab reconciliation. Preserve pending generations
 through that lifecycle before enabling this queue in the Sessions runtime.
+
+## Authenticated Initial Read Checkpoint (2026-09-20)
+
+### Decision And Scope
+
+This is the next inactive Sessions-pilot boundary. It introduces an explicit,
+authenticated initial snapshot operation beside the existing pilot write
+operation. It is not imported by the visible Sessions runtime, does not change
+the existing production `/api/app-state` route behavior, and does not migrate
+or delete any coaching data. The database function is additive and is exercised
+only against a temporary local PostgreSQL instance in this checkpoint.
+
+The snapshot request accepts only the exact scope and `action: "snapshot"`.
+It cannot carry a date operation, value, removal flag, client actor or receipt
+identifier. Server authorization and canonical scope resolution run before the
+snapshot is returned. The response contains the current revision, verified
+payload hash and compressed calendar bytes, but no acknowledgement, receipt or
+write side effect.
+
+### Invariants
+
+- A pilot client cannot stage, replay, resolve or render an authoritative view
+  until it has received and verified a snapshot for its exact account, canonical
+  organization/club/team and auth epoch.
+- A reload preserves durable local operations exactly. They are replayed
+  locally over a verified fresh baseline for display, never sent merely because
+  the page reloaded.
+- A delayed, lower-revision or wrong-epoch snapshot cannot replace an observed
+  baseline. A local conflict remains review-required rather than silently
+  choosing a server or browser value.
+- A peer acknowledgement updates a passive real tab without a duplicate write.
+  Offline or failed reads leave the durable journal untouched for explicit
+  later recovery.
+- A read overlapping an in-flight commit cannot publish the pre-commit
+  calendar. A new local edit staged while a read is held remains durable and
+  visible.
+
+### Terminal Evidence
+
+- Targeted API/contract coverage: 57/57 passed, including strict snapshot
+  envelope rejection and no-write/receipt proof.
+- Native PostgreSQL receipt/history/authorization coverage: 60/60 passed.
+- Combined real PostgreSQL, HTTP, IndexedDB and Chromium matrix: 34/34 passed.
+- The new authenticated-load matrix passed three consecutive repetitions:
+  27/27 passed. It covers read-only startup, reload with durable local edits,
+  passive peer acknowledgement, conflict rendering, H1/H2 overlap, auth epoch
+  change, offline reload, in-flight commit/read ordering and a real peer edit.
+
+These are local isolated proofs using synthetic Auth identities. They do not
+prove production Supabase latency, deployed login, a full database-primary
+Sessions migration, or complete offline support. Before activation, rebase this
+candidate on current main, repeat high-risk tests, perform the remaining
+security/release gates, then require the user's explicit Safe Lane authorization
+for any staging or production action.

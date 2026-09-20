@@ -16,6 +16,7 @@ function attempt(context) {
     ? JSON.stringify([scope, context.epoch]) : "";
 }
 const failure = (reason, status = 502) => ({ ok: false, status, payload: { ok: false, reason } });
+export { identity as sessionSavePilotScope, attempt as sessionSavePilotAttempt };
 
 // Unwired pilot. request must be the authenticated, bounded API transport, and
 // getContext must expose its verified principal plus an auth-generation epoch.

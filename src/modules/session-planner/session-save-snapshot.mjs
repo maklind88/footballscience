@@ -13,6 +13,24 @@ export async function verifySessionSaveSnapshot(snapshot, { context, change, rec
     || snapshot.operationId !== change.id || snapshot.date !== change.date
     || !Number.isSafeInteger(snapshot.revision) || snapshot.revision < receipt.revision
     || typeof snapshot.hash !== "string" || !/^[a-f0-9]{64}$/.test(snapshot.hash)) throw new Error("Unverified Sessions snapshot.");
+  const result = await verifyCalendar(snapshot, context, current);
+  const state = JSON.parse(result.value);
+  if (snapshot.revision === receipt.revision && (snapshot.hash !== receipt.hash
+    || !sameSessionValue(sessionDateValue(state, change.date), receipt.value))) throw new Error("Sessions receipt/snapshot mismatch.");
+  return result;
+}
+
+export async function verifySessionInitialSnapshot(snapshot, { context, current }) {
+  if (!current() || snapshot?.schema !== "session-save-initial-snapshot-v1" || snapshot.key !== KEY
+    || snapshot.actorId !== context.actorId || snapshot.organizationId !== context.organizationId
+    || snapshot.clubId !== context.clubId || snapshot.teamId !== context.teamId
+    || snapshot.operationId !== undefined || snapshot.date !== undefined
+    || !Number.isSafeInteger(snapshot.revision) || snapshot.revision < 1
+    || typeof snapshot.hash !== "string" || !/^[a-f0-9]{64}$/.test(snapshot.hash)) throw new Error("Unverified Sessions initial snapshot.");
+  return verifyCalendar(snapshot, context, current);
+}
+
+async function verifyCalendar(snapshot, context, current) {
   const value = await decodeSessionTransport(KEY, snapshot.value);
   if (!current() || typeof value !== "string") throw new Error("Sessions identity changed.");
   const bytes = new TextEncoder().encode(value);
@@ -24,11 +42,9 @@ export async function verifySessionSaveSnapshot(snapshot, { context, change, rec
   if (!object(state) || !object(state.sessions)) throw new Error("Invalid Sessions calendar.");
   canonicalSessionValue(state);
   for (const date of Object.keys(state.sessions)) {
-    validateSessionDateChange({ schema: change.schema, id: change.id, date,
+    validateSessionDateChange({ schema: "session-date-change-v1", id: "snapshot-validation", date,
       before: { session: null, tombstones: {} }, after: sessionDateValue(state, date) });
   }
-  if (snapshot.revision === receipt.revision && (snapshot.hash !== receipt.hash
-    || !sameSessionValue(sessionDateValue(state, change.date), receipt.value))) throw new Error("Sessions receipt/snapshot mismatch.");
   return { value, metadata: { key: KEY, organizationId: context.organizationId, teamId: context.teamId,
     revision: snapshot.revision, hash: snapshot.hash } };
 }

@@ -43,6 +43,23 @@ test("pilot policy cannot be overridden and the legacy export remains the HTTP h
   expect(h.writes()).toEqual([]);
 });
 
+test("initial Sessions read is a receipt-free, write-free canonical snapshot", async () => {
+  const calls = [];
+  const read = appState.createSessionSavePilot({ readSnapshot: true, request: async (name, body) => {
+    calls.push({ name, body: structuredClone(body) }); return context();
+  } });
+  const result = await read({ actorId: id(1), teamId: id(301) });
+  expect(result).toEqual({ ok: true, snapshot: { schema: "session-save-initial-snapshot-v1", key: "football-session-planner-v3",
+    ...context().scope, revision: 10, hash: hash(JSON.stringify(state)), value: JSON.stringify(state) } });
+  expect(calls).toEqual([{ name: "read_session_save_context", body: { p_actor_id: id(1), p_team_id: id(301), p_change: null } }]);
+});
+
+test("initial Sessions read rejects a supplied operation before database access", async () => {
+  let calls = 0;
+  const read = appState.createSessionSavePilot({ readSnapshot: true, request: async () => { calls++; return context(); } });
+  expect(await read(args())).toMatchObject({ ok: false, status: 400 }); expect(calls).toBe(0);
+});
+
 test("operation bytes are captured before the first await; browser identity claims are ignored", async () => {
   const h = harness(), input = args(), original = structuredClone(input.change);
   input.organizationId = id(999); input.role = "admin"; input.user_metadata = { teamId: id(999) };

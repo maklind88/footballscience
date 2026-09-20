@@ -29,6 +29,31 @@ test("unwired HTTP boundary requires verified auth, POST, valid body and preserv
   } finally { auth.close(); }
 });
 
+test("initial read boundary accepts only a minimal authenticated snapshot envelope", async () => {
+  const auth = syntheticAuth(), calls = [];
+  const raw = JSON.stringify(initial);
+  const handler = createSessionSavePilotHandler({ request: async (name, body) => {
+    calls.push({ name, body: structuredClone(body) });
+    return { ok: true, scope: principal, roles: ["coach"], authorizationToken: "a".repeat(64), workspaceHub: "{}",
+      entry: { key, moduleId: "session-planner", organizationId: principal.organizationId, metadata: { teamId: principal.teamId },
+        removed: false, revision: 10, value: raw, hash: (await import("node:crypto")).createHash("sha256").update(raw).digest("hex") },
+      operation: { found: false, matches: false, receipt: null } };
+  } });
+  try {
+    const response = await invoke(handler, { token: auth.token, body: { key, teamId: principal.teamId, action: "snapshot" } });
+    expect(response.status).toBe(200); expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.payload.snapshot).toMatchObject({ schema: "session-save-initial-snapshot-v1", actorId: principal.actorId,
+      organizationId: principal.organizationId, teamId: principal.teamId, revision: 10 });
+    expect(response.payload.snapshot.operationId).toBeUndefined();
+    expect(calls).toEqual([{ name: "read_session_save_context", body: { p_actor_id: principal.actorId, p_team_id: principal.teamId, p_change: null } }]);
+    for (const body of [{ key, teamId: principal.teamId, action: "snapshot", sessionChange: "{}" },
+      { key, teamId: principal.teamId, action: "snapshot", actorId: principal.actorId },
+      { key, teamId: principal.teamId, action: "snapshot", removed: false }]) {
+      expect((await invoke(handler, { token: auth.token, body })).status).toBe(400);
+    }
+  } finally { auth.close(); }
+});
+
 function harness(mutate = () => {}) {
   const rows = new Map(), calls = [];
   const context = clone(principal);

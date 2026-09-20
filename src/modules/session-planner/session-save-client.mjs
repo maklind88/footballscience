@@ -211,6 +211,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
     return work;
   }
   return { observe, stage, replay, save, pendingState, reviews, resolve, isSettled,
+    centralSnapshot: () => current(getScope()) && baseline ? { value: JSON.stringify(baseline), metadata: { ...baselineMetadata } } : null,
     centralValue: () => current(getScope()) && baseline ? JSON.stringify(baseline) : null,
   };
 }

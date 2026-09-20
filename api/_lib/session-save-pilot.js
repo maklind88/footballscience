@@ -61,19 +61,24 @@ function validReceipt(receipt, context, change) {
 // Unwired server component. actorId MUST come from the HTTP handler's verified
 // authentication, never request JSON. The handler must also run guardApiRequest.
 // authorize is mandatory and supplied by the existing app-state policy below.
-function createSessionSavePilot({ authorize, request = createSessionSaveRpcTransport(), prepareReceipt = async () => {}, readOnly = false } = {}) {
+function createSessionSavePilot({ authorize, request = createSessionSaveRpcTransport(), prepareReceipt = async () => {}, readOnly = false, readSnapshot = false } = {}) {
   if (typeof authorize !== "function") throw new Error("Sessions pilot requires the existing server authorization policy.");
   return async ({ actorId, teamId, change: input } = {}) => {
     if (!uuid(actorId) || !uuid(teamId)) return failure(400, "Canonical Sessions actor and team are required.");
-    let change;
-    try {
-      const serialized = JSON.stringify(input);
-      if (!serialized || Buffer.byteLength(serialized) > MAX_BYTES) throw new Error("Invalid operation size.");
-      change = JSON.parse(serialized);
-    } catch { return failure(400, "Invalid Sessions date change."); }
+    let change = null;
+    if (readSnapshot && input !== undefined) return failure(400, "An initial read cannot include an operation.");
+    if (!readSnapshot) {
+      try {
+        const serialized = JSON.stringify(input);
+        if (!serialized || Buffer.byteLength(serialized) > MAX_BYTES) throw new Error("Invalid operation size.");
+        change = JSON.parse(serialized);
+      } catch { return failure(400, "Invalid Sessions date change."); }
+    }
     const protocol = await import("../../src/modules/session-planner/session-save-protocol.mjs");
-    try { protocol.validateSessionDateChange(change); }
-    catch { return failure(400, "Invalid Sessions date change."); }
+    if (!readSnapshot) {
+      try { protocol.validateSessionDateChange(change); }
+      catch { return failure(400, "Invalid Sessions date change."); }
+    }
     // At most one fresh reconcile. Transport uncertainty is never auto-retried.
     for (let attempt = 0; attempt < 2; attempt += 1) {
       let context;
@@ -90,6 +95,11 @@ function createSessionSavePilot({ authorize, request = createSessionSaveRpcTrans
         if (access?.ok !== true) return failure(access?.status || 403, "Sessions edit access was not authorized.");
       } catch { return failure(503, "Sessions permission check is unavailable."); }
 
+      if (readSnapshot) {
+        if (context.operation.found) return failure(502, "An initial read cannot contain a receipt.");
+        return { ok: true, snapshot: { schema: "session-save-initial-snapshot-v1", key: KEY,
+          ...context.scope, revision: context.entry.revision, hash: context.entry.hash, value: context.entry.value } };
+      }
       if (context.operation.found && !context.operation.matches) return failure(409, "Sessions operation identity was reused.");
       if (readOnly) {
         // Recovery reads use the same fresh canonical scope and edit policy,

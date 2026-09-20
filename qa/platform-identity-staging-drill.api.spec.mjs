@@ -244,6 +244,7 @@ test("rollback executor stops on stale optimistic versions without accepting a p
 
 test("staging drill workflow is manual, staging-bound, confirmed, and cannot target production", () => {
   expect(workflow).toContain("workflow_dispatch:");
+  expect(workflow).toContain('description: "Exact confirmation: APPLY_PLATFORM_IDENTITY_STAGING"');
   expect(workflow).toContain("environment: platform-staging");
   expect(workflow).toContain("PLATFORM_BACKFILL_TARGET: staging");
   expect(workflow).toContain("APPLY_PLATFORM_IDENTITY_STAGING");

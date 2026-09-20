@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Exact confirmation: APPLY_PLATFORM_IDENTITY_STAGING
+        description: "Exact confirmation: APPLY_PLATFORM_IDENTITY_STAGING"
         required: true
         type: string
       expected_plan_sha256:

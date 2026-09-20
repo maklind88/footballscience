@@ -95,6 +95,7 @@ function createHarness() {
     platform_tenant_links: [],
   };
   const storage = new Map();
+  const patchBodies = [];
   let nextMembership = 1;
   const user = {
     id: userId,
@@ -140,14 +141,15 @@ function createHarness() {
     }
     if (method === "PATCH") {
       const body = JSON.parse(request.body);
+      patchBodies.push({ table, body });
       const target = rows.filter((row) => [...requestUrl.searchParams.entries()].every(([key, value]) => key === "select" || matchesFilter(row, key, value)));
       if (target.length !== 1) return jsonResponse([]);
-      Object.assign(target[0], body, { row_version: Number(target[0].row_version || 0) + 1 });
+      Object.assign(target[0], body);
       return jsonResponse([target[0]]);
     }
     return jsonResponse({ message: "unexpected method" }, 405);
   };
-  return { tables, fetchImpl };
+  return { tables, fetchImpl, patchBodies };
 }
 
 function baseBackfill() {
@@ -222,6 +224,10 @@ test("staging drill captures, applies, rolls back, verifies, and reapplies only 
   expect(harness.tables.platform_teams[0]).toMatchObject({ id: teamId, organization_id: organizationId, status: "active", deleted_at: null });
   expect(harness.tables.platform_user_profiles[0]).toMatchObject({ display_name: "Admin", primary_organization_id: organizationId, primary_team_id: teamId });
   expect(harness.tables.platform_memberships).toHaveLength(2);
+  expect(harness.patchBodies).toContainEqual(expect.objectContaining({
+    table: "platform_user_profiles",
+    body: expect.objectContaining({ row_version: 5 }),
+  }));
 });
 
 test("rollback executor stops on stale optimistic versions without accepting a partial acknowledgement", async () => {

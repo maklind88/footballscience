@@ -184,6 +184,10 @@ export async function executePlatformIdentityRollback(plan = {}, options = {}) {
   for (const action of plan.actions) {
     const validationError = validateRollbackAction(action);
     if (validationError) return { ok: false, status: 400, reason: validationError, actionsApplied };
+    const rollbackPatch = {
+      ...action.patch,
+      row_version: action.expectedRowVersion + 1,
+    };
     const url = new URL(`${config.url}/rest/v1/${action.table}`);
     url.searchParams.set(action.keyColumn, `eq.${action.key}`);
     url.searchParams.set("row_version", `eq.${action.expectedRowVersion}`);
@@ -192,14 +196,14 @@ export async function executePlatformIdentityRollback(plan = {}, options = {}) {
       response = await fetchImpl(url.toString(), {
         method: "PATCH",
         headers: serviceHeaders(config.serviceRoleKey, { Prefer: "return=representation" }),
-        body: JSON.stringify(action.patch),
+        body: JSON.stringify(rollbackPatch),
       });
     } catch {
       return { ok: false, status: 503, reason: "Platform Identity rollback request could not be completed.", actionsApplied };
     }
     const payload = await readResponse(response);
     const rows = Array.isArray(payload) ? payload : [];
-    if (!response?.ok || rows.length !== 1 || !patchMatches(rows[0], action.patch) || Number(rows[0]?.row_version) <= action.expectedRowVersion) {
+    if (!response?.ok || rows.length !== 1 || !patchMatches(rows[0], rollbackPatch) || Number(rows[0]?.row_version) < rollbackPatch.row_version) {
       return { ok: false, status: response?.status || 409, reason: "Platform Identity rollback stopped because a row changed or did not acknowledge the exact patch.", actionsApplied };
     }
     actionsApplied += 1;

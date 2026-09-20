@@ -147,7 +147,7 @@ export function createDashboardChatDetailsRenderer(dependencies = {}) {
     `;
   }
 
-  function renderSettings({ activeThread, activeThreadId, currentUser, notificationState }) {
+  function renderSettings({ activeThread, activeThreadId, currentUser, notificationState, notificationDiagnosticsMarkup = "" }) {
     const participants = getThreadDetailParticipants(activeThread, []).slice(0, 40);
     const threadSettings = activeThread?.settings || {};
     const canManageParticipants = Boolean(activeThread?.permissions?.canManageParticipants && !activeThread?.isTeamThread);
@@ -196,6 +196,7 @@ export function createDashboardChatDetailsRenderer(dependencies = {}) {
               </button>
             ` : ""}
           </div>
+          ${notificationDiagnosticsMarkup}
         </div>
         ${(canDeleteForMe || canLeaveThread || canBlockThread || canClearActiveThread || canManageGroup) ? `
           <div class="dashboard-chat-details-section is-danger-zone">

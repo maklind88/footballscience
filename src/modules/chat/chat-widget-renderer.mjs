@@ -1748,6 +1748,23 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const headerCanDeleteForMe = Boolean(activeThread?.permissions?.canDeleteForMe && !activeThread?.isTeamThread);
     const headerCanLeaveThread = Boolean(activeThread?.permissions?.canLeave && activeThread?.type === "group");
     const headerCanBlockThread = Boolean(activeThread?.permissions?.canBlock && activeThread?.type === "dm");
+    const notificationDiagnosticsMarkup = detailsOpen && detailsTab === "settings"
+      ? `
+          <details class="dashboard-chat-notification-diagnostics">
+            <summary>Notification health</summary>
+            <div class="dashboard-chat-settings-grid">
+              <button type="button" data-dashboard-chat-widget-refresh-push-status>
+                <span>Refresh status</span>
+                <small>Check this device</small>
+              </button>
+              <button type="button" data-dashboard-chat-widget-test-push>
+                <span>Test push</span>
+                <small>Send a test notification</small>
+              </button>
+            </div>
+          </details>
+        `
+      : "";
 
     return {
       activeThreadId,
@@ -1897,7 +1914,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ${renderConfirmDialog(confirmAction)}
       ${isOpen ? groupCreateOverlayMarkup : ""}
       ${isOpen ? renderThreadSettingsDialog(threadSettingsDialog, threads, users, currentUser) : ""}
-      ${isOpen && detailsOpen ? renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, currentUser, users, messages, pinnedMessages, messageSearchQuery, searchMatchCount, searchActiveMatchIndex, threadMessageCount: hasThreadMessages.length, notificationState, detailsTab }) : ""}
+      ${isOpen && detailsOpen ? renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, currentUser, users, messages, pinnedMessages, messageSearchQuery, searchMatchCount, searchActiveMatchIndex, threadMessageCount: hasThreadMessages.length, notificationState, notificationDiagnosticsMarkup, detailsTab }) : ""}
       <div class="dashboard-chat-widget-body">
         <section class="dashboard-chat-thread-list" aria-label="Chat threads">
           <div class="dashboard-chat-inbox-head">

@@ -72,6 +72,7 @@ requirePackageScript("security:platform", "node scripts/verify-platform-security
 requirePackageScript("platform:readiness", "node scripts/verify-platform-readiness.mjs");
 requirePackageScript("platform:identity:backfill", "node scripts/platform-identity-backfill.mjs");
 requirePackageScript("platform:identity:snapshot", "node scripts/platform-identity-snapshot.mjs");
+requirePackageScript("platform:identity:staging-drill", "node scripts/platform-identity-staging-backfill-drill.mjs");
 
 requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel production builds must stay blocked");
 requireText("package.json", "npm run storage:guard", "full QA must include the storage key policy gate");
@@ -164,6 +165,15 @@ requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "environ
 requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}", "platform identity actor ids must stay masked in public workflow logs");
 forbidText(".github/workflows/platform-identity-backfill-dry-run.yml", "--apply", "platform identity dry-run workflow must not expose writes");
 forbidText(".github/workflows/platform-identity-backfill-dry-run.yml", "--capture", "platform identity dry-run workflow must not capture snapshots or expose writes");
+requireText(".github/workflows/platform-identity-staging-drill.yml", "workflow_dispatch:", "platform identity staging drill must remain manually authorized");
+requireText(".github/workflows/platform-identity-staging-drill.yml", "environment: platform-staging", "platform identity staging drill must never target production");
+requireText(".github/workflows/platform-identity-staging-drill.yml", "APPLY_PLATFORM_IDENTITY_STAGING", "platform identity staging drill must require explicit confirmation");
+requireText(".github/workflows/platform-identity-staging-drill.yml", "expected_plan_sha256", "platform identity staging drill must bind a reviewed plan hash");
+requireText(".github/workflows/platform-identity-staging-drill.yml", "expected_user_count", "platform identity staging drill must bind a reviewed user count");
+forbidText(".github/workflows/platform-identity-staging-drill.yml", "platform-production", "platform identity staging drill must not use production credentials");
+requireText("scripts/lib/platform-identity-staging-backfill-drill.mjs", "storePlatformIdentitySnapshot", "identity staging drill must persist and verify a private pre-apply snapshot");
+requireText("scripts/lib/platform-identity-staging-backfill-drill.mjs", "executePlatformIdentityRollback", "identity staging drill must prove a version-bound rollback before reapply");
+requireText("qa/platform-identity-staging-drill.api.spec.mjs", "rolls back, verifies, and reapplies", "identity staging drill must retain an end-to-end rollback and reapply contract");
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
 requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");
 requireText("qa/production.live.spec.mjs", "production peer accounts prove DM unread state and read receipt end-to-end", "live smoke must prove two-account chat delivery and read receipts");

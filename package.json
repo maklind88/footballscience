@@ -46,6 +46,7 @@
     "qa:data-recovery-native": "node --test qa/data-content-recovery-native.test.mjs",
     "platform:identity:backfill": "node scripts/platform-identity-backfill.mjs",
     "platform:identity:snapshot": "node scripts/platform-identity-snapshot.mjs",
+    "platform:identity:staging-drill": "node scripts/platform-identity-staging-backfill-drill.mjs",
     "platform:identity:backfill:env": "node scripts/verify-platform-identity-backfill-env.mjs",
     "verify:staging-env": "node scripts/verify-staging-env.mjs",
     "release:ci-env": "node scripts/verify-ci-release-env.mjs",

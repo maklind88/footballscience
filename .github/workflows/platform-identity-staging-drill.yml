@@ -1,0 +1,82 @@
+name: Platform Identity Staging Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Exact confirmation: APPLY_PLATFORM_IDENTITY_STAGING
+        required: true
+        type: string
+      expected_plan_sha256:
+        description: Exact SHA-256 from the reviewed staging dry-run.
+        required: true
+        type: string
+      expected_user_count:
+        description: Exact user count from the reviewed staging dry-run.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-identity-staging-drill
+  cancel-in-progress: false
+
+jobs:
+  verify-and-apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: platform-staging
+    env:
+      PLATFORM_BACKFILL_TARGET: staging
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF }}
+      PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}
+      PLATFORM_BACKFILL_ORGANIZATION_ID: ${{ secrets.PLATFORM_BACKFILL_ORGANIZATION_ID }}
+      PLATFORM_BACKFILL_ORGANIZATION_NAME: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_NAME }}
+      PLATFORM_BACKFILL_ORGANIZATION_SLUG: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_SLUG }}
+      PLATFORM_BACKFILL_TEAM_ID: ${{ secrets.PLATFORM_BACKFILL_TEAM_ID }}
+      PLATFORM_BACKFILL_TEAM_NAME: ${{ vars.PLATFORM_BACKFILL_TEAM_NAME }}
+      PLATFORM_BACKFILL_TEAM_SLUG: ${{ vars.PLATFORM_BACKFILL_TEAM_SLUG }}
+      PLATFORM_BACKFILL_TEAM_GENDER: ${{ vars.PLATFORM_BACKFILL_TEAM_GENDER }}
+      PLATFORM_BACKFILL_LINKS: ${{ secrets.PLATFORM_BACKFILL_LINKS }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run qa:supabase
+      - run: npm run platform:identity:backfill:env
+      - name: Verify staging drill contracts
+        run: npx playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/platform-identity-backfill.api.spec.mjs qa/platform-identity-snapshot.api.spec.mjs qa/platform-identity-staging-drill.api.spec.mjs
+      - name: Run staging-only identity drill
+        shell: bash
+        run: |
+          args=(
+            --apply
+            --confirm="${{ inputs.confirmation }}"
+            --expected-plan-sha256="${{ inputs.expected_plan_sha256 }}"
+            --expected-user-count="${{ inputs.expected_user_count }}"
+            --actor-id="$PLATFORM_BACKFILL_ACTOR_ID"
+            --organization-id="$PLATFORM_BACKFILL_ORGANIZATION_ID"
+            --organization-name="$PLATFORM_BACKFILL_ORGANIZATION_NAME"
+            --organization-slug="$PLATFORM_BACKFILL_ORGANIZATION_SLUG"
+            --team-id="$PLATFORM_BACKFILL_TEAM_ID"
+            --team-name="$PLATFORM_BACKFILL_TEAM_NAME"
+            --team-slug="$PLATFORM_BACKFILL_TEAM_SLUG"
+          )
+          if [ -n "$PLATFORM_BACKFILL_TEAM_GENDER" ]; then
+            args+=(--team-gender="$PLATFORM_BACKFILL_TEAM_GENDER")
+          fi
+          if [ -n "$PLATFORM_BACKFILL_LINKS" ]; then
+            IFS=',' read -ra links <<< "$PLATFORM_BACKFILL_LINKS"
+            for link in "${links[@]}"; do
+              args+=(--link="$link")
+            done
+          fi
+          node scripts/platform-identity-staging-backfill-drill.mjs "${args[@]}"

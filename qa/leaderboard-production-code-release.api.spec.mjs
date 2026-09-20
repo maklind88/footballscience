@@ -81,6 +81,7 @@ test("package delta is limited to release checks and manual recovery scripts wit
     "recovery:data:plan": "node scripts/data-content-recovery-plan.mjs",
     "qa:data-recovery-plan": "node --test qa/data-content-recovery.test.mjs",
     "qa:data-recovery-native": "node --test qa/data-content-recovery-native.test.mjs",
+    "platform:identity:staging-drill": "node scripts/platform-identity-staging-backfill-drill.mjs",
   };
   const allowedAdditions = { ...additions, ...recoveryScripts };
   const allowedReleaseCheckOverrides = {

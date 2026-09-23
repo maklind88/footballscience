@@ -2130,6 +2130,7 @@ export function createPresentationModeRenderer(options = {}) {
     renderActiveSlide,
     renderBlockSlide,
     renderExerciseVisual,
+    renderFooter,
     renderControlBar,
     renderCoverSlide,
     renderInfoSlide,

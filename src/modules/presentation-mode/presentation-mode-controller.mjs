@@ -984,6 +984,8 @@ export function createPresentationModeController(dependencies = {}) {
   const localMediaAttachments = new Map();
   const localMediaHydrationIds = new Set();
   let root = null;
+  let renderedModel = null;
+  let pendingDragRender = false;
   let stageResizeObserver = null;
   let stageMetricsFrame = 0;
   let presentingTextFitFrame = 0;
@@ -2106,6 +2108,12 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !renderer) {
       return;
     }
+    // Async media/leaderboard refreshes must not remove the native drag source.
+    if (state.dragSlideIndex !== null) {
+      pendingDragRender = true;
+      return;
+    }
+    pendingDragRender = false;
     const currentRoot = ensureRoot();
     const model = buildModel();
     const slide = model.slides[model.slideIndex];
@@ -2116,6 +2124,7 @@ export function createPresentationModeController(dependencies = {}) {
     const retainedFocus = retainedExercise?.contains(documentRef.activeElement) ? documentRef.activeElement : null;
     currentRoot.hidden = false;
     currentRoot.innerHTML = renderer.render(model);
+    renderedModel = model;
     if (retainedExercise) {
       currentRoot.querySelector("[data-session-readonly-playback]")?.replaceWith(retainedExercise);
       retainedFocus?.focus({ preventScroll: true });
@@ -2391,6 +2400,9 @@ export function createPresentationModeController(dependencies = {}) {
     state.shapeDrawTool = null;
     state.contextMenu = null;
     state.isOpen = false;
+    renderedModel = null;
+    state.dragSlideModel = null;
+    pendingDragRender = false;
     state.editorOpen = false;
     state.presenting = false;
     clearLeaderboardRefresh();
@@ -3853,8 +3865,8 @@ export function createPresentationModeController(dependencies = {}) {
     if (state.presenting) {
       return false;
     }
-    const model = buildModel();
-    const slides = model.slides || [];
+    const model = state.dragSlideModel;
+    const slides = model?.slides || [];
     const from = Number(fromIndex);
     const insertAt = Number(insertIndex);
     if (
@@ -3884,10 +3896,25 @@ export function createPresentationModeController(dependencies = {}) {
     const nextModel = buildModel();
     const nextActiveIndex = nextModel.slides.findIndex((slide) => slide.id === activeSlideId);
     state.slideIndex = nextActiveIndex >= 0 ? nextActiveIndex : Math.min(to, Math.max(0, nextModel.slides.length - 1));
-    state.dragSlideIndex = null;
-    state.dragSlideModel = null;
-    state.slideDropTarget = null;
-    render();
+    nextModel.slideIndex = state.slideIndex;
+    const footer = root?.querySelector(".presentation-footer-nav");
+    if (footer && renderer.renderFooter && nextActiveIndex >= 0 && !pendingDragRender) {
+      const scrollLeft = footer.querySelector(".presentation-slide-tabs")?.scrollLeft || 0;
+      const focusedTab = documentRef.activeElement?.closest?.("[data-presentation-slide-tab]");
+      const focusedId = slides[Number(focusedTab?.dataset.presentationSlideIndex)]?.id;
+      // Keep the active canvas (including video/playback) mounted during an order-only edit.
+      footer.outerHTML = renderer.renderFooter(nextModel);
+      renderedModel = nextModel;
+      const nav = root.querySelector(".presentation-slide-tabs");
+      if (nav) nav.scrollLeft = scrollLeft;
+      const focusIndex = nextModel.slides.findIndex((slide) => slide.id === focusedId);
+      if (focusIndex >= 0) {
+        nav?.querySelector(`[data-presentation-slide-index="${focusIndex}"]`)?.focus({ preventScroll: true });
+      }
+    } else {
+      pendingDragRender = true;
+    }
+    clearSlideDragState();
     return true;
   }
 
@@ -5448,8 +5475,8 @@ export function createPresentationModeController(dependencies = {}) {
       return null;
     }
     const index = Number(tab.dataset.presentationSlideIndex);
-    const dragModel = state.dragSlideModel || buildModel();
-    if (!Number.isInteger(index) || dragModel.slides[index]?.readOnly) {
+    const slide = state.dragSlideModel?.slides[index];
+    if (!Number.isInteger(index) || !slide || slide.readOnly) {
       return null;
     }
     return {
@@ -5476,6 +5503,7 @@ export function createPresentationModeController(dependencies = {}) {
       tab.classList.remove("is-dragging");
     });
     root?.querySelector?.(".presentation-slide-tabs")?.classList.remove("is-reordering");
+    if (pendingDragRender) render();
   }
 
   function updateSlideDropIndicator(event) {
@@ -5511,7 +5539,8 @@ export function createPresentationModeController(dependencies = {}) {
     if (!Number.isInteger(index) || tab.dataset.presentationSlideReadOnly === "true") {
       return;
     }
-    state.dragSlideModel = buildModel();
+    state.dragSlideModel = renderedModel;
+    if (!state.dragSlideModel?.slides[index]) return;
     state.slideDropTarget = null;
     state.dragSlideIndex = index;
     tab.classList.add("is-dragging");

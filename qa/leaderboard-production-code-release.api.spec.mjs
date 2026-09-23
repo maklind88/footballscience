@@ -83,8 +83,13 @@ test("package delta is limited to release checks and manual recovery scripts wit
     "qa:data-recovery-native": "node --test qa/data-content-recovery-native.test.mjs",
     "platform:identity:staging-drill": "node scripts/platform-identity-staging-backfill-drill.mjs",
   };
-  const allowedAdditions = { ...additions, ...recoveryScripts };
+  const allowedAdditions = {
+    ...additions,
+    ...recoveryScripts,
+    "save:interaction-policy": "node scripts/verify-text-input-save-policy.mjs",
+  };
   const allowedReleaseCheckOverrides = {
+    "qa:static": "npm run verify:local-isolation && npm run check && npm run release:rules && npm run release:incident-readiness && npm run storage:guard && npm run save:interaction-policy && npm run security:platform && npm run platform:readiness && npm run qa:supabase && npm run qa:perf && npm run architecture:budgets",
     "security:audit": "node scripts/run-security-audit.mjs",
   };
   for (const [key, value] of Object.entries(allowedAdditions)) expect(packageJson.scripts[key]).toBe(value);

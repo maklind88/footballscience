@@ -226,6 +226,22 @@ test("Player profile runtime bindings preserve filters, search, remove, and new-
   expect(calls.at(-2)).toEqual(["render", expect.stringContaining("Player added")]);
 });
 
+test("Player profile text edits stay in the form draft until blur, change, or submit", () => {
+  const { calls, workspace } = createHarness();
+  const form = {};
+  const coachNotes = createTarget({
+    type: "textarea",
+    closest: { "#playerProfileEditForm": form },
+    matches: { 'textarea[name="coachNotes"]': true },
+  });
+
+  workspace.listeners.input(createEvent(coachNotes));
+  expect(calls.some((entry) => String(entry).startsWith("autosave:"))).toBe(false);
+
+  workspace.listeners.change(createEvent(coachNotes));
+  expect(calls).toContain("autosave:0");
+});
+
 test("Player profile runtime bindings handle photo uploads on change only", () => {
   const { calls, workspace } = createHarness();
   const photoTarget = createTarget({

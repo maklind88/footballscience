@@ -31,6 +31,7 @@ test("Session Planner input/change controller owns workspace field bindings outs
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("input"');
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("change"');
   expect(controllerSource).toContain('workspaceElement?.addEventListener?.("input"');
+  expect(controllerSource).toContain('workspaceElement?.addEventListener?.("focusout"');
   expect(controllerSource).not.toContain("localStorage");
   expect(controllerSource).not.toContain("queueCentralStateWrite");
   expect(controllerSource).not.toContain("writeSessionPlannerState");
@@ -96,8 +97,43 @@ test("Session Planner input controller preserves formation, tactical, and field 
   listeners.input({
     target: createTarget({ "[data-session-field]": field }),
   });
-  expect(calls).toContain("field:focus:Press");
+  expect(calls).not.toContain("field:focus:Press");
   expect(calls).toContain("resize");
+
+  listeners.focusout({
+    target: createTarget({ "[data-session-field]": field }),
+  });
+  expect(calls).toContain("field:focus:Press");
+
+  let prevented = false;
+  const titleField = {
+    dataset: { sessionField: "title" },
+    value: "Activation",
+    tagName: "INPUT",
+    blur: () => calls.push("blur"),
+  };
+  listeners.keydown({
+    key: "Enter",
+    target: createTarget({ "[data-session-field]": titleField }),
+    preventDefault: () => {
+      prevented = true;
+    },
+  });
+  expect(prevented).toBe(true);
+  expect(calls).toContain("field:title:Activation");
+  expect(calls).toContain("blur");
+
+  const notesField = {
+    dataset: { sessionField: "principles" },
+    value: "Keep possession",
+    tagName: "TEXTAREA",
+  };
+  listeners.keydown({
+    key: "Enter",
+    target: createTarget({ "[data-session-field]": notesField }),
+    preventDefault: () => calls.push("unexpected-textarea-commit"),
+  });
+  expect(calls).not.toContain("field:principles:Keep possession");
 });
 
 test("Session Planner change controller preserves select/upload and render behavior", () => {

@@ -2364,6 +2364,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function close() {
+    commitPresentationTextField(getFocusedTextElement());
     exercisePlayback.reset();
     setPiecePlayback.stop({ resetFrame: false });
     fullscreenIntent = false;
@@ -5108,10 +5109,8 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const infoField = event.target.closest("[data-presentation-info-field]");
     if (infoField) {
-      const field = infoField.dataset.presentationInfoField;
-      const slideId = infoField.dataset.presentationInfoId;
-      const shouldRender = field === "fontSize" || field === "accentColor" || field === "textColor";
-      updateInfoSlideField(slideId, field, infoField.value, { render: shouldRender });
+      // Keep typed copy as an in-place draft. It is committed on blur or an
+      // explicit keyboard commit, never once per character.
       return;
     }
     const styleField = event.target.closest("[data-presentation-style-field]");
@@ -5121,19 +5120,56 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const textField = event.target.closest("[data-presentation-text-field]");
     if (textField) {
-      const isMultiline = textField.dataset.presentationTextMultiline === "true";
-      const rawValue = String(textField.innerText ?? textField.textContent ?? "").replace(/\u00a0/g, " ");
-      const value = isMultiline
-        ? rawValue
-            .replace(/\r\n?/g, "\n")
-            .split("\n")
-            .map((line) => line.trimEnd())
-            .join("\n")
-            .replace(/^\n+|\n+$/g, "")
-        : rawValue.replace(/\s+/g, " ").trim();
-      updateTextOverride(textField.dataset.presentationSlideId, textField.dataset.presentationTextField, value);
       ensureTextFieldControls(textField);
     }
+  }
+
+  function getPresentationTextValue(textField) {
+    const rawValue = String(
+      typeof textField?.value === "string" ? textField.value : textField?.innerText ?? textField?.textContent ?? ""
+    ).replace(/\u00a0/g, " ");
+    if (textField?.dataset?.presentationTextMultiline === "true") {
+      return rawValue
+        .replace(/\r\n?/g, "\n")
+        .split("\n")
+        .map((line) => line.trimEnd())
+        .join("\n")
+        .replace(/^\n+|\n+$/g, "");
+    }
+    return rawValue.replace(/\s+/g, " ").trim();
+  }
+
+  function commitPresentationTextField(target) {
+    const textField = target?.closest?.("[data-presentation-text-field]");
+    if (!textField || !state.isOpen || !root?.contains(textField)) {
+      return false;
+    }
+    const infoField = textField.closest?.("[data-presentation-info-field]");
+    if (infoField) {
+      updateInfoSlideField(
+        infoField.dataset.presentationInfoId,
+        infoField.dataset.presentationInfoField,
+        getPresentationTextValue(textField)
+      );
+      return true;
+    }
+    updateTextOverride(
+      textField.dataset.presentationSlideId,
+      textField.dataset.presentationTextField,
+      getPresentationTextValue(textField)
+    );
+    return true;
+  }
+
+  function shouldCommitPresentationTextOnEnter(event, target) {
+    if (event.key !== "Enter" || !target?.closest?.("[data-presentation-text-field]")) {
+      return false;
+    }
+    return target.tagName === "INPUT" || Boolean(event.metaKey || event.ctrlKey);
+  }
+
+  function handleFocusout(event) {
+    commitPresentationTextField(event.target);
   }
 
   function handleChange(event) {
@@ -5143,6 +5179,9 @@ export function createPresentationModeController(dependencies = {}) {
     const setPieceSpeed = event.target.closest("[data-presentation-set-piece-speed]");
     if (setPieceSpeed) {
       setPiecePlayback.setSpeed(setPieceSpeed.value);
+      return;
+    }
+    if (commitPresentationTextField(event.target)) {
       return;
     }
     const activeTextSize = event.target.closest("[data-presentation-active-font-size]");
@@ -5255,6 +5294,12 @@ export function createPresentationModeController(dependencies = {}) {
       if (redoDeckChange()) {
         event.preventDefault();
       }
+      return;
+    }
+    if (shouldCommitPresentationTextOnEnter(event, event.target)) {
+      event.preventDefault();
+      commitPresentationTextField(event.target);
+      event.target.blur?.();
       return;
     }
     if ((event.key === "Delete" || event.key === "Backspace") && !isEditableTarget(event.target)) {
@@ -5504,6 +5549,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.addEventListener("contextmenu", openContextMenu);
     documentRef.addEventListener("focus", handleFocusin, true);
     documentRef.addEventListener("focusin", handleFocusin, true);
+    documentRef.addEventListener("focusout", handleFocusout, true);
     documentRef.addEventListener("input", handleInput);
     documentRef.addEventListener("change", handleChange);
     documentRef.addEventListener("keydown", handleKeydown);

@@ -4,6 +4,20 @@ function getClosest(target, selector) {
 
 function noop() {}
 
+function isTextEditingField(field) {
+  if (!field) return false;
+  if (field.tagName === "TEXTAREA") return true;
+  if (field.tagName !== "INPUT") return false;
+  return !new Set(["checkbox", "color", "date", "file", "number", "radio", "range", "time"]).has(
+    String(field.type || "text").toLowerCase()
+  );
+}
+
+function shouldCommitTextFieldOnEnter(event, field) {
+  if (event?.key !== "Enter" || !isTextEditingField(field)) return false;
+  return field.tagName === "INPUT" || Boolean(event.metaKey || event.ctrlKey);
+}
+
 export function createPeriodizationSessionBridge(options = {}) {
   const ui = options.ui || {};
   let overlayDate = null;
@@ -179,6 +193,9 @@ export function createPeriodizationSessionBridge(options = {}) {
       if (!canEdit()) {
         return true;
       }
+      if (isTextEditingField(customField)) {
+        return true;
+      }
       options.writeDay?.(
         overlayDate,
         {
@@ -196,7 +213,7 @@ export function createPeriodizationSessionBridge(options = {}) {
     if (!canEdit()) {
       return true;
     }
-    if (field.tagName === "SELECT" || field.matches?.("[data-periodization-multi-option]")) {
+    if (field.tagName === "SELECT" || field.matches?.("[data-periodization-multi-option]") || isTextEditingField(field)) {
       return true;
     }
     options.writeDay?.(overlayDate, { [field.dataset.periodizationField]: field.value }, false);
@@ -236,6 +253,26 @@ export function createPeriodizationSessionBridge(options = {}) {
   }
 
   function handleKeydown(event) {
+    const customField = getClosest(event.target, "[data-periodization-custom-field]");
+    const field = customField || getClosest(event.target, "[data-periodization-field]");
+    if (field && overlayDate && shouldCommitTextFieldOnEnter(event, field)) {
+      event.preventDefault?.();
+      if (customField) {
+        options.writeDay?.(
+          overlayDate,
+          { [customField.dataset.periodizationCustomField]: options.getCustomFieldValue?.(customField, overlayDate) },
+          false
+        );
+        refreshEditSurfaces(customField.dataset.periodizationCustomField);
+      } else {
+        const fieldKey = field.dataset.periodizationField;
+        const value = options.isMultiField?.(fieldKey) ? options.getMultiFieldValue?.(field, overlayDate) : field.value;
+        options.writeDay?.(overlayDate, { [fieldKey]: value }, false);
+        refreshEditSurfaces(fieldKey);
+      }
+      field.blur?.();
+      return true;
+    }
     if (event.key !== "Enter" && event.key !== " ") {
       return false;
     }

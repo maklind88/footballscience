@@ -248,11 +248,9 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
     if (editForm) {
       const label = event.target.type === "range" ? event.target.closest("label")?.querySelector("strong") : null;
       if (label) label.textContent = `${event.target.value}/5`;
-      if (event.target.matches('textarea[name="coachNotes"], input[name="temporaryGroup"], input[name="temporaryFrom"], input[name="temporaryTo"]')) {
-        actions.savePlayerProfileEditForm?.(editForm);
-      } else {
-        actions.queuePlayerProfileAutosave?.(editForm);
-      }
+      // The form itself remains the draft while a coach is typing. Waiting
+      // for the native change/blur or explicit submit avoids a central write
+      // for every pause between keystrokes.
     }
   };
 

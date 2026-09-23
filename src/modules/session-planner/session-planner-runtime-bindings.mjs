@@ -3,6 +3,7 @@ import { bindSessionPlannerWorkspaceClickController } from "./session-planner-wo
 import { bindSessionPlannerWorkspaceDragPointerController } from "./session-planner-workspace-drag-pointer-controller.mjs";
 import { bindSessionPlannerWorkspaceFormController } from "./session-planner-workspace-form-controller.mjs";
 import { bindSessionPlannerWorkspaceInputChangeController } from "./session-planner-workspace-input-change-controller.mjs";
+import { createSessionPlannerTextDraftStore } from "./session-planner-text-drafts.mjs";
 
 function getLocalState(localUiState = {}) {
   return localUiState.state && typeof localUiState.state === "object" ? localUiState.state : localUiState;
@@ -24,6 +25,7 @@ export function bindSessionPlannerRuntimeBindings(deps = {}) {
     exerciseLibrary = {},
     exerciseLibraryActions = {},
     getMultiSelectOpenField = () => "",
+    getDraftScope = () => "",
     getSelectedDate = () => "",
     localUiState = {},
     normalizers = {},
@@ -45,6 +47,12 @@ export function bindSessionPlannerRuntimeBindings(deps = {}) {
   } = normalizers;
 
   const controllers = {};
+  const textDraftStore = createSessionPlannerTextDraftStore({
+    storage: win?.sessionStorage,
+    getScope: getDraftScope,
+    setTimeout: win?.setTimeout?.bind(win),
+    clearTimeout: win?.clearTimeout?.bind(win),
+  });
 
   controllers.click = bindSessionPlannerWorkspaceClickController({
     workspaceElement,
@@ -204,6 +212,10 @@ export function bindSessionPlannerRuntimeBindings(deps = {}) {
     handlePeriodizationChange: (event) => callOptional(periodizationBridge, "handleChange", event),
     updateLibrarySearch: exerciseLibrary.updateSessionPlannerLibrarySearch,
     updateSelectedBlockField: runtimeDelegates.updateSelectedSessionPlannerBlockField,
+    getSelectedBlock: runtimeDelegates.getSessionPlannerSelectedBlock,
+    getSelectedDate,
+    textDraftStore,
+    win,
     resizeTextarea: runtimeDelegates.resizeSessionPlannerTextarea,
     updatePlayerBoardSelectedColor: runtimeDelegates.updateSessionPlannerPlayerBoardSelectedColor,
     normalizePlayerBoardTeamCount,

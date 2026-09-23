@@ -24,6 +24,7 @@ export * from "./session-planner-workspace-click-controller.mjs";
 export * from "./session-planner-workspace-drag-pointer-controller.mjs";
 export * from "./session-planner-workspace-form-controller.mjs";
 export * from "./session-planner-workspace-input-change-controller.mjs";
+export * from "./session-planner-text-drafts.mjs";
 export * from "./session-planner-tactical-helpers.mjs";
 export * from "./session-planner-tactical-controller.mjs";
 export * from "./session-planner-visual-renderer.mjs";

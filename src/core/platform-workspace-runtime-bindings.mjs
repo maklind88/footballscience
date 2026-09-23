@@ -251,6 +251,7 @@ export function bindPlatformWorkspaceRuntimeBindings(deps = {}) {
     normalizers: sessionPlannerState.normalizers,
     getPlayerBadgeFromKeyboardEvent: actions.getSessionPlannerTacticalPlayerBadgeFromKeyboardEvent,
     getSelectedDate: sessionPlannerState.getSelectedDate,
+    getDraftScope: () => actions.getCurrentPlatformUser?.()?.id || "",
     getMultiSelectOpenField: sessionPlannerState.getMultiSelectOpenField,
     openLeaderboardAward: actions.openLeaderboardAward,
     setMultiSelectOpenField: sessionPlannerState.setMultiSelectOpenField,

@@ -1,4 +1,5 @@
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+import { bindMedicalDialogFocus } from "./medical-dialog-focus.mjs";
 import { getMedicalRtpExercisesForProfile as getDefaultMedicalRtpExercisesForProfile } from "./medical-rtp-exercise-bank-data.mjs";
 import { createMedicalRtpExerciseCatalogRenderer } from "./medical-rtp-exercise-catalog-renderer.mjs";
 import { MEDICAL_RTP_LIBRARY_PAGE_SIZE } from "./medical-rtp-library-renderer.mjs";
@@ -45,6 +46,7 @@ function escapeHtml(value) {
 export function bindMedicalRuntimeBindings(deps = {}) {
   const { actions = {}, state = {}, win = globalThis, workspaceElement = null } = deps;
   if (!workspaceElement?.addEventListener) return {};
+  bindMedicalDialogFocus(workspaceElement, win);
 
   const renderWorkspace = actions.renderMedicalTeamWorkspace ?? (() => {});
   const canEdit = actions.canEditMedicalTeam ?? (() => false);
@@ -542,9 +544,6 @@ aria-pressed="${index === 0 ? "true" : "false"}"
       .filter(({ section }) => section);
     return `
 <section class="medical-rtp-gold-standard-sections" aria-label="Gold Standard RTP profile sections">
-<header>
-<strong>${selectedSections.length} sections</strong>
-</header>
 ${selectedSections
   .map(
     ({ section, sectionIndex }, index) => `
@@ -605,7 +604,6 @@ hidden
 >
 <header class="medical-rtp-guide-group-heading">
 <div>
-<span>Gold Standard work area</span>
 <h3>${escapeHtml(label)}</h3>
 </div>
 <small>${indexes.length} of 37 sections</small>
@@ -632,7 +630,7 @@ class="medical-rtp-profile-start-plan"
 data-medical-start-from-rtp-guide="${escapeHtml(profile.id)}"
 data-medical-start-from-rtp-guide-name="${escapeHtml(profile.name || "RTP guide")}"
 >Use in Medical Plan</button>
-<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close ${escapeHtml(profile.name || "RTP")} guide">Close</button>
+<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close ${escapeHtml(profile.name || "RTP")} guide" title="Close guide"><span class="medical-close-symbol" aria-hidden="true"></span></button>
 </div>
 </header>
 <div class="medical-rtp-profile-dialog-body">

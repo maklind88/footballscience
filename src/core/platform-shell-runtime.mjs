@@ -33,8 +33,11 @@ export function createPlatformShellRuntime(deps = {}) {
     await platformModuleLoader.loadStylesheet("dashboard-chat", "dashboard-chat.css", {
       id: "dashboardChatStylesheet",
     });
-    return platformModuleLoader.loadStylesheet("dashboard-chat-message", "dashboard-chat-message.css", {
+    await platformModuleLoader.loadStylesheet("dashboard-chat-message", "dashboard-chat-message.css", {
       id: "dashboardChatMessageStylesheet",
+    });
+    return platformModuleLoader.loadStylesheet("dashboard-chat-experience", "dashboard-chat-experience.css", {
+      id: "dashboardChatExperienceStylesheet",
     });
   }
 

@@ -1,0 +1,115 @@
+import { escapeHtml, optionList } from "../components/renderHelpers.js";
+import { playerHeaderIcon } from "../components/playerHeaderIcons.js";
+import { videoAnalysisOutcomes } from "../constants/outcomes.js";
+import { videoAnalysisSubPhases } from "../constants/subPhases.js";
+import { videoAnalysisPhases } from "../constants/phases.js";
+import { phaseForSubPhase } from "../services/footballLanguageService.js";
+import { getClipPrimaryLabel, getClipStartMs, getClipEndMs } from "./timeline.selectors.js";
+import { renderClipReview } from "./timeline.clip-review.js";
+import { renderClipPrinciples, renderClipPrincipleTool } from "./timeline.clip-principles.js";
+import { renderReviewPlaylist } from "./timeline.playlist.controller.js";
+
+export function formatClipEditorTime(ms = 0) {
+  const value = Math.max(0, Math.round(ms));
+  const seconds = Math.floor(value / 1000);
+  const fraction = value % 1000;
+  return `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}${fraction ? `.${String(fraction).padStart(3, "0")}` : ""}`;
+}
+
+export function parseClipEditorTime(value = "") {
+  const match = String(value).trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?$/);
+  if (!match || Number(match[2]) > 59 || Number(match[3]) > 59) return NaN;
+  return ((Number(match[1] || 0) * 3600 + Number(match[2]) * 60 + Number(match[3])) * 1000)
+    + Number((match[4] || "").padEnd(3, "0"));
+}
+
+function timeField(label, name, value) {
+  return `<label><span>${label}</span><input type="text" required autocomplete="off" aria-label="${label}" data-video-analysis-timeline-edit-field="${name}" value="${escapeHtml(formatClipEditorTime(value))}"></label>`;
+}
+
+export function clipEditorSubPhaseOptions(phase, current = "") {
+  const choices = [...new Set([current, ...videoAnalysisSubPhases, "Offensive Transition", "Defensive Transition"])]
+    .filter(value => value && phaseForSubPhase(value, phase) === phase);
+  return `<option value="">Choose sub-phase</option>${optionList(choices, current)}`;
+}
+
+export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false, title = "", review = null, playlist = null } = {}) {
+  const start = getClipStartMs(clip);
+  const end = getClipEndMs(clip);
+  const subPhase = clip.subPhase || clip.sub_phase || "";
+  const phase = phaseForSubPhase(subPhase, clip.phase);
+  const phases = [...new Set([phase, ...videoAnalysisPhases])].filter(Boolean);
+  return `
+    <header>
+      <div><span>Clip</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(title || getClipPrimaryLabel(clip, laneMode) || "Selected clip")}${review?.entries.length > 1 ? ` (${review.entries.length})` : ""}</h2></div>
+      <div class="video-analysis-clip-editor__tools">
+        <span class="video-analysis-clip-review__notice" data-clip-review-notice role="status"></span>
+        ${renderClipPrincipleTool(clip)}
+        <button type="button" ${canEdit ? "data-clip-edit-open" : "data-clip-details-open"} aria-label="${canEdit ? "Edit clip" : "Clip details"}" title="${canEdit ? "Edit clip" : "Clip details"}" aria-haspopup="dialog" aria-expanded="false" aria-controls="video-analysis-clip-edit-dialog">${playerHeaderIcon(canEdit ? "pencil" : "info")}</button>
+        <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" aria-description="Return to the timeline" title="Close and return to timeline">${playerHeaderIcon("x")}</button>
+      </div>
+    </header>
+    <form data-video-analysis-timeline-editor novalidate>
+      <div class="video-analysis-clip-editor__layout">
+      <section class="video-analysis-clip-editor__media" aria-label="Clip preview">
+        <div class="video-analysis-clip-editor__screen">
+          <video data-video-analysis-clip-preview playsinline preload="metadata" tabindex="0" aria-label="Selected clip" aria-keyshortcuts="Space"></video>
+          <div class="video-analysis-clip-editor__media-state" data-clip-preview-empty>
+            <span data-clip-preview-status role="status"></span>
+            <button type="button" data-clip-preview-reconnect>Reconnect local file</button>
+          </div>
+          <input type="file" accept="video/*,.mkv,.mov,.m4v" data-clip-preview-file hidden>
+        </div>
+        <div class="video-analysis-clip-editor__transport" role="group" aria-label="Clip playback">
+          <button type="button" data-clip-preview-play aria-label="Play clip" title="Play clip" disabled>${playerHeaderIcon("play")}</button>
+          <input type="range" data-clip-preview-seek aria-label="Clip position" min="0" max="${end - start}" step="1" value="0" disabled>
+          <output data-clip-preview-time aria-live="off"></output>
+        </div>
+      </section>
+      </div>
+      ${playlist ? "" : renderClipReview(review, clip.id, clip)}
+      <div class="video-analysis-clip-editor__confirm" data-clip-review-close-confirm hidden>
+        <span>Discard unsaved changes?</span>
+        <button type="button" data-clip-review-keep>Keep editing</button>
+        <button type="button" data-clip-review-discard>Discard</button>
+      </div>
+      <dialog id="video-analysis-clip-edit-dialog" class="video-analysis-clip-editor__edit-dialog" aria-labelledby="video-analysis-clip-edit-title">
+        <header>
+          <h2 id="video-analysis-clip-edit-title">${canEdit ? "Edit clip" : "Clip details"}</h2>
+          <button type="button" data-clip-edit-back aria-label="Back to video" title="Back to video">${playerHeaderIcon("x")}</button>
+        </header>
+        <div class="video-analysis-clip-editor__edit-fields">
+      <fieldset class="video-analysis-clip-editor__timing-panel" aria-label="Clip timing" ${canEdit ? "" : "disabled"}>
+        <div class="video-analysis-clip-editor__timing">
+          ${timeField("Start", "startMs", start)}
+          ${timeField("End", "endMs", end)}
+          <label><span>Duration (s)</span><input type="number" min="0.001" step="0.001" required aria-label="Duration (s)" data-video-analysis-timeline-edit-field="duration" value="${(end - start) / 1000}"></label>
+        </div>
+      </fieldset>
+      <fieldset class="video-analysis-clip-editor__metadata" ${canEdit ? "" : "disabled"}>
+        <div class="video-analysis-clip-editor__classification">
+          <label><span>Phase</span><select data-video-analysis-timeline-edit-field="phase">${optionList(phases, phase)}</select></label>
+          <label><span>Sub-phase</span><select data-video-analysis-timeline-edit-field="subPhase">${clipEditorSubPhaseOptions(phase, subPhase)}</select></label>
+          <label><span>Outcome</span><select data-video-analysis-timeline-edit-field="outcome">${optionList(videoAnalysisOutcomes, clip.outcome)}</select></label>
+        </div>
+        <label><span>Tags</span><input type="text" data-video-analysis-timeline-edit-field="tags" value="${escapeHtml((clip.tags || []).join(", "))}"></label>
+        <label><span>Note</span><textarea rows="3" maxlength="4000" data-video-analysis-timeline-edit-field="note">${escapeHtml(clip.notes?.[0]?.note || "")}</textarea></label>
+      </fieldset>
+      </div>
+      <p class="video-analysis-clip-editor__error" role="alert" hidden></p>
+      <div class="video-analysis-clip-editor__confirm" data-video-analysis-clip-editor-confirm hidden>
+        <span>Remove this clip from the playlist?</span>
+        <button type="button" data-video-analysis-clip-editor-keep>Cancel</button>
+        <button type="button" data-video-analysis-clip-editor-delete-confirm>Remove clip</button>
+      </div>
+      <footer>
+        <button type="button" data-clip-edit-back>Back</button>
+        ${canEdit ? '<button type="button" class="video-analysis-clip-editor__delete" data-video-analysis-clip-editor-delete>Remove</button>' : ""}
+        ${canEdit ? '<button type="submit" class="video-analysis-clip-editor__save" data-video-analysis-timeline-edit-save>Apply</button>' : ""}
+      </footer>
+      </dialog>
+      ${renderClipPrinciples(clip, canEdit)}
+    </form>
+    ${playlist ? renderReviewPlaylist(review, playlist, clip.id, canEdit) : ""}
+  `;
+}

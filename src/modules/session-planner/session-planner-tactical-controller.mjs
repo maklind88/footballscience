@@ -11,6 +11,7 @@ import {
 } from "./session-planner-tactical-placement-helpers.mjs";
 import { createSessionPlannerTacticalSelectionHelpers } from "./session-planner-tactical-selection-helpers.mjs";
 import { createSessionPlannerTacticalTransformHelpers } from "./session-planner-tactical-transform-helpers.mjs";
+import { updateTacticalPlayerIdentity } from "./session-planner-tactical-player-identity.mjs";
 
 export function createSessionPlannerTacticalController(deps = {}) {
   const {
@@ -265,8 +266,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   return;
   }
   block.tacticalPitchMode = nextMode;
-  markSessionPlannerBlockFieldsUpdated(block, ["tacticalPitchMode"]);
-  writeSessionPlannerState();
+  persistSessionPlannerTacticalElements(block);
   refreshSessionPlannerTacticalboardCanvas();
   }
   function openSessionPlannerTacticalNumberPicker(elementId) {
@@ -290,7 +290,9 @@ export function createSessionPlannerTacticalController(deps = {}) {
   return;
   }
   const playerBadge = normalizeSessionPlannerTacticalPlayerBadge(rawNumber);
-  element.playerNumber = playerBadge || null;
+  updateTacticalPlayerIdentity(getSessionPlannerSelectedBlock(), [element.id], {
+    playerNumber: playerBadge || null, playerDisplay: "number",
+  });
   local.sessionPlannerTacticalNumberPickerElementId = "";
   refreshSessionPlannerTacticalboardCanvas({ persist: true });
   }
@@ -308,7 +310,9 @@ export function createSessionPlannerTacticalController(deps = {}) {
   return false;
   }
   selectedPlayers.forEach((element) => {
-  element.playerNumber = playerBadge;
+  updateTacticalPlayerIdentity(getSessionPlannerSelectedBlock(), [element.id], {
+    playerNumber: playerBadge, playerDisplay: "number",
+  });
   });
   local.sessionPlannerTacticalNumberPickerElementId = "";
   refreshSessionPlannerTacticalboardCanvas({ persist: true });
@@ -367,7 +371,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   confirmLabel: "Delete drawings",
   tone: "danger",
   });
-  if (!shouldDeleteAll) {
+  if (!shouldDeleteAll || !canEditSessionPlanner() || block !== getSessionPlannerSelectedBlock()) {
   return;
   }
   block.tacticalElements = [];
@@ -528,6 +532,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   }
   }
   function syncSessionPlannerTacticalboardInspector() {
+  deps.onSelectionChange?.();
   const colorInput = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-color]");
   const widthInput = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-width]");
   const styleInput = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-style]");

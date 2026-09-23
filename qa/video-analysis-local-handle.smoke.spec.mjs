@@ -337,6 +337,7 @@ test("File System Access gesture failures fall back to the file input picker", a
   });
 
   await page.goto("/qa/video-analysis-browser-smoke.html?gesture-fallback=1", { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.locator(".video-analysis-player__actions [data-video-analysis-load]").click();
 
   await expect.poll(() => page.evaluate(() => window.__videoAnalysisFileInputClicks)).toBe(1);

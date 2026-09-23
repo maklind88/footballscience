@@ -18,6 +18,7 @@ import {
   trackingProviderRunWorkspaceEntry,
   trackingProviderRunsForProvider,
 } from "./trackingProviderRunService.js";
+import { trackingBenchmarkProvider } from "./trackingBenchmarkProviderService.js";
 
 export const TRACKING_BENCHMARK_EVIDENCE_SET_PROTOCOL = "football-science-tracking-benchmark-evidence-set-v1";
 const maximumReportBytes = 16 * 1024 * 1024;
@@ -78,10 +79,11 @@ function sourcePayload(inputs = {}, reference = null) {
 
 function workflowInputs(tracking = {}, options = {}) {
   const suite = trackingGroundTruthSuiteEntry(tracking.groundTruth || {});
+  const provider = trackingBenchmarkProvider(tracking, suite.benchmarkType);
   const groundTruthSuite = createGroundTruthSuiteArtifact(suite, { now: options.now });
   const runs = trackingProviderRunsForProvider(
     trackingProviderRunWorkspaceEntry(tracking.providerRuns),
-    tracking.provider,
+    provider,
   );
   const providerRunSuite = createTrackingProviderRunSuiteArtifact({
     id: `${suite.id}-${runs[0]?.provider.providerId || "provider"}-runs`,
@@ -100,6 +102,7 @@ function assembleInputs(inputs = {}, checksums = {}) {
 
 export function trackingBenchmarkWorkflowReadiness(tracking = {}, options = {}) {
   const suite = trackingGroundTruthSuiteEntry(tracking.groundTruth || {});
+  const provider = trackingBenchmarkProvider(tracking, suite.benchmarkType);
   const suiteReadiness = groundTruthSuiteReadiness(suite);
   const issues = suiteReadiness.issues.map((entry) => issue(entry.code, entry.message));
   let runCount = 0;
@@ -109,7 +112,7 @@ export function trackingBenchmarkWorkflowReadiness(tracking = {}, options = {}) 
   try {
     const runs = trackingProviderRunsForProvider(
       trackingProviderRunWorkspaceEntry(tracking.providerRuns),
-      tracking.provider,
+      provider,
     );
     runCount = runs.length;
     if (!runs.length) issues.push(issue("provider-runs-missing", "Capture raw provider runs for the locked cases."));

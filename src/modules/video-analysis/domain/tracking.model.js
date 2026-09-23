@@ -1,4 +1,4 @@
-const trackingEntityTypes = new Set(["player", "ball", "referee", "area", "unknown"]);
+const trackingEntityTypes = new Set(["person", "player", "ball", "referee", "area", "unknown"]);
 const trackingStatuses = new Set(["draft", "processing", "review", "verified", "archived"]);
 const trackingPointSources = new Set(["automatic", "manual", "interpolated"]);
 

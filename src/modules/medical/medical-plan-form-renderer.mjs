@@ -214,12 +214,6 @@ ${medicalRtpTrackerGroups.map((group) => renderTrackerGroup(group, draft, tracke
 <div>
 <span>RTP Library guide</span>
 <strong>${draft.rtpLibraryProfileName ? escapeHtml(draft.rtpLibraryProfileName) : "Choose a guide to build the Medical Plan"}</strong>
-<small>Loads phases, load focus, gates, next exposure, hold rules and medical notes into this draft.</small>
-</div>
-<div class="medical-rtp-program-flow" aria-label="RTP Library to Medical Plan flow">
-<span><strong>Library</strong> neutral guide</span>
-<span><strong>Medical Plan</strong> player-specific program</span>
-<span><strong>Tracker</strong> gates and hold rules</span>
 </div>
 <label>
 <span>Guide</span>
@@ -246,8 +240,7 @@ ${renderRtpGuideStarterPreview(selectedProfile)}
 <section class="medical-rtp-program-blueprint medical-rtp-program-editor" aria-label="Medical RTP program builder">
 <header>
 <div>
-<span>Medical Program Builder</span>
-<strong>${hasProgram ? "Individualize this Medical-owned RTP program" : "Build the player program from an RTP Library starter"}</strong>
+<strong>${hasProgram ? "RTP program" : "New RTP program"}</strong>
 </div>
 <small>Medical-owned / not coach-visible by default</small>
 </header>

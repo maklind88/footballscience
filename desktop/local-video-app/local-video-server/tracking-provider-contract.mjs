@@ -4,11 +4,11 @@ const PROVIDER_PROTOCOL = "football-science-tracking-stage-v1";
 const REQUIRED_EVALUATOR_VERSION = "tracking-benchmark-v1";
 
 const stageCapabilities = Object.freeze({
-  detection: Object.freeze(["detect:player", "detect:ball", "detect:referee"]),
+  detection: Object.freeze(["detect:person", "detect:player", "detect:ball", "detect:referee"]),
   segmentation: Object.freeze(["segment:selected-object", "propagate:selected-object"]),
   association: Object.freeze(["associate:multi-object"]),
   reidentification: Object.freeze(["reidentify:player"]),
-  classification: Object.freeze(["classify:team", "classify:shirt-number"]),
+  classification: Object.freeze(["classify:role", "classify:team", "classify:shirt-number"]),
 });
 
 const approvalStatuses = new Set(["candidate", "approved-local-optional", "blocked"]);
@@ -17,6 +17,22 @@ const knownCapabilities = new Set(Object.values(stageCapabilities).flat());
 const trackEvalCapabilities = /^(?:detect:|associate:|reidentify:)/;
 const trackEvalMetrics = new Set(["HOTA", "DetA", "AssA", "LocA", "MOTA", "IDF1"]);
 const datasetUsages = new Set(["pretraining", "finetuning", "distillation", "evaluation"]);
+const copyleftProductReviewLicenses = new Set([
+  "agpl-3.0",
+  "agpl-3.0-only",
+  "agpl-3.0-or-later",
+  "gpl-2.0",
+  "gpl-2.0-only",
+  "gpl-2.0-or-later",
+  "gpl-3.0",
+  "gpl-3.0-only",
+  "gpl-3.0-or-later",
+  "sspl-1.0",
+]);
+const nonStandardProductReviewLicenses = new Set([
+  "hippocratic-3.0",
+  "hl3-law-media-mil-soc-sv",
+]);
 
 export class TrackingProviderContractError extends Error {
   constructor(message, code = "TRACKING_PROVIDER_CONTRACT_INVALID") {
@@ -60,6 +76,26 @@ function positiveInteger(value, label, maximum) {
   return number;
 }
 
+function optionalString(value, label, maximum = 160) {
+  const text = String(value || "").trim();
+  if (text.length > maximum || /[\r\n]/.test(text)) invalid(`Invalid ${label}.`);
+  return text;
+}
+
+function optionalInteger(value, label, maximum) {
+  if (value === undefined || value === null || value === "") return 0;
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number < 0 || number > maximum) invalid(`Invalid ${label}.`);
+  return number;
+}
+
+function optionalPositiveNumber(value, label, maximum) {
+  if (value === undefined || value === null || value === "") return 0;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0 || number > maximum) invalid(`Invalid ${label}.`);
+  return number;
+}
+
 function httpsUrl(value, label) {
   const text = boundedString(value, label, 2048);
   let url;
@@ -78,6 +114,11 @@ function uniqueCapabilities(values = [], stage = "") {
   const capabilities = [...new Set(values.map((value) => boundedString(value, "provider capability", 80)))];
   if (capabilities.some((capability) => !allowed.has(capability))) {
     invalid(`A provider capability does not belong to the ${stage} stage.`);
+  }
+  if (stage === "detection"
+    && capabilities.includes("detect:person")
+    && capabilities.some((capability) => ["detect:player", "detect:referee"].includes(capability))) {
+    invalid("Generic person detection cannot also claim player or referee role detection.");
   }
   return capabilities;
 }
@@ -121,17 +162,21 @@ function normalizeDataset(value = {}, index = 0, modelIndex = 0) {
   };
 }
 
-function normalizeModel(value = {}, index = 0) {
+function normalizeModel(value = {}, index = 0, stage = "") {
   const datasets = Array.isArray(value.provenance?.datasets)
     ? value.provenance.datasets.map((entry, datasetIndex) => normalizeDataset(entry, datasetIndex, index))
     : [];
   if (!datasets.length || datasets.length > 50) invalid(`Model ${index + 1} needs 1-50 training-data records.`);
+  const capabilities = value.capabilities === undefined
+    ? null
+    : uniqueCapabilities(value.capabilities, stage);
   return {
     id: identifier(value.id, `model ${index + 1} id`),
     sha256: sha256(value.sha256, `model ${index + 1} checksum`),
     bytes: positiveInteger(value.bytes, `model ${index + 1} byte size`, 100 * 1024 * 1024 * 1024),
     license: identifier(value.license, `model ${index + 1} SPDX licence`),
     sourceUrl: httpsUrl(value.sourceUrl, `model ${index + 1} source URL`),
+    ...(capabilities ? { capabilities } : {}),
     provenance: {
       modelCardUrl: httpsUrl(value.provenance?.modelCardUrl, `model ${index + 1} model card URL`),
       trainingDataReviewed: Boolean(value.provenance?.trainingDataReviewed),
@@ -143,6 +188,11 @@ function normalizeModel(value = {}, index = 0) {
 function normalizeRuntime(value = {}) {
   return {
     providerSha256: sha256(value.providerSha256, "provider runtime checksum"),
+    device: optionalString(value.device, "provider runtime device", 80),
+    runtimeMode: optionalString(value.runtimeMode, "provider runtime mode", 100),
+    cpuThreads: optionalInteger(value.cpuThreads, "provider runtime CPU thread count", 256),
+    sampleFps: optionalPositiveNumber(value.sampleFps, "provider runtime sample rate", 240),
+    modelResident: value.modelResident === true,
     maxFrames: positiveInteger(value.maxFrames, "maximum frame count", 1_000_000),
     maxDurationMs: positiveInteger(value.maxDurationMs, "maximum duration", 4 * 60 * 60 * 1000),
     maxWallTimeMs: positiveInteger(value.maxWallTimeMs, "maximum wall time", 24 * 60 * 60 * 1000),
@@ -217,8 +267,21 @@ export function normalizeTrackingProviderManifest(value = {}) {
   if (value.protocol !== PROVIDER_PROTOCOL) invalid("Unsupported tracking provider protocol.");
   const stage = boundedString(value.stage, "provider stage", 40);
   if (!stageCapabilities[stage]) invalid("Unknown tracking provider stage.");
-  const models = Array.isArray(value.models) ? value.models.map(normalizeModel) : [];
+  const capabilities = uniqueCapabilities(value.capabilities, stage);
+  const models = Array.isArray(value.models)
+    ? value.models.map((model, index) => normalizeModel(model, index, stage))
+    : [];
   if (stage !== "association" && !models.length) invalid(`${stage} providers must pin at least one model artifact.`);
+  if (models.length > 1 && models.some((model) => !model.capabilities)) {
+    invalid("Multi-model providers must bind every model to explicit stage capabilities.");
+  }
+  const mappedCapabilities = new Set(models.flatMap((model) => model.capabilities || []));
+  if ([...mappedCapabilities].some((capability) => !capabilities.includes(capability))) {
+    invalid("A model capability is not declared by its provider.");
+  }
+  if (mappedCapabilities.size && capabilities.some((capability) => !mappedCapabilities.has(capability))) {
+    invalid("Every provider capability must be bound to at least one model artifact.");
+  }
   return {
     schemaVersion: 1,
     protocol: PROVIDER_PROTOCOL,
@@ -227,7 +290,7 @@ export function normalizeTrackingProviderManifest(value = {}) {
     displayName: boundedString(value.displayName, "provider display name", 160),
     stage,
     priority: Math.max(0, Math.min(1000, Math.round(Number(value.priority) || 0))),
-    capabilities: uniqueCapabilities(value.capabilities, stage),
+    capabilities,
     approval: normalizeApproval(value.approval),
     upstream: normalizeUpstream(value.upstream),
     models,
@@ -236,10 +299,28 @@ export function normalizeTrackingProviderManifest(value = {}) {
   };
 }
 
+function licencePolicyReason(license, artifact) {
+  const id = String(license || "").trim().toLowerCase();
+  if (copyleftProductReviewLicenses.has(id)) return `${artifact}-copyleft-licence-product-decision-required`;
+  if (nonStandardProductReviewLicenses.has(id)) return `${artifact}-nonstandard-licence-product-decision-required`;
+  return "";
+}
+
+export function trackingProviderLicencePolicyReasons(provider = {}) {
+  const reasons = [];
+  const upstreamReason = licencePolicyReason(provider.upstream?.license, "upstream");
+  if (upstreamReason) reasons.push(upstreamReason);
+  for (const model of provider.models || []) {
+    const modelReason = licencePolicyReason(model.license, "model");
+    if (modelReason) reasons.push(modelReason);
+  }
+  return [...new Set(reasons)];
+}
+
 export function trackingProviderReadiness(value = {}, options = {}) {
   const provider = normalizeTrackingProviderManifest(value);
   const requiredEvaluatorVersion = options.requiredEvaluatorVersion || REQUIRED_EVALUATOR_VERSION;
-  const reasons = [];
+  const reasons = trackingProviderLicencePolicyReasons(provider);
   if (provider.approval.status !== "approved-local-optional") reasons.push("provider-not-approved");
   if (provider.approval.networkAtInference) reasons.push("inference-network-enabled");
   if (!provider.approval.licenseReviewed) reasons.push("licence-not-reviewed");

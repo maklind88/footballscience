@@ -37,11 +37,39 @@ function formatRankOrdinal(value = 0) {
   return `${rank}th`;
 }
 
-function renderPodiumPlayer(escapeHtml, player = {}, index = 0, shared = false) {
-  const rank = Number(player.rank) || index + 1;
+function latestScoreValue(player = {}) {
+  const value = Date.parse(String(player.lastScoredOn || ""));
+  return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+}
+
+function compareLatestScore(first = {}, second = {}) {
+  return latestScoreValue(second) - latestScoreValue(first);
+}
+
+export function getPresentationLeaderboardPodium(standings = []) {
+  const topThree = Array.isArray(standings) ? standings.slice(0, 3) : [];
+  if (topThree.length < 2) return topThree;
+
+  const leaderPoints = Math.max(...topThree.map((player) => Number(player.points) || 0));
+  const leader = topThree
+    .filter((player) => (Number(player.points) || 0) === leaderPoints)
+    .slice()
+    .sort(compareLatestScore)[0] || topThree[0];
+  const remaining = topThree.filter((player) => player !== leader);
+  const second = remaining
+    .slice()
+    .sort((first, secondPlayer) => (Number(secondPlayer.points) || 0) - (Number(first.points) || 0) || compareLatestScore(first, secondPlayer))[0];
+  const third = remaining.find((player) => player !== second);
+
+  return [second, leader, third].filter(Boolean);
+}
+
+function renderPodiumPlayer(escapeHtml, player = {}, visualSlot = "center", shared = false) {
+  const fallbackRank = visualSlot === "left" ? 2 : visualSlot === "right" ? 3 : 1;
+  const rank = Number(player.rank) || fallbackRank;
   const tone = rank === 1 ? "gold" : rank === 2 ? "silver" : "bronze";
   return `
-    <article class="presentation-leaderboard-podium-player is-rank-${Math.min(3, rank)}">
+    <article class="presentation-leaderboard-podium-player is-rank-${Math.min(3, rank)} is-podium-${escapeHtml(visualSlot)}">
       <span class="presentation-leaderboard-rank is-tone-${tone}" aria-label="${shared ? "Joint rank" : "Rank"} ${escapeHtml(rank)}">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path class="is-cup" d="M7 3h10v6a5 5 0 0 1-10 0V3Z" />
@@ -120,7 +148,7 @@ export function renderPresentationLeaderboardBody({
 } = {}) {
   const snapshot = slide.leaderboard || {};
   const standings = Array.isArray(snapshot.standings) ? snapshot.standings : [];
-  const podium = standings.slice(0, 3);
+  const podium = getPresentationLeaderboardPodium(standings);
   const remaining = standings.slice(3);
   const rankCounts = standings.reduce((counts, player) => {
     const rank = Number(player.rank) || 0;
@@ -150,7 +178,7 @@ export function renderPresentationLeaderboardBody({
               ${podium.map((player, index) => renderPodiumPlayer(
                 escapeHtml,
                 player,
-                index,
+                index === 0 ? "left" : index === 1 ? "center" : "right",
                 (rankCounts.get(Number(player.rank) || index + 1) || 0) > 1,
               )).join("")}
             </div>

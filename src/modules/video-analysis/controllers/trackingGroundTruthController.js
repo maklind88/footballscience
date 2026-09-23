@@ -16,6 +16,7 @@ import {
   trackingGroundTruthSuiteEntry,
 } from "../services/trackingGroundTruthSuiteService.js";
 import { emptyTrackingBenchmarkEvaluation } from "../services/trackingBenchmarkStateService.js";
+import { trackingBenchmarkProvider } from "../services/trackingBenchmarkProviderService.js";
 import {
   createTrackingProviderRunSuiteArtifact,
   trackingProviderRunSuiteArtifactJson,
@@ -23,10 +24,20 @@ import {
   trackingProviderRunsForProvider,
 } from "../services/trackingProviderRunService.js";
 import {
+  currentTrackingAtMs,
   patchTrackingState,
   selectedTrackingItem,
   trackingItemRange,
 } from "./trackingControllerHelpers.js";
+import { createTrackingGroundTruthSuiteImportController } from "./trackingGroundTruthSuiteImportController.js";
+import { createTrackingGroundTruthSceneReviewController } from "./trackingGroundTruthSceneReviewController.js";
+import { createTrackingGroundTruthSceneReview } from "../services/trackingGroundTruthSceneReviewService.js";
+import { downloadTrackingJson } from "../services/trackingJsonDownloadService.js";
+import { createTrackingGroundTruthCheckpointController } from "./trackingGroundTruthCheckpointController.js";
+import { trackingSourceFingerprint } from "../services/trackingSourceIdentityService.js";
+import { createTrackingGroundTruthReviewerController } from "./trackingGroundTruthReviewerController.js";
+
+export { trackingSourceFingerprint } from "../services/trackingSourceIdentityService.js";
 
 const groundTruthActions = new Set([
   "ground-truth-toggle",
@@ -36,9 +47,14 @@ const groundTruthActions = new Set([
   "ground-truth-download",
   "ground-truth-new",
   "ground-truth-suite-download",
+  "ground-truth-suite-import",
   "ground-truth-suite-remove",
   "ground-truth-suite-mode",
   "ground-truth-runs-download",
+  "ground-truth-scene-preview-context",
+  "ground-truth-scene-review",
+  "ground-truth-scene-next",
+  "ground-truth-scene-reset",
 ]);
 
 function groundTruthState(state = {}, itemId = "") {
@@ -71,45 +87,10 @@ function patchGroundTruthSuite(state = {}, suite = {}) {
   });
 }
 
-function downloadJson(win = null, json = "", fileName = "artifact.json") {
-  const anchor = win?.document?.createElement?.("a");
-  const BlobConstructor = win?.Blob || globalThis.Blob;
-  if (!anchor || !BlobConstructor || !win?.URL?.createObjectURL) return false;
-  const objectUrl = win.URL.createObjectURL(new BlobConstructor([json], { type: "application/json" }));
-  anchor.href = objectUrl;
-  anchor.download = fileName;
-  anchor.rel = "noopener";
-  win.document.body?.appendChild?.(anchor);
-  anchor.click();
-  anchor.remove?.();
-  win.setTimeout?.(() => win.URL.revokeObjectURL?.(objectUrl), 0);
-  return true;
-}
-
-export function trackingSourceFingerprint(state = {}) {
-  const angle = activeMediaAngle(state);
-  const proxyFingerprint = String(
-    state.mediaProduction?.proxy?.byAngleId?.[angle?.id]?.result?.sourceSha256 || "",
-  ).trim();
-  if (/^[a-f0-9]{64}$/i.test(proxyFingerprint)) return proxyFingerprint;
-  const item = selectedTrackingItem(state);
-  const trackedFingerprint = (item?.objectTracks || []).find((track) => {
-    const value = String(track.metadata?.localSourceSha256 || "");
-    const trackAngleId = String(track.metadata?.angleId || "");
-    return /^[a-f0-9]{64}$/i.test(value) && (!angle?.id || !trackAngleId || trackAngleId === angle.id);
-  })?.metadata?.localSourceSha256;
-  return String(trackedFingerprint || "").trim();
-}
-
 export function trackingFrameSize(video = null) {
   const width = Math.max(0, Math.round(Number(video?.videoWidth) || 0));
   const height = Math.max(0, Math.round(Number(video?.videoHeight) || 0));
   return { width, height };
-}
-
-function reviewerId(value = null) {
-  if (typeof value === "string") return value.trim();
-  return String(value?.id || value?.userId || value?.user_id || "local-analyst").trim();
 }
 
 export function createTrackingGroundTruthController(options = {}) {
@@ -117,8 +98,44 @@ export function createTrackingGroundTruthController(options = {}) {
   const updateState = options.updateState || (() => {});
   const getVideoElement = options.getVideoElement || (() => null);
   const getWindow = options.getWindow || (() => globalThis.window);
-  const getReviewer = options.getReviewer || (() => "local-analyst");
+  const getReviewer = options.getReviewer || (() => "");
   const now = options.now || Date.now;
+  const reviewer = createTrackingGroundTruthReviewerController({
+    getState,
+    updateState,
+    getReviewer,
+    selectedItemId: (state) => selectedTrackingItem(state)?.id || "",
+    groundTruthState,
+    patchGroundTruth,
+  });
+  const sceneReview = createTrackingGroundTruthSceneReviewController({
+    getState,
+    updateState,
+    contextFor,
+    groundTruthState,
+    patchGroundTruth,
+    currentAtMs: (state) => currentTrackingAtMs(getVideoElement, state, options.getCurrentMatchMs),
+    getCurrentMatchMs: () => currentTrackingAtMs(getVideoElement, getState(), options.getCurrentMatchMs),
+    getVideoElement,
+    seekToMatchMs: options.seekToMatchMs || (() => {}),
+  });
+  const checkpointIssues = createTrackingGroundTruthCheckpointController({
+    getState,
+    updateState,
+    seekToMatchMs: options.seekToMatchMs,
+  });
+  const suiteImport = createTrackingGroundTruthSuiteImportController({
+    getState,
+    setSuite: (suite) => updateState((state) => patchGroundTruthSuite(state, suite)),
+    setError: (message) => updateState((state) => {
+      const workspace = state.presentation?.tracking?.groundTruth || {};
+      return patchGroundTruthSuite(state, {
+        ...trackingGroundTruthSuiteEntry(workspace),
+        error: message,
+      });
+    }),
+    onEvidenceChanged: options.onEvidenceChanged,
+  });
 
   function contextFor(state = getState()) {
     const item = selectedTrackingItem(state);
@@ -145,9 +162,16 @@ export function createTrackingGroundTruthController(options = {}) {
       || Number(truth.frame?.height) !== context.frame.height
       || Number(truth.range?.startMs) !== context.range.startMs
       || Number(truth.range?.endMs) !== context.range.endMs;
+    const reviewedBy = reviewer.identityFor(truth);
     updateState((current) => patchGroundTruth(current, context.itemId, {
       ...context,
-      ...(contextChanged ? { attested: false, exhaustiveSceneAttested: false } : {}),
+      reviewedBy,
+      ...(contextChanged ? {
+        sceneReview: createTrackingGroundTruthSceneReview({ ...context, reviewedBy }),
+        attested: false,
+        exhaustiveSceneAttested: false,
+        workloadEvidence: null,
+      } : {}),
       error: "",
     }));
     return true;
@@ -191,11 +215,14 @@ export function createTrackingGroundTruthController(options = {}) {
           ? trackId
           : truth.benchmarkTargetTrackId || "";
     const context = contextFor(state);
+    const reviewedBy = reviewer.identityFor(truth);
     updateState((current) => patchGroundTruth(current, itemId, {
       ...context,
       status: "draft",
+      reviewedBy,
       selectedTrackIds: [...selected],
       benchmarkTargetTrackId,
+      sceneReview: createTrackingGroundTruthSceneReview({ ...context, reviewedBy }),
       attested: false,
       exhaustiveSceneAttested: false,
       error: "",
@@ -218,32 +245,6 @@ export function createTrackingGroundTruthController(options = {}) {
     return true;
   }
 
-  function setAttested(checked = false) {
-    const state = getState();
-    const itemId = selectedTrackingItem(state)?.id || "";
-    if (!itemId || groundTruthState(state, itemId).status === "locked") return false;
-    updateState((current) => patchGroundTruth(current, itemId, { attested: Boolean(checked), error: "" }));
-    return true;
-  }
-
-  function setExhaustiveSceneAttested(checked = false) {
-    const state = getState();
-    const itemId = selectedTrackingItem(state)?.id || "";
-    const truth = groundTruthState(state, itemId);
-    const benchmarkType = trackingGroundTruthSuiteEntry(
-      state.presentation?.tracking?.groundTruth || {},
-    ).benchmarkType;
-    if (!itemId || truth.status === "locked"
-      || benchmarkType === TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT) {
-      return false;
-    }
-    updateState((current) => patchGroundTruth(current, itemId, {
-      exhaustiveSceneAttested: Boolean(checked),
-      error: "",
-    }));
-    return true;
-  }
-
   function lockReference() {
     const state = getState();
     const item = selectedTrackingItem(state);
@@ -260,13 +261,17 @@ export function createTrackingGroundTruthController(options = {}) {
         scenarioTags: truth.scenarioTags || [],
         attested: truth.attested === true,
         exhaustiveSceneAttested: truth.exhaustiveSceneAttested === true,
-        reviewedBy: reviewerId(getReviewer()),
+        sceneReview: truth.sceneReview,
+        workloadEvidence: truth.workloadEvidence,
+        requireSceneReview: true,
+        reviewedBy: reviewer.identityFor(truth),
         revision: truth.revision || 1,
       }, { now });
       updateState((current) => {
         const lockedState = patchGroundTruth(current, item.id, {
           ...context,
           status: "locked",
+          reviewedBy: artifact.reviewEvidence.reviewedBy,
           lockedArtifact: artifact,
           lockedAt: artifact.reviewEvidence.reviewedAt,
           error: "",
@@ -294,7 +299,7 @@ export function createTrackingGroundTruthController(options = {}) {
     const artifact = groundTruthState(state, itemId).lockedArtifact;
     if (!artifact) return false;
     const win = getWindow();
-    if (!downloadJson(win, groundTruthArtifactJson(artifact), `fs-player-${artifact.id}.json`)) return false;
+    if (!downloadTrackingJson(win, groundTruthArtifactJson(artifact), `fs-player-${artifact.id}.json`)) return false;
     updateState((current) => patchGroundTruth(current, itemId, { downloadedAt: new Date(now()).toISOString(), error: "" }));
     return true;
   }
@@ -306,7 +311,7 @@ export function createTrackingGroundTruthController(options = {}) {
     try {
       const artifact = createGroundTruthSuiteArtifact(suite, { now });
       const win = getWindow();
-      if (!downloadJson(win, groundTruthSuiteArtifactJson(artifact), `fs-player-${artifact.id}.json`)) return false;
+      if (!downloadTrackingJson(win, groundTruthSuiteArtifactJson(artifact), `fs-player-${artifact.id}.json`)) return false;
       updateState((current) => patchGroundTruthSuite(current, {
         ...suite,
         status: "exported",
@@ -328,14 +333,17 @@ export function createTrackingGroundTruthController(options = {}) {
     const tracking = state.presentation?.tracking || {};
     const workspace = trackingProviderRunWorkspaceEntry(tracking.providerRuns);
     try {
-      const runs = trackingProviderRunsForProvider(workspace, tracking.provider);
       const groundTruthSuite = trackingGroundTruthSuiteEntry(tracking.groundTruth || {});
+      const runs = trackingProviderRunsForProvider(
+        workspace,
+        trackingBenchmarkProvider(tracking, groundTruthSuite.benchmarkType),
+      );
       const artifact = createTrackingProviderRunSuiteArtifact({
         id: `${groundTruthSuite.id || "real-match-pilot"}-${runs[0]?.provider.providerId || "provider"}-runs`,
         runs,
       }, { now });
       const win = getWindow();
-      if (!downloadJson(
+      if (!downloadTrackingJson(
         win,
         trackingProviderRunSuiteArtifactJson(artifact),
         `fs-player-${artifact.id}.json`,
@@ -398,13 +406,17 @@ export function createTrackingGroundTruthController(options = {}) {
     const context = contextFor();
     if (!context.itemId) return false;
     const truth = groundTruthState(state, context.itemId);
+    const reviewedBy = reviewer.identityFor(truth, true);
     updateState((current) => patchGroundTruth(current, context.itemId, {
       ...context,
       status: "draft",
       revision: Math.max(1, Math.round(Number(truth.revision) || 1)) + 1,
       selectedTrackIds: [],
       benchmarkTargetTrackId: "",
+      workloadEvidence: null,
       scenarioTags: [],
+      sceneReview: createTrackingGroundTruthSceneReview({ ...context, reviewedBy }),
+      reviewedBy,
       attested: false,
       exhaustiveSceneAttested: false,
       lockedArtifact: null,
@@ -416,18 +428,7 @@ export function createTrackingGroundTruthController(options = {}) {
   }
 
   function invalidateDraft(itemId = "") {
-    if (!itemId) return false;
-    updateState((state) => {
-      const truth = groundTruthState(state, itemId);
-      return truth.status === "locked"
-        ? state
-        : patchGroundTruth(state, itemId, {
-          attested: false,
-          exhaustiveSceneAttested: false,
-          error: "",
-        });
-    });
-    return true;
+    return sceneReview.invalidate(itemId);
   }
 
   function setScenario(scenarioId = "", checked = false) {
@@ -446,6 +447,7 @@ export function createTrackingGroundTruthController(options = {}) {
   }
 
   function handleAction(action = "", element = null) {
+    if (checkpointIssues.handleAction(action, element)) return true;
     if (!groundTruthActions.has(action)) return false;
     if (action === "ground-truth-toggle") return toggleSelectedTrack();
     if (action === "ground-truth-target") return setBenchmarkTarget();
@@ -453,7 +455,12 @@ export function createTrackingGroundTruthController(options = {}) {
     if (action === "ground-truth-lock") return lockReference();
     if (action === "ground-truth-download") return downloadReference();
     if (action === "ground-truth-suite-download") return downloadSuite();
+    if (action === "ground-truth-suite-import") return suiteImport.chooseFile(element);
     if (action === "ground-truth-runs-download") return downloadProviderRuns();
+    if (action === "ground-truth-scene-preview-context") return sceneReview.previewContext(element?.dataset?.videoAnalysisGroundTruthAtMs);
+    if (action === "ground-truth-scene-review") return sceneReview.markAndNext(element?.dataset?.videoAnalysisGroundTruthAtMs);
+    if (action === "ground-truth-scene-next") return sceneReview.seekNext();
+    if (action === "ground-truth-scene-reset") return sceneReview.reset();
     if (action === "ground-truth-suite-mode") {
       return setSuiteBenchmarkType(element?.dataset?.videoAnalysisGroundTruthBenchmarkType);
     }
@@ -464,16 +471,30 @@ export function createTrackingGroundTruthController(options = {}) {
   }
 
   function handleField(field = "", element = {}) {
-    if (field === "groundTruthAttested") return setAttested(element.checked);
-    if (field === "groundTruthSceneComplete") return setExhaustiveSceneAttested(element.checked);
+    if (field === "groundTruthReviewer") return reviewer.set(element.value);
+    if (field === "groundTruthAttested") return sceneReview.setAttested(element.checked, false);
+    if (field === "groundTruthSceneComplete") {
+      const benchmarkType = trackingGroundTruthSuiteEntry(
+        getState().presentation?.tracking?.groundTruth || {},
+      ).benchmarkType;
+      return benchmarkType === TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT
+        ? false
+        : sceneReview.setAttested(element.checked, true);
+    }
     if (field === "groundTruthScenario") return setScenario(element.value, element.checked);
+    if (field === "groundTruthSuiteImport") {
+      void suiteImport.importFile(element.files?.[0], element);
+      return true;
+    }
     return false;
   }
-
   return {
+    contextFor,
     handleAction,
     handleField,
+    handleShortcut: sceneReview.handleShortcut,
     invalidateDraft,
     refreshContext,
+    stopContextPreview: sceneReview.stopContextPreview,
   };
 }

@@ -43,6 +43,7 @@ function createWorkspaceNavigationHarness(options = {}) {
   };
   const workspaceElement = {
     innerHTML: "",
+    addEventListener: () => {},
     querySelector: () => null,
     querySelectorAll: () => [],
   };

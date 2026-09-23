@@ -1,0 +1,39 @@
+name: Medical Staging Read Boundary
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "supabase/migrations/20260911185738_medical_coach_note_read_boundary.sql"
+      - "scripts/verify-medical-note-staging.mjs"
+      - "qa/medical-note-staging-probe.api.spec.mjs"
+      - ".github/workflows/medical-note-read-boundary.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: medical-staging-read-boundary
+  cancel-in-progress: false
+
+jobs:
+  read-boundary:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Verify authenticated staging column boundary without clinical reads
+        env:
+          STAGING_QA_BASE_URL: ${{ vars.STAGING_QA_BASE_URL }}
+          STAGING_SUPABASE_PROJECT_REF: ${{ vars.STAGING_SUPABASE_PROJECT_REF }}
+          STAGING_QA_USERNAME: ${{ secrets.STAGING_QA_USERNAME }}
+          STAGING_QA_PASSWORD: ${{ secrets.STAGING_QA_PASSWORD }}
+        run: |
+          git rev-parse HEAD
+          node scripts/verify-medical-note-staging.mjs

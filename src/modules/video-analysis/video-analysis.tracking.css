@@ -564,6 +564,11 @@
   background: #dff2e6;
 }
 
+.video-analysis-tracking-list em.is-archived {
+  color: #7f2721;
+  background: #f6d7d3;
+}
+
 .video-analysis-tracking-continuation {
   display: grid;
   gap: 7px;

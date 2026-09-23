@@ -148,6 +148,27 @@ test("tracking controls create the selected object class end to end", async () =
       tracking: {
         mode: "tracking",
         selectedTrackIds: [],
+        groundTruth: {
+          byItemId: {
+            [item.id]: {
+              itemId: item.id,
+              status: "draft",
+              sourceFingerprint: "",
+              angleId: "",
+              range: { startMs: 0, endMs: 1000 },
+              sceneReview: {
+                protocol: "football-science-ground-truth-scene-review-v1",
+                sourceFingerprint: "",
+                angleId: "",
+                range: { startMs: 0, endMs: 1000 },
+                stepMs: 500,
+                reviewedAtMs: [0, 500, 1000],
+              },
+              attested: true,
+              exhaustiveSceneAttested: true,
+            },
+          },
+        },
         prompt: {
           entityType: "player",
           playerId: "p1",
@@ -187,6 +208,11 @@ test("tracking controls create the selected object class end to end", async () =
   await expect.poll(() => (
     state.presentation.current.sections[0].items[0].objectTracks[0]?.entityType
   )).toBe("ball");
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
+    sceneReview: { reviewedAtMs: [] },
+    attested: false,
+    exhaustiveSceneAttested: false,
+  });
 });
 
 test("tracking provider output honors the requested object class", async () => {
@@ -206,6 +232,65 @@ test("tracking provider output honors the requested object class", async () => {
     playerId: "must-not-survive",
   });
   expect(result.artifact).toMatchObject({ entityType: "ball", status: "review" });
+});
+
+test("scene review checkpoints are source-bound, resumable, and complete only once", async () => {
+  const review = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingGroundTruthSceneReviewService.js",
+  ));
+  const context = {
+    sourceFingerprint,
+    angleId: "angle-1",
+    reviewedBy: "analyst-1",
+    range: { startMs: 0, endMs: 1000 },
+  };
+  let ledger = review.createTrackingGroundTruthSceneReview(context);
+  expect(review.trackingGroundTruthSceneReviewProgress(ledger, context)).toMatchObject({
+    expectedSampleCount: 3,
+    reviewedSampleCount: 0,
+    coverageRatio: 0,
+    complete: false,
+    nextAtMs: 0,
+  });
+  ledger = review.reviewTrackingGroundTruthSceneFrame(ledger, context, 30);
+  ledger = review.reviewTrackingGroundTruthSceneFrame(ledger, context, 30);
+  expect(review.trackingGroundTruthSceneReviewProgress(ledger, context)).toMatchObject({
+    reviewedSampleCount: 1,
+    nextAtMs: 500,
+  });
+  ledger = review.reviewTrackingGroundTruthSceneFrame(ledger, context, 530);
+  ledger = review.reviewTrackingGroundTruthSceneFrame(ledger, context, 1000);
+  expect(review.trackingGroundTruthSceneReviewProgress(ledger, context)).toMatchObject({
+    reviewedSampleCount: 3,
+    coverageRatio: 1,
+    complete: true,
+    nextAtMs: null,
+  });
+  expect(review.trackingGroundTruthSceneReviewEvidence(ledger, context)).toMatchObject({
+    protocol: "football-science-ground-truth-scene-review-v2",
+    reviewedBy: "analyst-1",
+    reviewedSampleCount: 3,
+    expectedSampleCount: 3,
+    coverageRatio: 1,
+  });
+  const evidence = review.trackingGroundTruthSceneReviewEvidence(ledger, context);
+  expect(review.validateTrackingGroundTruthSceneReviewEvidence(evidence, context)).toEqual(evidence);
+  const legacyEvidence = { ...evidence, protocol: "football-science-ground-truth-scene-review-v1" };
+  delete legacyEvidence.reviewedBy;
+  expect(review.validateTrackingGroundTruthSceneReviewEvidence(legacyEvidence, context))
+    .toEqual(legacyEvidence);
+  expect(() => review.validateTrackingGroundTruthSceneReviewEvidence({
+    ...evidence,
+    reviewerClaim: "untrusted-extra-field",
+  }, context)).toThrow(/incomplete or invalid/i);
+  expect(review.trackingGroundTruthSceneReviewProgress(ledger, {
+    ...context,
+    sourceFingerprint: "b".repeat(64),
+  })).toMatchObject({ reviewedSampleCount: 0, complete: false });
+  expect(review.trackingGroundTruthSceneReviewProgress(ledger, {
+    ...context,
+    reviewedBy: "analyst-2",
+  })).toMatchObject({ reviewedSampleCount: 0, complete: false });
 });
 
 test("ground-truth readiness fails closed until exact source, entities, verification and attestation exist", async () => {
@@ -339,6 +424,25 @@ test("selected-object controller uses one player target and locks its evidence p
   const ball = objectTrack("ball", "ball", { x: 0.5 });
   player.metadata = { localSourceSha256: sourceFingerprint, angleId: "angle-1" };
   const item = { id: "selected-item", startMs: 0, endMs: 1000, objectTracks: [player, ball] };
+  const listeners = new Map();
+  let playCount = 0;
+  let pauseCount = 0;
+  const video = {
+    videoWidth: 1920,
+    videoHeight: 1080,
+    paused: true,
+    addEventListener: (type, listener) => listeners.set(type, listener),
+    removeEventListener: (type) => listeners.delete(type),
+    play() {
+      playCount += 1;
+      this.paused = false;
+      return Promise.resolve();
+    },
+    pause() {
+      pauseCount += 1;
+      this.paused = true;
+    },
+  };
   let state = {
     presentation: {
       current: { sections: [{ id: "section-1", items: [item] }] },
@@ -364,11 +468,14 @@ test("selected-object controller uses one player target and locks its evidence p
       proxy: { byAngleId: {} },
     },
   };
+  let playheadMs = 0;
   const controller = createTrackingGroundTruthController({
     getState: () => state,
     updateState: (updater) => { state = updater(state); },
-    getVideoElement: () => ({ videoWidth: 1920, videoHeight: 1080 }),
+    getVideoElement: () => video,
     getReviewer: () => "analyst-1",
+    getCurrentMatchMs: () => playheadMs,
+    seekToMatchMs: (atMs) => { playheadMs = atMs; },
     now: () => 1_800_000_000_000,
   });
   expect(controller.handleAction("ground-truth-suite-mode", {
@@ -387,21 +494,127 @@ test("selected-object controller uses one player target and locks its evidence p
   expect(controller.handleAction("ground-truth-toggle")).toBe(true);
   expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
     benchmarkType: "selected-object",
+    reviewedBy: "analyst-1",
     selectedTrackIds: [player.id],
     benchmarkTargetTrackId: player.id,
   });
   const draftHtml = renderTrackingGroundTruthPanel(state, item);
   expect(draftHtml).toContain("Selected-object reference");
+  expect(draftHtml).toContain("Next checkpoint");
+  expect(draftHtml).toContain("Selected visible");
+  expect(draftHtml).toContain("P 1 | B 0 | R 0");
+  expect(draftHtml).toContain('data-video-analysis-tracking-action="ground-truth-scene-preview-context" data-video-analysis-ground-truth-at-ms="0"');
+  expect(draftHtml).toContain('data-video-analysis-tracking-action="ground-truth-scene-review" data-video-analysis-ground-truth-at-ms="0" aria-keyshortcuts="V"');
+  expect(draftHtml).toContain('data-video-analysis-tracking-action="ground-truth-scene-next" aria-keyshortcuts="N"');
   expect(draftHtml).toContain("Remove target");
   expect(draftHtml).not.toContain("groundTruthSceneComplete");
   expect(draftHtml).not.toContain('data-video-analysis-tracking-action="ground-truth-target"');
+  player.status = "review";
+  const issueHtml = renderTrackingGroundTruthPanel(state, item);
+  expect(issueHtml).toContain('data-video-analysis-tracking-action="ground-truth-checkpoint-select"');
+  expect(issueHtml).toContain("Player selected-player: unverified");
+  expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].sceneReview.reviewedAtMs).toEqual([]);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].error).toMatch(/known checkpoint issue/i);
+  state.presentation.tracking.selectedTrackIds = [];
+  expect(controller.handleAction("ground-truth-checkpoint-select", {
+    dataset: {
+      videoAnalysisGroundTruthTrackId: player.id,
+      videoAnalysisGroundTruthAtMs: "500",
+    },
+  })).toBe(true);
+  expect(state.presentation.tracking.selectedTrackIds).toEqual([player.id]);
+  expect(playheadMs).toBe(500);
+  player.status = "verified";
+  playheadMs = 500;
+  expect(controller.handleAction("ground-truth-scene-preview-context", {
+    dataset: { videoAnalysisGroundTruthAtMs: "500" },
+  })).toBe(true);
+  expect(playheadMs).toBe(0);
+  expect(playCount).toBe(1);
+  expect(video.paused).toBe(false);
+  expect([...listeners.keys()]).toEqual(["timeupdate", "ended"]);
+  playheadMs = 999;
+  listeners.get("timeupdate")();
+  expect(video.paused).toBe(false);
+  playheadMs = 1000;
+  listeners.get("timeupdate")();
+  expect(video.paused).toBe(true);
+  expect(pauseCount).toBe(1);
+  expect(listeners.size).toBe(0);
+  playheadMs = 500;
+  expect(controller.handleAction("ground-truth-scene-preview-context", {
+    dataset: { videoAnalysisGroundTruthAtMs: "500" },
+  })).toBe(true);
+  expect(controller.handleAction("ground-truth-scene-next")).toBe(true);
+  expect(video.paused).toBe(true);
+  expect(pauseCount).toBe(2);
+  expect(listeners.size).toBe(0);
+  const keyboardEvent = (key, overrides = {}) => {
+    const calls = { prevented: 0, stopped: 0 };
+    return {
+      key,
+      target: { tagName: "BODY" },
+      preventDefault: () => { calls.prevented += 1; },
+      stopPropagation: () => { calls.stopped += 1; },
+      calls,
+      ...overrides,
+    };
+  };
+  expect(controller.handleShortcut(keyboardEvent("p", { repeat: true }))).toBe(false);
+  expect(controller.handleShortcut(keyboardEvent("p", { target: { tagName: "INPUT" } }))).toBe(false);
+  expect(controller.handleShortcut(keyboardEvent("p", { ctrlKey: true }))).toBe(false);
+  const previewShortcut = keyboardEvent("P");
+  expect(controller.handleShortcut(previewShortcut)).toBe(true);
+  expect(previewShortcut.calls).toEqual({ prevented: 1, stopped: 1 });
+  expect(playheadMs).toBe(0);
+  expect(playCount).toBe(3);
+  const nextShortcut = keyboardEvent("N");
+  expect(controller.handleShortcut(nextShortcut)).toBe(true);
+  expect(nextShortcut.calls).toEqual({ prevented: 1, stopped: 1 });
+  expect(video.paused).toBe(true);
+  expect(pauseCount).toBe(3);
+  expect(playheadMs).toBe(0);
+  const verifyShortcut = keyboardEvent("V");
+  expect(controller.handleShortcut(verifyShortcut)).toBe(true);
+  expect(verifyShortcut.calls).toEqual({ prevented: 1, stopped: 1 });
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].sceneReview.reviewedAtMs)
+    .toEqual([0]);
+  expect(playheadMs).toBe(500);
+  playheadMs = 0;
   expect(controller.handleField("groundTruthSceneComplete", { checked: true })).toBe(false);
+  expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
+    attested: false,
+    error: expect.stringMatching(/every scene review checkpoint/i),
+  });
+  playheadMs = 1000;
+  expect(controller.handleAction("ground-truth-scene-review", {
+    dataset: { videoAnalysisGroundTruthAtMs: "500" },
+  })).toBe(true);
+  expect(playheadMs).toBe(1000);
+  expect(controller.handleAction("ground-truth-scene-review", {
+    dataset: { videoAnalysisGroundTruthAtMs: "1000" },
+  })).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].sceneReview.reviewedAtMs)
+    .toEqual([0, 500, 1000]);
+  expect(controller.handleShortcut(keyboardEvent("P"))).toBe(false);
   expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
   expect(controller.handleAction("ground-truth-lock")).toBe(true);
   const artifact = state.presentation.tracking.groundTruth.byItemId[item.id].lockedArtifact;
   expect(artifact).toMatchObject({
     profileId: "selected-player-pilot-v1",
-    reviewEvidence: { benchmarkType: "selected-object", selectedObjectTargetTrackId: player.id },
+    reviewEvidence: {
+      benchmarkType: "selected-object",
+      selectedObjectTargetTrackId: player.id,
+      sceneReview: {
+        protocol: "football-science-ground-truth-scene-review-v2",
+        reviewedBy: "analyst-1",
+        reviewedSampleCount: 3,
+        expectedSampleCount: 3,
+        coverageRatio: 1,
+      },
+    },
   });
   expect(artifact.groundTruth.tracks.map((track) => track.id)).toEqual([player.id]);
   expect(controller.handleAction("ground-truth-suite-mode", {
@@ -416,7 +629,44 @@ test("locked real-match references are immutable, media-free and benchmark-ready
   const benchmark = await import(moduleUrl(
     "src/modules/video-analysis/services/trackingMultiObjectBenchmarkService.js",
   ));
+  const workload = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingReviewWorkloadEvidenceService.js",
+  ));
   const input = reviewedInput();
+  input.workloadEvidence = workload.createTrackingReviewWorkloadEvidence({
+    sourceFingerprint,
+    workspaceSha256: "b".repeat(64),
+    packId: "real-match-pack",
+    caseId: "transition-1",
+    angleId: "angle-1",
+    range: input.range,
+    totalSuggestionCount: 3,
+    rejectedCount: 0,
+    savedCount: 3,
+    reviewEffort: {
+      coverage: "complete",
+      openedCount: 1,
+      acceptActionCount: 3,
+      rejectActionCount: 0,
+      undoActionCount: 0,
+      deferActionCount: 0,
+      correctionHandoffCount: 0,
+      batchSaveActionCount: 1,
+      savedTrackActionCount: 3,
+      firstOpenedAt: "2026-08-31T12:00:00.000Z",
+      lastActionAt: "2026-08-31T12:10:00.000Z",
+    },
+  });
+  input.tracks.forEach((track) => {
+    track.metadata = {
+      ...track.metadata,
+      localSourceSha256: sourceFingerprint,
+      angleId: "angle-1",
+      preannotationReviewState: "saved-review",
+      preannotationWorkspaceSha256: "b".repeat(64),
+      preannotationCaseId: "transition-1",
+    };
+  });
   input.tracks[0].segments[0].points = Array.from({ length: 11 }, (_, index) => ({
     atMs: index * 100,
     x: 0.1 + (index * 0.005),
@@ -443,6 +693,25 @@ test("locked real-match references are immutable, media-free and benchmark-ready
       exhaustiveSceneAttested: true,
       selectedObjectTargetTrackId: "p1",
     },
+    workloadEvidence: {
+      protocol: "football-science-tracking-review-workload-evidence-v1",
+      caseId: "transition-1",
+      outcome: { totalSuggestionCount: 3, rejectedCount: 0, savedCount: 3 },
+      metrics: { reviewActionCount: 4, reviewActionsPer100Suggestions: 133.33 },
+    },
+    annotationBurdenEvidence: {
+      protocol: "football-science-tracking-annotation-burden-evidence-v1",
+      workloadBound: true,
+      trackSummary: {
+        selectedTrackCount: 3,
+        preannotationRetainedTrackCount: 3,
+        nonPreannotationTrackCount: 0,
+        preannotationSavedCount: 3,
+        preannotationExcludedTrackCount: 0,
+        addedOutsidePreannotationCount: 0,
+      },
+      correctionSummary: { correctionRecordCount: 3, correctionOperationCount: 3 },
+    },
   });
   expect(artifact.groundTruth.tracks[0]).not.toHaveProperty("metadata");
   expect(artifact.groundTruth.tracks[0]).not.toHaveProperty("confidence");
@@ -455,6 +724,13 @@ test("locked real-match references are immutable, media-free and benchmark-ready
     expect(track.segments.flatMap((segment) => segment.points.map((point) => point.atMs))).toContain(300);
   }
   expect(groundTruth.groundTruthArtifactJson(artifact)).not.toMatch(/private\/match|private-model|correctedBy|https?:|blob:/);
+  expect(groundTruth.validateGroundTruthArtifact(structuredClone(artifact))).toEqual(artifact);
+  const forgedWorkload = structuredClone(artifact);
+  forgedWorkload.workloadEvidence.metrics.reviewActionCount += 1;
+  expect(() => groundTruth.validateGroundTruthArtifact(forgedWorkload)).toThrow(/metrics do not match/i);
+  const forgedBurden = structuredClone(artifact);
+  forgedBurden.annotationBurdenEvidence.pointSummary.manualPointCount += 1;
+  expect(() => groundTruth.validateGroundTruthArtifact(forgedBurden)).toThrow(/point summary does not match/i);
 
   input.tracks[0].segments[0].points[0].x = 0.99;
   expect(artifact.groundTruth.tracks[0].segments[0].points[0].x).toBe(0.1);
@@ -464,6 +740,8 @@ test("locked real-match references are immutable, media-free and benchmark-ready
     predictionTracks: reviewedInput().tracks.map((track) => ({ ...track, corrections: [] })),
     performance: { processingMs: 500 },
   });
+  expect(benchmarkCase).not.toHaveProperty("workloadEvidence");
+  expect(benchmarkCase).not.toHaveProperty("annotationBurdenEvidence");
   expect(benchmark.evaluateMultiObjectTrackingBenchmarkCase(benchmarkCase)).toMatchObject({
     benchmarkId: "real-match-case-1",
     evidence: {
@@ -490,6 +768,14 @@ test("locked real-match references are immutable, media-free and benchmark-ready
       failures: expect.arrayContaining([expect.objectContaining({ metric: "realtimeFactor", reason: "missing-metric" })]),
     },
   });
+  expect(() => groundTruth.createGroundTruthArtifact({
+    ...reviewedInput({
+      benchmarkType: "selected-object",
+      selectedTrackIds: ["p1"],
+      exhaustiveSceneAttested: false,
+    }),
+    workloadEvidence: input.workloadEvidence,
+  })).toThrow(/full-scene ground truth/i);
 });
 
 test("ground-truth controller locks and downloads only the reviewed snapshot", async () => {
@@ -505,9 +791,20 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
   const providerRuns = await import(moduleUrl(
     "src/modules/video-analysis/services/trackingProviderRunService.js",
   ));
+  const workload = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingReviewWorkloadEvidenceService.js",
+  ));
   const tracks = reviewedInput().tracks;
-  tracks[0].metadata.localSourceSha256 = sourceFingerprint;
-  tracks[0].metadata.angleId = "angle-1";
+  tracks.forEach((track) => {
+    track.metadata = {
+      ...track.metadata,
+      localSourceSha256: sourceFingerprint,
+      angleId: "angle-1",
+      preannotationReviewState: "saved-review",
+      preannotationWorkspaceSha256: "b".repeat(64),
+      preannotationCaseId: "transition-1",
+    };
+  });
   const item = {
     id: "item-1",
     clipId: "clip-1",
@@ -578,6 +875,7 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     },
   };
   const downloads = [];
+  let playheadMs = 0;
   const win = {
     Blob,
     URL: {
@@ -599,6 +897,8 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     getVideoElement: () => ({ videoWidth: 1920, videoHeight: 1080 }),
     getWindow: () => win,
     getReviewer: () => "analyst-1",
+    getCurrentMatchMs: () => playheadMs,
+    seekToMatchMs: (atMs) => { playheadMs = atMs; },
     now: () => 1_800_000_000_000,
   });
 
@@ -606,8 +906,42 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     state.presentation.tracking.selectedTrackIds = [track.id];
     expect(controller.handleAction("ground-truth-toggle")).toBe(true);
   }
+  const workloadEvidence = workload.createTrackingReviewWorkloadEvidence({
+      sourceFingerprint,
+      workspaceSha256: "b".repeat(64),
+      packId: "real-match-pack",
+      caseId: "transition-1",
+      angleId: "angle-1",
+      range: { startMs: 0, endMs: 1000 },
+      totalSuggestionCount: 3,
+      rejectedCount: 0,
+      savedCount: 3,
+      reviewEffort: {
+        coverage: "complete",
+        openedCount: 1,
+        acceptActionCount: 3,
+        rejectActionCount: 0,
+        undoActionCount: 0,
+        deferActionCount: 0,
+        correctionHandoffCount: 0,
+        batchSaveActionCount: 1,
+        savedTrackActionCount: 3,
+        firstOpenedAt: "2026-08-31T12:00:00.000Z",
+        lastActionAt: "2026-08-31T12:10:00.000Z",
+      },
+    });
+  state.presentation.tracking.groundTruth.byItemId[item.id].workloadEvidence = workloadEvidence;
+  state.presentation.tracking.selectedTrackIds = [tracks[0].id];
+  expect(controller.handleAction("ground-truth-toggle")).toBe(true);
+  expect(state.presentation.tracking.groundTruth.byItemId[item.id].workloadEvidence).toEqual(workloadEvidence);
+  expect(controller.handleAction("ground-truth-toggle")).toBe(true);
   expect(controller.handleField("groundTruthScenario", { value: "transition", checked: true })).toBe(true);
   expect(renderTrackingGroundTruthPanel(state, item)).toMatch(/value="transition"[^>]*checked/);
+  expect(renderTrackingGroundTruthPanel(state, item)).toContain("0/3");
+  for (let index = 0; index < 3; index += 1) {
+    expect(controller.handleAction("ground-truth-scene-review")).toBe(true);
+  }
+  expect(renderTrackingGroundTruthPanel(state, item)).toContain("3/3");
   expect(controller.handleField("groundTruthAttested", { checked: true })).toBe(true);
   expect(controller.handleField("groundTruthSceneComplete", { checked: true })).toBe(true);
   expect(renderTrackingGroundTruthPanel(state, item)).toMatch(/groundTruthSceneComplete" checked/);
@@ -619,17 +953,35 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
   expect(controller.handleAction("ground-truth-lock")).toBe(true);
   expect(state.presentation.tracking.groundTruth.byItemId[item.id]).toMatchObject({
     status: "locked",
-    selectedTrackIds: tracks.map((track) => track.id),
+    selectedTrackIds: expect.arrayContaining(tracks.map((track) => track.id)),
     lockedArtifact: {
       sourceFingerprint,
-      reviewEvidence: { scenarioTags: ["transition"] },
+      reviewEvidence: {
+        scenarioTags: ["transition"],
+        sceneReview: { reviewedSampleCount: 3, expectedSampleCount: 3, coverageRatio: 1 },
+      },
+      workloadEvidence: {
+        protocol: "football-science-tracking-review-workload-evidence-v1",
+        caseId: "transition-1",
+      },
+      annotationBurdenEvidence: {
+        protocol: "football-science-tracking-annotation-burden-evidence-v1",
+        trackSummary: {
+          preannotationRetainedTrackCount: 3,
+          preannotationExcludedTrackCount: 0,
+          addedOutsidePreannotationCount: 0,
+        },
+      },
     },
   });
+  expect(new Set(state.presentation.tracking.groundTruth.byItemId[item.id].selectedTrackIds).size).toBe(3);
   expect(state.presentation.tracking.groundTruth.suite.cases).toHaveLength(1);
   expect(state.presentation.tracking.groundTruth.suite.cases[0].id).toBe(
     state.presentation.tracking.groundTruth.byItemId[item.id].lockedArtifact.id,
   );
   expect(renderTrackingGroundTruthPanel(state, item)).toContain("Locked reference");
+  expect(renderTrackingGroundTruthPanel(state, item)).toContain("Manual samples");
+  expect(renderTrackingGroundTruthPanel(state, item)).toContain("Review changes");
   expect(renderTrackingBenchmarkSuitePanel(state)).toContain("1</strong> raw provider run");
   expect(renderTrackingGroundTruthPanel(state, { ...item, id: "item-2" })).toContain("Review draft");
   expect(controller.handleAction("ground-truth-download")).toBe(true);
@@ -656,6 +1008,7 @@ test("ground-truth controller locks and downloads only the reviewed snapshot", a
     selectedTrackIds: [],
     benchmarkTargetTrackId: "",
     scenarioTags: [],
+    sceneReview: { reviewedAtMs: [] },
     exhaustiveSceneAttested: false,
     lockedArtifact: null,
   });

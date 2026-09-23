@@ -9,6 +9,8 @@ const {
 } = require("./_lib/supabase-admin.js");
 const { appendAuditLog } = require("./_lib/audit-log.js");
 const { appendSessionPlannerHistory } = require("./_lib/session-history.js");
+const { createAppStateWriteTiming } = require("./_lib/app-state-write-timing.js");
+const { decodeSessionStateValue, encodeSessionStateValue } = require("./_lib/session-state-transport.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
 const { protectGameplanStateWrite } = require("./_lib/gameplan-state-authorization.js");
 const { protectSetPiecesStateWrite } = require("./_lib/set-pieces-state-authorization.js");
@@ -3171,19 +3173,19 @@ async function writeStorageStateObject(entry) {
   return result;
 }
 
-async function writeStateObject(entry) {
+async function writeStateObject(entry, measure = (_phase, action) => action()) {
   if (!isAppStateDatabaseEnabled()) {
     return writeStorageStateObject(entry);
   }
 
   const expectedRevision = Math.max(0, Number(entry?.revision || 1) - 1);
-  const databaseResult = await writeAppStateRecord(entry, expectedRevision);
+  const databaseResult = await measure("database", () => writeAppStateRecord(entry, expectedRevision));
   if (!databaseResult.ok) {
     return databaseResult;
   }
 
   const persistedEntry = normalizeDatabaseStateEntry({ ...entry, ...(databaseResult.entry || {}) });
-  const backupResult = await writeStorageStateObject(persistedEntry);
+  const backupResult = await measure("compatibility", () => writeStorageStateObject(persistedEntry));
   if (!backupResult.ok) {
     console.error("[app-state] compatibility backup write failed", {
       key: persistedEntry.key,
@@ -3560,7 +3562,10 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const actor = await getCurrentActor(req.headers?.authorization || req.headers?.Authorization);
+  const measure = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)
+    ? createAppStateWriteTiming(res).measure
+    : (_phase, action) => action();
+  const actor = await measure("auth", () => getCurrentActor(req.headers?.authorization || req.headers?.Authorization));
   if (!actor) {
     return sendJson(res, 401, { ok: false, reason: "You must be signed in." });
   }
@@ -3575,7 +3580,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const bucket = await ensureStateBucket();
+  const bucket = await measure("bucket", () => ensureStateBucket());
   if (!bucket.ok && !isAppStateDatabaseEnabled()) {
     return sendJson(res, 500, { ok: false, reason: bucket.reason || "Central state bucket is not available." });
   }
@@ -3601,7 +3606,10 @@ module.exports = async (req, res) => {
         : selectStateListResultKeys({ entries: actorEntries }, requestedKeys).entries;
       return sendJson(res, 200, {
         ok: true,
-        entries,
+        entries: Object.hasOwn(entries, SESSION_PLANNER_KEY) ? {
+          ...entries,
+          [SESSION_PLANNER_KEY]: await encodeSessionStateValue(req, SESSION_PLANNER_KEY, entries[SESSION_PLANNER_KEY]),
+        } : entries,
         metadata: filterStateMetadataForEntries(stateObjects.metadata, entries),
         updatedAt: new Date().toISOString(),
       });
@@ -3664,15 +3672,39 @@ module.exports = async (req, res) => {
     }
 
     const contract = dataSafetyRegistry.requireByKey(key);
-    const previousEntry = await readStateObject(key, { fresh: true });
+    const previousEntry = await measure("read", () => readStateObject(key, { fresh: true }));
     const clientBaseRevision = getClientBaseRevision(body?.metadata || body, key);
-    const authorization = await authorizeStateWrite(actor, key, body?.value, false, {
+    let sessionChange = null;
+    let sessionProtocol = null;
+    let incomingValue;
+    if (body?.sessionChange !== undefined) {
+      if (key !== SESSION_PLANNER_KEY) return sendJson(res, 400, { ok: false, reason: "Date changes are only supported for Sessions." });
+      // Authorize before returning any central content or conflict information.
+      const access = await measure("authorize", () => authorizeStateWrite(actor, key, previousEntry?.value || '{"sessions":{}}', false, { previousEntry, clientBaseRevision }));
+      if (!access.ok) return sendJson(res, access.status || 403, { ok: false, reason: access.reason });
+      sessionProtocol = await import("../src/modules/session-planner/session-save-protocol.mjs");
+      try {
+        sessionChange = JSON.parse(await decodeSessionStateValue(key, body.sessionChange));
+        const merged = sessionProtocol.applySessionDateChange(JSON.parse(previousEntry?.value || '{"sessions":{}}'), sessionChange);
+        if (!merged.ok) return sendJson(res, 409, { ok: false, reason: "This training has conflicting changes. Review your local edit.", conflicts: merged.conflicts, currentRevision: previousEntry?.revision || 0 });
+        incomingValue = JSON.stringify(merged.state);
+      } catch (error) {
+        return sendJson(res, error.status || 400, { ok: false, reason: error.message || "Invalid session date change." });
+      }
+    } else {
+      incomingValue = key === SESSION_PLANNER_KEY ? await decodeSessionStateValue(key, body?.value) : body?.value;
+    }
+    const authorization = await measure("authorize", () => authorizeStateWrite(actor, key, incomingValue, false, {
       previousEntry,
       clientBaseRevision,
-    });
+    }));
     if (!authorization.ok) {
       return sendJson(res, authorization.status || 403, { ok: false, ...authorization });
     }
+
+    // The date protocol has already performed a three-way merge against fresh server content.
+    // Legacy timestamp heuristics must not silently undo an explicitly reviewed change.
+    if (sessionChange) authorization.value = incomingValue;
 
     const contentSafety = validateCentralStateContent(key, authorization.value, contract);
     if (!contentSafety.ok) {
@@ -3690,7 +3722,14 @@ module.exports = async (req, res) => {
     }
 
     const entry = normalizeStateEntry(key, authorization.value, actor, false, previousEntry);
-    const result = await writeStateObject(entry);
+    // Verify the reply fits before committing, not after a durable write has succeeded.
+    const responseValue = sessionChange ? undefined : await measure("receipt", () => encodeSessionStateValue(req, key, entry.value));
+    const dateReceipt = sessionChange ? {
+      id: sessionChange.id, date: sessionChange.date,
+      value: sessionProtocol.sessionDateValue(JSON.parse(entry.value), sessionChange.date),
+    } : undefined;
+    const encodedReceipt = dateReceipt ? await measure("receipt", () => encodeSessionStateValue(req, key, JSON.stringify(dateReceipt))) : undefined;
+    const result = await measure("state", () => writeStateObject(entry, measure));
     if (!result.ok) {
       return sendJson(res, result.status || 400, {
         ok: false,
@@ -3700,16 +3739,16 @@ module.exports = async (req, res) => {
     }
     const persistedEntry = result.entry || entry;
 
-    await appendDataSafetyWriteAudit(actor, previousEntry, persistedEntry, authorization.merged);
+    await measure("audit", () => appendDataSafetyWriteAudit(actor, previousEntry, persistedEntry, authorization.merged));
 
     if (key === PLATFORM_APPEARANCE_KEY) {
       await appendPlatformAppearanceAudit(actor, previousEntry, authorization.value);
     }
 
     if (key === SESSION_PLANNER_KEY) {
-      const historyEntries = await appendSessionPlannerHistory(actor, previousEntry?.value || "", authorization.value);
+      const historyEntries = await measure("history", () => appendSessionPlannerHistory(actor, previousEntry?.value || "", authorization.value));
       if (historyEntries.length) {
-        await appendAuditLog(actor, {
+        await measure("activity", () => appendAuditLog(actor, {
           action: "session.updated",
           summary: "Updated Session Planner",
           details: {
@@ -3720,7 +3759,7 @@ module.exports = async (req, res) => {
               afterBlockCount: historyEntry.afterBlockCount,
             })),
           },
-        });
+        }));
       }
     }
 
@@ -3753,11 +3792,15 @@ module.exports = async (req, res) => {
       revision: persistedEntry.revision,
       organizationId: persistedEntry.organizationId,
       moduleId: persistedEntry.moduleId,
-      value: persistedEntry.value,
+      value: responseValue,
+      ...(dateReceipt ? { sessionChange: encodedReceipt } : {}),
       metadata: getStateEntryMetadata(persistedEntry),
       merged: Boolean(authorization.merged),
     });
   } catch (error) {
+    if (error?.code === "SESSION_TRANSPORT") {
+      return sendJson(res, error.status || 400, { ok: false, reason: error.message });
+    }
     if (error?.code === "BODY_TOO_LARGE") {
       return sendJson(res, 413, { ok: false, reason: error.message || "Request body is too large." });
     }

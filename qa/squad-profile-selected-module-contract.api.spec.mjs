@@ -54,7 +54,7 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
     renderPlayerProfileOptionSet: optionSet,
     renderPlayerProfileRoleOptions: () => '<option value="8" selected>8</option>',
     renderPlayerProfileScoutingSpider: () => "<article>Performance Radar</article>",
-    renderPlayerProfileSecondaryRoleOptions: () => '<option value="10" selected>10</option>',
+    renderPlayerProfileSecondaryRoleChoices: () => '<label class="squad-secondary-role-option"><input type="checkbox" name="secondaryRoles" value="10" checked /><span>10</span></label>',
     renderPlayerProfileStatusChip: () => '<span class="squad-status-pill">Available</span>',
     renderPlayerProfileTabs: () => '<nav class="squad-profile-tabs"></nav>',
   });
@@ -70,8 +70,10 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   expect(panelMarkup).toContain('<label class="squad-tab-field-overview">\n              <span>Primary role</span>');
   expect(panelMarkup).toContain('class="squad-role-select" name="primaryRole"');
   expect(panelMarkup).not.toContain('<label class="squad-tab-field-roles">\n              <span>Primary role</span>');
-  expect(panelMarkup).toContain('<label class="squad-tab-field-overview">\n              <span>Secondary roles</span>');
-  expect(panelMarkup).toContain('class="squad-role-select squad-role-select-scroll" name="secondaryRoles"');
+  expect(panelMarkup).toContain('<fieldset class="squad-tab-field-overview squad-secondary-role-field">\n              <legend>Secondary roles</legend>');
+  expect(panelMarkup).toContain('class="squad-secondary-role-picker"');
+  expect(panelMarkup).toContain('type="checkbox" name="secondaryRoles" value="10" checked');
+  expect(panelMarkup).not.toContain('class="squad-role-select squad-role-select-scroll"');
   expect(panelMarkup).not.toContain('<label class="squad-tab-field-roles">\n              <span>Secondary roles</span>');
   expect(panelMarkup).toContain('<label class="squad-tab-field-overview">\n              <span>Role group</span>');
   expect(panelMarkup).not.toContain('<label class="squad-tab-field-roles">\n              <span>Role group</span>');
@@ -143,7 +145,7 @@ test("Squad selected profile renderer keeps remove action on history only", () =
     renderPlayerProfileMedicalPanel: () => "",
     renderPlayerProfileOptionSet: optionSet,
     renderPlayerProfileRoleOptions: () => '<option value="8" selected>8</option>',
-    renderPlayerProfileSecondaryRoleOptions: () => '<option value="10" selected>10</option>',
+    renderPlayerProfileSecondaryRoleChoices: () => '<label class="squad-secondary-role-option"><input type="checkbox" name="secondaryRoles" value="10" checked /><span>10</span></label>',
     renderPlayerProfileStatusChip: () => '<span class="squad-status-pill">Available</span>',
     renderPlayerProfileTabs: () => '<nav class="squad-profile-tabs"></nav>',
   });

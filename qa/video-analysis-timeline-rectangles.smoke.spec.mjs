@@ -1,0 +1,247 @@
+import { expect, test } from "@playwright/test";
+
+const matchId = "2a4e615e-f3e7-4fc7-bb70-a02db63c9152";
+const videoId = "26c70a43-5ee1-43f7-9e56-8e1c1be3a725";
+
+async function openTimeline(page, clips = null) {
+  await page.addInitScript(({ matchId, videoId, clips }) => {
+    const base = { match_id: matchId, video_id: videoId, sub_phase: "High Press", phase: "Out of Possession",
+      outcome: "Neutral", players: [{ player_label: "Ally Schlegel", player_id: "p1" }], tags: [], descriptors: [] };
+    window.__videoAnalysisSmokeClips = clips ? clips.map(clip => ({ ...base, ...clip })) : [
+      { ...base, id: "short", start_ms: 10000, end_ms: 25000 },
+      { ...base, id: "overlap", start_ms: 20000, end_ms: 35000 },
+      { ...base, id: "long", start_ms: 40000, end_ms: 70000 },
+      { ...base, id: "adjacent", start_ms: 70000, end_ms: 85000 },
+      { ...base, id: "duplicate-time", start_ms: 40000, end_ms: 70000 },
+      { ...base, id: "tiny", start_ms: 95000, end_ms: 95100 },
+      { ...base, id: "long-name", start_ms: 105000, end_ms: 120000,
+        players: [{ player_label: "A Very Long Player Name That Must Not Widen The Timeline", player_id: "p2" }] },
+      { ...base, id: "phase", start_ms: 10000, end_ms: 25000,
+        phase: "In Possession", sub_phase: "Phase", players: [], mini_game_principle_id: "drive-past-press" },
+    ];
+    window.__videoAnalysisInitialState = {
+      view: "workspace", match: { id: matchId, title: "Timeline preview" },
+      video: { id: videoId, match_id: matchId },
+      source: { id: "source-1", match_id: matchId, video_id: videoId, local_video_identifier: "existing-video" },
+      videoRef: { durationMs: 120000, displayName: "Timeline preview" },
+      timeline: { laneMode: "all", zoom: 1, playheadMs: 0, selectedClipIds: [], history: [] },
+    };
+  }, { matchId, videoId, clips });
+  await page.goto("/qa/video-analysis-browser-smoke.html?rectangles=1");
+  await expect(page.locator('[data-video-analysis-timeline-category-label="Sub-phase / High Press"]')).toBeVisible();
+}
+
+async function expectSelectedContrast(category) {
+  await expect(category).toHaveAttribute("aria-pressed", "true");
+  const contrast = await category.evaluate(element => {
+    const rgba = value => value.match(/[\d.]+/g).map(Number);
+    const background = rgba(getComputedStyle(element).backgroundColor);
+    const luminance = rgb => rgb.map(value => value / 255)
+      .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+      .reduce((total, value, i) => total + value * [0.2126, 0.7152, 0.0722][i], 0);
+    return {
+      backgroundAlpha: background[3] ?? 1,
+      ratios: [...element.querySelectorAll(".video-analysis-lane__name, .video-analysis-lane__count")].map(label => {
+        const foreground = rgba(getComputedStyle(label).color);
+        const alpha = foreground[3] ?? 1;
+        const text = foreground.slice(0, 3).map((value, i) => value * alpha + background[i] * (1 - alpha));
+        const light = luminance(text);
+        const dark = luminance(background.slice(0, 3));
+        return (Math.max(light, dark) + 0.05) / (Math.min(light, dark) + 0.05);
+      }),
+    };
+  });
+  expect(contrast.backgroundAlpha).toBe(1);
+  expect(contrast.ratios).toHaveLength(2);
+  for (const ratio of contrast.ratios) expect(ratio).toBeGreaterThanOrEqual(4.5);
+}
+
+async function centerTimelineClip(button) {
+  await button.evaluate(element => element.scrollIntoView({ block: "nearest", inline: "center", behavior: "instant" }));
+}
+
+for (const width of [1470, 390]) {
+  test(`timeline uses compact names and full-height proportional rectangles at ${width}px`, async ({ page }, testInfo) => {
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.setViewportSize({ width, height: 772 });
+    await openTimeline(page);
+    const timeline = page.locator("[data-video-analysis-timeline-module]");
+    const category = timeline.locator('[data-video-analysis-timeline-category-label="Sub-phase / High Press"]');
+    const lane = category.locator("..");
+    await expect(category).toHaveText("High Press (7)");
+    await expect(timeline.locator('[data-video-analysis-timeline-category-label="Player / Ally Schlegel"]'))
+      .toHaveText("Ally Schlegel (6)");
+    const phase = timeline.locator('[data-video-analysis-timeline-category-label="Phase / In Possession"]');
+    const principle = timeline.locator('[data-video-analysis-timeline-category-label="MG Principle / Drive past press"]');
+    await expect(phase).toHaveText("In Possession (1)");
+    await expect(principle).toHaveCount(0);
+    await expect(timeline.locator(".video-analysis-clip-block").first()).toHaveText("");
+    await expect(lane.locator('[data-video-analysis-seek="short"]'))
+      .toHaveAttribute("title", "High Press · 0:00:10 - 0:00:25 · Duration: 15 s");
+    expect((await category.boundingBox()).width).toBe(width < 600 ? 160 : 200);
+
+    async function geometry() {
+      return lane.evaluate(element => {
+        const track = element.querySelector("[data-video-analysis-timeline-track]");
+        const trackRect = track.getBoundingClientRect();
+        return {
+          width: track.clientWidth, height: track.clientHeight,
+          blocks: [...track.querySelectorAll(".video-analysis-clip-block")].map(block => {
+            const rect = block.getBoundingClientRect();
+            const css = getComputedStyle(block);
+            const marker = getComputedStyle(block, "::after");
+            return { id: block.dataset.videoAnalysisSeek, x: rect.x - trackRect.x - track.clientLeft,
+              y: rect.y - trackRect.y - track.clientTop, width: rect.width, height: rect.height,
+              markerWidth: parseFloat(marker.width), markerHeight: parseFloat(marker.height),
+              radius: css.borderRadius, padding: css.padding, background: css.backgroundColor };
+          }),
+        };
+      });
+    }
+
+    const result = await geometry();
+    const byId = Object.fromEntries(result.blocks.map(block => [block.id, block]));
+    for (const block of result.blocks) {
+      expect(block.y).toBe(0);
+      expect(block.height).toBe(result.height);
+      expect(block.radius).toBe("0px");
+      expect(block.padding).toBe("0px");
+      expect(block.markerWidth).toBeCloseTo(Math.max(6, block.width), 1);
+      expect(block.markerHeight).toBe(block.height);
+    }
+    expect(byId.short.width).toBeCloseTo(result.width * 15000 / 120000, 1);
+    expect(byId.long.width).toBeCloseTo(byId.short.width * 2, 1);
+    expect(byId.overlap.x).toBeCloseTo(result.width * 20000 / 120000, 1);
+    expect(byId.short.x + byId.short.width).toBeGreaterThan(byId.overlap.x);
+    expect(byId.adjacent.x).toBeCloseTo(byId.long.x + byId.long.width, 1);
+    expect(byId.tiny.width).toBeCloseTo(result.width * 100 / 120000, 1);
+    expect(byId["duplicate-time"].x).toBe(byId.long.x);
+    expect(byId["duplicate-time"].width).toBe(byId.long.width);
+
+    for (const row of [phase, category]) {
+      await row.click();
+      await expectSelectedContrast(row);
+    }
+    await timeline.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath(`timeline-rectangles-${width}.png`) });
+    const bounds = await timeline.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await lane.locator('[data-video-analysis-seek="long"]').focus();
+    await page.keyboard.press("Enter");
+    await expect(lane.locator('[data-video-analysis-seek="long"]')).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => (window.__videoAnalysisRequests || []).filter(request => request.action === "save-clip")))
+      .toEqual([]);
+    await page.locator("[data-video-analysis-code-mode]").click();
+    // Native fullscreen finishes asynchronously before the final code-mode render.
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
+    await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
+    await expect.poll(async () => (await geometry()).blocks.every(block => Number.isFinite(block.markerWidth))).toBe(true);
+    const code = await geometry();
+    for (const block of code.blocks) {
+      expect(block.height).toBe(code.height);
+      expect(block.markerWidth).toBeCloseTo(Math.max(6, block.width), 1);
+    }
+    expect(code.blocks.find(block => block.id === "tiny").width).toBeCloseTo(code.width * 100 / 120000, 1);
+    await category.click();
+    await expectSelectedContrast(category);
+    await phase.dblclick();
+    const popup = page.locator("[data-video-analysis-clip-editor]");
+    await expect(popup.getByRole("heading")).toHaveText("In Possession");
+    await expect(popup.locator("[data-clip-review-select] strong")).toHaveText("1");
+    await expect(popup.locator("[data-video-analysis-principle-count]")).toHaveText("1");
+    await popup.getByRole("button", { name: "Close", exact: true }).first().click();
+    await expect(popup).not.toBeVisible();
+    await expectSelectedContrast(phase);
+    expect(errors).toEqual([]);
+  });
+
+  test(`tiny clips have bounded click targets without changing the time scale at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 772 });
+    await openTimeline(page, [
+      { id: "start", start_ms: 0, end_ms: 100 },
+      { id: "tiny", start_ms: 10000, end_ms: 10100 },
+      { id: "near-a", start_ms: 20000, end_ms: 20100 },
+      { id: "near-b", start_ms: 20100, end_ms: 20200 },
+      { id: "cover", start_ms: 30000, end_ms: 50000 },
+      { id: "nested", start_ms: 40000, end_ms: 40100 },
+      { id: "visible-a", start_ms: 60000, end_ms: 61000 },
+      { id: "visible-b", start_ms: 61000, end_ms: 62000 },
+      { id: "end", start_ms: 119900, end_ms: 120000 },
+    ]);
+    const lane = page.locator('[data-video-analysis-timeline-category-label="Sub-phase / High Press"]').locator("..");
+    const tiny = lane.locator('[data-video-analysis-seek="tiny"]');
+    await expect(async () => {
+      await centerTimelineClip(tiny);
+      await expect(tiny).toBeVisible();
+    }).toPass({ timeout: 5000 });
+    // Metadata hydration can replace the timeline and reset its scroll position.
+    await tiny.hover({ trial: true });
+    const target = await tiny.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const hit = getComputedStyle(element, "::before");
+      const marker = getComputedStyle(element, "::after");
+      return { x: rect.x, y: rect.y + rect.height / 2, width: rect.width,
+        hitLeft: parseFloat(hit.left), hitRight: parseFloat(hit.right), markerWidth: parseFloat(marker.width) };
+    });
+    expect(target.width).toBeLessThan(2);
+    expect(target.markerWidth).toBe(6);
+    expect(target.width - target.hitLeft - target.hitRight).toBeCloseTo(16, 1);
+    await page.mouse.move(target.x - 4, target.y);
+    expect(await tiny.evaluate(element => element.matches(":hover"))).toBe(true);
+    await page.mouse.click(target.x - 4, target.y);
+    await expect(tiny).toHaveAttribute("aria-pressed", "true");
+    // The visible minimum, not only the padded hit area, opens the same clip.
+    await page.mouse.dblclick(target.x + 5, target.y);
+    const popup = page.locator("[data-video-analysis-clip-editor]");
+    await expect(popup).toHaveAttribute("data-video-analysis-clip-editor", "tiny");
+    await popup.getByRole("button", { name: "Close", exact: true }).first().click();
+
+    for (const id of ["near-a", "near-b"]) {
+      const button = lane.locator(`[data-video-analysis-seek="${id}"]`);
+      await centerTimelineClip(button);
+      const rect = await button.boundingBox();
+      const insets = await button.evaluate(element => {
+        const css = getComputedStyle(element, "::before");
+        return { left: parseFloat(css.left), right: parseFloat(css.right) };
+      });
+      expect(id === "near-a" ? insets.right : insets.left).toBe(0);
+      // Minimum-width neighbours may overlap; each retains its outward hit area.
+      await page.mouse.click(id === "near-a" ? rect.x - 3 : rect.x + rect.width + 7, rect.y + rect.height / 2);
+      await expect(button).toHaveAttribute("aria-pressed", "true");
+    }
+    for (const id of ["visible-a", "visible-b"]) {
+      const button = lane.locator(`[data-video-analysis-seek="${id}"]`);
+      await centerTimelineClip(button);
+      const rect = await button.boundingBox();
+      await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      await expect(button).toHaveAttribute("aria-pressed", "true");
+    }
+    const nested = lane.locator('[data-video-analysis-seek="nested"]');
+    await centerTimelineClip(nested);
+    const nestedBox = await nested.boundingBox();
+    await page.mouse.click(nestedBox.x - 3, nestedBox.y + nestedBox.height / 2);
+    await expect(lane.locator('[data-video-analysis-seek="cover"]')).toHaveAttribute("aria-pressed", "true");
+
+    for (const id of ["start", "end"]) {
+      const edges = await lane.locator(`[data-video-analysis-seek="${id}"]`).evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        const track = element.parentElement;
+        const bounds = track.getBoundingClientRect();
+        const hit = getComputedStyle(element, "::before");
+        const marker = getComputedStyle(element, "::after");
+        return { left: rect.left + parseFloat(hit.left) - bounds.left - track.clientLeft,
+          right: rect.right - parseFloat(hit.right) - bounds.left - track.clientLeft, width: track.clientWidth,
+          markerLeft: rect.left + parseFloat(marker.left) - bounds.left - track.clientLeft,
+          markerRight: rect.left + parseFloat(marker.left) + parseFloat(marker.width) - bounds.left - track.clientLeft };
+      });
+      expect(edges.left).toBeGreaterThanOrEqual(-0.05);
+      expect(edges.right).toBeLessThanOrEqual(edges.width + 0.05);
+      expect(edges.markerLeft).toBeGreaterThanOrEqual(-0.05);
+      expect(edges.markerRight).toBeLessThanOrEqual(edges.width + 0.05);
+    }
+    expect(await page.evaluate(() => window.__videoAnalysisRequests.filter(request => request.action === "save-clip"))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`timeline-tiny-targets-${width}.png`) });
+  });
+}

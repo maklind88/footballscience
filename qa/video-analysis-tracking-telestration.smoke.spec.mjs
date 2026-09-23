@@ -171,6 +171,70 @@ async function mountBenchmarkResultFixture(page) {
   });
 }
 
+async function mountCandidatePipelineFixture(page) {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await page.evaluate(async () => {
+    const { renderTrackingCandidatePanel } = await import(
+      "/src/modules/video-analysis/components/TrackingCandidatePanel.js"
+    );
+    const capabilityMap = {
+      detection: ["detect:player", "detect:ball", "detect:referee"],
+      association: ["associate:multi-object"],
+      reidentification: ["reidentify:player"],
+      classification: ["classify:team"],
+    };
+    const providers = Object.fromEntries(Object.keys(capabilityMap).map((stage, index) => [stage, {
+      id: `fs-${stage}`,
+      version: "1.0.0",
+      protocol: "football-science-tracking-stage-v1",
+      stage,
+      capabilities: capabilityMap[stage],
+      providerFingerprintSha256: "9".repeat(64),
+      executionFingerprintSha256: String(index + 1).repeat(64),
+      executionProfile: {
+        device: "cpu",
+        runtimeMode: "native-stage-process-v1",
+        cpuThreads: 8,
+        sampleFps: 12.5,
+        modelResident: false,
+      },
+      benchmarkOnly: true,
+      status: "candidate-ready",
+      available: true,
+      executionAvailable: true,
+      priority: 100,
+    }]));
+    const panel = renderTrackingCandidatePanel({
+      presentation: { tracking: {
+        provider: { candidateStageExecutionAvailable: true, candidates: Object.values(providers) },
+        groundTruth: { suite: { id: "real-match", revision: 1, status: "draft", benchmarkType: "multi-object", cases: [] } },
+        candidatePipeline: {
+          status: "review",
+          progress: 1,
+          activeRunId: "candidate-fixture",
+          runs: [{
+            id: "candidate-fixture",
+            createdAt: "2026-08-31T10:15:00.000Z",
+            sourceFingerprint: "a".repeat(64),
+            serializedBytes: 2_400_000,
+            review: {
+              trackCount: 24,
+              playerIdentityReviewCount: 20,
+              lowConfidenceTrackCount: 3,
+              reidentificationMergeCount: 4,
+              classificationConflictCount: 2,
+              unassignedObservationCount: 1,
+            },
+          }],
+        },
+        candidateBenchmarkProviders: providers,
+        candidateBenchmarkProvider: providers.reidentification,
+      } },
+    }, { id: "item-candidate" });
+    document.body.innerHTML = `<main style="box-sizing:border-box;width:min(360px,calc(100vw - 24px));margin:12px;padding:12px;background:#fff">${panel}</main>`;
+  });
+}
+
 async function mountContinuityReviewFixture(page) {
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
   await page.evaluate(async () => {
@@ -305,6 +369,100 @@ async function mountStructuralReviewFixture(page) {
           error: state.presentation.tracking.error || "",
         });
       }
+    });
+    render();
+  });
+}
+
+async function mountMergeRejectReviewFixture(page) {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await page.evaluate(async () => {
+    const { renderTrackingSidebar, renderTrackingStage } = await import(
+      "/src/modules/video-analysis/components/TrackingTelestration.js"
+    );
+    const { createTrackingReviewController } = await import(
+      "/src/modules/video-analysis/controllers/trackingReviewController.js"
+    );
+    const point = (atMs, x) => ({
+      atMs,
+      x,
+      y: 0.4,
+      width: 0.08,
+      height: 0.2,
+      confidence: 0.9,
+      identityConfidence: 0.9,
+    });
+    const fragment = (id, startMs, endMs, points) => ({
+      id,
+      clipId: "clip-merge-reject",
+      videoId: "video-merge-reject",
+      entityType: "player",
+      playerId: "player-8",
+      playerLabel: "Player 8",
+      shirtNumber: "8",
+      teamSide: "home",
+      status: "review",
+      startMs,
+      endMs,
+      confidence: 0.9,
+      identityConfidence: 0.9,
+      segments: [{ id: `${id}-segment`, startMs, endMs, points }],
+    });
+    const first = fragment("track-fragment-first", 0, 500, [point(0, 0.2), point(500, 0.25)]);
+    const second = fragment("track-fragment-second", 1000, 1500, [point(1000, 0.3), point(1500, 0.35)]);
+    let state = {
+      players: [],
+      timeline: { playheadMs: 500 },
+      presentation: {
+        current: { sections: [{ id: "section-merge-reject", items: [{
+          id: "item-merge-reject",
+          clipId: first.clipId,
+          objectTracks: [first, second],
+          dynamicGraphics: [{
+            id: "graphic-merge-reject",
+            clipId: first.clipId,
+            type: "circle",
+            source: "tracking",
+            startMs: 0,
+            endMs: 1500,
+            bindings: [{ trackId: second.id, role: "primary", anchor: "ground" }],
+          }],
+        }] }] },
+        selectedItemId: "item-merge-reject",
+        tracking: {
+          mode: "tracking",
+          provider: {},
+          selectedTrackIds: [first.id, second.id],
+          prompt: { entityType: "player", playerId: first.playerId, playerLabel: first.playerLabel },
+          reviewHistory: {},
+        },
+      },
+    };
+    const currentItem = () => state.presentation.current.sections[0].items[0];
+    const render = () => {
+      document.body.innerHTML = `
+        <main style="box-sizing:border-box;width:min(420px,calc(100vw - 24px));margin:12px;padding:12px;background:#fff">
+          <div style="position:relative;width:100%;aspect-ratio:16/9">${renderTrackingStage(state, currentItem())}</div>
+          ${renderTrackingSidebar(state, currentItem())}
+        </main>`;
+    };
+    const updateState = (updater) => {
+      state = typeof updater === "function" ? updater(state) : updater;
+      window.__trackingMergeRejectState = state;
+      render();
+      return state;
+    };
+    const controller = createTrackingReviewController({
+      getState: () => state,
+      updateState,
+      getCurrentMatchMs: () => state.timeline.playheadMs,
+      getReviewer: () => "browser-reviewer",
+    });
+    window.__trackingMergeRejectState = state;
+    document.body.addEventListener("click", (event) => {
+      const action = event.target.closest?.("[data-video-analysis-tracking-action]")
+        ?.dataset.videoAnalysisTrackingAction;
+      if (action) controller.handleAction(action);
     });
     render();
   });
@@ -872,6 +1030,28 @@ test("tracking review marks visibility and supports race-safe undo and redo", as
   expect(pageErrors).toEqual([]);
 });
 
+test("tracking review relabels a saved player as ball and restores it with undo", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await openTrackingWorkspace(page);
+  await createTrackedHighlight(page);
+  const review = page.locator(".video-analysis-tracking-review");
+  const entityAction = review.locator('[data-video-analysis-tracking-action="review-entity"]');
+  await expect(entityAction).toBeDisabled();
+
+  await page.locator('[data-video-analysis-tracking-field="entityType"]').selectOption("ball");
+  await expect(entityAction).toBeEnabled();
+  await entityAction.click();
+  await expect(page.locator(".video-analysis-tracking-side h3")).toHaveText("Ball");
+  await expect(review.locator('[data-video-analysis-tracking-action="review-identity"]')).toHaveCount(0);
+  await expect(entityAction).toBeDisabled();
+
+  await review.locator('[data-video-analysis-tracking-action="review-undo"]').click();
+  await expect(page.locator(".video-analysis-tracking-side h3")).not.toHaveText("Ball");
+  await expect(review.locator('[data-video-analysis-tracking-action="review-identity"]')).toHaveCount(1);
+  expect(pageErrors).toEqual([]);
+});
+
 test("continuity review action stays clear and contained on desktop and mobile", async ({ page }, testInfo) => {
   await mountContinuityReviewFixture(page);
   const review = page.locator(".video-analysis-tracking-review");
@@ -950,6 +1130,52 @@ test("structural track repair swaps crossed identities and remains atomically re
   expect(pageErrors).toEqual([]);
 });
 
+test("trajectory fragments merge and false positives reject and restore without stale overlays", async ({ page }, testInfo) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await mountMergeRejectReviewFixture(page);
+  const review = page.locator(".video-analysis-tracking-review");
+  const merge = review.locator('[data-video-analysis-tracking-action="review-merge"]');
+  await expect(merge).toBeEnabled();
+  await merge.click();
+  await expect.poll(() => page.evaluate(() => {
+    const item = window.__trackingMergeRejectState.presentation.current.sections[0].items[0];
+    return {
+      trackIds: item.objectTracks.map((track) => track.id),
+      binding: item.dynamicGraphics[0].bindings[0].trackId,
+    };
+  })).toEqual({ trackIds: ["track-fragment-first"], binding: "track-fragment-first" });
+  await expect(page.locator(".video-analysis-dynamic-anchor.is-circle")).toBeVisible();
+
+  await review.locator('[data-video-analysis-tracking-action="review-reject"]').click();
+  await expect(review).toContainText("Rejected false positive");
+  await expect(page.locator(".video-analysis-track-box")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-dynamic-anchor")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (
+    window.__trackingMergeRejectState.presentation.current.sections[0].items[0].objectTracks[0].status
+  ))).toBe("archived");
+
+  await review.locator('[data-video-analysis-tracking-action="review-undo"]').click();
+  await expect(page.locator(".video-analysis-track-box")).toBeVisible();
+  await expect(page.locator(".video-analysis-dynamic-anchor.is-circle")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (
+    window.__trackingMergeRejectState.presentation.current.sections[0].items[0].objectTracks[0].status
+  ))).toBe("review");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const geometry = await page.locator(".video-analysis-tracking-side").evaluate((element) => ({
+    right: element.getBoundingClientRect().right,
+    viewportWidth: window.innerWidth,
+    pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+    elementOverflow: element.scrollWidth - element.clientWidth,
+  }));
+  expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+  expect(geometry.pageOverflow).toBeLessThanOrEqual(1);
+  expect(geometry.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-merge-reject-mobile.png"), fullPage: true });
+  expect(pageErrors).toEqual([]);
+});
+
 test("freehand telestration draws, undoes, redoes and persists a bounded path", async ({ page }, testInfo) => {
   await openDrawingWorkspace(page);
   const path = await drawFreehandPath(page);
@@ -1000,6 +1226,25 @@ test("tracking controls and overlays stay contained on mobile", async ({ page },
   await page.locator('[data-video-analysis-tracking-action="ground-truth-toggle"]').click();
   await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-toggle"]')).toHaveText("Remove target");
   await expect(page.locator('[data-video-analysis-tracking-action="ground-truth-target"]')).toHaveCount(0);
+  const reviewer = page.locator('[data-video-analysis-tracking-field="groundTruthReviewer"]');
+  await expect(reviewer).toBeVisible();
+  await reviewer.fill("Mobile Analyst");
+  await reviewer.press("Tab");
+  await expect(page.locator('[data-video-analysis-tracking-field="groundTruthReviewer"]'))
+    .toHaveValue("Mobile Analyst");
+  const sceneReview = page.locator(".video-analysis-ground-truth__scene-review");
+  const sceneProgress = sceneReview.locator(".video-analysis-ground-truth__scene-progress span");
+  await expect(sceneProgress).toHaveText(/^0\/\d+$/);
+  const checkpoint = sceneReview.locator(".video-analysis-ground-truth__checkpoint");
+  await expect(checkpoint).toContainText("Next checkpoint");
+  await expect(checkpoint).toContainText("Selected visible");
+  await expect(checkpoint).toContainText(/P\s+1\s+\|\s+B\s+0\s+\|\s+R\s+0/);
+  expect(await checkpoint.locator('[data-video-analysis-tracking-action="ground-truth-checkpoint-select"]').count())
+    .toBeGreaterThan(0);
+  await expect(page.locator('[data-video-analysis-tracking-field="groundTruthAttested"]')).toBeDisabled();
+  await sceneReview.locator('[data-video-analysis-tracking-action="ground-truth-scene-review"]').click();
+  await expect(sceneProgress).toHaveText(/^0\/\d+$/);
+  await expect(page.locator(".video-analysis-ground-truth__status.is-error")).toContainText("known checkpoint issues");
   const geometry = await page.locator(".video-analysis-drawing-builder").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {
@@ -1097,4 +1342,38 @@ test("verified benchmark evidence stays scannable and contained on desktop and m
   expect(measured.pageOverflow).toBeLessThanOrEqual(1);
   expect(measured.elementOverflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath("tracking-benchmark-result-mobile.png"), fullPage: true });
+});
+
+test("candidate pipeline evidence stays operational and contained on desktop and mobile", async ({ page }, testInfo) => {
+  await mountCandidatePipelineFixture(page);
+  const panel = page.locator(".video-analysis-candidate");
+  await expect(panel).toContainText("Tracking Intelligence v2");
+  await expect(panel).toContainText("Review required");
+  await expect(panel).toContainText(/Identity review\s*20/);
+  await expect(panel.locator('[data-video-analysis-tracking-candidate-stage="reidentification"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(panel.locator('[data-video-analysis-tracking-action="candidate-pipeline-run"]')).toBeEnabled();
+  const geometry = async () => panel.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: window.innerWidth,
+      pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      elementOverflow: element.scrollWidth - element.clientWidth,
+    };
+  });
+  let measured = await geometry();
+  expect(measured.left).toBeGreaterThanOrEqual(0);
+  expect(measured.right).toBeLessThanOrEqual(measured.viewportWidth + 1);
+  expect(measured.pageOverflow).toBeLessThanOrEqual(1);
+  expect(measured.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-candidate-desktop.png"), fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  measured = await geometry();
+  expect(measured.left).toBeGreaterThanOrEqual(0);
+  expect(measured.right).toBeLessThanOrEqual(measured.viewportWidth + 1);
+  expect(measured.pageOverflow).toBeLessThanOrEqual(1);
+  expect(measured.elementOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("tracking-candidate-mobile.png"), fullPage: true });
 });

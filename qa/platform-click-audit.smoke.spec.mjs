@@ -612,7 +612,7 @@ test("platform visible click audit keeps distinct controls responsive and labell
   expect(slowClicks, "Visible click targets should resolve inside the interaction budget.").toEqual([]);
 });
 
-test("IDP scouting radar recovers from a stale local cache and paged active database", async ({ page }) => {
+test("IDP scouting radar recovers from a stale local cache and paged active database", async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     window.localStorage.setItem(
       "football-scouting-imported-database-v1",
@@ -636,7 +636,18 @@ test("IDP scouting radar recovers from a stale local cache and paged active data
   await openWorkspace(page, "idp");
   const playerButton = page.locator('[data-idp-player="ncc-2026-kailen-sheridan"]');
   await expect(playerButton).toHaveCount(1);
-  await playerButton.click();
+  // The radar's content assertion starts after its real, lazy-loaded data arrives.
+  const startedAt = Date.now();
+  const [profileResponse] = await Promise.all([
+    page.waitForResponse((response) => new URL(response.url()).pathname === "/scouting-import-nwsl-profile-data.js"),
+    playerButton.click(),
+  ]);
+  expect(profileResponse.ok(), "The profile dataset must be served successfully.").toBe(true);
+  expect(await profileResponse.finished(), "The profile dataset must finish downloading.").toBeNull();
+  await testInfo.attach("idp-profile-data-load.json", {
+    body: JSON.stringify({ status: profileResponse.status(), durationMs: Date.now() - startedAt }),
+    contentType: "application/json",
+  });
 
   const radar = page.locator(".idp-profile-scouting-radar");
   await expect(radar).toBeVisible();

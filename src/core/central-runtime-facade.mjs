@@ -139,6 +139,7 @@ export function createCentralRuntimeFacade(deps = {}) {
     queueStatusRefresh: dataSafetyRuntimeService.queueStatusRefresh,
     rawGetItem: dataSafetyRuntimeService.rawGetItem,
     rawSetItem: dataSafetyRuntimeService.rawSetItem,
+    cacheAcknowledgedValue: dataSafetyRuntimeService.cacheAcknowledgedValue,
     retryConflictStorageKeys: [storageKeys.dashboardPresentationStorageKey].filter(Boolean),
     dashboardPresentationStorageKey: storageKeys.dashboardPresentationStorageKey,
     scheduleStorageKey: storageKeys.scheduleStorageKey,

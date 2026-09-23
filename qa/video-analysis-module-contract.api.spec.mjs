@@ -37,6 +37,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "api/_lib/video-analysis-portable-storage.js",
     "api/_lib/video-analysis-library-database.js",
     "src/modules/video-analysis/components/VideoPlayer.js",
+    "src/modules/video-analysis/components/PlayerHeaderActions.js",
     "src/modules/video-analysis/components/AnalysisRoomShell.js",
     "src/modules/video-analysis/components/FsPlayerWorkspace.js",
     "src/modules/video-analysis/components/VideoLibrary.js",
@@ -133,7 +134,10 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/timeline/timeline.constants.js",
     "src/modules/video-analysis/timeline/timeline.interaction.js",
     "src/modules/video-analysis/timeline/timeline.renderer.js",
-    "src/modules/video-analysis/timeline/timeline.focus.renderer.js",
+    "src/modules/video-analysis/timeline/timeline.clip-editor.renderer.js",
+    "src/modules/video-analysis/timeline/timeline.clip-editor.controller.js",
+    "src/modules/video-analysis/timeline/timeline.clip-editor.css",
+    "src/modules/video-analysis/timeline/timeline.clip-preview.controller.js",
     "src/modules/video-analysis/timeline/timeline.selectors.js",
     "src/modules/video-analysis/timeline/timeline.service.js",
   ]) {
@@ -459,7 +463,7 @@ test("video analysis timeline can show one coded moment in every involved player
   expect(index.clipIdsByLane.get("Player Nine")).toEqual(["clip-high-press"]);
 });
 
-test("video analysis timeline shows exact timing for the selected clip", async () => {
+test("video analysis timeline retains exact timing without a persistent focus panel", async () => {
   const timelineRenderer = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.renderer.js")).href);
   const html = timelineRenderer.renderTimeline({
     selectedClipId: "clip-high-press",
@@ -477,12 +481,11 @@ test("video analysis timeline shows exact timing for the selected clip", async (
     }],
   });
 
-  expect(html).toContain("data-video-analysis-timeline-focus");
-  expect(html).toContain("data-video-analysis-timeline-focus-window");
+  expect(html).not.toContain("data-video-analysis-timeline-focus");
+  expect(html).not.toContain("data-video-analysis-timeline-focus-window");
   expect(html).toContain("High Press");
   expect(html).toContain("0:00:30");
   expect(html).toContain("0:00:45");
-  expect(html).toContain("0:00:15");
   expect(html).toContain("Press (within press-radius)");
 });
 
@@ -924,7 +927,7 @@ test("legacy phase clips do not appear as Phase lanes in sub-phase timeline", as
   expect(phaseIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Out of Possession:2"]);
 });
 
-test("timeline MG Principle view only shows clips with tagged MG principles", async () => {
+test("saved MG timeline view falls back to clips grouped by sub-phase", async () => {
   const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
   const clips = [
     {
@@ -951,11 +954,11 @@ test("timeline MG Principle view only shows clips with tagged MG principles", as
   ];
 
   const miniGameIndex = timelineService.buildTimelineIndex(clips, "miniGamePrinciple");
-  expect(miniGameIndex.clipCount).toBe(1);
-  expect(miniGameIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Third Player:1"]);
+  expect(miniGameIndex.clipCount).toBe(2);
+  expect(miniGameIndex.lanes.map(lane => lane.label).sort()).toEqual(["Sub-phase / Build Up", "Sub-phase / High Press"]);
 });
 
-test("MG principle clip kind stays out of Sub-phase lanes while keeping its own MG lane", async () => {
+test("historical MG clips remain reachable in All Tags under their existing sub-phase", async () => {
   const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
   const clips = [
     {
@@ -987,8 +990,8 @@ test("MG principle clip kind stays out of Sub-phase lanes while keeping its own 
   expect(subPhaseIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["High Press:1"]);
 
   const miniGameIndex = timelineService.buildTimelineIndex(clips, "miniGamePrinciple");
-  expect(miniGameIndex.clipCount).toBe(1);
-  expect(miniGameIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Press (within press-radius):1"]);
+  expect(miniGameIndex.clipCount).toBe(2);
+  expect(miniGameIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Sub-phase / High Press:2"]);
 });
 
 test("MG principles derive their searchable sub-phase from the principle group", async () => {
@@ -1316,7 +1319,7 @@ test("analysis room tabs use icons without status labels", () => {
   expect(source).not.toContain('state: "Next"');
 });
 
-test("local video architecture remains browser-first with bridge fallback only", () => {
+test("local video architecture remains browser-first with bridge fallback only", async () => {
   const handleStore = read("src/modules/video-analysis/services/localVideoHandleStore.js");
   const sessionService = read("src/modules/video-analysis/services/localVideoSessionService.js");
   const player = read("src/modules/video-analysis/components/VideoPlayer.js");
@@ -1331,7 +1334,16 @@ test("local video architecture remains browser-first with bridge fallback only",
   expect(sessionService).toContain("restoreLocalVideoHandleForState");
   expect(sessionService).toContain("persistLocalVideoHandle");
   expect(sessionService).not.toContain("createPlayableLocalCopy");
-  expect(player).toContain("data-video-analysis-prepare-playback");
+  expect(player).toContain("renderPlayerHeaderActions");
+  const header = read("src/modules/video-analysis/components/PlayerHeaderActions.js");
+  expect(header).toContain("data-video-analysis-prepare-playback");
+  expect(header).toContain("needsPrepare || showPrepared");
+  expect(header).not.toMatch(/showOpenFilePicker|indexedDB|createPlayableLocalCopy|fetch\(/);
+  const { renderVideoPlayer } = await import(pathToFileURL(path.join(rootDir, "src/modules/video-analysis/components/VideoPlayer.js")).href);
+  const nativeVideo = { videoRef: { objectUrl: "blob:qa-native-video", durationMs: 60000 } };
+  expect(renderVideoPlayer(nativeVideo)).not.toContain("data-video-analysis-prepare-playback");
+  expect(renderVideoPlayer({ ...nativeVideo, bridgeFallbackRecommended: true })).toContain("data-video-analysis-prepare-playback");
+  expect(renderVideoPlayer({ bridgeFallbackRecommended: true })).not.toContain("data-video-analysis-prepare-playback");
   expect(player).toContain("bridgeFallbackRecommended");
   expect(read("src/modules/video-analysis/components/VideoPlayer.js")).not.toMatch(/showOpenFilePicker|indexedDB|createPlayableLocalCopy|fetch\(/);
 });

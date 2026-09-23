@@ -115,6 +115,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     setSessionPlannerExerciseLibrary: deps.setSessionPlannerExerciseLibrary,
     setSessionPlannerState: deps.setSessionPlannerState,
     shouldClearSessionPlannerSessionForDate: deps.shouldClearSessionPlannerSessionForDate,
+    shouldDeferRecovery: () => centralAppStateReloadService.shouldDeferCentralizedAppStateReload(),
     showSessionPlannerToast: deps.showSessionPlannerToast,
     ui: deps.ui,
     win: deps.win,

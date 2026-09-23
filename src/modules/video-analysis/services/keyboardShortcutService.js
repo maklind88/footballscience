@@ -16,6 +16,8 @@ export function handleVideoAnalysisShortcut(event, handlers = {}) {
   if (!root || (event.target !== root.ownerDocument?.body && !root.contains(event.target))) return false;
   if (shouldIgnoreShortcutTarget(event.target)) return false;
   const key = String(event.key || "");
+  // Let the focused clip button activate natively instead of saving a new tag.
+  if (key === "Enter" && event.target?.closest?.(".video-analysis-clip-block[data-video-analysis-seek]")) return false;
   const lowerKey = key.toLowerCase();
   if ((event.metaKey || event.ctrlKey) && lowerKey === "f") {
     event.preventDefault();

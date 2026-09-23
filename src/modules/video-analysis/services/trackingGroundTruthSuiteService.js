@@ -10,6 +10,7 @@ import {
   TRACKING_GROUND_TRUTH_MAX_RANGE_MS,
   TrackingGroundTruthError,
   buildMultiObjectCaseFromGroundTruth,
+  groundTruthSceneTemporalCoverage,
   normalizeTrackingGroundTruthBenchmarkType,
   trackingGroundTruthArtifactBenchmarkType,
   trackingGroundTruthProfileForType,
@@ -86,6 +87,12 @@ function validateSuiteCase(artifact = {}, expectedBenchmarkType = "") {
     || artifact.reviewEvidence?.attested !== true
     || !artifact.groundTruth?.tracks?.length) {
     throw new TrackingGroundTruthError("Benchmark suite requires attested real-match ground truth.");
+  }
+  if (benchmarkType === TRACKING_BENCHMARK_TYPE_MULTI_OBJECT
+    && groundTruthSceneTemporalCoverage(artifact.groundTruth.tracks, artifact.range) < 0.95) {
+    throw new TrackingGroundTruthError(
+      "Full-scene suite evidence requires reviewed player visibility across at least 95% of the range.",
+    );
   }
   assertBenchmarkMetadataOnly(artifact);
   return artifact;

@@ -32,7 +32,7 @@ export function createSquadProfileSelectedRenderer({
   renderPlayerProfileMedicalPanel,
   renderPlayerProfileOptionSet,
   renderPlayerProfileRoleOptions,
-  renderPlayerProfileSecondaryRoleOptions,
+  renderPlayerProfileSecondaryRoleChoices,
   renderPlayerProfileStatusChip,
   renderPlayerProfileTabs,
 } = {}) {
@@ -145,12 +145,12 @@ export function createSquadProfileSelectedRenderer({
                 ${renderPlayerProfileRoleOptions(player.primaryRole)}
               </select>
             </label>
-            <label class="squad-tab-field-overview">
-              <span>Secondary roles</span>
-              <select class="squad-role-select squad-role-select-scroll" name="secondaryRoles" multiple size="5" ${canEdit ? "" : "disabled"}>
-                ${renderPlayerProfileSecondaryRoleOptions(player.secondaryRoles)}
-              </select>
-            </label>
+            <fieldset class="squad-tab-field-overview squad-secondary-role-field">
+              <legend>Secondary roles</legend>
+              <div class="squad-secondary-role-picker">
+                ${renderPlayerProfileSecondaryRoleChoices(player.secondaryRoles, { disabled: !canEdit })}
+              </div>
+            </fieldset>
             <label class="squad-tab-field-overview">
               <span>Role group</span>
               <select name="roleGroup" ${canEdit ? "" : "disabled"}>
@@ -241,6 +241,7 @@ export function createSquadProfileSelectedRenderer({
         role="dialog"
         aria-modal="true"
         aria-label="${escapeHtml(`${player.name} player profile`)}"
+        tabindex="-1"
       >
         <button
           type="button"

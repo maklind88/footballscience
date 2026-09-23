@@ -170,6 +170,64 @@ function identityKey(track = {}) {
   return String(track.playerId || track.playerLabel || "").trim().toLowerCase();
 }
 
+function normalizedIdentityField(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function compatibleIdentityField(first = "", second = "", label = "identity") {
+  const firstValue = normalizedIdentityField(first);
+  const secondValue = normalizedIdentityField(second);
+  if (firstValue && secondValue && firstValue !== secondValue) {
+    structuralError(
+      `The selected tracks have conflicting ${label}. Correct the labels before merging them.`,
+      "TRACKING_REVIEW_MERGE_IDENTITY",
+    );
+  }
+}
+
+function orderedMergeTracks(first = {}, second = {}) {
+  if (first.endMs < second.startMs) return { earlier: first, later: second };
+  if (second.endMs < first.startMs) return { earlier: second, later: first };
+  structuralError(
+    "The selected trajectories overlap in time. Use identity swap or split before merging them.",
+    "TRACKING_REVIEW_MERGE_OVERLAP",
+  );
+}
+
+function assertPlausibleMerge(earlier = {}, later = {}, options = {}) {
+  const previous = trackingPoints(earlier).at(-1);
+  const next = trackingPoints(later)[0];
+  if (!previous || !next) {
+    structuralError("Both tracks need reviewed samples before they can be merged.", "TRACKING_REVIEW_MERGE_RANGE");
+  }
+  const maximumGapMs = Math.max(1, Math.round(Number(options.maximumGapMs) || DEFAULT_MAXIMUM_GAP_MS));
+  if (next.atMs - previous.atMs > maximumGapMs) {
+    structuralError(
+      "The trajectory gap is too long. Add reviewed keyframes before merging the fragments.",
+      "TRACKING_REVIEW_MERGE_GAP",
+    );
+  }
+  const maximumJump = Math.max(0.01, Math.min(1, Number(options.maximumJump) || DEFAULT_MAXIMUM_JUMP));
+  if (groundDistance(previous, next) > maximumJump) {
+    structuralError(
+      "The trajectory fragments are too far apart. Correct their boxes before merging them.",
+      "TRACKING_REVIEW_MERGE_JUMP",
+    );
+  }
+}
+
+function preferredValue(first = "", second = "") {
+  return String(first || "").trim() || String(second || "").trim();
+}
+
+function weightedConfidence(first = {}, second = {}, key = "confidence") {
+  const firstCount = trackingPoints(first).length;
+  const secondCount = trackingPoints(second).length;
+  const count = firstCount + secondCount;
+  if (!count) return 0;
+  return ((Number(first[key]) || 0) * firstCount + (Number(second[key]) || 0) * secondCount) / count;
+}
+
 export function trackingSplitReadiness(trackValue = {}, atMs = 0) {
   try {
     const track = normalizeObjectTrack(trackValue);
@@ -274,6 +332,91 @@ export function trackingIdentitySwapReadiness(firstValue = {}, secondValue = {},
   } catch (error) {
     return { ready: false, atMs: Math.max(0, Math.round(Number(atMs) || 0)), error: error.message };
   }
+}
+
+export function trackingMergeReadiness(firstValue = {}, secondValue = {}, options = {}) {
+  try {
+    const first = normalizeObjectTrack(firstValue);
+    const second = normalizeObjectTrack(secondValue);
+    if (!first.id || !second.id || first.id === second.id) {
+      structuralError("Select two different trajectory fragments.", "TRACKING_REVIEW_MERGE_SELECTION");
+    }
+    if (first.entityType !== second.entityType) {
+      structuralError("Only trajectories of the same object type can be merged.", "TRACKING_REVIEW_MERGE_ENTITY");
+    }
+    if (first.clipId !== second.clipId || first.videoId !== second.videoId) {
+      structuralError("Both trajectories must belong to the same clip.", "TRACKING_REVIEW_MERGE_SCOPE");
+    }
+    if (first.entityType === "player") {
+      compatibleIdentityField(identityKey(first), identityKey(second), "player identity");
+      compatibleIdentityField(first.teamSide, second.teamSide, "team side");
+      compatibleIdentityField(first.shirtNumber, second.shirtNumber, "shirt number");
+    }
+    const { earlier, later } = orderedMergeTracks(first, second);
+    assertPlausibleMerge(earlier, later, options);
+    return {
+      ready: true,
+      atMs: trackingPoints(later)[0].atMs,
+      retainedTrackId: first.id,
+      absorbedTrackId: second.id,
+      error: "",
+    };
+  } catch (error) {
+    return { ready: false, atMs: 0, retainedTrackId: "", absorbedTrackId: "", error: error.message };
+  }
+}
+
+export function mergeTrackingTracks(firstValue = {}, secondValue = {}, options = {}) {
+  const first = normalizeObjectTrack(firstValue);
+  const second = normalizeObjectTrack(secondValue);
+  const readiness = trackingMergeReadiness(first, second, options);
+  if (!readiness.ready) structuralError(readiness.error, "TRACKING_REVIEW_MERGE_INVALID");
+  const { earlier, later } = orderedMergeTracks(first, second);
+  const createId = options.createId || localId;
+  const operationId = String(options.operationId || createId("merge-operation"));
+  const segments = joinSegments(earlier.segments, later.segments);
+  const bounds = pointTimeBounds(segments);
+  const correction = correctionRecord("merge", readiness.atMs, {
+    ...options,
+    id: `${operationId}:retained`,
+    reason: options.reason || "Merged reviewed trajectory fragments",
+  });
+  const merged = normalizeObjectTrack({
+    ...first,
+    playerId: preferredValue(first.playerId, second.playerId),
+    playerLabel: preferredValue(first.playerLabel, second.playerLabel),
+    teamId: preferredValue(first.teamId, second.teamId),
+    teamSide: preferredValue(first.teamSide, second.teamSide),
+    shirtNumber: preferredValue(first.shirtNumber, second.shirtNumber),
+    startMs: bounds.startMs,
+    endMs: bounds.endMs,
+    status: "review",
+    confidence: weightedConfidence(first, second, "confidence"),
+    identityConfidence: weightedConfidence(first, second, "identityConfidence"),
+    segments,
+    corrections: [
+      ...first.corrections,
+      ...second.corrections,
+      correction,
+    ].sort((left, right) => left.startMs - right.startMs),
+    metadata: derivedMetadata(first.metadata, {
+      localWorkspaceTrackKey: first.metadata?.localWorkspaceTrackKey || first.id,
+      structuralCorrection: "merge",
+      structuralCorrectionAtMs: readiness.atMs,
+      structuralCorrectionOperationId: operationId,
+      structuralCorrectionPartnerTrackId: second.id,
+    }),
+  });
+  if (trackingPoints(merged).length !== trackingPoints(first).length + trackingPoints(second).length) {
+    structuralError("Trajectory merge changed the total sample count.", "TRACKING_REVIEW_MERGE_INTEGRITY");
+  }
+  return {
+    atMs: readiness.atMs,
+    operationId,
+    merged,
+    retainedTrackId: first.id,
+    absorbedTrackId: second.id,
+  };
 }
 
 export function swapTrackingTrackContinuations(firstValue = {}, secondValue = {}, options = {}) {

@@ -13,6 +13,7 @@ const dashboardChatCss = readFileSync(resolve(__dirname, "../dashboard-chat.css"
 const dashboardChatLauncherCss = readFileSync(resolve(__dirname, "../dashboard-chat-launcher.css"), "utf8");
 const dashboardChatCreateCss = readFileSync(resolve(__dirname, "../dashboard-chat-create.css"), "utf8");
 const dashboardChatMessageCss = readFileSync(resolve(__dirname, "../dashboard-chat-message.css"), "utf8");
+const dashboardChatExperienceCss = readFileSync(resolve(__dirname, "../dashboard-chat-experience.css"), "utf8");
 const indexSource = readFileSync(resolve(__dirname, "../index.html"), "utf8");
 const appRuntimeSource = readFileSync(resolve(__dirname, "../app-runtime.js"), "utf8");
 const chatPushClientSource = readFileSync(resolve(__dirname, "../src/modules/chat/chat-push-client.mjs"), "utf8");
@@ -131,6 +132,7 @@ test("chat widget highlights searched messages and keeps search inside the detai
     threads,
     activeThreadId: "team",
     detailsOpen: true,
+    detailsTab: "shared",
     messageSearchQuery: "medical",
     realtimeStatus: { key: "connected", label: "Connected", detail: "Realtime active" },
   });
@@ -145,20 +147,17 @@ test("chat widget highlights searched messages and keeps search inside the detai
   expect(result.html).toContain("has-evidence");
   expect(result.html).toContain("dashboard-chat-search-hit");
   expect(result.html).toContain("dashboard-chat-attachment-library");
-  expect(result.html).toContain("data-dashboard-chat-coach-workflow");
-  expect(result.html).toContain("Evidence attached");
-  expect(result.html).toContain("data-dashboard-chat-intelligence-rail");
+  expect(result.html).toContain("Evidence ready");
   expect(result.html).toContain("data-dashboard-chat-intelligence-panel");
+  expect(result.html).toContain("dashboard-chat-assistant-section");
   expect(result.html).toContain('data-dashboard-chat-evidence-kind="doc"');
   expect(result.html).toContain('data-dashboard-chat-promote-target="task"');
   expect(result.html).toContain("readiness-report.pdf");
   expect(result.html).toContain("footballscience.xyz");
   expect(result.html).toContain('placeholder="Message"');
   expect(result.html).toContain('aria-label="Message Team Chat"');
-  expect(result.html).toContain('data-dashboard-chat-thread-setting="toggle-mute"');
-  expect(result.html).toContain('data-dashboard-chat-thread-setting="toggle-pin"');
+  expect(result.html).toContain('data-dashboard-chat-details-tab="settings"');
   expect(result.html).not.toContain("dashboard-chat-realtime-pill");
-  expect(result.html).toContain("data-dashboard-chat-widget-toggle-notifications");
 });
 
 test("chat widget renders direct message bodies in the active conversation pane", () => {
@@ -264,6 +263,7 @@ test("chat details render persisted action items ahead of action signals", () =>
     threads,
     activeThreadId: "team",
     detailsOpen: true,
+    detailsTab: "shared",
   });
 
   expect(result.html).toContain("1 saved action");
@@ -274,7 +274,7 @@ test("chat details render persisted action items ahead of action signals", () =>
   expect(result.html).not.toContain('data-dashboard-chat-action-title="Action: review opponent buildup');
 });
 
-test("chat widget renders push notification health in the More menu", () => {
+test("chat widget keeps push diagnostics out of the user menu", () => {
   const currentUser = { id: "u1", name: "Mak", status: "active" };
   const users = [currentUser, { id: "u2", name: "Medical Lead", status: "active" }];
   const renderer = createRenderer([]);
@@ -302,11 +302,12 @@ test("chat widget renders push notification health in the More menu", () => {
     },
   });
 
-  expect(result.html).toContain("Notification health");
-  expect(result.html).toContain("Ready - 1 device");
-  expect(result.html).toContain('data-dashboard-chat-widget-refresh-push-status');
-  expect(result.html).toContain('title="This account has an active push device registration."');
-  expect(result.html).toContain("Send system notification");
+  expect(result.html).toContain("Search and shared");
+  expect(result.html).toContain("Conversation settings");
+  expect(result.html).not.toContain("Notification health");
+  expect(result.html).not.toContain("Ready - 1 device");
+  expect(result.html).not.toContain("data-dashboard-chat-widget-refresh-push-status");
+  expect(result.html).not.toContain("Send system notification");
 });
 
 test("chat widget surfaces API sync failures with a real retry action", () => {
@@ -359,11 +360,9 @@ test("chat widget surfaces API sync failures with a real retry action", () => {
   expect(degraded.html).toContain("Chat server issue");
   expect(degraded.html).toContain("Database is temporarily unavailable.");
   expect(degraded.html).toContain('data-dashboard-chat-retry-sync="team"');
-  expect(degraded.html).toContain("Chat sync");
-  expect(degraded.html).toContain("dashboard-chat-more-action is-server-error");
   expect(ready.html).not.toContain("data-dashboard-chat-sync-status");
   expect(ready.html).not.toContain("data-dashboard-chat-status-overlay");
-  expect(ready.html).toContain("dashboard-chat-more-action is-ready");
+  expect(ready.html).not.toContain("Chat sync");
   expect(dashboardChatCss).toContain(".dashboard-chat-status-overlay");
   expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-retry-sync]")');
   expect(appRuntimeSource).toContain("await refreshDashboardChatFromApi({ threadId, forceNetwork: true });");
@@ -824,9 +823,10 @@ test("chat widget renders coach workflow and evidence intelligence layers", () =
     threads,
     activeThreadId: "team",
     detailsOpen: true,
+    detailsTab: "shared",
   });
 
-  expect(result.html).toContain("data-dashboard-chat-coach-workflow");
+  expect(result.html).toContain("dashboard-chat-assistant-section");
   expect(result.html).toContain("data-dashboard-chat-action-plan");
   expect(result.html).toContain("Action plan");
   expect(result.html).toContain('data-dashboard-chat-action-plan-summary="owner"');
@@ -838,10 +838,8 @@ test("chat widget renders coach workflow and evidence intelligence layers", () =
   expect(result.html).toContain("Friday");
   expect(result.html).toContain("Needs action");
   expect(result.html).toContain("Decision made");
-  expect(result.html).toContain("Evidence attached");
   expect(result.html).toContain("Review later");
   expect(result.html).not.toContain("dashboard-chat-message-signals");
-  expect(result.html).toContain("data-dashboard-chat-intelligence-rail");
   expect(result.html).toContain("data-dashboard-chat-intelligence-panel");
   expect(result.html).toContain("Video card");
   expect(result.html).toContain("Player card");
@@ -989,7 +987,7 @@ test("chat inbox defaults to relevant conversations instead of empty staff DMs",
   expect(result.html).not.toContain('data-dashboard-chat-thread="dm:u2"');
 });
 
-test("chat composer keeps priority behind message options and renders message bubble footers", () => {
+test("chat composer stays focused on emoji, attachment, and send while preserving bubble footers", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];
   const messages = [
@@ -1014,13 +1012,13 @@ test("chat composer keeps priority behind message options and renders message bu
     messages,
     threads,
     activeThreadId: "team",
-    priorityDraft: "urgent",
+    recentEmojis: ["⚽", "🔥"],
   });
 
   expect(result.html).toContain("dashboard-chat-compose-more");
-  expect(result.html).toContain('aria-label="Open message options"');
   expect(result.html).toContain("dashboard-chat-compose-more-panel");
-  expect(result.html).toContain('class="dashboard-chat-priority-label">Urgent</span>');
+  expect(result.html).not.toContain('aria-label="Open message options"');
+  expect(result.html).not.toContain("dashboard-chat-priority-label");
   expect(result.html).toContain("dashboard-chat-bubble-footer");
   expect(result.html).toContain('<time class="dashboard-chat-bubble-time" datetime="2026-01-01T10:00:00.000Z" title="10:15">10:15</time>');
   const bubbleFooterMarkup = result.html.match(/<div class="dashboard-chat-bubble-footer">[\s\S]*?<\/div>/)?.[0] || "";
@@ -1032,6 +1030,7 @@ test("chat composer keeps priority behind message options and renders message bu
   expect(dashboardChatMessageCss).toContain("font-size: 1.34rem !important;");
   expect(dashboardChatMessageCss).toContain("grid-template-columns: repeat(6, minmax(2rem, 1fr)) !important;");
   expect(dashboardChatMessageCss).toContain("margin-left: -0.31rem !important;");
+  expect(dashboardChatExperienceCss).toContain("margin-left: -0.34rem !important;");
   expect(result.html).toContain('data-dashboard-chat-emoji="👍"');
   expect(result.html).toContain('data-dashboard-chat-emoji="🚀"');
   expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-emoji]")');
@@ -1153,9 +1152,21 @@ test("chat message menu exposes WhatsApp baseline actions", () => {
 test("chat runtime preserves open message action menus across background rerenders", () => {
   expect(widgetRuntimeSource).toContain("function readOpenDashboardChatMessageMenu(root)");
   expect(widgetRuntimeSource).toContain("function restoreOpenDashboardChatMessageMenu(root, state)");
+  expect(widgetRuntimeSource).toContain("function getDashboardChatMessageListItemKey(element = null, index = 0)");
+  expect(widgetRuntimeSource).toContain("function reconcileDashboardChatMessageList(currentList, nextList)");
+  expect(widgetRuntimeSource).toContain("reconcileDashboardChatMessageList(currentChild, nextChild);");
+  expect(widgetRuntimeSource).not.toContain("currentChild.innerHTML = nextChild.innerHTML");
   expect(widgetRuntimeSource).toContain("const previousOpenMessageMenuState = readOpenDashboardChatMessageMenu(root);");
   expect(widgetRuntimeSource).toContain("restoreOpenDashboardChatMessageMenu(root, previousOpenMessageMenuState);");
   expect(appRuntimeSource).toContain("closeChatMenus();\nawait toggleDashboardMessageReactionWithApi(");
+});
+
+test("chat runtime defers background thread-list updates while a thread is hovered", () => {
+  expect(widgetRuntimeSource).toContain("function shouldDeferDashboardChatThreadListUpdate(currentList = null, nextList = null)");
+  expect(widgetRuntimeSource).toContain('"[data-dashboard-chat-thread]:hover"');
+  expect(widgetRuntimeSource).toContain("getDashboardChatActiveThreadIdFromList(currentList) ===");
+  expect(widgetRuntimeSource).toContain('threadList.addEventListener(\n      "pointerleave",');
+  expect(widgetRuntimeSource).toContain("dashboardChatThreadListUpdateDeferred = true;");
 });
 
 test("chat runtime supports browser notification permission and delivery hook", () => {
@@ -1795,7 +1806,7 @@ test("chat message actions stay behind a compact hover menu", () => {
   expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-menu-reaction-group");
   expect(dashboardChatCss).toContain("width:1.42rem!important;");
   expect(appRuntimeSource).toContain(".dashboard-chat-message-menu[open], .dashboard-chat-message-reaction-menu[open]");
-  expect(appRuntimeSource).toContain('findDashboardChatActionTarget(event, ".dashboard-chat-message-menu, .dashboard-chat-message-reaction-menu")');
+  expect(appRuntimeSource).toContain('findDashboardChatActionTarget(event, ".dashboard-chat-message-menu, .dashboard-chat-message-reaction-menu, .dashboard-chat-more-menu, .dashboard-chat-thread-filter-more")');
   expect(appRuntimeSource).toContain('findDashboardChatActionTarget(event, "[data-dashboard-message-reaction][data-dashboard-reaction-key]")');
   expect(appRuntimeSource).toContain("handleDashboardChatReactionActionEvent");
   expect(appRuntimeSource).toContain('document.addEventListener("click", handleDashboardChatReactionActionEvent, true)');

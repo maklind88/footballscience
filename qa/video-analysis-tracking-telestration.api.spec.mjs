@@ -433,6 +433,29 @@ test("tracking capability readiness never promotes partial providers to full-sce
   }));
   expect(trackingCapabilityReadiness({ providers }).mode).toBe("full-scene-verified");
 
+  const roleAwareProviders = [
+    ["detect:person", "detect:ball"],
+    ["associate:multi-object", "reidentify:player"],
+    ["classify:role", "classify:team"],
+  ].map((providerCapabilities, index) => ({
+    id: `role-aware-provider-${index + 1}`,
+    version: "1.0.0",
+    status: "ready",
+    available: true,
+    benchmarkStatus: "passed",
+    capabilities: providerCapabilities,
+  }));
+  const roleAware = trackingCapabilityReadiness({ providers: roleAwareProviders });
+  expect(roleAware.mode).toBe("full-scene-verified");
+  expect(roleAware.entries.find((entry) => entry.id === "detection")).toMatchObject({
+    label: "Person / ball",
+    status: "verified",
+  });
+  expect(roleAware.entries.find((entry) => entry.id === "classification")).toMatchObject({
+    label: "Role / team",
+    status: "verified",
+  });
+
   const activationPending = trackingCapabilityReadiness({
     providers: providers.map((provider) => ({ ...provider, executionAvailable: false })),
   });
@@ -1606,6 +1629,21 @@ test("tracking correction retries are idempotent and reject changed operation co
     const interruptedCorrection = { ...correction, operationId: "operation-correction-2" };
     const interrupted = await database.saveTrackCorrection(interruptedCorrection, actor);
     const recovered = await database.saveTrackCorrection(interruptedCorrection, actor);
+    correctionLookupFailure = false;
+    trackStatus = "archived";
+    const rejection = { ...correction, operationId: "operation-correction-reject", correctionType: "reject" };
+    const rejected = await database.saveTrackCorrection(rejection, actor);
+    const rejectedReplay = await database.saveTrackCorrection(rejection, actor);
+    const restoration = { ...correction, operationId: "operation-correction-restore", correctionType: "restore" };
+    const restored = await database.saveTrackCorrection(restoration, actor);
+    const entityCorrection = {
+      ...correction,
+      operationId: "operation-correction-entity",
+      correctionType: "entity",
+      reason: "Relabeled player as referee",
+      metadata: { previousEntityType: "player", nextEntityType: "referee" },
+    };
+    const entity = await database.saveTrackCorrection(entityCorrection, actor);
     correctionLookupFailure = true;
     const lookupFailure = await database.saveTrackCorrection({
       ...correction,
@@ -1620,15 +1658,42 @@ test("tracking correction retries are idempotent and reject changed operation co
       ok: true,
       payload: { idempotentReplay: true, objectTrack: { status: "review" } },
     });
+    expect(rejected).toMatchObject({
+      ok: true,
+      payload: { correction: { correctionType: "reject" }, objectTrack: { status: "archived" } },
+    });
+    expect(rejectedReplay).toMatchObject({
+      ok: true,
+      payload: { idempotentReplay: true, objectTrack: { status: "archived" } },
+    });
+    expect(restored).toMatchObject({
+      ok: true,
+      payload: { correction: { correctionType: "restore" }, objectTrack: { status: "review" } },
+    });
+    expect(entity).toMatchObject({
+      ok: true,
+      payload: { correction: { correctionType: "entity" }, objectTrack: { status: "review" } },
+    });
     expect(lookupFailure).toMatchObject({ ok: false, status: 503 });
-    expect(correctionInserts).toBe(2);
-    expect(trackPatches).toBe(3);
+    expect(correctionInserts).toBe(5);
+    expect(trackPatches).toBe(6);
     const migration = await read(
       "supabase/migrations/20260826074859_video_analysis_tracking_correction_idempotency.sql",
     );
     expect(migration).toContain("video_track_corrections_operation_id_uidx");
     expect(migration).toContain("where operation_id is not null");
     expect(migration).not.toMatch(/grant\s+.+\s+to\s+(?:anon|authenticated)/i);
+    const rejectMigration = await read(
+      "supabase/migrations/20260831193000_video_analysis_tracking_reject_correction.sql",
+    );
+    expect(rejectMigration).toContain("'reject'");
+    expect(rejectMigration).toContain("'restore'");
+    expect(rejectMigration).not.toMatch(/grant\s+.+\s+to\s+(?:anon|authenticated)/i);
+    const entityMigration = await read(
+      "supabase/migrations/20260831214500_video_analysis_tracking_entity_correction.sql",
+    );
+    expect(entityMigration).toContain("'entity'");
+    expect(entityMigration).not.toMatch(/grant\s+.+\s+to\s+(?:anon|authenticated)/i);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalUrl == null) delete process.env.SUPABASE_URL;

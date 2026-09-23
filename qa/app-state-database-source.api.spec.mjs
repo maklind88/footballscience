@@ -91,6 +91,7 @@ async function callHandler(req) {
   return {
     status: res.statusCode,
     payload: res.body ? JSON.parse(res.body) : {},
+    headers: res.headers,
   };
 }
 
@@ -275,11 +276,16 @@ test("successful database write is immediately visible even when Storage still s
     });
     expect(write.status).toBe(200);
     expect(write.payload).toMatchObject({ ok: true, key: scheduleKey, revision: 8, value: nextValue });
+    for (const phase of ["auth", "bucket", "read", "authorize", "receipt", "database", "compatibility", "state", "audit"]) {
+      expect(write.headers["server-timing"]).toMatch(new RegExp(`(?:^|, )${phase};dur=\\d+\\.\\d`));
+    }
+    expect(write.headers["server-timing"]).not.toContain("Updated team training");
     expect(mock.rpcWrites).toHaveLength(1);
     expect(mock.rpcWrites[0]).toMatchObject({ p_expected_revision: 7, p_next_revision: 8 });
 
     const freshRead = await callHandler({ method: "GET", url: "/api/app-state?fresh=1" });
     expect(freshRead.status).toBe(200);
+    expect(freshRead.headers["server-timing"]).toBeUndefined();
     expect(freshRead.payload.entries[scheduleKey]).toBe(nextValue);
     expect(freshRead.payload.metadata[scheduleKey].revision).toBe(8);
     expect(mock.getDatabaseEntry().value).toBe(nextValue);

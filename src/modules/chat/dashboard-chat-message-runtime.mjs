@@ -293,7 +293,10 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
       ).trim();
       const deletedAt = String(sourceMessage?.deletedAt || sourceMessage?.deleted_at || "").trim();
 
-      if (!deletedAt) {
+      const hasSessionDeletion = [sourceMessageId, clientMessageId, ...getDashboardMessageIdentityKeys(message)]
+        .filter(Boolean)
+        .some((id) => sessionDeletedMessageIds.has(id));
+      if (!deletedAt && !hasSessionDeletion) {
         forgetDashboardDeletedMessageIds([
           sourceMessageId,
           clientMessageId,

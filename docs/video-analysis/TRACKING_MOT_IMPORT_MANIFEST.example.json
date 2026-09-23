@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "protocol": "football-science-mot-ground-truth-import-manifest-v1",
+  "suite": {
+    "id": "soccernet-real-match-pilot",
+    "revision": 1
+  },
+  "dataset": {
+    "name": "SoccerNet-Tracking",
+    "version": "2023",
+    "videoUseReviewed": true,
+    "annotationUseReviewed": true,
+    "localBenchmarkOnly": true
+  },
+  "review": {
+    "reviewedBy": "local-analyst-id",
+    "reviewedAt": "2026-08-31T12:00:00.000Z",
+    "attested": true,
+    "exhaustiveSceneAttested": true
+  },
+  "sequences": [
+    {
+      "id": "SNMOT-001",
+      "sourceFile": "replace-with-local-sequence-video.mp4",
+      "annotationFile": "replace-with-local-gt.txt",
+      "angleId": "main-camera",
+      "frame": {
+        "width": 1920,
+        "height": 1080
+      },
+      "frameRate": 25,
+      "sequenceLengthFrames": 750,
+      "firstFrameNumber": 1,
+      "sourceStartMs": 0,
+      "coordinateOrigin": "one-based",
+      "maximumContinuousGapFrames": 12,
+      "scenarioTags": [
+        "transition",
+        "camera-motion"
+      ],
+      "benchmarkTargetTrackId": "1",
+      "trackMap": {
+        "1": {
+          "entityType": "player",
+          "playerLabel": "Home player 1",
+          "teamSide": "home"
+        },
+        "2": {
+          "entityType": "player",
+          "playerLabel": "Away player 2",
+          "teamSide": "away"
+        },
+        "3": {
+          "entityType": "ball"
+        },
+        "4": {
+          "entityType": "referee"
+        }
+      }
+    }
+  ]
+}

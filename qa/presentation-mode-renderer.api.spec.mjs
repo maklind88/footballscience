@@ -52,6 +52,7 @@ test("birthday slide builder is deterministic, date-bound and Team Meeting only"
         nextBirthday: "2026-09-12",
         daysUntil: 0,
         turningAge: 25,
+        photoUrl: "https://example.com/evelyn.jpg",
       },
       {
         id: "p2",
@@ -75,6 +76,10 @@ test("birthday slide builder is deterministic, date-bound and Team Meeting only"
   expect(slide.infoSlide.title).toBe("Happy Birthday!");
   expect(slide.infoSlide.body).toContain("Evelyn Ijeh turns 25 today.");
   expect(slide.infoSlide.body).toContain("Maycee Bell turns 26 today.");
+  expect(slide.infoSlide.birthdayPlayers).toEqual([
+    { id: "p1", name: "Evelyn Ijeh", photoUrl: "https://example.com/evelyn.jpg", turningAge: 25 },
+    { id: "p2", name: "Maycee Bell", photoUrl: "", turningAge: 26 },
+  ]);
   expect(
     createPresentationBirthdaySlide({ birthdayCalendar, dateValue: "2026-09-12", meetingType: "technical" })
   ).toBeNull();
@@ -110,6 +115,7 @@ test("Team Meeting pins a read-only birthday slide after cover without persistin
             nextBirthday: "2026-09-12",
             daysUntil: 0,
             turningAge: 25,
+            photoUrl: "https://example.com/evelyn.jpg",
           },
         ],
         todayCount: 1,
@@ -130,6 +136,9 @@ test("Team Meeting pins a read-only birthday slide after cover without persistin
   expect(birthdayHtml).toContain("Happy Birthday, Evelyn Ijeh!");
   expect(birthdayHtml).toContain("Evelyn Ijeh turns 25 today.");
   expect(birthdayHtml).toContain("is-system-birthday");
+  expect(birthdayHtml).toContain("presentation-birthday-player");
+  expect(birthdayHtml).toContain("https://example.com/evelyn.jpg");
+  expect(birthdayHtml).toContain("presentation-birthday-cake");
   expect(birthdayHtml).not.toContain("data-presentation-info-field");
   expect(birthdayHtml).not.toContain('contenteditable="true"');
   expect(birthdayControls).not.toContain("Generated from player profiles");
@@ -137,6 +146,7 @@ test("Team Meeting pins a read-only birthday slide after cover without persistin
   expect(birthdayControls).not.toContain("data-presentation-theme-menu");
   expect(birthdayControls).toContain("data-presentation-delete-slide disabled");
   expect(footerHtml).toContain('draggable="false"');
+  expect(footerHtml).toContain('data-presentation-slide-read-only="true"');
   expect(writes).toHaveLength(0);
 
   controller.open("2026-09-12", "technical");
@@ -236,6 +246,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(harness.root.innerHTML).toMatch(/<footer class="presentation-footer-nav">[\s\S]*<nav class="presentation-slide-tabs"/);
   expect(harness.root.innerHTML).toMatch(/<nav class="presentation-slide-tabs"[\s\S]*<div class="presentation-footer-pager">/);
   expect(harness.root.innerHTML).toContain("data-presentation-slide-tab");
+  expect(harness.root.innerHTML).toContain('data-presentation-slide-read-only="false"');
   expect(harness.root.innerHTML).toContain('draggable="true"');
   const controlHtml = renderer.renderControlBar(model);
   expect(controlHtml).toContain("<strong>Presentation Mode</strong>");
@@ -849,6 +860,24 @@ test("Leaderboard layout reads the current standings and presents every scorer a
   standings.forEach((player) => expect(markup).toContain(player.name));
   expect(markup.indexOf("Ada Forward")).toBeLessThan(markup.indexOf("Dana Keeper"));
   expect(markup).toContain("presentation-leaderboard-standing-grid");
+
+  const tieBreakStandings = [
+    { playerId: "leader", name: "Leader Center", points: 8, rank: 1, lastScoredOn: "2026-09-17" },
+    { playerId: "newer", name: "Newer Second", points: 7, rank: 2, lastScoredOn: "2026-09-18" },
+    { playerId: "older", name: "Older Third", points: 7, rank: 2, lastScoredOn: "2026-09-16" },
+  ];
+  const tieBreakMarkup = renderer.renderLeaderboardSlide({
+    ...model,
+    slideIndex: slide.index,
+  }, {
+    ...slide,
+    leaderboard: { ...slide.leaderboard, standings: tieBreakStandings },
+  });
+  expect(tieBreakMarkup.indexOf("Newer Second")).toBeLessThan(tieBreakMarkup.indexOf("Leader Center"));
+  expect(tieBreakMarkup.indexOf("Leader Center")).toBeLessThan(tieBreakMarkup.indexOf("Older Third"));
+  expect(tieBreakMarkup).toContain("is-podium-left");
+  expect(tieBreakMarkup).toContain("is-podium-center");
+  expect(tieBreakMarkup).toContain("is-podium-right");
 });
 
 test("Presentation Mode uses the shared warm-up and block thresholds", () => {

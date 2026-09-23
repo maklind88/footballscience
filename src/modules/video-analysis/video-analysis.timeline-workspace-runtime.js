@@ -1,6 +1,7 @@
 import { createDefaultTimelineWorkspace, normalizeTimelineWorkspace } from "./domain/timelineWorkspace.model.js";
 import { createTimelineWorkspaceRepository } from "./repositories/timelineWorkspaceRepository.js";
 import { createTimelineWorkspaceController } from "./timeline/timeline.workspace.controller.js";
+import { createPlaylistRowSaver } from "./timeline/timeline.playlist-rows.js";
 
 export function createVideoAnalysisTimelineWorkspaceRuntime(options = {}) {
   const context = options.context || {};
@@ -80,5 +81,10 @@ export function createVideoAnalysisTimelineWorkspaceRuntime(options = {}) {
     confirmDiscard: (message) => (context.win || globalThis).confirm?.(message) === true,
   });
 
-  return { controller, load, repository };
+  const savePlaylist = createPlaylistRowSaver({
+    getState: () => getRuntime()?.store.getState() || {},
+    updateState: updater => getRuntime()?.store.update(updater),
+    saveTimeline: timeline => repository.save({ ...timeline, ...getCollaborationRuntime()?.operationContext() }),
+  });
+  return { controller, load, repository, savePlaylist };
 }

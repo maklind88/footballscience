@@ -152,6 +152,65 @@ test("chat database adapter preserves direct participant identity for client lab
   });
 });
 
+test("chat database adapter hydrates legacy participants and senders from canonical profiles", () => {
+  const senderId = "11111111-1111-4111-8111-111111111111";
+  const recipientId = "22222222-2222-4222-8222-222222222222";
+  const senderProfile = {
+    user_id: senderId,
+    display_name: "Mak Lind",
+    first_name: "Mak",
+    last_name: "Lind",
+    email: "mak@example.com",
+  };
+  const recipientProfile = {
+    user_id: recipientId,
+    display_name: "Emma Thomson",
+    first_name: "Emma",
+    last_name: "Thomson",
+    email: "emma@example.com",
+  };
+
+  expect(chatDatabase._private.participantClientPayload(
+    { user_id: recipientId, participant_role: "member", metadata: {} },
+    null,
+    recipientProfile
+  )).toMatchObject({
+    id: recipientId,
+    name: "Emma Thomson",
+    firstName: "Emma",
+    lastName: "Thomson",
+    email: "emma@example.com",
+  });
+
+  const legacyMessage = chatDatabase._private.mapEnrichedMessage(
+    {
+      id: "33333333-3333-4333-8333-333333333333",
+      thread_id: "44444444-4444-4444-8444-444444444444",
+      author_id: senderId,
+      body: "Ready for review",
+      created_at: "2026-09-23T12:00:00.000Z",
+      metadata: {},
+    },
+    { id: "44444444-4444-4444-8444-444444444444" },
+    {
+      receiptRows: [],
+      reactionsByMessage: new Map(),
+      attachmentsByMessage: new Map(),
+      mentionsByMessage: new Map(),
+      profilesByUserId: new Map([[senderId, senderProfile]]),
+    }
+  );
+
+  expect(legacyMessage.author).toMatchObject({
+    id: senderId,
+    name: "Mak Lind",
+    firstName: "Mak",
+    lastName: "Lind",
+    email: "mak@example.com",
+  });
+  expect(legacyMessage.author.name).not.toBe("Staff");
+});
+
 test("chat database adapter exposes persisted thread settings action", () => {
   const { readFileSync } = require("node:fs");
   const path = require("node:path");

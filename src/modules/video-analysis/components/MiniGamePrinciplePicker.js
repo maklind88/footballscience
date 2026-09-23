@@ -1,6 +1,7 @@
 import { miniGamePrinciplePickerGroups, miniGamePrinciplePickerIds } from "../constants/miniGamePrinciples.js";
 import { resolveCurrentCodingTargetClip } from "../services/codingInteractionService.js";
-import { clipMiniGamePrincipleIds, miniGamePrincipleLabel, uniqueMiniGamePrincipleIds } from "../services/miniGamePrincipleService.js";
+import { clipMiniGamePrincipleIds, uniqueMiniGamePrincipleIds } from "../services/miniGamePrincipleService.js";
+import { renderTagButtonFeedback } from "../services/tagButtonFeedbackService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
 const pickerPrincipleIds = new Set(miniGamePrinciplePickerIds);
@@ -93,23 +94,20 @@ export function selectedMiniGamePrincipleIds(state = {}) {
 }
 
 export function renderMiniGamePrincipleLauncher(state = {}) {
-  const ids = selectedMiniGamePrincipleIds(state);
-  const label = ids.length ? ids.map(miniGamePrincipleLabel).slice(0, 2).join(" + ") : "MG Principle";
-  const suffix = ids.length > 2 ? ` +${ids.length - 2}` : "";
   return `
     <section class="video-analysis-code-group video-analysis-mg-principle-launcher">
       <div class="video-analysis-code-group__header">
         <span>MG Principle</span>
-        ${ids.length ? `<small>${escapeHtml(`${ids.length} selected`)}</small>` : ""}
       </div>
       <button
         type="button"
-        class="video-analysis-code-button video-analysis-mg-picker-button${ids.length ? " is-active" : ""}"
+        class="video-analysis-code-button video-analysis-mg-picker-button"
         data-video-analysis-mg-principles-open
         style="--video-analysis-button-color: #d97706"
         aria-haspopup="dialog"
       >
-        <span class="video-analysis-code-button__label">${escapeHtml(label)}${escapeHtml(suffix)}</span>
+        <span class="video-analysis-code-button__label">MG Principle</span>
+        ${renderTagButtonFeedback(state, "mg")}
       </button>
     </section>
   `;

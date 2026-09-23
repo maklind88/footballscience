@@ -66,7 +66,7 @@ ${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
 <strong>${record ? `${record.participation}%` : "Not set"}</strong>
 <span>${escapeHtml(status.label)}</span>
 </div>
-<button type="button" class="medical-modal-close" data-medical-close-modal aria-label="Close recommendation"><span aria-hidden="true"></span></button>
+<button type="button" class="medical-modal-close" data-medical-close-modal aria-label="Close recommendation" title="Close recommendation"><span class="medical-close-symbol" aria-hidden="true"></span></button>
 </header>
 <div class="medical-coach-safe-body">
 <article class="medical-modal-main-card">
@@ -314,7 +314,7 @@ ${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
 <strong>${record ? `${record.participation}%` : "Not set"}</strong>
 <span>${escapeHtml(status.label)}</span>
 </div>
-<button type="button" class="medical-modal-close" data-medical-close-modal aria-label="Close recommendation"><span aria-hidden="true"></span></button>
+<button type="button" class="medical-modal-close" data-medical-close-modal aria-label="Close recommendation" title="Close recommendation"><span class="medical-close-symbol" aria-hidden="true"></span></button>
 </header>
 ${renderPlayerModalTabs(getPlayerModalTab())}
 ${renderPlayerModalBody({

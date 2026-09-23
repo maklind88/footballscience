@@ -16,6 +16,7 @@ import {
 } from "./trackingBenchmarkContract.js";
 
 const entityTypes = ["player", "ball", "referee"];
+const personEntityTypes = new Set(["person", "player", "referee"]);
 
 function exactVisiblePoint(track = {}, atMs = 0) {
   for (const segment of track.segments || []) {
@@ -84,6 +85,7 @@ function pairCountMap(frames = []) {
 
 function continuityMetrics(frames = [], maximumSwitchGapMs = 2500) {
   const state = new Map();
+  const events = [];
   let identitySwitches = 0;
   let fragmentations = 0;
   for (const frame of frames) {
@@ -101,11 +103,15 @@ function continuityMetrics(frames = [], maximumSwitchGapMs = 2500) {
       const match = matchedByTruth.get(truth.track.id);
       if (match) {
         current.matched += 1;
-        if (current.missedAfterTrack) fragmentations += 1;
+        if (current.missedAfterTrack) {
+          fragmentations += 1;
+          events.push({ atMs: frame.atMs, entityType: truth.track.entityType, type: "fragmentation" });
+        }
         if (current.lastPredictionId
           && current.lastPredictionId !== match.prediction.track.id
           && frame.atMs - current.lastMatchAtMs <= maximumSwitchGapMs) {
           identitySwitches += 1;
+          events.push({ atMs: frame.atMs, entityType: truth.track.entityType, type: "identity-switch" });
         }
         current.lastPredictionId = match.prediction.track.id;
         current.lastMatchAtMs = frame.atMs;
@@ -119,6 +125,7 @@ function continuityMetrics(frames = [], maximumSwitchGapMs = 2500) {
   }
   const coverage = [...state.values()].map((entry) => entry.matched / entry.visible);
   return {
+    events,
     identitySwitches,
     fragmentations,
     mostlyTracked: coverage.filter((ratio) => ratio >= 0.8).length,
@@ -159,7 +166,7 @@ function classificationMetrics(frames = []) {
 }
 
 function perEntityMetrics(frames = []) {
-  return Object.fromEntries(entityTypes.map((entityType) => {
+  const metrics = Object.fromEntries(entityTypes.map((entityType) => {
     let truthCount = 0;
     let predictionCount = 0;
     let truePositives = 0;
@@ -183,10 +190,61 @@ function perEntityMetrics(frames = []) {
       f1: harmonicMean(precision, recall),
     }];
   }));
+  let truthCount = 0;
+  let predictionCount = 0;
+  let truePositives = 0;
+  for (const frame of frames) {
+    truthCount += frame.truth.filter((entry) => personEntityTypes.has(entry.track.entityType)).length;
+    predictionCount += frame.prediction.filter((entry) => personEntityTypes.has(entry.track.entityType)).length;
+    truePositives += frame.matches.filter((match) => (
+      personEntityTypes.has(match.truth.track.entityType)
+      && personEntityTypes.has(match.prediction.track.entityType)
+    )).length;
+  }
+  const precision = safeRatio(truePositives, predictionCount) ?? 0;
+  const recall = safeRatio(truePositives, truthCount) ?? 0;
+  return {
+    ...metrics,
+    person: {
+      truthCount,
+      predictionCount,
+      truePositives,
+      falsePositives: Math.max(0, predictionCount - truePositives),
+      falseNegatives: Math.max(0, truthCount - truePositives),
+      precision,
+      recall,
+      f1: harmonicMean(precision, recall),
+    },
+  };
 }
 
-function worstFrames(frames = []) {
-  return frames.map((frame) => ({
+function eventCounts(events = [], entityType = "") {
+  const selected = entityType ? events.filter((event) => event.entityType === entityType) : events;
+  return {
+    identitySwitches: selected.filter((event) => event.type === "identity-switch").length,
+    fragmentations: selected.filter((event) => event.type === "fragmentation").length,
+  };
+}
+
+function entityFrameMetrics(frame = {}, entityType = "", events = []) {
+  const truth = frame.truth.filter((entry) => entry.track.entityType === entityType);
+  const prediction = frame.prediction.filter((entry) => entry.track.entityType === entityType);
+  const matches = frame.matches.filter((match) => (
+    match.truth.track.entityType === entityType && match.prediction.track.entityType === entityType
+  ));
+  return {
+    truthCount: truth.length,
+    predictionCount: prediction.length,
+    matchedCount: matches.length,
+    falseNegatives: Math.max(0, truth.length - matches.length),
+    falsePositives: Math.max(0, prediction.length - matches.length),
+    meanIou: mean(matches.map((match) => match.iou)),
+    ...eventCounts(events, entityType),
+  };
+}
+
+function frameDiagnostic(frame = {}, events = []) {
+  return {
     atMs: frame.atMs,
     truthCount: frame.truth.length,
     predictionCount: frame.prediction.length,
@@ -194,10 +252,60 @@ function worstFrames(frames = []) {
     falseNegatives: frame.unmatchedTruth.length,
     falsePositives: frame.unmatchedPrediction.length,
     meanIou: mean(frame.matches.map((match) => match.iou)),
-  })).sort((first, second) => (
+    ...eventCounts(events),
+    perEntity: Object.fromEntries(entityTypes.map((entityType) => [
+      entityType,
+      entityFrameMetrics(frame, entityType, events),
+    ])),
+  };
+}
+
+function frameErrorCount(value = {}) {
+  return Number(value.falseNegatives || 0) + Number(value.falsePositives || 0);
+}
+
+function frameContinuityCount(value = {}) {
+  return Number(value.identitySwitches || 0) + Number(value.fragmentations || 0);
+}
+
+function compareFrameDiagnostics(first = {}, second = {}) {
+  return (
     (second.falseNegatives + second.falsePositives) - (first.falseNegatives + first.falsePositives)
+      || frameContinuityCount(second) - frameContinuityCount(first)
       || (first.meanIou ?? 0) - (second.meanIou ?? 0)
-  )).slice(0, 12);
+      || first.atMs - second.atMs
+  );
+}
+
+function compareEntityDiagnostics(entityType = "") {
+  return (first = {}, second = {}) => {
+    const left = first.perEntity?.[entityType] || {};
+    const right = second.perEntity?.[entityType] || {};
+    return frameContinuityCount(right) - frameContinuityCount(left)
+      || frameErrorCount(right) - frameErrorCount(left)
+      || (left.meanIou ?? 0) - (right.meanIou ?? 0)
+      || first.atMs - second.atMs;
+  };
+}
+
+function worstFrames(frames = [], continuityEvents = []) {
+  const byTime = new Map();
+  continuityEvents.forEach((event) => {
+    if (!byTime.has(event.atMs)) byTime.set(event.atMs, []);
+    byTime.get(event.atMs).push(event);
+  });
+  const entries = frames.map((frame) => frameDiagnostic(frame, byTime.get(frame.atMs) || []));
+  const selected = new Map(entries.slice().sort(compareFrameDiagnostics).slice(0, 12)
+    .map((entry) => [entry.atMs, entry]));
+  entityTypes.forEach((entityType) => {
+    entries.slice().sort(compareEntityDiagnostics(entityType)).slice(0, 4)
+      .forEach((entry) => selected.set(entry.atMs, entry));
+  });
+  entries.filter((entry) => frameContinuityCount(entry) > 0)
+    .sort((first, second) => frameContinuityCount(second) - frameContinuityCount(first))
+    .slice(0, 8)
+    .forEach((entry) => selected.set(entry.atMs, entry));
+  return [...selected.values()].sort(compareFrameDiagnostics).slice(0, 24);
 }
 
 export function summarizeMultiObjectFrames(frames = [], options = {}) {
@@ -244,6 +352,6 @@ export function summarizeMultiObjectFrames(frames = [], options = {}) {
     ...classificationMetrics(frames),
     detectionBrierScore: mean(confidenceErrors),
     perEntity,
-    worstFrames: worstFrames(frames),
+    worstFrames: worstFrames(frames, continuity.events),
   };
 }

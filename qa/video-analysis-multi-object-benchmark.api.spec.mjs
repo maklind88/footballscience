@@ -136,6 +136,37 @@ test("multi-object benchmark separates spatial detection from wrong class, team 
   expect(report.verdict.passed).toBe(false);
 });
 
+test("generic person detection measures players and referees without pretending to classify their roles", async () => {
+  const service = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingMultiObjectBenchmarkService.js",
+  ));
+  const assembly = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingBenchmarkAssemblyService.js",
+  ));
+  const input = await fixture();
+  input.prediction.tracks.forEach((track) => {
+    if (["player", "referee"].includes(track.entityType)) track.entityType = "person";
+  });
+  input.thresholds = assembly.trackingProviderBenchmarkThresholds(["detect:person", "detect:ball"]);
+  const report = service.evaluateMultiObjectTrackingBenchmarkCase(input);
+
+  expect(report.metrics).toMatchObject({
+    personPrecision: 1,
+    personRecall: 1,
+    ballPrecision: 1,
+    ballRecall: 1,
+  });
+  expect(report.thresholds).toMatchObject({
+    minPersonPrecision: 0.9,
+    minPersonRecall: 0.9,
+    minEntityTypeAccuracy: null,
+    minPlayerPrecision: null,
+    minRefereePrecision: null,
+  });
+  expect(report.metrics.entityTypeAccuracy).toBe(0.25);
+  expect(report.verdict).toMatchObject({ passed: true, failureCount: 0 });
+});
+
 test("shirt-number quality is measured separately and gated only for that capability", async () => {
   const service = await import(moduleUrl(
     "src/modules/video-analysis/services/trackingMultiObjectBenchmarkService.js",

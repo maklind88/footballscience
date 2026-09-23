@@ -444,6 +444,39 @@ test("provider run snapshots raw automatic output before analyst correction", as
   const tampered = structuredClone(run);
   tampered.prediction.sourcePath = "/private/match.mp4";
   expect(() => runs.validateTrackingProviderRunArtifact(tampered)).toThrow(/unsupported field/i);
+
+  const personDetector = {
+    ...provider,
+    providerId: "generic-person-detector",
+    providerVersion: "1.0.0",
+    stage: "detection",
+    capabilities: ["detect:person"],
+  };
+  const personTracks = structuredClone(rawTracks).map((track) => ({
+    ...track,
+    entityType: "person",
+    engine: personDetector.providerId,
+    engineVersion: personDetector.providerVersion,
+  }));
+  expect(runs.createTrackingProviderRunArtifact({
+    provider: personDetector,
+    sourceFingerprint: artifact.sourceFingerprint,
+    angleId: artifact.sourceEvidence.angleId,
+    frame: artifact.frame,
+    range: artifact.range,
+    tracks: personTracks,
+    performance: providerPerformance(18_000),
+  }).prediction.tracks.every((track) => track.entityType === "person")).toBe(true);
+  personTracks[0].entityType = "player";
+  expect(() => runs.createTrackingProviderRunArtifact({
+    provider: personDetector,
+    sourceFingerprint: artifact.sourceFingerprint,
+    angleId: artifact.sourceEvidence.angleId,
+    frame: artifact.frame,
+    range: artifact.range,
+    tracks: personTracks,
+    performance: providerPerformance(18_000),
+  })).toThrow(/unclaimed player entity/i);
 });
 
 test("local benchmark workspace is versioned, bounded and tenant scoped", async () => {
@@ -495,6 +528,7 @@ test("local benchmark workspace is versioned, bounded and tenant scoped", async 
           angleId: artifact.sourceEvidence.angleId,
           frame: artifact.frame,
           range: artifact.range,
+          reviewedBy: artifact.reviewEvidence.reviewedBy,
           attested: true,
           exhaustiveSceneAttested: true,
           lockedArtifact: artifact,
@@ -522,7 +556,7 @@ test("local benchmark workspace is versioned, bounded and tenant scoped", async 
     protocol: "football-science-tracking-benchmark-workspace-v1",
     scope: { organizationId: "org-1", teamId: "team-1", userId: "analyst-1", sourceType: "match" },
     groundTruth: {
-      byItemId: { "item-1": { benchmarkType: "multi-object" } },
+      byItemId: { "item-1": { benchmarkType: "multi-object", reviewedBy: "analyst-1" } },
       suite: { benchmarkType: "multi-object", error: "", cases: [expect.objectContaining({ id: artifact.id })] },
     },
     providerRuns: { error: "", byItemId: { "item-1": [expect.objectContaining({ id: run.id })] } },
@@ -539,6 +573,65 @@ test("local benchmark workspace is versioned, bounded and tenant scoped", async 
   forgedDraftType.groundTruth.byItemId["item-1"].benchmarkType = "selected-object";
   expect(workspaceService.validateTrackingBenchmarkWorkspaceArtifact(forgedDraftType)
     .groundTruth.byItemId["item-1"].benchmarkType).toBe("multi-object");
+  const placeholderReviewer = structuredClone(workspace);
+  placeholderReviewer.groundTruth.byItemId["item-1"].reviewedBy = "local-analyst";
+  expect(() => workspaceService.validateTrackingBenchmarkWorkspaceArtifact(placeholderReviewer))
+    .toThrow(/reviewer identity/i);
+  const draftInput = {
+    groundTruth: {
+      byItemId: {
+        "item-draft": {
+          itemId: "item-draft",
+          status: "draft",
+          revision: 1,
+          benchmarkType: "multi-object",
+          selectedTrackIds: [],
+          benchmarkTargetTrackId: "",
+          scenarioTags: [],
+          sourceFingerprint: artifact.sourceFingerprint,
+          angleId: artifact.sourceEvidence.angleId,
+          frame: artifact.frame,
+          range: artifact.range,
+          reviewedBy: "analyst-1",
+          sceneReview: {
+            protocol: "football-science-ground-truth-scene-review-v2",
+            sourceFingerprint: artifact.sourceFingerprint,
+            angleId: artifact.sourceEvidence.angleId,
+            reviewedBy: "analyst-1",
+            range: artifact.range,
+            stepMs: 500,
+            reviewedAtMs: [artifact.range.startMs],
+          },
+          attested: true,
+          exhaustiveSceneAttested: true,
+        },
+      },
+      suite: {
+        id: "reviewer-bound-draft",
+        revision: 1,
+        status: "draft",
+        benchmarkType: "multi-object",
+        cases: [],
+        downloadedAt: "",
+      },
+    },
+    providerRuns: { byItemId: {}, downloadedAt: "", error: "" },
+  };
+  expect(workspaceService.normalizeTrackingBenchmarkWorkspaceContent(draftInput)
+    .groundTruth.byItemId["item-draft"]).toMatchObject({
+    reviewedBy: "analyst-1",
+    sceneReview: { reviewedBy: "analyst-1", reviewedAtMs: [artifact.range.startMs] },
+    attested: true,
+    exhaustiveSceneAttested: true,
+  });
+  draftInput.groundTruth.byItemId["item-draft"].reviewedBy = "analyst-2";
+  expect(workspaceService.normalizeTrackingBenchmarkWorkspaceContent(draftInput)
+    .groundTruth.byItemId["item-draft"]).toMatchObject({
+    reviewedBy: "analyst-2",
+    sceneReview: { reviewedBy: "analyst-2", reviewedAtMs: [] },
+    attested: false,
+    exhaustiveSceneAttested: false,
+  });
   expect(await workspaceService.trackingBenchmarkWorkspaceContentFingerprint({
     ...workspace,
     benchmarkStorage: { status: "saving", error: "ignored" },
@@ -871,6 +964,56 @@ test("imported suite evidence is revalidated before export or provider execution
   const missingScenarioEvidence = structuredClone(artifact);
   missingScenarioEvidence.cases.at(-1).reviewEvidence.scenarioTags = [];
   expect(() => service.groundTruthSuiteArtifactJson(missingScenarioEvidence)).toThrow(/does not match/i);
+});
+
+test("benchmark suite checksum binds exact review workload evidence without changing approval inputs", async () => {
+  const state = await readyWorkflowState("association");
+  const workflow = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingBenchmarkWorkflowService.js",
+  ));
+  const workload = await import(moduleUrl(
+    "src/modules/video-analysis/services/trackingReviewWorkloadEvidenceService.js",
+  ));
+  const tracking = structuredClone(state.presentation.tracking);
+  const benchmarkCase = tracking.groundTruth.suite.cases[0];
+  delete benchmarkCase.annotationBurdenEvidence;
+  const baseline = await workflow.prepareTrackingBenchmarkWorkflow(structuredClone(tracking), {
+    now: () => 1_800_000_090_000,
+  });
+  benchmarkCase.workloadEvidence = workload.createTrackingReviewWorkloadEvidence({
+    sourceFingerprint: benchmarkCase.sourceFingerprint,
+    workspaceSha256: "d".repeat(64),
+    packId: "real-match-pack",
+    caseId: "workload-case-1",
+    angleId: benchmarkCase.sourceEvidence.angleId,
+    range: benchmarkCase.range,
+    totalSuggestionCount: 3,
+    rejectedCount: 0,
+    savedCount: 3,
+    reviewEffort: {
+      coverage: "complete",
+      openedCount: 1,
+      acceptActionCount: 3,
+      rejectActionCount: 0,
+      undoActionCount: 0,
+      deferActionCount: 0,
+      correctionHandoffCount: 0,
+      batchSaveActionCount: 1,
+      savedTrackActionCount: 3,
+      firstOpenedAt: "2026-08-31T12:00:00.000Z",
+      lastActionAt: "2026-08-31T12:10:00.000Z",
+    },
+  });
+  const withWorkload = await workflow.prepareTrackingBenchmarkWorkflow(tracking, {
+    now: () => 1_800_000_090_000,
+  });
+
+  expect(withWorkload.groundTruthSuite.cases[0].workloadEvidence).toEqual(benchmarkCase.workloadEvidence);
+  expect(withWorkload.groundTruthSuiteSha256).not.toBe(baseline.groundTruthSuiteSha256);
+  expect(withWorkload.assembledBenchmark.cases[0]).not.toHaveProperty("workloadEvidence");
+  const forged = structuredClone(tracking);
+  forged.groundTruth.suite.cases[0].workloadEvidence.metrics.reviewActionCount += 1;
+  await expect(workflow.prepareTrackingBenchmarkWorkflow(forged)).rejects.toThrow(/metrics do not match/i);
 });
 
 test("benchmark workflow binds exact suites and rejects a modified selected-object report", async () => {

@@ -109,6 +109,16 @@ const MESSAGE_SELECT = [
   "updated_at",
   "metadata",
 ].join(",");
+const PLATFORM_USER_PROFILE_SELECT = [
+  "user_id",
+  "display_name",
+  "first_name",
+  "last_name",
+  "email",
+  "title",
+  "department",
+  "status",
+].join(",");
 const REACTION_SELECT = "message_id,user_id,reaction,created_at";
 const RECEIPT_SELECT = "thread_id,user_id,last_read_message_id,last_read_at";
 const MENTION_SELECT = "message_id,mentioned_user_id,handle,created_at";
@@ -1662,6 +1672,58 @@ function normalizeParticipantProfileMetadata(source = {}, fallbackId = "") {
   return participantProfile;
 }
 
+function mergeParticipantProfileMetadata(source = {}, fallbackId = "", platformProfile = null) {
+  const storedProfile = normalizeParticipantProfileMetadata(source, fallbackId);
+  const canonicalProfile = normalizeParticipantProfileMetadata(
+    platformProfile
+      ? {
+          id: platformProfile.user_id || platformProfile.userId || fallbackId,
+          name: platformProfile.display_name || platformProfile.displayName || "",
+          firstName: platformProfile.first_name || platformProfile.firstName || "",
+          lastName: platformProfile.last_name || platformProfile.lastName || "",
+          email: platformProfile.email || "",
+        }
+      : {},
+    fallbackId
+  );
+  const userId = canonicalProfile.userId || storedProfile.userId || normalizeId(fallbackId);
+  const profile = {
+    id: userId,
+    userId,
+    name: canonicalProfile.name || storedProfile.name || "",
+    firstName: canonicalProfile.firstName || storedProfile.firstName || "",
+    lastName: canonicalProfile.lastName || storedProfile.lastName || "",
+    email: canonicalProfile.email || storedProfile.email || "",
+    username: storedProfile.username || "",
+  };
+  Object.keys(profile).forEach((key) => {
+    if (!profile[key]) {
+      delete profile[key];
+    }
+  });
+  return profile;
+}
+
+async function readPlatformUserProfiles(userIds = []) {
+  const ids = Array.from(new Set(userIds.map((userId) => normalizeId(userId)).filter(isUuid)));
+  if (!ids.length) {
+    return new Map();
+  }
+  const batches = [];
+  for (let index = 0; index < ids.length; index += PAGE_SIZE_MAX) {
+    batches.push(ids.slice(index, index + PAGE_SIZE_MAX));
+  }
+  const rows = (await Promise.all(
+    batches.map((batch) =>
+      selectMany(
+        "platform_user_profiles",
+        `select=${PLATFORM_USER_PROFILE_SELECT}&user_id=${inFilter(batch)}&deleted_at=is.null`
+      ).catch(() => [])
+    )
+  )).flat();
+  return new Map(rows.map((profile) => [normalizeId(profile.user_id), profile]).filter(([userId]) => userId));
+}
+
 function participantSourceMatchesUserId(source = {}, userId = "") {
   const normalizedUserId = normalizeId(userId);
   return Boolean(
@@ -1692,10 +1754,10 @@ function participantMetadataForThreadRow(actor = {}, body = {}, userId = "") {
   return Object.keys(profile).length ? { profile } : {};
 }
 
-function participantClientPayload(row = {}, receipt = null) {
+function participantClientPayload(row = {}, receipt = null, platformProfile = null) {
   const userId = normalizeId(row.user_id || row.id || row.userId);
   const metadata = isPlainObject(row.metadata) ? row.metadata : {};
-  const profile = normalizeParticipantProfileMetadata(metadata.profile || metadata, userId);
+  const profile = mergeParticipantProfileMetadata(metadata.profile || metadata, userId, platformProfile);
   const participantRole = normalizeParticipantRole(row.participant_role || row.participantRole);
   return {
     id: userId,
@@ -1865,7 +1927,7 @@ function threadPermissionsForActor(actor, thread = {}) {
   };
 }
 
-function buildMessageEnrichment(reactionRows = [], attachmentRows = [], receiptRows = [], mentionRows = []) {
+function buildMessageEnrichment(reactionRows = [], attachmentRows = [], receiptRows = [], mentionRows = [], profilesByUserId = new Map()) {
   const reactionsByMessage = reactionRows.reduce((map, row) => {
     const reactions = map.get(row.message_id) || {};
     const key = normalizeString(row.reaction || "like", 32);
@@ -1891,6 +1953,7 @@ function buildMessageEnrichment(reactionRows = [], attachmentRows = [], receiptR
     attachmentsByMessage,
     mentionsByMessage,
     receiptRows: Array.isArray(receiptRows) ? receiptRows : [],
+    profilesByUserId: profilesByUserId instanceof Map ? profilesByUserId : new Map(),
   };
 }
 
@@ -1963,7 +2026,7 @@ async function loadMessageEnrichment(messages = [], options = {}) {
       ? `select=${RECEIPT_SELECT}&thread_id=eq.${filterValue(threadIds[0])}`
       : `select=${RECEIPT_SELECT}&thread_id=${inFilter(threadIds)}`
     : "";
-  const [reactionRows, attachmentRows, fetchedReceiptRows, mentionRows] = await Promise.all([
+  const [reactionRows, attachmentRows, fetchedReceiptRows, mentionRows, profilesByUserId] = await Promise.all([
     selectMany(
       "chat_reactions",
       `select=${REACTION_SELECT}&message_id=${inFilter(messageIds)}`
@@ -1977,13 +2040,26 @@ async function loadMessageEnrichment(messages = [], options = {}) {
       "chat_message_mentions",
       `select=${MENTION_SELECT}&message_id=${inFilter(messageIds)}`
     ).catch(() => []),
+    options.profilesByUserId instanceof Map
+      ? Promise.resolve(options.profilesByUserId)
+      : readPlatformUserProfiles(sourceMessages.map((message) => message.author_id)),
   ]);
 
-  return buildMessageEnrichment(reactionRows, attachmentRows, providedReceiptRows || fetchedReceiptRows, mentionRows);
+  return buildMessageEnrichment(reactionRows, attachmentRows, providedReceiptRows || fetchedReceiptRows, mentionRows, profilesByUserId);
 }
 
 function mapEnrichedMessage(message = {}, thread = null, enrichment = buildMessageEnrichment()) {
   const delivery = buildMessageDeliveryState(message, thread, enrichment.receiptRows || []);
+  const authorId = normalizeId(message.author_id || "");
+  const authorProfile = mergeParticipantProfileMetadata(
+    {
+      id: authorId,
+      name: message.metadata?.authorName || "",
+      role: message.metadata?.authorRole || "",
+    },
+    authorId,
+    enrichment.profilesByUserId?.get(authorId) || null
+  );
 
   const mentionedUserIds = normalizeMentionedUserIds([
     ...messageMentionedUserIds(message),
@@ -2007,9 +2083,12 @@ function mapEnrichedMessage(message = {}, thread = null, enrichment = buildMessa
     forwardedFromMessageId: normalizeId(message.metadata?.forwardedFromMessageId || message.metadata?.forwarded_from_message_id || ""),
     forwardedFromThreadId: normalizeId(message.metadata?.forwardedFromThreadId || message.metadata?.forwarded_from_thread_id || ""),
     author: {
-      id: message.author_id || "",
-      firstName: normalizeString(message.metadata?.authorName || "Staff", 80).split(" ")[0] || "Staff",
-      lastName: normalizeString(message.metadata?.authorName || "", 80).split(" ").slice(1).join(" "),
+      id: authorId,
+      name: authorProfile.name || "Staff",
+      firstName: authorProfile.firstName || "Staff",
+      lastName: authorProfile.lastName || "",
+      email: authorProfile.email || "",
+      username: authorProfile.username || "",
       role: normalizeString(message.metadata?.authorRole || "coach", 40),
     },
     reactions: enrichment.reactionsByMessage.get(message.id) || {},
@@ -2075,7 +2154,13 @@ async function enrichThreadSummaries(actor, threads = []) {
   const hiddenLastMessageIds = new Set(hiddenLastMessageRows.map((row) => row.message_id).filter(Boolean));
   const readModelReactionRows = threadReadModelRows.flatMap((row) => readModelJsonRows(row, "last_message_reactions"));
   const readModelAttachmentRows = threadReadModelRows.flatMap((row) => readModelJsonRows(row, "last_message_attachments"));
-  const readModelEnrichment = buildMessageEnrichment(readModelReactionRows, readModelAttachmentRows, allReceipts);
+  const identityProfilesByUserId = await readPlatformUserProfiles([
+    ...participantRows.map((participant) => participant.user_id),
+    ...threads.flatMap((thread) => threadParticipantIds(thread)),
+    ...readModelMessages.map((message) => message.author_id),
+    ...fallbackLastMessages.map((message) => message.author_id),
+  ]);
+  const readModelEnrichment = buildMessageEnrichment(readModelReactionRows, readModelAttachmentRows, allReceipts, [], identityProfilesByUserId);
   const fallbackLastMessageEnrichment = await loadMessageEnrichment(fallbackLastMessages, {
     threadIds,
     receiptRows: allReceipts,
@@ -2120,9 +2205,15 @@ async function enrichThreadSummaries(actor, threads = []) {
       threadId: toLegacyThreadId(thread),
       participants: (participantRowsByThreadId.get(thread.id) || []).length
         ? (participantRowsByThreadId.get(thread.id) || []).map((participant) =>
-            participantClientPayload(participant, receiptsByThreadAndUser.get(`${thread.id}:${participant.user_id}`))
+            participantClientPayload(
+              participant,
+              receiptsByThreadAndUser.get(`${thread.id}:${participant.user_id}`),
+              identityProfilesByUserId.get(normalizeId(participant.user_id)) || null
+            )
           )
-        : threadParticipantIds(thread).map((userId) => participantClientPayload({ user_id: userId })),
+        : threadParticipantIds(thread).map((userId) =>
+            participantClientPayload({ user_id: userId }, null, identityProfilesByUserId.get(userId) || null)
+          ),
       permissions: threadPermissionsForActor(actor, thread),
       userState: actorUserState,
       notificationLevel: normalizeString(actorParticipant?.notification_level || "all", 40) || "all",
@@ -4091,8 +4182,10 @@ module.exports = {
     normalizePriority,
     normalizeThreadType,
     normalizeParticipantProfileMetadata,
+    mergeParticipantProfileMetadata,
     participantClientPayload,
     participantMetadataForThreadRow,
+    mapEnrichedMessage,
     buildMessageDeliveryState,
     threadRequiresParticipantAccess,
     toLegacyThreadId,

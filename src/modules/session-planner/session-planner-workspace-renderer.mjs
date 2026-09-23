@@ -1,3 +1,5 @@
+import { getReadonlyTacticalView } from "./session-planner-readonly-playback-renderer.mjs";
+
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -173,6 +175,7 @@ export function createSessionPlannerWorkspaceRenderer({
         </div>
         <p class="session-empty-state">Select a block to work with media and player setup.</p>
         ${renderHistoryPanel(historyContext)}
+        ${historyContext.canEdit ? '<button type="button" data-session-review-local>Review local saves</button>' : ""}
       </aside>
     `;
     }
@@ -185,7 +188,7 @@ export function createSessionPlannerWorkspaceRenderer({
         </div>
         <div class="session-media-drop">
           <div class="session-media-preview">
-            ${renderSessionPlannerExerciseVisual(block)}
+            ${renderSessionPlannerExerciseVisual(getReadonlyTacticalView(block))}
           </div>
           <div class="session-media-actions">
             <button type="button" data-session-preview-visual>
@@ -206,6 +209,7 @@ export function createSessionPlannerWorkspaceRenderer({
       </section>
       ${renderSessionPlannerPlayerBoard(block)}
       ${renderHistoryPanel(historyContext)}
+      ${historyContext.canEdit ? '<button type="button" data-session-review-local>Review local saves</button>' : ""}
     </aside>
   `;
   };

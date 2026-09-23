@@ -117,6 +117,8 @@ function multiObjectCase(index = 0) {
       durationMs: 120_000,
     },
     metrics: {
+      personPrecision: 0.95,
+      personRecall: 0.95,
       playerPrecision: 0.95,
       playerRecall: 0.95,
       ballPrecision: 0.9,
@@ -127,6 +129,7 @@ function multiObjectCase(index = 0) {
       identitySwitchesPerMinute: 0.5,
       fragmentationsPerMinute: 1,
       identityF1: 0.93,
+      entityTypeAccuracy: 0.99,
       playerIdentityAccuracy: 0.94,
       teamAccuracy: 0.98,
       shirtNumberAccuracy: 0.95,
@@ -134,6 +137,8 @@ function multiObjectCase(index = 0) {
       realtimeFactor: 0.75,
     },
     thresholds: {
+      minPersonPrecision: 0.9,
+      minPersonRecall: 0.9,
       minPlayerPrecision: 0.9,
       minPlayerRecall: 0.9,
       minBallPrecision: 0.8,
@@ -144,6 +149,7 @@ function multiObjectCase(index = 0) {
       maxIdentitySwitchesPerMinute: 2,
       maxFragmentationsPerMinute: 4,
       minIdentityF1: 0.85,
+      minEntityTypeAccuracy: 0.98,
       minPlayerIdentityAccuracy: 0.9,
       minTeamAccuracy: 0.95,
       minShirtNumberAccuracy: 0.9,
@@ -379,6 +385,43 @@ test("tracking provider rejects capabilities from another pipeline stage", async
   )).toThrow(/does not belong/i);
 });
 
+test("multi-model detection providers bind every declared capability to exact model artifacts", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const manifest = provider("detection", ["detect:player", "detect:ball", "detect:referee"]);
+  manifest.models = [
+    {
+      ...structuredClone(manifest.models[0]),
+      id: "football-player-model",
+      capabilities: ["detect:player"],
+    },
+    {
+      ...structuredClone(manifest.models[0]),
+      id: "football-small-object-model",
+      capabilities: ["detect:ball", "detect:referee"],
+    },
+  ];
+
+  const normalized = contract.normalizeTrackingProviderManifest(manifest);
+  expect(normalized.models.map(({ id, capabilities }) => ({ id, capabilities }))).toEqual([
+    { id: "football-player-model", capabilities: ["detect:player"] },
+    { id: "football-small-object-model", capabilities: ["detect:ball", "detect:referee"] },
+  ]);
+
+  const missingBinding = structuredClone(manifest);
+  delete missingBinding.models[1].capabilities;
+  expect(() => contract.normalizeTrackingProviderManifest(missingBinding)).toThrow(/bind every model/i);
+
+  const uncoveredCapability = structuredClone(manifest);
+  uncoveredCapability.models[1].capabilities = ["detect:ball"];
+  expect(() => contract.normalizeTrackingProviderManifest(uncoveredCapability)).toThrow(/every provider capability/i);
+
+  const undeclaredCapability = structuredClone(manifest);
+  undeclaredCapability.capabilities = ["detect:player", "detect:ball"];
+  expect(() => contract.normalizeTrackingProviderManifest(undeclaredCapability)).toThrow(/not declared/i);
+});
+
 test("multi-object providers require an official TrackEval reference report", async () => {
   const contract = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
@@ -513,6 +556,167 @@ test("detection result boundary separates player, ball and referee capabilities"
   expect(() => artifacts.validateTrackingStageArtifact(wrongSource, manifest, request)).toThrow(/another video source/i);
 });
 
+test("generic person detection cannot claim football roles and role classification stays explicit", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const artifacts = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-stage-artifact-validator.mjs",
+  ));
+  const detector = contract.normalizeTrackingProviderManifest(provider(
+    "detection",
+    ["detect:person", "detect:ball"],
+  ));
+  const detectionRequest = stageRequest();
+  const detectionResult = stageResult(detector, evidenceService, artifacts, detectionRequest, { observations: [
+    { id: "person-1", atMs: 0, frameIndex: 0, entityType: "person", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 },
+    { id: "ball-1", atMs: 0, frameIndex: 0, entityType: "ball", box: { left: 0.5, top: 0.6, width: 0.02, height: 0.02 }, confidence: 0.88 },
+  ] });
+  expect(artifacts.validateTrackingStageArtifact(
+    detectionResult,
+    detector,
+    detectionRequest,
+  ).payload.observations.map((entry) => entry.entityType)).toEqual(["person", "ball"]);
+
+  const leakedRole = structuredClone(detectionResult);
+  leakedRole.payload.observations[0].entityType = "player";
+  expect(() => artifacts.validateTrackingStageArtifact(leakedRole, detector, detectionRequest))
+    .toThrow(/not approved to detect player/i);
+  expect(() => contract.normalizeTrackingProviderManifest(provider(
+    "detection",
+    ["detect:person", "detect:player", "detect:ball"],
+  ))).toThrow(/cannot also claim player or referee/i);
+
+  const classifier = contract.normalizeTrackingProviderManifest(provider(
+    "classification",
+    ["classify:role", "classify:team"],
+  ));
+  const trajectory = (id, left) => ({
+    id,
+    entityType: "person",
+    confidence: 0.93,
+    discontinuitiesMs: [],
+    observations: [{
+      id: `${id}-observation`,
+      atMs: 0,
+      frameIndex: 0,
+      entityType: "person",
+      box: { left, top: 0.2, width: 0.08, height: 0.3 },
+      confidence: 0.96,
+    }],
+  });
+  const classificationRequest = stageRequest({
+    trajectories: [trajectory("person-player", 0.1), trajectory("person-referee", 0.7)],
+    roleAnchors: [
+      { role: "player", trajectoryId: "person-player" },
+      { role: "referee", trajectoryId: "person-referee" },
+    ],
+    teamAnchors: [{ teamSide: "home", trajectoryId: "person-player" }],
+  });
+  const classificationResult = stageResult(classifier, evidenceService, artifacts, classificationRequest, {
+    classifications: [
+      {
+        trajectoryId: "person-player",
+        role: "player",
+        roleConfidence: 0.97,
+        teamSide: "home",
+        teamConfidence: 0.95,
+      },
+      { trajectoryId: "person-referee", role: "referee", roleConfidence: 0.94 },
+    ],
+  });
+  expect(artifacts.validateTrackingStageArtifact(
+    classificationResult,
+    classifier,
+    classificationRequest,
+  ).payload.classifications).toEqual(classificationResult.payload.classifications);
+
+  const unanchoredRoleRequest = stageRequest({ trajectories: classificationRequest.trajectories });
+  const unanchoredRoleResult = stageResult(
+    classifier,
+    evidenceService,
+    artifacts,
+    unanchoredRoleRequest,
+    classificationResult.payload,
+  );
+  expect(() => artifacts.validateTrackingStageArtifact(
+    unanchoredRoleResult,
+    classifier,
+    unanchoredRoleRequest,
+  )).toThrow(/analyst-bound trajectory anchor/i);
+
+  const abstainedRoleResult = stageResult(classifier, evidenceService, artifacts, unanchoredRoleRequest, {
+    classifications: [
+      { trajectoryId: "person-player", role: "unknown", roleConfidence: 0 },
+      { trajectoryId: "person-referee", role: "unknown", roleConfidence: 0 },
+    ],
+  });
+  expect(artifacts.validateTrackingStageArtifact(
+    abstainedRoleResult,
+    classifier,
+    unanchoredRoleRequest,
+  ).payload.classifications.every((entry) => entry.role === "unknown")).toBe(true);
+
+  const contradictedRole = structuredClone(classificationResult);
+  contradictedRole.payload.classifications[0].role = "referee";
+  delete contradictedRole.payload.classifications[0].teamSide;
+  delete contradictedRole.payload.classifications[0].teamConfidence;
+  expect(() => artifacts.validateTrackingStageArtifact(contradictedRole, classifier, classificationRequest))
+    .toThrow(/contradicted an analyst-bound role anchor/i);
+
+  expect(() => artifacts.normalizeTrackingStageRequest(classifier, {
+    ...classificationRequest,
+    roleAnchors: [{ role: "ball", trajectoryId: "person-player" }],
+  })).toThrow(/only player or referee/i);
+
+  expect(() => artifacts.normalizeTrackingStageRequest(classifier, {
+    ...classificationRequest,
+    roleAnchors: [
+      { role: "player", trajectoryId: "person-player" },
+      { role: "referee", trajectoryId: "person-player" },
+    ],
+  })).toThrow(/unique compatible person trajectories/i);
+
+  const refereeWithTeam = structuredClone(classificationResult);
+  refereeWithTeam.payload.classifications[1].teamSide = "home";
+  refereeWithTeam.payload.classifications[1].teamConfidence = 0.9;
+  expect(() => artifacts.validateTrackingStageArtifact(refereeWithTeam, classifier, classificationRequest))
+    .toThrow(/only a player role/i);
+});
+
+test("provider evidence binds generic person detection and football role quality separately", async () => {
+  const contract = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
+  ));
+  const evidenceService = await import(moduleUrl(
+    "desktop/local-video-app/local-video-server/tracking-provider-evidence.mjs",
+  ));
+  const detector = approveProvider(
+    contract,
+    evidenceService,
+    provider("detection", ["detect:person", "detect:ball"]),
+  );
+  const classifier = approveProvider(
+    contract,
+    evidenceService,
+    provider("classification", ["classify:role"]),
+  );
+
+  expect(detector.evidence.benchmark.capabilityEvidence).toEqual(expect.arrayContaining([
+    expect.objectContaining({ capability: "detect:person" }),
+    expect.objectContaining({ capability: "detect:ball" }),
+  ]));
+  expect(classifier.evidence.benchmark.capabilityEvidence).toEqual([
+    expect.objectContaining({
+      capability: "classify:role",
+      metrics: [expect.objectContaining({ metric: "entityTypeAccuracy", worst: 0.99 })],
+    }),
+  ]);
+});
+
 test("association result boundary rejects unknown and multiply assigned observations", async () => {
   const contract = await import(moduleUrl(
     "desktop/local-video-app/local-video-server/tracking-provider-contract.mjs",
@@ -525,15 +729,20 @@ test("association result boundary rejects unknown and multiply assigned observat
   ));
   const manifest = contract.normalizeTrackingProviderManifest(provider("association", ["associate:multi-object"]));
   const request = stageRequest({ observations: [
-    { id: "p-1-a", entityType: "player" },
-    { id: "p-1-b", entityType: "player" },
-    { id: "ball-a", entityType: "ball" },
+    { id: "p-1-a", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 },
+    { id: "p-1-b", atMs: 1000, frameIndex: 1, entityType: "player", box: { left: 0.12, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.95 },
+    { id: "ball-a", atMs: 1000, frameIndex: 1, entityType: "ball", box: { left: 0.5, top: 0.6, width: 0.02, height: 0.02 }, confidence: 0.88 },
   ] });
   const result = stageResult(manifest, evidenceService, artifacts, request, { trajectories: [
     { id: "trajectory-player", entityType: "player", observationIds: ["p-1-a", "p-1-b"], confidence: 0.93, discontinuitiesMs: [] },
     { id: "trajectory-ball", entityType: "ball", observationIds: ["ball-a"], confidence: 0.82, discontinuitiesMs: [1000] },
   ] });
   expect(artifacts.validateTrackingStageArtifact(result, manifest, request).payload.trajectories).toHaveLength(2);
+  expect(Object.isFrozen(artifacts.normalizeTrackingStageRequest(manifest, request).observations[0])).toBe(true);
+
+  const hiddenObservationInput = structuredClone(request);
+  hiddenObservationInput.observations[0].sourcePath = "/private/match.mp4";
+  expect(() => artifacts.trackingStageRequestFingerprint(manifest, hiddenObservationInput)).toThrow(/unsupported field/i);
 
   const duplicated = structuredClone(result);
   duplicated.payload.trajectories[1].observationIds = ["p-1-b"];
@@ -575,8 +784,14 @@ test("re-identification boundary returns opaque links and activation remains fai
   const candidate = provider("reidentification", ["reidentify:player"]);
   const manifest = contract.normalizeTrackingProviderManifest(candidate);
   const request = stageRequest({ trajectories: [
-    { id: "trajectory-player", entityType: "player" },
-    { id: "trajectory-ball", entityType: "ball" },
+    {
+      id: "trajectory-player", entityType: "player", confidence: 0.93, discontinuitiesMs: [],
+      observations: [{ id: "p-1", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 }],
+    },
+    {
+      id: "trajectory-ball", entityType: "ball", confidence: 0.82, discontinuitiesMs: [],
+      observations: [{ id: "ball-1", atMs: 0, frameIndex: 0, entityType: "ball", box: { left: 0.5, top: 0.6, width: 0.02, height: 0.02 }, confidence: 0.88 }],
+    },
   ] });
   const result = stageResult(manifest, evidenceService, artifacts, request, { identities: [
     { trajectoryId: "trajectory-player", identityKey: "local-cluster-8", confidence: 0.91 },
@@ -586,6 +801,9 @@ test("re-identification boundary returns opaque links and activation remains fai
     identityKey: "local-cluster-8",
     confidence: 0.91,
   });
+  const hiddenTrajectoryInput = structuredClone(request);
+  hiddenTrajectoryInput.trajectories[0].embedding = [0.1, 0.2];
+  expect(() => artifacts.trackingStageRequestFingerprint(manifest, hiddenTrajectoryInput)).toThrow(/unsupported field/i);
   expect(() => artifacts.validateActivatedTrackingStageArtifact(result, candidate, request)).toThrow(/not activated/i);
 
   const embeddingLeak = structuredClone(result);
@@ -594,6 +812,29 @@ test("re-identification boundary returns opaque links and activation remains fai
   const ballIdentity = structuredClone(result);
   ballIdentity.payload.identities[0].trajectoryId = "trajectory-ball";
   expect(() => artifacts.validateTrackingStageArtifact(ballIdentity, manifest, request)).toThrow(/player trajectory/i);
+
+  const collisionRequest = stageRequest({ trajectories: [
+    {
+      id: "trajectory-player-a", entityType: "player", confidence: 0.93, discontinuitiesMs: [],
+      observations: [
+        { id: "p-a-1", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 },
+        { id: "p-a-2", atMs: 1000, frameIndex: 30, entityType: "player", box: { left: 0.12, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.95 },
+      ],
+    },
+    {
+      id: "trajectory-player-b", entityType: "player", confidence: 0.9, discontinuitiesMs: [],
+      observations: [
+        { id: "p-b-1", atMs: 500, frameIndex: 15, entityType: "player", box: { left: 0.5, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.94 },
+        { id: "p-b-2", atMs: 1500, frameIndex: 45, entityType: "player", box: { left: 0.52, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.93 },
+      ],
+    },
+  ] });
+  const collisionResult = stageResult(manifest, evidenceService, artifacts, collisionRequest, { identities: [
+    { trajectoryId: "trajectory-player-a", identityKey: "local-cluster-collision", confidence: 0.9 },
+    { trajectoryId: "trajectory-player-b", identityKey: "local-cluster-collision", confidence: 0.88 },
+  ] });
+  expect(() => artifacts.validateTrackingStageArtifact(collisionResult, manifest, collisionRequest))
+    .toThrow(/simultaneous player trajectories/i);
 
   const approved = approveProvider(contract, evidenceService, candidate);
   const activatedResult = stageResult(
@@ -626,9 +867,15 @@ test("team and shirt classification boundary cannot assign players or classify n
     ["classify:team", "classify:shirt-number"],
   ));
   const request = stageRequest({ trajectories: [
-    { id: "trajectory-player", entityType: "player" },
-    { id: "trajectory-referee", entityType: "referee" },
-  ] });
+    {
+      id: "trajectory-player", entityType: "player", confidence: 0.93, discontinuitiesMs: [],
+      observations: [{ id: "p-1", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.96 }],
+    },
+    {
+      id: "trajectory-referee", entityType: "referee", confidence: 0.91, discontinuitiesMs: [],
+      observations: [{ id: "referee-1", atMs: 0, frameIndex: 0, entityType: "referee", box: { left: 0.7, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.91 }],
+    },
+  ], teamAnchors: [{ teamSide: "home", trajectoryId: "trajectory-player" }] });
   const result = stageResult(manifest, evidenceService, artifacts, request, { classifications: [{
     trajectoryId: "trajectory-player",
     teamSide: "home",
@@ -640,6 +887,46 @@ test("team and shirt classification boundary cannot assign players or classify n
     teamSide: "home",
     shirtNumber: "8",
   });
+
+  const unanchoredRequest = stageRequest({ trajectories: request.trajectories });
+  const unanchoredResult = stageResult(manifest, evidenceService, artifacts, unanchoredRequest, result.payload);
+  expect(() => artifacts.validateTrackingStageArtifact(unanchoredResult, manifest, unanchoredRequest))
+    .toThrow(/analyst-bound trajectory anchor/i);
+
+  const unknownResult = stageResult(manifest, evidenceService, artifacts, unanchoredRequest, { classifications: [{
+    ...result.payload.classifications[0],
+    teamSide: "unknown",
+  }] });
+  expect(artifacts.validateTrackingStageArtifact(unknownResult, manifest, unanchoredRequest)
+    .payload.classifications[0].teamSide).toBe("unknown");
+
+  const officialResult = stageResult(manifest, evidenceService, artifacts, request, { classifications: [{
+    ...result.payload.classifications[0],
+    teamSide: "official",
+  }] });
+  expect(() => artifacts.validateTrackingStageArtifact(officialResult, manifest, request)).toThrow(/team side is invalid/i);
+
+  const conflictRequest = stageRequest({
+    trajectories: [...request.trajectories, {
+      id: "trajectory-player-away", entityType: "player", confidence: 0.9, discontinuitiesMs: [],
+      observations: [{ id: "p-away-1", atMs: 0, frameIndex: 0, entityType: "player", box: { left: 0.5, top: 0.2, width: 0.08, height: 0.3 }, confidence: 0.92 }],
+    }],
+    teamAnchors: [
+      { teamSide: "home", trajectoryId: "trajectory-player" },
+      { teamSide: "away", trajectoryId: "trajectory-player-away" },
+    ],
+  });
+  const conflictResult = stageResult(manifest, evidenceService, artifacts, conflictRequest, { classifications: [{
+    ...result.payload.classifications[0],
+    teamSide: "away",
+  }] });
+  expect(() => artifacts.validateTrackingStageArtifact(conflictResult, manifest, conflictRequest))
+    .toThrow(/contradicted an analyst-bound team anchor/i);
+
+  expect(() => artifacts.normalizeTrackingStageRequest(manifest, {
+    ...request,
+    teamAnchors: [{ teamSide: "away", trajectoryId: "trajectory-referee" }],
+  })).toThrow(/known player trajectories/i);
 
   const identityLeak = structuredClone(result);
   identityLeak.payload.classifications[0].playerId = "player-8";
@@ -668,6 +955,11 @@ test("segmentation stage result reuses the strict selected-object track boundary
     startMs: 0,
     endMs: 2000,
     promptAtMs: 0,
+    sourceStartMs: 0,
+    sourceEndMs: 2000,
+    sourcePromptAtMs: 0,
+    syncOffsetMs: 0,
+    driftPpm: 0,
     entityType: "player",
     box: { left: 0.1, top: 0.2, width: 0.08, height: 0.3 },
   };
@@ -690,6 +982,15 @@ test("segmentation stage result reuses the strict selected-object track boundary
     manifest,
     request,
   );
+  const hiddenPromptInput = structuredClone(request);
+  hiddenPromptInput.prompts[0].sourcePath = "/private/match.mp4";
+  expect(() => artifacts.trackingStageRequestFingerprint(manifest, hiddenPromptInput)).toThrow(/unsupported field/i);
+  const hiddenTrackOutput = structuredClone(result);
+  hiddenTrackOutput.payload.tracks[0].framePath = "/private/frame.jpg";
+  expect(() => artifacts.validateTrackingStageArtifact(hiddenTrackOutput, manifest, request)).toThrow(/unsupported field/i);
+  const hiddenPointOutput = structuredClone(result);
+  hiddenPointOutput.payload.tracks[0].segments[0].points[0].embedding = [0.1, 0.2];
+  expect(() => artifacts.validateTrackingStageArtifact(hiddenPointOutput, manifest, request)).toThrow(/unsupported field/i);
   expect(validated.payload.tracks).toHaveLength(1);
   expect(validated.payload.tracks[0].metadata.promptId).toBe(prompt.id);
 });

@@ -211,6 +211,34 @@ test("Scouting profile modal controller respects active inputs inside the modal"
   expect(harness.calls).toEqual([]);
 });
 
+for (const control of ["tab", "button", "link", "focusable panel"]) {
+  test(`Scouting queued profile focus preserves a user-focused ${control}`, () => {
+    const harness = createHarness();
+    const activeControl = { name: control, matches: () => false };
+    harness.modal.contains = (element) => element === harness.modal || element === activeControl;
+    harness.modal.focus = (focusOptions) => {
+      harness.calls.push(["focus", focusOptions]);
+      harness.documentRef.activeElement = harness.modal;
+    };
+
+    harness.controller.openRecord("record-1");
+    expect(harness.documentRef.activeElement).toBe(harness.modal);
+    const { focusTimer, postOpenTimer } = harness.controller.getFocusState();
+    expect(harness.calls).toContainEqual(["set-timeout", focusTimer, 40]);
+    harness.documentRef.activeElement = activeControl;
+    const beforeTimer = harness.calls.length;
+
+    harness.runTimer(focusTimer);
+
+    expect(harness.documentRef.activeElement).toBe(activeControl);
+    expect(harness.calls.slice(beforeTimer)).toEqual([]);
+    expect(harness.controller.getFocusState()).toMatchObject({
+      focusTimer: 0, pendingFocusRecordId: "", pendingFocusUntil: 0, postOpenTimer,
+    });
+    expect(harness.state.selectedRecordId).toBe("record-1");
+  });
+}
+
 test("Scouting profile modal controller closes profile modal or falls back to workspace render", () => {
   const modalHarness = createHarness({ backdrop: true, selectedRecordId: "record-1" });
 

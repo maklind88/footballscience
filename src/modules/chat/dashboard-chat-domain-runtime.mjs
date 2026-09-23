@@ -1,3 +1,9 @@
+import {
+  isGenericDashboardChatIdentity,
+  resolveDashboardChatParticipantName,
+  resolveDashboardChatThreadIdentity,
+} from "./chat-identity.mjs";
+
 export function createDashboardChatDomainRuntime(dependencies = {}) {
   const {
     getCurrentPlatformUser = () => null,
@@ -79,56 +85,34 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
   }
 
   function getDashboardChatParticipantDisplayName(participant = null) {
-    if (!participant) {
-      return "";
-    }
-    const profile =
-      [participant.profile, participant.user, participant.userProfile, participant.user_profile, participant.metadata?.profile, participant.metadata]
-        .find((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)) || {};
-    return (
-      [participant.firstName || participant.first_name || profile.firstName || profile.first_name, participant.lastName || participant.last_name || profile.lastName || profile.last_name]
-        .map((part) => String(part || "").trim())
-        .filter(Boolean)
-        .join(" ") ||
-      String(
-        participant.name ||
-          participant.fullName ||
-          participant.full_name ||
-          participant.displayName ||
-          participant.display_name ||
-          profile.name ||
-          profile.fullName ||
-          profile.full_name ||
-          ""
-      ).trim()
-    );
+    return resolveDashboardChatParticipantName(participant, formatUserName);
   }
 
   function formatDashboardChatThreadLabel(threadId, currentUser, users = getPlatformUsers()) {
     const normalized = normalizeDashboardChatThreadId(threadId);
-    if (normalized === dashboardChatTeamThreadId) {
-      return getDashboardChatTeamChatTitle();
-    }
     const templates = getDashboardChatAdvancedThreadTemplates();
     const template = templates.find((candidate) => candidate.key === normalized);
     if (template) {
       return template.title;
     }
-    if (normalized.startsWith("group-") || normalized.startsWith("group:")) {
-      const dashboardChatApiThreads = getDashboardChatApiThreads();
-      const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalized);
-      const threadSettings = getDashboardChatThreadSettings();
-      return threadSettings?.merge?.(normalized, apiThread?.settings || {}).customTitle || apiThread?.title || "Group chat";
-    }
-    const participantPartner = getDashboardChatThreadParticipants(normalized, users).find((user) => !isSameDashboardUser(user, currentUser));
-    if (participantPartner) {
-      return getDashboardChatParticipantDisplayName(participantPartner) || formatUserName(participantPartner);
-    }
-    const [, firstId = "", secondId = ""] = normalized.split(":");
-    const currentUserId = currentUser?.id || "";
-    const partnerId = firstId === currentUserId ? secondId : firstId;
-    const partner = users.find((user) => user.id === partnerId);
-    return partner ? formatUserName(partner) : "Direct Message";
+    const apiThread = getDashboardChatApiThreads().find((thread) => thread.threadId === normalized) || null;
+    const threadSettings = getDashboardChatThreadSettings();
+    const mergedSettings = threadSettings?.merge?.(normalized, apiThread?.settings || {}) || {};
+    const participants = getDashboardChatThreadParticipants(normalized, users);
+    return resolveDashboardChatThreadIdentity({
+      threadId: normalized,
+      type: apiThread?.type || (normalized === dashboardChatTeamThreadId ? "team" : normalized.startsWith("group-") || normalized.startsWith("group:") ? "group" : "dm"),
+      isTeamThread: normalized === dashboardChatTeamThreadId,
+      teamTitle: getDashboardChatTeamChatTitle(),
+      customTitle: mergedSettings.customTitle,
+      apiTitle: apiThread?.title,
+      currentUser,
+      participants,
+      messages: apiThread?.lastMessage ? [apiThread.lastMessage] : [],
+      users,
+      isSameUser: isSameDashboardUser,
+      formatUserName,
+    });
   }
 
   function normalizeDashboardUserIdentityValue(value = "") {
@@ -147,8 +131,7 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
   }
 
   function isGenericDashboardChatThreadTitle(value = "") {
-    const normalized = String(value || "").trim().toLowerCase();
-    return !normalized || ["chat", "team chat", "group chat", "direct message", "direct message chat", "private chat", "unknown user"].includes(normalized);
+    return isGenericDashboardChatIdentity(value);
   }
 
   function getDashboardChatThreadParticipants(threadId, users = getPlatformUsers()) {

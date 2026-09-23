@@ -66,7 +66,7 @@ function selectedTracks(state = {}, tracks = []) {
 function spatialMetrics(state = {}, item = {}) {
   const spatial = state.presentation?.spatial || {};
   const calibration = spatial.calibration || {};
-  const tracks = item.objectTracks || [];
+  const tracks = (item.objectTracks || []).filter((track) => track.status !== "archived");
   const atMs = currentMs(state);
   const pair = selectedTracks(state, tracks);
   const options = { maxInterpolationGapMs: Math.max(1200, itemRange(item).endMs - itemRange(item).startMs) };

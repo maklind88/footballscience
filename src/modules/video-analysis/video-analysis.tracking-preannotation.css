@@ -1,0 +1,116 @@
+.video-analysis-preannotation__batchbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1fr);
+  gap: 5px;
+  align-items: end;
+}
+
+.video-analysis-preannotation__batchbar label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  color: #68767d;
+  font-size: 7px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.video-analysis-preannotation__batchbar select {
+  width: 100%;
+  min-width: 0;
+  height: 27px;
+  border: 1px solid #cbd6dc;
+  border-radius: 4px;
+  padding: 3px 5px;
+  color: #253840;
+  background: #ffffff;
+  font-size: 8px;
+  text-transform: none;
+}
+
+.video-analysis-preannotation__batchbar p {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 5px;
+  min-width: 0;
+  margin: 0;
+  color: #68767d;
+  font-size: 7px;
+}
+
+.video-analysis-preannotation__batchbar p strong {
+  overflow: hidden;
+  color: #253840;
+  font-size: 8px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-preannotation__campaign {
+  display: grid;
+  gap: 5px;
+  padding: 6px 0;
+  border-top: 1px solid #d8e1e5;
+  border-bottom: 1px solid #d8e1e5;
+}
+
+.video-analysis-preannotation__campaign > header,
+.video-analysis-preannotation__campaign li,
+.video-analysis-preannotation__campaign > p {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.video-analysis-preannotation__campaign header div,
+.video-analysis-preannotation__campaign li div {
+  display: grid;
+  min-width: 0;
+}
+
+.video-analysis-preannotation__campaign ol {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video-analysis-preannotation__campaign li {
+  padding: 4px 5px;
+  border-left: 2px solid transparent;
+  color: #68767d;
+  font-size: 7px;
+}
+
+.video-analysis-preannotation__campaign li.is-active {
+  border-left-color: #14745a;
+  background: #eef7f3;
+}
+
+.video-analysis-preannotation__campaign li.is-complete em {
+  color: #14745a;
+}
+
+.video-analysis-preannotation__campaign strong,
+.video-analysis-preannotation__campaign span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-preannotation__campaign em,
+.video-analysis-preannotation__campaign > p {
+  margin: 0;
+  color: #68767d;
+  font-size: 7px;
+  font-style: normal;
+}
+
+.video-analysis-preannotation__campaign > p.is-error,
+.video-analysis-preannotation__campaign > p.is-error span {
+  color: #a22f2f;
+}

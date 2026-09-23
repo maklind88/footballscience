@@ -29,6 +29,7 @@ function createHarness(options = {}) {
     documentRef,
     getCentralStateBridge: () => ({
       hydrate: async () => calls.push("hydrate"),
+      getStatus: () => ({ metadata: options.metadata }),
     }),
     getCurrentPlatformUser: () => options.currentUser ?? { id: "coach-1" },
     getHubState: () => state.hubState,
@@ -138,6 +139,60 @@ test("central app-state reload service preserves defer, pending, and flush behav
 
   const sessionOverlayHarness = createHarness({ localUiState: { sessionPlannerPlayerBoardOpen: true } });
   expect(sessionOverlayHarness.service.shouldDeferCentralizedAppStateReload()).toBe(true);
+});
+
+test("central reload keeps a locally selected empty day without restoring content from another date", () => {
+  const { service, state } = createHarness();
+  state.sessionPlannerState.selectedDate = "2026-09-10";
+  state.sessionPlannerState.sessions["2026-09-10"] = { selectedBlockId: "", blocks: [] };
+
+  service.reloadCentralizedAppStateFromStorage();
+
+  expect(state.sessionPlannerState.selectedDate).toBe("2026-09-10");
+  expect(state.sessionPlannerState.sessions["2026-09-10"]).toBeUndefined();
+  expect(state.sessionPlannerState.sessions["2026-06-08"].blocks.map((block) => block.id)).toEqual(["block-1", "block-3"]);
+});
+
+test("central reload stays on the same day when the selected block was removed centrally", () => {
+  const { service, state } = createHarness();
+  state.sessionPlannerState.sessions["2026-06-08"].selectedBlockId = "block-2";
+
+  service.reloadCentralizedAppStateFromStorage();
+
+  expect(state.sessionPlannerState.selectedDate).toBe("2026-06-08");
+  expect(state.sessionPlannerState.sessions["2026-06-08"].blocks.some((block) => block.id === "block-2")).toBe(false);
+});
+
+test("background sync cannot change the coach's Sessions day while another module is open", () => {
+  const { service, state } = createHarness({ activeWorkspaceId: "medical-team" });
+  state.sessionPlannerState.selectedDate = "2026-09-10";
+  service.reloadCentralizedAppStateFromStorage();
+  expect(state.sessionPlannerState.selectedDate).toBe("2026-09-10");
+});
+
+test("identical central revisions do not rebuild Sessions but changed dependencies do", () => {
+  const metadata = { "football-session-planner-v3": { revision: 7 }, "football-medical-team-v1": { revision: 3 } };
+  const { calls, service } = createHarness({ metadata });
+  service.reloadCentralizedAppStateFromStorage();
+  service.reloadCentralizedAppStateFromStorage();
+  expect(calls.filter((call) => call === "render-workspace")).toHaveLength(1);
+  metadata["football-medical-team-v1"].revision += 1;
+  service.reloadCentralizedAppStateFromStorage();
+  expect(calls.filter((call) => call === "render-workspace")).toHaveLength(2);
+});
+
+test("reload deduplication is scoped to the current user and does not affect other workspaces", () => {
+  const currentUser = { id: "coach-a", teamId: "team-a" };
+  const metadata = { "football-session-planner-v3": { revision: 7 } };
+  const { calls, service, state } = createHarness({ currentUser, metadata });
+  service.reloadCentralizedAppStateFromStorage();
+  currentUser.id = "coach-b";
+  service.reloadCentralizedAppStateFromStorage();
+  expect(calls.filter((call) => call === "render-workspace")).toHaveLength(2);
+  state.hubState.activeWorkspaceId = "medical-team";
+  service.reloadCentralizedAppStateFromStorage();
+  service.reloadCentralizedAppStateFromStorage();
+  expect(calls.filter((call) => call === "render-workspace")).toHaveLength(4);
 });
 
 test("central app-state reload service defers workspace reload while a platform overlay is active", () => {

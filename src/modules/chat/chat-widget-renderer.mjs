@@ -1,4 +1,5 @@
 import { createDashboardChatActionPlanRenderer } from "./chat-action-plan-renderer.mjs";
+import { createDashboardChatDetailsRenderer } from "./chat-details-renderer.mjs";
 import { createDashboardChatIntelligenceRenderer } from "./chat-intelligence-renderer.mjs";
 
 function defaultEscapeHtml(value) {
@@ -189,13 +190,33 @@ export function renderDashboardChatTextPartWithSearchHighlight(part = "", search
   return output;
 }
 
+function renderDashboardChatTextPartWithLinks(part = "", searchQuery = "", escapeHtml = defaultEscapeHtml) {
+  return String(part || "")
+    .split(/(https?:\/\/[^\s<>"']+)/gi)
+    .map((segment) => {
+      if (!/^https?:\/\//i.test(segment)) {
+        return renderDashboardChatTextPartWithSearchHighlight(segment, searchQuery, escapeHtml);
+      }
+      try {
+        const parsed = new URL(segment);
+        if (!/^https?:$/.test(parsed.protocol)) {
+          return renderDashboardChatTextPartWithSearchHighlight(segment, searchQuery, escapeHtml);
+        }
+        return `<a class="dashboard-chat-message-link" href="${escapeHtml(parsed.href)}" target="_blank" rel="noopener noreferrer">${renderDashboardChatTextPartWithSearchHighlight(segment, searchQuery, escapeHtml)}</a>`;
+      } catch {
+        return renderDashboardChatTextPartWithSearchHighlight(segment, searchQuery, escapeHtml);
+      }
+    })
+    .join("");
+}
+
 export function createDashboardChatMessageTextRenderer({ escapeHtml = defaultEscapeHtml, getMentionUserIdsForToken = () => [] } = {}) {
   return function renderDashboardChatMessageText(message, users = [], options = {}) {
     return String(message?.text || "")
       .split(/(@[a-zA-Z0-9._-]{2,64})/g)
       .map((part) => {
         if (!part.startsWith("@") || !getMentionUserIdsForToken(part.slice(1), users, message.userId).length) {
-          return renderDashboardChatTextPartWithSearchHighlight(part, options.searchQuery, escapeHtml);
+          return renderDashboardChatTextPartWithLinks(part, options.searchQuery, escapeHtml);
         }
         return `<mark class="dashboard-chat-mention">${escapeHtml(part)}</mark>`;
       })
@@ -697,32 +718,40 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
   function renderThreadFilters(activeFilter = "all", threads = []) {
     const normalizedFilter = getNormalizedThreadFilter(activeFilter);
     const counts = getThreadFilterCounts(threads);
-    const filters = [
+    const primaryFilters = [
       { key: "all", label: "All" },
       { key: "unread", label: "Unread" },
+    ];
+    const secondaryFilters = [
       { key: "mentions", label: "Mentions" },
       { key: "pinned", label: "Pinned" },
     ];
 
+    const renderFilterButton = (filter, className = "") => {
+      const isActive = filter.key === normalizedFilter;
+      const count = counts[filter.key] || 0;
+      return `
+        <button
+          type="button"
+          class="${[className, isActive ? "is-active" : ""].filter(Boolean).join(" ")}"
+          data-dashboard-chat-thread-filter="${escapeHtml(filter.key)}"
+          aria-pressed="${isActive}"
+        >
+          <span>${escapeHtml(filter.label)}</span>
+          ${count ? `<small>${escapeHtml(String(count))}</small>` : ""}
+        </button>
+      `;
+    };
+
     return `
       <div class="dashboard-chat-thread-filters" role="toolbar" aria-label="Filter chat conversations" data-dashboard-chat-thread-filters>
-        ${filters
-          .map((filter) => {
-            const isActive = filter.key === normalizedFilter;
-            const count = counts[filter.key] || 0;
-            return `
-              <button
-                type="button"
-                class="${isActive ? "is-active" : ""}"
-                data-dashboard-chat-thread-filter="${escapeHtml(filter.key)}"
-                aria-pressed="${isActive}"
-              >
-                <span>${escapeHtml(filter.label)}</span>
-                <small>${escapeHtml(String(count))}</small>
-              </button>
-            `;
-          })
-          .join("")}
+        ${primaryFilters.map((filter) => renderFilterButton(filter)).join("")}
+        <details class="dashboard-chat-thread-filter-more">
+          <summary aria-label="More conversation filters" title="More filters">&#9776;</summary>
+          <div role="menu" aria-label="More conversation filters">
+            ${secondaryFilters.map((filter) => renderFilterButton(filter, "is-secondary-filter")).join("")}
+          </div>
+        </details>
       </div>
     `;
   }
@@ -781,11 +810,15 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
   }
 
   function renderThreadAvatarStack(thread = null, users = []) {
-    if (!thread || thread.isTeamThread || thread.type === "dm") {
-      return renderAvatarStack(users);
+    if (thread?.type === "dm" && users[0]) {
+      return `
+        <span class="dashboard-chat-avatar-stack" aria-hidden="true">
+          ${renderPresenceAvatar(users[0], "dashboard-chat-stack-avatar")}
+        </span>
+      `;
     }
-    const threadSettings = thread.settings || {};
-    const avatarUrl = threadSettings.avatarUrl || thread.avatarUrl || "";
+    const threadSettings = thread?.settings || {};
+    const avatarUrl = threadSettings.avatarUrl || thread?.avatarUrl || "";
     const avatarLabel = getThreadAvatarLabel(thread);
     return `
       <span class="dashboard-chat-avatar-stack" aria-hidden="true">
@@ -796,6 +829,28 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         }
       </span>
     `;
+  }
+
+  function renderMessageLinkPreview(message = {}) {
+    const match = String(message.text || "").match(/https?:\/\/[^\s<>"']+/i);
+    if (!match?.[0]) {
+      return "";
+    }
+    try {
+      const parsed = new URL(match[0]);
+      if (!/^https?:$/.test(parsed.protocol)) {
+        return "";
+      }
+      const pathLabel = `${parsed.pathname === "/" ? "" : parsed.pathname}${parsed.search}`.slice(0, 72);
+      return `
+        <a class="dashboard-chat-link-preview" href="${escapeHtml(parsed.href)}" target="_blank" rel="noopener noreferrer">
+          <span aria-hidden="true">&#8599;</span>
+          <small><strong>${escapeHtml(parsed.hostname.replace(/^www\./i, ""))}</strong>${pathLabel ? `<em>${escapeHtml(pathLabel)}</em>` : ""}</small>
+        </a>
+      `;
+    } catch {
+      return "";
+    }
   }
 
   function renderMessage(message, users, currentUser, options = {}) {
@@ -918,6 +973,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         ${replyMarkup}
         ${forwardedMarkup}
         <p>${renderMessageText(message, users, { searchQuery })}</p>
+        ${renderMessageLinkPreview(message)}
         ${renderMessageAttachments(message, users)}
         ${bubbleFooterMarkup}
       </div>
@@ -1318,193 +1374,20 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     `;
   }
 
-  function renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, currentUser, users, messages, pinnedMessages, messageSearchQuery = "", searchMatchCount = 0, searchActiveMatchIndex = 0, threadMessageCount = 0 }) {
-    const participants = getThreadDetailParticipants(activeThread, users).slice(0, 8);
-    const files = getThreadFiles(messages, activeThreadId);
-    const links = getThreadLinks(messages, activeThreadId);
-    const threadSettings = activeThread?.settings || {};
-    const canManageParticipants = Boolean(activeThread?.permissions?.canManageParticipants && !activeThread?.isTeamThread);
-    const canManageGroup = Boolean(activeThread && activeThread.type === "group" && canManageParticipants);
-    const canClearActiveThread = Boolean(canClearThread(currentUser, activeThread));
-    const canArchiveForMe = Boolean(activeThread?.permissions?.canArchiveForMe && !activeThread?.isTeamThread);
-    const canDeleteForMe = Boolean(activeThread?.permissions?.canDeleteForMe && !activeThread?.isTeamThread);
-    const canLeaveThread = Boolean(activeThread?.permissions?.canLeave && activeThread?.type === "group");
-    const canBlockThread = Boolean(activeThread?.permissions?.canBlock && activeThread?.type === "dm");
-    const normalizedSearch = String(messageSearchQuery || "").trim();
-    const activeMatchPosition = searchMatchCount ? Math.min(Math.max(Number(searchActiveMatchIndex) || 0, 0), searchMatchCount - 1) + 1 : 0;
-    const searchSummary = normalizedSearch
-      ? searchMatchCount
-        ? `${activeMatchPosition} of ${searchMatchCount} matches in ${threadMessageCount} messages`
-        : `No matches in ${threadMessageCount} messages`
-      : "Search messages in this conversation";
-    const searchNavigationMarkup = normalizedSearch
-      ? `
-        <div class="dashboard-chat-search-nav" aria-label="Search result navigation">
-          <button type="button" data-dashboard-chat-search-step="previous" ${searchMatchCount > 1 ? "" : "disabled"} aria-label="Previous search result">Previous</button>
-          <strong>${escapeHtml(searchMatchCount ? `${activeMatchPosition} / ${searchMatchCount}` : "0 / 0")}</strong>
-          <button type="button" data-dashboard-chat-search-step="next" ${searchMatchCount > 1 ? "" : "disabled"} aria-label="Next search result">Next</button>
-        </div>
-      `
-      : "";
-    return `
-      <section class="dashboard-chat-details-panel" aria-label="Conversation details">
-        <header>
-          <div>
-            <span class="dashboard-chat-details-kicker">Conversation</span>
-            <strong>${escapeHtml(activeThreadLabel)}</strong>
-            <small>${escapeHtml(activeThreadSubLabel)}</small>
-          </div>
-          <button type="button" data-dashboard-chat-details-close aria-label="Close conversation details">&times;</button>
-        </header>
-        <div class="dashboard-chat-details-grid">
-          <article>
-            <span>People</span>
-            <strong>${escapeHtml(String(participants.length || (activeThread?.isTeamThread ? users.length : 0)))}</strong>
-            <small>${escapeHtml(activeThread?.isTeamThread ? "Team access" : activeThread?.participant ? "Direct chat" : "Group thread")}</small>
-          </article>
-          <article>
-            <span>Pins</span>
-            <strong>${escapeHtml(String(pinnedMessages.length))}</strong>
-            <small>Important notes</small>
-          </article>
-          <article>
-            <span>Files</span>
-            <strong>${escapeHtml(String(files.length + links.length))}</strong>
-            <small>Media, docs and links</small>
-          </article>
-        </div>
-        ${renderThreadIntelligencePanel({ activeThreadId, activeThreadLabel, messages, pinnedMessages, users, currentUser })}
-        ${renderThreadActionPlanPanel({ activeThreadId, messages, pinnedMessages, users, currentUser, actionItems: activeThread?.apiThread?.actionItems || activeThread?.actionItems || [] })}
-        <label class="dashboard-chat-details-search">
-          <span>Search conversation</span>
-          <input type="search" data-dashboard-chat-message-search value="${escapeHtml(normalizedSearch)}" placeholder="${escapeHtml(`Search ${activeThreadLabel}`)}" autocomplete="off">
-          <small>${escapeHtml(searchSummary)}</small>
-        </label>
-        ${searchNavigationMarkup}
-        <div class="dashboard-chat-details-section">
-          <strong>Thread settings</strong>
-          <div class="dashboard-chat-settings-grid">
-            <button type="button" data-dashboard-chat-thread-setting="toggle-mute" data-dashboard-chat-thread-setting-thread="${escapeHtml(activeThreadId)}" class="${threadSettings.muted ? "is-active" : ""}">
-              <span>${threadSettings.muted ? "Muted" : "Mute"}</span>
-              <small>${threadSettings.muted ? "Notifications paused" : "Pause this chat"}</small>
-            </button>
-            <button type="button" data-dashboard-chat-thread-setting="toggle-pin" data-dashboard-chat-thread-setting-thread="${escapeHtml(activeThreadId)}" class="${threadSettings.pinned ? "is-active" : ""}">
-              <span>${threadSettings.pinned ? "Pinned" : "Pin"}</span>
-              <small>${threadSettings.pinned ? "Shown first" : "Keep near top"}</small>
-            </button>
-            <button type="button" data-dashboard-chat-thread-setting="rename" data-dashboard-chat-thread-setting-thread="${escapeHtml(activeThreadId)}">
-              <span>Rename</span>
-              <small>${escapeHtml(threadSettings.customTitle || "Set display name")}</small>
-            </button>
-            <button type="button" data-dashboard-chat-thread-setting="avatar" data-dashboard-chat-thread-setting-thread="${escapeHtml(activeThreadId)}">
-              <span>Image</span>
-              <small>${escapeHtml(threadSettings.avatarUrl ? "Photo set" : threadSettings.avatarLabel || "Photo or initials")}</small>
-            </button>
-            ${
-              canManageParticipants
-                ? `<button type="button" data-dashboard-chat-participant-action="add" data-dashboard-chat-participant-thread="${escapeHtml(activeThreadId)}">
-                    <span>Edit people</span>
-                    <small>${escapeHtml(`${participants.length || 0} participant${participants.length === 1 ? "" : "s"}`)}</small>
-                  </button>`
-                : ""
-            }
-            ${
-              canArchiveForMe
-                ? `<button type="button" data-dashboard-chat-thread-user-state="archive" data-dashboard-chat-thread-user-state-thread="${escapeHtml(activeThreadId)}">
-                    <span>Archive</span>
-                    <small>Hide from your inbox</small>
-                  </button>`
-                : ""
-            }
-            ${
-              canDeleteForMe
-                ? `<button type="button" data-dashboard-chat-thread-user-state="delete" data-dashboard-chat-thread-user-state-thread="${escapeHtml(activeThreadId)}">
-                    <span>Delete for me</span>
-                    <small>Clear your local history</small>
-                  </button>`
-                : ""
-            }
-            ${
-              canLeaveThread
-                ? `<button type="button" data-dashboard-chat-leave-thread="${escapeHtml(activeThreadId)}">
-                    <span>Leave group</span>
-                    <small>Remove yourself</small>
-                  </button>`
-                : ""
-            }
-            ${
-              canBlockThread
-                ? `<button type="button" class="is-danger" data-dashboard-chat-thread-user-state="block" data-dashboard-chat-thread-user-state-thread="${escapeHtml(activeThreadId)}">
-                    <span>Block chat</span>
-                    <small>Remove from your inbox</small>
-                  </button>`
-                : ""
-            }
-            ${
-              canClearActiveThread
-                ? `<button type="button" class="is-danger" data-dashboard-clear-thread data-dashboard-chat-clear-thread="${escapeHtml(activeThreadId)}">
-                    <span>Clear chat</span>
-                    <small>Delete for everyone</small>
-                  </button>`
-                : ""
-            }
-            ${
-              canManageGroup
-                ? `<button type="button" class="is-danger" data-dashboard-chat-archive-thread="${escapeHtml(activeThreadId)}">
-                    <span>Delete group</span>
-                    <small>Remove from chat list</small>
-                  </button>`
-                : ""
-            }
-          </div>
-        </div>
-        <div class="dashboard-chat-details-section">
-          <div class="dashboard-chat-details-section-head">
-            <strong>Participants</strong>
-            ${
-              canManageParticipants
-                ? `<button type="button" data-dashboard-chat-participant-action="add" data-dashboard-chat-participant-thread="${escapeHtml(activeThreadId)}">Add</button>`
-                : ""
-            }
-          </div>
-          <div class="dashboard-chat-details-people">
-            ${
-              participants.length
-                ? participants
-                    .map(
-                      (participant) => {
-                        const participantId = String(participant.id || participant.userId || "").trim();
-                        const participantRole = String(participant.chatParticipantRole || participant.participantRole || participant.participant_role || participant.role || "member").trim();
-                        const readLabel = participant.lastReadAt ? `Read ${formatTime(participant.lastReadAt)}` : "Not read yet";
-                        const canRemoveParticipant = Boolean(canManageParticipants && participantId && participantId !== currentUser?.id && participantRole !== "owner");
-                        return `
-                        <span>
-                          ${renderPresenceAvatar(participant, "dashboard-chat-details-avatar")}
-                          <small>
-                            <strong>${escapeHtml(formatUserName(participant))}</strong>
-                            <em>${escapeHtml(`${participantRole || "member"} · ${readLabel}`)}</em>
-                          </small>
-                          ${
-                            canRemoveParticipant
-                              ? `<button type="button" data-dashboard-chat-participant-action="remove" data-dashboard-chat-participant-thread="${escapeHtml(activeThreadId)}" data-dashboard-chat-participant-id="${escapeHtml(participantId)}" aria-label="${escapeHtml(`Remove ${formatUserName(participant)}`)}">&times;</button>`
-                              : ""
-                          }
-                        </span>
-                      `;
-                      }
-                    )
-                    .join("")
-                : `<em>No participants loaded yet.</em>`
-            }
-          </div>
-        </div>
-        <div class="dashboard-chat-details-section">
-          <strong>Library</strong>
-          ${renderAttachmentLibrary(messages, activeThreadId)}
-        </div>
-      </section>
-    `;
-  }
+  const { renderThreadDetailsPanel } = createDashboardChatDetailsRenderer({
+    escapeHtml,
+    formatTime,
+    formatUserName,
+    renderPresenceAvatar,
+    renderPinnedMessages,
+    renderAttachmentLibrary,
+    renderThreadIntelligencePanel,
+    renderThreadActionPlanPanel,
+    getThreadDetailParticipants,
+    getThreadFiles,
+    getThreadLinks,
+    canClearThread,
+  });
 
   function resolveReplyDraft(replyDraft, activeThreadId, messages) {
     if (replyDraft?.threadId !== activeThreadId) {
@@ -1522,7 +1405,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       currentUser,
       users = [],
       notificationState = { enabled: true },
-      pushDiagnostics = null,
       apiStatus = null,
       state = { isOpen: false, selectedThreadId: teamThreadId },
       messages = [],
@@ -1540,8 +1422,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       messageSearchActiveIndex = 0,
       hasOlderMessages = false,
       advancedThreadTemplates = [],
-      moderationOpen = false,
-      moderationState = { loading: false, audits: [], retentionPolicy: null, error: "" },
       attachmentDraft = null,
       teamChatTitle = "Team Chat",
       groupCreatorOpen = false,
@@ -1549,6 +1429,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       threadFilter = "all",
       threadSettingsDialog = null,
       firstUnreadMessageId = "",
+      recentEmojis = [],
+      detailsTab = "people",
     } = options;
     const isOpen = Boolean(state.isOpen);
     const activeThread = threads.find((thread) => thread.threadId === activeThreadId);
@@ -1588,27 +1470,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const activeThreadSubLabel = activeThread
       ? `${getThreadStatus(activeThread, users)} \u00b7 ${activeThread.messageCount} message${activeThread.messageCount === 1 ? "" : "s"}`
       : "No messages";
-    const headerParticipants = activeThread?.isTeamThread
-      ? users
-      : activeThread?.participants?.length
-        ? activeThread.participants
-        : [activeThread?.participant].filter(Boolean);
+    const headerParticipants = [activeThread?.participant].filter(Boolean);
     const launcherThread = activeThread || latestThread;
     const launcherLabel = launcherThread?.label || teamChatTitle;
     const launcherUnreadDisplay = unreadCount > 99 ? "99+" : String(unreadCount);
     const launcherUnreadLabel = unreadCount
       ? `, ${unreadCount} unread chat message${unreadCount === 1 ? "" : "s"}`
       : "";
-    const teamPresenceLabel = getThreadStatus({ isTeamThread: true }, users);
-    const notificationLevel = notificationState.level || (notificationState.enabled ? "all" : "muted");
-    const notificationLabel = { all: "All", mentions: "Mentions", muted: "Muted" }[notificationLevel] || "All";
-    const normalizedPushDiagnostics = pushDiagnostics && typeof pushDiagnostics === "object" ? pushDiagnostics : {};
-    const pushHealthLabel = normalizedPushDiagnostics.label || "Check status";
-    const pushHealthDetail = normalizedPushDiagnostics.detail || normalizedPushDiagnostics.hint || "Verify this device can receive push.";
-    const pushHealthStatus = String(normalizedPushDiagnostics.status || "unknown")
-      .toLowerCase()
-      .replace(/[^a-z0-9-]+/g, "-")
-      .slice(0, 40) || "unknown";
     const normalizedApiStatus = getStableDashboardChatApiDisplayStatus(normalizeDashboardChatApiStatus(apiStatus));
     const apiStatusBannerMarkup = renderDashboardChatApiStatusBanner(normalizedApiStatus, activeThreadId, escapeHtml);
     const groupCreateUsers = users
@@ -1788,110 +1656,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           </details>
         `
       : "";
-    const moderationMarkup = moderationOpen
-      ? `
-          <section class="dashboard-chat-moderation-panel" aria-label="Chat moderation">
-            <div class="dashboard-chat-moderation-head">
-              <strong>Moderation</strong>
-              <button type="button" data-dashboard-chat-moderation-refresh>${moderationState.loading ? "Loading" : "Refresh"}</button>
-            </div>
-            <form class="dashboard-chat-moderation-filters" data-dashboard-chat-moderation-filter-form>
-              <label>
-                <span>Action</span>
-                <select name="action">
-                  ${[
-                    ["all", "All actions"],
-                    ["delete", "Delete / clear"],
-                    ["failed-uploads", "Failed uploads"],
-                    ["destructive", "Destructive"],
-                    ["admin", "Admin actions"],
-                    ["sendMessage", "Sent messages"],
-                    ["setThreadParticipants", "Participants"],
-                    ["setThreadSettings", "Settings"],
-                    ["createAttachmentIntent", "Attachments"],
-                  ].map(([value, label]) => `<option value="${escapeHtml(value)}" ${(moderationState.filters?.action || "all") === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
-                </select>
-              </label>
-              <label>
-                <span>User</span>
-                <select name="userId">
-                  <option value="">All users</option>
-                  ${users.map((user) => `<option value="${escapeHtml(user.id)}" ${moderationState.filters?.userId === user.id ? "selected" : ""}>${escapeHtml(formatUserName(user))}</option>`).join("")}
-                </select>
-              </label>
-              <label>
-                <span>Thread</span>
-                <select name="threadId">
-                  <option value="">All threads</option>
-                  ${threads.map((thread) => `<option value="${escapeHtml(thread.databaseThreadId || thread.apiThread?.databaseThreadId || thread.threadId)}" ${(moderationState.filters?.threadId || "") === (thread.databaseThreadId || thread.apiThread?.databaseThreadId || thread.threadId) ? "selected" : ""}>${escapeHtml(thread.label || thread.title || thread.threadId)}</option>`).join("")}
-                </select>
-              </label>
-              <label>
-                <span>From</span>
-                <input type="date" name="from" value="${escapeHtml(String(moderationState.filters?.from || "").slice(0, 10))}">
-              </label>
-              <label>
-                <span>To</span>
-                <input type="date" name="to" value="${escapeHtml(String(moderationState.filters?.to || "").slice(0, 10))}">
-              </label>
-              <button type="submit">Apply</button>
-            </form>
-            ${
-              moderationState.health
-                ? `
-                  <div class="dashboard-chat-health-grid" aria-label="Chat health">
-                    <span><strong>${escapeHtml(moderationState.health.threadCount ?? 0)}</strong><small>Threads</small></span>
-                    <span><strong>${escapeHtml(moderationState.health.messageCount ?? 0)}</strong><small>Messages</small></span>
-                    <span><strong>${escapeHtml(moderationState.health.deletedMessageCount ?? 0)}</strong><small>Deleted</small></span>
-                    <span><strong>${escapeHtml(moderationState.health.pendingAttachmentCount ?? 0)}</strong><small>Pending files</small></span>
-                  </div>
-                  <div class="dashboard-chat-support-diagnostics" aria-label="Chat support diagnostics">
-                    <strong>Support diagnostics</strong>
-                    <span><small>Checked</small><em>${escapeHtml(formatTime(moderationState.health.checkedAt || new Date().toISOString()))}</em></span>
-                    <span><small>Attachments</small><em>${escapeHtml(String(moderationState.health.attachmentCount ?? 0))}</em></span>
-                    <span><small>Latest thread</small><em>${escapeHtml(moderationState.health.latestThreadAt ? formatTime(moderationState.health.latestThreadAt) : "No activity")}</em></span>
-                    <span><small>Latest audit</small><em>${escapeHtml(moderationState.health.latestAuditAt ? formatTime(moderationState.health.latestAuditAt) : "No audit")}</em></span>
-                  </div>
-                `
-                : ""
-            }
-            ${
-              moderationState.error
-                ? `<p>${escapeHtml(moderationState.error)}</p>`
-                : (Array.isArray(moderationState.audits) && moderationState.audits.length) || (Array.isArray(moderationState.failedUploads) && moderationState.failedUploads.length)
-                  ? `
-                    <div class="dashboard-chat-moderation-list">
-                      ${(moderationState.failedUploads || [])
-                        .slice(0, 8)
-                        .map(
-                          (upload) => `
-                            <article class="is-failed-upload">
-                              <strong>chat.failedUpload</strong>
-                              <span>${escapeHtml(upload.status || "failed")} \u00b7 ${escapeHtml(formatTime(upload.created_at))}</span>
-                              <small>${escapeHtml(upload.metadata?.fileName || upload.metadata?.filename || upload.id || "Attachment")}</small>
-                            </article>
-                          `
-                        )
-                        .join("")}
-                      ${moderationState.audits
-                        .slice(0, 8)
-                        .map(
-                          (audit) => `
-                            <article>
-                              <strong>${escapeHtml(audit.action || "chat.action")}</strong>
-                              <span>${escapeHtml(audit.severity || "info")} \u00b7 ${escapeHtml(formatTime(audit.created_at))}</span>
-                              <small>${escapeHtml([audit.actor_id ? `user ${audit.actor_id}` : "", audit.thread_id ? `thread ${audit.thread_id}` : ""].filter(Boolean).join(" / "))}</small>
-                            </article>
-                          `
-                        )
-                        .join("")}
-                    </div>
-                  `
-                  : `<p>No moderation events loaded.</p>`
-            }
-          </section>
-        `
-      : "";
     const attachmentDraftMarkup = attachmentDraft
       ? `
           <div class="dashboard-chat-attachment-draft is-${escapeHtml(attachmentDraft.status || "pending")}">
@@ -1908,87 +1672,61 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const replyComposerMarkup = replyState.activeReplyMessage
       ? renderReplyReference(replyState.activeReplyMessage, users, { cancelable: true })
       : "";
-    const priorityControlsMarkup = priorityOptions
-      .map((option) => {
-        const isActive = priorityDraft === option.key;
-        const icon = option.key === "normal" ? "N" : option.key === "important" ? "!" : option.key === "urgent" ? "!!" : option.label.slice(0, 1);
-        return `
-        <button
-          type="button"
-          class="dashboard-chat-priority-button is-${escapeHtml(option.key)}${isActive ? " is-active" : ""}"
-          data-dashboard-chat-priority="${escapeHtml(option.key)}"
-          aria-pressed="${isActive}"
-          title="${escapeHtml(option.label)}"
-          aria-label="${escapeHtml(option.label)} priority"
-        >
-          <span class="dashboard-chat-priority-icon" aria-hidden="true">${escapeHtml(icon)}</span>
-          <span class="dashboard-chat-priority-label">${escapeHtml(option.label)}</span>
-        </button>
-      `;
-      })
-      .join("");
-    const priorityMenuMarkup = priorityControlsMarkup
-      ? `
-        <details class="dashboard-chat-compose-more dashboard-chat-more-menu">
-          <summary class="dashboard-chat-attachment-button" aria-label="Open message options" title="Message options">
-            <span aria-hidden="true">+</span>
-          </summary>
-          <div class="dashboard-chat-more-menu-panel dashboard-chat-compose-more-panel" role="menu" aria-label="Message priority">
-            ${priorityControlsMarkup}
-          </div>
-        </details>
-      `
-      : "";
-    const commonEmojis = [
-      "😀",
-      "😂",
-      "🤣",
-      "😊",
-      "😍",
-      "😘",
-      "😎",
-      "😢",
-      "😭",
-      "😮",
-      "😡",
-      "👍",
-      "👏",
-      "🙌",
-      "🙏",
-      "🤝",
-      "💪",
-      "👌",
-      "❤️",
-      "🔥",
-      "🎉",
-      "✅",
-      "👀",
-      "🤔",
-      "⚽",
-      "🏆",
-      "🎯",
-      "💯",
-      "⭐",
-      "🚀",
-    ];
+    const emojiSections = [
+      { key: "recent", label: "Recent", emojis: Array.from(new Set(recentEmojis)).slice(0, 14) },
+      { key: "faces", label: "Smileys", emojis: ["😀", "😂", "🤣", "😊", "😍", "😘", "😎", "😢", "😭", "😮", "😡", "🤔", "🥳", "🤩"] },
+      { key: "gestures", label: "Gestures", emojis: ["👍", "👏", "🙌", "🙏", "🤝", "💪", "👌", "👀", "👋", "🤞", "✌️", "🙋"] },
+      { key: "football", label: "Football", emojis: ["⚽", "🏆", "🎯", "💯", "⭐", "🔥", "🎉", "✅", "🚀", "🥇", "📋", "💚"] },
+    ].filter((section) => section.emojis.length);
     const emojiPickerMarkup = `
       <details class="dashboard-chat-compose-more dashboard-chat-more-menu dashboard-chat-emoji-menu">
         <summary class="dashboard-chat-emoji-toggle" aria-label="Open emoji picker" title="Insert emoji">
           <span aria-hidden="true">😊</span>
         </summary>
         <div class="dashboard-chat-more-menu-panel dashboard-chat-compose-more-panel dashboard-chat-emoji-picker" role="menu" aria-label="Insert emoji">
-          ${commonEmojis
-            .map(
-              (emoji) => `
+          ${emojiSections.map((section) => `
+            <section class="dashboard-chat-emoji-section is-${escapeHtml(section.key)}">
+              <strong>${escapeHtml(section.label)}</strong>
+              ${section.emojis.map((emoji) => `
                 <button type="button" class="dashboard-chat-emoji" data-dashboard-chat-emoji="${escapeHtml(emoji)}" aria-label="Insert ${escapeHtml(emoji)}" title="${escapeHtml(emoji)}">
                   ${escapeHtml(emoji)}
                 </button>
-              `
-            )
-            .join("")}
+              `).join("")}
+            </section>
+          `).join("")}
         </div>
       </details>
     `;
+    const mentionSource = activeThread?.type === "group" && Array.isArray(activeThread.participants)
+      ? activeThread.participants
+      : activeThread?.isTeamThread
+        ? users
+        : [];
+    const mentionOptions = mentionSource
+      .filter((user) => user?.id && user.id !== currentUser?.id)
+      .map((user) => {
+        const name = formatUserName(user);
+        const token = String(user.username || user.email || name.replace(/\s+/g, "."))
+          .split("@", 1)[0]
+          .trim()
+          .replace(/^@/, "")
+          .replace(/[^a-zA-Z0-9._-]/g, "");
+        return token ? { user, name, token } : null;
+      })
+      .filter(Boolean)
+      .slice(0, 30);
+    const mentionPickerMarkup = mentionOptions.length
+      ? `
+          <div class="dashboard-chat-mention-picker" data-dashboard-chat-mention-picker role="listbox" aria-label="Mention a teammate" hidden>
+            ${mentionOptions.map(({ user, name, token }) => `
+              <button type="button" role="option" data-dashboard-chat-mention-option data-dashboard-chat-mention-token="${escapeHtml(token)}" data-dashboard-chat-mention-search="${escapeHtml(`${name} ${token}`.toLowerCase())}">
+                ${renderPresenceAvatar(user, "dashboard-chat-mention-avatar")}
+                <span><strong>${escapeHtml(name)}</strong><small>@${escapeHtml(token)}</small></span>
+              </button>
+            `).join("")}
+          </div>
+        `
+      : "";
     const trimmedLauncherLabel = launcherLabel.trim() || teamChatTitle;
     const widgetDialogLabel = /\bchat$/i.test(trimmedLauncherLabel)
       ? `${trimmedLauncherLabel} panel`
@@ -2002,12 +1740,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         <path d="M7.2 10h9.6M7.2 13.2h5.8"></path>
       </svg>
     `;
-    const headerTitleLabel = mobileConversationOpen ? activeThreadLabel : "Chats";
-    const headerSubLabel = mobileConversationOpen
-      ? activeThreadSubLabel
-      : unreadCount
-        ? `${unreadCount} unread`
-        : `${simpleInboxThreads.length} conversation${simpleInboxThreads.length === 1 ? "" : "s"}`;
+    const mobileInboxSubLabel = unreadCount ? `${unreadCount} unread` : "Inbox";
     const headerCanManageParticipants = Boolean(activeThread?.permissions?.canManageParticipants && !activeThread?.isTeamThread);
     const headerCanManageGroup = Boolean(activeThread && activeThread.type === "group" && headerCanManageParticipants);
     const headerCanClearThread = Boolean(canClearThread(currentUser, activeThread));
@@ -2015,6 +1748,23 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const headerCanDeleteForMe = Boolean(activeThread?.permissions?.canDeleteForMe && !activeThread?.isTeamThread);
     const headerCanLeaveThread = Boolean(activeThread?.permissions?.canLeave && activeThread?.type === "group");
     const headerCanBlockThread = Boolean(activeThread?.permissions?.canBlock && activeThread?.type === "dm");
+    const notificationDiagnosticsMarkup = detailsOpen && detailsTab === "settings"
+      ? `
+          <details class="dashboard-chat-notification-diagnostics">
+            <summary>Notification health</summary>
+            <div class="dashboard-chat-settings-grid">
+              <button type="button" data-dashboard-chat-widget-refresh-push-status>
+                <span>Refresh status</span>
+                <small>Check this device</small>
+              </button>
+              <button type="button" data-dashboard-chat-widget-test-push>
+                <span>Test push</span>
+                <small>Send a test notification</small>
+              </button>
+            </div>
+          </details>
+        `
+      : "";
 
     return {
       activeThreadId,
@@ -2025,69 +1775,44 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         isOpen
           ? `
             <header class="dashboard-chat-widget-header">
-              <button type="button" class="dashboard-chat-widget-title" data-dashboard-chat-widget-toggle aria-expanded="true" aria-controls="dashboardChatWidgetRoot" aria-label="${escapeHtml(`Close ${widgetDialogLabel}`)}" title="${escapeHtml(`Close ${widgetDialogLabel}`)}">
+              <div class="dashboard-chat-widget-title">
                 ${renderThreadAvatarStack(activeThread, headerParticipants)}
-                <span class="dashboard-chat-widget-title-copy">
-                  <span>${escapeHtml(headerTitleLabel)}</span>
-                  <small>${escapeHtml(headerSubLabel)}</small>
+                <span class="dashboard-chat-widget-title-copy dashboard-chat-header-desktop-label">
+                  <span>${escapeHtml(activeThreadLabel)}</span>
+                  <small>${escapeHtml(activeThreadSubLabel)}</small>
                 </span>
-              </button>
+                <span class="dashboard-chat-widget-title-copy dashboard-chat-header-mobile-label is-inbox">
+                  <span>Chats</span>
+                  <small>${escapeHtml(mobileInboxSubLabel)}</small>
+                </span>
+                <span class="dashboard-chat-widget-title-copy dashboard-chat-header-mobile-label is-conversation">
+                  <span>${escapeHtml(activeThreadLabel)}</span>
+                  <small>${escapeHtml(activeThreadSubLabel)}</small>
+                </span>
+              </div>
               <div class="dashboard-chat-widget-actions">
                 <button type="button" class="dashboard-chat-details-button${detailsOpen ? " is-active" : ""}" data-dashboard-chat-details-toggle aria-expanded="${detailsOpen}" aria-label="Open conversation details">
-                  Info
+                  <span class="dashboard-chat-action-icon" aria-hidden="true">i</span>
                 </button>
                 <details class="dashboard-chat-more-menu">
-                  <summary aria-label="Open chat menu">More</summary>
+                  <summary aria-label="Open chat menu"><span class="dashboard-chat-action-icon" aria-hidden="true">&#8230;</span></summary>
                   <div class="dashboard-chat-more-menu-panel">
                     <button
                       type="button"
                       class="dashboard-chat-more-action"
-                      data-dashboard-chat-widget-refresh-push-status
-                      title="${escapeHtml(pushHealthDetail)}"
+                      data-dashboard-chat-open-shared
                     >
-                      Notification health
-                      <small>${escapeHtml(pushHealthLabel)}</small>
-                    </button>
-                    <button
-                      type="button"
-                      class="dashboard-chat-more-action is-${escapeHtml(pushHealthStatus)}"
-                      data-dashboard-chat-widget-toggle-notifications
-                      aria-pressed="${notificationState.enabled}"
-                    >
-                      Notifications
-                      <small>${escapeHtml(notificationLabel)}</small>
+                      Search and shared
+                      <small>Messages, pins and files</small>
                     </button>
                     <button
                       type="button"
                       class="dashboard-chat-more-action"
-                      data-dashboard-chat-widget-test-push
+                      data-dashboard-chat-open-settings
                     >
-                      Test push
-                      <small>${escapeHtml(pushHealthStatus === "ready" ? "Send system notification" : "Register this device")}</small>
+                      Conversation settings
+                      <small>Notifications and access</small>
                     </button>
-                    <button
-                      type="button"
-                      class="dashboard-chat-more-action is-${escapeHtml(normalizedApiStatus.key)}"
-                      data-dashboard-chat-retry-sync="${escapeHtml(activeThreadId)}"
-                      title="${escapeHtml(normalizedApiStatus.detail)}"
-                    >
-                      Chat sync
-                      <small>${escapeHtml(normalizedApiStatus.label)}</small>
-                    </button>
-                    ${
-                      headerCanManageGroup
-                        ? `
-                          <button type="button" class="dashboard-chat-more-action" data-dashboard-chat-more-setting="rename" data-dashboard-chat-more-setting-thread="${escapeHtml(activeThreadId)}">
-                            Rename group
-                            <small>${escapeHtml(activeThread?.settings?.customTitle || activeThreadLabel)}</small>
-                          </button>
-                          <button type="button" class="dashboard-chat-more-action" data-dashboard-chat-more-participants="${escapeHtml(activeThreadId)}">
-                            Edit people
-                            <small>${escapeHtml(`${activeThread?.participants?.length || 0} participant${(activeThread?.participants?.length || 0) === 1 ? "" : "s"}`)}</small>
-                          </button>
-                        `
-                        : ""
-                    }
                     ${
                       headerCanArchiveForMe
                         ? `
@@ -2140,10 +1865,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                             Clear chat
                             <small>Delete for everyone</small>
                           </button>
-                          <button type="button" class="dashboard-chat-more-action" data-dashboard-chat-moderation-toggle aria-pressed="${moderationOpen}">
-                            Support / audit
-                            <small>Health, filters and logs</small>
-                          </button>
                         `
                         : ""
                     }
@@ -2193,7 +1914,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ${renderConfirmDialog(confirmAction)}
       ${isOpen ? groupCreateOverlayMarkup : ""}
       ${isOpen ? renderThreadSettingsDialog(threadSettingsDialog, threads, users, currentUser) : ""}
-      ${isOpen && detailsOpen ? renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, currentUser, users, messages, pinnedMessages, messageSearchQuery, searchMatchCount, searchActiveMatchIndex, threadMessageCount: hasThreadMessages.length }) : ""}
+      ${isOpen && detailsOpen ? renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, currentUser, users, messages, pinnedMessages, messageSearchQuery, searchMatchCount, searchActiveMatchIndex, threadMessageCount: hasThreadMessages.length, notificationState, notificationDiagnosticsMarkup, detailsTab }) : ""}
       <div class="dashboard-chat-widget-body">
         <section class="dashboard-chat-thread-list" aria-label="Chat threads">
           <div class="dashboard-chat-inbox-head">
@@ -2235,9 +1956,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             </span>
           </div>
           ${chatStatusOverlayMarkup}
-          ${moderationMarkup}
-          ${hasThreadMessages.length ? renderCoachWorkflowPanel({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}
-          ${hasThreadMessages.length ? renderConversationIntelligenceRail({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}
           ${renderPinnedMessages(pinnedMessages, users, currentUser)}
           ${visibleFirstUnreadMessageId ? `<button type="button" class="dashboard-chat-unread-jump" data-dashboard-chat-jump-unread="${escapeHtml(activeThreadId)}">Jump to unread</button>` : ""}
           <div class="dashboard-chat-list" data-dashboard-chat-list data-dashboard-chat-active-thread="${escapeHtml(activeThreadId)}" aria-live="polite">
@@ -2267,9 +1985,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 placeholder="Message"
                 aria-label="${escapeHtml(`Message ${activeThreadLabel}`)}"
               ></textarea>
+              ${mentionPickerMarkup}
               <div class="dashboard-chat-compose-tools" role="group" aria-label="Message tools and attachments">
                 ${emojiPickerMarkup}
-                ${priorityMenuMarkup}
                 <button type="button" class="dashboard-chat-attachment-button" data-dashboard-chat-attachment-trigger title="Attach file" aria-label="Attach file">
                   <span aria-hidden="true">&#128206;</span>
                 </button>

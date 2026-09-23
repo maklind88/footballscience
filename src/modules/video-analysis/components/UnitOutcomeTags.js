@@ -1,9 +1,6 @@
 import { unitTagOptionsForState } from "../services/unitTagService.js";
+import { renderTagButtonFeedback } from "../services/tagButtonFeedbackService.js";
 import { escapeHtml } from "./renderHelpers.js";
-
-function selectedUnitLabel(state = {}) {
-  return String(state.codingSession?.lastUnitTag || state.draft?.unit || "").trim();
-}
 
 function unitEditorDraftOptions(state = {}) {
   if (Array.isArray(state.codingSession?.unitEditorDraft)) {
@@ -13,7 +10,6 @@ function unitEditorDraftOptions(state = {}) {
 }
 
 export function renderUnitLauncher(state = {}) {
-  const activeUnit = selectedUnitLabel(state);
   return `
     <section class="video-analysis-code-group video-analysis-unit-launcher">
       <div class="video-analysis-code-group__header">
@@ -21,19 +17,19 @@ export function renderUnitLauncher(state = {}) {
       </div>
       <button
         type="button"
-        class="video-analysis-code-button video-analysis-unit-picker-button${activeUnit ? " is-active" : ""}"
+        class="video-analysis-code-button video-analysis-unit-picker-button"
         data-video-analysis-unit-open
         style="--video-analysis-button-color: #0f766e"
         aria-haspopup="dialog"
       >
-        <span class="video-analysis-code-button__label">${escapeHtml(activeUnit || "Unit")}</span>
+        <span class="video-analysis-code-button__label">Unit</span>
+        ${renderTagButtonFeedback(state, "unit")}
       </button>
     </section>
   `;
 }
 
 export function renderOutcomeTagLauncher(state = {}) {
-  const active = state.codingSession?.lastOutcomeTag === "Development";
   return `
     <section class="video-analysis-code-group video-analysis-outcome-launcher">
       <div class="video-analysis-code-group__header">
@@ -41,12 +37,13 @@ export function renderOutcomeTagLauncher(state = {}) {
       </div>
       <button
         type="button"
-        class="video-analysis-code-button video-analysis-outcome-tag-button${active ? " is-active" : ""}"
+        class="video-analysis-code-button video-analysis-outcome-tag-button"
         data-video-analysis-outcome-tag="Development"
         style="--video-analysis-button-color: #dc2626"
         aria-label="Tag Development outcome at the current timestamp"
       >
         <span class="video-analysis-code-button__label">Development</span>
+        ${renderTagButtonFeedback(state, "outcome")}
       </button>
     </section>
   `;
@@ -99,7 +96,6 @@ function renderUnitEditor(state = {}) {
 
 export function renderUnitPicker(state = {}) {
   if (!state.codingSession?.unitPickerOpen) return "";
-  const selected = selectedUnitLabel(state);
   const unitOptions = unitTagOptionsForState(state);
   return `
     <div class="video-analysis-mg-picker-overlay video-analysis-unit-picker-overlay" role="dialog" aria-modal="true" aria-labelledby="video-analysis-unit-picker-title">
@@ -120,9 +116,8 @@ export function renderUnitPicker(state = {}) {
               ${unitOptions.map((unit) => `
                 <button
                   type="button"
-                  class="video-analysis-mg-principle-chip video-analysis-unit-chip${selected === unit ? " is-active" : ""}"
+                  class="video-analysis-mg-principle-chip video-analysis-unit-chip"
                   data-video-analysis-unit-tag="${escapeHtml(unit)}"
-                  aria-pressed="${selected === unit ? "true" : "false"}"
                 >
                   <span>${escapeHtml(unit)}</span>
                 </button>

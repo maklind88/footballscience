@@ -127,3 +127,13 @@
 .video-analysis-tracking-review__verify {
   width: 100%;
 }
+
+.video-analysis-tracking-review.is-rejected {
+  border-left-color: #a33a32;
+  background: #fff2f0;
+}
+
+.video-analysis-tracking-review.is-rejected > header em {
+  color: #7f2721;
+  background: #f6d7d3;
+}

@@ -1,3 +1,5 @@
+import { getTacticalPlayerIdentityFields, normalizeTacticalPlayerLabel } from "./session-planner-tactical-player-identity.mjs";
+
 function defaultClamp(value, min, max) {
   const number = Number(value);
   if (!Number.isFinite(number)) {
@@ -32,9 +34,6 @@ export function createSessionPlannerTacticalHelpers(options = {}) {
   const tacticalPitchModeKeys = options.tacticalPitchModeKeys instanceof Set
     ? options.tacticalPitchModeKeys
     : getPitchModeKeys(tacticalPitchModeOptions);
-  const tacticalMaxFrames = Number.isFinite(Number(options.tacticalMaxFrames))
-    ? Math.max(1, Math.floor(Number(options.tacticalMaxFrames)))
-    : 12;
 
   function getDefaultTacticalColor(type = "blue-player") {
     const colors = {
@@ -96,11 +95,7 @@ export function createSessionPlannerTacticalHelpers(options = {}) {
   }
 
   function normalizeSessionPlannerTacticalPlayerBadge(value) {
-    const raw = String(value ?? "").trim();
-    if (!raw) {
-      return "";
-    }
-    return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 2);
+    return normalizeTacticalPlayerLabel(value);
   }
 
   function getSessionPlannerTacticalPlayerBadgeFromKeyboardEvent(event) {
@@ -207,6 +202,8 @@ export function createSessionPlannerTacticalHelpers(options = {}) {
   }
 
   function cloneSessionPlannerTacticalElement(element = {}) {
+    const optionalCoordinate = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))
+      ? clamp(Number(value), 0, 100) : null;
     const type = element.type || "blue-player";
     const playerBadge = normalizeSessionPlannerTacticalPlayerBadge(element.playerNumber);
     const points = Array.isArray(element.points)
@@ -222,12 +219,13 @@ export function createSessionPlannerTacticalHelpers(options = {}) {
       type,
       x: Number.isFinite(Number(element.x)) ? clamp(Number(element.x), 0, 100) : 50,
       y: Number.isFinite(Number(element.y)) ? clamp(Number(element.y), 0, 100) : 50,
-      x2: Number.isFinite(Number(element.x2)) ? clamp(Number(element.x2), 0, 100) : null,
-      y2: Number.isFinite(Number(element.y2)) ? clamp(Number(element.y2), 0, 100) : null,
-      controlX: Number.isFinite(Number(element.controlX)) ? clamp(Number(element.controlX), 0, 100) : null,
-      controlY: Number.isFinite(Number(element.controlY)) ? clamp(Number(element.controlY), 0, 100) : null,
+      x2: optionalCoordinate(element.x2),
+      y2: optionalCoordinate(element.y2),
+      controlX: optionalCoordinate(element.controlX),
+      controlY: optionalCoordinate(element.controlY),
       label: element.label || "",
       playerNumber: playerBadge || null,
+      ...getTacticalPlayerIdentityFields(element),
       color: normalizeTacticalColor(element.color, getDefaultTacticalColor(type)),
       lineWidth: normalizeTacticalLineWidth(element.lineWidth),
       lineStyle: normalizeTacticalLineStyle(element.lineStyle || getDefaultTacticalLineStyle(type)),
@@ -259,7 +257,6 @@ export function createSessionPlannerTacticalHelpers(options = {}) {
     const usedIds = new Set();
     return frames
       .filter((frame) => frame && typeof frame === "object" && !Array.isArray(frame))
-      .slice(0, tacticalMaxFrames)
       .map((frame, index) => {
         const clonedFrame = cloneSessionPlannerTacticalFrame(frame, index);
         let frameId = clonedFrame.id;

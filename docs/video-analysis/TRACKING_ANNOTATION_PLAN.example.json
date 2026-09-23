@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "protocol": "football-science-tracking-annotation-plan-v1",
+  "pack": {
+    "id": "local-real-match-pilot",
+    "revision": 1,
+    "datasetName": "Football Science local match",
+    "datasetVersion": "review-1",
+    "angleId": "main-camera"
+  },
+  "output": {
+    "width": 1920,
+    "height": 1080,
+    "frameRate": 30,
+    "crf": 18
+  },
+  "cases": [
+    {
+      "id": "attacking-third",
+      "startMs": 840000,
+      "durationMs": 120000,
+      "scenarioTags": ["crowded-box", "occlusion", "camera-motion"]
+    },
+    {
+      "id": "set-piece-box",
+      "startMs": 2040000,
+      "durationMs": 120000,
+      "scenarioTags": ["set-piece", "crowded-box", "occlusion"]
+    },
+    {
+      "id": "compact-midfield",
+      "startMs": 3240000,
+      "durationMs": 120000,
+      "scenarioTags": ["compact-unit", "camera-motion"]
+    },
+    {
+      "id": "fast-transition",
+      "startMs": 4440000,
+      "durationMs": 120000,
+      "scenarioTags": ["transition", "camera-motion", "occlusion"]
+    },
+    {
+      "id": "late-open-play",
+      "startMs": 5640000,
+      "durationMs": 120000,
+      "scenarioTags": ["transition", "compact-unit", "difficult-visuals"]
+    }
+  ]
+}

@@ -1,3 +1,7 @@
+import { createSessionPlannerRecoveryController, getSessionPlannerQuotaSnapshotId } from "./session-planner-recovery-controller.mjs";
+import { createSessionLocalReviewService } from "./session-local-review-service.mjs";
+import { sessionStateForStorage } from "./session-tactical-storage.mjs";
+
 export function createSessionPlannerRuntimeStateService(deps = {}) {
   const {
     canWriteCentralBackedCache = () => false,
@@ -9,6 +13,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     findWorkspaceFieldElements = () => [],
     formatMultiValue = (value) => value,
     getActiveWorkspaceId = () => "",
+    getRecoveryContext = () => null,
     getSelectedBlock = () => null,
     getSessionPlannerState = () => null,
     logEvent = () => {},
@@ -27,15 +32,40 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     sessionPlannerMultiSelectFields = new Set(),
     sessionPlannerStorageKey = "football-session-planner-v3",
     setSessionPlannerState = () => {},
+    shouldDeferRecovery = () => false,
     showToast = () => {},
     win = globalThis,
   } = deps;
 
-  const quotaFallbackSnapshotId = `${sessionPlannerStorageKey}-quota-fallback`;
-  let snapshotRecoveryQueued = false;
   let pendingQuotaFallback = null;
   let quotaFallbackDrainPromise = null;
   let quotaFallbackLastResult = true;
+  const recovery = createSessionPlannerRecoveryController({
+    cloneState,
+    getContext: getRecoveryContext,
+    getState: getSessionPlannerState,
+    getStorageValue: () => rawDataSafetyGetItem(sessionPlannerStorageKey),
+    hasPendingWrite: () => Boolean(pendingQuotaFallback || quotaFallbackDrainPromise),
+    mergeState: (current, fallback) => mergeQuotaFallbackState(current, fallback, true),
+    openDatabase: openDataSafetyDatabase,
+    reportIssue: (message) => setSaveStatus("issue", message),
+    restoreState: (state) => {
+      const previousState = getSessionPlannerState();
+      setSessionPlannerState(state);
+      if (!writeState()) {
+        setSessionPlannerState(previousState);
+        return false;
+      }
+      if (getActiveWorkspaceId() === "session-planner") {
+        renderWorkspace({ preserveDateStripScroll: true });
+        showToast("Local session changes recovered; syncing.");
+      }
+      return true;
+    },
+    shouldDefer: shouldDeferRecovery,
+    snapshotStoreName: dataSafetySnapshotStoreName,
+    storageKey: sessionPlannerStorageKey,
+  });
 
   function isStorageQuotaError(error) {
     return (
@@ -63,15 +93,25 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     ));
   }
 
-  async function persistQuotaFallbackSnapshot(value) {
+  async function persistQuotaFallbackSnapshot(fallback) {
+    const { value, context, previousValue } = fallback;
+    const bridge = win.footballScienceCentralState;
+    if (bridge?.stageSessionWrite && !bridge.getStatus?.().localDev) {
+      if (!context?.scope || getRecoveryContext()?.scope !== context.scope) throw new Error("Account or team changed. Local changes were retained.");
+      const result = await bridge.stageSessionWrite(value, { previousValue, previousPending: fallback.previousPending });
+      if (!result.ok) throw new Error(result.reason || "Local save storage failed.");
+      fallback.journaled = true;
+      return;
+    }
     const database = await openDataSafetyDatabase();
     if (!database) throw new Error("Local backup storage is not available.");
     const snapshot = {
-      id: quotaFallbackSnapshotId,
+      id: getSessionPlannerQuotaSnapshotId(sessionPlannerStorageKey, context),
       schema: "football-science-backup-v1",
       app: "Football Science",
       createdAt: new Date().toISOString(),
       reason: "session-planner-quota-fallback",
+      recovery: context ? { scope: context.scope, baseRevision: context.revision } : null,
       storage: { [sessionPlannerStorageKey]: value },
     };
     await new Promise((resolve, reject) => {
@@ -90,14 +130,18 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
       const currentFallback = pendingQuotaFallback;
       pendingQuotaFallback = null;
       try {
-        await persistQuotaFallbackSnapshot(currentFallback.value);
-        if (!canWriteCentralBackedCache()) {
+        await persistQuotaFallbackSnapshot(currentFallback);
+        if (pendingQuotaFallback && pendingQuotaFallback.context?.scope === currentFallback.context?.scope) continue;
+        if (!canWriteCentralBackedCache() || !currentFallback.context?.scope ||
+            getRecoveryContext()?.scope !== currentFallback.context.scope) {
           succeeded = false;
           setSaveStatus("issue", "Saved locally; sync pending");
           continue;
         }
-        recordDataSafetyWrite(sessionPlannerStorageKey, currentFallback.value);
-        setSaveStatus("saved", "Saved");
+        recordDataSafetyWrite(sessionPlannerStorageKey, currentFallback.value, {
+          previousValue: currentFallback.previousValue, sessionReplay: Boolean(currentFallback.journaled),
+        });
+        setSaveStatus("saving", "Saved locally; syncing");
       } catch (error) {
         succeeded = false;
         setSaveStatus("issue", "Save failed");
@@ -117,8 +161,16 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     return quotaFallbackDrainPromise;
   }
 
-  function queueQuotaFallback(value) {
-    pendingQuotaFallback = { value };
+  function queueQuotaFallback(value, previousValue) {
+    const context = getRecoveryContext();
+    let previousPending = false;
+    try { previousPending = Boolean(JSON.parse(rawDataSafetyGetItem("football-data-safety-v1") || "{}").entries?.[sessionPlannerStorageKey]?.pendingCentralSync); } catch {}
+    // Coalesced drafts must keep the baseline of the earliest unstaged edit.
+    if (pendingQuotaFallback && pendingQuotaFallback.context?.scope === context?.scope) {
+      previousValue = pendingQuotaFallback.previousValue;
+      previousPending = previousPending || pendingQuotaFallback.previousPending;
+    }
+    pendingQuotaFallback = { value, previousValue, previousPending, context: context ? { ...context } : null };
     cacheQuotaFallbackValue(value);
     setSaveStatus("saving", "Saving");
     ensureQuotaFallbackDrain();
@@ -213,31 +265,21 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         if (fallbackState) return fallbackState;
         return createDefaultState();
       }
-      const state = cloneState(JSON.parse(raw));
-      if (JSON.stringify(state) !== raw) {
-        persistNormalizedState(state);
+      const storedState = JSON.parse(raw);
+      const state = cloneState(storedState);
+      if (JSON.stringify(sessionStateForStorage(state, storedState)) !== raw) {
+        persistNormalizedState(state, storedState);
       }
       return state;
     } catch {
-      return createDefaultState();
+      return readCentralCacheFallbackState() || createDefaultState();
     }
   }
 
-  function persistNormalizedState(nextState) {
-    const nextValue = JSON.stringify(nextState);
+  function persistNormalizedState(nextState, previousState = null) {
+    const nextValue = JSON.stringify(sessionStateForStorage(nextState, previousState));
     try {
       rawDataSafetySetItem(sessionPlannerStorageKey, nextValue);
-      if (win.__footballScienceCentralHydrating) {
-        win.setTimeout(() => {
-          if (rawDataSafetyGetItem(sessionPlannerStorageKey) === nextValue && canWriteCentralBackedCache()) {
-            recordDataSafetyWrite(sessionPlannerStorageKey, nextValue);
-          }
-        }, 0);
-        return;
-      }
-      if (canWriteCentralBackedCache()) {
-        recordDataSafetyWrite(sessionPlannerStorageKey, nextValue);
-      }
     } catch {
     }
   }
@@ -281,22 +323,32 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
   }
 
   function queueSnapshotRecovery() {
-    if (snapshotRecoveryQueued) return;
-    snapshotRecoveryQueued = true;
-    const currentState = getSessionPlannerState() || readState();
-    findStateInSnapshots(currentState).then((recoveredState) => {
-      snapshotRecoveryQueued = false;
-      if (!recoveredState) return;
-      setSessionPlannerState(recoveredState);
-      if (!writeState()) return;
-      if (getActiveWorkspaceId() === "session-planner") {
-        renderWorkspace({ preserveDateStripScroll: true });
-        showToast("Session planner restored from local backup.");
-      }
+    return recovery.queue();
+  }
+
+  async function openLocalSaveReview() {
+    const context = getRecoveryContext();
+    const bridge = win.footballScienceCentralState;
+    if (!context?.ready || !bridge?.getSessionCentralValue) return;
+    const expectedLocalValue = win.localStorage.getItem(sessionPlannerStorageKey);
+    const { openSessionSaveReview } = await import("./session-save-review.mjs");
+    const legacy = createSessionLocalReviewService({
+      openDatabase: openDataSafetyDatabase, getContext: getRecoveryContext,
+      getCentralValue: () => bridge.getSessionCentralValue(),
+      save: (value) => bridge.syncKey(sessionPlannerStorageKey, value), storageKey: sessionPlannerStorageKey,
+    });
+    return openSessionSaveReview({ document: win.document, bridge, legacy,
+      canReview: () => getRecoveryContext()?.scope === context.scope && getRecoveryContext()?.ready,
+      onResolved: async () => {
+        await bridge.hydrate({ fresh: true });
+        if (!(await legacy.list()).length && !(await bridge.getSessionSaveReviews()).length && !(await bridge.getSessionPendingState())) {
+          if (await bridge.finishSessionLocalReview?.(expectedLocalValue)) setSaveStatus("saved", "Local review complete");
+        }
+      },
     });
   }
 
-  function mergeQuotaFallbackState(currentState, fallbackState) {
+  function mergeQuotaFallbackState(currentState, fallbackState, preferCurrent = false) {
     const currentSelectedDate = currentState?.selectedDate || "";
     const currentSelectedBlockIds = Object.fromEntries(
       Object.entries(currentState?.sessions || {}).map(([dateValue, session]) => [
@@ -304,7 +356,9 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         session?.selectedBlockId || "",
       ])
     );
-    const mergedState = mergeStateForWrite(currentState, fallbackState);
+    const mergedState = preferCurrent
+      ? mergeStateForWrite(fallbackState, currentState)
+      : mergeStateForWrite(currentState, fallbackState);
     mergedState.selectedDate = currentSelectedDate || mergedState.selectedDate;
     Object.entries(currentSelectedBlockIds).forEach(([dateValue, selectedBlockId]) => {
       const mergedSession = mergedState.sessions?.[dateValue];
@@ -319,18 +373,22 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     const state = getSessionPlannerState();
     if (!state) return false;
     let nextValue = "";
+    let previousValue = null;
     try {
       let existingState = null;
+      let storedState = null;
       let rawExistingState = null;
       try {
         rawExistingState = win.localStorage.getItem(sessionPlannerStorageKey);
-        existingState = rawExistingState ? cloneState(JSON.parse(rawExistingState)) : null;
+        previousValue = rawExistingState;
+        storedState = rawExistingState ? JSON.parse(rawExistingState) : null;
+        existingState = storedState ? cloneState(storedState) : null;
       } catch {
         existingState = null;
         rawExistingState = null;
       }
       const nextState = existingState ? mergeStateForWrite(existingState, state) : cloneState(state);
-      nextValue = JSON.stringify(nextState);
+      nextValue = JSON.stringify(sessionStateForStorage(nextState, storedState));
       if (rawExistingState === nextValue) {
         setSessionPlannerState(nextState);
         return true;
@@ -343,7 +401,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     } catch (error) {
       if (isStorageQuotaError(error)) {
         logEvent("Session planner write moved to durable fallback storage.");
-        return queueQuotaFallback(nextValue);
+        return queueQuotaFallback(nextValue, previousValue);
       }
       setSaveStatus("issue", "Save failed");
       logEvent("Session planner could not be written to local storage.");
@@ -358,6 +416,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     flushQuotaFallback,
     persistNormalizedState,
     queueSnapshotRecovery,
+    openLocalSaveReview,
     readState,
     syncSelectedBlockFieldsFromDom,
     writeState,

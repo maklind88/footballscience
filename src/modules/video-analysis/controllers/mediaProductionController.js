@@ -24,6 +24,7 @@ import {
 } from "../services/mediaProductionService.js";
 import { matchTimeToAngleTime } from "../services/multiAngleSyncService.js";
 import { eventElement } from "../video-analysis.dom-events.js";
+import { createMediaCameraController } from "./mediaCameraController.js";
 
 function localId(prefix = "angle") {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`;
@@ -44,6 +45,7 @@ export function createMediaProductionController(options = {}) {
   const win = () => options.getWindow?.() || globalThis.window;
   let activeJob = null;
   let exportAbort = null;
+  const camera = createMediaCameraController({ ...options, getWindow: win, syncSecondaryVideos });
 
   function seekAfterPaint(matchMs = 0, play = false) {
     win()?.requestAnimationFrame?.(() => {
@@ -93,24 +95,10 @@ export function createMediaProductionController(options = {}) {
   function openPanel(panel = "angles") {
     updateState((state) => mediaPatch(state, {
       panelOpen: panel === "toggle" ? !state.mediaProduction?.panelOpen : true,
-      panel: panel === "toggle" ? state.mediaProduction?.panel || "angles" : panel,
+      panel: panel === "toggle" ? "angles" : panel,
       error: "",
     }));
     void initialize();
-    return true;
-  }
-
-  function selectAngle(id = "") {
-    const state = getState();
-    const angle = mediaAnglesForState(state).find((entry) => entry.id === id);
-    if (!angle) return false;
-    if (!mediaReferenceForAngle(state, angle)?.objectUrl) {
-      updateState((current) => mediaPatch(current, { error: "Reconnect this camera angle on this device." }));
-      return true;
-    }
-    const matchMs = options.getCurrentMatchMs?.() ?? state.timeline?.playheadMs ?? 0;
-    updateState((current) => mediaPatch(current, { activeAngleId: id, error: "" }));
-    seekAfterPaint(matchMs, false);
     return true;
   }
 
@@ -351,12 +339,13 @@ export function createMediaProductionController(options = {}) {
     const action = actionNode?.dataset?.videoAnalysisMediaAction;
     if (!action) return false;
     if (action === "toggle") return openPanel("toggle");
+    if (action === "close") return camera.close();
     if (action === "add-angle" || action === "reconnect") {
       const id = actionNode.dataset.videoAnalysisMediaAngle || "";
       getRoot()?.querySelector?.(`[data-video-analysis-media-angle-file="${id}"]`)?.click?.();
       return true;
     }
-    if (action === "select-angle") return selectAngle(actionNode.dataset.videoAnalysisMediaAngle);
+    if (action === "select-angle") return camera.selectAngle(actionNode.dataset.videoAnalysisMediaAngle);
     if (action === "view-single" || action === "view-compare") {
       updateState((state) => mediaPatch(state, { viewMode: action === "view-compare" ? "compare" : "single" }));
       seekAfterPaint(options.getCurrentMatchMs?.() ?? getState().timeline?.playheadMs ?? 0);
@@ -395,5 +384,5 @@ export function createMediaProductionController(options = {}) {
     return true;
   }
 
-  return { connectAngleFile, handleChange, handleClick, handleVideoTimeUpdate, initialize, syncSecondaryVideos };
+  return { camera, connectAngleFile, handleChange, handleClick, handleVideoTimeUpdate, initialize, syncSecondaryVideos };
 }

@@ -27,6 +27,7 @@ const approvedLocalOnlyStorageKeys = Object.freeze({
   "football-dashboard-chat-deleted-message-ids-v1": "legacy chat compatibility cache; chat source of truth is /api/chat",
   "football-dashboard-chat-launcher-position-v1": "per-browser draggable chat launcher position; never shared between staff",
   "football-dashboard-chat-local-cache-reset-v1": "per-browser chat cache migration marker",
+  "football-dashboard-chat-recent-emojis-v1": "per-browser recent emoji preference; contains no message or shared team data",
   "football-dashboard-chat-widget-state-v1": "per-browser widget open/minimized preference",
   "football-dashboard-chat-widget-notification-cursor-v1": "per-browser notification cursor",
   "football-dashboard-chat-widget-notification-state-v1": "per-browser notification UI state",

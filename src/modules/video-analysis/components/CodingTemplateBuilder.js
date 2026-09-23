@@ -1,4 +1,5 @@
 import { groupCodingTemplateButtons } from "../services/codingTemplateService.js";
+import { renderTagButtonFeedback } from "../services/tagButtonFeedbackService.js";
 import { renderMiniGamePrincipleLauncher, renderMiniGamePrinciplePicker } from "./MiniGamePrinciplePicker.js";
 import { renderPanelBuilderOverlay } from "./PanelBuilderOverlay.js";
 import { escapeHtml } from "./renderHelpers.js";
@@ -12,8 +13,7 @@ function secondsFromMs(value = 0, fallback = 15) {
 }
 
 function renderButton(item = {}, state = {}) {
-  const targetField = item.targetField || item.type;
-  const active = state.codingSession?.activeButtonId === item.id || state.draft?.[targetField] === item.value;
+  const active = state.codingSession?.openTag?.buttonId === item.id;
   const durationSeconds = secondsFromMs(item.defaultDurationMs ?? item.endOffsetMs ?? 15000);
   const behavior = item.buttonBehavior || "create_tag";
   return `
@@ -23,6 +23,7 @@ function renderButton(item = {}, state = {}) {
       aria-label="${escapeHtml(`${item.label} ${behavior === "create_tag" ? `creates ${durationSeconds} second tag` : behavior}`)}">
       <span class="video-analysis-code-button__label">${escapeHtml(item.label)}</span>
       ${item.hotkey ? `<span class="video-analysis-code-button__meta"><kbd>${escapeHtml(item.hotkey)}</kbd></span>` : ""}
+      ${renderTagButtonFeedback(state, `code:${item.id}`)}
     </button>
   `;
 }
@@ -59,15 +60,15 @@ function renderPlayerButton(player = {}, state = {}) {
   const name = playerDisplayName(player) || id;
   const number = String(player.number || "").trim();
   const position = String(player.position || "").trim();
-  const active = state.draft?.playerId === id || state.codingSession?.lastPlayerTagId === id;
   const numberText = number ? `<span class="video-analysis-player-tag-button__number">${escapeHtml(number)}</span>` : "";
   return `
-    <button type="button" class="video-analysis-player-tag-button${active ? " is-active" : ""}${number ? " has-number" : ""}"
+    <button type="button" class="video-analysis-player-tag-button${number ? " has-number" : ""}"
       data-video-analysis-player-tag="${escapeHtml(id)}"
       title="${escapeHtml(`${name}${position ? ` - ${position}` : ""}`)}"
       aria-label="${escapeHtml(`Tag ${number ? `number ${number}, ` : ""}${name} and send to IDP`)}">
       ${numberText}
       <span class="video-analysis-player-tag-button__initials">${escapeHtml(playerInitials(player))}</span>
+      ${renderTagButtonFeedback(state, `player:${id}`)}
     </button>
   `;
 }

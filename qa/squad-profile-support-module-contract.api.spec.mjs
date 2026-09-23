@@ -96,6 +96,10 @@ test("Squad profile support renderer owns option lists, support panels, and add-
 
   expect(renderer.renderRoleOptions("CB")).toContain('value="CB" selected');
   expect(renderer.renderSecondaryRoleOptions(["8"])).toContain('value="8" selected');
+  const secondaryRoleChoices = renderer.renderSecondaryRoleChoices(["8"]);
+  expect(secondaryRoleChoices).toContain('type="checkbox" name="secondaryRoles" value="8" checked');
+  expect(secondaryRoleChoices).toContain('<span>8</span>');
+  expect(renderer.renderSecondaryRoleChoices([], { disabled: true })).toContain('value="GK"  disabled');
   expect(renderer.renderOptionSet([{ key: "active", label: "Active" }], "active")).toContain("Active");
   const medicalPanel = renderer.renderMedicalPanel(player);
   expect(medicalPanel).toContain("Medical Snapshot");
@@ -133,6 +137,18 @@ test("Squad profile support renderer owns option lists, support panels, and add-
   expect(modalMarkup).toContain('name="number" value="7"');
   expect(modalMarkup).toContain('name="birthDate" type="date" value="1999-01-02"');
   expect(modalMarkup).toContain('value="8" selected');
+  expect(modalMarkup).toContain("data-player-profile-new-temporary-fields");
+  expect(modalMarkup).toContain("data-player-profile-new-temporary-fields\n          hidden");
+  expect(modalMarkup).toContain('tabindex="-1"');
+
+  const guestModalMarkup = renderer.renderNewPlayerModal({
+    name: "Guest Player",
+    rosterType: "guest",
+    temporaryGroup: "Academy",
+  });
+  expect(guestModalMarkup).toContain('data-player-profile-new-roster-type="guest"');
+  expect(guestModalMarkup).toContain("Training guest details");
+  expect(guestModalMarkup).not.toContain("data-player-profile-new-temporary-fields\n          hidden");
 });
 
 test("Squad training availability summary averages against team training opportunities", () => {

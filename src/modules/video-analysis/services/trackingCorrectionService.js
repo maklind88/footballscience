@@ -3,9 +3,14 @@ import {
   normalizeTrackingPoint,
   trackingPoints,
 } from "../domain/tracking.model.js";
+import {
+  createTrackingCandidateRoleAnchor,
+  createTrackingCandidateTeamAnchor,
+} from "./trackingCandidateAnchorService.js";
 import { trackingPointAt } from "./trackingGeometryService.js";
 
 const reviewEventLimit = 240;
+const editableEntityTypes = new Set(["player", "ball", "referee"]);
 
 function localId(prefix = "correction") {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`;
@@ -244,6 +249,14 @@ export function applyTrackingIdentityCorrection(trackValue = {}, identity = {}, 
   const identityConfidence = identityPoints.length
     ? identityPoints.reduce((total, point) => total + point.identityConfidence, 0) / identityPoints.length
     : track.identityConfidence;
+  const metadata = { ...(track.metadata || {}) };
+  delete metadata.candidateTeamAnchor;
+  const candidateTeamAnchor = createTrackingCandidateTeamAnchor({
+    ...track,
+    entityType: "player",
+    teamSide: String(identity.teamSide || "").trim(),
+  }, options);
+  if (candidateTeamAnchor) metadata.candidateTeamAnchor = candidateTeamAnchor;
   return normalizeObjectTrack({
     ...track,
     playerId,
@@ -253,9 +266,88 @@ export function applyTrackingIdentityCorrection(trackValue = {}, identity = {}, 
     status: "review",
     identityConfidence,
     segments,
+    metadata,
     corrections: [...track.corrections, correctionRecord("identity", atMs, {
       ...options,
       reason: options.reason || "Assigned player identity",
+    })],
+  });
+}
+
+export function applyTrackingEntityCorrection(trackValue = {}, entityTypeValue = "", options = {}) {
+  const track = normalizeObjectTrack(trackValue);
+  const entityType = String(entityTypeValue || "").trim().toLowerCase();
+  if (!editableEntityTypes.has(entityType)) {
+    const error = new Error("Choose player, ball, or referee as the corrected object type.");
+    error.code = "TRACKING_REVIEW_ENTITY_UNSUPPORTED";
+    throw error;
+  }
+  if (entityType === track.entityType) {
+    const error = new Error("The selected trajectory already has this object type.");
+    error.code = "TRACKING_REVIEW_ENTITY_UNCHANGED";
+    throw error;
+  }
+  const atMs = Math.max(track.startMs, Math.min(
+    track.endMs,
+    Math.round(Number(options.atMs) || track.startMs),
+  ));
+  const segments = track.segments.map((segment) => ({
+    ...segment,
+    points: segment.points.map((point) => ({ ...point, identityConfidence: 0 })),
+  }));
+  const metadata = { ...(track.metadata || {}) };
+  delete metadata.candidateRoleAnchor;
+  delete metadata.candidateTeamAnchor;
+  const roleAnchor = ["player", "referee"].includes(entityType)
+    && metadata.candidateAssociationArtifactSha256
+    ? createTrackingCandidateRoleAnchor({ ...track, entityType }, options)
+    : null;
+  if (roleAnchor) metadata.candidateRoleAnchor = roleAnchor;
+  return normalizeObjectTrack({
+    ...track,
+    entityType,
+    playerId: "",
+    playerLabel: "",
+    teamId: "",
+    teamSide: entityType === "referee" ? "official" : "",
+    shirtNumber: "",
+    identityConfidence: 0,
+    status: "review",
+    segments,
+    metadata,
+    corrections: [...track.corrections, correctionRecord("entity", atMs, {
+      ...options,
+      reason: options.reason || `Relabeled ${track.entityType} as ${entityType}`,
+    })],
+  });
+}
+
+export function confirmTrackingCandidateRoleAnchor(trackValue = {}, options = {}) {
+  const track = normalizeObjectTrack(trackValue);
+  if (!["player", "referee"].includes(track.entityType)) {
+    const error = new Error("Only a reviewed player or referee trajectory can become a role anchor.");
+    error.code = "TRACKING_CANDIDATE_ROLE_ANCHOR_ROLE_REQUIRED";
+    throw error;
+  }
+  const roleAnchor = createTrackingCandidateRoleAnchor(track, options);
+  if (!roleAnchor) {
+    const error = new Error("Only a full-scene candidate trajectory can become a role anchor.");
+    error.code = "TRACKING_CANDIDATE_ROLE_ANCHOR_CANDIDATE_REQUIRED";
+    throw error;
+  }
+  const atMs = Math.max(track.startMs, Math.min(
+    track.endMs,
+    Math.round(Number(options.atMs) || track.startMs),
+  ));
+  const metadata = { ...(track.metadata || {}), candidateRoleAnchor: roleAnchor };
+  if (track.entityType !== "player") delete metadata.candidateTeamAnchor;
+  return normalizeObjectTrack({
+    ...track,
+    status: "review",
+    metadata,
+    corrections: [...track.corrections, correctionRecord("role-anchor", atMs, {
+      ...options,
+      reason: options.reason || `Confirmed ${track.entityType} role anchor`,
     })],
   });
 }

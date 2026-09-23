@@ -21,8 +21,9 @@ const MAXIMUM_MANIFEST_BYTES = 2 * 1024 * 1024;
 const MAXIMUM_EVIDENCE_BYTES = 16 * 1024 * 1024;
 const MAXIMUM_RUNTIME_BYTES = 4 * 1024 * 1024 * 1024;
 const MAXIMUM_MODEL_BYTES = 100 * 1024 * 1024 * 1024;
+const versionCollator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
-class TrackingProviderInstallationError extends Error {
+export class TrackingProviderInstallationError extends Error {
   constructor(code) {
     super(code);
     this.name = "TrackingProviderInstallationError";
@@ -227,7 +228,7 @@ function publicProvider(provider = {}, readiness = {}, reasons = []) {
   };
 }
 
-async function inspectProviderDirectory(providerDir, digestCache) {
+async function inspectProviderDirectory(providerDir, digestCache, options = {}) {
   let marker = null;
   let provider = {};
   try {
@@ -260,7 +261,25 @@ async function inspectProviderDirectory(providerDir, digestCache) {
       }
     }
     const readiness = trackingProviderReadiness(provider, { report, evidence });
-    return publicProvider(provider, readiness);
+    const publicValue = publicProvider(provider, readiness);
+    if (!options.includeExecution) return publicValue;
+    return {
+      publicValue,
+      execution: readiness.ready ? {
+        provider,
+        report,
+        evidence,
+        providerDir: await fs.realpath(providerDir),
+        runtime: {
+          ...marker.files.runtime,
+          filePath: await verifiedArtifactPath(providerDir, marker.files.runtime.path),
+        },
+        models: await Promise.all(marker.files.models.map(async (entry) => ({
+          ...entry,
+          filePath: await verifiedArtifactPath(providerDir, entry.path),
+        }))),
+      } : null,
+    };
   } catch (error) {
     const reasons = [error instanceof TrackingProviderInstallationError
       ? error.code
@@ -268,22 +287,37 @@ async function inspectProviderDirectory(providerDir, digestCache) {
     if (!provider.providerId && marker?.provider) {
       provider = { providerId: marker.provider.id, providerVersion: marker.provider.version };
     }
-    return publicProvider(provider, {}, reasons);
+    const publicValue = publicProvider(provider, {}, reasons);
+    return options.includeExecution ? { publicValue, execution: null } : publicValue;
   }
 }
 
-function blockDuplicateProviderIds(providers = []) {
+function blockDuplicateProviderIdentities(providers = []) {
   const counts = new Map();
+  const identity = (provider) => provider.id && provider.version
+    ? `${provider.id}\u0000${provider.version}`
+    : "";
   for (const provider of providers) {
-    if (provider.id) counts.set(provider.id, (counts.get(provider.id) || 0) + 1);
+    const key = identity(provider);
+    if (key) counts.set(key, (counts.get(key) || 0) + 1);
   }
-  return providers.map((provider) => counts.get(provider.id) > 1 ? {
+  return providers.map((provider) => counts.get(identity(provider)) > 1 ? {
     ...provider,
     status: "blocked",
     available: false,
     benchmarkStatus: "blocked",
-    reasons: [...new Set([...provider.reasons, "duplicate-provider-id"])],
+    reasons: [...new Set([...provider.reasons, "duplicate-provider-identity"])],
   } : provider);
+}
+
+function compareProviderVersions(first, second) {
+  const [leftRelease, ...leftPrerelease] = String(first || "").split("-");
+  const [rightRelease, ...rightPrerelease] = String(second || "").split("-");
+  const releaseOrder = versionCollator.compare(leftRelease, rightRelease);
+  if (releaseOrder) return releaseOrder;
+  if (!leftPrerelease.length && rightPrerelease.length) return 1;
+  if (leftPrerelease.length && !rightPrerelease.length) return -1;
+  return versionCollator.compare(leftPrerelease.join("-"), rightPrerelease.join("-"));
 }
 
 export function trackingProviderRegistryDir(options = {}) {
@@ -296,7 +330,54 @@ export function trackingProviderRegistryDir(options = {}) {
 export function createTrackingProviderRegistry(options = {}) {
   const rootDir = path.resolve(options.rootDir || trackingProviderRegistryDir(options));
   const digestCache = new Map();
+  const maximumProviders = Math.max(
+    1,
+    Math.min(MAXIMUM_PROVIDERS, Math.round(Number(options.maximumProviders) || MAXIMUM_PROVIDERS)),
+  );
+
+  async function providerEntries() {
+    const rootStat = await fs.lstat(rootDir);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+      invalid("provider-registry-boundary-invalid");
+    }
+    const entries = (await fs.readdir(rootDir, { withFileTypes: true }))
+      .filter((entry) => !entry.name.startsWith("."));
+    if (entries.length > maximumProviders) invalid("provider-registry-limit-exceeded");
+    return entries.sort((first, second) => first.name.localeCompare(second.name));
+  }
+
   return {
+    async resolve(providerId, providerVersion = "") {
+      const requestedId = identifier(providerId);
+      const requestedVersion = providerVersion ? identifier(providerVersion) : "";
+      let entries;
+      try {
+        entries = await providerEntries();
+      } catch (error) {
+        if (error?.code === "ENOENT") invalid("provider-registry-unavailable");
+        throw error;
+      }
+      const matches = [];
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+        const record = await inspectProviderDirectory(
+          path.join(rootDir, entry.name),
+          digestCache,
+          { includeExecution: true },
+        );
+        if (record.publicValue.id === requestedId
+          && (!requestedVersion || record.publicValue.version === requestedVersion)) {
+          matches.push(record);
+        }
+      }
+      if (matches.length !== 1) invalid(matches.length
+        ? "provider-installation-ambiguous"
+        : "provider-installation-not-found");
+      if (!matches[0].execution || matches[0].publicValue.status !== "ready") {
+        invalid("provider-installation-not-ready");
+      }
+      return matches[0].execution;
+    },
     async inspect() {
       let rootStat;
       try {
@@ -347,10 +428,6 @@ export function createTrackingProviderRegistry(options = {}) {
           reasons: ["provider-registry-unreadable"],
         };
       }
-      const maximumProviders = Math.max(
-        1,
-        Math.min(MAXIMUM_PROVIDERS, Math.round(Number(options.maximumProviders) || MAXIMUM_PROVIDERS)),
-      );
       if (entries.length > maximumProviders) {
         return {
           protocol: TRACKING_PROVIDER_REGISTRY_PROTOCOL,
@@ -370,10 +447,11 @@ export function createTrackingProviderRegistry(options = {}) {
         }
         providers.push(await inspectProviderDirectory(path.join(rootDir, entry.name), digestCache));
       }
-      const safeProviders = blockDuplicateProviderIds(providers).sort((first, second) => (
+      const safeProviders = blockDuplicateProviderIdentities(providers).sort((first, second) => (
         first.stage.localeCompare(second.stage)
         || second.priority - first.priority
         || first.id.localeCompare(second.id)
+        || compareProviderVersions(second.version, first.version)
       ));
       const readyCount = safeProviders.filter((provider) => provider.status === "ready").length;
       const blockedCount = safeProviders.length - readyCount;

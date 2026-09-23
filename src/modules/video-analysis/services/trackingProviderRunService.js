@@ -20,13 +20,19 @@ export const MAX_TRACKING_PROVIDER_RUNS_PER_WORKSPACE = 128;
 export const MAX_TRACKING_PROVIDER_RUN_WORKSPACE_BYTES = 2 * MAX_TRACKING_BENCHMARK_SUITE_BYTES;
 
 const stageCapabilities = Object.freeze({
-  detection: new Set(["detect:player", "detect:ball", "detect:referee"]),
+  detection: new Set(["detect:person", "detect:player", "detect:ball", "detect:referee"]),
   segmentation: new Set(["segment:selected-object", "propagate:selected-object"]),
   association: new Set(["associate:multi-object"]),
   reidentification: new Set(["reidentify:player"]),
-  classification: new Set(["classify:team", "classify:shirt-number"]),
+  classification: new Set(["classify:role", "classify:team", "classify:shirt-number"]),
 });
 const sha256Pattern = /^[a-f0-9]{64}$/i;
+const detectionCapabilityByEntity = Object.freeze({
+  person: "detect:person",
+  player: "detect:player",
+  ball: "detect:ball",
+  referee: "detect:referee",
+});
 
 export class TrackingProviderRunError extends Error {
   constructor(message, code = "TRACKING_PROVIDER_RUN_INVALID", options = {}) {
@@ -138,6 +144,11 @@ function providerIdentity(value = {}) {
   if (capabilities.some((capability) => !allowed.has(capability))) {
     invalid("Tracking provider capability does not belong to its stage.");
   }
+  if (stage === "detection"
+    && capabilities.includes("detect:person")
+    && capabilities.some((capability) => ["detect:player", "detect:referee"].includes(capability))) {
+    invalid("Generic person detection cannot also claim player or referee role detection.");
+  }
   return {
     providerId: benchmarkBoundedString(value.providerId, "tracking provider id", 100),
     providerVersion: benchmarkBoundedString(value.providerVersion, "tracking provider version", 100),
@@ -192,6 +203,13 @@ function safeTrack(trackValue = {}, provider = {}, source = {}, range = {}, opti
   }
   if (trackSource && trackSource !== source.sourceFingerprint) invalid("Tracking run belongs to another video source.");
   if (trackAngleId && source.angleId && trackAngleId !== source.angleId) invalid("Tracking run belongs to another camera angle.");
+  if (provider.stage === "detection"
+    && !provider.capabilities.includes(detectionCapabilityByEntity[track.entityType])) {
+    invalid(
+      `Detection provider run contains an unclaimed ${track.entityType} entity.`,
+      "TRACKING_PROVIDER_RUN_CAPABILITY_MISMATCH",
+    );
+  }
   return {
     id: track.id,
     entityType: track.entityType,

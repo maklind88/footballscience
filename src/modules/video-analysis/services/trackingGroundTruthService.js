@@ -15,6 +15,13 @@ import {
 } from "./trackingBenchmarkContract.js";
 import { sampleTrackAt } from "./trackingBenchmarkMetrics.js";
 import { normalizeTrackingBenchmarkScenarios } from "./trackingBenchmarkScenarioService.js";
+import { normalizeGroundTruthReferenceEvidence } from "./trackingGroundTruthReferenceEvidenceService.js";
+import { auditTrackingGroundTruthCheckpoints } from "./trackingGroundTruthCheckpointService.js";
+import {
+  trackingGroundTruthSceneReviewEvidence,
+  trackingGroundTruthSceneReviewProgress,
+  validateTrackingGroundTruthSceneReviewEvidence,
+} from "./trackingGroundTruthSceneReviewService.js";
 import {
   TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
   TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT,
@@ -24,6 +31,12 @@ import {
   trackingGroundTruthArtifactBenchmarkType,
   trackingGroundTruthProfileForType,
 } from "./trackingGroundTruthProfileService.js";
+import {
+  createTrackingAnnotationBurdenEvidence,
+  validateTrackingAnnotationBurdenEvidence,
+} from "./trackingAnnotationBurdenEvidenceService.js";
+import { validateTrackingReviewWorkloadEvidence } from "./trackingReviewWorkloadEvidenceService.js";
+import { normalizeTrackingReviewerIdentity } from "./trackingReviewerIdentityService.js";
 
 export * from "./trackingGroundTruthProfileService.js";
 
@@ -79,6 +92,30 @@ function entityCounts(tracks = []) {
   ]));
 }
 
+export function groundTruthSceneTemporalCoverage(tracks = [], range = {}) {
+  if (!rangeReady(range)) return 0;
+  const intervals = tracks
+    .filter((track) => track.entityType === "player")
+    .flatMap((track) => track.segments.map((segment) => ({
+      startMs: Math.max(Number(range.startMs), Number(segment.startMs)),
+      endMs: Math.min(Number(range.endMs), Number(segment.endMs)),
+    })))
+    .filter((interval) => interval.endMs > interval.startMs)
+    .sort((first, second) => first.startMs - second.startMs || first.endMs - second.endMs);
+  let coveredMs = 0;
+  let active = null;
+  for (const interval of intervals) {
+    if (!active || interval.startMs > active.endMs) {
+      if (active) coveredMs += active.endMs - active.startMs;
+      active = { ...interval };
+    } else {
+      active.endMs = Math.max(active.endMs, interval.endMs);
+    }
+  }
+  if (active) coveredMs += active.endMs - active.startMs;
+  return Math.min(1, coveredMs / Math.max(1, Number(range.endMs) - Number(range.startMs)));
+}
+
 function trackReviewCoverage(track = {}, range = {}) {
   if (!rangeReady(range)) return { pointCount: 0, ratio: 0, maxSampleGapMs: Infinity };
   const points = trackingPoints(track).filter((point) => (
@@ -120,6 +157,11 @@ export function groundTruthReadiness(value = {}) {
     ? target ? [target] : []
     : selected;
   const counts = entityCounts(tracks);
+  const sceneCoverageRatio = groundTruthSceneTemporalCoverage(tracks, value.range);
+  const sceneReview = value.requireSceneReview === true && rangeReady(value.range)
+    ? trackingGroundTruthSceneReviewProgress(value.sceneReview, value)
+    : null;
+  const reviewedBy = normalizeTrackingReviewerIdentity(value.reviewedBy);
   const issues = [];
   const ids = new Set();
   if (!sourceFingerprintPattern.test(String(value.sourceFingerprint || ""))) {
@@ -134,6 +176,12 @@ export function groundTruthReadiness(value = {}) {
   if (benchmarkType === TRACKING_BENCHMARK_TYPE_MULTI_OBJECT) {
     for (const entityType of requiredEntityTypes) {
       if (!counts[entityType]) issues.push(issue(`${entityType}-missing`, `Add at least one ${entityType} track.`));
+    }
+    if (value.sceneCoverageRequired !== false && sceneCoverageRatio < 0.95) {
+      issues.push(issue(
+        "scene-temporal-coverage",
+        "Full-scene ground truth must contain reviewed player visibility across at least 95% of the range.",
+      ));
     }
   }
   if (!target) {
@@ -168,12 +216,35 @@ export function groundTruthReadiness(value = {}) {
       issues.push(issue("player-team-missing", "Assign every reference player to a team side.", track.id));
     }
   }
-  if (!String(value.reviewedBy || "").trim()) issues.push(issue("reviewer-missing", "A local analyst identity is required."));
-  if (value.attested !== true) issues.push(issue("attestation-missing", "Confirm that every selected track was reviewed frame by frame."));
+  if (!reviewedBy) issues.push(issue(
+    "reviewer-missing",
+    "Enter a named human reviewer or analyst ID before locking the reference.",
+  ));
+  if (value.attested !== true) issues.push(issue(
+    "attestation-missing",
+    value.requireSceneReview === true
+      ? "Confirm that every selected track matches the source at each required checkpoint."
+      : "Confirm that every selected track was reviewed frame by frame.",
+  ));
+  if (sceneReview && !sceneReview.complete) {
+    issues.push(issue(
+      "scene-review-incomplete",
+      `Review every benchmark checkpoint (${sceneReview.reviewedSampleCount}/${sceneReview.expectedSampleCount}).`,
+    ));
+  }
   if (benchmarkType === TRACKING_BENCHMARK_TYPE_MULTI_OBJECT && value.exhaustiveSceneAttested !== true) {
     issues.push(issue(
       "scene-completeness-missing",
       "Confirm that every visible player, ball and referee in the range is included.",
+    ));
+  }
+  const checkpointAudit = issues.length === 0 && value.requireSceneReview === true
+    ? auditTrackingGroundTruthCheckpoints(value)
+    : null;
+  if (checkpointAudit && !checkpointAudit.ready) {
+    issues.push(issue(
+      "checkpoint-known-issues",
+      `Resolve ${checkpointAudit.issueCount} known tracking issues across ${checkpointAudit.issueCheckpointCount} checkpoints before locking.`,
     ));
   }
   return {
@@ -183,6 +254,12 @@ export function groundTruthReadiness(value = {}) {
     selectedTrackCount: tracks.length,
     verifiedTrackCount: tracks.filter((track) => track.status === "verified").length,
     entityCounts: counts,
+    sceneCoverageRatio,
+    sceneReviewComplete: sceneReview ? sceneReview.complete : null,
+    reviewedSceneSampleCount: sceneReview?.reviewedSampleCount || 0,
+    expectedSceneSampleCount: sceneReview?.expectedSampleCount || 0,
+    checkpointAudit,
+    reviewerReady: Boolean(reviewedBy),
     sourceFingerprintReady: sourceFingerprintPattern.test(String(value.sourceFingerprint || "")),
     frameReady: frameReady(value.frame),
     rangeReady: rangeReady(value.range),
@@ -290,9 +367,12 @@ function deepFreeze(value) {
 export function createGroundTruthArtifact(value = {}, options = {}) {
   const readiness = groundTruthReadiness(value);
   if (!readiness.ready) {
+    const checkpointIssue = readiness.issues.find((entry) => entry.code === "checkpoint-known-issues");
     throw new TrackingGroundTruthError(
       readiness.issues.map((entry) => entry.message).join(" "),
-      "TRACKING_GROUND_TRUTH_REVIEW_REQUIRED",
+      checkpointIssue
+        ? "TRACKING_GROUND_TRUTH_CHECKPOINT_ISSUES"
+        : "TRACKING_GROUND_TRUTH_REVIEW_REQUIRED",
     );
   }
   const sourceFingerprint = normalizeBenchmarkFingerprint(value.sourceFingerprint);
@@ -319,6 +399,64 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
   if (profileId !== trackingGroundTruthProfileForType(readiness.benchmarkType)) {
     throw new TrackingGroundTruthError(`Unsupported ground-truth profile: ${profileId}.`);
   }
+  const referenceEvidence = value.referenceEvidence
+    ? normalizeGroundTruthReferenceEvidence(value.referenceEvidence)
+    : null;
+  const sceneReviewEvidence = value.requireSceneReview === true
+    ? trackingGroundTruthSceneReviewEvidence(value.sceneReview, value)
+    : null;
+  let workloadEvidence = null;
+  if (value.workloadEvidence != null) {
+    if (readiness.benchmarkType !== TRACKING_BENCHMARK_TYPE_MULTI_OBJECT) {
+      throw new TrackingGroundTruthError("Review workload evidence is valid only for full-scene ground truth.");
+    }
+    try {
+      workloadEvidence = validateTrackingReviewWorkloadEvidence(value.workloadEvidence, {
+        sourceFingerprint,
+        angleId: value.angleId,
+        range,
+      });
+    } catch (error) {
+      throw new TrackingGroundTruthError(
+        error?.message || "Review workload evidence is invalid.",
+        "TRACKING_GROUND_TRUTH_WORKLOAD_INVALID",
+        { cause: error },
+      );
+    }
+  }
+  const reviewEvidence = {
+    kind: "real-match",
+    protocol: TRACKING_GROUND_TRUTH_REVIEW_PROTOCOL,
+    benchmarkType: readiness.benchmarkType,
+    reviewedAt,
+    reviewedBy: normalizeTrackingReviewerIdentity(value.reviewedBy),
+    attested: true,
+    exhaustiveSceneAttested: readiness.benchmarkType === TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
+    selectedTrackCount: readiness.selectedTrackCount,
+    selectedObjectTargetTrackId: String(value.benchmarkTargetTrackId),
+    entityCounts: readiness.entityCounts,
+    sceneCoverageRatio: readiness.sceneCoverageRatio,
+    ...(sceneReviewEvidence ? { sceneReview: sceneReviewEvidence } : {}),
+    scenarioTags: normalizeTrackingBenchmarkScenarios(value.scenarioTags),
+  };
+  let annotationBurdenEvidence;
+  try {
+    annotationBurdenEvidence = createTrackingAnnotationBurdenEvidence({
+      sourceFingerprint,
+      angleId: value.angleId,
+      range,
+      sourceTracks,
+      artifactTracks: tracks,
+      workloadEvidence,
+      reviewEvidence,
+    });
+  } catch (error) {
+    throw new TrackingGroundTruthError(
+      error?.message || "Ground-truth refinement evidence is invalid.",
+      "TRACKING_GROUND_TRUTH_ANNOTATION_BURDEN_INVALID",
+      { cause: error },
+    );
+  }
   const artifact = {
     version: TRACKING_BENCHMARK_SCHEMA_VERSION,
     protocol: TRACKING_GROUND_TRUTH_PROTOCOL,
@@ -329,23 +467,14 @@ export function createGroundTruthArtifact(value = {}, options = {}) {
       algorithm: "sha256",
       kind: "exact-local-file-bytes",
       angleId: String(value.angleId || "").slice(0, 160),
+      ...(referenceEvidence ? { reference: referenceEvidence } : {}),
     },
     frame,
     range: { startMs: range.startMs, endMs: range.endMs },
     groundTruth: { tracks },
-    reviewEvidence: {
-      kind: "real-match",
-      protocol: TRACKING_GROUND_TRUTH_REVIEW_PROTOCOL,
-      benchmarkType: readiness.benchmarkType,
-      reviewedAt,
-      reviewedBy: String(value.reviewedBy).trim().slice(0, 160),
-      attested: true,
-      exhaustiveSceneAttested: readiness.benchmarkType === TRACKING_BENCHMARK_TYPE_MULTI_OBJECT,
-      selectedTrackCount: readiness.selectedTrackCount,
-      selectedObjectTargetTrackId: String(value.benchmarkTargetTrackId),
-      entityCounts: readiness.entityCounts,
-      scenarioTags: normalizeTrackingBenchmarkScenarios(value.scenarioTags),
-    },
+    reviewEvidence,
+    annotationBurdenEvidence,
+    ...(workloadEvidence ? { workloadEvidence } : {}),
   };
   if (benchmarkSerializedBytes(artifact, "Ground-truth artifact") > MAX_TRACKING_BENCHMARK_CASE_BYTES) {
     throw new TrackingGroundTruthError(
@@ -366,6 +495,12 @@ export function validateGroundTruthArtifact(artifact = {}) {
   const expectedProfile = trackingGroundTruthProfileForType(benchmarkType);
   const scenarioTags = artifact.reviewEvidence?.scenarioTags || [];
   const normalizedScenarioTags = normalizeTrackingBenchmarkScenarios(scenarioTags);
+  if (artifact.sourceEvidence?.reference) {
+    normalizeGroundTruthReferenceEvidence(artifact.sourceEvidence.reference);
+  }
+  if (artifact.reviewEvidence?.sceneReview) {
+    validateTrackingGroundTruthSceneReviewEvidence(artifact.reviewEvidence.sceneReview, artifact);
+  }
   if (artifact.protocol !== TRACKING_GROUND_TRUTH_PROTOCOL
     || Number(artifact.version) !== TRACKING_BENCHMARK_SCHEMA_VERSION
     || artifact.profileId !== expectedProfile
@@ -392,6 +527,25 @@ export function validateGroundTruthArtifact(artifact = {}) {
   assertBenchmarkEnvelope(artifact, { label: "Ground-truth artifact" });
   const range = normalizeBenchmarkRange(artifact.range);
   const tracks = normalizeBenchmarkTracks(artifact.groundTruth.tracks, range, "ground-truth tracks");
+  let workloadEvidence = null;
+  if (artifact.workloadEvidence != null) {
+    if (benchmarkType !== TRACKING_BENCHMARK_TYPE_MULTI_OBJECT) {
+      throw new TrackingGroundTruthError("Review workload evidence is valid only for full-scene ground truth.");
+    }
+    try {
+      workloadEvidence = validateTrackingReviewWorkloadEvidence(artifact.workloadEvidence, {
+        sourceFingerprint: artifact.sourceFingerprint,
+        angleId: artifact.sourceEvidence?.angleId,
+        range,
+      });
+    } catch (error) {
+      throw new TrackingGroundTruthError(
+        error?.message || "Review workload evidence is invalid.",
+        "TRACKING_GROUND_TRUTH_WORKLOAD_INVALID",
+        { cause: error },
+      );
+    }
+  }
   const readiness = groundTruthReadiness({
     tracks,
     selectedTrackIds: tracks.map((track) => track.id),
@@ -404,6 +558,7 @@ export function validateGroundTruthArtifact(artifact = {}) {
     attested: true,
     exhaustiveSceneAttested: artifact.reviewEvidence?.exhaustiveSceneAttested,
     benchmarkTargetTrackId: artifact.reviewEvidence?.selectedObjectTargetTrackId,
+    sceneCoverageRequired: artifact.reviewEvidence?.sceneCoverageRatio !== undefined,
   });
   if (!readiness.ready) {
     throw new TrackingGroundTruthError(
@@ -413,11 +568,31 @@ export function validateGroundTruthArtifact(artifact = {}) {
   }
   const counts = artifact.reviewEvidence?.entityCounts || {};
   if (Number(artifact.reviewEvidence?.selectedTrackCount) !== readiness.selectedTrackCount
-    || requiredEntityTypes.some((entityType) => Number(counts[entityType] || 0) !== readiness.entityCounts[entityType])) {
+    || requiredEntityTypes.some((entityType) => Number(counts[entityType] || 0) !== readiness.entityCounts[entityType])
+    || (artifact.reviewEvidence?.sceneCoverageRatio !== undefined
+      && Math.abs(Number(artifact.reviewEvidence.sceneCoverageRatio) - readiness.sceneCoverageRatio) > 1e-9)) {
     throw new TrackingGroundTruthError(
       "The locked reference review summary does not match its trajectories.",
       "TRACKING_GROUND_TRUTH_EVIDENCE_MISMATCH",
     );
+  }
+  if (artifact.annotationBurdenEvidence != null) {
+    try {
+      validateTrackingAnnotationBurdenEvidence(artifact.annotationBurdenEvidence, {
+        sourceFingerprint: artifact.sourceFingerprint,
+        angleId: artifact.sourceEvidence?.angleId,
+        range,
+        tracks,
+        workloadEvidence,
+        reviewEvidence: artifact.reviewEvidence,
+      });
+    } catch (error) {
+      throw new TrackingGroundTruthError(
+        error?.message || "Ground-truth refinement evidence is invalid.",
+        "TRACKING_GROUND_TRUTH_ANNOTATION_BURDEN_INVALID",
+        { cause: error },
+      );
+    }
   }
   return artifact;
 }
@@ -447,6 +622,9 @@ export function buildMultiObjectCaseFromGroundTruth(artifactValue = {}, options 
     prediction: { tracks: predictionTracks },
     performance: Number.isFinite(processingMs) && processingMs > 0 ? { processingMs } : {},
     reviewEvidence: { ...artifact.reviewEvidence },
+    ...(options.thresholds && typeof options.thresholds === "object"
+      ? { thresholds: { ...options.thresholds } }
+      : {}),
   };
   assertBenchmarkEnvelope(benchmarkCase);
   return benchmarkCase;

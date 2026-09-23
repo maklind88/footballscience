@@ -1,7 +1,6 @@
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml } from "../components/renderHelpers.js";
 import { TIMELINE_LANE_MODES } from "./timeline.constants.js";
-import { renderSelectedClipFocus } from "./timeline.focus.renderer.js";
 import {
   buildTimelineIndex,
   buildTimelineWindowTicks,
@@ -12,22 +11,22 @@ import {
   getTimelineWindow,
   normalizeTimelineLaneMode,
   normalizeTimelineZoom,
-  packTimelineLaneClips,
   playheadStyle,
   timelineCanvasStyle,
 } from "./timeline.service.js";
 import {
   clipValue,
   getClipEndMs,
-  getClipPrimaryLabel,
   getClipSecondaryLabel,
   getClipStartMs,
 } from "./timeline.selectors.js";
-import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { timelineSelectedClipIds } from "../services/clipEditingService.js";
-import { activeAnalysisTimeline, normalizeTimelineWorkspace } from "../domain/timelineWorkspace.model.js";
-import { timelineWorkspaceLanes } from "../services/timelineWorkspaceService.js";
-import { renderTimelineWorkspaceControls } from "./timeline.workspace.renderer.js";
+import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
+import { formatClipEditorTime } from "./timeline.clip-editor.renderer.js";
+import { timelineClipHitInsets } from "./timeline.clip-targets.js";
+import { orderTimelineLanes } from "./timeline.row-order.js";
+import { playerHeaderIcon } from "../components/playerHeaderIcons.js";
+import { playlistTimelineLanes } from "./timeline.playlist-rows.js";
 
 function outcomeClass(outcome = "") {
   const value = String(outcome || "neutral").trim().toLowerCase();
@@ -145,81 +144,27 @@ function renderTimelinePlayhead(playheadMs = 0, window = {}) {
   `;
 }
 
-function renderTimelineWindowControls(window = {}, timeline = {}, selectedCount = 0, canEdit = false) {
-  const focusAvailable = selectedCount > 0;
-  const historyCount = Array.isArray(timeline.history) ? timeline.history.length : 0;
-  return `
-    <div class="video-analysis-timeline-window-controls">
-      <div class="video-analysis-timeline-tabs" role="group" aria-label="Timeline scale">
-        <button
-          type="button"
-          class="${window.mode === "overview" ? "is-active" : ""}"
-          data-video-analysis-timeline-view="overview"
-          aria-pressed="${window.mode === "overview" ? "true" : "false"}"
-        >Overview</button>
-        <button
-          type="button"
-          class="${window.mode === "focus" ? "is-active" : ""}"
-          data-video-analysis-timeline-view="focus"
-          aria-pressed="${window.mode === "focus" ? "true" : "false"}"
-          ${focusAvailable ? "" : "disabled"}
-        >Focus</button>
-      </div>
-      <div class="video-analysis-timeline-window-range">
-        <span>${escapeHtml(`${formatVideoTime(window.startMs)} - ${formatVideoTime(window.endMs)}`)}</span>
-        <button type="button" data-video-analysis-timeline-zoom="-1" aria-label="Zoom out">-</button>
-        <strong>${escapeHtml(`${Math.round(Number(timeline.zoom || 1) * 10) / 10}x`)}</strong>
-        <button type="button" data-video-analysis-timeline-zoom="1" aria-label="Zoom in">+</button>
-      </div>
-      <div class="video-analysis-timeline-window-actions">
-        ${selectedCount > 1 ? `<button type="button" data-video-analysis-timeline-clear-selection>Clear selection</button>` : ""}
-        <button
-          type="button"
-          data-video-analysis-timeline-undo
-          ${canEdit && historyCount ? "" : "disabled"}
-        >Undo${historyCount ? ` (${historyCount})` : ""}</button>
-      </div>
-    </div>
-  `;
-}
-
-function selectedTimelineClip(clips = [], timeline = {}, selectedClipId = "") {
-  const selectedId = String(selectedClipId || timeline.selectedCategory?.activeClipId || "").trim();
-  if (!selectedId) return null;
-  return clips.find((clip) => String(clip.id || "") === selectedId) || null;
-}
-
-function renderClipBlock(clip = {}, window = {}, laneMode = "phase", selectedClipIds = new Set(), clipNumber = 1, categorySelected = false, button = null, density = {}, row = 0, rowColor = "") {
+function renderClipBlock(clip = {}, window = {}, label = "", selectedClipIds = new Set(), hitInsets = "", categorySelected = false, button = null, rowColor = "") {
   const startMs = getClipStartMs(clip);
   const endMs = getClipEndMs(clip);
   const outcome = clip.outcome || "Neutral";
   const selected = selectedClipIds.has(String(clip.id || ""));
-  const primaryLabel = getClipPrimaryLabel(clip, laneMode);
-  const secondaryLabel = getClipSecondaryLabel(clip);
   const buttonColor = safeHexColor(button?.color) || safeHexColor(rowColor);
-  const buttonLabel = button?.label || "";
-  const miniGameLabels = clipMiniGamePrincipleLabels(clip);
-  const miniGameText = miniGameLabels.length
-    ? `${miniGameLabels.slice(0, 3).join(" + ")}${miniGameLabels.length > 3 ? ` +${miniGameLabels.length - 3}` : ""}`
-    : "";
+  const principles = clipMiniGamePrincipleLabels(clip).filter(value => value !== label).join(" + ");
+  const description = [label, `${formatClipEditorTime(startMs)} - ${formatClipEditorTime(endMs)}`,
+    `Duration: ${(endMs - startMs) / 1000} s`, principles].filter(Boolean).join(" · ");
   return `
     <button type="button" class="video-analysis-clip-block${outcomeClass(outcome)}${selected ? " is-selected" : ""}${categorySelected ? " is-category-selected" : ""}"
-      style="${clipBlockStyle(clip, window.durationMs, { windowStartMs: window.startMs, windowDurationMs: window.durationMs })}--video-analysis-clip-row:${escapeHtml(String(row))};${buttonColor ? `--video-analysis-clip-color:${escapeHtml(buttonColor)};` : ""}"
+      style="${clipBlockStyle(clip, window.durationMs, { windowStartMs: window.startMs, windowDurationMs: window.durationMs })}${hitInsets}${buttonColor ? `--video-analysis-clip-color:${escapeHtml(buttonColor)};` : ""}"
       data-video-analysis-seek="${escapeHtml(clip.id)}"
       aria-pressed="${selected ? "true" : "false"}"
-      title="${escapeHtml(`#${clipNumber} · ${buttonLabel || primaryLabel} · ${formatVideoTime(startMs)} - ${formatVideoTime(endMs)} · ${secondaryLabel}`)}">
-      <span class="video-analysis-clip-block__copy">
-        <strong>${escapeHtml(String(clipNumber))}</strong>
-        ${miniGameText && !density.isDense ? `<em>${escapeHtml(miniGameText)}</em>` : ""}
-        ${density.isDense ? "" : `<small>${escapeHtml(formatVideoTime(startMs))}</small>`}
-      </span>
-    </button>
+      aria-label="${escapeHtml(description)}"
+      title="${escapeHtml(description)}"></button>
   `;
 }
 
-function isActiveCategory(timeline = {}, laneMode = "phase", label = "") {
-  const selected = timeline.selectedCategory || {};
-  return selected.laneMode === laneMode && selected.label === label;
+function laneDisplayLabel(label = "", laneMode = "phase") {
+  return laneMode === "all" ? label.replace(/^(Phase|Sub-phase|MG Principle|Player) \/ /, "") : label;
 }
 
 function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", selectedClipIds = new Set(), timeline = {}, buttonLookup = {}, density = {}) {
@@ -246,41 +191,43 @@ function renderTimelineLanes(lanes = [], window = {}, laneMode = "phase", select
     `;
   }
   return visibleLanes.map(({ lane, visibleClips }) => {
-    const packed = packTimelineLaneClips(visibleClips);
+    const selected = lane.clips.length > 0 && lane.clips.every(clip => selectedClipIds.has(clip.id));
+    const hitInsets = timelineClipHitInsets(visibleClips, window);
     const countLabel = window.mode === "focus" && visibleClips.length !== lane.clips.length
       ? `${visibleClips.length}/${lane.clips.length}`
       : String(lane.clips.length);
     return `
-      <div class="video-analysis-lane${isActiveCategory(timeline, laneMode, lane.label) ? " is-selected" : ""}"${safeHexColor(lane.color) ? ` style="--video-analysis-lane-color:${escapeHtml(safeHexColor(lane.color))};"` : ""}>
+      <div class="video-analysis-lane${selected ? " is-selected" : ""}" data-video-analysis-row-key="${escapeHtml(lane.id)}"${safeHexColor(lane.color) ? ` style="--video-analysis-lane-color:${escapeHtml(safeHexColor(lane.color))};"` : ""}>
         <button
           type="button"
           class="video-analysis-lane__label"
           data-video-analysis-timeline-category
           data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}"
           data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}"
-          aria-pressed="${isActiveCategory(timeline, laneMode, lane.label) ? "true" : "false"}"
-          title="${escapeHtml(`Select all ${lane.label} clips`)}"
+          ${lane.playlistRow ? `data-video-analysis-playlist-row="${escapeHtml(lane.id)}"` : ""}
+          data-video-analysis-row-drag="${escapeHtml(lane.id)}"
+          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+          aria-pressed="${selected ? "true" : "false"}"
+          title="${escapeHtml(`${laneDisplayLabel(lane.label, laneMode)}: drag to reorder`)}"
         >
-          <strong>${escapeHtml(lane.label)} <span class="video-analysis-lane__count">(${escapeHtml(countLabel)})</span></strong>
+          <span class="video-analysis-row-grip" data-video-analysis-row-grip aria-hidden="true">${playerHeaderIcon("gripVertical")}</span>
+          <strong><span class="video-analysis-lane__name">${escapeHtml(laneDisplayLabel(lane.label, laneMode))}</span> <span class="video-analysis-lane__count">(${escapeHtml(countLabel)})</span></strong>
           ${density.isDense && lane.clipCount ? `<span>${escapeHtml(`${formatVideoTime(lane.firstStartMs)} - ${formatVideoTime(lane.lastEndMs)}`)}</span>` : ""}
         </button>
         <div
           class="video-analysis-lane__track"
-          style="--video-analysis-lane-rows:${escapeHtml(String(packed.rowCount))};"
           data-video-analysis-timeline-track
           data-video-analysis-timeline-duration-ms="${escapeHtml(window.durationMs)}"
           data-video-analysis-timeline-window-start-ms="${escapeHtml(window.startMs)}"
         >
-          ${packed.items.map(({ clip, row }) => renderClipBlock(
+          ${visibleClips.map((clip, index) => renderClipBlock(
             clip,
             window,
-            laneMode,
+            laneDisplayLabel(lane.label, laneMode),
             selectedClipIds,
-            lane.clips.indexOf(clip) + 1,
-            isActiveCategory(timeline, laneMode, lane.label),
+            hitInsets[index],
+            selected,
             findClipButton(clip, buttonLookup),
-            density,
-            row,
             lane.color
           )).join("")}
         </div>
@@ -357,31 +304,17 @@ export function renderTimeline(state = {}) {
   const allClips = Array.isArray(state.allClips) ? state.allClips : clips;
   const totalMs = getTimelineDurationMs({ ...state, clips: allClips.length ? allClips : clips });
   const timeline = state.timeline || {};
-  const configuredLaneMode = normalizeTimelineLaneMode(timeline.laneMode);
-  const timelineWorkspace = normalizeTimelineWorkspace(state.timelineWorkspace);
-  const activeWorkspaceTimeline = activeAnalysisTimeline(timelineWorkspace);
-  const useWorkspaceRows = Boolean(activeWorkspaceTimeline?.rows?.length);
-  const laneMode = useWorkspaceRows ? "workspace" : configuredLaneMode;
+  const laneMode = normalizeTimelineLaneMode(timeline.laneMode);
   const zoom = normalizeTimelineZoom(timeline.zoom);
-  const generatedTimelineIndex = buildTimelineIndex(clips, configuredLaneMode);
-  const workspaceLanes = useWorkspaceRows ? timelineWorkspaceLanes(timelineWorkspace, clips) : [];
-  const timelineIndex = useWorkspaceRows ? {
-    lanes: workspaceLanes,
-    clipCount: new Set(workspaceLanes.flatMap((lane) => lane.clips.map((clip) => clip.id))).size,
-    laneCount: workspaceLanes.length,
-    maxClipsInLane: workspaceLanes.reduce((maximum, lane) => Math.max(maximum, lane.clips.length), 0),
-  } : generatedTimelineIndex;
-  const lanes = timelineIndex.lanes;
-  const laneModeCounts = useWorkspaceRows ? {} : buildTimelineLaneModeCounts(clips);
+  const timelineIndex = buildTimelineIndex(clips, laneMode);
+  const lanes = orderTimelineLanes([...timelineIndex.lanes, ...playlistTimelineLanes(state)], timeline.rowOrder);
+  const laneModeCounts = buildTimelineLaneModeCounts(clips);
   const density = getTimelineDensity(timelineIndex, totalMs);
   const selectedLane = selectedTimelineLane(lanes, laneMode, timeline);
   const buttonLookup = buildTemplateButtonLookup(state.template || {});
-  const selectedClip = selectedTimelineClip(clips, timeline, state.selectedClipId);
   const selectedClipIds = new Set(timelineSelectedClipIds(state));
-  const selectedClips = clips.filter((clip) => selectedClipIds.has(String(clip.id || "")));
-  const timelineWindow = getTimelineWindow(totalMs, timeline, selectedClip);
+  const timelineWindow = getTimelineWindow(totalMs);
   const ticks = buildTimelineWindowTicks(timelineWindow, { zoom });
-  const canvasZoom = timelineWindow.mode === "focus" ? 1 : zoom;
   return `
     <section
       class="video-analysis-timeline video-analysis-timeline-module${density.isDense ? " is-dense" : ""}"
@@ -392,10 +325,8 @@ export function renderTimeline(state = {}) {
       data-video-analysis-timeline-density="${density.isDense ? "dense" : "normal"}"
       data-video-analysis-timeline-clip-count="${escapeHtml(density.clipCount)}"
     >
-      ${renderTimelineWorkspaceControls(timelineWorkspace, Boolean(state.canEdit), selectedClips.length)}
-      ${renderTimelineWindowControls(timelineWindow, timeline, selectedClips.length, Boolean(state.canEdit))}
       <div class="video-analysis-timeline-scroll" data-video-analysis-timeline-pan>
-        <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(canvasZoom)}">
+        <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">
           <div class="video-analysis-timeline-toolbar">
             ${renderLaneSelector(laneMode, density.clipCount, laneModeCounts)}
             ${renderTimelineRuler(ticks, timelineWindow)}
@@ -413,16 +344,8 @@ export function renderTimeline(state = {}) {
           </div>
         </div>
       </div>
-      ${renderSelectedClipFocus(
-        selectedClip,
-        selectedClips,
-        totalMs,
-        laneMode,
-        timeline,
-        selectedClip ? findClipButton(selectedClip, buttonLookup) : null,
-        Boolean(state.canEdit)
-      )}
       ${renderTimelineCategoryTray(selectedLane, laneMode, timeline)}
+      <div class="video-analysis-row-order-status" data-video-analysis-row-order-status role="status" aria-live="polite"></div>
     </section>
   `;
 }

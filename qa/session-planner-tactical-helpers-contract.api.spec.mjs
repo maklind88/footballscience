@@ -76,10 +76,10 @@ test("Session Planner tactical helpers clone elements and frame data determinist
   const frames = helpers.normalizeTacticalFrames([
     { id: "frame-1", label: "  First   frame ", elements: [{ id: "el-a", x: 10, y: 20 }] },
     { id: "frame-1", label: "", elements: [] },
-    { id: "frame-3", label: "Ignored by max", elements: [] },
+    { id: "frame-3", label: "Preserved beyond creation limit", elements: [] },
   ]);
 
-  expect(frames).toHaveLength(2);
+  expect(frames).toHaveLength(3);
   expect(frames[0].label).toBe("First frame");
   expect(frames[1].id).not.toBe("frame-1");
   expect(frames[1].label).toBe("Frame 2");

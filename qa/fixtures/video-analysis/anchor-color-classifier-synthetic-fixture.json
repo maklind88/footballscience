@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "protocol": "football-science-anchor-color-synthetic-fixture-v1",
+  "rights": {
+    "origin": "deterministic-computer-generated-scene",
+    "containsRealPeople": false,
+    "containsPersonalData": false,
+    "redistribution": "internal-evaluation-only"
+  },
+  "video": {
+    "width": 640,
+    "height": 360,
+    "fps": 25,
+    "durationMs": 2000,
+    "backgroundRgb": [36, 116, 52]
+  },
+  "objects": [
+    { "id": "home-anchor", "entityType": "person", "role": "player", "teamSide": "home", "rgb": [210, 28, 48], "box": { "left": 0.08, "top": 0.2, "width": 0.1, "height": 0.46 } },
+    { "id": "home-probe", "entityType": "person", "role": "player", "teamSide": "home", "rgb": [210, 28, 48], "box": { "left": 0.25, "top": 0.2, "width": 0.1, "height": 0.46 } },
+    { "id": "away-anchor", "entityType": "person", "role": "player", "teamSide": "away", "rgb": [30, 94, 204], "box": { "left": 0.43, "top": 0.2, "width": 0.1, "height": 0.46 } },
+    { "id": "away-probe", "entityType": "person", "role": "player", "teamSide": "away", "rgb": [30, 94, 204], "box": { "left": 0.6, "top": 0.2, "width": 0.1, "height": 0.46 } },
+    { "id": "referee-anchor", "entityType": "person", "role": "referee", "teamSide": "", "rgb": [232, 214, 42], "box": { "left": 0.78, "top": 0.2, "width": 0.1, "height": 0.46 } }
+  ]
+}

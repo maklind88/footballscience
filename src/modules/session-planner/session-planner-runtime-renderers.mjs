@@ -50,7 +50,7 @@ export function createSessionPlannerRuntimeRenderers(deps = {}) {
     renderSessionPlannerPostSessionNotesCard: (block) => sessionPlannerRenderer.renderPostSessionNotesCard(block),
     renderSessionPlannerPrintOverlay: (session) => sessionPlannerPrintRenderer.renderOverlay(session),
     renderSessionPlannerTacticalboardOverlay: (block) => sessionPlannerVisualRenderer.renderTacticalboardOverlay(block),
-    renderSessionPlannerVisualPreviewOverlay: (block) => sessionPlannerVisualRenderer.renderVisualPreviewOverlay(block),
+    renderSessionPlannerVisualPreviewOverlay: (block) => sessionPlannerVisualRenderer.renderVisualPreviewOverlay(block, { readOnlyPlayback: true }),
   });
 
   const sessionPlannerMedicalAvailabilitySelectors = createSessionPlannerMedicalAvailabilitySelectors({

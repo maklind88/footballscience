@@ -113,9 +113,52 @@ function multiObjectCase(groundTruth = {}, runs = []) {
         processingMs: runs.reduce((total, run) => total + run.performance.processingMs, 0),
         ...(devices.length ? { device: devices.length === 1 ? devices[0] : "mixed" } : {}),
       },
+      thresholds: trackingProviderBenchmarkThresholds(runs[0].provider.capabilities),
     }),
     usedRunIds: runs.map((run) => run.id),
   };
+}
+
+const capabilityThresholds = Object.freeze({
+  "detect:person": Object.freeze(["minPersonPrecision", "minPersonRecall"]),
+  "detect:player": Object.freeze(["minPlayerPrecision", "minPlayerRecall"]),
+  "detect:ball": Object.freeze(["minBallPrecision", "minBallRecall"]),
+  "detect:referee": Object.freeze(["minRefereePrecision", "minRefereeRecall"]),
+  "associate:multi-object": Object.freeze([
+    "minMota", "maxIdentitySwitchesPerMinute", "maxFragmentationsPerMinute",
+  ]),
+  "reidentify:player": Object.freeze(["minIdentityF1", "minPlayerIdentityAccuracy"]),
+  "classify:role": Object.freeze(["minEntityTypeAccuracy"]),
+  "classify:team": Object.freeze(["minTeamAccuracy"]),
+  "classify:shirt-number": Object.freeze(["minShirtNumberAccuracy"]),
+});
+
+const benchmarkThresholdNames = Object.freeze([
+  "minDetectionPrecision", "minDetectionRecall", "minDetectionF1", "minMeanIou", "minP10Iou",
+  "minMota", "minIdentityF1", "maxIdentitySwitchesPerMinute", "maxFragmentationsPerMinute",
+  "minEntityTypeAccuracy", "minPersonPrecision", "minPersonRecall", "minTeamAccuracy",
+  "minPlayerIdentityAccuracy", "minShirtNumberAccuracy", "minPlayerPrecision", "minPlayerRecall",
+  "minBallPrecision", "minBallRecall", "minRefereePrecision", "minRefereeRecall",
+  "maxDetectionBrierScore", "maxCorrectionsPerMinute", "maxRealtimeFactor",
+]);
+const capabilityThresholdOverrides = Object.freeze({
+  minPersonPrecision: 0.9,
+  minPersonRecall: 0.9,
+  minShirtNumberAccuracy: 0.9,
+});
+
+export function trackingProviderBenchmarkThresholds(capabilities = []) {
+  const required = new Set(["maxCorrectionsPerMinute", "maxRealtimeFactor"]);
+  for (const capability of capabilities) {
+    (capabilityThresholds[capability] || []).forEach((threshold) => required.add(threshold));
+    if (String(capability).startsWith("detect:")) {
+      ["minMeanIou", "minP10Iou", "maxDetectionBrierScore"].forEach((threshold) => required.add(threshold));
+    }
+  }
+  return Object.fromEntries(benchmarkThresholdNames.map((threshold) => [
+    threshold,
+    required.has(threshold) ? capabilityThresholdOverrides[threshold] : null,
+  ]).filter(([, value]) => value !== undefined));
 }
 
 function deepFreeze(value) {

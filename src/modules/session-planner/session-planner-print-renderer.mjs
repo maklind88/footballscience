@@ -1,3 +1,5 @@
+import { getReadonlyTacticalView } from "./session-planner-readonly-playback-renderer.mjs";
+
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -270,7 +272,7 @@ const classes = ["session-print-visual"];
 if (options.landscape) {
 classes.push("is-landscape");
 }
-const visual = renderExerciseVisual(block, {
+const visual = renderExerciseVisual(getReadonlyTacticalView(block), {
 printRotated: Boolean(options.landscape),
 });
 return `

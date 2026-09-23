@@ -1,0 +1,27 @@
+.video-analysis-template-builder :is(.video-analysis-code-button, .video-analysis-player-tag-button) {
+  position: relative;
+}
+
+.video-analysis-template-builder .video-analysis-tag-feedback {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--video-analysis-button-color, #143522);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--video-analysis-button-color, #143522) 20%, transparent);
+  pointer-events: none;
+  opacity: 0;
+  animation-name: video-analysis-tag-confirmed;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+@keyframes video-analysis-tag-confirmed {
+  0%, 45% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-analysis-template-builder .video-analysis-tag-feedback {
+    animation-timing-function: step-end;
+  }
+}

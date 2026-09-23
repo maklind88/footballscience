@@ -1,4 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { createRequire } from "node:module";
+import { applySessionDateChange, sessionDateValue } from "../src/modules/session-planner/session-save-protocol.mjs";
+const require = createRequire(import.meta.url);
+const { decodeSessionStateValue, encodeSessionStateValue } = require("../api/_lib/session-state-transport.js");
 
 const revisionStateKey = "football-simulator-sequence-v1";
 const periodizationStateKey = "football-periodization-v2";
@@ -123,6 +127,17 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
 
     if (method === "GET") {
       appStateGetUrls.push(request.url());
+      if (typeof options.appStateReadHandler === "function") {
+        const customResponse = await options.appStateReadHandler({ request, centralStore });
+        if (customResponse) {
+          await route.fulfill({
+            status: Number(customResponse.status) || 200,
+            contentType: "application/json",
+            body: JSON.stringify(customResponse.body || {}),
+          });
+          return;
+        }
+      }
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -137,8 +152,23 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     }
 
     const body = JSON.parse(request.postData() || "{}");
+    if (body.key === sessionPlannerStateKey) {
+      if (body.sessionChange) body.sessionChange = JSON.parse(await decodeSessionStateValue(body.key, body.sessionChange));
+      else body.value = await decodeSessionStateValue(body.key, body.value);
+    }
     if (body.key !== revisionStateKey) {
       appStateWriteBodies.push(body);
+      if (typeof options.appStateWriteHandler === "function") {
+        const customResponse = await options.appStateWriteHandler({ body, centralStore, request });
+        if (customResponse) {
+          await route.fulfill({
+            status: Number(customResponse.status) || 200,
+            contentType: "application/json",
+            body: JSON.stringify(customResponse.body || {}),
+          });
+          return;
+        }
+      }
       if (deniedWriteKeys.has(body.key)) {
         await route.fulfill({
           status: 403,
@@ -148,6 +178,20 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
             reason: "You do not have edit access for medical-team.",
           }),
         });
+        return;
+      }
+      if (body.sessionChange) {
+        const previous = JSON.parse(centralStore.entries?.[body.key] || '{"sessions":{}}');
+        const merged = applySessionDateChange(previous, body.sessionChange);
+        const revision = Number(centralStore.metadataEntries?.[body.key]?.revision || 0) + 1;
+        const value = JSON.stringify(merged.state);
+        if (merged.ok) {
+          centralStore.entries = { ...centralStore.entries, [body.key]: value };
+          centralStore.metadataEntries = { ...centralStore.metadataEntries, [body.key]: { ...createMetadata(revision, value), moduleId: "session-planner" } };
+        }
+        await route.fulfill({ status: merged.ok ? 200 : 409, contentType: "application/json", body: JSON.stringify(merged.ok ? {
+          ok: true, metadata: centralStore.metadataEntries[body.key], sessionChange: JSON.stringify({ id: body.sessionChange.id, date: body.sessionChange.date, value: sessionDateValue(merged.state, body.sessionChange.date) }),
+        } : { ok: false, conflicts: merged.conflicts }) });
         return;
       }
       const value = String(body.value || "");
@@ -206,6 +250,216 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     });
   });
 }
+
+test("first and second Sessions edits save when the account initially has no central Sessions record", async ({ browser, baseURL }) => {
+  const initial = createStateValue("Original central sequence");
+  const centralStore = { value: initial, metadata: createMetadata(1, initial) };
+  const writes = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "new-sessions-account", { appStateWriteBodies: writes });
+  try {
+    await expect.poll(() => tab.page.evaluate(async () => window.footballScienceCentralState && await window.footballScienceCentralState.getSessionCentralValue())).toBe('{"sessions":{}}');
+    await tab.page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ selectedDate: "2026-09-09", sessions: { "2026-09-10": { date: "2026-09-10", title: "Training", selectedBlockId: "a", blocks: [{ id: "a", title: "First save", minutes: 20, tacticalActiveFrameId: "f2", tacticalFrames: [{ id: "f1", elements: [] }, { id: "f2", elements: [] }] }] } } })), sessionPlannerStateKey);
+    await expect.poll(() => JSON.parse(centralStore.entries?.[sessionPlannerStateKey] || "{}").sessions?.["2026-09-10"]?.blocks?.[0]?.title).toBe("First save");
+    await expect.poll(() => tab.page.evaluate(async () => window.footballScienceCentralState.getSessionPendingState())).toBeNull();
+    await expect.poll(() => tab.page.evaluate((key) => {
+      const cached = JSON.parse(localStorage.getItem(key));
+      return { date: cached.selectedDate, block: cached.sessions["2026-09-10"].selectedBlockId, frame: cached.sessions["2026-09-10"].blocks[0].tacticalActiveFrameId };
+    }, sessionPlannerStateKey)).toEqual({ date: "2026-09-09", block: "a", frame: "f2" });
+    await tab.page.evaluate((key) => {
+      const state = JSON.parse(localStorage.getItem(key)); state.sessions["2026-09-10"].blocks[0].title = "Second save";
+      localStorage.setItem(key, JSON.stringify(state));
+    }, sessionPlannerStateKey);
+    await expect.poll(() => JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions["2026-09-10"].blocks[0].title).toBe("Second save");
+    await expect.poll(() => tab.page.evaluate(async () => window.footballScienceCentralState.getSessionPendingState())).toBeNull();
+    expect(writes.filter((row) => row.key === sessionPlannerStateKey)).toHaveLength(2);
+    expect(writes.filter((row) => row.key === sessionPlannerStateKey).every((row) => row.sessionChange && row.value === undefined)).toBe(true);
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await expect.poll(() => tab.page.evaluate(async () => JSON.parse(await window.footballScienceCentralState?.getSessionCentralValue?.() || "{}").sessions?.["2026-09-10"]?.blocks?.[0]?.title)).toBe("Second save");
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
+test("legacy local review keeps the archived copy and clears only its resolved pending flag", async ({ browser, baseURL }) => {
+  const day = "2026-09-10", initial = createStateValue("Original central sequence");
+  const central = { sessions: { [day]: { date: day, title: "Training", blocks: [{ id: "a", title: "Press", objective: "Central" }] } } };
+  const local = structuredClone(central); local.sessions[day].blocks[0].objective = "Legacy local";
+  const value = JSON.stringify(central);
+  const centralStore = { value: initial, metadata: createMetadata(1, initial), entries: { [sessionPlannerStateKey]: value }, metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(10, value), moduleId: "session-planner" } } };
+  const writes = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "legacy-review-completion", {
+    appStateWriteBodies: writes,
+    initScript: ({ key, manifestKey, value }) => {
+      localStorage.setItem(key, value);
+      localStorage.setItem(manifestKey, JSON.stringify({ entries: { [key]: { pendingCentralSync: true, serverRevision: 9, hash: "old-edit" } } }));
+    }, initArg: { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey, value: JSON.stringify(local) },
+  });
+  try {
+    const result = await tab.page.evaluate(async ({ key, manifestKey, day }) => {
+      const bridge = window.footballScienceCentralState;
+      await bridge.hydrate({ fresh: true });
+      const expected = localStorage.getItem(key);
+      await bridge.prepareSessionLocalReview();
+      const { createSessionLocalReviewService } = await import("/src/modules/session-planner/session-local-review-service.mjs");
+      const user = window.platformAuthStore.getCurrentUser(), metadata = bridge.getStatus().metadata[key];
+      const context = { scope: JSON.stringify([user.id, metadata.organizationId || "", user.clubId || "", user.teamId || ""]), ready: true };
+      const db = await new Promise((resolve) => { const req = indexedDB.open("football-science-data-safety-v1", 1); req.onsuccess = () => resolve(req.result); });
+      const legacy = createSessionLocalReviewService({ openDatabase: async () => db, getContext: () => context, getCentralValue: bridge.getSessionCentralValue, save: async () => { throw new Error("Keep central must not write"); } });
+      const rows = await legacy.list();
+      for (const row of rows) await legacy.resolve(row, false);
+      const finished = await bridge.finishSessionLocalReview(expected);
+      const remaining = await legacy.list();
+      const archives = await new Promise((resolve) => { const req = db.transaction("snapshots").objectStore("snapshots").getAll(); req.onsuccess = () => resolve(req.result); });
+      db.close();
+      return { reviewed: rows.map((row) => row.date), finished, remaining: remaining.length, retained: archives.some((row) => row.storage?.[key]?.includes("Legacy local") && row.reviewedDates?.[day]),
+        pending: Boolean(JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync), objective: JSON.parse(localStorage.getItem(key)).sessions[day].blocks[0].objective };
+    }, { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey, day });
+    expect(result).toEqual({ reviewed: [day], finished: true, remaining: 0, retained: true, pending: false, objective: "Central" });
+    expect(writes.filter((row) => row.key === sessionPlannerStateKey)).toEqual([]);
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
+test("changing team during Sessions payload encoding never sends the old team's draft", async ({ browser, baseURL }) => {
+  const initial = createStateValue("Original central sequence");
+  const centralStore = { value: initial, metadata: createMetadata(1, initial) };
+  const writes = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "sessions-scope-send-race", { appStateWriteBodies: writes });
+  try {
+    const result = await tab.page.evaluate(async (key) => {
+      const bridge = window.footballScienceCentralState, user = window.platformAuthStore.getCurrentUser();
+      const originalTeam = user.teamId;
+      const scope = JSON.stringify(["sessions-actor-team-v1", user.id, user.clubId || "", user.teamId || ""]);
+      const NativeBlob = window.Blob;
+      window.Blob = class extends NativeBlob {
+        constructor(...args) { super(...args); if (String(args[0]?.[0]).includes("session-date-change-v1")) user.teamId = "other-team"; }
+      };
+      try {
+        const result = await bridge.syncKey(key, JSON.stringify({ sessions: { "2026-09-10": { date: "2026-09-10", title: "Private draft", blocks: [] } } }));
+        const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+        const rows = await createSessionSaveStore().list(scope);
+        return { ok: result.ok, reason: result.reason, pending: rows.length };
+      } finally { window.Blob = NativeBlob; user.teamId = originalTeam; }
+    }, sessionPlannerStateKey);
+    expect(result).toMatchObject({ ok: false, pending: 1 });
+    expect(result.reason).toContain("Account or team changed");
+    expect(writes.filter((row) => row.key === sessionPlannerStateKey)).toEqual([]);
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
+test("pending Sessions snapshot with an evicted cache still shows central training without retrying the baseline", async ({ browser, baseURL }) => {
+  const day = "2026-09-10";
+  const sessionValue = JSON.stringify({ selectedDate: "2026-08-01", sessions: {
+    [day]: { date: day, title: "Central training", blocks: [{ id: "central-one", title: "Saved pressing exercise", minutes: 20 }] },
+  } });
+  const initial = createStateValue("Original central sequence");
+  const centralStore = { value: initial, metadata: createMetadata(1, initial),
+    entries: { [sessionPlannerStateKey]: sessionValue },
+    metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(18601, sessionValue), moduleId: "session-planner" } },
+  };
+  const writes = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "missing-session-cache", {
+    appStateWriteBodies: writes,
+    initScript: ({ key, manifestKey }) => {
+      const nativeSet = Storage.prototype.setItem;
+      nativeSet.call(localStorage, manifestKey, JSON.stringify({ entries: {
+        [key]: { pendingCentralSync: true, serverRevision: 18590, hash: "unsaved-local-training" },
+      } }));
+      Storage.prototype.setItem = function (storageKey, value) {
+        if (storageKey === key) throw new DOMException("quota", "QuotaExceededError");
+        return nativeSet.call(this, storageKey, value);
+      };
+    },
+    initArg: { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey },
+  });
+  try {
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey, day }) => {
+      const cached = window.footballScienceCentralState.getCachedValueInfo(key);
+      return {
+        titles: JSON.parse(cached.value || "{}").sessions?.[day]?.blocks?.map((block) => block.title),
+        source: cached.source,
+        pending: JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+        hash: JSON.parse(localStorage.getItem(manifestKey)).entries[key].hash,
+      };
+    }, { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey, day })).toEqual({
+      titles: ["Saved pressing exercise"], source: "central-pending-baseline", pending: true, hash: "unsaved-local-training",
+    });
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    await tab.page.locator(`[data-session-date="${day}"]`).click();
+    await expect(tab.page.locator('[data-session-field="title"]').first()).toHaveValue("Saved pressing exercise");
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+    await expect(tab.page.locator(`[data-session-date="${day}"]`)).toHaveClass(/is-active|is-selected/);
+    expect(await tab.page.evaluate(({ key, manifestKey }) => JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+      { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey })).toBe(true);
+    expect(writes.filter((write) => write.key === sessionPlannerStateKey)).toEqual([]);
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await expect.poll(() => tab.page.evaluate((key) => window.footballScienceCentralState?.getCachedValueInfo?.(key)?.source, sessionPlannerStateKey)).toBe("central-pending-baseline");
+    expect(writes.filter((write) => write.key === sessionPlannerStateKey)).toEqual([]);
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
+test("large Sessions hydrate, edit, save and reload through compressed browser transport", async ({ browser, baseURL }) => {
+  const day = "2026-09-10";
+  const sessions = {};
+  for (let i = 0; i < 36; i += 1) {
+    const date = new Date(Date.UTC(2026, 7, 6 + i)).toISOString().slice(0, 10);
+    sessions[date] = { date, title: "Training", blocks: Array.from({ length: 4 }, (_, b) => ({
+      id: `${date}-${b}`, title: `Pressing ${b + 1}`, minutes: 15, organization: "Keep possession. ".repeat(2200),
+    })) };
+  }
+  const sessionValue = JSON.stringify({ sessions });
+  expect(Buffer.byteLength(sessionValue)).toBeGreaterThan(4 * 1024 * 1024);
+  const initial = createStateValue("Original central sequence");
+  const centralStore = { value: initial, metadata: createMetadata(1, initial),
+    entries: { [sessionPlannerStateKey]: sessionValue },
+    metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(5, sessionValue), moduleId: "session-planner" } },
+  };
+  const wires = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "large-session-transport", {
+    initScript: (key) => {
+      const nativeSet = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (storageKey, value) {
+        if (storageKey === key) throw new DOMException("quota", "QuotaExceededError");
+        return nativeSet.call(this, storageKey, value);
+      };
+    },
+    initArg: sessionPlannerStateKey,
+    appStateReadHandler: async ({ request }) => {
+      const requested = new URL(request.url()).searchParams.get("keys")?.split(",") || [];
+      const entries = { [revisionStateKey]: centralStore.value };
+      if (requested.includes(sessionPlannerStateKey)) {
+        entries[sessionPlannerStateKey] = await encodeSessionStateValue({ url: request.url() }, sessionPlannerStateKey, centralStore.entries[sessionPlannerStateKey]);
+      }
+      return { body: { ok: true, entries, metadata: { [revisionStateKey]: centralStore.metadata, ...centralStore.metadataEntries } } };
+    },
+    appStateWriteHandler: async ({ body, request }) => {
+      if (body.key !== sessionPlannerStateKey) return null;
+      wires.push(request.postData());
+      if (body.sessionChange) return null;
+      const revision = Number(body.baseRevision) + 1;
+      centralStore.entries[sessionPlannerStateKey] = body.value;
+      centralStore.metadataEntries[sessionPlannerStateKey] = { ...createMetadata(revision, body.value), moduleId: "session-planner" };
+      return { body: { ok: true, key: body.key, revision, metadata: centralStore.metadataEntries[body.key],
+        value: await encodeSessionStateValue({ url: request.url() }, body.key, body.value) } };
+    },
+  });
+  try {
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    await tab.page.locator(`[data-session-date="${day}"]`).click();
+    const title = tab.page.locator('[data-session-field="title"]').first();
+    await expect(title).toHaveValue("Pressing 1");
+    await title.fill("Saved large plan edit");
+    await title.dispatchEvent("change");
+    await expect.poll(() => JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions[day].blocks[0].title).toBe("Saved large plan edit");
+    expect(wires.length).toBeGreaterThan(0);
+    for (const wire of wires) {
+      expect(Buffer.byteLength(wire)).toBeLessThan(4 * 1024 * 1024);
+      expect(JSON.parse(wire).sessionChange).toBeTruthy();
+    }
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    await tab.page.locator(`[data-session-date="${day}"]`).click();
+    await expect(title).toHaveValue("Saved large plan edit");
+    expect(Object.keys(JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions)).toHaveLength(36);
+  } finally { await closeCentralStateContext(tab.context); }
+});
 
 async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabName, options = {}) {
   const context = await browser.newContext();
@@ -648,32 +902,95 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
 
     await expect.poll(() => {
       const write = appStateWriteBodies.find((body) => body.key === sessionPlannerStateKey);
-      return write ? JSON.parse(write.value).sessions?.["2026-07-21"]?.blocks?.[0]?.title || "" : "";
+      return write?.sessionChange?.after.session.blocks[0]?.title || "";
     }, { timeout: 10_000 }).toBe("Quota fallback saved edit");
 
-    await expect.poll(() => tab.page.evaluate(async ({ databaseName, key, snapshotId, storeName }) => {
+    await expect.poll(() => JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions["2026-07-21"].blocks[0].title).toBe("Quota fallback saved edit");
+    await expect.poll(() => tab.page.evaluate(async ({ databaseName, key, storeName }) => {
       const database = await new Promise((resolve, reject) => {
         const request = window.indexedDB.open(databaseName, 1);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
-      const snapshot = await new Promise((resolve, reject) => {
-        const request = database.transaction(storeName, "readonly").objectStore(storeName).get(snapshotId);
-        request.onsuccess = () => resolve(request.result || null);
+      const snapshots = await new Promise((resolve, reject) => {
+        const request = database.transaction(storeName, "readonly").objectStore(storeName).getAll();
+        request.onsuccess = () => resolve(request.result || []);
         request.onerror = () => reject(request.error);
       });
       database.close();
-      const fallbackState = snapshot?.storage?.[key] ? JSON.parse(snapshot.storage[key]) : null;
-      return fallbackState?.sessions?.["2026-07-21"]?.blocks?.[0]?.title || "";
+      return snapshots.filter((entry) => entry.id?.startsWith(`${key}-quota-fallback`)).length;
     }, {
       databaseName: "football-science-data-safety-v1",
       key: sessionPlannerStateKey,
-      snapshotId: `${sessionPlannerStateKey}-quota-fallback`,
       storeName: "snapshots",
-    }), { timeout: 10_000 }).toBe("Quota fallback saved edit");
+    }), { timeout: 10_000 }).toBe(0);
+    await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getSessionPendingState())).toBeNull();
   } finally {
     await closeCentralStateContext(tab.context);
   }
+});
+
+test("Sessions merged acknowledgement survives full browser cache and reload without a false review", async ({ browser, baseURL }) => {
+  const day = "2026-09-10", initial = createStateValue("Original central sequence");
+  const state = { selectedDate: day, sessions: { [day]: { date: day, title: "Training", selectedBlockId: "a", blocks: [
+    { id: "a", title: "Press", objective: "Before", minutes: 15 },
+  ] } } };
+  const value = JSON.stringify(state);
+  const centralStore = { value: initial, metadata: createMetadata(1, initial), entries: { [sessionPlannerStateKey]: value },
+    metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(7, value), moduleId: "session-planner" } } };
+  const posts = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "ack-quota-merge", {
+    initScript: (key) => {
+      const nativeSet = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (storageKey, next) {
+        if (storageKey === key) throw new DOMException("synthetic full cache", "QuotaExceededError");
+        return nativeSet.call(this, storageKey, next);
+      };
+    }, initArg: sessionPlannerStateKey,
+    appStateWriteHandler: ({ body }) => {
+      if (body.key !== sessionPlannerStateKey || !body.sessionChange) return null;
+      const revision = centralStore.metadataEntries[sessionPlannerStateKey].revision;
+      const base = Number(body.metadata?.baseRevision ?? body.baseRevision);
+      posts.push({ base, revision });
+      if (base !== revision) return { status: 409, body: { ok: false, currentRevision: revision } };
+      const merged = applySessionDateChange(JSON.parse(centralStore.entries[sessionPlannerStateKey]), body.sessionChange);
+      if (!merged.ok) return { status: 409, body: { ok: false, conflicts: merged.conflicts, currentRevision: revision } };
+      const next = JSON.stringify(merged.state);
+      centralStore.entries[sessionPlannerStateKey] = next;
+      centralStore.metadataEntries[sessionPlannerStateKey] = { ...createMetadata(revision + 1, next), moduleId: "session-planner" };
+      return { body: { ok: true, metadata: centralStore.metadataEntries[sessionPlannerStateKey], sessionChange: JSON.stringify({
+        id: body.sessionChange.id, date: day, value: sessionDateValue(merged.state, day),
+      }) } };
+    },
+  });
+  try {
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    await tab.page.locator(`[data-session-date="${day}"]`).click();
+    const colleague = JSON.parse(centralStore.entries[sessionPlannerStateKey]);
+    colleague.sessions[day].blocks[0].objective = "Compatible colleague edit";
+    centralStore.entries[sessionPlannerStateKey] = JSON.stringify(colleague);
+    centralStore.metadataEntries[sessionPlannerStateKey].revision++;
+    const field = tab.page.locator('[data-session-field="title"]').first();
+    await field.fill("Press together"); await field.dispatchEvent("change");
+    const read = () => tab.page.evaluate(async ({ key, manifestKey, day }) => {
+      const bridge = window.footballScienceCentralState;
+      if (!bridge?.isHydrated?.()) return { loading: true };
+      const cached = bridge.getCachedValueInfo(key);
+      const block = JSON.parse(localStorage.getItem(key) || "{}").sessions?.[day]?.blocks?.[0];
+      if (!block) return { loading: true };
+      return { title: block.title, objective: block.objective, durable: cached.durable, serverBacked: cached.serverBacked,
+        pending: Boolean(JSON.parse(localStorage.getItem(manifestKey) || "{}").entries?.[key]?.pendingCentralSync),
+        journal: await bridge.getSessionPendingState(), hydrating: Boolean(window.__footballScienceCentralHydrating) };
+    }, { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey, day });
+    await expect.poll(read).toEqual({ title: "Press together", objective: "Compatible colleague edit", durable: false,
+      serverBacked: true, pending: false, journal: null, hydrating: false });
+    await expect(tab.page.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
+    expect(posts.some((post) => post.base !== post.revision)).toBe(true);
+    expect(JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions[day].blocks[0]).toMatchObject({ title: "Press together", objective: "Compatible colleague edit" });
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await expect.poll(read).toMatchObject({ title: "Press together", objective: "Compatible colleague edit", pending: false, journal: null, hydrating: false });
+    await expect(tab.page.getByText("Local changes need review", { exact: true })).toHaveCount(0);
+  } finally { await closeCentralStateContext(tab.context); }
 });
 
 test("large Player Profiles central hydration stays server-backed when localStorage quota is full", async ({ browser, baseURL }) => {
@@ -1230,6 +1547,299 @@ test("two browser tabs send baseRevision and stale tab cannot overwrite newer ce
   } finally {
     await closeCentralStateContext(first.context);
     await closeCentralStateContext(stale.context);
+  }
+});
+
+test("overlapping Schedule saves are serialized and preserve the newest local generation", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const firstScheduleState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 8,
+    selectedDate: "2026-09-08",
+    viewMode: "planner",
+    overviewSpan: 6,
+    events: [{ id: "training-a", date: "2026-09-08", type: "training", title: "First local training" }],
+  };
+  const secondScheduleState = {
+    ...firstScheduleState,
+    events: [
+      ...firstScheduleState.events,
+      { id: "training-b", date: "2026-09-08", type: "training", title: "Newest local training" },
+    ],
+  };
+  const centralScheduleState = {
+    ...firstScheduleState,
+    events: [],
+  };
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: {
+      [scheduleStateKey]: JSON.stringify(centralScheduleState),
+    },
+    metadataEntries: {
+      [scheduleStateKey]: createMetadata(4, JSON.stringify(centralScheduleState)),
+    },
+  };
+  const scheduleWrites = [];
+  let markFirstWriteStarted;
+  const firstWriteStarted = new Promise((resolve) => {
+    markFirstWriteStarted = resolve;
+  });
+  let releaseFirstWrite;
+  const firstWritePending = new Promise((resolve) => {
+    releaseFirstWrite = resolve;
+  });
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "schedule-overlap", {
+    appStateWriteHandler: async ({ body }) => {
+      if (body.key !== scheduleStateKey) {
+        return null;
+      }
+      scheduleWrites.push(body);
+      if (scheduleWrites.length === 1) {
+        markFirstWriteStarted();
+        await firstWritePending;
+      }
+      const currentMetadata = centralStore.metadataEntries[scheduleStateKey];
+      const baseRevision = Number(body?.metadata?.baseRevision ?? body?.baseRevision);
+      if (baseRevision !== currentMetadata.revision) {
+        return {
+          status: 409,
+          body: {
+            ok: false,
+            reason: "Central app-state revision changed before save.",
+            currentRevision: currentMetadata.revision,
+          },
+        };
+      }
+      const value = String(body.value || "");
+      const revision = currentMetadata.revision + 1;
+      centralStore.entries[scheduleStateKey] = value;
+      centralStore.metadataEntries[scheduleStateKey] = createMetadata(revision, value);
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          key: scheduleStateKey,
+          value,
+          revision,
+          metadata: centralStore.metadataEntries[scheduleStateKey],
+        },
+      };
+    },
+  });
+
+  try {
+    await tab.page.evaluate(
+      ({ key, value }) => window.localStorage.setItem(key, value),
+      { key: scheduleStateKey, value: JSON.stringify(firstScheduleState) }
+    );
+    await firstWriteStarted;
+
+    await tab.page.evaluate(
+      ({ key, value }) => window.localStorage.setItem(key, value),
+      { key: scheduleStateKey, value: JSON.stringify(secondScheduleState) }
+    );
+    await tab.page.waitForTimeout(250);
+    expect(scheduleWrites).toHaveLength(1);
+
+    releaseFirstWrite();
+    await expect.poll(() => scheduleWrites.length, { timeout: 10_000 }).toBe(2);
+    await expect
+      .poll(() => centralStore.metadataEntries[scheduleStateKey].revision, { timeout: 10_000 })
+      .toBe(6);
+
+    expect(scheduleWrites.map((body) => body.metadata.baseRevision)).toEqual([4, 5]);
+    expect(scheduleWrites[0].value).toBe(JSON.stringify(firstScheduleState));
+    expect(scheduleWrites[1].value).toBe(JSON.stringify(secondScheduleState));
+    expect(centralStore.entries[scheduleStateKey]).toBe(JSON.stringify(secondScheduleState));
+    await expect
+      .poll(() =>
+        tab.page.evaluate(
+          ({ key, manifestKey }) => {
+            const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+            return {
+              value: window.localStorage.getItem(key),
+              pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+              serverRevision: manifest.entries?.[key]?.serverRevision,
+            };
+          },
+          { key: scheduleStateKey, manifestKey: dataSafetyManifestKey }
+        )
+      )
+      .toEqual({
+        value: JSON.stringify(secondScheduleState),
+        pendingCentralSync: false,
+        serverRevision: 6,
+      });
+  } finally {
+    releaseFirstWrite?.();
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("stale in-flight hydration cannot replace an acknowledged Schedule save", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const originalScheduleState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 8,
+    selectedDate: "2026-09-08",
+    viewMode: "planner",
+    overviewSpan: 6,
+    events: [],
+  };
+  const savedScheduleState = {
+    ...originalScheduleState,
+    events: [{ id: "training-latest", date: "2026-09-08", type: "training", title: "Latest acknowledged training" }],
+  };
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: {
+      [scheduleStateKey]: JSON.stringify(originalScheduleState),
+    },
+    metadataEntries: {
+      [scheduleStateKey]: createMetadata(4, JSON.stringify(originalScheduleState)),
+    },
+  };
+  let deferScheduleRead = false;
+  let markStaleReadStarted;
+  const staleReadStarted = new Promise((resolve) => {
+    markStaleReadStarted = resolve;
+  });
+  let releaseStaleRead;
+  const staleReadPending = new Promise((resolve) => {
+    releaseStaleRead = resolve;
+  });
+  const scheduleWrites = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "schedule-stale-hydration", {
+    appStateReadHandler: async ({ request }) => {
+      if (!deferScheduleRead) {
+        return null;
+      }
+      const keys = String(new URL(request.url()).searchParams.get("keys") || "").split(",");
+      if (!keys.includes(scheduleStateKey)) {
+        return null;
+      }
+      const staleValue = centralStore.entries[scheduleStateKey];
+      markStaleReadStarted();
+      await staleReadPending;
+      const staleMetadata = {
+        ...createMetadata(centralStore.metadataEntries[scheduleStateKey].revision, staleValue),
+      };
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          entries: { [scheduleStateKey]: staleValue },
+          metadata: { [scheduleStateKey]: staleMetadata },
+        },
+      };
+    },
+    appStateWriteHandler: async ({ body }) => {
+      if (body.key !== scheduleStateKey) {
+        return null;
+      }
+      scheduleWrites.push(body);
+      const currentMetadata = centralStore.metadataEntries[scheduleStateKey];
+      const baseRevision = Number(body?.metadata?.baseRevision ?? body?.baseRevision);
+      if (baseRevision !== currentMetadata.revision) {
+        return {
+          status: 409,
+          body: {
+            ok: false,
+            reason: "Central app-state revision changed before save.",
+            currentRevision: currentMetadata.revision,
+          },
+        };
+      }
+      const value = String(body.value || "");
+      const revision = currentMetadata.revision + 1;
+      centralStore.entries[scheduleStateKey] = value;
+      centralStore.metadataEntries[scheduleStateKey] = createMetadata(revision, value);
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          key: scheduleStateKey,
+          value,
+          revision,
+          metadata: centralStore.metadataEntries[scheduleStateKey],
+        },
+      };
+    },
+  });
+
+  try {
+    deferScheduleRead = true;
+    await tab.page.evaluate(() => {
+      window.__qaStaleScheduleHydration = window.footballScienceCentralState.hydrate({ forceApply: true });
+    });
+    await staleReadStarted;
+
+    await tab.page.evaluate(
+      ({ key, value }) => window.localStorage.setItem(key, value),
+      { key: scheduleStateKey, value: JSON.stringify(savedScheduleState) }
+    );
+    await expect.poll(() => scheduleWrites.length, { timeout: 10_000 }).toBe(1);
+    await expect.poll(() => centralStore.metadataEntries[scheduleStateKey].revision, { timeout: 10_000 }).toBe(5);
+    await expect
+      .poll(() =>
+        tab.page.evaluate(
+          ({ key, manifestKey }) => {
+            const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+            return {
+              value: window.localStorage.getItem(key),
+              pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+              serverRevision: manifest.entries?.[key]?.serverRevision,
+            };
+          },
+          { key: scheduleStateKey, manifestKey: dataSafetyManifestKey }
+        )
+      )
+      .toEqual({
+        value: JSON.stringify(savedScheduleState),
+        pendingCentralSync: false,
+        serverRevision: 5,
+      });
+
+    releaseStaleRead();
+    await tab.page.evaluate(() => window.__qaStaleScheduleHydration);
+
+    expect(scheduleWrites[0].metadata.baseRevision).toBe(4);
+    expect(centralStore.entries[scheduleStateKey]).toBe(JSON.stringify(savedScheduleState));
+    await expect
+      .poll(() =>
+        tab.page.evaluate(
+          ({ key, manifestKey }) => {
+            const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+            const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+            return {
+              savedEvent: (state.events || []).find((event) => event.id === "training-latest") || null,
+              pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+              serverRevision: manifest.entries?.[key]?.serverRevision,
+              bridgeRevision: window.footballScienceCentralState.getStatus().metadata?.[key]?.revision,
+            };
+          },
+          { key: scheduleStateKey, manifestKey: dataSafetyManifestKey }
+        )
+      )
+      .toEqual({
+        savedEvent: {
+          id: "training-latest",
+          date: "2026-09-08",
+          time: "",
+          type: "training",
+          title: "Latest acknowledged training",
+          note: "",
+        },
+        pendingCentralSync: false,
+        serverRevision: 5,
+        bridgeRevision: 5,
+      });
+  } finally {
+    releaseStaleRead?.();
+    await closeCentralStateContext(tab.context);
   }
 });
 

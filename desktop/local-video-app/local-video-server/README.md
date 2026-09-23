@@ -37,6 +37,7 @@ Optional limits and policy:
 - `FS_LOCAL_VIDEO_MAX_CONCURRENT_JOBS`: processing concurrency, capped at four.
 - `FS_LOCAL_VIDEO_MAX_QUEUED_JOBS`: bounded waiting queue.
 - `FS_LOCAL_VIDEO_MAX_TRACKING_DURATION_MS`: maximum range for one tracking job.
+- `FS_LOCAL_VIDEO_MAX_TRACKING_STAGE_REQUEST_BYTES`: maximum metadata request for one verified pipeline stage, capped at 64 MiB.
 - `FS_LOCAL_VIDEO_MAX_REPLAY_DURATION_MS`: maximum range for one replay buffer, capped at ten minutes.
 - `FS_TRACKING_ENGINE_PATH`: approved local executable implementing the tracking provider protocol.
 
@@ -48,6 +49,8 @@ Optional limits and policy:
 - `POST /jobs/prepare-playback`
 - `POST /jobs/track-object`
 - `POST /jobs/track-objects`
+- `POST /jobs/run-tracking-stage`
+- `POST /jobs/run-tracking-candidate-stage`
 - `POST /jobs/create-proxy`
 - `POST /jobs/create-replay-buffer`
 - `POST /jobs/render-export`
@@ -57,6 +60,7 @@ Optional limits and policy:
 - `GET /playback/:id/playback.mp4`
 - `GET /tracking/:id/track.json`
 - `GET /tracking/:id/tracks.json`
+- `GET /tracking-stage/:id/result.json`
 - `GET /proxies/:id/proxy.mp4`
 - `GET /replays/:id/replay.mp4`
 - `GET /exports/:id/render.mp4`
@@ -66,6 +70,20 @@ Optional limits and policy:
 The server only binds to loopback. Raw match video and generated media stay on the device unless an authorized user explicitly exports or shares a portable package.
 
 Object tracking uses a provider boundary instead of embedding an unreviewable model in the web app. The provider receives an input path, a bounded prompt request, and an output path under the `football-science-tracking-v1` protocol. It writes normalized track JSON and may stream JSON progress lines. The batch route accepts 2-8 unique targets on the same clip, angle, range, and prompt frame; all targets share one video state and the bridge rejects partial or mismatched output. Without an approved provider, the capability is hidden and analysts can still add reviewed manual keyframes.
+
+Future full-scene stages use the separate `football-science-tracking-stage-execution-v1` runner. A registered provider becomes executable only when its exact manifest, report, evidence, native runtime, and model bytes reverify and the runtime passes the local sandbox preflight. Runtime, models, and retained match sources must be regular, non-link, read-only files. Their SHA-256, byte length, and descriptor identity are sealed before execution and the identity is checked again before any output is accepted. On macOS the runner denies network access, permits execution of only the sealed native runtime, limits readable provider/source/system paths, scrubs the environment, bounds output and wall time, monitors resident memory for the whole process group, enforces provider concurrency, and validates the returned stage artifact against the exact request fingerprint. A timeout, cancellation, memory/output breach, changed source, changed provider, or malformed result terminates the job fail-closed.
+
+The first stage upload retains one session-owned local source artifact. Later association, re-identification, and classification jobs can reuse that exact source by job id while sending their bounded metadata request as JSON. Another bridge session cannot read or reuse it. The browser receives expiring access only to the normalized result JSON; provider paths, model paths, raw frames, and source paths are never returned. No full-scene provider ships with the companion today, so this boundary does not by itself make detection, re-identification, team, ball, referee, or shirt classification available.
+
+Benchmark candidates use a separate `football-science-tracking-candidate-registry-v1` root and `run-tracking-candidate-stage` route. A candidate installation contains only its canonical `candidate` manifest, native runtime, and model descriptors; it must declare offline inference, reviewed licence and dataset rights, and exact source/runtime/model checksums. It runs through the same network-denied sandbox and file seals, but every registry record, job, and browser result is marked `benchmarkOnly`. Candidate output is never listed as `run-tracking-stage`, never satisfies activated readiness, and must still collect and pass real-match evidence before it can be installed in the approved registry.
+
+Both registries key installations by exact provider id and version. Historical versions may coexist for reproducibility, while an id-only lookup across versions stays ambiguous and duplicate directories claiming the same exact identity fail closed. Candidate preflight exposes successful sandbox execution only as `benchmark-only`; activated tracking still requires the separate approved registry.
+
+The generic approved-provider installer consumes that exact candidate plus a passed benchmark report and reproducible provider evidence. It derives a new approved manifest and atomically copies sealed artifacts into the separate approved registry; it never edits or removes the candidate installation. `tracking:provider:plan` performs the full read-only readiness check. `tracking:provider:install` additionally requires `--accept-license` and `--approve-local-activation`, then keeps the target only after approved-registry resolution and network-denied sandbox preflight both pass.
+
+Candidate jobs also emit a separate `evidence.json` using `football-science-tracking-candidate-stage-run-v1`. The exact response bytes have their own SHA-256, while the artifact binds the canonical request, provider manifest and execution fingerprints, normalized stage result, source/range, sandbox isolation, wall time, output size, and real-time factor. The browser accepts it only from the same loopback origin and verifies the response checksum plus provider/source/request/result binding. Stage inputs use nested allowlists: association receives complete bounded observations, re-identification and classification receive complete materialized trajectories, and segmentation receives geometry and synchronized times without Football Science player, clip, or file identities.
+
+`tracking-intelligence-v2-pipeline` composes benchmark-only detection, association, re-identification, and classification candidates in that order. Association output is joined back to the exact detection observations before the learned identity stages run. The resulting player, ball, and referee tracks enter the existing analyst review workflow with stage-evidence hashes, confidence, discontinuities, team, and shirt evidence. Raw stage runs are recursively immutable; manual position, continuity, visibility, split, identity-swap, and identity-assignment corrections operate only on review copies.
 
 ## Approved tracking provider
 
@@ -104,3 +122,17 @@ npm --prefix desktop/local-video-app run tracking:benchmark -- --input /absolute
 ```
 
 Evaluation receives no video, image frame, source path, player identity, team identity, or shirt number. Only normalized boxes, opaque trajectory IDs, entity class, timestamps, and the source SHA-256 fingerprint enter the temporary local request; the request is deleted after the bounded evaluation process exits.
+
+Before starting or resuming a full-scene review campaign, run the read-only combined preflight. It cross-binds the sealed pack, source clips, preannotation workspace, editable review manifest and pinned evaluator without changing any annotation or attestation:
+
+```bash
+npm --prefix desktop/local-video-app run tracking:ground-truth:preflight -- \
+  --pack /absolute/local/annotation-pack.json \
+  --detection-screening /absolute/local/detection-screening \
+  --association-screening /absolute/local/association-screening \
+  --workspace /absolute/local/preannotation-workspace \
+  --review-manifest /absolute/local/mot-import.review.json \
+  --json
+```
+
+`ready-for-human-review` means the technical evidence is coherent but the human reference is still incomplete. Only `ready-for-measurement` means every sequence passed the independent annotation audit; the benchmark still performs its own import, lock and TrackEval validation afterward.

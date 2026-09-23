@@ -72,6 +72,7 @@ requirePackageScript("security:platform", "node scripts/verify-platform-security
 requirePackageScript("platform:readiness", "node scripts/verify-platform-readiness.mjs");
 requirePackageScript("platform:identity:backfill", "node scripts/platform-identity-backfill.mjs");
 requirePackageScript("platform:identity:snapshot", "node scripts/platform-identity-snapshot.mjs");
+requirePackageScript("platform:identity:staging-drill", "node scripts/platform-identity-staging-backfill-drill.mjs");
 
 requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel production builds must stay blocked");
 requireText("package.json", "npm run storage:guard", "full QA must include the storage key policy gate");
@@ -146,6 +147,16 @@ requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "envir
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "summary.dryRun !== true", "platform identity snapshot inspection must verify read-only mode");
 forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--capture", "platform identity snapshot inspection must not capture data");
 forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--apply", "platform identity snapshot inspection must not apply identity writes");
+requireText(".github/workflows/data-content-recovery.yml", "workflow_dispatch:", "data content recovery must remain manually authorized");
+requireText(".github/workflows/data-content-recovery.yml", "environment: platform-production", "data content recovery must use the existing protected environment");
+requireText(".github/workflows/data-content-recovery.yml", 'test "$EXPECTED_SHA" = "$GITHUB_SHA"', "data recovery must bind the reviewed main SHA");
+requireText(".github/workflows/data-content-recovery.yml", "npm run qa:data-recovery-native", "data recovery must prove the native toolchain before credential access");
+for (const trigger of ["schedule:", "pull_request:", "push:", "workflow_run:", "upload-artifact", "continue-on-error"]) {
+  forbidText(".github/workflows/data-content-recovery.yml", trigger, "sensitive data recovery must not be automatic, optional or retain data artifacts");
+}
+requireText("scripts/github-data-content-recovery.mjs", 'PGSSLMODE: "verify-full"', "data recovery must verify the production TLS identity");
+requireText("scripts/lib/data-content-recovery-drill.mjs", "fullRecoveryVerified: false", "content-only recovery must not certify full platform recovery");
+requireText("qa/data-content-recovery-contract.api.spec.mjs", "qa/data-content-recovery.test.mjs", "API QA must include offline recovery safety contracts");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platform identity backfill tests must prove server-owned role derivation");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "stale plan before any write", "platform identity tests must prove stale plans cannot write");
 requireText("qa/platform-identity-snapshot.api.spec.mjs", "tenant scope changes", "identity rollback must fail closed on tenant scope drift");
@@ -154,6 +165,15 @@ requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "environ
 requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}", "platform identity actor ids must stay masked in public workflow logs");
 forbidText(".github/workflows/platform-identity-backfill-dry-run.yml", "--apply", "platform identity dry-run workflow must not expose writes");
 forbidText(".github/workflows/platform-identity-backfill-dry-run.yml", "--capture", "platform identity dry-run workflow must not capture snapshots or expose writes");
+requireText(".github/workflows/platform-identity-staging-drill.yml", "workflow_dispatch:", "platform identity staging drill must remain manually authorized");
+requireText(".github/workflows/platform-identity-staging-drill.yml", "environment: platform-staging", "platform identity staging drill must never target production");
+requireText(".github/workflows/platform-identity-staging-drill.yml", "APPLY_PLATFORM_IDENTITY_STAGING", "platform identity staging drill must require explicit confirmation");
+requireText(".github/workflows/platform-identity-staging-drill.yml", "expected_plan_sha256", "platform identity staging drill must bind a reviewed plan hash");
+requireText(".github/workflows/platform-identity-staging-drill.yml", "expected_user_count", "platform identity staging drill must bind a reviewed user count");
+forbidText(".github/workflows/platform-identity-staging-drill.yml", "platform-production", "platform identity staging drill must not use production credentials");
+requireText("scripts/lib/platform-identity-staging-backfill-drill.mjs", "storePlatformIdentitySnapshot", "identity staging drill must persist and verify a private pre-apply snapshot");
+requireText("scripts/lib/platform-identity-staging-backfill-drill.mjs", "executePlatformIdentityRollback", "identity staging drill must prove a version-bound rollback before reapply");
+requireText("qa/platform-identity-staging-drill.api.spec.mjs", "rolls back, verifies, and reapplies", "identity staging drill must retain an end-to-end rollback and reapply contract");
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
 requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");
 requireText("qa/production.live.spec.mjs", "production peer accounts prove DM unread state and read receipt end-to-end", "live smoke must prove two-account chat delivery and read receipts");

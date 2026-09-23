@@ -206,8 +206,8 @@ export function clipBlockStyle(clip = {}, durationMs = 1, options = {}) {
   const visibleStartMs = Math.max(windowStartMs, startMs);
   const visibleEndMs = Math.min(windowStartMs + safeDuration, endMs);
   const left = clampPercent(((visibleStartMs - windowStartMs) / safeDuration) * 100);
-  const width = Math.max(0.1, ((visibleEndMs - visibleStartMs) / safeDuration) * 100);
-  return `left:${Math.min(99.9, left)}%;width:${Math.min(100 - Math.min(99.9, left), width)}%;`;
+  const width = Math.max(0, ((visibleEndMs - visibleStartMs) / safeDuration) * 100);
+  return `left:${left}%;width:${Math.min(100 - left, width)}%;`;
 }
 
 export function playheadStyle(playheadMs = 0, durationMs = 1, windowStartMs = 0) {

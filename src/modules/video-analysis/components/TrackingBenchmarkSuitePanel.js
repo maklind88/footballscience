@@ -13,7 +13,9 @@ import {
   TRACKING_BENCHMARK_TYPE_SELECTED_OBJECT,
 } from "../services/trackingGroundTruthService.js";
 import { trackingBenchmarkWorkflowReadiness } from "../services/trackingBenchmarkWorkflowService.js";
+import { trackingBenchmarkProvider } from "../services/trackingBenchmarkProviderService.js";
 import { escapeHtml } from "./renderHelpers.js";
+import { renderTrackingMeasurementIntelligence } from "./TrackingMeasurementIntelligence.js";
 
 function minutes(value = 0) {
   return `${(Math.max(0, Number(value) || 0) / 60_000).toFixed(1)} min`;
@@ -80,7 +82,7 @@ function evaluationMetrics(value = {}) {
   `).join("")}</dl>`;
 }
 
-function renderEvaluation(tracking = {}, workflow = {}) {
+function renderEvaluation(state = {}, tracking = {}, workflow = {}) {
   const evaluation = tracking.benchmarkEvaluation || {};
   const active = ["preparing", "running", "verifying", "cancelling"].includes(evaluation.status);
   const complete = ["passed", "failed"].includes(evaluation.status) && evaluation.evidenceSet;
@@ -106,6 +108,7 @@ function renderEvaluation(tracking = {}, workflow = {}) {
           <strong>${escapeHtml(tracking.provider?.trackEvalAvailable ? "Pinned and available" : "Not installed")}</strong>
         </p>
       ` : ""}
+      ${renderTrackingMeasurementIntelligence(evaluation, state)}
       ${evaluation.reportSha256 ? `<p class="video-analysis-benchmark-suite__checksum"><span>Report SHA-256</span><code>${escapeHtml(shortFingerprint(evaluation.reportSha256))}</code></p>` : ""}
       ${evaluation.error ? `<p class="video-analysis-benchmark-suite__error">${escapeHtml(evaluation.error)}</p>` : ""}
       ${!workflow.ready && !active && !complete ? `<p class="video-analysis-benchmark-suite__notice">${escapeHtml(issueText)}</p>` : ""}
@@ -127,6 +130,7 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
   const tracking = state.presentation?.tracking || {};
   const workspace = tracking.groundTruth || {};
   const suite = trackingGroundTruthSuiteEntry(workspace);
+  const provider = trackingBenchmarkProvider(tracking, suite.benchmarkType);
   const readiness = groundTruthSuiteReadiness(suite);
   const workflow = trackingBenchmarkWorkflowReadiness(tracking);
   const covered = new Set(readiness.scenarioIds);
@@ -140,7 +144,7 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
   try {
     providerRunCount = trackingProviderRunsForProvider(
       providerRuns,
-      tracking.provider,
+      provider,
     ).length;
   } catch (error) {
     providerRunError = error?.message || "Raw provider run evidence is invalid.";
@@ -180,7 +184,7 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
         <span><strong>${providerRunCount}</strong> raw provider run${providerRunCount === 1 ? "" : "s"}${workflow.matchedCaseCount ? ` | ${workflow.matchedCaseCount}/${readiness.caseCount} cases matched` : ""}</span>
         <button type="button" data-video-analysis-tracking-action="ground-truth-runs-download" ${providerRunCount ? "" : "disabled"}>Export runs</button>
       </div>
-      ${renderEvaluation(tracking, workflow)}
+      ${renderEvaluation(state, tracking, workflow)}
       <div class="video-analysis-benchmark-suite__storage ${benchmarkStorage.status === "error" ? "is-error" : ""}" aria-live="polite">
         <span>${escapeHtml(benchmarkStorageLabel(benchmarkStorage))}</span>
         ${benchmarkStorage.status === "error" ? `<button type="button" data-video-analysis-tracking-action="retry-benchmark-storage">Retry</button>` : ""}
@@ -190,7 +194,11 @@ export function renderTrackingBenchmarkSuitePanel(state = {}) {
       ${suite.error ? `<p class="video-analysis-benchmark-suite__error" aria-live="polite">${escapeHtml(suite.error)}</p>` : ""}
       <footer>
         <span>${escapeHtml(readiness.ready ? `${readiness.sourceCount} source${readiness.sourceCount === 1 ? "" : "s"} | all required scenarios` : readiness.issues[0]?.message || "Suite not ready")}</span>
-        <button type="button" data-video-analysis-tracking-action="ground-truth-suite-download" ${readiness.ready ? "" : "disabled"}>Export suite</button>
+        <div class="video-analysis-benchmark-suite__footer-actions">
+          <input type="file" accept="application/json,.json" hidden data-video-analysis-tracking-field="groundTruthSuiteImport">
+          <button type="button" data-video-analysis-tracking-action="ground-truth-suite-import" ${modeLocked ? "disabled" : ""}>Import suite</button>
+          <button type="button" data-video-analysis-tracking-action="ground-truth-suite-download" ${readiness.ready ? "" : "disabled"}>Export suite</button>
+        </div>
       </footer>
     </section>
   `;

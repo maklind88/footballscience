@@ -413,6 +413,15 @@ async function openTeamChat(page) {
   await expect(page.locator("[data-dashboard-chat-input]")).toBeVisible({ timeout: 20_000 });
 }
 
+async function openLiveChatThread(page, threadId) {
+  const threadButton = page.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
+  await expect(threadButton).toBeVisible({ timeout: 45_000 });
+  await threadButton.click();
+  const activeThread = page.locator(`[data-dashboard-chat-list][data-dashboard-chat-active-thread="${threadId}"]`);
+  await expect(activeThread).toBeVisible({ timeout: 20_000 });
+  return activeThread;
+}
+
 async function expectStorageContains(page, key, text) {
   await expect
     .poll(
@@ -439,33 +448,74 @@ async function expectStorageExcludes(page, key, text) {
     .toBe(true);
 }
 
-async function expectCentralSyncContains(page, key, text) {
+async function expectCentralSyncContains(page, key, text, options = {}) {
   const endpointBase = new URL("/", page.url()).origin;
   const token = await getLiveAccessToken(page);
+  let lastProbe = null;
 
-  await expect
-    .poll(
-      async () => {
-        const localValue = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey) || "", key);
-        if (!localValue.includes(text)) {
-          return false;
-        }
-        const centralResponse = await page.request.get(
-          `${endpointBase}/api/app-state?fresh=1&keys=${encodeURIComponent(key)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "x-footballscience-fresh-state": "1",
+  try {
+    await expect
+      .poll(
+        async () => {
+          const localProbe = await page.evaluate(
+            ({ storageKey, expectedText }) => {
+              const localValue = window.localStorage.getItem(storageKey) || "";
+              const bridgeStatus = window.footballScienceCentralState?.getStatus?.() || {};
+              let manifestEntry = {};
+              try {
+                const manifest = JSON.parse(window.localStorage.getItem("football-data-safety-v1") || "{}");
+                manifestEntry = manifest?.entries?.[storageKey] || {};
+              } catch {}
+              return {
+                localContains: localValue.includes(expectedText),
+                bridge: {
+                  hydrated: Boolean(bridgeStatus.hydrated),
+                  hydrating: Boolean(bridgeStatus.hydrating),
+                  lastError: String(bridgeStatus.lastError || ""),
+                  lastWriteError: String(bridgeStatus.lastWriteError || ""),
+                },
+                manifest: {
+                  pendingCentralSync: Boolean(manifestEntry.pendingCentralSync),
+                  removed: Boolean(manifestEntry.removed),
+                  serverRevision: Number(manifestEntry.serverRevision) || 0,
+                },
+              };
             },
-            timeout: 75_000,
-          }
-        );
-        const centralPayload = centralResponse.ok() ? await centralResponse.json() : {};
-        return String(centralPayload?.entries?.[key] || "").includes(text);
-      },
-      { timeout: 45_000, intervals: [500, 1_000, 2_000, 3_000] }
-    )
-    .toBe(true);
+            { storageKey: key, expectedText: text }
+          );
+          const centralResponse = await page.request.get(
+            `${endpointBase}/api/app-state?fresh=1&keys=${encodeURIComponent(key)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "x-footballscience-fresh-state": "1",
+              },
+              timeout: 75_000,
+            }
+          );
+          const centralPayload = await centralResponse.json().catch(() => ({}));
+          lastProbe = {
+            ...localProbe,
+            centralStatus: centralResponse.status(),
+            centralReason: String(centralPayload?.reason || centralPayload?.message || ""),
+            centralRevision: Number(centralPayload?.metadata?.[key]?.revision) || 0,
+            centralContains: String(centralPayload?.entries?.[key] || "").includes(text),
+          };
+          return lastProbe.localContains && centralResponse.ok() && lastProbe.centralContains;
+        },
+        { timeout: 45_000, intervals: [500, 1_000, 2_000, 3_000] }
+      )
+      .toBe(true);
+  } catch (error) {
+    throw new Error(
+      `Central sync verification failed: ${JSON.stringify({
+        key,
+        lastProbe,
+        writes: Array.isArray(options.writes) ? options.writes.slice(-8) : [],
+      })}`,
+      { cause: error }
+    );
+  }
 }
 
 async function expectCentralSyncExcludes(page, key, text) {
@@ -771,8 +821,8 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
     const peerThreadButton = peerPage.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
     await expect(peerThreadButton).toBeVisible({ timeout: 45_000 });
     await expect(peerThreadButton.locator(".dashboard-chat-thread-unread")).toContainText("1", { timeout: 15_000 });
-    await peerThreadButton.click();
-    await expect(peerPage.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
+    const peerActiveThread = await openLiveChatThread(peerPage, threadId);
+    await expect(peerActiveThread).toContainText(messageText, { timeout: 45_000 });
 
     await expect
       .poll(
@@ -789,10 +839,8 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
     await signIn(page);
     primaryToken = await getLiveAccessToken(page);
     await openTeamChat(page);
-    const primaryThreadButton = page.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
-    await expect(primaryThreadButton).toBeVisible({ timeout: 45_000 });
-    await primaryThreadButton.click();
-    await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
+    const primaryActiveThread = await openLiveChatThread(page, threadId);
+    await expect(primaryActiveThread).toContainText(messageText, { timeout: 45_000 });
     const readReceiptStatus = page.locator('[data-dashboard-chat-message-delivery-status="read"]').last();
     await expect(readReceiptStatus).toHaveAttribute("title", /Read by 1/, { timeout: 45_000 });
 
@@ -816,7 +864,32 @@ test("production test account can save and reload a schedule record", async ({ p
   });
 
   const title = `QA Live ${Date.now()}`;
+  const scheduleWrites = [];
   let targetDate = "";
+
+  page.on("response", async (response) => {
+    const request = response.request();
+    if (!/\/api\/app-state(?:\?|$)/.test(response.url()) || !["POST", "DELETE"].includes(request.method())) {
+      return;
+    }
+    let requestBody = {};
+    try {
+      requestBody = request.postDataJSON?.() || {};
+    } catch {}
+    if (String(requestBody?.key || "") !== scheduleKey) {
+      return;
+    }
+    const responseBody = await response.json().catch(() => ({}));
+    scheduleWrites.push({
+      status: response.status(),
+      requestContainsRecord: String(requestBody?.value || "").includes(title),
+      baseRevision: Number(requestBody?.baseRevision ?? requestBody?.metadata?.baseRevision) || 0,
+      responseKey: String(responseBody?.key || ""),
+      reason: String(responseBody?.reason || ""),
+      currentRevision: Number(responseBody?.currentRevision) || 0,
+      revision: Number(responseBody?.revision ?? responseBody?.metadata?.revision) || 0,
+    });
+  });
 
   await signIn(page);
 
@@ -833,7 +906,7 @@ test("production test account can save and reload a schedule record", async ({ p
     await addInput.press("Enter");
     await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
     await expectStorageContains(page, scheduleKey, title);
-    await expectCentralSyncContains(page, scheduleKey, title);
+    await expectCentralSyncContains(page, scheduleKey, title, { writes: scheduleWrites });
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.locator("#hubShell")).toBeVisible();

@@ -5,12 +5,17 @@ import {
   trackingBatchTargets,
 } from "./trackingBatchController.js";
 import { createTrackingGroundTruthController } from "./trackingGroundTruthController.js";
+import { createTrackingGroundTruthPreannotationBridgeController } from "./trackingGroundTruthPreannotationBridgeController.js";
 import { createTrackingBenchmarkController } from "./trackingBenchmarkController.js";
 import {
   createTrackingProviderRunController,
 } from "./trackingProviderRunController.js";
 import { createTrackingGraphicController } from "./trackingGraphicController.js";
 import { createTrackingReviewController } from "./trackingReviewController.js";
+import { createTrackingCandidateController } from "./trackingCandidateController.js";
+import { createTrackingPreannotationReviewController } from "./trackingPreannotationReviewController.js";
+import { createTrackingGroundTruthHandoffController } from "./trackingGroundTruthHandoffController.js";
+import { createTrackingTrackLifecycleController } from "./trackingTrackLifecycleController.js";
 import { createTrackingJobSession } from "../services/trackingJobSessionService.js";
 import { normalizeTrackingJobProgress } from "../services/trackingProgressService.js";
 import {
@@ -20,12 +25,8 @@ import {
   trackingExtensionCorrection,
   trackingTargetRange,
 } from "../services/trackingExtensionService.js";
-import {
-  createManualPromptTrack,
-  trackingPrompt,
-  verifyObjectTrack,
-} from "../services/trackingReviewService.js";
-import { persistTrackingTrack } from "../services/trackingTrackPersistenceService.js";
+import { trackingPrompt } from "../services/trackingReviewService.js";
+import { blockTrackingPreannotationPreview } from "../services/trackingPreannotationReviewGuard.js";
 import { eventElement } from "../video-analysis.dom-events.js";
 import {
   currentTrackingAtMs as currentAtMs,
@@ -80,9 +81,27 @@ export function createTrackingController(options = {}) {
     getVideoElement,
     getWindow: options.getWindow,
     getReviewer: options.getReviewer,
+    getCurrentMatchMs,
+    seekToMatchMs: options.seekToMatchMs,
     onEvidenceChanged: benchmark.invalidate,
     now,
   });
+  const groundTruthPreannotation = createTrackingGroundTruthPreannotationBridgeController({
+    getState,
+    updateState,
+    getContext: groundTruth.contextFor,
+    getReviewer: options.getReviewer,
+    onEvidenceChanged: benchmark.invalidate,
+  });
+  const trackLifecycle = createTrackingTrackLifecycleController({
+    getState,
+    updateState,
+    persistLocalTrack: options.persistLocalTrack,
+    persistMetadata: options.persistTrack,
+    removeLocalTrack: options.removeLocalTrack,
+    invalidateGroundTruth: groundTruth.invalidateDraft,
+  });
+  const { persistTrack } = trackLifecycle;
   const reviewController = createTrackingReviewController({
     getState,
     updateState,
@@ -104,15 +123,56 @@ export function createTrackingController(options = {}) {
     updateState,
     now,
     persistTrack,
+    invalidateGroundTruth: groundTruth.invalidateDraft,
     captureProviderRun: providerRuns.capture,
     getProviderRunFrame: providerRuns.frame,
     refreshProvider: providerRuns.refresh,
     trackObjects: options.trackObjects,
     trackingJob,
   });
+  const candidateController = createTrackingCandidateController({
+    getState,
+    updateState,
+    getStore: options.getStore,
+    getContext: options.getContext,
+    getWindow: options.getWindow,
+    getVideoElement,
+    runPipeline: options.runCandidatePipeline,
+    persistTrack,
+    invalidateGroundTruth: groundTruth.invalidateDraft,
+    onEvidenceChanged: benchmark.invalidate,
+    now,
+  });
+  const groundTruthHandoff = createTrackingGroundTruthHandoffController({
+    getState,
+    updateState,
+    openLocalVideoPicker: options.openLocalVideoPicker,
+    seekToMatchMs: options.seekToMatchMs,
+  });
+  const preannotationReviewController = createTrackingPreannotationReviewController({
+    getState,
+    updateState,
+    getContext: options.getContext,
+    getWindow: options.getWindow,
+    getVideoElement,
+    getCurrentMatchMs,
+    seekToMatchMs: options.seekToMatchMs,
+    persistTrack,
+    onCaseOpened: groundTruthHandoff.complete,
+    prepareHandoffContext: groundTruthHandoff.prepare,
+    validateHandoffContext: groundTruthHandoff.validate,
+    onEvidenceChanged: (itemId) => {
+      groundTruth.invalidateDraft(itemId);
+      benchmark.invalidate();
+    },
+  });
 
   function setMode(mode = "static") {
     const nextMode = mode === "tracking" ? "tracking" : "static";
+    if (nextMode === "static") {
+      preannotationReviewController.stopContextPreview();
+      groundTruth.stopContextPreview();
+    }
     updateState((state) => trackingPatch(state, {
       mode: nextMode,
       captureMode: "",
@@ -120,9 +180,11 @@ export function createTrackingController(options = {}) {
       error: "",
     }));
     if (nextMode === "tracking") {
+      preannotationReviewController.sync();
       groundTruth.refreshContext();
       void providerRuns.refresh();
       void options.restoreTrackingWorkspace?.();
+      void candidateController.restore();
     }
     return true;
   }
@@ -136,6 +198,12 @@ export function createTrackingController(options = {}) {
     updateState((state) => toggleTrackingTrackSelection(state, trackId));
     reviewController.syncHistory();
     return true;
+  }
+
+  function handleShortcut(event = {}) {
+    if (getState().presentation?.tracking?.mode !== "tracking") return false;
+    return preannotationReviewController.handleShortcut(event)
+      || groundTruth.handleShortcut(event);
   }
 
   function beginCapture(captureMode = "prompt", target = null) {
@@ -158,56 +226,6 @@ export function createTrackingController(options = {}) {
 
   function updateField(field = "", value = "") {
     updateState((state) => updateTrackingPromptField(state, field, value));
-    return true;
-  }
-
-  async function persistTrack(trackValue = {}) {
-    const track = await persistTrackingTrack(trackValue, {
-      persistLocalTrack: options.persistLocalTrack,
-      persistMetadata: options.persistTrack,
-      removeLocalTrack: options.removeLocalTrack,
-    });
-    const status = track.metadata?.localWorkspaceStatus;
-    if (["pending-central", "unprotected"].includes(status)) {
-      updateState((state) => trackingPatch(state, {
-        workspace: {
-          ...(state.presentation?.tracking?.workspace || {}),
-          status: status === "pending-central" ? "pending-sync" : "attention",
-          error: String(track.metadata?.localWorkspaceError || ""),
-        },
-      }));
-    }
-    return track;
-  }
-
-  async function addManualTrack() {
-    const state = getState();
-    const item = selectedItem(state);
-    const prompt = state.presentation?.tracking?.prompt;
-    if (!item || !prompt?.box) return false;
-    let track = createManualPromptTrack({
-      ...prompt,
-      clipId: item.clipId,
-      videoId: item.clip?.videoId || item.clip?.video_id || state.video?.id,
-      teamId: state.video?.team_id || "",
-    });
-    try {
-      track = await persistTrack(track);
-    } catch {
-      // The manual track remains usable locally if metadata persistence is temporarily unavailable.
-    }
-    updateState((current) => {
-      const liveItem = selectedItem(current);
-      if (!liveItem) return current;
-      return trackingPatch(replaceItem(current, liveItem.id, {
-        objectTracks: [...(liveItem.objectTracks || []), track],
-      }), {
-        selectedTrackIds: [track.id],
-        captureMode: "",
-        prompt: { ...prompt, box: null },
-        error: "",
-      });
-    });
     return true;
   }
 
@@ -298,6 +316,7 @@ export function createTrackingController(options = {}) {
           error: "",
         });
       });
+      groundTruth.invalidateDraft(item.id);
       void providerRuns.refresh();
       return true;
     } catch (error) {
@@ -336,41 +355,33 @@ export function createTrackingController(options = {}) {
     setError: (error) => updateState((state) => trackingPatch(state, { error })),
   });
 
-  async function verifySelectedTrack() {
-    const state = getState();
-    const item = selectedItem(state);
-    const trackId = state.presentation?.tracking?.selectedTrackIds?.[0] || "";
-    const track = (item?.objectTracks || []).find((entry) => entry.id === trackId);
-    if (!item || !track) return false;
-    try {
-      const verified = await persistTrack(verifyObjectTrack(track));
-      updateState((current) => {
-        const liveItem = selectedItem(current);
-        return liveItem ? replaceItem(current, liveItem.id, {
-          objectTracks: (liveItem.objectTracks || []).map((entry) => entry.id === verified.id ? verified : entry),
-        }) : current;
-      });
-      return true;
-    } catch (error) {
-      updateState((current) => trackingPatch(current, { error: error.message || "Review the track before verification." }));
-      return false;
-    }
-  }
-
   function startInteraction(event, surface) {
     const state = getState();
     const captureMode = state.presentation?.tracking?.captureMode;
     if (!captureMode) return false;
     const start = normalizedPointer(event, surface);
-    activeInteraction = { captureMode, start, surface, pointerId: event.pointerId };
+    activeInteraction = { captureMode, start, surface, pointerId: event.pointerId, itemId: selectedItem(state)?.id };
     event.preventDefault?.();
     surface?.setPointerCapture?.(event.pointerId);
     return true;
   }
 
+  function interactionSurface(interaction) {
+    const state = getState();
+    if (selectedItem(state)?.id !== interaction.itemId
+      || state.presentation?.tracking?.captureMode !== interaction.captureMode) return null;
+    const surface = interaction.surface;
+    // Autosave can repaint the canvas during capture; detached nodes have zero bounds.
+    return surface?.isConnected === false
+      ? surface.ownerDocument?.querySelector?.("[data-video-analysis-drawing-surface]") || null
+      : surface;
+  }
+
   function updateInteraction(event) {
     if (!activeInteraction) return false;
-    activeInteraction.end = normalizedPointer(event, activeInteraction.surface);
+    const surface = interactionSurface(activeInteraction);
+    if (!surface) return false;
+    activeInteraction.end = normalizedPointer(event, surface);
     event.preventDefault?.();
     return true;
   }
@@ -379,7 +390,9 @@ export function createTrackingController(options = {}) {
     if (!activeInteraction) return false;
     const interaction = activeInteraction;
     activeInteraction = null;
-    const end = normalizedPointer(event, interaction.surface);
+    const surface = interactionSurface(interaction);
+    if (!surface) return true;
+    const end = normalizedPointer(event, surface);
     const state = getState();
     const item = selectedItem(state);
     const current = state.presentation?.tracking?.prompt || trackingPrompt(itemRange(item || {}));
@@ -422,9 +435,18 @@ export function createTrackingController(options = {}) {
     const actionElement = target?.closest?.("[data-video-analysis-tracking-action]");
     const action = actionElement?.dataset?.videoAnalysisTrackingAction;
     if (!action) return false;
+    const actionState = getState();
+    const actionItem = selectedItem(actionState);
+    const selectedTrackId = actionState.presentation?.tracking?.selectedTrackIds?.[0] || "";
+    const selectedTrack = (actionItem?.objectTracks || []).find((entry) => entry.id === selectedTrackId);
+    if (blockTrackingPreannotationPreview(
+      selectedTrack,
+      (error) => updateState((state) => trackingPatch(state, { error })),
+      action,
+    )) return true;
     if (action === "select-target") return beginCapture("prompt", target);
     if (action === "correct") return beginCapture("correction", target);
-    if (action === "manual") { void addManualTrack(); return true; }
+    if (action === "manual") { void trackLifecycle.addManualTrack(); return true; }
     if (action === "queue-target") return batchController.queueCurrent();
     if (action === "remove-target") return batchController.remove(actionElement.dataset.videoAnalysisTrackingPromptId);
     if (action === "clear-target") return batchController.clearCurrent();
@@ -435,6 +457,7 @@ export function createTrackingController(options = {}) {
     if (action === "refresh-provider") { void providerRuns.refresh(); return true; }
     if (action === "retry-benchmark-storage") { void options.retryBenchmarkStorage?.(); return true; }
     if (action === "retry-tracking-workspace") { void options.retryTrackingWorkspace?.(); return true; }
+    if (groundTruthHandoff.handleAction(action, actionElement)) return true;
     if (action === "cancel") {
       const cancelled = trackingJob.cancel();
       if (cancelled) updateState((state) => trackingPatch(state, {
@@ -446,9 +469,12 @@ export function createTrackingController(options = {}) {
       }));
       return cancelled;
     }
-    if (action === "verify") { void verifySelectedTrack(); return true; }
+    if (action === "verify") { void trackLifecycle.verifySelectedTrack(); return true; }
     if (action === "add-graphic") { void graphicController.add(); return true; }
     if (benchmark.handleAction(action)) return true;
+    if (preannotationReviewController.handleAction(action)) return true;
+    if (groundTruthPreannotation.handleAction(action)) return true;
+    if (candidateController.handleAction(action, actionElement)) return true;
     if (reviewController.handleAction(action)) return true;
     if (groundTruth.handleAction(action, actionElement)) return true;
     return false;
@@ -457,6 +483,7 @@ export function createTrackingController(options = {}) {
   function handleChange(event) {
     const field = eventElement(event)?.closest?.("[data-video-analysis-tracking-field]");
     if (!field) return false;
+    if (preannotationReviewController.handleField(field.dataset.videoAnalysisTrackingField, field)) return true;
     if (groundTruth.handleField(field.dataset.videoAnalysisTrackingField, field)) return true;
     return updateField(field.dataset.videoAnalysisTrackingField, field.value);
   }
@@ -465,8 +492,11 @@ export function createTrackingController(options = {}) {
     finishInteraction,
     handleChange,
     handleClick,
+    handleShortcut,
     refreshProvider: providerRuns.refresh,
     runBenchmark: benchmark.run,
+    candidateController,
+    preannotationReviewController,
     startInteraction,
     updateInteraction,
   };

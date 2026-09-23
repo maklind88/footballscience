@@ -20,6 +20,7 @@ function createFakeStorageConstructor(options = {}) {
     return this.values.has(normalizedKey) ? this.values.get(normalizedKey) : null;
   };
   FakeStorage.prototype.setItem = function setItem(key, value) {
+    if (String(key) === options.failureKey) throw options.storageError;
     if (String(key) === options.quotaKey) {
       const error = new Error(`Setting ${String(key)} exceeded the quota.`);
       error.name = "QuotaExceededError";
@@ -129,7 +130,7 @@ function createHarness(options = {}) {
     snapshotStoreName: "snapshots",
     latestStoreName: "latest",
     maxSnapshots: 30,
-    protectedStorageKeys: ["football-schedule-v1", "football-medical-team-v1"],
+    protectedStorageKeys: ["football-schedule-v1", "football-medical-team-v1", "football-session-planner-v3"],
     storageLabels: {
       "football-schedule-v1": "Schedule",
       "football-medical-team-v1": "Medical Room",
@@ -146,6 +147,56 @@ function createHarness(options = {}) {
   });
   return { centralCache, centralCacheInfo, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
+
+test("only Sessions receives its exact pre-edit cache through the protected storage boundary", () => {
+  const h = createHarness();
+  h.service.install();
+  const key = "football-session-planner-v3";
+  h.localStorage.setItem(key, "before");
+  h.localStorage.setItem(key, "after");
+  expect(h.queuedWrites.at(-1)).toEqual([key, "after", { previousValue: "before", previousPending: false }]);
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: { pendingCentralSync: true } } }));
+  h.localStorage.setItem(key, "third");
+  expect(h.queuedWrites.at(-1)).toEqual([key, "third", { previousValue: "after", previousPending: true }]);
+  h.localStorage.setItem("football-schedule-v1", "schedule");
+  expect(h.queuedWrites.at(-1)).toEqual(["football-schedule-v1", "schedule", {}]);
+});
+
+test("acknowledged cache quota fallback is server-backed, never local durability or another write", () => {
+  const key = "football-session-planner-v3";
+  const h = createHarness({ quotaKey: key });
+  h.service.install();
+  h.localStorage.values.set(key, "previous durable cache");
+  h.centralCache.set(key, "acknowledged local edit");
+  h.service.cacheAcknowledgedValue(key, "server merged value");
+  expect(h.service.rawGetItem(key)).toBe("server merged value");
+  expect(h.localStorage.values.get(key)).toBe("previous durable cache");
+  expect(h.centralCacheInfo.get(key)).toEqual({ source: "central-acknowledgement", durable: false, serverBacked: true });
+  expect(h.service.createBackupEnvelope("ack-cache").storage[key]).toBe("previous durable cache");
+  expect(h.queuedWrites).toEqual([]);
+});
+
+test("acknowledged cache fallback fails closed without an accepting bridge", () => {
+  const key = "football-session-planner-v3";
+  const h = createHarness({ quotaKey: key });
+  h.service.install();
+  h.localStorage.values.set(key, "previous durable cache");
+  h.win.footballScienceCentralState.setCachedValue = () => false;
+  expect(() => h.service.cacheAcknowledgedValue(key, "server value")).toThrow(/quota/);
+  expect(h.localStorage.values.get(key)).toBe("previous durable cache");
+  expect(h.queuedWrites).toEqual([]);
+});
+
+test("acknowledged cache cannot treat a security failure as quota recovery", () => {
+  const key = "football-session-planner-v3";
+  const error = new Error("Storage is denied"); error.name = "SecurityError";
+  const h = createHarness({ failureKey: key, storageError: error });
+  h.service.install(); h.localStorage.values.set(key, "original");
+  expect(() => h.service.cacheAcknowledgedValue(key, "acknowledged")).toThrow(error);
+  expect(h.localStorage.values.get(key)).toBe("original");
+  expect(h.centralCache.has(key)).toBe(false);
+  expect(h.queuedWrites).toEqual([]);
+});
 
 test("data safety runtime service owns protected storage body outside app-runtime", () => {
   const runtimeSource = readProjectFile("app-runtime.js");

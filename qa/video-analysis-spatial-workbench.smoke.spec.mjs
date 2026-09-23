@@ -38,16 +38,34 @@ async function drawingSurfaceBox(page) {
   return box;
 }
 
-async function addManualTrack(page, playerId, startX, startY, endX, endY, expectedCount) {
+async function addManualTrack(page, playerId, startX, startY, endX, endY, expectedCount, afterHover) {
   await page.locator('[data-video-analysis-tracking-field="playerId"]').selectOption(playerId);
   await page.locator('[data-video-analysis-tracking-action="select-target"]').click();
+  const surface = page.locator("[data-video-analysis-drawing-surface]");
+  const size = await drawingSurfaceBox(page);
+  // Settle scrolling before capture; dragTo may scroll its target during a drag.
+  await surface.hover({ position: { x: size.width * startX, y: size.height * startY } });
+  await afterHover?.();
+  // Autosave may repaint between hover and capture; reacquire visible bounds.
   const box = await drawingSurfaceBox(page);
-  await page.mouse.move(box.x + (box.width * startX), box.y + (box.height * startY));
   await page.mouse.down();
-  await page.mouse.move(box.x + (box.width * endX), box.y + (box.height * endY));
+  await page.mouse.move(box.x + box.width * endX, box.y + box.height * endY, { steps: 8 });
   await page.mouse.up();
+  const prompt = page.locator(".video-analysis-track-prompt:not(.is-queued)");
+  await expect(prompt).toBeVisible();
+  const geometry = await prompt.evaluate(element => Object.fromEntries(
+    ["left", "top", "width", "height"].map(key => [key, parseFloat(element.style[key])]),
+  ));
+  expect(geometry.left).toBeCloseTo(startX * 100, 1);
+  expect(geometry.top).toBeCloseTo(startY * 100, 1);
+  expect(geometry.width).toBeCloseTo((endX - startX) * 100, 1);
+  expect(geometry.height).toBeCloseTo((endY - startY) * 100, 1);
+  await expect(page.locator('[data-video-analysis-tracking-action="manual"]')).toBeEnabled();
   await page.locator('[data-video-analysis-tracking-action="manual"]').click();
   await expect(page.locator(".video-analysis-tracking-list li")).toHaveCount(expectedCount);
+  // The local track appears before metadata persistence completes and clears the prompt.
+  await expect(page.locator(".video-analysis-track-prompt:not(.is-queued)")).toHaveCount(0);
+  await expect(page.locator('[data-video-analysis-tracking-action="manual"]')).toBeDisabled();
 }
 
 async function placeLandmark(page, landmarkId, x, y, expectedCount) {
@@ -97,6 +115,25 @@ test("spatial workbench calibrates metres and creates distance and unit layers",
   await expect(page.locator(".video-analysis-dynamic-svg.is-unit-hull polygon")).toBeVisible();
   await expect(page.getByText("Track continuity is needed for a distance curve.")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("spatial-workbench-desktop.png"), fullPage: true });
+});
+
+test("manual track capture waits for a drawing surface repaint after hover", async ({ page }) => {
+  await openTelestration(page);
+  await addManualTrack(page, "p1", 0.18, 0.25, 0.25, 0.62, 1, async () => {
+    await page.evaluate(() => {
+      const selector = "[data-video-analysis-drawing-surface]";
+      const style = document.createElement("style");
+      style.textContent = `${selector} { display: none !important; }`;
+      document.head.append(style);
+      window.__spatialRepaintProbe = "hidden";
+      setTimeout(() => {
+        style.remove();
+        window.__spatialRepaintProbe = "restored";
+      }, 200);
+    });
+    expect(await page.locator("[data-video-analysis-drawing-surface]").boundingBox()).toBeNull();
+  });
+  expect(await page.evaluate(() => window.__spatialRepaintProbe)).toBe("restored");
 });
 
 test("spatial calibration stays contained on mobile", async ({ page }, testInfo) => {

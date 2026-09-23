@@ -1,0 +1,84 @@
+name: Data Content Recovery Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Reviewed full main SHA (40 characters)
+        required: true
+        type: string
+      confirmation:
+        description: Enter DATA_CONTENT_DRILL_ONLY for the approved temporary GitHub destination
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: footballscience-data-content-recovery
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: platform-production
+    steps:
+      - name: Require reviewed main and explicit confirmation
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = maklind88/footballscience
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/main
+          test "$CONFIRMATION" = DATA_CONTENT_DRILL_ONLY
+          test "$EXPECTED_SHA" = "$GITHUB_SHA"
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify exact checked-out commit
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Prepare native PostgreSQL 17 before credential access
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo systemctl mask postgresql.service postgresql@.service
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --max-time 30 \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc -o "$RUNNER_TEMP/pgdg.asc"
+          test "$(gpg --show-keys --with-colons "$RUNNER_TEMP/pgdg.asc" | awk -F: '$1 == "fpr" {print $10; exit}')" = B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+          sudo install -m 644 "$RUNNER_TEMP/pgdg.asc" /usr/share/keyrings/fs-recovery-pgdg.asc
+          printf '%s\n' 'deb [signed-by=/usr/share/keyrings/fs-recovery-pgdg.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main' | sudo tee /etc/apt/sources.list.d/fs-recovery-pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends postgresql-17 postgresql-client-17
+          for tool in initdb pg_ctl psql pg_dump pg_restore createdb; do
+            test -x "/usr/lib/postgresql/17/bin/$tool"
+          done
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          /usr/lib/postgresql/17/bin/pg_restore --version
+      - name: Verify synthetic contracts before credential access
+        env:
+          FS_RECOVERY_PG_BIN: /usr/lib/postgresql/17/bin
+        run: |
+          npm run qa:data-recovery-plan
+          npm run qa:data-recovery-native
+      - name: Read-only export and private data-content restore
+        env:
+          RECOVERY_EXPECTED_SHA: ${{ inputs.expected_sha }}
+          RECOVERY_CONFIRM: ${{ inputs.confirmation }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_POOLER_HOST: ${{ vars.SUPABASE_DB_POOLER_HOST }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          umask 077
+          node scripts/github-data-content-recovery.mjs --execute

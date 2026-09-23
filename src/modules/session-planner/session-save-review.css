@@ -1,0 +1,26 @@
+.session-save-review {
+  box-sizing: border-box;
+  width: min(900px, calc(100% - 24px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid #d4d8dd;
+  border-radius: 8px;
+  background: #fff;
+  color: #18222e;
+  letter-spacing: 0;
+}
+.session-save-review::backdrop { background: rgb(0 0 0 / 40%); }
+.session-save-review > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border-bottom: 1px solid #d4d8dd; }
+.session-save-review h2 { font-size: 20px; margin: 0; }
+.session-save-review h3 { font-size: 16px; margin: 0 0 12px; overflow-wrap: anywhere; }
+.session-save-review-content { padding: 16px; }
+.session-save-review section { padding: 16px 0; border-top: 1px solid #d4d8dd; }
+.session-save-review details { border-bottom: 1px solid #e7e9ed; padding: 10px 0; }
+.session-save-review summary { cursor: pointer; overflow-wrap: anywhere; }
+.session-save-comparison { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 12px; }
+.session-save-comparison pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; font: 13px/1.5 ui-monospace, monospace; }
+.session-save-review footer { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.session-save-review button { padding: 9px 14px; border: 1px solid #c5cbd1; border-radius: 6px; background: #f3f5f7; color: #18222e; font: inherit; font-size: 14px; cursor: pointer; }
+.session-save-review button:focus-visible, .session-save-review summary:focus-visible { outline: 2px solid #0868c9; outline-offset: 3px; }
+.session-save-review button:disabled { opacity: .55; cursor: wait; }
+@media (max-width: 560px) { .session-save-comparison { grid-template-columns: minmax(0, 1fr); } }

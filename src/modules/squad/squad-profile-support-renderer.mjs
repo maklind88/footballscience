@@ -42,6 +42,20 @@ export function createSquadProfileSupportRenderer({
       .join("");
   };
 
+  const renderSecondaryRoleChoices = (selectedRoles = [], { disabled = false } = {}) => {
+    const selected = new Set(selectedRoles);
+    return playerProfileRoleOptions
+      .map(
+        (role) => `
+                <label class="squad-secondary-role-option">
+                  <input type="checkbox" name="secondaryRoles" value="${escapeHtml(role)}" ${selected.has(role) ? "checked" : ""} ${disabled ? "disabled" : ""} />
+                  <span>${escapeHtml(role)}</span>
+                </label>
+              `
+      )
+      .join("");
+  };
+
   const renderOptionSet = (options, selectedKey = "") =>
     options
       .map((option) => `<option value="${escapeHtml(option.key)}" ${option.key === selectedKey ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
@@ -267,6 +281,7 @@ ${escapeHtml(tab.label)}
     const canEdit = canEditPlayerProfiles();
     const draftPrimaryRole = getDraftValue(draft, "primaryRole") || "CB";
     const draftRosterType = getDraftValue(draft, "rosterType") || "squad";
+    const showTemporaryFields = draftRosterType !== "squad";
     return `
     <article class="squad-add-player-card">
       <header class="squad-section-head">
@@ -275,7 +290,11 @@ ${escapeHtml(tab.label)}
           <h2>Add Player</h2>
         </div>
       </header>
-      <form id="playerProfileNewPlayerForm" class="squad-profile-form">
+      <form
+        id="playerProfileNewPlayerForm"
+        class="squad-profile-form"
+        data-player-profile-new-roster-type="${escapeHtml(draftRosterType)}"
+      >
         <div class="squad-form-grid">
           <label>
             <span>Name</span>
@@ -305,6 +324,13 @@ ${escapeHtml(tab.label)}
               ${renderOptionSet(playerProfileRosterTypeOptions, draftRosterType)}
             </select>
           </label>
+        </div>
+        <fieldset
+          class="squad-new-player-temporary-fields"
+          data-player-profile-new-temporary-fields
+          ${showTemporaryFields ? "" : "hidden"}
+        >
+          <legend>Training guest details</legend>
           <label>
             <span>Temporary group</span>
             <input name="temporaryGroup" value="${escapeHtml(getDraftValue(draft, "temporaryGroup"))}" placeholder="Academy Training Group" ${canEdit ? "" : "disabled"} />
@@ -317,7 +343,7 @@ ${escapeHtml(tab.label)}
             <span>Temporary to</span>
             <input name="temporaryTo" type="date" value="${escapeHtml(getDraftValue(draft, "temporaryTo"))}" ${canEdit ? "" : "disabled"} />
           </label>
-        </div>
+        </fieldset>
         <button type="submit" ${canEdit ? "" : "disabled"}>Add player</button>
       </form>
     </article>
@@ -335,6 +361,7 @@ ${escapeHtml(tab.label)}
         role="dialog"
         aria-modal="true"
         aria-label="Add player"
+        tabindex="-1"
       >
         <button
           type="button"
@@ -353,6 +380,7 @@ ${escapeHtml(tab.label)}
   return {
     renderRoleOptions,
     renderSecondaryRoleOptions,
+    renderSecondaryRoleChoices,
     renderOptionSet,
     renderMedicalPanel,
     renderFuturePanel,

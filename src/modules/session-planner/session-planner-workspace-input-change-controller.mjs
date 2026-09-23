@@ -34,6 +34,16 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
     renderWorkspace = () => {},
   } = deps;
 
+  function commitSelectedBlockField(field) {
+    if (!field?.dataset?.sessionField) {
+      return false;
+    }
+    updateSelectedBlockField(field.dataset.sessionField, field.value, {
+      syncExerciseReview: field.dataset.sessionField === "postSessionNotes",
+    });
+    return true;
+  }
+
   function handleInput(event) {
     const playerBoardFormationInput = event.target.closest("[data-session-player-board-formation-input]");
     if (playerBoardFormationInput) {
@@ -77,7 +87,9 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
     if (!field) {
       return;
     }
-    updateSelectedBlockField(field.dataset.sessionField, field.value);
+    // Text fields stay as a local DOM draft while the coach is composing.
+    // Committing on every keystroke creates noisy central writes and makes
+    // concurrent editing needlessly conflict-prone.
     resizeTextarea(field);
   }
 
@@ -154,21 +166,45 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
     if (!field) {
       return;
     }
-    updateSelectedBlockField(field.dataset.sessionField, field.value, {
-      syncExerciseReview: field.dataset.sessionField === "postSessionNotes",
-    });
+    commitSelectedBlockField(field);
     renderWorkspace({ preserveDateStripScroll: true });
+  }
+
+  function handleFocusOut(event) {
+    const field = event.target.closest?.("[data-session-field]");
+    commitSelectedBlockField(field);
+  }
+
+  function handleKeydown(event) {
+    const field = event.target.closest?.("[data-session-field]");
+    if (!field || event.key !== "Enter") {
+      return;
+    }
+    const isSingleLineField = field.tagName === "INPUT";
+    const requestsTextAreaCommit = field.tagName === "TEXTAREA" && (event.metaKey || event.ctrlKey);
+    if (!isSingleLineField && !requestsTextAreaCommit) {
+      return;
+    }
+    event.preventDefault?.();
+    commitSelectedBlockField(field);
+    field.blur?.();
   }
 
   workspaceElement?.addEventListener?.("input", handleInput);
   workspaceElement?.addEventListener?.("change", handleChange);
+  workspaceElement?.addEventListener?.("focusout", handleFocusOut);
+  workspaceElement?.addEventListener?.("keydown", handleKeydown);
 
   return {
     handleInput,
     handleChange,
+    handleFocusOut,
+    handleKeydown,
     unbind: () => {
       workspaceElement?.removeEventListener?.("input", handleInput);
       workspaceElement?.removeEventListener?.("change", handleChange);
+      workspaceElement?.removeEventListener?.("focusout", handleFocusOut);
+      workspaceElement?.removeEventListener?.("keydown", handleKeydown);
     },
   };
 }

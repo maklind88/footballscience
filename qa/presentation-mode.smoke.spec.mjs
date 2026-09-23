@@ -341,12 +341,17 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     element.dispatchEvent(new InputEvent("input", { bubbles: true, data: "Session Briefing", inputType: "insertText" }));
   });
   await expect(coverTitle).toHaveText("Session Briefing");
+  const storedDraftBeforeCommit = await page.evaluate(
+    ({ key, date }) => JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.textOverrides?.cover?.["cover.title"],
+    { key: presentationKey, date: dateValue }
+  );
+  expect(storedDraftBeforeCommit).toBeUndefined();
+  await coverTitle.evaluate((element) => element.blur());
   const storedCoverTitle = await page.evaluate(
     ({ key, date }) => JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.textOverrides?.cover?.["cover.title"],
     { key: presentationKey, date: dateValue }
   );
   expect(storedCoverTitle).toBe("Session Briefing");
-  await coverTitle.evaluate((element) => element.blur());
   await expect(presentation.locator(".presentation-cover-copy > span")).toHaveCount(0);
   await expect(presentation.locator(".presentation-cover-metrics")).toHaveCount(0);
   const coverLayout = await presentation.evaluate(() => {

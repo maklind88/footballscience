@@ -353,6 +353,32 @@ test("Periodization Session Planner bridge owns overlay state and save delegatio
   expect(calls).toContainEqual(["selectPeriodization", "2026-05-08", 4]);
   expect(calls).toContainEqual(["writeState", { syncCentral: false }]);
 
+  const textField = createClosestTarget(
+    "[data-periodization-field]",
+    { periodizationField: "dailyFocus" },
+    { tagName: "TEXTAREA", value: "Keep the ball", matches: [] }
+  );
+  const writesBeforeDraft = calls.filter(([name]) => name === "writeDay").length;
+  expect(bridge.handleInput({ target: textField })).toBe(true);
+  expect(calls.filter(([name]) => name === "writeDay")).toHaveLength(writesBeforeDraft);
+
+  let prevented = false;
+  expect(bridge.handleKeydown({ key: "Enter", target: textField, preventDefault: () => { prevented = true; } })).toBe(false);
+  expect(calls.filter(([name]) => name === "writeDay")).toHaveLength(writesBeforeDraft);
+
+  textField.blur = () => calls.push(["blur"]);
+  expect(
+    bridge.handleKeydown({
+      key: "Enter",
+      metaKey: true,
+      target: textField,
+      preventDefault: () => { prevented = true; },
+    })
+  ).toBe(true);
+  expect(prevented).toBe(true);
+  expect(calls).toContainEqual(["writeDay", "2026-05-08", { dailyFocus: "Keep the ball" }, false]);
+  expect(calls).toContainEqual(["blur"]);
+
   bridge.handleChange({
     target: createClosestTarget(
       "[data-periodization-field]",

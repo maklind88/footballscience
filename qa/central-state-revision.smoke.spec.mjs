@@ -356,6 +356,7 @@ test("pending Sessions snapshot with an evicted cache still shows central traini
   };
   const writes = [];
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "missing-session-cache", {
+    fixedTime: "2026-09-10T12:00:00Z",
     appStateWriteBodies: writes,
     initScript: ({ key, manifestKey }) => {
       const nativeSet = Storage.prototype.setItem;
@@ -413,6 +414,7 @@ test("large Sessions hydrate, edit, save and reload through compressed browser t
   };
   const wires = [];
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "large-session-transport", {
+    fixedTime: "2026-09-10T12:00:00Z",
     initScript: (key) => {
       const nativeSet = Storage.prototype.setItem;
       Storage.prototype.setItem = function (storageKey, value) {
@@ -465,6 +467,8 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
   const context = await browser.newContext();
   await installCentralRevisionRoutes(context, centralStore, syncBodies, options);
   const page = await context.newPage();
+  // Keep dated fixtures in the visible calendar while timers continue normally.
+  if (options.fixedTime) await page.clock.setFixedTime(new Date(options.fixedTime));
   await page.addInitScript(() => {
     window.__footballScienceQaForceCentralState = true;
   });
@@ -940,6 +944,7 @@ test("Sessions merged acknowledgement survives full browser cache and reload wit
     metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(7, value), moduleId: "session-planner" } } };
   const posts = [];
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "ack-quota-merge", {
+    fixedTime: "2026-09-10T12:00:00Z",
     initScript: (key) => {
       const nativeSet = Storage.prototype.setItem;
       Storage.prototype.setItem = function (storageKey, next) {

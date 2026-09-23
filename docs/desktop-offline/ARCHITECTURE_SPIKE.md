@@ -62,7 +62,7 @@ On 2026-09-23, the same packaged verification was rerun with the full tracked Fo
 
 ### Windows, verified through GitHub Actions CI
 
-[Run 33499616167](https://github.com/maklind88/footballscience/actions/runs/33499616167) verified exact commit `d6df5e85dec615ffd2d0f8acd90ac146d119b222` on Windows Server 2025 AMD64 with WebView2 `151.0.4129.101`:
+[Run 35932204339](https://github.com/maklind88/footballscience/actions/runs/35932204339) verified exact commit `39749edd2debdb6c2e441eb91bc7d8879331b147` on Windows Server 2025 AMD64 with WebView2 `153.0.4234.48`:
 
 - Candidate A, Candidate B and the unauthorized-origin probe compiled as release executables;
 - Candidate A signed custom-protocol activation, native generation persistence across process restart, incompatible-candidate rejection and last-known-good restart passed;
@@ -72,12 +72,12 @@ On 2026-09-23, the same packaged verification was rerun with the full tracked Fo
 - the local Session Planner projection loaded after restart;
 - Candidate B WebView2 startup without network dependency passed;
 - unauthorized origin and unauthorized native command paths were rejected;
-- native Rust tests, all 38 desktop contract tests, static/security gates, API contracts and all four Chromium regression shards passed;
+- native Rust tests (44 passed, one physical OS-vault test intentionally ignored), all 53 desktop contract tests, static/security gates, API contracts and all four Chromium regression shards passed;
 - an unsigned, checksummed evidence artifact was generated; no installer or release was produced.
 
 The Windows runner is a hosted VM. It does not prove physical Windows behavior, installer UX, sleep/wake, real adapter switching, a physical Credential Manager round trip, signed update UX, SmartScreen or a physical OS restart. The earlier failing integration runs are retained as negative evidence; the last failure was a Windows-path 404 in the synthetic hosted server, corrected by portable `path.relative` containment and explicit POSIX/Windows tests in `6ee92acc`.
 
-That run predates the 2026-09-23 full-platform `.pack` revision. The Windows verifier has been upgraded to require full-runtime proof and isolated test data, but it must run on the new committed revision before the same claim is extended to Windows.
+This accepted run includes the 2026-09-23 full-platform `.pack` revision, isolated test data, full-runtime readiness proof and the current hardened bounded auth/data contracts. It produced three unsigned checksummed probe executables plus sanitized JSON/log evidence; it did not generate an installer or publish a release.
 
 ## Decision matrix
 
@@ -85,7 +85,7 @@ That run predates the 2026-09-23 full-platform `.pack` revision. The Windows ver
 | --- | --- | --- | --- |
 | Compatible web update speed | Best fit | Requires native release | Fast only after building a second updater |
 | macOS packaged cold restart | Passed with full runtime | Passed | Not selected |
-| Windows CI cold restart | Earlier slice passed; full-bundle rerun pending | Startup passed without network | Not selected |
+| Windows CI cold restart | Passed with full runtime and persisted projection | Passed without network | Not selected |
 | Broken/incompatible shell recovery | Active/previous/candidate and LKG passed | Installed binary remains stable | Would need a second atomic rollback system |
 | Native attack surface | Exact origin plus typed commands | Smallest remote-origin surface | Adds updater/supply-chain surface |
 | Browser/PWA isolation | Native cache; no desktop SW | Embedded assets | Would need explicit isolation |
@@ -97,7 +97,7 @@ Candidate A remains the recommended architecture for the next local implementati
 
 The local architecture gate can be provisionally closed because the same bounded slice passed packaged macOS verification and isolated Windows CI, including cold restart, reconnect, compatibility rejection, LKG retention, local projection persistence, bridge restrictions and existing web regression.
 
-This is not production acceptance. Before any public desktop build, Candidate A still needs vendored/pinned Supabase runtime dependencies, native-owned real non-production auth/provider wiring, explicit API-origin routing, physical verification of OS credential storage and lifecycle behavior, a reviewed real sync boundary, encryption and data-retention decisions, production signing custody/protected publication, refreshed Windows CI, physical Windows verification, installer/signing/SmartScreen work, sleep/wake and real-network testing. The current web auth path must not simply be enabled because it would place refresh/session material in WebView browser storage.
+This is not production acceptance. Before any public desktop build, Candidate A still needs vendored/pinned Supabase runtime dependencies, native-owned real non-production auth/provider wiring, explicit API-origin routing, physical verification of OS credential storage and lifecycle behavior, a reviewed real sync boundary, encryption and data-retention decisions, production signing custody/protected publication, physical Windows verification, installer/signing/SmartScreen work, sleep/wake and real-network testing. The current web auth path must not simply be enabled because it would place refresh/session material in WebView browser storage.
 
 ## Supabase and synchronization boundary
 

@@ -2,9 +2,9 @@
 
 Status: Provisionally accepted for continued local hardening — not production-ready
 
-Date: 2026-08-30; updated with local-slice evidence 2026-09-01 and security/evidence clarifications 2026-09-05
+Date: 2026-08-30; updated with local-slice evidence 2026-09-01, security/evidence clarifications 2026-09-05 and full-platform Windows evidence 2026-09-23
 
-Review addendum 2026-09-05: see `../SECURITY_REVIEW_2026-09-05.md` for reproduced and corrected capability, refresh-lifecycle, rollback, storage and wire-contract gaps. The local architecture decision stands; prior green CI is not evidence for the subsequently changed implementation. Current SHA/run evidence belongs to PR #201. Production readiness remains open.
+Review addendum 2026-09-05: see `../SECURITY_REVIEW_2026-09-05.md` for reproduced and corrected capability, refresh-lifecycle, rollback, storage and wire-contract gaps. The local architecture decision stands; prior green CI is not evidence for subsequently changed implementation. The accepted current evidence is the exact SHA and Windows run recorded below. Production readiness remains open.
 
 ## Context
 
@@ -28,12 +28,12 @@ Keep Candidate B as an archived/rebuildable fallback if physical Windows or real
 - atomic projection/outbox, accepted-response loss, close/reopen replay, durable acknowledgement and unauthorized-partition behavior passed Rust contracts;
 - the synthetic native `SessionAuthority` supplies bounded identity/lease context without a refresh token in SQLite or frontend storage;
 - packaged macOS Candidate B started without a network dependency;
-- [Windows CI run 33499616167](https://github.com/maklind88/footballscience/actions/runs/33499616167) built and ran Candidate A, Candidate B and an unauthorized-origin executable from commit `d6df5e85dec615ffd2d0f8acd90ac146d119b222`;
-- WebView2 `151.0.4129.101` passed signed custom-protocol activation, active-generation restart, compatibility/LKG, synthetic online/offline/restart/online and local-projection checks;
+- [Windows CI run 35932204339](https://github.com/maklind88/footballscience/actions/runs/35932204339) built and ran Candidate A, Candidate B and an unauthorized-origin executable from commit `39749edd2debdb6c2e441eb91bc7d8879331b147`;
+- WebView2 `153.0.4234.48` passed full-platform signed custom-protocol activation, active-generation restart, compatibility/LKG, synthetic online/offline/restart/online and local-projection checks;
 - Windows CI rejected invalid signatures, unknown keys, post-signing asset modification and an incompatible candidate without changing the active generation;
 - Windows CI timed out and quarantined a hanging candidate, cleared its authority, retained active state and suppressed retry after process restart;
 - unauthorized origin and unauthorized command attempts were rejected;
-- static/security gates, API contracts and all four Chromium web regression shards passed in the same run;
+- 53 desktop contracts, 44 native Rust tests, static/security gates, API contracts and all four Chromium web regression shards passed in the same run; the one ignored Rust test requires an explicit physical OS-vault round trip;
 - no existing browser/PWA service-worker source was changed.
 - exact-manifest signature, unknown-key, modified-manifest, modified-asset, immutable-build-ID, rollback, candidate-isolation and quarantine contracts pass locally and, where applicable, in Windows CI;
 - the native OS-vault SessionAuthority lifecycle verifies one refresh owner, durable two-slot rotation, account switch, logout, revocation and configurable offline lease in local contracts; Windows Credential Manager compiled but was not physically exercised;

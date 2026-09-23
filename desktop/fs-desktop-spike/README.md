@@ -32,9 +32,9 @@ SQLite local schema v3 contains one normalized synthetic Session Planner project
 
 The branch includes a fail-closed authenticated handler, a private additive Postgres draft and disposable synthetic database. Local E2E reads the selected slice through that contract, normalizes it into file-backed SQLite, performs two offline edits, restarts, safely replays a lost acknowledgement and converges at revision 9. No real database adapter or remote schema is configured.
 
-The current identity is synthetic, but SessionAuthority uses real macOS Keychain and Windows Credential Manager adapters for secure refresh custody. Rotation is serialized and durable, account switch/logout/revocation are bounded, and lease duration is compile-time configurable. The frontend receives credential-free actor/organization/team/partition/epoch/lease context only.
+SessionAuthority uses macOS Keychain and Windows Credential Manager adapters for secure refresh custody. Rotation is serialized and durable, account switch/logout/revocation are bounded, and lease duration is compile-time configurable. The frontend receives credential-free actor/organization/team/partition/epoch/lease context only. A valid verified identity/profile lease can be restored after restart for offline reads without restoring an access token.
 
-The signed full web runtime is now confirmed to reach the application's real readiness marker in a packaged macOS build. Real Supabase auth is deliberately not enabled: the current web path depends on a remote UMD script and browser-persisted session state, which conflict with strict CSP and native-only refresh credential custody. Relative `/api/**` calls also need an explicit typed HTTPS routing policy before real traffic is allowed.
+The signed full web runtime is now confirmed to reach the application's real readiness marker in a packaged macOS build. Desktop mode bypasses the browser Supabase SDK: native Rust owns authentication and proxies only exact JSON API routes to a compile-time HTTPS origin. Real access and refresh tokens never enter the WebView; it receives an opaque compatibility marker. The browser product's existing Supabase flow remains unchanged. The transport and server endpoint are locally contract-tested only; no real API origin or Supabase environment is configured.
 
 ## Test signing
 
@@ -59,10 +59,10 @@ The historical `hosted` identifier is retained in scripts for continuity; it now
 
 - no production/staging Supabase schema, data or environment change;
 - no production signing, publication, deployment, installer, notarization or updater;
-- no real authentication provider or account data;
+- no real authentication provider/account run; native auth and server contracts use synthetic local dependencies only;
 - no claim that every existing web function has an offline data adapter;
-- no real API-origin routing or vendored/pinned Supabase browser runtime yet;
-- macOS Keychain is locally verified with a synthetic secret; Windows Credential Manager remains compile/contract-only pending physical verification;
+- no configured real API origin; desktop JSON routing is implemented but binary/FormData transfers and Realtime still require separate bounded designs;
+- macOS Keychain adapter is compiled; its real credential write test is opt-in. Windows Credential Manager remains compile/contract-only pending physical verification;
 - no configured/deployed synchronization database adapter;
 - no encryption-at-rest claim;
 - no physical Windows, real adapter switching, sleep/wake, SmartScreen or physical restart claim.

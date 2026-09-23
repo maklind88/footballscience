@@ -17,7 +17,13 @@ test("permissions contain only the enumerated role-specific commands", async () 
     .map((match) => match[1])
     .sort();
   assert.deepEqual(commands, [
+    "desktop_api_request",
     "desktop_apply_session_operation",
+    "desktop_auth_refresh",
+    "desktop_auth_reset_password",
+    "desktop_auth_sign_in",
+    "desktop_auth_sign_out",
+    "desktop_auth_status",
     "desktop_bootstrap_status",
     "desktop_candidate_confirm",
     "desktop_candidate_report_failure",
@@ -48,7 +54,7 @@ test("active, candidate and recovery capabilities are disjoint and window-scoped
     "allow-candidate-confirm",
     "allow-candidate-failure",
   ]);
-  assert.equal(candidate.permissions.some((value) => /session|authority|outbox|recovery|operation/.test(value)), false);
+  assert.equal(candidate.permissions.some((value) => /api|auth|session|authority|outbox|recovery|operation/.test(value)), false);
   assert.deepEqual(recovery.windows, ["recovery"]);
   assert.deepEqual(recovery.permissions.sort(), ["allow-recovery-read", "allow-recovery-status"]);
 });

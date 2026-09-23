@@ -41,6 +41,7 @@ function runBuild(candidate) {
     ...process.env,
     FS_DESKTOP_DELIVERY_MODE: candidate.name,
     FS_DESKTOP_TEST_BUILD: "1",
+    FS_DESKTOP_SYNTHETIC_AUTH: "1",
   };
   if (candidate.name === "hosted") {
     Object.assign(env, {

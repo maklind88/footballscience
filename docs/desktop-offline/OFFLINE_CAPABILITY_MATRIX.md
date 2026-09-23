@@ -1,6 +1,6 @@
 # Offline Capability Matrix — Draft 1
 
-This matrix describes the smallest safe initial target, not the current live capability. Today, only browser-local compatibility caches and the local video companion provide partial offline behavior; there is no general authenticated offline cold-start workflow.
+This matrix describes the staged safe target, not a claim that every row is implemented. The desktop branch now has signed cold-start code delivery, a native-owned credential/identity lease foundation and one bounded Session Planner SQLite/outbox slice. No real provider environment is configured, and all other feature rows remain at the classifications below until they receive explicit adapters and tests.
 
 `FULL OFFLINE` means selected content can be read and edited with durable operations. `READ-ONLY OFFLINE` means an authorized snapshot can be viewed but not mutated. `ONLINE ONLY` means content is not deliberately persisted for offline product use.
 

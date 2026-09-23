@@ -1,3 +1,4 @@
+mod auth_api;
 mod authority;
 mod bootstrap;
 #[cfg(test)]
@@ -14,6 +15,7 @@ mod sync_contract;
 mod web_bundle;
 mod windows;
 
+use auth_api::{DesktopApiRequest, DesktopApiResponse, is_authorization_rejection};
 use authority::{SessionAuthoritySnapshot, SessionContextProof};
 use bootstrap::{BootstrapStatus, CandidateRuntimeStatus, ConfirmCandidateRequest, PrepareResult};
 use local_data::{OperationReceipt, SessionOperationRequest, SessionSlice, SessionSyncStatus};
@@ -24,6 +26,39 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, WebviewWindow};
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DesktopSignInRequest {
+    identifier: String,
+    password: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DesktopIdentifierRequest {
+    identifier: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopAuthView {
+    schema: &'static str,
+    configured: bool,
+    snapshot: SessionAuthoritySnapshot,
+}
+
+fn desktop_auth_view(runtime: &DesktopRuntime) -> Result<DesktopAuthView, String> {
+    let authority = runtime
+        .authority
+        .lock()
+        .map_err(|_| "session authority lock poisoned".to_string())?;
+    Ok(DesktopAuthView {
+        schema: "fs-desktop-auth-view-v1",
+        configured: runtime.auth_api.is_some(),
+        snapshot: authority.snapshot(),
+    })
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -377,6 +412,178 @@ fn desktop_session_authority(
 }
 
 #[tauri::command]
+fn desktop_auth_status(
+    window: WebviewWindow,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<DesktopAuthView, String> {
+    require_window(&window, windows::WebviewRole::Active)?;
+    let runtime = runtime(&state)?;
+    desktop_auth_view(&runtime)
+}
+
+#[tauri::command]
+async fn desktop_auth_sign_in(
+    window: WebviewWindow,
+    request: DesktopSignInRequest,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<DesktopAuthView, String> {
+    require_window(&window, windows::WebviewRole::Active)?;
+    let runtime = runtime(&state)?;
+    let api = runtime
+        .auth_api
+        .clone()
+        .ok_or_else(|| "desktop authentication is not configured".to_string())?;
+    let worker = runtime.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let activated = api.sign_in(&request.identifier, &request.password)?;
+        worker
+            .authority
+            .lock()
+            .map_err(|_| "session authority lock poisoned".to_string())?
+            .activate_account(
+                activated.snapshot,
+                activated.access_token,
+                activated.refresh_token,
+                activated.access_expires_at_unix_ms,
+            )?;
+        desktop_auth_view(&worker)
+    })
+    .await
+    .map_err(|_| "desktop sign-in task failed".to_string())?
+}
+
+#[tauri::command]
+async fn desktop_auth_refresh(
+    window: WebviewWindow,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<DesktopAuthView, String> {
+    require_window(&window, windows::WebviewRole::Active)?;
+    let runtime = runtime(&state)?;
+    let api = runtime
+        .auth_api
+        .clone()
+        .ok_or_else(|| "desktop authentication is not configured".to_string())?;
+    let worker = runtime.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let authority = worker
+            .authority
+            .lock()
+            .map_err(|_| "session authority lock poisoned".to_string())?;
+        if let Err(error) =
+            authority.refresh_if_needed(60_000, |refresh_token| api.refresh(refresh_token))
+        {
+            if is_authorization_rejection(&error) {
+                authority.revoke()?;
+            }
+            return Err(error);
+        }
+        drop(authority);
+        desktop_auth_view(&worker)
+    })
+    .await
+    .map_err(|_| "desktop refresh task failed".to_string())?
+}
+
+#[tauri::command]
+async fn desktop_auth_reset_password(
+    window: WebviewWindow,
+    request: DesktopIdentifierRequest,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<(), String> {
+    require_window(&window, windows::WebviewRole::Active)?;
+    let runtime = runtime(&state)?;
+    let api = runtime
+        .auth_api
+        .clone()
+        .ok_or_else(|| "desktop authentication is not configured".to_string())?;
+    tauri::async_runtime::spawn_blocking(move || api.reset_password(&request.identifier))
+        .await
+        .map_err(|_| "desktop password-reset task failed".to_string())?
+}
+
+#[tauri::command]
+async fn desktop_auth_sign_out(
+    window: WebviewWindow,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<DesktopAuthView, String> {
+    require_window(&window, windows::WebviewRole::Active)?;
+    let runtime = runtime(&state)?;
+    let api = runtime.auth_api.clone();
+    let worker = runtime.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let remote_result = if let Some(api) = api {
+            let token = worker
+                .authority
+                .lock()
+                .map_err(|_| "session authority lock poisoned".to_string())?
+                .access_token()
+                .ok();
+            api.sign_out(token.as_deref().map(String::as_str))
+        } else {
+            Ok(())
+        };
+        worker
+            .authority
+            .lock()
+            .map_err(|_| "session authority lock poisoned".to_string())?
+            .logout()?;
+        if let Err(error) = remote_result {
+            ci_trace::record(format!("desktop remote sign-out deferred: {error}"));
+        }
+        desktop_auth_view(&worker)
+    })
+    .await
+    .map_err(|_| "desktop sign-out task failed".to_string())?
+}
+
+#[tauri::command]
+async fn desktop_api_request(
+    window: WebviewWindow,
+    request: DesktopApiRequest,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<DesktopApiResponse, String> {
+    require_window(&window, windows::WebviewRole::Active)?;
+    let runtime = runtime(&state)?;
+    let api = runtime
+        .auth_api
+        .clone()
+        .ok_or_else(|| "desktop API origin is not configured".to_string())?;
+    let worker = runtime.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let token = {
+            let authority = worker
+                .authority
+                .lock()
+                .map_err(|_| "session authority lock poisoned".to_string())?;
+            if authority.snapshot().actor_id.is_empty() {
+                None
+            } else {
+                if let Err(error) =
+                    authority.refresh_if_needed(60_000, |refresh_token| api.refresh(refresh_token))
+                {
+                    if is_authorization_rejection(&error) {
+                        authority.revoke()?;
+                    }
+                    return Err(error);
+                }
+                Some(authority.access_token()?)
+            }
+        };
+        let response = api.request(&request, token.as_deref().map(String::as_str))?;
+        if response.status == 401 {
+            worker
+                .authority
+                .lock()
+                .map_err(|_| "session authority lock poisoned".to_string())?
+                .revoke()?;
+        }
+        Ok(response)
+    })
+    .await
+    .map_err(|_| "desktop API task failed".to_string())?
+}
+
+#[tauri::command]
 fn desktop_read_selected_session(
     window: WebviewWindow,
     context: SessionContextProof,
@@ -645,6 +852,12 @@ pub fn run() {
             desktop_recovery_status,
             desktop_recovery_read_selected_session,
             desktop_session_authority,
+            desktop_auth_status,
+            desktop_auth_sign_in,
+            desktop_auth_refresh,
+            desktop_auth_reset_password,
+            desktop_auth_sign_out,
+            desktop_api_request,
             desktop_read_selected_session,
             desktop_session_sync_status,
             desktop_apply_session_operation,

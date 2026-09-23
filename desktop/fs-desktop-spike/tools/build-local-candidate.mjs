@@ -31,6 +31,7 @@ const env = {
   ...process.env,
   FS_DESKTOP_DELIVERY_MODE: candidate,
   FS_DESKTOP_TEST_BUILD: "1",
+  FS_DESKTOP_SYNTHETIC_AUTH: "1",
 };
 if (candidate === "hosted") {
   Object.assign(env, {

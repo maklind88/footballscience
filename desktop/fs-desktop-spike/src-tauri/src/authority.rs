@@ -21,9 +21,24 @@ pub const SYNTHETIC_PARTITION_KEY: &str = "synthetic:tenant-301:actor-101";
 pub const SYNTHETIC_AUTH_EPOCH: u64 = 1;
 
 const CREDENTIAL_SERVICE: &str = "xyz.footballscience.desktop.session-authority.v1";
+const ACTIVE_ACCOUNT_POINTER: &str = "active-account-v1";
 const MIN_OFFLINE_LEASE_SECONDS: u64 = 300;
 const MAX_OFFLINE_LEASE_SECONDS: u64 = 604_800;
 const DEFAULT_OFFLINE_LEASE_SECONDS: u64 = 86_400;
+
+#[derive(Clone, Deserialize, Serialize, Zeroize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionProfile {
+    pub email: String,
+    pub role: String,
+    pub display_name: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub club_id: String,
+    pub club_name: String,
+    pub team_name: String,
+    pub status: String,
+}
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,6 +54,7 @@ pub struct SessionAuthoritySnapshot {
     pub offline_lease_expires_at_unix_ms: u128,
     pub can_read_offline: bool,
     pub can_sync: bool,
+    pub profile: Option<SessionProfile>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -135,6 +151,20 @@ struct StoredRefreshCredential {
     actor_id: String,
     generation: u64,
     refresh_token: String,
+    #[serde(default)]
+    identity: Option<StoredIdentityLease>,
+}
+
+#[derive(Deserialize, Serialize, Zeroize, ZeroizeOnDrop)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StoredIdentityLease {
+    organization_id: String,
+    tenant_id: String,
+    team_id: String,
+    partition_key: String,
+    auth_epoch: u64,
+    offline_lease_expires_at_unix_ms: u128,
+    profile: Option<SessionProfile>,
 }
 
 struct AuthorityState {
@@ -149,6 +179,7 @@ pub struct RefreshedCredentials {
     pub access_token: Zeroizing<String>,
     pub refresh_token: Zeroizing<String>,
     pub access_expires_at_unix_ms: u128,
+    pub verified_snapshot: Option<SessionAuthoritySnapshot>,
 }
 
 pub struct SessionAuthority {
@@ -159,11 +190,77 @@ pub struct SessionAuthority {
 }
 
 impl SessionAuthority {
-    pub fn new_os_synthetic() -> Result<Self, String> {
-        Self::new_synthetic(
-            Arc::new(OsCredentialVault::production()),
-            OfflineLeasePolicy::from_compile_time(),
-        )
+    pub fn new_os() -> Result<Self, String> {
+        let vault: Arc<dyn CredentialVault> = Arc::new(OsCredentialVault::production());
+        let lease_policy = OfflineLeasePolicy::from_compile_time();
+        if option_env!("FS_DESKTOP_SYNTHETIC_AUTH") == Some("1") {
+            return Self::new_synthetic(vault, lease_policy);
+        }
+        Self::restore_or_signed_out(vault, lease_policy)
+    }
+
+    fn signed_out_snapshot() -> SessionAuthoritySnapshot {
+        SessionAuthoritySnapshot {
+            state: "signed-out",
+            synthetic_identity: false,
+            actor_id: String::new(),
+            organization_id: String::new(),
+            tenant_id: String::new(),
+            team_id: String::new(),
+            partition_key: String::new(),
+            auth_epoch: 0,
+            offline_lease_expires_at_unix_ms: 0,
+            can_read_offline: false,
+            can_sync: false,
+            profile: None,
+        }
+    }
+
+    fn restore_or_signed_out(
+        vault: Arc<dyn CredentialVault>,
+        lease_policy: OfflineLeasePolicy,
+    ) -> Result<Self, String> {
+        let mut snapshot = Self::signed_out_snapshot();
+        let mut session_generation = 0;
+        let pointer = vault.read(ACTIVE_ACCOUNT_POINTER)?;
+        if let Some(mut encoded_actor) = pointer {
+            let actor_id = String::from_utf8(encoded_actor.clone())
+                .map_err(|_| "secure active-account pointer is malformed".to_string())?;
+            encoded_actor.zeroize();
+            validate_actor_id(&actor_id)?;
+            if let Some(stored) = load_refresh_from(vault.as_ref(), &actor_id)? {
+                if let Some(identity) = stored.identity.as_ref() {
+                    snapshot = SessionAuthoritySnapshot {
+                        state: "offline-authorized",
+                        synthetic_identity: false,
+                        actor_id,
+                        organization_id: identity.organization_id.clone(),
+                        tenant_id: identity.tenant_id.clone(),
+                        team_id: identity.team_id.clone(),
+                        partition_key: identity.partition_key.clone(),
+                        auth_epoch: identity.auth_epoch,
+                        offline_lease_expires_at_unix_ms: identity.offline_lease_expires_at_unix_ms,
+                        can_read_offline: false,
+                        can_sync: false,
+                        profile: identity.profile.clone(),
+                    };
+                    validate_identity_snapshot(&snapshot)?;
+                    session_generation = stored.generation;
+                }
+            }
+        }
+        Ok(Self {
+            state: Mutex::new(AuthorityState {
+                snapshot,
+                access_token: None,
+                access_expires_at_unix_ms: 0,
+                revoked: false,
+                session_generation,
+            }),
+            refresh_owner: Mutex::new(()),
+            vault,
+            lease_policy,
+        })
     }
 
     fn new_synthetic(
@@ -185,6 +282,17 @@ impl SessionAuthority {
                     offline_lease_expires_at_unix_ms: now + lease_policy.duration_ms,
                     can_read_offline: true,
                     can_sync: false,
+                    profile: Some(SessionProfile {
+                        email: "synthetic@footballscience.invalid".into(),
+                        role: "coach".into(),
+                        display_name: "Synthetic Coach".into(),
+                        first_name: "Synthetic".into(),
+                        last_name: "Coach".into(),
+                        club_id: SYNTHETIC_TENANT_ID.into(),
+                        club_name: "Synthetic Club".into(),
+                        team_name: "Synthetic Team".into(),
+                        status: "active".into(),
+                    }),
                 },
                 access_token: None,
                 access_expires_at_unix_ms: 0,
@@ -251,16 +359,22 @@ impl SessionAuthority {
             .session_generation
             .checked_add(1)
             .ok_or_else(|| "session generation exhausted".to_string())?;
-        self.persist_refresh(&next_actor, &refresh_token)?;
+        let mut active_snapshot = SessionAuthoritySnapshot {
+            state: "online-authorized",
+            synthetic_identity: snapshot.synthetic_identity,
+            offline_lease_expires_at_unix_ms: now_unix_ms()? + self.lease_policy.duration_ms,
+            can_read_offline: true,
+            can_sync: true,
+            ..snapshot
+        };
+        active_snapshot.auth_epoch = active_snapshot
+            .auth_epoch
+            .max(state.snapshot.auth_epoch.saturating_add(1));
+        self.persist_refresh(&next_actor, &refresh_token, &active_snapshot)?;
+        self.vault
+            .write(ACTIVE_ACCOUNT_POINTER, next_actor.as_bytes())?;
         {
-            state.snapshot = SessionAuthoritySnapshot {
-                state: "online-authorized",
-                synthetic_identity: snapshot.synthetic_identity,
-                offline_lease_expires_at_unix_ms: now_unix_ms()? + self.lease_policy.duration_ms,
-                can_read_offline: true,
-                can_sync: true,
-                ..snapshot
-            };
+            state.snapshot = active_snapshot;
             state.access_token = Some(access_token);
             state.access_expires_at_unix_ms = access_expires_at_unix_ms;
             state.revoked = false;
@@ -315,6 +429,27 @@ impl SessionAuthority {
         let refreshed = refresh(refresh_token.as_str())?;
         validate_token(&refreshed.access_token)?;
         validate_token(&refreshed.refresh_token)?;
+        if let Some(verified) = &refreshed.verified_snapshot {
+            if validate_identity_snapshot(verified).is_err() {
+                self.revoke()?;
+                return Err("refreshed identity is no longer authorized".into());
+            }
+            let current = self.snapshot();
+            if verified.actor_id != current.actor_id
+                || verified.organization_id != current.organization_id
+                || verified.team_id != current.team_id
+                || verified.partition_key != current.partition_key
+                || verified
+                    .profile
+                    .as_ref()
+                    .is_some_and(|profile| profile.status != "active")
+            {
+                self.revoke()?;
+                return Err(
+                    "refreshed identity no longer matches the active offline partition".into(),
+                );
+            }
+        }
         let mut state = self
             .state
             .lock()
@@ -326,14 +461,37 @@ impl SessionAuthority {
             return Err("session changed while refresh was in flight".into());
         }
         // Keep identity validation and vault commit in the same critical section as logout/switch.
-        self.persist_refresh(&actor_id, &refreshed.refresh_token)?;
+        let mut next_snapshot = refreshed
+            .verified_snapshot
+            .clone()
+            .unwrap_or_else(|| state.snapshot.clone());
+        next_snapshot.auth_epoch = state.snapshot.auth_epoch;
+        next_snapshot.state = "online-authorized";
+        next_snapshot.offline_lease_expires_at_unix_ms =
+            now_unix_ms()? + self.lease_policy.duration_ms;
+        next_snapshot.can_read_offline = true;
+        next_snapshot.can_sync = true;
+        self.persist_refresh(&actor_id, &refreshed.refresh_token, &next_snapshot)?;
         state.access_token = Some(refreshed.access_token);
         state.access_expires_at_unix_ms = refreshed.access_expires_at_unix_ms;
-        state.snapshot.offline_lease_expires_at_unix_ms =
-            now_unix_ms()? + self.lease_policy.duration_ms;
-        state.snapshot.can_sync = true;
+        state.snapshot = next_snapshot;
         drop(state);
         Ok(self.snapshot())
+    }
+
+    pub fn access_token(&self) -> Result<Zeroizing<String>, String> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| "session authority lock poisoned".to_string())?;
+        if state.revoked || state.access_expires_at_unix_ms <= now_unix_ms()? {
+            return Err("access credential is unavailable or expired".into());
+        }
+        state
+            .access_token
+            .as_ref()
+            .map(|token| Zeroizing::new(token.to_string()))
+            .ok_or_else(|| "access credential is unavailable or expired".into())
     }
 
     pub fn logout(&self) -> Result<(), String> {
@@ -371,36 +529,25 @@ impl SessionAuthority {
         state.snapshot.tenant_id.clear();
         state.snapshot.team_id.clear();
         state.snapshot.partition_key.clear();
-        deletion
+        state.snapshot.profile = None;
+        let pointer_deletion = self.vault.delete(ACTIVE_ACCOUNT_POINTER);
+        deletion.and(pointer_deletion)
     }
 
     fn load_refresh(&self, actor_id: &str) -> Result<Option<StoredRefreshCredential>, String> {
         validate_actor_id(actor_id)?;
-        let mut credentials = Vec::new();
-        for slot in [refresh_slot(actor_id, 'a'), refresh_slot(actor_id, 'b')] {
-            let Some(mut encoded) = self.vault.read(&slot)? else {
-                continue;
-            };
-            let credential = serde_json::from_slice::<StoredRefreshCredential>(&encoded)
-                .map_err(|_| "secure refresh credential is malformed".to_string());
-            encoded.zeroize();
-            let credential = credential?;
-            if credential.schema != "fs-desktop-refresh-credential-v1"
-                || credential.actor_id != actor_id
-                || credential.generation == 0
-            {
-                return Err("secure refresh credential identity is invalid".into());
-            }
-            validate_token(&credential.refresh_token)?;
-            credentials.push(credential);
-        }
-        credentials.sort_by_key(|credential| credential.generation);
-        Ok(credentials.pop())
+        load_refresh_from(self.vault.as_ref(), actor_id)
     }
 
-    fn persist_refresh(&self, actor_id: &str, refresh_token: &str) -> Result<(), String> {
+    fn persist_refresh(
+        &self,
+        actor_id: &str,
+        refresh_token: &str,
+        snapshot: &SessionAuthoritySnapshot,
+    ) -> Result<(), String> {
         validate_actor_id(actor_id)?;
         validate_token(refresh_token)?;
+        validate_identity_snapshot(snapshot)?;
         let next_generation = self
             .load_refresh(actor_id)?
             .map(|credential| credential.generation.saturating_add(1))
@@ -408,10 +555,19 @@ impl SessionAuthority {
         let target = if next_generation % 2 == 0 { 'b' } else { 'a' };
         let previous = if target == 'a' { 'b' } else { 'a' };
         let credential = StoredRefreshCredential {
-            schema: "fs-desktop-refresh-credential-v1".into(),
+            schema: "fs-desktop-refresh-credential-v2".into(),
             actor_id: actor_id.into(),
             generation: next_generation,
             refresh_token: refresh_token.into(),
+            identity: Some(StoredIdentityLease {
+                organization_id: snapshot.organization_id.clone(),
+                tenant_id: snapshot.tenant_id.clone(),
+                team_id: snapshot.team_id.clone(),
+                partition_key: snapshot.partition_key.clone(),
+                auth_epoch: snapshot.auth_epoch,
+                offline_lease_expires_at_unix_ms: snapshot.offline_lease_expires_at_unix_ms,
+                profile: snapshot.profile.clone(),
+            }),
         };
         let mut encoded = Zeroizing::new(
             serde_json::to_vec(&credential)
@@ -457,7 +613,49 @@ fn validate_identity_snapshot(snapshot: &SessionAuthoritySnapshot) -> Result<(),
     if snapshot.partition_key.is_empty() || snapshot.partition_key.len() > 160 {
         return Err("session authority contains an invalid partition".into());
     }
+    if snapshot.profile.as_ref().is_some_and(|profile| {
+        profile.email.len() > 254
+            || profile.role.len() > 40
+            || profile.display_name.len() > 180
+            || profile.first_name.len() > 120
+            || profile.last_name.len() > 120
+            || profile.club_id.len() > 120
+            || profile.club_name.len() > 180
+            || profile.team_name.len() > 180
+            || profile.status != "active"
+    }) {
+        return Err("session authority contains an invalid profile".into());
+    }
     Ok(())
+}
+
+fn load_refresh_from(
+    vault: &dyn CredentialVault,
+    actor_id: &str,
+) -> Result<Option<StoredRefreshCredential>, String> {
+    validate_actor_id(actor_id)?;
+    let mut credentials = Vec::new();
+    for slot in [refresh_slot(actor_id, 'a'), refresh_slot(actor_id, 'b')] {
+        let Some(mut encoded) = vault.read(&slot)? else {
+            continue;
+        };
+        let credential = serde_json::from_slice::<StoredRefreshCredential>(&encoded)
+            .map_err(|_| "secure refresh credential is malformed".to_string());
+        encoded.zeroize();
+        let credential = credential?;
+        if !matches!(
+            credential.schema.as_str(),
+            "fs-desktop-refresh-credential-v1" | "fs-desktop-refresh-credential-v2"
+        ) || credential.actor_id != actor_id
+            || credential.generation == 0
+        {
+            return Err("secure refresh credential identity is invalid".into());
+        }
+        validate_token(&credential.refresh_token)?;
+        credentials.push(credential);
+    }
+    credentials.sort_by_key(|credential| credential.generation);
+    Ok(credentials.pop())
 }
 
 fn validate_actor_id(actor_id: &str) -> Result<(), String> {
@@ -532,6 +730,7 @@ mod tests {
             offline_lease_expires_at_unix_ms: 0,
             can_read_offline: true,
             can_sync: true,
+            profile: None,
         }
     }
 
@@ -562,13 +761,14 @@ mod tests {
                     access_token: Zeroizing::new("access-token-generation-02".into()),
                     refresh_token: Zeroizing::new("refresh-token-generation-02".into()),
                     access_expires_at_unix_ms: now_unix_ms().unwrap() + 60_000,
+                    verified_snapshot: None,
                 })
             })
             .unwrap();
         let stored = authority.load_refresh(SYNTHETIC_ACTOR_ID).unwrap().unwrap();
         assert_eq!(stored.generation, 2);
         assert_eq!(stored.refresh_token, "refresh-token-generation-02");
-        assert_eq!(vault.values.lock().unwrap().len(), 1);
+        assert_eq!(vault.values.lock().unwrap().len(), 2);
     }
 
     #[test]
@@ -595,6 +795,7 @@ mod tests {
                                 access_token: Zeroizing::new("shared-access-token-02".into()),
                                 refresh_token: Zeroizing::new("shared-refresh-token-02".into()),
                                 access_expires_at_unix_ms: now_unix_ms().unwrap() + 120_000,
+                                verified_snapshot: None,
                             })
                         })
                         .unwrap()
@@ -653,6 +854,76 @@ mod tests {
         assert!(!snapshot.can_sync);
         assert!(snapshot.actor_id.is_empty());
         assert!(snapshot.partition_key.is_empty());
+        assert!(vault.values.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn verified_identity_lease_restores_offline_without_exposing_or_activating_tokens() {
+        let vault = Arc::new(MemoryVault::default());
+        let authority = authority(vault.clone());
+        let mut snapshot = active_snapshot(SYNTHETIC_ACTOR_ID);
+        snapshot.synthetic_identity = false;
+        snapshot.profile = Some(SessionProfile {
+            email: "coach@example.com".into(),
+            role: "coach".into(),
+            display_name: "Coach Example".into(),
+            first_name: "Coach".into(),
+            last_name: "Example".into(),
+            club_id: SYNTHETIC_TENANT_ID.into(),
+            club_name: "Test Club".into(),
+            team_name: "First Team".into(),
+            status: "active".into(),
+        });
+        authority
+            .activate_account(
+                snapshot,
+                Zeroizing::new("access-token-generation-01".into()),
+                Zeroizing::new("refresh-token-generation-01".into()),
+                now_unix_ms().unwrap() + 60_000,
+            )
+            .unwrap();
+        drop(authority);
+
+        let restored =
+            SessionAuthority::restore_or_signed_out(vault, OfflineLeasePolicy::seconds(300))
+                .unwrap();
+        let offline = restored.snapshot();
+        assert_eq!(offline.state, "offline-authorized");
+        assert_eq!(offline.actor_id, SYNTHETIC_ACTOR_ID);
+        assert_eq!(offline.profile.unwrap().email, "coach@example.com");
+        assert!(offline.can_read_offline);
+        assert!(!offline.can_sync);
+        assert!(restored.access_token().is_err());
+        let serialized = serde_json::to_string(&restored.snapshot()).unwrap();
+        assert!(!serialized.contains("refresh-token"));
+        assert!(!serialized.contains("access-token"));
+    }
+
+    #[test]
+    fn refresh_with_changed_verified_partition_revokes_local_authority() {
+        let vault = Arc::new(MemoryVault::default());
+        let authority = authority(vault.clone());
+        authority
+            .activate_account(
+                active_snapshot(SYNTHETIC_ACTOR_ID),
+                Zeroizing::new("access-token-generation-01".into()),
+                Zeroizing::new("refresh-token-generation-01".into()),
+                1,
+            )
+            .unwrap();
+        let mut changed = active_snapshot(SYNTHETIC_ACTOR_ID);
+        changed.team_id = "00000000-0000-4000-8000-000000000499".into();
+        changed.partition_key = "synthetic:changed-partition".into();
+        let result = authority.refresh_if_needed(60_000, |_| {
+            Ok(RefreshedCredentials {
+                access_token: Zeroizing::new("access-token-generation-02".into()),
+                refresh_token: Zeroizing::new("refresh-token-generation-02".into()),
+                access_expires_at_unix_ms: now_unix_ms().unwrap() + 60_000,
+                verified_snapshot: Some(changed),
+            })
+        });
+        assert!(result.is_err());
+        assert_eq!(authority.snapshot().state, "revoked");
         assert!(vault.values.lock().unwrap().is_empty());
     }
 

@@ -170,6 +170,13 @@
   let userCacheRefreshPromise = null;
   let postAuthHydrationTimer = 0;
   let postAuthHydrationRunId = 0;
+  function getDesktopAuthBridge() {
+    const bridge = window.__FOOTBALL_SCIENCE_DESKTOP_AUTH__;
+    return bridge?.schema === "fs-desktop-auth-bridge-v1" ? bridge : null;
+  }
+  function authProviderAvailable() {
+    return Boolean(getDesktopAuthBridge() || authState.supabase || authState.devMode);
+  }
   function normalizeRoleForAuth(rawRole, fallback = "coach") {
     if (Array.isArray(rawRole)) {
       return normalizeRoleForAuth(rawRole.find((entry) => typeof entry === "string" && entry.trim()) || "", fallback);
@@ -532,6 +539,22 @@ async function getActiveAccessToken() {
     return String(token || "").length > MAX_AUTH_ACCESS_TOKEN_LENGTH;
   }
   async function refreshAccessToken() {
+    const desktopAuth = getDesktopAuthBridge();
+    if (desktopAuth) {
+      if (authRefreshTokenPromise) return authRefreshTokenPromise;
+      authRefreshTokenPromise = desktopAuth.refreshSession()
+        .then(async ({ session }) => {
+          if (!session?.access_token) return null;
+          authState.session = session;
+          if (!authState.currentUser?.id || authState.currentUser.id !== session.user?.id) {
+            await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: false });
+          }
+          return session.access_token;
+        })
+        .catch(() => null)
+        .finally(() => { authRefreshTokenPromise = null; });
+      return authRefreshTokenPromise;
+    }
     if (!authState.supabase) {
       return null;
     }
@@ -1932,10 +1955,25 @@ async function getActiveAccessToken() {
   }
   async function signInWithIdentifier(identifier, password) {
     if (authState.devMode) return signInWithDevAuth(identifier, password);
-    if (!authState.supabase) return { ok: false, reason: "Authentication is not ready. Open footballscience.xyz." };
+    const desktopAuth = getDesktopAuthBridge();
+    if (!desktopAuth && !authState.supabase) return { ok: false, reason: "Authentication is not ready. Open footballscience.xyz." };
     const cleanIdentifier = String(identifier || "").trim().toLowerCase();
     const cleanPassword = String(password || "").trim();
     if (!cleanIdentifier || !cleanPassword) return { ok: false, reason: "Username and password are required." };
+    if (desktopAuth) {
+      try {
+        const { session } = await desktopAuth.signIn(cleanIdentifier, cleanPassword);
+        if (!session?.access_token || !session?.user?.id) return { ok: false, reason: "Could not start a desktop session." };
+        await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: false });
+        if (isPausedAccount(authState.currentUser)) {
+          await signOut();
+          return { ok: false, reason: "This account is paused. Contact an admin." };
+        }
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, reason: error?.message || "Sign in failed." };
+      }
+    }
     let email = cleanIdentifier;
     let foundByUsername = false;
     if (!cleanIdentifier.includes("@")) {
@@ -1988,6 +2026,11 @@ async function getActiveAccessToken() {
   async function resetPasswordFor(identifier) {
     if (authState.devMode) {
       return { ok: true, localDev: true };
+    }
+    const desktopAuth = getDesktopAuthBridge();
+    if (desktopAuth) {
+      const result = await desktopAuth.resetPassword(identifier);
+      return result?.ok ? { ok: true } : { ok: false, reason: result?.reason || "We could not send a reset link." };
     }
     if (!authState.supabase) {
       return { ok: false, reason: "Authentication is not initialized. Open the app through footballscience.xyz." };
@@ -2425,16 +2468,18 @@ async function getActiveAccessToken() {
     } catch {}
   }
   async function signOut(options = {}) {
-    const shouldSignOutRemote = options.remote !== false && authState.supabase && !authState.isSigningOut;
+    const desktopAuth = getDesktopAuthBridge();
+    const shouldSignOutRemote = options.remote !== false && (desktopAuth || authState.supabase) && !authState.isSigningOut;
     const remoteSignOut = shouldSignOutRemote
       ? (async () => {
           authState.isSigningOut = true;
           try {
-            const { error } = await withTimeout(
-              authState.supabase.auth.signOut({ scope: "global" }),
+            const result = await withTimeout(
+              desktopAuth ? desktopAuth.signOut() : authState.supabase.auth.signOut({ scope: "global" }),
               5000,
               "Sign out took too long."
             );
+            const error = result?.error;
             if (error) {
               console.warn("Sign out warning:", error);
             }
@@ -2536,6 +2581,11 @@ async function getActiveAccessToken() {
     }
     authSessionReadPromise = (async () => {
     try {
+      const desktopAuth = getDesktopAuthBridge();
+      if (desktopAuth) {
+        const result = await desktopAuth.getSession();
+        return { data: { session: result.session || null }, error: null };
+      }
       return await withTimeout(authState.supabase.auth.getSession(), 8000, "Session lookup timed out.");
     } catch (error) {
       console.warn("Supabase session lookup failed; continuing with cached session.", error);
@@ -2560,7 +2610,7 @@ async function getActiveAccessToken() {
     }
     if (data?.session) {
       authState.session = data.session;
-      await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: true });
+      await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: !getDesktopAuthBridge() });
       const expiresAtMs = Number(data.session.expires_at || 0) * 1000;
       if (expiresAtMs && expiresAtMs - Date.now() < 60 * 1000) {
         refreshAccessToken().catch(() => null);
@@ -2592,7 +2642,7 @@ async function getActiveAccessToken() {
     const forgotPasswordIdentifier = document.getElementById("forgotPasswordIdentifier");
     setLoginBusy(true, "Loading...");
     const loginInitSafetyTimer = window.setTimeout(() => {
-      if (!authState.isReady && !authState.supabase && !authState.devMode) {
+      if (!authState.isReady && !authProviderAvailable()) {
         toFormError("Authentication is still loading. Reload the page and try again.", true);
         setLoginBusy(false);
       }
@@ -2704,6 +2754,29 @@ async function getActiveAccessToken() {
     attachSharedAuthUiHandlers();
     if (isLocalDevelopmentSurface()) {
       initializeDevAuth();
+      setLoginBusy(false);
+      return;
+    }
+    const desktopAuth = getDesktopAuthBridge();
+    if (desktopAuth) {
+      try {
+        const existing = await desktopAuth.getSession();
+        if (existing.session) {
+          authState.session = existing.session;
+          await hydrateCurrentUser(existing.session, { waitForCentral: false, waitForProfile: false });
+          showPlatform(authState.currentUser);
+        } else {
+          showLogin();
+          if (!existing.configured) {
+            toFormError("Desktop authentication is not connected to a test environment yet.", false);
+          }
+        }
+      } catch (error) {
+        showLogin();
+        toFormError(error?.message || "Desktop authentication could not be initialized.", true);
+      }
+      authState.isReady = true;
+      window.clearTimeout(loginInitSafetyTimer);
       setLoginBusy(false);
       return;
     }

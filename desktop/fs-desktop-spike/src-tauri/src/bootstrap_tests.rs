@@ -127,6 +127,8 @@ fn registry(active: &ShellManifest, staged: &ShellManifest) -> Connection {
 
 fn full_isolation_proof() -> CandidateNegativeChecks {
     CandidateNegativeChecks {
+        api_request_denied: true,
+        auth_session_denied: true,
         session_authority_denied: true,
         session_read_denied: true,
         session_operation_denied: true,

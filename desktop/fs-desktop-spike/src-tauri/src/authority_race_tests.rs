@@ -44,6 +44,7 @@ fn refreshed() -> RefreshedCredentials {
         access_token: Zeroizing::new("synthetic-late-access-result".into()),
         refresh_token: Zeroizing::new("synthetic-late-refresh-result".into()),
         access_expires_at_unix_ms: now_unix_ms().unwrap() + 60_000,
+        verified_snapshot: None,
     }
 }
 
@@ -98,6 +99,6 @@ fn security_review_late_refresh_cannot_replace_a_new_account_session() {
                 .refresh_token,
             "synthetic-refresh-new-session"
         );
-        assert_eq!(vault.0.lock().unwrap().len(), 1);
+        assert_eq!(vault.0.lock().unwrap().len(), 2);
     }
 }

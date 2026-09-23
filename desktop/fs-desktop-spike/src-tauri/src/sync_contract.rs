@@ -284,7 +284,7 @@ fn expired_offline_lease_locks_reads_without_deleting_pending_work() {
     let mut connection = open(&path).unwrap();
     let operation = request(Uuid::new_v4().to_string());
     apply_operation(&mut connection, &operation, 10_000).unwrap();
-    let authority = SessionAuthority::new_os_synthetic().unwrap();
+    let authority = SessionAuthority::new_os().unwrap();
     authority.expire_offline_lease_for_test();
     assert!(authority.validate(&operation.context).is_err());
     let pending: i64 = connection

@@ -369,7 +369,7 @@ const platformPermissionMatrix = Object.freeze([
     admin: ["admin"],
     observe: ["admin"],
   }, {
-    routes: ["/api/client-config", "/api/auth-health"],
+    routes: ["/api/client-config", "/api/desktop-auth", "/api/auth-health"],
   }),
 ]);
 
@@ -450,6 +450,13 @@ const apiRouteSecurity = Object.freeze({
     public: true,
     actions: Object.freeze({ GET: "read", POST: "write" }),
     rateLimits: Object.freeze({ read: 80, write: 12 }),
+    enforcePermission: false,
+  }),
+  "/api/desktop-auth": Object.freeze({
+    moduleId: "auth",
+    public: true,
+    actions: Object.freeze({ POST: "write" }),
+    rateLimits: Object.freeze({ write: 12 }),
     enforcePermission: false,
   }),
   "/api/auth-health": Object.freeze({

@@ -1,3 +1,4 @@
+use crate::auth_api::DesktopAuthApi;
 use crate::authority::SessionAuthority;
 use crate::release_trust::ReleaseTrustStore;
 use crate::{bootstrap, local_data};
@@ -10,6 +11,7 @@ pub struct DesktopRuntime {
     pub connection: Mutex<Connection>,
     pub shell: RwLock<bootstrap::ShellState>,
     pub authority: Mutex<SessionAuthority>,
+    pub auth_api: Option<DesktopAuthApi>,
     pub release_trust: Option<ReleaseTrustStore>,
 }
 
@@ -46,7 +48,8 @@ impl DesktopRuntime {
             root: root.to_path_buf(),
             connection: Mutex::new(connection),
             shell: RwLock::new(shell),
-            authority: Mutex::new(SessionAuthority::new_os_synthetic()?),
+            authority: Mutex::new(SessionAuthority::new_os()?),
+            auth_api: DesktopAuthApi::from_compile_time()?,
             release_trust,
         }))
     }

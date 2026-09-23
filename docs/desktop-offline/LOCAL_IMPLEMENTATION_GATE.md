@@ -53,7 +53,9 @@ Native timeout/quarantine for a compatible candidate that never reaches app-read
 
 Desktop uses `fs-desktop-native-shell-cache-v2`, not Cache Storage or a desktop service worker. Existing web/PWA/push-worker sources were not changed. Local full mandatory QA passed with 2,525 tests passed, one intentional skip and zero failures. Windows run `33499616167` passed static/security gates, API contracts and all four Chromium shards on the exact pushed branch commit. This preserves the existing web platform and separates desktop rollback from browser cache lifecycle.
 
-The 2026-09-23 full-platform bundle revision has 43 Node contract tests and 38 passing Rust tests plus one ignored physical credential-store test. Its packaged macOS lifecycle verifier passes. Full mandatory web QA and refreshed Windows CI remain required before this revision is pushed or treated as cross-platform evidence.
+The current 2026-09-23 secure-auth revision has 53 passing desktop Node contract tests and 44 passing Rust tests plus one intentionally ignored physical credential-store test. Its packaged macOS lifecycle verifier passes all signed-startup, tamper, incompatibility, quarantine, restart and online/offline recovery scenarios. Repository contract QA passed 1,230 tests.
+
+The full repository QA attempt is not green: one unnecessary `package.json` change initially violated the frozen Leaderboard release delta and was removed; that exact guard now passes. Three Session Planner central-state browser tests timed out because the expected session date never rendered. The first failure reproduces on exact pre-auth checkpoint `47438631`, proving it is a baseline defect rather than a regression introduced by this auth phase. It remains a mandatory-QA blocker, so this revision must not be pushed or sent to Windows CI until the owning flow is repaired and full QA is rerun.
 
 ## 7. Local Session Planner projection
 
@@ -69,7 +71,7 @@ Tests prove projection/outbox close-reopen persistence, stale-revision rollback,
 
 ## 10. SessionAuthority and token flow
 
-Implemented now: a synthetic native `SessionAuthority` contract returns actor, org, team, partition, auth epoch and a bounded 24-hour offline lease. It does not read browser `localStorage`; SQLite has no refresh-token column.
+Implemented now: native-owned sign-in, refresh, local-scope sign-out, access-token brokerage, server-verified identity/profile hydration and a bounded 24-hour default offline lease. It does not read browser `localStorage`; SQLite has no refresh-token column. The browser product remains unchanged.
 
 Required real token flow:
 
@@ -90,7 +92,7 @@ Native SessionAuthority (single refresh owner)
                            +--> private server-side Supabase access
 ```
 
-Logout, account switch, token rotation, revocation and lease expiry are implemented against synthetic authority/credential adapters and block or quarantine synchronization without deleting pending work. Real provider callbacks, owner-approved lease policy and physical Windows Credential Manager verification remain open. The current browser Supabase UMD dependency and `persistSession: true` path are intentionally blocked by desktop CSP; enabling them would violate native credential ownership.
+Logout, account switch, token rotation, revocation, offline identity restart and lease expiry are implemented and locally contract-tested. The native HTTP client is tested against a local bounded mock; the server handler is tested with synthetic Supabase/identity dependencies. Real provider execution, owner-approved lease/device-loss policy and physical Keychain/Windows Credential Manager verification remain open. Desktop mode intentionally bypasses the browser Supabase UMD dependency and `persistSession: true` path; enabling them would violate native credential ownership.
 
 ## 11. Synchronization boundary recommendation
 
@@ -100,7 +102,7 @@ Use one narrow authenticated Vercel handler as the public desktop sync boundary.
 
 Must fix before production: real secure auth, membership revocation/offline lease policy, local encryption/purge/device-loss policy, reviewed backend transaction, real conflict/rebase behavior, physical Windows, installers/signing/updates/SmartScreen and real network/sleep/restart behavior.
 
-Should fix during the next local phase: a vendored/pinned Supabase runtime dependency, explicit typed API-origin routing, authorized non-production native auth adapter, verified offline identity/profile lease, conflict review/rebase UX, bounded retry controls, deterministic provider-backed account-switch cleanup, more crash/fault injection and production-shell compatibility fixtures. Raw outbox inspection should not be exposed to downloaded frontend code.
+Should fix during the next local phase: authorized non-production auth/API verification, physical credential-store proof, exact feature-route parity audit, bounded binary/FormData and Realtime designs, conflict review/rebase UX, bounded retry controls, more crash/fault injection and production-shell compatibility fixtures. Raw outbox inspection should not be exposed to downloaded frontend code.
 
 Can wait: Candidate C and broad offline coverage. Should not be done: whole-document replication, generic SQL/filesystem/HTTP bridge, medical-data offline caching, refresh token in SQLite/localStorage or a second feature-equivalent Candidate B UI.
 
@@ -117,7 +119,8 @@ Candidate B passed packaged macOS and Windows CI startup without a network depen
 | Earlier Candidate A/B x64 release compile and WebView2 startup | Verified through Windows CI |
 | Current full-web bundle revision on Windows | Verifier updated; CI run pending |
 | Installer UX, sleep/wake, real network switching, Credential Manager, updates, SmartScreen, physical restart | Still requires physical/manual Windows verification |
-| Real auth, backend sync and production data behavior | Not implemented or verified |
+| Native auth/API foundation | Implemented and locally verified with synthetic provider contracts; real provider run pending |
+| Real auth, backend sync and production data behavior | Not verified |
 
 ## 15. Exact next backend changes — proposal only
 

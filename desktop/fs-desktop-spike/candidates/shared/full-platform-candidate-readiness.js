@@ -26,6 +26,8 @@
         throw new Error("candidate-compatibility-mismatch");
       }
       const negativeChecks = {
+        apiRequestDenied: await denied("desktop_api_request", { request: {} }),
+        authSessionDenied: await denied("desktop_auth_status"),
         sessionAuthorityDenied: await denied("desktop_session_authority"),
         sessionReadDenied: await denied("desktop_read_selected_session", { context: {} }),
         sessionSyncStatusDenied: await denied("desktop_session_sync_status", { context: {} }),
@@ -36,7 +38,7 @@
       if (!Object.values(negativeChecks).every(Boolean)) throw new Error("candidate-isolation-proof-failed");
       await invoke("desktop_candidate_confirm", {
         request: {
-          schema: "fs-desktop-candidate-ready-v2",
+          schema: "fs-desktop-candidate-ready-v3",
           healthNonce: status.healthNonce,
           shellFullyInitialized: true,
           negativeChecks,

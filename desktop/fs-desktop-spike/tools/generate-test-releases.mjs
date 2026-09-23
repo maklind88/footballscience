@@ -35,9 +35,10 @@ const webBundle = buildWebReleaseBundle({
   repositoryRoot,
   virtualFiles: new Map([
     ["desktop/candidate-readiness.js", readFileSync(join(packageRoot, "candidates", "shared", "full-platform-candidate-readiness.js"))],
+    ["desktop/auth-bridge.js", readFileSync(join(packageRoot, "candidates", "shared", "desktop-auth-bridge.js"))],
     ["desktop/platform-bootstrap.js", readFileSync(join(packageRoot, "candidates", "shared", "full-platform-bootstrap.js"))],
   ]),
-  bootstrapScripts: ["desktop/candidate-readiness.js", "desktop/platform-bootstrap.js"],
+  bootstrapScripts: ["desktop/candidate-readiness.js", "desktop/auth-bridge.js", "desktop/platform-bootstrap.js"],
 });
 
 function sha256(bytes) {
@@ -123,6 +124,8 @@ function writeRelease({ kind, sequence, localSchemaVersion = 3, key = releaseKey
     localSchemaVersion,
     syncProtocolVersion: 1,
     requiredCapabilities: [
+      "api.request",
+      "auth.session",
       "bootstrap.status",
       "bootstrap.update",
       "runtime.info",
@@ -133,7 +136,7 @@ function writeRelease({ kind, sequence, localSchemaVersion = 3, key = releaseKey
       "spike.probe",
     ],
     entrypoint: "index.html",
-    appReadySchema: "fs-desktop-candidate-ready-v2",
+    appReadySchema: "fs-desktop-candidate-ready-v3",
     signingKeyId: keyId,
     recoveryAuthorization,
     webBundle: {

@@ -32,22 +32,23 @@ Evidence is generated under `desktop/fs-desktop-spike/artifacts/macos/` and is i
 
 The full visual/runtime code can load from the signed local bundle, but the application is not yet a fully functional offline copy of every Football Science feature.
 
-- Real Supabase authentication is not enabled. The web runtime currently loads the Supabase browser SDK from a remote CDN and persists its session in browser storage; neither is acceptable for the desktop trust model.
-- Relative `/api/**` calls do not yet have a typed desktop route to an explicit HTTPS API origin.
+- Native-owned authentication and exact JSON `/api/**` routing are implemented and locally contract-tested, but are not configured against a real API/Supabase environment.
+- Desktop mode skips the remote Supabase browser SDK and browser session persistence. The existing web platform continues to use that path unchanged.
 - The real web Session Planner is not yet wired to the native SQLite projection/outbox. The current planner projection and two mutations remain a synthetic bounded contract slice.
-- Real user identity/profile hydration, refresh-token custody and offline lease policy are not connected to a non-production provider.
+- Real user identity/profile hydration, refresh-token custody and offline lease policy are not connected to a non-production provider. Local tests cover the full synthetic contract and native HTTP transport.
+- FormData/binary transfers, signed storage traffic and Supabase Realtime consumers do not yet have a desktop-safe transport.
 - No new synchronization schema or migration may be introduced until the documented repository/production/staging migration ledger is accepted for the next phase.
 - Windows CI must be rerun for this full-platform bundle revision. Physical Windows verification remains separate.
 
 ## Required next gate
 
-Before enabling real account traffic, implement and review one secure non-production identity/network slice:
+Before enabling real account traffic, exercise the implemented secure identity/network slice against an isolated non-production environment:
 
-1. vendor and pin the Supabase browser dependency, or remove it from the downloaded WebView runtime;
-2. make native code the only refresh-credential owner through Keychain/Credential Manager;
-3. expose only bounded identity/profile/lease facts to the active frontend;
-4. route permitted `/api/**` operations through an explicit HTTPS origin and typed allowlist;
-5. prove login, token rotation, logout, account switch, revocation and offline restart against an isolated non-production environment;
-6. keep production credentials, service-role keys and production data out of the app and CI.
+1. configure a separate HTTPS API origin with disposable non-production users and no production data;
+2. opt in to the physical Keychain/Credential Manager write/delete test on the target device;
+3. prove login, token rotation, logout, account switch, membership revocation and offline restart;
+4. verify the exact current JSON feature routes and inventory FormData/binary/Realtime gaps before claiming full online parity;
+5. keep production credentials, service-role keys and production data out of the app and CI;
+6. retain native-only refresh custody and the current strict CSP.
 
 This is a security/data decision gate, not a reason to weaken the current CSP or place Supabase refresh material in WebView storage.

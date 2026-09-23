@@ -18,13 +18,15 @@ fn now_unix_ms() -> Result<u64, String> {
 
 pub const SHELL_SOURCE_ORIGIN: &str = "http://127.0.0.1:47842";
 pub const NATIVE_APP_VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const APP_READY_SCHEMA: &str = "fs-desktop-candidate-ready-v2";
+pub const APP_READY_SCHEMA: &str = "fs-desktop-candidate-ready-v3";
 pub const MANIFEST_SCHEMA: &str = "fs-desktop-shell-manifest-v3";
 pub const LEGACY_MANIFEST_SCHEMA: &str = "fs-desktop-shell-manifest-v2";
 pub const RECOVERY_SCHEMA: &str = "fs-desktop-signed-recovery-v1";
 pub const CANDIDATE_TIMEOUT_MS: u64 = 8_000;
 pub const NATIVE_SHELL_CACHE_VERSION: &str = "fs-desktop-native-shell-cache-v2";
-pub const ACTIVE_CAPABILITIES: [&str; 8] = [
+pub const ACTIVE_CAPABILITIES: [&str; 10] = [
+    "api.request",
+    "auth.session",
     "bootstrap.status",
     "bootstrap.update",
     "runtime.info",
@@ -146,6 +148,8 @@ pub struct CandidateRuntimeStatus {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CandidateNegativeChecks {
+    pub api_request_denied: bool,
+    pub auth_session_denied: bool,
     pub session_authority_denied: bool,
     pub session_read_denied: bool,
     pub session_operation_denied: bool,
@@ -833,7 +837,9 @@ pub fn confirm_candidate(
         return Err("candidate health correlation failed".into());
     }
     let checks = &request.negative_checks;
-    if !checks.session_authority_denied
+    if !checks.api_request_denied
+        || !checks.auth_session_denied
+        || !checks.session_authority_denied
         || !checks.session_read_denied
         || !checks.session_operation_denied
         || !checks.session_sync_status_denied

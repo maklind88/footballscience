@@ -11,6 +11,7 @@ mod runtime;
 mod shell_contract;
 #[cfg(test)]
 mod sync_contract;
+mod web_bundle;
 mod windows;
 
 use authority::{SessionAuthoritySnapshot, SessionContextProof};
@@ -20,6 +21,7 @@ use runtime::{DeliveryMode, DesktopRuntime, DesktopState, delivery_mode};
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, WebviewWindow};
 
@@ -62,6 +64,8 @@ struct SpikeProbe {
     cached_payload: bool,
     service_worker_controlled: bool,
     unauthorized_command_rejected: bool,
+    #[serde(default)]
+    full_platform_runtime_loaded: bool,
 }
 
 #[derive(Serialize)]
@@ -88,6 +92,25 @@ struct NativeProbeEvidence {
     sync_protocol_version: u32,
     custom_protocol: bool,
     content_origin: String,
+    full_platform_runtime_loaded: bool,
+}
+
+fn desktop_data_root<R: tauri::Runtime>(app: &tauri::App<R>) -> Result<PathBuf, String> {
+    if option_env!("FS_DESKTOP_TEST_BUILD") == Some("1")
+        && let Some(value) = std::env::var_os("FS_DESKTOP_TEST_DATA_ROOT")
+    {
+        let path = PathBuf::from(value);
+        let valid_name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .is_some_and(|value| value.starts_with("fs-desktop-test-"));
+        if !path.is_absolute() || !valid_name {
+            return Err("test desktop data root is outside its isolated boundary".into());
+        }
+        fs::create_dir_all(&path).map_err(|error| error.to_string())?;
+        return Ok(path);
+    }
+    app.path().app_data_dir().map_err(|error| error.to_string())
 }
 
 #[derive(Serialize)]
@@ -540,6 +563,7 @@ fn record_spike_probe(
                 .ok_or_else(|| "desktop content URL has no host".to_string())?;
             format!("{}://{}", url.scheme(), host)
         },
+        full_platform_runtime_loaded: probe.full_platform_runtime_loaded,
     };
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -580,6 +604,9 @@ fn validate_probe(probe: &SpikeProbe) -> Result<(), String> {
     if !probe.unauthorized_command_rejected {
         return Err("ungranted native command was not rejected".into());
     }
+    if probe.candidate == "hosted" && !probe.full_platform_runtime_loaded {
+        return Err("full platform runtime did not complete desktop initialization".into());
+    }
     Ok(())
 }
 
@@ -598,10 +625,7 @@ pub fn run() {
         .register_uri_scheme_protocol("fs-recovery", protocol::recovery)
         .setup(|app| {
             ci_trace::record("setup entered");
-            let root = app
-                .path()
-                .app_data_dir()
-                .map_err(|error| error.to_string())?;
+            let root = desktop_data_root(app)?;
             let runtime = DesktopRuntime::initialize(&root)?;
             ci_trace::record("desktop runtime initialized");
             app.state::<DesktopState>().install(runtime)?;

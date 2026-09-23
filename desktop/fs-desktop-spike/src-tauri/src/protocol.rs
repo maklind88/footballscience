@@ -44,14 +44,17 @@ pub fn active<R: Runtime>(
     if let Some((body, content_type)) = bootstrap_asset(path) {
         return response(StatusCode::OK, content_type, body.to_vec(), head);
     }
-    let Some(asset_path) = path.strip_prefix("/active/") else {
+    let asset_path = path
+        .strip_prefix("/active/")
+        .unwrap_or_else(|| path.trim_start_matches('/'));
+    if asset_path.is_empty() {
         return response(
             StatusCode::NOT_FOUND,
             "text/plain; charset=utf-8",
             b"Not found".to_vec(),
             head,
         );
-    };
+    }
     generation_asset(context.app_handle(), "active", asset_path, head)
 }
 
@@ -187,6 +190,7 @@ fn response(
     body: Vec<u8>,
     head: bool,
 ) -> Response<Cow<'static, [u8]>> {
+    let content_length = body.len();
     Response::builder()
         .status(status)
         .header(header::CONTENT_TYPE, content_type)
@@ -196,6 +200,7 @@ fn response(
         .header("Cross-Origin-Resource-Policy", "same-origin")
         .header("X-Frame-Options", "DENY")
         .header("Content-Security-Policy", CSP)
+        .header(header::CONTENT_LENGTH, content_length.to_string())
         .body(Cow::Owned(if head { Vec::new() } else { body }))
         .unwrap_or_else(|_| Response::new(Cow::Borrowed(&b"Response error"[..])))
 }

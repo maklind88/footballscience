@@ -1,4 +1,4 @@
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -17,10 +17,14 @@ const logRoot = resolve(artifactRoot, "logs");
 const appBinary = resolve(packageRoot, "src-tauri", "target", "release", "bundle", "macos", "FS Desktop Architecture Spike.app", "Contents", "MacOS", "fs-desktop-architecture-spike");
 const probePath = resolve(tmpdir(), "fs-desktop-spike-hosted.json");
 const evidencePath = resolve(artifactRoot, "macos-packaged-evidence.json");
+const testDataRoot = resolve(tmpdir(), "fs-desktop-test-macos-packaged");
+const runtimeTracePath = resolve(tmpdir(), "fs-desktop-runtime-trace.log");
 const publicEnvironment = JSON.parse(readFileSync(resolve(packageRoot, "generated", "test-release-public-env.json"), "utf8"));
 const normalBuildId = publicEnvironment.releases.normal.buildId;
 const hangingBuildId = publicEnvironment.releases.hanging.buildId;
 mkdirSync(logRoot, { recursive: true });
+rmSync(testDataRoot, { recursive: true, force: true });
+if (existsSync(runtimeTracePath)) unlinkSync(runtimeTracePath);
 
 const evidence = {
   schema: "fs-desktop-macos-packaged-evidence-v1",
@@ -70,7 +74,15 @@ function startServer(mode = "normal") {
 
 function startApp() {
   const descriptor = openSync(resolve(logRoot, "packaged-app.log"), "a");
-  const child = spawn(appBinary, [], { cwd: dirname(appBinary), stdio: ["ignore", descriptor, descriptor] });
+  const child = spawn(appBinary, [], {
+    cwd: dirname(appBinary),
+    env: {
+      ...process.env,
+      FS_DESKTOP_CI: "1",
+      FS_DESKTOP_TEST_DATA_ROOT: testDataRoot,
+    },
+    stdio: ["ignore", descriptor, descriptor],
+  });
   child.logDescriptor = descriptor;
   return child;
 }
@@ -108,6 +120,7 @@ function validate(probe, bootMode) {
   if (probe.nativeEvidence?.localSchemaVersion !== 3 || probe.nativeEvidence?.syncProtocolVersion !== 1) throw new Error("Local compatibility mismatch.");
   if (probe.nativeEvidence?.contentOrigin !== "fs-active://localhost" || probe.nativeEvidence?.customProtocol !== true) throw new Error("macOS custom-protocol origin mismatch.");
   if (probe.nativeEvidence?.activeIsolationProofSchema !== "fs-desktop-candidate-isolation-v1") throw new Error("Candidate isolation proof is missing.");
+  if (probe.probe.fullPlatformRuntimeLoaded !== true || probe.nativeEvidence?.fullPlatformRuntimeLoaded !== true) throw new Error("Full platform runtime proof is missing.");
   if (probe.nativeEvidence?.localProjectionLoaded !== true || probe.nativeEvidence?.partitionValidated !== true) throw new Error("Local projection evidence is missing.");
   return probe;
 }
@@ -132,7 +145,11 @@ try {
   removeProbe();
   app = startApp();
   const online = validate(await waitForProbe((value) => expectedBoot(value, "online"), app), "online");
-  pass("signed packaged startup", { activeBuildId: normalBuildId, origin: online.nativeEvidence.contentOrigin });
+  pass("signed packaged startup", {
+    activeBuildId: normalBuildId,
+    origin: online.nativeEvidence.contentOrigin,
+    fullPlatformRuntimeLoaded: true,
+  });
 
   for (const mode of ["invalid-signature", "unknown-key", "modified-asset", "incompatible"]) {
     removeProbe();
@@ -150,11 +167,28 @@ try {
   await waitForPort(false);
   server = startServer("hanging");
   await waitForPort(true);
+  await stop(app);
+  removeProbe();
+  app = startApp();
+  await waitForProbe(
+    (value) => value?.nativeEvidence?.candidateBuildId === hangingBuildId,
+    app,
+    30_000,
+  );
+  await delay(10_000);
+  if (app.exitCode !== null) throw new Error(`Packaged application exited during native candidate watchdog (${app.exitCode}).`);
+  await stop(app);
+  removeProbe();
+  await stop(server);
+  await waitForPort(false);
+  server = startServer("normal");
+  await waitForPort(true);
+  app = startApp();
   const quarantined = validate(await waitForProbe(
     (value) => value?.nativeEvidence?.latestQuarantine?.buildId === hangingBuildId
       && value?.nativeEvidence?.latestQuarantine?.failureCode === "timeout",
     app,
-    40_000,
+    30_000,
   ), "online");
   if (quarantined.nativeEvidence.candidateBuildId) throw new Error("Timed-out candidate retained authority.");
   pass("candidate timeout quarantine and backoff", { quarantinedBuildId: hangingBuildId, activeBuildId: normalBuildId });
@@ -169,8 +203,11 @@ try {
   await stop(server);
   server = null;
   await waitForPort(false);
+  await stop(app);
+  removeProbe();
+  app = startApp();
   validate(await waitForProbe((value) => value?.probe?.bootMode === "offline", app), "offline");
-  pass("online to offline transition", { realNetworkAdapterSwitch: false });
+  pass("online to offline cold start", { processRestart: true, realNetworkAdapterSwitch: false });
 
   await stop(app);
   removeProbe();
@@ -179,10 +216,12 @@ try {
   pass("offline packaged process restart", { localProjectionLoaded: true, physicalRestart: false });
 
   removeProbe();
+  await stop(app);
   server = startServer();
   await waitForPort(true);
+  app = startApp();
   validate(await waitForProbe((value) => value?.probe?.bootMode === "online", app), "online");
-  pass("offline to online recovery", { activeGenerationUnchanged: true });
+  pass("offline to online recovery", { processRestart: true, activeGenerationUnchanged: true });
   evidence.status = "passed";
 } catch (error) {
   evidence.status = "failed";

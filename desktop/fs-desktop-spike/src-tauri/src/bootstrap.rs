@@ -2,6 +2,7 @@ use crate::authority;
 use crate::local_data::{LOCAL_SCHEMA_VERSION, SYNC_PROTOCOL_VERSION};
 use crate::release_trust::{KeyRole, ReleaseTrustStore};
 use crate::shell_contract;
+use crate::web_bundle;
 use reqwest::blocking::Client;
 use reqwest::redirect::Policy;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -18,7 +19,8 @@ fn now_unix_ms() -> Result<u64, String> {
 pub const SHELL_SOURCE_ORIGIN: &str = "http://127.0.0.1:47842";
 pub const NATIVE_APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const APP_READY_SCHEMA: &str = "fs-desktop-candidate-ready-v2";
-pub const MANIFEST_SCHEMA: &str = "fs-desktop-shell-manifest-v2";
+pub const MANIFEST_SCHEMA: &str = "fs-desktop-shell-manifest-v3";
+pub const LEGACY_MANIFEST_SCHEMA: &str = "fs-desktop-shell-manifest-v2";
 pub const RECOVERY_SCHEMA: &str = "fs-desktop-signed-recovery-v1";
 pub const CANDIDATE_TIMEOUT_MS: u64 = 8_000;
 pub const NATIVE_SHELL_CACHE_VERSION: &str = "fs-desktop-native-shell-cache-v2";
@@ -56,6 +58,16 @@ pub struct SignedRecoveryAuthorization {
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WebBundleContract {
+    pub schema: String,
+    pub asset_path: String,
+    pub index_sha256: String,
+    pub file_count: u32,
+    pub unpacked_bytes: u64,
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ShellManifest {
     pub schema: String,
     pub release_id: String,
@@ -71,6 +83,7 @@ pub struct ShellManifest {
     pub app_ready_schema: String,
     pub signing_key_id: String,
     pub recovery_authorization: Option<SignedRecoveryAuthorization>,
+    pub web_bundle: Option<WebBundleContract>,
     pub assets: Vec<ShellAsset>,
 }
 
@@ -556,6 +569,11 @@ pub fn download_and_stage(
         shell_contract::verify_asset(asset, &bytes)?;
         shell_contract::durable_write(&pending_path.join(&asset.path), &bytes)?;
     }
+    if let Some(contract) = &manifest.web_bundle {
+        let bundle_path = pending_path.join(&contract.asset_path);
+        let bundle_bytes = fs::read(&bundle_path).map_err(|error| error.to_string())?;
+        web_bundle::extract(&bundle_bytes, &pending_path.join("web"), contract)?;
+    }
     shell_contract::durable_write(&pending_path.join("manifest.json"), &manifest_bytes)?;
     shell_contract::durable_write(&pending_path.join("manifest.sig"), &signature_bytes)?;
     if final_path.exists() {
@@ -931,16 +949,21 @@ pub fn asset(
         _ => None,
     }
     .ok_or_else(|| "shell generation unavailable".to_string())?;
+    let generation_root = root.join("shell-generations").join(&manifest.build_id);
+    if let Some(contract) = &manifest.web_bundle {
+        return web_bundle::read_extracted_asset(
+            &generation_root.join(&contract.asset_path),
+            &generation_root.join("web"),
+            asset_path,
+            contract,
+        );
+    }
     let asset = manifest
         .assets
         .iter()
         .find(|asset| asset.path == asset_path)
         .ok_or_else(|| "asset is not declared in the signed manifest".to_string())?;
-    let path = root
-        .join("shell-generations")
-        .join(&manifest.build_id)
-        .join(&asset.path);
-    let bytes = fs::read(path).map_err(|error| error.to_string())?;
+    let bytes = fs::read(generation_root.join(&asset.path)).map_err(|error| error.to_string())?;
     shell_contract::verify_asset(asset, &bytes)?;
     Ok((bytes, asset.content_type.clone()))
 }

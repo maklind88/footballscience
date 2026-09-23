@@ -30,6 +30,7 @@ if (candidate === "unauthorized-origin") args.push("--config", "src-tauri/tauri.
 const env = {
   ...process.env,
   FS_DESKTOP_DELIVERY_MODE: candidate,
+  FS_DESKTOP_TEST_BUILD: "1",
 };
 if (candidate === "hosted") {
   Object.assign(env, {

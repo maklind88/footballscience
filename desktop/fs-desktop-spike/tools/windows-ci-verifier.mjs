@@ -1,4 +1,4 @@
-import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -23,6 +23,7 @@ const hostedProbePath = resolve(tmpdir(), "fs-desktop-spike-hosted.json");
 const negativeProbePath = resolve(artifactsRoot, "unauthorized-origin-probe.json");
 const evidencePath = resolve(artifactsRoot, "windows-runtime-evidence.json");
 const runtimeTracePath = resolve(tmpdir(), "fs-desktop-runtime-trace.log");
+const testDataRoot = resolve(tmpdir(), "fs-desktop-test-windows-runtime");
 const uploadedRuntimeTracePath = resolve(logsRoot, "runtime-trace.log");
 const publicEnvironment = JSON.parse(readFileSync(resolve(packageRoot, "generated", "test-release-public-env.json"), "utf8"));
 const expected = Object.freeze({
@@ -37,6 +38,7 @@ const expected = Object.freeze({
 });
 mkdirSync(logsRoot, { recursive: true });
 removeIfPresent(runtimeTracePath);
+rmSync(testDataRoot, { recursive: true, force: true });
 
 const evidence = {
   schema: "fs-desktop-windows-runtime-evidence-v2",
@@ -139,7 +141,12 @@ function startServer({ mode = "hosted", port = 47842, manifestMode = "normal" } 
 }
 
 function startApp(executable) {
-  return spawn(executable, [], { cwd: artifactsRoot, stdio: "ignore", windowsHide: false });
+  return spawn(executable, [], {
+    cwd: artifactsRoot,
+    env: { ...process.env, FS_DESKTOP_CI: "1", FS_DESKTOP_TEST_DATA_ROOT: testDataRoot },
+    stdio: "ignore",
+    windowsHide: false,
+  });
 }
 
 async function stopProcess(child) {
@@ -180,6 +187,9 @@ function validateHostedProbe(probe, bootMode) {
   }
   if (probe.nativeEvidence?.activeIsolationProofSchema !== "fs-desktop-candidate-isolation-v1") {
     throw new Error("Promoted generation lacks candidate-isolation proof evidence.");
+  }
+  if (probe.probe.fullPlatformRuntimeLoaded !== true || probe.nativeEvidence?.fullPlatformRuntimeLoaded !== true) {
+    throw new Error("Full platform runtime proof is missing.");
   }
   return probe;
 }
@@ -233,6 +243,7 @@ async function verifyHostedLifecycle() {
       activeBuildId: expected.normalBuildId,
       releaseSequence: publicEnvironment.releases.normal.releaseSequence,
       candidateIsolationProof: initial.nativeEvidence.activeIsolationProofSchema,
+      fullPlatformRuntimeLoaded: true,
       privateSigningKeyAvailableToApp: false,
     });
 
@@ -268,11 +279,24 @@ async function verifyHostedLifecycle() {
     }
 
     await replaceServer("hanging");
+    await stopProcess(app);
+    removeIfPresent(hostedProbePath);
+    app = startApp(hostedExe);
+    await waitForJson(
+      hostedProbePath,
+      (value) => value?.nativeEvidence?.candidateBuildId === expected.hangingBuildId,
+      { process: app, timeoutMs: 30_000 },
+    );
+    await delay(10_000);
+    if (app.exitCode !== null) throw new Error(`Hosted app exited during native candidate watchdog (${app.exitCode}).`);
+    await stopProcess(app);
+    await replaceServer("normal");
+    app = startApp(hostedExe);
     const timedOut = validateHostedProbe(await waitForJson(
       hostedProbePath,
       (value) => value?.nativeEvidence?.latestQuarantine?.buildId === expected.hangingBuildId
         && value?.nativeEvidence?.latestQuarantine?.failureCode === "timeout",
-      { process: app, timeoutMs: 40_000 },
+      { process: app, timeoutMs: 30_000 },
     ), "online");
     if (timedOut.nativeEvidence.candidateBuildId) throw new Error("Timed-out candidate retained candidate authority.");
     if (!(timedOut.nativeEvidence.latestQuarantine.retryAfterUnixMs > Number(timedOut.recordedAtUnixMs))) {
@@ -307,8 +331,11 @@ async function verifyHostedLifecycle() {
     await stopProcess(server);
     server = null;
     await waitForPort(47842, false);
+    await stopProcess(app);
+    removeIfPresent(hostedProbePath);
+    app = startApp(hostedExe);
     validateHostedProbe(await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "offline", { process: app }), "offline");
-    addResult("Online to offline transition", { mechanism: "loopback synthetic source stopped", realAdapterSwitch: false });
+    addResult("Online to offline cold start", { mechanism: "loopback synthetic source stopped", processRestart: true, realAdapterSwitch: false });
 
     await stopProcess(app);
     removeIfPresent(hostedProbePath);
@@ -320,11 +347,13 @@ async function verifyHostedLifecycle() {
       physicalWindowsRestart: false,
     });
 
+    await stopProcess(app);
     server = startServer();
     await waitForPort(47842, true);
     removeIfPresent(hostedProbePath);
+    app = startApp(hostedExe);
     validateHostedProbe(await waitForJson(hostedProbePath, (value) => value?.probe?.bootMode === "online", { process: app }), "online");
-    addResult("Offline to online recovery", { sameProcess: true, activeGenerationUnchanged: true });
+    addResult("Offline to online recovery", { processRestart: true, activeGenerationUnchanged: true });
   } finally {
     await stopProcess(app);
     await stopProcess(server);

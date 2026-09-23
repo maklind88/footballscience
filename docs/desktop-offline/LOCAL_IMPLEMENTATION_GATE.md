@@ -1,6 +1,6 @@
 # Local Desktop/Offline Implementation Gate
 
-Date: 2026-09-01
+Date: 2026-09-23
 
 Disposition: **provisionally closed for continued local implementation**. Production readiness remains open.
 
@@ -24,19 +24,24 @@ This report distinguishes implemented behavior, macOS verification, Windows CI v
 
 The trusted future baseline is the reviewed Git logical ledger plus remote catalog evidence. Local Git alone includes unapplied intent; production contains unsourced automation/drift; staging contains an unsourced executable Chat RPC and other drift. Applied history must not be rewritten. Any convergence must be additive, reviewed, owner-approved and first replayed in an isolated database. The current ledger must be accepted before a real sync migration is designed.
 
-## 4. Bootstrap and compatibility contract
+## 4. Bootstrap, full-web bundle and compatibility contract
 
 Implemented:
 
 - stable bundled bootstrap;
 - exact source origin and no redirects;
 - native-owned manifest fetch and asset verification;
+- deterministic inventory of the current tracked web runtime and a canonical signed `.pack` contract;
+- strict path, symlink, MIME, file-size, header-size and total-size limits;
+- full-runtime readiness proof from both JavaScript and native promotion evidence;
 - frontend build/native app/sync protocol/local-schema/capability checks;
 - path, byte-size, content-type and SHA-256 verification;
 - exact internal WebView origin;
 - nonce-bound health and complete app-ready confirmation before atomic promotion.
 
 Downloaded JavaScript cannot declare itself trusted or compatible.
+
+The bundled application now loads the current Football Science web runtime, not only a desktop demonstration page. This proves code delivery and startup, not that every web feature has an offline data adapter.
 
 ## 5. Last-known-good evidence
 
@@ -47,6 +52,8 @@ Native timeout/quarantine for a compatible candidate that never reaches app-read
 ## 6. Browser/PWA/service-worker regression
 
 Desktop uses `fs-desktop-native-shell-cache-v2`, not Cache Storage or a desktop service worker. Existing web/PWA/push-worker sources were not changed. Local full mandatory QA passed with 2,525 tests passed, one intentional skip and zero failures. Windows run `33499616167` passed static/security gates, API contracts and all four Chromium shards on the exact pushed branch commit. This preserves the existing web platform and separates desktop rollback from browser cache lifecycle.
+
+The 2026-09-23 full-platform bundle revision has 43 Node contract tests and 38 passing Rust tests plus one ignored physical credential-store test. Its packaged macOS lifecycle verifier passes. Full mandatory web QA and refreshed Windows CI remain required before this revision is pushed or treated as cross-platform evidence.
 
 ## 7. Local Session Planner projection
 
@@ -64,7 +71,7 @@ Tests prove projection/outbox close-reopen persistence, stale-revision rollback,
 
 Implemented now: a synthetic native `SessionAuthority` contract returns actor, org, team, partition, auth epoch and a bounded 24-hour offline lease. It does not read browser `localStorage`; SQLite has no refresh-token column.
 
-Future token flow:
+Required real token flow:
 
 ```text
 Verified hosted shell
@@ -83,7 +90,7 @@ Native SessionAuthority (single refresh owner)
                            +--> private server-side Supabase access
 ```
 
-Logout, account switch, token rotation, revocation and lease expiry are implemented against synthetic authority/credential adapters and block or quarantine synchronization without deleting pending work. Real provider callbacks, owner-approved lease policy and physical Windows Credential Manager verification remain open.
+Logout, account switch, token rotation, revocation and lease expiry are implemented against synthetic authority/credential adapters and block or quarantine synchronization without deleting pending work. Real provider callbacks, owner-approved lease policy and physical Windows Credential Manager verification remain open. The current browser Supabase UMD dependency and `persistSession: true` path are intentionally blocked by desktop CSP; enabling them would violate native credential ownership.
 
 ## 11. Synchronization boundary recommendation
 
@@ -93,7 +100,7 @@ Use one narrow authenticated Vercel handler as the public desktop sync boundary.
 
 Must fix before production: real secure auth, membership revocation/offline lease policy, local encryption/purge/device-loss policy, reviewed backend transaction, real conflict/rebase behavior, physical Windows, installers/signing/updates/SmartScreen and real network/sleep/restart behavior.
 
-Should fix during the next local phase: an authorized non-production sync adapter, conflict review/rebase UX, bounded retry controls, deterministic provider-backed account-switch cleanup, more crash/fault injection and production-shell compatibility fixtures. Raw outbox inspection should not be exposed to downloaded frontend code.
+Should fix during the next local phase: a vendored/pinned Supabase runtime dependency, explicit typed API-origin routing, authorized non-production native auth adapter, verified offline identity/profile lease, conflict review/rebase UX, bounded retry controls, deterministic provider-backed account-switch cleanup, more crash/fault injection and production-shell compatibility fixtures. Raw outbox inspection should not be exposed to downloaded frontend code.
 
 Can wait: Candidate C and broad offline coverage. Should not be done: whole-document replication, generic SQL/filesystem/HTTP bridge, medical-data offline caching, refresh token in SQLite/localStorage or a second feature-equivalent Candidate B UI.
 
@@ -105,10 +112,10 @@ Candidate B passed packaged macOS and Windows CI startup without a network depen
 
 | Claim | State |
 | --- | --- |
-| Candidate A packaged startup/restart/reconnect/LKG | Verified locally on macOS |
+| Candidate A full-web signed bundle startup/restart/reconnect/LKG | Verified locally on packaged Apple Silicon macOS |
 | Candidate B packaged fallback startup | Verified locally on macOS |
-| Candidate A/B x64 release compile and WebView2 startup | Verified through Windows CI |
-| Native cache restart, synthetic transitions, LKG and origin/command denial | Verified through Windows CI |
+| Earlier Candidate A/B x64 release compile and WebView2 startup | Verified through Windows CI |
+| Current full-web bundle revision on Windows | Verifier updated; CI run pending |
 | Installer UX, sleep/wake, real network switching, Credential Manager, updates, SmartScreen, physical restart | Still requires physical/manual Windows verification |
 | Real auth, backend sync and production data behavior | Not implemented or verified |
 

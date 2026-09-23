@@ -7,7 +7,46 @@ use rusqlite::{Connection, params};
 const TEST_NOW: u64 = 1_800_000_000_000;
 
 fn manifest(build_id: &str, sequence: u64) -> ShellManifest {
-    let assets = [
+    let assets = vec![ShellAsset {
+        path: "footballscience-web.pack".into(),
+        sha256: "0".repeat(64),
+        bytes: 1,
+        content_type: "application/vnd.footballscience.web-bundle".into(),
+    }];
+    ShellManifest {
+        schema: MANIFEST_SCHEMA.into(),
+        release_id: build_id.into(),
+        build_id: build_id.into(),
+        frontend_build_id: build_id.into(),
+        release_sequence: sequence,
+        issued_at_unix_ms: TEST_NOW - 1_000,
+        native_version_requirement: ">=0.0.1, <0.1.0".into(),
+        local_schema_version: LOCAL_SCHEMA_VERSION,
+        sync_protocol_version: SYNC_PROTOCOL_VERSION,
+        required_capabilities: ACTIVE_CAPABILITIES
+            .iter()
+            .map(|item| item.to_string())
+            .collect(),
+        entrypoint: "index.html".into(),
+        app_ready_schema: APP_READY_SCHEMA.into(),
+        signing_key_id: "ephemeral-test-release-key".into(),
+        recovery_authorization: None,
+        web_bundle: Some(WebBundleContract {
+            schema: "fs-desktop-web-bundle-v1".into(),
+            asset_path: "footballscience-web.pack".into(),
+            index_sha256: "0".repeat(64),
+            file_count: 7,
+            unpacked_bytes: 7,
+        }),
+        assets,
+    }
+}
+
+fn legacy_manifest(build_id: &str, sequence: u64) -> ShellManifest {
+    let mut value = manifest(build_id, sequence);
+    value.schema = LEGACY_MANIFEST_SCHEMA.into();
+    value.web_bundle = None;
+    value.assets = [
         ("index.html", "text/html; charset=utf-8"),
         ("styles.css", "text/css; charset=utf-8"),
         ("app.js", "text/javascript; charset=utf-8"),
@@ -28,26 +67,7 @@ fn manifest(build_id: &str, sequence: u64) -> ShellManifest {
         content_type: content_type.into(),
     })
     .collect();
-    ShellManifest {
-        schema: MANIFEST_SCHEMA.into(),
-        release_id: build_id.into(),
-        build_id: build_id.into(),
-        frontend_build_id: build_id.into(),
-        release_sequence: sequence,
-        issued_at_unix_ms: TEST_NOW - 1_000,
-        native_version_requirement: ">=0.0.1, <0.1.0".into(),
-        local_schema_version: LOCAL_SCHEMA_VERSION,
-        sync_protocol_version: SYNC_PROTOCOL_VERSION,
-        required_capabilities: ACTIVE_CAPABILITIES
-            .iter()
-            .map(|item| item.to_string())
-            .collect(),
-        entrypoint: "index.html".into(),
-        app_ready_schema: APP_READY_SCHEMA.into(),
-        signing_key_id: "ephemeral-test-release-key".into(),
-        recovery_authorization: None,
-        assets,
-    }
+    value
 }
 
 fn candidate(manifest: ShellManifest, nonce: &str) -> CandidateShell {
@@ -135,6 +155,16 @@ fn native_compatibility_requires_the_exact_active_capability_set() {
 }
 
 #[test]
+fn previously_signed_v2_generation_remains_readable_during_v3_upgrade() {
+    let legacy = legacy_manifest("hosted-test-v2-cache", 1);
+    assert!(shell_contract::validate_manifest(&legacy, TEST_NOW).is_ok());
+
+    let mut invalid = legacy;
+    invalid.web_bundle = manifest("unused-build", 2).web_bundle;
+    assert!(shell_contract::validate_manifest(&invalid, TEST_NOW).is_err());
+}
+
+#[test]
 fn manifest_rejects_private_data_payloads_and_mismatched_content_types() {
     let mut private = manifest("hosted-test-v1", 1);
     private.assets.push(ShellAsset {
@@ -146,7 +176,7 @@ fn manifest_rejects_private_data_payloads_and_mismatched_content_types() {
     assert!(shell_contract::validate_manifest(&private, TEST_NOW).is_err());
 
     let mut mismatched = manifest("hosted-test-v1", 1);
-    mismatched.assets[0].content_type = "text/javascript; charset=utf-8".into();
+    mismatched.assets[0].content_type = "application/octet-stream".into();
     assert!(shell_contract::validate_manifest(&mismatched, TEST_NOW).is_err());
 }
 

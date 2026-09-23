@@ -1,8 +1,9 @@
 use crate::bootstrap::{
-    ACTIVE_CAPABILITIES, APP_READY_SCHEMA, MANIFEST_SCHEMA, NATIVE_APP_VERSION,
-    SHELL_SOURCE_ORIGIN, ShellAsset, ShellManifest,
+    ACTIVE_CAPABILITIES, APP_READY_SCHEMA, LEGACY_MANIFEST_SCHEMA, MANIFEST_SCHEMA,
+    NATIVE_APP_VERSION, SHELL_SOURCE_ORIGIN, ShellAsset, ShellManifest,
 };
 use crate::local_data::{LOCAL_SCHEMA_VERSION, SYNC_PROTOCOL_VERSION};
+use crate::web_bundle;
 use reqwest::blocking::Client;
 use semver::{Version, VersionReq};
 use sha2::{Digest, Sha256};
@@ -12,7 +13,9 @@ use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 
 pub fn validate_manifest(manifest: &ShellManifest, now_unix_ms: u64) -> Result<(), String> {
-    if manifest.schema != MANIFEST_SCHEMA || manifest.app_ready_schema != APP_READY_SCHEMA {
+    let web_bundle_release = manifest.schema == MANIFEST_SCHEMA;
+    let legacy_release = manifest.schema == LEGACY_MANIFEST_SCHEMA;
+    if (!web_bundle_release && !legacy_release) || manifest.app_ready_schema != APP_READY_SCHEMA {
         return Err("unsupported signed shell manifest schema".into());
     }
     validate_identifier(&manifest.release_id, "release ID")?;
@@ -52,8 +55,10 @@ pub fn validate_manifest(manifest: &ShellManifest, now_unix_ms: u64) -> Result<(
     if required != runtime {
         return Err("shell capabilities do not exactly match the active native contract".into());
     }
-    if manifest.assets.len() < 5 || manifest.assets.len() > 16 {
-        return Err("shell asset count is outside the local integration boundary".into());
+    if (web_bundle_release && manifest.assets.len() != 1)
+        || (legacy_release && !(5..=16).contains(&manifest.assets.len()))
+    {
+        return Err("signed shell asset count is outside its versioned boundary".into());
     }
     let mut paths = BTreeSet::new();
     let mut total = 0_u64;
@@ -66,28 +71,57 @@ pub fn validate_manifest(manifest: &ShellManifest, now_unix_ms: u64) -> Result<(
         if asset.sha256.len() != 64 || !asset.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err("invalid asset SHA-256".into());
         }
-        if asset.bytes == 0 || asset.bytes > 524_288 {
+        let per_file_limit = if web_bundle_release {
+            web_bundle::WEB_BUNDLE_MAX_TOTAL_BYTES
+                + web_bundle::WEB_BUNDLE_MAX_HEADER_BYTES as u64
+                + 12
+        } else {
+            524_288
+        };
+        if asset.bytes == 0 || asset.bytes > per_file_limit {
             return Err("shell asset exceeds the per-file limit".into());
         }
         total = total
             .checked_add(asset.bytes)
             .ok_or_else(|| "shell asset byte total overflow".to_string())?;
     }
-    if total > 2_097_152 {
+    let total_limit = if web_bundle_release {
+        web_bundle::WEB_BUNDLE_MAX_TOTAL_BYTES + web_bundle::WEB_BUNDLE_MAX_HEADER_BYTES as u64 + 12
+    } else {
+        2_097_152
+    };
+    if total > total_limit {
         return Err("shell exceeds the total cache limit".into());
     }
-    for required_path in [
-        "index.html",
-        "styles.css",
-        "app.js",
-        "bridge.mjs",
-        "connectivity-state.mjs",
-        "session-authority.mjs",
-        "session-planner-offline.mjs",
-        "tauri-invoke.mjs",
-    ] {
-        if !paths.contains(required_path) {
-            return Err(format!("missing required shell asset {required_path}"));
+    if web_bundle_release {
+        let contract = manifest
+            .web_bundle
+            .as_ref()
+            .ok_or_else(|| "signed web bundle contract is missing".to_string())?;
+        let bundle_asset = manifest
+            .assets
+            .first()
+            .ok_or_else(|| "signed web bundle asset is missing".to_string())?;
+        web_bundle::validate_contract(contract, bundle_asset)?;
+    } else {
+        if manifest.web_bundle.is_some() {
+            return Err("legacy shell cannot declare a web bundle contract".into());
+        }
+        for required_path in [
+            "index.html",
+            "styles.css",
+            "app.js",
+            "bridge.mjs",
+            "connectivity-state.mjs",
+            "session-authority.mjs",
+            "session-planner-offline.mjs",
+            "tauri-invoke.mjs",
+        ] {
+            if !paths.contains(required_path) {
+                return Err(format!(
+                    "missing required legacy shell asset {required_path}"
+                ));
+            }
         }
     }
     Ok(())
@@ -172,6 +206,11 @@ pub fn verify_generation(root: &Path, manifest: &ShellManifest) -> Result<(), St
             &fs::read(root.join(&asset.path)).map_err(|error| error.to_string())?,
         )?;
     }
+    if let Some(contract) = &manifest.web_bundle {
+        let bundle_path = root.join(&contract.asset_path);
+        let bundle_bytes = fs::read(&bundle_path).map_err(|error| error.to_string())?;
+        web_bundle::verify_extracted(&bundle_bytes, &root.join("web"), contract)?;
+    }
     Ok(())
 }
 
@@ -183,13 +222,6 @@ pub fn verify_asset(asset: &ShellAsset, bytes: &[u8]) -> Result<(), String> {
 }
 
 fn validate_asset_path(value: &str) -> Result<(), String> {
-    if value.to_ascii_lowercase().contains("token")
-        || value.to_ascii_lowercase().contains("session.json")
-        || value.to_ascii_lowercase().contains("medical")
-        || value.to_ascii_lowercase().contains("outbox")
-    {
-        return Err("private or domain data is forbidden in the shell release".into());
-    }
     let path = PathBuf::from(value);
     if value.starts_with('/')
         || path
@@ -200,7 +232,7 @@ fn validate_asset_path(value: &str) -> Result<(), String> {
     }
     if !matches!(
         path.extension().and_then(|item| item.to_str()),
-        Some("html" | "css" | "js" | "mjs" | "svg" | "png" | "woff2")
+        Some("html" | "css" | "js" | "mjs" | "svg" | "png" | "woff2" | "pack")
     ) {
         return Err("unsupported shell asset type".into());
     }
@@ -219,6 +251,7 @@ fn validate_content_type(asset: &ShellAsset) -> Result<(), String> {
         "svg" => "image/svg+xml",
         "png" => "image/png",
         "woff2" => "font/woff2",
+        "pack" => web_bundle::WEB_BUNDLE_CONTENT_TYPE,
         _ => return Err("unsupported shell content type".into()),
     };
     if asset.content_type != expected {

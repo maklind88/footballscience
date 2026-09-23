@@ -1,7 +1,6 @@
 import { createHash, createPublicKey, generateKeyPairSync, sign } from "node:crypto";
 import {
   chmodSync,
-  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -11,6 +10,7 @@ import {
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { buildWebReleaseBundle, WEB_BUNDLE_CONTENT_TYPE } from "./web-release-bundle.mjs";
 
 if (process.argv.includes("--load-check")) {
   console.log("test release generator loaded");
@@ -22,6 +22,7 @@ if (process.env.FS_DESKTOP_PRODUCTION_RELEASE === "true") {
 }
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
+const repositoryRoot = resolve(packageRoot, "../..");
 const generatedRoot = join(packageRoot, "generated");
 const releasesRoot = join(generatedRoot, "releases");
 const pointersRoot = join(generatedRoot, "pointers");
@@ -29,23 +30,15 @@ const keyNamespace = createHash("sha256").update(resolve(packageRoot)).digest("h
 const testKeyRoot = join(process.env.RUNNER_TEMP || tmpdir(), `fs-desktop-test-keys-${keyNamespace}`);
 const statePath = join(generatedRoot, "test-release-state.json");
 
-const sources = new Map([
-  ["index.html", join(packageRoot, "candidates", "hosted", "index.html")],
-  ["styles.css", join(packageRoot, "candidates", "hosted", "styles.css")],
-  ["app.js", join(packageRoot, "candidates", "hosted", "app.js")],
-  ["bridge.mjs", join(packageRoot, "candidates", "shared", "desktop-bridge-contract.mjs")],
-  ["session-authority.mjs", join(packageRoot, "candidates", "shared", "session-authority.mjs")],
-  ["connectivity-state.mjs", join(packageRoot, "candidates", "shared", "connectivity-state.mjs")],
-  ["session-planner-offline.mjs", join(packageRoot, "candidates", "shared", "session-planner-offline.mjs")],
-  ["tauri-invoke.mjs", join(packageRoot, "candidates", "shared", "tauri-invoke.mjs")],
-]);
-
-const contentTypes = new Map([
-  [".html", "text/html; charset=utf-8"],
-  [".css", "text/css; charset=utf-8"],
-  [".js", "text/javascript; charset=utf-8"],
-  [".mjs", "text/javascript; charset=utf-8"],
-]);
+const bundlePath = "footballscience-web.pack";
+const webBundle = buildWebReleaseBundle({
+  repositoryRoot,
+  virtualFiles: new Map([
+    ["desktop/candidate-readiness.js", readFileSync(join(packageRoot, "candidates", "shared", "full-platform-candidate-readiness.js"))],
+    ["desktop/platform-bootstrap.js", readFileSync(join(packageRoot, "candidates", "shared", "full-platform-bootstrap.js"))],
+  ]),
+  bootstrapScripts: ["desktop/candidate-readiness.js", "desktop/platform-bootstrap.js"],
+});
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -83,9 +76,7 @@ const recoveryKey = loadOrCreateKey("recovery");
 const unknownKey = loadOrCreateKey("unknown");
 
 const sourceDigest = createHash("sha256");
-for (const [path, source] of sources) {
-  sourceDigest.update(path).update("\0").update(readFileSync(source));
-}
+sourceDigest.update(bundlePath).update("\0").update(webBundle.bytes);
 const assetSetHash = sourceDigest.digest("hex");
 let state = existsSync(statePath)
   ? JSON.parse(readFileSync(statePath, "utf8"))
@@ -107,16 +98,12 @@ const releaseKeyId = "fs-local-test-release-key-v1";
 const recoveryKeyId = "fs-local-test-recovery-key-v1";
 
 function assets() {
-  return [...sources].map(([path, source]) => {
-    const bytes = readFileSync(source);
-    const extension = path.slice(path.lastIndexOf("."));
-    return {
-      path,
-      sha256: sha256(bytes),
-      bytes: bytes.length,
-      contentType: contentTypes.get(extension),
-    };
-  });
+  return [{
+    path: bundlePath,
+    sha256: sha256(webBundle.bytes),
+    bytes: webBundle.bytes.length,
+    contentType: WEB_BUNDLE_CONTENT_TYPE,
+  }];
 }
 
 function writeRelease({ kind, sequence, localSchemaVersion = 3, key = releaseKey, keyId = releaseKeyId, recoveryAuthorization = null }) {
@@ -124,9 +111,9 @@ function writeRelease({ kind, sequence, localSchemaVersion = 3, key = releaseKey
   const releaseRoot = join(releasesRoot, buildId);
   rmSync(releaseRoot, { recursive: true, force: true });
   mkdirSync(releaseRoot, { recursive: true });
-  for (const [path, source] of sources) copyFileSync(source, join(releaseRoot, path));
+  writeFileSync(join(releaseRoot, bundlePath), webBundle.bytes);
   const manifest = {
-    schema: "fs-desktop-shell-manifest-v2",
+    schema: "fs-desktop-shell-manifest-v3",
     releaseId: buildId,
     buildId,
     frontendBuildId: buildId,
@@ -149,6 +136,10 @@ function writeRelease({ kind, sequence, localSchemaVersion = 3, key = releaseKey
     appReadySchema: "fs-desktop-candidate-ready-v2",
     signingKeyId: keyId,
     recoveryAuthorization,
+    webBundle: {
+      ...webBundle.contract,
+      assetPath: bundlePath,
+    },
     assets: assets(),
   };
   const manifestBytes = exactJson(manifest);

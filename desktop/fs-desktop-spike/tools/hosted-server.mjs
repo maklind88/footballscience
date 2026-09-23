@@ -39,6 +39,7 @@ const contentTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
   [".sig", "application/json; charset=utf-8"],
+  [".pack", "application/vnd.footballscience.web-bundle"],
 ]);
 
 function resolveFile(urlPath) {
@@ -105,7 +106,7 @@ createServer(async (request, response) => {
       else response.end();
       return;
     }
-    if (mode === "hosted" && requestedReleaseMode === "modified-asset" && filePath.endsWith("app.js")) {
+    if (mode === "hosted" && requestedReleaseMode === "modified-asset" && filePath.endsWith(".pack")) {
       const bytes = Buffer.concat([readFileSync(filePath), Buffer.from("\n// synthetic post-signing modification\n", "utf8")]);
       headers["Content-Length"] = String(bytes.length);
       response.writeHead(200, headers);

@@ -1,10 +1,12 @@
 # FS Desktop Signed-Delivery and Offline Prototype
 
-This directory is an isolated local Tauri 2 prototype. It preserves the web platform and uses only synthetic identity/data. It is not an installer, production updater, deployed desktop app or real synchronization client.
+This directory is an isolated local Tauri 2 prototype. It preserves and packages the current web platform and uses only synthetic identity/data. It is not an installer, production updater, deployed desktop app or real synchronization client.
 
 ## Candidate A: controlled frontend code delivery
 
-A bundled native bootstrap fetches an immutable manifest and detached Ed25519 signature from the synthetic loopback publication source on port `47842`. Native code verifies the exact manifest bytes before parsing, pins the public verification key at compile time, validates every declared asset and stages it outside the WebView.
+A bundled native bootstrap fetches an immutable manifest, detached Ed25519 signature and one deterministic full-web `.pack` from the synthetic loopback publication source on port `47842`. Native code verifies the exact manifest bytes before parsing, pins the public verification key at compile time, validates the outer bundle and its canonical per-file index and stages it outside the WebView. Asset bytes are checked against the signed index again when served.
+
+The pack is built from tracked root runtime files plus `src/**` and `assets/**`. Server/API/Supabase/QA/docs/env material is excluded. Inline `index.html` scripts are externalized at the web root to preserve strict CSP and relative module imports. Shell-manifest v3 carries the bundle contract; existing v2 generations remain readable only as a controlled upgrade path.
 
 The native registry owns `candidate`, `active` and `previous` generations, the highest-seen release sequence, native/schema/sync/capability compatibility, nonce/deadline correlation, quarantine/backoff and atomic promotion. An older remote release is denied unless it carries a bounded recovery authorization signed by a distinct pinned recovery key.
 
@@ -16,7 +18,7 @@ Privileged content is not served from localhost. It uses role-specific Tauri cus
 
 macOS/Linux and Windows use different custom-origin shapes. Tauri's navigation callback first observes the exact registered `fs-<role>://localhost` request; Windows then maps it to the internally intercepted virtual HTTP origin. The Windows form is not a network listener and deliberately retains Tauri's default scheme so its internal IPC endpoint is not blocked as mixed content. Exact scheme, host, role, window label and navigation checks account for both stages; HTTPS lookalikes, new windows, downloads and arbitrary external navigation are denied.
 
-The shell cache is `fs-desktop-native-shell-cache-v2`. It is an app-data filesystem/SQLite registry, not browser/PWA Cache Storage and not a service worker. It contains only signed public code assets; token, auth, private JSON, user football, medical and outbox data are forbidden.
+The shell cache is `fs-desktop-native-shell-cache-v2`. It is an app-data filesystem/SQLite registry, not browser/PWA Cache Storage and not a service worker. It contains only signed public code assets; token, auth, private JSON, user football, medical and outbox data are forbidden. Test verifiers use a separate `fs-desktop-test-*` data root accepted only by test-compiled binaries.
 
 ## Candidate isolation
 
@@ -31,6 +33,8 @@ SQLite local schema v3 contains one normalized synthetic Session Planner project
 The branch includes a fail-closed authenticated handler, a private additive Postgres draft and disposable synthetic database. Local E2E reads the selected slice through that contract, normalizes it into file-backed SQLite, performs two offline edits, restarts, safely replays a lost acknowledgement and converges at revision 9. No real database adapter or remote schema is configured.
 
 The current identity is synthetic, but SessionAuthority uses real macOS Keychain and Windows Credential Manager adapters for secure refresh custody. Rotation is serialized and durable, account switch/logout/revocation are bounded, and lease duration is compile-time configurable. The frontend receives credential-free actor/organization/team/partition/epoch/lease context only.
+
+The signed full web runtime is now confirmed to reach the application's real readiness marker in a packaged macOS build. Real Supabase auth is deliberately not enabled: the current web path depends on a remote UMD script and browser-persisted session state, which conflict with strict CSP and native-only refresh credential custody. Relative `/api/**` calls also need an explicit typed HTTPS routing policy before real traffic is allowed.
 
 ## Test signing
 
@@ -56,6 +60,8 @@ The historical `hosted` identifier is retained in scripts for continuity; it now
 - no production/staging Supabase schema, data or environment change;
 - no production signing, publication, deployment, installer, notarization or updater;
 - no real authentication provider or account data;
+- no claim that every existing web function has an offline data adapter;
+- no real API-origin routing or vendored/pinned Supabase browser runtime yet;
 - macOS Keychain is locally verified with a synthetic secret; Windows Credential Manager remains compile/contract-only pending physical verification;
 - no configured/deployed synchronization database adapter;
 - no encryption-at-rest claim;

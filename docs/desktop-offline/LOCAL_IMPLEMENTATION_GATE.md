@@ -51,11 +51,11 @@ Native timeout/quarantine for a compatible candidate that never reaches app-read
 
 ## 6. Browser/PWA/service-worker regression
 
-Desktop uses `fs-desktop-native-shell-cache-v2`, not Cache Storage or a desktop service worker. Existing web/PWA/push-worker sources were not changed. Local full mandatory QA passed with 2,525 tests passed, one intentional skip and zero failures. Windows run `33499616167` passed static/security gates, API contracts and all four Chromium shards on the exact pushed branch commit. This preserves the existing web platform and separates desktop rollback from browser cache lifecycle.
+Desktop uses `fs-desktop-native-shell-cache-v2`, not Cache Storage or a desktop service worker. Existing web/PWA/push-worker sources were not changed. The final local full mandatory QA passed with 3,159 tests, three documented environment-conditional skips and zero failures. Windows run `35932204339` passed static/security gates, API contracts and all four Chromium shards on exact code commit `39749edd2debdb6c2e441eb91bc7d8879331b147`. This preserves the existing web platform and separates desktop rollback from browser cache lifecycle.
 
 The current 2026-09-23 secure-auth revision has 53 passing desktop Node contract tests and 44 passing Rust tests plus one intentionally ignored physical credential-store test. Its packaged macOS lifecycle verifier passes all signed-startup, tamper, incompatibility, quarantine, restart and online/offline recovery scenarios. Repository contract QA passed 1,230 tests.
 
-The full repository QA attempt is not green: one unnecessary `package.json` change initially violated the frozen Leaderboard release delta and was removed; that exact guard now passes. Three Session Planner central-state browser tests timed out because the expected session date never rendered. The first failure reproduces on exact pre-auth checkpoint `47438631`, proving it is a baseline defect rather than a regression introduced by this auth phase. It remains a mandatory-QA blocker, so this revision must not be pushed or sent to Windows CI until the owning flow is repaired and full QA is rerun.
+The earlier full-QA blocker is resolved without weakening its assertions or timing guard. Three Session Planner central-state tests used a fixed `2026-09-10` session date; once that date fell outside the product's rolling 21-day strip, the expected session never rendered. The defect reproduced on exact pre-auth checkpoint `47438631`. Commit `39749edd` changed only the QA fixtures to derive local dates within the visible strip. The targeted tests passed 15/15 across five repetitions, the complete central-state spec passed 25/25, and the full mandatory QA then passed before the branch and exact commit were sent to Windows CI.
 
 ## 7. Local Session Planner projection
 
@@ -116,8 +116,8 @@ Candidate B passed packaged macOS and Windows CI startup without a network depen
 | --- | --- |
 | Candidate A full-web signed bundle startup/restart/reconnect/LKG | Verified locally on packaged Apple Silicon macOS |
 | Candidate B packaged fallback startup | Verified locally on macOS |
-| Earlier Candidate A/B x64 release compile and WebView2 startup | Verified through Windows CI |
-| Current full-web bundle revision on Windows | Verifier updated; CI run pending |
+| Candidate A/B x64 release compile and WebView2 startup | Verified through Windows CI |
+| Current full-web bundle revision on Windows | Verified through Windows CI run `35932204339` on exact code commit `39749edd2debdb6c2e441eb91bc7d8879331b147` |
 | Installer UX, sleep/wake, real network switching, Credential Manager, updates, SmartScreen, physical restart | Still requires physical/manual Windows verification |
 | Native auth/API foundation | Implemented and locally verified with synthetic provider contracts; real provider run pending |
 | Real auth, backend sync and production data behavior | Not verified |

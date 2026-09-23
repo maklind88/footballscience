@@ -2454,6 +2454,51 @@ test("chat API GET coalesces duplicate reads and reuses short settled results", 
   expect(fetchCount).toBe(1);
 });
 
+for (const delayedRead of [false, true]) {
+  test(`chat API successful writes invalidate ${delayedRead ? "in-flight" : "settled"} reads`, async () => {
+    let title = "Original group";
+    let readCount = 0;
+    let releaseRead;
+    let markReadStarted;
+    const readStarted = new Promise((resolve) => { markReadStarted = resolve; });
+    const readGate = new Promise((resolve) => { releaseRead = resolve; });
+    const runtime = createDashboardChatApiDomainRuntime({
+      chatApiReadDedupeWindowMs: 5000,
+      chatApiReadMinimumGapMs: 0,
+      getCurrentPlatformUser: () => ({ id: "admin-qa" }),
+      getPlatformAuthStore: () => ({ getAccessToken: async () => "token" }),
+      fetchImpl: async (url, options) => {
+        if (options.method === "POST") {
+          title = JSON.parse(options.body).settings.customTitle;
+        } else {
+          readCount += 1;
+        }
+        const snapshot = { ok: true, threads: [{ id: "group:staff", title }] };
+        if (options.method === "GET" && readCount === 1) {
+          markReadStarted();
+          if (delayedRead) await readGate;
+        }
+        return { ok: true, status: 200, text: async () => JSON.stringify(snapshot) };
+      },
+      win: { setTimeout, clearTimeout },
+    });
+
+    const previousRead = runtime.fetchDashboardChatApi({ view: "threads" });
+    await readStarted;
+    if (!delayedRead) await previousRead;
+    const saved = await runtime.sendDashboardChatApiAction({
+      action: "setThreadSettings", threadId: "group:staff", settings: { customTitle: "Renamed group" },
+    });
+    expect(saved.ok).toBe(true);
+    releaseRead();
+    const previous = await previousRead;
+    const refreshed = await runtime.fetchDashboardChatApi({ view: "threads" });
+    expect(refreshed.result.threads[0].title).toBe("Renamed group");
+    if (delayedRead) expect(previous.result.threads[0].title).toBe("Renamed group");
+    expect(readCount).toBe(2);
+  });
+}
+
 test("chat API GET forceNetwork bypasses short settled read cache without leaking the flag", async () => {
   let fetchCount = 0;
   const capturedUrls = [];

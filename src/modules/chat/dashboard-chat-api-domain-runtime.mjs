@@ -42,6 +42,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   const dashboardChatApiReadMinimumGapMs = Math.max(0, Number(chatApiReadMinimumGapMs) || 0);
   const dashboardChatApiReadCacheMaxEntries = 40;
   const dashboardChatApiReadRequests = new Map();
+  let dashboardChatApiWriteRevision = 0;
   let dashboardChatApiBackoffUntil = 0;
   let dashboardChatApiBackoffStatus = 503;
   let dashboardChatApiBackoffReason = "Chat API is backing off while the platform data service recovers.";
@@ -290,6 +291,8 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       }
 
       clearDashboardChatApiBackoff();
+      dashboardChatApiWriteRevision += 1;
+      dashboardChatApiReadRequests.clear();
       return { ok: true, status: response.status, result };
     } catch (error) {
       const timedOut = error?.name === "AbortError";
@@ -348,6 +351,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
 
     const controller = typeof AbortController === "function" ? new AbortController() : null;
     let timeoutId = 0;
+    const readRevision = dashboardChatApiWriteRevision;
     const requestPromise = (async () => {
       try {
         await waitForDashboardChatApiReadBudget();
@@ -392,6 +396,10 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
         }
 
         clearDashboardChatApiBackoff();
+        // Never let a read started before a successful write restore stale data.
+        if (readRevision !== dashboardChatApiWriteRevision) {
+          return fetchDashboardChatApi(query);
+        }
         return { ok: true, status: response.status, result };
       } catch (error) {
         const timedOut = error?.name === "AbortError";
@@ -411,6 +419,9 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
 
     dashboardChatApiReadRequests.set(readCacheKey, { inFlight: requestPromise, expiresAt: 0, result: null });
     requestPromise.then((result) => {
+      if (dashboardChatApiReadRequests.get(readCacheKey)?.inFlight !== requestPromise) {
+        return;
+      }
       if (result?.ok) {
         const resolvedAt = Date.now();
         dashboardChatApiReadRequests.set(readCacheKey, {

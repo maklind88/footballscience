@@ -4191,10 +4191,37 @@ test("Session Planner save feedback stays hidden until a real change", async ({ 
     field = sessionPlannerWorkspace.locator("[data-session-field]:visible").first();
   }
   await field.fill(value);
+  await expect(autosaveStatus).not.toBeVisible();
   await field.blur();
 
   await expect(autosaveStatus).toBeVisible();
   await expect(autosaveStatus).toContainText(/Saving|Saved/);
+});
+
+test("Session Planner restores a typed local draft after reload before it becomes shared data", async ({ page }) => {
+  const value = `QA local draft ${Date.now()}`;
+  await seedQaSessionPlannerTrainingSession(page);
+  await bootApp(page);
+  await openWorkspace(page, "session-planner");
+  const sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
+  let field = sessionPlannerWorkspace.locator('[data-session-field="objective"]:visible').first();
+  if ((await field.count()) === 0) {
+    field = sessionPlannerWorkspace.locator("[data-session-field]:visible").first();
+  }
+
+  await field.fill(value);
+  expect(await page.evaluate(({ key, text }) => window.localStorage.getItem(key)?.includes(text) ?? false, {
+    key: sessionPlannerKey,
+    text: value,
+  })).toBe(false);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openWorkspace(page, "session-planner");
+  await expect(page.locator('[data-session-field="objective"]:visible').first()).toHaveValue(value);
+  expect(await page.evaluate(({ key, text }) => window.localStorage.getItem(key)?.includes(text) ?? false, {
+    key: sessionPlannerKey,
+    text: value,
+  })).toBe(false);
 });
 
 test("Session Planner date and block browsing does not persist view-only selection", async ({ page }) => {

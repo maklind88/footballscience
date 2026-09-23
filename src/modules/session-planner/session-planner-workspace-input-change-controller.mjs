@@ -1,3 +1,5 @@
+import { createSessionPlannerTextDraftStore } from "./session-planner-text-drafts.mjs";
+
 export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
   const {
     workspaceElement,
@@ -32,16 +34,60 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
     updateLibraryFilter = () => {},
     updateLibrarySortMode = () => {},
     renderWorkspace = () => {},
+    getSelectedBlock = () => null,
+    getSelectedDate = () => "",
+    textDraftStore = null,
+    win = globalThis,
   } = deps;
+  const drafts = textDraftStore || createSessionPlannerTextDraftStore({
+    storage: win?.sessionStorage,
+    getScope: deps.getDraftScope,
+    setTimeout: win?.setTimeout?.bind(win),
+    clearTimeout: win?.clearTimeout?.bind(win),
+  });
+
+  function getTextDraftContext(field) {
+    const block = getSelectedBlock?.();
+    const date = getSelectedDate?.();
+    const name = field?.dataset?.sessionField;
+    if (!block?.id || !date || !name) return null;
+    return { date, blockId: block.id, field: name };
+  }
+
+  function restoreTextDraft(field) {
+    const context = getTextDraftContext(field);
+    if (!context) return false;
+    const result = drafts.restore(context, field.value);
+    if (result.status === "restore") {
+      field.value = result.value;
+      resizeTextarea(field);
+    }
+    field.dataset.sessionDraftBaseValue = field.value;
+    field.toggleAttribute?.("data-session-draft-conflict", result.status === "conflict");
+    return result.status === "restore";
+  }
+
+  function restoreTextDrafts() {
+    workspaceElement?.querySelectorAll?.("[data-session-field]").forEach(restoreTextDraft);
+  }
+
+  function recordTextDraft(field) {
+    const context = getTextDraftContext(field);
+    if (!context) return false;
+    return drafts.record(context, field.value, field.dataset.sessionDraftBaseValue ?? field.value);
+  }
 
   function commitSelectedBlockField(field) {
     if (!field?.dataset?.sessionField) {
       return false;
     }
-    updateSelectedBlockField(field.dataset.sessionField, field.value, {
+    const saved = updateSelectedBlockField(field.dataset.sessionField, field.value, {
       syncExerciseReview: field.dataset.sessionField === "postSessionNotes",
     });
-    return true;
+    if (saved) {
+      drafts.clear(getTextDraftContext(field));
+    }
+    return saved;
   }
 
   function handleInput(event) {
@@ -91,6 +137,7 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
     // Committing on every keystroke creates noisy central writes and makes
     // concurrent editing needlessly conflict-prone.
     resizeTextarea(field);
+    recordTextDraft(field);
   }
 
   function handleChange(event) {
@@ -175,6 +222,11 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
     commitSelectedBlockField(field);
   }
 
+  function handleFocusIn(event) {
+    const field = event.target.closest?.("[data-session-field]");
+    restoreTextDraft(field);
+  }
+
   function handleKeydown(event) {
     const field = event.target.closest?.("[data-session-field]");
     if (!field || event.key !== "Enter") {
@@ -193,18 +245,29 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
   workspaceElement?.addEventListener?.("input", handleInput);
   workspaceElement?.addEventListener?.("change", handleChange);
   workspaceElement?.addEventListener?.("focusout", handleFocusOut);
+  workspaceElement?.addEventListener?.("focusin", handleFocusIn);
   workspaceElement?.addEventListener?.("keydown", handleKeydown);
+  win?.addEventListener?.("pagehide", drafts.flush);
+  const observer = typeof win?.MutationObserver === "function"
+    ? new win.MutationObserver(restoreTextDrafts)
+    : null;
+  observer?.observe?.(workspaceElement, { childList: true, subtree: true });
+  restoreTextDrafts();
 
   return {
     handleInput,
     handleChange,
     handleFocusOut,
+    handleFocusIn,
     handleKeydown,
     unbind: () => {
       workspaceElement?.removeEventListener?.("input", handleInput);
       workspaceElement?.removeEventListener?.("change", handleChange);
       workspaceElement?.removeEventListener?.("focusout", handleFocusOut);
+      workspaceElement?.removeEventListener?.("focusin", handleFocusIn);
       workspaceElement?.removeEventListener?.("keydown", handleKeydown);
+      win?.removeEventListener?.("pagehide", drafts.flush);
+      observer?.disconnect?.();
     },
   };
 }

@@ -32,6 +32,8 @@ test("Session Planner input/change controller owns workspace field bindings outs
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("change"');
   expect(controllerSource).toContain('workspaceElement?.addEventListener?.("input"');
   expect(controllerSource).toContain('workspaceElement?.addEventListener?.("focusout"');
+  expect(controllerSource).toContain('workspaceElement?.addEventListener?.("focusin"');
+  expect(controllerSource).toContain('win?.addEventListener?.("pagehide", drafts.flush)');
   expect(controllerSource).not.toContain("localStorage");
   expect(controllerSource).not.toContain("queueCentralStateWrite");
   expect(controllerSource).not.toContain("writeSessionPlannerState");
@@ -214,4 +216,50 @@ test("Session Planner change controller preserves select/upload and render behav
   });
   expect(calls).toContain("field:postSessionNotes:Done:true");
   expect(calls).toContain("render:true");
+});
+
+test("Session Planner keeps a typed text draft local until a successful field commit", () => {
+  const listeners = {};
+  const calls = [];
+  const workspaceElement = {
+    addEventListener: (type, listener) => {
+      listeners[type] = listener;
+    },
+    removeEventListener: () => {},
+  };
+  const drafts = {
+    restore: () => ({ status: "none", value: "" }),
+    record: (context, value, baseValue) => calls.push({ type: "draft", context, value, baseValue }),
+    clear: (context) => calls.push({ type: "clear", context }),
+    flush: () => true,
+  };
+  const field = { dataset: { sessionField: "objectives" }, value: "Build from the back", tagName: "TEXTAREA" };
+  bindSessionPlannerWorkspaceInputChangeController({
+    workspaceElement,
+    getSelectedBlock: () => ({ id: "block-1" }),
+    getSelectedDate: () => "2026-09-23",
+    textDraftStore: drafts,
+    resizeTextarea: () => {},
+    updateSelectedBlockField: (name, value) => {
+      calls.push({ type: "central", name, value });
+      return true;
+    },
+  });
+
+  listeners.focusin({ target: createTarget({ "[data-session-field]": field }) });
+  listeners.input({ target: createTarget({ "[data-session-field]": field }) });
+  expect(calls).toContainEqual({
+    type: "draft",
+    context: { date: "2026-09-23", blockId: "block-1", field: "objectives" },
+    value: "Build from the back",
+    baseValue: "Build from the back",
+  });
+  expect(calls.some((call) => call.type === "central")).toBe(false);
+
+  listeners.focusout({ target: createTarget({ "[data-session-field]": field }) });
+  expect(calls).toContainEqual({ type: "central", name: "objectives", value: "Build from the back" });
+  expect(calls).toContainEqual({
+    type: "clear",
+    context: { date: "2026-09-23", blockId: "block-1", field: "objectives" },
+  });
 });

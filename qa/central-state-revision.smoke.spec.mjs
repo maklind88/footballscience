@@ -11,6 +11,18 @@ const sessionPlannerStateKey = "football-session-planner-v3";
 const medicalTeamStateKey = "football-medical-team-v1";
 const playerProfilesStateKey = "football-player-profiles-v1";
 const dataSafetyManifestKey = "football-data-safety-v1";
+
+function localDateValue(offsetDays = 0) {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + offsetDays);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 const qaUser = {
   id: "qa-user-1",
   email: "qa@footballscience.test",
@@ -345,8 +357,8 @@ test("changing team during Sessions payload encoding never sends the old team's 
 });
 
 test("pending Sessions snapshot with an evicted cache still shows central training without retrying the baseline", async ({ browser, baseURL }) => {
-  const day = "2026-09-10";
-  const sessionValue = JSON.stringify({ selectedDate: "2026-08-01", sessions: {
+  const day = localDateValue();
+  const sessionValue = JSON.stringify({ selectedDate: localDateValue(-30), sessions: {
     [day]: { date: day, title: "Central training", blocks: [{ id: "central-one", title: "Saved pressing exercise", minutes: 20 }] },
   } });
   const initial = createStateValue("Original central sequence");
@@ -396,10 +408,10 @@ test("pending Sessions snapshot with an evicted cache still shows central traini
 });
 
 test("large Sessions hydrate, edit, save and reload through compressed browser transport", async ({ browser, baseURL }) => {
-  const day = "2026-09-10";
+  const day = localDateValue();
   const sessions = {};
   for (let i = 0; i < 36; i += 1) {
-    const date = new Date(Date.UTC(2026, 7, 6 + i)).toISOString().slice(0, 10);
+    const date = localDateValue(i - 17);
     sessions[date] = { date, title: "Training", blocks: Array.from({ length: 4 }, (_, b) => ({
       id: `${date}-${b}`, title: `Pressing ${b + 1}`, minutes: 15, organization: "Keep possession. ".repeat(2200),
     })) };
@@ -931,7 +943,7 @@ test("Session Planner hydration stays server-backed when localStorage quota is f
 });
 
 test("Sessions merged acknowledgement survives full browser cache and reload without a false review", async ({ browser, baseURL }) => {
-  const day = "2026-09-10", initial = createStateValue("Original central sequence");
+  const day = localDateValue(), initial = createStateValue("Original central sequence");
   const state = { selectedDate: day, sessions: { [day]: { date: day, title: "Training", selectedBlockId: "a", blocks: [
     { id: "a", title: "Press", objective: "Before", minutes: 15 },
   ] } } };

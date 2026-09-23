@@ -6,6 +6,7 @@ import { contentDigests } from "../scripts/lib/data-content-recovery-process.mjs
 import { asActor, catalog, claims, id, statementOutcome, syntheticPostgres } from "./helpers/relations-permissions-postgres.mjs";
 
 const migration = readFileSync(new URL("../supabase/migrations/20260911185738_medical_coach_note_read_boundary.sql", import.meta.url), "utf8");
+const repair = readFileSync(new URL("../supabase/migrations/20260923231716_restore_medical_note_read_privileges.sql", import.meta.url), "utf8");
 const tables = ["medical_availability_recommendations", "medical_availability_plans", "medical_state_sync_events", "platform_app_state_records"];
 const surfaces = [
   { table: tables[0], view: "medical_coach_availability", fn: "medical_coach_recommendation_note", unshared: 701, shared: 711, foreign: 712, sibling: 713, archived: 714, empty: 715, lifecycle: "deleted_at" },
@@ -162,6 +163,33 @@ test("Medical note boundary: actual migrations, no production database", async (
       }
       assert.deepEqual(await catalog(db), expected);
       assert.deepEqual(await contentDigests(db.pg, db.source, tables), before);
+    });
+    await t.test("forward repair restores table/column grant drift without changing source data or policies", async (repairTest) => {
+      const expected = await catalog(db);
+      for (const surface of surfaces) {
+        await db.pg.sql(db.source, `GRANT SELECT ON ${surface.table} TO PUBLIC,anon,authenticated;
+          GRANT SELECT(coach_note,internal_note) ON ${surface.table} TO PUBLIC,anon,authenticated;`);
+        assert.equal(await asActor(db, `SELECT internal_note FROM ${surface.table} WHERE id='${id(surface.shared)}'`), "private-a");
+      }
+      const drifted = await catalog(db);
+      const abort = repair.replace(/commit;\s*$/i, "DO $$ BEGIN RAISE EXCEPTION 'synthetic repair rollback'; END $$; COMMIT;");
+      assert.notEqual(abort, repair);
+      await assert.rejects(db.pg.sql(db.source, abort), /postgres-command-failed/);
+      assert.deepEqual(await catalog(db), drifted);
+      assert.deepEqual(await contentDigests(db.pg, db.source, tables), before);
+      await db.pg.sql(db.source, repair);
+      assert.deepEqual(await catalog(db), expected);
+      await invariants(repairTest, db);
+      await db.pg.sql(db.source, repair);
+      assert.deepEqual(await catalog(db), expected);
+      assert.deepEqual(await contentDigests(db.pg, db.source, tables), before);
+    });
+    await t.test("repair refuses a missing private accessor without changing existing grants", async () => {
+      await db.pg.sql(db.source, "ALTER FUNCTION app_private.medical_coach_plan_note(uuid) RENAME TO medical_coach_plan_note_unavailable;");
+      const expected = await catalog(db);
+      await assert.rejects(db.pg.sql(db.source, repair), /postgres-command-failed/);
+      assert.deepEqual(await catalog(db), expected);
+      await db.pg.sql(db.source, "ALTER FUNCTION app_private.medical_coach_plan_note_unavailable(uuid) RENAME TO medical_coach_plan_note;");
     });
     await t.test("restored schema/data retain the same privacy boundary after restart", async (restoredTest) => {
       const archive = join(db.root, "medical-note-boundary.dump");

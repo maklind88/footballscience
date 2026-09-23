@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - "supabase/migrations/20260911185738_medical_coach_note_read_boundary.sql"
+      - "supabase/migrations/20260923231716_restore_medical_note_read_privileges.sql"
       - "scripts/verify-medical-note-staging.mjs"
       - "qa/medical-note-staging-probe.api.spec.mjs"
       - ".github/workflows/medical-note-read-boundary.yml"

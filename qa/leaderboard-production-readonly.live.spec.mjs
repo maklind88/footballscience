@@ -184,7 +184,17 @@ test("Leaderboard is authenticated, tenant-bound, internally consistent, and rea
     maxRedirects: 0,
   }));
   const direct = await directResponse.json().catch(() => null);
-  expect(directResponse.status()).toBe(200);
+  const knownScopeFailures = new Set([
+    "Active Platform-to-Squad team mapping is required for Leaderboard.",
+    "Platform team has an invalid Squad tenant link.",
+    "Platform team has ambiguous Squad tenant links.",
+    "Active Squad roster contains ambiguous player identity.",
+    "Active Squad roster contains missing player identity.",
+    "No unambiguous active team membership is available for Leaderboard.",
+    "Platform team scope is incomplete.",
+  ]);
+  const failureReason = knownScopeFailures.has(direct?.reason) ? direct.reason : "Unexpected Leaderboard response (details withheld).";
+  expect(directResponse.status(), failureReason).toBe(200);
   expect(direct?.ok === true && direct?.schema === "footballscience-leaderboard-v1" && direct?.month === month).toBe(true);
   const standings = Array.isArray(direct?.standings) ? direct.standings : null;
   const events = Array.isArray(direct?.events) ? direct.events : null;

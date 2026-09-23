@@ -6,6 +6,9 @@ import {
   LOCAL_CACHE_ONLY,
   REQUIRED_RECORD_FIELDS,
   SERVER_SOURCE_OF_TRUTH,
+  dataSafetyOfflineDurability,
+  dataSafetyOfflineModes,
+  dataSafetyOfflineRecovery,
   dataSafetyContracts,
   dataSafetyRegistry,
   platformModuleRegistry,
@@ -202,6 +205,32 @@ test("every module contract uses the central save pipeline and cache-only browse
       expect(contract.requiredFields).toContain(field);
     }
   }
+});
+
+test("every protected module declares its real offline durability and recovery boundary", () => {
+  for (const contract of dataSafetyContracts) {
+    expect(dataSafetyOfflineModes).toContain(contract.offline.mode);
+    expect(dataSafetyOfflineDurability).toContain(contract.offline.localDurability);
+    expect(dataSafetyOfflineRecovery).toContain(contract.offline.recovery);
+    expect(contract.offline.requiresAuthenticatedBootstrap).toBe(true);
+    expect(contract.offline.target).toBeTruthy();
+  }
+
+  const sessions = dataSafetyRegistry.requireByKey("football-session-planner-v3");
+  expect(sessions.offline).toMatchObject({
+    mode: "durable-change-journal",
+    localDurability: "indexeddb-journal",
+    recovery: "idempotent-operation-replay",
+  });
+
+  const schedule = dataSafetyRegistry.requireByKey("football-schedule-v1");
+  expect(schedule.offline.target).toBe("database-primary-schedule-events");
+
+  const chat = dataSafetyRegistry.requireByKey("football-dashboard-chat-v1");
+  expect(chat.offline).toMatchObject({
+    mode: "dedicated-api",
+    localDurability: "server-owned",
+  });
 });
 
 test("central app-state rejects executable user content before writing module state", async () => {

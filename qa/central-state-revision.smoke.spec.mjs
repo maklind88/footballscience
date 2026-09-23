@@ -356,6 +356,7 @@ test("pending Sessions snapshot with an evicted cache still shows central traini
   };
   const writes = [];
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "missing-session-cache", {
+    fixedDate: "2026-09-10T12:00:00.000Z",
     appStateWriteBodies: writes,
     initScript: ({ key, manifestKey }) => {
       const nativeSet = Storage.prototype.setItem;
@@ -413,6 +414,7 @@ test("large Sessions hydrate, edit, save and reload through compressed browser t
   };
   const wires = [];
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "large-session-transport", {
+    fixedDate: "2026-09-10T12:00:00.000Z",
     initScript: (key) => {
       const nativeSet = Storage.prototype.setItem;
       Storage.prototype.setItem = function (storageKey, value) {
@@ -465,6 +467,22 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
   const context = await browser.newContext();
   await installCentralRevisionRoutes(context, centralStore, syncBodies, options);
   const page = await context.newPage();
+  if (options.fixedDate) {
+    await page.addInitScript((fixedDate) => {
+      const NativeDate = Date;
+      const fixedTime = new NativeDate(fixedDate).getTime();
+      class FixedDate extends NativeDate {
+        constructor(...args) {
+          super(...(args.length ? args : [fixedTime]));
+        }
+
+        static now() {
+          return fixedTime;
+        }
+      }
+      window.Date = FixedDate;
+    }, options.fixedDate);
+  }
   await page.addInitScript(() => {
     window.__footballScienceQaForceCentralState = true;
   });
@@ -940,6 +958,7 @@ test("Sessions merged acknowledgement survives full browser cache and reload wit
     metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(7, value), moduleId: "session-planner" } } };
   const posts = [];
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "ack-quota-merge", {
+    fixedDate: "2026-09-10T12:00:00.000Z",
     initScript: (key) => {
       const nativeSet = Storage.prototype.setItem;
       Storage.prototype.setItem = function (storageKey, next) {

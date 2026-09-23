@@ -23,6 +23,18 @@ test("staging smoke binds the read-only Leaderboard proof to staging", () => {
   expect(runner).toContain("LEADERBOARD_READONLY_DENIED_SUPABASE_REF: process.env.SUPABASE_PROJECT_REF");
 });
 
+test("staging Leaderboard uses an explicit fixture team even with multiple memberships", () => {
+  for (const file of ["staging-deploy.yml", "staging-smoke.yml", "production-deploy.yml"]) {
+    const workflow = fs.readFileSync(path.join(rootDir, ".github/workflows", file), "utf8");
+    expect(workflow).toContain("LEADERBOARD_STAGING_QA_TEAM_ID: ${{ vars.LEADERBOARD_STAGING_QA_TEAM_ID }}");
+  }
+  const smoke = fs.readFileSync(path.join(rootDir, "qa/leaderboard-production-readonly.live.spec.mjs"), "utf8");
+  expect(smoke).toContain("process.env.LEADERBOARD_STAGING_QA_TEAM_ID");
+  expect(smoke).toContain("const teamId = configuredTeamId;");
+  expect(smoke).toContain("teamIsCovered(identity, teamId)");
+  expect(smoke).not.toContain("fallbackTeamId");
+});
+
 function runNodeScript(relativePath, env = {}) {
   return spawnSync(process.execPath, [path.join(rootDir, relativePath)], {
     cwd: rootDir,

@@ -14,7 +14,7 @@ const qaPassword = String(
   isProductionProof ? process.env.LEADERBOARD_LIVE_QA_PASSWORD : process.env.LIVE_QA_PASSWORD,
 ).trim();
 const configuredTeamId = String(
-  isProductionProof ? process.env.LEADERBOARD_LIVE_QA_TEAM_ID : "",
+  (isProductionProof ? process.env.LEADERBOARD_LIVE_QA_TEAM_ID : process.env.LEADERBOARD_STAGING_QA_TEAM_ID) || "",
 ).trim().toLowerCase();
 const hasCredentials = Boolean(qaUsername && qaPassword);
 const leaderboardViewRoles = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
@@ -164,17 +164,9 @@ test("Leaderboard is authenticated, tenant-bound, internally consistent, and rea
   expect(clientUser.id).not.toBe("");
   expect(leaderboardViewRoles.has(clientUser.role), `Client identity role ${clientUser.role || "unknown"} cannot view Leaderboard.`).toBe(true);
 
-  const fallbackTeamId = (Array.isArray(identity?.scope?.teams) ? identity.scope.teams : [])
-    .filter((team) => team.status === "active" && teamIsCovered(identity, team.id))
-    .map((team) => String(team.id || ""))
-    .filter(Boolean)
-    .sort()[0] || "";
-  const teamId = isProductionProof
-    ? configuredTeamId
-    : (teamIsCovered(identity, clientUser.teamId) ? clientUser.teamId : fallbackTeamId);
-  if (isProductionProof) {
-    expect(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(teamId), "LEADERBOARD_LIVE_QA_TEAM_ID must be an exact Platform team UUID.").toBe(true);
-  }
+  const teamId = configuredTeamId;
+  const teamSetting = isProductionProof ? "LEADERBOARD_LIVE_QA_TEAM_ID" : "LEADERBOARD_STAGING_QA_TEAM_ID";
+  expect(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(teamId), `${teamSetting} must be an exact Platform team UUID.`).toBe(true);
   expect(/^[0-9a-f-]{36}$/i.test(teamId) && teamIsCovered(identity, teamId), "Live QA identity must expose a deterministic active team.").toBe(true);
 
   const month = new Date().toISOString().slice(0, 7);

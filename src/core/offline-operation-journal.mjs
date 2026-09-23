@@ -78,6 +78,16 @@ export function createOfflineOperationJournal(options = {}) {
     });
   }
 
+  async function close() {
+    const currentOpening = opening;
+    if (!currentOpening) return;
+    const database = await currentOpening;
+    database.close();
+    if (opening === currentOpening) {
+      opening = null;
+    }
+  }
+
   async function put(operation = {}) {
     const normalized = normalizeOperation({ ...operation, createdAt: operation.createdAt ?? now() });
     if (!normalized) throw new Error("Offline operation requires an id, scope, module, key, type, and timestamp.");
@@ -120,5 +130,5 @@ export function createOfflineOperationJournal(options = {}) {
     return updated;
   }
 
-  return Object.freeze({ list, open, put, updateStatus });
+  return Object.freeze({ close, list, open, put, updateStatus });
 }

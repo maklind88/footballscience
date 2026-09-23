@@ -6949,6 +6949,7 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
   await expect.poll(readModalHeight, { timeout: 5_000 }).toBe(overviewHeight);
 
   await modal.locator('textarea[name="coachNotes"]').fill(coachNote);
+  await modal.locator('textarea[name="coachNotes"]').dispatchEvent("change");
   await expect
     .poll(
       () =>

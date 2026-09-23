@@ -47,11 +47,14 @@ test("offline operation journal survives reload and never exposes another scoped
     const own = await journal.list("coach-1:org-1:team-1");
     const other = await journal.list("coach-2:org-2:team-2");
     await journal.updateStatus("periodization-day-1", "coach-1:org-1:team-1", "applied");
+    const afterApply = await journal.list("coach-1:org-1:team-1");
+    const otherAfterApply = await journal.list("coach-2:org-2:team-2");
+    await journal.close();
     return {
       own,
       other,
-      afterApply: await journal.list("coach-1:org-1:team-1"),
-      otherAfterApply: await journal.list("coach-2:org-2:team-2"),
+      afterApply,
+      otherAfterApply,
     };
   }, databaseName);
   expect(result.own).toHaveLength(1);

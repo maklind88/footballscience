@@ -298,6 +298,8 @@ test("Periodization controller delegates board clicks and field changes through 
     "board:keydown",
     "board:input",
     "board:change",
+    "board:focusin",
+    "board:focusout",
   ]);
 
   controller.handleBoardClick({

@@ -24,8 +24,10 @@ import {
   createPresentationLocalMediaStore,
   pickPresentationMediaHandle,
 } from "./presentation-local-media-store.mjs";
+import { createScopedTextDraftStore } from "../../core/scoped-text-draft-store.mjs";
 
 export const dashboardPresentationStorageKey = "football-dashboard-presentation-mode-v1";
+export const presentationTextDraftStorageKey = "football-presentation-text-drafts-v1";
 
 const presentationSchema = "footballscience-presentation-mode-v1";
 const presentationMeetingTypes = {
@@ -936,6 +938,13 @@ export function createPresentationModeController(dependencies = {}) {
     escapeHtml = defaultEscapeHtml,
     onDeckChange = noop,
   } = dependencies;
+  const textDraftStore = createScopedTextDraftStore({
+    storage: win?.sessionStorage,
+    storageKey: presentationTextDraftStorageKey,
+    getScope: dependencies.getDraftScope,
+    setTimeout: win?.setTimeout?.bind(win),
+    clearTimeout: win?.clearTimeout?.bind(win),
+  });
   const localMediaStore = dependencies.localMediaStore || createPresentationLocalMediaStore({ win });
 
   const state = {
@@ -5111,6 +5120,7 @@ export function createPresentationModeController(dependencies = {}) {
     if (infoField) {
       // Keep typed copy as an in-place draft. It is committed on blur or an
       // explicit keyboard commit, never once per character.
+      recordPresentationTextDraft(event.target.closest("[data-presentation-text-field]"));
       return;
     }
     const styleField = event.target.closest("[data-presentation-style-field]");
@@ -5121,6 +5131,7 @@ export function createPresentationModeController(dependencies = {}) {
     const textField = event.target.closest("[data-presentation-text-field]");
     if (textField) {
       ensureTextFieldControls(textField);
+      recordPresentationTextDraft(textField);
     }
   }
 
@@ -5139,6 +5150,34 @@ export function createPresentationModeController(dependencies = {}) {
     return rawValue.replace(/\s+/g, " ").trim();
   }
 
+  function getPresentationTextDraftContext(textField) {
+    const slideId = String(textField?.dataset?.presentationInfoId || textField?.dataset?.presentationSlideId || "").trim();
+    const field = String(textField?.dataset?.presentationTextField || "").trim();
+    if (!state.dateValue || !slideId || !field) return null;
+    return { field, recordId: `${state.dateValue}:${state.meetingType}:${slideId}` };
+  }
+
+  function restorePresentationTextDraft(textField) {
+    const context = getPresentationTextDraftContext(textField);
+    if (!context) return false;
+    const currentValue = getPresentationTextValue(textField);
+    const result = textDraftStore.restore(context, currentValue);
+    if (result.status === "restore") {
+      if (typeof textField.value === "string") textField.value = result.value;
+      else textField.textContent = result.value;
+    }
+    textField.dataset.presentationDraftBaseValue = getPresentationTextValue(textField);
+    textField.toggleAttribute?.("data-presentation-draft-conflict", result.status === "conflict");
+    return result.status === "restore";
+  }
+
+  function recordPresentationTextDraft(textField) {
+    const context = getPresentationTextDraftContext(textField);
+    if (!context) return false;
+    const currentValue = getPresentationTextValue(textField);
+    return textDraftStore.record(context, currentValue, textField.dataset.presentationDraftBaseValue ?? currentValue);
+  }
+
   function commitPresentationTextField(target) {
     const textField = target?.closest?.("[data-presentation-text-field]");
     if (!textField || !state.isOpen || !root?.contains(textField)) {
@@ -5151,6 +5190,7 @@ export function createPresentationModeController(dependencies = {}) {
         infoField.dataset.presentationInfoField,
         getPresentationTextValue(textField)
       );
+      textDraftStore.clear(getPresentationTextDraftContext(textField));
       return true;
     }
     updateTextOverride(
@@ -5158,6 +5198,7 @@ export function createPresentationModeController(dependencies = {}) {
       textField.dataset.presentationTextField,
       getPresentationTextValue(textField)
     );
+    textDraftStore.clear(getPresentationTextDraftContext(textField));
     return true;
   }
 
@@ -5170,6 +5211,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function handleFocusout(event) {
     commitPresentationTextField(event.target);
+    textDraftStore.flush();
   }
 
   function handleChange(event) {
@@ -5370,6 +5412,8 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    const textField = event.target.closest?.("[data-presentation-text-field]");
+    if (textField) restorePresentationTextDraft(textField);
     setActiveTextTargetFromElement(event.target);
     if (event.target.closest?.("[data-presentation-shape]")) {
       setActiveShapeTargetFromElement(event.target);
@@ -5550,6 +5594,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.addEventListener("focus", handleFocusin, true);
     documentRef.addEventListener("focusin", handleFocusin, true);
     documentRef.addEventListener("focusout", handleFocusout, true);
+    win?.addEventListener?.("pagehide", textDraftStore.flush);
     documentRef.addEventListener("input", handleInput);
     documentRef.addEventListener("change", handleChange);
     documentRef.addEventListener("keydown", handleKeydown);

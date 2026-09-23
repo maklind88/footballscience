@@ -1,11 +1,29 @@
+import { createScopedTextDraftStore } from "../../core/scoped-text-draft-store.mjs";
+
 function getClosest(target, selector) {
   return target?.closest?.(selector) || null;
 }
 
 function noop() {}
 
+function isTextEditingField(field) {
+  if (!field) return false;
+  if (field.tagName === "TEXTAREA") return true;
+  if (field.tagName !== "INPUT") return false;
+  return !new Set(["checkbox", "color", "date", "file", "number", "radio", "range", "time"]).has(
+    String(field.type || "text").toLowerCase()
+  );
+}
+
 export function createPeriodizationWorkspaceController(options = {}) {
   const ui = options.ui || {};
+  const textDraftStore = options.textDraftStore || createScopedTextDraftStore({
+    storage: options.win?.sessionStorage,
+    storageKey: options.textDraftStorageKey,
+    getScope: options.getDraftScope,
+    setTimeout: options.win?.setTimeout?.bind(options.win),
+    clearTimeout: options.win?.clearTimeout?.bind(options.win),
+  });
   let isBound = false;
 
   function canEdit() {
@@ -60,6 +78,34 @@ export function createPeriodizationWorkspaceController(options = {}) {
       return;
     }
     options.writeDay?.(dateValue, patch, shouldRender);
+  }
+
+  function getTextDraftContext(field) {
+    const dateValue = selectedDate();
+    const fieldKey = field?.dataset?.periodizationField;
+    if (!dateValue || !fieldKey) return null;
+    return { field: fieldKey, recordId: dateValue };
+  }
+
+  function restoreTextDraft(field) {
+    const context = getTextDraftContext(field);
+    if (!context) return false;
+    const result = textDraftStore.restore(context, field.value);
+    if (result.status === "restore") field.value = result.value;
+    field.dataset.periodizationDraftBaseValue = field.value;
+    field.toggleAttribute?.("data-periodization-draft-conflict", result.status === "conflict");
+    return result.status === "restore";
+  }
+
+  function recordTextDraft(field) {
+    const context = getTextDraftContext(field);
+    if (!context) return false;
+    return textDraftStore.record(context, field.value, field.dataset.periodizationDraftBaseValue ?? field.value);
+  }
+
+  function clearTextDraft(field) {
+    const context = getTextDraftContext(field);
+    if (context) textDraftStore.clear(context);
   }
 
   function handleTodayClick() {
@@ -159,9 +205,11 @@ export function createPeriodizationWorkspaceController(options = {}) {
       !field ||
       !selectedDate() ||
       !canEdit() ||
+      isTextEditingField(field) ||
       field.tagName === "SELECT" ||
       field.matches?.("[data-periodization-multi-option]")
     ) {
+      if (isTextEditingField(field)) recordTextDraft(field);
       return;
     }
     writeSelectedDay({ [field.dataset.periodizationField]: field.value }, false);
@@ -193,9 +241,20 @@ export function createPeriodizationWorkspaceController(options = {}) {
     const fieldKey = field.dataset.periodizationField;
     const value = options.isMultiField?.(fieldKey) ? options.getMultiFieldValue?.(field, dateValue) : field.value;
     writeSelectedDay({ [fieldKey]: value }, false);
+    if (isTextEditingField(field)) clearTextDraft(field);
     if (options.isMultiField?.(fieldKey)) {
       options.refreshDependentFields?.(fieldKey);
     }
+  }
+
+  function handleBoardFocusin(event) {
+    const field = getClosest(event.target, "[data-periodization-field]");
+    if (isTextEditingField(field)) restoreTextDraft(field);
+  }
+
+  function handleBoardFocusout(event) {
+    const field = getClosest(event.target, "[data-periodization-field]");
+    if (isTextEditingField(field)) textDraftStore.flush();
   }
 
   function bind() {
@@ -213,6 +272,9 @@ export function createPeriodizationWorkspaceController(options = {}) {
     ui.periodizationBoard?.addEventListener?.("keydown", handleBoardKeydown);
     ui.periodizationBoard?.addEventListener?.("input", handleBoardInput);
     ui.periodizationBoard?.addEventListener?.("change", handleBoardChange);
+    ui.periodizationBoard?.addEventListener?.("focusin", handleBoardFocusin);
+    ui.periodizationBoard?.addEventListener?.("focusout", handleBoardFocusout);
+    options.win?.addEventListener?.("pagehide", () => textDraftStore.flush());
   }
 
   return Object.freeze({
@@ -220,6 +282,8 @@ export function createPeriodizationWorkspaceController(options = {}) {
     closeOverlay,
     handleBoardChange,
     handleBoardClick,
+    handleBoardFocusin,
+    handleBoardFocusout,
     handleBoardInput,
     handleBoardKeydown,
     handleMonthSelectChange,

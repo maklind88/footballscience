@@ -146,6 +146,8 @@ test("Player profile runtime bindings own Squad workspace event binding outside 
   expect(bindingsSource).toContain('workspaceElement.addEventListener("click"');
   expect(bindingsSource).toContain('workspaceElement.addEventListener("input"');
   expect(bindingsSource).toContain('workspaceElement.addEventListener("change"');
+  expect(bindingsSource).toContain('workspaceElement.addEventListener("focusin"');
+  expect(bindingsSource).toContain('workspaceElement.addEventListener("focusout"');
   expect(bindingsSource).toContain('workspaceElement.addEventListener("keydown"');
   expect(bindingsSource).toContain('workspaceElement.addEventListener("submit"');
   expect(bindingsSource).not.toContain("localStorage");
@@ -156,10 +158,12 @@ test("Player profile runtime bindings own Squad workspace event binding outside 
 test("Player profile runtime bindings register the expected workspace listeners", () => {
   const { controllers, workspace } = createHarness();
 
-  expect(Object.keys(controllers).sort()).toEqual(["change", "click", "input", "keydown", "submit"]);
+  expect(Object.keys(controllers).sort()).toEqual(["change", "click", "focusin", "focusout", "input", "keydown", "submit"]);
   expect(typeof workspace.listeners.click).toBe("function");
   expect(typeof workspace.listeners.input).toBe("function");
   expect(typeof workspace.listeners.change).toBe("function");
+  expect(typeof workspace.listeners.focusin).toBe("function");
+  expect(typeof workspace.listeners.focusout).toBe("function");
   expect(typeof workspace.listeners.keydown).toBe("function");
   expect(typeof workspace.listeners.submit).toBe("function");
 });

@@ -16,6 +16,8 @@ const modularStorageSourcePaths = Object.freeze([
   "src/modules/exercise-library/exercise-library-state.mjs",
   "src/modules/session-planner/session-planner-autosave.mjs",
   "src/modules/session-planner/session-planner-text-drafts.mjs",
+  "src/modules/periodization/periodization-runtime-bindings.mjs",
+  "src/modules/squad/player-profile-runtime-bindings.mjs",
 ]);
 const modularStorageSource = modularStorageSourcePaths
   .map((sourcePath) => fs.readFileSync(path.join(rootDir, sourcePath), "utf8"))
@@ -36,6 +38,9 @@ const approvedLocalOnlyStorageKeys = Object.freeze({
   "football-player-profile-age-cache-v1": "derived Squad age cache; Supabase remains source of truth and player profiles are not overwritten",
   "football-scouting-imported-database-v1": "per-browser Wyscout/Excel scouting import cache; user-controlled local dataset, not central app-state",
   "football-session-planner-text-drafts-v1": "per-tab, user-scoped Session Planner text recovery draft; never shared or central-synced",
+  "football-periodization-text-drafts-v1": "per-tab, user-scoped Periodization text recovery draft; never shared or central-synced",
+  "football-player-profile-text-drafts-v1": "per-tab, user-scoped Player Profiles text recovery draft; never shared or central-synced",
+  "football-presentation-text-drafts-v1": "per-tab, user-scoped Presentation text recovery draft; never shared or central-synced",
 });
 
 const failures = [];

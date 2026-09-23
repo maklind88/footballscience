@@ -203,6 +203,7 @@ export function bindPlatformWorkspaceRuntimeBindings(deps = {}) {
   bindPlayerProfileRuntimeBindings({
     workspaceElement: ui.playerProfilesWorkspace,
     win,
+    getDraftScope: () => actions.getCurrentPlatformUser?.()?.id || "",
     state: playerProfileState,
     helpers: {
       getPlayerProfileFormSignature: actions.getPlayerProfileFormSignature,

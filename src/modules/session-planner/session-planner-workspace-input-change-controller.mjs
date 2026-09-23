@@ -18,6 +18,8 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
     updateTacticalLineStyle = () => {},
     handlePeriodizationInput = () => false,
     handlePeriodizationChange = () => false,
+    handlePeriodizationFocusIn = () => false,
+    handlePeriodizationFocusOut = () => false,
     updateLibrarySearch = () => {},
     updateSelectedBlockField = () => {},
     resizeTextarea = () => {},
@@ -218,11 +220,13 @@ export function bindSessionPlannerWorkspaceInputChangeController(deps = {}) {
   }
 
   function handleFocusOut(event) {
+    if (handlePeriodizationFocusOut(event)) return;
     const field = event.target.closest?.("[data-session-field]");
     commitSelectedBlockField(field);
   }
 
   function handleFocusIn(event) {
+    if (handlePeriodizationFocusIn(event)) return;
     const field = event.target.closest?.("[data-session-field]");
     restoreTextDraft(field);
   }

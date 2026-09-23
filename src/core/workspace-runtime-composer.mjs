@@ -37,6 +37,8 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     getPeriodizationDay: deps.getPeriodizationDay,
     getPeriodizationMatchDayLabel: deps.getPeriodizationMatchDayLabel,
     getSessionPlannerState: deps.getSessionPlannerState,
+    getDraftScope: () => deps.getCurrentPlatformUser?.()?.id || "",
+    win: deps.win,
   });
   const { sessionPlannerPeriodizationBridge } = periodizationRuntimeBindings;
 

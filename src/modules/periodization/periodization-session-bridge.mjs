@@ -139,6 +139,35 @@ export function createPeriodizationSessionBridge(options = {}) {
     refreshDependentFields(changedKey);
   }
 
+  function getTextDraftContext(field) {
+    const fieldKey = field?.dataset?.periodizationCustomField || field?.dataset?.periodizationField;
+    if (!overlayDate || !fieldKey) return null;
+    return { field: field?.dataset?.periodizationCustomField ? `custom:${fieldKey}` : fieldKey, recordId: overlayDate };
+  }
+
+  function restoreTextDraft(field) {
+    if (!isTextEditingField(field) || !options.textDraftStore) return false;
+    const context = getTextDraftContext(field);
+    if (!context) return false;
+    const result = options.textDraftStore.restore(context, field.value);
+    if (result.status === "restore") field.value = result.value;
+    field.dataset.periodizationDraftBaseValue = field.value;
+    field.toggleAttribute?.("data-periodization-draft-conflict", result.status === "conflict");
+    return result.status === "restore";
+  }
+
+  function recordTextDraft(field) {
+    if (!isTextEditingField(field) || !options.textDraftStore) return false;
+    const context = getTextDraftContext(field);
+    if (!context) return false;
+    return options.textDraftStore.record(context, field.value, field.dataset.periodizationDraftBaseValue ?? field.value);
+  }
+
+  function clearTextDraft(field) {
+    const context = getTextDraftContext(field);
+    if (context) options.textDraftStore?.clear(context);
+  }
+
   function setOverlayMode(mode) {
     if (mode === "edit" && !canEdit()) {
       return;
@@ -194,6 +223,7 @@ export function createPeriodizationSessionBridge(options = {}) {
         return true;
       }
       if (isTextEditingField(customField)) {
+        recordTextDraft(customField);
         return true;
       }
       options.writeDay?.(
@@ -214,6 +244,7 @@ export function createPeriodizationSessionBridge(options = {}) {
       return true;
     }
     if (field.tagName === "SELECT" || field.matches?.("[data-periodization-multi-option]") || isTextEditingField(field)) {
+      if (isTextEditingField(field)) recordTextDraft(field);
       return true;
     }
     options.writeDay?.(overlayDate, { [field.dataset.periodizationField]: field.value }, false);
@@ -235,6 +266,7 @@ export function createPeriodizationSessionBridge(options = {}) {
         false
       );
       refreshEditSurfaces(fieldKey);
+      if (isTextEditingField(customField)) clearTextDraft(customField);
       return true;
     }
 
@@ -249,7 +281,20 @@ export function createPeriodizationSessionBridge(options = {}) {
     const value = options.isMultiField?.(fieldKey) ? options.getMultiFieldValue?.(field, overlayDate) : field.value;
     options.writeDay?.(overlayDate, { [fieldKey]: value }, false);
     refreshEditSurfaces(fieldKey);
+    if (isTextEditingField(field)) clearTextDraft(field);
     return true;
+  }
+
+  function handleFocusin(event) {
+    const field = getClosest(event.target, "[data-periodization-custom-field]") || getClosest(event.target, "[data-periodization-field]");
+    restoreTextDraft(field);
+    return Boolean(field);
+  }
+
+  function handleFocusout(event) {
+    const field = getClosest(event.target, "[data-periodization-custom-field]") || getClosest(event.target, "[data-periodization-field]");
+    if (isTextEditingField(field)) options.textDraftStore?.flush();
+    return Boolean(field);
   }
 
   function handleKeydown(event) {
@@ -264,11 +309,13 @@ export function createPeriodizationSessionBridge(options = {}) {
           false
         );
         refreshEditSurfaces(customField.dataset.periodizationCustomField);
+        clearTextDraft(customField);
       } else {
         const fieldKey = field.dataset.periodizationField;
         const value = options.isMultiField?.(fieldKey) ? options.getMultiFieldValue?.(field, overlayDate) : field.value;
         options.writeDay?.(overlayDate, { [fieldKey]: value }, false);
         refreshEditSurfaces(fieldKey);
+        clearTextDraft(field);
       }
       field.blur?.();
       return true;
@@ -290,6 +337,8 @@ export function createPeriodizationSessionBridge(options = {}) {
     getOverlayState: () => ({ date: overlayDate, mode: overlayMode }),
     handleChange,
     handleClick,
+    handleFocusin,
+    handleFocusout,
     handleInput,
     handleKeydown,
     open,

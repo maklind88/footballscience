@@ -1,4 +1,7 @@
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+import { createScopedTextDraftStore } from "../../core/scoped-text-draft-store.mjs";
+
+export const playerProfileTextDraftStorageKey = "football-player-profile-text-drafts-v1";
 
 function callOptional(fn, ...args) {
   return typeof fn === "function" ? fn(...args) : undefined;
@@ -30,6 +33,15 @@ function scheduleUiTask(win, callback) {
     return;
   }
   callback();
+}
+
+function isTextEditingField(field) {
+  if (!field) return false;
+  if (field.tagName === "TEXTAREA") return true;
+  if (field.tagName !== "INPUT") return false;
+  return !new Set(["checkbox", "color", "date", "file", "hidden", "number", "radio", "range", "time"]).has(
+    String(field.type || "text").toLowerCase()
+  );
 }
 
 function syncNewPlayerTemporaryFields(form, rosterType) {
@@ -66,7 +78,38 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
   const renderWorkspace = actions.renderPlayerProfilesWorkspace ?? (() => {});
   const renderRosterListOnly = actions.renderPlayerProfilesRosterListOnly ?? (() => {});
   const canEdit = actions.canEditPlayerProfiles ?? (() => false);
+  const textDraftStore = createScopedTextDraftStore({
+    storage: win?.sessionStorage,
+    storageKey: playerProfileTextDraftStorageKey,
+    getScope: deps.getDraftScope,
+    setTimeout: win?.setTimeout?.bind(win),
+    clearTimeout: win?.clearTimeout?.bind(win),
+  });
   let lastDialogTrigger = { kind: "", playerId: "" };
+
+  const getTextDraftContext = (field) => {
+    const form = field?.closest?.("#playerProfileEditForm");
+    const playerId = form?.elements?.playerId?.value || form?.querySelector?.('[name="playerId"]')?.value || "";
+    const fieldName = field?.name || "";
+    return playerId && fieldName ? { field: fieldName, recordId: playerId } : null;
+  };
+
+  const recordTextDraft = (field) => {
+    const context = getTextDraftContext(field);
+    if (!context) return false;
+    return textDraftStore.record(context, field.value, field.dataset.playerProfileDraftBaseValue ?? field.value);
+  };
+
+  const restoreTextDraft = (field) => {
+    if (!isTextEditingField(field)) return false;
+    const context = getTextDraftContext(field);
+    if (!context) return false;
+    const result = textDraftStore.restore(context, field.value);
+    if (result.status === "restore") field.value = result.value;
+    field.dataset.playerProfileDraftBaseValue = field.value;
+    field.toggleAttribute?.("data-player-profile-draft-conflict", result.status === "conflict");
+    return result.status === "restore";
+  };
 
   const focusOpenDialog = () => scheduleUiTask(win, () => {
     const dialog = workspaceElement.querySelector?.('[role="dialog"][aria-modal="true"]');
@@ -251,7 +294,16 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
       // The form itself remains the draft while a coach is typing. Waiting
       // for the native change/blur or explicit submit avoids a central write
       // for every pause between keystrokes.
+      if (isTextEditingField(event.target)) recordTextDraft(event.target);
     }
+  };
+
+  const onFocusin = (event) => {
+    if (event.target.closest?.("#playerProfileEditForm")) restoreTextDraft(event.target);
+  };
+
+  const onFocusout = (event) => {
+    if (event.target.closest?.("#playerProfileEditForm") && isTextEditingField(event.target)) textDraftStore.flush();
   };
 
   const onChange = (event) => {
@@ -398,8 +450,19 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
   workspaceElement.addEventListener("click", onClick);
   workspaceElement.addEventListener("input", onInput);
   workspaceElement.addEventListener("change", onChange);
+  workspaceElement.addEventListener("focusin", onFocusin);
+  workspaceElement.addEventListener("focusout", onFocusout);
   workspaceElement.addEventListener("keydown", onKeydown);
   workspaceElement.addEventListener("submit", onSubmit);
+  win?.addEventListener?.("pagehide", textDraftStore.flush);
 
-  return { click: onClick, input: onInput, change: onChange, keydown: onKeydown, submit: onSubmit };
+  return {
+    change: onChange,
+    click: onClick,
+    focusin: onFocusin,
+    focusout: onFocusout,
+    input: onInput,
+    keydown: onKeydown,
+    submit: onSubmit,
+  };
 }

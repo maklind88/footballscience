@@ -1,6 +1,9 @@
 import { createPeriodizationSessionBridge } from "./periodization-session-bridge.mjs";
 import { createPeriodizationWorkspaceController } from "./periodization-controller.mjs";
 import { createPeriodizationWorkspaceShell } from "./periodization-workspace-shell.mjs";
+import { createScopedTextDraftStore } from "../../core/scoped-text-draft-store.mjs";
+
+export const periodizationTextDraftStorageKey = "football-periodization-text-drafts-v1";
 
 function noop() {}
 
@@ -11,6 +14,13 @@ export function createPeriodizationRuntimeBindings(options = {}) {
   const escapeHtml = typeof options.escapeHtml === "function" ? options.escapeHtml : (value) => String(value ?? "");
   const getSessionPlannerState =
     typeof options.getSessionPlannerState === "function" ? options.getSessionPlannerState : () => null;
+  const textDraftStore = createScopedTextDraftStore({
+    storage: options.win?.sessionStorage,
+    storageKey: periodizationTextDraftStorageKey,
+    getScope: options.getDraftScope,
+    setTimeout: options.win?.setTimeout?.bind(options.win),
+    clearTimeout: options.win?.clearTimeout?.bind(options.win),
+  });
 
   function refreshSessionPlannerMatchDayChip() {
     const sessionPlannerState = getSessionPlannerState();
@@ -56,6 +66,7 @@ export function createPeriodizationRuntimeBindings(options = {}) {
     setMultiSelectOpenField: options.setMultiSelectOpenField,
     setPeriodizationSelection: options.setPeriodizationSelection,
     refreshMatchDayChip: refreshSessionPlannerMatchDayChip,
+    textDraftStore,
   });
 
   const periodizationWorkspaceShell = createPeriodizationWorkspaceShell({
@@ -91,6 +102,8 @@ export function createPeriodizationRuntimeBindings(options = {}) {
     setOverlayState: options.setOverlayState,
     refreshMultiFields: refreshPeriodizationBoardMultiFields,
     refreshDependentFields: refreshPeriodizationBoardDependentFields,
+    textDraftStore,
+    win: options.win,
   });
 
   return Object.freeze({

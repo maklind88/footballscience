@@ -60,7 +60,7 @@ requirePackageScript("release:incident-alert", "node scripts/create-incident-ale
 requirePackageScript("release:incident-readiness", "node scripts/verify-incident-readiness.mjs");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
 requirePackageScript("qa", "npm run qa:static && npm run qa:playwright");
-requirePackageScript("qa:static", "npm run verify:local-isolation && npm run check && npm run release:rules && npm run release:incident-readiness && npm run storage:guard && npm run security:platform && npm run platform:readiness && npm run qa:supabase && npm run qa:perf && npm run architecture:budgets");
+requirePackageScript("qa:static", "npm run verify:local-isolation && npm run check && npm run release:rules && npm run release:incident-readiness && npm run storage:guard && npm run save:interaction-policy && npm run security:platform && npm run platform:readiness && npm run qa:supabase && npm run qa:perf && npm run architecture:budgets");
 requirePackageScript("qa:playwright", "playwright test --config=qa/playwright.config.mjs");
 requirePackageScript("qa:playwright:ci", "playwright test --config=qa/playwright.ci.config.mjs");
 requirePackageScript("release:traffic", "node scripts/verify-vercel-release-traffic.mjs");
@@ -68,6 +68,7 @@ requirePackageScript("release:staging-isolation", "node scripts/verify-staging-l
 requirePackageScript("release:staging-isolation:repair", "node scripts/verify-staging-live-isolation.mjs --repair");
 requirePackageScript("release:vercel-token", "node scripts/verify-vercel-token.mjs");
 requirePackageScript("storage:guard", "node scripts/verify-storage-key-policy.mjs");
+requirePackageScript("save:interaction-policy", "node scripts/verify-text-input-save-policy.mjs");
 requirePackageScript("security:platform", "node scripts/verify-platform-security.mjs");
 requirePackageScript("platform:readiness", "node scripts/verify-platform-readiness.mjs");
 requirePackageScript("platform:identity:backfill", "node scripts/platform-identity-backfill.mjs");
@@ -83,6 +84,7 @@ requireText("src/core/platform-readiness-contracts.mjs", "platform:identity:back
 requireText("api/platform-readiness.js", "/api/platform-readiness", "admin dashboard must load readiness through the secured API");
 requireTextInAny(["app.js", "src/modules/admin/admin-readiness-renderer.mjs"], "Platform Readiness", "admin must expose a platform readiness dashboard");
 requireText("scripts/verify-storage-key-policy.mjs", "approvedLocalOnlyStorageKeys", "new local-only storage keys must be explicitly justified");
+requireText("scripts/verify-text-input-save-policy.mjs", "text input must not centrally save per keystroke", "text fields must keep a local draft while a coach is typing");
 requireText("scripts/verify-platform-security.mjs", "Platform security verification: ok", "platform tenant isolation and permission matrix must stay testable");
 requireText("src/core/permission-matrix.cjs", "platformPermissionMatrix", "backend permissions must live in the central permission matrix");
 requireText("api/_lib/platform-security.js", "footballscience-api-security-event-v1", "API observability must keep a stable structured log schema");

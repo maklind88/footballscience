@@ -210,6 +210,8 @@ export function bindSessionPlannerRuntimeBindings(deps = {}) {
     updateTacticalLineStyle: runtimeDelegates.updateSessionPlannerTacticalLineStyle,
     handlePeriodizationInput: (event) => callOptional(periodizationBridge, "handleInput", event),
     handlePeriodizationChange: (event) => callOptional(periodizationBridge, "handleChange", event),
+    handlePeriodizationFocusIn: (event) => callOptional(periodizationBridge, "handleFocusin", event),
+    handlePeriodizationFocusOut: (event) => callOptional(periodizationBridge, "handleFocusout", event),
     updateLibrarySearch: exerciseLibrary.updateSessionPlannerLibrarySearch,
     updateSelectedBlockField: runtimeDelegates.updateSelectedSessionPlannerBlockField,
     getSelectedBlock: runtimeDelegates.getSessionPlannerSelectedBlock,

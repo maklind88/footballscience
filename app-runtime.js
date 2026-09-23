@@ -783,6 +783,7 @@ if (hubState?.activeWorkspaceId === "home") {
 renderDashboardCards();
 }
 },
+getDraftScope: () => getCurrentPlatformUser?.()?.id || "",
 });
 presentationModeController.bindInteractions();
 const dashboardChatAttachmentRenderer = createDashboardChatAttachmentRenderer({

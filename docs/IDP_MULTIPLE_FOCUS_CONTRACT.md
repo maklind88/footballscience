@@ -1,6 +1,6 @@
 # IDP Multiple Focus and Independent Exercises
 
-Status: implemented in an isolated candidate, not released. IDP owns this change. Release is blocked by pre-existing staging migration-history drift.
+Status: implemented in an isolated candidate. IDP database migration verified in staging and production; application Safe Lane and authenticated staging proof are pending. IDP owns this change.
 
 ## Ownership and Compatibility
 
@@ -30,10 +30,23 @@ Local API tests use an isolated mocked PostgREST boundary; browser tests use moc
 - Local `npm run qa`: 3,207 passed, three existing optional local-media/import tests skipped. Static checks, security, storage, migration safety, performance and architecture guards passed. The staging-only persistence spec passes syntax checking; it is not part of local QA and still requires execution.
 - Migration `20260924023859` is applied to staging project `pokrksgempkuraueglpu`. Verified: `focus_id` nullable, RLS enabled, focus foreign key retained. No player rows were rewritten.
 - The migration tool initially recorded `20260924031040`. Supabase CLI `migration repair` registered the canonical file version and removed only that duplicate history entry. The canonical entry was verified afterwards.
-- A subsequent linked `db push --dry-run` failed on five pre-existing remote versions: `20260721153900` (app-state source), `20260721153942` (app-state writes), `20260825024501` (Medical projection), `20260827051639` (Leaderboard), `20260831120416` (Squad projection). These have differently versioned files in the repository and were not repaired by IDP.
-- Production database and live application remain unchanged. Do not use `include-all` or blanket migration repair to bypass this failure.
+- A linked repository-wide dry run exposed five staging timestamp aliases. After renewed user authorization, all five stored SQL bodies were verified byte-identical to their Git files (MD5 below). Supported CLI `migration repair` registered only those canonical versions and removed their aliases; no SQL was re-executed.
+- Repository-wide database push is not the release plan: it includes unrelated, deliberately unapplied module migrations. Following `docs/video-analysis/DATABASE_RELEASE_20260908.md`, a separate CLI workdir fetched actual production history and added only `20260924023859_idp_optional_exercise_focus.sql`. Its dry run listed exactly that file; after apply its dry run reported up to date. No unrelated production migration/history was changed.
+- Staging transaction acceptance as `service_role` passed: create an unlinked exercise, link/unlink focus, preserve drawing, advance row version, reject hard deletion. All fixtures rolled back.
+- Production migration applied successfully. Before/after: six exercises with unchanged content MD5 `05501525ff5f2f950e2a94e5b4751a43`, 40 focuses, five goals, RLS enabled, three foreign keys and two user triggers. Pre-existing production history MD5 remained `5949fba758d5dbc7c096b97a8c21d50d`. Only `focus_id` nullability changed. CLI warned that optional Docker catalog caching was unavailable; independent database inspection and the final dry run succeeded.
+- Application/main/staging branches remain unchanged at this checkpoint. No broad `include-all`, permissions change or user-data rewrite was used.
 - `qa/idp-persistence.live.spec.mjs` adds the authenticated save/read/link/unlink/stale-version proof to staging smoke. It checks the exact staging origin and Supabase project, uses a random QA-only player ID, and soft-deletes its exercises/goals/focuses. It does not run writes in production. It has not yet run against staging. Its QA-only profile and audit records remain identifiable by the logged fixture ID for scoped staging cleanup.
-- Resume through Safe Lane after the historical versions have been reconciled by their owners. The production migration must precede application promotion; authenticated staging persistence and production postdeploy remain mandatory.
+- Continue through the official Safe Lane. Authenticated staging persistence and production postdeploy remain mandatory before reporting the application live.
+
+### Verified Staging Timestamp Aliases
+
+| Remote alias | Canonical Git version | Exact stored SQL MD5 |
+| --- | --- | --- |
+| 20260721153900 | 20260721153039 | d642d22d11757701d869092fd838f5a6 |
+| 20260721153942 | 20260721153918 | 89839303e7b4594e89c68afe64c437f1 |
+| 20260825024501 | 20260825024500 | 885eb3df3c8b94a5d9d96955eef2f551 |
+| 20260827051639 | 20260825181453 | 825daea7b2ecfb2ff7587cc24015905b |
+| 20260831120416 | 20260831120449 | 96dbd5739b53aa25a80cb680b5357790 |
 
 ## Regression Coverage
 

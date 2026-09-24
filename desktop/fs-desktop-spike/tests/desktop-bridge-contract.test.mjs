@@ -27,6 +27,7 @@ test("web fallback exposes no native capabilities", async () => {
   assert.deepEqual(await bridge.getRuntimeInfo(), { nativeAppVersion: "web", runtime: "browser", localSchemaVersion: 0, syncProtocolVersion: 0, capabilities: [] });
   assert.equal(await bridge.recordProbe({}), false);
   assert.equal(await bridge.getSessionSyncStatus(context), null);
+  assert.equal(await bridge.syncSelectedSession(context), null);
   assert.equal("readFile" in bridge, false);
   assert.equal("executeSql" in bridge, false);
 });
@@ -41,6 +42,7 @@ test("desktop bridge invokes only the enumerated typed commands", async () => {
     sessionAuthority: authority,
     readSelectedSession: slice,
     sessionSyncStatus: syncStatus,
+    syncSelectedSession: syncStatus,
     applySessionOperation: { operationId: "operation", state: "pending", resultingRevision: 2, durableLocally: true },
     recordProbe: null,
   };
@@ -56,6 +58,7 @@ test("desktop bridge invokes only the enumerated typed commands", async () => {
   await bridge.getSessionAuthority();
   await bridge.readSelectedSession(context);
   await bridge.getSessionSyncStatus(context);
+  await bridge.syncSelectedSession(context);
   await bridge.applySessionOperation({ operationId: "operation" });
   await bridge.recordProbe({ candidate: "hosted", bootMode: "offline", shellVersion: "v1", cacheVersion: "cache-v1", payloadBuildId: "payload-v1", cachedPayload: true, serviceWorkerControlled: false, unauthorizedCommandRejected: true });
   assert.deepEqual(calls.map((call) => call.command), Object.keys(response));
@@ -75,10 +78,12 @@ test("session reads and status cannot cross the authorized partition", async () 
     native: {
       readSelectedSession: async () => ({ ...slice, partitionKey: "another-partition" }),
       sessionSyncStatus: async () => ({ ...syncStatus, partitionKey: "another-partition" }),
+      syncSelectedSession: async () => ({ ...syncStatus, partitionKey: "another-partition" }),
     },
   });
   await assert.rejects(bridge.readSelectedSession(context), /authorized partition/);
   await assert.rejects(bridge.getSessionSyncStatus(context), /authorized partition/);
+  await assert.rejects(bridge.syncSelectedSession(context), /authorized partition/);
 });
 
 test("known but ungranted native command must be rejected", async () => {

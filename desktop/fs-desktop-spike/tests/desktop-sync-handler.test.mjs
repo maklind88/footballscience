@@ -1,11 +1,23 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { Readable } from "node:stream";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
 const { createDesktopSessionSyncHandler } = require("../../../api/desktop-session-sync.js");
+const { validateRequest } = require("../../../api/_lib/desktop-session-sync-contract.js");
+
+test("native Rust wire fixture passes the actual server request contract without client scope", async () => {
+  const wire = JSON.parse(await readFile(new URL("./fixtures/native-sync-wire.json", import.meta.url), "utf8"));
+  const request = validateRequest(wire);
+  assert.equal(request.operationId, wire.operation.operationId);
+  assert.equal(request.baseRevision, 7);
+  assert.deepEqual(request.payload, { title: "Offline revision 8" });
+  assert.equal("actorId" in request, false);
+  assert.equal("organizationId" in request, false);
+});
 
 const actor = Object.freeze({
   id: "00000000-0000-4000-8000-000000000101",

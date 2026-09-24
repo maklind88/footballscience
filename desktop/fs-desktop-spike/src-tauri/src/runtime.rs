@@ -12,6 +12,7 @@ pub struct DesktopRuntime {
     pub shell: RwLock<bootstrap::ShellState>,
     pub authority: Mutex<SessionAuthority>,
     pub auth_api: Option<DesktopAuthApi>,
+    pub sync_owner: Mutex<()>,
     pub release_trust: Option<ReleaseTrustStore>,
 }
 
@@ -50,6 +51,7 @@ impl DesktopRuntime {
             shell: RwLock::new(shell),
             authority: Mutex::new(SessionAuthority::new_os()?),
             auth_api: DesktopAuthApi::from_compile_time()?,
+            sync_owner: Mutex::new(()),
             release_trust,
         }))
     }

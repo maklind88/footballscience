@@ -17,6 +17,7 @@
     "allow-api-request",
     "allow-session-read",
     "allow-session-sync-status",
+    "allow-session-sync",
     "allow-session-operation",
     "allow-record-probe"
   ]

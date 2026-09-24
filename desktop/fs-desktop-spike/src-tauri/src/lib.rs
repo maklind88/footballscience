@@ -1,4 +1,5 @@
 mod auth_api;
+mod auth_request;
 mod authority;
 mod bootstrap;
 #[cfg(test)]
@@ -12,6 +13,8 @@ mod runtime;
 mod shell_contract;
 #[cfg(test)]
 mod sync_contract;
+mod sync_queue;
+mod sync_worker;
 mod web_bundle;
 mod windows;
 
@@ -550,34 +553,7 @@ async fn desktop_api_request(
         .ok_or_else(|| "desktop API origin is not configured".to_string())?;
     let worker = runtime.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let token = {
-            let authority = worker
-                .authority
-                .lock()
-                .map_err(|_| "session authority lock poisoned".to_string())?;
-            if authority.snapshot().actor_id.is_empty() {
-                None
-            } else {
-                if let Err(error) =
-                    authority.refresh_if_needed(60_000, |refresh_token| api.refresh(refresh_token))
-                {
-                    if is_authorization_rejection(&error) {
-                        authority.revoke()?;
-                    }
-                    return Err(error);
-                }
-                Some(authority.access_token()?)
-            }
-        };
-        let response = api.request(&request, token.as_deref().map(String::as_str))?;
-        if response.status == 401 {
-            worker
-                .authority
-                .lock()
-                .map_err(|_| "session authority lock poisoned".to_string())?
-                .revoke()?;
-        }
-        Ok(response)
+        auth_request::request(&api, &worker.authority, &request)
     })
     .await
     .map_err(|_| "desktop API task failed".to_string())?
@@ -635,6 +611,47 @@ fn desktop_session_sync_status(
         .lock()
         .map_err(|_| "local database lock poisoned".to_string())?;
     local_data::read_session_sync_status(&connection, &context.partition_key)
+}
+
+#[tauri::command]
+async fn desktop_sync_selected_session(
+    window: WebviewWindow,
+    context: SessionContextProof,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<SessionSyncStatus, String> {
+    require_window(&window, windows::WebviewRole::Active)?;
+    // The existing projection is synthetic. Real data/import/lease approval is a later gate.
+    if option_env!("FS_DESKTOP_TEST_BUILD") != Some("1")
+        || option_env!("FS_DESKTOP_SESSION_SYNC_EXPERIMENT") != Some("1")
+    {
+        return Err("native session synchronization is not enabled for this build".into());
+    }
+    let worker = runtime(&state)?;
+    let api = worker
+        .auth_api
+        .clone()
+        .ok_or_else(|| "desktop API origin is not configured".to_string())?;
+    if !api.is_loopback_sync_origin() {
+        return Err("local sync experiment requires a loopback test server".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        sync_worker::sync_once(
+            &api,
+            &worker.authority,
+            &worker.connection,
+            &worker.sync_owner,
+            &context,
+            || {
+                let shell = worker
+                    .shell
+                    .read()
+                    .map_err(|_| "shell state lock poisoned".to_string())?;
+                bootstrap::validate_active_frontend_build(&shell, &context.frontend_build_id)
+            },
+        )
+    })
+    .await
+    .map_err(|_| "desktop synchronization task failed".to_string())?
 }
 
 #[tauri::command]
@@ -860,6 +877,7 @@ pub fn run() {
             desktop_api_request,
             desktop_read_selected_session,
             desktop_session_sync_status,
+            desktop_sync_selected_session,
             desktop_apply_session_operation,
             record_spike_probe,
             internal_denied_probe,

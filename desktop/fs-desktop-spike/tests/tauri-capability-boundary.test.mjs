@@ -7,6 +7,16 @@ import test from "node:test";
 
 const packageRoot = new URL("../", import.meta.url);
 
+test("Windows native verification fails immediately at each gate and retains evidence", async () => {
+  const workflow = await readFile(new URL("../../../.github/workflows/fs-desktop-windows-architecture.yml", import.meta.url), "utf8");
+  const nativeStep = workflow.slice(workflow.indexOf("- name: Run native bootstrap"), workflow.indexOf("- name: Record Windows"));
+  for (const command of ["cargo fmt --all -- --check", "cargo test --lib --locked", "cargo clippy --all-targets --locked -- -D warnings"]) {
+    const line = nativeStep.slice(nativeStep.indexOf(command)).split("\n");
+    assert.ok(line[0].includes("Tee-Object -FilePath ../artifacts/windows/logs/native-"));
+    assert.equal(line[1].trim(), "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }");
+  }
+});
+
 async function text(path) {
   return readFile(new URL(path, packageRoot), "utf8");
 }
@@ -36,6 +46,7 @@ test("permissions contain only the enumerated role-specific commands", async () 
     "desktop_runtime_info",
     "desktop_session_authority",
     "desktop_session_sync_status",
+    "desktop_sync_selected_session",
     "record_spike_probe",
   ]);
   assert.equal(commands.includes("internal_denied_probe"), false);
@@ -48,6 +59,7 @@ test("active, candidate and recovery capabilities are disjoint and window-scoped
   const recovery = JSON.parse(await text("src-tauri/capabilities/recovery.json"));
   assert.deepEqual(active.windows, ["main"]);
   assert.equal("remote" in active, false);
+  assert.ok(active.permissions.includes("allow-session-sync"));
   assert.deepEqual(candidate.windows, ["candidate"]);
   assert.deepEqual(candidate.permissions, [
     "allow-candidate-status",
@@ -63,9 +75,20 @@ test("bundled fallback and recovery cannot mutate Session Planner state", async 
   const bundled = JSON.parse(await readFile(new URL("../src-tauri/capabilities/bundled.json", import.meta.url), "utf8"));
   const recovery = JSON.parse(await readFile(new URL("../src-tauri/capabilities/recovery.json", import.meta.url), "utf8"));
   for (const capability of [bundled, recovery]) {
-    assert.equal(capability.permissions.some((permission) => /operation|outbox|bootstrap-update|candidate-confirm/.test(permission)), false);
+    assert.equal(capability.permissions.some((permission) => /operation|outbox|session-sync|bootstrap-update|candidate-confirm/.test(permission)), false);
   }
   assert.deepEqual(recovery.permissions, ["allow-recovery-status", "allow-recovery-read"]);
+});
+
+test("native sync entry point is local-experiment-only and never accepts caller transport input", async () => {
+  const source = await text("src-tauri/src/lib.rs");
+  const command = source.slice(source.indexOf("async fn desktop_sync_selected_session("), source.indexOf("fn desktop_apply_session_operation("));
+  assert.match(command, /require_window\(&window, windows::WebviewRole::Active\)/);
+  assert.match(command, /FS_DESKTOP_TEST_BUILD/);
+  assert.match(command, /FS_DESKTOP_SESSION_SYNC_EXPERIMENT/);
+  assert.match(command, /api\.is_loopback_sync_origin\(\)/);
+  assert.match(command, /bootstrap::validate_active_frontend_build/);
+  assert.doesNotMatch(command, /url:|body:|token:|endpoint:/);
 });
 
 test("security review: effective bundled capabilities remain exactly two commands", async () => {

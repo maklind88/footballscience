@@ -23,7 +23,7 @@ function validSlice(value) {
 
 function validSyncStatus(value) {
   const status = requiredObject(value, "Session synchronization status");
-  if (!UI_STATES.has(status.state) || status.state === "saving" || status.state === "conflict" || status.state === "error") {
+  if (!UI_STATES.has(status.state) || status.state === "saving" || status.state === "error") {
     throw new TypeError("Native synchronization status is invalid.");
   }
   return status;

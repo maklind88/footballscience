@@ -34,6 +34,20 @@ function status(state = "synced", pendingOperationCount = 0) {
   });
 }
 
+test("durable native conflict is preserved in the UI after reload", async () => {
+  const bridge = {
+    async applySessionOperation() { throw new Error("not used"); },
+    async readSelectedSession() { return slice(); },
+    async getSessionSyncStatus() { return status("conflict", 2); },
+  };
+  const controller = new SessionPlannerOfflineController({ bridge, context, clientInstanceId: ids.client,
+    initialSlice: slice(), initialSyncStatus: status("conflict", 2) });
+  assert.equal(controller.snapshot().presentation.state, "conflict");
+  const refreshed = await controller.refresh();
+  assert.equal(refreshed.presentation.state, "conflict");
+  assert.equal(refreshed.syncStatus.pendingOperationCount, 2);
+});
+
 test("rename and block duration edits use only typed revisioned offline operations", async () => {
   let currentSlice = slice();
   let currentStatus = status();

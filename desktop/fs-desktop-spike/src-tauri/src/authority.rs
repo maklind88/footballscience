@@ -228,25 +228,25 @@ impl SessionAuthority {
                 .map_err(|_| "secure active-account pointer is malformed".to_string())?;
             encoded_actor.zeroize();
             validate_actor_id(&actor_id)?;
-            if let Some(stored) = load_refresh_from(vault.as_ref(), &actor_id)? {
-                if let Some(identity) = stored.identity.as_ref() {
-                    snapshot = SessionAuthoritySnapshot {
-                        state: "offline-authorized",
-                        synthetic_identity: false,
-                        actor_id,
-                        organization_id: identity.organization_id.clone(),
-                        tenant_id: identity.tenant_id.clone(),
-                        team_id: identity.team_id.clone(),
-                        partition_key: identity.partition_key.clone(),
-                        auth_epoch: identity.auth_epoch,
-                        offline_lease_expires_at_unix_ms: identity.offline_lease_expires_at_unix_ms,
-                        can_read_offline: false,
-                        can_sync: false,
-                        profile: identity.profile.clone(),
-                    };
-                    validate_identity_snapshot(&snapshot)?;
-                    session_generation = stored.generation;
-                }
+            if let Some(stored) = load_refresh_from(vault.as_ref(), &actor_id)?
+                && let Some(identity) = stored.identity.as_ref()
+            {
+                snapshot = SessionAuthoritySnapshot {
+                    state: "offline-authorized",
+                    synthetic_identity: false,
+                    actor_id,
+                    organization_id: identity.organization_id.clone(),
+                    tenant_id: identity.tenant_id.clone(),
+                    team_id: identity.team_id.clone(),
+                    partition_key: identity.partition_key.clone(),
+                    auth_epoch: identity.auth_epoch,
+                    offline_lease_expires_at_unix_ms: identity.offline_lease_expires_at_unix_ms,
+                    can_read_offline: false,
+                    can_sync: false,
+                    profile: identity.profile.clone(),
+                };
+                validate_identity_snapshot(&snapshot)?;
+                session_generation = stored.generation;
             }
         }
         Ok(Self {
@@ -591,6 +591,11 @@ impl SessionAuthority {
         let first = self.vault.delete(&refresh_slot(actor_id, 'a'));
         let second = self.vault.delete(&refresh_slot(actor_id, 'b'));
         first.and(second)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_sync_test(vault: Arc<dyn CredentialVault>) -> Result<Self, String> {
+        Self::new_synthetic(vault, OfflineLeasePolicy::seconds(300))
     }
 
     #[cfg(test)]

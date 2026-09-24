@@ -69,9 +69,13 @@ jobs:
         working-directory: desktop/fs-desktop-spike/src-tauri
         shell: pwsh
         run: |
-          cargo fmt --all -- --check
-          cargo test --lib --locked
-          cargo clippy --all-targets --locked
+          New-Item -ItemType Directory -Force -Path ../artifacts/windows/logs | Out-Null
+          cargo fmt --all -- --check 2>&1 | Tee-Object -FilePath ../artifacts/windows/logs/native-format.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --lib --locked 2>&1 | Tee-Object -FilePath ../artifacts/windows/logs/native-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo clippy --all-targets --locked -- -D warnings 2>&1 | Tee-Object -FilePath ../artifacts/windows/logs/native-clippy.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Record Windows and WebView2 runtime environment
         shell: pwsh

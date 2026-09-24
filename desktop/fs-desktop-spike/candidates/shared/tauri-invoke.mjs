@@ -21,6 +21,7 @@ export const activeNative = Object.freeze({
   sessionAuthority: () => call("desktop_session_authority"),
   readSelectedSession: (context) => call("desktop_read_selected_session", { context }),
   sessionSyncStatus: (context) => call("desktop_session_sync_status", { context }),
+  syncSelectedSession: (context) => call("desktop_sync_selected_session", { context }),
   applySessionOperation: (request) => call("desktop_apply_session_operation", { request }),
   recordProbe: (probe) => call("record_spike_probe", { probe }),
 });

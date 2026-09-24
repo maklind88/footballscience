@@ -2,6 +2,8 @@
 
 This matrix describes the staged safe target, not a claim that every row is implemented. The desktop branch now has signed cold-start code delivery, a native-owned credential/identity lease foundation and one bounded Session Planner SQLite/outbox slice. No real provider environment is configured, and all other feature rows remain at the classifications below until they receive explicit adapters and tests.
 
+The [native HTTP outbox phase](NATIVE_OUTBOX_TRANSPORT.md) adds real Rust → loopback HTTP → existing handler → disposable SQL verification for that synthetic slice, including lost-ack replay and durable conflict blocking. It does **not** enable automatic upload, conflict resolution, real-user datasets or additional offline features; standard desktop builds keep the new upload command disabled.
+
 `FULL OFFLINE` means selected content can be read and edited with durable operations. `READ-ONLY OFFLINE` means an authorized snapshot can be viewed but not mutated. `ONLINE ONLY` means content is not deliberately persisted for offline product use.
 
 | Feature | Initial classification | Offline availability | Offline edits | Internet-only behavior | Conflict/sync direction | Storage policy |

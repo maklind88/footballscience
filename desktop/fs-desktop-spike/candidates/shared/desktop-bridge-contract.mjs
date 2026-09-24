@@ -3,7 +3,7 @@ import { activeNative, nativeBridgeAvailable, negativeProbeNative } from "./taur
 const allowedCandidates = new Set(["bundled", "hosted"]);
 const allowedBootModes = new Set(["online", "offline", "compatibility-blocked", "degraded", "auth-required", "unknown"]);
 const allowedLocalOperationStates = new Set(["pending", "already-pending"]);
-const allowedSyncStates = new Set(["synced", "pending", "blocked", "revoked"]);
+const allowedSyncStates = new Set(["synced", "pending", "conflict", "blocked", "revoked"]);
 
 function object(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`${label} must be an object.`);
@@ -152,6 +152,13 @@ export function createDesktopBridge({ native = activeNative, isDesktop = nativeB
     async applySessionOperation(request) {
       if (!isDesktop) return null;
       return validateOperationReceipt(await native.applySessionOperation(object(request, "session operation")));
+    },
+    async syncSelectedSession(context) {
+      if (!isDesktop) return null;
+      const validatedContext = validateSessionContext(context);
+      const status = validateSessionSyncStatus(await native.syncSelectedSession(validatedContext));
+      if (status.partitionKey !== validatedContext.partitionKey) throw new TypeError("Synchronization result crossed its authorized partition.");
+      return status;
     },
     async recordProbe(probe) {
       if (!isDesktop) return false;

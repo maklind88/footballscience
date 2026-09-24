@@ -249,10 +249,10 @@ fn checked_extracted_path(root: &Path, asset_path: &str) -> Result<PathBuf, Stri
             return Err("invalid extracted web asset path".into());
         };
         current.push(value);
-        if let Ok(metadata) = fs::symlink_metadata(&current) {
-            if metadata.file_type().is_symlink() {
-                return Err("symlinks are forbidden in the extracted web release".into());
-            }
+        if let Ok(metadata) = fs::symlink_metadata(&current)
+            && metadata.file_type().is_symlink()
+        {
+            return Err("symlinks are forbidden in the extracted web release".into());
         }
     }
     Ok(current)

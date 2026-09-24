@@ -83,14 +83,14 @@ pub enum SessionOperation {
 }
 
 impl SessionOperation {
-    fn operation_type(&self) -> &'static str {
+    pub(crate) fn operation_type(&self) -> &'static str {
         match self {
             Self::RenameSession { .. } => "session.rename",
             Self::SetBlockDuration { .. } => "block.duration.set",
         }
     }
 
-    fn validate(&self) -> Result<(), String> {
+    pub(crate) fn validate(&self) -> Result<(), String> {
         match self {
             Self::RenameSession { title } if title.trim().is_empty() || title.len() > 120 => {
                 Err("session title must contain 1-120 characters".into())
@@ -131,7 +131,7 @@ pub struct OperationReceipt {
     pub durable_locally: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSyncStatus {
     pub schema: &'static str,
@@ -256,8 +256,18 @@ pub fn read_session_sync_status(
         )
         .optional()
         .map_err(|error| error.to_string())?;
+    let conflicted: bool = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM session_outbox o JOIN local_meta m
+         ON m.key = 'session-sync-conflict:' || o.operation_id WHERE o.partition_key = ?1)",
+            [partition_key],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let blocked_reason = blocked_reason.or_else(|| conflicted.then(|| "revision-conflict".into()));
     let state = match blocked_reason.as_deref() {
         Some("authorization-revoked" | "tenant-denied") => "revoked",
+        Some("revision-conflict") => "conflict",
         Some(_) => "blocked",
         None if pending_operation_count > 0 => "pending",
         None => "synced",
@@ -415,10 +425,6 @@ pub fn apply_operation(
     })
 }
 
-#[allow(
-    dead_code,
-    reason = "the local sync transport will call this after the authenticated backend is authorized"
-)]
 pub fn quarantine_operation(
     connection: &Connection,
     operation_id: &str,

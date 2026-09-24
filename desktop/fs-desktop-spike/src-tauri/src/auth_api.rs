@@ -129,6 +129,10 @@ pub struct DesktopApiResponse {
 }
 
 impl DesktopAuthApi {
+    pub fn is_loopback_sync_origin(&self) -> bool {
+        self.origin.scheme() == "http" && self.origin.host_str() == Some("127.0.0.1")
+    }
+
     pub fn from_compile_time() -> Result<Option<Self>, String> {
         let Some(raw_origin) = option_env!("FS_DESKTOP_API_ORIGIN") else {
             return Ok(None);
@@ -153,7 +157,7 @@ impl DesktopAuthApi {
     }
 
     #[cfg(test)]
-    fn new_test_loopback(raw_origin: &str) -> Result<Self, String> {
+    pub(crate) fn new_test_loopback(raw_origin: &str) -> Result<Self, String> {
         let origin =
             Url::parse(raw_origin).map_err(|_| "desktop API test origin is invalid".to_string())?;
         if origin.scheme() != "http"
@@ -252,6 +256,35 @@ impl DesktopAuthApi {
         request: &DesktopApiRequest,
         access_token: Option<&str>,
     ) -> Result<DesktopApiResponse, String> {
+        self.request_bounded(request, access_token, MAX_API_RESPONSE_BYTES)
+    }
+
+    pub fn push_session_operation(
+        &self,
+        body: String,
+        token: &str,
+    ) -> Result<DesktopApiResponse, String> {
+        if body.len() > 32 * 1024 {
+            return Err("desktop sync request exceeds its bound".into());
+        }
+        self.request_bounded(
+            &DesktopApiRequest {
+                path: "/api/desktop-session-sync".into(),
+                method: "POST".into(),
+                body,
+                content_type: "application/json".into(),
+            },
+            Some(token),
+            32 * 1024,
+        )
+    }
+
+    fn request_bounded(
+        &self,
+        request: &DesktopApiRequest,
+        access_token: Option<&str>,
+        max_response_bytes: u64,
+    ) -> Result<DesktopApiResponse, String> {
         let (path, method, public) = validate_api_request(request)?;
         if !public && access_token.is_none() {
             return Err("desktop API request requires an active session".into());
@@ -289,7 +322,7 @@ impl DesktopAuthApi {
         {
             return Err("desktop API returned an unsupported content type".into());
         }
-        let body = read_bounded(response, MAX_API_RESPONSE_BYTES)?;
+        let body = read_bounded(response, max_response_bytes)?;
         Ok(DesktopApiResponse {
             status,
             body: String::from_utf8(body)

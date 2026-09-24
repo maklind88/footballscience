@@ -220,8 +220,8 @@ function persistBlockToDetail(activeRuntime = {}, block = null, options = {}) {
     id: nextInterventionId,
     rowVersion: normalizePositiveInteger(sourceBlock.rowVersion, persistedInterventionId ? 1 : 0),
     playerId: sourceBlock.playerId || detail.profile.playerId,
-    focusId: sourceBlock.focusId || detail.focuses?.[0]?.id || "",
-    title: sourceBlock.title || detail.focuses?.[0]?.title || "IDP Player Board",
+    focusId: sourceBlock.focusId || "",
+    title: sourceBlock.title || "Individual exercise",
     objective: sourceBlock.objective || "",
     coachingCue: sourceBlock.coachingCue || "",
     successCriteria: Array.isArray(sourceBlock.successCriteria) ? sourceBlock.successCriteria : [],
@@ -482,28 +482,31 @@ export function persistIdpPlayerBoardDraft(activeRuntime = {}) {
 
 function updateExerciseField(activeRuntime = {}, field = "", value = "") {
   const block = getCurrentBlock(activeRuntime);
-  if (!block || !["title", "objective"].includes(field)) return;
+  if (!block || !canEdit(activeRuntime) || !["title", "objective", "focusId"].includes(field)) return;
   const maxLength = field === "title" ? 180 : 1200;
   block[field] = String(value ?? "").slice(0, maxLength);
   persistBlockToDetail(activeRuntime, block);
-  if (field === "title") {
-    const heading = getRoot(activeRuntime)?.querySelector?.(".session-library-modal-head h2");
-    if (heading) heading.textContent = block.title.trim() || "Individual exercise";
-  }
 }
 
 function saveCurrentExercise(activeRuntime = {}) {
+  if (activeRuntime.idpPlayerBoardSaving || !canEdit(activeRuntime)) return;
   const payload = persistIdpPlayerBoardDraft(activeRuntime);
+  activeRuntime.idpPlayerBoardSaving = true;
   activeRuntime.runAction?.(async () => {
-    await activeRuntime.actions.savePlayerBoard(payload);
-    resetIdpPlayerBoardRuntimeDraft(activeRuntime);
+    try {
+      await activeRuntime.actions.savePlayerBoard(payload);
+      resetIdpPlayerBoardRuntimeDraft(activeRuntime);
+      renderWorkspace(activeRuntime);
+    } finally {
+      activeRuntime.idpPlayerBoardSaving = false;
+    }
   });
 }
 
 async function handleVisualUpload(activeRuntime = {}, file = null) {
   if (!file || !canEdit(activeRuntime)) return;
   const block = getCurrentBlock(activeRuntime);
-  if (!block?.focusId) return;
+  if (!block) return;
   const previousVisualImage = block.visualImage || "";
   try {
     const visualImage = await getVisualUploadHelpers(activeRuntime).normalizeVisualUpload(file);
@@ -571,6 +574,11 @@ export function handleIdpPlayerBoardInput(event, activeRuntime = {}) {
 
 export function handleIdpPlayerBoardChange(event, activeRuntime = {}) {
   const target = event?.target;
+  const focusField = target?.closest?.("[data-idp-board-focus]");
+  if (focusField) {
+    updateExerciseField(activeRuntime, "focusId", focusField.value);
+    return true;
+  }
   const controller = getController(activeRuntime);
   const visualUploadField = target?.closest?.("[data-session-upload-visual]");
   if (visualUploadField) {

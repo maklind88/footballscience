@@ -690,6 +690,11 @@ export function handleClick(event) {
     });
     return;
   }
+  const focusTrigger = event?.target?.closest?.("[data-idp-select-focus]");
+  if (focusTrigger) {
+    runtime?.store.setState({ ui: { selectedFocusId: focusTrigger.dataset.idpSelectFocus || "" } });
+    return;
+  }
   const actionTrigger = event?.target?.closest?.("[data-idp-action]");
   if (actionTrigger) {
     runtime?.store.setState({

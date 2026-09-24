@@ -1,6 +1,7 @@
 import {
   createSessionPlannerTacticalHelpers,
 } from "../session-planner/session-planner-tactical-helpers.mjs";
+import { selectIdpFocus } from "./domain/idp-focus-selection.mjs";
 
 export const idpPlayerBoardPitchModeOptions = Object.freeze([
   { key: "full", label: "Full pitch", dimensions: { x: 65, y: 105 }, landscape: false },
@@ -75,9 +76,7 @@ export function getIdpPlayerBoardUiState(ui = {}) {
 }
 
 export function activeIdpFocus(detail = {}) {
-  return (Array.isArray(detail.focuses) ? detail.focuses : []).find((focus) =>
-    ["Active", "Needs Evidence", "Ready For Review", "Reviewed"].includes(focus.status)
-  ) || detail.focuses?.[0] || null;
+  return selectIdpFocus(detail);
 }
 
 export function listIdpPlayerBoardInterventions(detail = {}) {
@@ -230,7 +229,7 @@ export function findIdpPlayerBoardIntervention(detail = {}, options = {}) {
     const selected = candidates.find((item) => item.id === selectedInterventionId);
     if (selected) return selected;
   }
-  return candidates.find((item) => focusId && item.focusId === focusId) || candidates[0] || null;
+  return candidates[0] || null;
 }
 
 export function buildIdpPlayerBoardBlock(detail = {}, options = {}) {
@@ -241,16 +240,16 @@ export function buildIdpPlayerBoardBlock(detail = {}, options = {}) {
   const intervention = forceDraft ? null : options.intervention || findIdpPlayerBoardIntervention(detail, { selectedInterventionId });
   const hasPersistedInterventionId = isPersistedIdpPlayerBoardInterventionId(intervention?.id);
   const boardState = normalizeIdpPlayerBoardState(intervention?.boardState || {}, profile);
-  const fallbackTitle = normalizeText(focus?.title, "") || `${normalizeText(profile.playerName, "Player")} Player Board`;
+  const fallbackTitle = `Individual exercise ${listIdpPlayerBoardInterventions(detail).filter((item) => isPersistedIdpPlayerBoardInterventionId(item.id)).length + 1}`;
   return {
     id: intervention?.id || "draft-idp-player-board",
     interventionId: intervention?.id || "",
     rowVersion: normalizePositiveInteger(intervention?.rowVersion, hasPersistedInterventionId ? 1 : 0),
     isDraft: !hasPersistedInterventionId,
     playerId: profile.playerId || "",
-    focusId: intervention?.focusId || focus?.id || "",
+    focusId: intervention?.focusId || "",
     title: normalizeText(intervention?.title, fallbackTitle),
-    objective: normalizeText(intervention?.objective, focus?.description || ""),
+    objective: normalizeText(intervention?.objective, ""),
     coachingCue: normalizeText(intervention?.coachingCue, ""),
     successCriteria: Array.isArray(intervention?.successCriteria) ? intervention.successCriteria : [],
     status: intervention?.status || "active",

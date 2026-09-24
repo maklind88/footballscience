@@ -168,7 +168,7 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
       <div class="idp-section-head idp-clip-bank-head">
         <div>
           <span>Clip Bank</span>
-          <strong>${escapeHtml(countLabel)}</strong>
+          <strong aria-live="polite">${escapeHtml(countLabel)}</strong>
         </div>
         <div class="idp-clip-bank-actions">
           ${selectedCount ? `<button type="button" data-idp-clip-play-selected>Open selected (${escapeHtml(String(selectedCount))})</button>` : ""}
@@ -177,13 +177,12 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
       </div>
       <label class="idp-clip-bank-search">
         <span>Search clips</span>
-        <input type="text" data-idp-clip-search value="${escapeHtml(query)}" placeholder="Find clip, player, date or principle" autocomplete="off" spellcheck="false">
-        <strong>${escapeHtml(countLabel)}</strong>
+        <input type="search" data-idp-clip-search value="${escapeHtml(query)}" placeholder="Search clips, date or principle" autocomplete="off" spellcheck="false">
       </label>
       <div class="idp-clip-bank-list">
         ${visibleClips.length
           ? visibleClips.map((clip, index) => renderClipCard(clip, index, selectedIds.has(clipKey(clip)), canEdit)).join("")
-          : `<div class="idp-empty-signal">${clips.length ? "No clips match this search." : "No clips waiting."}</div>`}
+          : `<div class="idp-clip-bank-empty" role="status">${clips.length ? "No clips match this search." : "No clips yet"}</div>`}
       </div>
       ${filteredClips.length > visibleClips.length ? `<div class="idp-clip-bank-more">${escapeHtml(String(filteredClips.length - visibleClips.length))} more clips in this player bank.</div>` : ""}
     </article>

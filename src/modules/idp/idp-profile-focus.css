@@ -20,6 +20,11 @@
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.idp-focus-clarity-head > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .idp-focus-story.idp-focus-clarity-card h3 {
   font-size: clamp(1.55rem, 2.35vw, 2.15rem);
   line-height: 1.08;
@@ -34,7 +39,7 @@
   align-items: end;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .idp-current-focus-body p {
@@ -518,7 +523,6 @@ body.is-dark-mode .idp-player-profile .idp-profile-actions-deck .idp-action-rail
 }
 
 @media (max-width: 960px) {
-  .idp-focus-clarity-head,
   .idp-current-focus-body,
   .idp-focus-strengths {
     grid-template-columns: 1fr;
@@ -585,4 +589,43 @@ body.is-dark-mode .idp-player-profile .idp-profile-actions-deck .idp-action-rail
   .idp-coach-assist-stats {
     grid-template-columns: 1fr;
   }
+}
+.idp-focus-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.idp-focus-navigation button {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  max-width: 100%;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color, #d5dce5);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.idp-focus-navigation button[aria-pressed="true"] {
+  border-color: #0e8077;
+  background: rgba(14, 128, 119, .08);
+}
+.idp-focus-navigation button:focus-visible {
+  outline: 2px solid #0e8077;
+  outline-offset: 2px;
+}
+.idp-focus-navigation small { font-size: 11px; opacity: .75; }
+.idp-exercise-link-details { border-top: 1px solid var(--border-color, #d5dce5); padding-top: 14px; }
+.idp-exercise-link-details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.idp-exercise-link-details label { display: grid; gap: 6px; margin: 12px 0; font-size: 12px; }
+.idp-exercise-link-details input,
+.idp-exercise-link-details select,
+.idp-exercise-link-details textarea {
+  width: 100%; min-width: 0; box-sizing: border-box; padding: 10px;
+  border: 1px solid var(--border-color, #d5dce5); border-radius: 6px;
+  background: transparent; color: inherit; font: inherit;
 }

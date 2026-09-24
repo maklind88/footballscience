@@ -17,6 +17,7 @@ import {
   normalizeIdpReview,
   normalizeText,
 } from "./domain/idp.models.mjs";
+import { selectIdpFocus } from "./domain/idp-focus-selection.mjs";
 
 function hasSource(value) {
   return value && typeof value === "object" && Object.keys(value).length > 0;
@@ -147,7 +148,7 @@ function mergePlayerPayloadWithFallback(detail = {}, fallbackDetail = null) {
   const focuses = inactive
     ? []
     : detail.focuses.length
-    ? detail.focuses.map((focus) => mergeFocusWithFallback(focus, fallbackFocus, profile.playerId)).filter(Boolean)
+    ? detail.focuses.map((focus) => mergeFocusWithFallback(focus, focus.focusLevel === "main" ? fallbackFocus : null, profile.playerId)).filter(Boolean)
     : fallbackDetail.focuses || [];
   return {
     profile,
@@ -196,7 +197,7 @@ function persistedGoalId(goal = {}) {
 }
 
 function primaryFocus(detail = {}) {
-  return Array.isArray(detail?.focuses) ? detail.focuses[0] || null : null;
+  return selectIdpFocus(detail);
 }
 
 function hasActiveEditingSurface(ui = {}) {
@@ -271,6 +272,7 @@ export function createIdpActions({ store, api, context = {} }) {
       ui: {
         openFilterMenu: "",
         selectedPlayerId: safePlayerId,
+        selectedFocusId: "",
         profileView: options.preserveProfileView ? currentUi.profileView || "development" : "development",
         actionMode: "",
         editEvidenceId: "",
@@ -358,12 +360,10 @@ export function createIdpActions({ store, api, context = {} }) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const payload = Object.fromEntries(formData.entries());
     const focusId = payload.focusId || payload.id || "";
-    if (focusId && !String(focusId).startsWith("legacy-focus-")) {
-      await api.updateFocus({ ...payload, id: focusId, playerId });
-    } else {
-      await api.createFocus({ ...payload, playerId });
-    }
-    store.setState({ ui: { actionMode: "", message: "Focus saved." } });
+    const result = focusId && !String(focusId).startsWith("legacy-focus-")
+      ? await api.updateFocus({ ...payload, id: focusId, playerId })
+      : await api.createFocus({ ...payload, playerId });
+    store.setState({ ui: { actionMode: "", selectedFocusId: result?.focus?.id || focusId, message: "Focus saved." } });
     await refreshSelectedPlayer();
   }
 
@@ -371,7 +371,8 @@ export function createIdpActions({ store, api, context = {} }) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const safeFocusId = persistedFocusId({ id: focusId });
     if (!playerId || !safeFocusId) throw new Error("Current focus could not be archived.");
-    await api.archiveFocus({ id: safeFocusId, playerId });
+    const focus = store.getState().playerDetail?.focuses?.find((item) => item.id === safeFocusId);
+    await api.archiveFocus({ id: safeFocusId, playerId, rowVersion: focus?.rowVersion || 1 });
     store.setState({ ui: { actionMode: "", message: "Focus archived. Create a new current focus when you are ready." } });
     await refreshSelectedPlayer();
   }
@@ -380,7 +381,8 @@ export function createIdpActions({ store, api, context = {} }) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const safeFocusId = persistedFocusId({ id: focusId });
     if (!playerId || !safeFocusId) throw new Error("Current focus could not be deleted.");
-    await api.deleteFocus({ id: safeFocusId, playerId });
+    const focus = store.getState().playerDetail?.focuses?.find((item) => item.id === safeFocusId);
+    await api.deleteFocus({ id: safeFocusId, playerId, rowVersion: focus?.rowVersion || 1 });
     store.setState({ ui: { actionMode: "", message: "Focus deleted from the active IDP view." } });
     await refreshSelectedPlayer();
   }
@@ -388,9 +390,7 @@ export function createIdpActions({ store, api, context = {} }) {
   async function ensureObservationFocus(playerId, detail = {}, formData) {
     const formFocusId = persistedFocusId({ id: formData.get("focusId") || "" });
     if (formFocusId) return formFocusId;
-    const existingFocusId = persistedFocusId(primaryFocus(detail));
-    if (existingFocusId) return existingFocusId;
-    throw new Error("Create a current focus before adding observations.");
+    throw new Error("Choose a focus before adding observations.");
   }
 
   async function addEvidence(formData) {
@@ -444,13 +444,14 @@ export function createIdpActions({ store, api, context = {} }) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const safePayload = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
     const focusId = persistedFocusId({ id: safePayload.focusId || "" });
-    if (!playerId || !focusId) {
-      throw new Error("Create a current focus before saving Player Board.");
+    if (!playerId) {
+      throw new Error("Select a player before saving Player Board.");
     }
     const interventionId = normalizeText(safePayload.id || safePayload.interventionId, 160);
     const rowVersion = numberOrFallback(safePayload.rowVersion, 0);
+    let result;
     if (interventionId && rowVersion > 0) {
-      await api.updateIntervention({
+      result = await api.updateIntervention({
         ...safePayload,
         id: interventionId,
         playerId,
@@ -458,23 +459,32 @@ export function createIdpActions({ store, api, context = {} }) {
         rowVersion,
       });
     } else {
-      await api.createIntervention({
+      result = await api.createIntervention({
         ...safePayload,
         playerId,
         focusId,
       });
     }
+    if (selectedPlayerIdFromState(store.getState()) !== playerId) return;
+    const saved = result?.intervention ? normalizeIdpDevelopmentIntervention(result.intervention) : null;
+    const detail = store.getState().playerDetail;
     store.setState({
+      ...(saved ? { playerDetail: { ...detail, interventions: [saved, ...(detail.interventions || []).filter((item) => item.id !== saved.id && !String(item.id).startsWith("draft-"))] } } : {}),
       ui: {
         idpPlayerBoardOpen: false,
         idpPlayerBoardPreviewOpen: false,
         idpPlayerBoardSelectedElementId: "",
         idpPlayerBoardSelectedElementIds: [],
-        idpPlayerBoardSelectedInterventionId: "",
+        idpPlayerBoardSelectedInterventionId: result?.intervention?.id || interventionId,
+        idpPlayerBoardExerciseSearchQuery: "",
         message: "Player Board saved.",
       },
     });
-    await refreshSelectedPlayer();
+    try {
+      await refreshSelectedPlayer();
+    } catch {
+      store.setState({ ui: { error: "Exercise saved. The latest player data could not be refreshed." } });
+    }
   }
 
   async function deletePlayerBoard(payload = {}) {
@@ -505,7 +515,7 @@ export function createIdpActions({ store, api, context = {} }) {
   async function assignOwner(formData) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const detail = store.getState().playerDetail;
-    const focusId = formData.get("focusId") || detail?.focuses?.[0]?.id || "";
+    const focusId = formData.get("focusId") || "";
     const ownerId = formData.get("ownerId") || "";
     await api.assignOwner({ playerId, focusId, ownerId });
     store.setState({ ui: { actionMode: "", message: ownerId ? "IDP Coach assigned." : "IDP Coach cleared." } });
@@ -515,7 +525,8 @@ export function createIdpActions({ store, api, context = {} }) {
   async function completeReview(formData) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const detail = store.getState().playerDetail;
-    const focusId = formData.get("focusId") || detail?.focuses?.[0]?.id || "";
+    const focusId = formData.get("focusId") || "";
+    if (!focusId) throw new Error("Choose a focus before completing a review.");
     await api.completeReview({
       playerId,
       focusId,
@@ -531,7 +542,7 @@ export function createIdpActions({ store, api, context = {} }) {
   async function saveGoal(formData) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const detail = store.getState().playerDetail;
-    const focusId = persistedFocusId({ id: formData.get("focusId") || "" }) || persistedFocusId(primaryFocus(detail));
+    const focusId = persistedFocusId({ id: formData.get("focusId") || "" });
     const goalId = persistedGoalId({ id: formData.get("goalId") || "" });
     const payload = {
       id: goalId,

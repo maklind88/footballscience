@@ -1,4 +1,5 @@
 import { createSessionPlannerVisualRenderer } from "../session-planner/session-planner-visual-renderer.mjs";
+import { renderFocusSelect } from "./idp-focus-controls.mjs";
 import {
   activeIdpFocus,
   buildIdpPlayerBoardBlock,
@@ -98,7 +99,7 @@ function renderFocusOverview(focus = {}, block = {}) {
   const hasFocus = Boolean(focus?.id || block.focusId);
   const title = hasFocus
     ? normalizeText(focus?.title || block.title, "Create current focus")
-    : "Create a current focus first";
+    : "No current focus";
   const category = normalizeText(focus?.category, "IDP focus");
   const role = normalizeText(focus?.positionGroup || focus?.role, "Individual");
   const reviewDate = formatShortDate(focus?.reviewDate || focus?.review_date);
@@ -150,7 +151,7 @@ function renderExerciseBank(interventions = [], block = {}, canEdit = false, uiS
       <div class="idp-player-board-bank-head">
         <div>
           <span>Exercise bank</span>
-          <strong>${escapeHtml(String(savedInterventions.length))} saved exercises</strong>
+          <strong>${escapeHtml(String(savedInterventions.length))} saved exercise${savedInterventions.length === 1 ? "" : "s"}</strong>
         </div>
         <button type="button" data-idp-board-new ${canEdit ? "" : "disabled"}>New exercise</button>
       </div>
@@ -159,13 +160,13 @@ function renderExerciseBank(interventions = [], block = {}, canEdit = false, uiS
         <input
           type="search"
           value="${escapeHtml(searchQuery)}"
-          placeholder="Search by name, objective or status"
+          placeholder="Search exercises"
           data-idp-board-exercise-search
         >
       </label>
       <div class="idp-player-board-bank-list">
         ${hasDraftSelected ? `
-          <button type="button" class="is-active" data-idp-board-select="${IDP_PLAYER_BOARD_NEW_EXERCISE_ID}">
+          <button type="button" class="is-active" aria-pressed="true" data-idp-board-select="${IDP_PLAYER_BOARD_NEW_EXERCISE_ID}">
             <span>Draft exercise</span>
             <small>Unsaved individual board</small>
           </button>
@@ -177,7 +178,7 @@ function renderExerciseBank(interventions = [], block = {}, canEdit = false, uiS
           const activeClass = item.id && item.id === selectedId ? " is-active" : "";
           const frameCount = Array.isArray(item.boardState?.tacticalFrames) ? item.boardState.tacticalFrames.length : 1;
           return `
-            <button type="button" class="${activeClass.trim()}" data-idp-board-select="${itemId}">
+            <button type="button" class="${activeClass.trim()}" aria-pressed="${Boolean(activeClass)}" data-idp-board-select="${itemId}">
               <span>${escapeHtml(title)}</span>
               <small>${escapeHtml(objective)}</small>
               <em>${escapeHtml(String(frameCount))} frame${frameCount === 1 ? "" : "s"}</em>
@@ -186,7 +187,6 @@ function renderExerciseBank(interventions = [], block = {}, canEdit = false, uiS
         }).join("") : hasDraftSelected ? "" : `
           <div class="idp-player-board-bank-empty">
             <span>${searchQuery ? "No exercises match your search." : "No saved exercises yet."}</span>
-            <small>${searchQuery ? "Try another title, objective or status." : "Create the first individual exercise from the board."}</small>
           </div>
         `}
         ${hiddenCount ? `
@@ -200,12 +200,12 @@ function renderExerciseBank(interventions = [], block = {}, canEdit = false, uiS
   `;
 }
 
-function renderBoardStage(renderer, block = {}, hasBoardContent = false, canEdit = false) {
+function renderBoardStage(renderer, block = {}, hasBoardContent = false, canEdit = false, playerName = "") {
   return `
     <div class="idp-player-board-stage-head">
       <div>
-        <span>${escapeHtml(block.isDraft ? "Draft exercise" : "Selected exercise")}</span>
-        <strong>${escapeHtml(block.title || "IDP Player Board")}</strong>
+        <span>Player Board</span>
+        <strong>${escapeHtml(normalizeText(playerName, "Player"))}</strong>
       </div>
       <div class="idp-player-board-actions" aria-label="Board actions">
         <button type="button" data-idp-board-preview ${hasBoardContent ? "" : "disabled"}>Preview</button>
@@ -214,20 +214,14 @@ function renderBoardStage(renderer, block = {}, hasBoardContent = false, canEdit
     </div>
     <div class="idp-player-board-pitch-preview${hasBoardContent ? " has-content" : " is-empty"}">
       ${renderer.renderExerciseVisual(block, { large: true })}
-      ${hasBoardContent ? "" : `
-        <div class="idp-player-board-preview-hint">
-          <strong>Pitch ready</strong>
-          <span>Open Edit to draw the individual exercise.</span>
-        </div>
-      `}
     </div>
   `;
 }
 
-function renderIdpTacticalboardOverlay(renderer, block = {}, canEdit = false) {
-  const overlay = renderer.renderTacticalboardOverlay(block);
+function renderIdpTacticalboardOverlay(renderer, block = {}, canEdit = false, playerName = "") {
+  const overlay = renderer.renderTacticalboardOverlay({ ...block, title: normalizeText(playerName, "Player") });
   if (!overlay) return "";
-  const saveDisabled = !canEdit || !block.focusId ? "disabled" : "";
+  const saveDisabled = !canEdit ? "disabled" : "";
   const blockRowVersion = Number(block.rowVersion);
   const deleteButton = !block.isDraft && block.interventionId ? `
             <button
@@ -239,34 +233,6 @@ function renderIdpTacticalboardOverlay(renderer, block = {}, canEdit = false) {
             >Delete exercise</button>
   ` : "";
   const closeButton = `<button type="button" class="session-library-close-button" data-session-close-tacticalboard aria-label="Close tacticalboard">Close</button>`;
-  const details = `
-        <section
-          class="idp-player-board-editor-details"
-          aria-label="Exercise details"
-          data-idp-board-object-count="${Array.isArray(block.tacticalElements) ? block.tacticalElements.length : 0}"
-        >
-          <label>
-            <span>Exercise name</span>
-            <input
-              type="text"
-              value="${escapeHtml(block.title || "")}"
-              maxlength="180"
-              data-idp-board-title
-              ${canEdit ? "" : "disabled"}
-            />
-          </label>
-          <label>
-            <span>Objective</span>
-            <textarea
-              maxlength="1200"
-              rows="2"
-              data-idp-board-objective
-              ${canEdit ? "" : "disabled"}
-            >${escapeHtml(block.objective || "")}</textarea>
-          </label>
-          <small>${block.focusId ? "Linked to the player's current IDP focus." : "Create a current focus before saving this exercise."}</small>
-        </section>
-  `;
   const actions = `
           <div class="idp-player-board-editor-actions">
             ${deleteButton}
@@ -278,9 +244,7 @@ function renderIdpTacticalboardOverlay(renderer, block = {}, canEdit = false) {
   const withActions = closeButtonPattern.test(overlay)
     ? overlay.replace(closeButtonPattern, actions)
     : overlay.replace("</header>", `${actions}</header>`);
-  return withActions.includes("idp-player-board-editor-details")
-    ? withActions
-    : withActions.replace("</header>", `</header>${details}`);
+  return withActions;
 }
 
 export function renderIdpPlayerBoardPage(detail = {}, canEdit = false, ui = {}) {
@@ -296,21 +260,24 @@ export function renderIdpPlayerBoardPage(detail = {}, canEdit = false, ui = {}) 
     <section class="idp-profile-subpage idp-profile-player-board-page">
       <article class="idp-player-board-panel">
         <aside class="idp-player-board-sidebar">
-          <header class="idp-player-board-head">
-            <span>Player Board</span>
-            <strong>${escapeHtml(detail.profile?.playerName || "Player")}</strong>
-          </header>
-          ${renderFocusOverview(focus, block)}
           ${renderExerciseBank(interventions, block, canEdit, uiState)}
+          <details class="idp-exercise-link-details">
+            <summary>Exercise name &amp; focus</summary>
+            <label><span>Exercise name</span><input data-idp-board-title maxlength="180" value="${escapeHtml(block.title)}" ${canEdit ? "" : "disabled"}></label>
+            <label><span>Objective</span><textarea data-idp-board-objective maxlength="1200" ${canEdit ? "" : "disabled"}>${escapeHtml(block.objective)}</textarea></label>
+            ${renderFocusSelect(detail, block.focusId, { attribute: "data-idp-board-focus", disabled: !canEdit })}
+            ${canEdit ? '<button type="button" data-idp-board-save>Save exercise</button>' : ""}
+          </details>
+          ${renderFocusOverview(focus, block)}
         </aside>
         <div class="idp-player-board-visual-stack">
           <div class="idp-player-board-stage">
-            ${renderBoardStage(renderer, block, hasBoardContent, canEdit)}
+            ${renderBoardStage(renderer, block, hasBoardContent, canEdit, detail.profile?.playerName)}
           </div>
         </div>
       </article>
       ${renderer.renderVisualPreviewOverlay(block)}
-      ${renderIdpTacticalboardOverlay(renderer, block, canEdit)}
+      ${renderIdpTacticalboardOverlay(renderer, block, canEdit, detail.profile?.playerName)}
     </section>
   `;
 }

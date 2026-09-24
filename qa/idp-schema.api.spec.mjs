@@ -83,6 +83,13 @@ test("idp focus and evidence lifecycle values are constrained", () => {
   expect(migration).toContain("action_type text not null check (action_type in ('Add Evidence', 'Review Clip Bank', 'Schedule IDP Meeting', 'Update Focus', 'Complete Review', 'Create Next Focus'))");
 });
 
+test("independent player exercises make only the focus relation optional and retain existing links", () => {
+  const change = fs.readFileSync(path.join(rootDir, "supabase/migrations/20260924023859_idp_optional_exercise_focus.sql"), "utf8");
+  expect(change).toContain("alter table public.idp_development_interventions alter column focus_id drop not null");
+  expect(change).not.toMatch(/\b(update|delete|insert|drop constraint|disable row level security)\b/i);
+  expect(migration).toContain("idp_focuses_active_level_idx");
+});
+
 test("idp permission seed is registered for the live control plane", () => {
   expect(allMigrations).toContain("('idp', 'read'");
   expect(allMigrations).toContain("('idp', 'write'");

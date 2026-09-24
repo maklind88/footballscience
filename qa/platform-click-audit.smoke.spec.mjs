@@ -636,11 +636,30 @@ test("IDP scouting radar recovers from a stale local cache and paged active data
   await openWorkspace(page, "idp");
   const playerButton = page.locator('[data-idp-player="ncc-2026-kailen-sheridan"]');
   await expect(playerButton).toHaveCount(1);
+  await playerButton.click();
+  await expect(page.locator(".idp-profile-menu")).toBeVisible();
+  await expect(page.locator(".idp-profile-scouting-radar")).toHaveCount(0);
+  const focusCard = page.locator(".idp-current-focus-card");
+  await expect(focusCard.locator('[data-idp-action="evidence"]')).toHaveCount(0);
+  for (const width of [1450, 390]) {
+    await page.setViewportSize({ width, height: 800 });
+    const title = await focusCard.locator("h3").boundingBox();
+    const edit = await focusCard.locator('.idp-focus-clarity-head [data-idp-action="focus"]').boundingBox();
+    const body = await focusCard.locator(".idp-current-focus-body").boundingBox();
+    expect(title).not.toBeNull();
+    expect(edit).not.toBeNull();
+    expect(body).not.toBeNull();
+    expect(edit.x).toBeGreaterThanOrEqual(title.x + title.width);
+    expect(edit.y + edit.height).toBeLessThanOrEqual(body.y);
+    expect(edit.x + edit.width).toBeLessThanOrEqual(width);
+    await testInfo.attach(`idp-focus-${width}.png`, { body: await focusCard.screenshot(), contentType: "image/png" });
+  }
+  await page.setViewportSize({ width: 1450, height: 800 });
   // The radar's content assertion starts after its real, lazy-loaded data arrives.
   const startedAt = Date.now();
   const [profileResponse] = await Promise.all([
     page.waitForResponse((response) => new URL(response.url()).pathname === "/scouting-import-nwsl-profile-data.js"),
-    playerButton.click(),
+    page.locator('.idp-profile-menu [data-idp-profile-view="goals"]').click(),
   ]);
   expect(profileResponse.ok(), "The profile dataset must be served successfully.").toBe(true);
   expect(await profileResponse.finished(), "The profile dataset must finish downloading.").toBeNull();

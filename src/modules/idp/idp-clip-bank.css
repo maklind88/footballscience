@@ -1,10 +1,27 @@
 .idp-clip-bank-organizer {
+  align-content: start;
+  align-self: start;
   overflow: hidden;
 }
 
 .idp-clip-bank-head {
   align-items: flex-start;
   gap: 16px;
+  flex-wrap: wrap;
+}
+
+.idp-clip-bank-head > div:first-child > span {
+  color: var(--idp-ink, #142033);
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.idp-clip-bank-head > div:first-child > strong {
+  color: var(--idp-muted, #667085);
+  font-size: .78rem;
+  font-weight: 500;
+  margin-top: 4px;
 }
 
 .idp-clip-bank-head small {
@@ -50,21 +67,18 @@
 }
 
 .idp-clip-bank-search {
-  align-items: center;
-  background: rgba(248, 250, 252, 0.82);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 14px;
   display: grid;
-  gap: 8px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  margin: 10px 0;
-  padding: 8px 10px;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  width: min(100%, 32rem);
+  min-width: 0;
 }
 
 .idp-clip-bank-search span {
   color: #667085;
   font-size: 11px;
-  font-weight: 950;
+  font-weight: 600;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -73,12 +87,12 @@
   appearance: none;
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 10px;
+  border-radius: 7px;
   color: #0f172a;
   font: inherit;
   font-size: 13px;
-  font-weight: 750;
-  min-height: 34px;
+  font-weight: 500;
+  min-height: 40px;
   min-width: 0;
   padding: 7px 10px;
 }
@@ -89,15 +103,23 @@
   outline: none;
 }
 
-.idp-clip-bank-search strong {
-  background: #eef2ff;
-  border-radius: 999px;
-  color: #175cd3;
-  font-size: 12px;
-  font-weight: 950;
-  line-height: 1;
-  padding: 7px 9px;
-  white-space: nowrap;
+.idp-clip-bank-empty {
+  border-top: 1px solid var(--idp-line, #e4e7ec);
+  color: var(--idp-muted, #667085);
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 16px;
+  font-size: .88rem;
+  font-weight: 500;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+body.is-dark-mode .idp-clip-bank-search input {
+  background: #20262c;
+  border-color: #36414b;
+  color: #edf1f5;
 }
 
 .idp-clip-bank-list {
@@ -649,10 +671,6 @@
 @media (max-width: 760px) {
   .idp-clip-bank-search {
     grid-template-columns: 1fr;
-  }
-
-  .idp-clip-bank-search strong {
-    justify-self: start;
   }
 
   .idp-clip-bank-row {

@@ -170,7 +170,7 @@ function normalizeBoardArray(value, limit, mapper) {
 
 function normalizeBoardLineWidth(value, fallback = 2.5) {
   const number = Number(value);
-  return Number.isFinite(number) ? Math.min(6, Math.max(.75, Math.round(number * 4) / 4)) : fallback;
+  return Number.isFinite(number) ? Math.min(6, Math.max(.25, number)) : fallback;
 }
 
 function normalizeBoardColor(value, fallback = "#38bdf8") {
@@ -517,7 +517,11 @@ async function listDashboard(query, actor) {
   const activeFocusByPlayer = new Map();
   for (const focus of rowList(focuses)) {
     if (!["Active", "Needs Evidence", "Ready For Review", "Reviewed"].includes(focus.status)) continue;
-    if (!activeFocusByPlayer.has(focus.player_id)) activeFocusByPlayer.set(focus.player_id, focus);
+    const current = activeFocusByPlayer.get(focus.player_id);
+    const levels = { main: 0, secondary: 1, personal: 2 };
+    if (!current || (levels[focus.focus_level || "main"] ?? 3) < (levels[current.focus_level || "main"] ?? 3)) {
+      activeFocusByPlayer.set(focus.player_id, focus);
+    }
   }
   const countByPlayer = (rows, predicate = () => true) => rows.reduce((map, row) => {
     if (predicate(row)) map.set(row.player_id, (map.get(row.player_id) || 0) + 1);
@@ -729,9 +733,16 @@ async function createFocus(payload, actor) {
 async function updateFocus(payload, actor) {
   const scope = actorScope(actor);
   const focusId = normalizeUuid(payload.id || payload.focusId || payload.focus_id);
-  if (!focusId) return { ok: false, status: 400, reason: "focus id is required." };
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const rowVersion = normalizeRowVersion(payload.rowVersion || payload.row_version);
+  if (!focusId || !playerId || !rowVersion) return { ok: false, status: 400, reason: "focusId, playerId and rowVersion are required. Reload and try again." };
+  const current = await requireOwnedFocus(scope, playerId, focusId);
+  if (!current.ok) return current;
+  if (Number(current.payload.row_version) !== rowVersion) return { ok: false, status: 409, reason: "Focus changed elsewhere. Reload and try again." };
   const params = buildTeamParams(scope);
   params.set("id", `eq.${focusId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("row_version", `eq.${rowVersion}`);
   params.set("deleted_at", "is.null");
   const patch = {
     updated_by: scope.actorId,
@@ -739,6 +750,7 @@ async function updateFocus(payload, actor) {
   if ("title" in payload) patch.title = normalizeText(payload.title, 180);
   if ("description" in payload) patch.description = normalizeNote(payload.description, 1200) || null;
   if ("category" in payload) patch.category = normalizeCategory(payload.category);
+  if ("focusLevel" in payload || "focus_level" in payload) patch.focus_level = normalizeFocusLevel(payload.focusLevel || payload.focus_level);
   if ("status" in payload) patch.status = normalizeFocusStatus(payload.status);
   if ("ownerId" in payload || "owner_id" in payload) patch.owner_id = normalizeText(payload.ownerId || payload.owner_id, 160) || null;
   if ("reviewDate" in payload || "review_date" in payload) patch.review_date = dateOrNull(payload.reviewDate || payload.review_date);
@@ -748,6 +760,13 @@ async function updateFocus(payload, actor) {
   const result = await patchRows("idp_focuses", params, patch);
   if (!result.ok) return result;
   const focus = result.payload?.[0] || null;
+  if (!focus) return { ok: false, status: 409, reason: "Focus changed elsewhere. Reload and try again." };
+  await insertAuditEvent(scope, {
+    playerId, action: "focus.updated", entityType: "idp_focus", entityId: focus.id,
+    changedFields: Object.keys(patch).filter((key) => key !== "updated_by"),
+    beforeSummary: { title: current.payload.title, focus_level: current.payload.focus_level, status: current.payload.status },
+    afterSummary: { title: focus.title, focus_level: focus.focus_level, status: focus.status },
+  });
   const sync = await buildSyncMeta(scope, focus?.player_id || "");
   return { ok: true, payload: { schema: IDP_SCHEMA, focus, sync: sync.ok ? sync.payload : null } };
 }
@@ -756,13 +775,16 @@ async function closeFocus(payload, actor, lifecycleAction = "archive") {
   const scope = actorScope(actor);
   const focusId = normalizeUuid(payload.id || payload.focusId || payload.focus_id);
   const playerId = normalizeText(payload.playerId || payload.player_id, 160);
-  if (!focusId || !playerId) return { ok: false, status: 400, reason: "focusId and playerId are required." };
+  const rowVersion = normalizeRowVersion(payload.rowVersion || payload.row_version);
+  if (!focusId || !playerId || !rowVersion) return { ok: false, status: 400, reason: "focusId, playerId and rowVersion are required. Reload and try again." };
   const current = await requireOwnedFocus(scope, playerId, focusId);
   if (!current.ok) return current;
   const before = current.payload;
+  if (Number(before.row_version) !== rowVersion) return { ok: false, status: 409, reason: "Focus changed elsewhere. Reload and try again." };
   const params = buildTeamParams(scope);
   params.set("id", `eq.${focusId}`);
   params.set("player_id", `eq.${playerId}`);
+  params.set("row_version", `eq.${rowVersion}`);
   params.set("deleted_at", "is.null");
   const result = await patchRows("idp_focuses", params, {
     status: "Archived",
@@ -772,7 +794,7 @@ async function closeFocus(payload, actor, lifecycleAction = "archive") {
   });
   if (!result.ok) return result;
   const focus = result.payload?.[0] || null;
-  if (!focus) return { ok: false, status: 404, reason: "Focus was not found." };
+  if (!focus) return { ok: false, status: 409, reason: "Focus changed elsewhere. Reload and try again." };
   await insertAuditEvent(scope, {
     playerId,
     action: lifecycleAction === "delete" ? "focus.deleted" : "focus.archived",
@@ -916,6 +938,8 @@ async function addEvidence(payload, actor) {
   const playerId = normalizeText(payload.playerId || payload.player_id, 160);
   const focusId = normalizeUuid(payload.focusId || payload.focus_id);
   if (!playerId || !focusId) return { ok: false, status: 400, reason: "playerId and focusId are required." };
+  const focusResult = await requireOwnedFocus(scope, playerId, focusId);
+  if (!focusResult.ok) return focusResult;
   const profileResult = await ensureProfile(scope, playerId, payload);
   if (!profileResult.ok) return profileResult;
   const result = await insertRow("idp_evidence", {
@@ -1088,6 +1112,8 @@ async function completeReview(payload, actor) {
   const playerId = normalizeText(payload.playerId || payload.player_id, 160);
   const focusId = normalizeUuid(payload.focusId || payload.focus_id);
   if (!playerId || !focusId) return { ok: false, status: 400, reason: "playerId and focusId are required." };
+  const focusResult = await requireOwnedFocus(scope, playerId, focusId);
+  if (!focusResult.ok) return focusResult;
   const profileResult = await ensureProfile(scope, playerId, payload);
   if (!profileResult.ok) return profileResult;
   const result = await insertRow("idp_reviews", {
@@ -1158,6 +1184,7 @@ async function createDevelopmentGoal(payload, actor) {
   const profileResult = await ensureProfile(scope, playerId, payload);
   if (!profileResult.ok) return profileResult;
   const focusId = normalizeUuid(payload.focusId || payload.focus_id) || null;
+  if ((payload.focusId || payload.focus_id) && !focusId) return { ok: false, status: 400, reason: "focusId is invalid." };
   if (focusId) {
     const focusResult = await requireOwnedFocus(scope, playerId, focusId);
     if (!focusResult.ok) return focusResult;
@@ -1223,7 +1250,8 @@ async function updateDevelopmentGoal(payload, actor) {
   const changedFields = [];
   if ("focusId" in payload || "focus_id" in payload) {
     patch.focus_id = normalizeUuid(payload.focusId || payload.focus_id) || null;
-    if (patch.focus_id) {
+    if ((payload.focusId || payload.focus_id) && !patch.focus_id) return { ok: false, status: 400, reason: "focusId is invalid." };
+    if (patch.focus_id && patch.focus_id !== before.focus_id) {
       const focusResult = await requireOwnedFocus(scope, playerId, patch.focus_id);
       if (!focusResult.ok) return focusResult;
     }
@@ -1410,14 +1438,18 @@ async function addGoalCheckin(payload, actor) {
 async function createDevelopmentIntervention(payload, actor) {
   const scope = actorScope(actor);
   const playerId = normalizeText(payload.playerId || payload.player_id, 160);
-  const focusId = normalizeUuid(payload.focusId || payload.focus_id);
+  const requestedFocus = payload.focusId ?? payload.focus_id ?? "";
+  const focusId = normalizeUuid(requestedFocus) || null;
+  if (requestedFocus && !focusId) return { ok: false, status: 400, reason: "focusId is invalid." };
   const title = normalizeText(payload.title, 180);
-  if (!playerId || !focusId || !title) return { ok: false, status: 400, reason: "playerId, focusId and title are required." };
+  if (!playerId || !title) return { ok: false, status: 400, reason: "playerId and title are required." };
   const profileResult = await ensureProfile(scope, playerId, payload);
   if (!profileResult.ok) return profileResult;
   const boardState = normalizeBoardState(payload.boardState || payload.board_state);
-  const focusResult = await requireOwnedFocus(scope, playerId, focusId);
-  if (!focusResult.ok) return focusResult;
+  if (focusId) {
+    const focusResult = await requireOwnedFocus(scope, playerId, focusId);
+    if (!focusResult.ok) return focusResult;
+  }
   const goalId = normalizeUuid(payload.goalId || payload.goal_id) || null;
   if (goalId) {
     const goalResult = await requireOwnedGoal(scope, playerId, goalId);
@@ -1451,7 +1483,7 @@ async function createDevelopmentIntervention(payload, actor) {
     action: "development_intervention.created",
     entityType: "idp_development_intervention",
     entityId: intervention?.id,
-    changedFields: ["title", "objective", "goal_id", "coaching_cue", "success_criteria", "pitch_mode", "board_state", "status"],
+    changedFields: ["title", "objective", "focus_id", "goal_id", "coaching_cue", "success_criteria", "pitch_mode", "board_state", "status"],
     afterSummary: interventionAuditSummary(intervention),
   });
   const sync = await buildSyncMeta(scope, playerId);
@@ -1480,6 +1512,17 @@ async function updateDevelopmentIntervention(payload, actor) {
 
   const patch = { updated_by: scope.actorId };
   const changedFields = [];
+  if ("focusId" in payload || "focus_id" in payload) {
+    const requestedFocus = payload.focusId ?? payload.focus_id ?? "";
+    patch.focus_id = normalizeUuid(requestedFocus) || null;
+    if (requestedFocus && !patch.focus_id) return { ok: false, status: 400, reason: "focusId is invalid." };
+    // Unchanged historical links stay valid even after their focus was archived.
+    if (patch.focus_id && patch.focus_id !== before.focus_id) {
+      const focusResult = await requireOwnedFocus(scope, playerId, patch.focus_id);
+      if (!focusResult.ok) return focusResult;
+    }
+    changedFields.push("focus_id");
+  }
   if ("title" in payload) {
     patch.title = normalizeText(payload.title, 180);
     changedFields.push("title");
@@ -1493,11 +1536,19 @@ async function updateDevelopmentIntervention(payload, actor) {
     if (patch.goal_id) {
       const goalResult = await requireOwnedGoal(scope, playerId, patch.goal_id);
       if (!goalResult.ok) return goalResult;
-      if (goalResult.payload.focus_id && before.focus_id && goalResult.payload.focus_id !== before.focus_id) {
+      const effectiveFocusId = "focus_id" in patch ? patch.focus_id : before.focus_id;
+      if (goalResult.payload.focus_id && goalResult.payload.focus_id !== effectiveFocusId) {
         return { ok: false, status: 409, reason: "Development goal belongs to a different focus." };
       }
     }
     changedFields.push("goal_id");
+  }
+  if ("focus_id" in patch && !("goal_id" in patch) && before.goal_id) {
+    const goalResult = await requireOwnedGoal(scope, playerId, before.goal_id);
+    if (!goalResult.ok) return goalResult;
+    if (goalResult.payload.focus_id && goalResult.payload.focus_id !== patch.focus_id) {
+      return { ok: false, status: 409, reason: "Development goal belongs to a different focus." };
+    }
   }
   if ("coachingCue" in payload || "coaching_cue" in payload) {
     patch.coaching_cue = normalizeNote(payload.coachingCue || payload.coaching_cue, 800) || null;

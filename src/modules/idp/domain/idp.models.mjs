@@ -53,7 +53,7 @@ function normalizeBoardLineStyle(value, fallback = "dashed") {
 
 function normalizeBoardLineWidth(value, fallback = 2.4) {
   const number = Number(value);
-  return Number.isFinite(number) ? Math.min(6, Math.max(.75, Math.round(number * 4) / 4)) : fallback;
+  return Number.isFinite(number) ? Math.min(6, Math.max(.25, number)) : fallback;
 }
 
 function normalizeBoardArrowType(value, fallback = "run") {
@@ -319,10 +319,11 @@ export function normalizeIdpProfile(value = {}) {
 
 export function normalizeIdpFocus(value = {}) {
   return {
+    rowVersion: normalizeNumber(value.rowVersion || value.row_version, 1),
     id: normalizeText(value.id, 120),
     playerId: normalizeText(value.playerId || value.player_id, 160),
     title: normalizeText(value.title || value.primaryFocus, 180),
-    description: normalizeText(value.description || value.focusAreas, 800),
+    description: normalizeText(value.description || value.focusAreas, 1200),
     category: pickOption(value.category, idpDevelopmentCategories, "Tactical"),
     focusLevel: normalizeText(value.focusLevel || value.focus_level || "main", 40),
     linkedPhase: normalizeText(value.linkedPhase || value.linked_phase, 80),

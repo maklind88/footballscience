@@ -12,6 +12,8 @@ import {
   renderIdpClipPreviewOverlay,
 } from "./idp-clip-bank-renderer.mjs";
 import { renderIdpPlayerBoardPage } from "./idp-player-board-renderer.mjs";
+import { selectIdpFocus } from "./domain/idp-focus-selection.mjs";
+import { renderFocusSelect, renderFocusLevelSelect, renderFocusNavigation } from "./idp-focus-controls.mjs";
 
 const defaultUiState = Object.freeze({
   selectedPlayerId: "",
@@ -244,11 +246,9 @@ function idpStatusLabel(profile = {}, focus = null) {
   return focus?.status || "No Active Focus";
 }
 
-function activeFocus(detail = {}) {
+function activeFocus(detail = {}, selectedId = "") {
   if (isInactiveIdpProfile(detail.profile || {})) return null;
-  return (detail.focuses || []).find((focus) => ["Active", "Needs Evidence", "Ready For Review", "Reviewed"].includes(focus.status))
-    || detail.focuses?.[0]
-    || null;
+  return selectIdpFocus(detail, selectedId);
 }
 
 function getTeamName(options = {}) {
@@ -336,7 +336,7 @@ function renderWorkspaceHeader(state = {}, canEdit = false, options = {}) {
   const hasSelectedPlayer = Boolean(ui.selectedPlayerId);
   const detail = state.playerDetail || {};
   const profile = detail.profile || {};
-  const focus = activeFocus(detail);
+  const focus = activeFocus(detail, state.ui?.selectedFocusId);
   if (hasSelectedPlayer && profile.playerId) {
     const idpInactive = isInactiveIdpProfile(profile);
     const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
@@ -818,53 +818,28 @@ function renderCoachAssist(detail = {}, profile = {}, focus = null, idpInactive 
 
 function renderCurrentFocusWorkspace(detail = {}, profile = {}, focus = null, idpInactive = false, canEdit = false, options = {}, strengths = []) {
   const focusReady = hasCurrentFocus(focus);
-  const ownerId = primaryOwnerId(profile, focus || {});
-  const ownerLabel = formatStaffName(ownerId, options);
-  const reviewLabel = reviewUrgencyLabel(profile, focus);
-  const position = [profile.position, profile.role].filter(Boolean).join(" / ") || "Squad";
   const title = idpInactive ? "No active IDP" : focusReady ? focus.title : "No active focus yet";
   const description = idpInactive
     ? "This player's IDP is paused from Squad Room. Historical learning stays visible here until the plan is reactivated."
     : focusReady
       ? buildFocusAreaSummary(focus)
       : "Create one clear development focus before adding observations, clips or review decisions for this player.";
-  const focusStats = [
-    { label: "Lens", value: idpInactive ? "Paused" : focus?.category || "Tactical" },
-    { label: "Status", value: idpInactive ? "No Active IDP" : coachLabel(focus?.status || "Not set") },
-    { label: "IDP Coach", value: ownerLabel },
-    { label: "Review", value: reviewLabel },
-  ];
   return `
     <article class="idp-focus-story idp-focus-clarity-card idp-current-focus-card ${focusReady ? "has-focus" : "is-empty"}">
+      ${renderFocusNavigation(detail, focus, canEdit && !idpInactive)}
       <div class="idp-focus-clarity-head">
         <div>
           <div class="idp-section-kicker">Current Focus</div>
           <h3>${escapeHtml(title)}</h3>
         </div>
-        <div class="idp-focus-side">
-          <div class="idp-focus-meta">
-            <span>${escapeHtml(idpInactive ? "Paused" : focus?.category || "Tactical")}</span>
-            <span>${escapeHtml(position)}</span>
-            <span>${escapeHtml(reviewLabel)}</span>
-          </div>
-        </div>
-      </div>
-      <div class="idp-current-focus-body">
-        <p>${escapeHtml(description)}</p>
         ${canEdit && !idpInactive ? `
           <div class="idp-current-focus-actions">
             <button type="button" class="is-primary" data-idp-action="focus">${escapeHtml(focusReady ? "Edit focus" : "Create focus")}</button>
-            ${focusReady ? `<button type="button" data-idp-action="evidence">Add observation</button>` : ""}
           </div>
         ` : ""}
       </div>
-      <div class="idp-current-focus-grid" aria-label="Current focus context">
-        ${focusStats.map((item) => `
-          <span>
-            <small>${escapeHtml(item.label)}</small>
-            <strong>${escapeHtml(item.value)}</strong>
-          </span>
-        `).join("")}
+      <div class="idp-current-focus-body">
+        <p>${escapeHtml(description)}</p>
       </div>
       ${strengths.length ? `
         <div class="idp-focus-strengths">
@@ -935,6 +910,7 @@ function goalProgress(goal = {}) {
 
 function renderGoalCard(goal = {}, detail = {}, canEdit = false, options = {}) {
   const checkins = goalCheckins(detail, goal.id);
+  const linkedFocus = (detail.focuses || []).find((focus) => focus.id === goal.focusId);
   const latest = checkins[0] || {};
   const progress = goalProgress(goal);
   const role = goalRoleLabel(goal.goalRole);
@@ -949,6 +925,7 @@ function renderGoalCard(goal = {}, detail = {}, canEdit = false, options = {}) {
         <small class="idp-goal-status is-${escapeHtml(statusTone(goal.status || "active"))}">${escapeHtml(goal.status || "active")}</small>
       </header>
       ${goal.description ? `<p>${escapeHtml(goal.description)}</p>` : ""}
+      <small class="idp-goal-focus-label">Focus: ${escapeHtml(linkedFocus?.title || (goal.focusId ? "Archived focus" : "No focus"))}</small>
       <div class="idp-goal-meter" aria-label="Goal progress">
         <span style="width:${progress}%"></span>
       </div>
@@ -974,14 +951,14 @@ function renderGoalCard(goal = {}, detail = {}, canEdit = false, options = {}) {
 
 function renderGoalEmpty(canEdit = false, options = {}) {
   const singleCreateAction = Boolean(options.singleCreateAction);
+  const isLeadership = Boolean(options.isLeadership);
   return `
     <div class="idp-goals-empty">
-      <strong>No development goals yet</strong>
-      <span>Create 1-2 measurable goals plus one leadership responsibility for this player.</span>
+      <strong>${isLeadership ? "No leadership goal yet" : "No development goals yet"}</strong>
       ${canEdit ? `
         <div class="idp-goals-empty-actions">
           ${singleCreateAction ? `
-            <button type="button" data-idp-action="goal">Create Goal</button>
+            <button type="button" data-idp-action="${isLeadership ? "leadership-goal" : "goal"}">${isLeadership ? "Create leadership goal" : "Create Goal"}</button>
           ` : `
             <button type="button" data-idp-action="goal">Create goal</button>
             <button type="button" data-idp-action="leadership-goal">Leadership goal</button>
@@ -1188,12 +1165,14 @@ function renderObservationButtons(item = {}, canEdit = false) {
   `;
 }
 
-function renderFocusForm(focus = null) {
+function renderFocusForm(focus = null, detail = {}) {
   const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
   const hasSavedFocus = Boolean(focusId);
   return `
     <form class="idp-action-form" data-idp-create-focus>
       <input type="hidden" name="focusId" value="${escapeHtml(focusId)}">
+      <input type="hidden" name="rowVersion" value="${escapeHtml(focus?.rowVersion || 1)}">
+      ${renderFocusLevelSelect(detail, focus)}
       <label>
         <span>Focus</span>
         <input name="title" value="${escapeHtml(focus?.title || "")}" placeholder="Current focus" required>
@@ -1235,14 +1214,14 @@ function renderFocusForm(focus = null) {
   `;
 }
 
-function renderEvidenceForm(focus = null, evidence = null) {
+function renderEvidenceForm(focus = null, evidence = null, detail = {}) {
   const isEditing = Boolean(evidence?.id);
   const focusId = evidence?.focusId || (focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "");
   const needsFocus = !focusId && !isEditing;
   return `
     <form class="idp-action-form" ${isEditing ? "data-idp-update-evidence" : "data-idp-add-evidence"}>
       ${isEditing ? `<input type="hidden" name="evidenceId" value="${escapeHtml(evidence.id)}">` : ""}
-      <input type="hidden" name="focusId" value="${escapeHtml(focusId)}">
+      ${isEditing ? `<input type="hidden" name="focusId" value="${escapeHtml(focusId)}">` : renderFocusSelect(detail, focusId, { required: true })}
       <label>
         <span>Observation type</span>
         <select name="evidenceType">${optionList(idpEvidenceTypes, evidence?.evidenceType || "Coach Note")}</select>
@@ -1260,11 +1239,11 @@ function renderEvidenceForm(focus = null, evidence = null) {
   `;
 }
 
-function renderReviewForm(focus = null) {
+function renderReviewForm(focus = null, detail = {}) {
   const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
   return `
     <form class="idp-action-form" data-idp-complete-review>
-      <input type="hidden" name="focusId" value="${escapeHtml(focusId)}">
+      ${renderFocusSelect(detail, focusId, { required: true })}
       <label class="idp-form-wide">
         <span>Progress</span>
         <textarea name="progressSummary" rows="3" placeholder="What changed since the last review?"></textarea>
@@ -1294,11 +1273,11 @@ function renderGoalForm(detail = {}, focus = null, goal = null, mode = "goal") {
   const isLeadership = mode === "leadership-goal" || goal?.goalRole === "leadership" || goal?.category === "Leadership";
   const selectedRole = goal?.goalRole || (isLeadership ? "leadership" : "supporting");
   const selectedCategory = goal?.category || (isLeadership ? "Leadership" : focus?.category || "Tactical");
-  const focusId = goal?.focusId || (focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "");
+  const focusId = goal ? goal.focusId || "" : (focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "");
   return `
     <form class="idp-action-form" data-idp-save-goal>
       <input type="hidden" name="goalId" value="${escapeHtml(goalId)}">
-      <input type="hidden" name="focusId" value="${escapeHtml(focusId)}">
+      ${renderFocusSelect(detail, focusId)}
       <input type="hidden" name="rowVersion" value="${escapeHtml(goal?.rowVersion || 1)}">
       <label>
         <span>Goal type</span>
@@ -1411,6 +1390,7 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
     : null;
   const hasSavedFocus = Boolean(focus?.id && !String(focus.id).startsWith("legacy-focus-"));
   const copy = {
+    "new-focus": ["Add development focus", ""],
     ownership: ["Assign IDP Coach", "Choose who owns this player's development follow-up."],
     focus: hasSavedFocus
       ? ["Update focus", "Change the player's current development priority, status, and review date."]
@@ -1429,9 +1409,9 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
     : mode === "ownership"
     ? renderOwnershipForm(state.playerDetail, focus, options)
     : mode === "evidence"
-      ? renderEvidenceForm(focus)
+      ? renderEvidenceForm(focus, null, state.playerDetail)
       : mode === "edit-evidence"
-        ? renderEvidenceForm(focus, editingEvidence)
+        ? renderEvidenceForm(focus, editingEvidence, state.playerDetail)
       : mode === "goal" || mode === "leadership-goal"
         ? renderGoalForm(state.playerDetail, focus, null, mode)
         : mode === "edit-goal"
@@ -1439,8 +1419,8 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
           : mode === "goal-checkin"
             ? renderGoalCheckinForm(editingGoal)
             : mode === "review"
-              ? renderReviewForm(focus)
-              : renderFocusForm(focus);
+              ? renderReviewForm(focus, state.playerDetail)
+              : renderFocusForm(mode === "new-focus" ? null : focus, state.playerDetail);
   return `
     <section class="idp-action-layer" data-idp-action-layer role="presentation">
       <article class="idp-action-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
@@ -1608,7 +1588,7 @@ function renderProfileGoalsPage(detail = {}, focus = {}, profile = {}, canEdit =
               </div>
             </div>
             <div class="idp-goals-grid">
-              ${leadershipGoals.length ? leadershipGoals.map((goal) => renderGoalCard(goal, detail, canEdit, options)).join("") : renderGoalEmpty(canEdit, { singleCreateAction: true })}
+              ${leadershipGoals.length ? leadershipGoals.map((goal) => renderGoalCard(goal, detail, canEdit, options)).join("") : renderGoalEmpty(canEdit, { singleCreateAction: true, isLeadership: true })}
             </div>
           </section>
         </div>
@@ -1727,12 +1707,14 @@ function timelineMilestoneLabel(milestone = {}, lookups = {}) {
   return coachLabel(milestone.title || milestone.milestoneType || "Timeline update");
 }
 
-function renderProfileObservationItem(item = {}, canEdit = false) {
+function renderProfileObservationItem(item = {}, canEdit = false, focuses = []) {
+  const linkedFocus = focuses.find((focus) => focus.id === item.focusId);
   return `
     <div class="idp-stream-item">
       <time>${escapeHtml(formatShortDate(item.createdAt, "--"))}</time>
       <div>
         <strong>${escapeHtml(coachLabel(item.evidenceType))}</strong>
+        ${focuses.length > 1 && linkedFocus ? `<small>${escapeHtml(linkedFocus.title)}</small>` : ""}
         <span>${escapeHtml(item.note || item.sourceModule || "Observation logged")}</span>
       </div>
       ${renderObservationButtons(item, canEdit)}
@@ -1755,8 +1737,8 @@ function renderProfileSignalStream(detail = {}, canEdit = false) {
       <div class="idp-signal-stream">
         ${evidence.length
           ? `
-            ${visibleEvidence.map((item) => renderProfileObservationItem(item, canEdit)).join("")}
-            ${renderWorkflowMore(hiddenEvidence, (item) => renderProfileObservationItem(item, canEdit))}
+            ${visibleEvidence.map((item) => renderProfileObservationItem(item, canEdit, detail.focuses || [])).join("")}
+            ${renderWorkflowMore(hiddenEvidence, (item) => renderProfileObservationItem(item, canEdit, detail.focuses || []))}
           `
           : `<div class="idp-empty-signal">No observations yet.</div>`}
       </div>
@@ -1831,7 +1813,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
     return `<section class="idp-player-profile"><div class="idp-muted">Loading player profile.</div></section>`;
   }
   const profile = detail.profile;
-  const focus = activeFocus(detail);
+  const focus = activeFocus(detail, state.ui?.selectedFocusId);
   const idpInactive = isInactiveIdpProfile(profile);
   const nextAction = detail.nextActions?.find((action) => action.status === "open") || detail.nextActions?.[0] || {};
   const pulse = progressPulse(detail, focus, idpInactive);
@@ -1846,11 +1828,13 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
         : profileView === "player-board"
           ? renderIdpPlayerBoardPage(detail, canEdit && !idpInactive, state.ui || {})
         : profileView === "goals"
-          ? renderProfileGoalsPage(detail, focus || {}, profile, canEdit && !idpInactive, options)
+          ? `
+            ${renderProfileScoutingRadar(profile, options, state.ui || {})}
+            ${renderProfileGoalsPage(detail, focus || {}, profile, canEdit && !idpInactive, options)}
+          `
         : profileView === "history"
           ? renderProfileHistoryPage(detail, options)
           : `
-      ${renderProfileScoutingRadar(profile, options, state.ui || {})}
       <section class="idp-development-board is-focus-only">
         ${renderCurrentFocusWorkspace(detail, profile, focus, idpInactive, canEdit && !idpInactive, options, strengths)}
       </section>

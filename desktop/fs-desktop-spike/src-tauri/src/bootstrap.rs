@@ -546,6 +546,7 @@ pub fn download_and_stage(
         return Err("signed manifest key ID does not match detached signature".into());
     }
     shell_contract::validate_manifest(&manifest, now)?;
+    crate::ci_trace::record("shell preparation signed manifest verified");
     let manifest_hash = shell_contract::hex_sha256(&manifest_bytes);
     if let Some(result) = existing_release_result(
         connection,
@@ -567,16 +568,21 @@ pub fn download_and_stage(
         fs::remove_dir_all(&pending_path).map_err(|error| error.to_string())?;
     }
     fs::create_dir(&pending_path).map_err(|error| error.to_string())?;
-    for asset in &manifest.assets {
+    for (index, asset) in manifest.assets.iter().enumerate() {
+        crate::ci_trace::record(format!("shell preparation asset {index} download started"));
         let url = format!("{SHELL_SOURCE_ORIGIN}/{}", asset.path);
         let bytes = shell_contract::bounded_get_asset(&client, &url, asset)?;
         shell_contract::verify_asset(asset, &bytes)?;
+        crate::ci_trace::record(format!("shell preparation asset {index} verified"));
         shell_contract::durable_write(&pending_path.join(&asset.path), &bytes)?;
+        crate::ci_trace::record(format!("shell preparation asset {index} durable"));
     }
     if let Some(contract) = &manifest.web_bundle {
+        crate::ci_trace::record("shell preparation bundle extraction started");
         let bundle_path = pending_path.join(&contract.asset_path);
         let bundle_bytes = fs::read(&bundle_path).map_err(|error| error.to_string())?;
         web_bundle::extract(&bundle_bytes, &pending_path.join("web"), contract)?;
+        crate::ci_trace::record("shell preparation bundle extraction verified");
     }
     shell_contract::durable_write(&pending_path.join("manifest.json"), &manifest_bytes)?;
     shell_contract::durable_write(&pending_path.join("manifest.sig"), &signature_bytes)?;
@@ -586,7 +592,9 @@ pub fn download_and_stage(
     } else {
         fs::rename(&pending_path, &final_path).map_err(|error| error.to_string())?;
     }
+    crate::ci_trace::record("shell preparation generation verification started");
     shell_contract::verify_generation(&final_path, &manifest)?;
+    crate::ci_trace::record("shell preparation generation verified");
 
     let now_i64 = i64::try_from(now).map_err(|_| "timestamp overflow".to_string())?;
     let manifest_text = std::str::from_utf8(&manifest_bytes)

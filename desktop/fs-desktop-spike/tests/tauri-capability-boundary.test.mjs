@@ -189,3 +189,14 @@ test("Windows CI and signed-release helpers load successfully", () => {
     assert.doesNotMatch(result.stderr, /SyntaxError/);
   }
 });
+
+test("Windows staging diagnostics preserve the failed deadline without retrying the probe", async () => {
+  const verifier = await text("tools/windows-ci-verifier.mjs");
+  const start = verifier.indexOf('await replaceServer("hanging")');
+  const end = verifier.indexOf("await delay(10_000)", start);
+  assert.ok(start >= 0 && end > start);
+  const staging = verifier.slice(start, end);
+  assert.equal(staging.match(/await waitForJson\(/g)?.length, 1);
+  assert.match(staging, /timeoutMs: 30_000/);
+  assert.match(staging, /catch \(error\)[\s\S]*await delay\(30_000\);\s*throw error;/);
+});

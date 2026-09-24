@@ -282,11 +282,19 @@ async function verifyHostedLifecycle() {
     await stopProcess(app);
     removeIfPresent(hostedProbePath);
     app = startApp(hostedExe);
-    await waitForJson(
-      hostedProbePath,
-      (value) => value?.nativeEvidence?.candidateBuildId === expected.hangingBuildId,
-      { process: app, timeoutMs: 30_000 },
-    );
+    try {
+      await waitForJson(
+        hostedProbePath,
+        (value) => value?.nativeEvidence?.candidateBuildId === expected.hangingBuildId,
+        { process: app, timeoutMs: 30_000 },
+      );
+    } catch (error) {
+      // Keep the original gate failed. Observe native phase traces after its
+      // deadline to distinguish continued extraction from a stalled lock.
+      console.error("Candidate staging gate failed; collecting 30 seconds of diagnostic trace, without retrying the assertion.");
+      await delay(30_000);
+      throw error;
+    }
     await delay(10_000);
     if (app.exitCode !== null) throw new Error(`Hosted app exited during native candidate watchdog (${app.exitCode}).`);
     await stopProcess(app);

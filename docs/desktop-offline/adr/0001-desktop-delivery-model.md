@@ -73,3 +73,7 @@ These items keep production readiness open; they do not reopen the local deliver
 ## Gate disposition
 
 The architecture gate remains provisionally closed only for continued local implementation. Candidate A is primary, Candidate B is fallback evidence, and Candidate C is not selected as a separate rail. No deployment, release, installer publication, production signing, real credential use or Supabase change is authorized by this ADR.
+
+### Conflict-review checkpoint verification hold (2026-09-23)
+
+[Run 35947051993](https://github.com/maklind88/footballscience/actions/runs/35947051993) passed full web CI, desktop/native contracts, Windows release compilation and seven runtime checks on `f2e08cc3`, but timed out waiting for the hanging candidate's staging evidence. The remaining six runtime checks are not verified for this checkpoint. Candidate A is not rejected on an unexplained timeout, and Candidate B rebuilt/started successfully, but this checkpoint is **not cleared by Windows CI**. The failure must be diagnosed without converting a later observation into a passed deadline. See [the bounded recovery report](../CONFLICT_REVIEW_RECOVERY.md) and [sanitized failure evidence](../CONFLICT_RECOVERY_WINDOWS_2026-09-23.json). The prior local-development decision is not a production-readiness approval.

@@ -42,7 +42,9 @@ Baseline controlled runs overlapped the first corrected-source runs; therefore d
 - Native Rust: 72 passed, zero failures, one unchanged ignored real OS credential-store test.
 - Rust format and strict Clippy passed; syntax and diff whitespace checks passed.
 - Candidate A optimized macOS build passed (25.60 s compilation); no installer published.
-- Complete mandatory QA and Windows CI: pending at this checkpoint. Push is prohibited until mandatory QA passes.
+- Complete mandatory `npm run qa`: exit 0, **3,160 passed, zero failures, three unchanged private-fixture skips**, 13.6 minutes. Original keyboard smoke and the new regression both passed inside this full run. Database-search submit measured **250 ms / 1,000 ms**, unchanged guard.
+- The three skips require a private Scouting workbook and a real local match video at two viewports; they are not verified results.
+- Separate fix commit: `f2e08cc3f2252786e2cfd0dcc4276b65f4418cfe`. The clean isolated branch was pushed only after all required local checks passed. [Windows CI run 35947051993](https://github.com/maklind88/footballscience/actions/runs/35947051993) tests that exact SHA; see the desktop conflict-review report for its final result.
 
 Local logs: `/private/tmp/fs-scouting-keyboard-{baseline-before,current-before,baseline-regression,regression-before,after}.log`, `/private/tmp/fs-keyboard-prerequisite-desktop-node.log`, `/private/tmp/fs-keyboard-prerequisite-macos-build.log`, `/private/tmp/fs-keyboard-prerequisite-full-qa.log`. The failing baseline and desktop regression runs retain screenshots and traces under the corresponding `/private/tmp/fs-scouting-keyboard-*` output directories.
 

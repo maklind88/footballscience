@@ -61,14 +61,18 @@ pub fn extract(
         fs::remove_dir_all(destination).map_err(|error| error.to_string())?;
     }
     fs::create_dir_all(destination).map_err(|error| error.to_string())?;
-    for entry in parsed.files {
+    for (index, entry) in parsed.files.into_iter().enumerate() {
         let start = usize::try_from(entry.offset).map_err(|_| "web bundle offset overflow")?;
         let length = usize::try_from(entry.bytes).map_err(|_| "web bundle size overflow")?;
         let end = start
             .checked_add(length)
             .ok_or_else(|| "web bundle payload overflow".to_string())?;
         durable_write(&destination.join(&entry.path), &parsed.payload[start..end])?;
+        if (index + 1) % 128 == 0 {
+            crate::ci_trace::record(format!("shell extraction durable files={}", index + 1));
+        }
     }
+    crate::ci_trace::record("shell extraction all files durable; verification started");
     verify_extracted(bundle_bytes, destination, contract)
 }
 

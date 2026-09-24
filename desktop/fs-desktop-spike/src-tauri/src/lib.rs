@@ -252,14 +252,17 @@ async fn desktop_prepare_shell_update(
     let runtime = runtime(&state)?;
     let worker_runtime = runtime.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
+        ci_trace::record("shell preparation waiting for shell lock");
         let mut shell = worker_runtime
             .shell
             .write()
             .map_err(|_| "shell state lock poisoned".to_string())?;
+        ci_trace::record("shell preparation waiting for database lock");
         let mut connection = worker_runtime
             .connection
             .lock()
             .map_err(|_| "local database lock poisoned".to_string())?;
+        ci_trace::record("shell preparation locks acquired");
         bootstrap::download_and_stage(
             &worker_runtime.root,
             &mut connection,

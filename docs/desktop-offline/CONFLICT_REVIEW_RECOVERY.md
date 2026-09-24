@@ -50,7 +50,7 @@ Local checks completed so far:
 - Final `npm run qa:static`: passed, including syntax/security/storage/migration/performance/architecture guards. The existing 83 cross-module file-size warnings are unchanged.
 - Candidate A macOS release compilation: passed (`npm run tauri:build:hosted`, 1m39s optimized compilation). No installer or package was published, and this is not packaged-dialog interaction evidence.
 
-### Mandatory QA blocker — no push / no Windows dispatch
+### Initial mandatory QA blocker — historical, subsequently corrected
 
 Full `npm run qa` finished with exit 1: **3,158 passed, three skipped, one failed**, Playwright duration **19.9 minutes**. The unchanged private-workbook/private-video fixture skips are not verified results.
 
@@ -58,18 +58,41 @@ Failure: `qa/scouting-workspace.smoke.spec.mjs:596`, “Scouting mobile database
 
 Read-only triage confirms the failed test, Scouting implementation and all normal web/API/Supabase source files are unchanged from baseline `cdb0e7f`. The newly added dialog is injected only into the generated desktop bundle, not normal web `index.html`. This narrows the affected surface but **does not establish the failure's root cause or prove baseline reproducibility**. No retries, test weakening, Scouting implementation changes or timing-budget changes were used to force green.
 
-The desktop implementation is locally verified as listed above, but **the branch is not cleared for push or Windows CI**. This keyboard-navigation issue falls outside the previously authorized, specifically bounded Scouting database-search performance correction. It needs Scouting-owner diagnosis or explicit additional bounded ownership before proceeding. No Windows workflow was dispatched for this phase. The previous Windows run `35939954165` verifies the preceding checkpoint only, not this new code.
+At that checkpoint **the branch was not cleared for push or Windows CI**. This keyboard-navigation issue fell outside the previously authorized, specifically bounded Scouting database-search performance correction. Work paused until the user explicitly approved bounded ownership of this additional QA prerequisite. The previous Windows run `35939954165` verifies the preceding checkpoint only, not this new code.
 
 Local evidence:
 
 - Full QA: `/private/tmp/fs-conflict-recovery-qa-20260923.log`
-- Failure screenshot/context/trace: `test-results/scouting-workspace.smoke-S-1b272-profile-remain-unobstructed-chromium/`
+- Initial failure screenshot/context/trace were inspected in `test-results/scouting-workspace.smoke-S-1b272-profile-remain-unobstructed-chromium/`; normal subsequent full QA replaces that output directory. The diagnostic baseline/current failure traces are retained separately as documented in the prerequisite report.
 - Desktop contracts: `/private/tmp/fs-conflict-recovery-node-20260923.log`
 - Static checks: `/private/tmp/fs-conflict-recovery-static-20260923.log`
 - Five recovery repetitions: `/private/tmp/fs-conflict-recovery-repeat-20260923.log`
 - macOS build: `/private/tmp/fs-conflict-recovery-macos-build-20260923.log`
 
-Next operational step is to resolve this scoped QA blocker, rerun the complete mandatory suite under its normal rules, and only then push the isolated branch and dispatch Windows CI. None of this authorizes deployment or real-data activation.
+### Approved prerequisite resolution and current verification
+
+The user approved the bounded keyboard prerequisite. [Scouting diagnosis and fixed-run evidence](../SCOUTING_PROFILE_KEYBOARD_QA.md) records the baseline comparison, deterministic redraw/focus failure, minimal eight-line implementation correction and unchanged original QA gate. Scouting remains a separate commit (`f2e08cc3f2252786e2cfd0dcc4276b65f4418cfe`) from desktop implementation (`3eac3281a29b09e224db86f719dd481541b9d3a2`).
+
+- Focused keyboard tests: ten passed after correction; the deterministic redraw test previously failed three times each on the baseline and desktop source.
+- Complete mandatory `npm run qa`: **3,160 passed, zero failures, three existing private-fixture skips**, 13.6 minutes, exit 0. Both keyboard tests passed in the full run; database search passed at 250 ms against its unchanged 1,000 ms guard.
+- Desktop contracts re-run: 62 passed. Rust re-run: 72 passed, one unchanged ignored real OS-vault test; format and strict Clippy passed.
+- Candidate A optimized macOS build re-run with corrected web source: passed, 25.60 s compilation. Still no claim of packaged conflict-dialog acceptance.
+- Clean branch `codex/fs-desktop-offline-phase3-current-main` pushed at `f2e08cc3` only after the required checks passed.
+- [Windows CI run 35947051993](https://github.com/maklind88/footballscience/actions/runs/35947051993), **FS Desktop Windows Architecture Verification**, tested exact SHA `f2e08cc3f2252786e2cfd0dcc4276b65f4418cfe`: **failed**, not an accepted full Windows checkpoint. All six web QA jobs, 62 desktop contracts, 72 native tests (one existing ignored OS-vault test), strict Clippy/format and all three Windows release compilations passed. Runtime verification passed seven checks before the hanging-candidate staging probe timed out at its unchanged 30-second limit. Subsequent quarantine/backoff, offline transitions and unauthorized-origin probe were not completed in this run.
+
+[Sanitized Windows failure evidence](CONFLICT_RECOVERY_WINDOWS_2026-09-23.json) records the environment, artifact identities and exact limitations. Artifact `fs-desktop-windows-architecture-35947051993` contains three unsigned executable builds, build/runtime manifests and logs; all executable SHA-256/size pairs were verified after download. The CI artifact-name guard was skipped because the preceding runtime step failed; an equivalent local filename check found no forbidden key/secret filenames. Neither result is a claim of production-secret use or a complete binary secret scan.
+
+The trace ends after `desktop_prepare_shell_update` starts; it does not establish whether lock contention, HTTP, durable extraction or another cause consumed the deadline. The previous successful Windows trace (`35939954165`) measured this preparation at 24,370 ms, compared with 11,827 ms for initial preparation. The failed run's initial preparation took 10,340 ms. These limited observations motivate investigation, not a conclusion of environmental noise or a justified budget increase.
+
+No timeout increase, retry-until-green or weakening is justified by this evidence. A local diagnostic-only change adds CI-gated phase markers for lock acquisition, signature verification, asset download/write and bundle extraction/verification. It logs only fixed stage names and numeric counters, not credentials, user content or arbitrary paths. The Windows verifier retains the exact 30-second assertion deadline. On failure only, it observes native tracing for another 30 seconds and then rethrows the original error unconditionally; later progress cannot turn that failed assertion green. Functional contracts and pass/fail budgets are unchanged.
+
+With this instrumentation, the actual packaged macOS verifier passed all ten checks, including candidate quarantine/backoff, offline cold start, process restart and reconnect. Hanging-candidate preparation completed in about 4.4 seconds there. This is useful macOS comparison evidence, **not** Windows resolution or packaged conflict-dialog acceptance. A further Windows diagnostic run requires the normal local QA gate; the original failed run remains part of the evidence.
+
+Diagnostic checkpoint local validation: **63 desktop contracts passed** (including a new guard against retry/late-pass behavior), **72 Rust tests passed, one unchanged OS-vault test ignored**, strict Clippy/format/syntax/diff checks passed, and a second complete mandatory QA run returned **3,160 passed, zero failures, three unchanged private-fixture skips**, 13.9 minutes. Only one instrumented Windows verification is to be dispatched; the workflow itself is unchanged.
+
+Candidate A remains the working recommendation and Candidate B passed rebuild/startup as a fallback. However, this Windows checkpoint remains blocked until the timeout is understood and the complete runtime suite passes. The prior provisional local architecture decision does not convert this failed verification into a pass. Physical Windows production-readiness gates remain open.
+
+Local full-suite log: `/private/tmp/fs-keyboard-prerequisite-full-qa.log`. No staging/production deployment, main integration or real-data activation is authorized by this resolution.
 
 ## Explicit limitations and next gates
 

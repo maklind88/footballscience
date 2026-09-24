@@ -1,3 +1,5 @@
+import { createLocalDatabaseConnection } from "./local-database-connection.mjs";
+
 export const offlineOperationStoreName = "offline-operations-v1";
 const schemaVersion = 1;
 
@@ -40,32 +42,10 @@ export function createOfflineOperationJournal(options = {}) {
   const indexedDB = options.indexedDB ?? globalThis.indexedDB;
   const databaseName = normalizeText(options.databaseName) || "football-science-data-safety-v1";
   const now = typeof options.now === "function" ? options.now : Date.now;
-  let opening = null;
-
-  function open() {
-    if (opening) return opening;
-    opening = new Promise((resolve, reject) => {
-      if (!indexedDB) {
-        reject(new Error("Offline operation storage is unavailable."));
-        return;
-      }
-      const request = indexedDB.open(databaseName, 2);
-      request.onupgradeneeded = () => {
-        const database = request.result;
-        for (const storeName of ["snapshots", "latest", offlineOperationStoreName]) {
-          if (!database.objectStoreNames.contains(storeName)) {
-            database.createObjectStore(storeName, { keyPath: storeName === offlineOperationStoreName ? "recordId" : "id" });
-          }
-        }
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => {
-        opening = null;
-        reject(request.error || new Error("Offline operation storage could not open."));
-      };
-    });
-    return opening;
-  }
+  const { open, close } = createLocalDatabaseConnection({ indexedDB, databaseName, version: 2,
+    stores: ["snapshots", "latest", offlineOperationStoreName].map((name) => ({
+      name, keyPath: name === offlineOperationStoreName ? "recordId" : "id",
+    })) });
 
   async function transact(mode, action) {
     const database = await open();
@@ -76,16 +56,6 @@ export function createOfflineOperationJournal(options = {}) {
       transaction.onerror = () => reject(transaction.error || new Error("Offline operation storage failed."));
       transaction.onabort = () => reject(transaction.error || new Error("Offline operation storage was cancelled."));
     });
-  }
-
-  async function close() {
-    const currentOpening = opening;
-    if (!currentOpening) return;
-    const database = await currentOpening;
-    database.close();
-    if (opening === currentOpening) {
-      opening = null;
-    }
   }
 
   async function put(operation = {}) {

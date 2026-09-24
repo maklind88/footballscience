@@ -59,7 +59,7 @@ for (const width of [1470, 390]) {
   });
 }
 
-test("a colleague's changed player appears after closing a protected profile, exactly once", async ({ page }) => {
+test("a colleague's changed player appears after closing a protected profile and subsequent unchanged sync stays quiet", async ({ page }) => {
   await boot(page);
   await page.locator('[data-player-profile-select="qa-quiet-player"]').click();
   await expect(page.locator("#playerProfileEditForm")).toBeVisible();
@@ -82,8 +82,17 @@ test("a colleague's changed player appears after closing a protected profile, ex
   await page.locator("[data-player-profile-modal-close]").click();
   await pulse(page);
   await expect(page.locator('[data-player-profile-select="qa-quiet-player"]')).toContainText("QA Updated By Colleague");
-  await expect(page.locator('.squad-availability-cell[aria-busy="true"]')).toHaveCount(0);
-  await page.evaluate(() => { window.__qaUpdatedRow = document.querySelector(".squad-player-row"); });
+  // Renaming also updates the Medical projection. Acknowledge that real change before testing an unchanged pulse.
+  await expect.poll(() => page.evaluate(() => Object.values(
+    JSON.parse(localStorage.getItem("football-data-safety-v1") || "{}").entries || {}
+  ).some((entry) => entry.pendingCentralSync))).toBe(false);
   await pulse(page);
-  expect(await page.evaluate(() => window.__qaUpdatedRow === document.querySelector(".squad-player-row"))).toBe(true);
+  await expect(page.locator('.squad-availability-cell[aria-busy="true"]')).toHaveCount(0);
+  await page.evaluate(() => {
+    window.__qaUpdatedRow = document.querySelector('[data-player-profile-select="qa-quiet-player"]');
+    window.__qaSettledMetadata = JSON.stringify(window.__qaSquadMetadata);
+  });
+  await pulse(page);
+  expect(await page.evaluate(() => JSON.stringify(window.__qaSquadMetadata))).toBe(await page.evaluate(() => window.__qaSettledMetadata));
+  expect(await page.evaluate(() => window.__qaUpdatedRow === document.querySelector('[data-player-profile-select="qa-quiet-player"]'))).toBe(true);
 });

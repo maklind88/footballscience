@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { createCentralAppStateReloadService } from "../src/core/central-app-state-reload-service.mjs";
+import { getSquadCentralReloadKey } from "../src/modules/squad/squad-central-reload-key.mjs";
 
 function createHarness(options = {}) {
   const calls = [];
@@ -32,6 +33,7 @@ function createHarness(options = {}) {
       getStatus: () => ({ metadata: options.metadata }),
     }),
     getCurrentPlatformUser: () => options.currentUser ?? { id: "coach-1" },
+    getNow: () => options.now || new Date(2026, 8, 23),
     getHubState: () => state.hubState,
     getSessionPlannerState: () => state.sessionPlannerState,
     hasPendingCentralStateWrites: () => options.pendingWrites || false,
@@ -85,6 +87,105 @@ function createHarness(options = {}) {
   });
   return { calls, documentRef, service, state, timers };
 }
+
+const squadKey = "football-player-profiles-v1";
+const medicalKey = "football-medical-team-v1";
+
+test("the first unchanged sync after rendering Squad also preserves the view", () => {
+  const h = createHarness({ activeWorkspaceId: "player-profiles", metadata: { [squadKey]: { revision: 3 } } });
+  h.service.rememberSquadWorkspaceRender();
+  h.service.requestCentralizedAppStateReload();
+  expect(h.calls).not.toContain("render-workspace");
+});
+
+test("Squad keeps its DOM on unchanged sync and unrelated module changes", () => {
+  const metadata = { [squadKey]: { revision: 3 }, [medicalKey]: { revision: 7 } };
+  const h = createHarness({ activeWorkspaceId: "player-profiles", metadata });
+  h.service.requestCentralizedAppStateReload();
+  h.calls.length = 0;
+  h.service.requestCentralizedAppStateReload();
+  metadata["football-scouting-v1"] = { revision: 40 };
+  metadata[squadKey].updatedAt = "new read timestamp";
+  h.service.requestCentralizedAppStateReload();
+  expect(h.calls).not.toContain("render-workspace");
+  expect(h.state.scoutingState).toEqual({ module: "scouting" });
+  expect(h.state.medicalState).toEqual({ module: "medical" });
+});
+
+for (const key of [squadKey, medicalKey, "football-schedule-v1", "football-session-planner-v3",
+  "football-periodization-v2", "football-platform-structure-v1", "football-workspace-hub-v3"]) {
+  test(`Squad redraws when its dependency changes: ${key}`, () => {
+    const metadata = { [squadKey]: { revision: 3 }, [key]: { revision: 7 } };
+    const h = createHarness({ activeWorkspaceId: "player-profiles", metadata });
+    h.service.requestCentralizedAppStateReload();
+    h.calls.length = 0;
+    metadata[key].revision += 1;
+    h.service.requestCentralizedAppStateReload();
+    h.service.requestCentralizedAppStateReload();
+    expect(h.calls.filter((call) => call === "render-workspace")).toHaveLength(1);
+  });
+}
+
+test("Squad defers real changes until editing ends without consuming the new revision", () => {
+  const metadata = { [squadKey]: { revision: 3 } };
+  const h = createHarness({ activeWorkspaceId: "player-profiles", metadata });
+  h.service.requestCentralizedAppStateReload();
+  h.calls.length = 0;
+  h.documentRef.activeElement = { isEditable: true };
+  metadata[squadKey].revision++;
+  h.service.requestCentralizedAppStateReload();
+  h.service.requestCentralizedAppStateReload();
+  expect(h.calls).not.toContain("render-workspace");
+  h.service.rememberSquadWorkspaceRender();
+  h.documentRef.activeElement = null;
+  h.service.flushDeferredCentralizedAppStateReload();
+  expect(h.calls.filter((call) => call === "render-workspace")).toHaveLength(1);
+  expect(h.service.isCentralizedAppStateReloadPending()).toBe(false);
+});
+
+test("Squad invalidates refresh evidence on date, identity, scope, hash and dependency removal", () => {
+  const options = { currentUser: { id: "coach", teamId: "team-a", role: "coach" },
+    metadata: { [squadKey]: { revision: 3 }, [medicalKey]: { revision: 7 } }, now: new Date(2026, 8, 23) };
+  const original = getSquadCentralReloadKey(options);
+  for (const currentUser of [{ id: "other" }, { ...options.currentUser, teamId: "team-b" },
+    { ...options.currentUser, role: "guest" }]) {
+    expect(getSquadCentralReloadKey({ ...options, currentUser })).not.toBe(original);
+  }
+  expect(getSquadCentralReloadKey({ ...options, now: new Date(2026, 8, 24) })).not.toBe(original);
+  expect(getSquadCentralReloadKey({ ...options, metadata: { [squadKey]: { revision: 3 } } })).not.toBe(original);
+  options.metadata[squadKey].hash = "changed";
+  expect(getSquadCentralReloadKey(options)).not.toBe(original);
+});
+
+test("missing Squad version evidence fails open to rendering; other workspaces stay unchanged", () => {
+  for (const metadata of [undefined, {}, { [squadKey]: { revision: "3" } },
+    { [squadKey]: { revision: 3 }, [medicalKey]: {} }]) {
+    const h = createHarness({ activeWorkspaceId: "player-profiles", metadata });
+    h.service.requestCentralizedAppStateReload();
+    h.service.requestCentralizedAppStateReload();
+    expect(h.calls.filter((call) => call === "render-workspace")).toHaveLength(2);
+  }
+  const h = createHarness({ activeWorkspaceId: "home", metadata: { [squadKey]: { revision: 3 } } });
+  h.service.requestCentralizedAppStateReload();
+  h.service.requestCentralizedAppStateReload();
+  expect(h.calls.filter((call) => call === "render-workspace")).toHaveLength(2);
+});
+
+test("Squad refresh evidence resets when changing workspaces and at midnight", () => {
+  const options = { activeWorkspaceId: "player-profiles", metadata: { [squadKey]: { revision: 3 } }, now: new Date(2026, 8, 23) };
+  const h = createHarness(options);
+  h.service.requestCentralizedAppStateReload();
+  h.calls.length = 0;
+  options.now = new Date(2026, 8, 24);
+  h.service.requestCentralizedAppStateReload();
+  expect(h.calls).toContain("render-workspace");
+  h.state.hubState.activeWorkspaceId = "home";
+  h.service.requestCentralizedAppStateReload();
+  h.calls.length = 0;
+  h.state.hubState.activeWorkspaceId = "player-profiles";
+  h.service.requestCentralizedAppStateReload();
+  expect(h.calls).toContain("render-workspace");
+});
 
 test("central app-state reload service owns reload and refresh bodies outside app-runtime", () => {
   const runtimeSource = readFileSync(new URL("../app-runtime.js", import.meta.url), "utf8");

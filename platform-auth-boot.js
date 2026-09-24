@@ -160,6 +160,8 @@
     lastError: "",
     lastWriteError: "",
     lastSyncedAt: "",
+    lastFetchedAt: "",
+    lastSavedAt: "",
     localDev: false,
     metadata: {},
   };
@@ -1590,6 +1592,7 @@ async function getActiveAccessToken() {
       centralState.hydrating = false;
       centralState.lastError = "";
       centralState.lastSyncedAt = new Date().toISOString();
+      centralState.lastFetchedAt = centralState.lastSyncedAt;
       centralState.localDev = true;
       centralState.metadata = {};
       window.dispatchEvent(
@@ -1646,6 +1649,7 @@ async function getActiveAccessToken() {
       }
       centralState.hydrated = true;
       centralState.lastSyncedAt = new Date().toISOString();
+      centralState.lastFetchedAt = centralState.lastSyncedAt;
       window.dispatchEvent(
         new CustomEvent("footballscience:central-state-ready", {
           detail: { entries: hasCentralEntries ? entries : collectCentralLocalStateEntries() },
@@ -1663,6 +1667,7 @@ async function getActiveAccessToken() {
     if (authState.devMode) {
       centralState.lastWriteError = "";
       centralState.lastSyncedAt = new Date().toISOString();
+      centralState.lastSavedAt = centralState.lastSyncedAt;
       centralState.localDev = true;
       return { ok: true, localDev: true };
     }
@@ -1683,7 +1688,10 @@ async function getActiveAccessToken() {
         }
         if (result.metadata?.revision) centralState.metadata[key] = { ...centralState.metadata[key], ...result.metadata };
         centralState.lastWriteError = result.ok ? "" : result.reason;
-        if (result.ok) centralState.lastSyncedAt = new Date().toISOString();
+        if (result.ok) {
+          centralState.lastSyncedAt = new Date().toISOString();
+          centralState.lastSavedAt = centralState.lastSyncedAt;
+        }
         return result;
       }
       const baseMetadata = centralState.metadata?.[key] || {};
@@ -1724,6 +1732,7 @@ async function getActiveAccessToken() {
       if (transport) await transport.decodeSessionResponse(response.payload);
       centralState.lastWriteError = "";
       centralState.lastSyncedAt = new Date().toISOString();
+      centralState.lastSavedAt = centralState.lastSyncedAt;
       if (response.payload?.metadata) {
         centralState.metadata = {
           ...centralState.metadata,

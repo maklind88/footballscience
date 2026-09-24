@@ -138,7 +138,7 @@ function createHarness(options = {}) {
     legacyStorageKeys: {
       "football-schedule-v1": ["football-schedule-v0"],
     },
-    formatDataSafetyTime: (value) => (value ? "now" : ""),
+    formatDataSafetyTime: options.formatTime || ((value) => (value ? "now" : "")),
     canWriteCentralBackedCache: () => options.canWrite !== false,
     createCentralBackedStorageError: () => new Error("Central sync is not ready."),
     getCentralStateBridge: () => win.footballScienceCentralState,
@@ -147,6 +147,37 @@ function createHarness(options = {}) {
   });
   return { centralCache, centralCacheInfo, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
+
+test("background reads do not appear as saves or move the last saved time", () => {
+  const centralStatus = { hydrated: true, lastSyncedAt: "10:00", lastFetchedAt: "10:00", lastSavedAt: "" };
+  const h = createHarness({ centralStatus, formatTime: (value) => value || "" });
+  h.service.refreshStatus();
+  expect(h.dataSafetyStatus.textContent).toBe("Up to date");
+  expect(h.dataSafetyStatus.title).toContain("Last checked for updates 10:00");
+  centralStatus.lastSavedAt = "10:01";
+  h.service.refreshStatus();
+  expect(h.dataSafetyStatus.textContent).toBe("Saved 10:01");
+  centralStatus.lastFetchedAt = centralStatus.lastSyncedAt = "10:04";
+  h.service.refreshStatus();
+  expect(h.dataSafetyStatus.textContent).toBe("Saved 10:01");
+  expect(h.dataSafetyStatus.title).toContain("Last checked for updates 10:04");
+  expect(h.queuedWrites).toEqual([]);
+});
+
+test("pending writes and errors take priority over a successful background read", () => {
+  const centralStatus = { lastSyncedAt: "10:04", lastFetchedAt: "10:04", lastSavedAt: "10:01" };
+  const h = createHarness({ centralStatus });
+  h.service.install();
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({
+    lastSavedAt: "10:03", entries: { "football-schedule-v1": { pendingCentralSync: true } },
+  }));
+  h.service.refreshStatus();
+  expect(h.dataSafetyStatus.textContent).toBe("Sync pending now");
+  centralStatus.lastWriteError = "Save failed";
+  h.service.refreshStatus();
+  expect(h.dataSafetyStatus.textContent).toBe("Sync needs attention");
+  expect(h.dataSafetyStatus.title).toBe("Save failed");
+});
 
 test("only Sessions receives its exact pre-edit cache through the protected storage boundary", () => {
   const h = createHarness();

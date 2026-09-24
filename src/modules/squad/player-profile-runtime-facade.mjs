@@ -308,6 +308,7 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     });
     queuePlayerProfileAgeHydration();
     squadRosterRuntimeController.queueAvailabilityHydration(hydrationGeneration);
+    deps.onWorkspaceRendered?.();
   }
 
   runtimeMedicalSyncService = createPlayerProfileRuntimeMedicalSyncService({

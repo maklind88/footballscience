@@ -1,4 +1,5 @@
 import { hasActivePlatformOverlay, platformOverlayStabilityRootSelectors } from "./overlay-stability.mjs";
+import { getSquadCentralReloadKey } from "../modules/squad/squad-central-reload-key.mjs";
 
 export function createCentralAppStateReloadService(deps = {}) {
   const {
@@ -18,11 +19,22 @@ export function createCentralAppStateReloadService(deps = {}) {
   let lastRefreshAt = 0;
   let refreshInFlight = false;
   let lastSessionPlannerReloadKey = "";
+  let lastSquadReloadKey = "";
 
   const call = (name, ...args) => deps[name]?.(...args);
   const getHubState = () => call("getHubState") || null;
   const setHubState = (nextState) => call("setHubState", nextState);
   const getSessionPlannerState = () => call("getSessionPlannerState") || null;
+
+  function rememberSquadWorkspaceRender() {
+    // A locally redrawn dialog must not acknowledge deferred server changes.
+    if (reloadPending || getHubState()?.activeWorkspaceId !== "player-profiles") return;
+    lastSquadReloadKey = getSquadCentralReloadKey({
+      currentUser: call("getCurrentPlatformUser"),
+      metadata: call("getCentralStateBridge")?.getStatus?.()?.metadata,
+      now: deps.getNow?.(),
+    });
+  }
 
   function getCurrentSessionPlannerUiSelection() {
     const sessionPlannerState = getSessionPlannerState();
@@ -50,6 +62,7 @@ export function createCentralAppStateReloadService(deps = {}) {
     const currentUser = call("getCurrentPlatformUser");
     if (!currentUser) {
       lastSessionPlannerReloadKey = "";
+      lastSquadReloadKey = "";
       return;
     }
     const previousSessionPlannerSelection = getCurrentSessionPlannerUiSelection();
@@ -58,6 +71,9 @@ export function createCentralAppStateReloadService(deps = {}) {
     const sessionRevision = metadata?.["football-session-planner-v3"]?.revision;
     const reloadKey = previousWorkspaceId === "session-planner" && Number.isInteger(sessionRevision)
       ? JSON.stringify([currentUser, metadata, previousSessionPlannerSelection])
+      : "";
+    const squadReloadKey = previousWorkspaceId === "player-profiles"
+      ? getSquadCentralReloadKey({ currentUser, metadata, now: deps.getNow?.() })
       : "";
     if (getHubState()?.activeWorkspaceId === "session-planner") {
       call("syncSelectedSessionPlannerBlockFieldsFromDom");
@@ -77,8 +93,11 @@ export function createCentralAppStateReloadService(deps = {}) {
     call("syncGameSimulatorSavedSequencesFromStorage");
     call("queueSessionPlannerSnapshotRecovery");
     // Identical acknowledged revisions must not rebuild the coach's current view.
-    if (!reloadKey || reloadKey !== lastSessionPlannerReloadKey) call("renderWorkspaceChrome");
+    const unchangedSession = reloadKey && reloadKey === lastSessionPlannerReloadKey;
+    const unchangedSquad = squadReloadKey && squadReloadKey === lastSquadReloadKey;
+    if (!unchangedSession && !unchangedSquad) call("renderWorkspaceChrome");
     lastSessionPlannerReloadKey = reloadKey;
+    lastSquadReloadKey = squadReloadKey;
     call("scheduleDashboardLoginPopups");
   }
 
@@ -174,6 +193,7 @@ export function createCentralAppStateReloadService(deps = {}) {
     isCentralizedAppStateReloadPending: () => reloadPending,
     readSessionPlannerStatePreservingUiSelection,
     refreshCentralStateFromSource,
+    rememberSquadWorkspaceRender,
     reloadCentralizedAppStateFromStorage,
     requestCentralizedAppStateReload,
     setCentralizedAppStateReloadPending,

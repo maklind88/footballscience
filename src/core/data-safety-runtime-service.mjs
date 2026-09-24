@@ -404,6 +404,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return;
     }
     const centralTime = formatDataSafetyTime(centralStatus.lastSyncedAt || manifest.lastCentralSyncedAt);
+    const centralSavedTime = formatDataSafetyTime(centralStatus.lastSavedAt);
+    const fetchedTime = formatDataSafetyTime(centralStatus.lastFetchedAt);
     const snapshotTime = formatDataSafetyTime(manifest.lastSnapshotAt);
     const savedTime = formatDataSafetyTime(manifest.lastSavedAt);
     if (centralStatus.localDev) {
@@ -417,8 +419,11 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return;
     }
     if (centralTime) {
-      ui.dataSafetyStatus.textContent = `Central sync ${centralTime}`;
-      ui.dataSafetyStatus.title = "Synced centrally.";
+      ui.dataSafetyStatus.textContent = centralSavedTime ? `Saved ${centralSavedTime}` : "Up to date";
+      ui.dataSafetyStatus.title = [
+        centralSavedTime ? `Changes saved to server ${centralSavedTime}.` : "No pending changes.",
+        fetchedTime ? `Last checked for updates ${fetchedTime}.` : "",
+      ].filter(Boolean).join(" ");
       return;
     }
     if (snapshotTime) {

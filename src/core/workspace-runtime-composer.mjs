@@ -193,6 +193,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
   };
 
   const playerProfileRuntimeFacade = createPlayerProfileRuntimeFacade({
+    onWorkspaceRendered: () => centralAppStateReloadService.rememberSquadWorkspaceRender(),
     buildPlayerProfileImportFeedbackMessage: deps.buildPlayerProfileImportFeedbackMessage,
     buildPlayerProfileImportPlan: deps.buildPlayerProfileImportPlan,
     buildPlayerProfileImportPreviewMessage: deps.buildPlayerProfileImportPreviewMessage,

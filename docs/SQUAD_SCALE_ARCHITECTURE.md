@@ -79,3 +79,13 @@ Keep the first screen calm and operational:
 - Heavy analytics such as depth charts, role DNA, and dashboards should stay hidden until they solve a real daily workflow.
 
 The north star is boring in the best way: fast list, reliable profile, clean permissions, no accidental cross-organization leakage.
+
+## Background Refresh Contract
+
+- Keep central polling and focus/visibility refresh enabled. Suppress only an unchanged Squad render, never state hydration or pending-write recovery.
+- `squad-central-reload-key.mjs` lists the server-versioned inputs used by Squad. Extend it when adding a new data dependency to the roster or team header. User/scope and the local calendar day are also part of the key.
+- Missing revision evidence falls back to rendering. This is an in-memory view optimization, not a persistent cache or source of truth.
+- Record the key after a Squad render, but never acknowledge a deferred server update from a locally redrawn dialog. Keep the existing editable-field and overlay deferral guards.
+- Central status exposes separate `lastFetchedAt` and `lastSavedAt` timestamps. The latter advances only after successful writes; `lastSyncedAt` remains compatible with existing consumers. Pending writes and errors always take priority in the indicator.
+- Focused coverage: `central-app-state-reload-service-contract`, `central-sync-status-timestamps`, `data-safety-runtime-service-contract`, and `squad-background-sync.smoke` under `qa/`.
+- Shared boundary: Squad owns its read dependencies; System/Security owns central transport and write safety. Any release of this contract follows the Safe Lane.

@@ -10098,6 +10098,14 @@ function getScoutingFocusSnapshot() {
   if (!activeElement || !ui.scoutingWorkspace?.contains(activeElement)) {
     return null;
   }
+  const profileTab = activeElement.closest?.('[role="tab"][data-scouting-profile-tab]');
+  if (profileTab) {
+    return {
+      selector: `[data-scouting-profile-tab="${escapeScoutingCssAttribute(profileTab.dataset.scoutingProfileTab)}"]`,
+      selectorIndex: 0,
+      fieldIndex: -1,
+    };
+  }
   const field = activeElement.closest?.("input, textarea, select, [contenteditable='true']");
   if (!field || !ui.scoutingWorkspace.contains(field)) {
     return null;

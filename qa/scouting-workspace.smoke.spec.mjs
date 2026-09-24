@@ -653,6 +653,42 @@ test("Scouting mobile database, Lists action, and profile remain unobstructed", 
   await expect(page.locator('.scouting-tab[data-scouting-tab="database"]')).toHaveClass(/is-active/);
 });
 
+test("Scouting profile keeps keyboard focus through deferred rendering and consecutive tab navigation", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedScoutingAccess(page, { activeTab: "database" });
+  await bootApp(page);
+  await openWorkspace(page, "scouting");
+  const firstPlayer = await loadScoutingDatabase(page);
+
+  // Control the real post-open timer, without replacing rendering or key handling.
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 100));
+  await firstPlayer.click();
+  const profile = page.locator("[data-scouting-profile-modal]:visible");
+  await expect(profile).toHaveAttribute("aria-busy", "true");
+  const overview = profile.getByRole("tab", { name: "Overview", exact: true });
+  await overview.focus();
+  await expect(overview).toBeFocused();
+  await page.clock.runFor(750);
+  await expect(profile).not.toHaveAttribute("aria-busy", "true");
+  await expect(overview).toBeFocused();
+
+  for (const [key, name] of [
+    ["ArrowRight", "Performance"],
+    ["ArrowRight", "Squad fit"],
+    ["Home", "Overview"],
+    ["End", "History"],
+    ["ArrowRight", "Overview"],
+    ["ArrowLeft", "History"],
+  ]) {
+    await page.keyboard.press(key);
+    const tab = profile.getByRole("tab", { name, exact: true });
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+    await expect(tab).toBeFocused();
+  }
+});
+
 test("Scouting role model stays inside desktop and mobile viewports", async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 1440, height: 1000 });

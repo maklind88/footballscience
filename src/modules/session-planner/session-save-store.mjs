@@ -1,22 +1,10 @@
+import { createLocalDatabaseConnection } from "../../core/local-database-connection.mjs";
+
 const prefix = "session-save:";
 
 export function createSessionSaveStore({ indexedDB = globalThis.indexedDB } = {}) {
-  let opening;
-  function open() {
-    if (opening) return opening;
-    opening = new Promise((resolve, reject) => {
-      if (!indexedDB) { reject(new Error("Local save storage is unavailable.")); return; }
-      const request = indexedDB.open("football-science-data-safety-v1", 1);
-      request.onupgradeneeded = () => {
-        for (const name of ["snapshots", "latest"]) {
-          if (!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name, { keyPath: "id" });
-        }
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => { opening = null; reject(request.error); };
-    });
-    return opening;
-  }
+  const { open } = createLocalDatabaseConnection({ indexedDB, databaseName: "football-science-data-safety-v1",
+    stores: ["snapshots", "latest"].map((name) => ({ name, keyPath: "id" })) });
   async function transact(mode, action) {
     const db = await open();
     return new Promise((resolve, reject) => {

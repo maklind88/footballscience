@@ -1519,21 +1519,8 @@ async function writeRevisionValue(page, title) {
 }
 
 async function closeCentralStateContext(context) {
-  try {
-    await Promise.race([
-      context.close(),
-      new Promise((resolve) => setTimeout(resolve, 2_500)),
-    ]);
-  } catch (error) {
-    const message = String(error?.message || "");
-    if (
-      message.includes("Target page, context or browser has been closed") ||
-      (message.includes("ENOENT") && (message.includes(".network") || message.includes(".trace") || message.includes(".zip")))
-    ) {
-      return;
-    }
-    throw error;
-  }
+  // Trace finalization must finish before Playwright starts the next test.
+  await context.close();
 }
 
 test("two browser tabs send baseRevision and stale tab cannot overwrite newer central state", async ({ browser, baseURL }) => {

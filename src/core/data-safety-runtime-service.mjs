@@ -1,4 +1,5 @@
 import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
+import { createLocalDatabaseConnection } from "./local-database-connection.mjs";
 
 export function createDataSafetyRuntimeService(deps = {}) {
   const {
@@ -38,7 +39,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
   let nativeKey = null;
   let snapshotTimer = null;
   let statusTimer = null;
-  let dbPromise = null;
+  const { open: openDatabase } = createLocalDatabaseConnection({ getIndexedDB: () => win.indexedDB, databaseName,
+    stores: [snapshotStoreName, latestStoreName].map((name) => ({ name, keyPath: "id" })) });
   let installed = false;
 
   function getStorage() {
@@ -311,29 +313,6 @@ export function createDataSafetyRuntimeService(deps = {}) {
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
-  }
-
-  function openDatabase() {
-    if (dbPromise) return dbPromise;
-    dbPromise = new Promise((resolve, reject) => {
-      if (!win.indexedDB) {
-        reject(new Error("IndexedDB is not available."));
-        return;
-      }
-      const request = win.indexedDB.open(databaseName, 1);
-      request.onupgradeneeded = () => {
-        const database = request.result;
-        if (!database.objectStoreNames.contains(snapshotStoreName)) {
-          database.createObjectStore(snapshotStoreName, { keyPath: "id" });
-        }
-        if (!database.objectStoreNames.contains(latestStoreName)) {
-          database.createObjectStore(latestStoreName, { keyPath: "id" });
-        }
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    return dbPromise;
   }
 
   async function pruneSnapshots(database) {

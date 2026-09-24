@@ -144,6 +144,15 @@ test("Session Planner runtime service does not own raw save implementations", ()
   expect(service).toContain("writeSessionPlannerState");
 });
 
+test("Session Planner local review passes the invoking control through lazy loading", () => {
+  const service = readProjectFile("src/modules/session-planner/session-planner-runtime-service.mjs");
+  const stateService = readProjectFile("src/modules/session-planner/session-planner-runtime-state-service.mjs");
+  expect(service).toContain('const opener = event.target?.closest?.("[data-session-review-local]")');
+  expect(service).toContain("stateService.openLocalSaveReview(opener)");
+  expect(stateService).toContain("async function openLocalSaveReview(returnFocus = win.document.activeElement)");
+  expect(stateService).toContain("openSessionSaveReview({ document: win.document, bridge, legacy, returnFocus,");
+});
+
 test("Session Planner runtime service receives every dependency it consumes", () => {
   const workspaceComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const composer = readProjectFile("src/modules/session-planner/session-planner-runtime-service-composer.mjs");

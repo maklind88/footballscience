@@ -92,7 +92,7 @@ for (const width of [1470, 390]) {
       window.reviewWrites = 0; window.refreshes = 0;
       const legacy = createSessionLocalReviewService({ openDatabase: async () => db, getContext: () => context, getCentralValue: () => JSON.stringify(central), save: async () => { window.reviewWrites++; return { ok: true }; } });
       window.readSnapshots = () => new Promise((resolve) => { const req = db.transaction("snapshots").objectStore("snapshots").getAll(); req.onsuccess = () => resolve(req.result); });
-      document.querySelector("#open").addEventListener("click", () => openSessionSaveReview({ document, legacy, canReview: () => true,
+      document.querySelector("#open").addEventListener("click", (event) => openSessionSaveReview({ document, legacy, canReview: () => true, returnFocus: event.currentTarget,
         bridge: { hydrate: async () => { window.refreshes++; return true; }, getSessionSaveReviews: async () => [] } }));
     });
     await page.locator("#open").click();
@@ -118,3 +118,36 @@ for (const width of [1470, 390]) {
     await expect(page.locator("#open")).toBeFocused();
   });
 }
+
+test("local review restores keyboard focus without an explicit opener", async ({ page }) => {
+  await boot(page);
+  await page.evaluate(async () => {
+    const { openSessionSaveReview } = await import("/src/modules/session-planner/session-save-review.mjs");
+    document.querySelector("#open").addEventListener("click", () => openSessionSaveReview({
+      document, canReview: () => true, bridge: {}, legacy: { list: async () => [] },
+    }));
+  });
+  await page.locator("#open").focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "Review local saves" });
+  await expect(dialog.getByRole("status")).toHaveText("No unresolved local versions.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator("#open")).toBeFocused();
+});
+
+test("local review does not refocus an opener removed while the dialog is open", async ({ page }) => {
+  await boot(page);
+  await page.evaluate(async () => {
+    const { openSessionSaveReview } = await import("/src/modules/session-planner/session-save-review.mjs");
+    const opener = document.querySelector("#open");
+    window.removedFocusCalls = 0;
+    await openSessionSaveReview({ document, returnFocus: opener, canReview: () => true,
+      bridge: {}, legacy: { list: async () => [] } });
+    opener.remove();
+    opener.focus = () => { window.removedFocusCalls++; };
+  });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(await page.evaluate(() => window.removedFocusCalls)).toBe(0);
+});

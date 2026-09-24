@@ -67,12 +67,12 @@ async function boot(page, server, principal = scope) {
   }, { url: server.url, value: server.state.value, revision: server.state.revision, principal });
 }
 
-test("Sessions offline commit survives a fully closed browser profile and replays once after reconnect", async ({ playwright, baseURL }) => {
+test("Sessions offline commit survives a fully closed browser profile and replays once after reconnect", async ({ playwright, browserName, baseURL }) => {
   const profile = await mkdtemp(join(tmpdir(), "fs-save-restart-"));
   const server = await saveServer(baseURL);
   let context;
   try {
-    context = await playwright.chromium.launchPersistentContext(profile, { headless: true });
+    context = await playwright[browserName].launchPersistentContext(profile, { headless: true });
     let page = await context.newPage();
     await boot(page, server);
     await context.setOffline(true);
@@ -92,7 +92,7 @@ test("Sessions offline commit survives a fully closed browser profile and replay
     expect(server.state.requests).toHaveLength(0);
     await context.close(); context = null;
 
-    context = await playwright.chromium.launchPersistentContext(profile, { headless: true });
+    context = await playwright[browserName].launchPersistentContext(profile, { headless: true });
     page = await context.newPage();
     await boot(page, server, "coach-b:org-b:team-b");
     expect(await page.evaluate(() => window.saveClient.pendingState())).toBeNull();

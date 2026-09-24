@@ -1,5 +1,45 @@
 # Save and offline verification, 2026-09-23
 
+## Latest-main rebase verification
+
+Updated the isolated `codex/save-offline-verification-20260923` candidate onto
+`778f55fa7271040eebe6789a038a317da108ac93`, confirmed against GitHub again after
+testing. The two incoming commits contain IDP background-refresh changes and an
+empty Home release marker. No storage-file conflicts occurred.
+
+`git range-diff 87707234..f6739f05 origin/main..HEAD` confirmed both original
+candidate patches were unchanged by rebase. Their new commits are `e42bb407`
+and `857141e51d87c07398167cba3a358a4d47df72ad`; the latter is the tested HEAD.
+The candidate still changes only the nine intended storage, QA and report files.
+
+Post-rebase checks, all terminally successful:
+
+- `npm run qa:static`: passed, including check, release rules, storage and
+  input-save policy, security, migration lint, performance and architecture.
+- Targeted API contracts: **142 passed**, zero failures/skips. Files cover
+  browser cleanup, central sync/facade, data-safety contracts/runtime, Sessions
+  durable saving/text drafts, and IDP background-refresh/module contracts.
+- Targeted Chromium: **43 passed**, zero failures/skips/retries. Full files:
+  `central-state-revision`, `local-database-compatibility`,
+  `save-offline-recovery`, `offline-operation-journal`, `session-save-storage`,
+  and `idp-background-refresh` (all `.smoke.spec.mjs` under `qa/`).
+- `git diff origin/main...HEAD --check`: passed.
+
+Playwright used the canonical local config, one worker and `--max-failures=1`;
+the limit did not truncate either run. Coverage includes real IndexedDB upgrade,
+quota/abort recovery, two-tab preservation, full browser restart, synthetic HTTP
+revision-CAS conflicts, central hydration, and IDP desktop/mobile refresh.
+The previous full-suite results below remain historical evidence on the earlier
+base; this rebase used a risk-focused regression matrix, not another full suite.
+
+Logs: `/private/tmp/footballscience-save-rebase-static.log`,
+`/private/tmp/footballscience-save-rebase-api.log`, and
+`/private/tmp/footballscience-save-rebase-browser.log`.
+
+No additional product changes, push, merge, staging, deployment or database
+mutation. This is local candidate verification, not production verification.
+Additional modules' offline journal integration remains disabled/unwired.
+
 ## Combined QA closure
 
 The local candidate was rebased without conflicts onto

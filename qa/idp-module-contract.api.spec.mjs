@@ -1389,7 +1389,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(menuPlayerBoardIndex).toBeLessThan(menuHistoryIndex);
   expect(menuGoalsIndex).toBeLessThan(menuHistoryIndex);
   expect(profileHtml).not.toContain("idp-profile-scouting-radar");
-  expect(profileHtml.indexOf("idp-profile-menu")).toBeLessThan(profileHtml.indexOf("Current Focus"));
+  expect(profileHtml.indexOf("idp-profile-menu")).toBeLessThan(profileHtml.indexOf("Development focuses"));
   expect(profileHtml).toContain("data-idp-action=\"ownership\"");
   expect(profileHtml).toContain("data-idp-action=\"focus\"");
   expect(profileHtml).toContain("data-idp-action=\"evidence\"");
@@ -1405,18 +1405,17 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("Player development overview");
   expect(profileHtml).not.toContain("Player Development Profile");
   expect(profileHtml).not.toContain("Player Snapshot");
-  expect(profileHtml).toContain("idp-focus-clarity-card");
+  expect(profileHtml).toContain("idp-focus-overview");
   expect(profileHtml).not.toContain("idp-focus-meta");
   expect(profileHtml).not.toContain("idp-focus-side");
   expect(profileHtml).not.toContain('aria-label="Current focus context"');
   expect(profileHtml).not.toContain("idp-current-focus-grid");
-  const focusCardHtml = profileHtml.slice(profileHtml.indexOf('<article class="idp-focus-story'), profileHtml.indexOf('</article>', profileHtml.indexOf('<article class="idp-focus-story')));
+  const focusCardHtml = profileHtml.slice(profileHtml.indexOf('<section class="idp-focus-overview'), profileHtml.indexOf('</section>', profileHtml.indexOf('<section class="idp-focus-overview')));
   expect(focusCardHtml).not.toContain('data-idp-action="evidence"');
-  expect(focusCardHtml).toContain('data-idp-action="focus"');
-  expect(focusCardHtml.indexOf('data-idp-action="focus"')).toBeLessThan(focusCardHtml.indexOf('idp-current-focus-body'));
+  expect(focusCardHtml).toContain('data-idp-action="new-focus"');
+  expect(focusCardHtml).not.toContain("idp-current-focus-body");
   expect(profileHtml).toContain("idp-current-focus-card");
   expect(profileHtml).toContain("No active focus yet");
-  expect(profileHtml).toContain("Create one clear development focus before adding observations");
   expect(profileHtml).not.toContain("Coach cue");
   expect(profileHtml).not.toContain("Receive under pressure so the player");
   expect(profileHtml).toContain("Player Board");
@@ -1776,7 +1775,7 @@ test("idp current focus card shows the focus title and focus area separately", (
   }, { canEdit: true, teamName: "North Carolina Courage", users: [] });
 
   expect(html).toContain("<h3>Distribution, claiming space and defensive organisation</h3>");
-  expect(html).toContain("<p>Control depth, claim crosses and restart the attack with clear decisions.</p>");
+  expect(html).toContain('<span class="idp-focus-card-description">Control depth, claim crosses and restart the attack with clear decisions.</span>');
   expect(html).not.toContain("Collect match and training observations for this focus");
 });
 

@@ -13,7 +13,8 @@ import {
 } from "./idp-clip-bank-renderer.mjs";
 import { renderIdpPlayerBoardPage } from "./idp-player-board-renderer.mjs";
 import { selectIdpFocus } from "./domain/idp-focus-selection.mjs";
-import { renderFocusSelect, renderFocusLevelSelect, renderFocusNavigation } from "./idp-focus-controls.mjs";
+import { renderFocusSelect, renderFocusLevelSelect } from "./idp-focus-controls.mjs";
+import { renderFocusOverview } from "./idp-focus-overview.mjs";
 
 const defaultUiState = Object.freeze({
   selectedPlayerId: "",
@@ -813,41 +814,6 @@ function renderCoachAssist(detail = {}, profile = {}, focus = null, idpInactive 
         </div>
       </div>
     </details>
-  `;
-}
-
-function renderCurrentFocusWorkspace(detail = {}, profile = {}, focus = null, idpInactive = false, canEdit = false, options = {}, strengths = []) {
-  const focusReady = hasCurrentFocus(focus);
-  const title = idpInactive ? "No active IDP" : focusReady ? focus.title : "No active focus yet";
-  const description = idpInactive
-    ? "This player's IDP is paused from Squad Room. Historical learning stays visible here until the plan is reactivated."
-    : focusReady
-      ? buildFocusAreaSummary(focus)
-      : "Create one clear development focus before adding observations, clips or review decisions for this player.";
-  return `
-    <article class="idp-focus-story idp-focus-clarity-card idp-current-focus-card ${focusReady ? "has-focus" : "is-empty"}">
-      ${renderFocusNavigation(detail, focus, canEdit && !idpInactive)}
-      <div class="idp-focus-clarity-head">
-        <div>
-          <div class="idp-section-kicker">Current Focus</div>
-          <h3>${escapeHtml(title)}</h3>
-        </div>
-        ${canEdit && !idpInactive ? `
-          <div class="idp-current-focus-actions">
-            <button type="button" class="is-primary" data-idp-action="focus">${escapeHtml(focusReady ? "Edit focus" : "Create focus")}</button>
-          </div>
-        ` : ""}
-      </div>
-      <div class="idp-current-focus-body">
-        <p>${escapeHtml(description)}</p>
-      </div>
-      ${strengths.length ? `
-        <div class="idp-focus-strengths">
-          <span>Player strengths</span>
-          <div class="idp-strength-row">${strengths.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
-        </div>
-      ` : ""}
-    </article>
   `;
 }
 
@@ -1836,7 +1802,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           ? renderProfileHistoryPage(detail, options)
           : `
       <section class="idp-development-board is-focus-only">
-        ${renderCurrentFocusWorkspace(detail, profile, focus, idpInactive, canEdit && !idpInactive, options, strengths)}
+        ${renderFocusOverview(detail, { selectedId: focus?.id, expandedId: state.ui?.expandedFocusId, canEdit, inactive: idpInactive, summary: buildFocusAreaSummary, strengths })}
       </section>
       <section class="idp-workflow-board">
         ${renderProfileSignalStream(detail, canEdit && !idpInactive)}

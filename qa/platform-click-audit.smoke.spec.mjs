@@ -643,14 +643,11 @@ test("IDP scouting radar recovers from a stale local cache and paged active data
   await expect(focusCard.locator('[data-idp-action="evidence"]')).toHaveCount(0);
   for (const width of [1450, 390]) {
     await page.setViewportSize({ width, height: 800 });
-    const title = await focusCard.locator("h3").boundingBox();
-    const edit = await focusCard.locator('.idp-focus-clarity-head [data-idp-action="focus"]').boundingBox();
-    const body = await focusCard.locator(".idp-current-focus-body").boundingBox();
+    const title = await focusCard.locator(".idp-focus-overview-head h2").boundingBox();
+    const edit = await focusCard.locator('[data-idp-action="new-focus"]').boundingBox();
     expect(title).not.toBeNull();
     expect(edit).not.toBeNull();
-    expect(body).not.toBeNull();
     expect(edit.x).toBeGreaterThanOrEqual(title.x + title.width);
-    expect(edit.y + edit.height).toBeLessThanOrEqual(body.y);
     expect(edit.x + edit.width).toBeLessThanOrEqual(width);
     await testInfo.attach(`idp-focus-${width}.png`, { body: await focusCard.screenshot(), contentType: "image/png" });
   }

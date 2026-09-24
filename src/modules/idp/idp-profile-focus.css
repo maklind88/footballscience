@@ -1,3 +1,5 @@
+@import url("./idp-focus-overview.css");
+
 .idp-focus-story.idp-focus-clarity-card {
   background:
     linear-gradient(135deg, rgba(255, 255, 255, .96), rgba(247, 250, 255, .9)),
@@ -590,35 +592,6 @@ body.is-dark-mode .idp-player-profile .idp-profile-actions-deck .idp-action-rail
     grid-template-columns: 1fr;
   }
 }
-.idp-focus-navigation {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-.idp-focus-navigation button {
-  display: grid;
-  gap: 4px;
-  text-align: left;
-  max-width: 100%;
-  min-width: 0;
-  padding: 10px 14px;
-  border: 1px solid var(--border-color, #d5dce5);
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  overflow-wrap: anywhere;
-  cursor: pointer;
-}
-.idp-focus-navigation button[aria-pressed="true"] {
-  border-color: #0e8077;
-  background: rgba(14, 128, 119, .08);
-}
-.idp-focus-navigation button:focus-visible {
-  outline: 2px solid #0e8077;
-  outline-offset: 2px;
-}
-.idp-focus-navigation small { font-size: 11px; opacity: .75; }
 .idp-exercise-link-details { border-top: 1px solid var(--border-color, #d5dce5); padding-top: 14px; }
 .idp-exercise-link-details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .idp-exercise-link-details label { display: grid; gap: 6px; margin: 12px 0; font-size: 12px; }

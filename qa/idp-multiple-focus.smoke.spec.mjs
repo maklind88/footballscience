@@ -61,7 +61,7 @@ for (const width of [1450, 390]) {
     await expect(page.locator('[data-idp-select-focus="secondary-focus"]')).toHaveAttribute("aria-pressed", "true");
     expect(focuses.find((focus) => focus.id === "main-focus").title).toBe("Crossing");
     await page.locator('[data-idp-select-focus="main-focus"]').click();
-    await page.locator('.idp-current-focus-actions [data-idp-action="focus"]').click();
+    await page.locator('[data-idp-edit-focus="main-focus"]').click();
     await expect(focusForm.locator('[name="focusId"]')).toHaveValue("main-focus");
     await expect(focusForm.locator('[name="title"]')).toHaveValue("Crossing");
     await page.locator("[data-idp-close-action]").first().click();

@@ -690,9 +690,17 @@ export function handleClick(event) {
     });
     return;
   }
+  const editFocusTrigger = event?.target?.closest?.("[data-idp-edit-focus]");
+  if (editFocusTrigger) {
+    runtime?.store.setState({ ui: { selectedFocusId: editFocusTrigger.dataset.idpEditFocus || "", actionMode: "focus", error: "", message: "" } });
+    return;
+  }
   const focusTrigger = event?.target?.closest?.("[data-idp-select-focus]");
   if (focusTrigger) {
-    runtime?.store.setState({ ui: { selectedFocusId: focusTrigger.dataset.idpSelectFocus || "" } });
+    const focusId = focusTrigger.dataset.idpSelectFocus || "";
+    runtime?.store.setState({ ui: { selectedFocusId: focusId, expandedFocusId: focusTrigger.getAttribute("aria-expanded") === "true" ? "" : focusId } });
+    const controls = getRoot(runtime?.context)?.querySelectorAll?.("[data-idp-select-focus]") || [];
+    Array.from(controls).find((control) => control.dataset.idpSelectFocus === focusId)?.focus?.({ preventScroll: true });
     return;
   }
   const actionTrigger = event?.target?.closest?.("[data-idp-action]");

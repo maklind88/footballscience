@@ -23,10 +23,3 @@ export function renderFocusLevelSelect(detail, focus) {
     ${Object.entries(focusLevels).map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""} ${available.includes(value) || value === selected ? "" : "disabled"}>${label}</option>`).join("")}
   </select></label>`;
 }
-
-export function renderFocusNavigation(detail, selected, canEdit) {
-  return `<div class="idp-focus-navigation" aria-label="Development focuses">
-    ${orderedFocuses(detail).map((focus) => `<button type="button" data-idp-select-focus="${escape(focus.id)}" aria-pressed="${focus.id === selected?.id}"><small>${escape(focusLevels[focusLevel(focus)])}</small><span>${escape(focus.title)}</span></button>`).join("")}
-    ${canEdit && availableFocusLevels(detail).length ? '<button type="button" data-idp-action="new-focus">+ Add focus</button>' : ""}
-  </div>`;
-}

@@ -4,6 +4,8 @@ This matrix describes the staged safe target, not a claim that every row is impl
 
 The [native HTTP outbox phase](NATIVE_OUTBOX_TRANSPORT.md) adds real Rust → loopback HTTP → existing handler → disposable SQL verification for that synthetic slice, including lost-ack replay and durable conflict blocking. It does **not** enable automatic upload, conflict resolution, real-user datasets or additional offline features; standard desktop builds keep the new upload command disabled.
 
+The following [conflict-review phase](CONFLICT_REVIEW_RECOVERY.md) adds explicit local reapplication for supported title/duration conflicts, with original-work checkpoints and fresh-server review. This is still build-gated, synthetic and selected-session-only. Structural changes and authorization quarantine remain blocked; neither automatic upload nor real-user dataset activation is enabled.
+
 `FULL OFFLINE` means selected content can be read and edited with durable operations. `READ-ONLY OFFLINE` means an authorized snapshot can be viewed but not mutated. `ONLINE ONLY` means content is not deliberately persisted for offline product use.
 
 | Feature | Initial classification | Offline availability | Offline edits | Internet-only behavior | Conflict/sync direction | Storage policy |

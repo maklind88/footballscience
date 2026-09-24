@@ -21,6 +21,14 @@ const handler = createDesktopSessionSyncHandler({
   getCurrentActor: async (header) => header === "Bearer synthetic-access-only-001" ? actor : null,
   guardApiRequest: () => ({ ok: true, context: { requestId: `native-local-${responses + 1}` } }),
   sendCorsHeaders: () => {},
+  readSnapshot: async (value) => {
+    await database.exec("set role fs_desktop_sync_executor");
+    try {
+      return await database.query(`select app_private.read_session_planner_desktop_snapshot_v1(
+        $1::uuid, $2::uuid, $3::uuid, $4::uuid) as snapshot`,
+      [value.actorId, value.organizationId, value.teamId, value.sessionId]);
+    } finally { await database.exec("reset role"); }
+  },
   applyOperation: async (value) => {
     await database.exec("set role fs_desktop_sync_executor");
     try {
@@ -36,7 +44,7 @@ const handler = createDesktopSessionSyncHandler({
   sendJson: async (res, status, body) => {
     assert.equal(status, 200);
     responses += 1;
-    assert.equal(body.acknowledgement, ["accepted", "already-applied", "conflict"][responses - 1]);
+    assert.equal(body.acknowledgement, ["accepted", "already-applied", "conflict", undefined, undefined, "accepted"][responses - 1]);
     if (responses === 1) {
       // Real SQL commit succeeded, but the native caller never receives its acknowledgement.
       res.destroy();
@@ -57,7 +65,18 @@ const handler = createDesktopSessionSyncHandler({
       assert.equal(count.rows[0].count, 1);
       assert.equal(remote.rows[0].row_version, 9);
       assert.equal(remote.rows[0].title, "Another writer");
-      process.stdout.write(`${JSON.stringify({ requests: responses, serverApplications: 1, revision: 9, conflictPreserved: true })}\n`);
+    }
+    if (responses === 4 || responses === 5) {
+      assert.equal(body.snapshot.session.revision, 9);
+      assert.equal(body.snapshot.session.title, "Another writer");
+    }
+    if (responses === 6) {
+      const count = await database.query("select count(*)::integer as count from app_private.session_planner_desktop_operations");
+      const remote = await database.query("select title, row_version from public.session_planner_sessions");
+      assert.equal(count.rows[0].count, 2);
+      assert.equal(remote.rows[0].row_version, 10);
+      assert.equal(remote.rows[0].title, "Offline revision 9");
+      process.stdout.write(`${JSON.stringify({ requests: responses, serverApplications: 2, revision: 10, conflictPreserved: true, explicitRecoveryApplied: true })}\n`);
       server.close();
       await database.close();
       clearTimeout(deadline);
@@ -65,7 +84,7 @@ const handler = createDesktopSessionSyncHandler({
   },
 });
 const server = createServer((req, res) => {
-  assert.equal(req.url, "/api/desktop-session-sync");
+  assert.equal(new URL(req.url, "http://127.0.0.1").pathname, "/api/desktop-session-sync");
   handler(req, res).catch(() => { process.stderr.write("Native sync fixture assertion failed.\n"); process.exit(1); });
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

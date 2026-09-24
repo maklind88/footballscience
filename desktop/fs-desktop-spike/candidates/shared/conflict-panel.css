@@ -1,0 +1,12 @@
+.fs-conflict-launcher { position: fixed; inset: auto 1rem 1rem auto; z-index: 10000; padding: .7rem 1rem; border-radius: .5rem; background: #172c39; color: #fff; border: 1px solid #7896a8; font: 14px system-ui; }
+.fs-conflict-panel { width: min(760px, calc(100vw - 3rem)); max-height: calc(100vh - 4rem); overflow: auto; background: #f9fbfc; color: #192a34; padding: 1.5rem; border: 1px solid #9aafb9; border-radius: .75rem; font: 16px/1.5 system-ui; }
+.fs-conflict-panel::backdrop { background: #10232dcc; }
+.fs-conflict-panel h2 { margin-top: 0; }
+.fs-conflict-panel table { width: 100%; border-collapse: collapse; table-layout: fixed; overflow-wrap: anywhere; }
+.fs-conflict-panel th, .fs-conflict-panel td { text-align: left; padding: .5rem; border-bottom: 1px solid #bfccd3; vertical-align: top; }
+.fs-conflict-panel caption { text-align: left; font-weight: 600; margin-bottom: .5rem; }
+.fs-conflict-panel label { display: block; margin: 1rem 0; }
+.fs-conflict-panel button { display: inline-block; padding: .6rem .8rem; margin: .5rem .5rem 0 0; border: 1px solid #627c89; border-radius: .3rem; background: #203f50; color: #fff; font: inherit; }
+.fs-conflict-panel button:disabled { opacity: .5; cursor: not-allowed; }
+.fs-conflict-panel :focus-visible, .fs-conflict-launcher:focus-visible { outline: 3px solid #127bc4; outline-offset: 3px; }
+.fs-conflict-panel li { overflow-wrap: anywhere; }

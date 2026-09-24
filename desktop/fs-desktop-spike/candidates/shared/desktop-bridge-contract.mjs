@@ -1,4 +1,5 @@
 import { activeNative, nativeBridgeAvailable, negativeProbeNative } from "./tauri-invoke.mjs";
+import { reviewToken, validateConflictReview, validateConflictRecovery } from "./conflict-contract.mjs";
 
 const allowedCandidates = new Set(["bundled", "hosted"]);
 const allowedBootModes = new Set(["online", "offline", "compatibility-blocked", "degraded", "auth-required", "unknown"]);
@@ -164,6 +165,16 @@ export function createDesktopBridge({ native = activeNative, isDesktop = nativeB
       if (!isDesktop) return false;
       await native.recordProbe(validateSpikeProbe(probe));
       return true;
+    },
+    async reviewSessionConflict(context) {
+      if (!isDesktop) return null;
+      const proof = validateSessionContext(context);
+      return validateConflictReview(await native.sessionConflict(proof), proof.partitionKey);
+    },
+    async recoverSessionConflict(context, token) {
+      if (!isDesktop) return null;
+      const proof = validateSessionContext(context);
+      return validateConflictRecovery(await native.sessionConflict(proof, reviewToken(token)), proof.partitionKey);
     },
   });
 }

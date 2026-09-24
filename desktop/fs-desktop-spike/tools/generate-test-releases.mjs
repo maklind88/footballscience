@@ -37,8 +37,11 @@ const webBundle = buildWebReleaseBundle({
     ["desktop/candidate-readiness.js", readFileSync(join(packageRoot, "candidates", "shared", "full-platform-candidate-readiness.js"))],
     ["desktop/auth-bridge.js", readFileSync(join(packageRoot, "candidates", "shared", "desktop-auth-bridge.js"))],
     ["desktop/platform-bootstrap.js", readFileSync(join(packageRoot, "candidates", "shared", "full-platform-bootstrap.js"))],
+    ...["conflict-entry.js", "conflict-panel.mjs", "conflict-panel.css", "conflict-controller.mjs",
+      "conflict-contract.mjs", "desktop-bridge-contract.mjs", "tauri-invoke.mjs"].map((name) =>
+      [`desktop/${name}`, readFileSync(join(packageRoot, "candidates", "shared", name))]),
   ]),
-  bootstrapScripts: ["desktop/candidate-readiness.js", "desktop/auth-bridge.js", "desktop/platform-bootstrap.js"],
+  bootstrapScripts: ["desktop/candidate-readiness.js", "desktop/auth-bridge.js", "desktop/platform-bootstrap.js", "desktop/conflict-entry.js"],
 });
 
 function sha256(bytes) {

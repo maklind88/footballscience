@@ -184,7 +184,7 @@ fn typed_block_duration_reaches_http_without_client_authorization_fields() {
 }
 
 #[test]
-fn native_http_handler_and_disposable_postgres_recover_lost_ack_then_preserve_conflict() {
+fn native_http_handler_and_disposable_postgres_recover_lost_ack_and_reviewed_conflict() {
     use std::io::BufRead;
     use std::process::{Command, Stdio};
     struct ServerProcess(std::process::Child);
@@ -221,12 +221,40 @@ fn native_http_handler_and_disposable_postgres_recover_lost_ack_then_preserve_co
     fixture.reopen();
     assert_eq!(fixture.counts(), (1, 1));
     assert_eq!(fixture.sync(&api).unwrap().state, "conflict");
+    let review = crate::conflict_recovery::run(
+        &api,
+        &fixture.auth,
+        &fixture.db,
+        &fixture.owner,
+        &fixture.context,
+        None,
+        || Ok(()),
+    )
+    .unwrap();
+    assert_eq!(review["serverTitle"], "Another writer");
+    assert_eq!(review["localTitle"], "Offline revision 9");
+    let receipt = crate::conflict_recovery::run(
+        &api,
+        &fixture.auth,
+        &fixture.db,
+        &fixture.owner,
+        &fixture.context,
+        review["reviewToken"].as_str(),
+        || Ok(()),
+    )
+    .unwrap();
+    assert_eq!(receipt["uploaded"], false);
+    fixture.reopen();
+    assert_eq!(fixture.counts(), (1, 1));
+    assert_eq!(fixture.sync(&api).unwrap().state, "synced");
+    fixture.reopen();
+    assert_eq!(fixture.counts(), (0, 2));
     line.clear();
     output.read_line(&mut line).unwrap();
     let evidence: Value = serde_json::from_str(&line).unwrap();
     assert_eq!(
         evidence,
-        json!({ "requests": 3, "serverApplications": 1, "revision": 9, "conflictPreserved": true })
+        json!({ "requests": 6, "serverApplications": 2, "revision": 10, "conflictPreserved": true, "explicitRecoveryApplied": true })
     );
     assert!(server.0.wait().unwrap().success());
 }

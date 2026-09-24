@@ -5,6 +5,8 @@ mod bootstrap;
 #[cfg(test)]
 mod bootstrap_tests;
 mod ci_trace;
+mod conflict_recovery;
+mod conflict_snapshot;
 mod local_data;
 mod local_schema;
 mod protocol;
@@ -208,7 +210,15 @@ fn desktop_runtime_info(
         local_schema_version: local_data::LOCAL_SCHEMA_VERSION,
         sync_protocol_version: local_data::SYNC_PROTOCOL_VERSION,
         capabilities: match delivery_mode() {
-            DeliveryMode::Hosted => bootstrap::ACTIVE_CAPABILITIES.to_vec(),
+            DeliveryMode::Hosted => {
+                let mut capabilities = bootstrap::ACTIVE_CAPABILITIES.to_vec();
+                if option_env!("FS_DESKTOP_TEST_BUILD") == Some("1")
+                    && option_env!("FS_DESKTOP_SESSION_SYNC_EXPERIMENT") == Some("1")
+                {
+                    capabilities.push("session.conflict-review");
+                }
+                capabilities
+            }
             _ => vec!["runtime.info", "spike.probe"],
         },
         global_tauri_enabled: false,
@@ -682,6 +692,48 @@ fn desktop_apply_session_operation(
 }
 
 #[tauri::command]
+async fn desktop_session_conflict(
+    window: WebviewWindow,
+    context: SessionContextProof,
+    review_token: Option<String>,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<serde_json::Value, String> {
+    require_window(&window, windows::WebviewRole::Active)?;
+    if option_env!("FS_DESKTOP_TEST_BUILD") != Some("1")
+        || option_env!("FS_DESKTOP_SESSION_SYNC_EXPERIMENT") != Some("1")
+    {
+        return Err("conflict recovery is not enabled for this build".into());
+    }
+    let worker = runtime(&state)?;
+    let api = worker
+        .auth_api
+        .clone()
+        .ok_or_else(|| "desktop API origin is not configured".to_string())?;
+    if !api.is_loopback_sync_origin() {
+        return Err("conflict experiment requires a loopback test server".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        conflict_recovery::run(
+            &api,
+            &worker.authority,
+            &worker.connection,
+            &worker.sync_owner,
+            &context,
+            review_token.as_deref(),
+            || {
+                let shell = worker
+                    .shell
+                    .read()
+                    .map_err(|_| "shell state lock poisoned".to_string())?;
+                bootstrap::validate_active_frontend_build(&shell, &context.frontend_build_id)
+            },
+        )
+    })
+    .await
+    .map_err(|_| "desktop conflict task failed".to_string())?
+}
+
+#[tauri::command]
 fn record_spike_probe(
     window: WebviewWindow,
     probe: SpikeProbe,
@@ -879,6 +931,7 @@ pub fn run() {
             desktop_session_sync_status,
             desktop_sync_selected_session,
             desktop_apply_session_operation,
+            desktop_session_conflict,
             record_spike_probe,
             internal_denied_probe,
         ])

@@ -1,0 +1,22 @@
+{
+  "schema": "fs-desktop-conflict-review-v1",
+  "partitionKey": "synthetic:tenant-301:actor-101",
+  "reviewToken": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sessionId": "00000000-0000-4000-8000-000000001001",
+  "localRevision": 8,
+  "serverRevision": 10,
+  "localTitle": "Offline matchday session",
+  "serverTitle": "Other coach version",
+  "blocks": [{
+    "id": "00000000-0000-4000-8000-000000001101",
+    "localTitle": "Dynamic activation",
+    "serverTitle": "Remote activation",
+    "localMinutes": 15,
+    "serverMinutes": 19
+  }],
+  "operations": [{
+    "operationId": "00000000-0000-4000-8000-000000006001",
+    "baseRevision": 7,
+    "operation": { "operationType": "session.rename", "title": "Offline matchday session" }
+  }]
+}

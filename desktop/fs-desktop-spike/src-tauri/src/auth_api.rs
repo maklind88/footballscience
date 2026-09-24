@@ -279,6 +279,25 @@ impl DesktopAuthApi {
         )
     }
 
+    pub fn read_session_snapshot(
+        &self,
+        session_id: &str,
+        token: &str,
+    ) -> Result<DesktopApiResponse, String> {
+        let id = uuid::Uuid::parse_str(session_id)
+            .map_err(|_| "invalid snapshot session ID".to_string())?;
+        self.request_bounded(
+            &DesktopApiRequest {
+                path: format!("/api/desktop-session-sync?sessionId={id}&syncProtocolVersion=1"),
+                method: "GET".into(),
+                body: String::new(),
+                content_type: String::new(),
+            },
+            Some(token),
+            256 * 1024,
+        )
+    }
+
     fn request_bounded(
         &self,
         request: &DesktopApiRequest,

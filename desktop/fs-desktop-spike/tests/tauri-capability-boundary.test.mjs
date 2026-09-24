@@ -45,6 +45,7 @@ test("permissions contain only the enumerated role-specific commands", async () 
     "desktop_recovery_status",
     "desktop_runtime_info",
     "desktop_session_authority",
+    "desktop_session_conflict",
     "desktop_session_sync_status",
     "desktop_sync_selected_session",
     "record_spike_probe",

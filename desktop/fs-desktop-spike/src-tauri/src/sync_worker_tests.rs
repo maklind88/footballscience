@@ -13,6 +13,9 @@ use zeroize::Zeroizing;
 #[path = "sync_fault_tests.rs"]
 mod faults;
 
+#[path = "conflict_recovery_tests.rs"]
+mod recovery;
+
 #[derive(Default)]
 struct MemoryVault(Mutex<HashMap<String, Vec<u8>>>);
 impl CredentialVault for MemoryVault {

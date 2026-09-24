@@ -18,6 +18,7 @@
     "allow-session-read",
     "allow-session-sync-status",
     "allow-session-sync",
+    "allow-session-conflict",
     "allow-session-operation",
     "allow-record-probe"
   ]

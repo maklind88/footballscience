@@ -104,7 +104,7 @@ Use one narrow authenticated Vercel handler as the public desktop sync boundary.
 
 Must fix before production: real secure auth, membership revocation/offline lease policy, local encryption/purge/device-loss policy, reviewed backend transaction, real conflict/rebase behavior, physical Windows, installers/signing/updates/SmartScreen and real network/sleep/restart behavior.
 
-Should fix during the next local phase: authorized non-production auth/API verification, physical credential-store proof, exact feature-route parity audit, bounded binary/FormData and Realtime designs, conflict review/rebase UX, bounded retry controls, more crash/fault injection and production-shell compatibility fixtures. Raw outbox inspection should not be exposed to downloaded frontend code.
+Should fix during the next local phases: authorized non-production auth/API verification, physical credential-store proof, exact feature-route parity audit, bounded binary/FormData and Realtime designs, packaged conflict-review/rebase acceptance, bounded retry controls, more crash/fault injection and production-shell compatibility fixtures. The bounded synthetic [conflict review/recovery implementation](CONFLICT_REVIEW_RECOVERY.md) now preserves originals and supports explicit reapplication, but is not production conflict resolution or a packaged-window verification claim. Raw outbox inspection should not be exposed to downloaded frontend code.
 
 Can wait: Candidate C and broad offline coverage. Should not be done: whole-document replication, generic SQL/filesystem/HTTP bridge, medical-data offline caching, refresh token in SQLite/localStorage or a second feature-equivalent Candidate B UI.
 

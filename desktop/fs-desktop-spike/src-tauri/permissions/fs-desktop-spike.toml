@@ -102,3 +102,8 @@ commands.allow = ["desktop_session_sync_status"]
 identifier = "allow-session-sync"
 description = "Allows one native-owned queued operation to a build-gated loopback test server; no caller URL or payload."
 commands.allow = ["desktop_sync_selected_session"]
+
+[[permission]]
+identifier = "allow-session-conflict"
+description = "Allows bounded conflict review and explicit local rebase in the loopback-only experiment."
+commands.allow = ["desktop_session_conflict"]

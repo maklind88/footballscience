@@ -38,6 +38,14 @@ pub fn next_pending(
     connection: &Connection,
     partition: &str,
 ) -> Result<Option<PendingOperation>, String> {
+    pending_at(connection, partition, 0)
+}
+
+pub(crate) fn pending_at(
+    connection: &Connection,
+    partition: &str,
+    offset: usize,
+) -> Result<Option<PendingOperation>, String> {
     // Include blocked rows: skipping a predecessor would upload its dependent revisions.
     let row = connection
         .query_row(
@@ -48,8 +56,11 @@ pub fn next_pending(
          EXISTS(SELECT 1 FROM local_meta m WHERE m.key = 'session-sync-conflict:' || o.operation_id)
          FROM session_outbox o JOIN session_projection s ON s.session_id = o.session_id
          WHERE o.partition_key = ?1 AND s.partition_key = ?1 AND s.selected = 1
-         ORDER BY o.base_revision, o.operation_id LIMIT 1",
-            [partition],
+         ORDER BY o.base_revision, o.operation_id LIMIT 1 OFFSET ?2",
+            params![
+                partition,
+                i64::try_from(offset).map_err(|_| "queue offset overflow")?
+            ],
             |row| {
                 Ok((
                     row.get::<_, String>(10)?,

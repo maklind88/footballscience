@@ -332,6 +332,19 @@ pub fn apply_operation(
     request: &SessionOperationRequest,
     created_at_ms: u128,
 ) -> Result<OperationReceipt, String> {
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|error| error.to_string())?;
+    let receipt = apply_in_transaction(&transaction, request, created_at_ms)?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(receipt)
+}
+
+pub(crate) fn apply_in_transaction(
+    transaction: &rusqlite::Transaction<'_>,
+    request: &SessionOperationRequest,
+    created_at_ms: u128,
+) -> Result<OperationReceipt, String> {
     validate_uuid(&request.operation_id, "operation ID")?;
     validate_uuid(&request.client_instance_id, "client instance ID")?;
     validate_uuid(&request.session_id, "session ID")?;
@@ -341,12 +354,10 @@ pub fn apply_operation(
     request.operation.validate()?;
     let request_json = serde_json::to_string(request).map_err(|error| error.to_string())?;
     let request_hash = hex_sha256(request_json.as_bytes());
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|error| error.to_string())?;
     let acknowledged: bool = transaction
         .query_row(
-            "SELECT EXISTS(SELECT 1 FROM operation_receipts WHERE operation_id = ?1)",
+            "SELECT EXISTS(SELECT 1 FROM operation_receipts WHERE operation_id = ?1)
+             OR EXISTS(SELECT 1 FROM local_meta WHERE key = 'session-recovered-operation:' || ?1)",
             [&request.operation_id],
             |row| row.get(0),
         )
@@ -416,7 +427,6 @@ pub fn apply_operation(
             request.context.organization_id, SYNTHETIC_TEAM_ID, request.context.actor_id, request.session_id,
             request.base_revision, resulting_revision, request_json, request_hash, created_at],
     ).map_err(|error| error.to_string())?;
-    transaction.commit().map_err(|error| error.to_string())?;
     Ok(OperationReceipt {
         operation_id: request.operation_id.clone(),
         state: "pending",

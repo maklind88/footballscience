@@ -3,6 +3,14 @@ import { test, expect } from "@playwright/test";
 const key = "football-player-profiles-v1";
 const pulse = (page) => page.evaluate(() => window.dispatchEvent(new CustomEvent("footballscience:central-state-ready")));
 
+async function settleAcknowledgedState(page) {
+  await expect.poll(() => page.evaluate(() => Object.values(
+    JSON.parse(localStorage.getItem("football-data-safety-v1") || "{}").entries || {}
+  ).some((entry) => entry.pendingCentralSync))).toBe(false);
+  await pulse(page);
+  await expect(page.locator('.squad-availability-cell[aria-busy="true"]')).toHaveCount(0);
+}
+
 async function boot(page) {
   await page.addInitScript(({ key }) => {
     localStorage.setItem(key, JSON.stringify({ schemaVersion: 3, rosterVersion: "qa-quiet-sync",
@@ -20,13 +28,13 @@ async function boot(page) {
     // Localhost auth has no server. Acknowledge fixture writes before simulating a colleague.
     window.footballScienceCentralState.isHydrated = () => true;
     window.footballScienceCentralState.syncKey = async (key, value) => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
       const metadata = { revision: (window.__qaSquadMetadata[key]?.revision || 0) + 1 };
       window.__qaSquadMetadata[key] = metadata;
       return { ok: true, value, metadata };
     };
   }, { key });
-  await pulse(page);
-  await expect(page.locator('.squad-availability-cell[aria-busy="true"]')).toHaveCount(0);
+  await settleAcknowledgedState(page);
 }
 
 for (const width of [1470, 390]) {
@@ -38,13 +46,15 @@ for (const width of [1470, 390]) {
     const search = page.locator("[data-player-profile-search]");
     await search.fill("Quiet");
     await search.blur();
-    await expect(page.locator('.squad-availability-cell[aria-busy="true"]')).toHaveCount(0);
+    await settleAcknowledgedState(page);
     await page.evaluate(() => {
       window.__qaSquadNode = document.querySelector(".squad-board-shell");
       window.__qaSquadRow = document.querySelector(".squad-player-row");
       window.__qaSquadScroll = document.querySelector(".platform-content").scrollTop;
+      window.__qaBeforeMetadata = JSON.stringify(window.__qaSquadMetadata);
     });
     for (let i = 0; i < 3; i++) await pulse(page);
+    expect(await page.evaluate(() => JSON.stringify(window.__qaSquadMetadata))).toBe(await page.evaluate(() => window.__qaBeforeMetadata));
     await page.evaluate(() => { window.__qaSquadMetadata["football-scouting-v1"] = { revision: 12 }; });
     await pulse(page);
     expect(await page.evaluate(() => ({
@@ -83,11 +93,7 @@ test("a colleague's changed player appears after closing a protected profile and
   await pulse(page);
   await expect(page.locator('[data-player-profile-select="qa-quiet-player"]')).toContainText("QA Updated By Colleague");
   // Renaming also updates the Medical projection. Acknowledge that real change before testing an unchanged pulse.
-  await expect.poll(() => page.evaluate(() => Object.values(
-    JSON.parse(localStorage.getItem("football-data-safety-v1") || "{}").entries || {}
-  ).some((entry) => entry.pendingCentralSync))).toBe(false);
-  await pulse(page);
-  await expect(page.locator('.squad-availability-cell[aria-busy="true"]')).toHaveCount(0);
+  await settleAcknowledgedState(page);
   await page.evaluate(() => {
     window.__qaUpdatedRow = document.querySelector('[data-player-profile-select="qa-quiet-player"]');
     window.__qaSettledMetadata = JSON.stringify(window.__qaSquadMetadata);

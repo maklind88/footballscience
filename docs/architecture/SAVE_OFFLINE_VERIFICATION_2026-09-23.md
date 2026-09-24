@@ -1,5 +1,52 @@
 # Save and offline verification, 2026-09-23
 
+## Combined QA closure
+
+The local candidate was rebased without conflicts onto
+`87707234a37472ccf8cce1bf64d18e57c384398c`, producing compatibility-fix commit
+`7644a806d8049153b389378cb8673a3ac3b275ff`. The combined verification below
+includes the additional test-cleanup correction described here. It supersedes
+the earlier unstable-run results, without erasing that history.
+
+`closeCentralStateContext` previously raced context/trace closure against a
+2.5-second timer and suppressed some trace errors. A deterministic reproduction
+confirmed that it returned while close was still pending. It now awaits the real
+close promise and propagates errors. Two API regressions prove delayed closure
+is awaited and missing trace files are not hidden. No product code, assertions,
+test timeouts, retries, permission rules or budgets changed in this QA step.
+
+Canonical QA phases ran sequentially on the isolated candidate:
+
+| Command | Terminal result |
+| --- | --- |
+| `npm run qa:static` | Passed |
+| `npm run qa:api` | 2,827 passed, 11.0 minutes |
+| `npm run qa:browser -- --max-failures=1` | 364 passed, 3 skipped, 22.3 minutes |
+
+Total: **3,191 passed, 3 existing opt-in tests skipped, zero failures**.
+The browser suite completed without retries, including all 25 central-state
+tests and the real IndexedDB compatibility/restart tests. The fail-fast limit
+did not truncate the run. API and browser projects are the two projects run by
+the canonical `qa:playwright` phase; no npm pre/post hooks were omitted.
+
+The existing skips are one Scouting Excel acceptance test requiring
+`SCOUTING_IMPORT_FIXTURE` and two private match-video tests requiring
+`FS_PLAYER_REVIEW_SOURCE`. Those files were not supplied; the skip conditions
+were not changed. No real coaching content was used. Static platform readiness
+also reports absent deployment/live-QA environment variables in this isolated
+worktree; local QA is not proof of production readiness or Live verification.
+
+Local logs:
+- `/private/tmp/footballscience-save-qa-api.log`
+- `/private/tmp/footballscience-save-qa-browser.log`
+
+During the long verification, remote main advanced with IDP background-refresh
+work and a Home release marker to observed `778f55fa`. The tested candidate was
+deliberately kept at its verified base instead of changing code during QA.
+Before merge/release it must be updated and verified against that newer main.
+No push, PR creation, main integration, database mutation or deployment was
+performed. Offline support for additional modules remains disabled/unwired.
+
 ## Follow-up: compatibility correction
 
 The user authorized fixing the confirmed version collision, not deployment or

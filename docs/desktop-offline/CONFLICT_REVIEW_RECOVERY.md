@@ -92,6 +92,43 @@ Diagnostic checkpoint local validation: **63 desktop contracts passed** (includi
 
 Candidate A remains the working recommendation and Candidate B passed rebuild/startup as a fallback. However, this Windows checkpoint remains blocked until the timeout is understood and the complete runtime suite passes. The prior provisional local architecture decision does not convert this failed verification into a pass. Physical Windows production-readiness gates remain open.
 
+### Instrumented Windows result — green run, original cause still unproven
+
+[Run 35949935172](https://github.com/maklind88/footballscience/actions/runs/35949935172) tested `0e1f06936760a7506a8e5fdeb2550cfd9cec02e9` and passed **all seven jobs**, including **63 desktop contracts**, **72 Rust tests / one unchanged ignored OS-vault test**, strict checks, all three Windows release builds, and **all 13 actual runtime probes**. The original 30-second staging assertion passed; the post-failure observation branch was not used. No retry loop or budget increase was introduced. The workflow file is unchanged.
+
+This verifies Candidate A/B startup, signed activation, native generation/SQLite process-restart persistence, signature/key/tamper/compatibility rejection, candidate timeout/quarantine/backoff, restart backoff retention, synthetic online→offline→restart→online, unauthorized native command and unauthorized-origin rejection on this runner. Desktop executable caching is native app-data, not a desktop modification to the normal browser/PWA service worker.
+
+[Sanitized diagnostic evidence](CONFLICT_RECOVERY_WINDOWS_DIAGNOSTIC_2026-09-23.json) includes the executable hashes, artifact identity and per-phase timings. Artifact `fs-desktop-windows-architecture-35949935172` (ID `10789020741`, 20,007,952 bytes, expires 2026-10-08) contains the three unsigned executables, build manifest, runtime environment/results and logs. All downloaded executable size/SHA-256 pairs match the manifest; the CI artifact-name guard passed. No installer/release was generated or published.
+
+The runner was Windows Server 2025 Datacenter / AMD64 / build 10.0.26100, image `win25-vs2026`, with **WebView2 153.0.4234.48**. The failed run used **152.0.4191.66**. Both used the same generated frontend build identity `hosted-test-normal-s21-ba8a1d837063`, but the runner/runtime environment and native diagnostic code differ. This is not a controlled causal before/after comparison.
+
+Native phase trace measurements (not whole-app startup timings):
+
+| Phase | Initial candidate | Hanging candidate |
+| --- | --- | --- |
+| Preparation, lock wait through staged result | 13,734 ms | 7,969 ms |
+| Shell/database lock acquisition | 0 ms at trace resolution | 2 ms |
+| Extraction/durable individual-file writes | 12,440 ms | 7,156 ms |
+
+The green run identifies file work as the dominant preparation cost in **that run**. It cannot prove the uninstrumented failure was caused by disk load, WebView2, lock contention or another event. No functional Windows fix is claimed. The first failure is not reclassified as flaky or erased merely because the instrumented run passed.
+
+**Disposition:** Scouting's keyboard prerequisite is corrected and its mandatory baseline is green. Current-commit Windows functionality is verified as listed, but the broader desktop **stability hold remains open for the unexplained earlier staging timeout**. Candidate A remains preferred and Candidate B remains viable fallback evidence; do not reopen real-data activation, deployment or distribution on the strength of this single passing diagnostic run. The existing local-development architecture decision remains provisional, not a production or final phase sign-off.
+
+Next recommended bounded phase: establish a controlled Windows candidate-preparation reproduction and separate preparation cost, runtime/version effects and native-watchdog behavior without weakening either guarantee. Then resume packaged conflict-dialog/native-IPC/file-backed-queue acceptance. A proposed three-run workflow loop was rejected by the permission safety review and was not applied; no further automatic reruns were performed.
+
+### Remaining physical/manual Windows checklist
+
+- Installer install/uninstall/upgrade UX and preservation of pending local work.
+- Sleep/wake while editing, offline and during sync.
+- Real Wi-Fi/Ethernet/airplane-mode/VPN/proxy transitions and lease expiry.
+- Real Windows Credential Manager roundtrip, logout and account-switch isolation.
+- Update installation/interruption/rollback UX with preserved local data, after separate signing/release authorization.
+- SmartScreen behavior of the eventual authorized distribution; CI executables do not establish it.
+- Physical OS restart/power interruption and recovery of projection, immutable outbox and receipts.
+- Actual packaged conflict dialog through native IPC and synthetic backend, with explicit confirmation, cancellation, changed-server rejection and restart after recovery. This is not proved merely by separate native tests and browser UI tests.
+
+No staging/production deploy, `main` integration, remote Supabase operation, migration/history repair, production-secret use, production signing or installer publication occurred in this task.
+
 Local full-suite log: `/private/tmp/fs-keyboard-prerequisite-full-qa.log`. No staging/production deployment, main integration or real-data activation is authorized by this resolution.
 
 ## Explicit limitations and next gates

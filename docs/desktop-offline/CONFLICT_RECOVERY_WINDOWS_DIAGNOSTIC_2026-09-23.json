@@ -1,0 +1,181 @@
+{
+  "schema": "fs-desktop-conflict-recovery-windows-diagnostic-v1",
+  "runId": 35949935172,
+  "url": "https://github.com/maklind88/footballscience/actions/runs/35949935172",
+  "commit": "0e1f06936760a7506a8e5fdeb2550cfd9cec02e9",
+  "conclusion": "success",
+  "jobsPassed": 7,
+  "environment": {
+    "schema": "fs-desktop-windows-environment-v1",
+    "runnerImage": "win25-vs2026",
+    "osCaption": "Microsoft Windows Server 2025 Datacenter",
+    "osVersion": "10.0.26100",
+    "architecture": "AMD64",
+    "webView2RegistryVersions": [
+      "153.0.4234.48"
+    ],
+    "runtimeProbeRequired": true,
+    "physicalWindowsHardware": false
+  },
+  "desktopContracts": {
+    "passed": 63,
+    "failed": 0
+  },
+  "nativeTests": {
+    "passed": 72,
+    "failed": 0,
+    "ignored": 1,
+    "durationSeconds": 16.97
+  },
+  "runtimeChecks": [
+    {
+      "name": "Candidate B bundled startup",
+      "result": "passed",
+      "nativeBridge": "two typed commands",
+      "unauthorizedCommandRejected": true,
+      "networkDependency": false
+    },
+    {
+      "name": "Candidate A signed custom-protocol activation",
+      "result": "passed",
+      "activeBuildId": "hosted-test-normal-s21-ba8a1d837063",
+      "releaseSequence": 21,
+      "candidateIsolationProof": "fs-desktop-candidate-isolation-v1",
+      "fullPlatformRuntimeLoaded": true,
+      "privateSigningKeyAvailableToApp": false
+    },
+    {
+      "name": "Native active generation and SQLite projection survive process restart",
+      "result": "passed",
+      "processRestart": true,
+      "physicalWindowsRestart": false
+    },
+    {
+      "name": "Invalid detached signature rejected",
+      "result": "passed",
+      "rejectedBuildId": "hosted-test-normal-s21-ba8a1d837063",
+      "activeGeneration": "hosted-test-normal-s21-ba8a1d837063",
+      "candidatePromoted": false
+    },
+    {
+      "name": "Unknown signing key rejected",
+      "result": "passed",
+      "rejectedBuildId": "hosted-test-unknown-key-s24-ba8a1d837063",
+      "activeGeneration": "hosted-test-normal-s21-ba8a1d837063",
+      "candidatePromoted": false
+    },
+    {
+      "name": "Post-signing asset modification rejected",
+      "result": "passed",
+      "rejectedBuildId": "hosted-test-modified-asset-s25-ba8a1d837063",
+      "activeGeneration": "hosted-test-normal-s21-ba8a1d837063",
+      "candidatePromoted": false
+    },
+    {
+      "name": "Incompatible candidate rejected",
+      "result": "passed",
+      "rejectedBuildId": "hosted-test-incompatible-s22-ba8a1d837063",
+      "activeGeneration": "hosted-test-normal-s21-ba8a1d837063",
+      "candidatePromoted": false
+    },
+    {
+      "name": "Candidate timeout, quarantine and backoff",
+      "result": "passed",
+      "quarantinedBuildId": "hosted-test-hanging-s23-ba8a1d837063",
+      "failureCode": "timeout",
+      "failureCount": 1,
+      "activeGenerationUntouched": true,
+      "candidateAuthorityCleared": true
+    },
+    {
+      "name": "Quarantined candidate is not retried on process restart",
+      "result": "passed",
+      "retrySuppressedByBackoff": true,
+      "activeGeneration": "hosted-test-normal-s21-ba8a1d837063"
+    },
+    {
+      "name": "Online to offline cold start",
+      "result": "passed",
+      "mechanism": "loopback synthetic source stopped",
+      "processRestart": true,
+      "realAdapterSwitch": false
+    },
+    {
+      "name": "Offline process restart persistence",
+      "result": "passed",
+      "activeGeneration": "hosted-test-normal-s21-ba8a1d837063",
+      "localProjectionLoaded": true,
+      "physicalWindowsRestart": false
+    },
+    {
+      "name": "Offline to online recovery",
+      "result": "passed",
+      "processRestart": true,
+      "activeGenerationUnchanged": true
+    },
+    {
+      "name": "Unauthorized origin rejected from native command",
+      "result": "passed",
+      "origin": "http://127.0.0.1:47843",
+      "attemptedGrantedCommand": "desktop_runtime_info",
+      "rejected": true
+    }
+  ],
+  "preparationTimingMs": {
+    "initial": 13734,
+    "hangingCandidate": 7969,
+    "hangingLockAcquisition": 2,
+    "hangingDownloadAndVerification": 115,
+    "hangingBundleDurableWrite": 309,
+    "hangingExtractedFilesDurable": 7156,
+    "hangingExtractionVerification": 156,
+    "hangingFinalGenerationVerification": 192
+  },
+  "unchangedStagingDeadlineMs": 30000,
+  "postFailureObservationExecuted": false,
+  "priorFailureRunId": 35947051993,
+  "priorFailureRootCause": "not established; different runner WebView2 version and no prior phase traces prevent a causal comparison",
+  "artifact": {
+    "id": 10789020741,
+    "name": "fs-desktop-windows-architecture-35949935172",
+    "bytes": 20007952,
+    "expiresAt": "2026-10-08T03:19:37Z",
+    "archiveDigest": "sha256:399a1d695a7441bb9ecc90777d6e485b3e416d7d725d3ef647ab1ebbd20a36da",
+    "executables": [
+      {
+        "candidate": "bundled",
+        "file": "fs-desktop-bundled.exe",
+        "bytes": 17607168,
+        "sha256": "d3cef90aa028cccd8ee7b479345f48d51abaa1609fbcffb274647966c696bdb1"
+      },
+      {
+        "candidate": "hosted",
+        "file": "fs-desktop-hosted.exe",
+        "bytes": 17683968,
+        "sha256": "68bc8c8a701e200979fb57791acd4ec97b9cb850f39f9eb3a50971314e04d792"
+      },
+      {
+        "candidate": "unauthorized-origin",
+        "file": "fs-desktop-unauthorized-origin.exe",
+        "bytes": 17607168,
+        "sha256": "41c782c9bdef51b363b8ae70d3700b9c28fd6722027a9479ab7ff6fe09ace151"
+      }
+    ],
+    "downloadedExecutableChecksumsVerified": true,
+    "ciArtifactNameGuardPassed": true
+  },
+  "limitations": [
+    "GitHub-hosted runner evidence is not physical Windows hardware verification.",
+    "Installer UX, SmartScreen, sleep/wake, update installation UX, physical restart, and real adapter switching were not tested.",
+    "The Windows Credential Manager backend compiled and its in-memory lifecycle contracts ran; no claim is made that a physical Credential Manager round trip was verified.",
+    "Network transitions were simulated by starting and stopping a loopback-only synthetic release source, not by switching a physical network adapter.",
+    "Process restart was exercised; operating-system restart was not.",
+    "The verified release cache is native app-data storage, isolated from browser/PWA Cache Storage."
+  ],
+  "productionCredentialsUsed": false,
+  "productionDataUsed": false,
+  "remoteSupabaseModified": false,
+  "mainMerged": false,
+  "deployed": false,
+  "installerPublished": false
+}

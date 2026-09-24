@@ -1,0 +1,86 @@
+{
+  "schema": "fs-desktop-native-outbox-verification-summary-v1",
+  "evidenceType": "summary-checked-against-downloaded-ci-artifacts",
+  "codeCommit": "8ce52930b3a374e0e939ec146373d644004218fb",
+  "branch": "codex/fs-desktop-offline-phase3-current-main",
+  "workflow": "FS Desktop Windows Architecture Verification",
+  "runId": 35939954165,
+  "runUrl": "https://github.com/maklind88/footballscience/actions/runs/35939954165",
+  "conclusion": "success",
+  "allSevenJobsPassed": true,
+  "artifact": {
+    "id": 10785251473,
+    "name": "fs-desktop-windows-architecture-35939954165",
+    "archiveBytes": 19929164,
+    "retentionDays": 14,
+    "manifestCommitVerified": true,
+    "allExecutableHashesAndSizesVerified": true
+  },
+  "windowsEnvironment": {
+    "runnerImage": "win25-vs2026",
+    "os": "Microsoft Windows Server 2025 Datacenter",
+    "osVersion": "10.0.26100",
+    "architecture": "AMD64",
+    "webView2": "152.0.4191.66",
+    "physicalHardware": false
+  },
+  "nativeTestsOnMacOSAndWindows": {
+    "passed": 62,
+    "failed": 0,
+    "ignored": 1,
+    "ignoredTest": "authority::tests::os_credential_store_round_trip",
+    "rustHttpHandlerDisposableSqlChainPassed": true,
+    "lateApiResponseAccountAndCredentialFencingPassed": true,
+    "strictClippyPassed": true,
+    "formatCheckPassed": true
+  },
+  "desktopNodeContractsPassed": 57,
+  "localRepeatedSyncAndSecurityTests": { "testsPerRun": 18, "runs": 5, "passed": 90, "failed": 0 },
+  "localMandatoryWebQa": { "passed": 3159, "skipped": 3, "failed": 0 },
+  "windowsRuntime": {
+    "startedAt": "2026-09-24T01:03:03.875Z",
+    "completedAt": "2026-09-24T01:04:45.083Z",
+    "passed": 13,
+    "failed": 0,
+    "fullPlatformRuntimeLoaded": true,
+    "checks": [
+      "Candidate B bundled startup; two typed commands",
+      "Candidate A signed custom-protocol activation",
+      "Native active generation and SQLite projection survive process restart",
+      "Invalid detached signature rejected",
+      "Unknown signing key rejected",
+      "Post-signing asset modification rejected",
+      "Incompatible candidate rejected",
+      "Candidate timeout, quarantine and backoff",
+      "Quarantined candidate is not retried on process restart",
+      "Online to offline cold start using stopped loopback source",
+      "Offline process restart persistence",
+      "Offline to online recovery",
+      "Unauthorized origin rejected from native command"
+    ]
+  },
+  "executables": [
+    { "file": "fs-desktop-bundled.exe", "bytes": 17549312, "sha256": "569c7b78ddf3195ae54cc7eeb9460a3ee887b51babcd6d72edb398182074d796" },
+    { "file": "fs-desktop-hosted.exe", "bytes": 17626624, "sha256": "3295eaacab3a264abd4dd3499b608be21d356a84d4ec11e519062eb7ccc47998" },
+    { "file": "fs-desktop-unauthorized-origin.exe", "bytes": 17548800, "sha256": "3187bc03490e14177efbea772fca90eb4c37b2f2ee1e7673a0ca8c0a4a1b15c2" }
+  ],
+  "productionCredentialsUsed": false,
+  "productionDataUsed": false,
+  "productionSigningKeysUsed": false,
+  "installerGenerated": false,
+  "releasePublished": false,
+  "standardBuildSyncUploadEnabled": false,
+  "packagedWindowNewSyncCommandVerified": false,
+  "realProviderVerified": false,
+  "physicalWindowsVerified": false,
+  "manualWindowsRemaining": [
+    "Installer UX",
+    "Sleep/wake",
+    "Real network-adapter switching",
+    "Windows Credential Manager round trip",
+    "Update installation UX",
+    "SmartScreen",
+    "Physical OS restart"
+  ],
+  "architecture": { "recommended": "Candidate A", "fallback": "Candidate B", "decisionChanged": false, "localGateProvisionallyClosed": true, "productionReadinessGateClosed": false }
+}

@@ -62,6 +62,10 @@ On 2026-09-23, the same packaged verification was rerun with the full tracked Fo
 
 ### Windows, verified through GitHub Actions CI
 
+**Latest native outbox phase:** [run 35939954165](https://github.com/maklind88/footballscience/actions/runs/35939954165) passed all seven jobs on code commit `8ce52930b3a374e0e939ec146373d644004218fb`. Windows native tests passed 62/0 with one explicit real-vault ignore; desktop contracts passed 57/57; WebView2 runtime probes passed 13/13. The new Rust → loopback HTTP → existing handler → disposable SQL chain, lost-ack replay, durable conflict blocking and stale account/credential response fencing were verified. The runner reported Windows Server 2025 AMD64 and WebView2 `152.0.4191.66`. Artifact checksums and detailed limitations are in [NATIVE_OUTBOX_TRANSPORT.md](NATIVE_OUTBOX_TRANSPORT.md). This strengthens the bounded local slice without enabling real uploads or changing the Candidate A recommendation / Candidate B fallback decision. Physical Windows and production readiness remain open.
+
+The following record is the preceding secure-auth checkpoint:
+
 [Run 35932204339](https://github.com/maklind88/footballscience/actions/runs/35932204339) verified exact commit `39749edd2debdb6c2e441eb91bc7d8879331b147` on Windows Server 2025 AMD64 with WebView2 `153.0.4234.48`:
 
 - Candidate A, Candidate B and the unauthorized-origin probe compiled as release executables;

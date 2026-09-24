@@ -63,7 +63,7 @@ SQLite schema v3 normalizes one explicitly selected session: metadata, ordered b
 
 ## 8. Outbox and acknowledgement schemas
 
-The subsequent local native HTTP phase is documented separately in [NATIVE_OUTBOX_TRANSPORT.md](NATIVE_OUTBOX_TRANSPORT.md). It replaces reliance on a model-only transport with tested Rust/HTTP/handler/disposable-SQL execution, while keeping standard desktop builds upload-disabled. Its verification record is separate from the historical Windows evidence below.
+The subsequent local native HTTP phase is documented separately in [NATIVE_OUTBOX_TRANSPORT.md](NATIVE_OUTBOX_TRANSPORT.md). It replaces reliance on a model-only transport with tested Rust/HTTP/handler/disposable-SQL execution, while keeping standard desktop builds upload-disabled. Code commit `8ce52930` passed full local QA and [Windows run 35939954165](https://github.com/maklind88/footballscience/actions/runs/35939954165): 62 native tests plus one explicit real-vault ignore, 57 desktop contracts, 13 runtime probes and all web-regression jobs. This record is separate from the historical Windows evidence below and does not close the physical Windows or production-readiness gates.
 
 `session_outbox` stores immutable operation ID/type/version, client and synthetic actor, partition/tenant/org/team, entity, base/result revision, typed payload hash, timestamps, state and attempts. Projection mutation plus outbox insertion is one `IMMEDIATE` transaction. `operation_receipts` is durably inserted in the same transaction that deletes the outbox item. Reuse of an operation ID with different content fails closed.
 

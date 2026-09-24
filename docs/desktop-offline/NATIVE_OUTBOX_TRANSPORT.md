@@ -59,7 +59,17 @@ A server may already have applied an operation when logout happens during an in-
 - Full mandatory `npm run qa`: **3,159 passed, three skipped, zero failed**, exit 0 (40.4 minutes for Playwright). The unchanged conditional skips require `SCOUTING_IMPORT_FIXTURE` (private workbook) or `FS_PLAYER_REVIEW_SOURCE` (two private-media viewport checks). The mandatory Scouting search performance gate remains enabled and unchanged.
 - `npm run qa:static` was rerun after the Windows workflow correction and passed. Existing cross-module size warnings are unchanged; no broad refactor was included.
 
-Windows CI evidence must refer to the exact new code commit; earlier run `35932204339` covers only the prior code checkpoint and is not evidence for this change. A new run and its outcome will be appended after dispatch and completion.
+### Windows CI — completed
+
+Pushed code commit: `8ce52930b3a374e0e939ec146373d644004218fb`, branch `codex/fs-desktop-offline-phase3-current-main`.
+
+[Run 35939954165](https://github.com/maklind88/footballscience/actions/runs/35939954165), **FS Desktop Windows Architecture Verification**, passed all seven jobs: Windows architecture, static/security, API contracts and all four browser shards. Windows native output confirms **62 passed, zero failed, one ignored** (the real credential-store test), including the actual HTTP/handler/PGlite chain and generic API account/credential race tests. Format and strict Clippy passed. Desktop Node contracts passed **57/57**.
+
+The Windows Server 2025 Datacenter AMD64 runner (`win25-vs2026`, OS `10.0.26100`) reported WebView2 **152.0.4191.66**. Both delivery candidates and the unauthorized-origin probe compiled as unsigned, unbundled executables. **13/13 WebView2 runtime probes passed**, including full-web startup, process restart, native-cache persistence, synthetic online/offline/reconnect, signature/asset/key rejection, incompatible/hanging candidate quarantine and unauthorized origin rejection. Candidate B retained its two-command bridge. No new packaged-window upload-command claim is made: that command is still disabled in standard builds, while its core worker is exercised by the Windows Rust tests.
+
+Artifact: `fs-desktop-windows-architecture-35939954165`, ID `10785251473`, 19,929,164 archive bytes, 14-day GitHub retention. It contains the three unsigned executables, build manifest, runtime environment/evidence JSON and native/build/runtime logs. Downloaded copies were checked against the exact commit and **all three executable SHA-256 values and byte counts**. A permanent sanitized summary with checksums and limitations is retained in [NATIVE_OUTBOX_WINDOWS_2026-09-23.json](NATIVE_OUTBOX_WINDOWS_2026-09-23.json). Raw downloaded evidence is local at `/private/tmp/fs-native-sync-windows-artifacts-35939954165`.
+
+There were **no failed CI checks and no changes/retries needed to make this run pass**. The three local private-fixture skips and the explicit OS credential-store ignore are not claims of verification. The older run `35932204339` remains historical evidence for the preceding checkpoint, not this change. Subsequent report-only commits do not change the executable code verified at `8ce52930`.
 
 Two pre-existing `collapsible_if` style warnings in the desktop authority/bundle code were corrected without behavioral changes so strict Clippy (`-D warnings`) can pass. No lint, assertion, timing budget or required test was disabled.
 

@@ -2,6 +2,21 @@ import { expect } from "@playwright/test";
 
 const activeScoutingWorkspaceSelector = '[data-workspace-view="scouting"].is-active';
 
+export async function openScoutingDatabaseTab(page, { timeout = 15_000 } = {}) {
+  const workspace = page.locator(activeScoutingWorkspaceSelector);
+  await expect(workspace).toBeVisible({ timeout });
+  // A restored profile is legitimate UI state; use its real close action before navigating.
+  const profile = workspace.locator("[data-scouting-profile-modal]");
+  if (await profile.isVisible()) {
+    await profile.getByRole("button", { name: "Close scouting profile", exact: true }).click({ timeout });
+    await expect(profile).toBeHidden({ timeout });
+  }
+  const databaseTab = workspace.locator('.scouting-tab[data-scouting-tab="database"]');
+  await expect(databaseTab).toBeVisible({ timeout });
+  await databaseTab.click({ timeout });
+  await expect(databaseTab).toHaveAttribute("aria-selected", "true", { timeout });
+}
+
 /**
  * Resolve the current state and activate the current load trigger in one browser
  * task. Do not split this into a readiness check followed by locator.click():

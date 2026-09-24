@@ -4,6 +4,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import {
+  openScoutingDatabaseTab,
   startScoutingDatabaseLoad,
   waitForScoutingRows,
 } from "./helpers/scouting-database-readiness.mjs";
@@ -261,6 +262,49 @@ test("Scouting non-database tabs do not load the player database payload", async
     await page.waitForTimeout(350);
     await expectScoutingDatabasePayloadNotLoaded(page);
   }
+});
+
+for (const restoredProfile of [false, true]) {
+  test(`Scouting monitor opens Database with restored profile ${restoredProfile}`, async ({ page }) => {
+    await seedScoutingAccess(page, {
+      activeTab: "shadow-xi",
+      selectedRecordId: restoredProfile ? "qa-restored-profile" : "",
+      favoriteRecordIds: ["qa-preserved-favorite"],
+    });
+    const boot = await bootApp(page);
+    expect(boot.pageErrors).toEqual([]);
+    await openWorkspace(page, "scouting");
+    const profile = page.locator("[data-scouting-profile-modal]");
+    if (restoredProfile) await expect(profile).toBeVisible();
+    else await expect(profile).toHaveCount(0);
+
+    await openScoutingDatabaseTab(page);
+
+    await expect(profile).toHaveCount(0);
+    await expect(page.locator('.scouting-tab[data-scouting-tab="database"]')).toHaveAttribute("aria-selected", "true");
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("football-scouting-v1")));
+    expect(saved.selectedRecordId).toBe("");
+    expect(saved.favoriteRecordIds).toEqual(["qa-preserved-favorite"]);
+  });
+}
+
+test("Scouting monitor fails closed when the restored profile cannot close", async ({ page }) => {
+  await seedScoutingAccess(page, { activeTab: "shadow-xi", selectedRecordId: "qa-restored-profile" });
+  await bootApp(page);
+  await openWorkspace(page, "scouting");
+  const profile = page.locator("[data-scouting-profile-modal]");
+  await expect(profile).toBeVisible();
+  await page.evaluate(() => {
+    document.addEventListener("click", (event) => {
+      if (event.target.closest("button[data-close-scouting-profile]")) event.stopImmediatePropagation();
+    }, true);
+  });
+
+  await expect(openScoutingDatabaseTab(page, { timeout: 1000 })).rejects.toThrow();
+
+  await expect(profile).toBeVisible();
+  await expect(page.locator('.scouting-tab[data-scouting-tab="database"]')).toHaveAttribute("aria-selected", "false");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("football-scouting-v1")).selectedRecordId)).toBe("qa-restored-profile");
 });
 
 test("Scouting primary tabs expose keyboard and screen-reader navigation", async ({ page }) => {

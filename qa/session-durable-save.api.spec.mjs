@@ -123,8 +123,21 @@ function harness(options = {}) {
   const store = {
     archiveLocal: async (value, context) => { if (state.failArchive) throw new Error("Archive storage full"); state.archived.push({ value, context }); },
     list: async (scope) => Array.from(rows.values()).filter((row) => row.scope === scope).map(copy),
-    put: async (row) => { if (state.failStore) throw new Error("Local storage full"); rows.set(row.change.id, copy(row)); },
-    remove: async (id) => { rows.delete(id); },
+    putMany: async (batch) => { if (state.failStore) throw new Error("Local storage full"); for (const row of batch) rows.set(row.change.id, copy(row)); },
+    update: async (expected, next) => {
+      if (!sameSessionValue(rows.get(expected.change.id), expected)) return false;
+      rows.set(next.change.id, copy(next)); return true;
+    },
+    remove: async (expected) => {
+      if (!sameSessionValue(rows.get(expected.change.id), expected)) return false;
+      rows.delete(expected.change.id); return true;
+    },
+    resolveReview: async (expected, replacement) => {
+      if (state.failStore) throw new Error("Local storage full");
+      if (!sameSessionValue(rows.get(expected.change.id), expected)) return false;
+      if (replacement) rows.set(replacement.change.id, copy(replacement));
+      rows.set(expected.change.id, { ...copy(expected), status: "archived" }); return true;
+    },
   };
   function client() {
     const result = createSessionSaveClient({ getScope: () => state.scope, store, makeId, send: async (edit) => {
@@ -343,4 +356,28 @@ test("a failed journal stage cannot silently lose an earlier change on the next 
   expect((await client.save(JSON.stringify(second), { previousValue: JSON.stringify(first) })).ok).toBe(true);
   expect(h.state.central.sessions[date].title).toBe("Must survive");
   expect(h.state.central.sessions[date].blocks[0].objective).toBe("Later edit");
+});
+
+test("an account change during empty journal read never reports the old replay as saved", async () => {
+  const h = harness(), client = h.client();
+  h.store.list = async () => { h.state.scope = "other:org:team"; client.observe(JSON.stringify(initial()), { revision: 1 }); return []; };
+  expect(await client.replay()).toMatchObject({ ok: false });
+  expect(h.state.sent).toEqual([]);
+});
+
+test("review resolution rechecks the account after reading its journal", async () => {
+  const h = harness(), client = h.client(), local = copy(h.state.central);
+  local.sessions[date].title = "Local draft";
+  h.state.central.sessions[date].title = "Colleague";
+  await client.save(JSON.stringify(local));
+  client.observe(JSON.stringify(h.state.central), { revision: h.state.revision });
+  const [review] = await client.reviews();
+  const snapshot = copy([...h.rows.values()]), sent = h.state.sent.length, list = h.store.list;
+  h.store.list = async (scope) => {
+    const rows = await list(scope); h.state.scope = "other:org:team";
+    client.observe(JSON.stringify(initial()), { revision: 1 }); return rows;
+  };
+  expect(await client.resolve(review.change.id, true, review.central)).toMatchObject({ ok: false });
+  expect([...h.rows.values()]).toEqual(snapshot);
+  expect(h.state.sent).toHaveLength(sent);
 });

@@ -24,8 +24,8 @@ test("retry never acknowledges the read-only Sessions baseline as the missing pe
 });
 
 function createServiceHarness(options = {}) {
-  const manifest = createManifest();
-  const rawValues = new Map();
+  const manifest = options.manifest || createManifest();
+  const rawValues = options.rawValues || new Map();
   const syncCalls = [];
   const autosaveStatuses = [];
   const snapshots = [];
@@ -104,6 +104,7 @@ function createServiceHarness(options = {}) {
       mutator(manifest);
       return manifest;
     },
+    readManifest: () => manifest,
     periodizationStorageKey: "football-periodization-v2",
     queueSnapshot: (reason) => snapshots.push(reason),
     queueStatusRefresh: () => {},
@@ -141,6 +142,127 @@ function createServiceHarness(options = {}) {
     win,
   };
 }
+
+const sharedSaveKeys = [
+  "football-schedule-v1", "football-medical-team-v1", "football-player-profiles-v1",
+  "football-periodization-v2", "football-session-exercise-library-v1", "football-dashboard-tasks-v1",
+];
+
+for (const key of sharedSaveKeys) {
+  for (const status of [403, 409]) {
+    test(`${key} retains rejected ${status} drafts across restart without automatic overwrite or retry`, async () => {
+      const draft = JSON.stringify({ name: "Local unsaved draft" });
+      const h = createServiceHarness({
+        syncResult: { ok: false, status, currentRevision: 9, reason: "Server refused this write" },
+        onHydrate: ({ rawValues }) => rawValues.set(key, "older server snapshot"),
+      });
+      h.rawValues.set(key, draft);
+      h.service.queueCentralStateWrite(key, draft);
+      await h.service.flushCentralStateWrites();
+      h.service.clearCentralStateWriteTimer();
+      expect(h.rawValues.get(key)).toBe(draft);
+      expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+      expect(h.manifest.entries[key].centralSyncReview?.status).toBe(status);
+      expect(h.syncCalls.filter((call) => call.hydrate)).toEqual([]);
+      expect(h.autosaveStatuses.some(([, state]) => state === "saved")).toBe(false);
+
+      // New runtime, persisted manifest/raw: a fresh access snapshot must not retry the refused operation.
+      const restarted = createServiceHarness({ manifest: structuredClone(h.manifest), rawValues: new Map(h.rawValues), revision: 99 });
+      await restarted.service.retryCentral(() => restarted.manifest);
+      await restarted.service.flushCentralStateWrites();
+      expect(restarted.syncCalls).toEqual([]);
+      expect(restarted.manifest.entries[key].pendingCentralSync).toBe(true);
+      expect(restarted.rawValues.get(key)).toBe(draft);
+
+      restarted.rawValues.set(key, "new explicit edit");
+      restarted.service.queueCentralStateWrite(key, "new explicit edit");
+      await restarted.service.flushCentralStateWrites();
+      expect(restarted.syncCalls).toHaveLength(1);
+      expect(restarted.syncCalls[0].value).toBe("new explicit edit");
+      expect(restarted.manifest.entries[key].pendingCentralSync).toBe(false);
+      expect(restarted.manifest.entries[key].centralSyncReview).toBeUndefined();
+    });
+  }
+}
+
+test("one rejected shared draft does not stop another module's accepted write", async () => {
+  const key = "football-medical-team-v1", other = "football-schedule-v1";
+  const h = createServiceHarness({ syncKey: async ({ key: current, value }) => current === key
+    ? { ok: false, status: 403 } : { ok: true, value, revision: 8 } });
+  h.rawValues.set(key, "medical draft"); h.rawValues.set(other, "schedule draft");
+  h.service.queueCentralStateWrite(key, "medical draft"); h.service.queueCentralStateWrite(other, "schedule draft");
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.map((call) => call.key)).toEqual([key, other]);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.manifest.entries[other].pendingCentralSync).toBe(false);
+});
+
+test("late rejection of A must not block newer queued B", async () => {
+  const key = "football-medical-team-v1";
+  let resolveA;
+  const h = createServiceHarness({ syncKey: async ({ value }) => value === "A"
+    ? new Promise((resolve) => { resolveA = resolve; }) : { ok: true, value, revision: 8 } });
+  h.rawValues.set(key, "A"); h.service.queueCentralStateWrite(key, "A");
+  const flushing = h.service.flushCentralStateWrites();
+  await Promise.resolve();
+  h.rawValues.set(key, "B"); h.service.queueCentralStateWrite(key, "B");
+  resolveA({ ok: false, status: 403 });
+  await flushing;
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.manifest.entries[key].centralSyncReview).toBeUndefined();
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.map((call) => call.value)).toEqual(["A", "B"]);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+});
+
+for (const status of [403, 409]) {
+  test(`rejected ${status} tombstone survives restart without resurrecting or retrying until a new write`, async () => {
+    const key = "football-schedule-v1";
+    const h = createServiceHarness({ syncResult: { ok: false, status, currentRevision: 8 } });
+    h.service.queueCentralStateWrite(key, "", { removed: true });
+    await h.service.flushCentralStateWrites();
+    expect(h.manifest.entries[key]).toMatchObject({ pendingCentralSync: true, centralSyncReview: { status, baseRevision: 7 } });
+    expect(h.manifest.entries[key].deletedAt).not.toBe("");
+    const restarted = createServiceHarness({ manifest: structuredClone(h.manifest), rawValues: new Map(h.rawValues) });
+    await restarted.service.retryCentral(() => restarted.manifest);
+    await restarted.service.flushCentralStateWrites();
+    expect(restarted.syncCalls).toEqual([]);
+    expect(restarted.rawValues.has(key)).toBe(false);
+    restarted.rawValues.set(key, "new explicit value");
+    restarted.service.queueCentralStateWrite(key, "new explicit value");
+    await restarted.service.flushCentralStateWrites();
+    expect(restarted.syncCalls).toHaveLength(1);
+    expect(restarted.syncCalls[0].options.removed).toBe(false);
+    expect(restarted.manifest.entries[key]).toMatchObject({ deletedAt: "", pendingCentralSync: false });
+    expect(restarted.manifest.entries[key].centralSyncReview).toBeUndefined();
+  });
+}
+
+test("rejection never marks a newer same-value manifest generation for review", async () => {
+  const key = "football-medical-team-v1";
+  let resolveA;
+  const h = createServiceHarness({ syncKey: () => new Promise((resolve) => { resolveA = resolve; }) });
+  h.rawValues.set(key, "same value");
+  h.manifest.entries[key] = { hash: "original-hash", writes: 1, updatedAt: "A" };
+  h.service.queueCentralStateWrite(key, "same value");
+  const flushing = h.service.flushCentralStateWrites();
+  await Promise.resolve();
+  h.manifest.entries[key] = { ...h.manifest.entries[key], writes: 2, updatedAt: "B", serverRevision: 10 };
+  const newer = structuredClone(h.manifest.entries[key]);
+  resolveA({ ok: false, status: 403 });
+  await flushing;
+  expect(h.manifest.entries[key]).toEqual(newer);
+});
+
+test("automatic write rechecks a persisted rejection hold just before sending", async () => {
+  const key = "football-medical-team-v1";
+  const h = createServiceHarness();
+  h.rawValues.set(key, "draft"); h.service.queueCentralStateWrite(key, "draft", { automatic: true });
+  h.manifest.entries[key].centralSyncReview = { status: 409, baseRevision: 7 };
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toEqual([]);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+});
 
 test("an acknowledged Sessions save with a cache failure does not discard other modules' queued writes", async () => {
   const session = "football-session-planner-v1", other = "football-medical-team-v1";
@@ -271,7 +393,7 @@ test("an external retry resumes a timed-out queued Sessions save without losing 
   expect(h.timers.size).toBe(0);
 });
 
-test("external recovery drains the real Sessions journal after a lost reply with server revision checks", async () => {
+test("external recovery drains the real Sessions client after a lost reply with server revision checks", async () => {
   const key = "football-session-planner-v1", date = "2026-09-14", scope = "qa-coach:qa-org:qa-team";
   const before = { sessions: { [date]: { date, title: "Training", blocks: [{ id: "block-a", title: "Press", minutes: 15 }] } } };
   before.blockDeletionTombstones = { [date]: {} };
@@ -284,8 +406,11 @@ test("external recovery drains the real Sessions journal after a lost reply with
     makeId: () => `recovery-edit-${++id}`,
     store: {
       list: async (owner) => [...rows.values()].filter((row) => row.scope === owner).map((row) => structuredClone(row)),
-      put: async (row) => { rows.set(row.change.id, structuredClone(row)); },
-      remove: async (rowId) => { rows.delete(rowId); },
+      putMany: async (batch) => { for (const row of batch) rows.set(row.change.id, structuredClone(row)); },
+      remove: async (expected) => {
+        if (JSON.stringify(rows.get(expected.change.id)) !== JSON.stringify(expected)) return false;
+        rows.delete(expected.change.id); return true;
+      },
     },
     send: async (change, baseRevision) => {
       posts.push({ change: structuredClone(change), baseRevision });

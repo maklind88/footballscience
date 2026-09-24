@@ -504,6 +504,141 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
   return { context, page };
 }
 
+for (const [key, status] of [[medicalTeamStateKey, 403], [playerProfilesStateKey, 409], [scheduleStateKey, 409]]) {
+  test(`shared saving keeps ${key} draft pending after HTTP ${status} and reload`, async ({ browser, baseURL }) => {
+    const initial = createStateValue("Original central sequence");
+    const centralStore = { value: initial, metadata: createMetadata(1, initial),
+      entries: { [key]: JSON.stringify({ players: [], records: [], events: [] }) },
+      metadataEntries: { [key]: createMetadata(7, "initial") } };
+    let rejectWrites = false;
+    const rejectedBodies = [];
+    const tab = await bootCentralPage(browser, baseURL, centralStore, [], `shared-rejection-${status}-${key}`, {
+      appStateWriteHandler: ({ body }) => {
+        if (body.key !== key) return null;
+        if (rejectWrites) {
+          if (status === 409 && !rejectedBodies.length) {
+            centralStore.metadataEntries[key] = createMetadata(centralStore.metadataEntries[key].revision + 1, centralStore.entries[key]);
+          }
+          rejectedBodies.push(body);
+          return { status, body: { ok: false, currentRevision: centralStore.metadataEntries[key].revision, reason: "QA write rejected" } };
+        }
+        if (Number(body.baseRevision) !== centralStore.metadataEntries[key].revision) {
+          return { status: 409, body: { ok: false, currentRevision: centralStore.metadataEntries[key].revision, reason: "QA stale base" } };
+        }
+        const revision = centralStore.metadataEntries[key].revision + 1;
+        centralStore.entries[key] = body.value;
+        centralStore.metadataEntries[key] = createMetadata(revision, body.value);
+        return { status: 200, body: { ok: true, key, value: body.value, metadata: centralStore.metadataEntries[key] } };
+      },
+    });
+    try {
+      await tab.page.waitForFunction(() => !window.footballScienceCentralState.getStatus().hydrating);
+      await tab.page.evaluate((key) => {
+        const bridge = window.footballScienceCentralState;
+        const syncKey = bridge.syncKey.bind(bridge);
+        window.__qaRejectedWriteStatus = 0;
+        bridge.syncKey = async (...args) => {
+          const result = await syncKey(...args);
+          if (args[0] === key && !result.ok) window.__qaRejectedWriteStatus = result.status;
+          return result;
+        };
+      }, key);
+      rejectWrites = true;
+      const draft = await tab.page.evaluate(({ key, medicalKey, profilesKey }) => {
+        const state = JSON.parse(localStorage.getItem(key) || "{}");
+        if (key === medicalKey) {
+          state.injuryPlans = [...(state.injuryPlans || []), { id: "qa-pending-plan", playerId: state.players[0].id,
+            injuryType: "QA unsaved plan", startDate: "2026-09-16", endDate: "2026-09-20", updatedAt: "2026-09-16T12:00:00.000Z" }];
+        } else if (key === profilesKey) {
+          state.players[0].name = "QA unsaved name";
+        } else {
+          state.events = [...(state.events || []), { id: "qa-pending-event", date: "2026-09-16", time: "09:00",
+            type: "training", title: "QA unsaved training", note: "QA draft" }];
+        }
+        const value = JSON.stringify(state);
+        localStorage.setItem(key, value);
+        return value;
+      }, { key, medicalKey: medicalTeamStateKey, profilesKey: playerProfilesStateKey });
+      await expect.poll(() => rejectedBodies.filter((body) => body.value === draft).length).toBe(1);
+      await expect.poll(() => tab.page.evaluate(() => window.__qaRejectedWriteStatus)).toBe(status);
+      await tab.page.waitForFunction(() => !window.footballScienceCentralState.getStatus().hydrating);
+      const readDraft = () => tab.page.evaluate(({ key, manifestKey, medicalKey, profilesKey }) => {
+        const state = JSON.parse(localStorage.getItem(key) || "{}");
+        return {
+          draftPresent: key === medicalKey ? state.injuryPlans?.some((plan) => plan.id === "qa-pending-plan" && plan.injuryType === "QA unsaved plan")
+            : key === profilesKey ? state.players?.[0]?.name === "QA unsaved name"
+              : state.events?.some((event) => event.id === "qa-pending-event" && event.title === "QA unsaved training"),
+          pending: JSON.parse(localStorage.getItem(manifestKey) || "{}").entries?.[key]?.pendingCentralSync,
+        };
+      }, { key, manifestKey: dataSafetyManifestKey, medicalKey: medicalTeamStateKey, profilesKey: playerProfilesStateKey });
+      expect(await readDraft()).toEqual({ draftPresent: true, pending: true });
+      await tab.page.reload({ waitUntil: "domcontentloaded" });
+      await tab.page.waitForFunction(() => window.footballScienceDataSafety && window.footballScienceCentralState?.isHydrated?.()
+        && !window.footballScienceCentralState.getStatus().hydrating);
+      expect(await readDraft()).toEqual({ draftPresent: true, pending: true });
+      await tab.page.evaluate(async () => {
+        await window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true });
+        window.dispatchEvent(new Event("focus"));
+      });
+      expect(await readDraft()).toEqual({ draftPresent: true, pending: true });
+      // A refused operation must not become an automatic retry loop on reload/focus.
+      await tab.page.waitForTimeout(500);
+      expect(rejectedBodies).toHaveLength(1);
+      expect(await tab.page.evaluate((key) => window.footballScienceCentralState.getStatus().metadata[key].revision, key))
+        .toBe(rejectedBodies[0].baseRevision);
+      if (status === 403) {
+        rejectWrites = false;
+        await tab.page.evaluate((key) => {
+          const state = JSON.parse(localStorage.getItem(key));
+          state.injuryPlans.find((plan) => plan.id === "qa-pending-plan").injuryType = "QA permitted new edit";
+          localStorage.setItem(key, JSON.stringify(state));
+        }, key);
+        await expect.poll(() => JSON.parse(centralStore.entries[key]).injuryPlans?.find((plan) => plan.id === "qa-pending-plan")?.injuryType)
+          .toBe("QA permitted new edit");
+        await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
+          const entry = JSON.parse(localStorage.getItem(manifestKey)).entries[key];
+          return { pending: entry.pendingCentralSync, review: Boolean(entry.centralSyncReview) };
+        }, { key, manifestKey: dataSafetyManifestKey })).toEqual({ pending: false, review: false });
+      }
+    } finally {
+      await tab.context.close();
+    }
+  });
+}
+
+test("empty central state never seeds a held rejected local draft", async ({ browser, baseURL }) => {
+  const initial = createStateValue("Original central sequence");
+  const centralStore = { value: initial, metadata: createMetadata(1, initial) };
+  const writes = [], seeds = [];
+  let emptyRead = false;
+  const tab = await bootCentralPage(browser, baseURL, centralStore, writes, "held-draft-no-seed", {
+    appStateReadHandler: () => emptyRead ? { body: { ok: true, entries: {}, metadata: {} } } : null,
+    appStateWriteHandler: ({ body }) => {
+      if (!body.entries) return null;
+      seeds.push(body.entries);
+      return { body: { ok: true, entries: body.entries, metadata: {} } };
+    },
+  });
+  try {
+    centralStore.value = createStateValue("Newer colleague's sequence");
+    centralStore.metadata = createMetadata(2, centralStore.value);
+    const draft = createStateValue("Unsaved local sequence");
+    await tab.page.evaluate(({ key, draft }) => localStorage.setItem(key, draft), { key: revisionStateKey, draft });
+    const readPending = () => tab.page.evaluate(({ key, manifestKey }) => {
+      const entry = JSON.parse(localStorage.getItem(manifestKey)).entries[key];
+      return { value: localStorage.getItem(key), pending: entry.pendingCentralSync, review: entry.centralSyncReview };
+    }, { key: revisionStateKey, manifestKey: dataSafetyManifestKey });
+    await expect.poll(readPending).toEqual({ value: draft, pending: true, review: { status: 409, baseRevision: 1 } });
+    emptyRead = true;
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true }));
+    expect(seeds).toHaveLength(1);
+    expect(seeds[0]).not.toHaveProperty(revisionStateKey);
+    expect(await readPending()).toEqual({ value: draft, pending: true, review: { status: 409, baseRevision: 1 } });
+    expect(writes).toHaveLength(1);
+    expect(centralStore.value).toContain("Newer colleague's sequence");
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
 test("fresh server profile restores admin access when the stored Supabase session has a stale role", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");
   const centralStore = {
@@ -1560,9 +1695,16 @@ test("two browser tabs send baseRevision and stale tab cannot overwrite newer ce
     expect(centralStore.value).toContain("Fresh sequence from first tab");
     expect(centralStore.value).not.toContain("Stale sequence from second tab");
 
-    await expect
-      .poll(() => stale.page.evaluate((key) => window.localStorage.getItem(key) || "", revisionStateKey), { timeout: 10_000 })
-      .toContain("Fresh sequence from first tab");
+    // A conflict is not consent to discard this tab's unsaved draft.
+    await expect.poll(() => stale.page.evaluate(({ key, manifestKey }) => {
+      const entry = JSON.parse(localStorage.getItem(manifestKey) || "{}").entries?.[key];
+      return { pending: entry?.pendingCentralSync, review: entry?.centralSyncReview?.status };
+    }, { key: revisionStateKey, manifestKey: dataSafetyManifestKey })).toEqual({ pending: true, review: 409 });
+    expect(await stale.page.evaluate((key) => localStorage.getItem(key), revisionStateKey)).toContain("Stale sequence from second tab");
+    await stale.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true }));
+    expect(await stale.page.evaluate((key) => localStorage.getItem(key), revisionStateKey)).toContain("Stale sequence from second tab");
+    expect(centralStore.value).toContain("Fresh sequence from first tab");
+    expect(syncBodies).toHaveLength(2);
   } finally {
     await closeCentralStateContext(first.context);
     await closeCentralStateContext(stale.context);

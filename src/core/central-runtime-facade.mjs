@@ -134,6 +134,7 @@ export function createCentralRuntimeFacade(deps = {}) {
     mergePeriodizationStatePreservingLocalUi,
     mergeScheduleStatePreservingLocalUi,
     mutateManifest: dataSafetyRuntimeService.mutateManifest,
+    readManifest: dataSafetyRuntimeService.readManifest,
     periodizationStorageKey: storageKeys.periodizationStorageKey,
     queueSnapshot: dataSafetyRuntimeService.queueSnapshot,
     queueStatusRefresh: dataSafetyRuntimeService.queueStatusRefresh,

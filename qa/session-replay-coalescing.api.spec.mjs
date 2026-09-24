@@ -17,8 +17,20 @@ function harness() {
   let id = 0;
   const store = {
     list: async (scope) => [...rows.values()].filter((row) => row.scope === scope).map(copy),
-    put: async (row) => { rows.set(row.change.id, copy(row)); },
-    remove: async (key) => { rows.delete(key); },
+    putMany: async (batch) => { for (const row of batch) rows.set(row.change.id, copy(row)); },
+    update: async (expected, next) => {
+      if (JSON.stringify(rows.get(expected.change.id)) !== JSON.stringify(expected)) return false;
+      rows.set(next.change.id, copy(next)); return true;
+    },
+    remove: async (expected) => {
+      if (JSON.stringify(rows.get(expected.change.id)) !== JSON.stringify(expected)) return false;
+      rows.delete(expected.change.id); return true;
+    },
+    resolveReview: async (expected, replacement) => {
+      if (JSON.stringify(rows.get(expected.change.id)) !== JSON.stringify(expected)) return false;
+      if (replacement) rows.set(replacement.change.id, copy(replacement));
+      rows.set(expected.change.id, { ...copy(expected), status: "archived" }); return true;
+    },
   };
   const client = createSessionSaveClient({ store, getScope: () => state.scope, makeId: () => `op-${++id}`,
     send: async (change, baseRevision, scope) => {

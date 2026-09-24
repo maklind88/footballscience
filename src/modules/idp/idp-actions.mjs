@@ -242,6 +242,7 @@ function splitTokenList(value = "") {
 
 export function createIdpActions({ store, api, context = {} }) {
   const getSquadState = () => context.getPlayerProfilesState?.() || {};
+  let loadGeneration = 0;
 
   async function loadDashboard() {
     const fallback = buildIdpDashboardFromSquadState(getSquadState());
@@ -263,6 +264,7 @@ export function createIdpActions({ store, api, context = {} }) {
   }
 
   async function selectPlayer(playerId, options = {}) {
+    const generation = ++loadGeneration;
     const safePlayerId = normalizeText(playerId, 160);
     const currentUi = store.getState().ui || {};
     store.setState({
@@ -291,6 +293,7 @@ export function createIdpActions({ store, api, context = {} }) {
     if (!safePlayerId) return;
     try {
       const payload = await api.loadPlayer(safePlayerId);
+      if (generation !== loadGeneration || store.getState().ui.selectedPlayerId !== safePlayerId) return;
       const normalized = normalizePlayerPayload(payload, fallbackDetail);
       if (!normalized.profile.playerId && fallbackPlayer) {
         store.setState({ playerDetail: fallbackDetail, sync: normalizeSyncPayload(payload), ui: { error: "" } });
@@ -298,14 +301,38 @@ export function createIdpActions({ store, api, context = {} }) {
       }
       store.setState({ playerDetail: normalized, sync: normalizeSyncPayload(payload), ui: { error: "" } });
     } catch (error) {
+      if (generation !== loadGeneration || store.getState().ui.selectedPlayerId !== safePlayerId) return;
       if (!fallbackPlayer) store.setState({ ui: { error: error.message || "Could not load player IDP." } });
     }
   }
 
-  async function refreshSelectedPlayer() {
-    const playerId = selectedPlayerIdFromState(store.getState());
-    await loadDashboard();
-    if (playerId) await selectPlayer(playerId, { preserveProfileView: true });
+  async function refreshSelectedPlayer({ background = false } = {}) {
+    const initial = store.getState();
+    const playerId = selectedPlayerIdFromState(initial);
+    const generation = ++loadGeneration;
+    const initialUi = JSON.stringify(initial.ui);
+    const fallback = buildIdpDashboardFromSquadState(getSquadState());
+    // Keep the last complete snapshot visible until both reads have succeeded.
+    const [dashboardPayload, playerPayload] = await Promise.all([
+      api.loadDashboard(),
+      playerId ? api.loadPlayer(playerId) : Promise.resolve(null),
+    ]);
+    const latest = store.getState();
+    if (generation !== loadGeneration || latest.ui.selectedPlayerId !== playerId) return false;
+    if (background && (
+      hasActiveEditingSurface(latest.ui) || JSON.stringify(latest.ui) !== initialUi ||
+      latest.playerDetail !== initial.playerDetail || latest.dashboardPlayers !== initial.dashboardPlayers
+    )) return false;
+    const dashboardPlayers = normalizeDashboardPayload(dashboardPayload, fallback);
+    const fallbackPlayer = findSquadPlayer(getSquadState(), playerId);
+    const fallbackDetail = fallbackPlayer ? buildLegacyPlayerDetail(fallbackPlayer) : null;
+    store.setState({
+      dashboardPlayers: dashboardPlayers.length ? dashboardPlayers : fallback,
+      ...(playerPayload ? { playerDetail: normalizePlayerPayload(playerPayload, fallbackDetail) } : {}),
+      sync: normalizeSyncPayload(dashboardPayload),
+      ...(background ? {} : { ui: { error: "" } }),
+    });
+    return true;
   }
 
   async function checkForExternalUpdates() {
@@ -324,8 +351,7 @@ export function createIdpActions({ store, api, context = {} }) {
       store.setState({ sync: nextSync });
       return false;
     }
-    await refreshSelectedPlayer();
-    return true;
+    return refreshSelectedPlayer({ background: true });
   }
 
   async function createFocus(formData) {

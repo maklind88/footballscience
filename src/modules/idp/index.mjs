@@ -1,6 +1,7 @@
 import { createIdpActions } from "./idp-actions.mjs";
 import { createIdpStore } from "./idp-state.mjs";
 import { renderIdpWorkspace as renderMarkup } from "./idp-renderer.mjs";
+import { updateIdpWorkspaceMarkup } from "./idp-workspace-paint.mjs";
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import {
   bindIdpPlayerBoardEvents,
@@ -120,14 +121,15 @@ function scrollWorkspaceTop(activeRuntime = runtime) {
 function shouldRunSyncCheck(activeRuntime) {
   const root = getRoot(activeRuntime?.context);
   if (!root || root.isConnected === false) return false;
+  if (typeof root.getClientRects === "function" && root.getClientRects().length === 0) return false;
   const doc = getDocument(activeRuntime);
   return !doc?.hidden;
 }
 
-function queueSyncCheck(activeRuntime = runtime, options = {}) {
+function queueSyncCheck(activeRuntime = runtime) {
   if (!activeRuntime || !activeRuntime.initialized || !shouldRunSyncCheck(activeRuntime)) return;
   const now = Date.now();
-  if (!options.force && activeRuntime.lastSyncCheckAt && now - activeRuntime.lastSyncCheckAt < IDP_SYNC_FOCUS_COOLDOWN_MS) {
+  if (activeRuntime.lastSyncCheckAt && now - activeRuntime.lastSyncCheckAt < IDP_SYNC_FOCUS_COOLDOWN_MS) {
     return;
   }
   if (activeRuntime.syncInFlight) return;
@@ -147,8 +149,8 @@ function startAutoSync(activeRuntime) {
     activeRuntime.syncIntervalId = win.setInterval(() => queueSyncCheck(activeRuntime), IDP_SYNC_INTERVAL_MS);
   }
   if (activeRuntime.syncListening || typeof win.addEventListener !== "function") return;
-  const onFocus = () => queueSyncCheck(activeRuntime, { force: true });
-  const onVisibilityChange = () => queueSyncCheck(activeRuntime, { force: true });
+  const onFocus = () => queueSyncCheck(activeRuntime);
+  const onVisibilityChange = () => queueSyncCheck(activeRuntime);
   win.addEventListener("focus", onFocus);
   getDocument(activeRuntime)?.addEventListener?.("visibilitychange", onVisibilityChange);
   activeRuntime.syncListening = true;
@@ -215,7 +217,7 @@ function paint(activeRuntime = runtime) {
     playerDetail,
     ui: getIdpPlayerBoardRuntimeUi(activeRuntime),
   };
-  root.innerHTML = renderMarkup(renderState, {
+  const markup = renderMarkup(renderState, {
     canEdit: canEdit(activeRuntime.context),
     currentUser: activeRuntime.context.currentUser,
     users: activeRuntime.context.users,
@@ -226,6 +228,13 @@ function paint(activeRuntime = runtime) {
     exerciseLibraryTemplates: activeRuntime.context.getExerciseLibrary?.() || [],
     renderPlayerProfileScoutingSpider: activeRuntime.context.renderPlayerProfileScoutingSpider,
   });
+  const uiSignature = JSON.stringify(renderState.ui);
+  const previous = activeRuntime.lastPaint;
+  if (previous?.root === root && previous.markup === markup) return;
+  updateIdpWorkspaceMarkup(root, markup, previous?.root === root ? previous.markup : "", {
+    preserveSections: previous?.root === root && previous.uiSignature === uiSignature,
+  });
+  activeRuntime.lastPaint = { root, markup, uiSignature };
   restoreSearchFocus(activeRuntime, searchFocus);
   setupIdpClipPreviewPlayback(activeRuntime);
   bindIdpPlayerBoardEvents(activeRuntime);

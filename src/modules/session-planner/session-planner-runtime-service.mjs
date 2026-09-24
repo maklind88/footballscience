@@ -58,8 +58,9 @@ export function createSessionPlannerRuntimeService(deps = {}) {
   });
 
   deps.ui?.sessionPlannerWorkspace?.addEventListener?.("click", (event) => {
-    if (event.target?.closest?.("[data-session-review-local]") && deps.canEditSessionPlanner?.()) {
-      stateService.openLocalSaveReview().catch(() => showSessionPlannerToast("Local saves could not be read.", "warning"));
+    const opener = event.target?.closest?.("[data-session-review-local]");
+    if (opener && deps.canEditSessionPlanner?.()) {
+      stateService.openLocalSaveReview(opener).catch(() => showSessionPlannerToast("Local saves could not be read.", "warning"));
     }
   });
 

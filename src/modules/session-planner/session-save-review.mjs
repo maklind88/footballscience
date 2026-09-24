@@ -1,8 +1,7 @@
 import { describeSessionDifferences } from "./session-save-protocol.mjs";
 
-export async function openSessionSaveReview({ document: doc, bridge, legacy, onResolved = () => {}, canReview }) {
+export async function openSessionSaveReview({ document: doc, bridge, legacy, onResolved = () => {}, canReview, returnFocus = doc.activeElement }) {
   if (!canReview() || doc.querySelector("dialog.session-save-review")) return;
-  const previousFocus = doc.activeElement;
   if (!doc.querySelector("[data-session-save-review-css]")) {
     const link = doc.createElement("link");
     link.rel = "stylesheet";
@@ -21,7 +20,10 @@ export async function openSessionSaveReview({ document: doc, bridge, legacy, onR
   const content = doc.createElement("div"); content.className = "session-save-review-content";
   const status = doc.createElement("p"); status.setAttribute("role", "status"); status.textContent = "Loading local saves...";
   content.append(status); dialog.append(head, content); doc.body.append(dialog);
-  dialog.addEventListener("close", () => { dialog.remove(); previousFocus?.focus(); }, { once: true });
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    if (returnFocus?.isConnected && returnFocus.ownerDocument === doc) returnFocus.focus();
+  }, { once: true });
   dialog.showModal();
   let busy = false;
   dialog.addEventListener("cancel", (event) => { if (busy) event.preventDefault(); });

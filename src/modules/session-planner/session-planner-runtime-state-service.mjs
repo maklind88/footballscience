@@ -326,7 +326,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     return recovery.queue();
   }
 
-  async function openLocalSaveReview() {
+  async function openLocalSaveReview(returnFocus = win.document.activeElement) {
     const context = getRecoveryContext();
     const bridge = win.footballScienceCentralState;
     if (!context?.ready || !bridge?.getSessionCentralValue) return;
@@ -337,7 +337,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
       getCentralValue: () => bridge.getSessionCentralValue(),
       save: (value) => bridge.syncKey(sessionPlannerStorageKey, value), storageKey: sessionPlannerStorageKey,
     });
-    return openSessionSaveReview({ document: win.document, bridge, legacy,
+    return openSessionSaveReview({ document: win.document, bridge, legacy, returnFocus,
       canReview: () => getRecoveryContext()?.scope === context.scope && getRecoveryContext()?.ready,
       onResolved: async () => {
         await bridge.hydrate({ fresh: true });

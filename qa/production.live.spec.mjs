@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { expect, test } from "@playwright/test";
-import { startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
+import { openScoutingDatabaseTab, startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
 
 const scheduleKey = "football-schedule-v1";
 const primaryLiveCredentials = {
@@ -649,9 +649,7 @@ test("production test account can open the unified Scouting database", async ({ 
   expect(statusPayload.canRead).toBe(true);
 
   await openWorkspace(page, "scouting");
-  const databaseTab = page.locator('.scouting-tab[data-scouting-tab="database"]').first();
-  await expect(databaseTab).toBeVisible({ timeout: 15_000 });
-  await databaseTab.click();
+  await openScoutingDatabaseTab(page);
 
   await expect(page.locator("[data-scouting-load-fsdb]")).toHaveCount(0);
   await startScoutingDatabaseLoad(page, { startTimeout: 15_000 });

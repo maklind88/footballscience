@@ -127,7 +127,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
-  function renderPresentationModeCard(birthdayStripMarkup = "", upcomingLineupMarkup = "") {
+  function renderPresentationModeCard(birthdayStripMarkup = "", upcomingLineupMarkup = "", leaderboardMarkup = "") {
     const cards = [
       {
         type: "team",
@@ -160,6 +160,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             </div>
           </article>
           ${index === 0 ? birthdayStripMarkup : ""}
+          ${index === 0 ? leaderboardMarkup : ""}
           ${index === 1 ? upcomingLineupMarkup : ""}
         </div>
             `
@@ -560,8 +561,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     return `
     <section class="dashboard-workspace-layout dashboard-home-ops dashboard-home-density-${escapeHtml(homeAppearance.density)} dashboard-home-theme-${escapeHtml(homeAppearance.theme)}" aria-label="Home dashboard">
       <section class="dashboard-home-grid" aria-label="Coach workspace">
-        ${renderPresentationModeCard(birthdayStripMarkup, upcomingLineupMarkup)}
-        ${leaderboardMarkup}
+        ${renderPresentationModeCard(birthdayStripMarkup, upcomingLineupMarkup, leaderboardMarkup)}
         ${
           workQueueMarkup
             ? `

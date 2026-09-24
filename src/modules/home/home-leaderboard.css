@@ -25,6 +25,10 @@
   display: none;
 }
 
+.dashboard-presentation-stack > .dashboard-leaderboard-slot {
+  width: 100%;
+}
+
 .dashboard-leaderboard-loading {
   display: grid;
   grid-template-columns: 1.3fr repeat(2, minmax(8rem, 0.65fr));

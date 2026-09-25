@@ -490,9 +490,23 @@ export function createCentralSyncRuntimeService(deps = {}) {
       reportSyncStatus(normalizedKey, "issue", successorPersistenceIssue);
       return false;
     }
-    const stage = normalizedKey === sessionPlannerStorageKey && !options.removed && bridge.stageSessionWrite
-      ? () => options.sessionReplay ? Promise.resolve({ ok: true }) : bridge.stageSessionWrite(String(value ?? ""), { previousValue: options.previousValue, previousPending: options.previousPending })
-      : null;
+    let stage = null;
+    let stageKind = "";
+    if (normalizedKey === sessionPlannerStorageKey && !options.removed && bridge.stageSessionWrite) {
+      stageKind = "session";
+      stage = () => options.sessionReplay
+        ? Promise.resolve({ ok: true })
+        : bridge.stageSessionWrite(String(value ?? ""), {
+            previousValue: options.previousValue,
+            previousPending: options.previousPending,
+          });
+    } else if (normalizedKey === setPiecesRoomStorageKey && !options.removed &&
+        !options.setPiecesReplay && bridge.stageSetPiecesWrite) {
+      stageKind = "set-pieces";
+      stage = () => bridge.stageSetPiecesWrite(String(value ?? ""), {
+        previousValue: options.previousValue,
+      });
+    }
     centralStateWriteQueue.set(normalizedKey, {
       key: normalizedKey,
       value: String(value ?? ""),
@@ -507,8 +521,12 @@ export function createCentralSyncRuntimeService(deps = {}) {
       followsActiveWrite: centralStateActiveWrites.has(normalizedKey),
       ...(normalizedKey === sessionPlannerStorageKey ? { sessionViewToken: options.sessionViewToken || bridge.getCachedValueInfo?.(normalizedKey)?.sessionViewToken } : {}),
       previousValue: typeof options.previousValue === "string" ? options.previousValue : undefined,
-      setPiecesReplay: Boolean(options.setPiecesReplay),
-      ...(stage ? { stage, staged: Promise.resolve().then(stage).catch((error) => ({ ok: false, reason: error.message })) } : {}),
+      setPiecesReplay: Boolean(options.setPiecesReplay || stageKind === "set-pieces"),
+      ...(stage ? {
+        stage,
+        stageKind,
+        staged: Promise.resolve().then(stage).catch((error) => ({ ok: false, reason: error.message })),
+      } : {}),
     });
     if (centralStateWriteTimer) {
       win.clearTimeout(centralStateWriteTimer);
@@ -602,7 +620,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
           baseRevision: getCentralStateWriteBaseRevision(write),
           ...(write.previousValue !== undefined ? { previousValue: write.previousValue } : {}),
           ...(write.setPiecesReplay ? { setPiecesReplay: true } : {}),
-          ...(write.stage ? { sessionStaged: true } : {}),
+          ...(write.stageKind === "session" ? { sessionStaged: true } : {}),
         });
       } catch (error) {
         result = { ok: false, reason: error?.message || "Central sync failed. Local changes were retained." };

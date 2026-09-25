@@ -159,6 +159,56 @@ test("Set Pieces save client durably replays a concurrent merge and acknowledges
   expect([...journal.rows.values()][0].status).toBe("applied");
 });
 
+test("Set Pieces journals rapid consecutive edits before one network replay", async () => {
+  const original = stateWith(play());
+  const central = clone(original);
+  let revision = 4;
+  const journal = createMemoryJournal();
+  let id = 0;
+  const client = createSetPiecesSaveClient({
+    getScope: () => "team-a:coach-fast",
+    journal,
+    makeId: () => `set-piece-fast-${++id}`,
+    send: async (change) => {
+      const applied = applySetPiecePlayChange(central, change);
+      if (!applied.ok) {
+        return { ok: false, status: 409, payload: { conflicts: applied.conflicts, currentRevision: revision } };
+      }
+      Object.assign(central, applied.state);
+      revision += 1;
+      return {
+        ok: true,
+        payload: {
+          setPieceChange: {
+            id: change.id,
+            playId: change.playId,
+            value: setPiecePlayValue(central, change.playId),
+          },
+          metadata: { revision },
+        },
+      };
+    },
+  });
+  client.observe(JSON.stringify(original), { revision });
+  const first = clone(original);
+  first.plays[0].title = "Rapid title edit";
+  const second = clone(first);
+  second.plays[0].objective = "Rapid objective edit";
+
+  await Promise.all([
+    client.stage(JSON.stringify(first), { previousValue: JSON.stringify(original) }),
+    client.stage(JSON.stringify(second), { previousValue: JSON.stringify(first) }),
+  ]);
+  const result = await client.replay();
+
+  expect(result.ok).toBe(true);
+  expect(central.plays[0]).toMatchObject({
+    title: "Rapid title edit",
+    objective: "Rapid objective edit",
+  });
+  expect(await client.isSettled()).toBe(true);
+});
+
 test("Set Pieces save client retains a same-field collision as a local review", async () => {
   const original = stateWith(play());
   const journal = createMemoryJournal();

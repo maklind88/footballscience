@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-for (const width of [1450, 390]) {
+for (const width of [1450, 768, 390]) {
   test(`IDP clip bank empty and filtered layouts at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 850 });
     const profile = { playerId: "p1", playerName: "Ryan Williams" };
@@ -20,6 +20,7 @@ for (const width of [1450, 390]) {
         const root = document.getElementById("idpWorkspace");
         root.addEventListener("click", module.handleClick);
         root.addEventListener("input", module.handleInput);
+        root.addEventListener("change", module.handleChange);
         module.render({ ui: { idpWorkspace: root }, win: window, canEdit: () => true });
       });
       await page.locator('[data-idp-player="p1"]').click();
@@ -30,10 +31,21 @@ for (const width of [1450, 390]) {
     await expect(bank.getByRole("status")).toHaveText("No clips yet");
     await expect(bank.getByText("0 clips", { exact: true })).toHaveCount(1);
     await expect(bank.getByRole("searchbox", { name: "Search clips" })).toBeVisible();
+    await expect(bank.getByRole("button", { name: "Log observation" })).toHaveCount(0);
+    await expect(bank.locator(".idp-clip-bank-head").getByRole("searchbox")).toHaveCount(1);
     const headBox = await bank.locator(".idp-clip-bank-head").boundingBox();
     const searchBox = await bank.locator(".idp-clip-bank-search").boundingBox();
+    const titleBox = await bank.locator(".idp-clip-bank-head > div:first-child").boundingBox();
     const bankBox = await bank.boundingBox();
-    expect(searchBox.y - (headBox.y + headBox.height)).toBeLessThanOrEqual(16);
+    if (width > 760) {
+      expect(searchBox.width).toBeGreaterThanOrEqual(300);
+      expect(searchBox.x).toBeGreaterThan(titleBox.x + titleBox.width);
+      expect(Math.abs(searchBox.x + searchBox.width - headBox.x - headBox.width)).toBeLessThan(2);
+      expect(Math.abs(searchBox.y + searchBox.height / 2 - titleBox.y - titleBox.height / 2)).toBeLessThan(2);
+    } else {
+      expect(searchBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
+      expect(Math.abs(searchBox.width - headBox.width)).toBeLessThan(2);
+    }
     expect(bankBox.height).toBeLessThan(310);
     expect(searchBox.x + searchBox.width).toBeLessThanOrEqual(width);
     await testInfo.attach(`empty-clips-${width}.png`, { body: await bank.screenshot(), contentType: "image/png" });
@@ -44,6 +56,10 @@ for (const width of [1450, 390]) {
     ];
     await openBank();
     await expect(bank.locator(".idp-clip-bank-row")).toHaveCount(2);
+    await bank.locator('.idp-clip-bank-row input[type="checkbox"]').first().check();
+    await expect(bank.getByRole("button", { name: "Open selected (1)" })).toBeVisible();
+    await expect(bank.getByRole("searchbox")).toBeVisible();
+    await testInfo.attach(`populated-clips-${width}.png`, { body: await bank.screenshot(), contentType: "image/png" });
     await bank.getByRole("searchbox").fill("Crossing");
     await expect(bank.locator(".idp-clip-bank-row")).toHaveCount(1);
     await expect(bank).toContainText("1 of 2 clips");

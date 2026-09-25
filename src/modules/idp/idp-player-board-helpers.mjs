@@ -45,6 +45,7 @@ export const idpPlayerBoardUiDefaults = Object.freeze({
   idpPlayerBoardLastPlacement: null,
   idpPlayerBoardSelectedInterventionId: "",
   idpPlayerBoardExerciseSearchQuery: "",
+  idpPlayerBoardEditingInterventionId: "",
   idpPlayerBoardExerciseVisibleCount: 3,
 });
 

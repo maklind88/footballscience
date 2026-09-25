@@ -1,0 +1,80 @@
+.idp-exercise-entry {
+  border: 1px solid var(--idp-line, #e4e7ec);
+  border-radius: 8px;
+  min-width: 0;
+  background: var(--idp-panel, #fff);
+}
+
+.idp-exercise-entry.is-active {
+  border-color: #0f766e;
+  box-shadow: inset 3px 0 #0f766e;
+}
+
+.idp-exercise-entry-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.idp-exercise-entry-head > button[data-idp-board-select] {
+  border: 0;
+  background: transparent;
+  color: var(--idp-ink, #101828);
+  flex: 1;
+  width: auto;
+}
+
+.idp-exercise-entry-actions {
+  display: flex;
+  gap: 2px;
+  padding: 8px 8px 0 0;
+  flex: 0 0 auto;
+}
+
+.idp-player-board-bank-list .idp-exercise-entry-actions button {
+  display: grid;
+  place-items: center;
+  grid-template-columns: 1fr;
+  padding: 6px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--idp-muted, #667085);
+}
+
+.idp-player-board-bank-list .idp-exercise-entry-actions button:hover,
+.idp-player-board-bank-list .idp-exercise-entry-actions button:focus-visible {
+  background: var(--idp-subtle, #f4f6f8);
+  color: var(--idp-ink, #101828);
+}
+
+.idp-player-board-bank-list .idp-exercise-entry-actions button[data-idp-board-delete]:hover {
+  color: #b42318;
+}
+
+.idp-exercise-entry-actions svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.idp-player-board-bank-list .idp-exercise-entry .idp-exercise-link-details button {
+  display: block;
+  width: auto;
+  min-height: 36px;
+  padding: 8px 12px;
+}
+
+@media (pointer: coarse) {
+  .idp-player-board-bank-list .idp-exercise-entry-actions button {
+    width: 40px;
+    height: 40px;
+  }
+}

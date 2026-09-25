@@ -1,4 +1,5 @@
 @import url("./idp-focus-overview.css");
+@import url("./idp-exercise-bank.css");
 
 .idp-focus-story.idp-focus-clarity-card {
   background:
@@ -592,8 +593,7 @@ body.is-dark-mode .idp-player-profile .idp-profile-actions-deck .idp-action-rail
     grid-template-columns: 1fr;
   }
 }
-.idp-exercise-link-details { border-top: 1px solid var(--border-color, #d5dce5); padding-top: 14px; }
-.idp-exercise-link-details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.idp-exercise-link-details { border-top: 1px solid var(--border-color, #d5dce5); padding: 0 12px 12px; }
 .idp-exercise-link-details label { display: grid; gap: 6px; margin: 12px 0; font-size: 12px; }
 .idp-exercise-link-details input,
 .idp-exercise-link-details select,

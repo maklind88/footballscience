@@ -1083,13 +1083,38 @@ test("idp player board renders every supported placement material after persiste
   expect(playerBoardHtml).toContain("<strong>Test Player</strong>");
   expect(playerBoardHtml).toContain("<span>Material check</span>");
   expect(playerBoardHtml).not.toContain('class="idp-player-board-head"');
-  expect(playerBoardHtml).toContain("data-idp-board-title");
-  expect(playerBoardHtml).toContain("data-idp-board-objective");
+  expect(playerBoardHtml).toContain('data-idp-board-edit-details="intervention-1"');
+  expect(playerBoardHtml).not.toContain("data-idp-board-title");
+  expect(playerBoardHtml).not.toContain("data-idp-board-objective");
   expect(playerBoardHtml).toContain("data-idp-board-save");
   expect(playerBoardHtml).toContain('data-idp-board-delete="intervention-1"');
   expect(playerBoardHtml).toContain('data-idp-board-row-version="1"');
   expect(playerBoardHtml.indexOf("data-idp-board-preview")).toBeGreaterThan(playerBoardHtml.indexOf("idp-player-board-stage-head"));
   expect(playerBoardHtml.indexOf("data-idp-board-open")).toBeLessThan(playerBoardHtml.indexOf("idp-player-board-pitch-preview"));
+});
+
+test("idp exercise entry editing is scoped to one exercise and hidden for read-only users", () => {
+  const state = {
+    dashboardPlayers: [],
+    ui: { selectedPlayerId: "p1", profileView: "player-board", idpPlayerBoardSelectedInterventionId: "e2", idpPlayerBoardEditingInterventionId: "e2" },
+    playerDetail: {
+      profile: { playerId: "p1", playerName: "Test Player" },
+      focuses: [],
+      interventions: [
+        { id: "e1", playerId: "p1", title: "First exercise", rowVersion: 2, boardState: {}, status: "active" },
+        { id: "e2", playerId: "p1", title: "Second exercise", rowVersion: 4, boardState: {}, status: "active" },
+      ],
+    },
+  };
+  const editable = renderIdpWorkspace(state, { canEdit: true, users: [] });
+  expect(editable.match(/data-idp-board-title/g)).toHaveLength(1);
+  expect(editable).toContain('value="Second exercise"');
+  expect(editable).toContain('data-idp-board-row-version="4"');
+  const readOnly = renderIdpWorkspace(state, { canEdit: false, users: [] });
+  expect(readOnly).toContain('data-idp-board-select="e2"');
+  expect(readOnly).not.toContain("data-idp-board-edit-details");
+  expect(readOnly).not.toContain("data-idp-board-delete");
+  expect(readOnly).not.toContain("data-idp-board-title");
 });
 
 test("idp player board exercise bank supports search and progressive loading", () => {
@@ -1574,7 +1599,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("idp-player-board-pitch-preview");
   expect(playerBoardHtml).toContain("data-idp-board-open");
   expect(playerBoardHtml).not.toContain("Save board");
-  expect(playerBoardHtml).toContain("idp-exercise-link-details");
+  expect(playerBoardHtml).not.toContain("Exercise name &amp; focus");
   expect(playerBoardHtml).not.toContain("data-idp-player-board-handout-layer");
 
   const clipBankHtml = renderIdpWorkspace({

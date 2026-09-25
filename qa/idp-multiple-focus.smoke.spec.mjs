@@ -8,6 +8,7 @@ for (const width of [1450, 390]) {
     const goals = [];
     const interventions = [];
     const writes = [];
+    let rejectDelete = false;
     await page.route("**/__idp-focus-test", (route) => route.fulfill({ contentType: "text/html", body: '<html><head><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/session-planner-overrides.css"><link rel="stylesheet" href="/src/modules/session-planner/session-planner-tacticalboard.css"><link rel="stylesheet" href="/src/modules/idp/idp.css"></head><body style="margin:0"><main id="idpWorkspace"></main></body></html>' }));
     await page.route("**/api/idp**", async (route) => {
       const request = route.request();
@@ -39,6 +40,15 @@ for (const width of [1450, 390]) {
         const intervention = { ...interventions[index], ...body.intervention, rowVersion: body.intervention.rowVersion + 1 };
         interventions[index] = intervention;
         return route.fulfill({ json: { intervention } });
+      }
+      if (body.action === "archive-intervention") {
+        const index = interventions.findIndex((item) => item.id === body.intervention.id);
+        expect(index).toBeGreaterThanOrEqual(0);
+        expect(body.intervention.playerId).toBe("p1");
+        expect(body.intervention.rowVersion).toBe(interventions[index].rowVersion);
+        if (rejectDelete) return route.fulfill({ status: 409, json: { reason: "Exercise changed. Reload before deleting." } });
+        const [intervention] = interventions.splice(index, 1);
+        return route.fulfill({ json: { intervention: { ...intervention, deletedAt: new Date().toISOString() } } });
       }
       throw new Error(`Unexpected write ${body.action}`);
     });
@@ -88,7 +98,7 @@ for (const width of [1450, 390]) {
     expect(interventions[0].focusId).toBe("");
     expect(interventions[0].boardState.tacticalElements).toHaveLength(1);
     const drawing = structuredClone(interventions[0].boardState);
-    await page.locator(".idp-exercise-link-details summary").click();
+    await page.locator('[data-idp-board-edit-details="exercise-1"]').click();
     await page.locator("[data-idp-board-title]").fill("Receive and turn");
     await page.locator("[data-idp-board-focus]").selectOption("secondary-focus");
     await page.locator(".idp-exercise-link-details [data-idp-board-save]").click();
@@ -96,14 +106,49 @@ for (const width of [1450, 390]) {
     expect(interventions).toHaveLength(1);
     expect(interventions[0].focusId).toBe("secondary-focus");
     expect(interventions[0].boardState).toEqual(drawing);
+    await expect(page.locator(".idp-exercise-entry .idp-exercise-link-details")).toHaveCount(0);
     await page.locator("[data-idp-board-open]").click();
     await expect(page.locator(".session-tacticalboard-modal .session-tactical-cone")).toHaveCount(1);
     await page.locator("[data-session-close-tacticalboard]").click();
-    await page.locator(".idp-exercise-link-details summary").click();
+    await page.locator('[data-idp-board-edit-details="exercise-1"]').click();
     await page.locator("[data-idp-board-focus]").selectOption("");
     await page.locator(".idp-exercise-link-details [data-idp-board-save]").click();
     await expect.poll(() => interventions[0].focusId).toBe("");
     expect(interventions[0].boardState).toEqual(drawing);
-    expect(writes.every((write) => ["create-focus", "create-goal", "create-intervention", "update-intervention"].includes(write.action))).toBe(true);
+    await page.locator("[data-idp-board-new]").click();
+    await page.locator(".idp-player-board-editor-save").click();
+    await expect(page.locator('[data-idp-board-select="exercise-2"]')).toBeVisible();
+    await page.locator('[data-idp-board-edit-details="exercise-1"]').click();
+    await expect(page.locator("[data-idp-board-title]")).toHaveValue("Receive and turn");
+    await page.locator("[data-idp-board-title]").fill("Receive, scan and turn");
+    await page.locator(".idp-exercise-link-details [data-idp-board-save]").click();
+    await expect(page.locator('[data-idp-board-select="exercise-1"]')).toContainText("Receive, scan and turn");
+    expect(interventions.find((item) => item.id === "exercise-1").boardState).toEqual(drawing);
+    await expect(page.locator(".idp-player-board-sidebar > .idp-exercise-link-details")).toHaveCount(0);
+    const bankBox = await page.locator(".idp-player-board-exercise-bank").boundingBox();
+    const focusBox = await page.locator(".idp-player-board-focus-card").boundingBox();
+    expect(focusBox.y).toBeGreaterThanOrEqual(bankBox.y + bankBox.height);
+    await testInfo.attach(`exercise-bank-${width}.png`, { body: await page.locator(".idp-player-board-sidebar").screenshot(), contentType: "image/png" });
+
+    await page.locator('[data-idp-board-select="exercise-2"]').click();
+    await page.locator('.idp-exercise-entry [data-idp-board-delete="exercise-1"]').click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    expect(writes.filter((write) => write.action === "archive-intervention")).toHaveLength(0);
+    rejectDelete = true;
+    await page.locator('.idp-exercise-entry [data-idp-board-delete="exercise-1"]').click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete exercise", exact: true }).click();
+    await expect(page.getByText("Exercise changed. Reload before deleting.", { exact: true })).toBeVisible();
+    await expect(page.locator('[data-idp-board-select="exercise-1"]')).toBeVisible();
+    expect(interventions).toHaveLength(2);
+    rejectDelete = false;
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await page.locator('.idp-exercise-entry [data-idp-board-delete="exercise-1"]').click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete exercise", exact: true }).click();
+    await expect(page.locator('[data-idp-board-select="exercise-1"]')).toHaveCount(0);
+    await expect(page.locator('[data-idp-board-select="exercise-2"]')).toBeVisible();
+    expect(interventions.map((item) => item.id)).toEqual(["exercise-2"]);
+    expect(focuses.find((focus) => focus.id === "main-focus").title).toBe("Crossing");
+    expect(writes.every((write) => ["create-focus", "create-goal", "create-intervention", "update-intervention", "archive-intervention"].includes(write.action))).toBe(true);
   });
 }

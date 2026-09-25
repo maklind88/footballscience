@@ -452,6 +452,7 @@ function selectExercise(activeRuntime = {}, interventionId = "") {
   activeRuntime.store?.setState?.({
     ui: {
       idpPlayerBoardSelectedInterventionId: interventionId || "",
+      idpPlayerBoardEditingInterventionId: "",
       idpPlayerBoardPreviewOpen: false,
       idpPlayerBoardOpen: false,
     },
@@ -496,6 +497,7 @@ function saveCurrentExercise(activeRuntime = {}) {
     try {
       await activeRuntime.actions.savePlayerBoard(payload);
       resetIdpPlayerBoardRuntimeDraft(activeRuntime);
+      activeRuntime.store?.setState?.({ ui: { idpPlayerBoardEditingInterventionId: "" } });
       renderWorkspace(activeRuntime);
     } finally {
       activeRuntime.idpPlayerBoardSaving = false;
@@ -627,6 +629,15 @@ export function handleIdpPlayerBoardClick(event, activeRuntime = {}) {
   if (callIfClosest("[data-idp-board-preview], [data-session-preview-visual]", () => setPreviewOpen(activeRuntime, true))) return true;
   if (callIfClosest("[data-session-close-visual-preview]", () => setPreviewOpen(activeRuntime, false))) return true;
   if (callIfClosest("[data-idp-board-new]", () => startNewExercise(activeRuntime))) return true;
+  if (callIfClosest("[data-idp-board-edit-details]", (el) => {
+    if (!canEdit(activeRuntime)) return;
+    const id = el.dataset.idpBoardEditDetails || "";
+    const ui = activeRuntime.store?.getState?.()?.ui || {};
+    const editingId = ui.idpPlayerBoardEditingInterventionId === id ? "" : id;
+    if (getCurrentBlock(activeRuntime).interventionId !== id) selectExercise(activeRuntime, id);
+    activeRuntime.store?.setState?.({ ui: { idpPlayerBoardEditingInterventionId: editingId } });
+    getRoot(activeRuntime)?.querySelector?.(editingId ? "[data-idp-board-title]" : "[data-idp-board-select][aria-pressed='true']")?.focus?.();
+  })) return true;
   if (callIfClosest("[data-idp-board-select]", (el) => selectExercise(activeRuntime, el.dataset.idpBoardSelect || ""))) return true;
   if (callIfClosest("[data-idp-board-load-more]", () => {
     const current = Number(activeRuntime.store?.getState?.()?.ui?.idpPlayerBoardExerciseVisibleCount || 3);

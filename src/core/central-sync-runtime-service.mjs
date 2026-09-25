@@ -23,6 +23,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     dashboardPresentationStorageKey = "",
     getSessionPlannerLocalUiState = () => ({ state: {} }),
     sessionPlannerStorageKey = "",
+    setPiecesRoomStorageKey = "",
     scheduleStorageKey = "",
     periodizationStorageKey = "",
     setAutosaveStatusForKey = () => {},
@@ -215,22 +216,29 @@ export function createCentralSyncRuntimeService(deps = {}) {
     const principalScope = getCentralStateBridge()?.getReadScope?.();
     const retryRequest = pendingManifestRetry;
     let durableState = null;
+    let setPiecesDurableState = null;
     try {
       durableState = getCentralStateBridge()?.getSessionPendingState ? await getCentralStateBridge().getSessionPendingState() : null;
+      if (getCurrentUser()?.id !== userId || getCentralStateBridge()?.getReadScope?.() !== principalScope) return;
+      setPiecesDurableState = getCentralStateBridge()?.getSetPiecesPendingState
+        ? await getCentralStateBridge().getSetPiecesPendingState() : null;
     } catch {
       if (getCurrentUser()?.id === userId && getCentralStateBridge()?.getReadScope?.() === principalScope) {
         reportSyncStatus(sessionPlannerStorageKey, "issue", "Local save queue unavailable");
+        if (setPiecesRoomStorageKey) reportSyncStatus(setPiecesRoomStorageKey, "issue", "Local save queue unavailable");
       }
     }
     if (getCurrentUser()?.id !== userId || getCentralStateBridge()?.getReadScope?.() !== principalScope || centralStateWriteQueue.size || centralStateWriteFlushPromise) return;
     if (pendingManifestRetry === retryRequest) pendingManifestRetry = null;
     if (durableState) queueCentralStateWrite(sessionPlannerStorageKey, rawGetItem(sessionPlannerStorageKey) ?? durableState, { automatic: true, sessionReplay: true });
+    if (setPiecesDurableState) queueCentralStateWrite(setPiecesRoomStorageKey, rawGetItem(setPiecesRoomStorageKey) ?? setPiecesDurableState, { automatic: true, setPiecesReplay: true });
     const manifest = typeof readManifest === "function" ? readManifest() : {};
     for (const [key, entry] of Object.entries(manifest.entries || {})) {
       if (entry.principalScope && entry.principalScope !== getCentralStateBridge()?.getReadScope?.()) continue;
       if (getCentralStateBridge()?.getCachedValueInfo?.(key)?.source === "central-readonly-baseline") continue;
       // New Sessions retries use immutable journal entries, never an old whole-calendar cache.
       if (key === sessionPlannerStorageKey && getCentralStateBridge()?.stageSessionWrite) continue;
+      if (key === setPiecesRoomStorageKey && getCentralStateBridge()?.getSetPiecesPendingState) continue;
       if (key === sessionPlannerStorageKey &&
           getCentralStateBridge()?.getCachedValueInfo?.(key)?.source === "central-pending-baseline") continue;
       const value = rawGetItem(key);
@@ -498,6 +506,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
       pendingEntry,
       followsActiveWrite: centralStateActiveWrites.has(normalizedKey),
       ...(normalizedKey === sessionPlannerStorageKey ? { sessionViewToken: options.sessionViewToken || bridge.getCachedValueInfo?.(normalizedKey)?.sessionViewToken } : {}),
+      previousValue: typeof options.previousValue === "string" ? options.previousValue : undefined,
+      setPiecesReplay: Boolean(options.setPiecesReplay),
       ...(stage ? { stage, staged: Promise.resolve().then(stage).catch((error) => ({ ok: false, reason: error.message })) } : {}),
     });
     if (centralStateWriteTimer) {
@@ -590,6 +600,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
           : await bridge.syncKey(write.key, write.value, {
           removed: write.removed,
           baseRevision: getCentralStateWriteBaseRevision(write),
+          ...(write.previousValue !== undefined ? { previousValue: write.previousValue } : {}),
+          ...(write.setPiecesReplay ? { setPiecesReplay: true } : {}),
           ...(write.stage ? { sessionStaged: true } : {}),
         });
       } catch (error) {
@@ -603,7 +615,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       if (result?.staleContext) continue;
       if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
       if (!result?.ok) {
-        if (write.key === sessionPlannerStorageKey && result?.reviewRequired) {
+        if (result?.reviewRequired) {
           flushIssue = result.reason;
           setCentralSyncPendingState(write.key, true, false);
           queueCentralStateStatus(result.reason);

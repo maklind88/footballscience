@@ -3731,6 +3731,8 @@ module.exports = async (req, res) => {
     let sessionChange = null;
     let sessionProtocol = null;
     let sessionIdentity = null;
+    let setPieceChange = null;
+    let setPiecesProtocol = null;
     let incomingValue;
     if (body?.sessionChange !== undefined) {
       if (key !== SESSION_PLANNER_KEY) return sendJson(res, 400, { ok: false, reason: "Date changes are only supported for Sessions." });
@@ -3759,6 +3761,39 @@ module.exports = async (req, res) => {
       } catch (error) {
         return sendJson(res, error.status || 400, { ok: false, reason: error.message || "Invalid session date change." });
       }
+    } else if (body?.setPieceChange !== undefined) {
+      if (key !== SET_PIECES_ROOM_KEY) {
+        return sendJson(res, 400, { ok: false, reason: "Set-piece changes are only supported for Set Pieces Room." });
+      }
+      const access = await measure("authorize", () => authorizeStateWrite(
+        actor,
+        key,
+        previousEntry?.value || '{"schemaVersion":4,"activePlayId":"","plays":[],"updatedAt":""}',
+        false,
+        { previousEntry, clientBaseRevision }
+      ));
+      if (!access.ok) return sendJson(res, access.status || 403, { ok: false, reason: access.reason });
+      setPiecesProtocol = await import("../src/modules/set-pieces-room/set-pieces-save-protocol.mjs");
+      try {
+        setPieceChange = typeof body.setPieceChange === "string"
+          ? JSON.parse(body.setPieceChange)
+          : body.setPieceChange;
+        const applied = setPiecesProtocol.applySetPiecePlayChange(
+          JSON.parse(previousEntry?.value || '{"schemaVersion":4,"activePlayId":"","plays":[],"updatedAt":""}'),
+          setPieceChange
+        );
+        if (!applied.ok) {
+          return sendJson(res, 409, {
+            ok: false,
+            reason: "This set piece has conflicting team changes. Review your local edit.",
+            conflicts: applied.conflicts,
+            currentRevision: previousEntry?.revision || 0,
+          });
+        }
+        incomingValue = JSON.stringify(applied.state);
+      } catch (error) {
+        return sendJson(res, 400, { ok: false, reason: error.message || "Invalid Set Pieces change." });
+      }
     } else {
       incomingValue = key === SESSION_PLANNER_KEY ? await decodeSessionStateValue(key, body?.value) : body?.value;
     }
@@ -3773,6 +3808,10 @@ module.exports = async (req, res) => {
     // The date protocol has already performed a three-way merge against fresh server content.
     // Legacy timestamp heuristics must not silently undo an explicitly reviewed change.
     if (sessionChange) authorization.value = incomingValue;
+    if (setPieceChange) {
+      authorization.value = incomingValue;
+      authorization.merged = true;
+    }
 
     const contentSafety = validateCentralStateContent(key, authorization.value, contract);
     if (!contentSafety.ok) {
@@ -3791,7 +3830,9 @@ module.exports = async (req, res) => {
 
     const entry = normalizeStateEntry(key, authorization.value, actor, false, previousEntry);
     // Verify the reply fits before committing, not after a durable write has succeeded.
-    const responseValue = sessionChange ? undefined : await measure("receipt", () => encodeSessionStateValue(req, key, entry.value));
+    const responseValue = sessionChange || setPieceChange
+      ? undefined
+      : await measure("receipt", () => encodeSessionStateValue(req, key, entry.value));
     const dateReceipt = sessionChange ? {
       id: sessionChange.id, date: sessionChange.date,
       value: sessionProtocol.sessionDateValue(JSON.parse(entry.value), sessionChange.date),
@@ -3812,6 +3853,11 @@ module.exports = async (req, res) => {
           details: { sessions: [{ date: history.date, action: history.action, beforeBlockCount: history.beforeBlockCount, afterBlockCount: history.afterBlockCount }] } }), id: `${eventId}-activity` } : null,
       } };
     }
+    const setPieceReceipt = setPieceChange ? {
+      id: setPieceChange.id,
+      playId: setPieceChange.playId,
+      value: setPiecesProtocol.setPiecePlayValue(JSON.parse(entry.value), setPieceChange.playId),
+    } : undefined;
     const result = await measure("state", () => writeStateObject(entry, measure, sessionOperation));
     if (!result.ok) {
       return sendJson(res, result.status || 400, {
@@ -3880,6 +3926,7 @@ module.exports = async (req, res) => {
       moduleId: persistedEntry.moduleId,
       value: responseValue,
       ...(dateReceipt ? { sessionChange: encodedReceipt } : {}),
+      ...(setPieceReceipt ? { setPieceChange: setPieceReceipt } : {}),
       metadata: getStateEntryMetadata(persistedEntry),
       merged: Boolean(authorization.merged),
     });

@@ -17,6 +17,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     latestStoreName = "latest",
     maxSnapshots = 30,
     protectedStorageKeys = [],
+    journaledStorageKeys = ["football-session-planner-v3"],
     storageLabels = {},
     legacyStorageKeys = {},
     formatDataSafetyTime = (value) => String(value || ""),
@@ -28,6 +29,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
   } = deps;
 
   const protectedStorageKeySet = new Set(protectedStorageKeys);
+  const journaledStorageKeySet = new Set(journaledStorageKeys);
   const status = {
     lastError: "",
     lastSnapshotError: "",
@@ -767,12 +769,12 @@ export function createDataSafetyRuntimeService(deps = {}) {
       try {
         if (!separated && !win.__footballScienceCentralHydrating && previousValue !== normalizedValue) {
           return writeProtectedValue(normalizedKey, normalizedValue,
-            normalizedKey === "football-session-planner-v3" ? { previousValue, previousPending } : {},
+            journaledStorageKeySet.has(normalizedKey) ? { previousValue, previousPending } : {},
             () => rawSetItem(normalizedKey, normalizedValue));
         }
         const result = rawSetItem(normalizedKey, normalizedValue, { explicitReadViewWrite: separated });
         if (separated || previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue,
-          separated ? { requirePersisted: true, replacement: true } : normalizedKey === "football-session-planner-v3" ? { previousValue, previousPending } : {});
+          separated ? { requirePersisted: true, replacement: true } : journaledStorageKeySet.has(normalizedKey) ? { previousValue, previousPending } : {});
         return result;
       } catch (error) {
         handleWriteError(normalizedKey, error);

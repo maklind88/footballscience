@@ -1219,6 +1219,7 @@ test("platform, permission and data-safety contracts own Set Pieces Room", () =>
   expect(module?.storageKeys).toContain("football-set-pieces-room-v1");
   expect(permission?.permissions.write).toContain("coach");
   expect(contract).toMatchObject({ moduleId: "set-pieces-room", scope: { teamScoped: true } });
+  expect(contract).toMatchObject({ mergePolicy: "field-timestamp-merge", staleWriteStrategy: "merge" });
   expect(protectedStorageKeys).toContain("football-set-pieces-room-v1");
 });
 

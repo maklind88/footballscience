@@ -1074,6 +1074,105 @@ for (const fullCache of [false, true]) {
   });
 }
 
+for (const scenario of ["observed successor", "independent stale edit", "conflicting stale edit", "late predecessor receipt"]) {
+  test(`Sessions two-editor save ordering: ${scenario}`, async ({ browser, baseURL }) => {
+    const day = "2026-09-25", initial = createStateValue("Original central sequence");
+    const value = JSON.stringify({ selectedDate: day, sessions: { [day]: { date: day, title: "Training", selectedBlockId: "a",
+      blocks: [{ id: "a", title: "Before", objective: "Original objective", minutes: 20 }] } } });
+    const centralStore = { value: initial, metadata: createMetadata(1, initial), entries: { [sessionPlannerStateKey]: value },
+      metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(7, value), moduleId: "session-planner" } } };
+    const requests = [], accepted = [], tabs = [];
+    const observesLatest = ["observed successor", "late predecessor receipt"].includes(scenario);
+    let releaseFirst;
+    const firstReceipt = new Promise((resolve) => { releaseFirst = resolve; });
+    const options = {
+      fixedDate: "2026-09-25T12:00:00.000Z",
+      appStateWriteHandler: async ({ body }) => {
+        if (body.key !== sessionPlannerStateKey || !body.sessionChange) return null;
+        requests.push(body);
+        const revision = centralStore.metadataEntries[sessionPlannerStateKey].revision;
+        if (Number(body.baseRevision) !== revision) return { status: 409, body: { ok: false, currentRevision: revision } };
+        const merged = applySessionDateChange(JSON.parse(centralStore.entries[sessionPlannerStateKey]), body.sessionChange);
+        if (!merged.ok) return { status: 409, body: { ok: false, conflicts: merged.conflicts, currentRevision: revision } };
+        const next = JSON.stringify(merged.state);
+        centralStore.entries[sessionPlannerStateKey] = next;
+        centralStore.metadataEntries[sessionPlannerStateKey] = { ...createMetadata(revision + 1, next), moduleId: "session-planner" };
+        accepted.push(body);
+        const receipt = { ok: true, metadata: { ...centralStore.metadataEntries[sessionPlannerStateKey] }, sessionChange: JSON.stringify({
+          id: body.sessionChange.id, date: day, value: sessionDateValue(merged.state, day),
+        }) };
+        if (scenario === "late predecessor receipt" && accepted.length === 1) await firstReceipt;
+        return { body: receipt };
+      },
+    };
+    const openEditor = async (page) => {
+      await page.locator('[data-open-workspace="session-planner"]').first().click();
+      await page.locator(`[data-session-date="${day}"]`).click();
+    };
+    const field = (page, name) => page.locator(`[data-session-field="${name}"]`).first();
+    const centralBlock = () => JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions[day].blocks[0];
+    const readLocal = (page) => page.evaluate(({ key, day, manifestKey }) => ({
+      block: JSON.parse(localStorage.getItem(key)).sessions[day].blocks[0],
+      pending: Boolean(JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync),
+    }), { key: sessionPlannerStateKey, day, manifestKey: dataSafetyManifestKey });
+    try {
+      tabs.push(await bootCentralPage(browser, baseURL, centralStore, [], `ordering-a-${scenario}`, options));
+      const colleague = { ...qaUser, id: "qa-colleague", email: "colleague@footballscience.test" };
+      tabs.push(await bootCentralPage(browser, baseURL, centralStore, [], `ordering-b-${scenario}`,
+        { ...options, sessionUser: colleague, profileUser: colleague }));
+      const [a, b] = tabs.map((tab) => tab.page);
+      await openEditor(a); await openEditor(b);
+      await expect(field(b, "title")).toHaveValue("Before");
+      await field(a, "title").fill("Coach A accepted"); await field(a, "title").dispatchEvent("change");
+      await expect.poll(() => accepted.length).toBe(1);
+      if (scenario !== "late predecessor receipt") await expect(a.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
+      expect(accepted).toHaveLength(1);
+      expect(centralBlock().title).toBe("Coach A accepted");
+      if (observesLatest) {
+        await b.reload({ waitUntil: "domcontentloaded" }); await openEditor(b);
+        await expect(field(b, "title")).toHaveValue("Coach A accepted");
+      } else await expect(field(b, "title")).toHaveValue("Before");
+      const changedField = scenario === "independent stale edit" ? "objective" : "title";
+      await field(b, changedField).fill("Coach B edit"); await field(b, changedField).dispatchEvent("change");
+      if (scenario === "conflicting stale edit") {
+        await expect(b.getByText("Local changes need review", { exact: true })).toBeVisible();
+        expect(accepted).toHaveLength(1);
+        expect(centralBlock().title).toBe("Coach A accepted");
+        const reviews = await b.evaluate(() => window.footballScienceCentralState.getSessionSaveReviews());
+        expect(reviews).toHaveLength(1);
+        expect(reviews[0].change.after.session.blocks[0].title).toBe("Coach B edit");
+        expect((await readLocal(b)).pending).toBe(true);
+        await b.reload({ waitUntil: "domcontentloaded" });
+        await expect.poll(() => b.evaluate(async () => (await window.footballScienceCentralState?.getSessionSaveReviews?.() || []).length)).toBe(1);
+      } else {
+        await expect(b.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
+        expect(accepted).toHaveLength(2);
+        const expected = { title: observesLatest ? "Coach B edit" : "Coach A accepted",
+          objective: scenario === "independent stale edit" ? "Coach B edit" : "Original objective" };
+        expect(centralBlock()).toMatchObject(expected);
+        await expect.poll(() => readLocal(b)).toMatchObject({ block: expected, pending: false });
+        expect(await b.evaluate(() => window.footballScienceCentralState.getSessionSaveReviews())).toEqual([]);
+        if (scenario === "late predecessor receipt") {
+          await a.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+          await expect.poll(() => a.evaluate(async ({ key, day }) => ({
+            title: JSON.parse(await window.footballScienceCentralState.getSessionCentralValue()).sessions[day].blocks[0].title,
+            revision: window.footballScienceCentralState.getStatus().metadata[key].revision,
+          }), { key: sessionPlannerStateKey, day })).toEqual({ title: "Coach B edit", revision: 9 });
+          releaseFirst();
+          await expect(a.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
+          await expect(field(a, "title")).toHaveValue("Coach B edit");
+          await expect.poll(() => readLocal(a)).toMatchObject({ block: expected, pending: false });
+        }
+        await a.reload({ waitUntil: "domcontentloaded" }); await openEditor(a);
+        await expect(field(a, "title")).toHaveValue(expected.title);
+        await expect(field(a, "objective")).toHaveValue(expected.objective);
+      }
+      expect(requests.map((body) => Number(body.baseRevision))).toEqual(observesLatest ? [7, 8] : [7, 7, 8]);
+      expect(centralStore.metadataEntries[sessionPlannerStateKey].revision).toBe(scenario === "conflicting stale edit" ? 8 : 9);
+    } finally { releaseFirst(); for (const tab of tabs) await closeCentralStateContext(tab.context); }
+  });
+}
+
 test("large Player Profiles central hydration stays server-backed when localStorage quota is full", async ({ browser, baseURL }) => {
   const centralPlayerProfilesState = {
     players: [

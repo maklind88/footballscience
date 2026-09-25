@@ -1090,6 +1090,47 @@ test("date-scoped Sessions API preserves other training, returns a bounded recei
   } finally { global.fetch = originalFetch; restoreEnv(env); }
 });
 
+test("Sessions API accepts an observed successor but never a late stale overwrite", async () => {
+  const env = snapshotEnv(supabaseEnvKeys), originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const date = "2026-09-25";
+  const initial = { sessions: { [date]: { date, title: "Training", blocks: [{ id: "a", title: "Before", minutes: 20 }] } } };
+  const storage = createAppStateFetchMock({ [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, JSON.stringify(initial)) });
+  global.fetch = storage.fetchMock;
+  const headers = { authorization: "Bearer test-access-token" };
+  try {
+    const handler = loadFreshAppStateHandler();
+    const post = (change, baseRevision) => callHandler(handler, { method: "POST", url: "/api/app-state", headers,
+      body: JSON.stringify({ key: appStateSessionPlannerKey, baseRevision, sessionChange: JSON.stringify(change) }) });
+    const first = structuredClone(initial);
+    Object.assign(first.sessions[date].blocks[0], { title: "First accepted", fieldUpdatedAt: { title: "2030-01-01T00:00:00.000Z" } });
+    const firstCommand = createSessionDateChanges(initial, first, () => "first-accepted")[0];
+    const a = await post(firstCommand, 1);
+    expect(a.status).toBe(200);
+    const observed = await callHandler(handler, { method: "GET", url: `/api/app-state?fresh=1&keys=${appStateSessionPlannerKey}`, headers });
+    expect(observed.status).toBe(200);
+    const beforeB = JSON.parse(await decodeSessionStateValue(appStateSessionPlannerKey, observed.payload.entries[appStateSessionPlannerKey]));
+    expect(beforeB.sessions[date].blocks[0].title).toBe("First accepted");
+    const next = structuredClone(beforeB);
+    Object.assign(next.sessions[date].blocks[0], { title: "Latest accepted", fieldUpdatedAt: { title: "2020-01-01T00:00:00.000Z" } });
+    const b = await post(createSessionDateChanges(beforeB, next, () => "latest-accepted")[0], observed.payload.metadata[appStateSessionPlannerKey].revision);
+    expect(b.status).toBe(200);
+    expect(b.payload.revision).toBe(a.payload.revision + 1);
+    const receipt = JSON.parse(await decodeSessionStateValue(appStateSessionPlannerKey, b.payload.sessionChange));
+    expect(receipt).toMatchObject({ id: "latest-accepted", date, value: { session: { blocks: [{ title: "Latest accepted" }] } } });
+    const latest = structuredClone(storage.objects.get(appStateSessionPlannerPath));
+    // Even a caller supplying the current revision must not rebase an obsolete edit silently.
+    const stale = await post(firstCommand, b.payload.revision);
+    expect(stale.status).toBe(409);
+    expect(stale.payload.conflicts).toContain(`${date}.session.blocks.a.title`);
+    expect(storage.objects.get(appStateSessionPlannerPath)).toEqual(latest);
+    expect(JSON.parse(latest.value).sessions[date].blocks[0].title).toBe("Latest accepted");
+  } finally { global.fetch = originalFetch; restoreEnv(env); }
+});
+
 test("date-scoped Sessions rejects read-only actors before returning conflict or central content", async () => {
   const env = snapshotEnv(supabaseEnvKeys), originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);

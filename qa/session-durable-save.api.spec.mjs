@@ -75,6 +75,38 @@ test("replaying a committed change is idempotent", () => {
   expect(second.state).toEqual(first.state);
 });
 
+test("an edit based on the accepted version wins even when its device clock is behind", () => {
+  const before = initial(), first = copy(before);
+  first.sessions[date].blocks[0].title = "First accepted";
+  first.sessions[date].blocks[0].updatedAt = "2030-01-01T00:00:00.000Z";
+  first.sessions[date].blocks[0].fieldUpdatedAt = { title: "2030-01-01T00:00:00.000Z" };
+  const accepted = applySessionDateChange(before, change(before, first));
+  expect(accepted.ok).toBe(true);
+  const later = copy(accepted.state);
+  later.sessions[date].blocks[0].title = "Later accepted";
+  later.sessions[date].blocks[0].updatedAt = "2020-01-01T00:00:00.000Z";
+  later.sessions[date].blocks[0].fieldUpdatedAt.title = "2020-01-01T00:00:00.000Z";
+  const result = applySessionDateChange(accepted.state, change(accepted.state, later));
+  expect(result.ok).toBe(true);
+  expect(result.state.sessions[date].blocks[0].title).toBe("Later accepted");
+  expect(result.state.sessions["2026-09-09"]).toEqual(before.sessions["2026-09-09"]);
+});
+
+test("replaying an older accepted edit cannot overwrite its accepted successor", () => {
+  const before = initial(), first = copy(before);
+  first.sessions[date].blocks[0].title = "First accepted";
+  const oldCommand = change(before, first);
+  const accepted = applySessionDateChange(before, oldCommand);
+  const later = copy(accepted.state);
+  later.sessions[date].blocks[0].title = "Latest accepted";
+  const latest = applySessionDateChange(accepted.state, change(accepted.state, later));
+  expect(latest.ok).toBe(true);
+  const replayed = applySessionDateChange(latest.state, oldCommand);
+  expect(replayed.ok).toBe(false);
+  expect(replayed.conflicts).toEqual([`${date}.session.blocks.a.title`]);
+  expect(replayed.state).toEqual(latest.state);
+});
+
 test("a normalized empty field timestamp map is not a content conflict against a legacy record", () => {
   const central = initial(), before = copy(central), after = copy(central);
   before.sessions[date].blocks[0].fieldUpdatedAt = {};

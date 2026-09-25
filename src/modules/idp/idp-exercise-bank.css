@@ -1,3 +1,39 @@
+.idp-player-board-editor-name {
+  display: grid;
+  gap: 4px;
+  width: 240px;
+  max-width: 100%;
+  min-width: 0;
+  color: var(--idp-muted, #667085);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.idp-player-board-editor-name input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--idp-line, #e4e7ec);
+  border-radius: 6px;
+  background: var(--idp-panel, #fff);
+  color: var(--idp-ink, #101828);
+  font: inherit;
+}
+
+.idp-player-board-editor-name input:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+@media (max-width: 700px) {
+  .idp-player-board-editor-name {
+    flex: 1 0 100%;
+    width: 100%;
+  }
+}
+
 .idp-exercise-entry {
   border: 1px solid var(--idp-line, #e4e7ec);
   border-radius: 8px;

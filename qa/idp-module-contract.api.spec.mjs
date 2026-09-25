@@ -1084,7 +1084,7 @@ test("idp player board renders every supported placement material after persiste
   expect(playerBoardHtml).toContain("<span>Material check</span>");
   expect(playerBoardHtml).not.toContain('class="idp-player-board-head"');
   expect(playerBoardHtml).toContain('data-idp-board-edit-details="intervention-1"');
-  expect(playerBoardHtml).not.toContain("data-idp-board-title");
+  expect(playerBoardHtml).toContain('data-idp-board-title value="Material check"');
   expect(playerBoardHtml).not.toContain("data-idp-board-objective");
   expect(playerBoardHtml).toContain("data-idp-board-save");
   expect(playerBoardHtml).toContain('data-idp-board-delete="intervention-1"');

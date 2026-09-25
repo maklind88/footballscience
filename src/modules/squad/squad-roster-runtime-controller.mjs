@@ -1,6 +1,11 @@
+import { createSquadAvailabilityDisplay } from "./squad-availability-display.mjs";
+
 export function createSquadRosterRuntimeController(options = {}) {
   const win = options.win ?? globalThis;
   let availabilityHydrationGeneration = 0;
+  const availabilityDisplay = createSquadAvailabilityDisplay({
+    getWorkspace, getCurrentUser: options.getCurrentUser, getTeam: options.getTeam,
+  });
 
   function getWorkspace() {
     return options.getWorkspace?.() || null;
@@ -8,6 +13,7 @@ export function createSquadRosterRuntimeController(options = {}) {
 
   function beginWorkspaceRender() {
     const workspace = getWorkspace();
+    availabilityDisplay.capture();
     return {
       generation: ++availabilityHydrationGeneration,
       isColdWorkspaceRender: !workspace?.querySelector(".squad-board-shell"),
@@ -41,6 +47,7 @@ export function createSquadRosterRuntimeController(options = {}) {
     }
     if (!hydrationGeneration) {
       hydrationGeneration = ++availabilityHydrationGeneration;
+      availabilityDisplay.capture();
     }
     options.ensurePlayerProfilesState?.();
     if (renderOptions.medicalStateReady !== true) {
@@ -134,6 +141,7 @@ export function createSquadRosterRuntimeController(options = {}) {
   }
 
   function queueAvailabilityHydration(generation) {
+    availabilityDisplay.restore();
     const requestFrame = typeof win.requestAnimationFrame === "function"
       ? win.requestAnimationFrame.bind(win)
       : (callback) => win.setTimeout(callback, 0);

@@ -181,6 +181,8 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
   });
 
   squadRosterRuntimeController = createSquadRosterRuntimeController({
+    getCurrentUser: deps.getCurrentPlatformUser,
+    getTeam: (user) => deps.getPlatformTeamDisplayTeam(user, deps.getPlatformStructureState()),
     createMedicalSnapshotContext: (options) => squadMedicalStatusService.createPlayerProfileMedicalSnapshotContext(options),
     ensureMedicalState: deps.ensureMedicalState,
     ensurePlayerProfilesState,

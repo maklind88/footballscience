@@ -70,17 +70,81 @@ async function bootApp(page, browserErrors) {
   await dismissDashboardModal(page);
 }
 
-async function measure(page, results, label, budgetMs, action, ready = async () => {}) {
+async function measure(page, results, label, budgetMs, action, ready = async () => {}, timing = {}) {
   const effectiveBudgetMs = interactionBudget(budgetMs);
   await nextPaint(page);
-  const startedAt = await page.evaluate(() => performance.now());
+  let startedAt = null;
+  if (timing.arm) {
+    await timing.arm();
+  } else {
+    startedAt = await page.evaluate(() => performance.now());
+  }
   await action();
   await ready();
-  await nextPaint(page);
-  const ms = Math.round(await page.evaluate((start) => performance.now() - start, startedAt));
-  results.push({ label, ms, budgetMs: effectiveBudgetMs });
-  console.log(`[scouting-interaction-audit] ${label}: ${ms}ms / ${effectiveBudgetMs}ms`);
-  expect(ms, `${label} took ${ms}ms, budget ${effectiveBudgetMs}ms`).toBeLessThanOrEqual(effectiveBudgetMs);
+  let durationMs;
+  if (timing.complete) {
+    durationMs = await timing.complete();
+  } else {
+    await nextPaint(page);
+    durationMs = await page.evaluate((start) => performance.now() - start, startedAt);
+  }
+  const ms = Math.round(durationMs);
+  results.push({ label, ms, budgetMs: effectiveBudgetMs, clock: timing.clock || "playwright" });
+  console.log(
+    `[scouting-interaction-audit] ${label}: ${ms}ms / ${effectiveBudgetMs}ms (${timing.clock || "playwright"})`
+  );
+  expect(durationMs, `${label} took ${ms}ms, budget ${effectiveBudgetMs}ms`).toBeLessThanOrEqual(effectiveBudgetMs);
+}
+
+async function armScoutingClickPaintProbe(page, { probeKey, triggerSelector, readySelector }) {
+  await page.evaluate(({ probeKey, triggerSelector, readySelector }) => {
+    const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
+    if (!workspace) {
+      throw new Error(`Scouting workspace is unavailable before ${probeKey} timing.`);
+    }
+    if (workspace.querySelector(readySelector)) {
+      throw new Error(`${probeKey} is already complete before timing.`);
+    }
+    let resolveCompletion;
+    const completion = new Promise((resolve) => {
+      resolveCompletion = resolve;
+    });
+    let observer = null;
+    let startedAt = null;
+    const onClick = (event) => {
+      const trigger = event.target?.closest?.(triggerSelector);
+      if (!trigger || !workspace.contains(trigger) || startedAt !== null) {
+        return;
+      }
+      startedAt = performance.now();
+      observer = new MutationObserver(() => {
+        if (!workspace.querySelector(readySelector) || !resolveCompletion) {
+          return;
+        }
+        const resolvePaint = resolveCompletion;
+        resolveCompletion = null;
+        observer.disconnect();
+        workspace.removeEventListener("click", onClick, true);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolvePaint(performance.now() - startedAt));
+        });
+      });
+      observer.observe(workspace, { attributes: true, childList: true, subtree: true });
+    };
+    workspace.addEventListener("click", onClick, true);
+    window.__footballScienceScoutingPaintProbes = window.__footballScienceScoutingPaintProbes || {};
+    window.__footballScienceScoutingPaintProbes[probeKey] = { completion };
+  }, { probeKey, triggerSelector, readySelector });
+}
+
+async function getScoutingPaintDuration(page, probeKey) {
+  return page.evaluate(async (probeKey) => {
+    const probe = window.__footballScienceScoutingPaintProbes?.[probeKey];
+    if (!probe?.completion) {
+      throw new Error(`${probeKey} paint probe was not armed.`);
+    }
+    return probe.completion;
+  }, probeKey);
 }
 
 async function openScouting(page, results) {
@@ -209,6 +273,16 @@ test("Scouting interaction audit covers broad module clicks", async ({ page }) =
     },
     async () => {
       await expect(page.locator("[data-scouting-profile-modal]").first()).toBeVisible({ timeout: 10_000 });
+    },
+    {
+      arm: () =>
+        armScoutingClickPaintProbe(page, {
+          probeKey: "profile-open",
+          triggerSelector: "[data-open-scouting-record]",
+          readySelector: "[data-scouting-profile-modal]",
+        }),
+      complete: () => getScoutingPaintDuration(page, "profile-open"),
+      clock: "browser-paint",
     }
   );
   for (const profileTab of ["overview", "performance", "squad", "reports", "contacts", "history", "market"]) {
@@ -256,6 +330,16 @@ test("Scouting interaction audit covers broad module clicks", async ({ page }) =
     },
     async () => {
       await expect(page.locator('.scouting-tab[data-scouting-tab="database"]').first()).toHaveClass(/is-active/, { timeout: 8000 });
+    },
+    {
+      arm: () =>
+        armScoutingClickPaintProbe(page, {
+          probeKey: "shadow-slot-to-database",
+          triggerSelector: "[data-select-scouting-shadow-slot]",
+          readySelector: '.scouting-tab[data-scouting-tab="database"].is-active',
+        }),
+      complete: () => getScoutingPaintDuration(page, "shadow-slot-to-database"),
+      clock: "browser-paint",
     }
   );
 

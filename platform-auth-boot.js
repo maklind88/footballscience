@@ -2918,6 +2918,7 @@ async function getActiveAccessToken() {
     getSessionCentralValue: async () => (await getSessionSaveClient()).centralValue(),
     getSetPiecesPendingState: async () => (await getSetPiecesSaveClient()).pendingState(),
     getSetPiecesSaveReviews: async () => (await getSetPiecesSaveClient()).reviews(),
+    stageSetPiecesWrite: async (value, options) => (await getSetPiecesSaveClient()).stage(value, options),
     prepareSessionLocalReview: async () => {
       if (!readCentralSyncManifestEntries()[SESSION_PLANNER_STATE_KEY]?.pendingCentralSync) return;
       const user = authState.currentUser;

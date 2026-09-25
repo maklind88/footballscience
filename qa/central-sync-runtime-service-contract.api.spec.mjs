@@ -30,6 +30,7 @@ function createServiceHarness(options = {}) {
   const autosaveStatuses = [];
   const snapshots = [];
   const syncStatuses = [];
+  const setPiecesStages = [];
   const handledKeys = [];
   const timers = new Map();
   let timerId = 0;
@@ -66,6 +67,14 @@ function createServiceHarness(options = {}) {
       },
       ...(options.setPiecesPendingState !== undefined
         ? { getSetPiecesPendingState: async () => options.setPiecesPendingState }
+        : {}),
+      ...(options.stageSetPieces
+        ? {
+            stageSetPiecesWrite: async (value, stageOptions) => {
+              setPiecesStages.push({ value, options: stageOptions });
+              return { ok: true };
+            },
+          }
         : {}),
       hydrate: async (hydrateOptions) => {
         syncCalls.push({ hydrate: true, options: hydrateOptions });
@@ -140,6 +149,7 @@ function createServiceHarness(options = {}) {
       revision = Number(nextRevision) || 0;
     },
     snapshots,
+    setPiecesStages,
     syncStatuses,
     syncCalls,
     timers,
@@ -482,6 +492,32 @@ test("central sync forwards the exact pre-edit Set Pieces baseline", async () =>
     key,
     value,
     options: { removed: false, baseRevision: 7, previousValue },
+  }]);
+});
+
+test("central sync journals every rapid Set Pieces generation before coalescing network writes", async () => {
+  const key = "football-set-pieces-room-v1";
+  const initial = '{"plays":[{"id":"corner-1","title":"Initial"}]}';
+  const first = '{"plays":[{"id":"corner-1","title":"First"}]}';
+  const second = '{"plays":[{"id":"corner-1","title":"Second"}]}';
+  const harness = createServiceHarness({
+    stageSetPieces: true,
+    syncResult: { ok: true, value: second, revision: 8 },
+  });
+  harness.rawValues.set(key, second);
+
+  harness.service.queueCentralStateWrite(key, first, { previousValue: initial });
+  harness.service.queueCentralStateWrite(key, second, { previousValue: first });
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.setPiecesStages).toEqual([
+    { value: first, options: { previousValue: initial } },
+    { value: second, options: { previousValue: first } },
+  ]);
+  expect(harness.syncCalls).toEqual([{
+    key,
+    value: second,
+    options: { removed: false, baseRevision: 7, previousValue: first, setPiecesReplay: true },
   }]);
 });
 

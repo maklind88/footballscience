@@ -105,7 +105,9 @@ test("platform global runtime bindings preserve boot, escape, and storage behavi
     pauseDashboardPresenceRuntime: () => calls.push("presence-pause"),
     renderDashboardChatWidget: () => calls.push("render-chat"),
     centralAppStateReloadService: { startCentralStateRefreshTimer: () => calls.push("central-timer") },
-    isDataSafetyProtectedStorageKey: () => false,
+    isDataSafetyProtectedStorageKey: (key) => key === "set-pieces",
+    setPiecesRoomStorageKey: "set-pieces",
+    reloadSetPiecesRoomFromStorage: () => calls.push("reload-set-pieces"),
     dashboardTaskStorageKey: "tasks",
     dashboardNotificationSeenStorageKey: "seen",
     playerProfilesStorageKey: "profiles",
@@ -155,6 +157,9 @@ test("platform global runtime bindings preserve boot, escape, and storage behavi
   win.dispatch("storage", { key: "profiles" });
   expect(playerProfilesState).toEqual({ players: [{ id: "p1" }] });
   expect(calls).toContain("render-medical");
+
+  win.dispatch("storage", { key: "set-pieces", newValue: '{"plays":[]}' });
+  expect(calls).toContain("reload-set-pieces");
 
   hubState = { activeWorkspaceId: "home" };
   win.dispatch("storage", { key: "tasks" });

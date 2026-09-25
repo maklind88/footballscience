@@ -17,6 +17,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     latestStoreName = "latest",
     maxSnapshots = 30,
     protectedStorageKeys = [],
+    journaledStorageKeys = [],
     storageLabels = {},
     legacyStorageKeys = {},
     formatDataSafetyTime = (value) => String(value || ""),
@@ -28,6 +29,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
   } = deps;
 
   const protectedStorageKeySet = new Set(protectedStorageKeys);
+  const journaledStorageKeySet = new Set(journaledStorageKeys);
   const status = {
     lastError: "",
     lastSnapshotError: "",
@@ -598,8 +600,11 @@ export function createDataSafetyRuntimeService(deps = {}) {
       const previousPending = normalizedKey === "football-session-planner-v3" && Boolean(readManifest().entries?.[normalizedKey]?.pendingCentralSync);
       try {
         const result = rawSetItem(normalizedKey, normalizedValue);
-        if (previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue,
-          normalizedKey === "football-session-planner-v3" ? { previousValue, previousPending } : {});
+        if (previousValue !== normalizedValue) recordWrite(
+          normalizedKey,
+          normalizedValue,
+          journaledStorageKeySet.has(normalizedKey) ? { previousValue, previousPending } : {}
+        );
         return result;
       } catch (error) {
         handleWriteError(normalizedKey, error);

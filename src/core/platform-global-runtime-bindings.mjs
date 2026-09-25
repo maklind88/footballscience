@@ -169,6 +169,20 @@ export function bindPlatformGlobalRuntimeEvents(deps = {}) {
       if (event.key === deps.sessionPlannerStorageKey) {
         deps.queueDataSafetySnapshot?.("cross-tab-update");
       }
+      if (event.key === deps.setPiecesRoomStorageKey) {
+        if (typeof event.newValue === "string") {
+          getCentralStateBridge()?.setCachedValue?.(event.key, event.newValue, {
+            source: "cross-tab",
+            durable: true,
+            serverBacked: false,
+          });
+        } else {
+          getCentralStateBridge()?.removeCachedValue?.(event.key);
+        }
+        deps.queueDataSafetySnapshot?.("cross-tab-update");
+        deps.reloadSetPiecesRoomFromStorage?.();
+        return;
+      }
     }
     if (event.key === deps.dashboardChatStorageKey) {
       deps.clearDashboardChatRuntimeMessages?.();

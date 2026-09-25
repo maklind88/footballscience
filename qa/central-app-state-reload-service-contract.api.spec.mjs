@@ -41,6 +41,7 @@ function createHarness(options = {}) {
     isEditableKeyboardTarget: (element) => Boolean(element?.isEditable),
     queueCentralStateStatus: (message) => calls.push(["status", message]),
     queueSessionPlannerSnapshotRecovery: () => calls.push("snapshot-recovery"),
+    reloadSetPiecesRoomFromStorage: () => calls.push("set-pieces-reload"),
     readMedicalState: () => ({ module: "medical" }),
     readPeriodizationState: () => ({ module: "periodization" }),
     readPlayerProfilesState: () => ({ module: "profiles" }),
@@ -269,6 +270,15 @@ test("background sync cannot change the coach's Sessions day while another modul
   state.sessionPlannerState.selectedDate = "2026-09-10";
   service.reloadCentralizedAppStateFromStorage();
   expect(state.sessionPlannerState.selectedDate).toBe("2026-09-10");
+});
+
+test("central reload refreshes the active Set Pieces controller from shared storage", () => {
+  const { calls, service, state } = createHarness({ activeWorkspaceId: "set-pieces-room" });
+
+  service.reloadCentralizedAppStateFromStorage();
+
+  expect(calls).toContain("set-pieces-reload");
+  expect(state.hubState.activeWorkspaceId).toBe("set-pieces-room");
 });
 
 test("identical central revisions do not rebuild Sessions but changed dependencies do", () => {

@@ -90,6 +90,7 @@ export function createCentralAppStateReloadService(deps = {}) {
     call("setTransferRoomState", call("readTransferRoomState"));
     call("setSessionPlannerState", readSessionPlannerStatePreservingUiSelection(previousSessionPlannerSelection));
     call("setSessionPlannerExerciseLibrary", call("readSessionPlannerExerciseLibrary"));
+    if (previousWorkspaceId === "set-pieces-room") call("reloadSetPiecesRoomFromStorage");
     call("syncGameSimulatorSavedSequencesFromStorage");
     call("queueSessionPlannerSnapshotRecovery");
     // Identical acknowledged revisions must not rebuild the coach's current view.

@@ -22,6 +22,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     dashboardPresentationStorageKey = "",
     getSessionPlannerLocalUiState = () => ({ state: {} }),
     sessionPlannerStorageKey = "",
+    setPiecesRoomStorageKey = "",
     scheduleStorageKey = "",
     periodizationStorageKey = "",
     setAutosaveStatusForKey = () => {},
@@ -154,13 +155,26 @@ export function createCentralSyncRuntimeService(deps = {}) {
       const durableState = getCentralStateBridge()?.getSessionPendingState ? await getCentralStateBridge().getSessionPendingState() : null;
       if (getCurrentUser()?.id !== userId || centralStateWriteQueue.size || centralStateWriteFlushPromise) return;
       if (durableState) queueCentralStateWrite(sessionPlannerStorageKey, rawGetItem(sessionPlannerStorageKey) ?? durableState, { automatic: true, sessionReplay: true });
+      const setPiecesDurableState = getCentralStateBridge()?.getSetPiecesPendingState
+        ? await getCentralStateBridge().getSetPiecesPendingState()
+        : null;
+      if (getCurrentUser()?.id !== userId || centralStateWriteQueue.size || centralStateWriteFlushPromise) return;
+      if (setPiecesDurableState) {
+        queueCentralStateWrite(
+          setPiecesRoomStorageKey,
+          rawGetItem(setPiecesRoomStorageKey) ?? setPiecesDurableState,
+          { automatic: true, setPiecesReplay: true }
+        );
+      }
     } catch {
       reportSyncStatus(sessionPlannerStorageKey, "issue", "Local save queue unavailable");
+      if (setPiecesRoomStorageKey) reportSyncStatus(setPiecesRoomStorageKey, "issue", "Local save queue unavailable");
     }
     const manifest = typeof readManifest === "function" ? readManifest() : {};
     for (const [key, entry] of Object.entries(manifest.entries || {})) {
       // New Sessions retries use immutable journal entries, never an old whole-calendar cache.
       if (key === sessionPlannerStorageKey && getCentralStateBridge()?.stageSessionWrite) continue;
+      if (key === setPiecesRoomStorageKey && getCentralStateBridge()?.getSetPiecesPendingState) continue;
       if (key === sessionPlannerStorageKey &&
           getCentralStateBridge()?.getCachedValueInfo?.(key)?.source === "central-pending-baseline") continue;
       const value = rawGetItem(key);
@@ -371,6 +385,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
       value: String(value ?? ""),
       removed: Boolean(options.removed),
       automatic: Boolean(options.automatic),
+      previousValue: typeof options.previousValue === "string" ? options.previousValue : undefined,
+      setPiecesReplay: Boolean(options.setPiecesReplay),
       baseRevision: isCentralStateBridgeHydrated(bridge) ? getCentralStateRevisionForKey(normalizedKey) : null,
       followsActiveWrite: centralStateActiveWriteKeys.has(normalizedKey),
       ...(stage ? { stage, staged: Promise.resolve().then(stage).catch((error) => ({ ok: false, reason: error.message })) } : {}),
@@ -409,6 +425,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
         result = !staged.ok ? staged : await bridge.syncKey(write.key, write.value, {
           removed: write.removed,
           baseRevision: getCentralStateWriteBaseRevision(write),
+          ...(write.previousValue !== undefined ? { previousValue: write.previousValue } : {}),
+          ...(write.setPiecesReplay ? { setPiecesReplay: true } : {}),
           ...(write.stage ? { sessionStaged: true } : {}),
         });
       } catch (error) {
@@ -417,7 +435,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         centralStateActiveWriteKeys.delete(write.key);
       }
       if (!result?.ok) {
-        if (write.key === sessionPlannerStorageKey && result?.reviewRequired) {
+        if (result?.reviewRequired) {
           flushIssue = result.reason;
           setCentralSyncPendingState(write.key, true, false);
           queueCentralStateStatus(result.reason);

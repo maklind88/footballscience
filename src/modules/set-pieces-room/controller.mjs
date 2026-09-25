@@ -1031,7 +1031,22 @@ export function createSetPiecesRoomController(options = {}) {
 
   function reloadFromStorage() {
     playback.stop();
-    state = persistence.read();
+    const previousPlay = getActiveSetPiece(state);
+    const previousVariant = getActiveSetPieceVariant(previousPlay || {});
+    const previousPhase = getActiveSetPiecePhase(previousVariant || {});
+    const nextState = persistence.read();
+    const nextPlay = nextState.plays.find((play) => play.id === previousPlay?.id);
+    if (nextPlay) {
+      nextState.activePlayId = nextPlay.id;
+      const nextVariant = nextPlay.variants.find((variant) => variant.id === previousVariant?.id);
+      if (nextVariant) {
+        nextPlay.activeVariantId = nextVariant.id;
+        if (nextVariant.phases.some((phase) => phase.id === previousPhase?.id)) {
+          nextVariant.activePhaseId = previousPhase.id;
+        }
+      }
+    }
+    state = normalizeSetPiecesState(nextState);
     history.clear();
     render();
   }

@@ -130,7 +130,13 @@ function createHarness(options = {}) {
     snapshotStoreName: "snapshots",
     latestStoreName: "latest",
     maxSnapshots: 30,
-    protectedStorageKeys: ["football-schedule-v1", "football-medical-team-v1", "football-session-planner-v3"],
+    protectedStorageKeys: [
+      "football-schedule-v1",
+      "football-medical-team-v1",
+      "football-session-planner-v3",
+      "football-set-pieces-room-v1",
+    ],
+    journaledStorageKeys: ["football-session-planner-v3", "football-set-pieces-room-v1"],
     storageLabels: {
       "football-schedule-v1": "Schedule",
       "football-medical-team-v1": "Medical Room",
@@ -179,7 +185,7 @@ test("pending writes and errors take priority over a successful background read"
   expect(h.dataSafetyStatus.title).toBe("Save failed");
 });
 
-test("only Sessions receives its exact pre-edit cache through the protected storage boundary", () => {
+test("journaled workspaces receive their exact pre-edit cache through the protected storage boundary", () => {
   const h = createHarness();
   h.service.install();
   const key = "football-session-planner-v3";
@@ -191,6 +197,15 @@ test("only Sessions receives its exact pre-edit cache through the protected stor
   expect(h.queuedWrites.at(-1)).toEqual([key, "third", { previousValue: "after", previousPending: true }]);
   h.localStorage.setItem("football-schedule-v1", "schedule");
   expect(h.queuedWrites.at(-1)).toEqual(["football-schedule-v1", "schedule", {}]);
+
+  const setPiecesKey = "football-set-pieces-room-v1";
+  h.localStorage.setItem(setPiecesKey, "set-pieces-before");
+  h.localStorage.setItem(setPiecesKey, "set-pieces-after");
+  expect(h.queuedWrites.at(-1)).toEqual([
+    setPiecesKey,
+    "set-pieces-after",
+    { previousValue: "set-pieces-before", previousPending: false },
+  ]);
 });
 
 test("acknowledged cache quota fallback is server-backed, never local durability or another write", () => {

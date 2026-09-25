@@ -43,6 +43,7 @@ function createServiceHarness(options = {}) {
           "football-schedule-v1": { revision },
           "football-dashboard-presentation-mode-v1": { revision },
           "football-session-planner-v1": { revision },
+          "football-set-pieces-room-v1": { revision },
           "football-medical-team-v1": { revision },
         },
       }),
@@ -63,6 +64,9 @@ function createServiceHarness(options = {}) {
         }
         return options.syncResult ?? { ok: true, value };
       },
+      ...(options.setPiecesPendingState !== undefined
+        ? { getSetPiecesPendingState: async () => options.setPiecesPendingState }
+        : {}),
       hydrate: async (hydrateOptions) => {
         syncCalls.push({ hydrate: true, options: hydrateOptions });
         options.onHydrate?.({
@@ -118,6 +122,7 @@ function createServiceHarness(options = {}) {
     sessionPlannerLocalUiState: { state: { sessionPlannerCentralSyncConflict: "existing" } },
     getSessionPlannerLocalUiState: () => ({ state: { sessionPlannerCentralSyncConflict: "existing" } }),
     sessionPlannerStorageKey: "football-session-planner-v1",
+    setPiecesRoomStorageKey: "football-set-pieces-room-v1",
     setAutosaveStatusForKey: (...args) => autosaveStatuses.push(args),
     showSessionPlannerToast: (...args) => autosaveStatuses.push(["toast", ...args]),
     win,
@@ -461,6 +466,61 @@ test("central sync runtime reports saving and server-confirmed status for Set Pi
   await harness.service.flushCentralStateWrites();
 
   expect(harness.syncStatuses).toContainEqual(["football-set-pieces-room-v1", "saved", "Saved"]);
+});
+
+test("central sync forwards the exact pre-edit Set Pieces baseline", async () => {
+  const key = "football-set-pieces-room-v1";
+  const previousValue = '{"plays":[{"id":"corner-1","title":"Before"}]}';
+  const value = '{"plays":[{"id":"corner-1","title":"After"}]}';
+  const harness = createServiceHarness({ syncResult: { ok: true, value, revision: 8 } });
+  harness.rawValues.set(key, value);
+
+  harness.service.queueCentralStateWrite(key, value, { previousValue });
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([{
+    key,
+    value,
+    options: { removed: false, baseRevision: 7, previousValue },
+  }]);
+});
+
+test("central sync keeps a Set Pieces collision pending without force-hydrating away local work", async () => {
+  const key = "football-set-pieces-room-v1";
+  const value = '{"plays":[{"id":"corner-1","title":"Local"}]}';
+  const harness = createServiceHarness({
+    syncResult: {
+      ok: false,
+      status: 409,
+      reviewRequired: true,
+      durablePending: true,
+      reason: "A teammate changed the same set piece.",
+    },
+  });
+  harness.rawValues.set(key, value);
+
+  harness.service.queueCentralStateWrite(key, value, { previousValue: value });
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls.filter((call) => call.hydrate)).toEqual([]);
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+  expect(harness.syncStatuses).toContainEqual([key, "issue", "A teammate changed the same set piece."]);
+});
+
+test("central sync restores the durable Set Pieces operation queue on retry", async () => {
+  const key = "football-set-pieces-room-v1";
+  const value = '{"plays":[{"id":"corner-1"}]}';
+  const harness = createServiceHarness({ setPiecesPendingState: value });
+  harness.rawValues.set(key, value);
+
+  await harness.service.retryCentral(() => harness.manifest);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toContainEqual({
+    key,
+    value,
+    options: { removed: false, baseRevision: 7, setPiecesReplay: true },
+  });
 });
 
 test("a Sessions acknowledgement cannot report Saved for a newer local generation", async () => {

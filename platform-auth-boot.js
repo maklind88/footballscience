@@ -30,6 +30,8 @@
   const WORKSPACE_HUB_STATE_KEY = "football-workspace-hub-v3";
   const PLATFORM_STRUCTURE_STATE_KEY = "football-platform-structure-v1";
   const SESSION_PLANNER_STATE_KEY = "football-session-planner-v3";
+  const SET_PIECES_ROOM_STATE_KEY = "football-set-pieces-room-v1";
+  const EMPTY_SET_PIECES_STATE_VALUE = '{"schemaVersion":4,"activePlayId":"","plays":[],"updatedAt":""}';
   const PLAYER_PROFILES_STATE_KEY = "football-player-profiles-v1";
   const MEDICAL_TEAM_STATE_KEY = "football-medical-team-v1";
   const SCOUTING_STATE_KEY = "football-scouting-v1";
@@ -71,6 +73,7 @@
     PERIODIZATION_STATE_KEY,
     SCHEDULE_STATE_KEY,
     SESSION_PLANNER_STATE_KEY,
+    SET_PIECES_ROOM_STATE_KEY,
     "football-session-exercise-library-v1",
     "football-session-exercise-library-backup-v1",
     "football-session-exercise-library-folders-v1",
@@ -91,6 +94,7 @@
   const nativeLocalStorageRemoveItem = window.Storage?.prototype?.removeItem;
   const centralStateValues = new Map();
   let sessionSaveClientPromise = null;
+  let setPiecesSaveClientPromise = null;
 
   function getSessionSaveScope() {
     const user = authState.currentUser;
@@ -120,9 +124,32 @@
     }
     return sessionSaveClientPromise;
   }
+  function getSetPiecesSaveScope() {
+    const user = authState.currentUser;
+    if (!user?.id || !authState.session?.access_token || !canCurrentUserAutomaticallyWriteCentralStateKey(SET_PIECES_ROOM_STATE_KEY)) return "";
+    return JSON.stringify(["set-pieces-actor-team-v1", user.id, user.clubId || "", user.teamId || ""]);
+  }
+  async function getSetPiecesSaveClient() {
+    if (!setPiecesSaveClientPromise) {
+      setPiecesSaveClientPromise = import("./src/modules/set-pieces-room/set-pieces-save-client.mjs")
+        .then(({ createSetPiecesSaveClient }) => createSetPiecesSaveClient({
+          getScope: getSetPiecesSaveScope,
+          send: async (change, baseRevision, expectedScope) => {
+            const response = await apiRequest(API_APP_STATE, {
+              method: "POST",
+              body: JSON.stringify({ key: SET_PIECES_ROOM_STATE_KEY, baseRevision, setPieceChange: change }),
+              isCurrent: () => Boolean(expectedScope && expectedScope === getSetPiecesSaveScope()),
+            });
+            return response;
+          },
+        }));
+    }
+    return setPiecesSaveClientPromise;
+  }
   const centralStateValueMetadata = new Map();
   const CENTRAL_STATE_LARGE_READ_KEYS = new Set([
     SESSION_PLANNER_STATE_KEY,
+    SET_PIECES_ROOM_STATE_KEY,
     MEDICAL_TEAM_STATE_KEY,
     PLAYER_PROFILES_STATE_KEY,
   ]);
@@ -1471,6 +1498,20 @@ async function getActiveAccessToken() {
     const requiredWriteBackEntries = [];
     const resolvedPendingKeys = [];
     const hydratedRevisionEntries = [];
+    const localSetPiecesBootstrapValue = !Object.prototype.hasOwnProperty.call(normalizedEntries, SET_PIECES_ROOM_STATE_KEY)
+      ? window.localStorage.getItem(SET_PIECES_ROOM_STATE_KEY)
+      : "";
+    let shouldBootstrapSetPieces = false;
+    if (localSetPiecesBootstrapValue && canCurrentUserAutomaticallyWriteCentralStateKey(SET_PIECES_ROOM_STATE_KEY)) {
+      try {
+        shouldBootstrapSetPieces = Array.isArray(JSON.parse(localSetPiecesBootstrapValue)?.plays);
+      } catch {
+        shouldBootstrapSetPieces = false;
+      }
+    }
+    if (shouldBootstrapSetPieces) {
+      requiredWriteBackEntries.push([SET_PIECES_ROOM_STATE_KEY, localSetPiecesBootstrapValue]);
+    }
     window.__footballScienceCentralHydrating = true;
     try {
       for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
@@ -1478,6 +1519,7 @@ async function getActiveAccessToken() {
         if (
           shouldRemoveLocalCentralStateKey(key) &&
           !Object.prototype.hasOwnProperty.call(normalizedEntries, key) &&
+          !(key === SET_PIECES_ROOM_STATE_KEY && shouldBootstrapSetPieces) &&
           !pendingEntries[key]?.pendingCentralSync
         ) {
           window.localStorage.removeItem(key);
@@ -1572,11 +1614,15 @@ async function getActiveAccessToken() {
     }
     centralState.metadata = nextMetadata;
     (await getSessionSaveClient()).observe(normalizedEntries[SESSION_PLANNER_STATE_KEY] || '{"sessions":{}}', incomingMetadata[SESSION_PLANNER_STATE_KEY]);
+    (await getSetPiecesSaveClient()).observe(
+      normalizedEntries[SET_PIECES_ROOM_STATE_KEY] || EMPTY_SET_PIECES_STATE_VALUE,
+      incomingMetadata[SET_PIECES_ROOM_STATE_KEY]
+    );
     persistCentralHydrationRevisions(hydratedRevisionEntries, options);
     for (const [key, value] of requiredWriteBackEntries) {
       const result = await syncCentralStateKey(key, value);
       if (!result?.ok) {
-        throw new Error(result?.reason || "Recovered Medical data could not be synced centrally.");
+        throw new Error(result?.reason || "Recovered central data could not be synced.");
       }
       persistCentralHydrationRevisions([[key, result.metadata || { revision: result.revision }, {}]]);
     }
@@ -1646,6 +1692,10 @@ async function getActiveAccessToken() {
             }, {});
           }
         }
+        (await getSetPiecesSaveClient()).observe(
+          localEntries[SET_PIECES_ROOM_STATE_KEY] || EMPTY_SET_PIECES_STATE_VALUE,
+          centralState.metadata[SET_PIECES_ROOM_STATE_KEY]
+        );
       }
       centralState.hydrated = true;
       centralState.lastSyncedAt = new Date().toISOString();
@@ -1687,6 +1737,28 @@ async function getActiveAccessToken() {
           result.value = preserveSessionSaveLocalUi(result.value, String(value));
         }
         if (result.metadata?.revision) centralState.metadata[key] = { ...centralState.metadata[key], ...result.metadata };
+        centralState.lastWriteError = result.ok ? "" : result.reason;
+        if (result.ok) {
+          centralState.lastSyncedAt = new Date().toISOString();
+          centralState.lastSavedAt = centralState.lastSyncedAt;
+        }
+        return result;
+      }
+      if (key === SET_PIECES_ROOM_STATE_KEY && !options.removed) {
+        const expectedScope = getSetPiecesSaveScope();
+        const client = await getSetPiecesSaveClient();
+        if (!expectedScope || expectedScope !== getSetPiecesSaveScope()) {
+          return { ok: false, reason: "Account or team changed. Local changes were retained." };
+        }
+        const result = options.setPiecesReplay
+          ? await client.replay()
+          : await client.save(String(value ?? ""), options);
+        if (expectedScope !== getSetPiecesSaveScope()) {
+          return { ok: false, reason: "Account or team changed. Local changes were retained." };
+        }
+        if (result.metadata?.revision) {
+          centralState.metadata[key] = { ...centralState.metadata[key], ...result.metadata };
+        }
         centralState.lastWriteError = result.ok ? "" : result.reason;
         if (result.ok) {
           centralState.lastSyncedAt = new Date().toISOString();
@@ -2844,6 +2916,8 @@ async function getActiveAccessToken() {
     getSessionPendingState: async () => (await getSessionSaveClient()).pendingState(),
     getSessionSaveReviews: async () => (await getSessionSaveClient()).reviews(),
     getSessionCentralValue: async () => (await getSessionSaveClient()).centralValue(),
+    getSetPiecesPendingState: async () => (await getSetPiecesSaveClient()).pendingState(),
+    getSetPiecesSaveReviews: async () => (await getSetPiecesSaveClient()).reviews(),
     prepareSessionLocalReview: async () => {
       if (!readCentralSyncManifestEntries()[SESSION_PLANNER_STATE_KEY]?.pendingCentralSync) return;
       const user = authState.currentUser;

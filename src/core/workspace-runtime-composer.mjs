@@ -321,6 +321,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     queueWorkspaceModulePreload: deps.queueWorkspaceModulePreload,
     readRememberedWorkspaceId: deps.readRememberedWorkspaceId,
     readWorkspaceHubState: deps.readWorkspaceHubState,
+    reloadSetPiecesRoomFromStorage: () => setPiecesRoomController.reloadFromStorage(),
     rememberActiveWorkspaceId: deps.rememberActiveWorkspaceId,
     renderDashboardCards: deps.renderDashboardCards,
     renderDashboardChatWidget: deps.renderDashboardChatWidget,

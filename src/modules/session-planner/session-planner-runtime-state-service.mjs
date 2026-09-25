@@ -266,11 +266,9 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         return createDefaultState();
       }
       const storedState = JSON.parse(raw);
-      const state = cloneState(storedState);
-      if (JSON.stringify(sessionStateForStorage(state, storedState)) !== raw) {
-        persistNormalizedState(state, storedState);
-      }
-      return state;
+      // Defaults belong to the view until an actual edit is saved. Rewriting
+      // the cache during receipt rendering invalidates the in-flight ack's generation.
+      return cloneState(storedState);
     } catch {
       return readCentralCacheFallbackState() || createDefaultState();
     }

@@ -93,6 +93,12 @@ function mergeValue(before, after, current, conflicts, path) {
   if (path.endsWith(".updatedAt") || path.includes(".fieldUpdatedAt.")) {
     return [after, current].filter(Boolean).sort().at(-1);
   }
+  // Legacy records may omit the map that the editor normalizes to {}.
+  // Timestamp bookkeeping must not turn an otherwise compatible edit into a conflict.
+  if (path.endsWith(".fieldUpdatedAt") && [after, current].every((value) => value == null || object(value))) {
+    return Object.fromEntries([...new Set([...Object.keys(after || {}), ...Object.keys(current || {})])]
+      .map((field) => [field, [after?.[field], current?.[field]].filter(Boolean).sort().at(-1)]));
+  }
   if (path.endsWith(".blocks") && [before, after, current].every(Array.isArray)) {
     return mergeBlocks(before, after, current, conflicts, path);
   }

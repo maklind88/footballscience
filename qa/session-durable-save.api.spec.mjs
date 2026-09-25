@@ -75,6 +75,34 @@ test("replaying a committed change is idempotent", () => {
   expect(second.state).toEqual(first.state);
 });
 
+test("a normalized empty field timestamp map is not a content conflict against a legacy record", () => {
+  const central = initial(), before = copy(central), after = copy(central);
+  before.sessions[date].blocks[0].fieldUpdatedAt = {};
+  after.sessions[date].blocks[0].objective = "Actual edit";
+  after.sessions[date].blocks[0].fieldUpdatedAt = { objective: "2026-09-25T10:00:00.000Z" };
+  const result = applySessionDateChange(central, change(before, after));
+  expect(result.conflicts).toEqual([]);
+  expect(result.state.sessions[date].blocks[0]).toMatchObject({ objective: "Actual edit", fieldUpdatedAt: after.sessions[date].blocks[0].fieldUpdatedAt });
+});
+
+test("timestamp reconciliation preserves the latest stamps without resolving real player position conflicts", () => {
+  const before = initial(), central = copy(before), after = copy(before);
+  for (const state of [before, central, after]) state.sessions[date].blocks[0].playerBoardPositions = { player: { x: 10, y: 20 } };
+  before.sessions[date].blocks[0].fieldUpdatedAt = {};
+  central.sessions[date].blocks[0].playerBoardPositions.player.x = 30;
+  after.sessions[date].blocks[0].playerBoardPositions.player.x = 40;
+  after.sessions[date].blocks[0].fieldUpdatedAt = { playerBoardPositions: "2026-09-25T10:00:00.000Z" };
+  const conflict = applySessionDateChange(central, change(before, after));
+  expect(conflict.conflicts).toEqual([`${date}.session.blocks.a.playerBoardPositions.player.x`]);
+  expect(conflict.state).toEqual(central);
+  central.sessions[date].blocks[0].playerBoardPositions.player.x = 10;
+  central.sessions[date].blocks[0].fieldUpdatedAt = { playerBoardPositions: "2026-09-25T11:00:00.000Z", minutes: "2026-09-25T09:00:00.000Z" };
+  const merged = applySessionDateChange(central, change(before, after));
+  expect(merged.ok).toBe(true);
+  expect(merged.state.sessions[date].blocks[0].fieldUpdatedAt).toEqual(central.sessions[date].blocks[0].fieldUpdatedAt);
+  expect(merged.state.sessions[date].blocks[0].playerBoardPositions.player.x).toBe(40);
+});
+
 test("concurrent additions survive and deleting a block requires its tombstone", () => {
   const before = initial(), local = copy(before), central = copy(before);
   local.sessions[date].blocks.push({ id: "local", title: "Local" });

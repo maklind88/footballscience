@@ -99,7 +99,7 @@ function createHarness(options = {}) {
     canWriteCentralBackedCache: () => options.canWrite !== false,
     captureBoardHistoryFromState: () => calls.push("capture"),
     clamp: (value, min, max) => Math.min(max, Math.max(min, Number(value))),
-    cloneState,
+    cloneState: options.cloneState || cloneState,
     createDefaultState: () => ({ selectedDate: "default", sessions: {} }),
     dataSafetySnapshotStoreName: "snapshots",
     findWorkspaceFieldElements: () => options.fields || [],
@@ -410,6 +410,23 @@ test("Session Planner runtime state service normalizes the cache without saving 
   expect(state.selectedDate).toBe("2026-05-02");
   expect(localStorage.getItem(storageKey)).toContain("2026-05-02");
   expect(calls.some((call) => Array.isArray(call) && call[0] === "record" && call[1] === storageKey)).toBe(false);
+});
+
+test("reading a server receipt normalizes the view without rewriting the acknowledged cache generation", () => {
+  const storageKey = "football-session-planner-v3";
+  const raw = JSON.stringify({ selectedDate: "2026-05-01", sessions: { "2026-05-01": {
+    date: "2026-05-01", blocks: [{ id: "block-1", title: "Acknowledged edit" }],
+  } } });
+  const h = createHarness({ initialStorage: { [storageKey]: raw }, cloneState: (value) => {
+    const normalized = cloneState(value);
+    normalized.sessions["2026-05-01"].blocks[0].fieldUpdatedAt ||= {};
+    return normalized;
+  } });
+  const state = h.service.readState();
+  expect(state.sessions["2026-05-01"].blocks[0].fieldUpdatedAt).toEqual({});
+  expect(h.localStorage.getItem(storageKey)).toBe(raw);
+  expect(h.localStorage.setItemCalls).toEqual([]);
+  expect(h.calls.some((call) => Array.isArray(call) && call[0] === "record")).toBe(false);
 });
 
 test("Session Planner runtime state service falls back to the central cache when local storage was evicted by quota", () => {

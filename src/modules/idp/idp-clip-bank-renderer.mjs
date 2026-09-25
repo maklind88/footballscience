@@ -172,13 +172,12 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
         </div>
         <div class="idp-clip-bank-actions">
           ${selectedCount ? `<button type="button" data-idp-clip-play-selected>Open selected (${escapeHtml(String(selectedCount))})</button>` : ""}
-          ${canEdit ? `<button type="button" data-idp-action="evidence">Log observation</button>` : ""}
+          <label class="idp-clip-bank-search">
+            <span>Search clips</span>
+            <input type="search" data-idp-clip-search value="${escapeHtml(query)}" placeholder="Search clips, date or principle" autocomplete="off" spellcheck="false">
+          </label>
         </div>
       </div>
-      <label class="idp-clip-bank-search">
-        <span>Search clips</span>
-        <input type="search" data-idp-clip-search value="${escapeHtml(query)}" placeholder="Search clips, date or principle" autocomplete="off" spellcheck="false">
-      </label>
       <div class="idp-clip-bank-list">
         ${visibleClips.length
           ? visibleClips.map((clip, index) => renderClipCard(clip, index, selectedIds.has(clipKey(clip)), canEdit)).join("")

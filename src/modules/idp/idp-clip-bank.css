@@ -5,7 +5,7 @@
 }
 
 .idp-clip-bank-head {
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -38,6 +38,10 @@
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+  margin-left: auto;
+  width: min(100%, 36rem);
+  max-width: 100%;
+  min-width: 0;
 }
 
 .idp-clip-bank-actions button,
@@ -71,7 +75,7 @@
   gap: 6px;
   grid-template-columns: minmax(0, 1fr);
   margin: 0;
-  width: min(100%, 32rem);
+  width: min(100%, 26rem);
   min-width: 0;
 }
 
@@ -669,8 +673,13 @@ body.is-dark-mode .idp-clip-bank-search input {
 }
 
 @media (max-width: 760px) {
+  .idp-clip-bank-actions {
+    width: 100%;
+  }
+
   .idp-clip-bank-search {
     grid-template-columns: 1fr;
+    width: 100%;
   }
 
   .idp-clip-bank-row {

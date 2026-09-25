@@ -1,5 +1,7 @@
 import { createSessionPlannerTacticalController } from "../session-planner/session-planner-tactical-controller.mjs";
 import { createSessionPlannerVisualUploadHelpers } from "../session-planner/session-planner-visual-upload.mjs";
+import { createSessionPlannerBoardHistoryController } from "../session-planner/session-planner-board-history-controller.mjs";
+import { mountIdpBoardToolbox, setIdpBoardToolGroup, syncIdpBoardToolbox } from "./idp-board-toolbox.mjs";
 import {
   getTacticalBoardElementEndpointCoordinates,
 } from "../tactical-board/index.mjs";
@@ -177,6 +179,7 @@ function setLocalSelectedInterventionId(activeRuntime = {}, interventionId = "")
 }
 
 export function resetIdpPlayerBoardRuntimeDraft(activeRuntime = {}) {
+  activeRuntime.idpBoardHistory = null;
   activeRuntime.idpPlayerBoardActiveBlock = null;
   activeRuntime.idpPlayerBoardActivePlayerId = "";
   activeRuntime.idpPlayerBoardDraftDetail = null;
@@ -247,6 +250,7 @@ function persistBlockToDetail(activeRuntime = {}, block = null, options = {}) {
     nextDetail.profile?.playerId || ""
   );
   activeRuntime.idpPlayerBoardDraftDetail = nextDetail;
+  activeRuntime.idpBoardHistory?.captureFromState();
   if (!persistedInterventionId) {
     setLocalSelectedInterventionId(activeRuntime, nextInterventionId);
   }
@@ -330,13 +334,33 @@ function getController(activeRuntime = {}) {
         return getRoot(activeRuntime);
       },
     },
-    undoSessionPlannerBoardHistory: () => {},
+    undoSessionPlannerBoardHistory: () => getBoardHistory(activeRuntime).undo("tactical"),
+    onSelectionChange: () => syncIdpBoardToolbox(getRoot(activeRuntime), getIdpPlayerBoardRuntimeUi(activeRuntime), getCurrentBlock(activeRuntime)),
     win: activeRuntime.context?.win || globalThis,
     writeSessionPlannerState: () => persistBlockToDetail(activeRuntime),
     getLocalState: () => createLocalState(activeRuntime),
     setLocalState: (patch) => setLocalState(activeRuntime, patch),
   });
   return activeRuntime.idpPlayerBoardController;
+}
+
+function getBoardHistory(activeRuntime) {
+  if (activeRuntime.idpBoardHistory) return activeRuntime.idpBoardHistory;
+  const history = createSessionPlannerBoardHistoryController({
+    canEdit: () => canEdit(activeRuntime),
+    getSelectedBlock: () => getCurrentBlock(activeRuntime),
+    getSelectedDate: () => getCurrentBlock(activeRuntime).playerId,
+    cloneTacticalElement: idpPlayerBoardHelpers.cloneTacticalElement,
+    normalizeTacticalFrames: idpPlayerBoardHelpers.normalizeTacticalFrames,
+    normalizeTacticalActiveFrameId: idpPlayerBoardHelpers.normalizeTacticalActiveFrameId,
+    normalizeTacticalPitchMode: idpPlayerBoardHelpers.normalizeTacticalPitchMode,
+    resetTacticalDraftState: () => closeTransientTacticalState(activeRuntime),
+    writeState: () => persistBlockToDetail(activeRuntime, getCurrentBlock(activeRuntime)),
+    renderWorkspace: () => getController(activeRuntime).refreshSessionPlannerTacticalboardCanvas(),
+  });
+  activeRuntime.idpBoardHistory = history;
+  history.syncBaselines();
+  return history;
 }
 
 function syncActiveFrame(block = null) {
@@ -445,6 +469,7 @@ function setPreviewOpen(activeRuntime = {}, isOpen = false) {
 }
 
 function selectExercise(activeRuntime = {}, interventionId = "") {
+  activeRuntime.idpBoardHistory = null;
   closeTransientTacticalState(activeRuntime);
   setLocalSelectedInterventionId(activeRuntime, interventionId || "");
   activeRuntime.idpPlayerBoardActiveBlock = null;
@@ -460,6 +485,7 @@ function selectExercise(activeRuntime = {}, interventionId = "") {
 }
 
 function startNewExercise(activeRuntime = {}) {
+  activeRuntime.idpBoardHistory = null;
   const storeDetail = activeRuntime.store?.getState?.()?.playerDetail || {};
   closeTransientTacticalState(activeRuntime);
   setLocalSelectedInterventionId(activeRuntime, IDP_PLAYER_BOARD_NEW_EXERCISE_ID);
@@ -576,6 +602,15 @@ export function handleIdpPlayerBoardInput(event, activeRuntime = {}) {
 
 export function handleIdpPlayerBoardChange(event, activeRuntime = {}) {
   const target = event?.target;
+  const playerNumber = target?.closest?.("[data-idp-board-player-number]");
+  if (playerNumber) {
+    const selected = getController(activeRuntime).getSessionPlannerTacticalSelectedElementIds();
+    const value = Number(playerNumber.value);
+    if (selected.length === 1 && Number.isInteger(value) && value >= 0 && value <= 99) {
+      getController(activeRuntime).updateSessionPlannerTacticalPlayerNumber(selected[0], String(value));
+    }
+    return true;
+  }
   const focusField = target?.closest?.("[data-idp-board-focus]");
   if (focusField) {
     updateExerciseField(activeRuntime, "focusId", focusField.value);
@@ -618,6 +653,16 @@ export function handleIdpPlayerBoardClick(event, activeRuntime = {}) {
     callback(element);
     return true;
   };
+  if (callIfClosest("[data-idp-board-tool-group]", (el) => {
+    getRuntimeLocalUi(activeRuntime).idpPlayerBoardToolGroup = el.dataset.idpBoardToolGroup;
+    setIdpBoardToolGroup(getRoot(activeRuntime), el.dataset.idpBoardToolGroup);
+  })) return true;
+  if (callIfClosest("[data-idp-board-select-tool]", () => {
+    if (!canEdit(activeRuntime)) return;
+    closeTransientTacticalState(activeRuntime);
+    setLocalState(activeRuntime, { sessionPlannerTacticalTool: "" });
+    controller.refreshSessionPlannerTacticalboardCanvas();
+  })) return true;
   if (target?.matches?.("[data-session-visual-preview-overlay]")) {
     setPreviewOpen(activeRuntime, false);
     return true;
@@ -663,8 +708,11 @@ export function handleIdpPlayerBoardClick(event, activeRuntime = {}) {
   if (callIfClosest("[data-session-tactical-tool]", (el) => controller.setSessionPlannerTacticalTool(el.dataset.sessionTacticalTool))) return true;
   if (callIfClosest("[data-session-clear-board]", () => controller.clearSelectedSessionPlannerTacticalBoard())) return true;
   if (callIfClosest("[data-session-undo-board]", () => controller.undoSelectedSessionPlannerTacticalBoardAction())) return true;
-  if (callIfClosest("[data-session-redo-board]", () => {})) return true;
-  if (callIfClosest("[data-session-copy-tactical-selected]", () => controller.copySelectedSessionPlannerTacticalElements())) return true;
+  if (callIfClosest("[data-session-redo-board]", () => getBoardHistory(activeRuntime).redo("tactical"))) return true;
+  if (callIfClosest("[data-session-copy-tactical-selected]", () => {
+    controller.copySelectedSessionPlannerTacticalElements();
+    syncIdpBoardToolbox(getRoot(activeRuntime), getIdpPlayerBoardRuntimeUi(activeRuntime), getCurrentBlock(activeRuntime));
+  })) return true;
   if (callIfClosest("[data-session-paste-tactical-clipboard]", () => controller.pasteSessionPlannerTacticalClipboard())) return true;
   if (callIfClosest("[data-session-delete-tactical-selected]", () => controller.removeSelectedSessionPlannerTacticalElement())) return true;
   if (callIfClosest("[data-session-tactical-canvas]", (el) => handleIdpPlayerBoardCanvasClick(event, activeRuntime, el, controller))) return true;
@@ -674,10 +722,25 @@ export function handleIdpPlayerBoardClick(event, activeRuntime = {}) {
 export function handleIdpPlayerBoardKeydown(event, activeRuntime = {}) {
   const ui = getIdpPlayerBoardRuntimeUi(activeRuntime);
   if (!ui.idpPlayerBoardOpen) return false;
+  const tab = event?.target?.closest?.("[data-idp-board-tool-group]");
+  if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    const tabs = Array.from(getRoot(activeRuntime).querySelectorAll("[data-idp-board-tool-group]"));
+    const index = tabs.indexOf(tab);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowLeft" ? -1 : 1) + tabs.length) % tabs.length;
+    tabs[next].click();
+    tabs[next].focus();
+    return true;
+  }
   if (event?.target?.closest?.("input, textarea, select, [contenteditable='true']")) return false;
   const controller = getController(activeRuntime);
   const key = String(event?.key || "");
   const lowerKey = key.toLowerCase();
+  if ((event.metaKey || event.ctrlKey) && lowerKey === "z") {
+    event.preventDefault?.();
+    getBoardHistory(activeRuntime)[event.shiftKey ? "redo" : "undo"]("tactical");
+    return true;
+  }
   if (key === "Escape") {
     event.preventDefault?.();
     closeTransientTacticalState(activeRuntime);
@@ -759,6 +822,12 @@ function handleDoubleClick(event, activeRuntime = {}) {
 export function bindIdpPlayerBoardEvents(activeRuntime = {}) {
   const root = getRoot(activeRuntime);
   const win = activeRuntime.context?.win || globalThis;
+  if (root?.querySelector?.(".session-tacticalboard-modal")) {
+    const state = getIdpPlayerBoardRuntimeUi(activeRuntime);
+    mountIdpBoardToolbox(root, state);
+    getBoardHistory(activeRuntime);
+    syncIdpBoardToolbox(root, state, getCurrentBlock(activeRuntime));
+  }
   if (!root || root.__idpPlayerBoardEventsBound) return;
   const pointerDown = (event) => handlePointerDown(event, activeRuntime);
   const pointerMove = (event) => handlePointerMove(event, activeRuntime);

@@ -1,0 +1,224 @@
+.idp-board-editor .session-tacticalboard-layout {
+  grid-template-columns: 220px minmax(0, 1fr) 220px;
+  gap: 16px;
+}
+
+.idp-board-editor .session-library-modal-head h2 { letter-spacing: 0; font-size: 26px; }
+.idp-board-editor.is-previewing-animation .session-tacticalboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+.idp-board-editor .session-tacticalboard-canvas-wrap {
+  container-type: size;
+  place-items: center;
+}
+.idp-board-editor .session-tacticalboard-canvas-wrap .session-visual-board-editor {
+  --idp-pitch-ratio: 65 / 105;
+  width: min(100cqw, calc(100cqh * var(--idp-pitch-ratio)));
+  min-width: 0;
+  justify-self: center;
+}
+.idp-board-editor .session-visual-board.session-visual-board-landscape { --idp-pitch-ratio: 105 / 65; }
+.idp-board-editor .session-visual-board.session-visual-board-mode-attacking-half,
+.idp-board-editor .session-visual-board.session-visual-board-mode-defending-half { --idp-pitch-ratio: 65 / 52.5; }
+.idp-board-editor .session-visual-board.session-visual-board-mode-goalkeeper { --idp-pitch-ratio: 65 / 33; }
+.idp-board-editor .session-tacticalboard-canvas-wrap .session-visual-board-surface {
+  width: auto;
+  height: auto;
+}
+
+.idp-board-editor .session-tacticalboard-side,
+.idp-board-editor .session-tacticalboard-canvas-wrap {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 4px;
+}
+
+.idp-board-editor .session-tacticalboard-toolbox {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.idp-board-quick-actions {
+  display: flex;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--idp-line);
+}
+
+.idp-board-editor .idp-board-icon-button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 8px;
+  border: 1px solid var(--idp-line);
+  border-radius: 6px;
+  background: var(--idp-panel);
+  color: var(--idp-ink);
+  box-shadow: none;
+  font-size: 22px;
+}
+
+.idp-board-icon-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.idp-board-tool-tabs {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  border-bottom: 1px solid var(--idp-line);
+}
+
+.idp-board-tool-tabs button {
+  padding: 10px 3px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--idp-muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.idp-board-tool-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--idp-teal);
+  color: var(--idp-teal);
+}
+
+.idp-board-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.idp-board-editor [hidden] { display: none !important; }
+
+.idp-board-tool-grid .session-tactical-tool-button {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-height: 68px;
+  padding: 8px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  box-shadow: none;
+  background: var(--idp-panel);
+  color: var(--idp-ink);
+}
+
+.idp-board-tool-grid .session-tactical-tool-label {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.idp-board-tool-grid [data-session-tactical-tool="blue-player"] .session-tactical-tool-icon { color: #1672ce; }
+.idp-board-tool-grid [data-session-tactical-tool="red-player"] .session-tactical-tool-icon { color: #d12c46; }
+.idp-board-tool-grid [data-session-tactical-tool="neutral-player"] .session-tactical-tool-icon { color: #aa7800; }
+.idp-board-tool-grid [data-session-tactical-tool="cone"] .session-tactical-tool-icon { color: #ca6714; }
+
+.idp-board-editor .session-tactical-tool-button:hover,
+.idp-board-editor .idp-board-icon-button:hover { background: var(--idp-subtle); }
+.idp-board-editor .session-tactical-tool-button.is-active,
+.idp-board-editor .idp-board-icon-button[aria-pressed="true"] {
+  background: #e8f5f1;
+  border-color: #0f766e;
+  color: #075b53;
+}
+.idp-board-editor button:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
+.idp-board-editor button:disabled { opacity: .4; cursor: default; }
+
+.idp-board-inspector-title { margin: 0 0 12px; font-size: 15px; }
+.idp-board-editor .session-tacticalboard-settings { gap: 14px; padding: 0; border: 0; background: transparent; border-radius: 0; }
+.idp-board-editor .session-tacticalboard-settings label,
+.idp-board-editor .session-tacticalboard-arrange {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+.idp-board-editor .session-tacticalboard-settings input,
+.idp-board-editor .session-tacticalboard-settings select { border-radius: 6px; }
+.idp-board-player-number input {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--idp-line);
+  color: var(--idp-ink);
+  background: var(--idp-panel);
+  font: inherit;
+}
+.idp-board-editor .session-tactical-colour-swatch { min-height: 0; box-shadow: inset 0 0 0 2px #ffffffb8; }
+.idp-board-editor .session-tacticalboard-settings label > span { font-size: 11px; }
+.idp-board-more-actions { margin-top: 16px; border-top: 1px solid var(--idp-line); padding-top: 12px; }
+.idp-board-more-actions summary { cursor: pointer; font-size: 12px; font-weight: 600; margin-bottom: 12px; }
+.idp-board-more-actions .session-tacticalboard-actions { margin-top: 8px; }
+
+body.is-dark-mode .idp-board-editor {
+  --idp-ink: #edf1ef;
+  --idp-muted: #b6c1bc;
+  --idp-panel: #242b28;
+  --idp-subtle: #313b36;
+  --idp-line: #46514b;
+  --idp-teal: #74d2b9;
+  background: #191f1c;
+  color: var(--idp-ink);
+}
+body.is-dark-mode .idp-board-editor .session-library-modal-head h2,
+body.is-dark-mode .idp-board-editor .session-library-modal-head > div > span,
+body.is-dark-mode .idp-board-editor .session-tacticalboard-settings label > span { color: var(--idp-ink); }
+body.is-dark-mode .idp-board-editor select,
+body.is-dark-mode .idp-board-editor .session-tactical-playback button,
+body.is-dark-mode .idp-board-editor .idp-board-tool-grid button,
+body.is-dark-mode .idp-board-editor .idp-board-quick-actions button {
+  color: var(--idp-ink);
+  background: var(--idp-panel);
+  border-color: var(--idp-line);
+}
+body.is-dark-mode .idp-board-editor .idp-board-tool-grid button.is-active,
+body.is-dark-mode .idp-board-editor .idp-board-quick-actions button[aria-pressed="true"] {
+  background: #163f34;
+  color: #baf3df;
+  border-color: #74d2b9;
+}
+body.is-dark-mode .idp-board-editor .session-tactical-playback { color: var(--idp-ink); }
+
+@media (max-width: 1120px) {
+  .idp-board-editor .session-tacticalboard-layout {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+  .idp-board-editor .session-tacticalboard-layout > * { flex: 0 0 auto; width: 100%; }
+  .idp-board-editor .session-tacticalboard-toolbox { gap: 8px; overflow: visible; }
+  .idp-board-quick-actions { padding-bottom: 6px; }
+  .idp-board-tool-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .idp-board-editor .session-tacticalboard-inspector { overflow: visible; }
+  .idp-board-editor .session-tacticalboard-canvas-wrap { container-type: normal; height: auto; overflow: visible; }
+  .idp-board-editor .session-tacticalboard-canvas-wrap .session-visual-board-editor { width: min(100%, 460px); }
+}
+
+@media (max-width: 550px) {
+  .idp-board-editor .session-library-modal-head { flex-wrap: wrap; }
+  .idp-board-editor .session-library-modal-head h2 { font-size: 22px; }
+  .idp-board-editor .idp-player-board-editor-actions { width: 100%; }
+  .idp-board-tool-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .idp-board-tool-grid .session-tactical-tool-button { min-height: 60px; }
+}

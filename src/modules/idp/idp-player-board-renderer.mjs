@@ -254,6 +254,10 @@ function renderIdpTacticalboardOverlay(renderer, block = {}, canEdit = false, pl
   const closeButton = `<button type="button" class="session-library-close-button" data-session-close-tacticalboard aria-label="Close tacticalboard">Close</button>`;
   const actions = `
           <div class="idp-player-board-editor-actions">
+            <label class="idp-player-board-editor-name">
+              <span>Exercise name</span>
+              <input type="text" data-idp-board-title value="${escapeHtml(block.title || "")}" maxlength="180" placeholder="Exercise name" ${canEdit ? "" : "readonly"}>
+            </label>
             ${deleteButton}
             <button type="button" class="idp-player-board-editor-save" data-idp-board-save ${saveDisabled}>Save exercise</button>
             ${closeButton}

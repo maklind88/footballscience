@@ -1,4 +1,7 @@
 const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
+const { readSessionSaveEffects } = require("./session-save-receipts.js");
+const { isAppStateDatabaseEnabled, readAppStateRecord, writeAppStateRecord } = require("./app-state-records-database.js");
+const { createHash } = require("crypto");
 
 const STATE_BUCKET = "footballscience-app-state";
 const STATE_PREFIX = "global";
@@ -405,17 +408,26 @@ async function appendSessionPlannerHistory(actor, previousRawValue, nextRawValue
 
 async function getSessionHistoryEntries(options = {}) {
   const historyLog = await readSessionHistoryLog(options.limit || 80);
+  const committed = await readSessionSaveEffects("global", options.limit || 80);
+  const entries = [...committed.map((event) => event.history).filter(Boolean), ...historyLog.entries]
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, Math.max(1, Math.min(MAX_SESSION_HISTORY_ENTRIES, Number(options.limit) || 80)));
   const date = normalizeHistoryString(options.date || "");
   return date
-    ? historyLog.entries.filter((entry) => entry.date === date)
-    : historyLog.entries;
+    ? entries.filter((entry) => entry.date === date)
+    : entries;
 }
 
 async function readSessionPlannerStateEntry() {
+  if (isAppStateDatabaseEnabled()) {
+    const result = await readAppStateRecord(SESSION_PLANNER_KEY);
+    if (!result.ok) throw new Error("Current training could not be read safely.");
+    return result.entry;
+  }
   return readStateObject(SESSION_PLANNER_KEY);
 }
 
-async function writeSessionPlannerStateValue(value, actor) {
+async function writeSessionPlannerStateValue(value, actor, previousEntry = null) {
   const entry = {
     schema: "footballscience-app-state-v1",
     key: SESSION_PLANNER_KEY,
@@ -425,6 +437,18 @@ async function writeSessionPlannerStateValue(value, actor) {
     updatedBy: actor?.id || "",
   };
 
+  if (isAppStateDatabaseEnabled()) {
+    if (!previousEntry?.organizationId || !Number.isSafeInteger(previousEntry.revision) || previousEntry.revision < 1) {
+      return { ok: false, status: 409, reason: "Current training revision must be verified before restore." };
+    }
+    const next = { ...previousEntry, ...entry, revision: previousEntry.revision + 1,
+      hash: createHash("sha256").update(entry.value).digest("hex") };
+    const result = await writeAppStateRecord(next, previousEntry.revision);
+    if (!result.ok) return result;
+    // Compatibility failure must not undo or disguise the authoritative commit.
+    const backup = await writeStateObject(result.entry).catch(() => ({ ok: false }));
+    return { ...result, backupOk: Boolean(backup.ok) };
+  }
   return writeStateObject(entry);
 }
 
@@ -436,4 +460,5 @@ module.exports = {
   readSessionPlannerStateEntry,
   writeSessionPlannerStateValue,
   parseSessionPlannerState,
+  createSessionHistoryEntry,
 };

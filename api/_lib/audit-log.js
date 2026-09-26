@@ -1,4 +1,5 @@
 const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
+const { readSessionSaveEffects } = require("./session-save-receipts.js");
 
 const AUDIT_BUCKET = "footballscience-app-state";
 const AUDIT_PREFIX = "global";
@@ -230,13 +231,18 @@ function parseAuditLogFromStateObject(stateObject) {
   }
 }
 
-async function readAuditLog(limit = MAX_AUDIT_ENTRIES) {
+async function readAuditLog(limit = MAX_AUDIT_ENTRIES, { includeCommittedSessions = true } = {}) {
   const stateObject = await readAuditStateObject();
   const auditLog = parseAuditLogFromStateObject(stateObject);
   const safeLimit = Math.max(1, Math.min(MAX_AUDIT_ENTRIES, Number(limit) || MAX_AUDIT_ENTRIES));
+  // This existing audit endpoint has the same explicit global scope as its
+  // legacy source. Never mix all organizations into the compatibility view.
+  const committed = includeCommittedSessions ? await readSessionSaveEffects("global", safeLimit) : [];
+  const entries = [...committed.flatMap((event) => [event.audit, event.activity].filter(Boolean)), ...auditLog.entries]
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   return {
     schema: AUDIT_SCHEMA,
-    entries: auditLog.entries.slice(0, safeLimit),
+    entries: entries.slice(0, safeLimit),
   };
 }
 
@@ -285,7 +291,7 @@ async function appendAuditLog(actor, event = {}) {
       return false;
     }
 
-    const currentLog = await readAuditLog(MAX_AUDIT_ENTRIES);
+    const currentLog = await readAuditLog(MAX_AUDIT_ENTRIES, { includeCommittedSessions: false });
     const nextEntry = normalizeAuditEntry(actor, event);
     return writeAuditLog(
       {
@@ -303,4 +309,5 @@ module.exports = {
   AUDIT_KEY,
   readAuditLog,
   appendAuditLog,
+  normalizeAuditEntry,
 };

@@ -8,6 +8,9 @@ const {
 } = require("./_lib/supabase-admin.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
+const { isAppStateDatabaseEnabled } = require("./_lib/app-state-records-database.js");
+const { readSessionSaveBackup, validateSessionSaveBackup } = require("./_lib/session-save-backup.js");
+const SESSION_PLANNER_KEY = "football-session-planner-v3";
 
 const STATE_BUCKET = "footballscience-app-state";
 const STATE_PREFIX = "global";
@@ -175,11 +178,13 @@ function hashText(value) {
 async function collectCentralStateBackupEntries() {
   const entries = {};
   const manifest = {};
+  const sessionSaveSnapshot = isAppStateDatabaseEnabled() ? await readSessionSaveBackup() : null;
+  const sessionEntry = sessionSaveSnapshot ? validateSessionSaveBackup(sessionSaveSnapshot) : null;
 
   await Promise.all(
     Array.from(CENTRAL_STATE_KEYS).map(async (key) => {
-      const entry = await readStateObject(key);
-      if (!entry?.key) {
+      const entry = key === SESSION_PLANNER_KEY && sessionSaveSnapshot ? sessionEntry : await readStateObject(key);
+      if (!entry?.key || entry.removed) {
         manifest[key] = { present: false };
         return;
       }
@@ -200,10 +205,10 @@ async function collectCentralStateBackupEntries() {
     })
   );
 
-  return { entries, manifest };
+  return { entries, manifest, ...(sessionSaveSnapshot ? { sessionSaveSnapshot } : {}) };
 }
 
-function createBackupEnvelope({ actor, entries, manifest }) {
+function createBackupEnvelope({ actor, entries, manifest, sessionSaveSnapshot }) {
   const createdAt = new Date().toISOString();
   const core = {
     schema: "footballscience-app-state-backup-v1",
@@ -217,6 +222,7 @@ function createBackupEnvelope({ actor, entries, manifest }) {
     entryCount: Object.keys(entries).length,
     manifest,
     entries,
+    ...(sessionSaveSnapshot ? { sessionSaveSnapshot } : {}),
   };
 
   return {
@@ -399,6 +405,18 @@ function createRestoreDrillSummary(backup, statusSummary) {
   const missingEntryKeys = [];
   const unexpectedEntryKeys = [];
   const invalidEntries = [];
+  if (isAppStateDatabaseEnabled() || backup.sessionSaveSnapshot) {
+    try {
+      const record = validateSessionSaveBackup(backup.sessionSaveSnapshot);
+      const present = Boolean(record && !record.removed);
+      if (Boolean(manifest[SESSION_PLANNER_KEY]?.present) !== present || (present &&
+          (entries[SESSION_PLANNER_KEY] !== record.value || manifest[SESSION_PLANNER_KEY].revision !== record.revision))) {
+        throw new Error("snapshot mismatch");
+      }
+    } catch {
+      invalidEntries.push({ key: SESSION_PLANNER_KEY, moduleId: "session-planner", reasons: ["session-receipt-snapshot"] });
+    }
+  }
   let parsedEntryCount = 0;
 
   for (const key of Object.keys(entries)) {

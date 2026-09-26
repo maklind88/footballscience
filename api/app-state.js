@@ -7,10 +7,11 @@ const {
   sendJson,
   parseJsonBody,
 } = require("./_lib/supabase-admin.js");
-const { appendAuditLog } = require("./_lib/audit-log.js");
-const { appendSessionPlannerHistory } = require("./_lib/session-history.js");
+const { appendAuditLog, normalizeAuditEntry } = require("./_lib/audit-log.js");
+const { appendSessionPlannerHistory, createSessionHistoryEntry } = require("./_lib/session-history.js");
 const { createAppStateWriteTiming } = require("./_lib/app-state-write-timing.js");
 const { decodeSessionStateValue, encodeSessionStateValue } = require("./_lib/session-state-transport.js");
+const { operationIdentity, findSessionReceipt, commitSessionReceipt, sessionEventId } = require("./_lib/session-save-receipts.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
 const { protectGameplanStateWrite } = require("./_lib/gameplan-state-authorization.js");
 const { protectSetPiecesStateWrite } = require("./_lib/set-pieces-state-authorization.js");
@@ -2924,12 +2925,8 @@ async function appendTransferRoomStateAudit(actor, rawValue) {
   });
 }
 
-async function appendDataSafetyWriteAudit(actor, previousEntry, nextEntry, merged = false) {
-  if (!nextEntry?.key) {
-    return;
-  }
-
-  await appendAuditLog(actor, {
+function dataSafetyWriteEvent(previousEntry, nextEntry, merged = false) {
+  return {
     action: "data-safety.saved",
     summary: `Saved ${nextEntry.moduleId || nextEntry.key} through the central data pipeline`,
     details: {
@@ -2941,7 +2938,12 @@ async function appendDataSafetyWriteAudit(actor, previousEntry, nextEntry, merge
       before: previousEntry ? getStateEntryMetadata(previousEntry) : null,
       after: getStateEntryMetadata(nextEntry),
     },
-  });
+  };
+}
+
+async function appendDataSafetyWriteAudit(actor, previousEntry, nextEntry, merged = false) {
+  if (!nextEntry?.key) return;
+  return appendAuditLog(actor, dataSafetyWriteEvent(previousEntry, nextEntry, merged));
 }
 
 async function authorizeStateWrite(actor, key, rawValue, removed = false, context = {}) {
@@ -3173,18 +3175,21 @@ async function writeStorageStateObject(entry) {
   return result;
 }
 
-async function writeStateObject(entry, measure = (_phase, action) => action()) {
+async function writeStateObject(entry, measure = (_phase, action) => action(), sessionOperation = null) {
   if (!isAppStateDatabaseEnabled()) {
     return writeStorageStateObject(entry);
   }
 
   const expectedRevision = Math.max(0, Number(entry?.revision || 1) - 1);
-  const databaseResult = await measure("database", () => writeAppStateRecord(entry, expectedRevision));
+  const databaseResult = await measure("database", () => sessionOperation
+    ? commitSessionReceipt(entry, sessionOperation.identity, sessionOperation.effects)
+    : writeAppStateRecord(entry, expectedRevision));
   if (!databaseResult.ok) {
     return databaseResult;
   }
 
   const persistedEntry = normalizeDatabaseStateEntry({ ...entry, ...(databaseResult.entry || {}) });
+  if (databaseResult.duplicate) return { ...databaseResult, entry: persistedEntry };
   const backupResult = await measure("compatibility", () => writeStorageStateObject(persistedEntry));
   if (!backupResult.ok) {
     console.error("[app-state] compatibility backup write failed", {
@@ -3195,7 +3200,18 @@ async function writeStateObject(entry, measure = (_phase, action) => action()) {
     });
   }
   clearStateListObjectsCache();
-  return { ok: true, entry: persistedEntry, backupOk: Boolean(backupResult.ok) };
+  return { ...databaseResult, ok: true, entry: persistedEntry, backupOk: Boolean(backupResult.ok) };
+}
+
+async function sessionReceiptResponse(req, entry, change, protocol, acceptedRevision) {
+  const value = protocol.sessionDateValue(JSON.parse(entry.value), change.date);
+  if (!value.session) throw new Error("Saved training is no longer present. Local changes were retained.");
+  return {
+    ok: true, key: entry.key, revision: entry.revision, metadata: getStateEntryMetadata(entry),
+    updatedAt: entry.updatedAt, updatedBy: entry.updatedBy, organizationId: entry.organizationId,
+    moduleId: entry.moduleId, acceptedRevision,
+    sessionChange: await encodeSessionStateValue(req, entry.key, JSON.stringify({ id: change.id, date: change.date, value })),
+  };
 }
 
 async function removeStorageStateObject(key) {
@@ -3676,15 +3692,29 @@ module.exports = async (req, res) => {
     const clientBaseRevision = getClientBaseRevision(body?.metadata || body, key);
     let sessionChange = null;
     let sessionProtocol = null;
+    let sessionIdentity = null;
     let incomingValue;
     if (body?.sessionChange !== undefined) {
       if (key !== SESSION_PLANNER_KEY) return sendJson(res, 400, { ok: false, reason: "Date changes are only supported for Sessions." });
       // Authorize before returning any central content or conflict information.
       const access = await measure("authorize", () => authorizeStateWrite(actor, key, previousEntry?.value || '{"sessions":{}}', false, { previousEntry, clientBaseRevision }));
       if (!access.ok) return sendJson(res, access.status || 403, { ok: false, reason: access.reason });
+      if (!isAppStateDatabaseEnabled()) {
+        return sendJson(res, 503, { ok: false, code: "SESSION_DATABASE_REQUIRED",
+          reason: "Central training storage is not ready. Your local changes are retained for retry." });
+      }
       sessionProtocol = await import("../src/modules/session-planner/session-save-protocol.mjs");
       try {
         sessionChange = JSON.parse(await decodeSessionStateValue(key, body.sessionChange));
+        sessionProtocol.validateSessionDateChange(sessionChange);
+        if (isAppStateDatabaseEnabled()) {
+          sessionIdentity = operationIdentity(actor, previousEntry || normalizeStateEntry(key, "", actor), sessionChange, sessionProtocol.canonicalSessionValue);
+          const receipt = await measure("receiptLookup", () => findSessionReceipt(sessionIdentity));
+          if (!receipt.ok) return sendJson(res, receipt.status, { ok: false, reason: receipt.reason });
+          if (receipt.found) {
+            return sendJson(res, 200, await sessionReceiptResponse(req, receipt.entry, sessionChange, sessionProtocol, receipt.acceptedRevision));
+          }
+        }
         const merged = sessionProtocol.applySessionDateChange(JSON.parse(previousEntry?.value || '{"sessions":{}}'), sessionChange);
         if (!merged.ok) return sendJson(res, 409, { ok: false, reason: "This training has conflicting changes. Review your local edit.", conflicts: merged.conflicts, currentRevision: previousEntry?.revision || 0 });
         incomingValue = JSON.stringify(merged.state);
@@ -3729,7 +3759,22 @@ module.exports = async (req, res) => {
       value: sessionProtocol.sessionDateValue(JSON.parse(entry.value), sessionChange.date),
     } : undefined;
     const encodedReceipt = dateReceipt ? await measure("receipt", () => encodeSessionStateValue(req, key, JSON.stringify(dateReceipt))) : undefined;
-    const result = await measure("state", () => writeStateObject(entry, measure));
+    let sessionOperation = null;
+    if (sessionIdentity) {
+      const eventId = sessionEventId(sessionIdentity);
+      const before = sessionProtocol.sessionDateValue(JSON.parse(previousEntry?.value || "{}"), sessionChange.date).session;
+      const after = dateReceipt.value.session;
+      const history = sessionProtocol.sameSessionValue(before, after) ? null
+        : { ...createSessionHistoryEntry(actor, sessionChange.date, before, after), id: `${eventId}-history` };
+      sessionOperation = { identity: sessionIdentity, effects: {
+        schema: "session-save-effects-v1",
+        audit: { ...normalizeAuditEntry(actor, dataSafetyWriteEvent(previousEntry, entry, authorization.merged)), id: `${eventId}-audit` },
+        history,
+        activity: history ? { ...normalizeAuditEntry(actor, { action: "session.updated", summary: "Updated Session Planner",
+          details: { sessions: [{ date: history.date, action: history.action, beforeBlockCount: history.beforeBlockCount, afterBlockCount: history.afterBlockCount }] } }), id: `${eventId}-activity` } : null,
+      } };
+    }
+    const result = await measure("state", () => writeStateObject(entry, measure, sessionOperation));
     if (!result.ok) {
       return sendJson(res, result.status || 400, {
         ok: false,
@@ -3738,14 +3783,17 @@ module.exports = async (req, res) => {
       });
     }
     const persistedEntry = result.entry || entry;
+    if (result.duplicate) {
+      return sendJson(res, 200, await sessionReceiptResponse(req, persistedEntry, sessionChange, sessionProtocol, result.acceptedRevision));
+    }
 
-    await measure("audit", () => appendDataSafetyWriteAudit(actor, previousEntry, persistedEntry, authorization.merged));
+    if (!sessionOperation) await measure("audit", () => appendDataSafetyWriteAudit(actor, previousEntry, persistedEntry, authorization.merged));
 
     if (key === PLATFORM_APPEARANCE_KEY) {
       await appendPlatformAppearanceAudit(actor, previousEntry, authorization.value);
     }
 
-    if (key === SESSION_PLANNER_KEY) {
+    if (key === SESSION_PLANNER_KEY && !sessionOperation) {
       const historyEntries = await measure("history", () => appendSessionPlannerHistory(actor, previousEntry?.value || "", authorization.value));
       if (historyEntries.length) {
         await measure("activity", () => appendAuditLog(actor, {

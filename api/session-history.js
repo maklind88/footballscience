@@ -187,9 +187,9 @@ module.exports = async (req, res) => {
     sessionPlannerState.selectedDate = dateValue;
 
     const nextValue = JSON.stringify(sessionPlannerState);
-    const writeResult = await writeSessionPlannerStateValue(nextValue, actor);
+    const writeResult = await writeSessionPlannerStateValue(nextValue, actor, stateEntry);
     if (!writeResult.ok) {
-      return sendJson(res, 400, { ok: false, reason: writeResult.reason || "Session could not be restored." });
+      return sendJson(res, writeResult.status || 400, { ok: false, reason: writeResult.reason || "Session could not be restored." });
     }
 
     await appendSessionPlannerHistory(actor, previousValue, nextValue, {

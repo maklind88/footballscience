@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { createSessionDateChanges } from "../src/modules/session-planner/session-save-protocol.mjs";
+import { createSessionSaveClient } from "../src/modules/session-planner/session-save-client.mjs";
+import { sessionReceiptMemoryHttp } from "./helpers/session-receipt-memory-http.mjs";
 
 const require = createRequire(import.meta.url);
 const { encodeSessionStateValue, decodeSessionStateValue } = require("../api/_lib/session-state-transport.js");
@@ -12,6 +14,11 @@ const appStateBackupHandler = require("../api/app-state-backup.js");
 const sessionHistoryHandler = require("../api/session-history.js");
 const { getCurrentActor } = require("../api/_lib/supabase-admin.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
+const { rateLimitBuckets } = require("../api/_lib/platform-security.js");
+
+// Independent cases share a worker, not one actor's accumulated traffic window.
+// The production rate limiter remains active for every request within a case.
+test.beforeEach(() => rateLimitBuckets.clear());
 
 function loadFreshAppStateHandler() {
   const modulePath = require.resolve("../api/app-state.js");
@@ -1060,7 +1067,8 @@ test("date-scoped Sessions API preserves other training, returns a bounded recei
     "2026-09-09": { date: "2026-09-09", title: "Yesterday", blocks: [{ id: "y", title: "Keep", organization: "Old exercise. ".repeat(20000) }] },
   } };
   const storage = createAppStateFetchMock({ [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, JSON.stringify(before)) });
-  global.fetch = storage.fetchMock;
+  process.env.APP_STATE_DATABASE_MODE = "database";
+  global.fetch = sessionReceiptMemoryHttp(storage, appStateSessionPlannerKey);
   const url = "/api/app-state?sessionTransport=gzip-base64-v1";
   const headers = { authorization: "Bearer test-access-token" };
   try {
@@ -1071,7 +1079,7 @@ test("date-scoped Sessions API preserves other training, returns a bounded recei
     expect(request.body.length).toBeLessThan(2000);
     const saved = await callHandler(handler, request);
     expect(saved.status).toBe(200);
-    for (const phase of ["auth", "bucket", "read", "authorize", "receipt", "state", "history"]) {
+    for (const phase of ["auth", "bucket", "read", "authorize", "receipt", "state", "database"]) {
       expect(saved.headers["server-timing"]).toMatch(new RegExp(`(?:^|, )${phase};dur=\\d+\\.\\d`));
     }
     expect(saved.headers["server-timing"]).not.toContain("New objective");
@@ -1099,7 +1107,8 @@ test("Sessions API accepts an observed successor but never a late stale overwrit
   const date = "2026-09-25";
   const initial = { sessions: { [date]: { date, title: "Training", blocks: [{ id: "a", title: "Before", minutes: 20 }] } } };
   const storage = createAppStateFetchMock({ [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, JSON.stringify(initial)) });
-  global.fetch = storage.fetchMock;
+  process.env.APP_STATE_DATABASE_MODE = "database";
+  global.fetch = sessionReceiptMemoryHttp(storage, appStateSessionPlannerKey);
   const headers = { authorization: "Bearer test-access-token" };
   try {
     const handler = loadFreshAppStateHandler();
@@ -1123,13 +1132,150 @@ test("Sessions API accepts an observed successor but never a late stale overwrit
     expect(receipt).toMatchObject({ id: "latest-accepted", date, value: { session: { blocks: [{ title: "Latest accepted" }] } } });
     const latest = structuredClone(storage.objects.get(appStateSessionPlannerPath));
     // Even a caller supplying the current revision must not rebase an obsolete edit silently.
-    const stale = await post(firstCommand, b.payload.revision);
+    const duplicate = await post(firstCommand, b.payload.revision);
+    expect(duplicate.status).toBe(200);
+    expect(duplicate.payload.revision).toBe(b.payload.revision);
+    expect(JSON.parse(await decodeSessionStateValue(appStateSessionPlannerKey, duplicate.payload.sessionChange)).value.session.blocks[0].title).toBe("Latest accepted");
+    const stale = await post({ ...firstCommand, id: "never-accepted-stale" }, b.payload.revision);
     expect(stale.status).toBe(409);
     expect(stale.payload.conflicts).toContain(`${date}.session.blocks.a.title`);
     expect(storage.objects.get(appStateSessionPlannerPath)).toEqual(latest);
     expect(JSON.parse(latest.value).sessions[date].blocks[0].title).toBe("Latest accepted");
   } finally { global.fetch = originalFetch; restoreEnv(env); }
 });
+
+for (const database of [false, true]) {
+  for (const successor of ["none", "independent field", "same field"]) {
+    test(`Sessions lost receipt recovery has one durable effect (initial database: ${database}, successor: ${successor})`, async () => {
+      const env = snapshotEnv(supabaseEnvKeys), originalFetch = global.fetch;
+      clearEnv(supabaseEnvKeys);
+      process.env.SUPABASE_URL = "https://example.supabase.co";
+      process.env.SUPABASE_ANON_KEY = "anon-test-key";
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+      if (database) process.env.APP_STATE_DATABASE_MODE = "database";
+      let databaseReady = database;
+      const date = "2026-09-25";
+      const initial = { sessions: { [date]: { date, title: "Training", blocks: [{ id: "a", title: "Before", objective: "Original", minutes: 20 }] } } };
+      const storage = createAppStateFetchMock({ [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, JSON.stringify(initial)) });
+      let databaseEntry = structuredClone(storage.objects.get(appStateSessionPlannerPath));
+      let databaseCommits = 0;
+      const receipts = new Map(), effects = new Map();
+      const row = (entry) => ({ organization_id: entry.organizationId || "global", state_key: entry.key, module_id: entry.moduleId,
+        merge_policy: entry.mergePolicy, revision: entry.revision, value: entry.value, removed: Boolean(entry.removed),
+        updated_by: entry.updatedBy, updated_at: entry.updatedAt, value_hash: entry.hash, metadata: entry.metadata || {} });
+      global.fetch = async (url, options = {}) => {
+        const parsed = new URL(String(url));
+        if (databaseReady && parsed.pathname === "/rest/v1/session_save_receipts") {
+          const id = parsed.searchParams.get("operation_id")?.slice(3);
+          return new Response(JSON.stringify(receipts.has(id) ? [receipts.get(id)] : []), { status: 200 });
+        }
+        if (databaseReady && parsed.pathname === "/rest/v1/session_save_effects") {
+          return new Response(JSON.stringify([...effects.values()].reverse().map((payload) => ({ payload, created_at: "2026-09-25T12:00:00Z" }))), { status: 200 });
+        }
+        if (databaseReady && parsed.pathname === "/rest/v1/rpc/commit_session_save") {
+          const body = JSON.parse(options.body), receipt = receipts.get(body.p_operation_id);
+          if (receipt) return new Response(JSON.stringify({ status: receipt.operation_hash === body.p_operation_hash ? "duplicate" : "identity-mismatch",
+            entry: row(databaseEntry), acceptedRevision: receipt.accepted_revision }), { status: 200 });
+          if (body.p_base_revision !== databaseEntry.revision) return new Response(JSON.stringify({ status: "conflict", currentRevision: databaseEntry.revision }), { status: 200 });
+          databaseCommits++;
+          databaseEntry = structuredClone(body.p_entry);
+          receipts.set(body.p_operation_id, { operation_hash: body.p_operation_hash, session_date: body.p_session_date, accepted_revision: databaseEntry.revision });
+          effects.set(body.p_operation_id, structuredClone(body.p_effects));
+          return new Response(JSON.stringify({ status: "committed", entry: row(databaseEntry), acceptedRevision: databaseEntry.revision }), { status: 200 });
+        }
+        if (databaseReady && parsed.pathname === "/rest/v1/platform_app_state_records") {
+          const key = parsed.searchParams.get("state_key");
+          return new Response(JSON.stringify(!key || key === `eq.${appStateSessionPlannerKey}` || key.includes(appStateSessionPlannerKey) ? [row(databaseEntry)] : []), { status: 200 });
+        }
+        if (databaseReady && parsed.pathname === "/rest/v1/rpc/write_platform_app_state_record") {
+          const body = JSON.parse(options.body);
+          expect(body.p_state_key).toBe(appStateSessionPlannerKey);
+          expect(body.p_organization_id).toBe(databaseEntry.organizationId || "global");
+          if (body.p_expected_revision !== databaseEntry.revision) return new Response(JSON.stringify([{ applied: false, ...row(databaseEntry) }]), { status: 200 });
+          databaseCommits++;
+          databaseEntry = { key: body.p_state_key, organizationId: body.p_organization_id, moduleId: body.p_module_id,
+            mergePolicy: body.p_merge_policy, revision: databaseEntry.revision + 1, value: body.p_value, removed: body.p_removed,
+            updatedBy: body.p_updated_by, updatedAt: new Date().toISOString(), hash: body.p_value_hash, metadata: body.p_metadata };
+          return new Response(JSON.stringify([{ applied: true, ...row(databaseEntry) }]), { status: 200 });
+        }
+        return storage.fetchMock(url, options);
+      };
+      const journal = new Map(), responses = [];
+      const central = () => databaseReady ? databaseEntry : storage.objects.get(appStateSessionPlannerPath);
+      const post = async (change, baseRevision) => {
+        // A fresh API module per request rules out an in-memory receipt cache as a solution.
+        const result = await callHandler(loadFreshAppStateHandler(), { method: "POST", url: "/api/app-state",
+          headers: { authorization: "Bearer test-access-token" },
+          body: JSON.stringify({ key: appStateSessionPlannerKey, baseRevision, sessionChange: JSON.stringify(change) }) });
+        if (result.payload.sessionChange) result.payload.sessionChange = JSON.parse(await decodeSessionStateValue(appStateSessionPlannerKey, result.payload.sessionChange));
+        responses.push({ id: change.id, status: result.status, revision: result.payload.revision });
+        return { ok: result.status === 200, status: result.status, payload: result.payload };
+      };
+      let loseReceipt = true;
+      const client = createSessionSaveClient({ getScope: () => "synthetic-coach-scope",
+        store: { list: async () => structuredClone([...journal.values()]), put: async (record) => journal.set(record.change.id, structuredClone(record)), remove: async (id) => journal.delete(id) },
+        send: async (...args) => {
+          const result = await post(...args);
+          if (loseReceipt && result.ok) { loseReceipt = false; return { ok: false, status: 0, payload: { reason: "Synthetic response lost after commit" } }; }
+          return result;
+        },
+      });
+      try {
+        client.observe(JSON.stringify(initial), { revision: 1 });
+        const first = structuredClone(initial); first.sessions[date].blocks[0].title = "A committed";
+        expect(await client.save(JSON.stringify(first))).toMatchObject({ ok: false, durablePending: true });
+        if (!database) {
+          // No unsafe Storage fallback. The identical pending operation resumes
+          // only after the deployment's database source has been made ready.
+          const pending = structuredClone([...journal.values()]);
+          expect(responses.at(-1).status).toBe(503);
+          expect(central().revision).toBe(1);
+          expect(storage.writes).toHaveLength(0);
+          expect(pending).toHaveLength(1);
+          expect(await client.replay()).toMatchObject({ ok: false, durablePending: true });
+          expect([...journal.keys()]).toEqual(pending.map((item) => item.change.id));
+          expect(storage.writes).toHaveLength(0);
+          databaseReady = true;
+          process.env.APP_STATE_DATABASE_MODE = "database";
+          expect(await client.replay()).toMatchObject({ ok: false, durablePending: true });
+        }
+        expect(central().revision).toBe(2);
+        expect(journal.size).toBe(1);
+        if (successor !== "none") {
+          const beforeB = JSON.parse(central().value), afterB = structuredClone(beforeB);
+          afterB.sessions[date].blocks[0][successor === "same field" ? "title" : "objective"] = "B committed";
+          expect((await post(createSessionDateChanges(beforeB, afterB, () => "peer-operation")[0], central().revision)).ok).toBe(true);
+        }
+        const expected = structuredClone(central());
+        const result = await client.replay();
+        const commits = databaseCommits;
+        const auditEntry = storage.objects.get("global/football-platform-audit-log-v1.json");
+        const savedAudits = JSON.parse(auditEntry?.value || '{"entries":[]}').entries.filter((entry) => entry.action === "data-safety.saved" && entry.details?.key === appStateSessionPlannerKey);
+        const observed = { result: { ok: result.ok, reviewRequired: Boolean(result.reviewRequired) }, pending: journal.size,
+          revision: central().revision, commits, savedAudits: savedAudits.length, responses };
+        await test.info().attach("lost-receipt-observation", { body: JSON.stringify(observed, null, 2), contentType: "application/json" });
+        expect.soft(JSON.parse(central().value), "retry must not replace B's content").toEqual(JSON.parse(expected.value));
+        expect.soft(result.ok, "the already committed immutable operation must be recognized").toBe(true);
+        expect.soft(result.reviewRequired, "an accepted operation is not an unresolved content conflict").not.toBe(true);
+        expect.soft(central().revision, "retry must not produce another revision").toBe(expected.revision);
+        expect.soft(commits, "one durable commit per accepted operation").toBe(successor === "none" ? 1 : 2);
+        const durableAudits = [...effects.values()].filter((event) => event.audit?.action === "data-safety.saved");
+        expect.soft(durableAudits.length, "one audit effect per accepted operation").toBe(successor === "none" ? 1 : 2);
+        expect.soft(effects.size, "one durable side-effect intent per accepted operation").toBe(successor === "none" ? 1 : 2);
+        {
+          const { readAuditLog } = require("../api/_lib/audit-log.js");
+          const { getSessionHistoryEntries } = require("../api/_lib/session-history.js");
+          expect((await readAuditLog()).entries.filter((event) => event.action === "data-safety.saved")).toHaveLength(effects.size);
+          const history = await getSessionHistoryEntries({ date });
+          expect(history).toHaveLength(effects.size);
+          expect(new Set(history.map((event) => event.id)).size).toBe(effects.size);
+        }
+        expect.soft(journal.size, "only a proven accepted operation may leave the journal").toBe(0);
+        expect.soft(JSON.parse(client.centralValue()), "successful replay must reconcile the latest server value").toEqual(JSON.parse(expected.value));
+      } finally { global.fetch = originalFetch; restoreEnv(env); }
+    });
+  }
+}
 
 test("date-scoped Sessions rejects read-only actors before returning conflict or central content", async () => {
   const env = snapshotEnv(supabaseEnvKeys), originalFetch = global.fetch;

@@ -111,7 +111,7 @@ function createController() {
       Object.assign(localState, patch);
     },
   });
-  return { block, calls, controller, focusCandidates, localState };
+  return { block, calls, controller, focusCandidates, localState, canvasWrap };
 }
 
 function createCanvasEvent({
@@ -370,8 +370,8 @@ test("Session Planner tactical controller edits only the element and endpoint ow
   controller.finishSessionPlannerTacticalDrag();
 
   expect(curve).toMatchObject({
-    x: 17.5,
-    y: 22.5,
+    x: 18,
+    y: 22,
     x2: 70,
     y2: 75,
     controlX: 40,
@@ -387,13 +387,13 @@ test("Session Planner tactical controller edits only the element and endpoint ow
   controller.finishSessionPlannerTacticalDrag();
 
   expect(curve).toMatchObject({
-    x: 17.5,
-    y: 22.5,
+    x: 18,
+    y: 22,
     x2: 70,
     y2: 75,
-    controlX: 55,
     controlY: 35,
   });
+  expect(curve.controlX).toBeCloseTo(55, 8);
   expect(line).toMatchObject({ x: 20, y: 25, x2: 80, y2: 85 });
 });
 
@@ -416,6 +416,64 @@ test("Session Planner tactical controller rotates only the goal owned by the act
 
   expect(firstGoal.rotation).toBe(90);
   expect(secondGoal.rotation).toBe(45);
+});
+
+test("handle resizing preserves the grab offset and ignores pointer jitter without saving", () => {
+  const { controller, block, calls } = createController();
+  controller.addSessionPlannerTacticalElement({ type: "ellipse", x: 20, y: 25, x2: 40, y2: 45 });
+  const ellipse = block.tacticalElements[0];
+  const canvasRect = { left: 0, top: -250, width: 650, height: 1050 };
+  const start = { clientX: 265, clientY: 227.5, elementId: ellipse.id, handle: "end", canvasRect };
+  const writes = calls.writes;
+  controller.startSessionPlannerTacticalDrag(createCanvasEvent(start).event);
+  controller.updateSessionPlannerTacticalDrag(createCanvasEvent({ ...start, clientX: 266 }).event);
+  controller.finishSessionPlannerTacticalDrag();
+  expect(ellipse).toMatchObject({ x: 20, y: 25, x2: 40, y2: 45 });
+  expect(calls.writes).toBe(writes);
+  controller.startSessionPlannerTacticalDrag(createCanvasEvent(start).event);
+  controller.updateSessionPlannerTacticalDrag(createCanvasEvent({ ...start, clientX: 330, clientY: 332.5 }).event);
+  expect(ellipse).toMatchObject({ x: 20, y: 25, x2: 50 });
+  expect(ellipse.y2).toBeCloseTo(55, 8);
+  expect(calls.writes).toBe(writes);
+  controller.finishSessionPlannerTacticalDrag();
+  expect(calls.writes).toBe(writes + 1);
+});
+
+test("goal rotation keeps an off-centre grip and wraps across zero without jumping", () => {
+  const { controller, block, calls } = createController();
+  controller.addSessionPlannerTacticalElement({ type: "mini-goal", x: 50, y: 50, rotation: 350 });
+  const goal = block.tacticalElements[0];
+  const canvasRect = { left: 100, top: -200, width: 650, height: 1050 };
+  const point = (angle) => ({ clientX: 425 + Math.sin(angle * Math.PI / 180) * 40,
+    clientY: 325 - Math.cos(angle * Math.PI / 180) * 40, elementId: goal.id, rotate: true, canvasRect });
+  const writes = calls.writes;
+  controller.startSessionPlannerTacticalDrag(createCanvasEvent(point(355)).event);
+  controller.updateSessionPlannerTacticalDrag(createCanvasEvent(point(355)).event);
+  controller.finishSessionPlannerTacticalDrag();
+  expect(goal.rotation).toBe(350);
+  expect(calls.writes).toBe(writes);
+  controller.startSessionPlannerTacticalDrag(createCanvasEvent(point(355)).event);
+  controller.updateSessionPlannerTacticalDrag(createCanvasEvent(point(85)).event);
+  expect(goal.rotation).toBe(80);
+  controller.updateSessionPlannerTacticalDrag(createCanvasEvent(point(265)).event);
+  expect(goal.rotation).toBe(260);
+  controller.finishSessionPlannerTacticalDrag();
+  expect(calls.writes).toBe(writes + 1);
+});
+
+test("canvas redraw restores both portrait-pitch and narrow-layout scroll positions", () => {
+  const { controller, canvasWrap } = createController();
+  const layout = { scrollTop: 500, scrollLeft: 0 };
+  Object.assign(canvasWrap, { scrollTop: 240, scrollLeft: 15, closest: () => layout });
+  Object.defineProperty(canvasWrap, "innerHTML", { set() {
+    canvasWrap.scrollTop = 0;
+    canvasWrap.scrollLeft = 0;
+    layout.scrollTop = 0;
+  } });
+  controller.refreshSessionPlannerTacticalboardCanvas();
+  expect(canvasWrap.scrollTop).toBe(240);
+  expect(canvasWrap.scrollLeft).toBe(15);
+  expect(layout.scrollTop).toBe(500);
 });
 
 test("Session Planner tactical controller places a selected tool with one touch tap", () => {

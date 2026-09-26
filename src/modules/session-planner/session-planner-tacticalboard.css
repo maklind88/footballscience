@@ -121,7 +121,7 @@
 }
 
 .session-tacticalboard-layout {
-  grid-template-columns: minmax(11rem, 15rem) minmax(36rem, 1fr) minmax(15rem, 20rem);
+  grid-template-columns: minmax(11rem, 17rem) minmax(36rem, 1fr) minmax(15rem, 18rem);
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   gap: .74rem;
@@ -209,6 +209,16 @@
 .session-tacticalboard-canvas-wrap [data-session-tactical-rotate-handle] {
   padding: 0;
   font: inherit;
+  transition: none;
+  animation: none;
+}
+
+.session-tacticalboard-canvas-wrap .session-tactical-edit-handle {
+  transform: translate(-50%, -50%);
+}
+
+.session-tacticalboard-canvas-wrap .session-tactical-rotate-handle {
+  transform: translate(-50%, -50%) rotate(var(--session-tactical-rotation, 0deg)) translateY(var(--session-tactical-rotate-offset, -2.5rem));
 }
 
 .session-tacticalboard-inspector,
@@ -223,7 +233,9 @@
 }
 
 .session-tacticalboard-toolbox {
-  padding: .72rem;
+  padding: .6rem;
+  background: #f6f8fa;
+  container: tactical-tools / inline-size;
 }
 
 .session-tacticalboard-tools {
@@ -231,11 +243,16 @@
 }
 
 .session-tacticalboard-tool-group {
-  gap: .34rem;
-  padding: .42rem;
-  border-radius: 18px;
-  background: #ffffffa8;
-  border: 1px solid #1d1d1f10;
+  gap: .4rem;
+  padding: .25rem 0 .5rem;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #dfe3e6;
+}
+
+.session-tacticalboard-tool-group:last-child {
+  border-bottom: 0;
 }
 
 .session-tacticalboard-tool-group > span,
@@ -250,32 +267,145 @@
 }
 
 .session-tactical-tool-button {
-  min-height: 3rem;
+  min-height: 2.25rem;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: .42rem;
+  grid-template-columns: 1.15rem minmax(0, 1fr);
+  gap: .3rem;
   align-items: center;
   justify-content: start;
-  padding: .42rem .48rem;
-  border-radius: 14px;
+  padding: .25rem .4rem;
+  border: 1px solid #dfe3e6;
+  border-radius: 6px;
   text-align: left;
+  letter-spacing: 0;
+  transition: background-color .12s, border-color .12s;
+}
+
+.session-tactical-tool-button:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: #88a8bd;
+}
+
+.session-tactical-tool-button:focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: 2px;
 }
 
 .session-tactical-tool-button.is-active {
-  box-shadow: 0 10px 24px #0d4f8624, inset 0 0 0 1px #0d4f8640;
+  border-color: #0d4f86;
+  box-shadow: none;
+}
+
+@container tactical-tools (min-width: 15rem) {
+  .session-tacticalboard-tool-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .session-tactical-tool-icon {
-  width: 1.44rem;
-  height: 1.44rem;
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .session-tactical-tool-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: .72rem;
-  font-weight: 850;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.session-tactical-tool-button:not(.is-active)[data-session-tactical-tool="blue-player"] .session-tactical-tool-icon { color: #0875dc; }
+.session-tactical-tool-button:not(.is-active)[data-session-tactical-tool="red-player"] .session-tactical-tool-icon { color: #d42b40; }
+.session-tactical-tool-button:not(.is-active)[data-session-tactical-tool="neutral-player"] .session-tactical-tool-icon { color: #976300; }
+
+.session-tactical-marker.session-tactical-ball {
+  color: var(--session-tactical-color, #1d1d1f);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.session-tactical-football {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.session-tactical-football .session-football-shell {
+  fill: #fff;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.session-tactical-football .session-football-seams {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+.session-tactical-football .session-football-panel {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: .6;
+}
+
+.session-tactical-tool-icon .session-tactical-football {
+  color: #1d1d1f;
+}
+
+body.is-dark-mode .session-tactical-marker.session-tactical-ball,
+body.is-dark-mode .session-tactical-ball .session-tactical-football {
+  color: var(--session-tactical-color, #1d1d1f);
+  --fs-text: var(--session-tactical-color, #1d1d1f);
+  --fs-button-bg: transparent;
+}
+
+body.is-dark-mode .session-tactical-tool-icon .session-tactical-football {
+  color: #1d1d1f;
+}
+
+body.is-dark-mode .session-tacticalboard-modal .session-tacticalboard-side,
+body.is-dark-mode .session-tacticalboard-modal .session-tacticalboard-settings,
+body.is-dark-mode .session-tacticalboard-modal .session-tacticalboard-arrange,
+body.is-dark-mode .session-tacticalboard-modal .session-tacticalboard-settings label {
+  color: #f0f3f5;
+  background: #222629;
+  border-color: #444c52;
+}
+
+body.is-dark-mode .session-tacticalboard-modal .session-tacticalboard-tool-row,
+body.is-dark-mode .session-tacticalboard-modal .session-tacticalboard-tool-group,
+body.is-dark-mode .session-tacticalboard-modal .session-tacticalboard-colour-row {
+  background: transparent;
+}
+
+body.is-dark-mode .session-tacticalboard-modal .session-tacticalboard-tool-group > span {
+  color: #bec8ce;
+}
+
+body.is-dark-mode .session-tacticalboard-modal .session-tactical-measurement {
+  color: #182b20;
+  background: #fff;
+}
+
+body.is-dark-mode .session-tacticalboard-modal .session-tactical-measurement.is-preview {
+  color: #fff;
+  background: #0d4f86;
+}
+
+body.is-dark-mode .session-tacticalboard-modal .session-tactical-colour-swatch {
+  --fs-button-bg: var(--session-tactical-swatch);
+}
+
+body.is-dark-mode .session-tacticalboard-modal [data-session-tactical-handle],
+body.is-dark-mode .session-tacticalboard-modal [data-session-tactical-rotate-handle] {
+  --fs-button-bg: #fff;
+  --fs-border: #0071e3;
 }
 
 .session-tacticalboard-settings {
@@ -345,9 +475,20 @@
 }
 
 .session-tactical-measurement {
-  border-radius: 999px;
-  background: #ffffffeb;
-  box-shadow: 0 8px 16px #0b172021;
+  border-radius: 4px;
+  color: #182b20;
+  background: #fff;
+  border: 1px solid #405447;
+  box-shadow: none;
+  font-size: .75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.session-tactical-measurement.is-preview {
+  color: #fff;
+  background: #0d4f86;
 }
 
 @media (max-width: 1120px) {
@@ -424,7 +565,7 @@
   }
 
   .session-tactical-tool-label {
-    font-size: .68rem;
+    font-size: .75rem;
   }
 }
 
@@ -451,9 +592,9 @@
   }
 
   .session-tactical-tool-button {
-    min-height: 2.05rem;
-    padding: 0 .55rem;
-    border-radius: 13px;
+    min-height: 2.25rem;
+    padding: .25rem .4rem;
+    border-radius: 6px;
     font-size: .76rem;
   }
 }

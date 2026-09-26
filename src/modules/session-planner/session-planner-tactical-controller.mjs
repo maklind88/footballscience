@@ -113,6 +113,8 @@ export function createSessionPlannerTacticalController(deps = {}) {
     getElementsInRect: getSessionPlannerTacticalElementsInRect,
     getEndpointCoordinates: getSessionPlannerTacticalEndpointCoordinates,
     getPointFromRect: getSessionPlannerTacticalPointFromRect,
+    getCanvasRect: () => ui.sessionPlannerWorkspace
+      ?.querySelector("[data-session-tactical-canvas]")?.getBoundingClientRect(),
     getRotationFromEvent: getSessionPlannerTacticalRotationFromEvent,
     getSelectedElementIds: getSessionPlannerTacticalSelectedElementIds,
     getSelectionRect: getSessionPlannerTacticalSelectionRect,
@@ -179,7 +181,14 @@ export function createSessionPlannerTacticalController(deps = {}) {
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
   return;
   }
+  // Replacing the drawing must not move a scrolled portrait pitch under the pointer.
+  const scrollContainers = [canvasWrap, canvasWrap.closest?.(".session-tacticalboard-layout")]
+    .filter(Boolean).map((node) => ({ node, top: node.scrollTop, left: node.scrollLeft }));
   canvasWrap.innerHTML = renderSessionPlannerExerciseVisual(block, { large: true, editor: true });
+  scrollContainers.forEach(({ node, top, left }) => {
+    if (Number.isFinite(top)) node.scrollTop = top;
+    if (Number.isFinite(left)) node.scrollLeft = left;
+  });
   syncSessionPlannerTacticalboardInspector();
   restoreSessionPlannerTacticalFocus(canvasWrap, options.focusTarget);
   }

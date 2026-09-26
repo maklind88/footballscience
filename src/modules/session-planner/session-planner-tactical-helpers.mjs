@@ -11,7 +11,7 @@ function defaultClamp(value, min, max) {
 function createDefaultLineState() {
   return {
     color: "#0d4f86",
-    lineWidth: 1.1,
+    lineWidth: 0.25,
     lineStyle: "solid",
   };
 }
@@ -73,6 +73,7 @@ export function createSessionPlannerTacticalHelpers(options = {}) {
     return ["solid", "dashed", "dotted"].includes(value) ? value : "solid";
   }
 
+  // Compact saved drawings omit 1.1; keep this independent of the new-tool default.
   function normalizeTacticalLineWidth(value, fallback = 1.1) {
     const number = Number(value);
     return Number.isFinite(number) ? clamp(number, 0.25, 6) : fallback;

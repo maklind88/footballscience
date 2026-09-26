@@ -52,7 +52,7 @@ export function createSessionPlannerLocalUiState(options = {}) {
     sessionPlannerTacticalLastPlacement: null,
     sessionPlannerTacticalLastPlacementClick: null,
     sessionPlannerTacticalLineStyle: "solid",
-    sessionPlannerTacticalLineWidth: 1.1,
+    sessionPlannerTacticalLineWidth: 0.25,
     sessionPlannerTacticalNumberPickerElementId: "",
     sessionPlannerTacticalPendingPoint: null,
     sessionPlannerTacticalSelectedElementId: "",

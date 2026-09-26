@@ -5,6 +5,7 @@ import {
 import { renderTacticalPlaybackControls } from "./session-planner-tactical-playback-renderer.mjs";
 import { renderReadonlyTacticalPlayback } from "./session-planner-readonly-playback-renderer.mjs";
 import { getTacticalPlayerDisplay, normalizeTacticalPlayerLabel } from "./session-planner-tactical-player-identity.mjs";
+import { renderTacticalFootball } from "./session-planner-tactical-symbols.mjs";
 
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
@@ -33,7 +34,7 @@ function defaultState() {
     tacticalboardOpen: false,
     tool: "blue-player",
     color: "#0d4f86",
-    lineWidth: 1.1,
+    lineWidth: 0.25,
     lineStyle: "solid",
     pendingPoint: null,
     selectedElementId: "",
@@ -343,7 +344,7 @@ return `
         ${dataAttribute}
         ${accessibilityAttributes}
         style="${style}"
-      ></span>
+      >${renderTacticalFootball()}</span>
     `;
 }
 if (element.type === "blue-player" || element.type === "red-player" || element.type === "neutral-player") {
@@ -718,7 +719,7 @@ const icons = {
 "red-player": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>',
 "neutral-player": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"></circle><path d="M8.5 15.5 15.5 8.5"></path></svg>',
 coach: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"></circle><path d="M15.5 8.8a4.8 4.8 0 1 0 0 6.4"></path></svg>',
-ball: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"></circle><path d="M12 5v14"></path><path d="M5 12h14"></path><path d="M7.5 7.5 16.5 16.5"></path></svg>',
+ball: renderTacticalFootball(),
 cone: '<svg viewBox="0 0 24 24"><path d="M10 5h4l2 12H8l2-12Z"></path><path d="M6 19h12"></path><path d="M9 13h6"></path></svg>',
 "mini-goal": '<svg viewBox="0 0 24 24"><path d="M5 18V9a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v9"></path><path d="M5 18h14"></path><path d="M8 18V9"></path><path d="M16 18V9"></path></svg>',
 "big-goal": '<svg viewBox="0 0 24 24"><path d="M3.5 18V8.5A2.5 2.5 0 0 1 6 6h12a2.5 2.5 0 0 1 2.5 2.5V18"></path><path d="M3.5 18h17"></path><path d="M7 18V6"></path><path d="M12 18V6"></path><path d="M17 18V6"></path></svg>',

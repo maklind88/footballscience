@@ -49,6 +49,14 @@ test("Session Planner tactical helpers normalize colors, badges, lines, and rota
   expect(helpers.isTacticalGoalType("mini-goal")).toBe(true);
 });
 
+test("new strokes default to minimum width without changing legacy or saved widths", () => {
+  const helpers = createSessionPlannerTacticalHelpers();
+  expect(helpers.createLineElement("line", { x: 10, y: 10 }, { x: 30, y: 30 }).lineWidth).toBe(0.25);
+  expect(helpers.cloneTacticalElement({ type: "line", x: 10, y: 10, x2: 30, y2: 30 }).lineWidth).toBe(1.1);
+  expect(helpers.cloneTacticalElement({ type: "line", lineWidth: 3 }).lineWidth).toBe(3);
+  expect(helpers.cloneTacticalElement({ type: "line", lineWidth: 0.25 }).lineWidth).toBe(0.25);
+});
+
 test("Session Planner tactical helpers clone elements and frame data deterministically", () => {
   const helpers = createHelpers();
   const cloned = helpers.cloneTacticalElement({

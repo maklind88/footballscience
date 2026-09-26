@@ -13,6 +13,7 @@ export function createSessionPlannerTacticalInteractionController(deps = {}) {
     cloneElement,
     createLineElement,
     getCanvasPoint,
+    getCanvasRect = () => null,
     getDragElementIds,
     getElementById,
     getElementsInRect,
@@ -162,9 +163,15 @@ export function createSessionPlannerTacticalInteractionController(deps = {}) {
       localState.sessionPlannerTacticalNumberPickerElementId = "";
       localState.sessionPlannerTacticalPendingPoint = null;
       localState.sessionPlannerTacticalDraftLineState = null;
+      const handle = handleTrigger.dataset.sessionTacticalHandle;
+      const coordinates = getEndpointCoordinates(element);
       localState.sessionPlannerTacticalDragState = {
         elementId: element.id,
-        handle: handleTrigger.dataset.sessionTacticalHandle,
+        handle,
+        startPoint: getCanvasPoint(event, canvas, { snap: false }),
+        initialPoint: handle === "start" ? { x: coordinates.x, y: coordinates.y }
+          : handle === "control" ? { x: coordinates.controlX, y: coordinates.controlY }
+            : { x: coordinates.x2, y: coordinates.y2 },
         canvasRect: canvas.getBoundingClientRect(),
         moved: false,
       };
@@ -185,6 +192,8 @@ export function createSessionPlannerTacticalInteractionController(deps = {}) {
       localState.sessionPlannerTacticalDragState = {
         elementId: element.id,
         rotate: true,
+        initialRotation: normalizeRotation(element.rotation),
+        startAngle: getRotationFromEvent(event, element, canvas.getBoundingClientRect()),
         canvasRect: canvas.getBoundingClientRect(),
         moved: false,
       };
@@ -296,9 +305,17 @@ export function createSessionPlannerTacticalInteractionController(deps = {}) {
     }
     if (localState.sessionPlannerTacticalDragState) {
       const dragState = localState.sessionPlannerTacticalDragState;
-      const point = getPointFromRect(event, dragState.canvasRect);
+      const rect = getCanvasRect() || dragState.canvasRect;
+      const point = getPointFromRect(event, rect, dragState.handle ? { snap: false } : {});
       if (dragState.handle) {
-        updateHandle(dragState.elementId, dragState.handle, point);
+        const dx = point.x - dragState.startPoint.x;
+        const dy = point.y - dragState.startPoint.y;
+        if (!dragState.moved && Math.hypot(dx * rect.width / 100, dy * rect.height / 100) < 2) return;
+        // Keep the original grab offset, including when the handle is clicked off-centre.
+        updateHandle(dragState.elementId, dragState.handle, {
+          x: dragState.initialPoint.x + dx,
+          y: dragState.initialPoint.y + dy,
+        });
         dragState.moved = true;
         refreshCanvas();
         return;
@@ -306,7 +323,10 @@ export function createSessionPlannerTacticalInteractionController(deps = {}) {
       if (dragState.rotate) {
         const element = getElementById(dragState.elementId);
         if (isGoalType(element?.type)) {
-          element.rotation = getRotationFromEvent(event, element, dragState.canvasRect);
+          const rotation = normalizeRotation(dragState.initialRotation
+            + getRotationFromEvent(event, element, rect) - dragState.startAngle);
+          if (rotation === normalizeRotation(element.rotation)) return;
+          element.rotation = rotation;
           dragState.moved = true;
           refreshCanvas();
         }
@@ -381,9 +401,10 @@ export function createSessionPlannerTacticalInteractionController(deps = {}) {
       return;
     }
     if (localState.sessionPlannerTacticalDragState) {
-      setClickSuppression(localState.sessionPlannerTacticalDragState.moved);
+      const dragState = localState.sessionPlannerTacticalDragState;
+      setClickSuppression(dragState.moved);
       localState.sessionPlannerTacticalDragState = null;
-      refreshCanvas({ persist: true });
+      refreshCanvas({ persist: dragState.moved });
     }
     if (localState.sessionPlannerTacticalFreehandState) {
       const freehand = localState.sessionPlannerTacticalFreehandState;

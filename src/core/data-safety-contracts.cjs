@@ -13,6 +13,26 @@ const DEFAULT_CONTENT_SAFETY = Object.freeze({
   prototypePollutionKeys: "reject",
 });
 
+// This records the level of offline protection a module actually has today.
+// It is deliberately separate from its desired database destination: a
+// browser cache can safely retain a pending write, but it must never be
+// mistaken for a durable server-owned operation log.
+const dataSafetyOfflineModes = Object.freeze([
+  "central-write-behind",
+  "durable-change-journal",
+  "dedicated-api",
+]);
+const dataSafetyOfflineDurability = Object.freeze([
+  "browser-cache",
+  "indexeddb-journal",
+  "server-owned",
+]);
+const dataSafetyOfflineRecovery = Object.freeze([
+  "manifest-replay",
+  "idempotent-operation-replay",
+  "module-owned",
+]);
+
 const dataSafetyMergePolicies = Object.freeze({
   appendPreserveNewer: "append-preserve-newer",
   databaseFirst: "database-first",
@@ -49,6 +69,14 @@ function freezeContract(contract) {
     }),
     staleWriteStrategy: "reject",
     ...contract,
+    offline: Object.freeze({
+      mode: "central-write-behind",
+      localDurability: "browser-cache",
+      recovery: "manifest-replay",
+      requiresAuthenticatedBootstrap: true,
+      target: "database-primary",
+      ...(contract.offline || {}),
+    }),
     scope: Object.freeze({
       tenancy: "organization",
       storageNamespace: "global",
@@ -113,6 +141,12 @@ const dataSafetyContracts = Object.freeze([
     recordType: "chat-compatibility-state",
     mergePolicy: dataSafetyMergePolicies.databaseFirst,
     staleWriteStrategy: "dedicated-api",
+    offline: {
+      mode: "dedicated-api",
+      localDurability: "server-owned",
+      recovery: "module-owned",
+      target: "database-primary",
+    },
     scope: {
       teamScoped: true,
     },
@@ -122,6 +156,9 @@ const dataSafetyContracts = Object.freeze([
     key: "football-schedule-v1",
     recordType: "schedule-events",
     mergePolicy: dataSafetyMergePolicies.revisionGuardedLastWrite,
+    offline: {
+      target: "database-primary-schedule-events",
+    },
     scope: {
       teamScoped: true,
     },
@@ -179,6 +216,12 @@ const dataSafetyContracts = Object.freeze([
     recordType: "session-planner",
     mergePolicy: dataSafetyMergePolicies.fieldTimestampMerge,
     staleWriteStrategy: "merge",
+    offline: {
+      mode: "durable-change-journal",
+      localDurability: "indexeddb-journal",
+      recovery: "idempotent-operation-replay",
+      target: "database-primary-session-blocks",
+    },
     scope: {
       teamScoped: true,
     },
@@ -199,6 +242,9 @@ const dataSafetyContracts = Object.freeze([
     recordType: "medical-team-compatibility-state",
     mergePolicy: dataSafetyMergePolicies.recordTimestampMerge,
     staleWriteStrategy: "merge",
+    offline: {
+      target: "database-primary-private-medical",
+    },
     scope: {
       teamScoped: true,
       clinical: true,
@@ -210,6 +256,9 @@ const dataSafetyContracts = Object.freeze([
     recordType: "squad-player-profiles",
     mergePolicy: dataSafetyMergePolicies.recordTimestampMerge,
     staleWriteStrategy: "merge",
+    offline: {
+      target: "database-primary-squad",
+    },
     scope: {
       teamScoped: true,
     },
@@ -219,6 +268,9 @@ const dataSafetyContracts = Object.freeze([
     key: "football-scouting-v1",
     recordType: "scouting-workspace",
     mergePolicy: dataSafetyMergePolicies.revisionGuardedLastWrite,
+    offline: {
+      target: "database-primary-scouting",
+    },
     scope: {
       teamScoped: true,
     },
@@ -228,6 +280,9 @@ const dataSafetyContracts = Object.freeze([
     key: "football-transfer-room-v1",
     recordType: "transfer-room-confidential-planning",
     mergePolicy: dataSafetyMergePolicies.revisionGuardedLastWrite,
+    offline: {
+      target: "database-primary-transfer-room",
+    },
     scope: {
       teamScoped: true,
       financial: true,
@@ -332,6 +387,15 @@ function createDataSafetyRegistry(contracts = dataSafetyContracts) {
           missing.push(`${contract.key}:pipeline`);
         }
         if (
+          !dataSafetyOfflineModes.includes(contract.offline?.mode) ||
+          !dataSafetyOfflineDurability.includes(contract.offline?.localDurability) ||
+          !dataSafetyOfflineRecovery.includes(contract.offline?.recovery) ||
+          typeof contract.offline?.requiresAuthenticatedBootstrap !== "boolean" ||
+          !String(contract.offline?.target || "").trim()
+        ) {
+          missing.push(`${contract.key}:offline`);
+        }
+        if (
           contract.contentSafety?.inputPolicy !== DEFAULT_CONTENT_SAFETY.inputPolicy ||
           contract.contentSafety?.htmlPolicy !== DEFAULT_CONTENT_SAFETY.htmlPolicy ||
           contract.contentSafety?.executableContent !== DEFAULT_CONTENT_SAFETY.executableContent ||
@@ -355,6 +419,9 @@ module.exports = {
   CENTRAL_APP_STATE_PIPELINE,
   DATA_SAFETY_SCHEMA,
   DEFAULT_CONTENT_SAFETY,
+  dataSafetyOfflineDurability,
+  dataSafetyOfflineModes,
+  dataSafetyOfflineRecovery,
   LOCAL_CACHE_ONLY,
   REQUIRED_RECORD_FIELDS,
   SERVER_SOURCE_OF_TRUTH,

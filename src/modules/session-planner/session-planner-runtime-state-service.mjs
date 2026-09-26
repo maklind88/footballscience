@@ -85,11 +85,12 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     );
   }
 
-  function cacheQuotaFallbackValue(value) {
+  function cacheQuotaFallbackValue(value, draftToken) {
     return Boolean(win.footballScienceCentralState?.setCachedValue?.(
       sessionPlannerStorageKey,
       value,
-      { source: usesSessionJournal() ? "session-journal-pending" : "local-write", durable: false, serverBacked: false }
+      { source: usesSessionJournal() ? "session-journal-pending" : "local-write", durable: false, serverBacked: false,
+        ...(draftToken ? { sessionViewToken: draftToken } : {}) }
     ));
   }
 
@@ -103,7 +104,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     const bridge = win.footballScienceCentralState;
     if (usesSessionJournal()) {
       if (!context?.scope || getRecoveryContext()?.scope !== context.scope) throw new Error("Account or team changed. Local changes were retained.");
-      const result = await bridge.stageSessionWrite(value, { previousValue, previousPending: fallback.previousPending });
+      const result = await bridge.stageSessionWrite(value, { previousValue, previousPending: fallback.previousPending, draftToken: fallback.draftToken });
       if (!result.ok) throw new Error(result.reason || "Local save storage failed.");
       fallback.journaled = true;
       return;
@@ -145,6 +146,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         }
         recordDataSafetyWrite(sessionPlannerStorageKey, currentFallback.value, {
           previousValue: currentFallback.previousValue, sessionReplay: Boolean(currentFallback.journaled),
+          sessionViewToken: currentFallback.draftToken,
         });
         setSaveStatus("saving", "Saved locally; syncing");
       } catch (error) {
@@ -168,6 +170,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
 
   function queueQuotaFallback(value, previousValue) {
     const context = getRecoveryContext();
+    const draftToken = usesSessionJournal() ? win.footballScienceCentralState.rememberSessionDraft?.(value, previousValue) : null;
     let previousPending = false;
     try { previousPending = Boolean(JSON.parse(rawDataSafetyGetItem("football-data-safety-v1") || "{}").entries?.[sessionPlannerStorageKey]?.pendingCentralSync); } catch {}
     // Coalesced drafts must keep the baseline of the earliest unstaged edit.
@@ -175,8 +178,8 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
       previousValue = pendingQuotaFallback.previousValue;
       previousPending = previousPending || pendingQuotaFallback.previousPending;
     }
-    pendingQuotaFallback = { value, previousValue, previousPending, context: context ? { ...context } : null };
-    cacheQuotaFallbackValue(value);
+    pendingQuotaFallback = { value, previousValue, previousPending, draftToken, context: context ? { ...context } : null };
+    cacheQuotaFallbackValue(value, draftToken);
     setSaveStatus("saving", "Saving");
     ensureQuotaFallbackDrain();
     return true;

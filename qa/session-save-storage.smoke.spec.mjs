@@ -5,6 +5,54 @@ async function boot(page) {
   await page.goto("/qa/session-save-harness");
 }
 
+test("two tabs and a reopened page project durable edits over fresh server fields without acknowledging them", async ({ page, context }) => {
+  await boot(page);
+  const day = "2026-09-25";
+  const baseline = { sessions: { [day]: { date: day, blocks: [{ id: "a", title: "Training", objective: "Before", minutes: 20 }] } } };
+  await page.evaluate(async ({ baseline, day }) => {
+    const { createSessionSaveClient } = await import("/src/modules/session-planner/session-save-client.mjs");
+    const client = createSessionSaveClient({ getScope: () => "actor:club:team", send: async () => ({ ok: false, status: 0 }) });
+    client.observe(JSON.stringify(baseline), { revision: 7 });
+    const edited = structuredClone(baseline);
+    edited.sessions[day].blocks[0].objective = "Unsent instruction";
+    const result = await client.save(JSON.stringify(edited));
+    if (result.ok || !result.durablePending) throw new Error("The failed connection must retain its journal row");
+  }, { baseline, day });
+  const peer = await context.newPage();
+  await boot(peer);
+  await page.close();
+  const fresh = structuredClone(baseline);
+  fresh.sessions[day].blocks[0].minutes = 35;
+  async function inspect(target, scope) {
+    return target.evaluate(async ({ fresh, scope }) => {
+      const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+      const { createSessionSaveClient } = await import("/src/modules/session-planner/session-save-client.mjs");
+      const store = createSessionSaveStore();
+      const before = await store.list("actor:club:team");
+      const client = createSessionSaveClient({ getScope: () => scope, store, send: async () => { throw new Error("Reading must never send"); } });
+      client.observe(JSON.stringify(fresh), { revision: 8 });
+      const view = await client.project();
+      return { view, before, after: await store.list("actor:club:team"), central: client.centralValue() };
+    }, { fresh, scope });
+  }
+  const a = await inspect(peer, "actor:club:team");
+  expect(JSON.parse(a.view.value).sessions[day].blocks[0]).toMatchObject({ objective: "Unsent instruction", minutes: 35 });
+  expect(a.view.pending).toBe(true);
+  expect(a.before).toHaveLength(1);
+  expect(a.after).toEqual(a.before);
+  expect(JSON.parse(a.central)).toEqual(fresh);
+  const reopened = await context.newPage();
+  await boot(reopened);
+  const b = await inspect(reopened, "actor:club:team");
+  expect(b.view.value).toBe(a.view.value);
+  expect(b.after).toEqual(a.before);
+  const other = await inspect(reopened, "other:club:team");
+  expect(other.view.pending).toBe(false);
+  expect(JSON.parse(other.view.value)).toEqual(fresh);
+  expect(other.after).toEqual(a.before);
+  await peer.close(); await reopened.close();
+});
+
 test("legacy cache archival is durable and never resets a reviewed copy", async ({ page }) => {
   await boot(page);
   const result = await page.evaluate(async () => {

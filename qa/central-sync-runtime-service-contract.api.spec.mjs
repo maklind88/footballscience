@@ -166,6 +166,33 @@ test("an identical Sessions acknowledgement finalizes the journal-only read cach
   expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
 });
 
+for (const newerDraft of [false, true]) {
+  test(`a read projection accepts only its own draft receipt (newer draft: ${newerDraft})`, async () => {
+    const key = "football-session-planner-v1";
+    const cachedInfo = { value: "own edit", source: "session-journal-pending", sessionViewToken: "draft-A" };
+    let release, sending;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const entered = new Promise((resolve) => { sending = resolve; });
+    const h = createServiceHarness({ cachedInfo, syncKey: async () => {
+      sending(); await gate;
+      return { ok: true, value: "own edit + peer field", metadata: { revision: 8 } };
+    } });
+    h.rawValues.set(key, "own edit");
+    h.service.queueCentralStateWrite(key, "own edit");
+    const flush = h.service.flushCentralStateWrites();
+    await entered;
+    // B deliberately has identical bytes. Only the edit token distinguishes it.
+    cachedInfo.value = "own edit + peer field";
+    if (newerDraft) cachedInfo.sessionViewToken = "draft-B";
+    h.rawValues.set(key, cachedInfo.value);
+    release(); await flush;
+    expect(h.rawValues.get(key)).toBe("own edit + peer field");
+    expect(h.manifest.entries[key].pendingCentralSync).toBe(newerDraft);
+    expect(h.handledKeys).toHaveLength(newerDraft ? 0 : 1);
+    expect(h.autosaveStatuses.some(([, state]) => state === "saved")).toBe(!newerDraft);
+  });
+}
+
 test("a Sessions view failure is distinguished from a cache failure after acknowledgement", async () => {
   const key = "football-session-planner-v1", other = "football-medical-team-v1";
   const h = createServiceHarness({

@@ -17,6 +17,9 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
   let staging = Promise.resolve();
   let replayFlight = null;
   let observation = 0;
+  let viewVersion = 0;
+  const drafts = [];
+  const draftTokens = new Map();
   const unstaged = new Map();
   let sequence = 0;
   const writer = makeId ? makeId() : globalThis.crypto.randomUUID();
@@ -32,6 +35,51 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
     baseline = JSON.parse(value);
     revision = Number(metadata.revision || 0);
     observation++;
+    viewVersion++;
+  }
+
+  function rememberDraft(value, previousValue) {
+    const expected = getScope();
+    if (!current(expected) || !baseline || typeof previousValue !== "string") return null;
+    const token = `${writer}-draft-${sequence++}`;
+    const changes = createSessionDateChanges(JSON.parse(previousValue), JSON.parse(value), () => `${token}-${sequence++}`);
+    drafts.push({ scope: expected, token, changes });
+    draftTokens.set(expected, token);
+    viewVersion++;
+    return token;
+  }
+
+  function finishStagingDraft(expected, token) {
+    const last = drafts.findIndex((draft) => draft.scope === expected && draft.token === token);
+    if (last >= 0) {
+      for (let index = last; index >= 0; index--) if (drafts[index].scope === expected) drafts.splice(index, 1);
+    }
+    viewVersion++;
+  }
+
+  async function project() {
+    const expected = getScope();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (!current(expected) || !baseline) return null;
+      const version = viewVersion;
+      const rows = await store.list(expected);
+      if (!current(expected)) return null;
+      if (version !== viewVersion) continue;
+      const pending = rows.filter((row) => row.status !== "archived");
+      const localDrafts = drafts.filter((draft) => draft.scope === expected);
+      // Another tab's row may have arrived after the active drain took its
+      // snapshot. Its receipt must be included before that drain can finish.
+      if (pending.length && replayFlight?.expected === expected) replayFlight.recheck = true;
+      let visible = copy(baseline);
+      // This is a read projection only. Conflicting edits stay in the journal;
+      // displaying one never rebases, sends or acknowledges it on the server.
+      for (const change of [...pending.map((row) => row.change), ...localDrafts.flatMap((draft) => draft.changes)]) {
+        visible = applySessionDateChange(visible, change, { preferLocalOnConflict: true }).state;
+      }
+      return { value: JSON.stringify(visible), revision, pending: Boolean(pending.length || localDrafts.length),
+        draftToken: draftTokens.get(expected) || `${writer}:initial`, scope: expected, version };
+    }
+    return null;
   }
 
   async function drain(expected) {
@@ -103,6 +151,7 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
       revision = Math.max(revision, Number(metadata.revision));
       // Remove only this acknowledged generation; a later edit has its own immutable row.
       await store.remove(row.change.id);
+      viewVersion++;
     }
     if (issue) {
       onReview();
@@ -129,7 +178,15 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
       for (const row of pending) {
         if (row.status !== "archived" && row.writer === writer) logicalBase = replaceSessionDate(logicalBase, row.change.date, row.change.after);
       }
-      const changes = createSessionDateChanges(baseAtEdit, desired, makeId);
+      let edited = desired;
+      const draftIndex = drafts.findIndex((draft) => draft.scope === expected && draft.token === options.draftToken);
+      if (draftIndex >= 0) {
+        edited = copy(baseAtEdit);
+        for (const draft of drafts.slice(0, draftIndex + 1).filter((item) => item.scope === expected)) {
+          for (const change of draft.changes) edited = applySessionDateChange(edited, change, { preferLocalOnConflict: true }).state;
+        }
+      }
+      const changes = createSessionDateChanges(baseAtEdit, edited, makeId);
       for (const change of changes) {
         // Repeated retry of the same edit must not add another journal row.
         if (sameSessionValue(sessionDateValue(logicalBase, change.date), change.after)) continue;
@@ -138,6 +195,7 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
         await store.put({ change, writer, scope: expected, status: "pending", createdAt: Date.now() * 1000 + sequence++ });
       }
       unstaged.delete(expected);
+      finishStagingDraft(expected, options.draftToken);
       return { ok: true };
     }).catch((error) => {
       if (expected && baseAtEdit && !unstaged.has(expected)) unstaged.set(expected, baseAtEdit);
@@ -205,7 +263,7 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
     const expected = getScope();
     await staging;
     const rows = await store.list(expected);
-    return Boolean(current(expected) && baseline && !unstaged.has(expected) && rows.every((row) => row.status === "archived"));
+    return Boolean(current(expected) && baseline && !unstaged.has(expected) && !drafts.some((draft) => draft.scope === expected) && rows.every((row) => row.status === "archived"));
   }
 
   function resolve(id, keepLocal, expectedCentral) {
@@ -224,12 +282,14 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
         await store.put({ change, scope: expected, status: "pending", createdAt: Date.now() * 1000 + sequence++ });
       }
       await store.put({ ...row, status: "archived", resolvedAt: new Date().toISOString() });
+      viewVersion++;
       return drain(expected);
     }).catch((error) => failure(error.message));
     serial = work.then(() => {});
     return work;
   }
-  return { observe, stage, replay, save, pendingState, reviews, resolve, isSettled,
+  return { observe, stage, replay, save, pendingState, reviews, resolve, isSettled, rememberDraft, project,
+    isProjectionCurrent: (view) => Boolean(view && current(view.scope) && view.version === viewVersion),
     centralValue: () => current(getScope()) && baseline ? JSON.stringify(baseline) : null,
   };
 }

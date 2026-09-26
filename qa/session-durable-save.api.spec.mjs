@@ -223,6 +223,102 @@ function harness(options = {}) {
   return { state, rows, client, store };
 }
 
+test("the read view overlays only journal deltas without changing the server baseline or acknowledging them", async () => {
+  const h = harness(), client = h.client();
+  const before = copy(h.state.central), local = copy(before);
+  local.sessions[date].blocks[0].objective = "My pending objective";
+  await client.stage(JSON.stringify(local), { previousValue: JSON.stringify(before) });
+  const rows = copy([...h.rows.values()]);
+  h.state.central.sessions[date].blocks[0].minutes = 35;
+  h.state.central.sessions["2026-09-09"].title = "Colleague's other training";
+  client.observe(JSON.stringify(h.state.central), { revision: 11 });
+  const view = await client.project();
+  expect(view).toMatchObject({ pending: true, revision: 11 });
+  expect(JSON.parse(view.value).sessions[date].blocks[0]).toMatchObject({ objective: "My pending objective", minutes: 35 });
+  expect(JSON.parse(view.value).sessions["2026-09-09"].title).toBe("Colleague's other training");
+  expect(JSON.parse(client.centralValue())).toEqual(h.state.central);
+  expect([...h.rows.values()]).toEqual(rows);
+  expect(h.state.sent).toEqual([]);
+  client.observe(JSON.stringify(before), { revision: 9 });
+  expect((await client.project()).value).toBe(view.value);
+});
+
+test("a not-yet-durable draft remains visible during refresh and journal failure without becoming saved", async () => {
+  const h = harness(), client = h.client();
+  const before = copy(h.state.central), local = copy(before);
+  local.sessions[date].blocks[0].title = "Unstaged title";
+  const draftToken = client.rememberDraft(JSON.stringify(local), JSON.stringify(before));
+  h.state.central.sessions[date].blocks[0].minutes = 40;
+  client.observe(JSON.stringify(h.state.central), { revision: 11 });
+  expect(JSON.parse((await client.project()).value).sessions[date].blocks[0]).toMatchObject({ title: "Unstaged title", minutes: 40 });
+  h.state.failStore = true;
+  expect((await client.stage(JSON.stringify(local), { previousValue: JSON.stringify(before), draftToken })).ok).toBe(false);
+  expect(await client.project()).toMatchObject({ pending: true, draftToken });
+  expect(await client.isSettled()).toBe(false);
+  h.state.failStore = false;
+  expect((await client.stage(JSON.stringify(local), { previousValue: JSON.stringify(before), draftToken })).ok).toBe(true);
+  expect((await client.replay()).ok).toBe(true);
+  expect(await client.project()).toMatchObject({ pending: false });
+  expect(h.state.central.sessions[date].blocks[0]).toMatchObject({ title: "Unstaged title", minutes: 40 });
+});
+
+test("projection cannot resurrect a server-deleted exercise or adopt another account's draft", async () => {
+  const h = harness(), client = h.client();
+  const before = copy(h.state.central), local = copy(before);
+  local.sessions[date].blocks[0].objective = "Still only local";
+  client.rememberDraft(JSON.stringify(local), JSON.stringify(before));
+  h.state.central.sessions[date].blocks.shift();
+  h.state.central.blockDeletionTombstones = { [date]: { a: "2026-09-26T12:00:00Z" } };
+  client.observe(JSON.stringify(h.state.central), { revision: 11 });
+  expect(JSON.parse((await client.project()).value).sessions[date].blocks.map((block) => block.id)).toEqual(["b"]);
+  h.state.scope = "another:org:team";
+  expect(await client.project()).toBeNull();
+  client.observe(JSON.stringify(initial()), { revision: 1 });
+  expect(await client.project()).toMatchObject({ pending: false, revision: 1 });
+  expect(JSON.parse((await client.project()).value)).toEqual(initial());
+});
+
+test("retry after a failed draft and server refresh journals only user fields, not the projected colleague fields", async () => {
+  const h = harness(), client = h.client();
+  const before = copy(h.state.central), first = copy(before);
+  first.sessions[date].blocks[0].title = "My title";
+  const a = client.rememberDraft(JSON.stringify(first), JSON.stringify(before));
+  h.state.failStore = true;
+  expect((await client.stage(JSON.stringify(first), { previousValue: JSON.stringify(before), draftToken: a })).ok).toBe(false);
+  h.state.central.sessions[date].blocks[0].minutes = 45;
+  client.observe(JSON.stringify(h.state.central), { revision: 11 });
+  const projected = (await client.project()).value;
+  const second = JSON.parse(projected);
+  second.sessions[date].blocks[0].objective = "My objective";
+  const b = client.rememberDraft(JSON.stringify(second), projected);
+  h.state.failStore = false;
+  expect((await client.stage(JSON.stringify(second), { previousValue: projected, draftToken: b })).ok).toBe(true);
+  const [row] = [...h.rows.values()];
+  expect(describeSessionDifferences(row.change.before, row.change.after, date).map((item) => item.field).sort()).toEqual(["objective", "title"]);
+  expect((await client.replay()).ok).toBe(true);
+  expect(h.state.central.sessions[date].blocks[0]).toMatchObject({ title: "My title", objective: "My objective", minutes: 45 });
+  expect(await client.project()).toMatchObject({ pending: false });
+});
+
+test("a projection rereads after an acknowledgement changes its journal snapshot", async () => {
+  const h = harness(), client = h.client();
+  const local = copy(h.state.central);
+  local.sessions[date].blocks[0].title = "Acknowledged title";
+  await client.stage(JSON.stringify(local));
+  const list = h.store.list;
+  let release, observed;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const entered = new Promise((resolve) => { observed = resolve; });
+  h.store.list = async (scope) => { const rows = await list(scope); h.store.list = list; observed(); await gate; return rows; };
+  const projection = client.project();
+  await entered;
+  expect((await client.replay()).ok).toBe(true);
+  release();
+  const result = await projection;
+  expect(result).toMatchObject({ pending: false, revision: 11 });
+  expect(JSON.parse(result.value)).toEqual(h.state.central);
+});
+
 test("a current local edit rebases once over a colleague's same-field change", async () => {
   const h = harness({ autoRebase: true }), client = h.client();
   const before = copy(h.state.central), local = copy(before);

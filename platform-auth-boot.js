@@ -91,6 +91,7 @@
   const nativeLocalStorageRemoveItem = window.Storage?.prototype?.removeItem;
   const centralStateValues = new Map();
   let sessionSaveClientPromise = null;
+  let sessionSaveClient = null;
 
   function getSessionSaveScope() {
     const user = authState.currentUser;
@@ -132,7 +133,7 @@
           }
           return response;
         },
-      }));
+      })).then((client) => { sessionSaveClient = client; return client; });
     }
     return sessionSaveClientPromise;
   }
@@ -773,6 +774,7 @@ async function getActiveAccessToken() {
       source: options.source || "local-write",
       durable: options.durable !== false,
       serverBacked: Boolean(options.serverBacked),
+      ...(options.sessionViewToken ? { sessionViewToken: options.sessionViewToken } : {}),
     });
     return true;
   }
@@ -1483,6 +1485,19 @@ async function getActiveAccessToken() {
       }
       return normalized;
     }, {});
+    const sessionScope = getSessionSaveScope();
+    const sessionClient = await getSessionSaveClient();
+    const { preserveSessionSaveLocalUi } = await import("./src/modules/session-planner/session-save-local-ui.mjs");
+    if (sessionScope !== getSessionSaveScope()) throw new Error("Account or team changed during central load.");
+    sessionClient.observe(normalizedEntries[SESSION_PLANNER_STATE_KEY] || '{"sessions":{}}', incomingMetadata[SESSION_PLANNER_STATE_KEY]);
+    const sessionView = await sessionClient.project().catch(() => {
+      centralState.lastWriteError = "Local save queue unavailable. Local training changes were retained.";
+      return null;
+    });
+    if (sessionScope !== getSessionSaveScope()) throw new Error("Account or team changed during central load.");
+    if (sessionScope && (!sessionView || sessionView.pending) && !(SESSION_PLANNER_STATE_KEY in normalizedEntries)) {
+      normalizedEntries[SESSION_PLANNER_STATE_KEY] = '{"sessions":{}}';
+    }
     const pendingEntries = readCentralSyncManifestEntries();
     const nextMetadata = {};
     const writeBackEntries = [];
@@ -1513,6 +1528,27 @@ async function getActiveAccessToken() {
           centralState.metadata[key] || {},
           options
         );
+        if (key === SESSION_PLANNER_STATE_KEY && sessionScope && !sessionClient.isProjectionCurrent(sessionView)) {
+          const cached = getCentralCachedValueInfo(key);
+          if (cached.value === undefined) {
+            setCentralCachedValue(key, stripCentralStateLocalUiFields(value, SESSION_PLANNER_LOCAL_UI_FIELDS), {
+              source: "central-pending-baseline", durable: false, serverBacked: true,
+            });
+          }
+          return;
+        }
+        if (key === SESSION_PLANNER_STATE_KEY && sessionClient.isProjectionCurrent(sessionView)) {
+          const cached = getCentralCachedValueInfo(key);
+          const trackedDraft = cached.source === "session-journal-pending" && cached.sessionViewToken;
+          if (sessionView.pending || trackedDraft) {
+            // Never replace an untracked/legacy draft or turn a view refresh into a save acknowledgement.
+            if (cached.source === "session-journal-pending" && !cached.sessionViewToken) return;
+            const projectedValue = preserveSessionSaveLocalUi(sessionView.value, window.localStorage.getItem(key) || "{}");
+            setCentralCachedValue(key, projectedValue, { source: "session-journal-pending", durable: false,
+              serverBacked: false, sessionViewToken: sessionView.draftToken });
+            return;
+          }
+        }
         if (key === MEDICAL_TEAM_STATE_KEY && pendingEntry?.pendingCentralSync && !canAutomaticallyWrite) {
           return;
         }
@@ -1589,7 +1625,6 @@ async function getActiveAccessToken() {
       window.__footballScienceCentralHydrating = false;
     }
     centralState.metadata = nextMetadata;
-    (await getSessionSaveClient()).observe(normalizedEntries[SESSION_PLANNER_STATE_KEY] || '{"sessions":{}}', incomingMetadata[SESSION_PLANNER_STATE_KEY]);
     persistCentralHydrationRevisions(hydratedRevisionEntries, options);
     for (const [key, value] of requiredWriteBackEntries) {
       const result = await syncCentralStateKey(key, value);
@@ -2849,6 +2884,7 @@ async function getActiveAccessToken() {
     roles: authState.roles,
   };
   window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,canAutoSyncKey:canCurrentUserAutomaticallyWriteCentralStateKey,getCachedValue:getCentralCachedValue,getCachedValueInfo:getCentralCachedValueInfo,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState}),
+    rememberSessionDraft: (value, previousValue) => sessionSaveClient?.rememberDraft(value, previousValue),
     stageSessionWrite: async (value, options) => {
       if (authState.devMode) return { ok: true };
       const actor = JSON.stringify([authState.currentUser?.id, authState.currentUser?.clubId, authState.currentUser?.teamId]);

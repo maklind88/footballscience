@@ -1012,6 +1012,35 @@ test("Sessions merged acknowledgement survives full browser cache and reload wit
   } finally { await closeCentralStateContext(tab.context); }
 });
 
+test("Sessions still shows the server read-only when its local journal cannot be opened", async ({ browser, baseURL }) => {
+  const day = "2026-09-25", initial = createStateValue("Original central sequence");
+  const value = JSON.stringify({ selectedDate: day, sessions: { [day]: { date: day, blocks: [{ id: "a", title: "Training already saved", minutes: 20 }] } } });
+  const centralStore = { value: initial, metadata: createMetadata(1, initial), entries: { [sessionPlannerStateKey]: value },
+    metadataEntries: { [sessionPlannerStateKey]: { ...createMetadata(7, value), moduleId: "session-planner" } } };
+  const posts = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "unavailable-journal-baseline", {
+    fixedDate: "2026-09-25T12:00:00.000Z",
+    initScript: () => {
+      const open = indexedDB.open.bind(indexedDB);
+      indexedDB.open = (name, ...args) => {
+        if (name === "football-science-data-safety-v1") throw new DOMException("Synthetic unavailable journal", "SecurityError");
+        return open(name, ...args);
+      };
+    },
+    appStateWriteHandler: async ({ body }) => { if (body.key === sessionPlannerStateKey) posts.push(body); return null; },
+  });
+  try {
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    await tab.page.locator(`[data-session-date="${day}"]`).click();
+    await expect(tab.page.locator('[data-session-field="title"]').first()).toHaveValue("Training already saved");
+    const info = await tab.page.evaluate((key) => window.footballScienceCentralState.getCachedValueInfo(key), sessionPlannerStateKey);
+    expect(info).toMatchObject({ source: "central-pending-baseline", durable: false, serverBacked: true });
+    expect(JSON.parse(info.value).sessions[day].blocks[0].title).toBe("Training already saved");
+    expect(posts).toEqual([]);
+    expect(centralStore.entries[sessionPlannerStateKey]).toBe(value);
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
 for (const fullCache of [false, true]) {
   test(`Sessions consecutive edits survive a delayed receipt (full cache: ${fullCache})`, async ({ browser, baseURL }) => {
     const day = "2026-09-25", initial = createStateValue("Original central sequence");
@@ -1061,13 +1090,25 @@ for (const fullCache of [false, true]) {
       });
       const field = tab.page.locator('[data-session-field="title"]').first();
       await field.fill("First edit"); await field.dispatchEvent("change");
+      const colleague = JSON.parse(centralStore.entries[sessionPlannerStateKey]);
+      colleague.sessions[day].blocks[0].objective = "Fresh independent colleague instruction";
+      centralStore.entries[sessionPlannerStateKey] = JSON.stringify(colleague);
+      centralStore.metadataEntries[sessionPlannerStateKey] = { ...createMetadata(8, JSON.stringify(colleague)), moduleId: "session-planner" };
       await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true }));
       expect(posts).toHaveLength(0);
       expect(await tab.page.evaluate(({ key, day }) => JSON.parse(localStorage.getItem(key)).sessions[day].blocks[0].title,
         { key: sessionPlannerStateKey, day })).toBe("First edit");
+      expect(await tab.page.evaluate(({ key, day }) => JSON.parse(localStorage.getItem(key)).sessions[day].blocks[0].objective,
+        { key: sessionPlannerStateKey, day })).toBe("Fresh independent colleague instruction");
+      await field.blur();
+      await expect(tab.page.locator('[data-session-field="objective"]').first()).toHaveValue("Fresh independent colleague instruction");
       await tab.page.evaluate(() => window.releaseSessionJournalTestGate());
       await expect.poll(() => posts.length).toBe(1);
       expect(posts[0].change.after.session.blocks[0].title).toBe("First edit");
+      const newerColleague = JSON.parse(centralStore.entries[sessionPlannerStateKey]);
+      newerColleague.sessions[day].blocks[0].objective = "Colleague changed again before the delayed receipt";
+      centralStore.entries[sessionPlannerStateKey] = JSON.stringify(newerColleague);
+      centralStore.metadataEntries[sessionPlannerStateKey] = { ...createMetadata(10, JSON.stringify(newerColleague)), moduleId: "session-planner" };
       for (const title of ["Second edit", "Final edit"]) {
         await field.fill(title); await field.dispatchEvent("change");
       }
@@ -1084,6 +1125,7 @@ for (const fullCache of [false, true]) {
       expect(await tab.page.evaluate(() => window.footballScienceCentralState.getSessionSaveReviews())).toEqual([]);
       expect(await tab.page.evaluate((key) => Boolean(JSON.parse(localStorage.getItem("football-data-safety-v1") || "{}").entries?.[key]?.pendingCentralSync), sessionPlannerStateKey)).toBe(false);
       expect(await tab.page.evaluate(() => window.footballScienceCentralState.getSessionPendingState())).toBeNull();
+      expect(JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions[day].blocks[0].objective).toBe("Colleague changed again before the delayed receipt");
       await tab.page.reload({ waitUntil: "domcontentloaded" });
       await expect.poll(() => tab.page.evaluate(({ key, day }) => JSON.parse(localStorage.getItem(key) || "{}").sessions?.[day]?.blocks?.[0]?.title,
         { key: sessionPlannerStateKey, day })).toBe("Final edit");

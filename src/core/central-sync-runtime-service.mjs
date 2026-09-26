@@ -95,6 +95,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
       return false;
     }
     const currentValue = rawGetItem(key);
+    const viewToken = getCentralStateBridge()?.getCachedValueInfo?.(key)?.sessionViewToken;
+    if (write.sessionViewToken && viewToken && write.sessionViewToken !== viewToken) return false;
     return write.removed ? currentValue === null : currentValue === write.value;
   }
 
@@ -179,7 +181,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (!key || write.removed || typeof syncedValue !== "string") {
       return;
     }
-    if (centralStateWriteQueue.has(key) || rawGetItem(key) !== write.value ||
+    if (!isCentralStateWriteGenerationCurrent(write) ||
         (syncedValue === write.value && key !== sessionPlannerStorageKey)) {
       return;
     }
@@ -231,6 +233,13 @@ export function createCentralSyncRuntimeService(deps = {}) {
   }
 
   function finishAcknowledgedWrite(write, result) {
+    const cached = getCentralStateBridge()?.getCachedValueInfo?.(write.key);
+    // A read projection can refresh unrelated server fields without creating a
+    // new edit. Only that exact draft generation may accept this receipt.
+    if (write.key === sessionPlannerStorageKey && write.sessionViewToken &&
+        cached?.sessionViewToken === write.sessionViewToken && cached.source === "session-journal-pending") {
+      write = { ...write, value: cached.value };
+    }
     advanceQueuedWriteBaseRevision(write.key, result);
     persistCentralStateServerRevision(write.key, result);
     const currentBeforeApply = isCentralStateWriteGenerationCurrent(write);
@@ -374,6 +383,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       automatic: Boolean(options.automatic),
       baseRevision: isCentralStateBridgeHydrated(bridge) ? getCentralStateRevisionForKey(normalizedKey) : null,
       followsActiveWrite: centralStateActiveWriteKeys.has(normalizedKey),
+      ...(normalizedKey === sessionPlannerStorageKey ? { sessionViewToken: options.sessionViewToken || bridge.getCachedValueInfo?.(normalizedKey)?.sessionViewToken } : {}),
       ...(stage ? { stage, staged: Promise.resolve().then(stage).catch((error) => ({ ok: false, reason: error.message })) } : {}),
     });
     if (centralStateWriteTimer) {

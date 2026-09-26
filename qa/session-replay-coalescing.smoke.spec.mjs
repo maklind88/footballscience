@@ -71,7 +71,8 @@ test("real IndexedDB retains the exact edit through a retry burst and page reloa
   expect(await page.evaluate(() => window.saveStore.list("coach:org:team"))).toEqual([]);
 });
 
-test("a second real page can persist B during A and a joined retry drains B with its own receipt", async ({ page, context }) => {
+for (const trigger of ["joined retry", "read projection"]) {
+test(`a second real page can persist B during A and a ${trigger} drains B with its own receipt`, async ({ page, context }) => {
   const state = await server(context), peer = await context.newPage();
   await boot(page, state); await boot(peer, state);
   const enteredA = deferred(), releaseA = deferred(), enteredB = deferred(), releaseB = deferred();
@@ -91,7 +92,14 @@ test("a second real page can persist B during A and a joined retry drains B with
     expect(rows).toHaveLength(2);
     expect(new Set(rows.map((row) => row.writer)).size).toBe(2);
     const bRow = rows.find((row) => row.change.after.session.blocks[0].title === "Peer B");
-    await page.evaluate(() => { window.peerReplay = window.saveClient.replay(); });
+    if (trigger === "joined retry") {
+      await page.evaluate(() => { window.peerReplay = window.saveClient.replay(); });
+    } else {
+      const view = await page.evaluate(() => window.saveClient.project());
+      expect(view.pending).toBe(true);
+      expect(JSON.parse(view.value).sessions[date]).toMatchObject({ title: "A", blocks: [{ title: "Peer B" }] });
+      expect(state.calls).toHaveLength(1);
+    }
     releaseA.resolve();
     await enteredB.promise;
     expect(await peer.evaluate(() => window.saveStore.list("coach:org:team"))).toEqual([bRow]);
@@ -99,9 +107,10 @@ test("a second real page can persist B during A and a joined retry drains B with
     expect(state.calls.map((call) => call.baseRevision)).toEqual([10, 11]);
     releaseB.resolve();
     expect(await page.evaluate(() => window.firstReplay)).toMatchObject({ ok: true, revision: 12 });
-    expect(await page.evaluate(() => window.peerReplay)).toMatchObject({ ok: true, revision: 12 });
+    if (trigger === "joined retry") expect(await page.evaluate(() => window.peerReplay)).toMatchObject({ ok: true, revision: 12 });
     expect(state.calls).toHaveLength(2);
     expect(state.value.sessions[date]).toMatchObject({ title: "A", blocks: [{ title: "Peer B", tacticalFrames: b.sessions[date].blocks[0].tacticalFrames }] });
     expect(await peer.evaluate(() => window.saveStore.list("coach:org:team"))).toEqual([]);
   } finally { releaseA.resolve(); releaseB.resolve(); await peer.close(); }
 });
+}

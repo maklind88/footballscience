@@ -103,6 +103,22 @@
     if (!sessionSaveClientPromise) {
       sessionSaveClientPromise = import("./src/modules/session-planner/session-save-client.mjs").then(({ createSessionSaveClient }) => createSessionSaveClient({
         getScope: getSessionSaveScope,
+        getLatest: async (expectedScope) => {
+          const response = await apiRequest(buildCentralStateReadPath([SESSION_PLANNER_STATE_KEY], { fresh: true }), {
+            method: "GET",
+            timeoutMs: 10000,
+            headers: { "x-footballscience-fresh-state": "1" },
+            isCurrent: () => Boolean(expectedScope && expectedScope === getSessionSaveScope()),
+          });
+          if (!response.ok || expectedScope !== getSessionSaveScope()) return null;
+          const transport = await import("./src/modules/session-planner/session-state-transport.mjs");
+          await transport.decodeSessionResponse(response.payload);
+          if (expectedScope !== getSessionSaveScope()) return null;
+          return {
+            value: response.payload?.entries?.[SESSION_PLANNER_STATE_KEY] || '{"sessions":{}}',
+            metadata: response.payload?.metadata?.[SESSION_PLANNER_STATE_KEY] || {},
+          };
+        },
         send: async (change, baseRevision, expectedScope) => {
           const transport = await import("./src/modules/session-planner/session-state-transport.mjs");
           const body = JSON.stringify({ key: SESSION_PLANNER_STATE_KEY, baseRevision,

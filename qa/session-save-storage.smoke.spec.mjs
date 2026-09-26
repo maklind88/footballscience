@@ -69,6 +69,53 @@ test("real IndexedDB retains queued frames after reload and snapshot pruning nev
   expect(result.remaining.some((row) => row.storage?.important === "Retained")).toBe(true);
 });
 
+test("a rebased edit replaces its pending predecessor atomically across reload", async ({ page }) => {
+  await boot(page);
+  await page.evaluate(async () => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    const store = createSessionSaveStore();
+    const original = { scope: "rebase:coach:team", status: "pending", createdAt: 1,
+      change: { id: "original", date: "2026-09-10", before: {}, after: { session: { objective: "Original" } } } };
+    await store.put(original);
+    await store.replaceWithRebased(original, { ...original, createdAt: 2,
+      change: { ...original.change, id: "rebased", after: { session: { objective: "Rebased" } } } });
+  });
+  await page.reload();
+  const rows = await page.evaluate(async () => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    return createSessionSaveStore().list("rebase:coach:team");
+  });
+  expect(rows.map((row) => [row.change.id, row.status])).toEqual([["original", "archived"], ["rebased", "pending"]]);
+  expect(rows[1].change.after.session.objective).toBe("Rebased");
+});
+
+test("a second tab resolving the old edit prevents a stale rebase", async ({ page, context }) => {
+  await boot(page);
+  const peer = await context.newPage();
+  await peer.goto("/qa/session-save-harness");
+  const original = { scope: "rebase:two-tabs", writer: "coach-tab", status: "pending", createdAt: 1,
+    change: { id: "old-edit", date: "2026-09-10", before: {}, after: { session: { objective: "Old" } } } };
+  await page.evaluate(async (row) => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    await createSessionSaveStore().put(row);
+  }, original);
+  await peer.evaluate(async (row) => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    await createSessionSaveStore().put({ ...row, status: "archived" });
+  }, original);
+  const result = await page.evaluate(async (row) => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    const store = createSessionSaveStore();
+    let rejected = false;
+    try { await store.replaceWithRebased(row, { ...row, change: { ...row.change, id: "stale-rebase" } }); }
+    catch { rejected = true; }
+    return { rejected, rows: await store.list(row.scope) };
+  }, original);
+  expect(result.rejected).toBe(true);
+  expect(result.rows.map((row) => [row.change.id, row.status])).toEqual([["old-edit", "archived"]]);
+  await peer.close();
+});
+
 for (const width of [1470, 390]) {
   test(`local review is readable, keyboard accessible and archives without deleting at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 752 });

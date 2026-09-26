@@ -1,7 +1,14 @@
-import { createSessionDateChanges, replaceSessionDate, sameSessionValue, sessionDateValue } from "./session-save-protocol.mjs";
+import { applySessionDateChange, createSessionDateChanges, replaceSessionDate, sameSessionValue, sessionDateValue } from "./session-save-protocol.mjs";
 import { createSessionSaveStore } from "./session-save-store.mjs";
 
-export function createSessionSaveClient({ getScope, send, store = createSessionSaveStore(), makeId, onReview = () => {} }) {
+const autoRebaseTextFields = new Set(["title", "focus", "objective", "why", "organization", "material", "principles", "postSessionNotes"]);
+
+function isTextFieldConflict(change, path) {
+  return change.after.session.blocks.some((block) => Array.from(autoRebaseTextFields).some((field) =>
+    path === `${change.date}.session.blocks.${block.id}.${field}` && typeof block[field] === "string"));
+}
+
+export function createSessionSaveClient({ getScope, getLatest, send, store = createSessionSaveStore(), makeId, onReview = () => {}, now = Date.now }) {
   let baseline = null;
   let revision = 0;
   let scope = "";
@@ -31,7 +38,7 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
     const blocked = new Set();
     let metadata = { revision };
     let issue = "";
-    for (const row of rows) {
+    for (let row of rows) {
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       if (row.status === "archived") continue;
       if (row.status === "review" || blocked.has(row.change.date)) {
@@ -45,10 +52,46 @@ export function createSessionSaveClient({ getScope, send, store = createSessionS
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       if (!result.ok) {
         if (result.status === 409 && result.payload?.conflicts?.length) {
+          const checkedAt = now();
+          const isRecentOwnEdit = row.writer === writer && !row.autoRebased &&
+            checkedAt - Math.floor(row.createdAt / 1000) >= 0 &&
+            checkedAt - Math.floor(row.createdAt / 1000) <= 60000;
+          if (isRecentOwnEdit && result.payload.conflicts.every((path) => isTextFieldConflict(row.change, path)) &&
+              typeof getLatest === "function" && typeof store.replaceWithRebased === "function") {
+            const latest = await getLatest(expected).catch(() => null);
+            if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+            const freshRevision = Number(latest?.metadata?.revision);
+            if (typeof latest?.value !== "string" || !Number.isInteger(freshRevision) ||
+                freshRevision < Number(result.payload.currentRevision) || freshRevision < 1) {
+              return failure("Saved locally; waiting for a fresh central version.", { durablePending: true });
+            }
+            const freshState = JSON.parse(latest.value);
+            const merged = applySessionDateChange(freshState, row.change, { preferLocalOnConflict: true });
+            if (merged.conflicts.every((path) => isTextFieldConflict(row.change, path))) {
+              const rebased = {
+                ...row,
+                change: {
+                  ...row.change,
+                  id: makeId ? makeId() : globalThis.crypto.randomUUID(),
+                  before: sessionDateValue(freshState, row.change.date),
+                  after: sessionDateValue(merged.state, row.change.date),
+                },
+                autoRebased: true,
+                createdAt: now() * 1000 + sequence++,
+              };
+              await store.replaceWithRebased(row, rebased);
+              row = rebased;
+              observe(latest.value, latest.metadata);
+              result = await send(row.change, revision, expected);
+              if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+            }
+          }
+        }
+        if (result.status === 409 && result.payload?.conflicts?.length) {
           await store.put({ ...row, status: "review", conflicts: result.payload.conflicts });
           blocked.add(row.change.date); issue = "Local changes need review"; continue;
         }
-        return failure(result.payload?.reason || "Saved locally; central sync pending", { status: result.status, durablePending: true });
+        if (!result.ok) return failure(result.payload?.reason || "Saved locally; central sync pending", { status: result.status, durablePending: true });
       }
       const receipt = result.payload?.sessionChange;
       if (receipt?.id !== row.change.id || receipt?.date !== row.change.date || !receipt?.value?.session || !result.payload?.metadata?.revision) {

@@ -66,12 +66,12 @@ export function validateSessionDateChange(change) {
   return change;
 }
 
-function mergeBlocks(before, after, current, conflicts, path) {
+function mergeBlocks(before, after, current, conflicts, path, preferLocalOnConflict) {
   const map = (blocks) => new Map(blocks.map((block) => [block.id, block]));
   const old = map(before), next = map(after), central = map(current);
   const merged = new Map();
   for (const id of new Set([...old.keys(), ...next.keys(), ...central.keys()])) {
-    const block = mergeValue(old.get(id), next.get(id), central.get(id), conflicts, `${path}.${id}`);
+    const block = mergeValue(old.get(id), next.get(id), central.get(id), conflicts, `${path}.${id}`, preferLocalOnConflict);
     if (block !== undefined) merged.set(id, block);
   }
   const oldIds = before.map((block) => block.id);
@@ -87,7 +87,7 @@ function mergeBlocks(before, after, current, conflicts, path) {
   return Array.from(new Set([...order, ...newIds, ...currentIds])).filter((id) => merged.has(id)).map((id) => merged.get(id));
 }
 
-function mergeValue(before, after, current, conflicts, path) {
+function mergeValue(before, after, current, conflicts, path, preferLocalOnConflict = false) {
   if (sameSessionValue(before, after) || sameSessionValue(after, current)) return copy(current);
   if (sameSessionValue(before, current)) return copy(after);
   if (path.endsWith(".updatedAt") || path.includes(".fieldUpdatedAt.")) {
@@ -100,30 +100,32 @@ function mergeValue(before, after, current, conflicts, path) {
       .map((field) => [field, [after?.[field], current?.[field]].filter(Boolean).sort().at(-1)]));
   }
   if (path.endsWith(".blocks") && [before, after, current].every(Array.isArray)) {
-    return mergeBlocks(before, after, current, conflicts, path);
+    return mergeBlocks(before, after, current, conflicts, path, preferLocalOnConflict);
   }
   if (object(after) && object(current) && (object(before) || before === undefined || before === null)) {
     const merged = {};
     for (const key of new Set([...Object.keys(before || {}), ...Object.keys(after), ...Object.keys(current)])) {
       if (omitted.has(key)) continue;
-      const value = mergeValue(before?.[key], after[key], current[key], conflicts, `${path}.${key}`);
+      const value = mergeValue(before?.[key], after[key], current[key], conflicts, `${path}.${key}`, preferLocalOnConflict);
       if (value !== undefined) merged[key] = value;
     }
     return merged;
   }
   conflicts.push(path);
-  return copy(current);
+  return copy(preferLocalOnConflict ? after : current);
 }
 
-export function applySessionDateChange(state, input) {
+export function applySessionDateChange(state, input, options = {}) {
   const change = validateSessionDateChange(input);
   const current = sessionDateValue(state, change.date);
   const conflicts = [];
-  const next = mergeValue(change.before, change.after, current, conflicts, change.date);
+  const preferLocalOnConflict = options.preferLocalOnConflict === true;
+  const next = mergeValue(change.before, change.after, current, conflicts, change.date, preferLocalOnConflict);
   // A saved deletion is never undone by an old/offline participant.
   next.tombstones = { ...change.before.tombstones, ...change.after.tombstones, ...current.tombstones };
   if (next.session) next.session.blocks = next.session.blocks.filter((block) => !next.tombstones[block.id]);
-  return { ok: !conflicts.length, conflicts, current, next, state: conflicts.length ? state : replaceSessionDate(state, change.date, next) };
+  return { ok: !conflicts.length || preferLocalOnConflict, conflicts, current, next,
+    state: conflicts.length && !preferLocalOnConflict ? state : replaceSessionDate(state, change.date, next) };
 }
 
 export function describeSessionDifferences(before, after, date) {

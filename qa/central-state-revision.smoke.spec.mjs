@@ -1052,13 +1052,30 @@ for (const fullCache of [false, true]) {
     try {
       await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
       await tab.page.locator(`[data-session-date="${day}"]`).click();
+      await tab.page.evaluate(() => {
+        const bridge = window.footballScienceCentralState, stage = bridge.stageSessionWrite;
+        let release;
+        const gate = new Promise((resolve) => { release = resolve; });
+        window.releaseSessionJournalTestGate = () => { bridge.stageSessionWrite = stage; release(); };
+        bridge.stageSessionWrite = async (...args) => { await gate; return stage(...args); };
+      });
       const field = tab.page.locator('[data-session-field="title"]').first();
       await field.fill("First edit"); await field.dispatchEvent("change");
+      await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true }));
+      expect(posts).toHaveLength(0);
+      expect(await tab.page.evaluate(({ key, day }) => JSON.parse(localStorage.getItem(key)).sessions[day].blocks[0].title,
+        { key: sessionPlannerStateKey, day })).toBe("First edit");
+      await tab.page.evaluate(() => window.releaseSessionJournalTestGate());
       await expect.poll(() => posts.length).toBe(1);
       expect(posts[0].change.after.session.blocks[0].title).toBe("First edit");
       for (const title of ["Second edit", "Final edit"]) {
         await field.fill(title); await field.dispatchEvent("change");
       }
+      // A refresh during the older receipt must update the server baseline,
+      // not replace the newer local journal view, even with forceApply.
+      await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true }));
+      expect(await tab.page.evaluate(({ key, day }) => JSON.parse(localStorage.getItem(key)).sessions[day].blocks[0].title,
+        { key: sessionPlannerStateKey, day })).toBe("Final edit");
       release();
       await expect.poll(() => JSON.parse(centralStore.entries[sessionPlannerStateKey]).sessions[day].blocks[0].title).toBe("Final edit");
       await expect(tab.page.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);

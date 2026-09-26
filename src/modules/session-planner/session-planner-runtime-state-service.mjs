@@ -89,14 +89,19 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     return Boolean(win.footballScienceCentralState?.setCachedValue?.(
       sessionPlannerStorageKey,
       value,
-      { source: "local-write", durable: false, serverBacked: false }
+      { source: usesSessionJournal() ? "session-journal-pending" : "local-write", durable: false, serverBacked: false }
     ));
+  }
+
+  function usesSessionJournal() {
+    const bridge = win.footballScienceCentralState;
+    return Boolean(bridge?.stageSessionWrite && !win.platformAuthStore?.isDevMode?.() && !bridge.getStatus?.().localDev);
   }
 
   async function persistQuotaFallbackSnapshot(fallback) {
     const { value, context, previousValue } = fallback;
     const bridge = win.footballScienceCentralState;
-    if (bridge?.stageSessionWrite && !bridge.getStatus?.().localDev) {
+    if (usesSessionJournal()) {
       if (!context?.scope || getRecoveryContext()?.scope !== context.scope) throw new Error("Account or team changed. Local changes were retained.");
       const result = await bridge.stageSessionWrite(value, { previousValue, previousPending: fallback.previousPending });
       if (!result.ok) throw new Error(result.reason || "Local save storage failed.");
@@ -144,7 +149,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         setSaveStatus("saving", "Saved locally; syncing");
       } catch (error) {
         succeeded = false;
-        setSaveStatus("issue", "Save failed");
+        setSaveStatus("issue", "Not saved on this device. Keep this page open and retry.");
         logEvent(`Session planner fallback save failed: ${error?.message || "Unknown error"}`);
       }
     }
@@ -389,11 +394,21 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
       nextValue = JSON.stringify(sessionStateForStorage(nextState, storedState));
       if (rawExistingState === nextValue) {
         setSessionPlannerState(nextState);
+        if (usesSessionJournal() && !quotaFallbackLastResult && canWriteCentralBackedCache()) {
+          return queueQuotaFallback(nextValue, previousValue);
+        }
         return true;
       }
       captureBoardHistoryFromState();
+      if (usesSessionJournal() && !canWriteCentralBackedCache()) {
+        setSaveStatus("issue", "Central sync is not ready.");
+        return false;
+      }
       setSessionPlannerState(nextState);
       sessionPlannerAutosaveBoundary.markSessionPlannerWrite();
+      // The immutable journal is the durable write path. localStorage is only
+      // a read cache; its quota must not determine whether an edit can be saved.
+      if (usesSessionJournal()) return queueQuotaFallback(nextValue, previousValue);
       win.localStorage.setItem(sessionPlannerStorageKey, nextValue);
       return true;
     } catch (error) {

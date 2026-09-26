@@ -172,6 +172,64 @@ test("quota journal coalescing retains all edits while the first stage is pendin
   expect(staged[1].value.sessions["2026-05-01"].blocks[0]).toMatchObject({ title: "First", minutes: 25, intensity: 4 });
 });
 
+test("live saves journal before sync without writing the full localStorage snapshot", async () => {
+  const h = createHarness();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  h.win.footballScienceCentralState.stageSessionWrite = async () => { await gate; return { ok: true }; };
+  expect(h.service.writeState()).toBe(true);
+  expect(h.localStorage.setItemCalls).toEqual([]);
+  expect(h.calls.filter((call) => call[0] === "record")).toEqual([]);
+  expect(h.calls.some((call) => call[0] === "autosave-status" && call[3] === "Saved locally; syncing")).toBe(false);
+  release();
+  expect(await h.service.flushQuotaFallback()).toBe(true);
+  expect(h.calls.filter((call) => call[0] === "record")).toHaveLength(1);
+});
+
+test("failed durable storage never starts sync or claims the edit is saved", async () => {
+  const h = createHarness();
+  h.win.footballScienceCentralState.stageSessionWrite = async () => ({ ok: false, reason: "Storage full" });
+  expect(h.service.writeState()).toBe(true);
+  expect(await h.service.flushQuotaFallback()).toBe(false);
+  expect(h.localStorage.setItemCalls).toEqual([]);
+  expect(h.calls.filter((call) => call[0] === "record")).toEqual([]);
+  expect(h.calls.some((call) => call[0] === "autosave-status" && call[2] === "issue")).toBe(true);
+  expect(h.calls.some((call) => call[0] === "autosave-status" && call[3] === "Saved locally; syncing")).toBe(false);
+  expect(h.stateRef.current.sessions["2026-05-01"].blocks[0].title).toBe("Old");
+});
+
+test("journal-first writes cannot bypass the central access gate", async () => {
+  const h = createHarness({ canWrite: false });
+  const staged = [];
+  h.win.footballScienceCentralState.stageSessionWrite = async (value) => { staged.push(value); return { ok: true }; };
+  expect(h.service.writeState()).toBe(false);
+  expect(staged).toEqual([]);
+  expect(h.localStorage.setItemCalls).toEqual([]);
+});
+
+test("local development keeps durable local writes before central status initializes", () => {
+  const h = createHarness();
+  h.win.platformAuthStore = { isDevMode: () => true };
+  h.win.footballScienceCentralState.stageSessionWrite = async () => { throw new Error("Not a local persistence path"); };
+  expect(h.service.writeState()).toBe(true);
+  expect(h.localStorage.setItemCalls).toHaveLength(1);
+});
+
+test("an unchanged in-memory draft retries after a failed journal write", async () => {
+  const h = createHarness();
+  let cache = null, available = false, attempts = 0;
+  h.localStorage.getItem = () => cache;
+  h.win.footballScienceCentralState.setCachedValue = (_key, value) => { cache = value; return true; };
+  h.win.footballScienceCentralState.stageSessionWrite = async () => { attempts++; return { ok: available }; };
+  h.service.writeState();
+  expect(await h.service.flushQuotaFallback()).toBe(false);
+  available = true;
+  h.service.writeState();
+  expect(await h.service.flushQuotaFallback()).toBe(true);
+  expect(attempts).toBe(2);
+  expect(h.calls.filter((call) => call[0] === "record")).toHaveLength(1);
+});
+
 test("Session Planner runtime state service owns read write and recovery bodies outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
   const workspaceComposerSource = readProjectFile("src/core/workspace-runtime-composer.mjs");
@@ -340,7 +398,7 @@ test("Session Planner runtime state service surfaces an issue when quota fallbac
 
   expect(service.writeState()).toBe(true);
   expect(await service.flushQuotaFallback()).toBe(false);
-  expect(calls).toContainEqual(["autosave-status", storageKey, "issue", "Save failed"]);
+  expect(calls).toContainEqual(["autosave-status", storageKey, "issue", "Not saved on this device. Keep this page open and retry."]);
   expect(calls.some((call) => Array.isArray(call) && call[0] === "record")).toBe(false);
 });
 

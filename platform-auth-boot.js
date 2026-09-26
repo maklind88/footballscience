@@ -832,6 +832,8 @@ async function getActiveAccessToken() {
     );
   }
   function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, centralValue = "", options = {}) {
+    if (key === SESSION_PLANNER_STATE_KEY &&
+        getCentralCachedValueInfo(key).source === "session-journal-pending") return false;
     if (key === SESSION_PLANNER_STATE_KEY && pendingEntry?.pendingCentralSync &&
         getCentralCachedValueInfo(key).source === "central-pending-baseline") return false;
     const incomingRevision = Number(metadataEntry?.revision);

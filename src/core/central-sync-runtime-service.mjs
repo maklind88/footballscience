@@ -179,7 +179,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (!key || write.removed || typeof syncedValue !== "string") {
       return;
     }
-    if (centralStateWriteQueue.has(key) || rawGetItem(key) !== write.value || syncedValue === write.value) {
+    if (centralStateWriteQueue.has(key) || rawGetItem(key) !== write.value ||
+        (syncedValue === write.value && key !== sessionPlannerStorageKey)) {
       return;
     }
     const valueToApply =

@@ -156,6 +156,16 @@ test("an acknowledged Sessions save with a cache failure does not discard other 
   expect(h.autosaveStatuses.some(([key, status]) => key === session && status === "saved")).toBe(false);
 });
 
+test("an identical Sessions acknowledgement finalizes the journal-only read cache", async () => {
+  const key = "football-session-planner-v1";
+  const h = createServiceHarness({ syncResult: { ok: true, value: "journal value", metadata: { revision: 8 } } });
+  h.rawValues.set(key, "journal value");
+  h.service.queueCentralStateWrite(key, "journal value");
+  await h.service.flushCentralStateWrites();
+  expect(h.handledKeys).toContainEqual({ key, value: "journal value" });
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+});
+
 test("a Sessions view failure is distinguished from a cache failure after acknowledgement", async () => {
   const key = "football-session-planner-v1", other = "football-medical-team-v1";
   const h = createServiceHarness({

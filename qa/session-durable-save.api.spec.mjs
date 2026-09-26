@@ -475,6 +475,40 @@ test("keeping central during review cannot silently replay dependent later edits
   expect(h.state.central.sessions[date].title).toBe("Colleague");
 });
 
+test("a review does not block an independent field on the same date after reload", async () => {
+  const h = harness(), client = h.client(), before = copy(h.state.central), local = copy(before);
+  local.sessions[date].blocks[0].objective = "Unresolved local objective";
+  h.state.central.sessions[date].blocks[0].objective = "Colleague objective";
+  expect((await client.save(JSON.stringify(local), { previousValue: JSON.stringify(before) })).reviewRequired).toBe(true);
+  const next = copy(local);
+  next.sessions[date].blocks[0].minutes = 35;
+  expect((await client.stage(JSON.stringify(next), { previousValue: JSON.stringify(local) })).ok).toBe(true);
+  const reloaded = h.client();
+  expect((await reloaded.replay()).reviewRequired).toBe(true);
+  expect(h.state.central.sessions[date].blocks[0]).toMatchObject({ objective: "Colleague objective", minutes: 35 });
+  expect([...h.rows.values()]).toHaveLength(1);
+  expect((await reloaded.reviews())[0].change.after.session.blocks[0].objective).toBe("Unresolved local objective");
+  const count = h.state.sent.length;
+  await reloaded.replay();
+  expect(h.state.sent).toHaveLength(count);
+  const review = (await reloaded.reviews())[0];
+  expect((await reloaded.resolve(review.change.id, true, review.central)).ok).toBe(true);
+  expect(h.state.central.sessions[date].blocks[0]).toMatchObject({ objective: "Unresolved local objective", minutes: 35 });
+});
+
+test("an unresolved structural edit still blocks dependent block writes", async () => {
+  const h = harness(), client = h.client(), before = copy(h.state.central), local = copy(before);
+  local.sessions[date].blocks.push({ id: "new", title: "Local new block" });
+  h.state.central.sessions[date].blocks.push({ id: "new", title: "Colleague block" });
+  await client.save(JSON.stringify(local), { previousValue: JSON.stringify(before) });
+  const next = copy(local);
+  next.sessions[date].blocks.at(-1).title = "Dependent edit";
+  await client.save(JSON.stringify(next), { previousValue: JSON.stringify(local) });
+  expect(h.state.sent).toHaveLength(1);
+  expect(h.state.central.sessions[date].blocks.at(-1).title).toBe("Colleague block");
+  expect(await client.reviews()).toHaveLength(2);
+});
+
 test("review includes exercise ordering and date-level fields", () => {
   const before = initial(), after = copy(before);
   after.sessions[date].blocks.reverse();

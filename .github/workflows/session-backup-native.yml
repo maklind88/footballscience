@@ -1,0 +1,57 @@
+name: Sessions backup PostgreSQL contracts
+
+on:
+  pull_request:
+    paths:
+      - 'api/app-state-backup.js'
+      - 'api/_lib/session-save-*.js'
+      - 'api/_lib/app-state-records-database.js'
+      - 'supabase/migrations/**'
+      - 'qa/session-save-*.mjs'
+      - 'qa/helpers/session-receipt-postgres-http.mjs'
+      - 'qa/helpers/relations-permissions-postgres.mjs'
+      - 'scripts/lib/data-content-recovery-*.mjs'
+      - '.github/workflows/session-backup-native.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'api/app-state-backup.js'
+      - 'api/_lib/session-save-*.js'
+      - 'api/_lib/app-state-records-database.js'
+      - 'supabase/migrations/**'
+      - 'qa/session-save-*.mjs'
+      - 'qa/helpers/session-receipt-postgres-http.mjs'
+      - 'qa/helpers/relations-permissions-postgres.mjs'
+      - 'scripts/lib/data-content-recovery-*.mjs'
+      - '.github/workflows/session-backup-native.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  backup-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Prepare isolated PostgreSQL 17 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo systemctl mask postgresql.service postgresql@.service
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --max-time 30 \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc -o "$RUNNER_TEMP/pgdg.asc"
+          test "$(gpg --show-keys --with-colons "$RUNNER_TEMP/pgdg.asc" | awk -F: '$1 == "fpr" {print $10; exit}')" = B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+          sudo install -m 644 "$RUNNER_TEMP/pgdg.asc" /usr/share/keyrings/fs-recovery-pgdg.asc
+          printf '%s\n' 'deb [signed-by=/usr/share/keyrings/fs-recovery-pgdg.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main' | sudo tee /etc/apt/sources.list.d/fs-recovery-pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends postgresql-17 postgresql-client-17
+      - name: Parse migrations, export, restore and test concurrent saves without live credentials
+        env:
+          FS_RECOVERY_PG_BIN: /usr/lib/postgresql/17/bin
+        run: node --test --test-concurrency=1 qa/session-save-backup-pages-native.test.mjs qa/session-save-receipts-native.test.mjs qa/session-save-receipts-integration-native.test.mjs

@@ -36,6 +36,7 @@ test("actual Sessions client/API with atomic PostgreSQL receipts", { timeout: 12
   };
   try {
     await db.pg.sql(db.source, migration);
+    await db.pg.sql(db.source, readFileSync(new URL("../supabase/migrations/20260927192224_session_save_backup_pages.sql", import.meta.url), "utf8"));
     for (const lostAt of ["HTTP", "RPC"]) {
       for (const successor of ["none", "objective", "title"]) {
         await t.test(`${lostAt} reply lost, successor edits ${successor}: one commit, latest state, durable history`, async () => {
@@ -112,11 +113,31 @@ test("actual Sessions client/API with atomic PostgreSQL receipts", { timeout: 12
         const pointer = http.objects.get("backups/app-state/latest.json");
         const backup = http.objects.get(pointer.path);
         assert.equal(backup.entries[key], (await central()).value);
-        assert.equal(backup.sessionSaveSnapshot.receipts.length, 2);
-        assert.equal(backup.sessionSaveSnapshot.effects.length, 2);
+        assert.equal(backup.sessionSaveSnapshot.schema, "session-save-backup-v2");
+        assert.equal(backup.sessionSaveSnapshot.receiptCount, 2);
+        const { decodeBackupChunk, encodeBackupChunk } = require("../api/_lib/session-save-backup-chunks.js");
+        assert.equal(backup.sessionSaveSnapshot.chunks.flatMap(decodeBackupChunk).length, 2);
         assert.equal((await invoke("/api/app-state-backup?mode=restore-drill", "GET")).status, 200);
+        // A failed final page must not replace the previous successful archive/pointer.
+        const preservedPointer = JSON.stringify(pointer);
+        const preservedObjects = [...http.objects.keys()];
+        let backupPages = 0;
+        global.fetch = async (url, options) => {
+          if (String(url).includes("/rpc/snapshot_session_save_page") && ++backupPages === 2) {
+            return new Response("{}", { status: 503 });
+          }
+          return http.fetch(url, options);
+        };
+        try {
+          assert.equal((await invoke("/api/app-state-backup", "POST")).status, 500);
+          assert.equal(backupPages, 2);
+          assert.equal(JSON.stringify(http.objects.get("backups/app-state/latest.json")), preservedPointer);
+          assert.deepEqual([...http.objects.keys()], preservedObjects);
+        } finally { global.fetch = http.fetch; }
         // Rehash to prove semantic validation, not only envelope hashing, catches missing events.
-        backup.sessionSaveSnapshot.effects.pop();
+        const rows = decodeBackupChunk(backup.sessionSaveSnapshot.chunks[0]);
+        rows[0].effect = null;
+        backup.sessionSaveSnapshot.chunks[0] = encodeBackupChunk(rows);
         const { contentSha256, ...core } = backup;
         backup.contentSha256 = createHash("sha256").update(JSON.stringify(core)).digest("hex");
         pointer.contentSha256 = backup.contentSha256;

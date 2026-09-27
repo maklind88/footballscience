@@ -34,6 +34,15 @@ export function receiptPostgresHttp(db) {
         const body = JSON.parse(options.body);
         return response(await query(`select public.snapshot_session_saves(${quote(body.p_organization_id)})`));
       }
+      if (parsed.pathname === "/rest/v1/rpc/snapshot_session_save_page" && method === "POST") {
+        const b = JSON.parse(options.body);
+        const nullable = (value) => value == null ? "null" : quote(value);
+        try {
+          return response(await query(`select public.snapshot_session_save_page(${quote(b.p_organization_id)},
+            ${b.p_revision == null ? "null" : Number(b.p_revision)}, ${nullable(b.p_hash)},
+            ${nullable(b.p_after_actor)}, ${nullable(b.p_after_operation)})`));
+        } catch { return response({ message: "Snapshot changed or unavailable" }, 409); }
+      }
       if (method === "GET" && ["platform_app_state_records", "session_save_receipts", "session_save_effects"].includes(table)) {
         const filters = [];
         for (const column of ["organization_id", "state_key", "actor_id", "operation_id"]) {

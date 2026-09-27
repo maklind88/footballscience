@@ -1305,7 +1305,8 @@ test("initial central hydration requests a fresh source read", async ({ browser,
   }
 });
 
-test("central hydration keeps Session Planner and Medical view dates local while shared data updates", async ({ browser, baseURL }) => {
+for (const afterRuntimeBoot of [false, true]) {
+test(`central hydration keeps Session Planner and Medical view dates local while shared data updates (after runtime boot: ${afterRuntimeBoot})`, async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");
   const localSessionPlannerState = {
     selectedDate: "2026-07-20",
@@ -1365,7 +1366,12 @@ test("central hydration keeps Session Planner and Medical view dates local while
   const localMedicalState = {
     selectedDate: "2026-07-20",
     selectedPlayerId: "player-1",
-    players: [],
+    // A saved selection must belong to the cached roster, not trigger first-run default seeding.
+    rosterVersion: "qa-local-view-date-v1",
+    players: [
+      { id: "player-1", name: "First Player", position: "Forward" },
+      { id: "player-2", name: "Second Player", position: "Midfielder" },
+    ],
     records: [],
     injuryPlans: [],
   };
@@ -1435,15 +1441,32 @@ test("central hydration keeps Session Planner and Medical view dates local while
     },
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "local-view-dates", {
-    initScript: ({ sessionKey, sessionValue, medicalKey, medicalValue }) => {
+    appStateReadHandler: async ({ request }) => {
+      if (afterRuntimeBoot) {
+        const page = request.frame().page();
+        await page.waitForFunction(() => window.__footballScienceAppReady);
+        expect(await page.evaluate((key) => {
+          const state = JSON.parse(window.localStorage.getItem(key));
+          return { selectedDate: state.selectedDate, selectedPlayerId: state.selectedPlayerId,
+            selectedPlayerExists: state.players.some((player) => player.id === state.selectedPlayerId && !player.archivedAt),
+            recommendationCount: state.records.length };
+        }, medicalTeamStateKey)).toEqual({ selectedDate: "2026-07-20", selectedPlayerId: "player-1",
+          selectedPlayerExists: true, recommendationCount: 0 });
+      }
+      return null;
+    },
+    initScript: ({ sessionKey, sessionValue, medicalKey, medicalValue, profilesKey, profilesValue }) => {
       window.localStorage.setItem(sessionKey, sessionValue);
       window.localStorage.setItem(medicalKey, medicalValue);
+      window.localStorage.setItem(profilesKey, profilesValue);
     },
     initArg: {
       sessionKey: sessionPlannerStateKey,
       sessionValue: JSON.stringify(localSessionPlannerState),
       medicalKey: medicalTeamStateKey,
       medicalValue: JSON.stringify(localMedicalState),
+      profilesKey: playerProfilesStateKey,
+      profilesValue: JSON.stringify(playerProfilesState),
     },
   });
 
@@ -1500,6 +1523,7 @@ test("central hydration keeps Session Planner and Medical view dates local while
     await closeCentralStateContext(tab.context);
   }
 });
+}
 
 test("Medical hydration cannot replace a locally confirmed newer recommendation with stale central data", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");

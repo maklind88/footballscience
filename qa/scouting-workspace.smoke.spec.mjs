@@ -705,7 +705,8 @@ for (const width of [390, 1440]) {
     await openWorkspace(page, "scouting");
     const firstPlayer = await loadScoutingDatabase(page);
     const now = new Date();
-    await page.clock.install({ time: now });
+    // Pause in the future of the installed clock, even under CI scheduling delays.
+    await page.clock.install({ time: new Date(now.getTime() - 60_000) });
     await page.clock.pauseAt(now);
     await firstPlayer.click();
 

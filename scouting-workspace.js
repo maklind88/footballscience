@@ -10098,7 +10098,7 @@ function getScoutingFocusSnapshot() {
   if (!activeElement || !ui.scoutingWorkspace?.contains(activeElement)) {
     return null;
   }
-  const field = activeElement.closest?.("input, textarea, select, [contenteditable='true']");
+  const field = activeElement.closest?.("input, textarea, select, [contenteditable='true'], [role='tab'][data-scouting-profile-tab]");
   if (!field || !ui.scoutingWorkspace.contains(field)) {
     return null;
   }
@@ -10114,7 +10114,7 @@ function getScoutingFocusSnapshot() {
   };
 }
 function getScoutingFocusableFields(root = ui.scoutingWorkspace) {
-  return Array.from(root?.querySelectorAll("input, textarea, select, [contenteditable='true']") || []);
+  return Array.from(root?.querySelectorAll("input, textarea, select, [contenteditable='true'], [role='tab'][data-scouting-profile-tab]") || []);
 }
 function getScoutingFocusSelector(field) {
   if (!field) {

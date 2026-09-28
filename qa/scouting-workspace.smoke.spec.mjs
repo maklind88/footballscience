@@ -697,6 +697,38 @@ test("Scouting mobile database, Lists action, and profile remain unobstructed", 
   await expect(page.locator('.scouting-tab[data-scouting-tab="database"]')).toHaveClass(/is-active/);
 });
 
+for (const width of [390, 1440]) {
+  test(`Scouting profile keyboard focus survives deferred rendering at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await seedScoutingAccess(page, { activeTab: "database" });
+    const boot = await bootApp(page);
+    await openWorkspace(page, "scouting");
+    const firstPlayer = await loadScoutingDatabase(page);
+    const now = new Date();
+    await page.clock.install({ time: now });
+    await page.clock.pauseAt(now);
+    await firstPlayer.click();
+
+    const profile = page.locator("[data-scouting-profile-modal]:visible");
+    const overview = profile.getByRole("tab", { name: "Overview", exact: true });
+    await overview.focus();
+    await expect(overview).toBeFocused();
+    await page.clock.runFor(40);
+    await expect(overview).toBeFocused();
+    // Complete the lightweight overview's deferred replacement with a tab focused.
+    await page.clock.runFor(700);
+    await expect(overview).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    const performance = profile.getByRole("tab", { name: "Performance", exact: true });
+    await expect(performance).toHaveAttribute("aria-selected", "true");
+    await expect(performance).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
+    await expect(overview).toHaveAttribute("aria-selected", "true");
+    await expect(overview).toBeFocused();
+    expect(boot.pageErrors).toEqual([]);
+  });
+}
+
 test("Scouting role model stays inside desktop and mobile viewports", async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 1440, height: 1000 });

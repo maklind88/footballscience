@@ -113,13 +113,18 @@ export function createDataSafetyRuntimeService(deps = {}) {
     const normalizedKey = String(key || "");
     const normalizedValue = String(value ?? "");
     const readView = getCentralCachedValueInfo(normalizedKey);
-    if (readView.source === "central-readonly-baseline") {
+    if (normalizedKey === "football-medical-team-v1" && readView.source !== "central-readonly-baseline" &&
+        readManifest().entries[normalizedKey]?.pendingCentralSync && getCentralStateBridge()?.canAutoSyncKey?.(normalizedKey) !== true) {
+      throw new Error("Medical recovery is pending an authorized central read. The local copy was retained.");
+    }
+    if (readView.source === "central-readonly-baseline" && !options.explicitReadViewWrite) {
       // Coach-only UI normalization stays in memory, away from the pending recovery copy.
       if (!setCentralCachedValue(normalizedKey, normalizedValue, readView)) {
         throw new Error("Central read view unavailable. The local recovery copy was retained.");
       }
       return;
     }
+    if (readView.source === "central-readonly-baseline") archiveReadViewRecovery(normalizedKey, readView);
     const previousNativeValue = isProtectedStorageKey(normalizedKey)
       ? nativeGetItem?.call(storage, normalizedKey)
       : null;
@@ -163,6 +168,35 @@ export function createDataSafetyRuntimeService(deps = {}) {
     const storage = getStorage();
     if (!storage || !nativeKey) return null;
     return nativeKey.call(storage, index);
+  }
+
+  function collectRecoveryCopies() {
+    const storage = getStorage(), copies = {};
+    for (let index = 0; storage && index < storage.length; index += 1) {
+      const key = rawKey(index);
+      if (key?.startsWith(`${storageKey}:recovery:`)) copies[key] = nativeGetItem.call(storage, key);
+    }
+    return copies;
+  }
+
+  function archiveReadViewRecovery(key, view) {
+    if (!view.canEdit || getCentralStateBridge()?.canAutoSyncKey?.(key) !== true) {
+      throw new Error("This central view is read-only. The local recovery copy was retained.");
+    }
+    const storage = getStorage();
+    const value = nativeGetItem.call(storage, key);
+    const manifest = JSON.parse(nativeGetItem.call(storage, storageKey) || "{}");
+    if (!manifest.entries || typeof manifest.entries !== "object") throw new Error("Local recovery metadata could not be verified.");
+    const entry = manifest.entries[key] || {};
+    const recoveryKey = `${storageKey}:recovery:${win.crypto.randomUUID()}`;
+    // Never adopt this historical copy as a new actor's edit or automatic retry.
+    const recovery = JSON.stringify({ key, value, entry, createdAt: getNow(), ownership: "unverified-recovery" });
+    nativeSetItem.call(storage, recoveryKey, recovery);
+    if (nativeGetItem.call(storage, recoveryKey) !== recovery) throw new Error("Local recovery copy could not be verified.");
+    if (nativeGetItem.call(storage, key) !== value ||
+        JSON.stringify(readManifest().entries[key] || {}) !== JSON.stringify(entry)) {
+      throw new Error("Local recovery changed. Retry your new edit after refreshing.");
+    }
   }
 
   function createManifest() {
@@ -312,6 +346,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
         entries,
       },
       storage,
+      recoveryCopies: collectRecoveryCopies(),
     };
   }
 
@@ -518,11 +553,21 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return;
     }
     const storage = getStorageFromBackup(backup);
+    if (Object.keys(backup.recoveryCopies || {}).length) {
+      win.alert?.("Backup not restored. Archived recovery copies require explicit review and cannot be imported automatically.");
+      return;
+    }
     const entries = Object.entries(storage || {}).filter(([key, value]) => isProtectedStorageKey(key) && typeof value === "string");
     if (!entries.length) {
       win.alert?.("That backup did not contain any restorable Football Science data.");
       return;
     }
+    const canRestore = () => {
+      if (!entries.some(([key]) => getCentralCachedValueInfo(key).source === "central-readonly-baseline")) return true;
+      win.alert?.("Backup not restored. A local recovery copy needs review before replacing this central view.");
+      return false;
+    };
+    if (!canRestore()) return;
     const createdAt = backup.createdAt ? new Date(backup.createdAt).toLocaleString() : "unknown time";
     const confirmed = await confirmPlatformAction({
       eyebrow: "Data Safety",
@@ -532,8 +577,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
       tone: "warning",
       win,
     });
-    if (!confirmed) return;
+    if (!confirmed || !canRestore()) return;
     await saveSnapshot("before-restore");
+    if (!canRestore()) return;
     try {
       entries.forEach(([key, value]) => {
         rawSetItem(key, value);
@@ -597,7 +643,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
       const normalizedKey = String(key || "");
       const normalizedValue = String(value ?? "");
       if (this !== storage || !isProtectedStorageKey(normalizedKey)) return nativeSetItem.call(this, key, value);
-      if (getCentralCachedValueInfo(normalizedKey).source === "central-readonly-baseline") {
+      const readView = getCentralCachedValueInfo(normalizedKey);
+      const separated = readView.source === "central-readonly-baseline";
+      if (separated && !readView.canEdit) {
         throw new Error("This central view is read-only. The local recovery copy was retained.");
       }
       if (!canWriteCentralBackedCache()) {
@@ -608,8 +656,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
       const previousValue = rawGetItem(normalizedKey);
       const previousPending = normalizedKey === "football-session-planner-v3" && Boolean(readManifest().entries?.[normalizedKey]?.pendingCentralSync);
       try {
-        const result = rawSetItem(normalizedKey, normalizedValue);
-        if (previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue,
+        const result = rawSetItem(normalizedKey, normalizedValue, { explicitReadViewWrite: separated });
+        if (separated || previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue,
           normalizedKey === "football-session-planner-v3" ? { previousValue, previousPending } : {});
         return result;
       } catch (error) {
@@ -635,6 +683,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return result;
     };
     storageConstructor.prototype.clear = function patchedDataSafetyClear() {
+      if (this === storage && Object.keys(collectRecoveryCopies()).length) {
+        throw new Error("Local recovery copies must be reviewed before clearing storage.");
+      }
       const removedKeys = this === storage ? Object.keys(collectStorageData()) : [];
       if (removedKeys.some((key) => getCentralCachedValueInfo(key).source === "central-readonly-baseline")) {
         throw new Error("This central view is read-only. The local recovery copy was retained.");

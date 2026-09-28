@@ -22,8 +22,9 @@ recommendation. All test data is synthetic.
   A read is not a save acknowledgement. Backup/export still reads that original.
 - Normal module reads use the view. Internal coach view normalization changes only
   the in-memory view; it does not claim local durability.
-- Protected writes, remove and clear refuse to destroy this recovery copy. The
-  read view cannot enter retry, direct queueing or empty-server seeding.
+- Protected writes by read-only actors, remove and clear refuse to destroy this
+  recovery copy. The read view cannot enter retry, direct queueing or empty-server
+  seeding. A fresh authorized read can enable new writes after hydration finishes.
 - Previously queued/in-flight responses cannot acknowledge the separated draft.
 - The view is bound to the current actor/organization (when present)/club/team/role.
   Scope changes and sign-out do not expose the old view or fall back to the draft.
@@ -32,9 +33,14 @@ recommendation. All test data is synthetic.
   fails the read. A successful snapshot omitting the key clears the visible view,
   not the recoverable draft.
 - A role change alone does not adopt the separated recovery copy as a new edit.
-  Pending recovery remains explicit; this change does not build a Medical journal
-  or a new recovery UI. A fresh runtime continues through the existing access and
-  Medical pending-recovery rules.
+  Before a new authorized write replaces it, the native value and manifest entry
+  are archived in a unique durable `football-data-safety-v1:recovery:` record and
+  read back for verification. Failure stops the new write. Copies are exported
+  under `recoveryCopies`, survive reload, never enter automatic sync/seed, and
+  block blanket clear. Their ownership remains explicitly unverified; they are
+  not automatically restored under a different actor. This is not a Medical
+  journal or new recovery UI. Existing Medical roster/schema normalization can
+  create a fresh server-derived write, but cannot adopt the old private draft.
 
 ## Verification
 
@@ -80,23 +86,42 @@ The follow-up code passed 3,025 tests (2,981 API/contracts, 34 central-state
 browser cases and 10 Medical clinical browser cases) and `npm run qa:static`.
 Seven targeted regression cases passed ten repetitions each (70/70).
 
-### Open Review Blockers
+### Automated Review Corrections
 
 The automated GitHub review of f73b0353 identified three additional P1 findings.
-This candidate is not ready for merge or deployment despite green initial CI:
+The follow-up addresses them as follows; fresh exact-commit CI/review is required:
 
-- Backup import reaches `rawSetItem`, which diverts a separated Medical view to
-  memory while the importer reports restoration and reloads. Restore must reject
-  the entire affected import before mutation or preserve a durable imported
-  generation; it must not report memory-only restoration as success.
-- A role promotion or new Medical editor on the same page inherits the read-only
-  marker. Enabling edits requires a writable authorized baseline while preserving
-  the old pending recovery copy separately, never automatically adopting it.
-- Token rotation discards the in-flight read, but a concurrent post-auth hydration
-  can return early while it is still active. The fresh request needs a bounded
-  drain after the active hydration terminates, with no stale-principal apply.
+- Backup import now rejects an affected import before mutation and rechecks after
+  confirmation/snapshot awaits. Backups containing recovery archives require
+  explicit review; the importer does not silently ignore/adopt those records or
+  report a volatile restoration as success.
+- Fresh authorized Medical hydration enables new edits only in the matching scope
+  after hydration terminates. The first new write archives the old recovery copy
+  before normal persistence. Browser tests exercise role promotion and a new
+  actor, revision-guarded normal writes, no old-draft adoption and archive reload.
+- Concurrent hydration callers coalesce into one scoped fresh request after the
+  active read finishes. Token-rotated responses remain rejected. Timer execution
+  revalidates scope/token, and does not loop without another request/context
+  change. Contracts cover coalescing and sign-out; the browser test uses the
+  real auth callback/post-auth hydration chain with deferred HTTP responses.
 
-These require regression-backed corrections and a fresh exact-commit CI/review.
+Backup rejection, quota-failed archival and unauthorized writes are fail-closed.
+Recovery archives are intentionally retained until an explicit reviewed recovery
+process; automatic archive import/cleanup is not part of this change.
+
+Repeated browser runs also reproduced an earlier boot boundary: the Home Medical
+reader can normalize storage before the authorized server view has been installed.
+The shared raw storage path now rejects replacing a pending Medical draft when
+write authority is absent, including during that initial read. The raw value and
+manifest remain unchanged until a verified view or authorized operation exists.
+The Medical module's normalization and clinical code are not changed.
+
+Final local verification of these corrections: 3,036 tests passed (2,989
+API/contracts, 37 central-state browser cases, 10 Medical clinical browser cases).
+The boot-preservation contract and all three new browser cases passed ten
+repetitions each (40/40). `npm run qa:static` and `git diff --check` passed without
+budget changes. Temporary write-stack diagnostics were removed. GitHub checks
+and a fresh review of the new commit remain separate from these local results.
 
 ## Remaining Platform Work
 

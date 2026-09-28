@@ -189,6 +189,7 @@
   let userCacheRefreshPromise = null;
   let postAuthHydrationTimer = 0;
   let postAuthHydrationRunId = 0;
+  let pendingCentralHydration = null;
   function normalizeRoleForAuth(rawRole, fallback = "coach") {
     if (Array.isArray(rawRole)) {
       return normalizeRoleForAuth(rawRole.find((entry) => typeof entry === "string" && entry.trim()) || "", fallback);
@@ -769,6 +770,9 @@ async function getActiveAccessToken() {
       durable: true,
       serverBacked: false,
       ...(centralStateValueMetadata.get(normalizedKey) || {}),
+      canEdit: centralStateValueMetadata.get(normalizedKey)?.allowExplicitWrite === true &&
+        centralStateValueMetadata.get(normalizedKey)?.readScope === getCentralReadScope() &&
+        Boolean(getCentralReadScope()) && !centralState.hydrating && canCurrentUserAutomaticallyWriteCentralStateKey(normalizedKey),
     };
   }
   function setCentralCachedValue(key, value, options = {}) {
@@ -783,6 +787,7 @@ async function getActiveAccessToken() {
       serverBacked: Boolean(options.serverBacked),
       ...(options.sessionViewToken ? { sessionViewToken: options.sessionViewToken } : {}),
       ...(options.readScope ? { readScope: options.readScope } : {}),
+      ...(options.allowExplicitWrite ? { allowExplicitWrite: true } : {}),
     });
     return true;
   }
@@ -1587,6 +1592,7 @@ async function getActiveAccessToken() {
           const sharedValue = stripCentralStateLocalUiFields(value, MEDICAL_LOCAL_UI_FIELDS);
           setCentralCachedValue(key, mergeCentralStateLocalUiFields(window.localStorage.getItem(key), sharedValue, MEDICAL_LOCAL_UI_FIELDS).value, {
             source: "central-readonly-baseline", durable: false, serverBacked: true, readScope: getCentralReadScope(),
+            allowExplicitWrite: canAutomaticallyWrite,
           });
           nextMetadata[key] = metadataEntry;
           return;
@@ -1699,6 +1705,10 @@ async function getActiveAccessToken() {
       return true;
     }
     if (centralState.hydrating || !authState.session?.access_token) {
+      if (centralState.hydrating && getCentralReadScope()) {
+        pendingCentralHydration = { scope: getCentralReadScope(), token: authState.session.access_token,
+          options: { fresh: true, forceApply: Boolean(options.forceApply) } };
+      }
       return centralState.hydrated;
     }
     centralState.hydrating = true;
@@ -1768,6 +1778,14 @@ async function getActiveAccessToken() {
       return false;
     } finally {
       centralState.hydrating = false;
+      // Coalesce callers while loading; never reuse an old operation's context.
+      const pending = pendingCentralHydration || (!isCurrent() && getCentralReadScope()
+        ? { scope: getCentralReadScope(), token: authState.session.access_token, options: { fresh: true } } : null);
+      pendingCentralHydration = null;
+      if (pending) window.setTimeout(() => {
+        if (pending.scope !== getCentralReadScope() || pending.token !== authState.session?.access_token) return false;
+        return hydrateCentralState(pending.options);
+      }, 0);
     }
   }
   async function syncCentralStateKey(key, value, options = {}) {

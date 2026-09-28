@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { createDataSafetyRuntimeService } from "../src/core/data-safety-runtime-service.mjs";
 
 function readProjectFile(relativePath) {
@@ -20,6 +21,7 @@ function createFakeStorageConstructor(options = {}) {
     return this.values.has(normalizedKey) ? this.values.get(normalizedKey) : null;
   };
   FakeStorage.prototype.setItem = function setItem(key, value) {
+    if (options.failRecovery && String(key).startsWith("football-data-safety-v1:recovery:")) throw new Error("Recovery quota exceeded");
     if (String(key) === options.failureKey) throw options.storageError;
     if (String(key) === options.quotaKey) {
       const error = new Error(`Setting ${String(key)} exceeded the quota.`);
@@ -62,6 +64,7 @@ function createHarness(options = {}) {
   let timerId = 0;
   const dataSafetyStatus = createStatusElement();
   const win = {
+    crypto: { randomUUID },
     localStorage,
     location: {
       href: "https://footballscience.xyz/",
@@ -93,6 +96,7 @@ function createHarness(options = {}) {
         return centralCache.delete(String(key));
       },
       getStatus: () => options.centralStatus || {},
+      canAutoSyncKey: () => options.canEdit !== false,
     },
     setTimeout: (callback, delay) => {
       timerId += 1;
@@ -146,6 +150,95 @@ function createHarness(options = {}) {
     queueCentralStateWrite: (...args) => queuedWrites.push(args),
   });
   return { centralCache, centralCacheInfo, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
+}
+
+test("Medical boot normalization cannot replace a pending draft before the central read view exists", async () => {
+  const key = "football-medical-team-v1";
+  const h = createHarness({ canEdit: false });
+  const entry = { pendingCentralSync: true, hash: "original", writes: 7, serverRevision: 1 };
+  h.localStorage.values.set(key, "private original draft");
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: entry } }));
+  h.service.install();
+  await Promise.resolve();
+  expect(() => h.service.rawSetItem(key, "sanitized boot normalization")).toThrow(/local copy was retained/);
+  expect(h.localStorage.values.get(key)).toBe("private original draft");
+  expect(h.service.readManifest().entries[key]).toEqual(entry);
+  expect(h.queuedWrites).toEqual([]);
+});
+
+test("backup import rejects a separated Medical view before restoring any entry", async () => {
+  const key = "football-medical-team-v1";
+  const h = createHarness({ centralCache: { [key]: "server view" },
+    centralCacheInfo: { [key]: { source: "central-readonly-baseline", durable: false } } });
+  h.localStorage.values.set(key, "old draft");
+  h.localStorage.values.set("football-schedule-v1", "old schedule");
+  h.service.install();
+  await Promise.resolve();
+  const before = Array.from(h.localStorage.values);
+  const alerts = [];
+  h.win.alert = (message) => alerts.push(message);
+  await h.service.importBackupFile({ text: async () => JSON.stringify({ keys: {
+    "football-schedule-v1": "imported schedule", [key]: "imported Medical",
+  } }) });
+  expect(Array.from(h.localStorage.values)).toEqual(before);
+  expect(h.queuedWrites).toEqual([]);
+  expect(alerts.some((message) => message.includes("Backup restored"))).toBe(false);
+  expect(alerts.join(" ")).toContain("recovery");
+});
+
+test("backup import rechecks the read-only view after confirmation", async () => {
+  const key = "football-medical-team-v1";
+  const h = createHarness({ centralCache: { [key]: "server view" } });
+  h.localStorage.values.set(key, "draft");
+  h.localStorage.values.set("football-schedule-v1", "schedule");
+  h.service.install(); await Promise.resolve();
+  const before = Array.from(h.localStorage.values);
+  h.win.confirm = () => { h.centralCacheInfo.set(key, { source: "central-readonly-baseline" }); return true; };
+  await h.service.importBackupFile({ text: async () => JSON.stringify({ keys: { "football-schedule-v1": "replacement", [key]: "replacement" } }) });
+  expect(Array.from(h.localStorage.values)).toEqual(before);
+  expect(h.queuedWrites).toEqual([]);
+});
+
+test("archived recovery in an exported backup is never automatically adopted by import", async () => {
+  const h = createHarness(); h.service.install(); await Promise.resolve();
+  const before = Array.from(h.localStorage.values), alerts = [];
+  h.win.alert = (message) => alerts.push(message);
+  await h.service.importBackupFile({ text: async () => JSON.stringify({
+    keys: { "football-medical-team-v1": "new view" }, recoveryCopies: { archived: "private old draft" },
+  }) });
+  expect(Array.from(h.localStorage.values)).toEqual(before);
+  expect(alerts.join(" ")).toContain("explicit review");
+  expect(h.queuedWrites).toEqual([]);
+});
+
+for (const failRecovery of [false, true]) {
+  test(`new authorized Medical edit archives the old pending generation before replacing it (quota: ${failRecovery})`, async () => {
+    const key = "football-medical-team-v1";
+    const h = createHarness({ failRecovery, centralCache: { [key]: "fresh server view" },
+      centralCacheInfo: { [key]: { source: "central-readonly-baseline", canEdit: true, durable: false } } });
+    const entry = { pendingCentralSync: true, hash: "old", writes: 7, serverRevision: 1 };
+    h.localStorage.values.set(key, "old private draft");
+    h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: entry } }));
+    h.service.install();
+    await Promise.resolve();
+    if (failRecovery) {
+      expect(() => h.localStorage.setItem(key, "new authorized edit")).toThrow(/quota/i);
+      expect(h.localStorage.values.get(key)).toBe("old private draft");
+      expect(h.service.readManifest().entries[key]).toEqual(entry);
+      expect(h.queuedWrites).toEqual([]);
+      return;
+    }
+    h.localStorage.setItem(key, "new authorized edit");
+    expect(h.localStorage.values.get(key)).toBe("new authorized edit");
+    expect(h.queuedWrites.map(([writeKey, value]) => [writeKey, value])).toEqual([[key, "new authorized edit"]]);
+    const recovery = Object.values(h.service.createBackupEnvelope().recoveryCopies).map(JSON.parse);
+    expect(recovery).toHaveLength(1);
+    expect(recovery[0]).toMatchObject({ key, value: "old private draft", entry });
+    h.centralCache.clear(); h.centralCacheInfo.clear();
+    expect(Object.values(h.service.createBackupEnvelope().recoveryCopies).map(JSON.parse)).toEqual(recovery);
+    expect(() => h.localStorage.clear()).toThrow(/recovery/);
+    expect(h.localStorage.values.get(key)).toBe("new authorized edit");
+  });
 }
 
 test("read-only central view preserves the pending disk generation during UI normalization, quota and backup", () => {

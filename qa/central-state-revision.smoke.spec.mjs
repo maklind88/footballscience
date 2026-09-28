@@ -66,7 +66,7 @@ function createFakeSupabaseScript(sessionUser = qaUser) {
             refreshSession: async () => ({ data: { session: window.__qaSession }, error: null }),
             signInWithPassword: async () => ({ data: { session: window.__qaSession }, error: null }),
             signOut: async () => ({ error: null }),
-            onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+            onAuthStateChange: (callback) => { window.__qaAuthStateCallback = callback; return { data: { subscription: { unsubscribe() {} } } }; },
           },
         };
       },
@@ -2517,6 +2517,119 @@ test("a deferred Medical read cannot publish a signed-out actor's data", async (
     }), medicalTeamStateKey)).toEqual({ view: "{}", raw: '{"records":[],"injuryPlans":[{"id":"draft"}]}', revision: 4, hydrating: false });
   } finally { release(); await closeCentralStateContext(tab.context); }
 });
+
+test("a token refresh during Medical loading drains a fresh read through the auth event chain", async ({ browser, baseURL }) => {
+  const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, role: "coach" } };
+  const value = JSON.stringify({ players: [{ id: "qa-player", name: "QA Player" }],
+    records: [{ id: "record", playerId: "qa-player", date: "2026-09-28", participation: 75 }], injuryPlans: [] });
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [medicalTeamStateKey]: value }, metadataEntries: { [medicalTeamStateKey]: createMetadata(4, value) } };
+  let hold = false, reads = 0, release;
+  const barrier = new Promise((resolve) => { release = resolve; });
+  const tab = await bootCentralPage(browser, baseURL, store, [], "medical-token-refresh", {
+    sessionUser: profile, profileUser: profile,
+    appStateReadHandler: async ({ request }) => {
+      if (!hold) return null;
+      const rotated = request.headers().authorization === "Bearer rotated-token";
+      if (!rotated) { reads += 1; await barrier; }
+      return { status: 200, body: { ok: true, entries: { [medicalTeamStateKey]: value },
+        metadata: { [medicalTeamStateKey]: createMetadata(rotated ? 6 : 5, value) } } };
+    },
+    initScript: ({ key, manifestKey }) => {
+      localStorage.setItem(key, '{"records":[],"injuryPlans":[{"id":"draft"}]}');
+      localStorage.setItem(manifestKey, JSON.stringify({ entries: { [key]: { pendingCentralSync: true, hash: "draft", writes: 7 } } }));
+    }, initArg: { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey },
+  });
+  try {
+    await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
+    hold = true;
+    await tab.page.evaluate((key) => {
+      window.__qaReadyRevisions = [];
+      window.addEventListener("footballscience:central-state-ready", () => window.__qaReadyRevisions.push(window.footballScienceCentralState.getStatus().metadata[key]?.revision));
+      window.__qaHeldHydration = window.footballScienceCentralState.hydrate({ fresh: true });
+    }, medicalTeamStateKey);
+    await expect.poll(() => reads).toBeGreaterThan(0);
+    await tab.page.evaluate(async () => {
+      window.__qaSession = { ...window.__qaSession, access_token: "rotated-token" };
+      await window.__qaAuthStateCallback("TOKEN_REFRESHED", window.__qaSession);
+    });
+    release();
+    expect(await tab.page.evaluate(() => window.__qaHeldHydration)).toBe(false);
+    await expect.poll(() => tab.page.evaluate((key) => window.footballScienceCentralState.getStatus().metadata[key]?.revision, medicalTeamStateKey)).toBe(6);
+    expect(await tab.page.evaluate(() => window.__qaReadyRevisions)).not.toContain(5);
+    expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
+  } finally { release(); await closeCentralStateContext(tab.context); }
+});
+
+for (const switchActor of [false, true]) {
+  test(`Medical read view permits a new authorized edit without adopting the old draft (new actor: ${switchActor})`, async ({ browser, baseURL }) => {
+    const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, role: "coach" } };
+    const centralValue = JSON.stringify({ selectedDate: "2026-09-28", players: [{ id: "qa-player", name: "QA Player" }],
+      records: [{ id: "server-record", playerId: "qa-player", date: "2026-09-28", participation: 75 }], injuryPlans: [] });
+    const draft = JSON.stringify({ players: [], records: [], injuryPlans: [{ id: "private-old-draft" }] });
+    const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+      entries: { [medicalTeamStateKey]: centralValue }, metadataEntries: { [medicalTeamStateKey]: createMetadata(4, centralValue) } };
+    const bodies = [];
+    const tab = await bootCentralPage(browser, baseURL, store, [], `medical-new-edit-${switchActor}`, {
+      sessionUser: profile, profileUser: profile, appStateWriteBodies: bodies,
+      appStateWriteHandler: ({ body, request }) => {
+        if (body.key !== medicalTeamStateKey) return null;
+        if (request.headers().authorization !== "Bearer medical-token") return { status: 403, body: { ok: false } };
+        const metadata = store.metadataEntries[medicalTeamStateKey];
+        if (body.baseRevision !== metadata.revision) return { status: 409, body: { ok: false, currentRevision: metadata.revision, currentValue: store.entries[medicalTeamStateKey] } };
+        store.entries[medicalTeamStateKey] = body.value;
+        store.metadataEntries[medicalTeamStateKey] = createMetadata(metadata.revision + 1, body.value);
+        return { status: 200, body: { ok: true, key: body.key, value: body.value, metadata: store.metadataEntries[body.key] } };
+      },
+      initScript: ({ key, draft, manifestKey }) => {
+        window.__qaNativeGetItem = Storage.prototype.getItem;
+        if (localStorage.getItem(key) !== null) return;
+        localStorage.setItem(key, draft);
+        localStorage.setItem(manifestKey, JSON.stringify({ entries: { [key]: { pendingCentralSync: true, hash: "old-draft", writes: 7, serverRevision: 1 } } }));
+      }, initArg: { key: medicalTeamStateKey, draft, manifestKey: dataSafetyManifestKey },
+    });
+    try {
+      await expect.poll(() => tab.page.evaluate((key) => window.footballScienceCentralState.getCachedValueInfo(key).source, medicalTeamStateKey)).toBe("central-readonly-baseline");
+      profile.app_metadata.role = "medical";
+      if (switchActor) profile.id = "qa-medical-new-actor";
+      await tab.page.evaluate(async (user) => {
+        window.__qaSession = { access_token: "medical-token", user };
+        await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
+      }, profile);
+      await expect.poll(() => tab.page.evaluate((key) => ({
+        role: window.platformAuthStore.getCurrentUser()?.role,
+        canAuto: window.footballScienceCentralState.canAutoSyncKey(key),
+        writable: window.footballScienceCentralState.getCachedValueInfo(key).canEdit || window.footballScienceCentralState.getCachedValueInfo(key).source === "local-write",
+        error: window.footballScienceCentralState.getStatus().lastError,
+      }), medicalTeamStateKey)).toMatchObject({ role: "medical", canAuto: true, writable: true, error: "" });
+      // Medical may persist its existing roster/schema normalization, but never the old draft.
+      await tab.page.waitForTimeout(400);
+      const baselineWrites = bodies.filter((body) => body.key === medicalTeamStateKey);
+      expect(baselineWrites.length).toBeLessThanOrEqual(1);
+      expect(baselineWrites.every((body) => !body.value.includes("private-old-draft") && JSON.parse(body.value).records[0].participation === 75)).toBe(true);
+      const baseRevision = store.metadataEntries[medicalTeamStateKey].revision;
+      await tab.page.evaluate((key) => {
+        const value = JSON.parse(localStorage.getItem(key));
+        value.records[0].participation = 50;
+        localStorage.setItem(key, JSON.stringify(value));
+      }, medicalTeamStateKey);
+      await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+        { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toBe(false);
+      const writes = bodies.filter((body) => body.key === medicalTeamStateKey);
+      expect(writes).toHaveLength(baselineWrites.length + 1);
+      expect(writes.at(-1).baseRevision).toBe(baseRevision);
+      expect(JSON.parse(store.entries[medicalTeamStateKey]).records[0].participation).toBe(50);
+      expect(store.entries[medicalTeamStateKey]).not.toContain("private-old-draft");
+      const copies = await tab.page.evaluate(() => Object.values(window.footballScienceDataSafety.createBackup().recoveryCopies).map(JSON.parse));
+      expect(copies).toHaveLength(1);
+      expect(copies[0]).toMatchObject({ value: draft, entry: { pendingCentralSync: true, hash: "old-draft", writes: 7, serverRevision: 1 } });
+      await tab.page.reload({ waitUntil: "domcontentloaded" });
+      await tab.page.waitForFunction(() => typeof window.footballScienceDataSafety?.createBackup === "function");
+      await expect.poll(() => tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}").records?.[0]?.participation, medicalTeamStateKey)).toBe(50);
+      expect(await tab.page.evaluate(() => Object.values(window.footballScienceDataSafety.createBackup().recoveryCopies).map(JSON.parse))).toEqual(copies);
+    } finally { await closeCentralStateContext(tab.context); }
+  });
+}
 
 test("Medical editor hydration still writes an automatic media merge", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");

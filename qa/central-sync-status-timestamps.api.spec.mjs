@@ -14,11 +14,13 @@ function createHarness() {
   const centralState = { metadata: {}, hydrated: true, lastSavedAt: "previous-save", lastFetchedAt: "previous-read" };
   const authState = { session: { access_token: "test-only" }, currentUser: { id: "actor-1", teamId: "team-1", role: "coach" }, devMode: false };
   const events = [];
+  const timers = [];
   const context = {
     centralState, authState,
+    pendingCentralHydration: null,
     readCentralStateBatches: async () => ({ ok: true, payload: { entries: { profile: "{}" } } }),
     applyCentralStateEntries: async () => {},
-    window: { dispatchEvent: (event) => events.push(event) },
+    window: { dispatchEvent: (event) => events.push(event), setTimeout: (callback) => { timers.push(callback); return timers.length; } },
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
     isCentralStateKey: () => true,
     SESSION_PLANNER_STATE_KEY: "football-session-planner-v3",
@@ -31,7 +33,35 @@ function createHarness() {
     collectCentralLocalStateEntries: () => ({}),
   };
   const api = runInNewContext(`${readScopeSource}\n${hydrateSource}\n${syncSource}\n({ hydrateCentralState, syncCentralStateKey })`, context);
-  return { api, centralState, authState, context, events };
+  return { api, centralState, authState, context, events, timers };
+}
+
+for (const signOut of [false, true]) {
+  test(`token rotation drains one fresh hydration after the active read (sign-out: ${signOut})`, async () => {
+    const h = createHarness();
+    let release, reads = 0, applied = 0;
+    const barrier = new Promise((resolve) => { release = resolve; });
+    h.context.readCentralStateBatches = async () => {
+      if (++reads === 1) await barrier;
+      return { ok: true, payload: { entries: { profile: "{}" } } };
+    };
+    h.context.applyCentralStateEntries = async () => { applied += 1; };
+    const first = h.api.hydrateCentralState();
+    h.authState.session.access_token = "rotated";
+    await h.api.hydrateCentralState({ fresh: true });
+    await h.api.hydrateCentralState({ fresh: true });
+    release();
+    expect(await first).toBe(false);
+    expect(applied).toBe(0);
+    expect(h.timers).toHaveLength(1);
+    if (signOut) { h.authState.session = null; h.authState.currentUser = null; }
+    await h.timers.shift()();
+    expect(reads).toBe(signOut ? 1 : 2);
+    expect(applied).toBe(signOut ? 0 : 1);
+    expect(h.events).toHaveLength(signOut ? 0 : 1);
+    expect(h.timers).toHaveLength(0);
+    expect(h.centralState.hydrating).toBe(false);
+  });
 }
 
 test("successful fetch preserves saved timestamp; successful write preserves fetched timestamp", async () => {

@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
+import { join } from "node:path";
 import { syntheticPostgres, statementOutcome } from "./helpers/relations-permissions-postgres.mjs";
 import { receiptPostgresHttp } from "./helpers/session-receipt-postgres-http.mjs";
 
@@ -48,6 +49,7 @@ test("paged backup uses real PostgreSQL, bounded pages and exact content", { tim
         jsonb_build_object('audit', jsonb_build_object('id',operation_id,'content',repeat('synthetic-history-',21000)))
       from public.session_save_receipts;`);
     let snapshot;
+    let restored;
     await t.test("more than 64MB is exported in verified chunks without increasing the 32MB archive guard", async () => {
       const size = Number(await sql("select sum(octet_length(payload::text)) from public.session_save_effects"));
       assert.ok(size > 64 * 1024 * 1024);
@@ -71,6 +73,12 @@ test("paged backup uses real PostgreSQL, bounded pages and exact content", { tim
       assert.equal(other.entry, null);
       assert.equal(other.receiptCount, 0);
     });
+    await t.test("service role can read bounded pages without granting access to client roles", async () => {
+      const page = JSON.parse(await sql("set role service_role; select public.snapshot_session_save_page('global'); reset role;"));
+      assert.equal(page.receiptCount, 189);
+      assert.equal(page.rows.length, 10);
+      assert.equal(page.entry.value, value);
+    });
     await t.test("a concurrent save rejects the export instead of mixing revisions", async () => {
       let requests = 0;
       global.fetch = async (...args) => {
@@ -88,24 +96,51 @@ test("paged backup uses real PostgreSQL, bounded pages and exact content", { tim
       assert.equal(requests, 2);
       global.fetch = http.fetch;
     });
-    await t.test("restore decoded chunks into an isolated database with exact data digests", async () => {
+    await t.test("restore decoded chunks under the real schema and constraints with exact data digests", async () => {
+      const schema = join(db.root, "paged-schema.dump");
+      await db.pg.run("pg_dump", ["--schema-only", "-Fc", "-f", schema], { env: db.source });
       await db.pg.run("createdb", ["paged_restore"], { env: db.source });
-      const target = { ...db.source, PGDATABASE: "paged_restore" };
-      await db.pg.sql(target, "create table restored_receipts (row jsonb); create table restored_effects (row jsonb); create table restored_state (row jsonb);");
-      await db.pg.sql(target, `insert into restored_state values (${quote(JSON.stringify(snapshot.entry))}::jsonb)`);
+      restored = { ...db.source, PGDATABASE: "paged_restore" };
+      await db.pg.run("pg_restore", ["--exit-on-error", "--single-transaction", "-d", "paged_restore", schema], { env: restored });
+      const statements = [`insert into public.platform_app_state_records select * from
+        jsonb_populate_record(null::public.platform_app_state_records, ${quote(JSON.stringify(snapshot.entry))}::jsonb);`];
       for (const chunk of snapshot.chunks) {
         const rows = decodeBackupChunk(chunk);
-        await db.pg.sql(target, `begin;
-          insert into restored_receipts values ${rows.map((row) => `(${quote(JSON.stringify(row.receipt))}::jsonb)`).join(",")};
-          insert into restored_effects values ${rows.map((row) => `(${quote(JSON.stringify(row.effect))}::jsonb)`).join(",")}; commit;`);
+        for (const [kind, field] of [["receipts", "receipt"], ["effects", "effect"]]) {
+          statements.push(`insert into public.session_save_${kind} select * from
+            jsonb_populate_recordset(null::public.session_save_${kind}, ${quote(JSON.stringify(rows.map((row) => row[field])))}::jsonb);`);
+        }
       }
+      await db.pg.sql(restored, `begin; ${statements.join("\n")} commit;`);
       for (const kind of ["receipts", "effects"]) {
         const sourceHash = await sql(`select md5(string_agg(md5(to_jsonb(r)::text), '' order by actor_id,operation_id)) from public.session_save_${kind} r`);
-        const targetHash = await db.pg.sql(target, `select md5(string_agg(md5(row::text), '' order by row->>'actor_id',row->>'operation_id')) from restored_${kind}`);
+        const targetHash = await db.pg.sql(restored, `select md5(string_agg(md5(to_jsonb(r)::text), '' order by actor_id,operation_id)) from public.session_save_${kind} r`);
         assert.equal(targetHash, sourceHash);
-        assert.equal(Number(await db.pg.sql(target, `select count(*) from restored_${kind}`)), 189);
+        assert.equal(Number(await db.pg.sql(restored, `select count(*) from public.session_save_${kind}`)), 189);
       }
-      assert.equal((await db.pg.sql(target, "select row->>'value' from restored_state")).trim(), value);
+      assert.deepEqual(JSON.parse(await db.pg.sql(restored, "select to_jsonb(r) from public.platform_app_state_records r")), snapshot.entry);
+    });
+    await t.test("restored v2 receipts prevent replay from overwriting a newer save", async () => {
+      const nextValue = JSON.stringify({ sessions: { "2026-09-27": { title: "New synthetic edit after restore" } } });
+      const entry = { organizationId: "global", key, moduleId: "session-planner", mergePolicy: "date-scoped",
+        updatedBy: "coach-new", value: nextValue, hash: hash(nextValue), removed: false, metadata: {} };
+      const run = async (body) => JSON.parse(await db.pg.sql(restored, `set role service_role; ${body}; reset role;`));
+      const result = await run(`select public.commit_session_save(${quote(JSON.stringify(entry))}::jsonb,
+        200, 'after-restore', ${quote(hash(nextValue))}, '2026-09-27', 'coach-new', '{"audit":true}'::jsonb)`);
+      assert.equal(result.status, "committed");
+      assert.equal(result.entry.revision, 201);
+      entry.updatedBy = "coach-1";
+      entry.value = value;
+      entry.hash = hash(value);
+      const replay = await run(`select public.commit_session_save(${quote(JSON.stringify(entry))}::jsonb,
+        0, 'save-0001', '${"a".repeat(64)}', '2026-09-27', 'coach-1', '{"audit":true}'::jsonb)`);
+      assert.equal(replay.status, "duplicate");
+      assert.equal(replay.acceptedRevision, 1);
+      assert.equal(replay.entry.revision, 201);
+      assert.equal(replay.entry.value, nextValue);
+      for (const kind of ["receipts", "effects"]) {
+        assert.equal(Number(await db.pg.sql(restored, `select count(*) from public.session_save_${kind}`)), 190);
+      }
     });
     await t.test("missing ledger row fails closed at the database boundary", async () => {
       await sql("delete from public.session_save_effects where operation_id='save-0001'");

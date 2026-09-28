@@ -42,12 +42,16 @@ not arbitrary guard increases or history deletion.
 
 Local PostgreSQL 17, disposable databases and synthetic data only:
 
-- 30/30 tests across paged backup, existing receipt transactions and real API/client
+- 32/32 tests across paged backup, existing receipt transactions and real API/client
   integration. Includes over 64 MiB of history, 189 exact events, cross-org negative,
   denied anon/authenticated execution, concurrent change and unavailable page.
-- Decoded backup content restored into isolated JSONB tables: exact per-table
-  count/content digests and authoritative state value match. This verifies the new
-  encoding, not a newly implemented production restore command.
+- Decoded backup content restored in one transaction into an isolated copy of the
+  actual schema, including constraints, functions and grants: exact per-table
+  count/content digests and the complete authoritative record match. A subsequent
+  service-role save succeeds; replay of an old restored receipt returns the newer
+  value without duplicating history. This is a recovery test, not a newly
+  implemented production restore command.
+- Service-role paging succeeds while anon/authenticated execution remains denied.
 - Existing pg_dump restore test still proves receipt replay and latest-state safety
   under the original database constraints.
 - Actual backup API preserves the previous pointer and all Storage objects when
@@ -58,9 +62,26 @@ Local PostgreSQL 17, disposable databases and synthetic data only:
   architecture budgets pass. No budget was increased.
 
 The dedicated path-filtered GitHub workflow runs all three native PostgreSQL files
-without live credentials. Its CI result is pending until this candidate is pushed
-and reviewed. Local PostgreSQL requires the sandbox permission to initialize an
-isolated cluster; the first sandboxed attempt was blocked before database tests.
+without live credentials. PR 245's initial candidate b22dcd50 passed full QA,
+CodeQL and native PostgreSQL CI. The review strengthens the real-schema restore
+proof above; the updated commit requires fresh exact-SHA CI before release.
+Local PostgreSQL requires the sandbox permission to initialize an isolated cluster;
+the sandboxed attempt was blocked before database tests.
+
+## Pre-release Review
+
+- Scope: backup encoding, additive read-only RPC and regression coverage only.
+  No client data, training records, permissions or live database were changed.
+- Read consistency: immutable receipt/effect rows plus a revision/hash/count
+  anchor checked through an empty terminal page. A changing source aborts rather
+  than publishing a mixed snapshot. No new locks block coaching writes.
+- Recovery: old v1 archives stay readable; corrupt/missing chunks and incomplete
+  effects are rejected. Real-schema recovery/replay is verified locally with
+  synthetic data. Production recovery/freshness remains a release gate.
+- Operational limit: the local test cannot prove live RPC/network latency or the
+  deployed function's duration budget. Measure a complete staging export and its
+  restore drill before production. Do not increase timeouts or bypass gates to
+  make a slow export pass. Sustained writes and capacity limits remain as above.
 
 ## Release Order (Requires Direct User Authorization)
 

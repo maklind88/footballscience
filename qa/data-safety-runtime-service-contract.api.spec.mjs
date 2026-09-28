@@ -148,6 +148,42 @@ function createHarness(options = {}) {
   return { centralCache, centralCacheInfo, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
 
+test("read-only central view preserves the pending disk generation during UI normalization, quota and backup", () => {
+  const key = "football-medical-team-v1";
+  const h = createHarness({ quotaKey: key, centralCache: { [key]: "server recommendation" },
+    centralCacheInfo: { [key]: { source: "central-readonly-baseline", durable: false, serverBacked: true } } });
+  const manifest = JSON.stringify({ entries: { [key]: { pendingCentralSync: true, hash: "draft", writes: 7, serverRevision: 1 } } });
+  h.localStorage.values.set(key, "unsent clinical draft");
+  h.localStorage.values.set("football-data-safety-v1", manifest);
+  h.service.install();
+  const installedManifest = h.localStorage.values.get("football-data-safety-v1");
+  expect(h.localStorage.getItem(key)).toBe("server recommendation");
+  expect(h.service.rawGetItem(key)).toBe("unsent clinical draft");
+  h.service.rawSetItem(key, "normalized coach view");
+  expect(h.localStorage.getItem(key)).toBe("normalized coach view");
+  expect(h.service.rawGetItem(key)).toBe("unsent clinical draft");
+  expect(h.service.createBackupEnvelope("manual").storage[key]).toBe("unsent clinical draft");
+  expect(h.localStorage.values.get("football-data-safety-v1")).toBe(installedManifest);
+  expect(h.service.readManifest().entries).toEqual(JSON.parse(manifest).entries);
+  expect(h.centralCacheInfo.get(key)).toEqual({ source: "central-readonly-baseline", durable: false, serverBacked: true });
+  expect(h.queuedWrites).toEqual([]);
+});
+
+test("read-only central view rejects write/remove/clear before touching any durable recovery data", () => {
+  const key = "football-medical-team-v1";
+  const h = createHarness({ centralCache: { [key]: "server view" },
+    centralCacheInfo: { [key]: { source: "central-readonly-baseline", durable: false, serverBacked: true } } });
+  h.localStorage.values.set(key, "draft");
+  h.localStorage.values.set("football-schedule-v1", "schedule");
+  h.service.install();
+  const before = Array.from(h.localStorage.values);
+  for (const action of [() => h.localStorage.setItem(key, "edit"), () => h.localStorage.removeItem(key), () => h.localStorage.clear()]) {
+    expect(action).toThrow(/read-only/);
+    expect(Array.from(h.localStorage.values)).toEqual(before);
+  }
+  expect(h.queuedWrites).toEqual([]);
+});
+
 test("background reads do not appear as saves or move the last saved time", () => {
   const centralStatus = { hydrated: true, lastSyncedAt: "10:00", lastFetchedAt: "10:00", lastSavedAt: "" };
   const h = createHarness({ centralStatus, formatTime: (value) => value || "" });

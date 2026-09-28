@@ -12,6 +12,39 @@ function createManifest() {
   };
 }
 
+test("Medical read-only baseline never becomes a retry or acknowledgement even after access changes", async () => {
+  const key = "football-medical-team-v1";
+  const h = createServiceHarness({ cachedInfo: { source: "central-readonly-baseline", serverBacked: true } });
+  h.rawValues.set(key, "unsent draft");
+  const entry = { pendingCentralSync: true, hash: "draft", writes: 7, serverRevision: 1 };
+  h.manifest.entries[key] = { ...entry };
+  await h.service.retryCentral(() => h.manifest);
+  h.service.queueCentralStateWrite(key, "server view", { automatic: true });
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toEqual([]);
+  expect(h.manifest.entries[key]).toEqual(entry);
+  expect(h.timers.size).toBe(0);
+});
+
+for (const status of [200, 403, 409, 0]) {
+  test(`an in-flight ${status} response cannot mutate Medical recovery after a read-only view is installed`, async () => {
+    const key = "football-medical-team-v1", cachedInfo = { source: "local-write" };
+    const h = createServiceHarness({ cachedInfo, syncKey: async () => {
+      cachedInfo.source = "central-readonly-baseline";
+      return { ok: status === 200, status, revision: 8, value: "server view" };
+    } });
+    h.rawValues.set(key, "draft");
+    h.manifest.entries[key] = { pendingCentralSync: true, hash: "draft", writes: 7, serverRevision: 1 };
+    h.service.queueCentralStateWrite(key, "draft");
+    const queuedEntry = structuredClone(h.manifest.entries[key]);
+    await h.service.flushCentralStateWrites();
+    expect(h.syncCalls).toHaveLength(1);
+    expect(h.manifest.entries[key]).toEqual(queuedEntry);
+    expect(h.rawValues.get(key)).toBe("draft");
+    expect(h.handledKeys).toEqual([]);
+  });
+}
+
 test("retry never acknowledges the read-only Sessions baseline as the missing pending edit", async () => {
   const harness = createServiceHarness({ cachedInfo: { source: "central-pending-baseline", serverBacked: true } });
   const key = "football-session-planner-v1";

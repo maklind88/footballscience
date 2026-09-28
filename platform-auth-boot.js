@@ -663,7 +663,7 @@ async function getActiveAccessToken() {
     try {
       for (let index = 0; index < window.localStorage.length; index += 1) {
         const key = window.localStorage.key(index);
-        if (isCentralStateKey(key)) {
+        if (isCentralStateKey(key) && getCentralCachedValueInfo(key).source !== "central-readonly-baseline") {
           entries[key] = window.localStorage.getItem(key) ?? "";
         }
       }
@@ -749,7 +749,14 @@ async function getActiveAccessToken() {
   }
   function getCentralCachedValue(key) {
     const normalizedKey = String(key || "");
+    const info = centralStateValueMetadata.get(normalizedKey);
+    if (info?.readScope && info.readScope !== getCentralReadScope()) return "{}";
     return centralStateValues.has(normalizedKey) ? centralStateValues.get(normalizedKey) : undefined;
+  }
+  function getCentralReadScope() {
+    const user = authState.currentUser;
+    return user?.id && authState.session?.access_token
+      ? JSON.stringify([user.id, user.organizationId || "", user.clubId || "", user.teamId || "", user.role]) : "";
   }
   function getCentralCachedValueInfo(key) {
     const normalizedKey = String(key || "");
@@ -757,7 +764,7 @@ async function getActiveAccessToken() {
       return { value: undefined, source: "", durable: false, serverBacked: false };
     }
     return {
-      value: centralStateValues.get(normalizedKey),
+      value: getCentralCachedValue(normalizedKey),
       source: "local-write",
       durable: true,
       serverBacked: false,
@@ -775,6 +782,7 @@ async function getActiveAccessToken() {
       durable: options.durable !== false,
       serverBacked: Boolean(options.serverBacked),
       ...(options.sessionViewToken ? { sessionViewToken: options.sessionViewToken } : {}),
+      ...(options.readScope ? { readScope: options.readScope } : {}),
     });
     return true;
   }
@@ -782,6 +790,17 @@ async function getActiveAccessToken() {
     const normalizedKey = String(key || "");
     centralStateValueMetadata.delete(normalizedKey);
     return centralStateValues.delete(normalizedKey);
+  }
+  function clearMissingCentralReadViews(entries) {
+    for (const key of centralStateValues.keys()) {
+      if (getCentralCachedValueInfo(key).source === "central-readonly-baseline" &&
+          !Object.prototype.hasOwnProperty.call(entries, key)) {
+        // Read revocation must not expose or seed the private recovery copy on disk.
+        setCentralCachedValue(key, "{}", {
+          source: "central-readonly-baseline", durable: false, serverBacked: true, readScope: getCentralReadScope(),
+        });
+      }
+    }
   }
   function setCentralCacheFallbackState(key, isFallback) {
     const fallbackKeys = new Set(centralState.cacheFallbackKeys || []);
@@ -1488,12 +1507,14 @@ async function getActiveAccessToken() {
     const sessionScope = getSessionSaveScope();
     const sessionClient = await getSessionSaveClient();
     const { preserveSessionSaveLocalUi } = await import("./src/modules/session-planner/session-save-local-ui.mjs");
+    if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
     if (sessionScope !== getSessionSaveScope()) throw new Error("Account or team changed during central load.");
     sessionClient.observe(normalizedEntries[SESSION_PLANNER_STATE_KEY] || '{"sessions":{}}', incomingMetadata[SESSION_PLANNER_STATE_KEY]);
     const sessionView = await sessionClient.project().catch(() => {
       centralState.lastWriteError = "Local save queue unavailable. Local training changes were retained.";
       return null;
     });
+    if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
     if (sessionScope !== getSessionSaveScope()) throw new Error("Account or team changed during central load.");
     if (sessionScope && (!sessionView || sessionView.pending) && !(SESSION_PLANNER_STATE_KEY in normalizedEntries)) {
       normalizedEntries[SESSION_PLANNER_STATE_KEY] = '{"sessions":{}}';
@@ -1504,6 +1525,7 @@ async function getActiveAccessToken() {
     const requiredWriteBackEntries = [];
     const resolvedPendingKeys = [];
     const hydratedRevisionEntries = [];
+    clearMissingCentralReadViews(normalizedEntries);
     window.__footballScienceCentralHydrating = true;
     try {
       for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
@@ -1511,6 +1533,7 @@ async function getActiveAccessToken() {
         if (
           shouldRemoveLocalCentralStateKey(key) &&
           !Object.prototype.hasOwnProperty.call(normalizedEntries, key) &&
+          getCentralCachedValueInfo(key).source !== "central-readonly-baseline" &&
           !pendingEntries[key]?.pendingCentralSync
         ) {
           window.localStorage.removeItem(key);
@@ -1549,7 +1572,23 @@ async function getActiveAccessToken() {
             return;
           }
         }
-        if (key === MEDICAL_TEAM_STATE_KEY && pendingEntry?.pendingCentralSync && !canAutomaticallyWrite) {
+        if (key === MEDICAL_TEAM_STATE_KEY && pendingEntry?.pendingCentralSync &&
+            (!canAutomaticallyWrite || getCentralCachedValueInfo(key).source === "central-readonly-baseline")) {
+          // A server read is not an acknowledgement of the unsent recovery copy on disk.
+          const cached = getCentralCachedValueInfo(key);
+          if (!Number.isInteger(metadataEntry.revision) || metadataEntry.revision < 0) {
+            throw new Error("Medical data could not be verified. The local recovery copy was retained.");
+          }
+          if (cached.source === "central-readonly-baseline" && cached.readScope === getCentralReadScope() &&
+              Number(metadataEntry.revision) < Number(centralState.metadata[key]?.revision)) {
+            nextMetadata[key] = centralState.metadata[key];
+            return;
+          }
+          const sharedValue = stripCentralStateLocalUiFields(value, MEDICAL_LOCAL_UI_FIELDS);
+          setCentralCachedValue(key, mergeCentralStateLocalUiFields(window.localStorage.getItem(key), sharedValue, MEDICAL_LOCAL_UI_FIELDS).value, {
+            source: "central-readonly-baseline", durable: false, serverBacked: true, readScope: getCentralReadScope(),
+          });
+          nextMetadata[key] = metadataEntry;
           return;
         }
         if (!shouldApplyCentralStateEntry(key, pendingEntry, metadataEntry, value, options)) {
@@ -1618,6 +1657,9 @@ async function getActiveAccessToken() {
             }
           }
         }
+        if (!pendingEntry?.pendingCentralSync && getCentralCachedValueInfo(key).source === "central-readonly-baseline") {
+          removeCentralCachedValue(key);
+        }
         cacheCentralStateValue(key, valueToApply);
         hydratedRevisionEntries.push([key, metadataEntry, pendingEntry]);
       });
@@ -1660,9 +1702,14 @@ async function getActiveAccessToken() {
     }
     centralState.hydrating = true;
     centralState.lastError = "";
+    const readScope = getCentralReadScope();
+    const readToken = authState.session.access_token;
+    const isCurrent = () => readScope === getCentralReadScope() && readToken === authState.session?.access_token;
     try {
+      if (!readScope) return false;
       centralState.localDev = false;
       const response = await readCentralStateBatches(options);
+      if (!isCurrent()) return false;
       if (!response.ok) {
         centralState.lastError = response.payload?.reason || "Central app data could not be loaded.";
         return false;
@@ -1675,8 +1722,9 @@ async function getActiveAccessToken() {
         : {};
       const hasCentralEntries = Object.keys(entries).length > 0;
       if (hasCentralEntries) {
-        await applyCentralStateEntries(entries, metadata, options);
+        await applyCentralStateEntries(entries, metadata, { ...options, isCurrent });
       } else {
+        clearMissingCentralReadViews(entries);
         const localEntries = collectCentralLocalStateEntries();
         // A missing Sessions record is an empty authoritative baseline, not permission to restore a cache.
         delete localEntries[SESSION_PLANNER_STATE_KEY];
@@ -1727,6 +1775,8 @@ async function getActiveAccessToken() {
     if (!authState.session?.access_token || !isCentralStateKey(key)) {
       return { ok: false, reason: "Sync not ready." };
     }
+    const isReadOnlyView = () => getCentralCachedValueInfo(key).source === "central-readonly-baseline";
+    if (isReadOnlyView()) return { ok: false, reason: "Read-only central view; local recovery copy retained." };
     try {
       centralState.localDev = false;
       if (key === SESSION_PLANNER_STATE_KEY && !options.removed) {
@@ -1772,6 +1822,7 @@ async function getActiveAccessToken() {
         method: options.removed ? "DELETE" : "POST",
         body,
       });
+      if (isReadOnlyView()) return { ok: false, reason: "Read-only central view; local recovery copy retained." };
       if (!response.ok) {
         centralState.lastWriteError = response.payload?.reason || "Sync failed.";
         return {

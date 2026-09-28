@@ -161,6 +161,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     const manifest = typeof readManifest === "function" ? readManifest() : {};
     for (const [key, entry] of Object.entries(manifest.entries || {})) {
+      if (getCentralStateBridge()?.getCachedValueInfo?.(key)?.source === "central-readonly-baseline") continue;
       // New Sessions retries use immutable journal entries, never an old whole-calendar cache.
       if (key === sessionPlannerStorageKey && getCentralStateBridge()?.stageSessionWrite) continue;
       if (key === sessionPlannerStorageKey &&
@@ -366,6 +367,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (typeof bridge?.isCentralKey === "function" && !bridge.isCentralKey(normalizedKey)) {
       return;
     }
+    if (bridge?.getCachedValueInfo?.(normalizedKey)?.source === "central-readonly-baseline") return;
     if (!getCurrentUser() || !bridge?.syncKey) {
       queueCentralStateStatus("Central sync unavailable.");
       reportSyncStatus(normalizedKey, "issue", "Central sync unavailable.");
@@ -409,6 +411,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     centralStateWriteQueue.clear();
     for (let index = 0; index < writes.length; index += 1) {
       const write = writes[index];
+      if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
       if (write.automatic && bridge.canAutoSyncKey?.(write.key) === false) {
         continue;
       }
@@ -427,6 +430,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
       } finally {
         centralStateActiveWriteKeys.delete(write.key);
       }
+      // Hydration can separate the server view while this older write is awaiting a response.
+      if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
       if (!result?.ok) {
         if (write.key === sessionPlannerStorageKey && result?.reviewRequired) {
           flushIssue = result.reason;

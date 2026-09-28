@@ -100,7 +100,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
   function rawGetItem(key) {
     const storage = getStorage();
     if (!storage || !nativeGetItem) return null;
-    if (isProtectedStorageKey(key)) {
+    if (isProtectedStorageKey(key) && getCentralCachedValueInfo(key).source !== "central-readonly-baseline") {
       const cachedValue = getCentralCachedValue(key);
       if (cachedValue !== null) return cachedValue;
     }
@@ -112,6 +112,14 @@ export function createDataSafetyRuntimeService(deps = {}) {
     if (!storage || !nativeSetItem) return;
     const normalizedKey = String(key || "");
     const normalizedValue = String(value ?? "");
+    const readView = getCentralCachedValueInfo(normalizedKey);
+    if (readView.source === "central-readonly-baseline") {
+      // Coach-only UI normalization stays in memory, away from the pending recovery copy.
+      if (!setCentralCachedValue(normalizedKey, normalizedValue, readView)) {
+        throw new Error("Central read view unavailable. The local recovery copy was retained.");
+      }
+      return;
+    }
     const previousNativeValue = isProtectedStorageKey(normalizedKey)
       ? nativeGetItem?.call(storage, normalizedKey)
       : null;
@@ -589,6 +597,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
       const normalizedKey = String(key || "");
       const normalizedValue = String(value ?? "");
       if (this !== storage || !isProtectedStorageKey(normalizedKey)) return nativeSetItem.call(this, key, value);
+      if (getCentralCachedValueInfo(normalizedKey).source === "central-readonly-baseline") {
+        throw new Error("This central view is read-only. The local recovery copy was retained.");
+      }
       if (!canWriteCentralBackedCache()) {
         const error = createCentralBackedStorageError();
         handleWriteError(normalizedKey, error);
@@ -609,6 +620,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
     storageConstructor.prototype.removeItem = function patchedDataSafetyRemoveItem(key) {
       const normalizedKey = String(key || "");
       if (this !== storage || !isProtectedStorageKey(normalizedKey)) return nativeRemoveItem.call(this, key);
+      if (getCentralCachedValueInfo(normalizedKey).source === "central-readonly-baseline") {
+        throw new Error("This central view is read-only. The local recovery copy was retained.");
+      }
       if (!canWriteCentralBackedCache()) {
         const error = createCentralBackedStorageError();
         handleWriteError(normalizedKey, error);
@@ -622,6 +636,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
     };
     storageConstructor.prototype.clear = function patchedDataSafetyClear() {
       const removedKeys = this === storage ? Object.keys(collectStorageData()) : [];
+      if (removedKeys.some((key) => getCentralCachedValueInfo(key).source === "central-readonly-baseline")) {
+        throw new Error("This central view is read-only. The local recovery copy was retained.");
+      }
       if (this === storage && removedKeys.length && !canWriteCentralBackedCache()) {
         const error = createCentralBackedStorageError();
         handleWriteError(removedKeys[0], error);

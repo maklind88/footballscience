@@ -8,10 +8,11 @@ const syncStart = source.indexOf("  async function syncCentralStateKey(");
 const syncEnd = source.indexOf("\n  function ", syncStart);
 const syncAsyncEnd = source.indexOf("\n  async function ", syncStart + 10);
 const syncSource = source.slice(syncStart, Math.min(...[syncEnd, syncAsyncEnd].filter((value) => value > syncStart)));
+const readScopeSource = source.slice(source.indexOf("  function getCentralReadScope("), source.indexOf("  function getCentralCachedValueInfo("));
 
 function createHarness() {
   const centralState = { metadata: {}, hydrated: true, lastSavedAt: "previous-save", lastFetchedAt: "previous-read" };
-  const authState = { session: { access_token: "test-only" }, devMode: false };
+  const authState = { session: { access_token: "test-only" }, currentUser: { id: "actor-1", teamId: "team-1", role: "coach" }, devMode: false };
   const events = [];
   const context = {
     centralState, authState,
@@ -25,10 +26,11 @@ function createHarness() {
     getCentralStateBaseRevision: () => 1,
     apiRequest: async () => ({ ok: true, payload: { metadata: { revision: 2 } } }),
     getCentralCachedValue: () => "{}",
+    getCentralCachedValueInfo: () => ({}),
     removeCentralCachedValue: () => {},
     collectCentralLocalStateEntries: () => ({}),
   };
-  const api = runInNewContext(`${hydrateSource}\n${syncSource}\n({ hydrateCentralState, syncCentralStateKey })`, context);
+  const api = runInNewContext(`${readScopeSource}\n${hydrateSource}\n${syncSource}\n({ hydrateCentralState, syncCentralStateKey })`, context);
   return { api, centralState, authState, context, events };
 }
 
@@ -66,3 +68,38 @@ test("local development hydration is not mistaken for a write", async () => {
   expect(h.centralState.lastSavedAt).toBe("previous-save");
   expect(h.centralState.lastFetchedAt).not.toBe("previous-read");
 });
+
+for (const changedField of ["id", "organizationId", "clubId", "teamId", "role"]) {
+  test(`a read response after changing ${changedField} cannot apply or publish ready`, async () => {
+    const h = createHarness();
+    let applied = false;
+    h.context.applyCentralStateEntries = async () => { applied = true; };
+    h.context.readCentralStateBatches = async () => {
+      h.authState.currentUser[changedField] = "changed";
+      return { ok: true, payload: { entries: { profile: "{}" } } };
+    };
+    expect(await h.api.hydrateCentralState()).toBe(false);
+    expect(applied).toBe(false);
+    expect(h.events).toEqual([]);
+    expect(h.centralState.lastFetchedAt).toBe("previous-read");
+    expect(h.centralState.hydrating).toBe(false);
+  });
+}
+
+for (const alreadyReadOnly of [true, false]) {
+  test(`a Medical readonly view blocks response metadata/cache mutation (present before request: ${alreadyReadOnly})`, async () => {
+    const h = createHarness();
+    const info = { source: alreadyReadOnly ? "central-readonly-baseline" : "local-write" };
+    h.context.getCentralCachedValueInfo = () => info;
+    let requests = 0;
+    h.context.apiRequest = async () => {
+      requests += 1;
+      info.source = "central-readonly-baseline";
+      return { ok: true, payload: { metadata: { revision: 9 } } };
+    };
+    expect((await h.api.syncCentralStateKey("football-medical-team-v1", "draft")).ok).toBe(false);
+    expect(requests).toBe(alreadyReadOnly ? 0 : 1);
+    expect(h.centralState.metadata).toEqual({});
+    expect(h.centralState.lastSavedAt).toBe("previous-save");
+  });
+}

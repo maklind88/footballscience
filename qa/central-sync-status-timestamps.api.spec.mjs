@@ -9,6 +9,67 @@ const syncEnd = source.indexOf("\n  function ", syncStart);
 const syncAsyncEnd = source.indexOf("\n  async function ", syncStart + 10);
 const syncSource = source.slice(syncStart, Math.min(...[syncEnd, syncAsyncEnd].filter((value) => value > syncStart)));
 const readScopeSource = source.slice(source.indexOf("  function getCentralReadScope("), source.indexOf("  function getCentralCachedValueInfo("));
+const projectionSource = source.slice(source.indexOf("  function medicalRecoveryGeneration("), source.indexOf("  function setCentralCacheFallbackState("));
+const normalizeUserSource = source.slice(source.indexOf("  function normalizeAuthUser("), source.indexOf("  function toFormError("));
+
+function createProjectionHarness(storage = new Map(), canWrite = false) {
+  const context = {
+    MEDICAL_TEAM_STATE_KEY: "football-medical-team-v1", DATA_SAFETY_MANIFEST_KEY: "football-data-safety-v1",
+    MEDICAL_RECOVERY_MARKER_KEY: "football-data-safety-v1:medical-recovery",
+    centralStateValues: new Map(), centralStateValueMetadata: new Map(), centralState: { hydrating: false, metadata: {} },
+    authState: { currentUser: { id: "actor", role: "coach", organizationId: "org-a" }, session: { access_token: "token" } },
+    window: { localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } },
+    readCentralSyncManifestEntries: () => JSON.parse(storage.get("football-data-safety-v1") || "{}").entries || {},
+    canCurrentUserAutomaticallyWriteCentralStateKey: () => canWrite, isCentralStateKey: () => true,
+    DEFAULT_ROLES: ["coach", "medical"], DEFAULT_CLUB_ID: "club", DEFAULT_TEAM_ID: "team",
+    normalizeRoleForAuth: (role) => role || "coach", normalizeProfileImageValue: () => "",
+  };
+  const api = runInNewContext(`${projectionSource}\n${normalizeUserSource}\n({getCentralCachedValue, getCentralCachedValueInfo, setCentralCachedValue, getCentralReadScope, clearMissingCentralReadViews, preserveMedicalRecoverySeparation, normalizeAuthUser})`, context);
+  return { context, api };
+}
+
+test("Medical recovery separation survives a new runtime without changing the original pending generation", () => {
+  const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
+  const entry = { pendingCentralSync: true, hash: "draft", writes: 7, updatedAt: "original-time", serverRevision: 1 };
+  const manifest = JSON.stringify({ entries: { [key]: entry } });
+  const storage = new Map([[key, "old private draft"], [manifestKey, manifest]]);
+  createProjectionHarness(storage).api.preserveMedicalRecoverySeparation(entry);
+  const next = createProjectionHarness(storage, true);
+  next.context.authState.currentUser = { id: "new-actor", role: "medical", organizationId: "org-b" };
+  expect(next.api.getCentralCachedValue(key)).toBe("{}");
+  expect(next.api.getCentralCachedValueInfo(key)).toMatchObject({ source: "central-readonly-baseline", canEdit: false });
+  next.context.centralState.metadata[key] = { revision: 4 };
+  next.api.clearMissingCentralReadViews({});
+  expect(next.api.getCentralCachedValueInfo(key)).toMatchObject({ value: "{}", canEdit: true });
+  expect(next.context.centralState.metadata[key]).toEqual({ revision: 0 });
+  expect(storage.get(key)).toBe("old private draft");
+  expect(storage.get(manifestKey)).toBe(manifest);
+  storage.set(manifestKey, JSON.stringify({ entries: { [key]: { ...entry, writes: 8, hash: "new-authorized-edit" } } }));
+  expect(createProjectionHarness(storage, true).api.getCentralCachedValueInfo(key).source).toBe("");
+});
+
+test("recovery marker storage failure is explicit and does not mutate the pending draft", () => {
+  const entry = { pendingCentralSync: true, hash: "draft", writes: 7 };
+  const storage = new Map([["football-medical-team-v1", "draft"], ["football-data-safety-v1", JSON.stringify({ entries: { "football-medical-team-v1": entry } })]]);
+  const h = createProjectionHarness(storage);
+  h.context.window.localStorage.setItem = () => { throw new Error("quota"); };
+  expect(() => h.api.preserveMedicalRecoverySeparation(entry)).toThrow("quota");
+  expect(storage.get("football-medical-team-v1")).toBe("draft");
+  expect(storage.size).toBe(2);
+});
+
+test("canonical organization is retained and a refreshed organization immediately hides the previous view", () => {
+  const h = createProjectionHarness();
+  const normalized = h.api.normalizeAuthUser({ id: "actor", app_metadata: { organization_id: "org-a" }, user_metadata: { organizationId: "spoofed" } });
+  expect(normalized.organizationId).toBe("org-a");
+  expect(h.api.normalizeAuthUser({ id: "actor", organization_id: "server-org" }).organizationId).toBe("server-org");
+  expect(h.api.normalizeAuthUser({ id: "actor", user_metadata: { organizationId: "spoofed" } }).organizationId).toBe("");
+  h.context.authState.currentUser = normalized;
+  h.api.setCentralCachedValue("football-medical-team-v1", "org-a record", { source: "central-readonly-baseline", readScope: h.api.getCentralReadScope() });
+  h.context.authState.session.user = { app_metadata: { organization_id: "org-b" } };
+  expect(h.api.getCentralCachedValue("football-medical-team-v1")).toBe("{}");
+  expect(h.api.getCentralCachedValueInfo("football-medical-team-v1").canEdit).toBe(false);
+});
 
 function createHarness() {
   const centralState = { metadata: {}, hydrated: true, lastSavedAt: "previous-save", lastFetchedAt: "previous-read" };
@@ -61,6 +122,28 @@ for (const signOut of [false, true]) {
     expect(h.events).toHaveLength(signOut ? 0 : 1);
     expect(h.timers).toHaveLength(0);
     expect(h.centralState.hydrating).toBe(false);
+  });
+}
+
+for (const changedScope of [false, true]) {
+  test(`coalesced hydration retains forceApply only within its scope (changed: ${changedScope})`, async () => {
+    const h = createHarness();
+    let release, calls = 0;
+    const options = [];
+    const barrier = new Promise((resolve) => { release = resolve; });
+    h.context.readCentralStateBatches = async (input) => {
+      options.push(input);
+      if (++calls === 1) await barrier;
+      return { ok: true, payload: { entries: { profile: "{}" } } };
+    };
+    const active = h.api.hydrateCentralState();
+    await h.api.hydrateCentralState({ forceApply: true });
+    if (changedScope) h.authState.currentUser.organizationId = "new-org";
+    await h.api.hydrateCentralState({ fresh: true });
+    release(); await active;
+    await h.timers.shift()();
+    expect(options[1].forceApply).toBe(!changedScope);
+    expect(h.timers).toHaveLength(0);
   });
 }
 

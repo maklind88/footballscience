@@ -107,14 +107,18 @@ export function createDataSafetyRuntimeService(deps = {}) {
     return nativeGetItem.call(storage, key);
   }
 
+  function hasUnauthorizedMedicalRecovery(key) {
+    return key === "football-medical-team-v1" && readManifest().entries[key]?.pendingCentralSync &&
+      getCentralStateBridge()?.canAutoSyncKey?.(key) !== true;
+  }
+
   function rawSetItem(key, value, options = {}) {
     const storage = getStorage();
     if (!storage || !nativeSetItem) return;
     const normalizedKey = String(key || "");
     const normalizedValue = String(value ?? "");
     const readView = getCentralCachedValueInfo(normalizedKey);
-    if (normalizedKey === "football-medical-team-v1" && readView.source !== "central-readonly-baseline" &&
-        readManifest().entries[normalizedKey]?.pendingCentralSync && getCentralStateBridge()?.canAutoSyncKey?.(normalizedKey) !== true) {
+    if (readView.source !== "central-readonly-baseline" && hasUnauthorizedMedicalRecovery(normalizedKey)) {
       throw new Error("Medical recovery is pending an authorized central read. The local copy was retained.");
     }
     if (readView.source === "central-readonly-baseline" && !options.explicitReadViewWrite) {
@@ -347,6 +351,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       },
       storage,
       recoveryCopies: collectRecoveryCopies(),
+      recoverySeparations: Object.keys(storage).filter((key) => getCentralCachedValueInfo(key).source === "central-readonly-baseline"),
     };
   }
 
@@ -553,7 +558,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return;
     }
     const storage = getStorageFromBackup(backup);
-    if (Object.keys(backup.recoveryCopies || {}).length) {
+    if (Object.keys(backup?.recoveryCopies || {}).length || backup?.recoverySeparations?.length) {
       win.alert?.("Backup not restored. Archived recovery copies require explicit review and cannot be imported automatically.");
       return;
     }
@@ -563,7 +568,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return;
     }
     const canRestore = () => {
-      if (!entries.some(([key]) => getCentralCachedValueInfo(key).source === "central-readonly-baseline")) return true;
+      if (!entries.some(([key]) => getCentralCachedValueInfo(key).source === "central-readonly-baseline" || hasUnauthorizedMedicalRecovery(key))) return true;
       win.alert?.("Backup not restored. A local recovery copy needs review before replacing this central view.");
       return false;
     };

@@ -123,6 +123,34 @@ repetitions each (40/40). `npm run qa:static` and `git diff --check` passed with
 budget changes. Temporary write-stack diagnostics were removed. GitHub checks
 and a fresh review of the new commit remain separate from these local results.
 
+## Reload And Organization Review Closure
+
+Review of `615e669d` identified six further boundary cases. The corrections keep
+the same eight-file scope and do not modify Medical business logic or server APIs.
+
+| Finding | Correction | Regression evidence |
+| --- | --- | --- |
+| Separation lost on reload before a new actor edits | A small durable marker identifies the exact pending hash/write/time/delete generation. A new runtime hides that generation until a fresh authorized view exists. The manifest and raw draft are not rewritten by marking. | New-runtime contract, quota failure, actual browser reload as a new Medical actor, exact recovery export and no old-draft POST |
+| Queued forceApply lost | Coalescing retains forceApply within the same principal scope, but never carries it into another scope. | Deferred-read contracts for same scope and changed organization |
+| Organization omitted from normalized user | Preserve canonical profile/app_metadata organization identifiers; never use user_metadata. Refreshed session organization participates immediately in the read scope. | Spoof-negative normalization contract and real auth-event/browser test with an old read held in flight |
+| JSON-null backup throws | Optional envelope access reaches the existing invalid-backup feedback. | Null import resolves with feedback and no mutation |
+| Backup partial restore before Medical rejects | Preflight uses the same pending/authority rule as raw storage, including before a read view exists. | Schedule-first multi-key import leaves all raw entries and the queue unchanged |
+| Authorized creation blocked by omitted Medical | A verified omission can enable a new write in the current authorized scope, while the original draft still requires archival. | New actor receives an omitted key, creates a record, acknowledges it and reloads with the exact old copy retained |
+
+Exports also carry `recoverySeparations` so an unedited separated recovery cannot
+silently lose its classification through backup import. Such imports require
+explicit review, just like archived recovery copies. The marker contains no
+clinical payload or credentials. It is not a distributed write lock or a new
+offline journal; a different, newly recorded generation does not match it.
+
+Local verification of the six corrections: 3,047 passing tests (2,997
+API/contracts, 40 central-state browser cases and 10 Medical clinical cases).
+The six token/organization/access/reload/omission browser cases also passed ten
+repetitions each on final code (60/60).
+`npm run qa:static` and `git diff --check` passed. No safety thresholds, test
+timeouts or architecture budgets were increased. Exact-commit GitHub checks and
+independent review remain required before any release decision.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

@@ -166,6 +166,31 @@ test("Medical boot normalization cannot replace a pending draft before the centr
   expect(h.queuedWrites).toEqual([]);
 });
 
+test("null backup is rejected with feedback and no mutation", async () => {
+  const h = createHarness(); h.service.install(); await Promise.resolve();
+  const before = Array.from(h.localStorage.values), alerts = [];
+  h.win.alert = (message) => alerts.push(message);
+  await h.service.importBackupFile({ text: async () => "null" });
+  expect(alerts.join(" ")).toContain("restorable");
+  expect(Array.from(h.localStorage.values)).toEqual(before);
+  expect(h.queuedWrites).toEqual([]);
+});
+
+test("backup preflight rejects pending unauthorized Medical before restoring an earlier Schedule key", async () => {
+  const key = "football-medical-team-v1";
+  const h = createHarness({ canEdit: false });
+  h.localStorage.values.set(key, "draft");
+  h.localStorage.values.set("football-schedule-v1", "schedule");
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: { pendingCentralSync: true } } }));
+  h.service.install(); await Promise.resolve();
+  const before = Array.from(h.localStorage.values);
+  await h.service.importBackupFile({ text: async () => JSON.stringify({ keys: {
+    "football-schedule-v1": "replacement", [key]: "replacement",
+  } }) });
+  expect(Array.from(h.localStorage.values)).toEqual(before);
+  expect(h.queuedWrites).toEqual([]);
+});
+
 test("backup import rejects a separated Medical view before restoring any entry", async () => {
   const key = "football-medical-team-v1";
   const h = createHarness({ centralCache: { [key]: "server view" },
@@ -209,6 +234,18 @@ test("archived recovery in an exported backup is never automatically adopted by 
   expect(Array.from(h.localStorage.values)).toEqual(before);
   expect(alerts.join(" ")).toContain("explicit review");
   expect(h.queuedWrites).toEqual([]);
+});
+
+test("exported separated recovery cannot lose its classification through backup import", async () => {
+  const key = "football-medical-team-v1";
+  const h = createHarness({ centralCache: { [key]: "server view" }, centralCacheInfo: { [key]: { source: "central-readonly-baseline" } } });
+  h.localStorage.values.set(key, "private draft"); h.service.install();
+  const backup = h.service.createBackupEnvelope();
+  expect(backup.recoverySeparations).toEqual([key]);
+  const destination = createHarness(); destination.service.install(); await Promise.resolve();
+  await destination.service.importBackupFile({ text: async () => JSON.stringify(backup) });
+  expect(destination.localStorage.values.has(key)).toBe(false);
+  expect(destination.queuedWrites).toEqual([]);
 });
 
 for (const failRecovery of [false, true]) {

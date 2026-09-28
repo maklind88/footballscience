@@ -32,6 +32,7 @@
   const SESSION_PLANNER_STATE_KEY = "football-session-planner-v3";
   const PLAYER_PROFILES_STATE_KEY = "football-player-profiles-v1";
   const MEDICAL_TEAM_STATE_KEY = "football-medical-team-v1";
+  const MEDICAL_RECOVERY_MARKER_KEY = `${DATA_SAFETY_MANIFEST_KEY}:medical-recovery`;
   const SCOUTING_STATE_KEY = "football-scouting-v1";
   const CLIENT_CONFIG_CACHE_KEY = "footballscience-client-config-v1";
   const CLIENT_CONFIG_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -225,6 +226,7 @@
     const status = String(appMeta.status || meta.status || user.status || "active").trim().toLowerCase();
     return {
       id: String(user.id || ""),
+      organizationId: String(appMeta.organizationId || appMeta.organization_id || user.organizationId || user.organization_id || "").trim(),
       email: String(user.email || "").toLowerCase(),
       firstName: String(meta.firstName || meta.first_name || user.firstName || user.first_name || "New").trim(),
       lastName: String(meta.lastName || meta.last_name || user.lastName || user.last_name || "User").trim(),
@@ -748,20 +750,49 @@ async function getActiveAccessToken() {
       /quota/i.test(String(error?.message || ""))
     );
   }
+  function medicalRecoveryGeneration(entry = {}) {
+    return JSON.stringify([entry.hash || "", entry.writes || 0, entry.updatedAt || "", entry.deletedAt || ""]);
+  }
+  function hasMedicalRecoverySeparation() {
+    try {
+      const marker = window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY);
+      if (!marker) return false;
+      const manifest = JSON.parse(window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY) || "null");
+      const entry = manifest?.entries?.[MEDICAL_TEAM_STATE_KEY];
+      if (!entry) return true;
+      return Boolean(entry.pendingCentralSync && marker === medicalRecoveryGeneration(entry));
+    } catch { return true; }
+  }
+  function preserveMedicalRecoverySeparation(entry) {
+    const generation = medicalRecoveryGeneration(entry);
+    if (generation !== medicalRecoveryGeneration(readCentralSyncManifestEntries()[MEDICAL_TEAM_STATE_KEY])) {
+      throw new Error("Medical recovery changed during loading. Retry the central read.");
+    }
+    window.localStorage.setItem(MEDICAL_RECOVERY_MARKER_KEY, generation);
+    if (window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) !== generation || !hasMedicalRecoverySeparation()) {
+      throw new Error("Medical recovery separation could not be preserved.");
+    }
+  }
   function getCentralCachedValue(key) {
     const normalizedKey = String(key || "");
+    if (!centralStateValues.has(normalizedKey) && normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()) return "{}";
     const info = centralStateValueMetadata.get(normalizedKey);
     if (info?.readScope && info.readScope !== getCentralReadScope()) return "{}";
     return centralStateValues.has(normalizedKey) ? centralStateValues.get(normalizedKey) : undefined;
   }
   function getCentralReadScope() {
     const user = authState.currentUser;
+    const claims = authState.session?.user?.app_metadata || {};
+    const organizationId = claims.organizationId || claims.organization_id || user?.organizationId || "";
     return user?.id && authState.session?.access_token
-      ? JSON.stringify([user.id, user.organizationId || "", user.clubId || "", user.teamId || "", user.role]) : "";
+      ? JSON.stringify([user.id, organizationId, user.clubId || "", user.teamId || "", user.role]) : "";
   }
   function getCentralCachedValueInfo(key) {
     const normalizedKey = String(key || "");
     if (!centralStateValues.has(normalizedKey)) {
+      if (normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()) {
+        return { value: "{}", source: "central-readonly-baseline", durable: false, serverBacked: false, canEdit: false };
+      }
       return { value: undefined, source: "", durable: false, serverBacked: false };
     }
     return {
@@ -797,13 +828,15 @@ async function getActiveAccessToken() {
     return centralStateValues.delete(normalizedKey);
   }
   function clearMissingCentralReadViews(entries) {
-    for (const key of centralStateValues.keys()) {
+    for (const key of new Set([...centralStateValues.keys(), MEDICAL_TEAM_STATE_KEY])) {
       if (getCentralCachedValueInfo(key).source === "central-readonly-baseline" &&
           !Object.prototype.hasOwnProperty.call(entries, key)) {
         // Read revocation must not expose or seed the private recovery copy on disk.
         setCentralCachedValue(key, "{}", {
           source: "central-readonly-baseline", durable: false, serverBacked: true, readScope: getCentralReadScope(),
+          allowExplicitWrite: canCurrentUserAutomaticallyWriteCentralStateKey(key),
         });
+        centralState.metadata[key] = { revision: 0 };
       }
     }
   }
@@ -1590,6 +1623,7 @@ async function getActiveAccessToken() {
             return;
           }
           const sharedValue = stripCentralStateLocalUiFields(value, MEDICAL_LOCAL_UI_FIELDS);
+          preserveMedicalRecoverySeparation(pendingEntry);
           setCentralCachedValue(key, mergeCentralStateLocalUiFields(window.localStorage.getItem(key), sharedValue, MEDICAL_LOCAL_UI_FIELDS).value, {
             source: "central-readonly-baseline", durable: false, serverBacked: true, readScope: getCentralReadScope(),
             allowExplicitWrite: canAutomaticallyWrite,
@@ -1706,8 +1740,9 @@ async function getActiveAccessToken() {
     }
     if (centralState.hydrating || !authState.session?.access_token) {
       if (centralState.hydrating && getCentralReadScope()) {
+        const compatible = pendingCentralHydration?.scope === getCentralReadScope();
         pendingCentralHydration = { scope: getCentralReadScope(), token: authState.session.access_token,
-          options: { fresh: true, forceApply: Boolean(options.forceApply) } };
+          options: { fresh: true, forceApply: Boolean(options.forceApply || (compatible && pendingCentralHydration.options.forceApply)) } };
       }
       return centralState.hydrated;
     }

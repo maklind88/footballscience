@@ -442,6 +442,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         }
         if (result?.conflict || result?.status === 409) {
           const retryResult = await retryCentralStateWriteAfterConflict(write, result, bridge);
+          if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
           if (retryResult?.ok) {
             flushIssue = finishAcknowledgedWrite(write, retryResult) || flushIssue;
             continue;
@@ -452,6 +453,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
             // whole blob at a newer revision could overwrite a colleague.
           } else if (write.key !== sessionPlannerStorageKey) {
             const hydrated = await bridge.hydrate?.({ forceApply: true }).catch(() => false);
+            if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
             if (hydrated) {
               persistCentralStateServerRevision(write.key, {
                 revision: getCentralStateRevisionForKey(write.key),

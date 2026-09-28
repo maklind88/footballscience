@@ -103,3 +103,34 @@ for (const alreadyReadOnly of [true, false]) {
     expect(h.centralState.lastSavedAt).toBe("previous-save");
   });
 }
+
+for (const phase of ["apply", "empty-client", "seed-response"]) {
+  test(`sign-out during ${phase} cannot publish ready, seed under another actor or advance metadata`, async () => {
+    const h = createHarness();
+    const signOut = () => { h.authState.currentUser = null; h.authState.session = null; };
+    let seeds = 0, observations = 0;
+    if (phase === "apply") {
+      h.context.applyCentralStateEntries = async () => { signOut(); };
+    } else {
+      h.context.readCentralStateBatches = async () => ({ ok: true, payload: { entries: {} } });
+      h.context.clearMissingCentralReadViews = () => {};
+      h.context.collectCentralLocalStateEntries = () => ({ profile: "{}" });
+      h.context.getSessionSaveClient = async () => {
+        if (phase === "empty-client") signOut();
+        return { observe: () => { observations += 1; } };
+      };
+      h.context.apiRequest = async () => {
+        seeds += 1;
+        signOut();
+        return { ok: true, payload: { results: [{ key: "profile", metadata: { revision: 9 } }] } };
+      };
+    }
+    expect(await h.api.hydrateCentralState()).toBe(false);
+    expect(seeds).toBe(phase === "seed-response" ? 1 : 0);
+    expect(observations).toBe(phase === "seed-response" ? 1 : 0);
+    expect(h.events).toEqual([]);
+    expect(h.centralState.metadata).toEqual({});
+    expect(h.centralState.lastFetchedAt).toBe("previous-read");
+    expect(h.centralState.hydrating).toBe(false);
+  });
+}

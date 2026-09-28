@@ -1670,6 +1670,7 @@ async function getActiveAccessToken() {
     persistCentralHydrationRevisions(hydratedRevisionEntries, options);
     for (const [key, value] of requiredWriteBackEntries) {
       const result = await syncCentralStateKey(key, value);
+      if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
       if (!result?.ok) {
         throw new Error(result?.reason || "Recovered Medical data could not be synced centrally.");
       }
@@ -1728,12 +1729,15 @@ async function getActiveAccessToken() {
         const localEntries = collectCentralLocalStateEntries();
         // A missing Sessions record is an empty authoritative baseline, not permission to restore a cache.
         delete localEntries[SESSION_PLANNER_STATE_KEY];
-        (await getSessionSaveClient()).observe('{"sessions":{}}', { revision: 0 });
+        const sessionClient = await getSessionSaveClient();
+        if (!isCurrent()) return false;
+        sessionClient.observe('{"sessions":{}}', { revision: 0 });
         if (Object.keys(localEntries).length) {
           const seedResponse = await apiRequest(API_APP_STATE, {
             method: "POST",
             body: JSON.stringify({ entries: localEntries }),
           });
+          if (!isCurrent()) return false;
           if (!seedResponse.ok) {
           centralState.lastError = seedResponse.payload?.reason || "Central seed failed.";
             return false;
@@ -1748,6 +1752,7 @@ async function getActiveAccessToken() {
           }
         }
       }
+      if (!isCurrent()) return false;
       centralState.hydrated = true;
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.lastFetchedAt = centralState.lastSyncedAt;
@@ -1758,6 +1763,7 @@ async function getActiveAccessToken() {
       );
       return true;
     } catch (error) {
+      if (!isCurrent()) return false;
       centralState.lastError = error?.message || "Central load failed.";
       return false;
     } finally {

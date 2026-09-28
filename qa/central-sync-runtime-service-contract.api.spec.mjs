@@ -45,6 +45,45 @@ for (const status of [200, 403, 409, 0]) {
   });
 }
 
+test("conflict hydration cannot acknowledge a Medical draft after separating its read-only view", async () => {
+  const key = "football-medical-team-v1", cachedInfo = { source: "local-write" };
+  const h = createServiceHarness({ cachedInfo,
+    syncResult: { ok: false, status: 409, currentRevision: 8 },
+    onHydrate: ({ setRevision }) => {
+      cachedInfo.source = "central-readonly-baseline";
+      setRevision(8);
+    },
+  });
+  h.rawValues.set(key, "draft");
+  h.manifest.entries[key] = { pendingCentralSync: true, hash: "draft", writes: 7, serverRevision: 1 };
+  h.service.queueCentralStateWrite(key, "draft");
+  const queuedEntry = structuredClone(h.manifest.entries[key]);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.filter((call) => call.hydrate)).toHaveLength(1);
+  expect(h.manifest.entries[key]).toEqual(queuedEntry);
+  expect(h.rawValues.get(key)).toBe("draft");
+  expect(h.syncStatuses.some(([, status]) => status === "saved")).toBe(false);
+});
+
+test("conflict retry cannot acknowledge Medical recovery if a read-only view appeared during the retry", async () => {
+  const key = "football-medical-team-v1", cachedInfo = { source: "local-write" };
+  let requests = 0;
+  const h = createServiceHarness({ cachedInfo, retryConflictStorageKeys: [key], syncKey: async () => {
+    if (++requests === 1) return { ok: false, status: 409, currentRevision: 8 };
+    cachedInfo.source = "central-readonly-baseline";
+    return { ok: true, revision: 9, value: "server view" };
+  } });
+  h.rawValues.set(key, "draft");
+  h.manifest.entries[key] = { pendingCentralSync: true, hash: "draft", writes: 7, serverRevision: 1 };
+  h.service.queueCentralStateWrite(key, "draft");
+  const queuedEntry = structuredClone(h.manifest.entries[key]);
+  await h.service.flushCentralStateWrites();
+  expect(requests).toBe(2);
+  expect(h.manifest.entries[key]).toEqual(queuedEntry);
+  expect(h.rawValues.get(key)).toBe("draft");
+  expect(h.handledKeys).toEqual([]);
+});
+
 test("retry never acknowledges the read-only Sessions baseline as the missing pending edit", async () => {
   const harness = createServiceHarness({ cachedInfo: { source: "central-pending-baseline", serverBacked: true } });
   const key = "football-session-planner-v1";

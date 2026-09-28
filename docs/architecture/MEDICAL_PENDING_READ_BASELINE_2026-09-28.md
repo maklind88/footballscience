@@ -53,14 +53,50 @@ Existing central-state, Medical editor, Sessions journal, storage, API and modul
 contracts remain required. This is not proof that every reported production
 visibility issue has the same cause.
 
-Local verification on the final code: 3,020 passing tests (2,976 API/contracts,
+Initial candidate verification: 3,020 passing tests (2,976 API/contracts,
 34 central-state browser cases, 10 Medical clinical browser cases).
 Both new browser regressions also passed 10 repetitions each (20/20) on the
-final code.
+initial candidate.
 `npm run qa:static` passed, including syntax, release rules, incident-readiness,
 storage, input-save policy, platform security, migration checks and size budgets.
 Existing architecture/performance warnings and missing local deployment/QA
 credentials remain; these development checks do not authorize or certify Live.
+
+## PR Review Follow-Up
+
+Review reproduced a conflict-path gap: after a 409, successful hydration could
+install the read-only view, yet the flush continuation still changed the draft's
+manifest revision and cleared pending without a write acknowledgement. The flush
+now checks the separated view after conflict retry and hydration, before any
+acknowledgement or manifest mutation. Two service regressions cover these paths.
+
+Three additional regressions reproduced stale hydration completion after
+sign-out during apply, empty-snapshot client initialization, or the seed response.
+Hydration now revalidates its read context at those continuation boundaries and
+before successful completion/error publication. Required recovery writeback also
+revalidates before continuing hydration bookkeeping.
+
+The follow-up code passed 3,025 tests (2,981 API/contracts, 34 central-state
+browser cases and 10 Medical clinical browser cases) and `npm run qa:static`.
+Seven targeted regression cases passed ten repetitions each (70/70).
+
+### Open Review Blockers
+
+The automated GitHub review of f73b0353 identified three additional P1 findings.
+This candidate is not ready for merge or deployment despite green initial CI:
+
+- Backup import reaches `rawSetItem`, which diverts a separated Medical view to
+  memory while the importer reports restoration and reloads. Restore must reject
+  the entire affected import before mutation or preserve a durable imported
+  generation; it must not report memory-only restoration as success.
+- A role promotion or new Medical editor on the same page inherits the read-only
+  marker. Enabling edits requires a writable authorized baseline while preserving
+  the old pending recovery copy separately, never automatically adopting it.
+- Token rotation discards the in-flight read, but a concurrent post-auth hydration
+  can return early while it is still active. The fresh request needs a bounded
+  drain after the active hydration terminates, with no stale-principal apply.
+
+These require regression-backed corrections and a fresh exact-commit CI/review.
 
 ## Remaining Platform Work
 

@@ -337,11 +337,12 @@ test("failed replacement cleanup cannot remove an archive needed by a newer loca
   expect(h.queuedWrites).toEqual([]);
 });
 
-test("replacement fails visibly and retains both copies when only the manifest write exceeds quota", async () => {
+for (const pending of [false, true]) {
+test(`replacement fails visibly and retains both copies when only the manifest write exceeds quota (pending: ${pending})`, async () => {
   const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
   const h = createHarness({ quotaKey: manifestKey, centralCache: { [key]: "server view" },
     centralCacheInfo: { [key]: { source: "central-readonly-baseline", canEdit: true, readScope: "actor-org-a", durable: false } } });
-  const entry = { pendingCentralSync: true, hash: "old", writes: 7 };
+  const entry = { pendingCentralSync: pending, hash: "old", writes: 7 };
   const manifest = JSON.stringify({ entries: { [key]: entry } });
   h.localStorage.values.set(key, "original A");
   h.localStorage.values.set(manifestKey, manifest);
@@ -353,6 +354,32 @@ test("replacement fails visibly and retains both copies when only the manifest w
   expect(h.service.status.lastError).toContain("Both versions were retained");
   expect(h.queuedWrites).toEqual([]);
 });
+}
+
+for (const readView of [false, true]) {
+test(`backup retains separated tombstone metadata and refuses automatic import (read view: ${readView})`, async () => {
+  const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
+  const h = createHarness({ canEdit: false, ...(readView ? { centralCache: { [key]: "server view" },
+    centralCacheInfo: { [key]: { source: "central-readonly-baseline" } } } : {}) });
+  const entry = { pendingCentralSync: true, deletedAt: "deletion-time", hash: "deleted", writes: 9 };
+  const marker = '["deleted",9,"","deletion-time"]';
+  h.localStorage.values.set(manifestKey, JSON.stringify({ entries: { [key]: entry } }));
+  h.localStorage.values.set(`${manifestKey}:medical-recovery`, marker);
+  h.localStorage.values.set("football-schedule-v1", "restorable schedule");
+  h.service.install(); await Promise.resolve();
+  const backup = h.service.createBackupEnvelope();
+  expect(backup.recoverySeparations).toEqual([key]);
+  expect(backup.recoveryState[key]).toEqual({ value: null, entry, marker });
+  const destination = createHarness(), alerts = [];
+  destination.win.alert = (message) => alerts.push(message);
+  destination.service.install(); await Promise.resolve();
+  const before = Array.from(destination.localStorage.values);
+  await destination.service.importBackupFile({ text: async () => JSON.stringify(backup) });
+  expect(Array.from(destination.localStorage.values)).toEqual(before);
+  expect(alerts.join(" ")).toContain("explicit review");
+  expect(destination.queuedWrites).toEqual([]);
+});
+}
 
 test("read-only central view preserves the pending disk generation during UI normalization, quota and backup", () => {
   const key = "football-medical-team-v1";

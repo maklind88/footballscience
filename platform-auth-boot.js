@@ -645,7 +645,9 @@ async function getActiveAccessToken() {
         window.clearTimeout(timeoutId);
       }
     }
+    if (isCurrent && !isCurrent()) return { ok: false, status: 0, payload: { reason: "Account or team changed. Local changes were retained." } };
     const payload = await readJsonResponse(response);
+    if (isCurrent && !isCurrent()) return { ok: false, status: 0, payload: { reason: "Account or team changed. Local changes were retained." } };
     if (response.status === 401 && authState.currentUser) {
       await signOut();
     }
@@ -763,6 +765,8 @@ async function getActiveAccessToken() {
       if (!entry) return true;
       const owner = JSON.parse(marker);
       if (owner.readScope && owner.readScope !== getCentralReadScope()) return true;
+      // The previous generation still exists if a replacement's manifest commit failed.
+      if (owner.readScope && owner.generation === medicalRecoveryGeneration(entry)) return true;
       return Boolean(entry.pendingCentralSync && (
         marker === medicalRecoveryGeneration(entry) || owner.generation === medicalRecoveryGeneration(entry)
       ));
@@ -1859,14 +1863,21 @@ async function getActiveAccessToken() {
     }
     const isReadOnlyView = () => getCentralCachedValueInfo(key).source === "central-readonly-baseline";
     if (isReadOnlyView()) return { ok: false, reason: "Read-only central view; local recovery copy retained." };
+    const writeScope = getCentralReadScope(), writeToken = authState.session.access_token;
+    const isCurrent = () => Boolean(writeScope) && writeScope === getCentralReadScope() && writeToken === authState.session?.access_token;
+    const staleResult = () => ({ ok: false, staleContext: true, reason: "Account or team changed. Local changes were retained." });
+    if (!isCurrent()) return staleResult();
     try {
       centralState.localDev = false;
       if (key === SESSION_PLANNER_STATE_KEY && !options.removed) {
         const expectedScope = getSessionSaveScope();
         const { preserveSessionSaveLocalUi } = await import("./src/modules/session-planner/session-save-local-ui.mjs");
+        if (!isCurrent()) return staleResult();
         const client = await getSessionSaveClient();
+        if (!isCurrent()) return staleResult();
         if (!expectedScope || expectedScope !== getSessionSaveScope()) return { ok: false, reason: "Account or team changed. Local changes were retained." };
         const result = options.sessionStaged ? await client.replay() : await client.save(String(value ?? ""), options);
+        if (!isCurrent()) return staleResult();
         if (expectedScope !== getSessionSaveScope()) return { ok: false, reason: "Account or team changed. Local changes were retained." };
         if (result.ok && result.value) {
           result.value = preserveSessionSaveLocalUi(result.value, String(value));
@@ -1885,6 +1896,7 @@ async function getActiveAccessToken() {
         : getCentralStateBaseRevision(baseMetadata);
       const transport = key === SESSION_PLANNER_STATE_KEY
         ? await import("./src/modules/session-planner/session-state-transport.mjs") : null;
+      if (!isCurrent()) return staleResult();
       const body = JSON.stringify({
         key,
         value: options.removed ? "" : transport ? await transport.encodeSessionTransport(key, String(value ?? "")) : String(value ?? ""),
@@ -1900,10 +1912,13 @@ async function getActiveAccessToken() {
         throw new Error("Session data exceeds the transfer limit. Changes remain pending.");
       }
       const path = transport?.canDecodeSessionTransport() ? `${API_APP_STATE}?sessionTransport=gzip-base64-v1` : API_APP_STATE;
+      if (!isCurrent()) return staleResult();
       const response = await apiRequest(path, {
         method: options.removed ? "DELETE" : "POST",
         body,
+        isCurrent,
       });
+      if (!isCurrent()) return staleResult();
       if (isReadOnlyView()) return { ok: false, reason: "Read-only central view; local recovery copy retained." };
       if (!response.ok) {
         centralState.lastWriteError = response.payload?.reason || "Sync failed.";
@@ -1916,6 +1931,7 @@ async function getActiveAccessToken() {
         };
       }
       if (transport) await transport.decodeSessionResponse(response.payload);
+      if (!isCurrent()) return staleResult();
       centralState.lastWriteError = "";
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.lastSavedAt = centralState.lastSyncedAt;
@@ -1935,6 +1951,7 @@ async function getActiveAccessToken() {
       }
       return { ok: true, ...(response.payload || {}) };
     } catch (error) {
+      if (!isCurrent()) return staleResult();
       centralState.lastWriteError = error?.message || "Sync failed.";
       return { ok: false, reason: centralState.lastWriteError };
     }

@@ -95,6 +95,29 @@ test("retry never acknowledges the read-only Sessions baseline as the missing pe
   expect(harness.manifest.entries[key]).toEqual({ pendingCentralSync: true, hash: "local-unsaved" });
 });
 
+for (const retry of [false, true]) {
+test(`an obsolete account receipt never retries or acknowledges the next account's generation (retry: ${retry})`, async () => {
+  const key = "football-medical-team-v1";
+  let calls = 0;
+  const h = createServiceHarness({ retryConflictStorageKeys: [key], syncKey: async () => {
+    if (retry && ++calls === 1) return { ok: false, status: 409, currentRevision: 99 };
+    h.rawValues.set(key, "new account B");
+    h.manifest.entries[key] = { pendingCentralSync: true, hash: "B", writes: 8, serverRevision: 2 };
+    return { ok: false, staleContext: true };
+  } });
+  h.rawValues.set(key, "old account A");
+  h.manifest.entries[key] = { pendingCentralSync: true, hash: "A", writes: 7, serverRevision: 98 };
+  h.service.queueCentralStateWrite(key, "old account A");
+  await h.service.flushCentralStateWrites();
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(retry ? 2 : 1);
+  expect(h.manifest.entries[key]).toEqual({ pendingCentralSync: true, hash: "B", writes: 8, serverRevision: 2 });
+  expect(h.rawValues.get(key)).toBe("new account B");
+  expect(h.handledKeys).toEqual([]);
+  expect(h.syncStatuses.some(([, status]) => status === "saved")).toBe(false);
+});
+}
+
 function createServiceHarness(options = {}) {
   const manifest = createManifest();
   const rawValues = new Map();

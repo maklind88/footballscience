@@ -11,6 +11,34 @@ const syncSource = source.slice(syncStart, Math.min(...[syncEnd, syncAsyncEnd].f
 const readScopeSource = source.slice(source.indexOf("  function getCentralReadScope("), source.indexOf("  function getCentralCachedValueInfo("));
 const projectionSource = source.slice(source.indexOf("  function medicalRecoveryGeneration("), source.indexOf("  function setCentralCacheFallbackState("));
 const normalizeUserSource = source.slice(source.indexOf("  function normalizeAuthUser("), source.indexOf("  function toFormError("));
+const apiRequestSource = source.slice(source.indexOf("  async function apiRequest("), source.indexOf("  function isCentralStateKey("));
+
+for (const phase of ["token", "fetch", "body"]) {
+  for (const status of [200, 401]) {
+    test(`scoped API response ${status} cannot escape or sign out the new actor after ${phase}`, async () => {
+      let current = true, release, enter, sent = 0, signedOut = 0;
+      const barrier = new Promise((resolve) => { release = resolve; });
+      const entered = new Promise((resolve) => { enter = resolve; });
+      const context = {
+        Headers, authState: { currentUser: { id: "new-actor" } },
+        window: { setTimeout: () => 1, clearTimeout: () => {} },
+        getActiveAccessToken: async () => { if (phase === "token") { enter(); await barrier; } return "test-token"; },
+        isAuthTokenOversized: () => false,
+        fetch: async () => { sent += 1; if (phase === "fetch") { enter(); await barrier; } return { ok: status === 200, status }; },
+        readJsonResponse: async () => { if (phase === "body") { enter(); await barrier; } return { value: "old-actor-data" }; },
+        signOut: async () => { signedOut += 1; },
+      };
+      const request = runInNewContext(`${apiRequestSource}\napiRequest`, context)("/api/app-state", { isCurrent: () => current });
+      await entered;
+      current = false; release();
+      const response = await request;
+      expect(response.ok).toBe(false);
+      expect(response.payload.value).toBeUndefined();
+      expect(signedOut).toBe(0);
+      expect(sent).toBe(phase === "token" ? 0 : 1);
+    });
+  }
+}
 
 function createProjectionHarness(storage = new Map(), canWrite = false) {
   const context = {
@@ -121,6 +149,49 @@ function createHarness() {
   const api = runInNewContext(`${readScopeSource}\n${hydrateSource}\n${syncSource}\n({ hydrateCentralState, syncCentralStateKey })`, context);
   return { api, centralState, authState, context, events, timers };
 }
+
+for (const change of ["organizationId", "token", "sign-out"]) {
+  for (const responseKind of ["ack", "conflict", "error"]) {
+    test(`a late Medical ${responseKind} after ${change} cannot change the new local-write scope`, async () => {
+      const h = createHarness(), key = "football-medical-team-v1";
+      let release;
+      const barrier = new Promise((resolve) => { release = resolve; });
+      h.context.apiRequest = async () => {
+        await barrier;
+        if (responseKind === "error") throw new Error("old account network error");
+        return { ok: responseKind === "ack", status: responseKind === "ack" ? 200 : 409,
+          payload: { key, value: "old-org-A", metadata: { revision: 100 }, currentRevision: 100 } };
+      };
+      h.context.getCentralCachedValueInfo = () => ({ source: "local-write" });
+      const write = h.api.syncCentralStateKey(key, "old-org-A");
+      if (change === "sign-out") { h.authState.session = null; h.authState.currentUser = null; }
+      else if (change === "token") h.authState.session.access_token = "new-token";
+      else h.authState.currentUser.organizationId = "org-b";
+      h.centralState.metadata[key] = { revision: 2 };
+      h.centralState.lastWriteError = "new account status";
+      release();
+      expect(await write).toMatchObject({ ok: false, staleContext: true });
+      expect(h.centralState.metadata[key]).toEqual({ revision: 2 });
+      expect(h.centralState.lastWriteError).toBe("new account status");
+      expect(h.centralState.lastSavedAt).toBe("previous-save");
+    });
+  }
+}
+
+test("an acknowledged manifest cannot adopt an incomplete replacement after reload", () => {
+  const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
+  const h = createProjectionHarness(), owner = h.api.getCentralReadScope();
+  const entry = { pendingCentralSync: false, hash: "acknowledged-A", writes: 7 };
+  const storage = new Map([[key, "untracked replacement B"], [manifestKey, JSON.stringify({ entries: { [key]: entry } })],
+    [`${manifestKey}:medical-recovery`, JSON.stringify({ readScope: owner, generation: '["acknowledged-A",7,"",""]' })]]);
+  const reloaded = createProjectionHarness(storage, true);
+  expect(reloaded.api.getCentralCachedValueInfo(key)).toMatchObject({ source: "central-readonly-baseline", canEdit: false });
+  reloaded.api.preserveMedicalRecoverySeparation(entry);
+  reloaded.api.setCentralCachedValue(key, "fresh server", { source: "central-readonly-baseline", readScope: owner });
+  expect(reloaded.api.getCentralCachedValue(key)).toBe("fresh server");
+  expect(storage.get(key)).toBe("untracked replacement B");
+  expect(JSON.parse(storage.get(manifestKey)).entries[key]).toEqual(entry);
+});
 
 for (const signOut of [false, true]) {
   test(`token rotation drains one fresh hydration after the active read (sign-out: ${signOut})`, async () => {

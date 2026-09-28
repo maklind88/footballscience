@@ -431,6 +431,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         centralStateActiveWriteKeys.delete(write.key);
       }
       // Hydration can separate the server view while this older write is awaiting a response.
+      if (result?.staleContext) continue;
       if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
       if (!result?.ok) {
         if (write.key === sessionPlannerStorageKey && result?.reviewRequired) {
@@ -442,6 +443,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         }
         if (result?.conflict || result?.status === 409) {
           const retryResult = await retryCentralStateWriteAfterConflict(write, result, bridge);
+          if (retryResult?.staleContext) continue;
           if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
           if (retryResult?.ok) {
             flushIssue = finishAcknowledgedWrite(write, retryResult) || flushIssue;

@@ -366,6 +366,15 @@ export function createDataSafetyRuntimeService(deps = {}) {
 
   function createBackupEnvelope(reason = "manual") {
     const storage = collectStorageData();
+    const manifest = readManifest();
+    const recoverySeparations = [...protectedStorageKeySet].filter((key) =>
+      getCentralCachedValueInfo(key).source === "central-readonly-baseline" ||
+      (key === "football-medical-team-v1" && manifest.entries[key]?.pendingCentralSync));
+    const recoveryState = Object.fromEntries(recoverySeparations.map((key) => [key, {
+      value: nativeGetItem?.call(getStorage(), key) ?? null,
+      entry: manifest.entries[key] || null,
+      marker: key === "football-medical-team-v1" ? nativeGetItem?.call(getStorage(), `${storageKey}:medical-recovery`) ?? null : null,
+    }]));
     const entries = Object.entries(storage).map(([key, value]) => ({
       key,
       label: getStorageLabel(key),
@@ -385,7 +394,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
       },
       storage,
       recoveryCopies: collectRecoveryCopies(),
-      recoverySeparations: Object.keys(storage).filter((key) => getCentralCachedValueInfo(key).source === "central-readonly-baseline"),
+      recoverySeparations,
+      recoveryState,
     };
   }
 
@@ -592,7 +602,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return;
     }
     const storage = getStorageFromBackup(backup);
-    if (Object.keys(backup?.recoveryCopies || {}).length || backup?.recoverySeparations?.length) {
+    if (Object.keys(backup?.recoveryCopies || {}).length || backup?.recoverySeparations?.length || Object.keys(backup?.recoveryState || {}).length) {
       win.alert?.("Backup not restored. Archived recovery copies require explicit review and cannot be imported automatically.");
       return;
     }

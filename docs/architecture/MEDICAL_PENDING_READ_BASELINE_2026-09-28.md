@@ -215,6 +215,39 @@ and `git diff --check` passed; the 84 existing architecture warnings are
 unchanged. No test timeout or architecture budget was raised. Fresh exact-SHA
 CI and review are still required; no merge or deployment is authorized here.
 
+## Late Receipts And Recovery Export
+
+Exact-SHA QA and CodeQL passed on `2235a955`, but review 5340719173 found three
+additional boundaries. That version is not approved for release.
+
+| Finding | Correction | Regression evidence |
+| --- | --- | --- |
+| Old-account receipt accepted after a new explicit edit replaced the read view | Capture initiating principal scope and token, revalidate after awaits and before response/error mutation; sync runtime discards stale-context results instead of retrying or acknowledging them | Nine deferred receipt/error contracts, initial/retry service contracts, and an actual browser account switch with A in flight and B queued; B sends once with its own base revision |
+| Manifest-only quota after replacing an acknowledged copy loses separation on reload | A matching replacement marker retains separation until the manifest advances to the replacement generation, even if the old entry was already acknowledged | Pending and acknowledged quota contracts, new-runtime projection contract, and real browser reload retaining byte-exact replacement B plus archived A |
+| Backup misses a pending deletion with no native value | Classify protected keys independently of collected values; export raw value/null, manifest entry and marker as recovery state; reject automatic import | Pending tombstone export/import contracts with and without an installed read view and another restorable key |
+
+The new browser quota case uses the actual normalized Medical schema so the
+first replacement is the explicit edit under test, not an earlier legitimate
+roster normalization. The receipt test uses revision-guarded mock writes and the
+real storage/queue/auth-event chain. No raw rollback, permission relaxation or
+Live operation is introduced.
+
+The same request-current guard is passed into the existing API helper and checked
+after response/body awaits, before its 401 sign-out. Six deterministic barriers
+cover token acquisition, fetch and body parsing for both success and 401, proving
+that an obsolete response neither escapes nor signs out the new account. The
+existing Sessions account/team-change message remains unchanged. Browser setup
+accepts either the separated read view or an acknowledged schema-normalization
+write before starting the held request; it does not require one boot ordering.
+
+Final verification: 3,081 tests passed (3,027 API/contracts, 44 central-state
+browser cases, 10 Medical clinical cases). The 29 affected risk cases passed
+ten repetitions each (290/290). `npm run qa:static` and `git diff --check` passed;
+the same 84 pre-existing architecture warnings remain. The initial full run
+caught the Sessions message mismatch and an over-specific boot-state fixture;
+both were corrected without weakening the safety assertions. No budgets or
+timeouts changed. Exact-SHA CI/review must be rerun before release.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

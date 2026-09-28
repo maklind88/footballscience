@@ -305,7 +305,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     const textValue = String(value ?? "");
     const now = getNow();
     status.lastError = "";
-    mutateManifest((manifest) => {
+    const writtenManifest = mutateManifest((manifest) => {
       const previousEntry = manifest.entries[normalizedKey] || {};
       manifest.lastSavedAt = now;
       manifest.lastKey = normalizedKey;
@@ -317,8 +317,14 @@ export function createDataSafetyRuntimeService(deps = {}) {
         hash: hashString(textValue),
         writes: Number(previousEntry.writes || 0) + 1,
         deletedAt: options.removed ? now : "",
+        ...(options.requirePersisted ? { pendingCentralSync: true } : {}),
       };
     });
+    if (options.requirePersisted && JSON.stringify(readManifest().entries[normalizedKey]) !==
+        JSON.stringify(writtenManifest.entries[normalizedKey])) {
+      // Do not overwrite a newer raw value to roll back. Both copies remain available for recovery.
+      throw new Error("Medical edit was not queued: recovery metadata could not be saved. Both versions were retained.");
+    }
     queueSnapshot(options.removed ? "after-remove" : "autosave");
     if (!getCentralStateWriteSuppressionKeys().has(normalizedKey)) {
       queueCentralStateWrite(normalizedKey, textValue, options);
@@ -328,11 +334,11 @@ export function createDataSafetyRuntimeService(deps = {}) {
 
   function handleWriteError(key, error) {
     const message = error?.message || "Save failed.";
-    status.lastError = message;
     mutateManifest((manifest) => {
       manifest.lastKey = String(key || "");
       manifest.lastError = message;
     });
+    status.lastError = message;
     queueStatusRefresh();
   }
 
@@ -691,7 +697,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       try {
         const result = rawSetItem(normalizedKey, normalizedValue, { explicitReadViewWrite: separated });
         if (separated || previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue,
-          normalizedKey === "football-session-planner-v3" ? { previousValue, previousPending } : {});
+          separated ? { requirePersisted: true } : normalizedKey === "football-session-planner-v3" ? { previousValue, previousPending } : {});
         return result;
       } catch (error) {
         handleWriteError(normalizedKey, error);

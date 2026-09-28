@@ -184,6 +184,37 @@ profile, to distinguish a late old-account request from a new-account request.
 84 pre-existing architecture warnings remain, with no budgets or timeouts raised.
 Fresh exact-commit CI/review remains required; `bd2e73e4` is not release evidence.
 
+## Persisted Replacement And Acknowledged Ownership
+
+Exact-SHA QA and CodeQL passed for `3d21da44`, but review identified two further
+P1 boundaries. That commit is not the final release candidate.
+
+- The first replacement now records pending intent with its new manifest
+  generation and verifies the persisted entry before queueing or reporting local
+  success. If that manifest alone cannot persist, the setter throws an explicit
+  recovery error, queues nothing and keeps the old archive plus the new raw value.
+  It does not perform a raw rollback that could overwrite a newer edit.
+- An owner mismatch protects the native copy even after its acknowledgement.
+  A fresh read for the next account remains a separated authoritative view; its
+  first new edit archives the old copy and rebinds ownership before pending
+  persistence. The stale owner cannot poison that next account's valid write.
+  The original owner is retained through intervening separated reads.
+
+Contracts reproduce the manifest-only quota failure and both pending/acknowledged
+ownership transitions. Browser tests use real 200/CAS or failed-write responses,
+reload under a new organization, verify server-only records, perform a new valid
+write and reject any old-organization payload in that account's requests.
+An acknowledged value may reorder JSON fields during UI preference preservation;
+the test checks content equality there, then protects the captured recovery bytes
+exactly across the account transition.
+
+Final local verification for these two boundaries: 3,058 passing tests (3,006
+API/contracts, 42 central-state browser cases, 10 Medical clinical cases). The
+four latest risk cases passed ten repetitions each (40/40). `npm run qa:static`
+and `git diff --check` passed; the 84 existing architecture warnings are
+unchanged. No test timeout or architecture budget was raised. Fresh exact-SHA
+CI and review are still required; no merge or deployment is authorized here.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

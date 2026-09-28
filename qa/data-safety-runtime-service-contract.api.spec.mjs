@@ -337,6 +337,23 @@ test("failed replacement cleanup cannot remove an archive needed by a newer loca
   expect(h.queuedWrites).toEqual([]);
 });
 
+test("replacement fails visibly and retains both copies when only the manifest write exceeds quota", async () => {
+  const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
+  const h = createHarness({ quotaKey: manifestKey, centralCache: { [key]: "server view" },
+    centralCacheInfo: { [key]: { source: "central-readonly-baseline", canEdit: true, readScope: "actor-org-a", durable: false } } });
+  const entry = { pendingCentralSync: true, hash: "old", writes: 7 };
+  const manifest = JSON.stringify({ entries: { [key]: entry } });
+  h.localStorage.values.set(key, "original A");
+  h.localStorage.values.set(manifestKey, manifest);
+  h.service.install(); await Promise.resolve();
+  expect(() => h.localStorage.setItem(key, "replacement B")).toThrow(/metadata could not be saved/);
+  expect(h.localStorage.values.get(key)).toBe("replacement B");
+  expect(h.localStorage.values.get(manifestKey)).toBe(manifest);
+  expect(Object.values(h.service.createBackupEnvelope().recoveryCopies).map(JSON.parse)).toMatchObject([{ value: "original A", entry }]);
+  expect(h.service.status.lastError).toContain("Both versions were retained");
+  expect(h.queuedWrites).toEqual([]);
+});
+
 test("read-only central view preserves the pending disk generation during UI normalization, quota and backup", () => {
   const key = "football-medical-team-v1";
   const h = createHarness({ quotaKey: key, centralCache: { [key]: "server recommendation" },

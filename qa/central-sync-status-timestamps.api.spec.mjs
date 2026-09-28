@@ -71,13 +71,14 @@ test("canonical organization is retained and a refreshed organization immediatel
   expect(h.api.getCentralCachedValueInfo("football-medical-team-v1").canEdit).toBe(false);
 });
 
-test("replacement Medical drafts keep their owner after reload and cannot be read or retried by a different scope", () => {
+for (const pending of [false, true]) {
+test(`replacement Medical drafts keep their owner after reload and cannot be read or retried by a different scope (pending: ${pending})`, () => {
   const key = "football-medical-team-v1";
   const h = createProjectionHarness();
   const owner = h.api.getCentralReadScope();
   const storage = new Map([
     [key, "pending replacement from org-a"],
-    ["football-data-safety-v1", JSON.stringify({ entries: { [key]: { pendingCentralSync: true, hash: "replacement", writes: 8 } } })],
+    ["football-data-safety-v1", JSON.stringify({ entries: { [key]: { pendingCentralSync: pending, hash: "replacement", writes: 8 } } })],
     ["football-data-safety-v1:medical-recovery", JSON.stringify({ readScope: owner, generation: '["old",7,"",""]' })],
   ]);
   expect(createProjectionHarness(storage, true).api.getCentralCachedValueInfo(key).source).toBe("");
@@ -93,6 +94,7 @@ test("replacement Medical drafts keep their owner after reload and cannot be rea
   expect(JSON.parse(storage.get("football-data-safety-v1:medical-recovery")).readScope).toBe(owner);
   expect(storage.get(key)).toBe("pending replacement from org-a");
 });
+}
 
 function createHarness() {
   const centralState = { metadata: {}, hydrated: true, lastSavedAt: "previous-save", lastFetchedAt: "previous-read" };

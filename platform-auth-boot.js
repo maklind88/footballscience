@@ -762,9 +762,9 @@ async function getActiveAccessToken() {
       const entry = manifest?.entries?.[MEDICAL_TEAM_STATE_KEY];
       if (!entry) return true;
       const owner = JSON.parse(marker);
+      if (owner.readScope && owner.readScope !== getCentralReadScope()) return true;
       return Boolean(entry.pendingCentralSync && (
-        marker === medicalRecoveryGeneration(entry) || owner.generation === medicalRecoveryGeneration(entry) ||
-        (owner.readScope && owner.readScope !== getCentralReadScope())
+        marker === medicalRecoveryGeneration(entry) || owner.generation === medicalRecoveryGeneration(entry)
       ));
     } catch { return true; }
   }
@@ -1618,8 +1618,9 @@ async function getActiveAccessToken() {
             return;
           }
         }
-        if (key === MEDICAL_TEAM_STATE_KEY && pendingEntry?.pendingCentralSync &&
-            (!canAutomaticallyWrite || getCentralCachedValueInfo(key).source === "central-readonly-baseline")) {
+        if (key === MEDICAL_TEAM_STATE_KEY &&
+            ((pendingEntry?.pendingCentralSync && !canAutomaticallyWrite) ||
+              getCentralCachedValueInfo(key).source === "central-readonly-baseline")) {
           // A server read is not an acknowledgement of the unsent recovery copy on disk.
           const cached = getCentralCachedValueInfo(key);
           if (!Number.isInteger(metadataEntry.revision) || metadataEntry.revision < 0) {

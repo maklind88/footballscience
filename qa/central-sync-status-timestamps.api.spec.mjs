@@ -71,6 +71,29 @@ test("canonical organization is retained and a refreshed organization immediatel
   expect(h.api.getCentralCachedValueInfo("football-medical-team-v1").canEdit).toBe(false);
 });
 
+test("replacement Medical drafts keep their owner after reload and cannot be read or retried by a different scope", () => {
+  const key = "football-medical-team-v1";
+  const h = createProjectionHarness();
+  const owner = h.api.getCentralReadScope();
+  const storage = new Map([
+    [key, "pending replacement from org-a"],
+    ["football-data-safety-v1", JSON.stringify({ entries: { [key]: { pendingCentralSync: true, hash: "replacement", writes: 8 } } })],
+    ["football-data-safety-v1:medical-recovery", JSON.stringify({ readScope: owner, generation: '["old",7,"",""]' })],
+  ]);
+  expect(createProjectionHarness(storage, true).api.getCentralCachedValueInfo(key).source).toBe("");
+  const next = createProjectionHarness(storage, true);
+  next.api.setCentralCachedValue(key, "pending replacement from org-a");
+  next.context.authState.currentUser.organizationId = "org-b";
+  expect(next.api.getCentralCachedValue(key)).toBe("{}");
+  expect(next.api.getCentralCachedValueInfo(key)).toMatchObject({ source: "central-readonly-baseline", canEdit: false });
+  const reloaded = createProjectionHarness(storage, true);
+  reloaded.context.authState.currentUser.organizationId = "org-b";
+  expect(reloaded.api.getCentralCachedValueInfo(key)).toMatchObject({ source: "central-readonly-baseline", canEdit: false });
+  reloaded.api.preserveMedicalRecoverySeparation(JSON.parse(storage.get("football-data-safety-v1")).entries[key]);
+  expect(JSON.parse(storage.get("football-data-safety-v1:medical-recovery")).readScope).toBe(owner);
+  expect(storage.get(key)).toBe("pending replacement from org-a");
+});
+
 function createHarness() {
   const centralState = { metadata: {}, hydrated: true, lastSavedAt: "previous-save", lastFetchedAt: "previous-read" };
   const authState = { session: { access_token: "test-only" }, currentUser: { id: "actor-1", teamId: "team-1", role: "coach" }, devMode: false };
@@ -109,14 +132,16 @@ for (const signOut of [false, true]) {
     h.context.applyCentralStateEntries = async () => { applied += 1; };
     const first = h.api.hydrateCentralState();
     h.authState.session.access_token = "rotated";
-    await h.api.hydrateCentralState({ fresh: true });
-    await h.api.hydrateCentralState({ fresh: true });
+    const queued = h.api.hydrateCentralState({ fresh: true });
+    const coalesced = h.api.hydrateCentralState({ fresh: true });
     release();
     expect(await first).toBe(false);
     expect(applied).toBe(0);
     expect(h.timers).toHaveLength(1);
     if (signOut) { h.authState.session = null; h.authState.currentUser = null; }
     await h.timers.shift()();
+    expect(await queued).toBe(!signOut);
+    expect(await coalesced).toBe(!signOut);
     expect(reads).toBe(signOut ? 1 : 2);
     expect(applied).toBe(signOut ? 0 : 1);
     expect(h.events).toHaveLength(signOut ? 0 : 1);
@@ -137,15 +162,42 @@ for (const changedScope of [false, true]) {
       return { ok: true, payload: { entries: { profile: "{}" } } };
     };
     const active = h.api.hydrateCentralState();
-    await h.api.hydrateCentralState({ forceApply: true });
+    const forced = h.api.hydrateCentralState({ forceApply: true });
     if (changedScope) h.authState.currentUser.organizationId = "new-org";
-    await h.api.hydrateCentralState({ fresh: true });
+    const fresh = h.api.hydrateCentralState({ fresh: true });
     release(); await active;
     await h.timers.shift()();
+    expect(await forced).toBe(!changedScope);
+    expect(await fresh).toBe(true);
     expect(options[1].forceApply).toBe(!changedScope);
     expect(h.timers).toHaveLength(0);
-  });
+});
 }
+
+test("an already-hydrated conflict caller waits for the actual coalesced read and receives its failure", async () => {
+  const h = createHarness();
+  let releaseFirst, releaseSecond, reads = 0, returned = false;
+  const firstBarrier = new Promise((resolve) => { releaseFirst = resolve; });
+  const secondBarrier = new Promise((resolve) => { releaseSecond = resolve; });
+  h.context.readCentralStateBatches = async () => {
+    if (++reads === 1) { await firstBarrier; return { ok: true, payload: { entries: { profile: "{}" } } }; }
+    await secondBarrier;
+    return { ok: false, payload: { reason: "Conflict read failed" } };
+  };
+  const active = h.api.hydrateCentralState();
+  const conflict = h.api.hydrateCentralState({ forceApply: true }).then((value) => { returned = true; return value; });
+  await Promise.resolve();
+  expect(returned).toBe(false);
+  releaseFirst(); await active;
+  expect(returned).toBe(false);
+  const drain = h.timers.shift()();
+  await Promise.resolve();
+  expect(reads).toBe(2);
+  expect(returned).toBe(false);
+  releaseSecond(); await drain;
+  expect(await conflict).toBe(false);
+  expect(h.centralState.hydrating).toBe(false);
+});
 
 test("successful fetch preserves saved timestamp; successful write preserves fetched timestamp", async () => {
   const h = createHarness();

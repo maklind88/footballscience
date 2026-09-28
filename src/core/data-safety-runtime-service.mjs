@@ -128,7 +128,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       }
       return;
     }
-    if (readView.source === "central-readonly-baseline") archiveReadViewRecovery(normalizedKey, readView);
+    const recovery = readView.source === "central-readonly-baseline" ? archiveReadViewRecovery(normalizedKey, readView) : null;
     const previousNativeValue = isProtectedStorageKey(normalizedKey)
       ? nativeGetItem?.call(storage, normalizedKey)
       : null;
@@ -136,6 +136,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       nativeSetItem.call(storage, normalizedKey, normalizedValue);
       if (isProtectedStorageKey(normalizedKey)) setCentralCachedValue(normalizedKey, normalizedValue);
     } catch (error) {
+      if (recovery) discardUnchangedRecoveryArchive(recovery);
       if (isProtectedStorageKey(normalizedKey) && isStorageQuotaError(error)) {
         // Only a verified server acknowledgement may replace the read cache
         // without local durability. Preserve the previous native recovery copy.
@@ -184,7 +185,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
   }
 
   function archiveReadViewRecovery(key, view) {
-    if (!view.canEdit || getCentralStateBridge()?.canAutoSyncKey?.(key) !== true) {
+    if (!view.canEdit || !view.readScope || getCentralStateBridge()?.canAutoSyncKey?.(key) !== true) {
       throw new Error("This central view is read-only. The local recovery copy was retained.");
     }
     const storage = getStorage();
@@ -195,12 +196,39 @@ export function createDataSafetyRuntimeService(deps = {}) {
     const recoveryKey = `${storageKey}:recovery:${win.crypto.randomUUID()}`;
     // Never adopt this historical copy as a new actor's edit or automatic retry.
     const recovery = JSON.stringify({ key, value, entry, createdAt: getNow(), ownership: "unverified-recovery" });
-    nativeSetItem.call(storage, recoveryKey, recovery);
-    if (nativeGetItem.call(storage, recoveryKey) !== recovery) throw new Error("Local recovery copy could not be verified.");
-    if (nativeGetItem.call(storage, key) !== value ||
-        JSON.stringify(readManifest().entries[key] || {}) !== JSON.stringify(entry)) {
-      throw new Error("Local recovery changed. Retry your new edit after refreshing.");
+    const markerKey = `${storageKey}:medical-recovery`;
+    const previousMarker = nativeGetItem.call(storage, markerKey);
+    const marker = JSON.stringify({ readScope: view.readScope,
+      generation: JSON.stringify([entry.hash || "", entry.writes || 0, entry.updatedAt || "", entry.deletedAt || ""]) });
+    const archive = { key, value, entry, recoveryKey, recovery, markerKey, previousMarker, marker };
+    try {
+      nativeSetItem.call(storage, recoveryKey, recovery);
+      if (nativeGetItem.call(storage, recoveryKey) !== recovery) throw new Error("Local recovery copy could not be verified.");
+      nativeSetItem.call(storage, markerKey, marker);
+      if (nativeGetItem.call(storage, markerKey) !== marker) throw new Error("Medical draft ownership could not be preserved.");
+      if (nativeGetItem.call(storage, key) !== value ||
+          JSON.stringify(readManifest().entries[key] || {}) !== JSON.stringify(entry)) {
+        throw new Error("Local recovery changed. Retry your new edit after refreshing.");
+      }
+      return archive;
+    } catch (error) {
+      discardUnchangedRecoveryArchive(archive);
+      throw error;
     }
+  }
+
+  function discardUnchangedRecoveryArchive(archive) {
+    const storage = getStorage();
+    // Remove only this unused archive, never a replacement or a newer local generation.
+    if (nativeGetItem.call(storage, archive.key) !== archive.value ||
+        JSON.stringify(readManifest().entries[archive.key] || {}) !== JSON.stringify(archive.entry)) return;
+    try {
+      if (nativeGetItem.call(storage, archive.markerKey) === archive.marker) {
+        if (archive.previousMarker === null) nativeRemoveItem.call(storage, archive.markerKey);
+        else nativeSetItem.call(storage, archive.markerKey, archive.previousMarker);
+      }
+      if (nativeGetItem.call(storage, archive.recoveryKey) === archive.recovery) nativeRemoveItem.call(storage, archive.recoveryKey);
+    } catch { /* Retain the archive if its cleanup cannot be verified safely. */ }
   }
 
   function createManifest() {
@@ -688,6 +716,10 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return result;
     };
     storageConstructor.prototype.clear = function patchedDataSafetyClear() {
+      if (this === storage && (readManifest().entries["football-medical-team-v1"]?.pendingCentralSync ||
+          getCentralCachedValueInfo("football-medical-team-v1").source === "central-readonly-baseline")) {
+        throw new Error("This central view is read-only. The local recovery copy was retained.");
+      }
       if (this === storage && Object.keys(collectRecoveryCopies()).length) {
         throw new Error("Local recovery copies must be reviewed before clearing storage.");
       }

@@ -89,6 +89,7 @@
     "football-simulator-sequence-v1",
     "football-simulator-sequence-library-v2",
   ]);
+  const nativeLocalStorageGetItem = window.Storage?.prototype?.getItem;
   const nativeLocalStorageRemoveItem = window.Storage?.prototype?.removeItem;
   const centralStateValues = new Map();
   let sessionSaveClientPromise = null;
@@ -760,7 +761,11 @@ async function getActiveAccessToken() {
       const manifest = JSON.parse(window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY) || "null");
       const entry = manifest?.entries?.[MEDICAL_TEAM_STATE_KEY];
       if (!entry) return true;
-      return Boolean(entry.pendingCentralSync && marker === medicalRecoveryGeneration(entry));
+      const owner = JSON.parse(marker);
+      return Boolean(entry.pendingCentralSync && (
+        marker === medicalRecoveryGeneration(entry) || owner.generation === medicalRecoveryGeneration(entry) ||
+        (owner.readScope && owner.readScope !== getCentralReadScope())
+      ));
     } catch { return true; }
   }
   function preserveMedicalRecoverySeparation(entry) {
@@ -768,15 +773,17 @@ async function getActiveAccessToken() {
     if (generation !== medicalRecoveryGeneration(readCentralSyncManifestEntries()[MEDICAL_TEAM_STATE_KEY])) {
       throw new Error("Medical recovery changed during loading. Retry the central read.");
     }
-    window.localStorage.setItem(MEDICAL_RECOVERY_MARKER_KEY, generation);
-    if (window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) !== generation || !hasMedicalRecoverySeparation()) {
+    const previous = JSON.parse(window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) || "null");
+    const marker = previous?.readScope ? JSON.stringify({ generation, readScope: previous.readScope }) : generation;
+    window.localStorage.setItem(MEDICAL_RECOVERY_MARKER_KEY, marker);
+    if (window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) !== marker || !hasMedicalRecoverySeparation()) {
       throw new Error("Medical recovery separation could not be preserved.");
     }
   }
   function getCentralCachedValue(key) {
     const normalizedKey = String(key || "");
-    if (!centralStateValues.has(normalizedKey) && normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()) return "{}";
     const info = centralStateValueMetadata.get(normalizedKey);
+    if (info?.source !== "central-readonly-baseline" && normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()) return "{}";
     if (info?.readScope && info.readScope !== getCentralReadScope()) return "{}";
     return centralStateValues.has(normalizedKey) ? centralStateValues.get(normalizedKey) : undefined;
   }
@@ -789,10 +796,11 @@ async function getActiveAccessToken() {
   }
   function getCentralCachedValueInfo(key) {
     const normalizedKey = String(key || "");
+    if (centralStateValueMetadata.get(normalizedKey)?.source !== "central-readonly-baseline" &&
+        normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()) {
+      return { value: "{}", source: "central-readonly-baseline", durable: false, serverBacked: false, canEdit: false };
+    }
     if (!centralStateValues.has(normalizedKey)) {
-      if (normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()) {
-        return { value: "{}", source: "central-readonly-baseline", durable: false, serverBacked: false, canEdit: false };
-      }
       return { value: undefined, source: "", durable: false, serverBacked: false };
     }
     return {
@@ -1623,8 +1631,13 @@ async function getActiveAccessToken() {
             return;
           }
           const sharedValue = stripCentralStateLocalUiFields(value, MEDICAL_LOCAL_UI_FIELDS);
+          // Read only local UI preferences from recovery; clinical fields always come from the server.
+          const localUiValue = mergeCentralStateLocalUiFields(
+            nativeLocalStorageGetItem?.call(window.localStorage, key), sharedValue, MEDICAL_LOCAL_UI_FIELDS
+          ).value;
+          const readValue = mergeCentralStateLocalUiFields(window.localStorage.getItem(key), localUiValue, MEDICAL_LOCAL_UI_FIELDS).value;
           preserveMedicalRecoverySeparation(pendingEntry);
-          setCentralCachedValue(key, mergeCentralStateLocalUiFields(window.localStorage.getItem(key), sharedValue, MEDICAL_LOCAL_UI_FIELDS).value, {
+          setCentralCachedValue(key, readValue, {
             source: "central-readonly-baseline", durable: false, serverBacked: true, readScope: getCentralReadScope(),
             allowExplicitWrite: canAutomaticallyWrite,
           });
@@ -1740,11 +1753,15 @@ async function getActiveAccessToken() {
     }
     if (centralState.hydrating || !authState.session?.access_token) {
       if (centralState.hydrating && getCentralReadScope()) {
-        const compatible = pendingCentralHydration?.scope === getCentralReadScope();
+        const compatible = pendingCentralHydration?.scope === getCentralReadScope() &&
+          pendingCentralHydration?.token === authState.session.access_token;
+        if (!compatible) pendingCentralHydration?.waiters?.forEach((resolve) => resolve(false));
         pendingCentralHydration = { scope: getCentralReadScope(), token: authState.session.access_token,
-          options: { fresh: true, forceApply: Boolean(options.forceApply || (compatible && pendingCentralHydration.options.forceApply)) } };
+          options: { fresh: true, forceApply: Boolean(options.forceApply || (compatible && pendingCentralHydration.options.forceApply)) },
+          waiters: compatible ? pendingCentralHydration.waiters : [] };
+        return new Promise((resolve) => pendingCentralHydration.waiters.push(resolve));
       }
-      return centralState.hydrated;
+      return false;
     }
     centralState.hydrating = true;
     centralState.lastError = "";
@@ -1817,9 +1834,14 @@ async function getActiveAccessToken() {
       const pending = pendingCentralHydration || (!isCurrent() && getCentralReadScope()
         ? { scope: getCentralReadScope(), token: authState.session.access_token, options: { fresh: true } } : null);
       pendingCentralHydration = null;
-      if (pending) window.setTimeout(() => {
-        if (pending.scope !== getCentralReadScope() || pending.token !== authState.session?.access_token) return false;
-        return hydrateCentralState(pending.options);
+      if (pending) window.setTimeout(async () => {
+        let hydrated = false;
+        try {
+          if (pending.scope === getCentralReadScope() && pending.token === authState.session?.access_token) {
+            hydrated = await hydrateCentralState(pending.options);
+          }
+          return hydrated;
+        } finally { pending.waiters?.forEach((resolve) => resolve(hydrated)); }
       }, 0);
     }
   }

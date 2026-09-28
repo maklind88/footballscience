@@ -151,6 +151,39 @@ repetitions each on final code (60/60).
 timeouts or architecture budgets were increased. Exact-commit GitHub checks and
 independent review remain required before any release decision.
 
+## Coalesced Read And Replacement Ownership Closure
+
+Exact-commit QA for `bd2e73e4` caught a startup-order regression: installing the
+recovery marker could hide local UI preferences before the view copied them.
+Hydration now copies only the two whitelisted UI fields from native storage and
+overlays current view preferences, never clinical recovery data. The browser
+contract checks selected date after reload and explicit cache eviction as well
+as unchanged raw recovery, manifest and server-only recommendations.
+
+The review of the same commit added four findings:
+
+| Finding | Correction | Regression evidence |
+| --- | --- | --- |
+| Coalesced hydration reports stale success | Every queued caller awaits the actual fresh run; changed scope/token callers resolve false. | Deferred read barriers prove no early success on an already-hydrated page, including failure and sign-out |
+| Replacement pending edit loses ownership on reload | Before native replacement, the durable recovery marker also records its authorized read scope. A mismatched actor/organization cannot expose, merge, seed or retry that pending generation. | New-runtime/current-runtime contract and browser test with failed save, organization switch, reload and HTTP token-bound request inspection |
+| Blanket clear drops a pending Medical tombstone | Clear inspects pending Medical metadata/read separation independently of native value keys. | Null-native-value tests with and without an installed read view retain the exact manifest and marker |
+| Failed native replacement leaves unused archives | Failed writes clean up only their own unused archive/marker when the original raw generation still matches. A newer generation retains its recovery evidence. | Repeated quota failures for value and owner marker; an interleaved newer generation is not overwritten or cleaned up |
+
+Only unused archives from rejected writes are cleaned automatically. Archives
+that protected an actual replacement still require explicit recovery review.
+No module business logic, server API, database or live data is changed.
+
+Local verification of this follow-up: 3,055 passing tests (3,004 API/contracts,
+41 central-state browser cases, 10 Medical clinical cases). Eight critical browser
+cases passed ten repetitions each (80/80). After additionally retaining the
+recorded owner through subsequent separated reads, the full 3,055 suite and the
+two affected reload/ownership cases repeated ten times each passed (20/20).
+The request audit uses the actual Authorization header, not a mutable future
+profile, to distinguish a late old-account request from a new-account request.
+`npm run qa:static` and `git diff --check` passed on the final changes; the same
+84 pre-existing architecture warnings remain, with no budgets or timeouts raised.
+Fresh exact-commit CI/review remains required; `bd2e73e4` is not release evidence.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

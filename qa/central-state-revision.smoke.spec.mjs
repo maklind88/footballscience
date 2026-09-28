@@ -2436,6 +2436,10 @@ test("read-only coach sees fresh central Medical records while the exact pending
     expect(appStateWriteBodies.filter((body) => body.key === medicalTeamStateKey)).toEqual([]);
     await tab.page.reload({ waitUntil: "domcontentloaded" });
     await expect.poll(() => tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}").records, medicalTeamStateKey)).toEqual(centralMedicalState.records);
+    expect(await tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key)).selectedDate, medicalTeamStateKey)).toBe("2026-05-17");
+    await tab.page.evaluate((key) => window.footballScienceCentralState.removeCachedValue(key), medicalTeamStateKey);
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+    expect(await tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key)).selectedDate, medicalTeamStateKey)).toBe("2026-05-17");
     const recovered = await tab.page.evaluate(({ key, manifestKey }) => ({
       value: window.__qaNativeGetItem.call(localStorage, key),
       entry: JSON.parse(localStorage.getItem(manifestKey)).entries[key],
@@ -2646,6 +2650,71 @@ for (const { switchActor, reload, omitted } of [
     } finally { await closeCentralStateContext(tab.context); }
   });
 }
+
+test("a pending replacement Medical draft is never adopted after an organization switch and reload", async ({ browser, baseURL }) => {
+  const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, role: "coach", organization_id: "org-a" } };
+  const centralValue = JSON.stringify({ players: [{ id: "qa-player", name: "QA Player" }], records: [], injuryPlans: [] });
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [medicalTeamStateKey]: centralValue }, metadataEntries: { [medicalTeamStateKey]: createMetadata(4, centralValue) } };
+  const requests = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], "medical-pending-owner-reload", {
+    sessionUser: profile, profileUser: profile,
+    appStateWriteHandler: ({ body, request }) => {
+      // An old page may finish a request while the next profile is being prepared.
+      const org = request.headers().authorization === "Bearer medical-token" ? "org-a" : profile.app_metadata.organization_id;
+      requests.push({ org, body });
+      return body.key === medicalTeamStateKey ? { status: 500, body: { ok: false, reason: "Temporary test failure" } } : null;
+    },
+    initScript: ({ key, manifestKey }) => {
+      window.__qaNativeGetItem = Storage.prototype.getItem;
+      if (localStorage.getItem(key) !== null) return;
+      localStorage.setItem(key, '{"players":[],"records":[],"injuryPlans":[{"id":"legacy-private"}]}');
+      localStorage.setItem(manifestKey, JSON.stringify({ entries: { [key]: { pendingCentralSync: true, hash: "old", writes: 7 } } }));
+    }, initArg: { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey },
+  });
+  try {
+    profile.app_metadata.role = "medical";
+    await tab.page.evaluate(async (user) => {
+      window.__qaSession = { access_token: "medical-token", user };
+      await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
+    }, profile);
+    await expect.poll(() => tab.page.evaluate((key) => {
+      const bridge = window.footballScienceCentralState, info = bridge.getCachedValueInfo(key);
+      return !bridge.getStatus().hydrating && (info.canEdit || info.source === "local-write");
+    }, medicalTeamStateKey)).toBe(true);
+    const replacement = await tab.page.evaluate((key) => {
+      const value = JSON.parse(localStorage.getItem(key));
+      value.records = [{ id: "org-a-pending-replacement", playerId: "qa-player", date: "2026-09-28", participation: 40 }];
+      const raw = JSON.stringify(value);
+      localStorage.setItem(key, raw);
+      return raw;
+    }, medicalTeamStateKey);
+    await expect.poll(() => requests.some(({ body }) => body.value?.includes("org-a-pending-replacement"))).toBe(true);
+    const pending = await tab.page.evaluate(({ key, manifestKey }) => ({
+      raw: window.__qaNativeGetItem.call(localStorage, key), entry: JSON.parse(localStorage.getItem(manifestKey)).entries[key],
+      owner: JSON.parse(localStorage.getItem(`${manifestKey}:medical-recovery`)),
+    }), { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey });
+    expect(pending.raw).toBe(replacement);
+    expect(pending.entry.pendingCentralSync).toBe(true);
+    expect(pending.owner.readScope).toContain("org-a");
+    profile.id = "new-org-actor";
+    profile.app_metadata.organization_id = "org-b";
+    const otherValue = JSON.stringify({ players: [{ id: "other-player", name: "Other Player" }],
+      records: [{ id: "org-b-central", playerId: "other-player", date: "2026-09-28", participation: 80 }], injuryPlans: [] });
+    store.entries[medicalTeamStateKey] = otherValue;
+    store.metadataEntries[medicalTeamStateKey] = createMetadata(10, otherValue);
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await expect.poll(() => tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}").records?.map((record) => record.id), medicalTeamStateKey)).toEqual(["org-b-central"]);
+    await tab.page.waitForTimeout(400);
+    const after = await tab.page.evaluate((key) => ({
+      raw: window.__qaNativeGetItem.call(localStorage, key),
+      copies: Object.values(window.footballScienceDataSafety.createBackup().recoveryCopies).map(JSON.parse),
+    }), medicalTeamStateKey);
+    expect(after.raw === replacement || after.copies.some((copy) => copy.value === replacement && copy.entry.pendingCentralSync)).toBe(true);
+    expect(requests.filter(({ org }) => org === "org-b").every(({ body }) => !JSON.stringify(body).includes("org-a-pending-replacement") && !JSON.stringify(body).includes("legacy-private"))).toBe(true);
+    expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
+  } finally { await closeCentralStateContext(tab.context); }
+});
 
 test("Medical editor hydration still writes an automatic media merge", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");

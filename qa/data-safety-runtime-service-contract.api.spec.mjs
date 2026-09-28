@@ -24,6 +24,7 @@ function createFakeStorageConstructor(options = {}) {
     if (options.failRecovery && String(key).startsWith("football-data-safety-v1:recovery:")) throw new Error("Recovery quota exceeded");
     if (String(key) === options.failureKey) throw options.storageError;
     if (String(key) === options.quotaKey) {
+      options.beforeQuotaFailure?.(this);
       const error = new Error(`Setting ${String(key)} exceeded the quota.`);
       error.name = "QuotaExceededError";
       throw error;
@@ -252,7 +253,7 @@ for (const failRecovery of [false, true]) {
   test(`new authorized Medical edit archives the old pending generation before replacing it (quota: ${failRecovery})`, async () => {
     const key = "football-medical-team-v1";
     const h = createHarness({ failRecovery, centralCache: { [key]: "fresh server view" },
-      centralCacheInfo: { [key]: { source: "central-readonly-baseline", canEdit: true, durable: false } } });
+      centralCacheInfo: { [key]: { source: "central-readonly-baseline", canEdit: true, readScope: "actor-org-a", durable: false } } });
     const entry = { pendingCentralSync: true, hash: "old", writes: 7, serverRevision: 1 };
     h.localStorage.values.set(key, "old private draft");
     h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: entry } }));
@@ -266,6 +267,7 @@ for (const failRecovery of [false, true]) {
       return;
     }
     h.localStorage.setItem(key, "new authorized edit");
+    expect(JSON.parse(h.localStorage.values.get("football-data-safety-v1:medical-recovery"))).toMatchObject({ readScope: "actor-org-a" });
     expect(h.localStorage.values.get(key)).toBe("new authorized edit");
     expect(h.queuedWrites.map(([writeKey, value]) => [writeKey, value])).toEqual([[key, "new authorized edit"]]);
     const recovery = Object.values(h.service.createBackupEnvelope().recoveryCopies).map(JSON.parse);
@@ -277,6 +279,63 @@ for (const failRecovery of [false, true]) {
     expect(h.localStorage.values.get(key)).toBe("new authorized edit");
   });
 }
+
+for (const failureKey of ["football-medical-team-v1", "football-data-safety-v1:medical-recovery"]) {
+  test(`a failed replacement removes only its unused archive (${failureKey})`, async () => {
+    const key = "football-medical-team-v1";
+    const h = createHarness({ quotaKey: failureKey, centralCache: { [key]: "server view" },
+      centralCacheInfo: { [key]: { source: "central-readonly-baseline", canEdit: true, readScope: "actor-org-a", durable: false } } });
+    const entry = { pendingCentralSync: true, hash: "old", writes: 7 };
+    h.localStorage.values.set(key, "original");
+    h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: entry } }));
+    h.localStorage.values.set("football-data-safety-v1:medical-recovery", '["old",7,"",""]');
+    h.service.install(); await Promise.resolve();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      expect(() => h.localStorage.setItem(key, "new authorized edit")).toThrow(/quota/i);
+      expect(h.localStorage.values.get(key)).toBe("original");
+      expect(h.localStorage.values.get("football-data-safety-v1:medical-recovery")).toBe('["old",7,"",""]');
+      expect(h.service.readManifest().entries[key]).toEqual(entry);
+      expect(h.service.createBackupEnvelope().recoveryCopies).toEqual({});
+      expect(h.queuedWrites).toEqual([]);
+    }
+  });
+}
+
+for (const hasReadView of [false, true]) {
+  test(`clear preserves pending Medical tombstones without a native value (read view: ${hasReadView})`, async () => {
+    const key = "football-medical-team-v1";
+    const h = createHarness(hasReadView ? { centralCache: { [key]: "{}" },
+      centralCacheInfo: { [key]: { source: "central-readonly-baseline", durable: false } } } : {});
+    const entry = { pendingCentralSync: true, hash: "deleted", writes: 7, deletedAt: "deletion-time" };
+    h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: entry } }));
+    h.localStorage.values.set("football-data-safety-v1:medical-recovery", '["deleted",7,"","deletion-time"]');
+    h.service.install(); await Promise.resolve();
+    const before = Array.from(h.localStorage.values);
+    expect(() => h.localStorage.clear()).toThrow(/recovery/);
+    expect(Array.from(h.localStorage.values)).toEqual(before);
+    expect(h.queuedWrites).toEqual([]);
+  });
+}
+
+test("failed replacement cleanup cannot remove an archive needed by a newer local generation", async () => {
+  const key = "football-medical-team-v1", markerKey = "football-data-safety-v1:medical-recovery";
+  const newer = { pendingCentralSync: true, hash: "newer", writes: 9 };
+  const h = createHarness({ quotaKey: key, beforeQuotaFailure: (storage) => {
+    storage.values.set(key, "newer C");
+    storage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: newer } }));
+    storage.values.set(markerKey, "newer owner marker");
+  }, centralCache: { [key]: "server view" },
+  centralCacheInfo: { [key]: { source: "central-readonly-baseline", canEdit: true, readScope: "actor-org-a", durable: false } } });
+  h.localStorage.values.set(key, "original A");
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: { pendingCentralSync: true, hash: "old", writes: 7 } } }));
+  h.service.install(); await Promise.resolve();
+  expect(() => h.localStorage.setItem(key, "replacement B")).toThrow(/quota/i);
+  expect(h.localStorage.values.get(key)).toBe("newer C");
+  expect(h.localStorage.values.get(markerKey)).toBe("newer owner marker");
+  expect(h.service.readManifest().entries[key]).toEqual(newer);
+  expect(Object.values(h.service.createBackupEnvelope().recoveryCopies).map(JSON.parse)).toMatchObject([{ value: "original A" }]);
+  expect(h.queuedWrites).toEqual([]);
+});
 
 test("read-only central view preserves the pending disk generation during UI normalization, quota and backup", () => {
   const key = "football-medical-team-v1";

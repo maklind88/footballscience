@@ -56,6 +56,42 @@ function createProjectionHarness(storage = new Map(), canWrite = false) {
   return { context, api };
 }
 
+test("local development has its own scope without admitting an unsigned production session", () => {
+  const h = createProjectionHarness();
+  const productionScope = h.api.getCentralReadScope();
+  h.context.authState.session = null;
+  expect(h.api.getCentralReadScope()).toBe("");
+  h.context.authState.devMode = true;
+  expect(h.api.getCentralReadScope()).not.toBe("");
+  expect(h.api.getCentralReadScope()).not.toBe(productionScope);
+  h.context.authState.currentUser = null;
+  expect(h.api.getCentralReadScope()).toBe("");
+});
+
+for (const key of ["football-schedule-v1", "football-periodization-v2", "football-player-profiles-v1"]) {
+test(`returning pending owner releases the foreign ${key} read view only after an authorized read`, () => {
+  const h = createProjectionHarness(), owner = h.api.getCentralReadScope();
+  const manifest = JSON.stringify({ entries: { [key]: { pendingCentralSync: true, principalScope: owner, writes: 7, serverRevision: 1 } } });
+  const storage = new Map([[key, "private A"], ["football-data-safety-v1", manifest]]);
+  const b = createProjectionHarness(storage);
+  b.context.authState.currentUser.organizationId = "org-b";
+  b.api.setCentralCachedValue(key, "central B", { source: "central-readonly-baseline", readScope: b.api.getCentralReadScope() });
+  b.context.centralState.metadata[key] = { revision: 10 };
+  b.api.clearMissingCentralReadViews({ [key]: "central B" });
+  expect(b.api.getCentralCachedValue(key)).toBe("central B");
+  b.context.authState.currentUser.organizationId = "org-a";
+  expect(b.api.getCentralCachedValue(key)).toBe("{}");
+  b.api.clearMissingCentralReadViews({});
+  expect(b.api.getCentralCachedValueInfo(key).source).toBe("central-readonly-baseline");
+  b.api.clearMissingCentralReadViews({ [key]: "central A" });
+  expect(b.api.getCentralCachedValue(key)).toBeUndefined();
+  expect(b.api.getCentralCachedValueInfo(key).source).toBe("");
+  expect(b.context.centralState.metadata[key]).toBeUndefined();
+  expect(storage.get(key)).toBe("private A");
+  expect(storage.get("football-data-safety-v1")).toBe(manifest);
+});
+}
+
 test("Medical recovery separation survives a new runtime without changing the original pending generation", () => {
   const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
   const entry = { pendingCentralSync: true, hash: "draft", writes: 7, updatedAt: "original-time", serverRevision: 1 };

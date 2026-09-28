@@ -32,6 +32,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   let centralStateWriteTimer = null;
   let centralStateWriteFlushPromise = null;
+  let pendingManifestRetry = null;
   const centralStateWriteQueue = new Map();
   const centralStateActiveWriteKeys = new Set();
   const centralStateWriteSuppressionKeys = new Set();
@@ -146,7 +147,9 @@ export function createCentralSyncRuntimeService(deps = {}) {
   }
 
   async function retryCentral(readManifest) {
-    if (centralStateWriteTimer || centralStateWriteFlushPromise || win.__footballScienceCentralHydrating || !getCurrentUser() || !getCentralStateBridge()?.syncKey) return;
+    if (!getCurrentUser() || !getCentralStateBridge()?.syncKey) return;
+    if (typeof readManifest === "function") pendingManifestRetry = { readManifest };
+    if (centralStateWriteTimer || centralStateWriteFlushPromise || win.__footballScienceCentralHydrating) return;
     if (centralStateWriteQueue.size) {
       // Resume retained writes on an external recovery event, never a failure loop.
       centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
@@ -154,13 +157,18 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     const userId = getCurrentUser()?.id;
     const principalScope = getCentralStateBridge()?.getReadScope?.();
+    const retryRequest = pendingManifestRetry;
+    let durableState = null;
     try {
-      const durableState = getCentralStateBridge()?.getSessionPendingState ? await getCentralStateBridge().getSessionPendingState() : null;
-      if (getCurrentUser()?.id !== userId || getCentralStateBridge()?.getReadScope?.() !== principalScope || centralStateWriteQueue.size || centralStateWriteFlushPromise) return;
-      if (durableState) queueCentralStateWrite(sessionPlannerStorageKey, rawGetItem(sessionPlannerStorageKey) ?? durableState, { automatic: true, sessionReplay: true });
+      durableState = getCentralStateBridge()?.getSessionPendingState ? await getCentralStateBridge().getSessionPendingState() : null;
     } catch {
-      reportSyncStatus(sessionPlannerStorageKey, "issue", "Local save queue unavailable");
+      if (getCurrentUser()?.id === userId && getCentralStateBridge()?.getReadScope?.() === principalScope) {
+        reportSyncStatus(sessionPlannerStorageKey, "issue", "Local save queue unavailable");
+      }
     }
+    if (getCurrentUser()?.id !== userId || getCentralStateBridge()?.getReadScope?.() !== principalScope || centralStateWriteQueue.size || centralStateWriteFlushPromise) return;
+    if (pendingManifestRetry === retryRequest) pendingManifestRetry = null;
+    if (durableState) queueCentralStateWrite(sessionPlannerStorageKey, rawGetItem(sessionPlannerStorageKey) ?? durableState, { automatic: true, sessionReplay: true });
     const manifest = typeof readManifest === "function" ? readManifest() : {};
     for (const [key, entry] of Object.entries(manifest.entries || {})) {
       if (entry.principalScope && entry.principalScope !== getCentralStateBridge()?.getReadScope?.()) continue;
@@ -531,6 +539,9 @@ export function createCentralSyncRuntimeService(deps = {}) {
         centralStateWriteFlushPromise = null;
         if (canContinue && centralStateWriteQueue.size && !centralStateWriteTimer) {
           centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
+        }
+        if (canContinue && pendingManifestRetry && !centralStateWriteQueue.size && !centralStateWriteTimer) {
+          return retryCentral(pendingManifestRetry.readManifest).then(() => canContinue);
         }
         return canContinue;
       },

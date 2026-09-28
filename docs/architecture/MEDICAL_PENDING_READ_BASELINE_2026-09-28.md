@@ -279,8 +279,8 @@ facade before calling it. No timeout, product bypass or safety assertion changed
 
 This is ownership protection for newly recorded pending generations, not a
 migration assigning ownership to all historical unscoped storage. Non-Medical
-foreign recovery views remain read-only; automatic recovery/adoption under a new
-account is intentionally outside this patch. Medical recovery archives remain
+foreign recovery views remain read-only for a different owner; automatic
+recovery/adoption under a new account is intentionally outside this patch. Medical recovery archives remain
 durable and require explicit review. Fresh exact-SHA CI/review is still required.
 
 Final local verification: 3,088 tests passed (3,033 API/contracts, 45 central-state
@@ -288,6 +288,51 @@ browser cases, 10 Medical clinical cases). The 36 affected risk cases passed ten
 repetitions each (360/360). `npm run qa:static` and `git diff --check` passed; the
 same 84 existing architecture warnings remain. No timeout or budget was raised.
 These are isolated mocked development checks, not authenticated Live verification.
+
+## Returning Pending Owner And Deferred Retry
+
+Review 5341714126 on `fcd375fa` found that a same-page A-to-B-to-A flow retained
+B's read-only view even after A returned. A fresh authorized response containing
+the key now releases that foreign view and its cached revision, without changing
+A's native pending value/entry. An omitted key stays read-only. Medical and the
+Sessions journal retain their separate recovery rules. The browser proof checks
+that A retries at revision 1, not B's revision 10, receives revision 2, preserves
+its event and sends exactly once after returning, both with and without reload.
+
+The real event chain also reproduced a lost retry intent when another write was
+already queued/in flight at ready. A manifest retry request now survives those
+waits and is scanned once after a successful queue drain. Network failures do
+not start a new retry loop; another external retry trigger remains necessary.
+Four negative service contracts failed before their corresponding fixes and pass
+afterward: a queued timer, an active flush, a new write arriving during the
+journal read, and overlapping manifest scans. Each retry request has its own
+identity so an older scan cannot consume newer recovery intent. The intent is
+consumed only after the journal await and current-account/queue checks.
+
+GitHub QA on `fcd375fa` passed all groups except the existing Sessions save
+feedback check. The failure reproduced locally: an authenticated local-dev user
+has no server token, so the new scope check suppressed its existing local save
+flow. Local development now has a distinct, non-production scope. A real
+production context without a token still has no scope and cannot queue central
+writes. The original critical-flow test is unchanged and passes with this fix.
+
+The late Medical receipt browser scenario now waits for the real module default
+normalization to be acknowledged before holding the next runtime receipt. A
+read-only editable view was previously an early readiness signal: its later
+normalization could race the test write, correctly cause a 409, and move the
+held request into conflict hydration instead of the intended runtime path.
+The revision-guarded mock, B's revision 10-to-11 acknowledgement, exact B payload,
+and no duplicate B request assertions remain. No timeout or product bypass was
+added for this readiness correction.
+
+Verification after the returning-owner/retry fixes: 3,097/3,097 passed (3,041
+API/contracts, 46 central-state browser cases, 10 Medical clinical cases).
+All 46 affected risk cases passed ten repetitions (460/460), including the
+unchanged Sessions save-feedback test from CI. `npm run qa:static` and
+`git diff --check` passed with the same 84 existing architecture warnings.
+The eight-file scope is unchanged, with no module product files, budgets,
+timeouts, server API or migration changes. Fresh exact-SHA CI and review remain
+required; these local mocked checks do not establish production verification.
 
 ## Remaining Platform Work
 

@@ -2814,16 +2814,19 @@ test("an old account Medical receipt cannot poison a new account's queued edit",
     }, initArg: { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey },
   });
   try {
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
     profile.app_metadata.role = "medical";
     await tab.page.evaluate(async (user) => {
       window.__qaSession = { access_token: "org-a-token", user };
       await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
     }, profile);
-    await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey, revision }) => {
       const bridge = window.footballScienceCentralState, info = bridge.getCachedValueInfo(key);
       const pending = JSON.parse(localStorage.getItem(manifestKey)).entries[key]?.pendingCentralSync;
-      return !bridge.getStatus().hydrating && (info.canEdit || (info.source === "local-write" && !pending));
-    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toBe(true);
+      // Finish the module's real default normalization before holding the next runtime receipt.
+      return revision > 4 && !bridge.getStatus().hydrating && bridge.getStatus().metadata[key]?.revision === revision &&
+        info.source === "local-write" && !pending;
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey, revision: store.metadataEntries[medicalTeamStateKey].revision })).toBe(true);
     const normalized = await tab.page.evaluate((key) => {
       const value = JSON.parse(localStorage.getItem(key));
       value.records = [{ id: "held-org-a", playerId: "qa-player", date: "2026-09-28", participation: 40 }];
@@ -2841,7 +2844,8 @@ test("an old account Medical receipt cannot poison a new account's queued edit",
     }, profile);
     await expect.poll(() => tab.page.evaluate((key) => {
       const bridge = window.footballScienceCentralState;
-      return !bridge.getStatus().hydrating && bridge.getCachedValueInfo(key).canEdit && JSON.parse(localStorage.getItem(key)).records[0]?.id;
+      const info = bridge.getCachedValueInfo(key);
+      return !bridge.getStatus().hydrating && (info.canEdit || info.source === "local-write") && JSON.parse(localStorage.getItem(key)).records[0]?.id;
     }, medicalTeamStateKey)).toBe("org-b-central");
     await tab.page.evaluate((key) => {
       const value = JSON.parse(localStorage.getItem(key));
@@ -2863,12 +2867,13 @@ test("an old account Medical receipt cannot poison a new account's queued edit",
   } finally { release(); await closeCentralStateContext(tab.context); }
 });
 
-test("Schedule pending ownership survives old response then new-account ready and reload", async ({ browser, baseURL }) => {
+for (const reload of [false, true]) {
+test(`Schedule pending ownership survives account changes and the owner can retry (reload: ${reload})`, async ({ browser, baseURL }) => {
   const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, organization_id: "org-a" } };
   const baseline = JSON.stringify({ events: [] });
   const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
     entries: { [scheduleStateKey]: baseline }, metadataEntries: { [scheduleStateKey]: createMetadata(1, baseline) } };
-  let releaseA, releaseB, heldA = false, heldB = false, holdB = false;
+  let releaseA, releaseB, heldA = false, heldB = false, holdB = false, acknowledgeA = false;
   const aBarrier = new Promise((resolve) => { releaseA = resolve; });
   const bBarrier = new Promise((resolve) => { releaseB = resolve; });
   const requests = [];
@@ -2878,6 +2883,13 @@ test("Schedule pending ownership survives old response then new-account ready an
     appStateWriteHandler: async ({ body, request }) => {
       if (body.key !== scheduleStateKey) return null;
       requests.push({ body, token: request.headers().authorization });
+      if (acknowledgeA) {
+        const metadata = store.metadataEntries[scheduleStateKey];
+        if (body.baseRevision !== metadata.revision) return { status: 409, body: { ok: false, currentRevision: metadata.revision } };
+        store.entries[scheduleStateKey] = body.value;
+        store.metadataEntries[scheduleStateKey] = createMetadata(metadata.revision + 1, body.value);
+        return { status: 200, body: { ok: true, key: body.key, value: body.value, metadata: store.metadataEntries[scheduleStateKey] } };
+      }
       if (body.value.includes("private-org-a")) { heldA = true; await aBarrier; }
       return { status: 500, body: { ok: false, reason: "Synthetic old request failure" } };
     },
@@ -2892,7 +2904,7 @@ test("Schedule pending ownership survives old response then new-account ready an
         return result;
       };
       const value = JSON.parse(localStorage.getItem(key));
-      value.events = [{ id: "private-org-a", date: "2026-09-28", title: "Private A", type: "training" }];
+      value.events = [{ id: "private-org-a", date: "2026-09-28", title: "Private A", type: "training", time: "", note: "" }];
       const raw = JSON.stringify(value);
       localStorage.setItem(key, raw);
       return raw;
@@ -2914,19 +2926,41 @@ test("Schedule pending ownership survives old response then new-account ready an
     releaseA();
     await tab.page.waitForFunction(() => window.__qaASyncSettled === true);
     releaseB(); holdB = false;
-    for (const reload of [false, true]) {
-      if (reload) await tab.page.reload({ waitUntil: "domcontentloaded" });
-      await tab.page.waitForFunction(() => typeof window.footballScienceDataSafety?.createBackup === "function");
-      await expect.poll(() => tab.page.evaluate((key) => !window.footballScienceCentralState.getStatus().hydrating && JSON.parse(localStorage.getItem(key) || "{}").events?.[0]?.id, scheduleStateKey)).toBe("org-b-central");
-      await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
-      const retained = await tab.page.evaluate(({ key, manifestKey }) => ({ raw: window.__qaNativeGetItem.call(localStorage, key),
-        entry: JSON.parse(localStorage.getItem(manifestKey)).entries[key] }), { key: scheduleStateKey, manifestKey: dataSafetyManifestKey });
-      expect(retained).toEqual({ raw: draft, entry: aEntry });
-      expect(requests).toHaveLength(1);
-      expect(requests[0].token).toBe("Bearer qa-access-token");
-    }
+    if (reload) await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await tab.page.waitForFunction(() => typeof window.footballScienceDataSafety?.createBackup === "function");
+    await expect.poll(() => tab.page.evaluate((key) => !window.footballScienceCentralState.getStatus().hydrating && JSON.parse(localStorage.getItem(key) || "{}").events?.[0]?.id, scheduleStateKey)).toBe("org-b-central");
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+    const retained = await tab.page.evaluate(({ key, manifestKey }) => ({ raw: window.__qaNativeGetItem.call(localStorage, key),
+      entry: JSON.parse(localStorage.getItem(manifestKey)).entries[key] }), { key: scheduleStateKey, manifestKey: dataSafetyManifestKey });
+    expect(retained).toEqual({ raw: draft, entry: aEntry });
+    expect(requests).toHaveLength(1);
+    expect(requests[0].token).toBe("Bearer qa-access-token");
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+    profile.id = qaUser.id;
+    profile.app_metadata.organization_id = "org-a";
+    store.entries[scheduleStateKey] = baseline;
+    store.metadataEntries[scheduleStateKey] = createMetadata(1, baseline);
+    acknowledgeA = true;
+    await tab.page.evaluate(async (user) => {
+      window.__qaSession = { access_token: "org-a-return-token", user };
+      await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
+    }, profile);
+    await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getReadScope())).toBe(aEntry.principalScope);
+    await expect.poll(() => tab.page.evaluate((key) => window.footballScienceCentralState.getCachedValueInfo(key).source, scheduleStateKey)).not.toBe("central-readonly-baseline");
+    await expect.poll(() => requests.length).toBe(2);
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+      { key: scheduleStateKey, manifestKey: dataSafetyManifestKey })).toBe(false);
+    expect(requests[1].token).toBe("Bearer org-a-return-token");
+    expect(requests[1].body.baseRevision).toBe(1);
+    expect(JSON.parse(requests[1].body.value).events).toEqual(JSON.parse(draft).events);
+    expect(JSON.parse(store.entries[scheduleStateKey]).events).toEqual(JSON.parse(draft).events);
+    expect(store.metadataEntries[scheduleStateKey].revision).toBe(2);
+    expect(await tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key)).events, scheduleStateKey)).toEqual(JSON.parse(draft).events);
+    await tab.page.waitForTimeout(400);
+    expect(requests).toHaveLength(2);
   } finally { releaseA(); releaseB(); await closeCentralStateContext(tab.context); }
 });
+}
 
 test("Medical editor hydration still writes an automatic media merge", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");

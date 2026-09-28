@@ -797,6 +797,9 @@ async function getActiveAccessToken() {
     const user = authState.currentUser;
     const claims = authState.session?.user?.app_metadata || {};
     const organizationId = claims.organizationId || claims.organization_id || user?.organizationId || "";
+    if (authState.devMode && user?.id) {
+      return JSON.stringify(["local-development", user.id, organizationId, user.clubId || "", user.teamId || "", user.role]);
+    }
     return user?.id && authState.session?.access_token
       ? JSON.stringify([user.id, organizationId, user.clubId || "", user.teamId || "", user.role]) : "";
   }
@@ -848,7 +851,18 @@ async function getActiveAccessToken() {
     return centralStateValues.delete(normalizedKey);
   }
   function clearMissingCentralReadViews(entries) {
+    const pendingEntries = readCentralSyncManifestEntries();
+    const readScope = getCentralReadScope();
     for (const key of new Set([...centralStateValues.keys(), MEDICAL_TEAM_STATE_KEY])) {
+      if (readScope && key !== MEDICAL_TEAM_STATE_KEY && key !== "football-session-planner-v3" &&
+          pendingEntries[key]?.pendingCentralSync && pendingEntries[key].principalScope === readScope &&
+          centralStateValueMetadata.get(key)?.source === "central-readonly-baseline" &&
+          Object.prototype.hasOwnProperty.call(entries, key)) {
+        // A fresh authorized read releases the foreign view, never the owner's pending disk generation.
+        removeCentralCachedValue(key);
+        delete centralState.metadata[key];
+        continue;
+      }
       if (getCentralCachedValueInfo(key).source === "central-readonly-baseline" &&
           !Object.prototype.hasOwnProperty.call(entries, key)) {
         // Read revocation must not expose or seed the private recovery copy on disk.

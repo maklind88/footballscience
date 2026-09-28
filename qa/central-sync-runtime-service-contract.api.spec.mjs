@@ -174,6 +174,82 @@ test(`account ownership is rechecked after awaiting ${boundary}`, async () => {
 });
 }
 
+for (const boundary of ["queued timer", "active flush"]) {
+test(`manifest recovery intent survives a ${boundary} until the owning pending generation drains`, async () => {
+  let release, enter;
+  const barrier = new Promise((resolve) => { release = resolve; });
+  const entered = new Promise((resolve) => { enter = resolve; });
+  const h = createServiceHarness({ getReadScope: () => "owner-A", syncKey: async ({ key, value }) => {
+    if (boundary === "active flush" && key === "football-medical-team-v1") { enter(); await barrier; }
+    return { ok: true, value };
+  } });
+  const key = "football-schedule-v1";
+  h.rawValues.set(key, "owner draft");
+  h.manifest.entries[key] = { pendingCentralSync: true, principalScope: "owner-A", hash: "A", writes: 7 };
+  h.rawValues.set("football-medical-team-v1", "other queued write");
+  h.service.queueCentralStateWrite("football-medical-team-v1", "other queued write");
+  let flushing;
+  if (boundary === "active flush") { flushing = h.service.flushCentralStateWrites(); await entered; }
+  await h.service.retryCentral(() => h.manifest);
+  release();
+  await (flushing || h.service.flushCentralStateWrites());
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.map((call) => call.key)).toEqual(["football-medical-team-v1", key]);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(2);
+});
+}
+
+test("manifest retry remains requested when a new write queues during the journal read", async () => {
+  let release, enter, reads = 0;
+  const barrier = new Promise((resolve) => { release = resolve; });
+  const entered = new Promise((resolve) => { enter = resolve; });
+  const h = createServiceHarness({ getReadScope: () => "owner-A" });
+  h.win.footballScienceCentralState.getSessionPendingState = async () => {
+    if (++reads === 1) { enter(); await barrier; }
+    return null;
+  };
+  h.rawValues.set("football-schedule-v1", "owner draft");
+  h.manifest.entries["football-schedule-v1"] = { pendingCentralSync: true, principalScope: "owner-A", hash: "A", writes: 7 };
+  const retry = h.service.retryCentral(() => h.manifest);
+  await entered;
+  h.rawValues.set("football-medical-team-v1", "other write");
+  h.service.queueCentralStateWrite("football-medical-team-v1", "other write");
+  release(); await retry;
+  await h.service.flushCentralStateWrites();
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.map((call) => call.key)).toEqual(["football-medical-team-v1", "football-schedule-v1"]);
+  expect(h.manifest.entries["football-schedule-v1"].pendingCentralSync).toBe(false);
+});
+
+test("an older manifest scan cannot consume a newer recovery request", async () => {
+  const releases = [], entered = [];
+  let reads = 0;
+  const signals = [0, 1].map((index) => new Promise((resolve) => { entered[index] = resolve; }));
+  const barriers = [0, 1].map((index) => new Promise((resolve) => { releases[index] = resolve; }));
+  const h = createServiceHarness({ getReadScope: () => "owner-A" });
+  h.win.footballScienceCentralState.getSessionPendingState = async () => {
+    const index = reads++;
+    if (index < 2) { entered[index](); await barriers[index]; }
+    return null;
+  };
+  const readManifest = () => h.manifest;
+  const key = "football-schedule-v1", nextKey = "football-player-profiles-v1";
+  h.rawValues.set(key, "draft A");
+  h.manifest.entries[key] = { pendingCentralSync: true, principalScope: "owner-A", hash: "A", writes: 7 };
+  const first = h.service.retryCentral(readManifest); await signals[0];
+  const second = h.service.retryCentral(readManifest); await signals[1];
+  releases[0](); await first;
+  h.rawValues.set(nextKey, "draft C");
+  h.manifest.entries[nextKey] = { pendingCentralSync: true, principalScope: "owner-A", hash: "C", writes: 8 };
+  releases[1](); await second;
+  await h.service.flushCentralStateWrites();
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.map((call) => call.key)).toEqual([key, nextKey]);
+  expect(h.manifest.entries[nextKey].pendingCentralSync).toBe(false);
+});
+
 function createServiceHarness(options = {}) {
   const manifest = createManifest();
   const rawValues = new Map();

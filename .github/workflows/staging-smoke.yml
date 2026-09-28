@@ -2,6 +2,15 @@ name: Staging Smoke
 
 on:
   workflow_dispatch:
+    inputs:
+      verify_fresh_backup:
+        description: Create and verify an isolated staging backup without restoring data.
+        type: boolean
+        default: false
+      expected_backup_build_id:
+        description: Exact reviewed staging buildId from client-config (SHA or Vercel deployment ID).
+        type: string
+        default: ''
 
 jobs:
   smoke:
@@ -25,4 +34,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify:staging-env -- --required
+      - name: Verify fresh staging backup and read-only restore
+        if: inputs.verify_fresh_backup
+        env:
+          BACKUP_VERIFY_TARGET: staging
+          BACKUP_EXPECTED_BUILD_ID: ${{ inputs.expected_backup_build_id }}
+        run: node scripts/verify-fresh-app-state-backup.mjs
       - run: npm run qa:staging:required

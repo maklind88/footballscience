@@ -2,6 +2,15 @@ name: Production Monitor
 
 on:
   workflow_dispatch:
+    inputs:
+      verify_fresh_backup:
+        description: Create and verify a fresh production backup without restoring data.
+        type: boolean
+        default: false
+      expected_backup_build_id:
+        description: Exact reviewed production buildId from client-config (SHA or Vercel deployment ID).
+        type: string
+        default: ''
   schedule:
     - cron: "17 */6 * * *"
 
@@ -37,4 +46,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Verify fresh production backup and read-only restore
+        if: github.event_name == 'workflow_dispatch' && inputs.verify_fresh_backup
+        env:
+          BACKUP_VERIFY_TARGET: production
+          BACKUP_EXPECTED_BUILD_ID: ${{ inputs.expected_backup_build_id }}
+        run: node scripts/verify-fresh-app-state-backup.mjs
       - run: npm run release:monitor

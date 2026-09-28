@@ -305,8 +305,15 @@ export function createDataSafetyRuntimeService(deps = {}) {
     const textValue = String(value ?? "");
     const now = getNow();
     status.lastError = "";
+    let retainedBaseRevision;
     const writtenManifest = mutateManifest((manifest) => {
       const previousEntry = manifest.entries[normalizedKey] || {};
+      if (previousEntry.pendingCentralSync && previousEntry.principalScope &&
+          previousEntry.principalScope === getCentralStateBridge()?.getReadScope?.() &&
+          !options.requirePersisted && !win.__footballScienceCentralHydrating) {
+        const revision = Number(previousEntry.pendingBaseRevision ?? previousEntry.serverRevision);
+        retainedBaseRevision = Number.isInteger(revision) && revision >= 0 ? revision : 0;
+      }
       manifest.lastSavedAt = now;
       manifest.lastKey = normalizedKey;
       manifest.lastError = "";
@@ -329,7 +336,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
     }
     queueSnapshot(options.removed ? "after-remove" : "autosave");
     if (!getCentralStateWriteSuppressionKeys().has(normalizedKey)) {
-      queueCentralStateWrite(normalizedKey, textValue, options);
+      queueCentralStateWrite(normalizedKey, textValue, { ...options,
+        ...(retainedBaseRevision === undefined ? {} : { baseRevision: retainedBaseRevision }) });
     }
     queueStatusRefresh();
   }

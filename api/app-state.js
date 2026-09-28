@@ -3620,8 +3620,16 @@ module.exports = async (req, res) => {
       const entries = requestedKeys === null
         ? actorEntries
         : selectStateListResultKeys({ entries: actorEntries }, requestedKeys).entries;
+      // Omission alone cannot distinguish revocation from a key never created.
+      // Probe only absent registered keys through the same server-side read policy.
+      const missingKeys = (requestedKeys || Array.from(CENTRAL_STATE_KEYS))
+        .filter((key) => CENTRAL_STATE_KEYS.has(key) && !Object.hasOwn(stateObjects.entries, key));
+      const readableMissing = filterStateEntriesForActor(actor, {
+        ...stateObjects.entries, ...Object.fromEntries(missingKeys.map((key) => [key, "{}"])),
+      });
       return sendJson(res, 200, {
         ok: true,
+        absentKeys: missingKeys.filter((key) => Object.hasOwn(readableMissing, key)),
         entries: Object.hasOwn(entries, SESSION_PLANNER_KEY) ? {
           ...entries,
           [SESSION_PLANNER_KEY]: await encodeSessionStateValue(req, SESSION_PLANNER_KEY, entries[SESSION_PLANNER_KEY]),

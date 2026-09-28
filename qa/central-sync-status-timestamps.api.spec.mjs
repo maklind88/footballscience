@@ -64,6 +64,12 @@ test("local development has its own scope without admitting an unsigned producti
   h.context.authState.devMode = true;
   expect(h.api.getCentralReadScope()).not.toBe("");
   expect(h.api.getCentralReadScope()).not.toBe(productionScope);
+  const localScope = h.api.getCentralReadScope();
+  h.context.authState.currentUser.teamId = "new-local-team";
+  h.context.authState.currentUser.role = "admin";
+  expect(h.api.getCentralReadScope()).toBe(localScope);
+  h.context.authState.currentUser.organizationId = "other-organization";
+  expect(h.api.getCentralReadScope()).not.toBe(localScope);
   h.context.authState.currentUser = null;
   expect(h.api.getCentralReadScope()).toBe("");
 });
@@ -91,6 +97,60 @@ test(`returning pending owner releases the foreign ${key} read view only after a
   expect(storage.get("football-data-safety-v1")).toBe(manifest);
 });
 }
+
+for (const incomplete of [false, true]) {
+test(`returning Medical owner releases only a durably completed pending replacement (incomplete: ${incomplete})`, () => {
+  const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
+  const storage = new Map(), h = createProjectionHarness(storage, true), owner = h.api.getCentralReadScope();
+  const entry = { pendingCentralSync: true, principalScope: owner, hash: "draft", writes: 7, updatedAt: "now", serverRevision: 1 };
+  storage.set(key, "private A");
+  storage.set(manifestKey, JSON.stringify({ entries: { [key]: entry } }));
+  storage.set(`${manifestKey}:medical-recovery`, JSON.stringify({ readScope: owner,
+    generation: JSON.stringify(["draft", 7, "now", ""]), ...(incomplete ? { incompleteReplacement: true } : {}) }));
+  h.context.authState.currentUser.organizationId = "org-b";
+  h.api.setCentralCachedValue(key, "central B", { source: "central-readonly-baseline", readScope: h.api.getCentralReadScope() });
+  h.context.authState.currentUser.organizationId = "org-a";
+  h.api.clearMissingCentralReadViews({ [key]: "central A" });
+  expect(h.api.getCentralCachedValueInfo(key).source).toBe(incomplete ? "central-readonly-baseline" : "");
+  expect(storage.get(key)).toBe("private A");
+  expect(JSON.parse(storage.get(manifestKey)).entries[key]).toEqual(entry);
+});
+}
+
+for (const scoped of [false, true]) {
+test(`returning Medical owner with an older generation marker requires proven ownership (scoped: ${scoped})`, () => {
+  const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
+  const storage = new Map(), h = createProjectionHarness(storage, true);
+  const entry = { pendingCentralSync: true, hash: "draft", writes: 7, updatedAt: "now", serverRevision: 1,
+    ...(scoped ? { principalScope: h.api.getCentralReadScope() } : {}) };
+  const manifest = JSON.stringify({ entries: { [key]: entry } });
+  storage.set(key, "owned draft");
+  storage.set(manifestKey, manifest);
+  storage.set(`${manifestKey}:medical-recovery`, JSON.stringify(["draft", 7, "now", ""]));
+  h.context.authState.currentUser.organizationId = "org-b";
+  h.api.setCentralCachedValue(key, "central B", { source: "central-readonly-baseline", readScope: h.api.getCentralReadScope() });
+  h.context.authState.currentUser.organizationId = "org-a";
+  h.api.clearMissingCentralReadViews({ [key]: "central A" });
+  expect(h.api.getCentralCachedValueInfo(key).source).toBe(scoped ? "" : "central-readonly-baseline");
+  expect(storage.get(key)).toBe("owned draft");
+  expect(storage.get(manifestKey)).toBe(manifest);
+});
+}
+
+test("an explicitly authorized absent key releases its returning owner but an omitted key does not", () => {
+  const key = "football-schedule-v1", storage = new Map(), h = createProjectionHarness(storage);
+  const owner = h.api.getCentralReadScope();
+  storage.set(key, "first creation");
+  storage.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: { principalScope: owner, pendingCentralSync: true, serverRevision: 0 } } }));
+  h.context.authState.currentUser.organizationId = "org-b";
+  h.api.setCentralCachedValue(key, "B view", { source: "central-readonly-baseline", readScope: h.api.getCentralReadScope() });
+  h.context.authState.currentUser.organizationId = "org-a";
+  h.api.clearMissingCentralReadViews({});
+  expect(h.api.getCentralCachedValueInfo(key).source).toBe("central-readonly-baseline");
+  h.api.clearMissingCentralReadViews({}, [key]);
+  expect(h.api.getCentralCachedValueInfo(key).source).toBe("");
+  expect(storage.get(key)).toBe("first creation");
+});
 
 test("Medical recovery separation survives a new runtime without changing the original pending generation", () => {
   const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";

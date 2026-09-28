@@ -334,6 +334,88 @@ The eight-file scope is unchanged, with no module product files, budgets,
 timeouts, server API or migration changes. Fresh exact-SHA CI and review remain
 required; these local mocked checks do not establish production verification.
 
+## Review 5342348852: Original Revisions And Returning Owners
+
+`190d22eb` is not approved: review found three additional returning-owner cases.
+Its exact-SHA QA also reproduced the unchanged Squad placement test using local
+development: changing a local team hid the same user's pending structure cache.
+
+- Retained retries now carry the manifest's original base revision, including
+  zero for first creation or unknown history, instead of adopting a fresh bridge
+  revision. Queueing persists `pendingBaseRevision` separately from the highest
+  acknowledged `serverRevision`; later edits of the same owned pending
+  draft keep it. A verified Medical replacement does not inherit another
+  generation's base. Missing history cannot authorize overwriting an existing
+  central record.
+- A retained whole-state conflict cannot promote its revision or treat a
+  hydration as an acknowledgement. Repeated identical conflicts remain pending
+  without automatic repeat POSTs. This is intentionally not automatic conflict
+  resolution: both the colleague's central edit and the local draft survive.
+- A GET can now return `absentKeys` for registered missing keys allowed by the
+  existing server read policy. Unauthorized and existing keys are not reported
+  absent. Batch hydration carries this proof inside its existing scope/token
+  boundary. Older servers lacking it remain fail-closed. This closes authorized
+  first-creation recovery without interpreting every omitted key as permission.
+- A fully persisted Medical replacement belonging to the returning scope can
+  release the foreign view. Incomplete replacement markers and foreign owners
+  remain separated. Hydration preserves that pending generation rather than
+  rewriting/acknowledging it before its real POST succeeds. This special handling
+  requires a recovery marker; ordinary Medical read updates continue to apply,
+  including the existing view-date/central-recommendation regression.
+- Local development uses a distinct user/organization scope that remains stable
+  across local team/role configuration. Production scope still requires a token
+  and includes organization, club, team and role; the local rule is not used for
+  authenticated central production reads.
+
+Negative contracts reproduced original-revision loss, blocked Medical owner
+return and ambiguous absence before correction. Real browser coverage now tests
+Schedule owner return with and without reload against unchanged, advanced and
+absent server records. Advanced records reject the old base without overwriting
+central or clearing the draft. Medical covers a failed replacement POST, another
+organization/reload, owner return and one acknowledged retry on the original
+revision. The original Squad and Sessions feedback tests remain unchanged.
+
+Scope expands from eight to ten files solely for `api/app-state.js` and its
+existing database-source API contract file, required for trustworthy absence
+proof. No module product source, schema, migration, budget or timeout changes.
+
+### Additional Negative Proofs
+
+The repeated browser run exposed a real false acknowledgement: module default
+normalization accepted revision 5, the explicit Medical replacement still sent
+base 4 and received 409, then successful conflict hydration cleared its pending
+flag without a write receipt. Medical conflict hydration can no longer take the
+runtime's legacy read-as-acknowledgement path. A negative service contract
+reproduced the false pending clear before the fix; the browser matrix now
+explicitly rejects a replacement with 409 while retaining its exact draft.
+Successful replacement cases wait for real module readiness and normalization
+acknowledgement before the independent write under test, rather than using an
+editable read view as a premature readiness signal.
+
+A second negative contract covers older generation-array recovery markers.
+The original scoped manifest owner can resume its draft, but a legacy entry
+without a principal scope remains separated. Neither raw value nor manifest is
+rewritten by this read-view decision. Incomplete replacements still fail closed.
+
+Repeated conflict recovery also retains an explicit issue status instead of
+leaving the queued "Saving" status active when no request will be sent. The
+same generation is not repeatedly posted; its pending flag remains durable.
+
+The existing stale-recommendation browser test now uses a revision-guarded
+Medical mock for every write. Its old generic handler derived response revisions
+from the request, allowing a base-0 write to receive revision 1 after revision 5
+had already been acknowledged. That impossible backwards acknowledgement no
+longer masks the actual server CAS contract. Recommendation/archival content and
+aligned-revision assertions remain unchanged.
+
+Final local verification for this review correction: 3,118/3,118 passed
+(3,056 API/contracts, 52 central-state browser cases, 10 Medical clinical cases).
+All 72 selected risk cases passed ten repetitions each (720/720), including both
+unchanged critical-flow checks from prior CI failures. `npm run qa:static` and
+`git diff --check` passed; the 84 pre-existing architecture warnings remain.
+No budget, timeout or safety gate was relaxed. Fresh exact-SHA GitHub QA,
+CodeQL and independent review are still required before release consideration.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

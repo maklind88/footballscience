@@ -718,8 +718,11 @@ async function getActiveAccessToken() {
     return responses.reduce((combined, response) => {
       Object.assign(combined.payload.entries, response.payload?.entries || {});
       Object.assign(combined.payload.metadata, response.payload?.metadata || {});
+      for (const key of Array.isArray(response.payload?.absentKeys) ? response.payload.absentKeys : []) {
+        if (isCentralStateKey(key) && !combined.payload.absentKeys.includes(key)) combined.payload.absentKeys.push(key);
+      }
       return combined;
-    }, { ok: true, status: 200, payload: { entries: {}, metadata: {} } });
+    }, { ok: true, status: 200, payload: { entries: {}, metadata: {}, absentKeys: [] } });
   }
   function readCentralSyncManifestEntries() {
     try {
@@ -767,6 +770,7 @@ async function getActiveAccessToken() {
       if (owner.readScope && owner.readScope !== getCentralReadScope()) return true;
       // The previous generation still exists if a replacement's manifest commit failed.
       if (owner.incompleteReplacement && owner.generation === medicalRecoveryGeneration(entry)) return true;
+      if (entry.principalScope && entry.principalScope === getCentralReadScope()) return false;
       return Boolean(entry.pendingCentralSync && (
         marker === medicalRecoveryGeneration(entry) || owner.generation === medicalRecoveryGeneration(entry)
       ));
@@ -798,7 +802,8 @@ async function getActiveAccessToken() {
     const claims = authState.session?.user?.app_metadata || {};
     const organizationId = claims.organizationId || claims.organization_id || user?.organizationId || "";
     if (authState.devMode && user?.id) {
-      return JSON.stringify(["local-development", user.id, organizationId, user.clubId || "", user.teamId || "", user.role]);
+      // Local development has no remote team authority; keep its user's own local workspace coherent.
+      return JSON.stringify(["local-development", user.id, organizationId]);
     }
     return user?.id && authState.session?.access_token
       ? JSON.stringify([user.id, organizationId, user.clubId || "", user.teamId || "", user.role]) : "";
@@ -850,14 +855,15 @@ async function getActiveAccessToken() {
     centralStateValueMetadata.delete(normalizedKey);
     return centralStateValues.delete(normalizedKey);
   }
-  function clearMissingCentralReadViews(entries) {
+  function clearMissingCentralReadViews(entries, absentKeys = []) {
     const pendingEntries = readCentralSyncManifestEntries();
     const readScope = getCentralReadScope();
     for (const key of new Set([...centralStateValues.keys(), MEDICAL_TEAM_STATE_KEY])) {
-      if (readScope && key !== MEDICAL_TEAM_STATE_KEY && key !== "football-session-planner-v3" &&
+      if (readScope && key !== "football-session-planner-v3" &&
+          (key !== MEDICAL_TEAM_STATE_KEY || !hasMedicalRecoverySeparation()) &&
           pendingEntries[key]?.pendingCentralSync && pendingEntries[key].principalScope === readScope &&
           centralStateValueMetadata.get(key)?.source === "central-readonly-baseline" &&
-          Object.prototype.hasOwnProperty.call(entries, key)) {
+          (Object.prototype.hasOwnProperty.call(entries, key) || absentKeys.includes(key))) {
         // A fresh authorized read releases the foreign view, never the owner's pending disk generation.
         removeCentralCachedValue(key);
         delete centralState.metadata[key];
@@ -1597,7 +1603,7 @@ async function getActiveAccessToken() {
     const requiredWriteBackEntries = [];
     const resolvedPendingKeys = [];
     const hydratedRevisionEntries = [];
-    clearMissingCentralReadViews(normalizedEntries);
+    clearMissingCentralReadViews(normalizedEntries, options.absentKeys);
     window.__footballScienceCentralHydrating = true;
     try {
       for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
@@ -1623,6 +1629,12 @@ async function getActiveAccessToken() {
           centralState.metadata[key] || {},
           options
         );
+        if (key === MEDICAL_TEAM_STATE_KEY && pendingEntry.pendingCentralSync &&
+            pendingEntry.principalScope === getCentralReadScope() &&
+            window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) && !hasMedicalRecoverySeparation()) {
+          // A verified pending replacement is still a write, not a hydration acknowledgement.
+          return;
+        }
         if (key !== MEDICAL_TEAM_STATE_KEY && hasForeignPendingGeneration(key)) {
           if (!Number.isInteger(metadataEntry.revision) || metadataEntry.revision < 0) {
             throw new Error("Central data could not be verified. The other account's local copy was retained.");
@@ -1830,9 +1842,9 @@ async function getActiveAccessToken() {
         : {};
       const hasCentralEntries = Object.keys(entries).length > 0;
       if (hasCentralEntries) {
-        await applyCentralStateEntries(entries, metadata, { ...options, isCurrent });
+        await applyCentralStateEntries(entries, metadata, { ...options, isCurrent, absentKeys: response.payload.absentKeys });
       } else {
-        clearMissingCentralReadViews(entries);
+        clearMissingCentralReadViews(entries, response.payload.absentKeys);
         const localEntries = collectCentralLocalStateEntries();
         // A missing Sessions record is an empty authoritative baseline, not permission to restore a cache.
         delete localEntries[SESSION_PLANNER_STATE_KEY];

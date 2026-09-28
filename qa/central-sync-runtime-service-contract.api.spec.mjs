@@ -65,6 +65,21 @@ test("conflict hydration cannot acknowledge a Medical draft after separating its
   expect(h.syncStatuses.some(([, status]) => status === "saved")).toBe(false);
 });
 
+test("Medical conflict hydration is never a receipt for an unchanged pending local write", async () => {
+  const key = "football-medical-team-v1";
+  const h = createServiceHarness({ syncResult: { ok: false, status: 409, currentRevision: 8 },
+    onHydrate: ({ setRevision }) => { setRevision(8); } });
+  h.rawValues.set(key, "draft");
+  h.manifest.entries[key] = { pendingCentralSync: true, hash: "draft", writes: 7, serverRevision: 1 };
+  h.service.queueCentralStateWrite(key, "draft");
+  const pending = structuredClone(h.manifest.entries[key]);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.filter((call) => call.hydrate)).toHaveLength(1);
+  expect(h.manifest.entries[key]).toEqual(pending);
+  expect(h.rawValues.get(key)).toBe("draft");
+  expect(h.syncStatuses.some(([, status]) => status === "saved")).toBe(false);
+});
+
 test("conflict retry cannot acknowledge Medical recovery if a read-only view appeared during the retry", async () => {
   const key = "football-medical-team-v1", cachedInfo = { source: "local-write" };
   let requests = 0;
@@ -248,6 +263,47 @@ test("an older manifest scan cannot consume a newer recovery request", async () 
   await h.service.flushCentralStateWrites();
   expect(h.syncCalls.map((call) => call.key)).toEqual([key, nextKey]);
   expect(h.manifest.entries[nextKey].pendingCentralSync).toBe(false);
+});
+
+for (const revision of [0, 1, undefined]) {
+test(`retained Schedule retry keeps its original revision ${revision} after a newer authorized read`, async () => {
+  const key = "football-schedule-v1";
+  const h = createServiceHarness({ getReadScope: () => "owner-A", revision: 2,
+    syncResult: { ok: false, status: 409, currentRevision: 2 } });
+  h.rawValues.set(key, "old draft");
+  h.manifest.entries[key] = { pendingCentralSync: true, principalScope: "owner-A", serverRevision: revision, hash: "draft", writes: 7 };
+  await h.service.retryCentral(() => h.manifest);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(1);
+  expect(h.syncCalls[0].options.baseRevision).toBe(revision ?? 0);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.rawValues.get(key)).toBe("old draft");
+});
+}
+
+test("an unchanged conflicting retained generation does not loop through later manifest recovery", async () => {
+  const key = "football-schedule-v1";
+  const h = createServiceHarness({ getReadScope: () => "owner-A", revision: 2,
+    syncResult: { ok: false, status: 409, currentRevision: 2 } });
+  h.rawValues.set(key, "old draft");
+  h.manifest.entries[key] = { pendingCentralSync: true, principalScope: "owner-A", serverRevision: 1, writes: 7 };
+  await h.service.retryCentral(() => h.manifest); await h.service.flushCentralStateWrites();
+  await h.service.retryCentral(() => h.manifest); await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(1);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.syncStatuses.at(-1)).toEqual([key, "issue", "Local changes need review"]);
+  expect(h.manifest.lastCentralError).toBe("Local changes need review");
+});
+
+test("pending base stays distinct from a newer acknowledged revision during recovery", async () => {
+  const key = "football-schedule-v1";
+  const h = createServiceHarness({ getReadScope: () => "owner-A", revision: 9,
+    syncResult: { ok: false, status: 409, currentRevision: 9 } });
+  h.rawValues.set(key, "old draft");
+  h.manifest.entries[key] = { pendingCentralSync: true, principalScope: "owner-A", serverRevision: 9, pendingBaseRevision: 1 };
+  await h.service.retryCentral(() => h.manifest); await h.service.flushCentralStateWrites();
+  expect(h.syncCalls[0].options.baseRevision).toBe(1);
+  expect(h.manifest.entries[key]).toMatchObject({ serverRevision: 9, pendingBaseRevision: 1, pendingCentralSync: true });
 });
 
 function createServiceHarness(options = {}) {
@@ -985,6 +1041,7 @@ test("central sync runtime retries pending tombstones even when local raw value 
   harness.manifest.entries["football-schedule-v1"] = {
     label: "Schedule",
     pendingCentralSync: true,
+    serverRevision: 7,
     deletedAt: "2026-06-08T11:59:00.000Z",
   };
 

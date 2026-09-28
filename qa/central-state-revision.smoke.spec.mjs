@@ -145,6 +145,7 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
           ok: true,
           entries: { [revisionStateKey]: centralStore.value, ...(centralStore.entries || {}) },
           metadata: { [revisionStateKey]: centralStore.metadata, ...(centralStore.metadataEntries || {}) },
+          absentKeys: centralStore.absentKeys || [],
           updatedAt: new Date().toISOString(),
         }),
       });
@@ -1610,6 +1611,14 @@ test("Medical hydration cannot replace a locally confirmed newer recommendation 
     },
   };
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "medical-stale-revision-guard", {
+    appStateWriteHandler: ({ body }) => {
+      if (body.key !== medicalTeamStateKey) return null;
+      const current = centralStore.metadataEntries[medicalTeamStateKey];
+      if (body.baseRevision !== current.revision) return { status: 409, body: { ok: false, currentRevision: current.revision } };
+      centralStore.entries[medicalTeamStateKey] = body.value;
+      centralStore.metadataEntries[medicalTeamStateKey] = createMetadata(current.revision + 1, body.value);
+      return { status: 200, body: { ok: true, key: body.key, value: body.value, metadata: centralStore.metadataEntries[body.key] } };
+    },
     initScript: ({ key, value, manifestKey }) => {
       window.localStorage.setItem(key, value);
       window.localStorage.setItem(
@@ -2651,17 +2660,20 @@ for (const { switchActor, reload, omitted } of [
   });
 }
 
-for (const { acknowledged, manifestQuota } of [
+for (const { acknowledged, manifestQuota, returnPending = false, conflict = false } of [
   { acknowledged: false, manifestQuota: false },
+  { acknowledged: false, manifestQuota: false, conflict: true },
+  { acknowledged: false, manifestQuota: false, returnPending: true },
   { acknowledged: true, manifestQuota: false },
   { acknowledged: true, manifestQuota: true },
 ]) {
-test(`a replacement Medical draft is never adopted after an organization switch and reload (acknowledged: ${acknowledged}, manifest quota: ${manifestQuota})`, async ({ browser, baseURL }) => {
+test(`a replacement Medical draft is never adopted after an organization switch and reload (acknowledged: ${acknowledged}, manifest quota: ${manifestQuota}, return pending: ${returnPending}, conflict: ${conflict})`, async ({ browser, baseURL }) => {
   const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, role: "coach", organization_id: "org-a" } };
   const centralValue = JSON.stringify({ players: [{ id: "qa-player", name: "QA Player" }], records: [], injuryPlans: [] });
   const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
     entries: { [medicalTeamStateKey]: centralValue }, metadataEntries: { [medicalTeamStateKey]: createMetadata(4, centralValue) } };
   const requests = [];
+  let acceptWrites = true;
   const tab = await bootCentralPage(browser, baseURL, store, [], "medical-pending-owner-reload", {
     sessionUser: profile, profileUser: profile,
     appStateWriteHandler: ({ body, request }) => {
@@ -2669,8 +2681,8 @@ test(`a replacement Medical draft is never adopted after an organization switch 
       const org = request.headers().authorization === "Bearer medical-token" ? "org-a" : profile.app_metadata.organization_id;
       requests.push({ org, body });
       if (body.key !== medicalTeamStateKey) return null;
-      if (!acknowledged) return { status: 500, body: { ok: false, reason: "Temporary test failure" } };
       const metadata = store.metadataEntries[medicalTeamStateKey];
+      if (!acceptWrites) return { status: conflict ? 409 : 500, body: { ok: false, currentRevision: metadata.revision, reason: "Temporary test failure" } };
       if (body.baseRevision !== metadata.revision) return { status: 409, body: { ok: false, currentRevision: metadata.revision } };
       store.entries[medicalTeamStateKey] = body.value;
       store.metadataEntries[medicalTeamStateKey] = createMetadata(metadata.revision + 1, body.value);
@@ -2689,15 +2701,20 @@ test(`a replacement Medical draft is never adopted after an organization switch 
     }, initArg: { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey },
   });
   try {
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
     profile.app_metadata.role = "medical";
     await tab.page.evaluate(async (user) => {
       window.__qaSession = { access_token: "medical-token", user };
       await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
     }, profile);
-    await expect.poll(() => tab.page.evaluate((key) => {
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey, revision }) => {
       const bridge = window.footballScienceCentralState, info = bridge.getCachedValueInfo(key);
-      return !bridge.getStatus().hydrating && (info.canEdit || info.source === "local-write");
-    }, medicalTeamStateKey)).toBe(true);
+      const pending = JSON.parse(localStorage.getItem(manifestKey)).entries[key]?.pendingCentralSync;
+      return revision > 4 && !bridge.getStatus().hydrating && bridge.getStatus().metadata[key]?.revision === revision &&
+        info.source === "local-write" && !pending;
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey, revision: store.metadataEntries[medicalTeamStateKey].revision })).toBe(true);
+    acceptWrites = acknowledged;
+    if (conflict) store.metadataEntries[medicalTeamStateKey] = createMetadata(store.metadataEntries[medicalTeamStateKey].revision + 1, store.entries[medicalTeamStateKey]);
     const replacement = await tab.page.evaluate((key) => {
       const value = JSON.parse(localStorage.getItem(key));
       value.records = [{ id: "org-a-pending-replacement", playerId: "qa-player", date: "2026-09-28", participation: 40 }];
@@ -2706,6 +2723,10 @@ test(`a replacement Medical draft is never adopted after an organization switch 
       return raw;
     }, medicalTeamStateKey);
     await expect.poll(() => requests.some(({ body }) => body.value?.includes("org-a-pending-replacement"))).toBe(true);
+    if (conflict) {
+      await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
+      expect(JSON.parse(store.entries[medicalTeamStateKey]).records).toEqual([]);
+    }
     await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => Boolean(JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync),
       { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toBe(!acknowledged);
     if (acknowledged) expect(JSON.parse(store.entries[medicalTeamStateKey]).records[0].id).toBe("org-a-pending-replacement");
@@ -2731,16 +2752,26 @@ test(`a replacement Medical draft is never adopted after an organization switch 
     await expect.poll(() => tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}").records?.map((record) => record.id), medicalTeamStateKey)).toEqual(["org-b-central"]);
     await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
     if (manifestQuota) expect(await tab.page.evaluate((key) => window.footballScienceCentralState.getCachedValueInfo(key).source, medicalTeamStateKey)).toBe("central-readonly-baseline");
-    if (acknowledged && !manifestQuota) {
+    if ((acknowledged || returnPending) && !manifestQuota) {
       profile.id = qaUser.id;
       profile.app_metadata.organization_id = "org-a";
-      store.entries[medicalTeamStateKey] = preservedValue;
-      store.metadataEntries[medicalTeamStateKey] = createMetadata(pending.entry.serverRevision, preservedValue);
+      store.entries[medicalTeamStateKey] = returnPending ? JSON.stringify({ ...JSON.parse(preservedValue), records: [] }) : preservedValue;
+      store.metadataEntries[medicalTeamStateKey] = createMetadata(pending.entry.serverRevision, store.entries[medicalTeamStateKey]);
+      acceptWrites = true;
+      const previousWrites = requests.length;
       await tab.page.evaluate(async (user) => {
         window.__qaSession = { access_token: "medical-token", user };
         await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
       }, profile);
       await expect.poll(() => tab.page.evaluate((key) => !window.footballScienceCentralState.getStatus().hydrating && JSON.parse(localStorage.getItem(key) || "{}").records?.[0]?.id, medicalTeamStateKey)).toBe("org-a-pending-replacement");
+      if (returnPending) {
+        await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+          { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toBe(false);
+        const retried = requests.slice(previousWrites).filter(({ body }) => body.key === medicalTeamStateKey);
+        expect(retried).toHaveLength(1);
+        expect(retried[0].body.baseRevision).toBe(pending.entry.serverRevision);
+        expect(JSON.parse(store.entries[medicalTeamStateKey]).records[0].id).toBe("org-a-pending-replacement");
+      }
       expect(await tab.page.evaluate(() => Object.keys(window.footballScienceDataSafety.createBackup().recoveryCopies).length)).toBe(ownerArchiveCount);
       // An acknowledged refresh may reorder UI keys, but cannot change any content.
       expectedRecoveryValue = await tab.page.evaluate((key) => window.__qaNativeGetItem.call(localStorage, key), medicalTeamStateKey);
@@ -2780,7 +2811,7 @@ test(`a replacement Medical draft is never adopted after an organization switch 
       raw: window.__qaNativeGetItem.call(localStorage, key),
       copies: Object.values(window.footballScienceDataSafety.createBackup().recoveryCopies).map(JSON.parse),
     }), medicalTeamStateKey);
-    expect(after.raw === expectedRecoveryValue || after.copies.some((copy) => copy.value === expectedRecoveryValue && Boolean(copy.entry.pendingCentralSync) === !acknowledged)).toBe(true);
+    expect(after.raw === expectedRecoveryValue || after.copies.some((copy) => copy.value === expectedRecoveryValue && Boolean(copy.entry.pendingCentralSync) === !(acknowledged || returnPending))).toBe(true);
     expect(requests.filter(({ org }) => org === "org-b").every(({ body }) => !JSON.stringify(body).includes("org-a-pending-replacement") && !JSON.stringify(body).includes("legacy-private"))).toBe(true);
     expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
   } finally { await closeCentralStateContext(tab.context); }
@@ -2868,11 +2899,13 @@ test("an old account Medical receipt cannot poison a new account's queued edit",
 });
 
 for (const reload of [false, true]) {
-test(`Schedule pending ownership survives account changes and the owner can retry (reload: ${reload})`, async ({ browser, baseURL }) => {
+for (const serverState of ["unchanged", "advanced", "absent"]) {
+test(`Schedule pending ownership survives account changes and the owner can retry (reload: ${reload}, server: ${serverState})`, async ({ browser, baseURL }) => {
   const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, organization_id: "org-a" } };
   const baseline = JSON.stringify({ events: [] });
   const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
     entries: { [scheduleStateKey]: baseline }, metadataEntries: { [scheduleStateKey]: createMetadata(1, baseline) } };
+  if (serverState === "absent") { delete store.entries[scheduleStateKey]; delete store.metadataEntries[scheduleStateKey]; store.absentKeys = [scheduleStateKey]; }
   let releaseA, releaseB, heldA = false, heldB = false, holdB = false, acknowledgeA = false;
   const aBarrier = new Promise((resolve) => { releaseA = resolve; });
   const bBarrier = new Promise((resolve) => { releaseB = resolve; });
@@ -2884,7 +2917,7 @@ test(`Schedule pending ownership survives account changes and the owner can retr
       if (body.key !== scheduleStateKey) return null;
       requests.push({ body, token: request.headers().authorization });
       if (acknowledgeA) {
-        const metadata = store.metadataEntries[scheduleStateKey];
+        const metadata = store.metadataEntries[scheduleStateKey] || { revision: 0 };
         if (body.baseRevision !== metadata.revision) return { status: 409, body: { ok: false, currentRevision: metadata.revision } };
         store.entries[scheduleStateKey] = body.value;
         store.metadataEntries[scheduleStateKey] = createMetadata(metadata.revision + 1, body.value);
@@ -2903,7 +2936,7 @@ test(`Schedule pending ownership survives account changes and the owner can retr
         if (args[0] === key && args[1].includes("private-org-a")) window.__qaASyncSettled = true;
         return result;
       };
-      const value = JSON.parse(localStorage.getItem(key));
+      const value = JSON.parse(localStorage.getItem(key) || '{"events":[]}');
       value.events = [{ id: "private-org-a", date: "2026-09-28", title: "Private A", type: "training", time: "", note: "" }];
       const raw = JSON.stringify(value);
       localStorage.setItem(key, raw);
@@ -2917,6 +2950,7 @@ test(`Schedule pending ownership survives account changes and the owner can retr
     profile.app_metadata.organization_id = "org-b";
     store.entries[scheduleStateKey] = JSON.stringify({ events: [{ id: "org-b-central", date: "2026-09-28", title: "B central", type: "training" }] });
     store.metadataEntries[scheduleStateKey] = createMetadata(10, store.entries[scheduleStateKey]);
+    store.absentKeys = [];
     holdB = true;
     await tab.page.evaluate(async (user) => {
       window.__qaSession = { access_token: "org-b-token", user };
@@ -2940,6 +2974,12 @@ test(`Schedule pending ownership survives account changes and the owner can retr
     profile.app_metadata.organization_id = "org-a";
     store.entries[scheduleStateKey] = baseline;
     store.metadataEntries[scheduleStateKey] = createMetadata(1, baseline);
+    if (serverState === "advanced") {
+      store.entries[scheduleStateKey] = JSON.stringify({ events: [{ id: "colleague", title: "New central edit" }] });
+      store.metadataEntries[scheduleStateKey] = createMetadata(2, store.entries[scheduleStateKey]);
+    } else if (serverState === "absent") {
+      delete store.entries[scheduleStateKey]; delete store.metadataEntries[scheduleStateKey]; store.absentKeys = [scheduleStateKey];
+    }
     acknowledgeA = true;
     await tab.page.evaluate(async (user) => {
       window.__qaSession = { access_token: "org-a-return-token", user };
@@ -2948,18 +2988,28 @@ test(`Schedule pending ownership survives account changes and the owner can retr
     await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getReadScope())).toBe(aEntry.principalScope);
     await expect.poll(() => tab.page.evaluate((key) => window.footballScienceCentralState.getCachedValueInfo(key).source, scheduleStateKey)).not.toBe("central-readonly-baseline");
     await expect.poll(() => requests.length).toBe(2);
+    expect(requests[1].token).toBe("Bearer org-a-return-token");
+    expect(requests[1].body.baseRevision).toBe(serverState === "absent" ? 0 : 1);
+    if (serverState === "advanced") {
+      await tab.page.waitForTimeout(400);
+      expect(requests).toHaveLength(2);
+      expect(JSON.parse(store.entries[scheduleStateKey]).events[0].id).toBe("colleague");
+      expect(await tab.page.evaluate(({ key, manifestKey }) => JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+        { key: scheduleStateKey, manifestKey: dataSafetyManifestKey })).toBe(true);
+      expect(await tab.page.evaluate((key) => JSON.parse(window.__qaNativeGetItem.call(localStorage, key)), scheduleStateKey)).toEqual(JSON.parse(draft));
+      return;
+    }
     await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
       { key: scheduleStateKey, manifestKey: dataSafetyManifestKey })).toBe(false);
-    expect(requests[1].token).toBe("Bearer org-a-return-token");
-    expect(requests[1].body.baseRevision).toBe(1);
     expect(JSON.parse(requests[1].body.value).events).toEqual(JSON.parse(draft).events);
     expect(JSON.parse(store.entries[scheduleStateKey]).events).toEqual(JSON.parse(draft).events);
-    expect(store.metadataEntries[scheduleStateKey].revision).toBe(2);
+    expect(store.metadataEntries[scheduleStateKey].revision).toBe(serverState === "absent" ? 1 : 2);
     expect(await tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key)).events, scheduleStateKey)).toEqual(JSON.parse(draft).events);
     await tab.page.waitForTimeout(400);
     expect(requests).toHaveLength(2);
   } finally { releaseA(); releaseB(); await closeCentralStateContext(tab.context); }
 });
+}
 }
 
 test("Medical editor hydration still writes an automatic media merge", async ({ browser, baseURL }) => {

@@ -153,6 +153,17 @@ function createHarness(options = {}) {
   return { centralCache, centralCacheInfo, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
 
+test("editing an owned pending draft retains its original revision for the next queued generation", async () => {
+  const h = createHarness(), key = "football-schedule-v1";
+  h.win.footballScienceCentralState.getReadScope = () => "owner-A";
+  h.service.install(); await Promise.resolve();
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: {
+    [key]: { pendingCentralSync: true, principalScope: "owner-A", serverRevision: 1, writes: 7 },
+  } }));
+  h.service.recordWrite(key, "new local edit");
+  expect(h.queuedWrites[0]).toEqual([key, "new local edit", { baseRevision: 1 }]);
+});
+
 test("Medical boot normalization cannot replace a pending draft before the central read view exists", async () => {
   const key = "football-medical-team-v1";
   const h = createHarness({ canEdit: false });

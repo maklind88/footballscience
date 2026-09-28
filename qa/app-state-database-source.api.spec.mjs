@@ -203,6 +203,33 @@ function createConsistencyFetchMock(initialEntry) {
   };
 }
 
+for (const state of ["absent", "denied", "present"]) {
+test(`fresh read reports authorized absence without confusing ${state} keys with revoked access`, async () => {
+  const env = snapshotEnv(), originalFetch = global.fetch;
+  configureDatabaseMode();
+  const entry = { organizationId: "global", key: scheduleKey, moduleId: "schedule", revision: 1,
+    value: '{"events":[]}', removed: false, updatedAt: "2026-09-28T00:00:00Z", hash: sha256('{"events":[]}') };
+  const mock = createConsistencyFetchMock(entry);
+  const hub = { ...entry, key: "football-workspace-hub-v3", moduleId: "workspace-hub",
+    value: JSON.stringify({ workspaceAccess: { schedule: { view: ["admin"], edit: ["admin"] } } }) };
+  global.fetch = async (url, options) => {
+    if (String(url).includes("/rest/v1/platform_app_state_records?")) {
+      return new Response(JSON.stringify((state === "present" ? [entry] : state === "denied" ? [hub] : []).map((item) => toDatabaseRow(item))));
+    }
+    if (String(url).includes("/storage/v1/object/") && (!options?.method || options.method === "GET")) return new Response("{}", { status: 404 });
+    return mock.fetchMock(url, options);
+  };
+  try {
+    const response = await callHandler({ url: `/api/app-state?fresh=1&keys=${scheduleKey},mak-coaching-platform-users-v1,not-an-approved-key` });
+    expect(response.status).toBe(200);
+    expect(response.payload.absentKeys).toEqual(state === "absent" ? [scheduleKey] : []);
+    expect(response.payload.entries).toEqual(state === "present" ? { [scheduleKey]: entry.value } : {});
+    expect(mock.rpcWrites).toEqual([]);
+    expect(mock.storageWrites).toEqual([]);
+  } finally { global.fetch = originalFetch; restoreEnv(env); }
+});
+}
+
 test("database source migration enforces atomic revisions and server-only access", async () => {
   const sql = await readFile(migrationUrl, "utf8");
   const rpcFixSql = await readFile(rpcFixMigrationUrl, "utf8");

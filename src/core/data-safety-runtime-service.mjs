@@ -185,7 +185,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
   }
 
   function archiveReadViewRecovery(key, view) {
-    if (!view.canEdit || !view.readScope || getCentralStateBridge()?.canAutoSyncKey?.(key) !== true) {
+    if (key !== "football-medical-team-v1" || !view.canEdit || !view.readScope || getCentralStateBridge()?.canAutoSyncKey?.(key) !== true) {
       throw new Error("This central view is read-only. The local recovery copy was retained.");
     }
     const storage = getStorage();
@@ -198,7 +198,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     const recovery = JSON.stringify({ key, value, entry, createdAt: getNow(), ownership: "unverified-recovery" });
     const markerKey = `${storageKey}:medical-recovery`;
     const previousMarker = nativeGetItem.call(storage, markerKey);
-    const marker = JSON.stringify({ readScope: view.readScope,
+    const marker = JSON.stringify({ readScope: view.readScope, incompleteReplacement: true,
       generation: JSON.stringify([entry.hash || "", entry.writes || 0, entry.updatedAt || "", entry.deletedAt || ""]) });
     const archive = { key, value, entry, recoveryKey, recovery, markerKey, previousMarker, marker };
     try {
@@ -317,6 +317,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
         hash: hashString(textValue),
         writes: Number(previousEntry.writes || 0) + 1,
         deletedAt: options.removed ? now : "",
+        ...(!win.__footballScienceCentralHydrating && getCentralStateBridge()?.getReadScope?.()
+          ? { principalScope: getCentralStateBridge().getReadScope() } : {}),
         ...(options.requirePersisted ? { pendingCentralSync: true } : {}),
       };
     });

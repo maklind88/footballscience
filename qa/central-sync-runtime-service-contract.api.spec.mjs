@@ -118,6 +118,62 @@ test(`an obsolete account receipt never retries or acknowledges the next account
 });
 }
 
+for (const key of ["football-schedule-v1", "football-periodization-v2", "football-player-profiles-v1"]) {
+test(`a retained ${key} generation cannot retry under another account after ready or reload`, async () => {
+  let scope = "org-a-actor";
+  const h = createServiceHarness({ getReadScope: () => scope, syncKey: async () => {
+    scope = "org-b-actor";
+    return { ok: false, staleContext: true };
+  } });
+  h.rawValues.set(key, "private A");
+  h.manifest.entries[key] = { pendingCentralSync: true, hash: "A", writes: 7 };
+  h.service.queueCentralStateWrite(key, "private A");
+  expect(h.manifest.entries[key].principalScope).toBe("org-a-actor");
+  await h.service.flushCentralStateWrites();
+  await h.service.retryCentral(() => h.manifest);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(1);
+  expect(h.rawValues.get(key)).toBe("private A");
+  const reloaded = createServiceHarness({ getReadScope: () => scope });
+  reloaded.rawValues.set(key, h.rawValues.get(key));
+  reloaded.manifest.entries[key] = structuredClone(h.manifest.entries[key]);
+  await reloaded.service.retryCentral(() => reloaded.manifest);
+  await reloaded.service.flushCentralStateWrites();
+  expect(reloaded.syncCalls).toEqual([]);
+  expect(reloaded.manifest.entries[key].pendingCentralSync).toBe(true);
+  scope = "org-a-actor";
+  await reloaded.service.retryCentral(() => reloaded.manifest);
+  await reloaded.service.flushCentralStateWrites();
+  expect(reloaded.syncCalls).toHaveLength(1);
+  expect(reloaded.syncCalls[0].value).toBe("private A");
+});
+}
+
+for (const boundary of ["journal stage", "conflict hydration"]) {
+test(`account ownership is rechecked after awaiting ${boundary}`, async () => {
+  const key = boundary === "journal stage" ? "football-session-planner-v1" : "football-medical-team-v1";
+  let scope = "org-a-actor";
+  const h = createServiceHarness({ getReadScope: () => scope,
+    syncResult: { ok: false, status: 409, currentRevision: 8 },
+    onHydrate: ({ setRevision }) => { scope = "org-b-actor"; setRevision(8); },
+  });
+  if (boundary === "journal stage") h.win.footballScienceCentralState.stageSessionWrite = async () => {
+    scope = "org-b-actor";
+    return { ok: true };
+  };
+  h.rawValues.set(key, "private A");
+  h.manifest.entries[key] = { pendingCentralSync: true, hash: "A", writes: 7, serverRevision: 1 };
+  h.service.queueCentralStateWrite(key, "private A");
+  const entry = structuredClone(h.manifest.entries[key]);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(boundary === "journal stage" ? 0 : 2);
+  expect(h.manifest.entries[key]).toEqual(entry);
+  expect(h.rawValues.get(key)).toBe("private A");
+  expect(h.handledKeys).toEqual([]);
+  expect(h.syncStatuses.some(([, status]) => status === "saved")).toBe(false);
+});
+}
+
 function createServiceHarness(options = {}) {
   const manifest = createManifest();
   const rawValues = new Map();
@@ -133,6 +189,7 @@ function createServiceHarness(options = {}) {
   let syncResultIndex = 0;
   const win = {
     footballScienceCentralState: {
+      getReadScope: options.getReadScope,
       getStatus: () => ({
         metadata: {
           "football-schedule-v1": { revision },

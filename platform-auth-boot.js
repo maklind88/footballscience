@@ -766,7 +766,7 @@ async function getActiveAccessToken() {
       const owner = JSON.parse(marker);
       if (owner.readScope && owner.readScope !== getCentralReadScope()) return true;
       // The previous generation still exists if a replacement's manifest commit failed.
-      if (owner.readScope && owner.generation === medicalRecoveryGeneration(entry)) return true;
+      if (owner.incompleteReplacement && owner.generation === medicalRecoveryGeneration(entry)) return true;
       return Boolean(entry.pendingCentralSync && (
         marker === medicalRecoveryGeneration(entry) || owner.generation === medicalRecoveryGeneration(entry)
       ));
@@ -778,7 +778,8 @@ async function getActiveAccessToken() {
       throw new Error("Medical recovery changed during loading. Retry the central read.");
     }
     const previous = JSON.parse(window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) || "null");
-    const marker = previous?.readScope ? JSON.stringify({ generation, readScope: previous.readScope }) : generation;
+    const marker = previous?.readScope ? JSON.stringify({ generation, readScope: previous.readScope,
+      ...(previous.incompleteReplacement && previous.generation === generation ? { incompleteReplacement: true } : {}) }) : generation;
     window.localStorage.setItem(MEDICAL_RECOVERY_MARKER_KEY, marker);
     if (window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) !== marker || !hasMedicalRecoverySeparation()) {
       throw new Error("Medical recovery separation could not be preserved.");
@@ -787,7 +788,8 @@ async function getActiveAccessToken() {
   function getCentralCachedValue(key) {
     const normalizedKey = String(key || "");
     const info = centralStateValueMetadata.get(normalizedKey);
-    if (info?.source !== "central-readonly-baseline" && normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()) return "{}";
+    if (info?.source !== "central-readonly-baseline" && (hasForeignPendingGeneration(normalizedKey) ||
+        (normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()))) return "{}";
     if (info?.readScope && info.readScope !== getCentralReadScope()) return "{}";
     return centralStateValues.has(normalizedKey) ? centralStateValues.get(normalizedKey) : undefined;
   }
@@ -798,10 +800,16 @@ async function getActiveAccessToken() {
     return user?.id && authState.session?.access_token
       ? JSON.stringify([user.id, organizationId, user.clubId || "", user.teamId || "", user.role]) : "";
   }
+  function hasForeignPendingGeneration(key) {
+    // Sessions owns its account-bound recovery in the durable session journal.
+    if (key === "football-session-planner-v3") return false;
+    const entry = readCentralSyncManifestEntries()[key];
+    return Boolean(entry?.pendingCentralSync && entry.principalScope && entry.principalScope !== getCentralReadScope());
+  }
   function getCentralCachedValueInfo(key) {
     const normalizedKey = String(key || "");
     if (centralStateValueMetadata.get(normalizedKey)?.source !== "central-readonly-baseline" &&
-        normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()) {
+        (hasForeignPendingGeneration(normalizedKey) || (normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()))) {
       return { value: "{}", source: "central-readonly-baseline", durable: false, serverBacked: false, canEdit: false };
     }
     if (!centralStateValues.has(normalizedKey)) {
@@ -846,7 +854,7 @@ async function getActiveAccessToken() {
         // Read revocation must not expose or seed the private recovery copy on disk.
         setCentralCachedValue(key, "{}", {
           source: "central-readonly-baseline", durable: false, serverBacked: true, readScope: getCentralReadScope(),
-          allowExplicitWrite: canCurrentUserAutomaticallyWriteCentralStateKey(key),
+          allowExplicitWrite: key === MEDICAL_TEAM_STATE_KEY && canCurrentUserAutomaticallyWriteCentralStateKey(key),
         });
         centralState.metadata[key] = { revision: 0 };
       }
@@ -1601,6 +1609,15 @@ async function getActiveAccessToken() {
           centralState.metadata[key] || {},
           options
         );
+        if (key !== MEDICAL_TEAM_STATE_KEY && hasForeignPendingGeneration(key)) {
+          if (!Number.isInteger(metadataEntry.revision) || metadataEntry.revision < 0) {
+            throw new Error("Central data could not be verified. The other account's local copy was retained.");
+          }
+          setCentralCachedValue(key, value, { source: "central-readonly-baseline", durable: false,
+            serverBacked: true, readScope: getCentralReadScope() });
+          nextMetadata[key] = metadataEntry;
+          return;
+        }
         if (key === SESSION_PLANNER_STATE_KEY && sessionScope && !sessionClient.isProjectionCurrent(sessionView)) {
           const cached = getCentralCachedValueInfo(key);
           if (cached.value === undefined) {
@@ -1641,6 +1658,15 @@ async function getActiveAccessToken() {
             nativeLocalStorageGetItem?.call(window.localStorage, key), sharedValue, MEDICAL_LOCAL_UI_FIELDS
           ).value;
           const readValue = mergeCentralStateLocalUiFields(window.localStorage.getItem(key), localUiValue, MEDICAL_LOCAL_UI_FIELDS).value;
+          if (!pendingEntry.pendingCentralSync && !hasMedicalRecoverySeparation()) {
+            // The acknowledged owner returned; this is a cache refresh, not another recovery archive.
+            removeCentralCachedValue(key);
+            window.localStorage.setItem(key, readValue);
+            setCentralCachedValue(key, readValue, { source: "central-acknowledgement", serverBacked: true });
+            nextMetadata[key] = metadataEntry;
+            hydratedRevisionEntries.push([key, metadataEntry]);
+            return;
+          }
           preserveMedicalRecoverySeparation(pendingEntry);
           setCentralCachedValue(key, readValue, {
             source: "central-readonly-baseline", durable: false, serverBacked: true, readScope: getCentralReadScope(),
@@ -3033,7 +3059,7 @@ async function getActiveAccessToken() {
     isAdmin: () => ["admin", "club-admin", "team-admin"].includes(normalizeRoleForAuth(authState.currentUser?.role, "")),
     roles: authState.roles,
   };
-  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,canAutoSyncKey:canCurrentUserAutomaticallyWriteCentralStateKey,getCachedValue:getCentralCachedValue,getCachedValueInfo:getCentralCachedValueInfo,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState}),
+  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getReadScope:getCentralReadScope,canAutoSyncKey:canCurrentUserAutomaticallyWriteCentralStateKey,getCachedValue:getCentralCachedValue,getCachedValueInfo:getCentralCachedValueInfo,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState}),
     rememberSessionDraft: (value, previousValue) => sessionSaveClient?.rememberDraft(value, previousValue),
     stageSessionWrite: async (value, options) => {
       if (authState.devMode) return { ok: true };

@@ -183,7 +183,7 @@ test("an acknowledged manifest cannot adopt an incomplete replacement after relo
   const h = createProjectionHarness(), owner = h.api.getCentralReadScope();
   const entry = { pendingCentralSync: false, hash: "acknowledged-A", writes: 7 };
   const storage = new Map([[key, "untracked replacement B"], [manifestKey, JSON.stringify({ entries: { [key]: entry } })],
-    [`${manifestKey}:medical-recovery`, JSON.stringify({ readScope: owner, generation: '["acknowledged-A",7,"",""]' })]]);
+    [`${manifestKey}:medical-recovery`, JSON.stringify({ readScope: owner, generation: '["acknowledged-A",7,"",""]', incompleteReplacement: true })]]);
   const reloaded = createProjectionHarness(storage, true);
   expect(reloaded.api.getCentralCachedValueInfo(key)).toMatchObject({ source: "central-readonly-baseline", canEdit: false });
   reloaded.api.preserveMedicalRecoverySeparation(entry);
@@ -191,6 +191,22 @@ test("an acknowledged manifest cannot adopt an incomplete replacement after relo
   expect(reloaded.api.getCentralCachedValue(key)).toBe("fresh server");
   expect(storage.get(key)).toBe("untracked replacement B");
   expect(JSON.parse(storage.get(manifestKey)).entries[key]).toEqual(entry);
+});
+
+test("returning to an acknowledged Medical owner does not classify a complete replacement as incomplete", () => {
+  const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
+  const h = createProjectionHarness(), owner = h.api.getCentralReadScope();
+  const entry = { pendingCentralSync: false, hash: "acknowledged-A", writes: 8 };
+  const storage = new Map([[key, "acknowledged A"], [manifestKey, JSON.stringify({ entries: { [key]: entry } })],
+    [`${manifestKey}:medical-recovery`, JSON.stringify({ readScope: owner, generation: '["previous",7,"",""]', incompleteReplacement: true })]]);
+  const b = createProjectionHarness(storage, true);
+  b.context.authState.currentUser.organizationId = "org-b";
+  b.api.preserveMedicalRecoverySeparation(entry);
+  expect(b.api.getCentralCachedValueInfo(key).source).toBe("central-readonly-baseline");
+  const a = createProjectionHarness(storage, true);
+  expect(a.api.getCentralCachedValueInfo(key).source).toBe("");
+  expect(JSON.parse(storage.get(`${manifestKey}:medical-recovery`)).incompleteReplacement).not.toBe(true);
+  expect(storage.get(key)).toBe("acknowledged A");
 });
 
 for (const signOut of [false, true]) {

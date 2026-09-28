@@ -2716,6 +2716,8 @@ test(`a replacement Medical draft is never adopted after an organization switch 
     if (acknowledged) expect(JSON.parse(pending.raw)).toEqual(JSON.parse(replacement));
     else expect(pending.raw).toBe(replacement);
     const preservedValue = pending.raw;
+    let expectedRecoveryValue = preservedValue;
+    const ownerArchiveCount = await tab.page.evaluate(() => Object.keys(window.footballScienceDataSafety.createBackup().recoveryCopies).length);
     expect(Boolean(pending.entry.pendingCentralSync)).toBe(!acknowledged);
     expect(pending.owner.readScope).toContain("org-a");
     profile.id = "new-org-actor";
@@ -2729,6 +2731,30 @@ test(`a replacement Medical draft is never adopted after an organization switch 
     await expect.poll(() => tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}").records?.map((record) => record.id), medicalTeamStateKey)).toEqual(["org-b-central"]);
     await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
     if (manifestQuota) expect(await tab.page.evaluate((key) => window.footballScienceCentralState.getCachedValueInfo(key).source, medicalTeamStateKey)).toBe("central-readonly-baseline");
+    if (acknowledged && !manifestQuota) {
+      profile.id = qaUser.id;
+      profile.app_metadata.organization_id = "org-a";
+      store.entries[medicalTeamStateKey] = preservedValue;
+      store.metadataEntries[medicalTeamStateKey] = createMetadata(pending.entry.serverRevision, preservedValue);
+      await tab.page.evaluate(async (user) => {
+        window.__qaSession = { access_token: "medical-token", user };
+        await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
+      }, profile);
+      await expect.poll(() => tab.page.evaluate((key) => !window.footballScienceCentralState.getStatus().hydrating && JSON.parse(localStorage.getItem(key) || "{}").records?.[0]?.id, medicalTeamStateKey)).toBe("org-a-pending-replacement");
+      expect(await tab.page.evaluate(() => Object.keys(window.footballScienceDataSafety.createBackup().recoveryCopies).length)).toBe(ownerArchiveCount);
+      // An acknowledged refresh may reorder UI keys, but cannot change any content.
+      expectedRecoveryValue = await tab.page.evaluate((key) => window.__qaNativeGetItem.call(localStorage, key), medicalTeamStateKey);
+      expect(JSON.parse(expectedRecoveryValue)).toEqual(JSON.parse(preservedValue));
+      profile.id = "new-org-actor";
+      profile.app_metadata.organization_id = "org-b";
+      store.entries[medicalTeamStateKey] = otherValue;
+      store.metadataEntries[medicalTeamStateKey] = createMetadata(10, otherValue);
+      await tab.page.evaluate(async (user) => {
+        window.__qaSession = { access_token: "qa-access-token", user };
+        await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
+      }, profile);
+      await expect.poll(() => tab.page.evaluate((key) => !window.footballScienceCentralState.getStatus().hydrating && JSON.parse(localStorage.getItem(key) || "{}").records?.[0]?.id, medicalTeamStateKey)).toBe("org-b-central");
+    }
     const replacementB = await tab.page.evaluate(({ key, manifestQuota }) => {
       const value = JSON.parse(localStorage.getItem(key));
       value.records[0].coachNote = "org-b-explicit-edit";
@@ -2740,6 +2766,7 @@ test(`a replacement Medical draft is never adopted after an organization switch 
     if (manifestQuota) {
       expect(replacementB.error).toContain("metadata could not be saved");
       await tab.page.reload({ waitUntil: "domcontentloaded" });
+      await tab.page.waitForFunction(() => typeof window.footballScienceDataSafety?.createBackup === "function");
       await expect.poll(() => tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}").records?.map((record) => record.id), medicalTeamStateKey)).toEqual(["org-b-central"]);
       await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
       expect(await tab.page.evaluate((key) => window.__qaNativeGetItem.call(localStorage, key), medicalTeamStateKey)).toBe(replacementB.raw);
@@ -2753,7 +2780,7 @@ test(`a replacement Medical draft is never adopted after an organization switch 
       raw: window.__qaNativeGetItem.call(localStorage, key),
       copies: Object.values(window.footballScienceDataSafety.createBackup().recoveryCopies).map(JSON.parse),
     }), medicalTeamStateKey);
-    expect(after.raw === preservedValue || after.copies.some((copy) => copy.value === preservedValue && Boolean(copy.entry.pendingCentralSync) === !acknowledged)).toBe(true);
+    expect(after.raw === expectedRecoveryValue || after.copies.some((copy) => copy.value === expectedRecoveryValue && Boolean(copy.entry.pendingCentralSync) === !acknowledged)).toBe(true);
     expect(requests.filter(({ org }) => org === "org-b").every(({ body }) => !JSON.stringify(body).includes("org-a-pending-replacement") && !JSON.stringify(body).includes("legacy-private"))).toBe(true);
     expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
   } finally { await closeCentralStateContext(tab.context); }
@@ -2834,6 +2861,71 @@ test("an old account Medical receipt cannot poison a new account's queued edit",
     expect(bWrites[0].body.value).not.toContain("held-org-a");
     expect(await tab.page.evaluate((key) => window.footballScienceCentralState.getStatus().metadata[key].revision, medicalTeamStateKey)).toBe(11);
   } finally { release(); await closeCentralStateContext(tab.context); }
+});
+
+test("Schedule pending ownership survives old response then new-account ready and reload", async ({ browser, baseURL }) => {
+  const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, organization_id: "org-a" } };
+  const baseline = JSON.stringify({ events: [] });
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [scheduleStateKey]: baseline }, metadataEntries: { [scheduleStateKey]: createMetadata(1, baseline) } };
+  let releaseA, releaseB, heldA = false, heldB = false, holdB = false;
+  const aBarrier = new Promise((resolve) => { releaseA = resolve; });
+  const bBarrier = new Promise((resolve) => { releaseB = resolve; });
+  const requests = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], "schedule-pending-principal", {
+    sessionUser: profile, profileUser: profile,
+    appStateReadHandler: async () => { if (holdB) { heldB = true; await bBarrier; } return null; },
+    appStateWriteHandler: async ({ body, request }) => {
+      if (body.key !== scheduleStateKey) return null;
+      requests.push({ body, token: request.headers().authorization });
+      if (body.value.includes("private-org-a")) { heldA = true; await aBarrier; }
+      return { status: 500, body: { ok: false, reason: "Synthetic old request failure" } };
+    },
+    initScript: () => { window.__qaNativeGetItem = Storage.prototype.getItem; },
+  });
+  try {
+    const draft = await tab.page.evaluate((key) => {
+      const bridge = window.footballScienceCentralState, original = bridge.syncKey;
+      bridge.syncKey = async (...args) => {
+        const result = await original(...args);
+        if (args[0] === key && args[1].includes("private-org-a")) window.__qaASyncSettled = true;
+        return result;
+      };
+      const value = JSON.parse(localStorage.getItem(key));
+      value.events = [{ id: "private-org-a", date: "2026-09-28", title: "Private A", type: "training" }];
+      const raw = JSON.stringify(value);
+      localStorage.setItem(key, raw);
+      return raw;
+    }, scheduleStateKey);
+    await expect.poll(() => heldA).toBe(true);
+    const aEntry = await tab.page.evaluate(({ key, manifestKey }) => JSON.parse(localStorage.getItem(manifestKey)).entries[key],
+      { key: scheduleStateKey, manifestKey: dataSafetyManifestKey });
+    expect(aEntry.principalScope).toContain("org-a");
+    profile.id = "org-b-actor";
+    profile.app_metadata.organization_id = "org-b";
+    store.entries[scheduleStateKey] = JSON.stringify({ events: [{ id: "org-b-central", date: "2026-09-28", title: "B central", type: "training" }] });
+    store.metadataEntries[scheduleStateKey] = createMetadata(10, store.entries[scheduleStateKey]);
+    holdB = true;
+    await tab.page.evaluate(async (user) => {
+      window.__qaSession = { access_token: "org-b-token", user };
+      await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
+    }, profile);
+    await expect.poll(() => heldB).toBe(true);
+    releaseA();
+    await tab.page.waitForFunction(() => window.__qaASyncSettled === true);
+    releaseB(); holdB = false;
+    for (const reload of [false, true]) {
+      if (reload) await tab.page.reload({ waitUntil: "domcontentloaded" });
+      await tab.page.waitForFunction(() => typeof window.footballScienceDataSafety?.createBackup === "function");
+      await expect.poll(() => tab.page.evaluate((key) => !window.footballScienceCentralState.getStatus().hydrating && JSON.parse(localStorage.getItem(key) || "{}").events?.[0]?.id, scheduleStateKey)).toBe("org-b-central");
+      await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+      const retained = await tab.page.evaluate(({ key, manifestKey }) => ({ raw: window.__qaNativeGetItem.call(localStorage, key),
+        entry: JSON.parse(localStorage.getItem(manifestKey)).entries[key] }), { key: scheduleStateKey, manifestKey: dataSafetyManifestKey });
+      expect(retained).toEqual({ raw: draft, entry: aEntry });
+      expect(requests).toHaveLength(1);
+      expect(requests[0].token).toBe("Bearer qa-access-token");
+    }
+  } finally { releaseA(); releaseB(); await closeCentralStateContext(tab.context); }
 });
 
 test("Medical editor hydration still writes an automatic media merge", async ({ browser, baseURL }) => {

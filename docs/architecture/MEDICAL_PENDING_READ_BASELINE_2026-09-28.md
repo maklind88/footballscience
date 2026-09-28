@@ -248,6 +248,47 @@ caught the Sessions message mismatch and an over-specific boot-state fixture;
 both were corrected without weakening the safety assertions. No budgets or
 timeouts changed. Exact-SHA CI/review must be rerun before release.
 
+## Persisted Principal Boundary And Owner Return
+
+Review 5341236054 on `bec4fa4c` found that rejecting an old HTTP receipt was
+insufficient: its retained manifest entry could be retried by the next account.
+New protected writes and queued generations now record their initiating read
+scope. Manifest retry, send, journal-stage completion, conflict retry/hydration
+and receipt handling check that scope before continuing. Another account gets a
+server-only read view; the foreign native value and pending entry are retained,
+not merged, seeded or posted. Sessions keeps its existing scoped journal.
+
+The same review found that a completed Medical replacement could be mistaken
+for an incomplete replacement after visiting another account. The durable marker
+now explicitly marks incomplete replacement; that flag survives only while its
+original manifest generation remains. Returning to the acknowledged owner can
+refresh its cache without creating an unnecessary recovery archive. Server
+refresh may reorder JSON UI keys; all content must remain equal, and the resulting
+native bytes remain protected on the next account switch.
+
+Regression evidence includes Schedule/Periodization/Player Profiles manifest
+retry after account change and reload, a real Schedule storage/auth/ready/reload
+browser chain with a held old-account response, and Medical A-to-B-to-A-to-B
+transitions. Two additional negative service tests reproduced account changes
+during journal staging and conflict hydration before the continuation guards
+were added. These tests keep the original pending generation and raw data intact.
+
+The previous CI failure was a test readiness race after quota-path reload:
+the backup facade had not installed yet. The test now waits for that actual
+facade before calling it. No timeout, product bypass or safety assertion changed.
+
+This is ownership protection for newly recorded pending generations, not a
+migration assigning ownership to all historical unscoped storage. Non-Medical
+foreign recovery views remain read-only; automatic recovery/adoption under a new
+account is intentionally outside this patch. Medical recovery archives remain
+durable and require explicit review. Fresh exact-SHA CI/review is still required.
+
+Final local verification: 3,088 tests passed (3,033 API/contracts, 45 central-state
+browser cases, 10 Medical clinical cases). The 36 affected risk cases passed ten
+repetitions each (360/360). `npm run qa:static` and `git diff --check` passed; the
+same 84 existing architecture warnings remain. No timeout or budget was raised.
+These are isolated mocked development checks, not authenticated Live verification.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

@@ -110,7 +110,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function createCentralBackedStorageError() { return new Error("Central sync is not ready."); }
 
-  function setCentralSyncPendingState(key, isPending = false, isRemoved = false) {
+  function setCentralSyncPendingState(key, isPending = false, isRemoved = false, principalScope = "") {
     const normalizedKey = String(key || "");
     mutateManifest((manifest) => {
       const currentEntry = manifest.entries[normalizedKey] || {};
@@ -118,6 +118,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         ...(currentEntry?.label ? currentEntry : { label: getStorageLabel(normalizedKey), writes: 0, size: 0, hash: "", updatedAt: "", deletedAt: "" }),
         ...currentEntry,
         pendingCentralSync: Boolean(isPending),
+        ...(isPending && principalScope ? { principalScope } : {}),
         deletedAt: isRemoved ? getDataSafetyNow() : "",
       };
     });
@@ -152,15 +153,17 @@ export function createCentralSyncRuntimeService(deps = {}) {
       return;
     }
     const userId = getCurrentUser()?.id;
+    const principalScope = getCentralStateBridge()?.getReadScope?.();
     try {
       const durableState = getCentralStateBridge()?.getSessionPendingState ? await getCentralStateBridge().getSessionPendingState() : null;
-      if (getCurrentUser()?.id !== userId || centralStateWriteQueue.size || centralStateWriteFlushPromise) return;
+      if (getCurrentUser()?.id !== userId || getCentralStateBridge()?.getReadScope?.() !== principalScope || centralStateWriteQueue.size || centralStateWriteFlushPromise) return;
       if (durableState) queueCentralStateWrite(sessionPlannerStorageKey, rawGetItem(sessionPlannerStorageKey) ?? durableState, { automatic: true, sessionReplay: true });
     } catch {
       reportSyncStatus(sessionPlannerStorageKey, "issue", "Local save queue unavailable");
     }
     const manifest = typeof readManifest === "function" ? readManifest() : {};
     for (const [key, entry] of Object.entries(manifest.entries || {})) {
+      if (entry.principalScope && entry.principalScope !== getCentralStateBridge()?.getReadScope?.()) continue;
       if (getCentralStateBridge()?.getCachedValueInfo?.(key)?.source === "central-readonly-baseline") continue;
       // New Sessions retries use immutable journal entries, never an old whole-calendar cache.
       if (key === sessionPlannerStorageKey && getCentralStateBridge()?.stageSessionWrite) continue;
@@ -172,7 +175,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         (entry.deletedAt || value !== null) &&
         getCentralStateBridge()?.canAutoSyncKey?.(key) !== false
       ) {
-        queueCentralStateWrite(key, value ?? "", { removed: !!entry.deletedAt, automatic: true });
+        queueCentralStateWrite(key, value ?? "", { removed: !!entry.deletedAt, automatic: true, principalScope: entry.principalScope });
       }
     }
   }
@@ -318,6 +321,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
   }
 
   async function retryCentralStateWriteAfterConflict(write = {}, result = {}, bridge = getCentralStateBridge()) {
+    if (write.principalScope && write.principalScope !== bridge?.getReadScope?.()) return { ok: false, staleContext: true };
     if (!shouldRetryCentralStateWriteAfterConflict(write)) {
       return null;
     }
@@ -335,6 +339,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     } finally {
       centralStateActiveWriteKeys.delete(write.key);
     }
+    if (write.principalScope && write.principalScope !== bridge?.getReadScope?.()) return { ok: false, staleContext: true };
     if (!retryResult?.ok) {
       return retryResult || null;
     }
@@ -373,8 +378,10 @@ export function createCentralSyncRuntimeService(deps = {}) {
       reportSyncStatus(normalizedKey, "issue", "Central sync unavailable.");
       return;
     }
+    const principalScope = options.principalScope || bridge.getReadScope?.();
+    if (typeof bridge.getReadScope === "function" && (!principalScope || principalScope !== bridge.getReadScope())) return;
     reportSyncStatus(normalizedKey, "saving", "Saving");
-    setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed));
+    setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed), principalScope);
     const stage = normalizedKey === sessionPlannerStorageKey && !options.removed && bridge.stageSessionWrite
       ? () => options.sessionReplay ? Promise.resolve({ ok: true }) : bridge.stageSessionWrite(String(value ?? ""), { previousValue: options.previousValue, previousPending: options.previousPending })
       : null;
@@ -383,6 +390,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       value: String(value ?? ""),
       removed: Boolean(options.removed),
       automatic: Boolean(options.automatic),
+      principalScope,
       baseRevision: isCentralStateBridgeHydrated(bridge) ? getCentralStateRevisionForKey(normalizedKey) : null,
       followsActiveWrite: centralStateActiveWriteKeys.has(normalizedKey),
       ...(normalizedKey === sessionPlannerStorageKey ? { sessionViewToken: options.sessionViewToken || bridge.getCachedValueInfo?.(normalizedKey)?.sessionViewToken } : {}),
@@ -411,6 +419,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     centralStateWriteQueue.clear();
     for (let index = 0; index < writes.length; index += 1) {
       const write = writes[index];
+      if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
       if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
       if (write.automatic && bridge.canAutoSyncKey?.(write.key) === false) {
         continue;
@@ -420,6 +429,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       try {
         const staged = write.stage ? await (write.staged || write.stage()) : { ok: true };
         write.staged = null;
+        if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
         result = !staged.ok ? staged : await bridge.syncKey(write.key, write.value, {
           removed: write.removed,
           baseRevision: getCentralStateWriteBaseRevision(write),
@@ -431,6 +441,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         centralStateActiveWriteKeys.delete(write.key);
       }
       // Hydration can separate the server view while this older write is awaiting a response.
+      if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
       if (result?.staleContext) continue;
       if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
       if (!result?.ok) {
@@ -443,6 +454,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         }
         if (result?.conflict || result?.status === 409) {
           const retryResult = await retryCentralStateWriteAfterConflict(write, result, bridge);
+          if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
           if (retryResult?.staleContext) continue;
           if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
           if (retryResult?.ok) {
@@ -455,6 +467,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
             // whole blob at a newer revision could overwrite a colleague.
           } else if (write.key !== sessionPlannerStorageKey) {
             const hydrated = await bridge.hydrate?.({ forceApply: true }).catch(() => false);
+            if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
             if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
             if (hydrated) {
               persistCentralStateServerRevision(write.key, {

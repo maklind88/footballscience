@@ -2763,6 +2763,69 @@ test("a Schedule manifest quota failure cannot expose or seed the rejected edit 
   } finally { await closeCentralStateContext(tab.context); }
 });
 
+test("a failed Medical deletion survives real fresh hydration before its server retry", async ({ browser, baseURL }) => {
+  const key = medicalTeamStateKey;
+  const value = JSON.stringify({ players: [], records: [], injuryPlans: [] });
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [key]: value }, metadataEntries: { [key]: createMetadata(7, value) } };
+  let armed = false, release, held = false;
+  const barrier = new Promise((resolve) => { release = resolve; }), deletes = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], "failed-medical-delete", {
+    initScript: () => { window.__qaNativeGetItem = Storage.prototype.getItem; },
+    appStateWriteHandler: async ({ body, request }) => {
+      if (body.key !== key) return null;
+      if (armed && body.removed) {
+        deletes.push({ body, method: request.method() });
+        if (deletes.length === 1) return { status: 503, body: { ok: false, reason: "Failed before commit" } };
+        held = true; await barrier;
+      }
+      const revision = store.metadataEntries[key].revision;
+      if (body.baseRevision !== revision) return { status: 409, body: { ok: false, currentRevision: revision } };
+      if (body.removed) {
+        delete store.entries[key]; store.absentKeys = [key];
+        store.metadataEntries[key] = { ...createMetadata(revision + 1, ""), removed: true };
+      } else {
+        store.entries[key] = body.value;
+        store.metadataEntries[key] = createMetadata(revision + 1, body.value);
+      }
+      return { body: { ok: true, key, value: body.value, metadata: store.metadataEntries[key] } };
+    },
+  });
+  try {
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+    await expect.poll(() => tab.page.evaluate((key) => !window.footballScienceCentralState.getStatus().hydrating &&
+      !JSON.parse(localStorage.getItem("football-data-safety-v1")).entries[key]?.pendingCentralSync, key)).toBe(true);
+    armed = true;
+    const pending = await tab.page.evaluate(({ key, manifestKey }) => {
+      const bridge = window.footballScienceCentralState, sync = bridge.syncKey;
+      bridge.syncKey = async (...args) => {
+        const result = await sync(...args);
+        if (args[0] === key && args[2]?.removed) window.__qaDeleteSettled = true;
+        return result;
+      };
+      localStorage.removeItem(key);
+      return JSON.parse(localStorage.getItem(manifestKey)).entries[key];
+    }, { key, manifestKey: dataSafetyManifestKey });
+    await tab.page.waitForFunction(() => window.__qaDeleteSettled);
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+    expect(await tab.page.evaluate(({ key, manifestKey }) => ({
+      raw: window.__qaNativeGetItem.call(localStorage, key),
+      entry: JSON.parse(localStorage.getItem(manifestKey)).entries[key],
+    }), { key, manifestKey: dataSafetyManifestKey })).toEqual({ raw: null, entry: pending });
+    await expect.poll(() => held).toBe(true);
+    expect(deletes).toHaveLength(2);
+    expect(deletes.map(({ body, method }) => [method, body.baseRevision])).toEqual([
+      ["DELETE", pending.pendingBaseRevision], ["DELETE", pending.pendingBaseRevision],
+    ]);
+    release();
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
+      const entry = JSON.parse(localStorage.getItem(manifestKey)).entries[key];
+      return { pending: entry.pendingCentralSync, revision: entry.serverRevision };
+    }, { key, manifestKey: dataSafetyManifestKey })).toEqual({ pending: false, revision: pending.pendingBaseRevision + 1 });
+    expect(store.entries[key]).toBeUndefined();
+  } finally { release(); await closeCentralStateContext(tab.context); }
+});
+
 for (const overlap of [false, true]) {
 for (const rotateToken of [false, true]) {
 test(`a committed deletion with a lost receipt is read-acknowledged without retry (token: ${rotateToken}, mid-flush read: ${overlap})`, async ({ browser, baseURL }) => {
@@ -2815,12 +2878,26 @@ test(`a committed deletion with a lost receipt is read-acknowledged without retr
     if (overlap) await tab.page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ events: [
       { id: "mid-flush-schedule", date: "2026-09-29", title: "Concurrent schedule", type: "training" },
     ] })), scheduleStateKey);
+    if (rotateToken && !overlap) {
+      // The real ready event records manifest retry intent while DELETE is still in flight.
+      await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+      holdReads = true;
+    }
     if (rotateToken) await tab.page.evaluate(async () => {
       window.__qaSession = { ...window.__qaSession, access_token: "rotated-delete-token" };
       await window.__qaAuthStateCallback("TOKEN_REFRESHED", window.__qaSession);
     });
     release();
     await tab.page.waitForFunction(() => window.__qaDeleteSettled);
+    if (rotateToken && !overlap) {
+      await expect.poll(() => readHeld).toBe(true);
+      await tab.page.waitForTimeout(400);
+      expect(writes.filter(({ body }) => body.removed)).toHaveLength(1);
+      expect(await tab.page.evaluate(({ key, manifestKey }) =>
+        JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+      { key, manifestKey: dataSafetyManifestKey })).toBe(true);
+      releaseRead();
+    }
     if (overlap) {
       await expect.poll(() => otherHeld).toBe(true);
       holdReads = true;

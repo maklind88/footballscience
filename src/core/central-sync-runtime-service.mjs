@@ -491,6 +491,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
       removed: Boolean(options.removed),
       automatic: Boolean(options.automatic),
       retainedGeneration: Boolean(options.retainedGeneration),
+      // Reloaded tombstones may have lost their receipt before the runtime was replaced.
+      retryAfterFailure: Boolean(options.retainedGeneration && options.removed),
       principalScope,
       baseRevision,
       pendingEntry,

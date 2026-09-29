@@ -3,6 +3,26 @@ import { readFileSync } from "node:fs";
 import { createCentralAppStateReloadService } from "../src/core/central-app-state-reload-service.mjs";
 import { getSquadCentralReloadKey } from "../src/modules/squad/squad-central-reload-key.mjs";
 
+for (const nested of [false, true]) {
+for (const fails of [false, true]) {
+test(`central reload restores its normalization barrier (nested: ${nested}, failure: ${fails})`, () => {
+  const win = { __footballScienceCentralReloading: nested };
+  let observed = false;
+  const service = createCentralAppStateReloadService({ win, getCurrentPlatformUser: () => ({ id: "actor" }),
+    readMedicalState: () => {
+      observed = win.__footballScienceCentralReloading;
+      if (fails) throw new Error("Read failed");
+      return {};
+    },
+  });
+  if (fails) expect(() => service.reloadCentralizedAppStateFromStorage()).toThrow("Read failed");
+  else service.reloadCentralizedAppStateFromStorage();
+  expect(observed).toBe(true);
+  expect(win.__footballScienceCentralReloading).toBe(nested);
+});
+}
+}
+
 function createHarness(options = {}) {
   const calls = [];
   const timers = [];

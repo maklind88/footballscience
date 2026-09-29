@@ -59,6 +59,19 @@ export function createCentralAppStateReloadService(deps = {}) {
   }
 
   function reloadCentralizedAppStateFromStorage() {
+    if (call("getCurrentPlatformUser") && getHubState()?.activeWorkspaceId === "session-planner") {
+      call("syncSelectedSessionPlannerBlockFieldsFromDom");
+    }
+    const wasReloading = win.__footballScienceCentralReloading;
+    win.__footballScienceCentralReloading = true;
+    try {
+      return applyCentralizedAppStateFromStorage();
+    } finally {
+      win.__footballScienceCentralReloading = wasReloading;
+    }
+  }
+
+  function applyCentralizedAppStateFromStorage() {
     const currentUser = call("getCurrentPlatformUser");
     if (!currentUser) {
       lastSessionPlannerReloadKey = "";
@@ -75,9 +88,6 @@ export function createCentralAppStateReloadService(deps = {}) {
     const squadReloadKey = previousWorkspaceId === "player-profiles"
       ? getSquadCentralReloadKey({ currentUser, metadata, now: deps.getNow?.() })
       : "";
-    if (getHubState()?.activeWorkspaceId === "session-planner") {
-      call("syncSelectedSessionPlannerBlockFieldsFromDom");
-    }
     setHubState(call("repairWorkspaceState", {
       ...call("readWorkspaceHubState"),
       activeWorkspaceId: previousWorkspaceId,

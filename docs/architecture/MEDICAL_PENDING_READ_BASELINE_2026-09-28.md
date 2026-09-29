@@ -765,6 +765,47 @@ performance and architecture gates passed. Existing architecture warnings remain
 unchanged. Exact-SHA GitHub verification and fresh review remain release gates;
 no staging, main, production or Live-data mutation was performed.
 
+## Independent Review Follow-Up: Pending Deletion Preservation
+
+The independent read-only review rejected `4399d084`: a failed Medical DELETE
+without a server commit was overwritten by the fresh-read recovery path. A
+retained manifest retry could also bypass the receipt-read barrier after token
+rotation. Earlier passing tests did not exercise both complete paths.
+
+Two new regressions first failed: real browser hydration replaced the pending
+Medical tombstone with server data, and a service manifest retry sent DELETE
+while hydration was held. A pending tombstone now blocks cache application even
+under forced hydration, and retained manifest generations use the same retry
+read barrier as failed in-memory writes.
+
+The browser additionally exposed view normalization after central-state-ready:
+Medical initialized defaults through both protected setItem and its suppressed
+raw cache path. A synchronous, finally-restored shared reload barrier prevents
+these read-side normalizations from resurrecting pending tombstones. Explicit
+user edits outside the read phase remain permitted. DOM edits are flushed before
+the barrier: an additional negative test exposed that wrapping the DOM flush
+would suppress a legitimate Sessions edit following a tombstone. The corrected
+ordering preserves that text through actual data-safety storage and re-reading.
+This adds the shared reload
+service and its focused contracts to scope; no Medical module code is changed.
+
+Five real-browser deletion cases passed ten repetitions (50/50). The token
+rotation case now creates retry intent with a real ready event during the first
+DELETE, holds the subsequent GET, asserts no second DELETE, then acknowledges
+the advancing server tombstone. The no-commit Medical case retains byte-exact
+pending metadata and absent raw storage until the second DELETE receives 200.
+Additional contracts cover nested/error barrier cleanup and both normalization
+paths followed by a legitimate new user edit. New exact-SHA review, CI and the
+normal Safe Lane remain required; no production data has been modified.
+
+The first full affected matrix passed 249/250: treating every retained write as
+a failed retry also delayed a normal Schedule edit behind its older in-flight
+read. Receipt preflight is now limited to retained tombstones, not all retained
+values. Both that Schedule regression and the DOM-edit regression passed five
+repetitions each (10/10). The final affected matrix passed 251/251, and final
+`qa:static` passed all syntax, release, security, storage, migration-file,
+performance and architecture gates without relaxing their limits.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

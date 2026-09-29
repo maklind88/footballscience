@@ -112,11 +112,18 @@ export function createDataSafetyRuntimeService(deps = {}) {
       getCentralStateBridge()?.canAutoSyncKey?.(key) !== true;
   }
 
+  function isPendingDeletionReload(key) {
+    if (!win.__footballScienceCentralReloading || !isProtectedStorageKey(key)) return false;
+    const entry = readManifest().entries?.[key];
+    return Boolean(entry?.pendingCentralSync && entry.deletedAt);
+  }
+
   function rawSetItem(key, value, options = {}) {
     const storage = getStorage();
     if (!storage || !nativeSetItem) return;
     const normalizedKey = String(key || "");
     const normalizedValue = String(value ?? "");
+    if (isPendingDeletionReload(normalizedKey)) return;
     const readView = getCentralCachedValueInfo(normalizedKey);
     if (readView.source !== "central-readonly-baseline" && hasUnauthorizedMedicalRecovery(normalizedKey)) {
       throw new Error("Medical recovery is pending an authorized central read. The local copy was retained.");
@@ -743,6 +750,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
       const normalizedKey = String(key || "");
       const normalizedValue = String(value ?? "");
       if (this !== storage || !isProtectedStorageKey(normalizedKey)) return nativeSetItem.call(this, key, value);
+      // View normalization is not a new user edit and must not resurrect a pending deletion.
+      if (isPendingDeletionReload(normalizedKey)) return;
       const readView = getCentralCachedValueInfo(normalizedKey);
       const separated = readView.source === "central-readonly-baseline";
       if (separated && !readView.canEdit) {

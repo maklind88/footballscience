@@ -62,6 +62,23 @@ test("a failed deletion obtains a fresh receipt before an already scheduled retr
   expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
 });
 
+test("a manifest deletion waits for a held hydration and verifies its receipt before replay", async () => {
+  const key = "football-medical-team-v1";
+  const options = { hydrating: true, getReadScope: () => "actor-A",
+    onHydrate: ({ manifest }) => Object.assign(manifest.entries[key], { pendingCentralSync: false, serverRevision: 8 }) };
+  const h = createServiceHarness(options);
+  h.manifest.entries[key] = { principalScope: "actor-A", pendingCentralSync: true,
+    hash: "hash-0", writes: 7, updatedAt: "deleted-generation", deletedAt: "deleted", serverRevision: 7, pendingBaseRevision: 7 };
+  await h.service.retryCentral(() => h.manifest);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toEqual([]);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  options.hydrating = false;
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toEqual([{ hydrate: true, options: { fresh: true } }]);
+  expect(h.manifest.entries[key]).toMatchObject({ pendingCentralSync: false, serverRevision: 8, deletedAt: "deleted" });
+});
+
 for (const failure of ["unavailable", "exception"]) {
 test(`a failed deletion remains pending without a retry loop when its receipt read fails (${failure})`, async () => {
   const key = "football-medical-team-v1";
@@ -181,8 +198,10 @@ test(`a prepared write resumes only when the durable raw generation matches afte
     expect(h.syncCalls).toEqual([]);
     expect(h.manifest.entries[key]).toEqual(before);
   } else {
-    expect(h.syncCalls).toHaveLength(1);
-    expect(h.syncCalls[0]).toMatchObject({ key, value, options: { removed, baseRevision: 7 } });
+    expect(h.syncCalls).toEqual([
+      ...(removed ? [{ hydrate: true, options: { fresh: true } }] : []),
+      { key, value, options: { removed, baseRevision: 7 } },
+    ]);
     expect(h.manifest.entries[key]).toMatchObject({ pendingCentralSync: false, localWritePrepared: false, serverRevision: 8 });
   }
 });
@@ -1400,6 +1419,7 @@ test("central sync runtime retries pending tombstones even when local raw value 
   await harness.service.flushCentralStateWrites();
 
   expect(harness.syncCalls).toEqual([
+    { hydrate: true, options: { fresh: true } },
     {
       key: "football-schedule-v1",
       value: "",

@@ -936,6 +936,8 @@ async function getActiveAccessToken() {
   }
   function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, centralValue = "", options = {}) {
     if (pendingEntry.localWritePrepared) return false;
+    // A present server value is never a receipt for a pending deletion, even on forced recovery.
+    if (pendingEntry.pendingCentralSync && pendingEntry.deletedAt) return false;
     if (key === SESSION_PLANNER_STATE_KEY &&
         getCentralCachedValueInfo(key).source === "session-journal-pending") return false;
     if (key === SESSION_PLANNER_STATE_KEY && pendingEntry?.pendingCentralSync &&

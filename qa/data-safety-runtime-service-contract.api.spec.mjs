@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { createDataSafetyRuntimeService } from "../src/core/data-safety-runtime-service.mjs";
+import { createCentralAppStateReloadService } from "../src/core/central-app-state-reload-service.mjs";
 
 function readProjectFile(relativePath) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
@@ -151,6 +152,52 @@ function createHarness(options = {}) {
     queueCentralStateWrite: (...args) => queuedWrites.push(args),
   });
   return { centralCache, centralCacheInfo, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
+}
+
+test("a central reload persists user DOM edits before enabling normalization suppression", async () => {
+  const h = createHarness(), key = "football-session-planner-v3";
+  h.win.footballScienceCentralState.getReadScope = () => "owner-A";
+  h.service.install(); await Promise.resolve();
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: {
+    pendingCentralSync: true, principalScope: "owner-A", deletedAt: "deleted", serverRevision: 7, writes: 2,
+  } } }));
+  const typed = '{"sessions":{"2026-09-29":{"title":"New user text"}}}';
+  let reloaded;
+  const reload = createCentralAppStateReloadService({ win: h.win,
+    getCurrentPlatformUser: () => ({ id: "actor" }), getHubState: () => ({ activeWorkspaceId: "session-planner" }),
+    syncSelectedSessionPlannerBlockFieldsFromDom: () => h.localStorage.setItem(key, typed),
+    readSessionPlannerState: () => JSON.parse(h.localStorage.getItem(key) || "{}"),
+    setSessionPlannerState: (value) => { reloaded = value; },
+  });
+  reload.reloadCentralizedAppStateFromStorage();
+  expect(h.localStorage.values.get(key)).toBe(typed);
+  expect(reloaded).toEqual(JSON.parse(typed));
+  expect(h.service.readManifest().entries[key].deletedAt).toBe("");
+  expect(h.queuedWrites).toHaveLength(1);
+  expect(Boolean(h.win.__footballScienceCentralReloading)).toBe(false);
+});
+
+for (const raw of [false, true]) {
+test(`view normalization preserves a pending deletion but a later user edit is allowed (raw: ${raw})`, async () => {
+  const h = createHarness(), key = "football-medical-team-v1";
+  h.win.footballScienceCentralState.getReadScope = () => "owner-A";
+  h.win.footballScienceCentralState.canAutoSyncKey = () => true;
+  h.service.install(); await Promise.resolve();
+  const entry = { pendingCentralSync: true, principalScope: "owner-A", deletedAt: "deleted", serverRevision: 7, writes: 2 };
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: entry } }));
+  h.win.__footballScienceCentralReloading = true;
+  if (raw) h.service.rawSetItem(key, "automatic defaults");
+  else h.localStorage.setItem(key, "automatic defaults");
+  expect(h.localStorage.values.has(key)).toBe(false);
+  expect(h.centralCache.has(key)).toBe(false);
+  expect(h.service.readManifest().entries[key]).toEqual(entry);
+  expect(h.queuedWrites).toEqual([]);
+  h.win.__footballScienceCentralReloading = false;
+  h.localStorage.setItem(key, "intentional new user edit");
+  expect(h.localStorage.values.get(key)).toBe("intentional new user edit");
+  expect(h.service.readManifest().entries[key].deletedAt).toBe("");
+  expect(h.queuedWrites).toHaveLength(1);
+});
 }
 
 for (const key of ["football-schedule-v1", "football-session-planner-v3", "football-periodization-v2"]) {

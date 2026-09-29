@@ -12,6 +12,75 @@ const readScopeSource = source.slice(source.indexOf("  function getCentralReadSc
 const projectionSource = source.slice(source.indexOf("  function medicalRecoveryGeneration("), source.indexOf("  function setCentralCacheFallbackState("));
 const normalizeUserSource = source.slice(source.indexOf("  function normalizeAuthUser("), source.indexOf("  function toFormError("));
 const apiRequestSource = source.slice(source.indexOf("  async function apiRequest("), source.indexOf("  function isCentralStateKey("));
+const profileRefreshSource = source.slice(source.indexOf("  async function refreshUserCache("), source.indexOf("  function queuePostAuthHydration("));
+
+function createProfileRefreshHarness() {
+  const requests = [], notifications = [];
+  const user = { id: "actor-a", organizationId: "org-a", teamId: "team-a", role: "coach" };
+  const authState = { currentUser: user, users: [user], roles: ["coach"], session: { access_token: "token-a", user } };
+  const context = {
+    authState, Headers, API_ADMIN_USERS: "/api/admin-users",
+    currentUserProfileRefresh: null, userCacheRefresh: null,
+    getCentralReadScope: () => authState.currentUser ? JSON.stringify(authState.currentUser) : "",
+    getActiveAccessToken: async () => authState.session?.access_token,
+    isAuthTokenOversized: () => false, normalizeAuthUser: (value) => ({ ...value }),
+    window: { setTimeout: () => 1, clearTimeout: () => {} },
+    fetch: (path, options) => new Promise((resolve) => requests.push({ path, options, resolve })),
+    readJsonResponse: async (response) => response.payload,
+    notifyAuthChange: (user) => notifications.push(user),
+    setCurrentUserFromSession: (user) => { authState.currentUser = user; notifications.push(user); },
+    signOut: async () => { authState.currentUser = null; authState.session = null; notifications.push(null); },
+  };
+  const api = runInNewContext(`${apiRequestSource}\n${profileRefreshSource}\n({refreshUserCache, refreshCurrentUserProfile})`, context);
+  return { authState, requests, notifications, api };
+}
+
+for (const kind of ["profile", "users"]) {
+for (const transition of ["actor", "team", "token", "signout", "reauth"]) {
+for (const status of [200, 401]) {
+test(`late ${kind} response ${status} cannot replace auth state after ${transition}`, async () => {
+  const h = createProfileRefreshHarness(), old = structuredClone(h.authState.currentUser);
+  const pending = kind === "profile" ? h.api.refreshCurrentUserProfile(old.id) : h.api.refreshUserCache();
+  await expect.poll(() => h.requests.length).toBe(1);
+  const next = { ...old, ...(transition === "actor" ? { id: "actor-b", organizationId: "org-b" } : {}),
+    ...(transition === "team" ? { teamId: "team-b" } : {}) };
+  h.authState.currentUser = transition === "signout" ? null : next;
+  h.authState.users = transition === "signout" ? [] : [next];
+  if (transition === "signout") h.authState.session = null;
+  if (transition === "actor") h.authState.session = { access_token: "token-b", user: next };
+  if (transition === "token") h.authState.session.access_token = "token-b";
+  if (transition === "reauth") h.authState.session = { access_token: "token-a", user: next };
+  const expected = structuredClone(h.authState);
+  h.requests[0].resolve({ ok: status === 200, status, payload: { ok: true, user: old, users: [old], roles: ["old-role"] } });
+  await pending;
+  expect(h.authState).toEqual(expected);
+  expect(h.notifications).toEqual([]);
+});
+}
+}
+}
+
+for (const kind of ["profile", "users"]) {
+test(`${kind} refresh coalesces only the current session and keeps its promise owner`, async () => {
+  const h = createProfileRefreshHarness();
+  const refresh = () => kind === "profile" ? h.api.refreshCurrentUserProfile(h.authState.currentUser.id) : h.api.refreshUserCache();
+  const first = refresh();
+  await expect.poll(() => h.requests.length).toBe(1);
+  h.authState.session = { ...h.authState.session, access_token: "token-b" };
+  const second = refresh();
+  await expect.poll(() => h.requests.length).toBe(2);
+  h.requests[0].resolve({ ok: true, status: 200, payload: { user: { ...h.authState.currentUser, role: "stale-role" }, users: [] } });
+  await first;
+  const third = refresh();
+  await Promise.resolve(); await Promise.resolve();
+  expect(h.requests).toHaveLength(2);
+  const user = { ...h.authState.currentUser, role: "medical" };
+  h.requests[1].resolve({ ok: true, status: 200, payload: { user, users: [user], roles: ["medical"] } });
+  await Promise.all([second, third]);
+  expect(h.authState.currentUser.role).toBe("medical");
+  expect(h.notifications).toHaveLength(1);
+});
+}
 
 for (const mismatch of ["none", "owner", "revision", "absent-only", "newer-edit", "quota"]) {
 test(`read acknowledgement of a tombstone requires an owned advanced revision (${mismatch})`, () => {

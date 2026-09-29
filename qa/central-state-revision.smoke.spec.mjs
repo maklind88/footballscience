@@ -3258,6 +3258,82 @@ test(`Schedule reconciles a committed write after same-principal token rotation 
 });
 }
 
+for (const delayedRead of ["profile", "users"]) {
+test(`late ${delayedRead} from the previous account cannot invalidate a pending Schedule receipt`, async ({ browser, baseURL }) => {
+  const previous = { ...qaUser, id: "previous-actor", app_metadata: { ...qaUser.app_metadata, organization_id: "previous-org" } };
+  const next = { ...qaUser, app_metadata: { ...qaUser.app_metadata, organization_id: "next-org" } };
+  const baseline = JSON.stringify({ events: [] });
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [scheduleStateKey]: baseline }, metadataEntries: { [scheduleStateKey]: createMetadata(1, baseline) } };
+  let releaseProfile, releaseWrite, profileHeld = false, writeHeld = false;
+  const profileBarrier = new Promise((resolve) => { releaseProfile = resolve; });
+  const writeBarrier = new Promise((resolve) => { releaseWrite = resolve; });
+  const writes = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], `late-${delayedRead}-schedule-receipt`, {
+    sessionUser: previous, profileUser: previous,
+    appStateWriteHandler: async ({ body, request }) => {
+      if (body.key !== scheduleStateKey) return null;
+      writes.push({ body, token: request.headers().authorization });
+      writeHeld = true; await writeBarrier;
+      const revision = store.metadataEntries[scheduleStateKey].revision;
+      if (body.baseRevision !== revision) return { status: 409, body: { ok: false, currentRevision: revision } };
+      store.entries[scheduleStateKey] = body.value;
+      store.metadataEntries[scheduleStateKey] = createMetadata(revision + 1, body.value);
+      return { body: { ok: true, key: body.key, value: body.value, metadata: store.metadataEntries[scheduleStateKey] } };
+    },
+    initScript: () => {
+      const originalFetch = window.fetch;
+      window.fetch = async (...args) => {
+        const response = await originalFetch(...args);
+        if (response.headers.get("x-qa-held-profile") === "true") {
+          await response.clone().text();
+          setTimeout(() => { window.__qaHeldProfileConsumed = true; }, 0);
+        }
+        return response;
+      };
+    },
+  });
+  try {
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+    await tab.context.route("**/api/admin-users**", async (route) => {
+      const isProfile = new URL(route.request().url()).searchParams.has("me");
+      const oldToken = route.request().headers().authorization === "Bearer qa-access-token";
+      const actor = oldToken ? previous : next;
+      const body = isProfile ? { ok: true, user: actor } : { ok: true, users: [actor], roles: ["admin"] };
+      const hold = oldToken && !profileHeld && isProfile === (delayedRead === "profile");
+      if (hold) { profileHeld = true; await profileBarrier; }
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body),
+        headers: hold ? { "x-qa-held-profile": "true" } : {} });
+    });
+    await tab.page.evaluate(() => window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession));
+    await expect.poll(() => profileHeld).toBe(true);
+    await tab.page.evaluate(async (user) => {
+      window.__qaSession = { access_token: "next-token", user };
+      await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
+    }, next);
+    await expect.poll(() => tab.page.evaluate(() => !window.footballScienceCentralState.getStatus().hydrating &&
+      window.platformAuthStore.getCurrentUser().id)).toBe(next.id);
+    const ownerScope = await tab.page.evaluate(() => window.footballScienceCentralState.getReadScope());
+    await tab.page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ events: [
+      { id: "next-owner-draft", date: "2026-09-28", title: "Next owner's session", type: "training" },
+    ] })), scheduleStateKey);
+    await expect.poll(() => writeHeld).toBe(true);
+    releaseProfile();
+    await tab.page.waitForFunction(() => window.__qaHeldProfileConsumed === true);
+    expect(await tab.page.evaluate(() => window.platformAuthStore.getCurrentUser().id)).toBe(next.id);
+    expect(await tab.page.evaluate(() => window.footballScienceCentralState.getReadScope())).toBe(ownerScope);
+    expect(await tab.page.evaluate(() => window.platformAuthStore.getUsers().map((user) => user.id))).not.toContain(previous.id);
+    releaseWrite();
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+      { key: scheduleStateKey, manifestKey: dataSafetyManifestKey })).toBe(false);
+    expect(writes).toHaveLength(1);
+    expect(writes[0].token).toBe("Bearer next-token");
+    expect(store.metadataEntries[scheduleStateKey].revision).toBe(2);
+    expect(JSON.parse(store.entries[scheduleStateKey]).events[0].id).toBe("next-owner-draft");
+  } finally { releaseProfile(); releaseWrite(); await closeCentralStateContext(tab.context); }
+});
+}
+
 for (const reload of [false, true]) {
 for (const serverState of ["unchanged", "advanced", "absent", "empty"]) {
 test(`Schedule pending ownership survives account changes and the owner can retry (reload: ${reload}, server: ${serverState})`, async ({ browser, baseURL }) => {

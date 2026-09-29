@@ -647,8 +647,8 @@ test("platform auth boot throttles post-login auth-dependent hydration", () => {
 
   expect(source).toContain("let authRefreshTokenPromise = null;");
   expect(source).toContain("let authSessionReadPromise = null;");
-  expect(source).toContain("let currentUserProfileRefreshPromise = null;");
-  expect(source).toContain("let userCacheRefreshPromise = null;");
+  expect(source).toContain("let currentUserProfileRefresh = null;");
+  expect(source).toContain("let userCacheRefresh = null;");
   expect(source).toContain("await refreshCurrentUserProfile(sessionUserId).catch(() => null);");
   expect(source).not.toMatch(/Promise\.allSettled\(\[\s*refreshCurrentUserProfile\(sessionUserId\),\s*hydrateCentralState\(\),\s*refreshUserCache\(\),\s*\]\)/);
   expect(source).not.toMatch(/await refreshAccessToken\(\)\.catch\(\(\) => null\);\s*let sessionResult;/);

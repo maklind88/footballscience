@@ -623,6 +623,55 @@ twelve-file PR scope. No module product files, schemas, budgets or timeouts were
 changed. Fresh exact-SHA CI and independent review remain required. No merge,
 staging, deployment or Live-data changes were performed.
 
+## Follow-Up: Late Profile Responses During Account Recovery
+
+Candidate `94cbb012` passed independent automated review, CodeQL and QA on its
+second attempt. Attempt one failed the Schedule owner-return case with reload
+and an empty server snapshot: pending did not clear. The eight-case group passed
+80 local repetitions and the failed case passed 20 runs with 4x CPU throttling.
+That original intermittent CI failure had no uploaded state trace; its exact
+cause remains unproven and is not declared solved merely by the green rerun.
+
+The follow-up investigation reproduced a related concrete account-boundary
+failure. `refreshCurrentUserProfile` could commit a previous user's profile after
+the session changed. `refreshUserCache` could likewise install the previous
+account's user list or allow an old 401 to sign out the new account. Their shared
+in-flight promises also coalesced across sessions, and an older completion could
+clear the new request's bookkeeping.
+
+- Each profile/user-list read now belongs to one session object, captured access
+  token, read scope and request owner. The existing API request context guard
+  rejects stale responses before body processing/401 handling. The caller also
+  rechecks before changing users, roles, current user or notifying consumers.
+- Coalescing occurs only within that exact session/token/scope. A new login or
+  token rotation can start its own read; an older completion cannot clear the
+  newer request owner. No token is persisted or logged by this bookkeeping.
+- Source-executed contract tests cover 200/401 across actor, team, in-place token,
+  sign-out and same-token reauthentication changes, plus overlapping requests.
+  The initial eighteen-test selection failed sixteen cases before correction.
+- Two deterministic browser cases hold an old profile or user-list HTTP response,
+  switch accounts, begin a real protected Schedule write, then deliver the old
+  response before the save receipt. Both failed against the unchanged auth file
+  from `94cbb012` and pass with the correction. Assertions retain the new account,
+  scope and user list, then require one revision-guarded write and pending=false.
+  Temporary old-code routing was removed after this negative verification.
+
+This fixes the reproduced late-profile race, not every possible cause of the
+earlier intermittent failure. No auth callback, SDK API, permissions, database,
+module product code, test budget or timeout was changed.
+
+Final local verification of this follow-up:
+
+- 3,224/3,224 passed: 3,139 API/contracts, 75 central-state browser cases and
+  10 Medical clinical browser cases.
+- 320/320 passed across ten repetitions of the 22 profile/session contracts,
+  two late-response browser cases and eight Schedule account/reload cases.
+- `qa:static` and `git diff --check` passed. The existing 84 architecture warnings
+  remain; no budgets were raised.
+- Five follow-up files remain within the existing twelve-file PR scope. Fresh
+  exact-SHA GitHub QA, CodeQL and independent review are required before release.
+  No merge, staging, deployment or Live-data mutation was performed.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

@@ -186,9 +186,8 @@
   };
   let authRefreshTokenPromise = null;
   let authSessionReadPromise = null;
-  let currentUserProfileRefreshPromise = null;
-  let currentUserProfileRefreshUserId = "";
-  let userCacheRefreshPromise = null;
+  let currentUserProfileRefresh = null;
+  let userCacheRefresh = null;
   let postAuthHydrationTimer = 0;
   let postAuthHydrationRunId = 0;
   let pendingCentralHydration = null;
@@ -2115,14 +2114,22 @@ async function getActiveAccessToken() {
     return normalizedUser;
   }
   async function refreshUserCache() {
-    if (userCacheRefreshPromise) {
-      return userCacheRefreshPromise;
+    const session = authState.session, token = session?.access_token, scope = getCentralReadScope();
+    if (!token || !scope) return false;
+    if (userCacheRefresh?.session === session && userCacheRefresh.token === token && userCacheRefresh.scope === scope) {
+      return userCacheRefresh.promise;
     }
-    userCacheRefreshPromise = (async () => {
+    const refresh = { session, token, scope, promise: null };
+    userCacheRefresh = refresh;
+    const isCurrent = () => userCacheRefresh === refresh && authState.session === session &&
+      authState.session?.access_token === token && getCentralReadScope() === scope;
+    refresh.promise = (async () => {
     const response = await apiRequest(API_ADMIN_USERS, {
       method: "GET",
       timeoutMs: 9000,
+      isCurrent,
     });
+    if (!isCurrent()) return false;
     if (response.ok && Array.isArray(response.payload?.users)) {
       authState.users = response.payload.users.map((user) => normalizeAuthUser(user)).filter((user) => user.id);
       authState.roles = Array.isArray(response.payload.roles) ? response.payload.roles : authState.roles;
@@ -2139,22 +2146,29 @@ async function getActiveAccessToken() {
     return false;
     })();
     try {
-      return await userCacheRefreshPromise;
+      return await refresh.promise;
     } finally {
-      userCacheRefreshPromise = null;
+      if (userCacheRefresh === refresh) userCacheRefresh = null;
     }
   }
   async function refreshCurrentUserProfile(sessionUserId = "") {
     const normalizedSessionUserId = String(sessionUserId || "");
-    if (currentUserProfileRefreshPromise && currentUserProfileRefreshUserId === normalizedSessionUserId) {
-      return currentUserProfileRefreshPromise;
+    const session = authState.session, token = session?.access_token, scope = getCentralReadScope();
+    if (!token || !scope || normalizedSessionUserId !== session.user?.id) return null;
+    if (currentUserProfileRefresh?.session === session && currentUserProfileRefresh.token === token && currentUserProfileRefresh.scope === scope) {
+      return currentUserProfileRefresh.promise;
     }
-    currentUserProfileRefreshUserId = normalizedSessionUserId;
-    currentUserProfileRefreshPromise = (async () => {
+    const refresh = { session, token, scope, promise: null };
+    currentUserProfileRefresh = refresh;
+    const isCurrent = () => currentUserProfileRefresh === refresh && authState.session === session &&
+      authState.session?.access_token === token && getCentralReadScope() === scope;
+    refresh.promise = (async () => {
     const response = await apiRequest(`${API_ADMIN_USERS}?me=1`, {
       method: "GET",
       timeoutMs: 8000,
+      isCurrent,
     });
+    if (!isCurrent()) return null;
     const meUser = response.payload?.user || response.payload?.payload?.user || null;
     if (!response.ok || !meUser) {
       return null;
@@ -2167,10 +2181,9 @@ async function getActiveAccessToken() {
     return authState.currentUser;
     })();
     try {
-      return await currentUserProfileRefreshPromise;
+      return await refresh.promise;
     } finally {
-      currentUserProfileRefreshPromise = null;
-      currentUserProfileRefreshUserId = "";
+      if (currentUserProfileRefresh === refresh) currentUserProfileRefresh = null;
     }
   }
   function queuePostAuthHydration(session = authState.session) {

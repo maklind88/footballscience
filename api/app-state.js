@@ -3128,6 +3128,7 @@ function filterStateMetadataForEntries(metadata = {}, entries = {}) {
     const value = String(entries[key] ?? "");
     const baseMetadata = metadata[key] || {};
     filtered[key] = {
+      ...(baseMetadata.removed === true ? { removed: true } : {}),
       updatedAt: baseMetadata.updatedAt || "",
       updatedBy: baseMetadata.updatedBy || "",
       revision: getStateEntryRevision(baseMetadata),
@@ -3292,6 +3293,10 @@ function normalizeStateListSnapshot(payload = {}, nowMs = Date.now()) {
     ? Array.from(new Set(payload.absentKeys.filter((key) => CENTRAL_STATE_KEYS.has(key) &&
       !presentKeys.has(key))))
     : [];
+  absentKeys.forEach((key) => {
+    const entry = payload.metadata?.[key];
+    if (entry?.removed === true && Number.isInteger(entry.revision) && entry.revision > 0) metadata[key] = { ...entry };
+  });
   return { entries, metadata, absentKeys };
 }
 
@@ -3426,7 +3431,9 @@ async function listStateObjects(options = {}) {
       const databaseEntries = {};
       const databaseMetadata = {};
       recordsByKey.forEach((entry) => {
-        if (!entry?.key || entry.removed) {
+        if (!entry?.key) return;
+        if (entry.removed) {
+          databaseMetadata[entry.key] = { ...getStateEntryMetadata(entry), removed: true };
           return;
         }
         databaseEntries[entry.key] = entry.value ?? "";
@@ -3455,6 +3462,7 @@ async function listStateObjects(options = {}) {
       metadata[entry.key] = getStateEntryMetadata(entry);
     } else {
       absentKeys.push(key);
+      if (entry?.removed) metadata[key] = { ...getStateEntryMetadata(entry), removed: true };
     }
   }));
 
@@ -3641,14 +3649,17 @@ module.exports = async (req, res) => {
       const readableMissing = filterStateEntriesForActor(actor, {
         ...stateObjects.entries, ...Object.fromEntries(missingKeys.map((key) => [key, "{}"])),
       });
+      const absentKeys = missingKeys.filter((key) => Object.hasOwn(readableMissing, key));
       return sendJson(res, 200, {
         ok: true,
-        absentKeys: missingKeys.filter((key) => Object.hasOwn(readableMissing, key)),
+        absentKeys,
         entries: Object.hasOwn(entries, SESSION_PLANNER_KEY) ? {
           ...entries,
           [SESSION_PLANNER_KEY]: await encodeSessionStateValue(req, SESSION_PLANNER_KEY, entries[SESSION_PLANNER_KEY]),
         } : entries,
-        metadata: filterStateMetadataForEntries(stateObjects.metadata, entries),
+        metadata: filterStateMetadataForEntries(stateObjects.metadata, {
+          ...entries, ...Object.fromEntries(absentKeys.filter((key) => stateObjects.metadata[key]?.removed === true).map((key) => [key, ""])),
+        }),
         updatedAt: new Date().toISOString(),
       });
     }

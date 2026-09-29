@@ -2717,6 +2717,107 @@ for (const { switchActor, reload, omitted } of [
   });
 }
 
+test("a Schedule manifest quota failure cannot expose or seed the rejected edit after account reload", async ({ browser, baseURL }) => {
+  const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, organization_id: "org-a" } };
+  const value = '{"events":[]}';
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [scheduleStateKey]: value }, metadataEntries: { [scheduleStateKey]: createMetadata(4, value) } };
+  const writes = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], "schedule-manifest-quota", {
+    sessionUser: profile, profileUser: profile, appStateWriteBodies: writes,
+    initScript: ({ manifestKey }) => {
+      const set = Storage.prototype.setItem;
+      window.__qaNativeGetItem = Storage.prototype.getItem;
+      Storage.prototype.setItem = function(key, value) {
+        if (window.__qaFailManifest && key === manifestKey) throw new DOMException("Manifest quota", "QuotaExceededError");
+        return set.call(this, key, value);
+      };
+    }, initArg: { manifestKey: dataSafetyManifestKey },
+  });
+  try {
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+    const result = await tab.page.evaluate(({ key, manifestKey }) => {
+      const get = window.__qaNativeGetItem, before = get.call(localStorage, key);
+      const entry = JSON.parse(get.call(localStorage, manifestKey)).entries[key];
+      window.__qaFailManifest = true;
+      let error = "";
+      try { localStorage.setItem(key, '{"events":[{"id":"private-rejected-quota-edit"}]}'); } catch (caught) { error = caught.message; }
+      window.__qaFailManifest = false;
+      return { error, before, after: get.call(localStorage, key), entry, afterEntry: JSON.parse(get.call(localStorage, manifestKey)).entries[key] };
+    }, { key: scheduleStateKey, manifestKey: dataSafetyManifestKey });
+    expect(result.error).toContain("metadata could not be saved");
+    expect(result.after).toBe(result.before);
+    expect(result.afterEntry).toEqual(result.entry);
+    profile.id = "org-b-actor"; profile.app_metadata.organization_id = "org-b";
+    store.entries[scheduleStateKey] = '{"events":[{"id":"org-b-central","date":"2026-09-28","title":"B central","type":"training"}]}';
+    store.metadataEntries[scheduleStateKey] = createMetadata(10, store.entries[scheduleStateKey]);
+    await tab.page.evaluate(async (user) => {
+      window.__qaSession = { access_token: "org-b-token", user };
+      await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
+    }, profile);
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await expect.poll(() => tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}").events?.[0]?.id, scheduleStateKey)).toBe("org-b-central");
+    expect(writes.some((body) => JSON.stringify(body).includes("private-rejected-quota-edit"))).toBe(false);
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
+for (const rotateToken of [false, true]) {
+test(`a committed deletion with a lost receipt is read-acknowledged without retry (token: ${rotateToken})`, async ({ browser, baseURL }) => {
+  const key = "football-dashboard-tutorial-prefs-v1", value = '{"dismissed":true}';
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [key]: value }, metadataEntries: { [key]: createMetadata(4, value) } };
+  let release, held = false;
+  const barrier = new Promise((resolve) => { release = resolve; }), writes = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], "lost-delete-receipt", {
+    appStateWriteHandler: async ({ body, request }) => {
+      if (body.key !== key) return null;
+      writes.push({ body, method: request.method() });
+      if (body.removed && !held) { held = true; await barrier; }
+      const revision = store.metadataEntries[key].revision;
+      if (body.baseRevision !== revision) return { status: 409, body: { ok: false, currentRevision: revision } };
+      if (body.removed) {
+        delete store.entries[key]; store.absentKeys = [key];
+        store.metadataEntries[key] = { ...createMetadata(revision + 1, ""), removed: true };
+      } else {
+        store.entries[key] = body.value; store.absentKeys = [];
+        store.metadataEntries[key] = createMetadata(revision + 1, body.value);
+      }
+      return { status: rotateToken ? 200 : 503, body: { ok: rotateToken, key, metadata: store.metadataEntries[key] } };
+    },
+  });
+  try {
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+    const base = store.metadataEntries[key].revision;
+    await tab.page.evaluate((key) => {
+      const bridge = window.footballScienceCentralState, sync = bridge.syncKey;
+      bridge.syncKey = async (...args) => {
+        const result = await sync(...args);
+        if (args[0] === key && args[2]?.removed) window.__qaDeleteSettled = true;
+        return result;
+      };
+      localStorage.removeItem(key);
+    }, key);
+    await expect.poll(() => held).toBe(true);
+    if (rotateToken) await tab.page.evaluate(async () => {
+      window.__qaSession = { ...window.__qaSession, access_token: "rotated-delete-token" };
+      await window.__qaAuthStateCallback("TOKEN_REFRESHED", window.__qaSession);
+    });
+    release();
+    await tab.page.waitForFunction(() => window.__qaDeleteSettled);
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
+      const entry = JSON.parse(localStorage.getItem(manifestKey)).entries[key];
+      return { pending: entry.pendingCentralSync, revision: entry.serverRevision, raw: localStorage.getItem(key) };
+    }, { key, manifestKey: dataSafetyManifestKey })).toEqual({ pending: false, revision: base + 1, raw: null });
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+    expect(writes.filter(({ body }) => body.removed)).toHaveLength(1);
+    expect(writes.find(({ body }) => body.removed).method).toBe("DELETE");
+    expect(store.entries[key]).toBeUndefined();
+  } finally { release(); await closeCentralStateContext(tab.context); }
+});
+}
+
 for (const rotateToken of [false, true]) {
 for (const newerDraft of [false, true]) {
 test(`Medical replacement reconciles a lost receipt without adopting a newer draft (token: ${rotateToken}, newer: ${newerDraft})`, async ({ browser, baseURL }) => {

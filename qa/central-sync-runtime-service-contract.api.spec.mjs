@@ -12,6 +12,82 @@ function createManifest() {
   };
 }
 
+test("a ready read retires an active lost receipt before later cache bookkeeping", async () => {
+  let release;
+  const barrier = new Promise((resolve) => { release = resolve; });
+  const h = createServiceHarness({ getReadScope: () => "actor-A", syncKey: () => barrier });
+  const key = "football-medical-team-v1";
+  h.rawValues.set(key, "draft");
+  h.manifest.entries[key] = { label: "Medical", hash: "draft", writes: 7, updatedAt: "generation-a", serverRevision: 7 };
+  h.service.queueCentralStateWrite(key, "draft");
+  const flushing = h.service.flushCentralStateWrites();
+  await expect.poll(() => h.syncCalls.length).toBe(1);
+  h.manifest.entries[key].pendingCentralSync = false;
+  h.manifest.entries[key].serverRevision = 8;
+  await h.service.retryCentral(() => h.manifest);
+  h.manifest.entries[key] = { label: "Medical", writes: 8, serverRevision: 8, hash: "cache-normalization" };
+  h.rawValues.set(key, "normalized cache");
+  release({ ok: false, status: 503 });
+  await flushing;
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(1);
+  expect(h.rawValues.get(key)).toBe("normalized cache");
+  expect(h.manifest.entries[key].hash).toBe("cache-normalization");
+});
+
+test("a previously hydrated runtime waits for the active reconciliation read before retrying", async () => {
+  const options = { hydrating: false, syncResult: { ok: false, status: 503 } }, h = createServiceHarness(options), key = "football-schedule-v1";
+  h.rawValues.set(key, "draft");
+  h.service.queueCentralStateWrite(key, "draft");
+  await h.service.flushCentralStateWrites();
+  options.hydrating = true;
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(1);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  options.hydrating = false;
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(2);
+});
+
+for (const phase of ["before-raw", "after-raw", "after-delete"]) {
+test(`a prepared write resumes only when the durable raw generation matches after a crash (${phase})`, async () => {
+  const h = createServiceHarness({ getReadScope: () => "actor-A", syncResult: { ok: true, revision: 8 } });
+  const key = "football-schedule-v1", removed = phase === "after-delete", value = removed ? "" : "new draft";
+  h.manifest.entries[key] = { principalScope: "actor-A", pendingCentralSync: true, localWritePrepared: true,
+    hash: `hash-${value.length}`, writes: 7, pendingBaseRevision: 7, serverRevision: 7, deletedAt: removed ? "deleted" : "" };
+  if (!removed) h.rawValues.set(key, phase === "before-raw" ? "old" : value);
+  const before = structuredClone(h.manifest.entries[key]);
+  await h.service.retryCentral(() => h.manifest);
+  await h.service.flushCentralStateWrites();
+  if (phase === "before-raw") {
+    expect(h.syncCalls).toEqual([]);
+    expect(h.manifest.entries[key]).toEqual(before);
+  } else {
+    expect(h.syncCalls).toHaveLength(1);
+    expect(h.syncCalls[0]).toMatchObject({ key, value, options: { removed, baseRevision: 7 } });
+    expect(h.manifest.entries[key]).toMatchObject({ pendingCentralSync: false, localWritePrepared: false, serverRevision: 8 });
+  }
+});
+}
+
+test("failed pending metadata persistence cannot enqueue a request or report a save", async () => {
+  let blocked = true;
+  const h = createServiceHarness({ getReadScope: () => "actor-A", failManifestWrite: () => blocked });
+  const key = "football-schedule-v1";
+  h.rawValues.set(key, "owned draft");
+  h.manifest.entries[key] = { principalScope: "actor-A", pendingCentralSync: true, hash: "owned", writes: 7, serverRevision: 7 };
+  const before = structuredClone(h.manifest.entries[key]);
+  expect(h.service.queueCentralStateWrite(key, "owned draft")).toBe(false);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toEqual([]);
+  expect(h.manifest.entries[key]).toEqual(before);
+  expect(h.syncStatuses.some(([, state]) => state === "saved")).toBe(false);
+  blocked = false;
+  h.service.queueCentralStateWrite(key, "owned draft");
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(1);
+});
+
 for (const mismatch of ["none", "revision", "generation", "owner", "raw", "read-only"]) {
 test(`a queued failed Medical write retires only an exact read-acknowledged generation (${mismatch})`, async () => {
   const key = "football-medical-team-v1";
@@ -348,6 +424,7 @@ function createServiceHarness(options = {}) {
     footballScienceCentralState: {
       getReadScope: options.getReadScope,
       getStatus: () => ({
+        hydrating: Boolean(options.hydrating),
         metadata: {
           "football-schedule-v1": { revision },
           "football-dashboard-presentation-mode-v1": { revision },
@@ -1186,7 +1263,7 @@ test("central sync runtime retries pending tombstones even when local raw value 
   ]);
   expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
     pendingCentralSync: false,
-    deletedAt: "2026-06-08T12:00:00.000Z",
+    deletedAt: "2026-06-08T11:59:00.000Z",
     serverRevision: 12,
   });
 });

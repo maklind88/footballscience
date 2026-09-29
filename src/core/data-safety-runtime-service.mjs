@@ -310,11 +310,11 @@ export function createDataSafetyRuntimeService(deps = {}) {
       const previousEntry = manifest.entries[normalizedKey] || {};
       if (previousEntry.pendingCentralSync && previousEntry.principalScope &&
           previousEntry.principalScope === getCentralStateBridge()?.getReadScope?.() &&
-          !options.requirePersisted && !win.__footballScienceCentralHydrating) {
+          !options.replacement && !win.__footballScienceCentralHydrating) {
         const revision = Number(previousEntry.pendingBaseRevision ?? previousEntry.serverRevision);
         retainedBaseRevision = Number.isInteger(revision) && revision >= 0 ? revision : 0;
       }
-      manifest.lastSavedAt = now;
+      if (!options.deferQueue) manifest.lastSavedAt = now;
       manifest.lastKey = normalizedKey;
       manifest.lastError = "";
       manifest.entries[normalizedKey] = {
@@ -326,20 +326,61 @@ export function createDataSafetyRuntimeService(deps = {}) {
         deletedAt: options.removed ? now : "",
         ...(!win.__footballScienceCentralHydrating && getCentralStateBridge()?.getReadScope?.()
           ? { principalScope: getCentralStateBridge().getReadScope() } : {}),
-        ...(options.requirePersisted ? { pendingCentralSync: true } : {}),
+        ...(options.requirePersisted ? { pendingCentralSync: true,
+          ...(options.deferQueue ? { localWritePrepared: true } : {}),
+          pendingBaseRevision: retainedBaseRevision ?? Number(getCentralStateBridge()?.getStatus?.()?.metadata?.[normalizedKey]?.revision || 0),
+          serverRevision: Number(previousEntry.serverRevision || 0),
+        } : {}),
       };
     });
     if (options.requirePersisted && JSON.stringify(readManifest().entries[normalizedKey]) !==
         JSON.stringify(writtenManifest.entries[normalizedKey])) {
       // Do not overwrite a newer raw value to roll back. Both copies remain available for recovery.
-      throw new Error("Medical edit was not queued: recovery metadata could not be saved. Both versions were retained.");
+      throw new Error(options.replacement
+        ? "Medical edit was not queued: recovery metadata could not be saved. Both versions were retained."
+        : "Edit was not queued: recovery metadata could not be saved.");
     }
+    const queueOptions = { ...options, ...(retainedBaseRevision === undefined ? {} : { baseRevision: retainedBaseRevision }) };
+    if (options.deferQueue) return { entry: writtenManifest.entries[normalizedKey], queueOptions };
     queueSnapshot(options.removed ? "after-remove" : "autosave");
     if (!getCentralStateWriteSuppressionKeys().has(normalizedKey)) {
-      queueCentralStateWrite(normalizedKey, textValue, { ...options,
-        ...(retainedBaseRevision === undefined ? {} : { baseRevision: retainedBaseRevision }) });
+      if (queueCentralStateWrite(normalizedKey, textValue, queueOptions) === false) {
+        throw new Error("Edit remains local: pending sync metadata could not be saved.");
+      }
     }
     queueStatusRefresh();
+  }
+
+  function writeProtectedValue(key, value, options, mutateRaw) {
+    const storage = getStorage();
+    const previousRaw = nativeGetItem.call(storage, key);
+    const manifest = JSON.parse(nativeGetItem.call(storage, storageKey) || '{"entries":{}}');
+    if (!manifest.entries || typeof manifest.entries !== "object" || Array.isArray(manifest.entries)) {
+      throw new Error("Local save metadata could not be verified.");
+    }
+    const bridge = getCentralStateBridge();
+    if (typeof bridge?.getReadScope === "function" && !bridge.getReadScope()) throw createCentralBackedStorageError();
+    const previousEntry = manifest.entries[key];
+    // Persist ownership and retry intent before any ordinary user cache mutation.
+    const prepared = recordWrite(key, value, { ...options, requirePersisted: true, deferQueue: true });
+    let result;
+    try {
+      result = mutateRaw();
+    } catch (error) {
+      if (nativeGetItem.call(storage, key) === previousRaw) mutateManifest((manifest) => {
+        if (JSON.stringify(manifest.entries[key]) !== JSON.stringify(prepared.entry)) return;
+        if (previousEntry) manifest.entries[key] = previousEntry;
+        else delete manifest.entries[key];
+      });
+      throw error;
+    }
+    queueSnapshot(options.removed ? "after-remove" : "autosave");
+    const { deferQueue, requirePersisted, ...queueOptions } = prepared.queueOptions;
+    if (!getCentralStateWriteSuppressionKeys().has(key) && queueCentralStateWrite(key, value, queueOptions) === false) {
+      throw new Error("Edit remains local: pending sync metadata could not be saved.");
+    }
+    queueStatusRefresh();
+    return result;
   }
 
   function handleWriteError(key, error) {
@@ -715,9 +756,14 @@ export function createDataSafetyRuntimeService(deps = {}) {
       const previousValue = rawGetItem(normalizedKey);
       const previousPending = normalizedKey === "football-session-planner-v3" && Boolean(readManifest().entries?.[normalizedKey]?.pendingCentralSync);
       try {
+        if (!separated && !win.__footballScienceCentralHydrating && previousValue !== normalizedValue) {
+          return writeProtectedValue(normalizedKey, normalizedValue,
+            normalizedKey === "football-session-planner-v3" ? { previousValue, previousPending } : {},
+            () => rawSetItem(normalizedKey, normalizedValue));
+        }
         const result = rawSetItem(normalizedKey, normalizedValue, { explicitReadViewWrite: separated });
         if (separated || previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue,
-          separated ? { requirePersisted: true } : normalizedKey === "football-session-planner-v3" ? { previousValue, previousPending } : {});
+          separated ? { requirePersisted: true, replacement: true } : normalizedKey === "football-session-planner-v3" ? { previousValue, previousPending } : {});
         return result;
       } catch (error) {
         handleWriteError(normalizedKey, error);
@@ -737,6 +783,14 @@ export function createDataSafetyRuntimeService(deps = {}) {
       }
       const previousValue = rawGetItem(normalizedKey);
       if (previousValue !== null) saveSnapshot("before-remove");
+      if (previousValue !== null && !win.__footballScienceCentralHydrating) {
+        try {
+          return writeProtectedValue(normalizedKey, "", { removed: true }, () => rawRemoveItem(normalizedKey));
+        } catch (error) {
+          handleWriteError(normalizedKey, error);
+          throw error;
+        }
+      }
       const result = rawRemoveItem(normalizedKey);
       if (previousValue !== null) recordWrite(normalizedKey, "", { removed: true });
       return result;
@@ -752,6 +806,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
       const removedKeys = this === storage ? Object.keys(collectStorageData()) : [];
       if (removedKeys.some((key) => getCentralCachedValueInfo(key).source === "central-readonly-baseline")) {
         throw new Error("This central view is read-only. The local recovery copy was retained.");
+      }
+      if (this === storage && (removedKeys.length || Object.values(readManifest().entries).some((entry) => entry.pendingCentralSync))) {
+        throw new Error("Protected data must be removed explicitly. Bulk storage clear cannot preserve pending sync safely.");
       }
       if (this === storage && removedKeys.length && !canWriteCentralBackedCache()) {
         const error = createCentralBackedStorageError();

@@ -13,6 +13,37 @@ const projectionSource = source.slice(source.indexOf("  function medicalRecovery
 const normalizeUserSource = source.slice(source.indexOf("  function normalizeAuthUser("), source.indexOf("  function toFormError("));
 const apiRequestSource = source.slice(source.indexOf("  async function apiRequest("), source.indexOf("  function isCentralStateKey("));
 
+for (const mismatch of ["none", "owner", "revision", "absent-only", "newer-edit", "quota"]) {
+test(`read acknowledgement of a tombstone requires an owned advanced revision (${mismatch})`, () => {
+  const key = "football-schedule-v1", manifestKey = "football-data-safety-v1";
+  const entry = { pendingCentralSync: true, principalScope: mismatch === "owner" ? "actor-B" : "actor-A",
+    hash: "empty", writes: 7, updatedAt: "deleted", deletedAt: "deleted", pendingBaseRevision: 4, serverRevision: 4 };
+  if (mismatch === "newer-edit") { entry.deletedAt = ""; entry.writes += 1; }
+  const storage = new Map([[manifestKey, JSON.stringify({ entries: { [key]: entry } })]]);
+  if (mismatch === "newer-edit") storage.set(key, "newer edit");
+  const before = storage.get(manifestKey), centralState = { metadata: { [key]: { revision: 4 } } };
+  const read = (key) => storage.get(key) ?? null;
+  const context = { DATA_SAFETY_MANIFEST_KEY: manifestKey, getCentralReadScope: () => "actor-A", centralState,
+    isCentralStateKey: (candidate) => candidate === key, readCentralSyncManifestEntries: () => JSON.parse(read(manifestKey)).entries,
+    nativeLocalStorageGetItem: read, window: { localStorage: { getItem: read, setItem: (key, value) => {
+      if (mismatch === "quota") throw new Error("Quota exceeded");
+      storage.set(key, value);
+    } } },
+  };
+  const generation = source.slice(source.indexOf("  function medicalRecoveryGeneration("), source.indexOf("  function hasMedicalRecoverySeparation("));
+  const clear = source.slice(source.indexOf("  function clearCentralPendingSyncFlag("), source.indexOf("  function persistCentralHydrationRevisions("));
+  const receipt = mismatch === "absent-only" ? {} : { removed: true, revision: mismatch === "revision" ? 4 : 5 };
+  runInNewContext(`${generation}\n${clear}\nreconcileCentralTombstones`, context)([key], { [key]: receipt });
+  if (mismatch === "none") {
+    expect(JSON.parse(read(manifestKey)).entries[key]).toMatchObject({ pendingCentralSync: false, serverRevision: 5 });
+    expect(centralState.metadata[key]).toEqual(receipt);
+  } else {
+    expect(read(manifestKey)).toBe(before);
+    expect(centralState.metadata[key].revision).toBe(4);
+  }
+});
+}
+
 for (const mismatch of ["none", "generation", "owner", "base", "raw", "quota"]) {
 test(`Medical read acknowledgement rechecks the exact pending generation (${mismatch})`, () => {
   const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
@@ -272,7 +303,8 @@ function createHarness() {
     removeCentralCachedValue: () => {},
     collectCentralLocalStateEntries: () => ({}),
   };
-  const api = runInNewContext(`${readScopeSource}\n${hydrateSource}\n${syncSource}\n({ hydrateCentralState, syncCentralStateKey })`, context);
+  const tombstoneSource = source.slice(source.indexOf("  function reconcileCentralTombstones("), source.indexOf("  function persistCentralHydrationRevisions("));
+  const api = runInNewContext(`${readScopeSource}\n${tombstoneSource}\n${hydrateSource}\n${syncSource}\n({ hydrateCentralState, syncCentralStateKey })`, context);
   return { api, centralState, authState, context, events, timers };
 }
 

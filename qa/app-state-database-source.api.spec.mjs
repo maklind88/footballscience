@@ -291,6 +291,8 @@ test(`${mode} confirmed ${missing} still reports authorized absence`, async () =
     expect(result.status).toBe(200);
     expect(result.payload.entries).toEqual({});
     expect(result.payload.absentKeys).toEqual([scheduleKey]);
+    if (missing === "tombstone") expect(result.payload.metadata[scheduleKey]).toMatchObject({ revision: 17, removed: true });
+    else expect(result.payload.metadata[scheduleKey]).toBeUndefined();
     expect(mock.rpcWrites).toEqual([]);
     expect(mock.storageWrites).toEqual([]);
   } finally { global.fetch = originalFetch; restoreEnv(env); }
@@ -372,6 +374,8 @@ test("persisted snapshots preserve explicit absence across API instances without
     expect(source.status).toBe(200);
     expect(source.payload.absentKeys).toContain(scheduleKey);
     expect(snapshot.absentKeys).toContain(scheduleKey);
+    expect(source.payload.metadata[scheduleKey]).toMatchObject({ revision: 1, removed: true });
+    expect(snapshot.metadata[scheduleKey]).toMatchObject({ revision: 1, removed: true });
     const medicalKey = "football-medical-team-v1";
     const periodizationKey = "football-periodization-v2";
     snapshot.entries[medicalKey] = '{"records":[]}';
@@ -380,6 +384,7 @@ test("persisted snapshots preserve explicit absence across API instances without
     const reloaded = await callHandler({ url: `/api/app-state?keys=${scheduleKey},${medicalKey},${periodizationKey}` }, freshHandler());
     expect(reloaded.status).toBe(200);
     expect(reloaded.payload.absentKeys).toEqual([scheduleKey]);
+    expect(reloaded.payload.metadata[scheduleKey]).toMatchObject({ revision: 1, removed: true });
     expect(snapshotReads).toBe(1);
     expect(mock.rpcWrites).toEqual([]);
   } finally {

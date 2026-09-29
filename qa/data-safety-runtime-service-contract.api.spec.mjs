@@ -135,7 +135,7 @@ function createHarness(options = {}) {
     snapshotStoreName: "snapshots",
     latestStoreName: "latest",
     maxSnapshots: 30,
-    protectedStorageKeys: ["football-schedule-v1", "football-medical-team-v1", "football-session-planner-v3"],
+    protectedStorageKeys: ["football-schedule-v1", "football-medical-team-v1", "football-session-planner-v3", "football-periodization-v2"],
     storageLabels: {
       "football-schedule-v1": "Schedule",
       "football-medical-team-v1": "Medical Room",
@@ -153,6 +153,26 @@ function createHarness(options = {}) {
   return { centralCache, centralCacheInfo, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
 
+for (const key of ["football-schedule-v1", "football-session-planner-v3", "football-periodization-v2"]) {
+for (const removed of [false, true]) {
+test(`ordinary protected ${removed ? "delete" : "write"} requires durable ownership before raw mutation (${key})`, async () => {
+  const options = {}, h = createHarness(options);
+  h.win.footballScienceCentralState.getReadScope = () => "owner-A";
+  h.service.install(); await Promise.resolve();
+  h.localStorage.values.set(key, "original");
+  const entry = { principalScope: "owner-A", pendingCentralSync: true, hash: "original", writes: 7, serverRevision: 1 };
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: entry } }));
+  options.quotaKey = "football-data-safety-v1";
+  expect(() => removed ? h.localStorage.removeItem(key) : h.localStorage.setItem(key, "private new edit")).toThrow();
+  expect(h.localStorage.values.get(key)).toBe("original");
+  expect(h.service.readManifest().entries[key]).toEqual(entry);
+  expect(h.queuedWrites).toEqual([]);
+  h.win.footballScienceCentralState.getReadScope = () => "owner-B";
+  expect(h.localStorage.values.get(key)).not.toBe("private new edit");
+});
+}
+}
+
 test("editing an owned pending draft retains its original revision for the next queued generation", async () => {
   const h = createHarness(), key = "football-schedule-v1";
   h.win.footballScienceCentralState.getReadScope = () => "owner-A";
@@ -163,6 +183,46 @@ test("editing an owned pending draft retains its original revision for the next 
   h.service.recordWrite(key, "new local edit");
   expect(h.queuedWrites[0]).toEqual([key, "new local edit", { baseRevision: 1 }]);
 });
+
+for (const tombstone of [false, true]) {
+test(`bulk clear fails before mutation while protected data or pending deletion exists (${tombstone})`, async () => {
+  const h = createHarness(), key = "football-schedule-v1";
+  h.service.install(); await Promise.resolve();
+  if (!tombstone) h.localStorage.values.set(key, "retained draft");
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: {
+    pendingCentralSync: true, principalScope: "actor-A", deletedAt: tombstone ? "deleted" : "",
+  } } }));
+  const before = [...h.localStorage.values];
+  expect(() => h.localStorage.clear()).toThrow(/Bulk storage clear/);
+  expect([...h.localStorage.values]).toEqual(before);
+  expect(h.queuedWrites).toEqual([]);
+});
+}
+
+for (const newer of [false, true]) {
+test(`raw failure after ownership persistence never queues the rejected edit or restores over a successor (newer: ${newer})`, async () => {
+  const key = "football-schedule-v1", manifestKey = "football-data-safety-v1";
+  const options = {}, h = createHarness(options);
+  h.win.footballScienceCentralState.getReadScope = () => "actor-A";
+  h.service.install(); await Promise.resolve();
+  h.localStorage.values.set(key, "original");
+  const entry = { principalScope: "actor-A", pendingCentralSync: true, hash: "original", writes: 7, serverRevision: 4 };
+  h.localStorage.values.set(manifestKey, JSON.stringify({ entries: { [key]: entry } }));
+  const successor = { ...entry, hash: "successor", writes: 9 };
+  options.quotaKey = key;
+  const previousSavedAt = h.service.readManifest().lastSavedAt;
+  options.beforeQuotaFailure = (storage) => {
+    if (!newer) return;
+    storage.values.set(key, "successor");
+    storage.values.set(manifestKey, JSON.stringify({ entries: { [key]: successor } }));
+  };
+  expect(() => h.localStorage.setItem(key, "rejected edit")).toThrow(/quota/i);
+  expect(h.localStorage.values.get(key)).toBe(newer ? "successor" : "original");
+  expect(h.service.readManifest().entries[key]).toEqual(newer ? successor : entry);
+  if (!newer) expect(h.service.readManifest().lastSavedAt).toBe(previousSavedAt);
+  expect(h.queuedWrites).toEqual([]);
+});
+}
 
 test("Medical boot normalization cannot replace a pending draft before the central read view exists", async () => {
   const key = "football-medical-team-v1";
@@ -465,7 +525,7 @@ test("only Sessions receives its exact pre-edit cache through the protected stor
   const key = "football-session-planner-v3";
   h.localStorage.setItem(key, "before");
   h.localStorage.setItem(key, "after");
-  expect(h.queuedWrites.at(-1)).toEqual([key, "after", { previousValue: "before", previousPending: false }]);
+  expect(h.queuedWrites.at(-1)).toEqual([key, "after", { previousValue: "before", previousPending: true }]);
   h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: { pendingCentralSync: true } } }));
   h.localStorage.setItem(key, "third");
   expect(h.queuedWrites.at(-1)).toEqual([key, "third", { previousValue: "after", previousPending: true }]);

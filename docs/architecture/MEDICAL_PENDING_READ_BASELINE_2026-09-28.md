@@ -570,6 +570,59 @@ same 84 existing architecture warnings. The correction stays within six files
 of the unchanged twelve-file PR scope. Fresh exact-SHA CI and independent review
 remain required; no merge, deployment or Live-data change was performed.
 
+## Review 5347175125: Tombstone Receipts And Ordinary Write Durability
+
+Exact-SHA QA and CodeQL passed for `cd36b545`; review then identified two
+additional issues. The missing tombstone metadata and ordinary write/delete
+manifest-quota failures were reproduced before correction. The latter broadens
+verification to the existing shared protected-storage boundary, without editing
+module product files.
+
+- Database and object-storage reads retain removed-record revision metadata.
+  Persisted read snapshots keep that metadata only for explicit absent keys;
+  the HTTP response still filters both absence and metadata through read access.
+  A bare 404 or omission is not proof of a committed deletion.
+- A fresh read can clear only an owned pending tombstone whose native value is
+  still absent and whose removed-record revision advances its pending base
+  without regression. New edits, other owners and failed manifest persistence
+  cannot inherit that receipt. The queued failed DELETE retires only after the
+  exact durable acknowledgement; the original deletion timestamp is preserved.
+- Ten-repeat browser testing exposed a retry racing an active reconciliation
+  read. Only failed retries wait while that read is active; new authorized edits
+  still proceed and remain protected from an older read response. Exact receipts
+  retire queued or in-flight requests at the ready event, before later cache
+  bookkeeping can replace their metadata. No timer/retry budget was increased.
+- Ordinary protected writes and deletes persist owner, pending generation and
+  base revision before changing the native cache. A prepared-write marker is
+  cleared only after the raw value and durable pending record are verified.
+  A crash before raw mutation cannot send the previous value as the new edit;
+  a crash after mutation can resume the matching prepared generation. Failed
+  raw operations never enter the queue and retain a detected newer successor.
+- Queue admission verifies persisted pending metadata. On failure the prepared
+  owned draft remains recoverable, with explicit failure instead of false save
+  success. Internal hydration and separated Medical recovery keep their existing
+  distinct paths. Sessions still receives its exact pre-edit value.
+- Bulk `localStorage.clear()` is rejected before mutation when protected values
+  or pending tombstones exist. No product caller uses this bulk operation;
+  explicit, individually tracked removals remain supported. This avoids turning
+  a browser-wide clear into unjournalled server deletions.
+
+The 28 targeted risks passed ten repetitions each (280/280), including real
+Schedule manifest-quota failure followed by account change/reload, lost DELETE
+receipts, prepared-write crash recovery and pending-metadata persistence failure.
+These tests are local mocked evidence, not production verification.
+The existing stale-read/acknowledged-Schedule scenario and Medical lost-receipt
+cases additionally passed ten repetitions (140/140 with their service guards).
+
+Final local verification passed 3,200/3,200 tests: 3,117 API/contracts, 73
+central-state browser cases and 10 Medical clinical cases. The final forty-risk
+selection passed ten repetitions each (400/400), on the same product diff.
+`qa:static` and `git diff --check` passed; the 84 existing architecture warnings
+are unchanged. Ten files changed in this correction, within the unchanged
+twelve-file PR scope. No module product files, schemas, budgets or timeouts were
+changed. Fresh exact-SHA CI and independent review remain required. No merge,
+staging, deployment or Live-data changes were performed.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

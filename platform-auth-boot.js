@@ -936,6 +936,7 @@ async function getActiveAccessToken() {
     );
   }
   function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, centralValue = "", options = {}) {
+    if (pendingEntry.localWritePrepared) return false;
     if (key === SESSION_PLANNER_STATE_KEY &&
         getCentralCachedValueInfo(key).source === "session-journal-pending") return false;
     if (key === SESSION_PLANNER_STATE_KEY && pendingEntry?.pendingCentralSync &&
@@ -1002,7 +1003,7 @@ async function getActiveAccessToken() {
       const raw = window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY);
       const manifest = raw ? JSON.parse(raw) : null;
       const entry = manifest?.entries?.[key];
-      if (!entry?.pendingCentralSync) {
+      if (!entry?.pendingCentralSync || entry.localWritePrepared) {
         return;
       }
       if (expectedGeneration && (
@@ -1025,6 +1026,24 @@ async function getActiveAccessToken() {
       manifest.lastCentralSyncedAt = new Date().toISOString();
       window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
     } catch {}
+  }
+  function reconcileCentralTombstones(absentKeys = [], metadata = {}) {
+    const pending = readCentralSyncManifestEntries();
+    for (const key of absentKeys) {
+      const entry = pending[key], receipt = metadata[key];
+      const base = Number(entry?.pendingBaseRevision ?? entry?.serverRevision);
+      if (!isCentralStateKey(key) || !entry?.pendingCentralSync || entry.localWritePrepared || !entry.deletedAt ||
+          entry.principalScope !== getCentralReadScope() || receipt?.removed !== true ||
+          !Number.isInteger(base) || base < 0 || !Number.isInteger(receipt.revision) || receipt.revision <= base ||
+          receipt.revision < Math.max(Number(entry.serverRevision) || 0, Number(centralState.metadata[key]?.revision) || 0) ||
+          nativeLocalStorageGetItem?.call(window.localStorage, key) !== null) continue;
+      clearCentralPendingSyncFlag(key, receipt, { entry, value: null });
+      const persisted = readCentralSyncManifestEntries()[key];
+      if (persisted?.pendingCentralSync === false && medicalRecoveryGeneration(persisted) === medicalRecoveryGeneration(entry) &&
+          persisted.principalScope === entry.principalScope && persisted.serverRevision === receipt.revision) {
+        centralState.metadata[key] = receipt;
+      }
+    }
   }
   function persistCentralHydrationRevisions(revisionEntries = [], options = {}) {
     if (!Array.isArray(revisionEntries) || !revisionEntries.length) {
@@ -1922,6 +1941,7 @@ async function getActiveAccessToken() {
         }
       }
       if (!isCurrent()) return false;
+      reconcileCentralTombstones(response.payload.absentKeys, metadata);
       centralState.hydrated = true;
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.lastFetchedAt = centralState.lastSyncedAt;

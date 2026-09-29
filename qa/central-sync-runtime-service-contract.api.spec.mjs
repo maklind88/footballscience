@@ -385,9 +385,12 @@ function createServiceHarness(options = {}) {
     mergePeriodizationStatePreservingLocalUi: (_currentValue, syncedValue) => `periodization:${syncedValue}`,
     mergeScheduleStatePreservingLocalUi: (_currentValue, syncedValue) => `schedule:${syncedValue}`,
     mutateManifest: (mutator) => {
-      mutator(manifest);
-      return manifest;
+      const attempted = structuredClone(manifest);
+      mutator(attempted);
+      if (!options.failManifestWrite?.(attempted)) Object.assign(manifest, attempted);
+      return attempted;
     },
+    readManifest: () => structuredClone(manifest),
     periodizationStorageKey: "football-periodization-v2",
     queueSnapshot: (reason) => snapshots.push(reason),
     queueStatusRefresh: () => {},
@@ -984,6 +987,66 @@ test(`Schedule successor base survives acknowledgement and reload without adopti
 });
 }
 
+for (const recovery of ["retry", "reload", "same-value newer C", "other owner C"]) {
+test(`Schedule successor waits for durable base persistence after quota failure (${recovery})`, async () => {
+  const key = "football-schedule-v1";
+  let release, fail = false;
+  const barrier = new Promise((resolve) => { release = resolve; });
+  const h = createServiceHarness({ getReadScope: () => "owner-A", revision: 7,
+    failManifestWrite: () => fail,
+    syncKey: async ({ value, syncOptions }) => {
+      if (value === "A") { await barrier; return { ok: true, value, revision: 8 }; }
+      return syncOptions.baseRevision === 8 ? { ok: true, value, revision: 9 } : { ok: false, status: 409 };
+    },
+  });
+  h.rawValues.set(key, "A");
+  h.service.queueCentralStateWrite(key, "A");
+  const flushing = h.service.flushCentralStateWrites();
+  h.rawValues.set(key, "B");
+  h.manifest.entries[key] = { hash: "B", writes: 2, updatedAt: "B-time", serverRevision: 7 };
+  h.service.queueCentralStateWrite(key, "B");
+  const durableB = structuredClone(h.manifest.entries[key]);
+  fail = true;
+  release(); await flushing;
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.map(({ value }) => value)).toEqual(["A"]);
+  expect(h.manifest.entries[key]).toEqual(durableB);
+  expect(h.rawValues.get(key)).toBe("B");
+  expect(h.syncStatuses.at(-1)).toEqual([key, "issue", "Local save metadata could not be verified. Retry when browser storage is available."]);
+  if (recovery === "reload") {
+    const reloaded = createServiceHarness({ getReadScope: () => "owner-A", revision: 8,
+      syncResult: { ok: false, status: 409, currentRevision: 8 } });
+    reloaded.rawValues.set(key, "B");
+    reloaded.manifest.entries[key] = structuredClone(h.manifest.entries[key]);
+    await reloaded.service.retryCentral(() => reloaded.manifest);
+    await reloaded.service.flushCentralStateWrites();
+    expect(reloaded.syncCalls[0].options.baseRevision).toBe(7);
+    expect(reloaded.manifest.entries[key].pendingCentralSync).toBe(true);
+    expect(reloaded.rawValues.get(key)).toBe("B");
+    return;
+  }
+  if (recovery !== "retry") {
+    h.manifest.entries[key] = { ...durableB, writes: 3, updatedAt: "C-time", pendingBaseRevision: 4,
+      principalScope: recovery === "other owner C" ? "owner-C" : "owner-A" };
+    const newer = structuredClone(h.manifest.entries[key]);
+    fail = false;
+    await h.service.flushCentralStateWrites();
+    expect(h.syncCalls).toHaveLength(1);
+    expect(h.manifest.entries[key]).toEqual(newer);
+    expect(h.rawValues.get(key)).toBe("B");
+    return;
+  }
+  fail = false;
+  await h.service.retryCentral(() => h.manifest);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toEqual([
+    { key, value: "A", options: { removed: false, baseRevision: 7 } },
+    { key, value: "B", options: { removed: false, baseRevision: 8 } },
+  ]);
+  expect(h.manifest.entries[key]).toMatchObject({ pendingCentralSync: false, serverRevision: 9 });
+});
+}
+
 test("central sync runtime does not borrow an unrelated newer bridge revision", async () => {
   const value = "{\"events\":[{\"id\":\"training-a\"}]}";
   const harness = createServiceHarness({
@@ -1275,6 +1338,7 @@ test("central sync runtime keeps chat and workspace rendering outside the servic
   expect(serviceSource).toContain("handleSyncedStateValue");
   expect(serviceSource).not.toMatch(/renderDashboardChatWidget|renderMedicalTeamWorkspace|renderPlayerProfilesWorkspace|renderScoutingWorkspace/);
   expect(facadeSource).toContain("createCentralSyncRuntimeService({");
+  expect(facadeSource).toContain("readManifest: dataSafetyRuntimeService.readManifest");
   expect(facadeSource).not.toMatch(/renderDashboardChatWidget|renderMedicalTeamWorkspace|renderPlayerProfilesWorkspace|renderScoutingWorkspace/);
   expect(runtimeSource).toContain("function handleCentralSyncedStateValue");
   expect(runtimeSource).toContain("createCentralRuntimeFacade({");

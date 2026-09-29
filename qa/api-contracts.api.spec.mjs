@@ -665,7 +665,10 @@ test("platform auth boot hydrates central state in bounded read batches", () => 
   expect(source).toContain("async function readCentralStateBatches(options = {})");
   expect(source).toContain("Promise.all(buildCentralStateReadBatches().map((keys)");
   expect(source).toContain('query.set("keys", keys.join(","));');
-  expect(source).toContain("const response = await readCentralStateBatches(options);");
+  expect(source).toContain("const response = await readCentralStateBatches({ ...options, isCurrent });");
+  const batchReader = source.slice(source.indexOf("async function readCentralStateBatches(options = {})"),
+    source.indexOf("function readCentralSyncManifestEntries()"));
+  expect(batchReader).toContain("isCurrent: options.isCurrent");
   expect(source).not.toContain("const statePath = options.forceApply || options.fresh");
 });
 

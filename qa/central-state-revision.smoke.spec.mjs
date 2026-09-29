@@ -2532,7 +2532,8 @@ test("a deferred Medical read cannot publish a signed-out actor's data", async (
 });
 
 for (const changeOrganization of [false, true]) {
-test(`a token refresh during Medical loading drains a fresh read through the auth event chain (organization change: ${changeOrganization})`, async ({ browser, baseURL }) => {
+for (const expiredResponse of [false, true]) {
+test(`a token refresh during Medical loading drains a fresh read through the auth event chain (organization change: ${changeOrganization}, expired response: ${expiredResponse})`, async ({ browser, baseURL }) => {
   const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, role: "coach", organization_id: "org-a" } };
   const value = JSON.stringify({ players: [{ id: "qa-player", name: "QA Player" }],
     records: [{ id: "record", playerId: "qa-player", date: "2026-09-28", participation: 75 }], injuryPlans: [] });
@@ -2547,6 +2548,7 @@ test(`a token refresh during Medical loading drains a fresh read through the aut
       if (!hold) return null;
       const rotated = request.headers().authorization === "Bearer rotated-token";
       if (!rotated) { reads += 1; await barrier; }
+      if (!rotated && expiredResponse) return { status: 401, body: { reason: "Expired original token" } };
       const responseValue = rotated ? nextValue : value;
       return { status: 200, body: { ok: true, entries: { [medicalTeamStateKey]: responseValue },
         metadata: { [medicalTeamStateKey]: { ...createMetadata(rotated ? 6 : 5, responseValue), organizationId: rotated && changeOrganization ? "org-b" : "org-a" } } } };
@@ -2579,9 +2581,11 @@ test(`a token refresh during Medical loading drains a fresh read through the aut
     await expect.poll(() => tab.page.evaluate((key) => window.footballScienceCentralState.getStatus().metadata[key]?.revision, medicalTeamStateKey)).toBe(6);
     expect(await tab.page.evaluate(() => window.__qaReadyRevisions)).not.toContain(5);
     expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
+    expect(await tab.page.evaluate(() => window.platformAuthStore.getCurrentUser()?.id)).toBe(profile.id);
     expect(await tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key)).records, medicalTeamStateKey)).toEqual(JSON.parse(nextValue).records);
   } finally { release(); await closeCentralStateContext(tab.context); }
 });
+}
 }
 
 for (const { switchActor, reload, omitted } of [
@@ -2661,14 +2665,15 @@ for (const { switchActor, reload, omitted } of [
 }
 
 for (const fixedDate of ["2026-09-28T12:00:00.000Z", "2026-09-29T12:00:00.000Z"]) {
-for (const { acknowledged, manifestQuota, returnPending = false, conflict = false } of [
+for (const { acknowledged, manifestQuota, returnPending = false, conflict = false, returnCacheQuota = false } of [
   { acknowledged: false, manifestQuota: false },
   { acknowledged: false, manifestQuota: false, conflict: true },
   { acknowledged: false, manifestQuota: false, returnPending: true },
   { acknowledged: true, manifestQuota: false },
+  { acknowledged: true, manifestQuota: false, returnCacheQuota: true },
   { acknowledged: true, manifestQuota: true },
 ]) {
-test(`a replacement Medical draft is never adopted after an organization switch and reload (acknowledged: ${acknowledged}, manifest quota: ${manifestQuota}, return pending: ${returnPending}, conflict: ${conflict}, clock: ${fixedDate})`, async ({ browser, baseURL }) => {
+test(`a replacement Medical draft is never adopted after an organization switch and reload (acknowledged: ${acknowledged}, manifest quota: ${manifestQuota}, return pending: ${returnPending}, conflict: ${conflict}, return cache quota: ${returnCacheQuota}, clock: ${fixedDate})`, async ({ browser, baseURL }) => {
   const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, role: "coach", organization_id: "org-a" } };
   const record = { id: "org-a-pending-replacement", playerId: "ncc-2026-madison-white", date: "2026-09-28",
     status: "controlled", participation: 50, actualParticipation: 50, comment: "", coachNote: "", shareWithCoach: false,
@@ -2699,6 +2704,7 @@ test(`a replacement Medical draft is never adopted after an organization switch 
       const nativeSet = Storage.prototype.setItem;
       Storage.prototype.setItem = function (storageKey, value) {
         if (window.__qaFailMedicalManifest && storageKey === manifestKey) throw new DOMException("Manifest quota", "QuotaExceededError");
+        if (window.__qaFailMedicalCache && storageKey === key) throw new DOMException("Cache quota", "QuotaExceededError");
         return nativeSet.call(this, storageKey, value);
       };
       if (localStorage.getItem(key) !== null) return;
@@ -2762,7 +2768,13 @@ test(`a replacement Medical draft is never adopted after an organization switch 
       profile.id = qaUser.id;
       profile.app_metadata.organization_id = "org-a";
       store.entries[medicalTeamStateKey] = returnPending ? JSON.stringify({ ...JSON.parse(preservedValue), records: [] }) : preservedValue;
-      store.metadataEntries[medicalTeamStateKey] = createMetadata(pending.entry.serverRevision, store.entries[medicalTeamStateKey]);
+      if (returnCacheQuota) {
+        const updated = JSON.parse(preservedValue);
+        updated.records[0].coachNote = "Latest verified server note";
+        store.entries[medicalTeamStateKey] = JSON.stringify(updated);
+        await tab.page.evaluate(() => { window.__qaFailMedicalCache = true; });
+      }
+      store.metadataEntries[medicalTeamStateKey] = createMetadata(pending.entry.serverRevision + (returnCacheQuota ? 1 : 0), store.entries[medicalTeamStateKey]);
       acceptWrites = true;
       const previousWrites = requests.length;
       await tab.page.evaluate(async (user) => {
@@ -2770,6 +2782,23 @@ test(`a replacement Medical draft is never adopted after an organization switch 
         await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
       }, profile);
       await expect.poll(() => tab.page.evaluate((key) => !window.footballScienceCentralState.getStatus().hydrating && JSON.parse(localStorage.getItem(key) || "{}").records?.[0]?.id, medicalTeamStateKey)).toBe("org-a-pending-replacement");
+      if (returnCacheQuota) {
+        await expect.poll(() => tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key)).records[0].coachNote, medicalTeamStateKey)).toBe("Latest verified server note");
+        const state = await tab.page.evaluate(({ key, manifestKey }) => ({
+          info: window.footballScienceCentralState.getCachedValueInfo(key),
+          status: window.footballScienceCentralState.getStatus(),
+          raw: window.__qaNativeGetItem.call(localStorage, key),
+          entry: JSON.parse(localStorage.getItem(manifestKey)).entries[key],
+        }), { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey });
+        expect(state.info).toMatchObject({ durable: false, serverBacked: true });
+        expect(state.status.lastError).toBe("");
+        expect(state.status.metadata[medicalTeamStateKey].revision).toBe(pending.entry.serverRevision + 1);
+        expect(state.entry.pendingCentralSync).toBe(false);
+        expect(state.raw).toBe(preservedValue);
+        expect(requests.slice(previousWrites).filter(({ body }) => body.key === medicalTeamStateKey)).toEqual([]);
+        expect(await tab.page.evaluate(() => Object.keys(window.footballScienceDataSafety.createBackup().recoveryCopies).length)).toBe(ownerArchiveCount);
+        return;
+      }
       if (returnPending) {
         await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
           { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toBe(false);

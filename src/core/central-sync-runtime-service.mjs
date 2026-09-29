@@ -13,6 +13,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     mergePeriodizationStatePreservingLocalUi = (_currentValue, syncedValue) => syncedValue,
     mergeScheduleStatePreservingLocalUi = (_currentValue, syncedValue) => syncedValue,
     mutateManifest = () => ({}),
+    readManifest = () => ({}),
     queueStatusRefresh = () => {},
     queueSnapshot = () => {},
     rawGetItem = () => null,
@@ -39,6 +40,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
   const centralStateWriteSuppressionKeys = new Set();
   let sessionPlannerCentralSyncNoticeAt = 0;
   const centralStateHydrationRetryMs = 250;
+  const successorPersistenceIssue = "Local save metadata could not be verified. Retry when browser storage is available.";
   function isConflictedWrite(write) {
     const previous = conflictedWrites.get(write.key);
     return previous && previous.value === write.value && previous.removed === write.removed &&
@@ -78,12 +80,11 @@ export function createCentralSyncRuntimeService(deps = {}) {
     return currentRevision;
   }
 
-  function advanceQueuedWriteBaseRevision(key, result = {}) {
+  function advanceQueuedWriteBaseRevision(key, result = {}, queuedWrite = centralStateWriteQueue.get(String(key || ""))) {
     const normalizedKey = String(key || "");
     if (!normalizedKey || normalizedKey !== scheduleStorageKey) {
       return false;
     }
-    const queuedWrite = centralStateWriteQueue.get(normalizedKey);
     if (!queuedWrite?.followsActiveWrite) {
       return false;
     }
@@ -93,18 +94,26 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     const nextBaseRevision = Math.max(Number(queuedWrite.baseRevision) || 0, acknowledgedRevision);
     let advanced = false;
+    const expected = queuedWrite.pendingEntry;
+    const fields = ["hash", "writes", "updatedAt", "deletedAt", "principalScope", "pendingBaseRevision"];
     mutateManifest((manifest) => {
       const entry = manifest.entries[normalizedKey];
-      const expected = queuedWrite.pendingEntry;
-      const fields = ["hash", "writes", "updatedAt", "deletedAt", "principalScope", "pendingBaseRevision"];
-      if (!entry?.pendingCentralSync || !expected || fields.some((field) => entry[field] !== expected[field]) ||
+      if (!entry?.pendingCentralSync || !expected || fields.some((field) => field !== "pendingBaseRevision" && entry[field] !== expected[field]) ||
+          ![expected.pendingBaseRevision, nextBaseRevision].includes(entry.pendingBaseRevision) ||
           rawGetItem(normalizedKey) !== (queuedWrite.removed ? null : queuedWrite.value)) return;
       entry.pendingBaseRevision = nextBaseRevision;
       advanced = true;
     });
-    if (!advanced) return false;
+    if (!advanced) return null;
+    queuedWrite.predecessorAckRevision = acknowledgedRevision;
+    const persisted = readManifest()?.entries?.[normalizedKey];
+    if (!persisted?.pendingCentralSync || fields.some((field) => persisted[field] !==
+        (field === "pendingBaseRevision" ? nextBaseRevision : expected[field])) ||
+        rawGetItem(normalizedKey) !== (queuedWrite.removed ? null : queuedWrite.value)) return false;
     queuedWrite.baseRevision = nextBaseRevision;
+    queuedWrite.pendingEntry = { ...persisted };
     queuedWrite.followsActiveWrite = false;
+    delete queuedWrite.predecessorAckRevision;
     return true;
   }
 
@@ -278,6 +287,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
       write = { ...write, value: cached.value };
     }
     advanceQueuedWriteBaseRevision(write.key, result);
+    const successorIssue = centralStateWriteQueue.get(write.key)?.predecessorAckRevision ? successorPersistenceIssue : "";
+    if (successorIssue) reportSyncStatus(write.key, "issue", successorIssue);
     persistCentralStateServerRevision(write.key, result);
     const currentBeforeApply = isCentralStateWriteGenerationCurrent(write);
     const applied = applyCentralSyncedStateValue(write, result.value);
@@ -286,7 +297,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       setCentralSyncPendingState(write.key, false, write.removed);
       reportSyncStatus(write.key, applied?.issue ? "issue" : "saved", applied?.issue || "Saved");
     }
-    return applied?.issue || "";
+    return applied?.issue || successorIssue;
   }
 
   function persistCentralStateServerRevision(key, result = {}) {
@@ -467,6 +478,16 @@ export function createCentralSyncRuntimeService(deps = {}) {
       if (write.automatic && bridge.canAutoSyncKey?.(write.key) === false) {
         continue;
       }
+      if (write.predecessorAckRevision) {
+        const advanced = advanceQueuedWriteBaseRevision(write.key, { revision: write.predecessorAckRevision }, write);
+        if (advanced === null) continue; // A newer generation superseded this queued successor.
+        if (!advanced) {
+          if (!centralStateWriteQueue.has(write.key)) centralStateWriteQueue.set(write.key, write);
+          flushIssue = successorPersistenceIssue;
+          reportSyncStatus(write.key, "issue", flushIssue);
+          continue;
+        }
+      }
       centralStateActiveWriteKeys.add(write.key);
       let result;
       try {
@@ -564,7 +585,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       }
     }
     queueCentralStateStatus(flushIssue);
-    return true;
+    return !Array.from(centralStateWriteQueue.values()).some((write) => write.predecessorAckRevision);
   }
 
   function flushCentralStateWrites() {

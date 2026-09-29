@@ -450,6 +450,47 @@ strengthening the equal-content/equal-hash case. `qa:static` and diff checks
 passed with the same existing architecture warnings. Fresh exact-SHA GitHub
 QA, CodeQL and independent review remain required; there was no deployment.
 
+## Review 5346441699: Stale Reads And Failed Cache Persistence
+
+The exact-SHA QA and CodeQL checks for `e3c79f9b` passed, but independent review
+found three further cases. All three were reproduced before the corrections:
+five negative test variants failed against the reviewed product code.
+
+- Every hydration batch now passes its captured scope/token predicate into
+  `apiRequest`, including the empty-store seed request. An obsolete 401 cannot
+  sign out the refreshed session before hydration discards the stale response.
+  Browser tests cover both same-organization rotation and organization change,
+  through the real auth event chain, with old 200 and old 401 responses.
+- Schedule successor base advancement now reads back the durable manifest,
+  rather than trusting the mutation callback's attempted result. This requires
+  one additional facade dependency: the existing data-safety `readManifest`.
+  An unverified advance pauses that successor without posting it at either an
+  unverified new base or a known obsolete base. An external retry can persist
+  the receipt and drain once; newer same-value generations and other owners
+  cannot inherit it. The service harness now models detached manifest reads
+  and swallowed persistence failure, as the actual storage service does.
+- A returning acknowledged Medical owner's verified server projection remains
+  available as an explicitly non-durable, server-backed view when cache quota
+  prevents replacement. The previous disk copy is retained. No pending write or
+  recovery archive is created by this read, and non-quota failures restore the
+  previous separated view before failing. Tests run on both sides of the date
+  boundary and assert the newer clinical note, revision, native copy and no POST.
+
+If storage remains unavailable and the tab closes before the successor receipt
+can persist, its local draft and original base survive. Recovery still uses CAS
+and retains a conflict rather than silently borrowing a newer server revision.
+This is a fail-closed storage limitation, not a claim of successful offline save.
+
+Final local verification: 3,153/3,153 passed (3,082 API/contracts, 61 central-state
+browser cases and 10 Medical clinical cases); 12 selected risks repeated ten
+times passed 120/120. `qa:static` and diff checks passed with the same 84 existing
+architecture warnings. The old batch source assertion was strengthened to
+require propagation of the initiating predicate, not removed. Scope is twelve
+files relative to main, adding only the one-line facade dependency and the
+existing API batch-contract assertion to the previous ten-file scope. No module
+product code, budgets, timeouts, migrations or Live data changed. New exact-SHA
+CI and independent review remain required.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

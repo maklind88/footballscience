@@ -705,6 +705,7 @@ async function getActiveAccessToken() {
     const responses = await Promise.all(buildCentralStateReadBatches().map((keys) =>
       apiRequest(buildCentralStateReadPath(keys, options), {
         method: "GET",
+        isCurrent: options.isCurrent,
         timeoutMs: 10000,
         headers: options.forceApply || options.fresh ? { "x-footballscience-fresh-state": "1" } : undefined,
       })
@@ -1687,8 +1688,19 @@ async function getActiveAccessToken() {
           if (!pendingEntry.pendingCentralSync && !hasMedicalRecoverySeparation()) {
             // The acknowledged owner returned; this is a cache refresh, not another recovery archive.
             removeCentralCachedValue(key);
-            window.localStorage.setItem(key, readValue);
-            setCentralCachedValue(key, readValue, { source: "central-acknowledgement", serverBacked: true });
+            let durable = true;
+            try {
+              window.localStorage.setItem(key, readValue);
+            } catch (error) {
+              if (!isStorageQuotaError(error)) {
+                setCentralCachedValue(key, cached.value, cached);
+                throw error;
+              }
+              // The verified server projection stays readable; do not delete the older disk copy.
+              durable = false;
+            }
+            setCentralCachedValue(key, readValue, { source: "central-acknowledgement", durable, serverBacked: true });
+            setCentralCacheFallbackState(key, !durable);
             nextMetadata[key] = metadataEntry;
             hydratedRevisionEntries.push([key, metadataEntry]);
             return;
@@ -1828,7 +1840,7 @@ async function getActiveAccessToken() {
     try {
       if (!readScope) return false;
       centralState.localDev = false;
-      const response = await readCentralStateBatches(options);
+      const response = await readCentralStateBatches({ ...options, isCurrent });
       if (!isCurrent()) return false;
       if (!response.ok) {
         centralState.lastError = response.payload?.reason || "Central app data could not be loaded.";
@@ -1854,6 +1866,7 @@ async function getActiveAccessToken() {
         if (Object.keys(localEntries).length) {
           const seedResponse = await apiRequest(API_APP_STATE, {
             method: "POST",
+            isCurrent,
             body: JSON.stringify({ entries: localEntries }),
           });
           if (!isCurrent()) return false;

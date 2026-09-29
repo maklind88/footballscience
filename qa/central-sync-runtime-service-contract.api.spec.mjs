@@ -943,6 +943,47 @@ test("central sync runtime serializes overlapping Schedule generations and advan
   });
 });
 
+for (const successor of ["queued B", "newer C", "same-value C", "other owner C"]) {
+test(`Schedule successor base survives acknowledgement and reload without adopting ${successor}`, async () => {
+  const key = "football-schedule-v1";
+  let release;
+  const barrier = new Promise((resolve) => { release = resolve; });
+  const h = createServiceHarness({ getReadScope: () => "owner-A", revision: 7,
+    syncKey: async ({ value }) => { await barrier; return { ok: true, value, revision: 8 }; },
+  });
+  h.rawValues.set(key, "A");
+  h.service.queueCentralStateWrite(key, "A");
+  const flushing = h.service.flushCentralStateWrites();
+  h.rawValues.set(key, "B");
+  h.manifest.entries[key] = { hash: "B", writes: 2, updatedAt: "B-time", serverRevision: 7 };
+  h.service.queueCentralStateWrite(key, "B");
+  if (successor !== "queued B") {
+    h.rawValues.set(key, successor === "same-value C" ? "B" : "C");
+    h.manifest.entries[key] = { ...h.manifest.entries[key], hash: successor === "same-value C" ? "B" : "C", writes: 3, updatedAt: "C-time",
+      principalScope: successor === "other owner C" ? "owner-C" : "owner-A", pendingBaseRevision: 4 };
+  }
+  release();
+  await flushing;
+  expect(h.syncCalls).toHaveLength(1);
+  expect(h.manifest.entries[key]).toMatchObject(successor === "queued B"
+    ? { hash: "B", writes: 2, updatedAt: "B-time", pendingCentralSync: true, pendingBaseRevision: 8 }
+    : { hash: successor === "same-value C" ? "B" : "C", writes: 3, updatedAt: "C-time", pendingCentralSync: true, pendingBaseRevision: 4 });
+  if (successor !== "queued B") return;
+  const reloaded = createServiceHarness({ getReadScope: () => "owner-A", revision: 8,
+    syncKey: async ({ value, syncOptions }) => syncOptions.baseRevision === 8
+      ? { ok: true, value, revision: 9 } : { ok: false, status: 409, currentRevision: 8 },
+  });
+  reloaded.rawValues.set(key, h.rawValues.get(key));
+  reloaded.manifest.entries[key] = structuredClone(h.manifest.entries[key]);
+  await reloaded.service.retryCentral(() => reloaded.manifest);
+  await reloaded.service.flushCentralStateWrites();
+  await reloaded.service.flushCentralStateWrites();
+  expect(reloaded.syncCalls).toEqual([{ key, value: "B", options: { removed: false, baseRevision: 8 } }]);
+  expect(reloaded.rawValues.get(key)).toBe("B");
+  expect(reloaded.manifest.entries[key]).toMatchObject({ pendingCentralSync: false, serverRevision: 9 });
+});
+}
+
 test("central sync runtime does not borrow an unrelated newer bridge revision", async () => {
   const value = "{\"events\":[{\"id\":\"training-a\"}]}";
   const harness = createServiceHarness({

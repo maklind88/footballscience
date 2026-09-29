@@ -91,7 +91,19 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (!acknowledgedRevision) {
       return false;
     }
-    queuedWrite.baseRevision = Math.max(Number(queuedWrite.baseRevision) || 0, acknowledgedRevision);
+    const nextBaseRevision = Math.max(Number(queuedWrite.baseRevision) || 0, acknowledgedRevision);
+    let advanced = false;
+    mutateManifest((manifest) => {
+      const entry = manifest.entries[normalizedKey];
+      const expected = queuedWrite.pendingEntry;
+      const fields = ["hash", "writes", "updatedAt", "deletedAt", "principalScope", "pendingBaseRevision"];
+      if (!entry?.pendingCentralSync || !expected || fields.some((field) => entry[field] !== expected[field]) ||
+          rawGetItem(normalizedKey) !== (queuedWrite.removed ? null : queuedWrite.value)) return;
+      entry.pendingBaseRevision = nextBaseRevision;
+      advanced = true;
+    });
+    if (!advanced) return false;
+    queuedWrite.baseRevision = nextBaseRevision;
     queuedWrite.followsActiveWrite = false;
     return true;
   }
@@ -119,7 +131,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function setCentralSyncPendingState(key, isPending = false, isRemoved = false, principalScope = "", baseRevision) {
     const normalizedKey = String(key || "");
-    mutateManifest((manifest) => {
+    const updated = mutateManifest((manifest) => {
       const currentEntry = manifest.entries[normalizedKey] || {};
       manifest.entries[normalizedKey] = {
         ...(currentEntry?.label ? currentEntry : { label: getStorageLabel(normalizedKey), writes: 0, size: 0, hash: "", updatedAt: "", deletedAt: "" }),
@@ -134,6 +146,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       };
     });
     queueStatusRefresh();
+    return { ...updated?.entries?.[normalizedKey] };
   }
 
   function queueCentralStateStatus(error = "") {
@@ -404,7 +417,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     const baseRevision = Number.isInteger(options.baseRevision) && options.baseRevision >= 0 ? options.baseRevision
       : isCentralStateBridgeHydrated(bridge) ? getCentralStateRevisionForKey(normalizedKey) : null;
     reportSyncStatus(normalizedKey, "saving", "Saving");
-    setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed), principalScope, baseRevision);
+    const pendingEntry = setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed), principalScope, baseRevision);
     const stage = normalizedKey === sessionPlannerStorageKey && !options.removed && bridge.stageSessionWrite
       ? () => options.sessionReplay ? Promise.resolve({ ok: true }) : bridge.stageSessionWrite(String(value ?? ""), { previousValue: options.previousValue, previousPending: options.previousPending })
       : null;
@@ -416,6 +429,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       retainedGeneration: Boolean(options.retainedGeneration),
       principalScope,
       baseRevision,
+      pendingEntry,
       followsActiveWrite: centralStateActiveWriteKeys.has(normalizedKey),
       ...(normalizedKey === sessionPlannerStorageKey ? { sessionViewToken: options.sessionViewToken || bridge.getCachedValueInfo?.(normalizedKey)?.sessionViewToken } : {}),
       ...(stage ? { stage, staged: Promise.resolve().then(stage).catch((error) => ({ ok: false, reason: error.message })) } : {}),

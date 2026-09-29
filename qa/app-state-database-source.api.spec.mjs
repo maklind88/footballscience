@@ -230,6 +230,124 @@ test(`fresh read reports authorized absence without confusing ${state} keys with
 });
 }
 
+for (const mode of ["storage", "database"]) {
+for (const failure of ["unavailable", "denied", "malformed", "empty-record", "wrong-key", "missing-bucket"]) {
+test(`${mode} failed source read (${failure}) never proves absence or permits a write`, async () => {
+  const env = snapshotEnv(), originalFetch = global.fetch;
+  configureDatabaseMode();
+  process.env.APP_STATE_DATABASE_MODE = mode;
+  const entry = { organizationId: "global", key: scheduleKey, moduleId: "schedule", revision: 17,
+    value: '{"events":[{"id":"retained-server-event"}]}', removed: false };
+  const mock = createConsistencyFetchMock(entry);
+  global.fetch = async (url, options = {}) => {
+    const path = String(url);
+    if (path.includes("/rest/v1/platform_app_state_records?")) return new Response("[]");
+    if (path.includes(`/storage/v1/object/footballscience-app-state/${schedulePath}`) && (!options.method || options.method === "GET")) {
+      if (failure === "unavailable") return new Response('{"code":"InternalError"}', { status: 503 });
+      if (failure === "denied") return new Response('{"code":"AccessDenied"}', { status: 403 });
+      if (failure === "missing-bucket") return new Response('{"code":"NoSuchBucket"}', { status: 404 });
+      if (failure === "empty-record") return new Response("{}");
+      return new Response(failure === "malformed" ? "not JSON" : JSON.stringify({ ...entry, key: "football-medical-team-v1" }));
+    }
+    return mock.fetchMock(url, options);
+  };
+  try {
+    for (const request of [
+      { url: `/api/app-state?fresh=1&keys=${scheduleKey}` },
+      { method: "POST", body: JSON.stringify({ key: scheduleKey, value: '{"events":[]}', baseRevision: 0 }) },
+    ]) {
+      const result = await callHandler(request);
+      expect(result.status).toBe(500);
+      expect(result.payload.absentKeys).toBeUndefined();
+      expect(result.payload.ok).toBe(false);
+    }
+    expect(mock.rpcWrites).toEqual([]);
+    expect(mock.storageWrites).toEqual([]);
+    expect(mock.getDatabaseEntry()).toEqual(entry);
+  } finally { global.fetch = originalFetch; restoreEnv(env); }
+});
+}
+}
+
+for (const mode of ["storage", "database"]) {
+for (const missing of ["404", "tombstone"]) {
+test(`${mode} confirmed ${missing} still reports authorized absence`, async () => {
+  const env = snapshotEnv(), originalFetch = global.fetch;
+  configureDatabaseMode();
+  process.env.APP_STATE_DATABASE_MODE = mode;
+  const entry = { organizationId: "global", key: scheduleKey, moduleId: "schedule", revision: 17,
+    value: "", removed: true };
+  const mock = createConsistencyFetchMock(entry);
+  global.fetch = async (url, options = {}) => {
+    const path = String(url);
+    if (missing === "404" && path.includes("/rest/v1/platform_app_state_records?")) return new Response("[]");
+    if (missing === "404" && path.includes(`/storage/v1/object/footballscience-app-state/${schedulePath}`) && (!options.method || options.method === "GET")) {
+      return new Response('{"code":"NoSuchKey"}', { status: 404 });
+    }
+    return mock.fetchMock(url, options);
+  };
+  try {
+    const result = await callHandler({ url: `/api/app-state?fresh=1&keys=${scheduleKey}` });
+    expect(result.status).toBe(200);
+    expect(result.payload.entries).toEqual({});
+    expect(result.payload.absentKeys).toEqual([scheduleKey]);
+    expect(mock.rpcWrites).toEqual([]);
+    expect(mock.storageWrites).toEqual([]);
+  } finally { global.fetch = originalFetch; restoreEnv(env); }
+});
+}
+}
+
+test("failed database bootstrap never certifies an existing backup as absent", async () => {
+  const env = snapshotEnv(), originalFetch = global.fetch;
+  configureDatabaseMode();
+  const entry = { organizationId: "global", key: scheduleKey, moduleId: "schedule", revision: 17,
+    value: '{"events":[{"id":"retained-server-event"}]}', removed: false };
+  const mock = createConsistencyFetchMock(entry);
+  let bootstrapAttempts = 0;
+  global.fetch = async (url, options) => {
+    if (String(url).includes("/rest/v1/platform_app_state_records?")) return new Response("[]");
+    if (String(url).endsWith("/rest/v1/rpc/write_platform_app_state_record")) {
+      bootstrapAttempts += 1;
+      return new Response('{"message":"Database unavailable"}', { status: 503 });
+    }
+    return mock.fetchMock(url, options);
+  };
+  try {
+    const result = await callHandler({ url: `/api/app-state?fresh=1&keys=${scheduleKey}` });
+    expect(result.status).toBe(500);
+    expect(result.payload.absentKeys).toBeUndefined();
+    expect(bootstrapAttempts).toBe(1);
+    expect(mock.storageWrites).toEqual([]);
+    expect(mock.getDatabaseEntry()).toEqual(entry);
+  } finally { global.fetch = originalFetch; restoreEnv(env); }
+});
+
+test("snapshot omission is not proof that a central key is absent", async () => {
+  const env = snapshotEnv(), originalFetch = global.fetch;
+  configureDatabaseMode();
+  process.env.APP_STATE_DATABASE_MODE = "storage";
+  const mock = createConsistencyFetchMock({ key: scheduleKey, value: '{"events":[]}', revision: 17 });
+  let snapshotReads = 0;
+  global.fetch = async (url, options) => {
+    if (String(url).includes("/__app-state-read-snapshot-v1.json")) {
+      snapshotReads += 1;
+      return new Response(JSON.stringify({ schema: "footballscience-app-state-read-snapshot-v1",
+        generatedAt: new Date().toISOString(), entries: {}, metadata: {} }));
+    }
+    return mock.fetchMock(url, options);
+  };
+  try {
+    const result = await callHandler({ url: `/api/app-state?keys=${scheduleKey}` });
+    expect(result.status).toBe(200);
+    expect(result.payload.entries).toEqual({});
+    expect(result.payload.absentKeys).toEqual([]);
+    expect(snapshotReads).toBe(1);
+    expect(mock.storageWrites).toEqual([]);
+    expect(mock.rpcWrites).toEqual([]);
+  } finally { global.fetch = originalFetch; restoreEnv(env); }
+});
+
 test("database source migration enforces atomic revisions and server-only access", async () => {
   const sql = await readFile(migrationUrl, "utf8");
   const rpcFixSql = await readFile(rpcFixMigrationUrl, "utf8");

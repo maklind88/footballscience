@@ -215,6 +215,7 @@ let stateReadSnapshotCache = { updatedAt: 0, result: null, pending: null };
 
 function cloneStateListResult(result = {}) {
   return {
+    absentKeys: [...(result.absentKeys || [])],
     entries: { ...(result.entries || {}) },
     metadata: Object.fromEntries(
       Object.entries(result.metadata || {}).map(([key, value]) => [key, { ...(value || {}) }])
@@ -265,6 +266,7 @@ function getRequestedStateKeys(req = {}) {
 function selectStateListResultKeys(result = {}, keys = []) {
   const keySet = new Set(keys);
   return {
+    absentKeys: (result.absentKeys || []).filter((key) => keySet.has(key)),
     entries: Object.fromEntries(
       Object.entries(result.entries || {}).filter(([key]) => keySet.has(key))
     ),
@@ -315,10 +317,6 @@ async function storageRequest(path, options = {}) {
       ...(options.headers || {}),
     },
   });
-
-  if (response.status === 404) {
-    return { ok: false, status: 404, payload: {} };
-  }
 
   const payload = options.raw ? await response.text() : await parseResponseJson(response);
   if (!response.ok) {
@@ -702,15 +700,17 @@ async function readStorageStateObject(key, options = {}) {
   });
 
   if (!result.ok) {
-    return null;
+    const error = typeof result.payload === "string" ? safeParseJson(result.payload, {}) : result.payload;
+    const code = String(error?.code || error?.error || "");
+    if (result.status === 404 && (!code || ["NoSuchKey", "not_found", "Not Found"].includes(code))) return null;
+    throw new Error(`Central app-state storage read failed for ${key} (${result.status}).`);
   }
 
-  try {
-    const parsed = JSON.parse(result.payload);
-    return parsed?.key ? parsed : null;
-  } catch {
-    return null;
+  const parsed = safeParseJson(result.payload, null);
+  if (!parsed || parsed.key !== key || (typeof parsed.value !== "string" && parsed.removed !== true)) {
+    throw new Error(`Invalid central app-state storage record for ${key}.`);
   }
+  return parsed;
 }
 
 async function readStateObject(key, options = {}) {
@@ -3409,8 +3409,10 @@ async function listStateObjects(options = {}) {
           const current = await readAppStateRecord(key);
           if (current.ok && current.entry) {
             recordsByKey.set(key, normalizeDatabaseStateEntry(current.entry));
+            return;
           }
         }
+        throw new Error(seeded.reason || `Central app-state database bootstrap failed for ${key}.`);
       }));
 
       const databaseEntries = {};
@@ -3422,7 +3424,8 @@ async function listStateObjects(options = {}) {
         databaseEntries[entry.key] = entry.value ?? "";
         databaseMetadata[entry.key] = getStateEntryMetadata(entry);
       });
-      const result = { entries: databaseEntries, metadata: databaseMetadata };
+      const result = { entries: databaseEntries, metadata: databaseMetadata,
+        absentKeys: requestedKeys.filter((key) => !recordsByKey.has(key) || recordsByKey.get(key).removed) };
       if (!isPartialRead) {
         stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
       }
@@ -3433,6 +3436,7 @@ async function listStateObjects(options = {}) {
 
   const entries = {};
   const metadata = {};
+  const absentKeys = [];
   const sourceReadOptions = options.bypassSnapshot
     ? { fresh: true, cacheNonce: crypto.randomUUID() }
     : {};
@@ -3441,10 +3445,12 @@ async function listStateObjects(options = {}) {
     if (entry?.key && !entry.removed) {
       entries[entry.key] = entry.value ?? "";
       metadata[entry.key] = getStateEntryMetadata(entry);
+    } else {
+      absentKeys.push(key);
     }
   }));
 
-  const result = { entries, metadata };
+  const result = { entries, metadata, absentKeys };
   if (!isPartialRead) {
     stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
     await writeStateListSnapshot(result).catch(() => null);
@@ -3622,8 +3628,8 @@ module.exports = async (req, res) => {
         : selectStateListResultKeys({ entries: actorEntries }, requestedKeys).entries;
       // Omission alone cannot distinguish revocation from a key never created.
       // Probe only absent registered keys through the same server-side read policy.
-      const missingKeys = (requestedKeys || Array.from(CENTRAL_STATE_KEYS))
-        .filter((key) => CENTRAL_STATE_KEYS.has(key) && !Object.hasOwn(stateObjects.entries, key));
+      const missingKeys = (stateObjects.absentKeys || []).filter((key) =>
+        CENTRAL_STATE_KEYS.has(key) && (!requestedKeys || requestedKeys.includes(key)) && !Object.hasOwn(stateObjects.entries, key));
       const readableMissing = filterStateEntriesForActor(actor, {
         ...stateObjects.entries, ...Object.fromEntries(missingKeys.map((key) => [key, "{}"])),
       });

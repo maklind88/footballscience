@@ -416,6 +416,40 @@ unchanged critical-flow checks from prior CI failures. `npm run qa:static` and
 No budget, timeout or safety gate was relaxed. Fresh exact-SHA GitHub QA,
 CodeQL and independent review are still required before release consideration.
 
+## Review 5346156360: Read Failures And Durable Successor Bases
+
+`7d471534` is not approved: independent review found that a failed Storage read
+could be mistaken for an absent central key, and an in-flight Schedule receipt
+advanced its queued successor only in memory. Both were reproduced in negative
+contracts before correction.
+
+- Storage record reads now retain the HTTP error body and distinguish missing
+  objects from unavailable/denied reads, missing buckets and invalid records.
+  Errors abort GET and write preflight without certifying absence or writing a
+  replacement. Database compatibility reads use the same rule; failed bootstrap
+  persistence cannot silently omit a known backup record.
+- `absentKeys` comes from confirmed source reads/tombstones, then passes through
+  the existing authorization filter. Snapshot omission is not absence proof.
+  Positive contracts retain authorized missing-object and tombstone behavior.
+- An acknowledged Schedule write advances the queued successor's durable
+  `pendingBaseRevision` as well as its in-memory base, only when raw content and
+  its captured manifest generation/owner still match. A new runtime can replay
+  that successor against the acknowledged revision. Newer generations, including
+  same-value edits and another owner, do not inherit that revision.
+- Exact-SHA CI crossed a date boundary and exposed invalid Medical test data:
+  40/80 percent participation, a non-roster player and incomplete historical
+  records triggered real module normalization. The fixture now uses the actual
+  allowed percentages and canonical record shape. The unchanged ownership,
+  pending, receipt and raw-value assertions run both on the record date and the
+  following day. No Medical product behavior or timeout changed.
+
+Local verification: 3,145/3,145 passed (3,078 API/contracts, 57 central-state
+browser cases and 10 Medical clinical cases). The 32 selected cases passed ten
+repetitions (320/320); successor generation checks were repeated again after
+strengthening the equal-content/equal-hash case. `qa:static` and diff checks
+passed with the same existing architecture warnings. Fresh exact-SHA GitHub
+QA, CodeQL and independent review remain required; there was no deployment.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

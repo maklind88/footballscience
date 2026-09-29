@@ -2660,6 +2660,7 @@ for (const { switchActor, reload, omitted } of [
   });
 }
 
+for (const fixedDate of ["2026-09-28T12:00:00.000Z", "2026-09-29T12:00:00.000Z"]) {
 for (const { acknowledged, manifestQuota, returnPending = false, conflict = false } of [
   { acknowledged: false, manifestQuota: false },
   { acknowledged: false, manifestQuota: false, conflict: true },
@@ -2667,14 +2668,19 @@ for (const { acknowledged, manifestQuota, returnPending = false, conflict = fals
   { acknowledged: true, manifestQuota: false },
   { acknowledged: true, manifestQuota: true },
 ]) {
-test(`a replacement Medical draft is never adopted after an organization switch and reload (acknowledged: ${acknowledged}, manifest quota: ${manifestQuota}, return pending: ${returnPending}, conflict: ${conflict})`, async ({ browser, baseURL }) => {
+test(`a replacement Medical draft is never adopted after an organization switch and reload (acknowledged: ${acknowledged}, manifest quota: ${manifestQuota}, return pending: ${returnPending}, conflict: ${conflict}, clock: ${fixedDate})`, async ({ browser, baseURL }) => {
   const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, role: "coach", organization_id: "org-a" } };
-  const centralValue = JSON.stringify({ players: [{ id: "qa-player", name: "QA Player" }], records: [], injuryPlans: [] });
+  const record = { id: "org-a-pending-replacement", playerId: "ncc-2026-madison-white", date: "2026-09-28",
+    status: "controlled", participation: 50, actualParticipation: 50, comment: "", coachNote: "", shareWithCoach: false,
+    rtpPhase: "modified-team", createdAt: "2026-09-28T10:00:00.000Z", updatedAt: "2026-09-28T10:00:00.000Z",
+    createdBy: qaUser.id, archivedAt: "", archivedBy: "", archiveReason: "" };
+  const centralValue = JSON.stringify({ players: [{ id: record.playerId, name: "Madison White" }], records: [], injuryPlans: [] });
   const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
     entries: { [medicalTeamStateKey]: centralValue }, metadataEntries: { [medicalTeamStateKey]: createMetadata(4, centralValue) } };
   const requests = [];
   let acceptWrites = true;
   const tab = await bootCentralPage(browser, baseURL, store, [], "medical-pending-owner-reload", {
+    fixedDate,
     sessionUser: profile, profileUser: profile,
     appStateWriteHandler: ({ body, request }) => {
       // An old page may finish a request while the next profile is being prepared.
@@ -2715,13 +2721,13 @@ test(`a replacement Medical draft is never adopted after an organization switch 
     }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey, revision: store.metadataEntries[medicalTeamStateKey].revision })).toBe(true);
     acceptWrites = acknowledged;
     if (conflict) store.metadataEntries[medicalTeamStateKey] = createMetadata(store.metadataEntries[medicalTeamStateKey].revision + 1, store.entries[medicalTeamStateKey]);
-    const replacement = await tab.page.evaluate((key) => {
+    const replacement = await tab.page.evaluate(({ key, record }) => {
       const value = JSON.parse(localStorage.getItem(key));
-      value.records = [{ id: "org-a-pending-replacement", playerId: "qa-player", date: "2026-09-28", participation: 40 }];
+      value.records = [record];
       const raw = JSON.stringify(value);
       localStorage.setItem(key, raw);
       return raw;
-    }, medicalTeamStateKey);
+    }, { key: medicalTeamStateKey, record });
     await expect.poll(() => requests.some(({ body }) => body.value?.includes("org-a-pending-replacement"))).toBe(true);
     if (conflict) {
       await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
@@ -2745,7 +2751,7 @@ test(`a replacement Medical draft is never adopted after an organization switch 
     profile.app_metadata.organization_id = "org-b";
     // Use the actual normalized schema so B's first replacement is the explicit edit under test.
     const otherValue = JSON.stringify({ ...JSON.parse(preservedValue),
-      records: [{ id: "org-b-central", playerId: "qa-player", date: "2026-09-28", participation: 80 }], injuryPlans: [] });
+      records: [{ ...record, id: "org-b-central", participation: 75, actualParticipation: 75 }], injuryPlans: [] });
     store.entries[medicalTeamStateKey] = otherValue;
     store.metadataEntries[medicalTeamStateKey] = createMetadata(10, otherValue);
     await tab.page.reload({ waitUntil: "domcontentloaded" });
@@ -2816,6 +2822,7 @@ test(`a replacement Medical draft is never adopted after an organization switch 
     expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
   } finally { await closeCentralStateContext(tab.context); }
 });
+}
 }
 
 test("an old account Medical receipt cannot poison a new account's queued edit", async ({ browser, baseURL }) => {

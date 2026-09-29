@@ -806,6 +806,32 @@ repetitions each (10/10). The final affected matrix passed 251/251, and final
 `qa:static` passed all syntax, release, security, storage, migration-file,
 performance and architecture gates without relaxing their limits.
 
+## Local Safe Lane Boot-Order Follow-Up
+
+Independent review accepted `70f865a3`, and its exact-SHA GitHub QA and CodeQL
+passed. Local Safe Lane nevertheless stopped before staging: a Schedule
+account-change/reload case exceeded its 10-second read-isolation assertion.
+The retained trace returned the expected `org-b-central` value, but the page
+evaluation took 8.8 seconds and route fulfillment also stalled for up to 7.9
+seconds. This is evidence of delayed local execution, not evidence that the
+server returned another account's value. The full release gate was not waived.
+
+The test already waited for app readiness, but only after the read assertions.
+That existing wait now precedes them, so module boot is complete before measuring
+read isolation. All data, ownership, raw-draft, request-count and revision
+assertions remain, as do all timeouts and retry budgets. No product code changes
+are included in this follow-up. All eight Schedule account/reload variants
+passed three repetitions (24/24), syntax checks passed, and the full central-state
+browser file passed 78/78. Full verification and the official Safe Lane remain
+required before publication.
+
+Independent read-only review accepted the ordering change, noting that it moves
+the start of the convergence budget after readiness; it does not prove faster
+boot. The trace's runner-side evaluate took 10.5 seconds although the browser
+call took 8.8 seconds. Neither host load nor unfinished module initialization is
+proven to be the sole cause. A further failure requires readiness/timing evidence,
+not unbounded reruns or increased timeouts.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

@@ -3516,6 +3516,8 @@ test(`Schedule pending ownership survives account changes and the owner can retr
     releaseB(); holdB = false;
     if (reload) await tab.page.reload({ waitUntil: "domcontentloaded" });
     await tab.page.waitForFunction(() => typeof window.footballScienceDataSafety?.createBackup === "function");
+    // Finish boot before measuring read isolation; module initialization can still block the page.
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
     await expect.poll(() => tab.page.evaluate((key) => !window.footballScienceCentralState.getStatus().hydrating && JSON.parse(localStorage.getItem(key) || "{}").events?.[0]?.id, scheduleStateKey)).toBe("org-b-central");
     await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
     const retained = await tab.page.evaluate(({ key, manifestKey }) => ({ raw: window.__qaNativeGetItem.call(localStorage, key),
@@ -3523,7 +3525,6 @@ test(`Schedule pending ownership survives account changes and the owner can retr
     expect(retained).toEqual({ raw: draft, entry: aEntry });
     expect(requests).toHaveLength(1);
     expect(requests[0].token).toBe("Bearer qa-access-token");
-    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
     profile.id = qaUser.id;
     profile.app_metadata.organization_id = "org-a";
     store.entries[scheduleStateKey] = baseline;

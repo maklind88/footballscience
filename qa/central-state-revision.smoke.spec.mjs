@@ -2490,6 +2490,59 @@ test("read-only coach sees fresh central Medical records while the exact pending
   }
 });
 
+test("Medical recovery marker failure never exposes an unscoped private draft", async ({ browser, baseURL }) => {
+  const value = JSON.stringify({ players: [{ id: "qa-player", name: "QA Player" }],
+    records: [{ id: "authorized-central", playerId: "qa-player", date: "2026-09-28", participation: 75 }], injuryPlans: [] });
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [medicalTeamStateKey]: value }, metadataEntries: { [medicalTeamStateKey]: createMetadata(4, value) } };
+  const coach = { ...qaUser, app_metadata: { ...qaUser.app_metadata, role: "coach" } };
+  const writes = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], "medical-marker-failure", {
+    sessionUser: coach, profileUser: coach, appStateWriteBodies: writes,
+    initScript: () => {
+      window.__qaNativeGetItem = Storage.prototype.getItem;
+      window.__qaNativeSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function(key, value) {
+        if (window.__qaFailMarker && key === "football-data-safety-v1:medical-recovery") {
+          throw new DOMException("Synthetic marker quota", "QuotaExceededError");
+        }
+        return window.__qaNativeSetItem.call(this, key, value);
+      };
+    },
+  });
+  try {
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+    const draft = '{"records":[],"injuryPlans":[{"id":"private-legacy-plan"}]}';
+    const entry = { pendingCentralSync: true, hash: "private-generation", writes: 7, serverRevision: 1 };
+    await tab.page.evaluate(({ key, manifestKey, draft, entry }) => {
+      window.__qaNativeSetItem.call(localStorage, key, draft);
+      const manifest = JSON.parse(localStorage.getItem(manifestKey));
+      manifest.entries[key] = entry;
+      window.__qaNativeSetItem.call(localStorage, manifestKey, JSON.stringify(manifest));
+      window.footballScienceCentralState.removeCachedValue(key);
+      window.__qaFailMarker = true;
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey, draft, entry });
+    expect(await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }))).toBe(false);
+    const read = () => tab.page.evaluate(({ key, manifestKey }) => ({
+      view: JSON.parse(localStorage.getItem(key)), raw: window.__qaNativeGetItem.call(localStorage, key),
+      entry: JSON.parse(localStorage.getItem(manifestKey)).entries[key],
+      canEdit: window.footballScienceCentralState.getCachedValueInfo(key).canEdit,
+    }), { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey });
+    expect(await read()).toMatchObject({ view: JSON.parse(value), raw: draft, entry, canEdit: false });
+    await tab.page.addInitScript(() => { window.__qaFailMarker = true; });
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+    await expect.poll(read).toMatchObject({ view: { records: JSON.parse(value).records, injuryPlans: [] }, raw: draft, entry, canEdit: false });
+    await tab.page.evaluate((key) => window.footballScienceCentralState.removeCachedValue(key), medicalTeamStateKey);
+    expect((await read()).view).toEqual({});
+    await tab.page.evaluate(() => { window.__qaFailMarker = false; });
+    expect(await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }))).toBe(true);
+    expect(await read()).toMatchObject({ view: JSON.parse(value), raw: draft, entry, canEdit: false });
+    expect(writes.filter((body) => body.key === medicalTeamStateKey || body.entries?.[medicalTeamStateKey])).toEqual([]);
+    expect((await read()).entry).toEqual(entry);
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
 test("a deferred Medical read cannot publish a signed-out actor's data", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");
   const value = JSON.stringify({ players: [], records: [{ id: "private-to-actor" }], injuryPlans: [] });
@@ -2934,22 +2987,100 @@ test("an old account Medical receipt cannot poison a new account's queued edit",
   } finally { release(); await closeCentralStateContext(tab.context); }
 });
 
+for (const newerDraft of [false, true]) {
+test(`Schedule reconciles a committed write after same-principal token rotation (newer draft: ${newerDraft})`, async ({ browser, baseURL }) => {
+  const baseline = JSON.stringify({ events: [] });
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [scheduleStateKey]: baseline }, metadataEntries: { [scheduleStateKey]: createMetadata(1, baseline) } };
+  let release, held = false;
+  const barrier = new Promise((resolve) => { release = resolve; });
+  const writes = [], reads = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], "schedule-token-receipt", {
+    appStateReadHandler: ({ request }) => { reads.push({ token: request.headers().authorization, revision: store.metadataEntries[scheduleStateKey].revision }); return null; },
+    appStateWriteHandler: async ({ body }) => {
+      if (body.key !== scheduleStateKey) return null;
+      writes.push(body);
+      if (writes.length === 1) { held = true; await barrier; }
+      const metadata = store.metadataEntries[scheduleStateKey];
+      if (body.baseRevision !== metadata.revision) return { status: 409, body: { ok: false, currentRevision: metadata.revision } };
+      store.entries[scheduleStateKey] = body.value;
+      store.metadataEntries[scheduleStateKey] = createMetadata(metadata.revision + 1, body.value);
+      return { body: { ok: true, key: body.key, value: body.value, metadata: store.metadataEntries[scheduleStateKey] } };
+    },
+  });
+  try {
+    await tab.page.evaluate((key) => {
+      const value = JSON.parse(localStorage.getItem(key));
+      value.events = [{ id: "same-actor-edit", date: "2026-09-28", title: "Training", type: "training", time: "", note: "" }];
+      localStorage.setItem(key, JSON.stringify(value));
+    }, scheduleStateKey);
+    await expect.poll(() => held).toBe(true);
+    await tab.page.evaluate(async () => {
+      window.__qaSession = { ...window.__qaSession, access_token: "rotated-token" };
+      await window.__qaAuthStateCallback("TOKEN_REFRESHED", window.__qaSession);
+    });
+    await expect.poll(() => reads.some((read) => read.token === "Bearer rotated-token" && read.revision === 1)).toBe(true);
+    await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
+    if (newerDraft) await tab.page.evaluate((key) => {
+      const value = JSON.parse(localStorage.getItem(key));
+      value.events[0].title = "Newer unsent edit";
+      localStorage.setItem(key, JSON.stringify(value));
+    }, scheduleStateKey);
+    release();
+    await expect.poll(() => reads.some((read) => read.token === "Bearer rotated-token" && read.revision === 2)).toBe(true);
+    if (newerDraft) {
+      await tab.page.waitForTimeout(600);
+      expect(await tab.page.evaluate(({ key, manifestKey }) => ({
+        title: JSON.parse(localStorage.getItem(key)).events[0].title,
+        pending: JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync,
+      }), { key: scheduleStateKey, manifestKey: dataSafetyManifestKey })).toEqual({ title: "Newer unsent edit", pending: true });
+      expect(JSON.parse(store.entries[scheduleStateKey]).events[0].title).toBe("Training");
+      expect(writes.length).toBeLessThanOrEqual(2);
+      return;
+    }
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
+      const entry = JSON.parse(localStorage.getItem(manifestKey)).entries[key];
+      return { pending: Boolean(entry.pendingCentralSync), revision: entry.serverRevision };
+    }, { key: scheduleStateKey, manifestKey: dataSafetyManifestKey })).toEqual({ pending: false, revision: 2 });
+    expect(reads.some((read) => read.token === "Bearer rotated-token" && read.revision === 2)).toBe(true);
+    expect(await tab.page.evaluate((key) => window.footballScienceCentralState.getStatus().metadata[key].revision, scheduleStateKey)).toBe(2);
+    expect(JSON.parse(store.entries[scheduleStateKey]).events[0].id).toBe("same-actor-edit");
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+    await tab.page.waitForTimeout(400);
+    expect(writes).toHaveLength(1);
+  } finally { release(); await closeCentralStateContext(tab.context); }
+});
+}
+
 for (const reload of [false, true]) {
-for (const serverState of ["unchanged", "advanced", "absent"]) {
+for (const serverState of ["unchanged", "advanced", "absent", "empty"]) {
 test(`Schedule pending ownership survives account changes and the owner can retry (reload: ${reload}, server: ${serverState})`, async ({ browser, baseURL }) => {
   const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, organization_id: "org-a" } };
   const baseline = JSON.stringify({ events: [] });
   const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
     entries: { [scheduleStateKey]: baseline }, metadataEntries: { [scheduleStateKey]: createMetadata(1, baseline) } };
-  if (serverState === "absent") { delete store.entries[scheduleStateKey]; delete store.metadataEntries[scheduleStateKey]; store.absentKeys = [scheduleStateKey]; }
+  const absent = serverState === "absent" || serverState === "empty";
+  if (absent) { delete store.entries[scheduleStateKey]; delete store.metadataEntries[scheduleStateKey]; store.absentKeys = [scheduleStateKey]; }
   let releaseA, releaseB, heldA = false, heldB = false, holdB = false, acknowledgeA = false;
   const aBarrier = new Promise((resolve) => { releaseA = resolve; });
   const bBarrier = new Promise((resolve) => { releaseB = resolve; });
   const requests = [];
   const tab = await bootCentralPage(browser, baseURL, store, [], "schedule-pending-principal", {
     sessionUser: profile, profileUser: profile,
-    appStateReadHandler: async () => { if (holdB) { heldB = true; await bBarrier; } return null; },
+    appStateReadHandler: async () => {
+      if (holdB) { heldB = true; await bBarrier; }
+      if (acknowledgeA && serverState === "empty") return { body: {
+        ok: true, entries: store.entries, metadata: store.metadataEntries, absentKeys: store.absentKeys,
+      } };
+      return null;
+    },
     appStateWriteHandler: async ({ body, request }) => {
+      if (body.entries?.[scheduleStateKey]) {
+        requests.push({ body, token: request.headers().authorization });
+        store.entries[scheduleStateKey] = body.entries[scheduleStateKey];
+        store.metadataEntries[scheduleStateKey] = createMetadata(1, body.entries[scheduleStateKey]);
+        return { body: { ok: true, results: [{ key: scheduleStateKey, metadata: store.metadataEntries[scheduleStateKey] }] } };
+      }
       if (body.key !== scheduleStateKey) return null;
       requests.push({ body, token: request.headers().authorization });
       if (acknowledgeA) {
@@ -3013,7 +3144,7 @@ test(`Schedule pending ownership survives account changes and the owner can retr
     if (serverState === "advanced") {
       store.entries[scheduleStateKey] = JSON.stringify({ events: [{ id: "colleague", title: "New central edit" }] });
       store.metadataEntries[scheduleStateKey] = createMetadata(2, store.entries[scheduleStateKey]);
-    } else if (serverState === "absent") {
+    } else if (absent) {
       delete store.entries[scheduleStateKey]; delete store.metadataEntries[scheduleStateKey]; store.absentKeys = [scheduleStateKey];
     }
     acknowledgeA = true;
@@ -3025,7 +3156,7 @@ test(`Schedule pending ownership survives account changes and the owner can retr
     await expect.poll(() => tab.page.evaluate((key) => window.footballScienceCentralState.getCachedValueInfo(key).source, scheduleStateKey)).not.toBe("central-readonly-baseline");
     await expect.poll(() => requests.length).toBe(2);
     expect(requests[1].token).toBe("Bearer org-a-return-token");
-    expect(requests[1].body.baseRevision).toBe(serverState === "absent" ? 0 : 1);
+    expect(requests[1].body.baseRevision).toBe(absent ? 0 : 1);
     if (serverState === "advanced") {
       await tab.page.waitForTimeout(400);
       expect(requests).toHaveLength(2);
@@ -3039,7 +3170,7 @@ test(`Schedule pending ownership survives account changes and the owner can retr
       { key: scheduleStateKey, manifestKey: dataSafetyManifestKey })).toBe(false);
     expect(JSON.parse(requests[1].body.value).events).toEqual(JSON.parse(draft).events);
     expect(JSON.parse(store.entries[scheduleStateKey]).events).toEqual(JSON.parse(draft).events);
-    expect(store.metadataEntries[scheduleStateKey].revision).toBe(serverState === "absent" ? 1 : 2);
+    expect(store.metadataEntries[scheduleStateKey].revision).toBe(absent ? 1 : 2);
     expect(await tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key)).events, scheduleStateKey)).toEqual(JSON.parse(draft).events);
     await tab.page.waitForTimeout(400);
     expect(requests).toHaveLength(2);

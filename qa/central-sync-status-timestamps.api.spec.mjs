@@ -44,6 +44,7 @@ function createProjectionHarness(storage = new Map(), canWrite = false) {
   const context = {
     MEDICAL_TEAM_STATE_KEY: "football-medical-team-v1", DATA_SAFETY_MANIFEST_KEY: "football-data-safety-v1",
     MEDICAL_RECOVERY_MARKER_KEY: "football-data-safety-v1:medical-recovery",
+    volatileMedicalRecoveryMarker: "",
     centralStateValues: new Map(), centralStateValueMetadata: new Map(), centralState: { hydrating: false, metadata: {} },
     authState: { currentUser: { id: "actor", role: "coach", organizationId: "org-a" }, session: { access_token: "token" } },
     window: { localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } },
@@ -228,6 +229,7 @@ function createHarness() {
   const context = {
     centralState, authState,
     pendingCentralHydration: null,
+    readCentralSyncManifestEntries: () => ({}),
     readCentralStateBatches: async () => ({ ok: true, payload: { entries: { profile: "{}" } } }),
     applyCentralStateEntries: async () => {},
     window: { dispatchEvent: (event) => events.push(event), setTimeout: (callback) => { timers.push(callback); return timers.length; } },

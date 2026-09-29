@@ -491,6 +491,50 @@ existing API batch-contract assertion to the previous ten-file scope. No module
 product code, budgets, timeouts, migrations or Live data changed. New exact-SHA
 CI and independent review remain required.
 
+## Review 5346700666: Recovery Failure, Empty Baselines And Token Rotation
+
+The previous candidate passed exact-SHA QA and CodeQL, but independent review
+identified four additional cases. Five negative regression variants reproduced
+them before product corrections. No production data was read or modified.
+
+- **Medical marker failure:** install the authorized read view with editing
+  disabled before persisting its recovery marker. Retain a runtime separation
+  marker on persistence failure. Read-only actors cannot fall back to a pending
+  clinical draft even before hydration or after reload. The native draft and
+  manifest remain intact. The browser regression injects a real Storage-layer
+  marker failure, reloads with that failure still active, evicts the view and
+  finally verifies recovery without a Medical POST or pending acknowledgement.
+- **Persisted absence evidence:** serialize explicitly confirmed `absentKeys`
+  in the existing read snapshot and validate them when another API instance
+  loads it. Unknown, duplicate and contradictory keys are excluded; malformed
+  existing entries cannot become absence evidence. Snapshot omission still
+  proves nothing. The contract exercises a real snapshot write/read round trip
+  through separate handler instances.
+- **Fully empty server:** pending generations are excluded from legacy batch
+  seeding. Their ordinary queue owns the revision-bound write and receipt.
+  Owner-return tests cover same-page and reload with a completely empty read,
+  asserting exactly one new base-zero write, revision one and cleared pending.
+- **Token rotation during a write:** continue rejecting the obsolete response,
+  including its 401 side effects, but schedule a fresh read after that request
+  settles if the same principal remains active. The read can acknowledge shared
+  Schedule equality despite object-key order or local view preferences; real
+  shared changes remain pending. Tests rotate the token through the real auth
+  event chain, read the pre-commit revision, release the POST, then require a
+  new-token post-commit read without a duplicate POST. A newer local edit is
+  separately proven not to inherit that acknowledgement.
+
+The source-extraction harness now supplies the same manifest-read dependency
+and runtime marker initialization used by the production bootstrap. No timeout,
+budget, permission or safety assertion was relaxed. Fresh exact-SHA CI and
+independent review remain required before release consideration.
+
+Local verification for review 5346700666: 3,159/3,159 passed (3,083 API/contracts,
+66 central-state browser cases and 10 Medical clinical cases). Twelve selected
+risks passed ten repetitions each (120/120), including the strengthened durable
+Schedule revision assertion. `qa:static` and `git diff --check` passed with the
+same 84 existing architecture warnings. This correction changes six files
+inside the unchanged twelve-file PR scope. No merge or deploy was performed.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

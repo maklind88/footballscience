@@ -73,7 +73,7 @@ function createResponse() {
   };
 }
 
-async function callHandler(req) {
+async function callHandler(req, handler = appStateHandler) {
   const res = createResponse();
   const body = req.body;
   const request = {
@@ -87,7 +87,7 @@ async function callHandler(req) {
       yield Buffer.from(String(body));
     }
   };
-  await appStateHandler(request, res);
+  await handler(request, res);
   return {
     status: res.statusCode,
     payload: res.body ? JSON.parse(res.body) : {},
@@ -346,6 +346,47 @@ test("snapshot omission is not proof that a central key is absent", async () => 
     expect(mock.storageWrites).toEqual([]);
     expect(mock.rpcWrites).toEqual([]);
   } finally { global.fetch = originalFetch; restoreEnv(env); }
+});
+
+test("persisted snapshots preserve explicit absence across API instances without inventing absence", async () => {
+  const env = snapshotEnv(), originalFetch = global.fetch;
+  configureDatabaseMode();
+  process.env.APP_STATE_DATABASE_MODE = "storage";
+  const modulePath = require.resolve("../api/app-state.js"), previousModule = require.cache[modulePath];
+  const freshHandler = () => { delete require.cache[modulePath]; return require(modulePath); };
+  const mock = createConsistencyFetchMock({ key: scheduleKey, value: "", revision: 1, removed: true });
+  let snapshot, snapshotReads = 0;
+  global.fetch = async (url, options = {}) => {
+    if (String(url).includes("/__app-state-read-snapshot-v1.json")) {
+      if (options.method === "PUT" || options.method === "POST") {
+        snapshot = JSON.parse(options.body);
+        return new Response('{}');
+      }
+      snapshotReads += 1;
+      return new Response(snapshot ? JSON.stringify(snapshot) : '{}', { status: snapshot ? 200 : 404 });
+    }
+    return mock.fetchMock(url, options);
+  };
+  try {
+    const source = await callHandler({ url: "/api/app-state?fresh=1" }, freshHandler());
+    expect(source.status).toBe(200);
+    expect(source.payload.absentKeys).toContain(scheduleKey);
+    expect(snapshot.absentKeys).toContain(scheduleKey);
+    const medicalKey = "football-medical-team-v1";
+    const periodizationKey = "football-periodization-v2";
+    snapshot.entries[medicalKey] = '{"records":[]}';
+    snapshot.entries[` ${periodizationKey} `] = null;
+    snapshot.absentKeys.push(medicalKey, periodizationKey, "not-a-central-key", scheduleKey);
+    const reloaded = await callHandler({ url: `/api/app-state?keys=${scheduleKey},${medicalKey},${periodizationKey}` }, freshHandler());
+    expect(reloaded.status).toBe(200);
+    expect(reloaded.payload.absentKeys).toEqual([scheduleKey]);
+    expect(snapshotReads).toBe(1);
+    expect(mock.rpcWrites).toEqual([]);
+  } finally {
+    require.cache[modulePath] = previousModule;
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
 });
 
 test("database source migration enforces atomic revisions and server-only access", async () => {

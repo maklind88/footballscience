@@ -3287,7 +3287,12 @@ function normalizeStateListSnapshot(payload = {}, nowMs = Date.now()) {
         ? { ...payload.metadata[normalizedKey] }
         : {};
   });
-  return { entries, metadata };
+  const presentKeys = new Set(Object.keys(payload.entries || {}).map(sanitizeStateKey));
+  const absentKeys = Array.isArray(payload.absentKeys)
+    ? Array.from(new Set(payload.absentKeys.filter((key) => CENTRAL_STATE_KEYS.has(key) &&
+      !presentKeys.has(key))))
+    : [];
+  return { entries, metadata, absentKeys };
 }
 
 async function readStateListSnapshot() {
@@ -3331,6 +3336,9 @@ async function writeStateListSnapshot(result = {}) {
     generatedAt: new Date().toISOString(),
     keyCount: Object.keys(result.entries || {}).length,
     entries: { ...(result.entries || {}) },
+    absentKeys: Array.isArray(result.absentKeys)
+      ? Array.from(new Set(result.absentKeys.filter((key) => CENTRAL_STATE_KEYS.has(key) &&
+        !Object.prototype.hasOwnProperty.call(result.entries || {}, key)))) : [],
     metadata: Object.fromEntries(
       Object.entries(result.metadata || {}).map(([key, value]) => [key, { ...(value || {}) }])
     ),

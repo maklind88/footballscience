@@ -192,6 +192,7 @@
   let postAuthHydrationTimer = 0;
   let postAuthHydrationRunId = 0;
   let pendingCentralHydration = null;
+  let volatileMedicalRecoveryMarker = "";
   function normalizeRoleForAuth(rawRole, fallback = "coach") {
     if (Array.isArray(rawRole)) {
       return normalizeRoleForAuth(rawRole.find((entry) => typeof entry === "string" && entry.trim()) || "", fallback);
@@ -762,10 +763,12 @@ async function getActiveAccessToken() {
   }
   function hasMedicalRecoverySeparation() {
     try {
-      const marker = window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY);
-      if (!marker) return false;
       const manifest = JSON.parse(window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY) || "null");
       const entry = manifest?.entries?.[MEDICAL_TEAM_STATE_KEY];
+      // A read-only actor must never fall back to a pending clinical draft, even before hydration.
+      if (entry?.pendingCentralSync && !canCurrentUserAutomaticallyWriteCentralStateKey(MEDICAL_TEAM_STATE_KEY)) return true;
+      const marker = window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) || volatileMedicalRecoveryMarker;
+      if (!marker) return false;
       if (!entry) return true;
       const owner = JSON.parse(marker);
       if (owner.readScope && owner.readScope !== getCentralReadScope()) return true;
@@ -785,6 +788,7 @@ async function getActiveAccessToken() {
     const previous = JSON.parse(window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) || "null");
     const marker = previous?.readScope ? JSON.stringify({ generation, readScope: previous.readScope,
       ...(previous.incompleteReplacement && previous.generation === generation ? { incompleteReplacement: true } : {}) }) : generation;
+    volatileMedicalRecoveryMarker = marker;
     window.localStorage.setItem(MEDICAL_RECOVERY_MARKER_KEY, marker);
     if (window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) !== marker || !hasMedicalRecoverySeparation()) {
       throw new Error("Medical recovery separation could not be preserved.");
@@ -987,7 +991,10 @@ async function getActiveAccessToken() {
     const centralMatchesLocal =
       typeof centralValue === "string" &&
       hasLocalValue &&
-      centralValue === localValue;
+      (centralValue === localValue || (key === SCHEDULE_STATE_KEY && centralJsonEquals(
+        stripCentralStateLocalUiFields(centralValue, SCHEDULE_LOCAL_UI_FIELDS),
+        stripCentralStateLocalUiFields(localValue, SCHEDULE_LOCAL_UI_FIELDS)
+      )));
     return centralMatchesLocal || Boolean(centralHash && localPendingHash && centralHash === localPendingHash);
   }
   function clearCentralPendingSyncFlag(key, metadataEntry = {}) {
@@ -1402,6 +1409,12 @@ async function getActiveAccessToken() {
     });
     return changed ? JSON.stringify(sharedState) : value;
   }
+  function centralJsonEquals(left, right) {
+    const sorted = (_, value) => value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, value[key]])) : value;
+    try { return JSON.stringify(JSON.parse(left), sorted) === JSON.stringify(JSON.parse(right), sorted); }
+    catch { return false; }
+  }
   function normalizePeriodizationCentralMultiValue(value) {
     const rawValues = Array.isArray(value) ? value : String(value ?? "").split("|");
     return [...new Set(rawValues.map((item) => String(item).trim()).filter(Boolean))];
@@ -1705,6 +1718,10 @@ async function getActiveAccessToken() {
             hydratedRevisionEntries.push([key, metadataEntry]);
             return;
           }
+          // Install the authorized view before a fallible recovery-marker write; keep edits blocked until durable.
+          setCentralCachedValue(key, readValue, {
+            source: "central-readonly-baseline", durable: false, serverBacked: true, readScope: getCentralReadScope(),
+          });
           preserveMedicalRecoverySeparation(pendingEntry);
           setCentralCachedValue(key, readValue, {
             source: "central-readonly-baseline", durable: false, serverBacked: true, readScope: getCentralReadScope(),
@@ -1858,6 +1875,10 @@ async function getActiveAccessToken() {
       } else {
         clearMissingCentralReadViews(entries, response.payload.absentKeys);
         const localEntries = collectCentralLocalStateEntries();
+        // Pending generations require their normal revision/generation-bound receipt, not an untracked batch seed.
+        Object.entries(readCentralSyncManifestEntries()).forEach(([key, entry]) => {
+          if (entry?.pendingCentralSync) delete localEntries[key];
+        });
         // A missing Sessions record is an empty authoritative baseline, not permission to restore a cache.
         delete localEntries[SESSION_PLANNER_STATE_KEY];
         const sessionClient = await getSessionSaveClient();
@@ -1930,7 +1951,14 @@ async function getActiveAccessToken() {
     if (isReadOnlyView()) return { ok: false, reason: "Read-only central view; local recovery copy retained." };
     const writeScope = getCentralReadScope(), writeToken = authState.session.access_token;
     const isCurrent = () => Boolean(writeScope) && writeScope === getCentralReadScope() && writeToken === authState.session?.access_token;
-    const staleResult = () => ({ ok: false, staleContext: true, reason: "Account or team changed. Local changes were retained." });
+    let requestStarted = false;
+    const staleResult = () => {
+      // A rotated token invalidates the old receipt, not a same-actor commit. Read again after that request settles.
+      if (requestStarted && writeScope && writeScope === getCentralReadScope()) window.setTimeout(() => {
+        if (writeScope === getCentralReadScope()) hydrateCentralState({ fresh: true }).catch(() => {});
+      }, 0);
+      return { ok: false, staleContext: true, reason: "Account or team changed. Local changes were retained." };
+    };
     if (!isCurrent()) return staleResult();
     try {
       centralState.localDev = false;
@@ -1978,6 +2006,7 @@ async function getActiveAccessToken() {
       }
       const path = transport?.canDecodeSessionTransport() ? `${API_APP_STATE}?sessionTransport=gzip-base64-v1` : API_APP_STATE;
       if (!isCurrent()) return staleResult();
+      requestStarted = true;
       const response = await apiRequest(path, {
         method: options.removed ? "DELETE" : "POST",
         body,

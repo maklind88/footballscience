@@ -832,6 +832,31 @@ call took 8.8 seconds. Neither host load nor unfinished module initialization is
 proven to be the sole cause. A further failure requires readiness/timing evidence,
 not unbounded reruns or increased timeouts.
 
+## Staging Storage Error Compatibility
+
+The corrected candidate `e3adf489` passed exact-SHA GitHub QA/CodeQL and the
+full local Safe Lane (3,625 passed, three optional skips). Staging run
+36645483793 published the candidate but failed three authenticated readiness
+checks: Sessions Storage reads returned HTTP 400. Main and production remained
+unchanged. A separate local GitHub TLS polling failure did not cancel staging.
+
+Read-only staging logs for 2026-09-29 23:40-23:46 UTC identified 92 Sessions
+requests with `NoSuchKey`, internal status 404, `Object not found`, and
+`service_role`. Supabase's StorageBackendError implementation serializes the
+specific status in the body while using HTTP 400 for compatibility. The API
+previously recognized only wire-level 404 as absence.
+
+The fix accepts HTTP 400 only with body statusCode 404 and explicit NoSuchKey,
+or the exact legacy not_found/Object not found shape without a conflicting code.
+Other 400s, authorization failures, missing buckets and contradictory status
+codes still fail closed. The modern wrapper regression failed before the fix;
+both storage/database modes and the negative matrix now pass (106/106 affected
+API tests). No source-data, credentials, permissions or database changes were
+made. New exact-SHA verification and staging remain mandatory.
+
+References: https://supabase.com/docs/guides/storage/debugging/error-codes and
+https://github.com/supabase/storage/blob/master/src/internal/errors/storage-error.ts.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

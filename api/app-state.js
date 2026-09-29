@@ -703,6 +703,11 @@ async function readStorageStateObject(key, options = {}) {
     const error = typeof result.payload === "string" ? safeParseJson(result.payload, {}) : result.payload;
     const code = String(error?.code || error?.error || "");
     if (result.status === 404 && (!code || ["NoSuchKey", "not_found", "Not Found"].includes(code))) return null;
+    // Storage can wrap a precise missing-object error in HTTP 400 for compatibility.
+    const wrappedMissingObject = result.status === 400 && String(error?.statusCode) === "404" && (
+      code === "NoSuchKey" || (!error?.code && error?.error === "not_found" && error?.message === "Object not found")
+    );
+    if (wrappedMissingObject) return null;
     throw new Error(`Central app-state storage read failed for ${key} (${result.status}).`);
   }
 

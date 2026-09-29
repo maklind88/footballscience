@@ -231,7 +231,8 @@ test(`fresh read reports authorized absence without confusing ${state} keys with
 }
 
 for (const mode of ["storage", "database"]) {
-for (const failure of ["unavailable", "denied", "malformed", "empty-record", "wrong-key", "missing-bucket"]) {
+for (const failure of ["unavailable", "denied", "malformed", "empty-record", "wrong-key", "missing-bucket",
+  "wrapped-denied", "wrapped-invalid-jwt", "wrapped-missing-bucket", "wrapped-unknown", "wrapped-wrong-status", "ambiguous-400"]) {
 test(`${mode} failed source read (${failure}) never proves absence or permits a write`, async () => {
   const env = snapshotEnv(), originalFetch = global.fetch;
   configureDatabaseMode();
@@ -246,6 +247,15 @@ test(`${mode} failed source read (${failure}) never proves absence or permits a 
       if (failure === "unavailable") return new Response('{"code":"InternalError"}', { status: 503 });
       if (failure === "denied") return new Response('{"code":"AccessDenied"}', { status: 403 });
       if (failure === "missing-bucket") return new Response('{"code":"NoSuchBucket"}', { status: 404 });
+      const wrappedErrors = {
+        "wrapped-denied": { statusCode: "403", code: "AccessDenied", message: "Access denied" },
+        "wrapped-invalid-jwt": { statusCode: "400", code: "InvalidJWT", message: "Invalid JWT" },
+        "wrapped-missing-bucket": { statusCode: "404", code: "NoSuchBucket", message: "Bucket not found" },
+        "wrapped-unknown": { statusCode: "404", code: "UnknownError", error: "not_found", message: "Object not found" },
+        "wrapped-wrong-status": { statusCode: "403", code: "NoSuchKey", message: "Object not found" },
+        "ambiguous-400": { error: "not_found", message: "Object not found" },
+      };
+      if (wrappedErrors[failure]) return new Response(JSON.stringify(wrappedErrors[failure]), { status: 400 });
       if (failure === "empty-record") return new Response("{}");
       return new Response(failure === "malformed" ? "not JSON" : JSON.stringify({ ...entry, key: "football-medical-team-v1" }));
     }
@@ -270,7 +280,7 @@ test(`${mode} failed source read (${failure}) never proves absence or permits a 
 }
 
 for (const mode of ["storage", "database"]) {
-for (const missing of ["404", "tombstone"]) {
+for (const missing of ["404", "wrapped-404", "legacy-wrapped-404", "tombstone"]) {
 test(`${mode} confirmed ${missing} still reports authorized absence`, async () => {
   const env = snapshotEnv(), originalFetch = global.fetch;
   configureDatabaseMode();
@@ -280,8 +290,10 @@ test(`${mode} confirmed ${missing} still reports authorized absence`, async () =
   const mock = createConsistencyFetchMock(entry);
   global.fetch = async (url, options = {}) => {
     const path = String(url);
-    if (missing === "404" && path.includes("/rest/v1/platform_app_state_records?")) return new Response("[]");
-    if (missing === "404" && path.includes(`/storage/v1/object/footballscience-app-state/${schedulePath}`) && (!options.method || options.method === "GET")) {
+    if (missing !== "tombstone" && path.includes("/rest/v1/platform_app_state_records?")) return new Response("[]");
+    if (missing !== "tombstone" && path.includes(`/storage/v1/object/footballscience-app-state/${schedulePath}`) && (!options.method || options.method === "GET")) {
+      if (missing === "wrapped-404") return new Response(JSON.stringify({ statusCode: "404", code: "NoSuchKey", error: "NoSuchKey", message: "Object not found" }), { status: 400 });
+      if (missing === "legacy-wrapped-404") return new Response(JSON.stringify({ statusCode: "404", error: "not_found", message: "Object not found" }), { status: 400 });
       return new Response('{"code":"NoSuchKey"}', { status: 404 });
     }
     return mock.fetchMock(url, options);

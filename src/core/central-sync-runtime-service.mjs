@@ -469,6 +469,19 @@ export function createCentralSyncRuntimeService(deps = {}) {
     for (let index = 0; index < writes.length; index += 1) {
       const write = writes[index];
       if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
+      if (write.key === "football-medical-team-v1" && write.pendingEntry &&
+          bridge.getCachedValueInfo?.(write.key)?.source !== "central-readonly-baseline") {
+        const entry = readManifest()?.entries?.[write.key];
+        const fields = ["hash", "writes", "updatedAt", "deletedAt", "principalScope", "pendingBaseRevision"];
+        // A verified read can acknowledge a lost receipt while its failed request is still queued.
+        if (entry?.pendingCentralSync === false && Number.isInteger(entry.serverRevision) &&
+            entry.serverRevision > Math.max(getCentralStateWriteBaseRevision(write), Number(write.pendingEntry.serverRevision) || 0) &&
+            fields.every((field) => entry[field] === write.pendingEntry[field]) && isCentralStateWriteGenerationCurrent(write)) {
+          conflictedWrites.delete(write.key);
+          reportSyncStatus(write.key, "saved", "Saved");
+          continue;
+        }
+      }
       if (isConflictedWrite(write)) {
         flushIssue = "Local changes need review";
         reportSyncStatus(write.key, "issue", flushIssue);

@@ -997,7 +997,7 @@ async function getActiveAccessToken() {
       )));
     return centralMatchesLocal || Boolean(centralHash && localPendingHash && centralHash === localPendingHash);
   }
-  function clearCentralPendingSyncFlag(key, metadataEntry = {}) {
+  function clearCentralPendingSyncFlag(key, metadataEntry = {}, expectedGeneration = null) {
     try {
       const raw = window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY);
       const manifest = raw ? JSON.parse(raw) : null;
@@ -1005,6 +1005,13 @@ async function getActiveAccessToken() {
       if (!entry?.pendingCentralSync) {
         return;
       }
+      if (expectedGeneration && (
+        medicalRecoveryGeneration(entry) !== medicalRecoveryGeneration(expectedGeneration.entry) ||
+        entry.principalScope !== expectedGeneration.entry.principalScope ||
+        entry.principalScope !== getCentralReadScope() ||
+        entry.pendingBaseRevision !== expectedGeneration.entry.pendingBaseRevision ||
+        nativeLocalStorageGetItem?.call(window.localStorage, key) !== expectedGeneration.value
+      )) return;
       const acknowledgedRevision = Number(metadataEntry?.revision);
       const currentRevision = Number(entry.serverRevision);
       entry.pendingCentralSync = false;
@@ -1646,7 +1653,16 @@ async function getActiveAccessToken() {
         if (key === MEDICAL_TEAM_STATE_KEY && pendingEntry.pendingCentralSync &&
             pendingEntry.principalScope === getCentralReadScope() &&
             window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) && !hasMedicalRecoverySeparation()) {
-          // A verified pending replacement is still a write, not a hydration acknowledgement.
+          // A lost receipt can be reconciled only by an exact post-write server generation.
+          const localValue = nativeLocalStorageGetItem?.call(window.localStorage, key);
+          const baseRevision = Number(pendingEntry.pendingBaseRevision ?? pendingEntry.serverRevision);
+          const revision = metadataEntry.revision;
+          if (Number.isInteger(baseRevision) && baseRevision >= 0 && Number.isInteger(revision) && revision > baseRevision &&
+              revision >= Math.max(Number(pendingEntry.serverRevision) || 0, Number(centralState.metadata[key]?.revision) || 0) &&
+              typeof localValue === "string" && centralJsonEquals(
+                stripCentralStateLocalUiFields(localValue, MEDICAL_LOCAL_UI_FIELDS),
+                stripCentralStateLocalUiFields(value, MEDICAL_LOCAL_UI_FIELDS)
+              )) clearCentralPendingSyncFlag(key, metadataEntry, { entry: pendingEntry, value: localValue });
           return;
         }
         if (key !== MEDICAL_TEAM_STATE_KEY && hasForeignPendingGeneration(key)) {

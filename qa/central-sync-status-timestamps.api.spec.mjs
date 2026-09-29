@@ -13,6 +13,34 @@ const projectionSource = source.slice(source.indexOf("  function medicalRecovery
 const normalizeUserSource = source.slice(source.indexOf("  function normalizeAuthUser("), source.indexOf("  function toFormError("));
 const apiRequestSource = source.slice(source.indexOf("  async function apiRequest("), source.indexOf("  function isCentralStateKey("));
 
+for (const mismatch of ["none", "generation", "owner", "base", "raw", "quota"]) {
+test(`Medical read acknowledgement rechecks the exact pending generation (${mismatch})`, () => {
+  const key = "football-medical-team-v1", manifestKey = "football-data-safety-v1";
+  const expected = { pendingCentralSync: true, hash: "draft", writes: 7, updatedAt: "original-time", deletedAt: "",
+    principalScope: "actor-a", pendingBaseRevision: 1, serverRevision: 1 };
+  const current = { ...expected };
+  if (mismatch === "generation") current.writes += 1;
+  if (mismatch === "owner") current.principalScope = "actor-b";
+  if (mismatch === "base") current.pendingBaseRevision += 1;
+  const raw = mismatch === "raw" ? "newer edit" : "draft";
+  const storage = new Map([[key, raw], [manifestKey, JSON.stringify({ entries: { [key]: current } })]]);
+  const before = storage.get(manifestKey);
+  const context = { DATA_SAFETY_MANIFEST_KEY: manifestKey, getCentralReadScope: () => "actor-a",
+    nativeLocalStorageGetItem: (key) => storage.get(key),
+    window: { localStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => {
+      if (mismatch === "quota") throw new Error("Storage unavailable");
+      storage.set(key, value);
+    } } },
+  };
+  const generation = source.slice(source.indexOf("  function medicalRecoveryGeneration("), source.indexOf("  function hasMedicalRecoverySeparation("));
+  const clear = source.slice(source.indexOf("  function clearCentralPendingSyncFlag("), source.indexOf("  function persistCentralHydrationRevisions("));
+  runInNewContext(`${generation}\n${clear}\nclearCentralPendingSyncFlag`, context)(key, { revision: 2 }, { entry: expected, value: "draft" });
+  if (mismatch === "none") expect(JSON.parse(storage.get(manifestKey)).entries[key]).toMatchObject({ pendingCentralSync: false, serverRevision: 2 });
+  else expect(storage.get(manifestKey)).toBe(before);
+  expect(storage.get(key)).toBe(raw);
+});
+}
+
 for (const phase of ["token", "fetch", "body"]) {
   for (const status of [200, 401]) {
     test(`scoped API response ${status} cannot escape or sign out the new actor after ${phase}`, async () => {

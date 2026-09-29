@@ -12,6 +12,31 @@ function createManifest() {
   };
 }
 
+for (const mismatch of ["none", "revision", "generation", "owner", "raw", "read-only"]) {
+test(`a queued failed Medical write retires only an exact read-acknowledged generation (${mismatch})`, async () => {
+  const key = "football-medical-team-v1";
+  const cachedInfo = { source: "local-write" };
+  const h = createServiceHarness({ revision: 1, cachedInfo, syncResult: { ok: false, status: 503, reason: "Lost receipt" } });
+  h.rawValues.set(key, "draft");
+  h.manifest.entries[key] = { label: "Medical", hash: "draft", writes: 7, updatedAt: "generation-a", serverRevision: 1 };
+  h.service.queueCentralStateWrite(key, "draft");
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(1);
+  const entry = h.manifest.entries[key];
+  entry.pendingCentralSync = false;
+  entry.serverRevision = mismatch === "revision" ? 1 : 2;
+  if (mismatch === "generation") entry.writes += 1;
+  if (mismatch === "owner") entry.principalScope = "another-owner";
+  if (mismatch === "raw") h.rawValues.set(key, "newer draft");
+  if (mismatch === "read-only") cachedInfo.source = "central-readonly-baseline";
+  const expected = structuredClone(entry);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(["none", "read-only"].includes(mismatch) ? 1 : 2);
+  expect(h.syncStatuses.some(([, status]) => status === "saved")).toBe(mismatch === "none");
+  expect(h.manifest.entries[key]).toEqual(expected);
+});
+}
+
 test("Medical read-only baseline never becomes a retry or acknowledgement even after access changes", async () => {
   const key = "football-medical-team-v1";
   const h = createServiceHarness({ cachedInfo: { source: "central-readonly-baseline", serverBacked: true } });

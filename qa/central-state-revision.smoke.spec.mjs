@@ -2717,6 +2717,111 @@ for (const { switchActor, reload, omitted } of [
   });
 }
 
+for (const rotateToken of [false, true]) {
+for (const newerDraft of [false, true]) {
+test(`Medical replacement reconciles a lost receipt without adopting a newer draft (token: ${rotateToken}, newer: ${newerDraft})`, async ({ browser, baseURL }) => {
+  const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, role: "coach", organization_id: "org-a" } };
+  const central = JSON.stringify({ players: [{ id: "ncc-2026-madison-white", name: "Madison White" }], records: [], injuryPlans: [] });
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [medicalTeamStateKey]: central }, metadataEntries: { [medicalTeamStateKey]: createMetadata(4, central) } };
+  let release, held = false;
+  const barrier = new Promise((resolve) => { release = resolve; });
+  const writes = [], reads = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], "medical-lost-receipt", {
+    fixedDate: "2026-09-28T12:00:00.000Z", sessionUser: profile, profileUser: profile,
+    appStateReadHandler: ({ request }) => { reads.push(request.headers().authorization); return null; },
+    appStateWriteHandler: async ({ body }) => {
+      if (body.key !== medicalTeamStateKey) return null;
+      writes.push(body);
+      const lostReceipt = body.value.includes("lost-receipt-edit") && !held;
+      if (lostReceipt) { held = true; await barrier; }
+      const metadata = store.metadataEntries[medicalTeamStateKey];
+      if (body.baseRevision !== metadata.revision) return { status: 409, body: { ok: false, currentRevision: metadata.revision } };
+      store.entries[medicalTeamStateKey] = body.value;
+      store.metadataEntries[medicalTeamStateKey] = createMetadata(metadata.revision + 1, body.value);
+      if (lostReceipt && !rotateToken) return { status: 503, body: { ok: false, reason: "Receipt lost after server commit" } };
+      return { body: { ok: true, key: body.key, value: body.value, metadata: store.metadataEntries[body.key] } };
+    },
+    initScript: ({ key, manifestKey }) => {
+      window.__qaNativeGetItem = Storage.prototype.getItem;
+      if (localStorage.getItem(key) !== null) return;
+      localStorage.setItem(key, '{"players":[],"records":[],"injuryPlans":[{"id":"private-legacy"}]}');
+      localStorage.setItem(manifestKey, JSON.stringify({ entries: { [key]: { pendingCentralSync: true, hash: "legacy", writes: 7 } } }));
+    }, initArg: { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey },
+  });
+  try {
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+    profile.app_metadata.role = "medical";
+    await tab.page.evaluate(async (user) => {
+      window.__qaSession = { access_token: "medical-token", user };
+      await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
+    }, profile);
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
+      const bridge = window.footballScienceCentralState;
+      return !bridge.getStatus().hydrating && bridge.getCachedValueInfo(key).source === "local-write" &&
+        !JSON.parse(localStorage.getItem(manifestKey)).entries[key].pendingCentralSync;
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toBe(true);
+    const originalRevision = store.metadataEntries[medicalTeamStateKey].revision;
+    const archives = await tab.page.evaluate(() => window.footballScienceDataSafety.createBackup().recoveryCopies);
+    await tab.page.evaluate((key) => {
+      const bridge = window.footballScienceCentralState, sync = bridge.syncKey;
+      bridge.syncKey = async (...args) => {
+        const result = await sync(...args);
+        if (args[0] === key && args[1].includes("lost-receipt-edit")) window.__qaReceiptSettled = true;
+        return result;
+      };
+      const value = JSON.parse(localStorage.getItem(key));
+      value.records = [{ id: "lost-receipt-edit", playerId: "ncc-2026-madison-white", date: "2026-09-28", status: "controlled",
+        participation: 50, actualParticipation: 50, comment: "", coachNote: "Original save", shareWithCoach: false,
+        rtpPhase: "modified-team", createdAt: "2026-09-28T10:00:00.000Z", updatedAt: "2026-09-28T10:00:00.000Z",
+        createdBy: "qa-user-1", archivedAt: "", archivedBy: "", archiveReason: "" }];
+      localStorage.setItem(key, JSON.stringify(value));
+    }, medicalTeamStateKey);
+    await expect.poll(() => held).toBe(true);
+    if (rotateToken) {
+      await tab.page.evaluate(async () => {
+        window.__qaSession = { ...window.__qaSession, access_token: "rotated-medical-token" };
+        await window.__qaAuthStateCallback("TOKEN_REFRESHED", window.__qaSession);
+      });
+      await expect.poll(() => reads.includes("Bearer rotated-medical-token")).toBe(true);
+      await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
+    }
+    if (newerDraft) await tab.page.evaluate((key) => {
+      const value = JSON.parse(localStorage.getItem(key)); value.records[0].coachNote = "Newer unsent edit";
+      localStorage.setItem(key, JSON.stringify(value));
+    }, medicalTeamStateKey);
+    release();
+    await tab.page.waitForFunction(() => window.__qaReceiptSettled);
+    expect(store.metadataEntries[medicalTeamStateKey].revision).toBe(originalRevision + 1);
+    await tab.page.evaluate((forceApply) => window.footballScienceCentralState.hydrate({ fresh: true, forceApply }), !rotateToken);
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
+      const entry = JSON.parse(localStorage.getItem(manifestKey)).entries[key];
+      return { pending: Boolean(entry.pendingCentralSync), revision: entry.serverRevision,
+        note: JSON.parse(window.__qaNativeGetItem.call(localStorage, key)).records[0].coachNote };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({ pending: newerDraft,
+      revision: originalRevision + (newerDraft ? 0 : 1), note: newerDraft ? "Newer unsent edit" : "Original save" });
+    expect(await tab.page.evaluate(() => window.footballScienceDataSafety.createBackup().recoveryCopies)).toEqual(archives);
+    expect(JSON.parse(store.entries[medicalTeamStateKey]).records[0].coachNote).toBe("Original save");
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+    await tab.page.waitForTimeout(400);
+    expect(writes.filter((body) => body.value.includes("lost-receipt-edit") && !body.value.includes("Newer unsent edit"))).toHaveLength(1);
+    if (!newerDraft) {
+      await tab.page.evaluate((key) => {
+        const value = JSON.parse(localStorage.getItem(key)); value.records[0].coachNote = "Follow-up save";
+        localStorage.setItem(key, JSON.stringify(value));
+      }, medicalTeamStateKey);
+      await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
+        const entry = JSON.parse(localStorage.getItem(manifestKey)).entries[key];
+        return { pending: Boolean(entry.pendingCentralSync), revision: entry.serverRevision };
+      }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({ pending: false, revision: originalRevision + 2 });
+      expect(writes.at(-1).baseRevision).toBe(originalRevision + 1);
+      expect(JSON.parse(store.entries[medicalTeamStateKey]).records[0].coachNote).toBe("Follow-up save");
+    }
+  } finally { release(); await closeCentralStateContext(tab.context); }
+});
+}
+}
+
 for (const fixedDate of ["2026-09-28T12:00:00.000Z", "2026-09-29T12:00:00.000Z"]) {
 for (const { acknowledged, manifestQuota, returnPending = false, conflict = false, returnCacheQuota = false } of [
   { acknowledged: false, manifestQuota: false },

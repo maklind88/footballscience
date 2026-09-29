@@ -535,6 +535,41 @@ Schedule revision assertion. `qa:static` and `git diff --check` passed with the
 same 84 existing architecture warnings. This correction changes six files
 inside the unchanged twelve-file PR scope. No merge or deploy was performed.
 
+## Review 5346935136: Lost Medical Replacement Receipts
+
+Exact-SHA QA and CodeQL passed for `64823780`, but independent review identified
+one additional P2: an owned Medical replacement was unconditionally excluded
+from hydration acknowledgements even after the server committed that exact
+generation. Both lost-response and same-principal token-rotation cases failed
+before correction; newer-draft protection already passed and is retained.
+
+- An owned replacement can be acknowledged by a verified read only when its
+  shared Medical payload is canonically identical and the incoming integer
+  revision exceeds its pending base without regressing known server revisions.
+  No raw cache rewrite or adoption of the archived recovery copy is performed.
+- The pending-clear boundary rechecks the captured generation, principal,
+  pending base and native value before writing the manifest. Newer generations,
+  changed owners/values/bases and failed persistence retain pending recovery.
+- A failed request can remain in the runtime queue after the fresh read has
+  acknowledged it. The queue retires only a matching Medical generation with
+  an advanced durable server revision and unchanged raw value. A read-only view,
+  pending=false alone, another generation or another owner is insufficient.
+  This prevents retrying the acknowledged write at its obsolete base revision.
+- Browser cases exercise the real coach-to-Medical replacement and recovery
+  archive, a server commit followed by a lost response or token rotation, fresh
+  reads, a concurrent newer edit, and a successful subsequent edit using the
+  acknowledged revision. Additional contracts cover stale generations and
+  persistence failure. A genuinely different server payload is not silently
+  treated as this write's receipt.
+
+Local verification: all 3,175 relevant tests passed (3,095 API/contracts,
+70 central-state browser cases and 10 Medical clinical cases). The sixteen new
+risks then passed ten repetitions each (160/160), including forced fresh reads
+after a lost HTTP receipt. `qa:static` and `git diff --check` passed with the
+same 84 existing architecture warnings. The correction stays within six files
+of the unchanged twelve-file PR scope. Fresh exact-SHA CI and independent review
+remain required; no merge, deployment or Live-data change was performed.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

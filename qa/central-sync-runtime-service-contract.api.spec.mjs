@@ -49,6 +49,79 @@ test("a previously hydrated runtime waits for the active reconciliation read bef
   expect(h.syncCalls).toHaveLength(2);
 });
 
+test("a failed deletion obtains a fresh receipt before an already scheduled retry can send", async () => {
+  const key = "football-medical-team-v1";
+  const h = createServiceHarness({ getReadScope: () => "actor-A", syncResult: { ok: false, status: 503 },
+    onHydrate: ({ manifest }) => Object.assign(manifest.entries[key], { pendingCentralSync: false, serverRevision: 8 }),
+  });
+  h.service.queueCentralStateWrite(key, "", { removed: true });
+  await h.service.flushCentralStateWrites();
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.filter((call) => !call.hydrate)).toHaveLength(1);
+  expect(h.syncCalls.filter((call) => call.hydrate)).toEqual([{ hydrate: true, options: { fresh: true } }]);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+});
+
+for (const failure of ["unavailable", "exception"]) {
+test(`a failed deletion remains pending without a retry loop when its receipt read fails (${failure})`, async () => {
+  const key = "football-medical-team-v1";
+  const options = { getReadScope: () => "actor-A", syncResult: { ok: false, status: 503 }, hydrateResult: false,
+    onHydrate: () => { if (failure === "exception") throw new Error("Read unavailable"); } };
+  const h = createServiceHarness(options);
+  h.service.queueCentralStateWrite(key, "", { removed: true });
+  const [firstId, start] = [...h.timers][0]; h.timers.delete(firstId); await start();
+  const pending = structuredClone(h.manifest.entries[key]);
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.filter((call) => !call.hydrate)).toHaveLength(1);
+  expect(h.manifest.entries[key]).toEqual(pending);
+  expect(h.rawValues.has(key)).toBe(false);
+  expect(h.timers.size).toBe(0);
+  options.hydrateResult = true;
+  options.onHydrate = ({ manifest }) => Object.assign(manifest.entries[key], { pendingCentralSync: false, serverRevision: 8 });
+  await h.service.retryCentral(() => h.manifest);
+  const [id, callback] = [...h.timers][0]; h.timers.delete(id); await callback();
+  expect(h.syncCalls.filter((call) => !call.hydrate)).toHaveLength(1);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+  expect(h.timers.size).toBe(0);
+});
+}
+
+for (const change of ["none", "generation", "value", "account", "access", "read-only"]) {
+test(`a deletion retry revalidates its owner and generation after the receipt read (${change})`, async () => {
+  const key = "football-medical-team-v1";
+  let scope = "actor-A", allowed = true, release, reading;
+  const entered = new Promise((resolve) => { reading = resolve; });
+  const barrier = new Promise((resolve) => { release = resolve; });
+  const cachedInfo = { source: "local-write" };
+  const h = createServiceHarness({ getReadScope: () => scope, canAutoSyncKey: () => allowed, cachedInfo,
+    syncResults: [{ ok: false, status: 503 }, { ok: true, revision: 8 }],
+    onHydrate: async () => { reading(); await barrier; },
+  });
+  h.service.queueCentralStateWrite(key, "", { removed: true, automatic: true });
+  const [firstId, start] = [...h.timers][0]; h.timers.delete(firstId); await start();
+  const retry = h.service.flushCentralStateWrites();
+  await entered;
+  if (change === "generation") h.manifest.entries[key].writes += 1;
+  if (change === "value") h.rawValues.set(key, "newer draft");
+  if (change === "account") scope = "actor-B";
+  if (change === "access") allowed = false;
+  if (change === "read-only") cachedInfo.source = "central-readonly-baseline";
+  const pending = structuredClone(h.manifest.entries[key]);
+  release(); await retry;
+  const requests = h.syncCalls.filter((call) => !call.hydrate);
+  expect(requests).toHaveLength(change === "none" ? 2 : 1);
+  if (change === "none") {
+    expect(requests[1]).toMatchObject({ key, value: "", options: { removed: true, baseRevision: 7 } });
+    expect(h.manifest.entries[key]).toMatchObject({ pendingCentralSync: false, serverRevision: 8 });
+  } else {
+    expect(h.manifest.entries[key]).toEqual(pending);
+    expect(h.syncStatuses.some(([, state]) => state === "saved")).toBe(false);
+  }
+  expect(h.rawValues.get(key)).toBe(change === "value" ? "newer draft" : undefined);
+  expect(h.timers.size).toBe(0);
+});
+}
+
 for (const receipt of [true, false, "newer edit"]) {
 test(`a failed deletion waits when reconciliation starts during an earlier queued write (receipt: ${receipt})`, async () => {
   const key = "football-medical-team-v1", other = "football-schedule-v1";
@@ -452,6 +525,33 @@ test("pending base stays distinct from a newer acknowledged revision during reco
   expect(h.manifest.entries[key]).toMatchObject({ serverRevision: 9, pendingBaseRevision: 1, pendingCentralSync: true });
 });
 
+for (const successor of ["none", "generation", "shared value", "array order", "owner"]) {
+test(`Schedule acknowledgement tolerates only key ordering within the same generation (${successor})`, async () => {
+  const key = "football-schedule-v1";
+  const value = '{"events":[{"id":"a","title":"Training"},{"id":"b","title":"Meeting"}],"dayNotes":{}}';
+  const reordered = '{"dayNotes":{},"events":[{"title":"Training","id":"a"},{"title":"Meeting","id":"b"}]}';
+  let release;
+  const h = createServiceHarness({ getReadScope: () => "actor-A", syncKey: () => new Promise((resolve) => { release = resolve; }) });
+  h.rawValues.set(key, value);
+  h.manifest.entries[key] = { hash: "original", writes: 1, updatedAt: "generation-a", serverRevision: 7 };
+  h.service.queueCentralStateWrite(key, value);
+  const flushing = h.service.flushCentralStateWrites();
+  await expect.poll(() => typeof release).toBe("function");
+  let current = reordered;
+  if (successor === "shared value") current = reordered.replace("Training", "New training");
+  if (successor === "array order") { const parsed = JSON.parse(reordered); parsed.events.reverse(); current = JSON.stringify(parsed); }
+  h.rawValues.set(key, current);
+  if (successor === "generation") h.manifest.entries[key].writes++;
+  if (successor === "owner") h.manifest.entries[key].principalScope = "actor-B";
+  release({ ok: true, value, revision: 8 });
+  await flushing;
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(successor !== "none");
+  expect(h.syncStatuses.some(([, status]) => status === "saved")).toBe(successor === "none");
+  if (successor !== "none") expect(h.rawValues.get(key)).toBe(current);
+  expect(h.syncCalls).toHaveLength(1);
+});
+}
+
 function createServiceHarness(options = {}) {
   const manifest = createManifest();
   const rawValues = new Map();
@@ -496,7 +596,7 @@ function createServiceHarness(options = {}) {
       },
       hydrate: async (hydrateOptions) => {
         syncCalls.push({ hydrate: true, options: hydrateOptions });
-        options.onHydrate?.({
+        await options.onHydrate?.({
           manifest,
           rawValues,
           setRevision: (nextRevision) => {

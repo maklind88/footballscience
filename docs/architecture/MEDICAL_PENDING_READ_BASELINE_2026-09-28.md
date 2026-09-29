@@ -706,6 +706,65 @@ complete API/browser suites. The seven focused risk cases passed 70/70 in ten
 repetitions. `git diff --check` passed. Exact-SHA CI and independent review remain
 required after committing this follow-up; nothing has been deployed by it.
 
+## Follow-Up: Schedule Normalization Is Not A New Shared Edit
+
+Exact-head CI for `10c99ec7` passed the deletion cases but failed two recovery
+checks. The Medical test observed revision 6 before the asynchronous read had
+finished; it now polls revision and terminal hydrating=false together using the
+existing timeout, rather than asserting the flag in a separate instant.
+
+The Schedule failure was subsequently reproduced locally (119/120 recovery
+repetitions passed, one failed). Its synthetic diagnostic showed the same
+generation and shared payload with event object keys reordered by normalization.
+The valid revision-1 receipt had been persisted, but byte equality rejected the
+local normalized value; it remained pending and retried at revision 0, receiving
+409. This is concrete evidence beyond the earlier untraced CI timeout.
+
+The acknowledgement path now accepts object-key-order equivalence for Schedule
+only, and only when hash, writes, updatedAt, deletedAt, owner and pending base
+revision still match the queued generation, no prepared write exists and no
+queued successor supersedes it. Array order and every value/field remain
+significant. The comparison does not normalize the persisted payload or strip
+UI/shared fields. A newer generation with identical content cannot use this
+receipt. Five source-service tests demonstrate the old positive case failing
+and four negative cases retaining newer/different/foreign data; all five pass
+with the correction. Temporary synthetic diagnostics were removed afterwards.
+
+## Follow-Up: A Lost Deletion Receipt Before Reconciliation Starts
+
+A subsequent 240-case risk repetition passed 238 cases and failed two original
+lost-delete cases. The trace showed the retry DELETE starting immediately before
+the fresh GET, not during it. A loading-state check alone cannot close this
+ordering: a failed response can hide a deletion already committed centrally.
+
+The runtime now requests a fresh central read before resending a failed deletion.
+An exact, advancing read receipt retires that generation without another DELETE.
+No receipt permits the original revision-guarded retry only after a successful
+read and renewed owner, generation, raw-value and automatic-access checks.
+An unavailable read leaves the tombstone pending without creating a self-retry
+loop; a later external recovery event can drain it. Newer edits, different
+owners and read-only projections cannot be acknowledged or deleted by this retry.
+
+The negative test reproduced two DELETE calls before this correction. Additional
+service cases cover failed/throwing reads, external recovery, a normal retry
+when no receipt exists, and generation/value/account/access/view changes during
+the awaited read. Existing browser cases exercise the real protected storage,
+HTTP DELETE, central read, acknowledgement and reload chain.
+
+All 16 browser risk cases passed ten repetitions (160/160). Eight added service
+cases initially left the original scheduled callback in the fake timer map by
+calling flush directly; the harness now consumes that callback as a browser
+timer would. With that correction, the complete 96-case service file passed ten
+repetitions (960/960), including the new failed-read and ownership boundaries.
+No product timeout, retry budget or test assertion was relaxed.
+
+Final local `npm run qa` on this follow-up completed with 3,616 passed and three
+optional fixture cases skipped. Static syntax, release, incident readiness,
+storage, text-input-save policy, platform security, migration-file safety,
+performance and architecture gates passed. Existing architecture warnings remain
+unchanged. Exact-SHA GitHub verification and fresh review remain release gates;
+no staging, main, production or Live-data mutation was performed.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

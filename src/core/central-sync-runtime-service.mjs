@@ -302,7 +302,26 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
   }
 
+  function reconcileScheduleAcknowledgementOrder(write) {
+    if (write.key !== scheduleStorageKey || write.removed || !write.pendingEntry) return write;
+    const value = rawGetItem(write.key), entry = readManifest()?.entries?.[write.key];
+    const fields = ["hash", "writes", "updatedAt", "deletedAt", "principalScope", "pendingBaseRevision"];
+    if (value === write.value || !entry?.pendingCentralSync || entry.localWritePrepared ||
+        fields.some((field) => entry[field] !== write.pendingEntry[field]) ||
+        !isCentralStateWriteGenerationCurrent({ ...write, value })) return write;
+    // Only object key order may change; array order, fields and values remain significant.
+    const ordered = (item) => Array.isArray(item) ? item.map(ordered)
+      : item && typeof item === "object" ? Object.fromEntries(Object.keys(item).sort().map((key) => [key, ordered(item[key])])) : item;
+    try {
+      if (JSON.stringify(ordered(JSON.parse(value))) === JSON.stringify(ordered(JSON.parse(write.value)))) {
+        return { ...write, value };
+      }
+    } catch { /* Malformed values cannot acknowledge a generation. */ }
+    return write;
+  }
+
   function finishAcknowledgedWrite(write, result) {
+    write = reconcileScheduleAcknowledgementOrder(write);
     const cached = getCentralStateBridge()?.getCachedValueInfo?.(write.key);
     // A read projection can refresh unrelated server fields without creating a
     // new edit. Only that exact draft generation may accept this receipt.
@@ -548,7 +567,25 @@ export function createCentralSyncRuntimeService(deps = {}) {
           }
           return false;
         }
-        result = !staged.ok ? staged : await bridge.syncKey(write.key, write.value, {
+        let retryReadOk = true;
+        if (write.retryAfterFailure && write.removed) {
+          // A failed response may hide a committed deletion. Read its receipt before resending.
+          retryReadOk = await Promise.resolve().then(() => bridge.hydrate?.({ fresh: true })).catch(() => false);
+          if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
+          if (write.readAcknowledged || wasWriteAcknowledgedByRead(write)) {
+            reportSyncStatus(write.key, "saved", "Saved");
+            continue;
+          }
+          const entry = readManifest()?.entries?.[write.key];
+          if (!isCentralStateWriteGenerationCurrent(write) || !entry?.pendingCentralSync ||
+              ["hash", "writes", "updatedAt", "deletedAt", "principalScope", "pendingBaseRevision"].some(
+                (field) => entry[field] !== write.pendingEntry?.[field])) continue;
+          if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline" ||
+              (write.automatic && bridge.canAutoSyncKey?.(write.key) === false)) continue;
+        }
+        result = !staged.ok ? staged : !retryReadOk
+          ? { ok: false, reason: "Central deletion could not be verified. Local changes were retained." }
+          : await bridge.syncKey(write.key, write.value, {
           removed: write.removed,
           baseRevision: getCentralStateWriteBaseRevision(write),
           ...(write.stage ? { sessionStaged: true } : {}),

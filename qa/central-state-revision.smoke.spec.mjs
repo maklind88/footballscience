@@ -2631,9 +2631,11 @@ test(`a token refresh during Medical loading drains a fresh read through the aut
     }
     release();
     expect(await tab.page.evaluate(() => window.__qaHeldHydration)).toBe(false);
-    await expect.poll(() => tab.page.evaluate((key) => window.footballScienceCentralState.getStatus().metadata[key]?.revision, medicalTeamStateKey)).toBe(6);
+    await expect.poll(() => tab.page.evaluate((key) => {
+      const status = window.footballScienceCentralState.getStatus();
+      return { revision: status.metadata[key]?.revision, hydrating: status.hydrating };
+    }, medicalTeamStateKey)).toEqual({ revision: 6, hydrating: false });
     expect(await tab.page.evaluate(() => window.__qaReadyRevisions)).not.toContain(5);
-    expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
     expect(await tab.page.evaluate(() => window.platformAuthStore.getCurrentUser()?.id)).toBe(profile.id);
     expect(await tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key)).records, medicalTeamStateKey)).toEqual(JSON.parse(nextValue).records);
   } finally { release(); await closeCentralStateContext(tab.context); }

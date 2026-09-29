@@ -534,6 +534,20 @@ export function createCentralSyncRuntimeService(deps = {}) {
         const staged = write.stage ? await (write.staged || write.stage()) : { ok: true };
         write.staged = null;
         if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
+        // Earlier requests can yield while a read starts or acknowledges this retry.
+        if (write.readAcknowledged || wasWriteAcknowledgedByRead(write)) {
+          reportSyncStatus(write.key, "saved", "Saved");
+          continue;
+        }
+        if (write.retryAfterFailure && bridge.getStatus?.()?.hydrating) {
+          for (const retained of writes.slice(index)) {
+            if (!centralStateWriteQueue.has(retained.key)) centralStateWriteQueue.set(retained.key, retained);
+          }
+          if (!centralStateWriteTimer) {
+            centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, centralStateHydrationRetryMs);
+          }
+          return false;
+        }
         result = !staged.ok ? staged : await bridge.syncKey(write.key, write.value, {
           removed: write.removed,
           baseRevision: getCentralStateWriteBaseRevision(write),

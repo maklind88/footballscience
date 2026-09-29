@@ -2761,15 +2761,26 @@ test("a Schedule manifest quota failure cannot expose or seed the rejected edit 
   } finally { await closeCentralStateContext(tab.context); }
 });
 
+for (const overlap of [false, true]) {
 for (const rotateToken of [false, true]) {
-test(`a committed deletion with a lost receipt is read-acknowledged without retry (token: ${rotateToken})`, async ({ browser, baseURL }) => {
+test(`a committed deletion with a lost receipt is read-acknowledged without retry (token: ${rotateToken}, mid-flush read: ${overlap})`, async ({ browser, baseURL }) => {
   const key = "football-dashboard-tutorial-prefs-v1", value = '{"dismissed":true}';
   const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
     entries: { [key]: value }, metadataEntries: { [key]: createMetadata(4, value) } };
-  let release, held = false;
+  let release, releaseOther, releaseRead, held = false, otherHeld = false, readHeld = false, holdReads = false;
   const barrier = new Promise((resolve) => { release = resolve; }), writes = [];
+  const otherBarrier = new Promise((resolve) => { releaseOther = resolve; });
+  const readBarrier = new Promise((resolve) => { releaseRead = resolve; });
   const tab = await bootCentralPage(browser, baseURL, store, [], "lost-delete-receipt", {
+    appStateReadHandler: async () => {
+      if (holdReads) { readHeld = true; await readBarrier; }
+      return null;
+    },
     appStateWriteHandler: async ({ body, request }) => {
+      if (overlap && body.key === scheduleStateKey && body.value?.includes("mid-flush-schedule")) {
+        otherHeld = true; await otherBarrier;
+        return null;
+      }
       if (body.key !== key) return null;
       writes.push({ body, method: request.method() });
       if (body.removed && !held) { held = true; await barrier; }
@@ -2788,23 +2799,37 @@ test(`a committed deletion with a lost receipt is read-acknowledged without retr
   try {
     await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
     const base = store.metadataEntries[key].revision;
-    await tab.page.evaluate((key) => {
+    await tab.page.evaluate(({ key, other }) => {
       const bridge = window.footballScienceCentralState, sync = bridge.syncKey;
       bridge.syncKey = async (...args) => {
         const result = await sync(...args);
         if (args[0] === key && args[2]?.removed) window.__qaDeleteSettled = true;
+        if (args[0] === other) window.__qaOtherSettled = true;
         return result;
       };
       localStorage.removeItem(key);
-    }, key);
+    }, { key, other: scheduleStateKey });
     await expect.poll(() => held).toBe(true);
+    if (overlap) await tab.page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ events: [
+      { id: "mid-flush-schedule", date: "2026-09-29", title: "Concurrent schedule", type: "training" },
+    ] })), scheduleStateKey);
     if (rotateToken) await tab.page.evaluate(async () => {
       window.__qaSession = { ...window.__qaSession, access_token: "rotated-delete-token" };
       await window.__qaAuthStateCallback("TOKEN_REFRESHED", window.__qaSession);
     });
     release();
     await tab.page.waitForFunction(() => window.__qaDeleteSettled);
-    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+    if (overlap) {
+      await expect.poll(() => otherHeld).toBe(true);
+      holdReads = true;
+      const reading = tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+      try {
+        await expect.poll(() => readHeld).toBe(true);
+        releaseOther();
+        await tab.page.waitForFunction(() => window.__qaOtherSettled);
+        expect(writes.filter(({ body }) => body.removed)).toHaveLength(1);
+      } finally { releaseRead(); await reading; }
+    } else await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
     await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
       const entry = JSON.parse(localStorage.getItem(manifestKey)).entries[key];
       return { pending: entry.pendingCentralSync, revision: entry.serverRevision, raw: localStorage.getItem(key) };
@@ -2814,8 +2839,9 @@ test(`a committed deletion with a lost receipt is read-acknowledged without retr
     expect(writes.filter(({ body }) => body.removed)).toHaveLength(1);
     expect(writes.find(({ body }) => body.removed).method).toBe("DELETE");
     expect(store.entries[key]).toBeUndefined();
-  } finally { release(); await closeCentralStateContext(tab.context); }
+  } finally { release(); releaseOther(); releaseRead(); await closeCentralStateContext(tab.context); }
 });
+}
 }
 
 for (const rotateToken of [false, true]) {

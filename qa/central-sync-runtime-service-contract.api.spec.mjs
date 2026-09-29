@@ -49,6 +49,51 @@ test("a previously hydrated runtime waits for the active reconciliation read bef
   expect(h.syncCalls).toHaveLength(2);
 });
 
+for (const receipt of [true, false, "newer edit"]) {
+test(`a failed deletion waits when reconciliation starts during an earlier queued write (receipt: ${receipt})`, async () => {
+  const key = "football-medical-team-v1", other = "football-schedule-v1";
+  let releaseDelete, releaseOther, attempts = 0;
+  const options = { hydrating: false, getReadScope: () => "actor-A", syncKey: ({ key: sent, value }) => {
+    if (sent === other) return new Promise((resolve) => { releaseOther = () => resolve({ ok: true, value, revision: 8 }); });
+    if (++attempts === 1) return new Promise((resolve) => { releaseDelete = () => resolve({ ok: false, status: 503 }); });
+    return { ok: true, revision: 8 };
+  } };
+  const h = createServiceHarness(options);
+  const fire = () => {
+    expect(h.timers.size).toBe(1);
+    const [id, callback] = [...h.timers][0]; h.timers.delete(id); return callback();
+  };
+  h.service.queueCentralStateWrite(key, "", { removed: true });
+  const first = fire();
+  await expect.poll(() => typeof releaseDelete).toBe("function");
+  h.rawValues.set(other, "new schedule");
+  h.service.queueCentralStateWrite(other, "new schedule");
+  releaseDelete(); await first;
+  const second = fire();
+  await expect.poll(() => typeof releaseOther).toBe("function");
+  options.hydrating = true;
+  releaseOther(); await second;
+  expect(attempts).toBe(1);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+  expect(h.rawValues.has(key)).toBe(false);
+  if (receipt === true) Object.assign(h.manifest.entries[key], { pendingCentralSync: false, serverRevision: 8 });
+  if (receipt === "newer edit") {
+    h.rawValues.set(key, "newer draft");
+    h.service.queueCentralStateWrite(key, "newer draft");
+    await fire();
+    expect(h.syncCalls.at(-1)).toMatchObject({ key, value: "newer draft", options: { removed: false } });
+    expect(h.rawValues.get(key)).toBe("newer draft");
+  }
+  options.hydrating = false;
+  await h.service.retryCentral(() => h.manifest);
+  if (h.timers.size) await fire();
+  expect(attempts).toBe(receipt === true ? 1 : 2);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+  expect(h.manifest.entries[other].pendingCentralSync).toBe(false);
+  expect(h.timers.size).toBe(0);
+});
+}
+
 for (const phase of ["before-raw", "after-raw", "after-delete"]) {
 test(`a prepared write resumes only when the durable raw generation matches after a crash (${phase})`, async () => {
   const h = createServiceHarness({ getReadScope: () => "actor-A", syncResult: { ok: true, revision: 8 } });

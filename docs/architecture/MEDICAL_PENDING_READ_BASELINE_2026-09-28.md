@@ -672,6 +672,40 @@ Final local verification of this follow-up:
   exact-SHA GitHub QA, CodeQL and independent review are required before release.
   No merge, staging, deployment or Live-data mutation was performed.
 
+## Release Follow-Up: Reconciliation Starting Mid-Flush
+
+Safe Lane for `55674b27` stopped before staging/main publication: 3,596 local QA
+cases passed, three skipped and the lost-delete-receipt case failed. The trace
+showed a second DELETE at base revision 4 after a fresh read began; the mock
+server had already committed revision 5 and rejected that retry with 409.
+
+The runtime checked active reconciliation only at the start of a queue flush.
+An earlier queued request could yield while a fresh read started, then the same
+flush continued into a failed write without checking the read again. The narrow
+fix rechecks for an exact read receipt and active reconciliation immediately
+before sending. A failed retry and its remaining queue are retained while the
+read is active; a newer queued edit is not replaced by the retained retry.
+New user writes are not globally blocked by this retry-only check.
+
+Deterministic service cases reproduce the mid-flush ordering and cover a valid
+read receipt, no receipt (normal retry still drains), and a newer local edit.
+The two initial cases fail without the fix. Browser cases now explicitly hold
+another protected write, start/hold the actual central GET, then release that
+write before releasing the GET. The unchanged assertion still requires exactly
+one DELETE, acknowledged absence, advancing revision and stable reload. The
+token-stable overlap case fails against the old runtime; all seven risk cases
+pass ten repetitions (70/70) with the fix.
+
+This follow-up changes only the shared sync service, its contract tests, the
+central-state browser tests and this evidence report. No API/schema/permission
+change, test timeout increase or automatic release retry is included.
+
+Final local `npm run qa`: 3,602 passed, three optional local-fixture cases skipped.
+This includes static/security/storage/release/Supabase/architecture gates and the
+complete API/browser suites. The seven focused risk cases passed 70/70 in ten
+repetitions. `git diff --check` passed. Exact-SHA CI and independent review remain
+required after committing this follow-up; nothing has been deployed by it.
+
 ## Remaining Platform Work
 
 Partial batch-failure isolation, freshness diagnostics, cross-device offline

@@ -32,6 +32,20 @@ export function createSessionSaveStore({ indexedDB = globalThis.indexedDB } = {}
     },
     // Pending/review rows deliberately live outside the rotating snapshot store.
     put: (record) => transact("readwrite", (store) => store.put({ ...record, id: `${prefix}${record.change.id}` })),
+    archiveReviewed: (original) => transact("readwrite", (store) => {
+      const request = store.get(`${prefix}${original.change.id}`);
+      request.onsuccess = () => {
+        const current = request.result;
+        if (current?.status !== "review" || current.scope !== original.scope ||
+            current.writer !== original.writer || current.createdAt !== original.createdAt ||
+            JSON.stringify(current.change) !== JSON.stringify(original.change)) {
+          request.transaction.abort();
+          return;
+        }
+        store.put({ ...current, status: "archived", resolvedAt: new Date().toISOString() });
+      };
+      return request;
+    }),
     replaceWithRebased: (original, rebased) => transact("readwrite", (store) => {
       const request = store.get(`${prefix}${original.change.id}`);
       request.onsuccess = () => {

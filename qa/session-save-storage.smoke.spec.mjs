@@ -5,6 +5,86 @@ async function boot(page) {
   await page.goto("/qa/session-save-harness");
 }
 
+test("review archival uses real IndexedDB CAS across tabs and survives reload", async ({ page, context }) => {
+  await boot(page);
+  const peer = await context.newPage();
+  await boot(peer);
+  const original = await page.evaluate(async () => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    const { createSessionDateChanges } = await import("/src/modules/session-planner/session-save-protocol.mjs");
+    const before = { sessions: {} }, after = { sessions: { "2026-09-10": { blocks: [{ id: "a", title: "Local A" }] } } };
+    const row = { change: createSessionDateChanges(before, after, () => "cas-review")[0], scope: "actor:team", writer: "A", createdAt: 1, status: "review" };
+    await createSessionSaveStore().put(row);
+    return row;
+  });
+  const newer = structuredClone(original);
+  newer.writer = "B"; newer.createdAt = 2; newer.change.after.session.blocks[0].title = "Newer B";
+  await peer.evaluate(async (row) => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    await createSessionSaveStore().put(row);
+  }, newer);
+  expect(await page.evaluate(async (row) => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    try { await createSessionSaveStore().archiveReviewed(row); return "unexpected success"; } catch { return "retained"; }
+  }, original)).toBe("retained");
+  await page.reload();
+  const result = await page.evaluate(async (expected) => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    const store = createSessionSaveStore();
+    const before = await store.list(expected.scope);
+    await store.archiveReviewed(before[0]);
+    return { before, after: await store.list(expected.scope) };
+  }, newer);
+  expect(result.before[0]).toMatchObject(newer);
+  expect(result.after[0]).toMatchObject({ ...newer, status: "archived" });
+  await peer.close();
+});
+
+test("bulk keep-central archives only listed reviews, retains newer edits and never sends", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await boot(page);
+  await page.evaluate(async () => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    const { createSessionSaveClient } = await import("/src/modules/session-planner/session-save-client.mjs");
+    const { createSessionDateChanges } = await import("/src/modules/session-planner/session-save-protocol.mjs");
+    const { openSessionSaveReview } = await import("/src/modules/session-planner/session-save-review.mjs");
+    const before = { sessions: { "2026-09-10": { date: "2026-09-10", blocks: [{ id: "a", title: "Before" }] } } };
+    const central = structuredClone(before); central.sessions["2026-09-10"].blocks[0].title = "Server";
+    const store = createSessionSaveStore();
+    for (const id of ["review-a", "review-b"]) {
+      const local = structuredClone(before); local.sessions["2026-09-10"].blocks[0].title = id;
+      await store.put({ scope: "actor:team", writer: id, createdAt: id === "review-a" ? 1 : 2, status: "review", change: createSessionDateChanges(before, local, () => id)[0] });
+    }
+    const client = createSessionSaveClient({ getScope: () => "actor:team", store, send: async () => { window.unwantedPosts++; throw new Error("No POST allowed"); } });
+    client.observe(JSON.stringify(central), { revision: 12 });
+    window.unwantedPosts = 0;
+    window.reviewClient = client;
+    window.reviewRows = () => store.list("actor:team");
+    window.stageNewEdit = async () => {
+      const edit = structuredClone(central); edit.sessions["2026-09-10"].blocks[0].minutes = 35;
+      await client.stage(JSON.stringify(edit), { previousValue: JSON.stringify(central) });
+    };
+    document.querySelector("#open").onclick = () => openSessionSaveReview({ document,
+      bridge: { hydrate: async () => true, getSessionSaveReviews: () => client.reviews(), resolveSessionSaveReview: (...args) => client.resolve(...args) },
+      legacy: { list: async () => [] }, canReview: () => true });
+  });
+  await page.getByRole("button", { name: "Review local saves", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("status")).toHaveText("2 local versions to review");
+  expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.evaluate(() => window.stageNewEdit());
+  page.once("dialog", (prompt) => prompt.accept());
+  await dialog.getByRole("button", { name: "Keep central for all listed versions", exact: true }).click();
+  await expect(dialog.getByRole("status")).toHaveText("No unresolved local versions.");
+  const result = await page.evaluate(async () => ({ rows: await window.reviewRows(), posts: window.unwantedPosts,
+    view: await window.reviewClient.project(), central: window.reviewClient.centralValue() }));
+  expect(result.posts).toBe(0);
+  expect(result.rows.filter((row) => row.status === "archived")).toHaveLength(2);
+  expect(result.rows.filter((row) => row.status === "pending")).toHaveLength(1);
+  expect(JSON.parse(result.central).sessions["2026-09-10"].blocks[0]).toEqual({ id: "a", title: "Server" });
+  expect(JSON.parse(result.view.value).sessions["2026-09-10"].blocks[0]).toMatchObject({ title: "Server", minutes: 35 });
+});
+
 test("two tabs and a reopened page project durable edits over fresh server fields without acknowledging them", async ({ page, context }) => {
   await boot(page);
   const day = "2026-09-25";
@@ -52,6 +132,34 @@ test("two tabs and a reopened page project durable edits over fresh server field
   expect(other.after).toEqual(a.before);
   await peer.close(); await reopened.close();
 });
+
+for (const failure of ["refresh", "account", "changed-review"]) {
+  test(`bulk keep-central stops safely on ${failure} and never chooses local`, async ({ page }) => {
+    await boot(page);
+    await page.evaluate(async (failure) => {
+      const { openSessionSaveReview } = await import("/src/modules/session-planner/session-save-review.mjs");
+      const local = { session: { date: "2026-09-10", title: "Local", blocks: [] }, tombstones: {} };
+      const central = { session: { date: "2026-09-10", title: "Central", blocks: [] }, tombstones: {} };
+      const rows = ["one", "two"].map((id) => ({ id, date: "2026-09-10", central, local, differences: [] }));
+      let reads = 0, allowed = true;
+      window.resolved = [];
+      document.querySelector("#open").onclick = () => openSessionSaveReview({ document,
+        bridge: { hydrate: async () => ++reads === 1 || failure !== "refresh" },
+        legacy: { list: async () => rows, resolve: async (row, useLocal) => {
+          window.resolved.push({ id: row.id, useLocal });
+          if (failure === "account") allowed = false;
+          return failure === "changed-review" ? { ok: false, reason: "Training changed. Open the review again." } : { ok: true };
+        } }, canReview: () => allowed });
+    }, failure);
+    await page.getByRole("button", { name: "Review local saves", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("status")).toHaveText("2 local versions to review");
+    page.once("dialog", (prompt) => prompt.accept());
+    await dialog.getByRole("button", { name: "Keep central for all listed versions", exact: true }).click();
+    await expect(dialog.getByRole("status")).toContainText(failure === "refresh" ? "could not be refreshed" : failure === "account" ? "Account or team changed" : "Training changed");
+    expect(await page.evaluate(() => window.resolved)).toEqual(failure === "refresh" ? [] : [{ id: "one", useLocal: false }]);
+  });
+}
 
 test("legacy cache archival is durable and never resets a reviewed copy", async ({ page }) => {
   await boot(page);

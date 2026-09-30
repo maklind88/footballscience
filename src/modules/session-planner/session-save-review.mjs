@@ -28,6 +28,25 @@ export async function openSessionSaveReview({ document: doc, bridge, legacy, onR
   let busy = false;
   dialog.addEventListener("cancel", (event) => { if (busy) event.preventDefault(); });
   const text = (value) => value === undefined || value === null ? "Not present" : typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  async function resolveRows(rows, useLocal) {
+    busy = true;
+    dialog.querySelectorAll("button").forEach((item) => { item.disabled = true; });
+    try {
+      if (bridge.hydrate && !await bridge.hydrate({ fresh: true })) throw new Error("Central training could not be refreshed. Local copies are retained.");
+      for (const row of rows) {
+        if (!canReview()) throw new Error("Account or team changed.");
+        const result = row.queued ? await bridge.resolveSessionSaveReview(row.change.id, useLocal, row.central) : await legacy.resolve(row, useLocal);
+        if (!result.ok) throw new Error(result.reason || "Review could not be saved.");
+      }
+      if (!canReview()) throw new Error("Account or team changed.");
+      await onResolved();
+      await render();
+    } catch (error) { status.textContent = error.message || "Review could not be saved."; }
+    finally {
+      busy = false;
+      dialog.querySelectorAll("button").forEach((item) => { item.disabled = false; });
+    }
+  }
   async function render() {
     if (!canReview()) { dialog.close(); return; }
     if (bridge.hydrate && !await bridge.hydrate({ fresh: true })) throw new Error("Central training could not be refreshed. Local copies are retained.");
@@ -38,6 +57,17 @@ export async function openSessionSaveReview({ document: doc, bridge, legacy, onR
     const rows = [...queued.map((row) => ({ ...row, date: row.change.date, local: row.change.after,
       differences: describeSessionDifferences(row.central, row.change.after, row.change.date), queued: true })), ...old];
     status.textContent = rows.length ? `${rows.length} local version${rows.length === 1 ? "" : "s"} to review` : "No unresolved local versions.";
+    if (rows.length > 1) {
+      const keepCentral = doc.createElement("button");
+      keepCentral.type = "button";
+      keepCentral.textContent = "Keep central for all listed versions";
+      keepCentral.addEventListener("click", async () => {
+        if (busy || !canReview()) return;
+        if (!doc.defaultView.confirm(`Keep central for these ${rows.length} local versions? Local copies will remain archived. New edits are not included.`)) return;
+        await resolveRows(rows, false);
+      });
+      content.append(keepCentral);
+    }
     for (const row of rows) {
       const section = doc.createElement("section");
       const heading = doc.createElement("h3"); heading.textContent = `${row.date} - ${row.local.session?.title || "Training"}`;
@@ -60,20 +90,7 @@ export async function openSessionSaveReview({ document: doc, bridge, legacy, onR
         button.addEventListener("click", async () => {
           if (busy || !canReview()) return;
           if (!doc.defaultView.confirm(`${label} for ${row.date}? The local copy will remain archived.`)) return;
-          busy = true; close.disabled = true;
-          dialog.querySelectorAll("footer button").forEach((item) => { item.disabled = true; });
-          try {
-            if (bridge.hydrate && !await bridge.hydrate({ fresh: true })) throw new Error("Central training could not be refreshed. Local copies are retained.");
-            if (!canReview()) throw new Error("Account or team changed.");
-            const result = row.queued ? await bridge.resolveSessionSaveReview(row.change.id, useLocal, row.central) : await legacy.resolve(row, useLocal);
-            if (!result.ok) throw new Error(result.reason || "Review could not be saved.");
-            await onResolved();
-            await render();
-          } catch (error) { status.textContent = error.message || "Review could not be saved."; }
-          finally {
-            busy = false; close.disabled = false;
-            dialog.querySelectorAll("footer button").forEach((item) => { item.disabled = false; });
-          }
+          await resolveRows([row], useLocal);
         });
         actions.append(button);
       }

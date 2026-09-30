@@ -1194,6 +1194,32 @@ for (const scenario of ["observed successor", "independent stale edit", "conflic
       } else await expect(field(b, "title")).toHaveValue("Before");
       const changedField = scenario === "independent stale edit" ? "objective" : "title";
       await field(b, changedField).fill("Coach B edit"); await field(b, changedField).dispatchEvent("change");
+      if (scenario === "conflicting stale edit") {
+        await expect(b.locator('[data-platform-autosave-status]')).toHaveClass(/is-issue/);
+        expect(accepted).toHaveLength(1);
+        expect(centralBlock().title).toBe("Coach A accepted");
+        await b.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }));
+        await expect(field(b, "title")).toHaveValue("Coach A accepted");
+        const reviews = await b.evaluate(() => window.footballScienceCentralState.getSessionSaveReviews());
+        expect(reviews).toHaveLength(1);
+        expect(reviews[0].change.after.session.blocks[0].title).toBe("Coach B edit");
+        const sentBeforeReview = requests.length;
+        await b.getByRole("button", { name: "Review local saves", exact: true }).click();
+        const reviewDialog = b.getByRole("dialog", { name: "Review local saves" });
+        await expect(reviewDialog.getByRole("status")).toHaveText("1 local version to review");
+        b.once("dialog", (prompt) => prompt.accept());
+        await reviewDialog.getByRole("button", { name: "Keep central version", exact: true }).click();
+        await expect(reviewDialog.getByRole("status")).toHaveText("No unresolved local versions.");
+        await expect.poll(() => readLocal(b)).toMatchObject({ block: { title: "Coach A accepted" }, pending: false });
+        expect(requests).toHaveLength(sentBeforeReview);
+        expect(accepted).toHaveLength(1);
+        await b.reload({ waitUntil: "domcontentloaded" }); await openEditor(b);
+        await expect(field(b, "title")).toHaveValue("Coach A accepted");
+        expect(await b.evaluate(() => window.footballScienceCentralState.getSessionSaveReviews())).toEqual([]);
+        expect(requests.map((body) => Number(body.baseRevision))).toEqual([7, 7, 8]);
+        expect(centralStore.metadataEntries[sessionPlannerStateKey].revision).toBe(8);
+        return;
+      }
       await expect(b.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
       expect(accepted).toHaveLength(2);
       const expected = { title: scenario === "independent stale edit" ? "Coach A accepted" : "Coach B edit",
@@ -1215,7 +1241,7 @@ for (const scenario of ["observed successor", "independent stale edit", "conflic
       await a.reload({ waitUntil: "domcontentloaded" }); await openEditor(a);
       await expect(field(a, "title")).toHaveValue(expected.title);
       await expect(field(a, "objective")).toHaveValue(expected.objective);
-      expect(requests.map((body) => Number(body.baseRevision))).toEqual(scenario === "conflicting stale edit" ? [7, 7, 8, 8] : observesLatest ? [7, 8] : [7, 7, 8]);
+      expect(requests.map((body) => Number(body.baseRevision))).toEqual(observesLatest ? [7, 8] : [7, 7, 8]);
       expect(centralStore.metadataEntries[sessionPlannerStateKey].revision).toBe(9);
     } finally { releaseFirst(); for (const tab of tabs) await closeCentralStateContext(tab.context); }
   });

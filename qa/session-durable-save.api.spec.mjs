@@ -196,6 +196,11 @@ function harness(options = {}) {
     archiveLocal: async (value, context) => { if (state.failArchive) throw new Error("Archive storage full"); state.archived.push({ value, context }); },
     list: async (scope) => Array.from(rows.values()).filter((row) => row.scope === scope).map(copy),
     put: async (row) => { if (state.failStore) throw new Error("Local storage full"); rows.set(row.change.id, copy(row)); },
+    archiveReviewed: async (row) => {
+      if (state.failStore) throw new Error("Local storage full");
+      if (JSON.stringify(rows.get(row.change.id)) !== JSON.stringify(row)) throw new Error("Review changed");
+      rows.set(row.change.id, { ...copy(row), status: "archived" });
+    },
     replaceWithRebased: async (original, rebased) => {
       if (state.failStore) throw new Error("Local storage full");
       rows.set(original.change.id, { ...copy(original), status: "archived" });
@@ -243,6 +248,47 @@ test("the read view overlays only journal deltas without changing the server bas
   expect((await client.project()).value).toBe(view.value);
 });
 
+test("review copies and their dependent successors never replace the central read view", async () => {
+  const h = harness(), client = h.client(), before = initial(), local = copy(before);
+  local.sessions[date].blocks[0].objective = "Rejected local objective";
+  h.state.central.sessions[date].blocks[0].objective = "Accepted central objective";
+  expect((await client.save(JSON.stringify(local), { previousValue: JSON.stringify(before) })).reviewRequired).toBe(true);
+  const dependent = copy(local);
+  dependent.sessions[date].blocks[0].objective = "Dependent local objective";
+  await client.stage(JSON.stringify(dependent), { previousValue: JSON.stringify(local) });
+  const independent = copy(dependent);
+  independent.sessions[date].blocks[0].minutes = 35;
+  await client.stage(JSON.stringify(independent), { previousValue: JSON.stringify(dependent) });
+  client.observe(JSON.stringify(h.state.central), { revision: 11 });
+  const rows = copy([...h.rows.values()]), sent = copy(h.state.sent);
+  const view = await client.project();
+  expect(JSON.parse(view.value).sessions[date].blocks[0]).toMatchObject({ objective: "Accepted central objective", minutes: 35 });
+  expect(view.pending).toBe(true);
+  expect([...h.rows.values()]).toEqual(rows);
+  expect(h.state.sent).toEqual(sent);
+  expect(JSON.parse((await h.client().project()).value).sessions[date].blocks[0].objective).toBe("Accepted central objective");
+});
+
+test("keeping central archives only the selected review without uploading independent pending edits", async () => {
+  const h = harness(), client = h.client(), before = initial(), local = copy(before);
+  local.sessions[date].blocks[0].objective = "Local conflict";
+  h.state.central.sessions[date].blocks[0].objective = "Central objective";
+  await client.save(JSON.stringify(local), { previousValue: JSON.stringify(before) });
+  client.observe(JSON.stringify(h.state.central), { revision: 11 });
+  const edit = copy(h.state.central);
+  edit.sessions["2026-09-09"].title = "New independent draft";
+  await client.stage(JSON.stringify(edit), { previousValue: JSON.stringify(h.state.central) });
+  const [review] = await client.reviews();
+  const pending = copy([...h.rows.values()].find((row) => row.status === "pending"));
+  const central = copy(h.state.central), sent = copy(h.state.sent);
+  expect((await client.resolve(review.change.id, false, review.central)).ok).toBe(true);
+  expect(h.state.sent).toEqual(sent);
+  expect(h.state.central).toEqual(central);
+  expect(h.rows.get(review.change.id)).toMatchObject({ status: "archived", change: review.change });
+  expect(h.rows.get(pending.change.id)).toEqual(pending);
+  expect(await client.isSettled()).toBe(false);
+});
+
 test("a not-yet-durable draft remains visible during refresh and journal failure without becoming saved", async () => {
   const h = harness(), client = h.client();
   const before = copy(h.state.central), local = copy(before);
@@ -260,6 +306,32 @@ test("a not-yet-durable draft remains visible during refresh and journal failure
   expect((await client.replay()).ok).toBe(true);
   expect(await client.project()).toMatchObject({ pending: false });
   expect(h.state.central.sessions[date].blocks[0]).toMatchObject({ title: "Unstaged title", minutes: 40 });
+});
+
+test("failed review archival retains the exact local version and sends nothing", async () => {
+  const h = harness(), client = h.client(), before = initial(), local = copy(before);
+  local.sessions[date].title = "Local";
+  h.state.central.sessions[date].title = "Central";
+  await client.save(JSON.stringify(local), { previousValue: JSON.stringify(before) });
+  client.observe(JSON.stringify(h.state.central), { revision: 11 });
+  const [review] = await client.reviews(), rows = copy([...h.rows.values()]), sent = copy(h.state.sent);
+  h.state.failStore = true;
+  expect((await client.resolve(review.change.id, false, review.central)).ok).toBe(false);
+  expect([...h.rows.values()]).toEqual(rows);
+  expect(h.state.sent).toEqual(sent);
+});
+
+test("a principal change during review lookup cannot archive the previous actor's version", async () => {
+  const h = harness(), client = h.client(), before = initial(), local = copy(before);
+  local.sessions[date].title = "Local";
+  h.state.central.sessions[date].title = "Central";
+  await client.save(JSON.stringify(local), { previousValue: JSON.stringify(before) });
+  client.observe(JSON.stringify(h.state.central), { revision: 11 });
+  const [review] = await client.reviews(), rows = copy([...h.rows.values()]);
+  const list = h.store.list;
+  h.store.list = async (scope) => { const result = await list(scope); h.state.scope = "other:org:team"; return result; };
+  expect((await client.resolve(review.change.id, false, review.central)).ok).toBe(false);
+  expect([...h.rows.values()]).toEqual(rows);
 });
 
 test("projection cannot resurrect a server-deleted exercise or adopt another account's draft", async () => {
@@ -319,7 +391,7 @@ test("a projection rereads after an acknowledgement changes its journal snapshot
   expect(JSON.parse(result.value)).toEqual(h.state.central);
 });
 
-test("a current local edit rebases once over a colleague's same-field change", async () => {
+test("even a recent local text conflict retains the accepted server version until explicit review", async () => {
   const h = harness({ autoRebase: true }), client = h.client();
   const before = copy(h.state.central), local = copy(before);
   h.state.central.sessions[date].blocks[0].objective = "Colleague";
@@ -327,12 +399,13 @@ test("a current local edit rebases once over a colleague's same-field change", a
   h.state.revision++;
   local.sessions[date].blocks[0].objective = "My latest edit";
   const result = await client.save(JSON.stringify(local), { previousValue: JSON.stringify(before) });
-  expect(result.ok).toBe(true);
-  expect(h.state.central.sessions[date].blocks[0]).toMatchObject({ objective: "My latest edit", minutes: 30 });
-  expect(h.state.sent).toHaveLength(2);
+  expect(result).toMatchObject({ ok: false, reviewRequired: true });
+  expect(h.state.central.sessions[date].blocks[0]).toMatchObject({ objective: "Colleague", minutes: 30 });
+  expect(h.state.sent).toHaveLength(1);
   expect(h.rows.size).toBe(1);
-  expect([...h.rows.values()][0]).toMatchObject({ status: "archived" });
-  expect(await client.reviews()).toEqual([]);
+  expect([...h.rows.values()][0]).toMatchObject({ status: "review" });
+  expect(await client.reviews()).toHaveLength(1);
+  expect(JSON.parse((await client.project()).value).sessions[date].blocks[0]).toMatchObject({ objective: "Colleague", minutes: 30 });
 });
 
 test("a previous-tab local edit remains for review and never overwrites a colleague", async () => {
@@ -375,7 +448,7 @@ test("a recent tactical board conflict is never automatically overwritten", asyn
   expect(h.state.sent).toHaveLength(1);
 });
 
-test("a failed durable rebase cannot send an unjournaled local winner", async () => {
+test("failed durable conflict marking cannot send an unjournaled local winner", async () => {
   const h = harness({ autoRebase: true }), client = h.client();
   const before = copy(h.state.central), local = copy(before);
   local.sessions[date].blocks[0].objective = "Local";
@@ -391,7 +464,7 @@ test("a failed durable rebase cannot send an unjournaled local winner", async ()
   expect([...h.rows.values()].filter((row) => row.status === "pending")).toHaveLength(1);
 });
 
-test("a temporary fresh-read failure keeps the edit pending until retry succeeds", async () => {
+test("a temporary fresh-read failure cannot authorize a later automatic local winner", async () => {
   let available = false;
   let h;
   h = harness({ autoRebase: true, getLatest: async () => available ?
@@ -402,12 +475,13 @@ test("a temporary fresh-read failure keeps the edit pending until retry succeeds
   h.state.revision++;
   const first = await client.save(JSON.stringify(local), { previousValue: JSON.stringify(before) });
   expect(first).toMatchObject({ ok: false, durablePending: true });
-  expect(await client.reviews()).toEqual([]);
-  expect([...h.rows.values()].filter((row) => row.status === "pending")).toHaveLength(1);
+  expect(await client.reviews()).toHaveLength(1);
+  expect([...h.rows.values()].filter((row) => row.status === "review")).toHaveLength(1);
   available = true;
-  expect((await client.replay()).ok).toBe(true);
-  expect(h.state.central.sessions[date].blocks[0].objective).toBe("My active edit");
-  expect([...h.rows.values()].filter((row) => row.status === "pending")).toHaveLength(0);
+  expect((await client.replay()).reviewRequired).toBe(true);
+  expect(h.state.central.sessions[date].blocks[0].objective).toBe("Colleague");
+  expect(h.state.sent).toHaveLength(1);
+  expect([...h.rows.values()].filter((row) => row.status === "review")).toHaveLength(1);
 });
 
 test("staging before hydration retains the first edit's baseline for later retries", async () => {

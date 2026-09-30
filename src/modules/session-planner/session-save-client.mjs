@@ -2,14 +2,7 @@ import { applySessionDateChange, createSessionDateChanges, replaceSessionDate, s
 import { createSessionSaveStore } from "./session-save-store.mjs";
 import { sessionChangesOverlap } from "./session-save-dependencies.mjs";
 
-const autoRebaseTextFields = new Set(["title", "focus", "objective", "why", "organization", "material", "principles", "postSessionNotes"]);
-
-function isTextFieldConflict(change, path) {
-  return change.after.session.blocks.some((block) => Array.from(autoRebaseTextFields).some((field) =>
-    path === `${change.date}.session.blocks.${block.id}.${field}` && typeof block[field] === "string"));
-}
-
-export function createSessionSaveClient({ getScope, getLatest, send, store = createSessionSaveStore(), makeId, onReview = () => {}, now = Date.now }) {
+export function createSessionSaveClient({ getScope, getLatest, send, store = createSessionSaveStore(), makeId, onReview = () => {} }) {
   let baseline = null;
   let revision = 0;
   let scope = "";
@@ -71,9 +64,19 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
       // snapshot. Its receipt must be included before that drain can finish.
       if (pending.length && replayFlight?.expected === expected) replayFlight.recheck = true;
       let visible = copy(baseline);
-      // This is a read projection only. Conflicting edits stay in the journal;
-      // displaying one never rebases, sends or acknowledges it on the server.
-      for (const change of [...pending.map((row) => row.change), ...localDrafts.flatMap((draft) => draft.changes)]) {
+      // Reviewed conflicts remain recoverable, but must not mask accepted data.
+      // Dependent successors stay separate until their predecessor is resolved.
+      const blocked = [];
+      for (const row of pending) {
+        if (row.status === "review" || blocked.some((change) => sessionChangesOverlap(change, row.change))) {
+          blocked.push(row.change);
+          continue;
+        }
+        const merged = applySessionDateChange(visible, row.change);
+        if (!merged.ok) { blocked.push(row.change); continue; }
+        visible = merged.state;
+      }
+      for (const change of localDrafts.flatMap((draft) => draft.changes)) {
         visible = applySessionDateChange(visible, change, { preferLocalOnConflict: true }).state;
       }
       return { value: JSON.stringify(visible), revision, pending: Boolean(pending.length || localDrafts.length),
@@ -87,7 +90,7 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
     const blocked = [];
     let metadata = { revision };
     let issue = "";
-    for (let row of rows) {
+    for (const row of rows) {
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       if (row.status === "archived") continue;
       if (row.status === "review" || blocked.some((change) => sessionChangesOverlap(change, row.change))) {
@@ -101,42 +104,15 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
       if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
       if (!result.ok) {
         if (result.status === 409 && result.payload?.conflicts?.length) {
-          const checkedAt = now();
-          const isRecentOwnEdit = row.writer === writer && !row.autoRebased &&
-            checkedAt - Math.floor(row.createdAt / 1000) >= 0 &&
-            checkedAt - Math.floor(row.createdAt / 1000) <= 60000;
-          if (isRecentOwnEdit && result.payload.conflicts.every((path) => isTextFieldConflict(row.change, path)) &&
-              typeof getLatest === "function" && typeof store.replaceWithRebased === "function") {
-            const latest = await getLatest(expected).catch(() => null);
-            if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
-            const freshRevision = Number(latest?.metadata?.revision);
-            if (typeof latest?.value !== "string" || !Number.isInteger(freshRevision) ||
-                freshRevision < Number(result.payload.currentRevision) || freshRevision < 1) {
-              return failure("Saved locally; waiting for a fresh central version.", { durablePending: true });
-            }
-            const freshState = JSON.parse(latest.value);
-            const merged = applySessionDateChange(freshState, row.change, { preferLocalOnConflict: true });
-            if (merged.conflicts.every((path) => isTextFieldConflict(row.change, path))) {
-              const rebased = {
-                ...row,
-                change: {
-                  ...row.change,
-                  id: makeId ? makeId() : globalThis.crypto.randomUUID(),
-                  before: sessionDateValue(freshState, row.change.date),
-                  after: sessionDateValue(merged.state, row.change.date),
-                },
-                autoRebased: true,
-                createdAt: now() * 1000 + sequence++,
-              };
-              await store.replaceWithRebased(row, rebased);
-              row = rebased;
-              observe(latest.value, latest.metadata);
-              result = await send(row.change, revision, expected);
-              if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
-            }
+          // A fresh read updates the view; it never authorizes overwriting a colleague.
+          const latest = typeof getLatest === "function" ? await getLatest(expected).catch(() => null) : null;
+          if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+          const freshRevision = Number(latest?.metadata?.revision);
+          if (typeof latest?.value === "string" && Number.isInteger(freshRevision) && freshRevision >= 1 &&
+              freshRevision >= Number(result.payload.currentRevision) && freshRevision >= revision) {
+            observe(latest.value, latest.metadata);
+            metadata = { ...latest.metadata, revision };
           }
-        }
-        if (result.status === 409 && result.payload?.conflicts?.length) {
           await store.put({ ...row, status: "review", conflicts: result.payload.conflicts });
           blocked.push(row.change); issue = "Local changes need review"; continue;
         }
@@ -271,9 +247,17 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
     const work = serial.then(async () => {
       if (!current(expected) || !baseline) return failure("Account or team changed.");
       const row = (await store.list(expected)).find((item) => item.change.id === id && item.status === "review");
+      if (!current(expected)) return failure("Account or team changed.");
       if (!row) return failure("This review has changed. Open it again.");
       const central = sessionDateValue(baseline, row.change.date);
       if (!sameSessionValue(central, expectedCentral)) return failure("Training changed since review. Review the latest version.");
+      if (!keepLocal) {
+        await store.archiveReviewed(row);
+        if (!current(expected)) return failure("Account or team changed.");
+        viewVersion++;
+        // Keeping the server version is local-only, not permission to drain other edits.
+        return { ok: true };
+      }
       if (keepLocal) {
         // Resolve only this edit, never replace unrelated changes accepted since it.
         const merged = applySessionDateChange(baseline, row.change, { preferLocalOnConflict: true });

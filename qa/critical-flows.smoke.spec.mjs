@@ -3613,6 +3613,53 @@ test("Schedule Planner supports modifier multi-select and confirms every delete"
     .toBeUndefined();
 });
 
+test("Schedule note resize preserves a draft and an in-progress clear confirmation click", async ({ page }) => {
+  const date = "2026-05-11";
+  const saved = "Keep this note until deletion is confirmed";
+  await page.addInitScript(({ key, date, saved }) => {
+    localStorage.setItem(key, JSON.stringify({
+      selectedYear: 2026, selectedMonthIndex: 4, selectedDate: date,
+      viewMode: "planner", overviewSpan: 3, importVersion: "ncc-2026-numbers-v1",
+      dayNotes: { [date]: saved }, events: [],
+    }));
+  }, { key: scheduleKey, date, saved });
+  await bootApp(page);
+  await openWorkspace(page, "schedule");
+  await page.locator(`.schedule-planner-date[data-schedule-date="${date}"]`).click({ button: "right" });
+  await page.locator(`.schedule-planner-context-menu [data-open-schedule-day-note="${date}"]`).click();
+  const note = page.locator(`[data-schedule-day-note="${date}"]`);
+  const clear = page.locator(`[data-clear-schedule-day-note="${date}"]`);
+  await note.fill("Unsaved note draft");
+  await clear.hover();
+  const original = await clear.elementHandle();
+  await page.clock.install();
+  await page.mouse.down();
+  // Run the real resize debounce between pointer down and up, not a second click.
+  await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+  await page.clock.runFor(200);
+  await page.mouse.up();
+  await expect(page.locator(".platform-confirm-dialog h2")).toHaveText("Clear note?");
+  expect(await original.evaluate((element) => element.isConnected)).toBe(true);
+  await page.locator(".platform-confirm-dialog [data-platform-confirm-cancel]").last().click();
+  await expect(page.locator(".platform-confirm-dialog")).toHaveCount(0);
+  await expect(note).toHaveValue("Unsaved note draft");
+  expect(await page.evaluate(({ key, date }) => JSON.parse(localStorage.getItem(key)).dayNotes[date],
+    { key: scheduleKey, date })).toBe(saved);
+
+  await note.focus();
+  await page.setViewportSize({ width: 800, height: 720 });
+  await page.clock.runFor(200);
+  await expect(note).toBeFocused();
+  await expect(note).toHaveValue("Unsaved note draft");
+  expect(await original.evaluate((element) => element.isConnected)).toBe(true);
+  await clear.click();
+  await confirmPlatformDialog(page, "Clear note?");
+  await expect(note).toHaveCount(0);
+  await expect(page.locator("#schedulePlannerGrid")).toHaveAttribute("data-months", "2");
+  expect(await page.evaluate(({ key, date }) => JSON.parse(localStorage.getItem(key)).dayNotes[date],
+    { key: scheduleKey, date })).toBeUndefined();
+});
+
 test("Schedule Planner confirms a duplicate merge before edit removes a plan", async ({ page }) => {
   await page.addInitScript(({ key }) => {
     window.localStorage.setItem(

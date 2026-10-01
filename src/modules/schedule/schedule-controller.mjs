@@ -324,7 +324,7 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerLayoutSyncFrame = 0;
     plannerLayoutSyncTimer = 0;
     const state = getState();
-    if (!isActive() || state?.viewMode !== "planner") {
+    if (!isActive() || state?.viewMode !== "planner" || plannerNoteDate) {
       return;
     }
     if (getExpectedPlannerVisibleMonthCount() !== getPlannerVisibleMonthCount()) {
@@ -1435,9 +1435,12 @@ export function createScheduleWorkspaceController(options = {}) {
     }
     plannerResizeTimer = win.setTimeout?.(() => {
       plannerResizeTimer = 0;
-      render();
+      // Closing/saving the note renders the latest layout without replacing its draft or click target.
+      if (!plannerNoteDate) {
+        render();
+      }
     }, 120) || 0;
-    if (!plannerResizeTimer) {
+    if (!plannerResizeTimer && !plannerNoteDate) {
       render();
     }
   }

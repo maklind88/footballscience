@@ -1,7 +1,8 @@
 # Sessions Central-First Review
 
 Owner: this System / Security task, with the user's explicit authorization to
-start in Sessions. No other module implementation or release is included.
+start in Sessions. The bounded Schedule release-gate follow-up below is the only
+additional module change.
 
 ## Observed Incident
 
@@ -88,3 +89,24 @@ architecture checks retain existing size warnings; budgets were not increased.
 
 No production migration, deployment, server-data mutation, or browser-storage
 purge is authorized by this implementation step.
+
+## Release-Gate Follow-Up
+
+The later user-authorized Safe Lane stopped in staging QA run 36768308377:
+the unchanged Schedule deletion test did not find the Clear note confirmation.
+The deploy job was skipped; main and production were not updated. The original
+test passed 10 local repetitions and 15 CPU-throttled repetitions, so the CI
+trigger is not proven from its available logs.
+
+A deterministic regression reproduced the same missing confirmation when a
+resize debounce replaced the note's DOM between pointer down and pointer up.
+It also exposed loss of unsaved note text during layout-only rendering.
+Schedule now defers layout-only grid replacement while a note is open; closing
+or saving the note renders the current layout. Semantic renders, permissions,
+central persistence and confirmation requirements are unchanged.
+
+The new browser test uses the real resize handler and a controlled clock, checks
+the same button node, draft/focus preservation, cancel without persisted change,
+confirmed deletion and the updated month count after closing. It fails before
+the fix at the missing confirmation, and passes with the fix. The original
+deletion test is unchanged; neither timeouts nor retries were increased.

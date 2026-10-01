@@ -3630,14 +3630,15 @@ test("Schedule note resize preserves a draft and an in-progress clear confirmati
   const note = page.locator(`[data-schedule-day-note="${date}"]`);
   const clear = page.locator(`[data-clear-schedule-day-note="${date}"]`);
   await note.fill("Unsaved note draft");
-  await clear.hover();
-  const original = await clear.elementHandle();
   await page.clock.install();
-  await page.mouse.down();
-  // Run the real resize debounce between pointer down and up, not a second click.
-  await page.evaluate(() => window.dispatchEvent(new Event("resize")));
-  await page.clock.runFor(200);
-  await page.mouse.up();
+  const original = await clear.elementHandle();
+  await clear.evaluate((element) => element.addEventListener("pointerdown", () => {
+    element.dataset.resizeWhilePressed = "true";
+    window.dispatchEvent(new Event("resize"));
+  }, { once: true }));
+  // Keep Playwright's hit-target checks while the real resize debounce runs during the press.
+  await clear.click({ delay: 250 });
+  expect(await original.getAttribute("data-resize-while-pressed")).toBe("true");
   await expect(page.locator(".platform-confirm-dialog h2")).toHaveText("Clear note?");
   expect(await original.evaluate((element) => element.isConnected)).toBe(true);
   await page.locator(".platform-confirm-dialog [data-platform-confirm-cancel]").last().click();

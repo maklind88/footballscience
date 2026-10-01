@@ -110,3 +110,17 @@ the same button node, draft/focus preservation, cancel without persisted change,
 confirmed deletion and the updated month count after closing. It fails before
 the fix at the missing confirmation, and passes with the fix. The original
 deletion test is unchanged; neither timeouts nor retries were increased.
+
+QA run 36813702630 passed both Schedule note tests but stopped at the delayed
+previous-account users-response receipt test. CPU-throttled reproduction showed
+that its minimal `{ events: [...] }` write removed the Schedule import marker.
+`readScheduleState` then merged 220 bundled NCC events, producing a different
+221-event local generation and a second stale-base POST. Acknowledging that newer
+generation would be incorrect; the receipt and pending safeguards are unchanged.
+
+Both delayed-account receipt fixtures now use `cloneScheduleState`, retain the
+completed import marker and write normalized event fields. They still require
+one POST under the new principal, revision 2, an unchanged principal/read scope
+and a cleared pending flag, and additionally require byte-exact local/server
+equality with the intended draft. All 20 CPU-throttled repetitions passed.
+Temporary diagnostic logging and CPU throttling were removed from the candidate.

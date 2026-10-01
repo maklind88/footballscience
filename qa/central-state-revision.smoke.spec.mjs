@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createRequire } from "node:module";
 import { applySessionDateChange, sessionDateValue } from "../src/modules/session-planner/session-save-protocol.mjs";
+import { cloneScheduleState } from "../src/modules/schedule/schedule-state.mjs";
 const require = createRequire(import.meta.url);
 const { decodeSessionStateValue, encodeSessionStateValue } = require("../api/_lib/session-state-transport.js");
 
@@ -3393,7 +3394,13 @@ for (const delayedRead of ["profile", "users"]) {
 test(`late ${delayedRead} from the previous account cannot invalidate a pending Schedule receipt`, async ({ browser, baseURL }) => {
   const previous = { ...qaUser, id: "previous-actor", app_metadata: { ...qaUser.app_metadata, organization_id: "previous-org" } };
   const next = { ...qaUser, app_metadata: { ...qaUser.app_metadata, organization_id: "next-org" } };
-  const baseline = JSON.stringify({ events: [] });
+  // This receipt race starts after the legacy import, not during Schedule migration.
+  const schedule = cloneScheduleState({ selectedYear: 2026, selectedMonthIndex: 8,
+    selectedDate: "2026-09-28", importVersion: "ncc-2026-numbers-v1", events: [] });
+  const baseline = JSON.stringify(schedule);
+  const draft = JSON.stringify(cloneScheduleState({ ...schedule, events: [
+    { id: "next-owner-draft", date: "2026-09-28", title: "Next owner's session", type: "training" },
+  ] }));
   const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
     entries: { [scheduleStateKey]: baseline }, metadataEntries: { [scheduleStateKey]: createMetadata(1, baseline) } };
   let releaseProfile, releaseWrite, profileHeld = false, writeHeld = false;
@@ -3445,9 +3452,8 @@ test(`late ${delayedRead} from the previous account cannot invalidate a pending 
     await expect.poll(() => tab.page.evaluate(() => !window.footballScienceCentralState.getStatus().hydrating &&
       window.platformAuthStore.getCurrentUser().id)).toBe(next.id);
     const ownerScope = await tab.page.evaluate(() => window.footballScienceCentralState.getReadScope());
-    await tab.page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ events: [
-      { id: "next-owner-draft", date: "2026-09-28", title: "Next owner's session", type: "training" },
-    ] })), scheduleStateKey);
+    await tab.page.evaluate(({ key, value }) => localStorage.setItem(key, value),
+      { key: scheduleStateKey, value: draft });
     await expect.poll(() => writeHeld).toBe(true);
     releaseProfile();
     await tab.page.waitForFunction(() => window.__qaHeldProfileConsumed === true);
@@ -3460,7 +3466,8 @@ test(`late ${delayedRead} from the previous account cannot invalidate a pending 
     expect(writes).toHaveLength(1);
     expect(writes[0].token).toBe("Bearer next-token");
     expect(store.metadataEntries[scheduleStateKey].revision).toBe(2);
-    expect(JSON.parse(store.entries[scheduleStateKey]).events[0].id).toBe("next-owner-draft");
+    expect(store.entries[scheduleStateKey]).toBe(draft);
+    expect(await tab.page.evaluate((key) => localStorage.getItem(key), scheduleStateKey)).toBe(draft);
   } finally { releaseProfile(); releaseWrite(); await closeCentralStateContext(tab.context); }
 });
 }

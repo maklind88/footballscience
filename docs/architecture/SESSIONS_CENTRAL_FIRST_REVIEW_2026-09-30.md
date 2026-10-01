@@ -124,3 +124,20 @@ one POST under the new principal, revision 2, an unchanged principal/read scope
 and a cleared pending flag, and additionally require byte-exact local/server
 equality with the intended draft. All 20 CPU-throttled repetitions passed.
 Temporary diagnostic logging and CPU throttling were removed from the candidate.
+
+Candidate 528c386a passed complete PR QA (36815548349) and 3651 local tests
+(three skipped). Staging run 36817743579 nevertheless failed the existing Medical
+new-actor/reload receipt test; deployment was skipped and main remained unchanged.
+Ten throttled repetitions did not reproduce its pending timeout. Separately,
+delaying the real app-runtime response deterministically showed that this test
+could write before `appReady`, with the hidden application still starting: its
+only accepted POST was startup normalization at participation 75, not the intended
+new edit at 50. The exact CI interleave is not proven without its trace artifact.
+
+The Medical receipt fixture now waits for the actual app-ready signals, visible
+shell, terminal hydration and any startup receipt rather than sleeping 400 ms.
+The reload variant holds and releases the actual app-runtime response to exercise
+that boundary. Exact request count, base revision, participation 50 after reload,
+private-draft exclusion and unchanged recovery-copy assertions remain in place.
+All four variants passed ten CPU-throttled repetitions each. No Medical product
+code, permission, receipt condition, timeout or retry budget was changed.

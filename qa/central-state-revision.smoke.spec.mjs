@@ -2700,12 +2700,25 @@ for (const { switchActor, reload, omitted } of [
         localStorage.setItem(manifestKey, JSON.stringify({ entries: { [key]: { pendingCentralSync: true, hash: "old-draft", writes: 7, serverRevision: 1 } } }));
       }, initArg: { key: medicalTeamStateKey, draft, manifestKey: dataSafetyManifestKey },
     });
+    let releaseBoot;
+    const bootBarrier = new Promise((resolve) => { releaseBoot = resolve; });
+    let bootHeld = false;
     try {
       await expect.poll(() => tab.page.evaluate((key) => window.footballScienceCentralState.getCachedValueInfo(key).source, medicalTeamStateKey)).toBe("central-readonly-baseline");
       profile.app_metadata.role = "medical";
       if (switchActor) profile.id = "qa-medical-new-actor";
       if (omitted) { delete store.entries[medicalTeamStateKey]; delete store.metadataEntries[medicalTeamStateKey]; }
-      if (reload) await tab.page.reload({ waitUntil: "domcontentloaded" });
+      if (reload) {
+        await tab.context.route("**/app-runtime.js*", async (route) => {
+          bootHeld = true;
+          await bootBarrier;
+          await route.continue();
+        });
+        await tab.page.reload({ waitUntil: "domcontentloaded" });
+        await expect.poll(() => bootHeld).toBe(true);
+        expect(await tab.page.evaluate(() => Boolean(window.__footballScienceAppReady))).toBe(false);
+        releaseBoot();
+      }
       else await tab.page.evaluate(async (user) => {
         window.__qaSession = { access_token: "medical-token", user };
         await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
@@ -2716,8 +2729,15 @@ for (const { switchActor, reload, omitted } of [
         writable: window.footballScienceCentralState.getCachedValueInfo(key).canEdit || window.footballScienceCentralState.getCachedValueInfo(key).source === "local-write",
         error: window.footballScienceCentralState.getStatus().lastError,
       }), medicalTeamStateKey)).toMatchObject({ role: "medical", canAuto: true, writable: true, error: "" });
+      await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+      await expect(tab.page.locator("#hubShell")).toBeVisible();
+      // Wait for an actual editable runtime and any startup receipt, not a fixed boot delay.
+      await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
+        const bridge = window.footballScienceCentralState;
+        const entry = JSON.parse(localStorage.getItem(manifestKey)).entries[key];
+        return !bridge.getStatus().hydrating && (bridge.getCachedValueInfo(key).source === "central-readonly-baseline" || !entry?.pendingCentralSync);
+      }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toBe(true);
       // Medical may persist its existing roster/schema normalization, but never the old draft.
-      await tab.page.waitForTimeout(400);
       const baselineWrites = bodies.filter((body) => body.key === medicalTeamStateKey);
       expect(baselineWrites.length).toBeLessThanOrEqual(1);
       expect(baselineWrites.every((body) => !body.value.includes("private-old-draft") && (omitted || JSON.parse(body.value).records[0].participation === 75))).toBe(true);
@@ -2742,7 +2762,7 @@ for (const { switchActor, reload, omitted } of [
       await tab.page.waitForFunction(() => typeof window.footballScienceDataSafety?.createBackup === "function");
       await expect.poll(() => tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}").records?.[0]?.participation, medicalTeamStateKey)).toBe(50);
       expect(await tab.page.evaluate(() => Object.values(window.footballScienceDataSafety.createBackup().recoveryCopies).map(JSON.parse))).toEqual(copies);
-    } finally { await closeCentralStateContext(tab.context); }
+    } finally { releaseBoot(); await closeCentralStateContext(tab.context); }
   });
 }
 

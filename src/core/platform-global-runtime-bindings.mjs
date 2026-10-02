@@ -98,6 +98,12 @@ export function bindPlatformGlobalRuntimeEvents(deps = {}) {
     deps.scheduleDashboardLoginPopups?.();
   });
 
+  win.addEventListener("footballscience:central-state-partial", () => {
+    // Refresh verified reads without declaring the failed batches ready or draining writes.
+    deps.requestCentralizedAppStateReload?.();
+    deps.refreshDataSafetyStatus?.();
+  });
+
   win.addEventListener("footballscience:central-state-ready", () => {
     const dataSafetyRuntimeStatus = deps.getDataSafetyRuntimeStatus?.();
     if (dataSafetyRuntimeStatus) {

@@ -132,6 +132,10 @@ test("platform global runtime bindings preserve boot, escape, and storage behavi
 
   expect(calls).toEqual(expect.arrayContaining(["bind-workspaces", "central-timer", "data-safety", "init-hub", "presence-start"]));
 
+  const beforePartial = calls.length;
+  win.dispatch("footballscience:central-state-partial", { detail: { readKeys: ["medical"] } });
+  expect(calls.slice(beforePartial)).toEqual(["request-reload", "data-safety"]);
+
   let prevented = false;
   documentRef.dispatch("keydown", {
     key: "Enter",

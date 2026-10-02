@@ -185,6 +185,18 @@ function createProjectionHarness(storage = new Map(), canWrite = false) {
   return { context, api };
 }
 
+test("failed Medical reads retain the scoped read view but verified revocation removes it", () => {
+  const key = "football-medical-team-v1";
+  const h = createProjectionHarness();
+  h.api.setCentralCachedValue(key, "verified medical", {
+    source: "central-readonly-baseline", readScope: h.api.getCentralReadScope(),
+  });
+  h.api.clearMissingCentralReadViews({}, [], ["football-session-planner-v3"]);
+  expect(h.api.getCentralCachedValue(key)).toBe("verified medical");
+  h.api.clearMissingCentralReadViews({}, [], [key]);
+  expect(h.api.getCentralCachedValue(key)).not.toBe("verified medical");
+});
+
 test("local development has its own scope without admitting an unsigned production session", () => {
   const h = createProjectionHarness();
   const productionScope = h.api.getCentralReadScope();
@@ -375,6 +387,29 @@ function createHarness() {
   const tombstoneSource = source.slice(source.indexOf("  function reconcileCentralTombstones("), source.indexOf("  function persistCentralHydrationRevisions("));
   const api = runInNewContext(`${readScopeSource}\n${tombstoneSource}\n${hydrateSource}\n${syncSource}\n({ hydrateCentralState, syncCentralStateKey })`, context);
   return { api, centralState, authState, context, events, timers };
+}
+
+for (const stale of [false, true]) {
+test(`partial hydration publishes only current verified reads without claiming complete readiness (${stale})`, async () => {
+  const h = createHarness(), key = "football-medical-team-v1", applied = [];
+  h.centralState.hydrated = false;
+  h.context.readCentralStateBatches = async () => {
+    if (stale) h.authState.session.access_token = "new-account-token";
+    return { ok: false, payload: { reason: "Sessions timed out", readKeys: [key], absentKeys: [],
+      entries: { [key]: "verified medical" }, metadata: { [key]: { revision: 7 } } } };
+  };
+  h.context.applyCentralStateEntries = async (...args) => applied.push(args);
+  expect(await h.api.hydrateCentralState()).toBe(false);
+  expect(h.centralState.hydrated).toBe(false);
+  expect(h.centralState.hydrating).toBe(false);
+  expect(h.centralState.lastFetchedAt).toBe("previous-read");
+  expect(applied).toHaveLength(stale ? 0 : 1);
+  expect(h.events.map((event) => event.type)).toEqual(stale ? [] : ["footballscience:central-state-partial"]);
+  if (!stale) {
+    expect(applied[0][2].readKeys).toEqual([key]);
+    expect(h.centralState.lastError).toBe("Sessions timed out");
+  }
+});
 }
 
 for (const change of ["organizationId", "token", "sign-out"]) {

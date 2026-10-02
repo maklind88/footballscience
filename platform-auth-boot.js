@@ -708,22 +708,40 @@ async function getActiveAccessToken() {
         isCurrent: options.isCurrent,
         timeoutMs: 10000,
         headers: options.forceApply || options.fresh ? { "x-footballscience-fresh-state": "1" } : undefined,
-      })
+      }).then((response) => ({ keys, response }), (error) => ({ keys,
+        response: { ok: false, status: 0, payload: { reason: error?.message || "Central read failed." } } }))
     ));
-    const failedResponse = responses.find((response) => !response.ok);
-    if (failedResponse) {
-      return failedResponse;
-    }
     const sessionTransport = await import("./src/modules/session-planner/session-state-transport.mjs");
-    for (const response of responses) await sessionTransport.decodeSessionResponse(response.payload);
-    return responses.reduce((combined, response) => {
-      Object.assign(combined.payload.entries, response.payload?.entries || {});
-      Object.assign(combined.payload.metadata, response.payload?.metadata || {});
-      for (const key of Array.isArray(response.payload?.absentKeys) ? response.payload.absentKeys : []) {
-        if (isCentralStateKey(key) && !combined.payload.absentKeys.includes(key)) combined.payload.absentKeys.push(key);
+    const combined = { ok: true, status: 200,
+      payload: { entries: {}, metadata: {}, absentKeys: [], readKeys: [], failedKeys: [] } };
+    for (const { keys, response } of responses) {
+      let failure = !response.ok ? response.payload?.reason || "Central read failed." : "";
+      if (!failure && (response.payload?.ok === false || !response.payload?.entries ||
+          typeof response.payload.entries !== "object" || Array.isArray(response.payload.entries))) {
+        failure = "Central response did not contain a verified read.";
       }
-      return combined;
-    }, { ok: true, status: 200, payload: { entries: {}, metadata: {}, absentKeys: [] } });
+      if (!failure) {
+        try { await sessionTransport.decodeSessionResponse(response.payload); }
+        catch (error) { failure = error?.message || "Central response could not be decoded."; }
+      }
+      if (failure) {
+        combined.ok = false;
+        combined.status = response.status || 0;
+        combined.payload.reason ||= failure;
+        combined.payload.failedKeys.push(...keys);
+        continue;
+      }
+      // Only a successful requested batch may replace or revoke its own read views.
+      combined.payload.readKeys.push(...keys);
+      for (const key of keys) {
+        if (typeof response.payload?.entries?.[key] === "string") combined.payload.entries[key] = response.payload.entries[key];
+        if (response.payload?.metadata?.[key]) combined.payload.metadata[key] = response.payload.metadata[key];
+        if (Array.isArray(response.payload?.absentKeys) && response.payload.absentKeys.includes(key)) {
+          combined.payload.absentKeys.push(key);
+        }
+      }
+    }
+    return combined;
   }
   function readCentralSyncManifestEntries() {
     try {
@@ -859,10 +877,11 @@ async function getActiveAccessToken() {
     centralStateValueMetadata.delete(normalizedKey);
     return centralStateValues.delete(normalizedKey);
   }
-  function clearMissingCentralReadViews(entries, absentKeys = []) {
+  function clearMissingCentralReadViews(entries, absentKeys = [], readKeys = null) {
     const pendingEntries = readCentralSyncManifestEntries();
     const readScope = getCentralReadScope();
     for (const key of new Set([...centralStateValues.keys(), MEDICAL_TEAM_STATE_KEY])) {
+      if (readKeys && !readKeys.includes(key)) continue;
       if (readScope && key !== "football-session-planner-v3" &&
           (key !== MEDICAL_TEAM_STATE_KEY || !hasMedicalRecoverySeparation()) &&
           pendingEntries[key]?.pendingCentralSync && pendingEntries[key].principalScope === readScope &&
@@ -1623,34 +1642,39 @@ async function getActiveAccessToken() {
       }
       return normalized;
     }, {});
-    const sessionScope = getSessionSaveScope();
-    const sessionClient = await getSessionSaveClient();
+    const hasSessionRead = !options.readKeys || options.readKeys.includes(SESSION_PLANNER_STATE_KEY);
+    const sessionScope = hasSessionRead ? getSessionSaveScope() : "";
+    const sessionClient = hasSessionRead ? await getSessionSaveClient() : null;
     const { preserveSessionSaveLocalUi } = await import("./src/modules/session-planner/session-save-local-ui.mjs");
     if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
-    if (sessionScope !== getSessionSaveScope()) throw new Error("Account or team changed during central load.");
-    sessionClient.observe(normalizedEntries[SESSION_PLANNER_STATE_KEY] || '{"sessions":{}}', incomingMetadata[SESSION_PLANNER_STATE_KEY]);
-    const sessionView = await sessionClient.project().catch(() => {
+    if (hasSessionRead && sessionScope !== getSessionSaveScope()) throw new Error("Account or team changed during central load.");
+    sessionClient?.observe(normalizedEntries[SESSION_PLANNER_STATE_KEY] || '{"sessions":{}}', incomingMetadata[SESSION_PLANNER_STATE_KEY]);
+    const sessionView = sessionClient ? await sessionClient.project().catch(() => {
       centralState.lastWriteError = "Local save queue unavailable. Local training changes were retained.";
       return null;
-    });
+    }) : null;
     if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
-    if (sessionScope !== getSessionSaveScope()) throw new Error("Account or team changed during central load.");
+    if (hasSessionRead && sessionScope !== getSessionSaveScope()) throw new Error("Account or team changed during central load.");
     if (sessionScope && (!sessionView || sessionView.pending) && !(SESSION_PLANNER_STATE_KEY in normalizedEntries)) {
       normalizedEntries[SESSION_PLANNER_STATE_KEY] = '{"sessions":{}}';
     }
     const pendingEntries = readCentralSyncManifestEntries();
-    const nextMetadata = {};
+    const nextMetadata = options.readKeys ? { ...centralState.metadata } : {};
+    for (const key of options.readKeys || []) {
+      if (!Object.prototype.hasOwnProperty.call(normalizedEntries, key)) delete nextMetadata[key];
+    }
     const writeBackEntries = [];
     const requiredWriteBackEntries = [];
     const resolvedPendingKeys = [];
     const hydratedRevisionEntries = [];
-    clearMissingCentralReadViews(normalizedEntries, options.absentKeys);
+    clearMissingCentralReadViews(normalizedEntries, options.absentKeys, options.readKeys);
     window.__footballScienceCentralHydrating = true;
     try {
       for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
         const key = window.localStorage.key(index);
         if (
           shouldRemoveLocalCentralStateKey(key) &&
+          (!options.readKeys || options.readKeys.includes(key)) &&
           !Object.prototype.hasOwnProperty.call(normalizedEntries, key) &&
           getCentralCachedValueInfo(key).source !== "central-readonly-baseline" &&
           !pendingEntries[key]?.pendingCentralSync
@@ -1897,6 +1921,16 @@ async function getActiveAccessToken() {
       if (!isCurrent()) return false;
       if (!response.ok) {
         centralState.lastError = response.payload?.reason || "Central app data could not be loaded.";
+        const readKeys = response.payload?.readKeys || [];
+        if (readKeys.length) {
+          await applyCentralStateEntries(response.payload.entries, response.payload.metadata, {
+            ...options, isCurrent, readKeys, absentKeys: response.payload.absentKeys,
+          });
+          if (!isCurrent()) return false;
+          reconcileCentralTombstones(response.payload.absentKeys, response.payload.metadata);
+          centralState.lastError = response.payload?.reason || "Some central data could not be loaded.";
+          window.dispatchEvent(new CustomEvent("footballscience:central-state-partial", { detail: { readKeys } }));
+        }
         return false;
       }
       const entries = response.payload?.entries && typeof response.payload.entries === "object"

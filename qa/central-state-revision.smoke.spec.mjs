@@ -496,14 +496,76 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
   await page.goto(targetUrl.toString(), { waitUntil: "domcontentloaded" });
   await expect(page.locator("#hubShell")).toBeVisible();
   await page.waitForFunction(
-    () => Boolean(window.footballScienceDataSafety && window.footballScienceCentralState?.isHydrated?.()),
-    null,
+    (expectFailure) => {
+      const state = window.footballScienceCentralState;
+      const status = state?.getStatus?.();
+      return Boolean(window.footballScienceDataSafety && (expectFailure
+        ? status?.lastError && !status.hydrating && !status.hydrated
+        : state?.isHydrated?.()));
+    },
+    Boolean(options.expectHydrationFailure),
     { timeout: 15_000 }
   );
   await expect
     .poll(() => page.evaluate((key) => window.localStorage.getItem(key) || "", revisionStateKey), { timeout: 10_000 })
     .toContain("Original central sequence");
   return { context, page };
+}
+
+for (const failOnBoot of [false, true]) {
+test(`Medical recommendations remain visible through a failed Sessions batch and recovery (initial failure: ${failOnBoot})`, async ({ browser, baseURL }) => {
+  const day = "2026-10-01";
+  const player = { id: "player-1", name: "QA Player", position: "Forward", rosterType: "squad", countsInSquad: true, status: "available" };
+  const profile = { ...qaUser, app_metadata: { role: "coach", status: "active" } };
+  const medicalValue = (participation) => JSON.stringify({ selectedDate: day, rosterVersion: "qa-v1", players: [player],
+    records: [{ id: "central-recommendation", playerId: player.id, date: day, participation, createdAt: `${day}T10:00:00Z` }], injuryPlans: [] });
+  const training = JSON.stringify({ selectedDate: day, sessions: { [day]: { date: day, title: "Training", blocks: [
+    { id: "block-1", title: "Central exercise", minutes: 20 },
+  ] } } });
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [medicalTeamStateKey]: medicalValue(100), [sessionPlannerStateKey]: training,
+      [playerProfilesStateKey]: JSON.stringify({ rosterVersion: "qa-v1", players: [player], removedPlayerIds: [] }) },
+    metadataEntries: { [medicalTeamStateKey]: createMetadata(4, medicalValue(100)), [sessionPlannerStateKey]: createMetadata(5, training) } };
+  let failSessions = failOnBoot;
+  const bodies = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], "medical-independent-read", {
+    fixedDate: `${day}T12:00:00Z`, sessionUser: profile, profileUser: profile, appStateWriteBodies: bodies,
+    expectHydrationFailure: failOnBoot,
+    appStateReadHandler: ({ request }) => {
+      const keys = new URL(request.url()).searchParams.get("keys").split(",");
+      if (failSessions && keys.includes(sessionPlannerStateKey)) return { status: 504, body: { ok: false, reason: "Sessions request timed out" } };
+      return { status: 200, body: { ok: true,
+        entries: Object.fromEntries(Object.entries({ [revisionStateKey]: store.value, ...store.entries }).filter(([key]) => keys.includes(key))),
+        metadata: Object.fromEntries(Object.entries({ [revisionStateKey]: store.metadata, ...store.metadataEntries }).filter(([key]) => keys.includes(key))),
+        absentKeys: keys.filter((key) => key !== revisionStateKey && !(key in store.entries)),
+      } };
+    },
+  });
+  try {
+    await tab.page.waitForFunction(() => window.__footballScienceAppReady);
+    await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+    const availability = tab.page.getByRole("region", { name: "Medical availability for selected session" });
+    // The runtime includes its 26 default roster players alongside this synthetic player.
+    await expect(availability).toContainText("1 available / 0 limited / 26 not set");
+    if (failOnBoot) {
+      expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrated)).toBe(false);
+      expect(bodies.filter((body) => body.key === sessionPlannerStateKey || body.entries?.[sessionPlannerStateKey])).toEqual([]);
+    }
+    const before = await tab.page.evaluate((key) => ({ value: localStorage.getItem(key), metadata: window.footballScienceCentralState.getStatus().metadata[key] }), sessionPlannerStateKey);
+    failSessions = true;
+    store.entries[medicalTeamStateKey] = medicalValue(75);
+    store.metadataEntries[medicalTeamStateKey] = createMetadata(6, medicalValue(75));
+    expect(await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }))).toBe(false);
+    await expect(availability).toContainText("0 available / 1 limited / 26 not set");
+    expect(await tab.page.evaluate((key) => ({ value: localStorage.getItem(key), metadata: window.footballScienceCentralState.getStatus().metadata[key] }), sessionPlannerStateKey)).toEqual(before);
+    expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().lastError)).toBe("Sessions request timed out");
+    expect(bodies.filter((body) => body.key === medicalTeamStateKey)).toEqual([]);
+    failSessions = false;
+    expect(await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ fresh: true }))).toBe(true);
+    await expect(availability).toContainText("0 available / 1 limited / 26 not set");
+    expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().lastError)).toBe("");
+  } finally { await closeCentralStateContext(tab.context); }
+});
 }
 
 test("fresh server profile restores admin access when the stored Supabase session has a stale role", async ({ browser, baseURL }) => {

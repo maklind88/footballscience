@@ -146,7 +146,9 @@
   function getSetPiecesSaveScope() {
     const user = authState.currentUser;
     if (!user?.id || !authState.session?.access_token || !canCurrentUserAutomaticallyWriteCentralStateKey(SET_PIECES_ROOM_STATE_KEY)) return "";
-    return JSON.stringify(["set-pieces-actor-team-v1", user.id, user.clubId || "", user.teamId || ""]);
+    const claims = authState.session.user?.app_metadata || {};
+    const organizationId = claims.organizationId || claims.organization_id || user.organizationId || "";
+    return JSON.stringify(["set-pieces-actor-team-v1", user.id, organizationId, user.clubId || "", user.teamId || ""]);
   }
   async function getSetPiecesSaveClient() {
     if (!setPiecesSaveClientPromise) {

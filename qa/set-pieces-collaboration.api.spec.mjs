@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { createSetPiecesSaveClient } from "../src/modules/set-pieces-room/set-pieces-save-client.mjs";
 import {
   applySetPiecePlayChange,
@@ -47,6 +49,32 @@ function createMemoryJournal() {
       return true;
     },
   };
+}
+
+for (const organizationSource of ["claims", "profile"]) {
+  test(`Set Pieces never replays the same actor's old organization draft after a ${organizationSource} change`, async () => {
+    const source = readFileSync(new URL("../platform-auth-boot.js", import.meta.url), "utf8");
+    const scopeSource = source.slice(source.indexOf("  function getSetPiecesSaveScope("), source.indexOf("  async function getSetPiecesSaveClient("));
+    const authState = { currentUser: { id: "coach", organizationId: "org-a", clubId: "same-club", teamId: "same-team" },
+      session: { access_token: "test-token", user: { app_metadata: organizationSource === "claims" ? { organization_id: "org-a" } : {} } } };
+    const getScope = runInNewContext(`${scopeSource}\ngetSetPiecesSaveScope`, { authState,
+      SET_PIECES_ROOM_STATE_KEY: "football-set-pieces-room-v1", canCurrentUserAutomaticallyWriteCentralStateKey: () => true });
+    const oldScope = getScope(), original = stateWith(play()), journal = createMemoryJournal();
+    let sends = 0;
+    const client = createSetPiecesSaveClient({ getScope, journal, getLatest: async () => ({ value: JSON.stringify(original), metadata: { revision: 1 } }),
+      send: async () => { sends += 1; throw new Error("Old organization data must not be sent"); } });
+    client.observe(JSON.stringify(original), { revision: 1 });
+    const edited = clone(original); edited.plays[0].title = "Private org-a draft";
+    expect((await client.stage(JSON.stringify(edited))).ok).toBe(true);
+    if (organizationSource === "claims") authState.session.user.app_metadata.organization_id = "org-b";
+    else authState.currentUser.organizationId = "org-b";
+    expect(getScope()).not.toBe(oldScope);
+    client.observe(JSON.stringify(original), { revision: 1 });
+    expect((await client.replay()).ok).toBe(true);
+    expect(sends).toBe(0);
+    expect((await client.project()).value).not.toContain("Private org-a draft");
+    expect(await journal.list(oldScope)).toHaveLength(1);
+  });
 }
 
 test("Set Pieces merges different fields on the same routine without losing either coach's work", () => {

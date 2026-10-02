@@ -14,8 +14,35 @@
 }
 
 .spr-shell.is-editing > .spr-header,
+.spr-shell.is-editing > .spr-save-reviews,
 .spr-shell.is-editing > .spr-notice {
   flex: 0 0 auto;
+}
+
+.spr-save-reviews {
+  padding: 8px 12px;
+  color: #342716;
+  background: #fff5df;
+  border-bottom: 1px solid #dfc78e;
+}
+
+.spr-save-review {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.spr-save-review button {
+  min-height: 30px;
+  padding: 4px 8px;
+  color: #1c2420;
+  background: #fff;
+  border: 1px solid #c5c9c6;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .spr-shell.is-editing > .spr-layout {

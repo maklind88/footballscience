@@ -153,6 +153,16 @@
       setPiecesSaveClientPromise = import("./src/modules/set-pieces-room/set-pieces-save-client.mjs")
         .then(({ createSetPiecesSaveClient }) => createSetPiecesSaveClient({
           getScope: getSetPiecesSaveScope,
+          getLatest: async (expectedScope) => {
+            const response = await apiRequest(buildCentralStateReadPath([SET_PIECES_ROOM_STATE_KEY], { fresh: true }), {
+              method: "GET", timeoutMs: 10000,
+              headers: { "x-footballscience-fresh-state": "1" },
+              isCurrent: () => Boolean(expectedScope && expectedScope === getSetPiecesSaveScope()),
+            });
+            if (!response.ok || expectedScope !== getSetPiecesSaveScope()) return null;
+            return { value: response.payload?.entries?.[SET_PIECES_ROOM_STATE_KEY] || EMPTY_SET_PIECES_STATE_VALUE,
+              metadata: response.payload?.metadata?.[SET_PIECES_ROOM_STATE_KEY] || {} };
+          },
           send: async (change, baseRevision, expectedScope) => {
             const response = await apiRequest(API_APP_STATE, {
               method: "POST",
@@ -1680,6 +1690,20 @@ async function getActiveAccessToken() {
       centralState.lastWriteError = "Local save queue unavailable. Local training changes were retained.";
       return null;
     }) : null;
+    const hasSetPiecesRead = !options.readKeys || options.readKeys.includes(SET_PIECES_ROOM_STATE_KEY);
+    const setPiecesScope = hasSetPiecesRead ? getSetPiecesSaveScope() : "";
+    const setPiecesClient = hasSetPiecesRead ? await getSetPiecesSaveClient() : null;
+    if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
+    const legacySetPiecesValue = hasSetPiecesRead && !centralState.metadata[SET_PIECES_ROOM_STATE_KEY]?.revision
+      ? nativeLocalStorageGetItem?.call(window.localStorage, SET_PIECES_ROOM_STATE_KEY) : null;
+    if (legacySetPiecesValue) await setPiecesClient.preserveLegacy(legacySetPiecesValue);
+    if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
+    setPiecesClient?.observe(normalizedEntries[SET_PIECES_ROOM_STATE_KEY] || EMPTY_SET_PIECES_STATE_VALUE, incomingMetadata[SET_PIECES_ROOM_STATE_KEY]);
+    const setPiecesView = setPiecesClient ? await setPiecesClient.project().catch(() => null) : null;
+    if (hasSetPiecesRead && setPiecesScope !== getSetPiecesSaveScope()) throw new Error("Account or team changed during central load.");
+    if (setPiecesScope && (!setPiecesView || setPiecesView.pending) && !(SET_PIECES_ROOM_STATE_KEY in normalizedEntries)) {
+      normalizedEntries[SET_PIECES_ROOM_STATE_KEY] = EMPTY_SET_PIECES_STATE_VALUE;
+    }
     if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
     if (hasSessionRead && sessionScope !== getSessionSaveScope()) throw new Error("Account or team changed during central load.");
     if (sessionScope && (!sessionView || sessionView.pending) && !(SESSION_PLANNER_STATE_KEY in normalizedEntries)) {
@@ -1753,6 +1777,13 @@ async function getActiveAccessToken() {
             });
           }
           return;
+        }
+        if (key === SET_PIECES_ROOM_STATE_KEY && setPiecesScope) {
+          if (!setPiecesClient.isProjectionCurrent(setPiecesView)) return;
+          if (setPiecesView.pending) {
+            setCentralCachedValue(key, setPiecesView.value, { source: "set-pieces-journal-pending", durable: false, serverBacked: false });
+            return;
+          }
         }
         if (key === SESSION_PLANNER_STATE_KEY && sessionClient.isProjectionCurrent(sessionView)) {
           const cached = getCentralCachedValueInfo(key);
@@ -1978,6 +2009,7 @@ async function getActiveAccessToken() {
         });
         // A missing Sessions record is an empty authoritative baseline, not permission to restore a cache.
         delete localEntries[SESSION_PLANNER_STATE_KEY];
+        delete localEntries[SET_PIECES_ROOM_STATE_KEY];
         const sessionClient = await getSessionSaveClient();
         if (!isCurrent()) return false;
         sessionClient.observe('{"sessions":{}}', { revision: 0 });
@@ -2088,12 +2120,14 @@ async function getActiveAccessToken() {
       if (key === SET_PIECES_ROOM_STATE_KEY && !options.removed) {
         const expectedScope = getSetPiecesSaveScope();
         const client = await getSetPiecesSaveClient();
+        if (!isCurrent()) return staleResult();
         if (!expectedScope || expectedScope !== getSetPiecesSaveScope()) {
           return { ok: false, reason: "Account or team changed. Local changes were retained." };
         }
         const result = options.setPiecesReplay
           ? await client.replay()
           : await client.save(String(value ?? ""), options);
+        if (!isCurrent()) return staleResult();
         if (expectedScope !== getSetPiecesSaveScope()) {
           return { ok: false, reason: "Account or team changed. Local changes were retained." };
         }
@@ -3281,8 +3315,33 @@ async function getActiveAccessToken() {
     getSessionSaveReviews: async () => (await getSessionSaveClient()).reviews(),
     getSessionCentralValue: async () => (await getSessionSaveClient()).centralValue(),
     getSetPiecesPendingState: async () => (await getSetPiecesSaveClient()).pendingState(),
+    refreshSetPiecesLocalView: async () => {
+      const client = await getSetPiecesSaveClient();
+      const view = await client.project();
+      if (!client.isProjectionCurrent(view)) return false;
+      setCentralCachedValue(SET_PIECES_ROOM_STATE_KEY, view.value, {
+        source: view.pending ? "set-pieces-journal-pending" : "central-acknowledgement",
+        durable: false, serverBacked: !view.pending,
+      });
+      return true;
+    },
     getSetPiecesSaveReviews: async () => (await getSetPiecesSaveClient()).reviews(),
-    stageSetPiecesWrite: async (value, options) => (await getSetPiecesSaveClient()).stage(value, options),
+    resolveSetPiecesSaveReview: async (playId, central, mode) => {
+      const expectedScope = getSetPiecesSaveScope();
+      const client = await getSetPiecesSaveClient();
+      if (!expectedScope || expectedScope !== getSetPiecesSaveScope()) return { ok: false, reason: "Account or team changed." };
+      const result = await client.resolveReview(playId, central, mode);
+      if (expectedScope !== getSetPiecesSaveScope()) return { ok: false, reason: "Account or team changed." };
+      await hydrateCentralState({ fresh: true });
+      return result;
+    },
+    stageSetPiecesWrite: async (value, options) => {
+      if (authState.devMode) return { ok: true };
+      const expectedScope = getSetPiecesSaveScope();
+      const client = await getSetPiecesSaveClient();
+      if (!expectedScope || expectedScope !== getSetPiecesSaveScope()) return { ok: false, reason: "Account or team changed. Local changes were retained." };
+      return client.stage(value, options);
+    },
     prepareSessionLocalReview: async () => {
       if (!readCentralSyncManifestEntries()[SESSION_PLANNER_STATE_KEY]?.pendingCentralSync) return;
       const user = authState.currentUser;

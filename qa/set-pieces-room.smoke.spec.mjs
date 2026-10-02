@@ -1,5 +1,38 @@
 import { expect, test } from "@playwright/test";
 
+test("Set Pieces exposes a compact conflict choice and confirms the selected recovery action", async ({ page }) => {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page);
+  await page.evaluate(async () => {
+    const { createSetPiecesRoomController } = await import("/src/modules/set-pieces-room/controller.mjs");
+    const { createSetPiecePlay } = await import("/src/modules/set-pieces-room/state.mjs");
+    const root = document.querySelector("[data-set-pieces-room]");
+    const replacement = root.cloneNode(false);
+    root.replaceWith(replacement);
+    const local = createSetPiecePlay({ id: "conflict-corner", title: "My corner" });
+    let reviews = [{ payload: { change: { playId: local.id, after: local } }, central: { ...local, title: "Team corner" } }];
+    window.footballScienceCentralState = {
+      getReadScope: () => "review-test",
+      getSetPiecesSaveReviews: async () => reviews,
+      resolveSetPiecesSaveReview: async (playId, central, mode) => {
+        window.setPiecesReviewTestResult = { playId, title: central.title, mode };
+        reviews = [];
+        return { ok: true };
+      },
+    };
+    const controller = createSetPiecesRoomController({ root: replacement, win: window,
+      getCurrentUser: () => ({ id: "review-coach" }), canEdit: () => true });
+    controller.mount();
+    controller.setSyncStatus("issue", "Your local version needs review.");
+  });
+  await expect(page.getByRole("region", { name: "Set piece save conflicts" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Keep team version" })).toBeVisible();
+  await page.getByRole("button", { name: "Save mine as a copy" }).click();
+  await expect(page.getByRole("region", { name: "Set piece save conflicts" })).toHaveCount(0);
+  expect(await page.evaluate(() => window.setPiecesReviewTestResult)).toEqual({ playId: "conflict-corner", title: "Team corner", mode: "copy" });
+});
+
 async function waitForPlatformShell(page) {
   await page.waitForFunction(
     () => Boolean(

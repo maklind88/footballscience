@@ -176,6 +176,15 @@ export function bindPlatformGlobalRuntimeEvents(deps = {}) {
         deps.queueDataSafetySnapshot?.("cross-tab-update");
       }
       if (event.key === deps.setPiecesRoomStorageKey) {
+        const bridge = getCentralStateBridge();
+        if (bridge?.refreshSetPiecesLocalView) {
+          Promise.resolve(bridge.refreshSetPiecesLocalView()).then((refreshed) => {
+            if (refreshed) deps.reloadSetPiecesRoomFromStorage?.();
+          }).catch(() => {});
+          deps.queueDataSafetySnapshot?.("cross-tab-update");
+          deps.refreshCentralStateFromSource?.("storage");
+          return;
+        }
         if (typeof event.newValue === "string") {
           getCentralStateBridge()?.setCachedValue?.(event.key, event.newValue, {
             source: "cross-tab",

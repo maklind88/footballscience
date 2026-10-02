@@ -105,6 +105,18 @@ test("Set Pieces rejects only a real same-field collision and preserves central 
   expect(result.state.plays[0].title).toBe("Central title");
 });
 
+test("coaches' local variant and phase navigation never become shared edits", () => {
+  const original = stateWith(play());
+  const variant = structuredClone(original.plays[0].variants[0]);
+  variant.id = "variant-other";
+  variant.phases.push({ ...structuredClone(variant.phases[0]), id: "phase-other" });
+  original.plays[0].variants.push(variant);
+  const navigated = clone(original);
+  navigated.plays[0].activeVariantId = variant.id;
+  navigated.plays[0].variants[1].activePhaseId = "phase-other";
+  expect(createSetPiecePlayChanges(original, navigated)).toEqual([]);
+});
+
 test("Set Pieces deletion succeeds against an unchanged routine but conflicts with a teammate edit", () => {
   const original = stateWith(play());
   const empty = stateWith();
@@ -235,4 +247,110 @@ test("Set Pieces save client retains a same-field collision as a local review", 
   expect(reviews).toBe(1);
   expect((await client.reviews())[0].payload.change.after.title).toBe("Local title that must survive");
   expect([...journal.rows.values()][0].status).toBe("review");
+});
+
+test("Set Pieces receipts refresh unrelated routines before publishing the local library", async () => {
+  const original = stateWith(play(), play({ id: "throw-in" }));
+  let central = clone(original);
+  central.plays[1].title = "Teammate throw-in";
+  let revision = 4;
+  let id = 0;
+  const client = createSetPiecesSaveClient({
+    getScope: () => "team-a:coach-a", journal: createMemoryJournal(), makeId: () => `refresh-${++id}`,
+    getLatest: async () => ({ value: JSON.stringify(central), metadata: { revision } }),
+    send: async (change) => {
+      const merged = applySetPiecePlayChange(central, change);
+      central = merged.state;
+      return { ok: true, payload: { metadata: { revision: ++revision },
+        setPieceChange: { id: change.id, playId: change.playId, value: setPiecePlayValue(central, change.playId) } } };
+    },
+  });
+  client.observe(JSON.stringify(original), { revision: 3 });
+  const desired = clone(original);
+  desired.plays[0].title = "Local corner";
+  const result = await client.save(JSON.stringify(desired), { previousValue: JSON.stringify(original) });
+  expect(JSON.parse(result.value).plays.map((entry) => entry.title)).toEqual(["Local corner", "Teammate throw-in"]);
+});
+
+test("Set Pieces refresh projects pending edits and rejects a view captured before a new edit", async () => {
+  const original = stateWith(play());
+  const journal = createMemoryJournal();
+  let id = 0;
+  const client = createSetPiecesSaveClient({ getScope: () => "team-a:coach-a", journal, makeId: () => `projection-${++id}` });
+  client.observe(JSON.stringify(original), { revision: 1 });
+  const oldView = await client.project();
+  const desired = clone(original);
+  desired.plays[0].title = "Pending corner";
+  const staging = client.stage(JSON.stringify(desired), { previousValue: JSON.stringify(original) });
+  expect(client.isProjectionCurrent(oldView)).toBe(false);
+  await staging;
+  const central = clone(original);
+  central.plays.push(play({ id: "new-throw" }));
+  client.observe(JSON.stringify(central), { revision: 2 });
+  const view = await client.project();
+  expect(view.pending).toBe(true);
+  expect(JSON.parse(view.value).plays.map((entry) => entry.id)).toEqual(["play-corner", "new-throw"]);
+  expect(JSON.parse(view.value).plays[0].title).toBe("Pending corner");
+});
+
+test("Set Pieces ignores a refresh receipt after the active account changes", async () => {
+  let scope = "team-a:coach-a";
+  const original = stateWith(play());
+  let releaseRead;
+  const waiting = new Promise((resolve) => { releaseRead = resolve; });
+  const client = createSetPiecesSaveClient({ getScope: () => scope, journal: createMemoryJournal(),
+    getLatest: () => waiting, send: () => { throw new Error("Must not send a foreign-account edit"); } });
+  client.observe(JSON.stringify(original), { revision: 1 });
+  const desired = clone(original);
+  desired.plays[0].title = "Account A draft";
+  await client.stage(JSON.stringify(desired), { previousValue: JSON.stringify(original) });
+  const replay = client.replay();
+  await Promise.resolve();
+  scope = "team-b:coach-b";
+  releaseRead({ value: JSON.stringify(original), metadata: { revision: 2 } });
+  expect((await replay).ok).toBe(false);
+  expect(await client.pendingState()).toBe(null);
+  expect(await client.reviews()).toEqual([]);
+});
+
+test("legacy local Set Pieces are archived durably without becoming team writes", async () => {
+  const journal = createMemoryJournal();
+  const client = createSetPiecesSaveClient({ getScope: () => "team-b:coach-b", journal });
+  const local = JSON.stringify(stateWith(play()));
+  await client.preserveLegacy(local);
+  await client.preserveLegacy(local);
+  client.observe(JSON.stringify(stateWith()), { revision: 0 });
+  expect([...journal.rows.values()]).toHaveLength(1);
+  expect([...journal.rows.values()][0]).toMatchObject({ type: "legacy-recovery", payload: { value: local } });
+  expect(await client.pendingState()).toBe(null);
+  expect(await client.isSettled()).toBe(true);
+});
+
+test("a conflict can save the local routine as a fresh copy while retaining the team routine", async () => {
+  const original = stateWith(play());
+  let central = clone(original);
+  central.plays[0].title = "Team version";
+  let revision = 2;
+  let id = 0;
+  const journal = createMemoryJournal();
+  const client = createSetPiecesSaveClient({ getScope: () => "team-a:coach-a", journal, makeId: () => `resolve-${++id}`,
+    getLatest: async () => ({ value: JSON.stringify(central), metadata: { revision } }),
+    send: async (change) => {
+      const merged = applySetPiecePlayChange(central, change);
+      if (!merged.ok) return { ok: false, status: 409, payload: { conflicts: merged.conflicts } };
+      central = merged.state;
+      return { ok: true, payload: { metadata: { revision: ++revision },
+        setPieceChange: { id: change.id, playId: change.playId, value: setPiecePlayValue(central, change.playId) } } };
+    },
+  });
+  client.observe(JSON.stringify(original), { revision: 1 });
+  const desired = clone(original);
+  desired.plays[0].title = "My version";
+  expect((await client.save(JSON.stringify(desired), { previousValue: JSON.stringify(original) })).reviewRequired).toBe(true);
+  const review = (await client.reviews())[0];
+  const result = await client.resolveReview(review.payload.change.playId, review.central, "copy");
+  expect(result.ok).toBe(true);
+  expect(central.plays.map((entry) => entry.title)).toEqual(["Team version", "My version copy"]);
+  expect(central.plays[1].id).not.toBe(central.plays[0].id);
+  expect(await client.reviews()).toEqual([]);
 });

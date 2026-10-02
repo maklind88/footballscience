@@ -34,6 +34,7 @@ import {
 } from "./state.mjs";
 import { renderSetPieceBoard } from "./board-renderer.mjs";
 import { renderSetPiecesWorkspace } from "./workspace-renderer.mjs";
+import { renderSetPiecesSaveReviews } from "./save-review-view.mjs";
 import { syncSetPiecesWideEditorBoard } from "./wide-editor-board.mjs";
 import { createSetPiecePlayerMarkerMenuController } from "./player-marker-menu.mjs";
 import {
@@ -54,6 +55,7 @@ export function createSetPiecesRoomController(options = {}) {
   let boardClipboard = null;
   let boardPasteCount = 0;
   let preservePresentationAfterFullscreenExit = false;
+  let saveReviews = [];
 
   function hasDismissedOnboarding() {
     try {
@@ -164,6 +166,36 @@ export function createSetPiecesRoomController(options = {}) {
       statusNode.className = `spr-save-state is-${ui.saveState}${ui.saveState !== "error" ? " sr-only" : ""}`;
       statusNode.textContent = ui.saveMessage;
     }
+    if (ui.saveState === "error" || normalized === "saved") refreshSaveReviews();
+  }
+
+  function renderSaveReviews() {
+    root?.querySelector?.(".spr-save-reviews")?.remove();
+    root?.querySelector?.(".spr-header")?.insertAdjacentHTML?.("afterend", renderSetPiecesSaveReviews(saveReviews));
+  }
+
+  async function refreshSaveReviews() {
+    const bridge = win.footballScienceCentralState;
+    const actor = getActorId();
+    const scope = bridge?.getReadScope?.();
+    if (!bridge?.getSetPiecesSaveReviews) return;
+    const rows = await bridge.getSetPiecesSaveReviews().catch(() => []);
+    if (actor !== getActorId() || scope !== bridge.getReadScope?.()) return;
+    saveReviews = rows;
+    renderSaveReviews();
+  }
+
+  async function resolveSaveReview(button) {
+    if (!canEdit()) return;
+    const playId = button.dataset.reviewPlay;
+    const row = saveReviews.find((item) => item.payload.change.playId === playId);
+    if (!row) return;
+    button.disabled = true;
+    const result = await win.footballScienceCentralState?.resolveSetPiecesSaveReview?.(playId, row.central, button.dataset.setPieceReview)
+      .catch((error) => ({ ok: false, reason: error.message }));
+    if (!result?.ok) setSyncStatus("issue", result?.reason || "The local review could not be saved.");
+    else setSyncStatus("saved");
+    await refreshSaveReviews();
   }
 
   function commit(mutator, { recordHistory = true } = {}) {
@@ -195,6 +227,7 @@ export function createSetPiecesRoomController(options = {}) {
     const roster = getRoster();
     const team = options.getTeamIdentity?.() || {};
     root.innerHTML = renderSetPiecesWorkspace({ state, roster, team, ui: rendererUi(), canEdit: canEdit(), canDelete: canDelete() });
+    renderSaveReviews();
     revealActiveSetPiecePhase(root);
     syncSetPiecesWideEditorBoard(root, win);
   }
@@ -713,6 +746,8 @@ export function createSetPiecesRoomController(options = {}) {
   }
 
   function handleClick(event) {
+    const reviewButton = event.target.closest?.("[data-set-piece-review]");
+    if (reviewButton) return resolveSaveReview(reviewButton);
     if (playerMarkerMenu.handleClick(event)) return;
     if (!event.target.closest?.("[data-set-piece-pitch]")) boardInteractions.resetSelectionActivation();
     const openPresentationVariantMenu = root.querySelector?.(".spr-present-variant-menu[open]");

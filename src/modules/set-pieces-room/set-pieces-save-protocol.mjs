@@ -63,8 +63,13 @@ export function replaceSetPiecePlay(state, playId, play) {
 export function createSetPiecePlayChanges(beforeState, afterState, makeId = () => globalThis.crypto.randomUUID()) {
   const before = normalizeSetPiecesState(beforeState || createEmptySetPiecesState());
   const after = normalizeSetPiecesState(afterState || createEmptySetPiecesState());
-  const beforeById = new Map(before.plays.map((play) => [play.id, play]));
-  const afterById = new Map(after.plays.map((play) => [play.id, play]));
+  const sharedPlay = (play) => {
+    const { activeVariantId, ...shared } = copy(play);
+    shared.variants = shared.variants.map(({ activePhaseId, ...variant }) => variant);
+    return shared;
+  };
+  const beforeById = new Map(before.plays.map((play) => [play.id, sharedPlay(play)]));
+  const afterById = new Map(after.plays.map((play) => [play.id, sharedPlay(play)]));
   return [...new Set([...beforeById.keys(), ...afterById.keys()])].flatMap((playId) => {
     const previous = beforeById.get(playId) || null;
     const next = afterById.get(playId) || null;

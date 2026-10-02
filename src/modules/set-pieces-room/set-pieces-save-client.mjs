@@ -1,4 +1,5 @@
 import { createOfflineOperationJournal } from "../../core/offline-operation-journal.mjs";
+import { cloneSetPiecePlay } from "./play-helpers.mjs";
 import {
   createSetPiecePlayChanges,
   replaceSetPiecePlay,
@@ -19,6 +20,7 @@ function failure(reason, extra = {}) {
 
 export function createSetPiecesSaveClient({
   getScope,
+  getLatest,
   send,
   journal = createOfflineOperationJournal(),
   makeId,
@@ -30,6 +32,8 @@ export function createSetPiecesSaveClient({
   let serial = Promise.resolve();
   let staging = Promise.resolve();
   let sequence = 0;
+  let generation = 0;
+  let stagingFailure = null;
   const writer = makeId ? makeId() : globalThis.crypto.randomUUID();
   const current = (expected) => expected && expected === getScope() && expected === scope;
 
@@ -40,11 +44,13 @@ export function createSetPiecesSaveClient({
       baseline = null;
       revision = 0;
       scope = nextScope;
+      stagingFailure = null;
     }
     const nextRevision = Number(metadata.revision || 0);
     if (nextRevision < revision) return;
     baseline = JSON.parse(value);
     revision = nextRevision;
+    generation += 1;
   }
 
   async function pendingRows(expected) {
@@ -62,9 +68,10 @@ export function createSetPiecesSaveClient({
   function stage(value, options = {}) {
     const expected = getScope();
     const desired = JSON.parse(value);
-    const baseAtEdit = typeof options.previousValue === "string"
+    const baseAtEdit = !stagingFailure && typeof options.previousValue === "string"
       ? JSON.parse(options.previousValue)
       : baseline && clone(baseline);
+    generation += 1;
     const work = staging.then(async () => {
       if (!current(expected) || !baseAtEdit) {
         return failure("Central Set Pieces data is still loading. Local changes were retained.");
@@ -93,12 +100,21 @@ export function createSetPiecesSaveClient({
         });
       }
       return { ok: true };
-    }).catch((error) => failure(error?.message || "Local Set Pieces save storage failed. Keep this page open."));
+    }).catch((error) => failure(error?.message || "Local Set Pieces save storage failed. Keep this page open.")).then((result) => {
+      if (current(expected)) stagingFailure = result.ok ? null : result;
+      return result;
+    });
     staging = work.then(() => {});
     return work;
   }
 
   async function drain(expected) {
+    if (getLatest) {
+      const latest = await getLatest(expected);
+      if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+      if (!latest) return failure("Central Set Pieces data could not be refreshed. Local changes were retained.", { durablePending: true });
+      observe(latest.value, latest.metadata);
+    }
     const rows = await pendingRows(expected);
     const blockedPlayIds = new Set();
     let metadata = { revision };
@@ -141,6 +157,13 @@ export function createSetPiecesSaveClient({
       metadata = { ...result.payload.metadata, revision };
       await journal.updateStatus(row.id, expected, "applied");
     }
+    if (getLatest) {
+      const latest = await getLatest(expected);
+      if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+      if (!latest) return failure("Saved changes could not be refreshed. Retry the central read.", { durablePending: true });
+      observe(latest.value, latest.metadata);
+      metadata = { ...latest.metadata, revision };
+    }
     if (needsReview) {
       onReview();
       return failure("A teammate changed the same set piece. Your version is safe and needs review.", {
@@ -157,6 +180,7 @@ export function createSetPiecesSaveClient({
     const expected = getScope();
     const work = serial.then(async () => {
       await staging;
+      if (stagingFailure) return stagingFailure;
       if (!current(expected) || !baseline) {
         return failure("Central Set Pieces data is still loading. Local changes were retained.");
       }
@@ -175,13 +199,16 @@ export function createSetPiecesSaveClient({
     const expected = getScope();
     if (!current(expected) || !baseline) return null;
     const rows = await pendingRows(expected);
+    if (!current(expected)) return null;
     return rows.length ? JSON.stringify(applyRows(baseline, rows)) : null;
   }
 
   async function reviews() {
     const expected = getScope();
     if (!current(expected) || !baseline) return [];
-    return (await pendingRows(expected)).filter((row) => row.status === "review").map((row) => ({
+    const rows = await pendingRows(expected);
+    if (!current(expected)) return [];
+    return rows.filter((row) => row.status === "review").map((row) => ({
       ...row,
       central: setPiecePlayValue(baseline, row.payload?.change?.playId),
     }));
@@ -190,8 +217,67 @@ export function createSetPiecesSaveClient({
   async function isSettled() {
     const expected = getScope();
     await staging;
-    return Boolean(current(expected) && baseline && !(await pendingRows(expected)).length);
+    const rows = await pendingRows(expected);
+    return Boolean(current(expected) && baseline && !stagingFailure && !rows.length);
   }
 
-  return Object.freeze({ isSettled, observe, pendingState, replay, reviews, save, stage });
+  async function project() {
+    const expected = getScope();
+    await staging;
+    const token = generation;
+    const rows = await pendingRows(expected);
+    if (!current(expected) || !baseline || generation !== token) return null;
+    return { scope: expected, generation: token, pending: Boolean(rows.length || stagingFailure),
+      value: JSON.stringify(applyRows(baseline, rows)) };
+  }
+
+  async function preserveLegacy(value) {
+    if (!value) return;
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed.plays) || !parsed.plays.length) return;
+    const encoded = new TextEncoder().encode(value);
+    const hash = [...new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", encoded))]
+      .map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    await journal.put({ id: `legacy-${hash}`, scope: "unverified-set-pieces-local-recovery",
+      moduleId, key: `${storageKey}:legacy-recovery`, type: "legacy-recovery", status: "review",
+      createdAt: Date.now(), payload: { value } });
+  }
+
+  function isProjectionCurrent(view) {
+    return Boolean(view && current(view.scope) && view.generation === generation);
+  }
+
+  function resolveReview(playId, expectedCentral, mode) {
+    const expected = getScope();
+    const work = serial.then(async () => {
+      await staging;
+      if (!current(expected) || !["central", "copy"].includes(mode)) return failure("This review has changed. Open it again.");
+      if (getLatest) {
+        const latest = await getLatest(expected);
+        if (!current(expected) || !latest) return failure("Central Set Pieces could not be refreshed.");
+        observe(latest.value, latest.metadata);
+      }
+      if (!sameSetPieceValue(setPiecePlayValue(baseline, playId), expectedCentral)) return failure("This set piece changed again. Review the latest version.");
+      const rows = (await pendingRows(expected)).filter((row) => row.payload?.change?.playId === playId);
+      if (!current(expected) || !rows.some((row) => row.status === "review")) return failure("This review has changed. Open it again.");
+      if (mode === "copy") {
+        const local = rows.at(-1)?.payload?.change?.after;
+        if (!local) return failure("A deleted local version cannot be copied. Keep the team version.");
+        const copy = cloneSetPiecePlay(local);
+        const next = replaceSetPiecePlay(baseline, copy.id, copy);
+        const staged = await stage(JSON.stringify(next), { previousValue: JSON.stringify(baseline) });
+        if (!staged.ok) return staged;
+      }
+      for (const row of rows) {
+        if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+        if (!(await journal.updateStatus(row.id, expected, "applied"))) return failure("The local review could not be confirmed.");
+      }
+      generation += 1;
+      return drain(expected);
+    }).catch((error) => failure(error.message || "The local review could not be saved."));
+    serial = work.then(() => {});
+    return work;
+  }
+
+  return Object.freeze({ isSettled, observe, pendingState, project, preserveLegacy, isProjectionCurrent, resolveReview, replay, reviews, save, stage });
 }

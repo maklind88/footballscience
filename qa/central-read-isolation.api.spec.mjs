@@ -85,6 +85,7 @@ for (const present of [true, false]) {
     let journalCalls = 0;
     const context = {
       centralState, window: { localStorage }, SESSION_PLANNER_STATE_KEY: sessions, MEDICAL_TEAM_STATE_KEY: medical,
+      SET_PIECES_ROOM_STATE_KEY: "football-set-pieces-room-v1",
       WORKSPACE_HUB_STATE_KEY: "hub", PERIODIZATION_STATE_KEY: "period", SCHEDULE_STATE_KEY: "schedule",
       PLAYER_PROFILES_STATE_KEY: "profiles", MEDICAL_LOCAL_UI_FIELDS: [],
       getSessionSaveClient: async () => { journalCalls += 1; throw new Error("must not open failed Sessions journal"); },

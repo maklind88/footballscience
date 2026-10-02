@@ -1230,6 +1230,28 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
   await expect(shell.getByRole("button", { name: "Edit", exact: true })).toHaveAttribute("aria-pressed", "true");
 });
 
+test("Set Pieces save journal leaves the existing Sessions backup database unchanged", async ({ page }) => {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  const result = await page.evaluate(async () => {
+    const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
+    const store = createSessionSaveStore();
+    await store.list("qa-session-scope");
+    const before = (await indexedDB.databases()).find((db) => db.name === "football-science-data-safety-v1");
+    const { createSetPiecesSaveClient } = await import("/src/modules/set-pieces-room/set-pieces-save-client.mjs");
+    const client = createSetPiecesSaveClient({ getScope: () => "qa-set-pieces-scope" });
+    client.observe('{"schemaVersion":4,"activePlayId":"","plays":[],"updatedAt":""}');
+    const projection = await client.project();
+    const databases = await indexedDB.databases();
+    await store.list("qa-session-scope");
+    return { before: before.version,
+      after: databases.find((db) => db.name === "football-science-data-safety-v1").version,
+      journal: databases.find((db) => db.name === "football-science-set-pieces-saves-v1").version,
+      pending: projection.pending };
+  });
+  expect(result).toEqual({ before: 1, after: 1, journal: 2, pending: false });
+});
+
 test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {

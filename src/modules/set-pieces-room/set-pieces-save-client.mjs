@@ -22,7 +22,7 @@ export function createSetPiecesSaveClient({
   getScope,
   getLatest,
   send,
-  journal = createOfflineOperationJournal(),
+  journal = createOfflineOperationJournal({ databaseName: "football-science-set-pieces-saves-v1" }),
   makeId,
   onReview = () => {},
 } = {}) {

@@ -60,16 +60,18 @@ export function replaceSetPiecePlay(state, playId, play) {
   return normalizeSetPiecesState(next);
 }
 
+function sharedSetPiecePlay(play) {
+  if (!play) return play;
+  const { activeVariantId, ...shared } = copy(play);
+  shared.variants = shared.variants.map(({ activePhaseId, ...variant }) => variant);
+  return shared;
+}
+
 export function createSetPiecePlayChanges(beforeState, afterState, makeId = () => globalThis.crypto.randomUUID()) {
   const before = normalizeSetPiecesState(beforeState || createEmptySetPiecesState());
   const after = normalizeSetPiecesState(afterState || createEmptySetPiecesState());
-  const sharedPlay = (play) => {
-    const { activeVariantId, ...shared } = copy(play);
-    shared.variants = shared.variants.map(({ activePhaseId, ...variant }) => variant);
-    return shared;
-  };
-  const beforeById = new Map(before.plays.map((play) => [play.id, sharedPlay(play)]));
-  const afterById = new Map(after.plays.map((play) => [play.id, sharedPlay(play)]));
+  const beforeById = new Map(before.plays.map((play) => [play.id, sharedSetPiecePlay(play)]));
+  const afterById = new Map(after.plays.map((play) => [play.id, sharedSetPiecePlay(play)]));
   return [...new Set([...beforeById.keys(), ...afterById.keys()])].flatMap((playId) => {
     const previous = beforeById.get(playId) || null;
     const next = afterById.get(playId) || null;
@@ -169,7 +171,13 @@ export function applySetPiecePlayChange(state, input) {
   const currentState = normalizeSetPiecesState(state || createEmptySetPiecesState());
   const current = setPiecePlayValue(currentState, change.playId);
   const conflicts = [];
-  const play = mergeSetPieceValue(change.before, change.after, current, conflicts, `play.${change.playId}`);
+  const play = mergeSetPieceValue(sharedSetPiecePlay(change.before), sharedSetPiecePlay(change.after), sharedSetPiecePlay(current), conflicts, `play.${change.playId}`);
+  if (play && current) {
+    play.activeVariantId = current.activeVariantId;
+    for (const variant of play.variants) {
+      variant.activePhaseId = current.variants.find((entry) => entry.id === variant.id)?.activePhaseId;
+    }
+  }
   return {
     ok: conflicts.length === 0,
     conflicts,

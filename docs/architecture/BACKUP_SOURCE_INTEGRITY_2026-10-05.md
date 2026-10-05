@@ -33,6 +33,8 @@ containers, duplicate records, wrong key/organization and invalid value types.
 Otherwise normalization could disguise a malformed database response as an
 absent row and incorrectly authorize fallback. Write behavior is unchanged.
 Backup status, repair and audit routes retain their existing contracts.
+Single-record reads and Storage backup also reject non-boolean tombstone flags
+before normalization; a string such as "false" cannot silently omit saved data.
 
 Follow-up inspection found the same problem in the ordinary list reader:
 non-array responses became an empty list, invalid rows were discarded or
@@ -48,7 +50,7 @@ module UI, write contract, auth rule or database schema is changed.
 ## Evidence
 
 - Real backup handler exercised with synthetic fetch responses; no live data.
-- 25 source-integrity cases cover HTTP failure, malformed data, source priority,
+- 33 source-integrity cases cover HTTP failure, malformed data, source priority,
   tombstones, missing-row fallback, organization boundaries and no database writes.
 - Initial regression run reproduced the old incorrect behavior. The test suite
   now resets the existing rate-limit buckets between cases, following the
@@ -74,6 +76,13 @@ module UI, write contract, auth rule or database schema is changed.
 - Logs: `/private/tmp/fs-backup-source-regression.log`,
   `/private/tmp/fs-list-baseline-corrected.log`, `/private/tmp/fs-list-full-api.log`
   and `/private/tmp/fs-list-static.log`.
+
+- Final review added eight malformed tombstone cases covering Storage and
+  single-record database reads. All eight failed before the two validation
+  checks, then passed. The focused source/database/Sessions backup run passed
+  all **136 tests**; `qa:static` passed after the review correction.
+  Logs: `/private/tmp/fs-review-tombstone-before.log`,
+  `/private/tmp/fs-review-source-targeted.log`, `/private/tmp/fs-review-source-static.log`.
 
 ## Limits and next checks
 

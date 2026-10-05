@@ -3,6 +3,7 @@ const { isAppStateDatabaseEnabled, readAppStateRecord } = require("./app-state-r
 function validateEntry(entry, key) {
   if (!entry || Array.isArray(entry) || entry.key !== key ||
       (entry.organizationId && entry.organizationId !== "global") ||
+      (entry.removed !== undefined && typeof entry.removed !== "boolean") ||
       (entry.removed !== true && typeof entry.value !== "string")) {
     throw new Error(`Invalid backup source record for ${key}; previous backup retained.`);
   }

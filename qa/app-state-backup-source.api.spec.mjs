@@ -118,3 +118,16 @@ test("an unrelated Storage 404 error is not proof of an absent key", async () =>
   expect(result.status).toBe(500);
   expect(result.writes).toEqual([]);
 });
+
+for (const removed of ["false", "true", 1, null]) {
+  test(`backup rejects non-boolean Storage tombstone ${JSON.stringify(removed)}`, async () => {
+    const result = await backup({ storageBody: JSON.stringify({ key, value: "{}", removed }) });
+    expect(result.status).toBe(500);
+    expect(result.writes).toEqual([]);
+  });
+  test(`backup rejects non-boolean database tombstone ${JSON.stringify(removed)}`, async () => {
+    const result = await backup({ database: true, databaseRows: [{ ...row, removed }] });
+    expect(result.status).toBe(500);
+    expect(result.writes).toEqual([]);
+  });
+}

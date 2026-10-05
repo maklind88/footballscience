@@ -10,7 +10,7 @@ befintliga mergekontrakt i API och lokal återhämtning. Medical Room äger klin
 regler och återställningsbeslut; Squad äger medlemskap; Sessions äger tränings-
 och konfliktgränssnittet. Dessa domänflöden ändras inte här.
 
-Bas: `36264921c18663357f16674eac0596f57bd9e282`, kontrollerad mot hämtad
+Aktuell bas: `cf3195a4d9a71792ecd336eb57980338da96d18e`, kontrollerad mot hämtad
 `origin/main` 2026-10-05. Kandidatgren: `codex/save-reliability-20261003`.
 Safe Lane krävs vid eventuell release. Användaren har godkänt implementering,
 men har ännu inte gett ett direkt Deploy/Live-kommando i denna chatt.
@@ -29,7 +29,7 @@ men har ännu inte gett ett direkt Deploy/Live-kommando i denna chatt.
    senaste försök har skilda tider. Falskt resultat, avvisat promise och synkront
    fel behandlas som fel. Tre automatiska återförsök sker efter 5, 10 och 20
    sekunder; därefter får ordinarie händelser försöka efter backoff. Dolda vyer
-   läses inte. Kontots/lagets kontext kontrolleras före återförsök och återspelning
+   läses inte. Kontots/lagets kontext och bryggans autentiserade läskontext kontrolleras före återförsök och återspelning
    av väntande skrivningar. Normal lyckad polling och skydd för öppen redigering
    behåller sina befintliga intervall.
 
@@ -76,11 +76,29 @@ inte fastställd.
 Slutkörningen avbröts efter ytterligare tidsgränsfel under kraftigt förhöjd
 datorbelastning (rapporterat enminutsmedel 91,33). Terminalt resultat: fyra
 godkända, tre misslyckade, ett avbrutet och 98 inte körda. Belastningen är en
-möjlig förklaring, inte ett bevis att alla fel är miljöfel. WebKit-matrisen är
-därför **inte slutgodkänd**. Testkorrigeringen och denna uppdatering bevaras lokalt
-och pushas inte innan relevanta kontroller är gröna. PR kvarstår som utkast.
-Nästa steg är en full WebKit-körning i en stabil testmiljö, med oförändrade krav,
-och därefter GitHub-verifiering av eventuell ny commit före release.
+möjlig förklaring, inte ett bevis att alla fel är miljöfel. WebKit-matrisen var
+då **inte slutgodkänd**. Testkorrigeringen bevarades lokalt och PR behölls som
+utkast medan relevanta kontroller återstod.
+Detta var status vid det tidigare avbrottet. Se uppföljningen nedan.
+
+### Uppföljning efter återupptagen verifiering
+
+Vid normal datorbelastning passerade samtliga **106 WebKit-tester** på
+`6a788244`, utan ändrade tidsgränser eller assertions. Detta ersätter den tidigare
+ofullständiga verifieringen; det bevisar inte grundorsaken till tidigare timeouts.
+
+Granskningen mot ny main visade ytterligare ett kontextfall: organisationen kan
+ändras i autentiseringsuppgifterna utan ändrad användarprofil. Tre nya tester
+reproducerade att återförsök och dess throttle då kunde använda föregående
+kontext. Rättningen i `96c302f4` inkluderar bryggans `getReadScope()` i jämförelsen.
+Alla tre tester passerar efter ändringen. Senaste main förenades utan konflikter
+med kandidaten i `eb958f963b455e006359cd50f1624329feb77c6e`. På den versionen har
+`qa:static`, **385 berörda API-kontrakt** och hela matrisens **106 WebKit-tester**
+passerat. Den sista WebKit-körningen slutfördes utan fel, överhopp eller retries
+på 3,4 minuter. Loggar: `/private/tmp/fs-save-final-static.log`,
+`/private/tmp/fs-save-final-api.log`, `/private/tmp/fs-save-webkit-integrated.log`.
+Denna dokumentuppdatering ändrar ingen produkt- eller testkod. GitHubs fulla QA
+ska också passera på den pushade slutversionen före releasebedömning.
 
 Live kunde öppnas 2026-10-05 men visade inloggning. Inget autentiserat
 produktionsprov eller test med två verkliga konton har genomförts här. Native

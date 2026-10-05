@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import process from "node:process";
+import { readStagingIsolationReport } from "./lib/staging-isolation.mjs";
 
 const defaultLiveUrl = "https://footballscience.xyz";
 const defaultStagingUrl = "https://staging.footballscience.xyz";
@@ -72,39 +73,8 @@ function hostnameFrom(value) {
   return new URL(url).hostname;
 }
 
-function refFromSupabaseUrl(url) {
-  const value = String(url || "").trim();
-  if (!value) return "";
-  try {
-    return new URL(value).hostname.split(".")[0] || value;
-  } catch {
-    return value;
-  }
-}
-
-async function readClientConfig(host) {
-  const configUrl = new URL("/api/client-config", `https://${host}`);
-  configUrl.searchParams.set("isolationCheck", `${Date.now()}`);
-  const response = await fetch(configUrl, { cache: "no-store" });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const reason = payload?.error?.message || payload?.message || response.statusText || response.status;
-    throw new Error(`${host} /api/client-config failed: ${reason}`);
-  }
-  return {
-    host,
-    supabaseUrl: String(payload?.url || ""),
-    supabaseRef: refFromSupabaseUrl(payload?.url),
-  };
-}
-
 async function readIsolationReport() {
-  const [stagingBranch, staging, live] = await Promise.all([
-    readClientConfig(stagingBranchHost),
-    readClientConfig(stagingHost),
-    readClientConfig(liveHost),
-  ]);
-  return { stagingBranch, staging, live };
+  return readStagingIsolationReport({ branch: stagingBranchHost, staging: stagingHost, live: liveHost });
 }
 
 function refsMatch(left, right) {
@@ -120,6 +90,9 @@ function printReport(report) {
   console.log(`- staging branch: ${report.stagingBranch.host} -> ${report.stagingBranch.supabaseRef || "<missing>"}`);
   console.log(`- staging alias:  ${report.staging.host} -> ${report.staging.supabaseRef || "<missing>"}`);
   console.log(`- live alias:     ${report.live.host} -> ${report.live.supabaseRef || "<missing>"}`);
+  if (report.stagingBranch.verifiedDeploymentId) {
+    console.log(`- protected staging identity: ${report.stagingBranch.verifiedDeploymentId}`);
+  }
 }
 
 function failWithIsolationMessage(report, message) {
@@ -133,6 +106,7 @@ function failWithIsolationMessage(report, message) {
 
 function restoreStagingAlias() {
   const args = ["--yes", "vercel@53.2.0", "alias", "set", stagingBranchHost, stagingHost];
+  if (process.env.VERCEL_ORG_ID) args.push("--scope", process.env.VERCEL_ORG_ID);
   if (process.env.VERCEL_TOKEN) {
     args.push("--token", process.env.VERCEL_TOKEN);
   }

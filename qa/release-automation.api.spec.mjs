@@ -102,6 +102,17 @@ test("release automation keeps staging and live environments isolated", () => {
   expect(rollbackWorkflow).toContain("npm run release:staging-isolation:repair");
 });
 
+test("production rollback uses the verified team scope before live verification", () => {
+  const workflow = readProjectFile(".github/workflows/production-rollback.yml");
+  const command = 'vercel@53.2.0 rollback "$ROLLBACK_DEPLOYMENT" --yes --timeout=5m --scope="$VERCEL_ORG_ID" --token="$VERCEL_TOKEN"';
+
+  expect(workflow).toContain(command);
+  expect(workflow.indexOf("npm run release:vercel-token")).toBeLessThan(workflow.indexOf(command));
+  expect(workflow.indexOf(command)).toBeLessThan(workflow.indexOf("npm run release:staging-isolation:repair"));
+  expect(workflow.indexOf("npm run release:staging-isolation:repair")).toBeLessThan(workflow.indexOf("npm run release:postdeploy"));
+  expect(workflow.indexOf("npm run release:postdeploy")).toBeLessThan(workflow.indexOf("npm run qa:live:required"));
+});
+
 test("production deploy validates and promotes the exact staged artifact before live QA", () => {
   const workflow = readProjectFile(".github/workflows/production-deploy.yml");
   const verifier = readProjectFile("scripts/lib/production-promotion.mjs");

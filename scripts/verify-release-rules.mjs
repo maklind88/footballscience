@@ -249,6 +249,7 @@ requireText(".github/workflows/production-rollback.yml", "workflow_dispatch:", "
 requireText(".github/workflows/production-rollback.yml", "ROLLBACK", "rollback must require explicit confirmation");
 requireText(".github/workflows/production-rollback.yml", "npm run release:vercel-token", "rollback must fail closed when the Vercel token is invalid");
 requireText(".github/workflows/production-rollback.yml", "vercel@53.2.0 rollback", "rollback must use the pinned Vercel CLI");
+requireText(".github/workflows/production-rollback.yml", 'rollback "$ROLLBACK_DEPLOYMENT" --yes --timeout=5m --scope="$VERCEL_ORG_ID"', "rollback must explicitly select the verified Vercel team");
 requireText(".github/workflows/production-rollback.yml", "npm run release:staging-isolation:repair", "rollback must repair staging/live alias drift before live verification");
 requireText(".github/workflows/production-rollback.yml", "LIVE_QA_PEER_USERNAME", "rollback verification must pass peer live QA credentials for two-account chat smoke");
 requireText(".github/workflows/production-rollback.yml", "vars.LIVE_QA_REQUIRE_PEER_CHAT || '1'", "rollback must require two-account chat smoke by default");

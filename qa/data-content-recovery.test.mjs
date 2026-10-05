@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   compareContent, contentTableDDL, identifier, maxRecoveryBytes, metadataQuery, productionPooler,
   productionRef, recoveryPlan, recoveryTables, requireExecution, snapshotTransaction,
@@ -130,14 +131,14 @@ test("same counts cannot hide changed payloads, missing tables, revisions or del
 test("CLI is offline by default, accepts no execution mode and emits no supplied secret", () => {
   const command = new URL("../scripts/data-content-recovery-plan.mjs", import.meta.url);
   const env = { ...process.env, SUPABASE_DB_PASSWORD: "never-print-this-synthetic-secret", PGHOST: "invalid.example" };
-  const result = spawnSync(process.execPath, [command.pathname], { env, encoding: "utf8" });
+  const result = spawnSync(process.execPath, [fileURLToPath(command)], { env, encoding: "utf8" });
   assert.equal(result.status, 0);
   const plan = JSON.parse(result.stdout);
   assert.equal(plan.executionEnabled, false);
   assert.equal(plan.destinationApproval, "approved-temporary-github-runner");
   assert.equal(plan.executionEntry, "manual-reviewed-github-job-only");
   assert.ok(!`${result.stdout}${result.stderr}`.includes(env.SUPABASE_DB_PASSWORD));
-  const rejected = spawnSync(process.execPath, [command.pathname, "--execute"], { env, encoding: "utf8" });
+  const rejected = spawnSync(process.execPath, [fileURLToPath(command), "--execute"], { env, encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.match(rejected.stderr, /not enabled/);
 });
@@ -146,7 +147,7 @@ test("execution CLI rejects local use before any network access and suppresses s
   const command = new URL("../scripts/github-data-content-recovery.mjs", import.meta.url);
   for (const args of [[], ["--execute"], ["--execute", "--destination", "example.com"]]) {
     const env = { ...process.env, GITHUB_ACTIONS: "false", SUPABASE_DB_PASSWORD: "synthetic-never-log" };
-    const result = spawnSync(process.execPath, [command.pathname, ...args], { env, encoding: "utf8", timeout: 5000 });
+    const result = spawnSync(process.execPath, [fileURLToPath(command), ...args], { env, encoding: "utf8", timeout: 5000 });
     assert.equal(result.status, 1);
     assert.ok(!`${result.stdout}${result.stderr}`.includes(env.SUPABASE_DB_PASSWORD));
     assert.ok(!result.stderr.includes("Error:"));

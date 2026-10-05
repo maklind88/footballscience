@@ -46,8 +46,17 @@ Backup status, repair and audit routes retain their existing contracts.
   backup verification and platform-safety suites: **180 passed**.
 - `npm run qa:static` and `git diff --check`: passed. Existing architecture-size
   warnings remain.
-- Logs: `/private/tmp/fs-backup-source-regression.log` and
-  `/private/tmp/fs-backup-static.log`.
+- Native PostgreSQL 17 CI on `973073f76fc40b1d50ebe31419d58acbe4ffe6a5`: **32 passed**,
+  including concurrent saves, lost replies, consistent snapshots and restored receipts.
+  Evidence: https://github.com/maklind88/footballscience/actions/runs/37366577467
+- The full local API run exposed a pre-existing test harness bug: URL `pathname`
+  passed `%20` to Node when the checkout path contained a space. The recovery CLI
+  itself worked. The test now uses `fileURLToPath`; all 15 offline recovery tests
+  passed in the same space-containing checkout. Production recovery code is unchanged.
+- Full local API suite after the harness correction: **3,243 passed**.
+  `qa:static`, syntax and diff checks also passed after that correction.
+- Logs: `/private/tmp/fs-backup-source-regression.log`,
+  `/private/tmp/fs-backup-full-api-fixed.log` and `/private/tmp/fs-backup-static-final.log`.
 
 ## Limits and next checks
 
@@ -55,7 +64,8 @@ This preserves the current global app-state backup contract; it does not claim
 coverage of every organization, relational module, Storage object or media file.
 Independent generic keys are not read in one atomic cross-module transaction.
 Sessions snapshot validation remains separate. Native PostgreSQL verification
-and full candidate CI are still required; local tests use simulated responses.
+passed on the implementation commit above; full CI must also pass on the final
+candidate SHA. The generic source-integrity cases use simulated responses.
 
 Actual production `APP_STATE_DATABASE_MODE`, backup retention, PITR configuration
 and a full isolated restore drill still need verified operational evidence.

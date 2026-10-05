@@ -2,16 +2,17 @@ import { expect, test } from "@playwright/test";
 import { createCentralAppStateReloadService } from "../src/core/central-app-state-reload-service.mjs";
 
 function harness(hydrate) {
-  let now = 100000, user = { id: "actor-a", teamId: "team-a" }, nextTimer = 0;
+  let now = 100000, user = { id: "actor-a", teamId: "team-a" }, readScope = "org-a", nextTimer = 0;
   const timers = new Map(), calls = [], documentRef = { visibilityState: "visible", hasFocus: () => true };
   const service = createCentralAppStateReloadService({ documentRef,
     getRefreshNow: () => now, getCurrentPlatformUser: () => user,
-    getCentralStateBridge: () => ({ hydrate: () => { calls.push("read"); return hydrate(); } }),
+    getCentralStateBridge: () => ({ getReadScope: () => readScope, hydrate: () => { calls.push("read"); return hydrate(); } }),
     hasPendingCentralStateWrites: () => true,
     retryCentral: () => calls.push("retry-writes"), queueCentralStateStatus: () => calls.push("error"),
     win: { setTimeout: (fn, delay) => { const id = ++nextTimer; timers.set(id, { fn, delay }); return id; }, clearTimeout: id => timers.delete(id) },
   });
   return { service, timers, calls, documentRef, advance: ms => { now += ms; }, setUser: value => { user = value; },
+    setReadScope: value => { readScope = value; },
     async tick() { const [id, timer] = [...timers][0]; timers.delete(id); now += timer.delay; await timer.fn(); },
   };
 }
@@ -75,6 +76,33 @@ test("a read finishing after account change does not replay pending writes", asy
   finish(true);
   await request;
   expect(h.calls).not.toContain("retry-writes");
+});
+
+test("a queued retry cannot cross an organization claim change with the same profile", async () => {
+  const h = harness(() => Promise.resolve(false));
+  await h.service.refreshCentralStateFromSource("focus");
+  h.setReadScope("org-b");
+  await h.tick();
+  expect(h.calls.filter(value => value === "read")).toHaveLength(1);
+});
+
+test("a read finishing after an organization claim change does not replay writes", async () => {
+  let finish;
+  const h = harness(() => new Promise(resolve => { finish = resolve; }));
+  const request = h.service.refreshCentralStateFromSource("focus");
+  await Promise.resolve();
+  h.setReadScope("org-b");
+  finish(true);
+  await request;
+  expect(h.calls).not.toContain("retry-writes");
+});
+
+test("the previous organization's successful read cannot throttle a new organization", async () => {
+  const h = harness(() => Promise.resolve(true));
+  await h.service.refreshCentralStateFromSource("focus");
+  h.setReadScope("org-b");
+  await h.service.refreshCentralStateFromSource("focus");
+  expect(h.calls.filter(value => value === "read")).toHaveLength(2);
 });
 
 test("a queued retry does not read while hidden", async () => {

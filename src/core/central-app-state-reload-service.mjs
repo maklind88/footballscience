@@ -29,7 +29,10 @@ export function createCentralAppStateReloadService(deps = {}) {
   const getHubState = () => call("getHubState") || null;
   const setHubState = (nextState) => call("setHubState", nextState);
   const getSessionPlannerState = () => call("getSessionPlannerState") || null;
-  const getRefreshScope = () => JSON.stringify(call("getCurrentPlatformUser") || null);
+  const getRefreshScope = () => JSON.stringify([
+    call("getCurrentPlatformUser") || null,
+    call("getCentralStateBridge")?.getReadScope?.() || "",
+  ]);
   const refreshNow = () => deps.getRefreshNow?.() ?? Date.now();
   const setTimeoutRef = win.setTimeout?.bind(win) || globalThis.setTimeout;
   const clearTimeoutRef = win.clearTimeout?.bind(win) || globalThis.clearTimeout;

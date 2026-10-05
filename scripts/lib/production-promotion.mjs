@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { createProtectedReleaseFetch } from "./vercel-protected-read.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -142,6 +143,7 @@ export async function verifyProductionPromotion(options = {}) {
   const env = options.env || process.env;
   const fetchImpl = options.fetchImpl || fetch;
   const rootDir = path.resolve(options.rootDir || process.cwd());
+  const releaseFetch = createProtectedReleaseFetch({ fetchImpl, env, rootDir, ...options.protectedReadOptions });
   const phase = clean(options.phase || env.PRODUCTION_PROMOTION_PHASE || "staged").toLowerCase();
   if (!new Set(["staged", "live"]).has(phase)) throw new Error(`Unknown production promotion phase: ${phase}.`);
 
@@ -169,8 +171,8 @@ export async function verifyProductionPromotion(options = {}) {
 
   const staged = await inspectDeployment(fetchImpl, new URL(deploymentOrigin).hostname, config);
   const stagedId = assertProductionDeployment(staged, config);
-  await assertSupabaseProject(fetchImpl, deploymentOrigin, projectRef);
-  await assertReleaseAssets(fetchImpl, deploymentOrigin, rootDir);
+  await assertSupabaseProject(releaseFetch, deploymentOrigin, projectRef);
+  await assertReleaseAssets(releaseFetch, deploymentOrigin, rootDir);
 
   if (phase === "live") {
     const live = await waitForLiveDeployment(
@@ -185,8 +187,8 @@ export async function verifyProductionPromotion(options = {}) {
     );
     const liveId = assertProductionDeployment(live, config);
     if (liveId !== stagedId) throw new Error(`Live domain points to ${liveId}, expected exact deployment ${stagedId}.`);
-    await assertSupabaseProject(fetchImpl, liveOrigin, projectRef);
-    await assertReleaseAssets(fetchImpl, liveOrigin, rootDir);
+    await assertSupabaseProject(releaseFetch, liveOrigin, projectRef);
+    await assertReleaseAssets(releaseFetch, liveOrigin, rootDir);
   }
 
   return { deploymentId: stagedId, deploymentOrigin, liveOrigin, phase };

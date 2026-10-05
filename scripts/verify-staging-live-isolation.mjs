@@ -1,5 +1,8 @@
 import { spawnSync } from "node:child_process";
 import process from "node:process";
+import { createProtectedReleaseFetch, readReleaseClientConfig, supabaseRefFromConfig } from "./lib/vercel-protected-read.mjs";
+
+const releaseFetch = createProtectedReleaseFetch();
 
 const defaultLiveUrl = "https://footballscience.xyz";
 const defaultStagingUrl = "https://staging.footballscience.xyz";
@@ -72,30 +75,11 @@ function hostnameFrom(value) {
   return new URL(url).hostname;
 }
 
-function refFromSupabaseUrl(url) {
-  const value = String(url || "").trim();
-  if (!value) return "";
-  try {
-    return new URL(value).hostname.split(".")[0] || value;
-  } catch {
-    return value;
-  }
-}
-
 async function readClientConfig(host) {
   const configUrl = new URL("/api/client-config", `https://${host}`);
   configUrl.searchParams.set("isolationCheck", `${Date.now()}`);
-  const response = await fetch(configUrl, { cache: "no-store" });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const reason = payload?.error?.message || payload?.message || response.statusText || response.status;
-    throw new Error(`${host} /api/client-config failed: ${reason}`);
-  }
-  return {
-    host,
-    supabaseUrl: String(payload?.url || ""),
-    supabaseRef: refFromSupabaseUrl(payload?.url),
-  };
+  const payload = await readReleaseClientConfig(releaseFetch, configUrl);
+  return { host, supabaseUrl: payload.url, supabaseRef: supabaseRefFromConfig(payload) };
 }
 
 async function readIsolationReport() {

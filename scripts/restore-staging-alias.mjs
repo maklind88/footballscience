@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
+import { createProtectedReleaseFetch, readReleaseClientConfig, supabaseRefFromConfig } from "./lib/vercel-protected-read.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const releaseFetch = createProtectedReleaseFetch({ rootDir });
 const stagingBaseUrl = clean(process.env.STAGING_QA_BASE_URL);
 const stagingProjectRef = clean(process.env.STAGING_SUPABASE_PROJECT_REF);
 const branchAliasHost = hostnameFrom(process.env.STAGING_BRANCH_ALIAS || "footballscience-git-staging-makattack.vercel.app");
@@ -221,21 +223,13 @@ async function fetchJson(url, options, label) {
 async function readClientConfig(host) {
   const configUrl = new URL("/api/client-config", `https://${host}`);
   configUrl.searchParams.set("aliasVerify", `${Date.now()}`);
-  const response = await fetch(configUrl, { cache: "no-store" });
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    const message = payload?.error?.message || payload?.message || response.statusText || response.status;
-    throw new Error(`${host} /api/client-config failed: ${message}`);
-  }
-
-  return payload;
+  return readReleaseClientConfig(releaseFetch, configUrl);
 }
 
 async function readHostText(host, pathname) {
   const url = new URL(pathname, `https://${host}`);
   url.searchParams.set("aliasVerify", `${Date.now()}`);
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await releaseFetch(url, { cache: "no-store" });
   const text = await response.text();
 
   if (!response.ok) {
@@ -246,7 +240,7 @@ async function readHostText(host, pathname) {
 }
 
 function usesStagingSupabase(config) {
-  return String(config?.url || "").includes(stagingProjectRef);
+  return supabaseRefFromConfig(config) === stagingProjectRef;
 }
 
 async function assertHostUsesStagingSupabase(host, label) {

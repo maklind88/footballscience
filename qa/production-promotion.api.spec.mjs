@@ -119,3 +119,26 @@ test("production promotion rejects staging Supabase and modified assets", async 
   await expect(verifyProductionPromotion({ env: env(), fetchImpl: changedAsset, rootDir, phase: "staged" }))
     .rejects.toThrow(/does not match the release artifact/);
 });
+
+for (const defect of ["none", "database", "asset"]) {
+  test(`protected production artifact preserves identity checks: ${defect}`, async () => {
+    const originalFetch = fakeFetch();
+    const protectedFetch = async (url, options) => new URL(url).hostname === "api.vercel.com"
+      ? originalFetch(url, options) : new Response("", { status: 401 });
+    const verification = verifyProductionPromotion({
+      env: env(), fetchImpl: protectedFetch, rootDir, phase: "staged",
+      protectedReadOptions: {
+        verifyLink: () => {},
+        run: async (_command, args) => {
+          const pathname = args[3].split("?")[0];
+          const body = pathname === "/api/client-config"
+            ? JSON.stringify({ url: `https://${defect === "database" ? "pokrksgempkuraueglpu" : projectRef}.supabase.co` })
+            : defect === "asset" ? "wrong release" : fs.readFileSync(path.join(rootDir, pathname.slice(1)), "utf8");
+          return { stdout: body + "\n200" };
+        },
+      },
+    });
+    if (defect === "none") await expect(verification).resolves.toMatchObject({ deploymentId });
+    else await expect(verification).rejects.toThrow(defect === "database" ? /production Supabase/ : /release artifact/);
+  });
+}

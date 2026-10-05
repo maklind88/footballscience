@@ -1,6 +1,6 @@
 # Sparsäkerhet: första rättningskandidaten
 
-Status 2026-10-05: lokalt implementerad och riktat verifierad. Ingen driftändring,
+Status 2026-10-05: implementerad och pushad som [PR #252](https://github.com/maklind88/footballscience/pull/252). Ingen driftändring,
 migrering, återställning av användardata eller release är utförd.
 
 ## Ansvar och bas
@@ -54,10 +54,38 @@ Testloggar finns lokalt i `/private/tmp/fs-save-{medical-after,read-after,
 core-regression,session-browser,central-browser}.log`. Inga hemligheter eller produktionsdata
 användes i regressionerna.
 
+GitHubs fulla QA för produktcommit `4cada38c849b1bcf552ab602320e425e134124dc`
+passerade: 3 252 API-tester och 473 Chromium-tester, med tre överhoppade tester.
+Statik, säkerhet och CodeQL är gröna. [QA-körning](https://github.com/maklind88/footballscience/actions/runs/37312966974).
+
+Kompletterande WebKit-körning gav först 105 godkända och ett misslyckat test.
+Det senare reproducerades tre gånger på oförändrad main och tre gånger på
+kandidaten. En räknare visade att testets simulerade IndexedDB-fel aldrig
+aktiverades. Testet ändrar nu `IDBFactory.prototype.open` i sin isolerade
+webbläsarkontext och kräver att felinjektionen verkligen används. Samtliga
+tidigare krav på synligt centralinnehåll, cacheläge och frånvaro av skrivningar
+behålls. Ingen produktkod ändras av denna testkorrigering.
+
+Det korrigerade lagringsfelstestet passerade tre gånger vardera i Chromium och
+WebKit. En senare full WebKit-körning fick en separat 60-sekunders timeout vid
+initial `page.goto` i ett Medical-test; spåret innehöll inga nätverksposter.
+Det fallet passerade sedan tre isolerade repetitioner utan ändrad kod,
+tidsgräns eller assertions. Orsaken till den enstaka sidöppningsstörningen är
+inte fastställd.
+
+Slutkörningen avbröts efter ytterligare tidsgränsfel under kraftigt förhöjd
+datorbelastning (rapporterat enminutsmedel 91,33). Terminalt resultat: fyra
+godkända, tre misslyckade, ett avbrutet och 98 inte körda. Belastningen är en
+möjlig förklaring, inte ett bevis att alla fel är miljöfel. WebKit-matrisen är
+därför **inte slutgodkänd**. Testkorrigeringen och denna uppdatering bevaras lokalt
+och pushas inte innan relevanta kontroller är gröna. PR kvarstår som utkast.
+Nästa steg är en full WebKit-körning i en stabil testmiljö, med oförändrade krav,
+och därefter GitHub-verifiering av eventuell ny commit före release.
+
 Live kunde öppnas 2026-10-05 men visade inloggning. Inget autentiserat
 produktionsprov eller test med två verkliga konton har genomförts här. Native
-PostgreSQL 17-integrationen är ännu inte verifierad i denna miljö. Tidigare
-WebKit-resultat är historiskt underlag, inte ett nytt test av denna kandidat.
+PostgreSQL 17-integrationen är ännu inte verifierad i denna miljö. Playwright
+WebKit är inte ett test av fysiska Safari/iPad-enheter.
 
 ## Kvarvarande arbete, i ordning
 

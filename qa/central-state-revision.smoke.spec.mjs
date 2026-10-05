@@ -1085,10 +1085,15 @@ test("Sessions still shows the server read-only when its local journal cannot be
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], "unavailable-journal-baseline", {
     fixedDate: "2026-09-25T12:00:00.000Z",
     initScript: () => {
-      const open = indexedDB.open.bind(indexedDB);
-      indexedDB.open = (name, ...args) => {
-        if (name === "football-science-data-safety-v1") throw new DOMException("Synthetic unavailable journal", "SecurityError");
-        return open(name, ...args);
+      // Override the factory prototype so WebKit also receives the fault.
+      const open = IDBFactory.prototype.open;
+      window.__qaJournalOpenFailures = 0;
+      IDBFactory.prototype.open = function (name, ...args) {
+        if (name === "football-science-data-safety-v1") {
+          window.__qaJournalOpenFailures++;
+          throw new DOMException("Synthetic unavailable journal", "SecurityError");
+        }
+        return open.call(this, name, ...args);
       };
     },
     appStateWriteHandler: async ({ body }) => { if (body.key === sessionPlannerStateKey) posts.push(body); return null; },
@@ -1097,6 +1102,7 @@ test("Sessions still shows the server read-only when its local journal cannot be
     await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
     await tab.page.locator(`[data-session-date="${day}"]`).click();
     await expect(tab.page.locator('[data-session-field="title"]').first()).toHaveValue("Training already saved");
+    expect(await tab.page.evaluate(() => window.__qaJournalOpenFailures)).toBeGreaterThan(0);
     const info = await tab.page.evaluate((key) => window.footballScienceCentralState.getCachedValueInfo(key), sessionPlannerStateKey);
     expect(info).toMatchObject({ source: "central-pending-baseline", durable: false, serverBacked: true });
     expect(JSON.parse(info.value).sessions[day].blocks[0].title).toBe("Training already saved");

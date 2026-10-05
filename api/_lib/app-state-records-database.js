@@ -116,6 +116,12 @@ async function readAppStateRecord(key, organizationId = "global") {
   if (!result.ok) {
     return result;
   }
+  if (!Array.isArray(result.payload) || result.payload.length > 1 ||
+      result.payload.some((row) => !row || typeof row !== "object" || Array.isArray(row) ||
+        row.state_key !== key || row.organization_id !== organizationId ||
+        (row.removed !== true && typeof row.value !== "string"))) {
+    return { ok: false, status: 502, reason: "Central app-state database returned an invalid record." };
+  }
   return { ok: true, enabled: true, entry: normalizeRecord(result.payload?.[0]) };
 }
 

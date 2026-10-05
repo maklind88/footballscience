@@ -10,6 +10,7 @@ const { guardApiRequest } = require("./_lib/platform-security.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 const { isAppStateDatabaseEnabled } = require("./_lib/app-state-records-database.js");
 const { readSessionSaveBackup, validateSessionSaveBackup } = require("./_lib/session-save-backup.js");
+const { readBackupStateEntry } = require("./_lib/app-state-backup-source.js");
 const SESSION_PLANNER_KEY = "football-session-planner-v3";
 
 const STATE_BUCKET = "footballscience-app-state";
@@ -88,7 +89,7 @@ async function storageRequest(path, options = {}) {
     },
   });
 
-  if (response.status === 404) {
+  if (response.status === 404 && !options.retainMissingPayload) {
     return { ok: false, status: 404, payload: {} };
   }
 
@@ -183,7 +184,10 @@ async function collectCentralStateBackupEntries() {
 
   await Promise.all(
     Array.from(CENTRAL_STATE_KEYS).map(async (key) => {
-      const entry = key === SESSION_PLANNER_KEY && sessionSaveSnapshot ? sessionEntry : await readStateObject(key);
+      const entry = key === SESSION_PLANNER_KEY && sessionSaveSnapshot ? sessionEntry : await readBackupStateEntry(key,
+        (stateKey) => storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${objectPathForKey(stateKey)}`, {
+          method: "GET", raw: true, retainMissingPayload: true, contentType: "", headers: { "Cache-Control": "no-cache, no-store" },
+        }));
       if (!entry?.key || entry.removed) {
         manifest[key] = { present: false };
         return;

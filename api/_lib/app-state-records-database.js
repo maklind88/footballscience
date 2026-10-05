@@ -144,11 +144,20 @@ async function listAppStateRecords(organizationId = "global", keys = null) {
   if (!result.ok) {
     return result;
   }
-  return {
-    ok: true,
-    enabled: true,
-    entries: (Array.isArray(result.payload) ? result.payload : []).map(normalizeRecord).filter(Boolean),
-  };
+  // Invalid rows must not become confirmed absence or trigger legacy bootstrap.
+  const seenKeys = new Set();
+  if (!Array.isArray(result.payload) || result.payload.some((row) => {
+    if (!row || typeof row !== "object" || Array.isArray(row) ||
+        typeof row.state_key !== "string" || !row.state_key ||
+        row.organization_id !== organizationId || seenKeys.has(row.state_key) ||
+        (row.removed !== undefined && typeof row.removed !== "boolean") ||
+        (row.removed !== true && typeof row.value !== "string")) return true;
+    seenKeys.add(row.state_key);
+    return false;
+  })) {
+    return { ok: false, status: 502, reason: "Central app-state database returned an invalid record list." };
+  }
+  return { ok: true, enabled: true, entries: result.payload.map(normalizeRecord) };
 }
 
 async function writeAppStateRecord(entry = {}, expectedRevision = 0) {

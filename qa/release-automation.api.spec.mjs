@@ -113,6 +113,7 @@ test("production deploy validates and promotes the exact staged artifact before 
   expect(workflow).toContain("node scripts/verify-production-promotion.mjs --phase=live");
   expect(workflow.indexOf("--phase=staged")).toBeLessThan(workflow.indexOf("vercel@53.2.0 promote"));
   expect(workflow.indexOf("--phase=live")).toBeLessThan(workflow.indexOf("npm run release:postdeploy"));
+  expect(workflow.indexOf("pull --yes --environment=production")).toBeLessThan(workflow.indexOf("node scripts/restore-staging-alias.mjs"));
   expect(verifier).toContain("Live domain points to");
   expect(verifier).toContain("does not use production Supabase project");
   expect(verifier).toContain("does not match the release artifact");

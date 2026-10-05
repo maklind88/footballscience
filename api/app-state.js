@@ -2594,16 +2594,22 @@ function getMedicalEntityMergeKey(item = {}, fallbackFields = []) {
 }
 
 function getMedicalEntityTimestamp(item = {}) {
-  const timestamps = ["archivedAt", "deletedAt", "updatedAt", "createdAt", "lastClinicalChangeAt", "lastDatabaseSyncAt", "date", "startDate"]
+  // Activity dates and sync bookkeeping do not describe a clinical edit.
+  const timestamps = ["archivedAt", "deletedAt", "updatedAt", "createdAt", "lastClinicalChangeAt"]
     .map((field) => Date.parse(String(item?.[field] || "")))
     .filter((timestamp) => Number.isFinite(timestamp));
   return timestamps.length ? Math.max(...timestamps) : 0;
 }
 
 function mergeMedicalEntity(existingItem = {}, incomingItem = {}) {
+  // A stale document cannot restore a centrally archived record. Restoration
+  // must use a current revision through the explicit Medical workflow.
+  if (isArchivedMedicalItem(existingItem) && !isArchivedMedicalItem(incomingItem)) {
+    return { ...incomingItem, ...existingItem };
+  }
   const existingTimestamp = getMedicalEntityTimestamp(existingItem);
   const incomingTimestamp = getMedicalEntityTimestamp(incomingItem);
-  return incomingTimestamp >= existingTimestamp
+  return incomingTimestamp > existingTimestamp
     ? { ...existingItem, ...incomingItem }
     : { ...incomingItem, ...existingItem };
 }
@@ -2638,7 +2644,7 @@ function mergeMedicalPolicy(existingPolicy = {}, incomingPolicy = {}) {
   if (!Object.keys(incoming).length) {
     return existing;
   }
-  return getMedicalEntityTimestamp(incoming) >= getMedicalEntityTimestamp(existing)
+  return getMedicalEntityTimestamp(incoming) > getMedicalEntityTimestamp(existing)
     ? { ...existing, ...incoming }
     : { ...incoming, ...existing };
 }

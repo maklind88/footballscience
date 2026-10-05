@@ -17,6 +17,10 @@ export function createCentralAppStateReloadService(deps = {}) {
   let reloadPending = false;
   let refreshTimer = null;
   let lastRefreshAt = 0;
+  let lastRefreshAttemptAt = 0;
+  let refreshFailures = 0;
+  let refreshRetryTimer = null;
+  let refreshScope = "";
   let refreshInFlight = false;
   let lastSessionPlannerReloadKey = "";
   let lastSquadReloadKey = "";
@@ -25,6 +29,16 @@ export function createCentralAppStateReloadService(deps = {}) {
   const getHubState = () => call("getHubState") || null;
   const setHubState = (nextState) => call("setHubState", nextState);
   const getSessionPlannerState = () => call("getSessionPlannerState") || null;
+  const getRefreshScope = () => JSON.stringify(call("getCurrentPlatformUser") || null);
+  const refreshNow = () => deps.getRefreshNow?.() ?? Date.now();
+  const setTimeoutRef = win.setTimeout?.bind(win) || globalThis.setTimeout;
+  const clearTimeoutRef = win.clearTimeout?.bind(win) || globalThis.clearTimeout;
+  const retryDelay = () => Math.min(5000 * (2 ** Math.max(0, refreshFailures - 1)), 30000);
+
+  function clearRefreshRetry() {
+    if (refreshRetryTimer !== null) clearTimeoutRef(refreshRetryTimer);
+    refreshRetryTimer = null;
+  }
 
   function rememberSquadWorkspaceRender() {
     // A locally redrawn dialog must not acknowledge deferred server changes.
@@ -173,16 +187,41 @@ export function createCentralAppStateReloadService(deps = {}) {
     const bridge = call("getCentralStateBridge");
     if (documentRef.visibilityState === "hidden" || refreshInFlight || !call("getCurrentPlatformUser") || !bridge?.hydrate) return;
     if (reason === "interval" && !documentRef.hasFocus()) return;
-    const now = Date.now();
-    const minInterval = options.force ? 0 : reason === "interval" ? intervalRefreshMinMs : activeRefreshMinMs;
-    if (minInterval && now - lastRefreshAt < minInterval) return;
+    const expectedScope = getRefreshScope();
+    if (refreshScope !== expectedScope) {
+      clearRefreshRetry();
+      refreshScope = expectedScope;
+      lastRefreshAt = 0;
+      refreshFailures = 0;
+    }
+    const now = refreshNow();
+    const minInterval = options.force ? 0 : refreshFailures ? retryDelay()
+      : reason === "interval" ? intervalRefreshMinMs : activeRefreshMinMs;
+    if (minInterval && now - (refreshFailures ? lastRefreshAttemptAt : lastRefreshAt) < minInterval) return;
+    clearRefreshRetry();
     refreshInFlight = true;
-    lastRefreshAt = now;
+    lastRefreshAttemptAt = now;
     const retryAfterHydrate = call("hasPendingCentralStateWrites");
-    bridge.hydrate().then(() => {
+    // A false result is a failed/partial read, not proof that pending writes
+    // may be replayed. Only a successful read starts the normal throttle.
+    return Promise.resolve().then(() => bridge.hydrate()).then((result) => {
+      if (getRefreshScope() !== expectedScope) return;
+      if (result === false) throw new Error("Central data could not be fully refreshed.");
+      lastRefreshAt = refreshNow();
+      refreshFailures = 0;
       if (retryAfterHydrate) call("retryCentral");
     }).catch((error) => {
+      if (getRefreshScope() !== expectedScope) return;
+      refreshFailures += 1;
       call("queueCentralStateStatus", error?.message || `${reason} failed.`);
+      // Bounded automatic recovery; lifecycle events can retry after backoff.
+      if (refreshFailures <= 3) {
+        refreshRetryTimer = setTimeoutRef(() => {
+          refreshRetryTimer = null;
+          if (getRefreshScope() !== expectedScope) return;
+          return refreshCentralStateFromSource("retry");
+        }, retryDelay());
+      }
     }).finally(() => {
       refreshInFlight = false;
     });

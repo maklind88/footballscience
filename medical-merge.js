@@ -7,14 +7,18 @@
       const localState = parseCentralObjectStateValue(localValue);
       const centralStateValue = parseCentralObjectStateValue(centralValue);
       if (!localState || !centralStateValue) return { value: centralValue, changed: false };
-      const ts = (item = {}) => Math.max(0, ...["updatedAt", "createdAt", "date", "startDate"].map((field) => Date.parse(String(item?.[field] || ""))).filter(Number.isFinite));
+      // Keep recovery ordering aligned with the server: activity dates and
+      // database sync times are not evidence of a newer clinical edit.
+      const ts = (item = {}) => Math.max(0, ...["archivedAt", "deletedAt", "updatedAt", "createdAt", "lastClinicalChangeAt"].map((field) => Date.parse(String(item?.[field] || ""))).filter(Number.isFinite));
+      const archived = (item = {}) => Number.isFinite(Date.parse(String(item.archivedAt || item.deletedAt || "")));
       const keyed = (item = {}, fields = []) => {
         const id = String(item?.id || "").trim();
         const values = fields.map((field) => String(item?.[field] || "").trim());
         return id ? `id:${id}` : values.every(Boolean) ? `fields:${values.join("|")}` : "";
       };
       const mergeEntity = (centralItem = {}, localItem = {}, preserveMedia = false) => {
-        const merged = ts(localItem) >= ts(centralItem) ? { ...centralItem, ...localItem } : { ...localItem, ...centralItem };
+        const canApplyLocal = !(archived(centralItem) && !archived(localItem)) && ts(localItem) > ts(centralItem);
+        const merged = canApplyLocal ? { ...centralItem, ...localItem } : { ...localItem, ...centralItem };
         return preserveMedia ? preserveCentralStateMediaFields(merged, localItem).record : merged;
       };
       const mergeList = (localItems = [], centralItems = [], fields = [], preserveMedia = false) => {
@@ -38,7 +42,7 @@
       const mergePolicy = (localPolicy = {}, centralPolicy = {}) => {
         const local = localPolicy && typeof localPolicy === "object" && !Array.isArray(localPolicy) ? localPolicy : {};
         const central = centralPolicy && typeof centralPolicy === "object" && !Array.isArray(centralPolicy) ? centralPolicy : {};
-        return !Object.keys(local).length ? central : !Object.keys(central).length ? local : ts(local) >= ts(central) ? { ...central, ...local } : { ...local, ...central };
+        return !Object.keys(local).length ? central : !Object.keys(central).length ? local : ts(local) > ts(central) ? { ...central, ...local } : { ...local, ...central };
       };
       const players = mergeList(Array.isArray(localState.players) ? localState.players : [], Array.isArray(centralStateValue.players) ? centralStateValue.players : [], ["name"], true);
       const playerIds = new Set(players.map((player) => String(player?.id || "").trim()).filter(Boolean));

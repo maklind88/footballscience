@@ -348,9 +348,7 @@ test("central app-state reload service defers workspace reload while a platform 
 test("central app-state reload service preserves central refresh throttling and interval setup", async () => {
   const { calls, service, timers } = createHarness({ pendingWrites: true });
 
-  service.refreshCentralStateFromSource("focus", { force: true });
-  await Promise.resolve();
-  await Promise.resolve();
+  await service.refreshCentralStateFromSource("focus", { force: true });
 
   expect(calls).toContain("hydrate");
   expect(calls).toContain("retry");

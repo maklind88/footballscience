@@ -17,6 +17,7 @@ const require = createRequire(import.meta.url);
 const appStateHandler = require("../api/app-state.js");
 
 const supabaseEnvKeys = [
+  "APP_STATE_DATABASE_MODE",
   "SUPABASE_URL",
   "SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
@@ -766,6 +767,36 @@ test("central app-state merges stale Medical saves without dropping availability
     restoreEnv(env);
   }
 });
+
+for (const scenario of [
+  { name: "future recommendation", field: "records", existing: { participation: 25 }, incoming: { participation: 100 }, expected: { participation: 25 } },
+  { name: "future plan", field: "injuryPlans", existing: { participation: 25 }, incoming: { participation: 100 }, expected: { participation: 25 } },
+  { name: "equal edit times", field: "records", incomingTime: "2026-10-03T11:00:00Z", existing: { participation: 25 }, incoming: { participation: 100 }, expected: { participation: 25 } },
+  { name: "newer sync bookkeeping", field: "records", existing: { participation: 25 }, incoming: { participation: 100, lastDatabaseSyncAt: "2026-10-04T12:00:00Z" }, expected: { participation: 25 } },
+  { name: "archived record with later stale edit", field: "records", incomingTime: "2026-10-04T12:00:00Z", existing: { archivedAt: "2026-10-03T11:00:00Z" }, incoming: { archivedAt: "" }, expected: { archivedAt: "2026-10-03T11:00:00Z" } },
+  { name: "deleted plan with later stale edit", field: "injuryPlans", incomingTime: "2026-10-04T12:00:00Z", existing: { deletedAt: "2026-10-03T11:00:00Z" }, incoming: { deletedAt: "" }, expected: { deletedAt: "2026-10-03T11:00:00Z" } },
+  { name: "genuinely newer edit", field: "records", incomingTime: "2026-10-03T12:00:00Z", existing: { participation: 25 }, incoming: { participation: 50 }, expected: { participation: 50 } },
+  { name: "current revision explicit restore", field: "records", baseRevision: 8, incomingTime: "2026-10-03T12:00:00Z", existing: { archivedAt: "2026-10-03T11:00:00Z" }, incoming: { archivedAt: "" }, expected: { archivedAt: "" } },
+]) {
+test(`Medical save preserves version semantics: ${scenario.name}`, async () => {
+  const env = snapshotEnv(supabaseEnvKeys), originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  Object.assign(process.env, { SUPABASE_URL: "https://example.supabase.co", SUPABASE_ANON_KEY: "anon-test-key", SUPABASE_SERVICE_ROLE_KEY: "service-role-test-key" });
+  const key = "football-medical-team-v1", path = `global/${key}.json`;
+  const item = { id: "version-test", playerId: "player-1", date: "2026-10-20", startDate: "2026-10-20", createdAt: "2026-10-01T09:00:00Z" };
+  const state = (value) => ({ players: [{ id: "player-1", name: "Synthetic Player" }], records: [], injuryPlans: [], [scenario.field]: [value] });
+  const storage = createAppStateFetchMock({ [path]: createAppStateStorageEntry(key, state({ ...item, updatedAt: "2026-10-03T11:00:00Z", ...scenario.existing }), { revision: 8 }) }, "medical");
+  global.fetch = storage.fetchMock;
+  try {
+    const response = await callHandler(appStateHandler, { method: "POST", url: "/api/app-state", headers: { authorization: "Bearer test-access-token" },
+      body: JSON.stringify({ key, value: JSON.stringify(state({ ...item, updatedAt: scenario.incomingTime || "2026-10-03T10:00:00Z", ...scenario.incoming })), metadata: { baseRevision: scenario.baseRevision ?? 7 } }),
+    });
+    expect(response.status).toBe(200);
+    expect(JSON.parse(storage.objects.get(path).value)[scenario.field][0]).toMatchObject(scenario.expected);
+    expect(JSON.parse(response.payload.value)[scenario.field][0]).toMatchObject(scenario.expected);
+  } finally { global.fetch = originalFetch; restoreEnv(env); }
+});
+}
 
 test("central app-state batch entries skip keys the actor cannot edit instead of failing the whole seed", async () => {
   const env = snapshotEnv(supabaseEnvKeys);

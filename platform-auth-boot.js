@@ -1930,13 +1930,24 @@ async function getActiveAccessToken() {
     }
     centralState.metadata = nextMetadata;
     persistCentralHydrationRevisions(hydratedRevisionEntries, options);
-    for (const [key, value] of requiredWriteBackEntries) {
-      const result = await syncCentralStateKey(key, value);
-      if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
-      if (!result?.ok) {
-        throw new Error(result?.reason || "Recovered central data could not be synced.");
+    try {
+      for (const [key, value] of requiredWriteBackEntries) {
+        const result = await syncCentralStateKey(key, value);
+        if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
+        if (!result?.ok) {
+          throw new Error(result?.reason || "Recovered central data could not be synced.");
+        }
+        persistCentralHydrationRevisions([[key, result.metadata || { revision: result.revision }, {}]]);
       }
-      persistCentralHydrationRevisions([[key, result.metadata || { revision: result.revision }, {}]]);
+    } catch (error) {
+      // Reads already applied to this scope remain useful when recovery writes fail.
+      // A partial event refreshes views without a ready receipt or replaying drafts.
+      if ((!options.isCurrent || options.isCurrent()) && hydratedRevisionEntries.length) {
+        window.dispatchEvent(new CustomEvent("footballscience:central-state-partial", {
+          detail: { readKeys: hydratedRevisionEntries.map(([key]) => key) },
+        }));
+      }
+      throw error;
     }
     resolvedPendingKeys.forEach(([key, metadataEntry]) => clearCentralPendingSyncFlag(key, metadataEntry));
     clearResolvedCentralHydrationError();

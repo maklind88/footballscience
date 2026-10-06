@@ -784,3 +784,24 @@ test("data safety runtime service preserves legacy migration and queued snapshot
   expect(timers.size).toBeGreaterThan(0);
   expect(service.flushQueuedSnapshot("pagehide")).toBe(true);
 });
+
+for (const key of ["football-medical-team-v1", "football-session-planner-v3", "football-schedule-v1", "football-set-pieces-room-v1"]) {
+  test(`hydration preserves pending generation and does not enqueue a user edit: ${key}`, () => {
+    const h = createHarness();
+    h.service.install();
+    const entry = { pendingCentralSync: true, principalScope: "owner-A", hash: "draft-generation", writes: 7,
+      serverRevision: 4, pendingBaseRevision: 4, updatedAt: "2026-10-06T08:00:00.000Z" };
+    h.localStorage.values.set(key, "previous view");
+    h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ entries: { [key]: entry } }));
+    h.win.__footballScienceCentralHydrating = true;
+    h.localStorage.setItem(key, "verified read including retained local draft");
+    expect(h.localStorage.getItem(key)).toBe("verified read including retained local draft");
+    expect(h.service.readManifest().entries[key]).toEqual(entry);
+    expect(h.queuedWrites).toEqual([]);
+    h.win.__footballScienceCentralHydrating = false;
+    h.localStorage.setItem(key, "explicit new user edit");
+    expect(h.queuedWrites).toHaveLength(1);
+    expect(h.service.readManifest().entries[key].pendingCentralSync).toBe(true);
+    expect(h.service.readManifest().entries[key].writes).toBe(8);
+  });
+}

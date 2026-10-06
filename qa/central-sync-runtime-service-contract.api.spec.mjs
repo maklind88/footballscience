@@ -1707,3 +1707,21 @@ test("central sync runtime keeps chat and workspace rendering outside the servic
   expect(runtimeSource).toContain("createCentralRuntimeFacade({");
   expect(runtimeSource).not.toContain("createCentralSyncRuntimeService({");
 });
+
+for (const removed of [false, true]) {
+  test(`denied Medical work retains recovery intent and permits other modules (deletion: ${removed})`, async () => {
+    const key = "football-medical-team-v1", other = "football-schedule-v1";
+    const h = createServiceHarness({ syncKey: async ({ key: current, value }) => current === key
+      ? { ok: false, status: 403, reason: "Denied" } : { ok: true, value } });
+    h.rawValues.set(key, removed ? "" : "local draft"); h.rawValues.set(other, "permitted edit");
+    h.service.queueCentralStateWrite(key, removed ? "" : "local draft", { removed });
+    h.service.queueCentralStateWrite(other, "permitted edit");
+    expect(await h.service.flushCentralStateWrites()).toBe(true);
+    expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+    if (removed) expect(h.manifest.entries[key].deletedAt).toBeTruthy();
+    expect(h.syncCalls.map(call => call.key)).toEqual([key, other]);
+    expect(h.syncStatuses.some(([current, status]) => current === key && status === "saved")).toBe(false);
+    await h.service.flushCentralStateWrites();
+    expect(h.syncCalls).toHaveLength(2);
+  });
+}

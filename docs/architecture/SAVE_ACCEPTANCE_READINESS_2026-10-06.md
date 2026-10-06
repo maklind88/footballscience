@@ -2,7 +2,7 @@
 
 Owner: System / Security, shared save reliability. Medical Room owns clinical
 rules and test-player suitability. Sessions owns its editing/review workflow.
-This branch adds QA only; it must not be bundled into the active #252 release.
+This branch began as QA only. See SAVE_RECOVERY_VISIBILITY_2026-10-06.md for the subsequent shared-sync fix and evidence. #252 has since reached production through main.
 
 The optional `verify_save_readiness` input on Staging Smoke runs a read-only
 probe against exactly `https://staging.footballscience.xyz` and the canonical
@@ -126,3 +126,22 @@ rerun against an unverified build or bypass the shared release-edge queue.
 Final local checks for this QA candidate: 15 node tests and 31 API contracts
 passed. The mutating Sessions acceptance remains red; keep this PR draft and do
 not present its planned offline/conflict checks as completed coverage.
+
+## Follow-up after the pinned staging diagnosis
+
+Run 37508787099 on deployed staging `dpl_3o1pzxdU5n5eS8YtnB2hkUxHDUAg`
+confirmed that a blocked incidental Medical recovery write left hydration failed
+and suppressed the view update for successfully read Sessions. No active overlay
+or off-day rule explained it. A local deterministic regression reproduced the
+stale view; recovery-generation loss and denied-write intent loss were also
+exposed and fixed in the shared core. See the dedicated fix document.
+
+`save_candidate_client=true` optionally overlays only the candidate's
+platform-auth-boot.js, data-safety-runtime-service.mjs and
+central-sync-runtime-service.mjs in the isolated QA browser. It does not deploy
+or change server assets. The server remains the exact verified staging build.
+Such a pass certifies candidate-client integration against staging, not that the
+candidate frontend is deployed. A normal deployed-frontend run is still required
+following release. The fixture search now uses ten nearby empty dates; no
+existing test/user date is overwritten. Compressed command bodies pass through
+the same ownership checks after the actual transport decoder.

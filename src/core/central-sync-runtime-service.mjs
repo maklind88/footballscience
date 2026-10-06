@@ -678,17 +678,14 @@ export function createCentralSyncRuntimeService(deps = {}) {
           continue;
         }
         if (result?.status === 403) {
-          // A 403 means the server permanently refused this specific key for
-          // the current actor (e.g. a role without edit access to that
-          // workspace). That will never succeed on retry, so drop it instead
-          // of requeueing forever and blocking every other pending write
-          // behind it, and keep this key's own denial local instead of
-          // pinning the global sync status.
+          // Stop this queued attempt without blocking permitted keys. A denial
+          // is not a receipt: retain durable retry/recovery intent for a later
+          // explicit edit or external recovery event after access is restored.
           if (write.key === sessionPlannerStorageKey && result.durablePending) {
             setCentralSyncPendingState(write.key, true, false);
             flushIssue = result.reason || "Local changes retained; access denied.";
           } else if (isCentralStateWriteGenerationCurrent(write)) {
-            setCentralSyncPendingState(write.key, false, write.removed);
+            setCentralSyncPendingState(write.key, true, write.removed);
           }
           reportSyncStatus(write.key, "issue", result?.reason || "Not authorized for this data.");
           continue;

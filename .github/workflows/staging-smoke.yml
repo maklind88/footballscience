@@ -7,6 +7,10 @@ on:
         description: Run two-user saving acceptance with own synthetic staging fixtures and temporary peer account.
         type: boolean
         default: false
+      save_candidate_client:
+        description: Test only this candidate's saving client scripts in the QA browser; deployed staging assets remain unchanged.
+        type: boolean
+        default: false
       verify_save_readiness:
         description: Read-only Medical and Sessions acceptance prerequisites; no saved-data writes.
         type: boolean
@@ -69,6 +73,7 @@ jobs:
         if: inputs.verify_save_acceptance
         env:
           SAVE_QA_ALLOW_FIXTURES: '1'
+          SAVE_QA_CLIENT_CANDIDATE: ${{ inputs.save_candidate_client && '1' || '0' }}
           SAVE_QA_EXPECTED_BUILD: ${{ inputs.expected_save_build_id }}
         run: |
           node --test qa/save-acceptance-fixture-guards.test.mjs

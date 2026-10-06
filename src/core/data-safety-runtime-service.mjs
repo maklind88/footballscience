@@ -773,7 +773,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
             () => rawSetItem(normalizedKey, normalizedValue));
         }
         const result = rawSetItem(normalizedKey, normalizedValue, { explicitReadViewWrite: separated });
-        if (separated || previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue,
+        // Applying a verified read is not a new edit or a receipt. Keep any
+        // pending generation intact until its own successful write is confirmed.
+        if (!win.__footballScienceCentralHydrating && (separated || previousValue !== normalizedValue)) recordWrite(normalizedKey, normalizedValue,
           separated ? { requirePersisted: true, replacement: true } : journaledStorageKeySet.has(normalizedKey) ? { previousValue, previousPending } : {});
         return result;
       } catch (error) {

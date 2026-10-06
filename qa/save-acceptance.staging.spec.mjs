@@ -1,8 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import transport from '../api/_lib/session-state-transport.js';
 import { createStagingAcceptance, medicalKey, sessionsKey, requireProof, digest, assertOwnedSessionChange } from './helpers/save-acceptance-staging.mjs';
 
 test('two authenticated users preserve Medical versions and Sessions offline work', async ({ browser }) => {
   const qa = await createStagingAcceptance();
+  console.log('Frontend under test:', process.env.SAVE_QA_CLIENT_CANDIDATE === '1' ? 'candidate client scripts in QA browser; pinned deployed staging backend' : 'deployed staging frontend and backend');
   const contexts = [], recordId = qa.run + '-record', playerId = qa.run + '-player';
   let medicalCreated = false, sessionCreated = false, day = '';
   const others = (state, key) => key === medicalKey ? Object.fromEntries(['players', 'records', 'injuryPlans'].map(field =>
@@ -12,7 +15,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
   try {
     originalMedical = await qa.read(qa.primary, medicalKey);
     originalSessions = await qa.read(qa.primary, sessionsKey);
-    day = Array.from({ length: 4 }, (_, index) => new Date(Date.now() + index * 86400000).toISOString().slice(0, 10))
+    day = Array.from({ length: 10 }, (_, index) => new Date(Date.now() + index * 86400000).toISOString().slice(0, 10))
       .find(date => !originalSessions.state.sessions?.[date]);
     requireProof(Boolean(day), 'No empty nearby staging date; no test fixture written');
     const m = structuredClone(originalMedical.state), now = new Date().toISOString();
@@ -50,11 +53,18 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
     const open = async account => {
       const context = await browser.newContext({ serviceWorkers: 'block' }); contexts.push(context);
       const blockedWrites = new Map();
+      if (process.env.SAVE_QA_CLIENT_CANDIDATE === '1') {
+        // QA-browser-only candidate overlay; never changes the deployed server/assets.
+        for (const path of ['platform-auth-boot.js', 'src/core/data-safety-runtime-service.mjs', 'src/core/central-sync-runtime-service.mjs']) {
+          const body = readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+          await context.route(qa.origin + '/' + path + '*', route => route.fulfill({ contentType: 'text/javascript', body }));
+        }
+      }
       // No clinical screenshots/traces and no incidental writes to other modules.
       await context.route('**/api/app-state**', async route => {
         if (route.request().method() === 'GET') return route.continue();
         let body, change;
-        try { body = route.request().postDataJSON(); change = typeof body.sessionChange === 'string' ? JSON.parse(body.sessionChange) : body.sessionChange; } catch {}
+        try { body = route.request().postDataJSON(); change = JSON.parse(await transport.decodeSessionStateValue(body.key, body.sessionChange)); } catch {}
         if (body?.key === sessionsKey && change?.date === day) {
           try { assertOwnedSessionChange(change, qa.run); } catch { return route.abort('blockedbyclient'); }
           return route.continue();

@@ -3,16 +3,18 @@ import { createStagingAcceptance, medicalKey, sessionsKey, requireProof, digest 
 
 test('two authenticated users preserve Medical versions and Sessions offline work', async ({ browser }) => {
   const qa = await createStagingAcceptance();
-  const contexts = [], day = new Date().toISOString().slice(0, 10), recordId = qa.run + '-record', playerId = qa.run + '-player';
-  let medicalCreated = false, sessionCreated = false;
+  const contexts = [], recordId = qa.run + '-record', playerId = qa.run + '-player';
+  let medicalCreated = false, sessionCreated = false, day = '';
   const others = (state, key) => key === medicalKey ? Object.fromEntries(['players', 'records', 'injuryPlans'].map(field =>
-    [field, (state[field] || []).filter(row => !String(row.id || '').startsWith(qa.run + '-'))]))
+    [field, (state[field] || []).filter(row => !String(row.id || '').startsWith(qa.run + '-')).sort((a, b) => String(a.id).localeCompare(String(b.id)))]))
     : Object.fromEntries(Object.entries(state.sessions || {}).filter(([date]) => date !== day));
   let originalMedical, originalSessions;
   try {
     originalMedical = await qa.read(qa.primary, medicalKey);
     originalSessions = await qa.read(qa.primary, sessionsKey);
-    requireProof(!originalSessions.state.sessions?.[day], 'Today is occupied; no test fixture written');
+    day = Array.from({ length: 4 }, (_, index) => new Date(Date.now() + index * 86400000).toISOString().slice(0, 10))
+      .find(date => !originalSessions.state.sessions?.[date]);
+    requireProof(Boolean(day), 'No empty nearby staging date; no test fixture written');
     const m = structuredClone(originalMedical.state), now = new Date().toISOString();
     m.players = [...(m.players || []), { id: playerId, name: 'Synthetic Save QA', createdAt: now, updatedAt: now }];
     m.records = [...(m.records || []), { id: recordId, playerId, date: day, participation: 100, comment: 'Synthetic baseline', createdAt: now, updatedAt: now }];

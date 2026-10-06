@@ -55,7 +55,7 @@ of their domain behavior; this candidate changes no product module or API.
 The harness verifies the canonical staging backend and exact reviewed build,
 uses the existing staging admin to create one random temporary team-admin,
 verifies both accounts through Auth, and never uses a production credential.
-Before writes, today's staging session must be absent. Medical mutations must
+Before writes, a nearby staging date must have no existing session. Medical mutations must
 leave every non-run-owned entry and top-level field unchanged. Session commands
 may affect only the run-owned date and blocks. Browser app-state writes to any
 other module are blocked in the test context.

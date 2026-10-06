@@ -95,7 +95,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
           return { accountRole: window.platformAuthStore?.getCurrentUser?.()?.role || 'unknown',
             activeDate: document.querySelector('.session-date-pill.is-active')?.dataset.sessionDate,
             centralHydrated: status?.hydrated, centralHydrating: status?.hydrating, centralHasError: Boolean(status?.lastError),
-            reloadPending: permissions.isCentralizedAppStateReloadPending(), reloadDeferred: permissions.shouldDeferCentralizedAppStateReload(),
+            reloadPending: permissions.isCentralizedAppStateReloadPending?.(), reloadDeferred: permissions.shouldDeferCentralizedAppStateReload(),
             visibleOverlays: overlays.platformOverlayStabilityRootSelectors.filter(selector => [...document.querySelectorAll(selector)].some(node => overlays.isPlatformOverlayNodeVisible(node))),
             runtimeOwnBlockCount: (selected?.blocks || []).filter(b => b.id?.startsWith(run + '-')).length,
             parsedOwnBlockCount: (parsed.sessions?.[day]?.blocks || []).filter(b => b.id?.startsWith(run + '-')).length,

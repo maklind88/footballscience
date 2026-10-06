@@ -52,7 +52,8 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
     await qa.sendSession(qa.primary, originalSessions, qa.sessionChange(originalSessions, s));
     const open = async account => {
       const context = await browser.newContext({ serviceWorkers: 'block' }); contexts.push(context);
-      const blockedWrites = new Map();
+      const blockedWrites = new Map(), rejectedOwnWrites = new Map(), candidateFiles = new Set(), sessionStatuses = new Map();
+      let allowedOwnWrites = 0;
       if (process.env.SAVE_QA_CLIENT_CANDIDATE === '1') {
         // QA-browser-only candidate overlay; never changes the deployed server/assets.
         for (const path of ['platform-auth-boot.js', 'src/core/data-safety-runtime-service.mjs', 'src/core/central-sync-runtime-service.mjs', 'src/core/central-runtime-facade.mjs',
@@ -60,7 +61,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
           'src/modules/session-planner/session-save-client.mjs', 'src/modules/session-planner/session-planner-recovery-controller.mjs',
           'src/modules/session-planner/session-planner-runtime-state-service.mjs']) {
           const body = readFileSync(new URL('../' + path, import.meta.url), 'utf8');
-          await context.route(qa.origin + '/' + path + '*', route => route.fulfill({ contentType: 'text/javascript', body }));
+          await context.route(qa.origin + '/' + path + '*', route => { candidateFiles.add(path); return route.fulfill({ contentType: 'text/javascript', body }); });
         }
       }
       // No clinical screenshots/traces and no incidental writes to other modules.
@@ -69,7 +70,11 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
         let body, change;
         try { body = route.request().postDataJSON(); change = JSON.parse(await transport.decodeSessionStateValue(body.key, body.sessionChange)); } catch {}
         if (body?.key === sessionsKey && change?.date === day) {
-          try { assertOwnedSessionChange(change, qa.run); } catch { return route.abort('blockedbyclient'); }
+          try { assertOwnedSessionChange(change, qa.run); } catch (error) {
+            rejectedOwnWrites.set(error.message, (rejectedOwnWrites.get(error.message) || 0) + 1);
+            return route.abort('blockedbyclient');
+          }
+          allowedOwnWrites++;
           return route.continue();
         }
         const key = typeof body?.key === 'string' && /^football-[a-z0-9-]+$/.test(body.key) ? body.key : 'unknown';
@@ -77,6 +82,12 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
         return route.abort('blockedbyclient');
       });
       const page = await context.newPage();
+      page.on('response', response => {
+        if (new URL(response.url()).pathname !== '/api/app-state' || response.request().method() !== 'POST') return;
+        try {
+          if (response.request().postDataJSON()?.key === sessionsKey) sessionStatuses.set(response.status(), (sessionStatuses.get(response.status()) || 0) + 1);
+        } catch {}
+      });
       await page.goto(qa.origin, { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => window.platformAuthStore?.getSupabaseClient?.());
       const success = await page.evaluate(async session => {
@@ -123,7 +134,21 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
         }, { key: sessionsKey, day, run: qa.run }));
         throw error;
       }
-      return { page, context };
+      return { page, context, async diagnostics() {
+        return { blockedWrites: Object.fromEntries(blockedWrites), rejectedOwnWrites: Object.fromEntries(rejectedOwnWrites),
+          allowedOwnWrites, sessionStatuses: Object.fromEntries(sessionStatuses), candidateFileCount: candidateFiles.size,
+          client: await page.evaluate(async ({ key, day, run }) => {
+            const bridge = window.footballScienceCentralState, status = bridge.getStatus();
+            const row = JSON.parse(localStorage.getItem(key) || '{}').sessions?.[day];
+            const manifest = JSON.parse(localStorage.getItem('football-data-safety-v1') || '{}').entries?.[key];
+            return { keyReady: bridge.isKeyHydrated?.(key), scopedReadAvailable: typeof bridge.hydrateSessionState === 'function',
+              hydrated: status.hydrated, hydrating: status.hydrating, hasReadError: Boolean(status.lastError), hasWriteError: Boolean(status.lastWriteError),
+              revision: status.metadata?.[key]?.revision, pending: manifest?.pendingCentralSync,
+              dateTitleOwned: row?.title === run, blockIdsOwned: row?.blocks?.every(block => block.id.startsWith(run + '-')),
+              onlineEditPresent: row?.blocks?.[0]?.objective === 'Online coach B',
+              journalPending: Boolean(await bridge.getSessionPendingState()), reviews: (await bridge.getSessionSaveReviews()).length };
+          }, { key: sessionsKey, day, run: qa.run }) };
+      } };
     };
     const a = await open(qa.primary), b = await open(qa.peer);
     const field = (client, name) => client.page.locator(`[data-session-field="${name}"]`).first();
@@ -132,7 +157,9 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
     await changeField(a, 'title', 'Offline coach A');
     await expect(a.page.locator('[data-platform-autosave-status]')).not.toHaveClass(/is-saved/);
     await changeField(b, 'objective', 'Online coach B');
+    try {
     await expect.poll(async () => (await qa.read(qa.primary, sessionsKey)).state.sessions[day].blocks[0].objective).toBe('Online coach B');
+    } catch (error) { console.log('Online peer saving diagnostics', await b.diagnostics()); throw error; }
     await a.context.setOffline(false);
     await a.page.evaluate(() => window.dispatchEvent(new Event('online')));
     await expect.poll(async () => {

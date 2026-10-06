@@ -78,13 +78,22 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
       try {
         await expect(page.locator('[data-session-field="title"]').first()).toHaveValue('Synthetic baseline');
       } catch (error) {
-        console.log('Session opening diagnostics', await page.evaluate(({ key, day, run }) => {
+        console.log('Session opening diagnostics', await page.evaluate(async ({ key, day, run }) => {
           const read = key => { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; } };
           const saved = read(key), period = read('football-periodization-v2');
           const session = saved.sessions?.[day];
           const status = window.footballScienceCentralState?.getStatus?.();
+          const accessors = await import('/src/modules/session-planner/session-planner-runtime-accessors.mjs');
+          const permissions = await import('/src/core/platform-runtime-accessors.mjs');
+          const selected = accessors.getSessionPlannerSelectedSession();
+          const parsed = accessors.readSessionPlannerState();
           return { accountRole: window.platformAuthStore?.getCurrentUser?.()?.role || 'unknown',
             activeDate: document.querySelector('.session-date-pill.is-active')?.dataset.sessionDate,
+            runtimeOwnBlockCount: (selected?.blocks || []).filter(b => b.id?.startsWith(run + '-')).length,
+            parsedOwnBlockCount: (parsed.sessions?.[day]?.blocks || []).filter(b => b.id?.startsWith(run + '-')).length,
+            runtimeShouldClear: accessors.shouldClearSessionPlannerSessionForDate(day, session),
+            canEdit: permissions.canEditSessionPlanner(),
+            ownBlockButtons: document.querySelectorAll('[data-session-block-id^="' + run + '-"]').length,
             datePresent: Boolean(session), ownBlockCount: (session?.blocks || []).filter(b => b.id?.startsWith(run + '-')).length,
             editorCount: document.querySelectorAll('[data-session-field="title"]').length,
             centralRevision: status?.metadata?.[key]?.revision, pendingCount: status?.pendingCount,

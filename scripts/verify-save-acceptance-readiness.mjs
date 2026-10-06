@@ -6,10 +6,11 @@ import transport from '../api/_lib/session-state-transport.js';
 const backend = 'https://pokrksgempkuraueglpu.supabase.co';
 const keys = ['football-medical-team-v1', 'football-session-planner-v3'];
 const modules = ['medical-team', 'session-planner'];
-function check(ok, code) { if (!ok) throw new Error(code); }
+class ProbeError extends Error {}
+function check(ok, code) { if (!ok) throw new ProbeError(code); }
 function claims(token) {
   try { return JSON.parse(Buffer.from(token.split('.')[1], 'base64url')); }
-  catch { throw new Error('Invalid QA token'); }
+  catch { throw new ProbeError('Invalid QA token'); }
 }
 
 // Read-only acceptance prerequisites. This does not certify writes, UI visibility,
@@ -20,15 +21,17 @@ export async function verifySaveReadiness({ env = process.env, fetchImpl = fetch
     && base.pathname === '/' && !base.search && !base.hash
     && base.hostname === 'staging.footballscience.xyz', 'Invalid staging origin');
   check(env.STAGING_SUPABASE_PROJECT_REF === 'pokrksgempkuraueglpu', 'Invalid staging project');
-  check(/^[a-f0-9]{40}$/.test(env.SAVE_QA_EXPECTED_BUILD || ''), 'Exact staging build required');
+  check(/^(?:[a-f0-9]{40}|dpl_[A-Za-z0-9]{16,64})$/.test(env.SAVE_QA_EXPECTED_BUILD || ''), 'Exact staging build required');
   check(env.STAGING_QA_USERNAME && env.STAGING_QA_PASSWORD, 'Missing staging account');
   const sessions = [];
   async function request(url, options = {}) {
+    const label = url.includes('/api/app-state?') ? 'central-read' : url.includes('/auth/v1/user') ? 'auth-user'
+      : url.includes('/auth/v1/logout?') ? 'logout' : options.method === 'POST' ? 'login' : 'client-config';
     try {
       const response = await fetchImpl(url, { ...options, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(30000) });
-      check(response.ok, 'HTTP request failed');
+      check(response.ok, `${label}: HTTP ${response.status}`);
       return response.status === 204 ? null : await response.json();
-    } catch { throw new Error('QA request failed; response content suppressed'); }
+    } catch (error) { if (error instanceof ProbeError) throw error; throw new ProbeError(`${label}: request failed; content suppressed`); }
   }
   const configUrl = new URL('/api/client-config', base).href;
   const verifyConfig = async () => {
@@ -70,7 +73,7 @@ export async function verifySaveReadiness({ env = process.env, fetchImpl = fetch
       }
       const decoded = await transport.decodeSessionStateValue(key, value);
       let state;
-      try { state = JSON.parse(decoded); } catch { throw new Error('Invalid stored JSON'); }
+      try { state = JSON.parse(decoded); } catch { throw new ProbeError('Invalid stored JSON'); }
       check(state && typeof state === 'object' && !Array.isArray(state), 'Invalid stored object');
       check(Number.isInteger(meta?.revision) && meta.revision >= 0, 'Missing central revision');
       rows.push({ module: modules[i], present: true, revision: meta.revision,
@@ -109,8 +112,8 @@ export async function verifySaveReadiness({ env = process.env, fetchImpl = fetch
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  verifySaveReadiness().then(result => console.log(JSON.stringify(result, null, 2))).catch(() => {
-    console.error('Save acceptance readiness failed; credentials and state content suppressed.');
+  verifySaveReadiness().then(result => console.log(JSON.stringify(result, null, 2))).catch(error => {
+    console.error(error instanceof ProbeError ? error.message : 'Save acceptance readiness failed; content suppressed.');
     process.exitCode = 1;
   });
 }

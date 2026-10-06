@@ -12,7 +12,7 @@ function harness(change = {}) {
     calls.push({ url, options });
     assert.equal(options.redirect, 'error');
     if (url.endsWith('/api/client-config') && options.method !== 'POST')
-      return Response.json({ ok: true, url: change.backend || backend, buildId: sha, anonKey: jwt({ role: 'anon', ref }) });
+      return Response.json({ ok: true, url: change.backend || backend, buildId: change.build || sha, anonKey: jwt({ role: 'anon', ref }) });
     if (url.endsWith('/api/client-config')) {
       logins++;
       return Response.json({ session: { access_token: jwt({ iss: backend + '/auth/v1', role: 'authenticated', sub: change.distinct && logins === 2 ? 'b' : 'a' }) } });
@@ -64,4 +64,12 @@ test('network failure suppresses secrets and still cleans up', async () => {
   const h = harness({ failRead: true });
   await assert.rejects(verifySaveReadiness({ env, ...h }), error => !error.message.includes('secret-password') && !error.message.includes('clinical'));
   assert.equal(h.calls.filter(c => c.url.includes('logout?scope=local')).length, 2);
+});
+
+test('exact deployment id is accepted, wrong id fails before login', async () => {
+  const build = 'dpl_7kYorqofNykQ4Uu4ArS1sRNts6Wq';
+  assert.equal((await verifySaveReadiness({ env: { ...env, SAVE_QA_EXPECTED_BUILD: build }, ...harness({ build }) })).build, build);
+  const h = harness({ build });
+  await assert.rejects(verifySaveReadiness({ env, ...h }), /build changed/);
+  assert.equal(h.calls.length, 1);
 });

@@ -8,7 +8,7 @@ on:
         type: boolean
         default: false
       expected_save_build_id:
-        description: Exact staging SHA for the read-only saving probe.
+        description: Exact staging buildId (SHA or deployment id) for the read-only saving probe.
         type: string
         default: ''
       verify_fresh_backup:
@@ -54,5 +54,7 @@ jobs:
           SAVE_QA_EXPECTED_BUILD: ${{ inputs.expected_save_build_id }}
           STAGING_QA_PEER_USERNAME: ${{ secrets.STAGING_QA_PEER_USERNAME }}
           STAGING_QA_PEER_PASSWORD: ${{ secrets.STAGING_QA_PEER_PASSWORD }}
-        run: node scripts/verify-save-acceptance-readiness.mjs
+        run: |
+          node --test qa/save-acceptance-readiness.test.mjs
+          node scripts/verify-save-acceptance-readiness.mjs
       - run: npm run qa:staging:required

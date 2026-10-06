@@ -6,8 +6,8 @@ This branch adds QA only; it must not be bundled into the active #252 release.
 
 The optional `verify_save_readiness` input on Staging Smoke runs a read-only
 probe against exactly `https://staging.footballscience.xyz` and the canonical
-staging Supabase project. `expected_save_build_id` must be the deployed 40-char
-SHA. Backend and build are checked before login and again after reads.
+staging Supabase project. `expected_save_build_id` must be the exact deployed buildId
+(Git SHA or Vercel deployment id). Backend and build are checked before login and again after reads.
 
 The probe creates two temporary login sessions using existing staging secrets;
 if `STAGING_QA_PEER_USERNAME` and `STAGING_QA_PEER_PASSWORD` exist, the second

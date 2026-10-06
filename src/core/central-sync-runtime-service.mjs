@@ -70,6 +70,12 @@ export function createCentralSyncRuntimeService(deps = {}) {
     return typeof bridge?.isHydrated === "function" ? Boolean(bridge.isHydrated()) : true;
   }
 
+  function isCentralWriteReady(bridge, write) {
+    // Only a module with its own verified, scoped baseline may bypass an unrelated failed read.
+    return !write.removed && typeof bridge?.isKeyHydrated === "function"
+      ? bridge.isKeyHydrated(write.key) === true : isCentralStateBridgeHydrated(bridge);
+  }
+
   function getCentralStateWriteBaseRevision(write = {}) {
     const currentRevision = getCentralStateRevisionForKey(write.key);
     if (write.baseRevision !== null && write.baseRevision !== undefined && write.baseRevision !== "") {
@@ -195,7 +201,26 @@ export function createCentralSyncRuntimeService(deps = {}) {
     return Object.values(manifest.entries || {}).some((entry) => entry?.pendingCentralSync);
   }
 
-  async function retryCentral(readManifest) {
+  async function retryVerifiedSessionRead(readKeys) {
+    const bridge = getCentralStateBridge(), key = sessionPlannerStorageKey;
+    if (!readKeys.includes(key) || !bridge?.isKeyHydrated?.(key) || !bridge.getSessionPendingState) return;
+    const scope = bridge.getReadScope?.();
+    if (!scope) return;
+    try {
+      const pending = await bridge.getSessionPendingState();
+      if (!pending || scope !== bridge.getReadScope?.() || !bridge.isKeyHydrated(key)) return;
+      if (centralStateWriteQueue.has(key)) {
+        if (!centralStateWriteTimer) centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
+      } else if (!centralStateActiveWrites.has(key)) {
+        queueCentralStateWrite(key, rawGetItem(key) ?? pending, { automatic: true, sessionReplay: true });
+      }
+    } catch {
+      if (scope === bridge.getReadScope?.()) reportSyncStatus(key, "issue", "Local save queue unavailable");
+    }
+  }
+
+  async function retryCentral(readManifest, options = {}) {
+    if (Array.isArray(options.readKeys)) return retryVerifiedSessionRead(options.readKeys);
     if (!getCurrentUser() || !getCentralStateBridge()?.syncKey) return;
     // Retire the exact read receipt at the ready event, before later hydration cache bookkeeping.
     for (const [key, write] of [...centralStateWriteQueue, ...centralStateActiveWrites]) {
@@ -483,7 +508,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       return false;
     }
     const baseRevision = Number.isInteger(options.baseRevision) && options.baseRevision >= 0 ? options.baseRevision
-      : isCentralStateBridgeHydrated(bridge) ? getCentralStateRevisionForKey(normalizedKey) : null;
+      : isCentralWriteReady(bridge, { key: normalizedKey, removed: options.removed }) ? getCentralStateRevisionForKey(normalizedKey) : null;
     reportSyncStatus(normalizedKey, "saving", "Saving");
     const pendingEntry = setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed), principalScope, baseRevision);
     if (!pendingEntry) {
@@ -540,7 +565,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       return true;
     }
     if ((bridge.getStatus?.()?.hydrating && Array.from(centralStateWriteQueue.values()).some((write) => write.retryAfterFailure)) ||
-        !isCentralStateBridgeHydrated(bridge)) {
+        !Array.from(centralStateWriteQueue.values()).some((write) => isCentralWriteReady(bridge, write))) {
       queueCentralStateStatus("Central sync is loading.");
       if (!centralStateWriteTimer) {
         centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, centralStateHydrationRetryMs);
@@ -553,6 +578,11 @@ export function createCentralSyncRuntimeService(deps = {}) {
     for (let index = 0; index < writes.length; index += 1) {
       const write = writes[index];
       if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
+      if (!isCentralWriteReady(bridge, write)) {
+        if (!centralStateWriteQueue.has(write.key)) centralStateWriteQueue.set(write.key, write);
+        flushIssue = "Central sync is loading.";
+        continue;
+      }
       if (wasWriteAcknowledgedByRead(write)) {
         conflictedWrites.delete(write.key);
         reportSyncStatus(write.key, "saved", "Saved");

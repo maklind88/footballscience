@@ -274,6 +274,7 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
   }
   return { observe, stage, replay, save, pendingState, reviews, resolve, isSettled, rememberDraft, project,
     isProjectionCurrent: (view) => Boolean(view && current(view.scope) && view.version === viewVersion),
+    isReady: () => Boolean(current(getScope()) && baseline),
     centralValue: () => current(getScope()) && baseline ? JSON.stringify(baseline) : null,
   };
 }

@@ -97,6 +97,7 @@
   const centralStateValues = new Map();
   let sessionSaveClientPromise = null;
   let sessionSaveClient = null;
+  let sessionBaselineReadScope = "";
   let setPiecesSaveClientPromise = null;
 
   function getSessionSaveScope() {
@@ -741,7 +742,8 @@ async function getActiveAccessToken() {
     return `${API_APP_STATE}?${query.toString()}`;
   }
   async function readCentralStateBatches(options = {}) {
-    const responses = await Promise.all(buildCentralStateReadBatches().map((keys) =>
+    const batches = options.keys ? [options.keys] : buildCentralStateReadBatches();
+    const responses = await Promise.all(batches.map((keys) =>
       apiRequest(buildCentralStateReadPath(keys, options), {
         method: "GET",
         isCurrent: options.isCurrent,
@@ -1688,6 +1690,7 @@ async function getActiveAccessToken() {
     if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
     if (hasSessionRead && sessionScope !== getSessionSaveScope()) throw new Error("Account or team changed during central load.");
     sessionClient?.observe(normalizedEntries[SESSION_PLANNER_STATE_KEY] || '{"sessions":{}}', incomingMetadata[SESSION_PLANNER_STATE_KEY]);
+    if (sessionClient) sessionBaselineReadScope = getCentralReadScope();
     const sessionView = sessionClient ? await sessionClient.project().catch(() => {
       centralState.lastWriteError = "Local save queue unavailable. Local training changes were retained.";
       return null;
@@ -1941,10 +1944,10 @@ async function getActiveAccessToken() {
       }
     } catch (error) {
       // Reads already applied to this scope remain useful when recovery writes fail.
-      // A partial event refreshes views without a ready receipt or replaying drafts.
-      if ((!options.isCurrent || options.isCurrent()) && hydratedRevisionEntries.length) {
+      // A partial event keeps failed recovery unacknowledged; verified modules retain their own read proof.
+      if (!options.isCurrent || options.isCurrent()) {
         window.dispatchEvent(new CustomEvent("footballscience:central-state-partial", {
-          detail: { readKeys: hydratedRevisionEntries.map(([key]) => key) },
+          detail: { readKeys: options.readKeys || Object.keys(normalizedEntries) },
         }));
       }
       throw error;
@@ -1956,6 +1959,8 @@ async function getActiveAccessToken() {
     });
   }
   async function hydrateCentralState(options = {}) {
+    const scopedRead = Array.isArray(options.keys);
+    if (scopedRead && (!options.keys.length || options.keys.some((key) => !isCentralStateKey(key)))) return false;
     if (authState.devMode) {
       centralState.hydrated = true;
       centralState.hydrating = false;
@@ -1977,14 +1982,16 @@ async function getActiveAccessToken() {
           pendingCentralHydration?.token === authState.session.access_token;
         if (!compatible) pendingCentralHydration?.waiters?.forEach((resolve) => resolve(false));
         pendingCentralHydration = { scope: getCentralReadScope(), token: authState.session.access_token,
-          options: { fresh: true, forceApply: Boolean(options.forceApply || (compatible && pendingCentralHydration.options.forceApply)) },
+          options: { fresh: true, forceApply: Boolean(options.forceApply || (compatible && pendingCentralHydration.options.forceApply)),
+            ...(scopedRead && (!compatible || pendingCentralHydration.options.keys)
+              ? { keys: [...new Set([...options.keys, ...(compatible ? pendingCentralHydration.options.keys : [])])] } : {}) },
           waiters: compatible ? pendingCentralHydration.waiters : [] };
         return new Promise((resolve) => pendingCentralHydration.waiters.push(resolve));
       }
       return false;
     }
     centralState.hydrating = true;
-    centralState.lastError = "";
+    if (!scopedRead) centralState.lastError = "";
     const readScope = getCentralReadScope();
     const readToken = authState.session.access_token;
     const isCurrent = () => readScope === getCentralReadScope() && readToken === authState.session?.access_token;
@@ -2014,8 +2021,9 @@ async function getActiveAccessToken() {
         ? response.payload.metadata
         : {};
       const hasCentralEntries = Object.keys(entries).length > 0;
-      if (hasCentralEntries) {
-        await applyCentralStateEntries(entries, metadata, { ...options, isCurrent, absentKeys: response.payload.absentKeys });
+      if (hasCentralEntries || scopedRead) {
+        await applyCentralStateEntries(entries, metadata, { ...options, isCurrent,
+          ...(scopedRead ? { readKeys: options.keys } : {}), absentKeys: response.payload.absentKeys });
       } else {
         clearMissingCentralReadViews(entries, response.payload.absentKeys);
         const localEntries = collectCentralLocalStateEntries();
@@ -2029,6 +2037,7 @@ async function getActiveAccessToken() {
         const sessionClient = await getSessionSaveClient();
         if (!isCurrent()) return false;
         sessionClient.observe('{"sessions":{}}', { revision: 0 });
+        sessionBaselineReadScope = getCentralReadScope();
         if (Object.keys(localEntries).length) {
           const seedResponse = await apiRequest(API_APP_STATE, {
             method: "POST",
@@ -2055,6 +2064,11 @@ async function getActiveAccessToken() {
       }
       if (!isCurrent()) return false;
       reconcileCentralTombstones(response.payload.absentKeys, metadata);
+      if (scopedRead) {
+        // A module read neither acknowledges another module's drafts nor declares the platform ready.
+        window.dispatchEvent(new CustomEvent("footballscience:central-state-partial", { detail: { readKeys: options.keys } }));
+        return true;
+      }
       centralState.hydrated = true;
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.lastFetchedAt = centralState.lastSyncedAt;
@@ -3315,6 +3329,9 @@ async function getActiveAccessToken() {
     roles: authState.roles,
   };
   window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getReadScope:getCentralReadScope,canAutoSyncKey:canCurrentUserAutomaticallyWriteCentralStateKey,getCachedValue:getCentralCachedValue,getCachedValueInfo:getCentralCachedValueInfo,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState}),
+    isKeyHydrated: (key) => key === SESSION_PLANNER_STATE_KEY && !authState.devMode
+      ? Boolean(sessionBaselineReadScope && sessionBaselineReadScope === getCentralReadScope() && sessionSaveClient?.isReady()) : centralState.hydrated,
+    hydrateSessionState: () => hydrateCentralState({ fresh: true, keys: [SESSION_PLANNER_STATE_KEY] }),
     rememberSessionDraft: (value, previousValue) => sessionSaveClient?.rememberDraft(value, previousValue),
     stageSessionWrite: async (value, options) => {
       if (authState.devMode) return { ok: true };

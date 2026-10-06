@@ -350,3 +350,13 @@ test("context requires a signed-in editor and waits for central hydration", () =
   bridge.isHydrated = () => false;
   expect(getSessionPlannerRecoveryContext({ user, bridge, storageKey: key, canEdit: true }).ready).toBe(false);
 });
+
+
+test("recovery uses the verified Sessions baseline while preserving edit access checks", () => {
+  const bridge = { isHydrated: () => false, isKeyHydrated: k => k === key,
+    getStatus: () => ({ metadata: { [key]: { revision: 6 } } }) };
+  expect(getSessionPlannerRecoveryContext({ user: { id: "coach" }, bridge, storageKey: key, canEdit: true }).ready).toBe(true);
+  expect(getSessionPlannerRecoveryContext({ user: { id: "coach" }, bridge, storageKey: key, canEdit: false })).toBeNull();
+  bridge.isKeyHydrated = () => false; bridge.isHydrated = () => true;
+  expect(getSessionPlannerRecoveryContext({ user: { id: "coach" }, bridge, storageKey: key, canEdit: true }).ready).toBe(false);
+});

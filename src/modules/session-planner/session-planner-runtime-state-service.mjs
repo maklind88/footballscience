@@ -334,7 +334,9 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
 
   async function openLocalSaveReview(returnFocus = win.document.activeElement) {
     const context = getRecoveryContext();
-    const bridge = win.footballScienceCentralState;
+    const centralBridge = win.footballScienceCentralState;
+    const bridge = centralBridge?.hydrateSessionState
+      ? { ...centralBridge, hydrate: centralBridge.hydrateSessionState } : centralBridge;
     if (!context?.ready || !bridge?.getSessionCentralValue) return;
     const expectedLocalValue = win.localStorage.getItem(sessionPlannerStorageKey);
     const { openSessionSaveReview } = await import("./session-save-review.mjs");

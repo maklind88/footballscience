@@ -113,3 +113,17 @@ for (const present of [true, false]) {
     expect(context.window.__footballScienceCentralHydrating).toBe(false);
   });
 }
+
+
+test("a scoped Sessions read excludes unrelated failures and unsolicited Medical data", async () => {
+  const read = reader({
+    [medical]: { ok: false, status: 503, payload: { reason: "Medical unavailable" } },
+    [sessions]: { ok: true, payload: { entries: { [sessions]: "training", [medical]: "unsolicited" },
+      metadata: { [sessions]: { revision: 5 }, [medical]: { revision: 999 } } } },
+  });
+  const result = await read({ keys: [sessions] });
+  expect(result.ok).toBe(true);
+  expect(result.payload.readKeys).toEqual([sessions]);
+  expect(result.payload.entries).toEqual({ [sessions]: "training" });
+  expect(result.payload.metadata).toEqual({ [sessions]: { revision: 5 } });
+});

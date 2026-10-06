@@ -1725,3 +1725,46 @@ for (const removed of [false, true]) {
     expect(h.syncCalls).toHaveLength(2);
   });
 }
+
+
+test("verified Sessions can flush while unrelated unverified writes and deletions stay pending", async () => {
+  const h = createServiceHarness({ hydrated: false, revision: 12 });
+  const session = "football-session-planner-v1", medical = "football-medical-team-v1", schedule = "football-schedule-v1";
+  h.win.footballScienceCentralState.isKeyHydrated = key => key === session || key === schedule;
+  h.service.queueCentralStateWrite(medical, "medical draft");
+  h.service.queueCentralStateWrite(schedule, "", { removed: true });
+  h.service.queueCentralStateWrite(session, "training draft");
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.map(call => call.key)).toEqual([session]);
+  expect(h.syncCalls[0].options.baseRevision).toBe(12);
+  expect(h.manifest.entries[medical].pendingCentralSync).toBe(true);
+  expect(h.manifest.entries[schedule].pendingCentralSync).toBe(true);
+});
+
+test("a module's unverified baseline cannot borrow another module's readiness", async () => {
+  const h = createServiceHarness({ hydrated: true });
+  h.win.footballScienceCentralState.isKeyHydrated = () => false;
+  h.service.queueCentralStateWrite("football-session-planner-v1", "unverified training");
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toEqual([]);
+  expect(h.manifest.entries["football-session-planner-v1"].pendingCentralSync).toBe(true);
+});
+
+for (const scopeChange of [false, true]) {
+  test(`partial read retries only the current Sessions journal (scope change=${scopeChange})`, async () => {
+    let scope = "actor-A";
+    const h = createServiceHarness({ hydrated: false, getReadScope: () => scope });
+    const session = "football-session-planner-v1", medical = "football-medical-team-v1";
+    h.win.footballScienceCentralState.isKeyHydrated = key => key === session;
+    h.win.footballScienceCentralState.getSessionPendingState = async () => {
+      if (scopeChange) scope = "actor-B";
+      return "journal training";
+    };
+    h.win.footballScienceCentralState.stageSessionWrite = async () => ({ ok: true });
+    h.manifest.entries[medical] = { pendingCentralSync: true, principalScope: scope };
+    await h.service.retryCentral(() => { throw new Error("Partial read must not replay the generic manifest"); }, { readKeys: [session] });
+    await h.service.flushCentralStateWrites();
+    expect(h.syncCalls.map(call => call.key)).toEqual(scopeChange ? [] : [session]);
+    expect(h.manifest.entries[medical].pendingCentralSync).toBe(true);
+  });
+}

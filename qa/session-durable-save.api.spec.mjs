@@ -718,3 +718,18 @@ test("a failed journal stage cannot silently lose an earlier change on the next 
   expect(h.state.central.sessions[date].title).toBe("Must survive");
   expect(h.state.central.sessions[date].blocks[0].objective).toBe("Later edit");
 });
+
+
+test("read readiness belongs to the observed actor and team", () => {
+  let scope = "coach:team-a";
+  const client = createSessionSaveClient({ getScope: () => scope, send: async () => ({ ok: false }) });
+  expect(client.isReady()).toBe(false);
+  client.observe('{"sessions":{}}', { revision: 7 });
+  expect(client.isReady()).toBe(true);
+  scope = "coach:team-b";
+  expect(client.isReady()).toBe(false);
+  client.observe('{"sessions":{}}', { revision: 2 });
+  expect(client.isReady()).toBe(true);
+  scope = "";
+  expect(client.isReady()).toBe(false);
+});

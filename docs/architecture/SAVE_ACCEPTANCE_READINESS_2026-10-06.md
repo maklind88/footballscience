@@ -145,3 +145,20 @@ candidate frontend is deployed. A normal deployed-frontend run is still required
 following release. The fixture search now uses ten nearby empty dates; no
 existing test/user date is overwritten. Compressed command bodies pass through
 the same ownership checks after the actual transport decoder.
+
+
+## Candidate continuation: module isolation
+
+Candidate run 37511081312 passed Medical and reached the real Sessions editor,
+but the online peer's save stayed blocked by global hydration. Cleanup completed.
+A deterministic local cold-start test confirmed the global-read prerequisite;
+a separate reconnect test exposed the missing online lifecycle handler. The
+candidate now isolates Sessions readiness, fresh review reads and journal retries
+while retaining the failed Medical draft and all existing conflict protections.
+The browser-only overlay includes the three original client files, central runtime
+facade/global bindings, and the Sessions client/recovery-controller/runtime-state
+adapter. It still changes no deployed asset or API policy. The review assertions
+now correctly await the public asynchronous getSessionSaveReviews contract.
+
+These are findings and candidate fixes, not a passing real two-user acceptance
+claim. See SAVE_RECOVERY_VISIBILITY_2026-10-06.md for scope and verification.

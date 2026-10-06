@@ -98,10 +98,14 @@ export function bindPlatformGlobalRuntimeEvents(deps = {}) {
     deps.scheduleDashboardLoginPopups?.();
   });
 
-  win.addEventListener("footballscience:central-state-partial", () => {
-    // Refresh verified reads without declaring the failed batches ready or draining writes.
+  win.addEventListener("footballscience:central-state-partial", (event) => {
+    // Refresh verified reads; only Sessions' scoped journal can resume from its own read proof.
     deps.requestCentralizedAppStateReload?.();
     deps.refreshDataSafetyStatus?.();
+    const readKeys = event.detail?.readKeys || [];
+    if (readKeys.includes("football-session-planner-v3") && getCentralStateBridge()?.isKeyHydrated?.("football-session-planner-v3")) {
+      callAsync(deps.retryCentral || asyncNoop, { readKeys });
+    }
   });
 
   win.addEventListener("footballscience:central-state-ready", () => {
@@ -123,6 +127,11 @@ export function bindPlatformGlobalRuntimeEvents(deps = {}) {
   documentRef.addEventListener("pointerup", () => {
     setTimeoutRef(deps.flushDeferredCentralizedAppStateReload || noop, 180);
   }, true);
+
+  win.addEventListener("online", () => {
+    // Reconnect is an explicit recovery trigger; obtain current read proof before replay.
+    callAsync(deps.refreshCentralStateFromSource || asyncNoop, "online", { force: true });
+  });
 
   win.addEventListener("focus", () => {
     deps.applyPlatformThemeByTime?.();

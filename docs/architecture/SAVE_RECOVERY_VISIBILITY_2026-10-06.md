@@ -1,61 +1,73 @@
-# Shared recovery visibility and retained save intent
+# Shared recovery visibility and module read isolation
 
-Owner: System / Security for shared synchronization and saved-work safety.
-Medical Room and Sessions retain domain/UI ownership. Three existing core files
-change; no API/database, authorization rule, clinical rule or module UI changes.
-Safe Lane is required. Base is released main `2eb24114edc282e4f964d05ab5bf4257cc5c8739`.
+Task/release owner: System / Security for shared synchronization and saved-work safety.
+Affected module owners: Medical Room (clinical source data) and Sessions (training,
+local journal and review UI). Medical domain code is unchanged. Sessions changes
+are limited to its readiness accessor and adapter to the existing review flow.
+No schema, API authorization, clinical rules or conflict protocol changes.
+Safe Lane is required. Released base: `2eb24114edc282e4f964d05ab5bf4257cc5c8739`.
 
 ## Problem and evidence
 
-Pinned staging run 37508787099 found an authenticated admin with the correct
-selected date and edit access. The actual Sessions parser and storage contained
-the test block; runtime/DOM did not. Hydration had failed after the guarded QA
-browser blocked an incidental Medical recovery write. No overlay or clear/off
-rule applied. This models a failed recovery write, rather than missing storage.
+Pinned staging run 37508787099 found valid Sessions data in the parser/cache but
+not the runtime/DOM. Medical recovery had failed after the guarded QA browser
+blocked an incidental write. No overlay, edit permission or off-day rule explained
+it. A deterministic synthetic browser regression reproduced the stale view.
 
-A deterministic local browser test reproduced the stale Sessions view with a
-503 Medical write while a colleague's accepted Session revision was read.
-Testing that the Medical draft stayed recoverable exposed two more problems:
-central hydration bookkeeping could replace the pending generation, and the
-queue cleared generic pending flags after HTTP 403 without a save receipt.
-The latter kept bytes temporarily but could lose recovery intent on later reads.
+Retaining the unsent Medical draft exposed two further defects: hydration
+bookkeeping could replace the pending generation, and HTTP 403 handling cleared
+pending intent without a receipt. These were fixed and covered independently.
 
-## Smallest change
+Candidate-browser run 37511081312 passed real two-account Medical API checks and
+opened Sessions, but the online coach's change never reached the server. Scoped
+cleanup completed. A local cold-start regression reproduced the shared queue
+waiting for global hydration despite Sessions having its verified own baseline.
+The same global prerequisite also prevented local review. A reconnect regression
+then proved that there was no direct online event handler to request recovery.
 
-- platform-auth-boot.js emits the existing partial-read event after a recovery
-  write fails, only for the still-current scope and already applied read keys.
-  It rethrows the failure and does not emit ready or replay pending writes.
-- data-safety-runtime-service.mjs treats hydration as read bookkeeping, not a
-  user edit or acknowledgement; pending hashes, ownership and generations stay.
-- central-sync-runtime-service.mjs retains pending intent after HTTP 403 while
-  continuing the queue for other permitted keys. It does not automatically
-  requeue the denied attempt within that flush. External recovery/user actions
-  may retry after access is restored. No access check is weakened.
+## Smallest compatible changes
 
-Server-accepted records remain the source of truth; local pending work remains
-recoverable until a genuine acknowledgement. Never substitute a blanket reload,
-clear local storage, restore full module snapshots, or report a failed save as
-saved. Those alternatives risk data loss or mask the problem.
+- Auth boot emits the existing partial-read event after failed recovery, scoped
+  to the current actor and verified read keys, including journal projections.
+- Hydration preserves pending generation, hash, owner and tombstone bookkeeping.
+- HTTP 403 retains pending work; it does not acknowledge or immediately requeue it.
+- Sessions exposes whether its existing client has an observed baseline for the
+  current actor/team. The shared queue uses that proof for Sessions writes;
+  unverified keys and whole-key deletions keep the existing hydration guard.
+- Session review uses a fresh, Session-only read through the same hydration path.
+  That read preserves unrelated metadata, pending drafts and failure status; it
+  cannot seed a whole-module snapshot or declare the entire platform hydrated.
+- Pending read calls remain serialized/coalesced. Scope/token checks still apply.
+- Partial reads can resume only the current Sessions journal. They do not replay
+  the generic manifest. Scope is checked again after reading the journal.
+- An online event requests a fresh read before retry. Failed reads still use the
+  existing bounded backoff; failed writes are not given a blind retry loop.
+
+The server remains authoritative. A visible read, local cache update, denied
+write or partial recovery is never a save receipt. No blanket reload, storage
+clear, unconditional overwrite, permission bypass or snapshot restoration is used.
+Other modules' independent save protocols are follow-up work, not implicitly
+converted by this change.
 
 ## Validation
 
-The original regression failed before the fix. Three browser cases now cover
-503, HTTP 403 and network failure: colleague Session data becomes visible,
-Medical bytes and pending intent survive, no ready event is emitted for failed
-recovery, and a subsequent successful recovery saves the draft. Unit contracts
-cover hydration generation preservation for Medical, Sessions, Schedule and
-Set Pieces, plus denied Medical edits/deletions continuing other module writes.
+The stale-view, cold-start save and reconnect regressions failed before their
+respective fixes. Six new browser cases now pass: HTTP 503/403/network failures,
+startup recovery failure, successful independent Sessions save, failed delivery
+and reconnect, retained Medical draft, same-field conflict and explicit Keep
+central. Review is denied when Sessions' own fresh read fails, retaining the draft. A same-user organization switch revokes old read readiness until the new organization is read.
 
-205 focused core contracts, 3 new browser regressions, 15 diagnostic/fixture node
-tests and 31 workflow/Medical-boundary contracts passed. Syntax and architecture
-budgets passed. The earlier full focused browser run passed 93 existing cases;
-it exposed the HTTP 403 issue in the new case before that issue was corrected.
-Final rerun and candidate-client staging acceptance are tracked in the PR.
+289 focused contracts pass, covering existing sync/read/recovery behavior plus
+key readiness, current actor/team, partial journal replay, unrelated pending data,
+whole-key deletion guards and the online event. `npm run check` and `qa:static`
+pass, including security, storage, migrations, performance and architecture guards.
+All 1,387 shared contract tests, 116 focused browser tests and 15 diagnostic/fixture tests pass. The initial expanded browser run had two ENOENT trace-file failures from concurrent test runners sharing an output directory; the isolated rerun passed all 116. Real candidate-client staging acceptance remains the next required check.
 
-## Limits and remaining proof
+## Limits
 
-The production Medical incident confirmed only central presence, not the exact
-version or affected user's UI. The fix explains a reproducible failure mode;
-it does not claim every reported missing recommendation has this cause.
-Candidate-client browser overlays are explicit pre-release tests. Full deployed
-frontend/backend acceptance and production verification remain necessary.
+The production Ella incident proved central presence only, not the exact version
+or affected browser's view. Do not assert that every missing recommendation has
+this cause. Current changes are candidate work and have not been deployed.
+Browser overlays are explicitly labelled and only replace candidate JS in the
+isolated QA browser. Deployed-frontend acceptance and production verification
+remain required after an authorized Safe Lane release.

@@ -9,7 +9,7 @@ export function getSessionPlannerRecoveryContext({ user, bridge, storageKey, can
   return {
     scope: JSON.stringify([user.id, metadata.organizationId || "", user.clubId || "", user.teamId || ""]),
     revision,
-    ready: bridge?.isHydrated?.() === true,
+    ready: typeof bridge?.isKeyHydrated === "function" ? bridge.isKeyHydrated(storageKey) === true : bridge?.isHydrated?.() === true,
     hydrating: Boolean(status.hydrating),
   };
 }

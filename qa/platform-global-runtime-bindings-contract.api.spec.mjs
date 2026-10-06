@@ -203,3 +203,24 @@ test("platform global runtime bindings reconcile state when central hydration fi
   expect(calls.indexOf("flush-central")).toBeGreaterThan(calls.indexOf("retry-central"));
   expect(calls.indexOf("request-reload")).toBeGreaterThan(calls.indexOf("initialize-workspace"));
 });
+
+test("reconnect reads first and partial events only resume verified Sessions", () => {
+  const win = createEventHub({ setTimeout: () => 1, setInterval: () => 1 });
+  const documentRef = createEventHub({ querySelectorAll: () => [] });
+  const calls = [], key = "football-session-planner-v3";
+  let ready = false;
+  bindPlatformGlobalRuntimeEvents({ win, documentRef,
+    getCentralStateBridge: () => ({ isHydrated: () => false, isKeyHydrated: k => ready && k === key }),
+    refreshCentralStateFromSource: (...args) => calls.push(["read", ...args]),
+    retryCentral: options => calls.push(["retry", options]),
+  });
+  win.dispatch("online");
+  expect(calls).toEqual([["read", "online", { force: true }]]);
+  win.dispatch("footballscience:central-state-partial", { detail: { readKeys: [key] } });
+  expect(calls).toHaveLength(1);
+  ready = true;
+  win.dispatch("footballscience:central-state-partial", { detail: { readKeys: ["football-medical-team-v1"] } });
+  expect(calls).toHaveLength(1);
+  win.dispatch("footballscience:central-state-partial", { detail: { readKeys: [key] } });
+  expect(calls[1]).toEqual(["retry", { readKeys: [key] }]);
+});

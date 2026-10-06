@@ -12,7 +12,7 @@ export function assertOwnedMedicalChange(before, after, run) {
 }
 export function assertOwnedSessionChange(change, run) {
   requireProof(change.after.session.title === run && (!change.before.session || change.before.session.title === run), 'Refusing change to existing Session date');
-  requireProof(change.after.session.blocks.every(block => block.id.startsWith(run + '-')), 'Unexpected Session block owner');
+  requireProof([...(change.before.session?.blocks || []), ...change.after.session.blocks].every(block => block.id.startsWith(run + '-')), 'Unexpected Session block owner');
 }
 
 

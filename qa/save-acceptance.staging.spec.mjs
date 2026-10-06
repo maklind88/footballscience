@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createStagingAcceptance, medicalKey, sessionsKey, requireProof, digest } from './helpers/save-acceptance-staging.mjs';
+import { createStagingAcceptance, medicalKey, sessionsKey, requireProof, digest, assertOwnedSessionChange } from './helpers/save-acceptance-staging.mjs';
 
 test('two authenticated users preserve Medical versions and Sessions offline work', async ({ browser }) => {
   const qa = await createStagingAcceptance();
@@ -53,7 +53,10 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
         if (route.request().method() === 'GET') return route.continue();
         let body, change;
         try { body = route.request().postDataJSON(); change = typeof body.sessionChange === 'string' ? JSON.parse(body.sessionChange) : body.sessionChange; } catch {}
-        if (body?.key === sessionsKey && change?.date === day && change.after?.session?.title === qa.run) return route.continue();
+        if (body?.key === sessionsKey && change?.date === day) {
+          try { assertOwnedSessionChange(change, qa.run); } catch { return route.abort('blockedbyclient'); }
+          return route.continue();
+        }
         return route.abort('blockedbyclient');
       });
       const page = await context.newPage();

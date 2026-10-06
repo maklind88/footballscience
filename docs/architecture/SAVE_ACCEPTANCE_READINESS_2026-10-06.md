@@ -42,3 +42,41 @@ Never restore a whole module snapshot over concurrent work.
 
 The probe alone does not pass this matrix. Existing local synthetic browser and
 native PostgreSQL tests are complementary evidence, not real two-account proof.
+
+## Isolated mutable acceptance (separate optional workflow input)
+
+`verify_save_acceptance=true` enables a separate Playwright configuration with
+one worker, no retries, no screenshots/video/traces, and explicit fixture opt-in.
+It shares the official production-edge concurrency group without cancellation,
+so it must not overlap an official staging/production/rollback edge job.
+
+System / Security owns this QA harness. Medical and Sessions remain the owners
+of their domain behavior; this candidate changes no product module or API.
+The harness verifies the canonical staging backend and exact reviewed build,
+uses the existing staging admin to create one random temporary team-admin,
+verifies both accounts through Auth, and never uses a production credential.
+Before writes, today's staging session must be absent. Medical mutations must
+leave every non-run-owned entry and top-level field unchanged. Session commands
+may affect only the run-owned date and blocks. Browser app-state writes to any
+other module are blocked in the test context.
+
+Coverage: two authenticated Medical writers, future activity versus edit time,
+stale archive protection; two real Sessions browser contexts, offline draft
+plus independent online edit, reconnect, reload visibility, same-field conflict
+and explicit Keep central review resolution. This does not certify Medical UI
+visibility for a real player, physical devices, or cold offline application boot.
+
+Cleanup closes browser writers first, archives only run-owned Medical fixtures,
+tombstones only run-owned Session blocks, revokes the temporary peer session,
+pauses/deletes only that created account, and logs out only the created primary
+session. Audit records, archived synthetic Medical rows and an empty run-labelled
+session date remain intentionally. Whole-module restoration is never used.
+A changed deployment or ownership stops fixture writes and reports the failure.
+
+Readiness run 37454064385 passed on staging deployment
+`dpl_7kYorqofNykQ4Uu4ArS1sRNts6Wq`: existing staging account is admin; Medical
+same-account reads had equal revision/content; Sessions was confirmed absent.
+No second staging secret existed. Six standard staging browser probes passed,
+two environment-specific probes skipped. The earlier run 37453148976 failed
+because the first probe expected a SHA while staging reports a deployment id;
+the exact build guard now accepts either documented identifier format.

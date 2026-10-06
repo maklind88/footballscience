@@ -175,3 +175,27 @@ test('a real date deletion is retained when other dates keep their stored repres
   expect(accepted.state.sessions[date].blocks).toEqual([]);
   expect(accepted.state.blockDeletionTombstones[date].removed).toBe('2026-09-11T12:00:00.000Z');
 });
+
+for (const creation of [undefined, '', '2026-08-01T12:00:00.000Z']) {
+  test(`independent editors preserve existing creation metadata (${String(creation)})`, () => {
+    const saved = stateWith({ id: 'shared', title: 'Before', objective: 'Before',
+      ...(creation === undefined ? {} : { createdAt: creation }) });
+    const viewA = hydrate(saved), viewB = hydrate(saved);
+    viewA.sessions[date].blocks[0].createdAt = creation || '2026-10-06T12:00:00.000Z';
+    viewB.sessions[date].blocks[0].createdAt = creation || '2026-10-06T12:01:00.000Z';
+    const a = structuredClone(viewA), b = structuredClone(viewB);
+    a.sessions[date].blocks[0].title = 'Offline title';
+    b.sessions[date].blocks[0].objective = 'Online objective';
+    const command = (edit, view) => createSessionDateChanges(saved, sessionStateForStorage(edit, saved, view))[0];
+    const first = applySessionDateChange(saved, command(b, viewB));
+    const second = applySessionDateChange(first.state, command(a, viewA));
+    expect(second.ok).toBe(true);
+    expect(second.state.sessions[date].blocks[0]).toMatchObject({ title: 'Offline title', objective: 'Online objective' });
+    expect(second.state.sessions[date].blocks[0].createdAt).toBe(creation);
+    const sameField = structuredClone(viewB); sameField.sessions[date].blocks[0].title = 'Conflicting title';
+    expect(applySessionDateChange(second.state, command(sameField, viewB)).ok).toBe(false);
+    const newBlock = { id: 'new', title: 'New', createdAt: '2026-10-06T12:02:00.000Z' };
+    a.sessions[date].blocks.push(newBlock);
+    expect(sessionStateForStorage(a, saved, viewA).sessions[date].blocks.at(-1).createdAt).toBe(newBlock.createdAt);
+  });
+}

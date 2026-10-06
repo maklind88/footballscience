@@ -62,6 +62,13 @@ export function sessionStateForStorage(state, previousState, viewBaseline) {
     const previousBlocks = new Map((previousState?.sessions?.[date]?.blocks || []).map((block) => [block.id, block]));
     const blocks = session.blocks.map((block) => {
       const previous = previousBlocks.get(block.id);
+      // Normalizing an older block invents a read-time createdAt in each browser.
+      // An existing block keeps its stored creation metadata; it is not an edit.
+      if (previous) {
+        block = { ...block };
+        if (Object.hasOwn(previous, "createdAt")) block.createdAt = previous.createdAt;
+        else delete block.createdAt;
+      }
       if (!sameBoardContent(block, previous)) return compactTacticalBlock(block);
       // Do not re-encode untouched boards: that would journal unrelated dates or
       // overwrite a colleague's representation while saving only coaching text.

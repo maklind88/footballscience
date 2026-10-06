@@ -114,3 +114,12 @@ The broader regression and pinned real staging proof remain in progress for
 this final adapter change. This is a narrow saved-work boundary change owned by
 the current System/Security task with Sessions as the affected module; it is
 not a transfer of Sessions domain rules or UI ownership.
+
+
+## 7. Legacy creation timestamps caused a false two-editor conflict
+
+Staging run 37518050727 progressed past the peer save but failed reconnect. Diagnostic run 37518640824 confirmed an accepted Session command reached the server, received HTTP 409 and retained one local review. A two-browser local reproduction identified the conflicting path as the existing block's `createdAt`: each view synthesized a different timestamp for an older record with that field missing.
+
+The storage adapter now retains the existing block's exact stored creation metadata (including absence/empty value), while new blocks retain their real creation timestamp. The immutable command and server conflict rules are unchanged. The previously red two-editor/offline test passes. Three cases cover missing, empty and valid metadata, compatible different-field edits, real same-field conflict and new-block timestamps. Five focused browser cases and 12 storage contracts pass. The staging harness searches only absent dates across 30 days and uses existing date navigation; it never reuses or replaces an existing date.
+
+Broad regression and fresh real staging acceptance are required before release; this is not production verification.

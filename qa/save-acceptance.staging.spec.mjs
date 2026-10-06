@@ -15,7 +15,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
   try {
     originalMedical = await qa.read(qa.primary, medicalKey);
     originalSessions = await qa.read(qa.primary, sessionsKey);
-    day = Array.from({ length: 10 }, (_, index) => new Date(Date.now() + index * 86400000).toISOString().slice(0, 10))
+    day = Array.from({ length: 30 }, (_, index) => new Date(Date.now() + index * 86400000).toISOString().slice(0, 10))
       .find(date => !originalSessions.state.sessions?.[date]);
     requireProof(Boolean(day), 'No empty nearby staging date; no test fixture written');
     const m = structuredClone(originalMedical.state), now = new Date().toISOString();
@@ -50,6 +50,17 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
       blocks: [{ id: qa.run + '-block', title: 'Synthetic baseline', objective: 'Original objective', minutes: 20 }] } };
     sessionCreated = true;
     await qa.sendSession(qa.primary, originalSessions, qa.sessionChange(originalSessions, s));
+    const selectDate = async page => {
+      for (let step = 0; step < 8; step++) {
+        const target = page.locator(`[data-session-date="${day}"]`);
+        if (await target.count()) { await target.click(); return; }
+        const dates = await page.locator('[data-session-date]').evaluateAll(nodes => nodes.map(node => node.dataset.sessionDate).sort());
+        requireProof(dates.length > 1, 'Session date navigation unavailable');
+        const edge = day < dates[0] ? dates[0] : dates.at(-1);
+        await page.locator(`[data-session-date="${edge}"]`).click();
+      }
+      throw new Error('Own Session fixture date is outside reachable navigation');
+    };
     const open = async account => {
       const context = await browser.newContext({ serviceWorkers: 'block' }); contexts.push(context);
       const blockedWrites = new Map(), rejectedOwnWrites = new Map(), candidateFiles = new Set(), sessionStatuses = new Map();
@@ -105,7 +116,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
         document.querySelector('#dashboardModalRoot button[data-dashboard-modal-close]')?.click();
         window.dispatchEvent(new CustomEvent('platform:open-workspace', { detail: { workspaceId: 'session-planner' } }));
       });
-      await page.locator(`[data-session-date="${day}"]`).click();
+      await selectDate(page);
       try {
         await expect(page.locator('[data-session-field="title"]').first()).toHaveValue('Synthetic baseline');
       } catch (error) {
@@ -176,7 +187,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
     await b.page.reload({ waitUntil: 'domcontentloaded' });
     await b.page.waitForFunction(() => window.__footballScienceAppReady);
     await b.page.evaluate(() => window.dispatchEvent(new CustomEvent('platform:open-workspace', { detail: { workspaceId: 'session-planner' } })));
-    await b.page.locator(`[data-session-date="${day}"]`).click();
+    await selectDate(b.page);
     await expect(field(b, 'title')).toHaveValue('Offline coach A');
     await expect(field(b, 'objective')).toHaveValue('Online coach B');
     const saved = await qa.read(qa.primary, sessionsKey);

@@ -106,6 +106,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
     await a.page.evaluate(() => window.dispatchEvent(new Event('online')));
     await expect.poll(() => a.page.evaluate(() => window.footballScienceCentralState.getSessionSaveReviews().length), { timeout: 45000 }).toBe(1);
     requireProof((await qa.read(qa.primary, sessionsKey)).state.sessions[day].blocks[0].title === 'Accepted central B', 'Conflict silently overwrote accepted work');
+    requireProof(await a.page.evaluate(() => window.footballScienceCentralState.getSessionSaveReviews()[0]?.change?.after?.session?.blocks?.[0]?.title === 'Conflicting local A'), 'Local conflicting draft was not preserved');
     await a.page.getByRole('button', { name: 'Review local saves', exact: true }).click();
     const dialog = a.page.getByRole('dialog', { name: 'Review local saves' });
     await expect(dialog.getByRole('status')).toHaveText('1 local version to review');
@@ -113,6 +114,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
     await dialog.getByRole('button', { name: 'Keep central version', exact: true }).click();
     await expect(dialog.getByRole('status')).toHaveText('No unresolved local versions.');
     requireProof((await qa.read(qa.primary, sessionsKey)).state.sessions[day].blocks[0].title === 'Accepted central B', 'Review changed central work unexpectedly');
+    requireProof(await a.page.evaluate(() => window.footballScienceCentralState.getSessionSaveReviews().length === 0), 'Resolved review remained pending');
     console.log('PASS Sessions: same-field conflict retains local review; explicit Keep central resolves only the local draft.');
     await qa.identity();
   } finally {

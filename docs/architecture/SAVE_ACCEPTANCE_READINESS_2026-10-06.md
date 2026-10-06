@@ -60,7 +60,7 @@ leave every non-run-owned entry and top-level field unchanged. Session commands
 may affect only the run-owned date and blocks. Browser app-state writes to any
 other module are blocked in the test context.
 
-Coverage: two authenticated Medical writers, future activity versus edit time,
+Intended acceptance coverage (not yet fully passed): two authenticated Medical writers, future activity versus edit time,
 stale archive protection; two real Sessions browser contexts, offline draft
 plus independent online edit, reconnect, reload visibility, same-field conflict
 and explicit Keep central review resolution. This does not certify Medical UI
@@ -80,3 +80,49 @@ No second staging secret existed. Six standard staging browser probes passed,
 two environment-specific probes skipped. The earlier run 37453148976 failed
 because the first probe expected a SHA while staging reports a deployment id;
 the exact build guard now accepts either documented identifier format.
+
+## Runtime evidence and release hold
+
+- #252 commit `9c0c909bcf9bce343c304d1f164085c656b8a24a` passed 3,829 local tests,
+  staging deploy and main QA. It was integrated into main, but this chat stopped
+  its official release process before production dispatch after the extra
+  acceptance failed. No failed assertions or safety gates were bypassed.
+- Runs 37458683576 and 37460279024 passed the real two-account Medical checks.
+  Session opening failed before offline edits began: central data and local
+  browser storage contained the own fixture, active date matched, admin was
+  authenticated, but no title editor existed. The reason remains under diagnosis.
+  Neither run proves Sessions concurrent/offline acceptance. Scoped fixture and
+  temporary-account cleanup completed; archived fixtures and empty dates remain.
+- Read-only production incident run 37460435910 found an active dated record,
+  one matching Medical/Squad identity, no archive/removal marker and no active
+  plan on the requested date. This demonstrates central presence for the QA
+  account, not visibility for the affected user's browser or correctness of the
+  clinical content. No real saved data was changed.
+
+## Read-only Medical incident diagnostic
+
+The optional Medical Staging Read Boundary workflow input `diagnose_visibility`
+checks exactly the canonical production origin/backend and reviewed build before
+login. It uses an authenticated user's existing API read permissions, reads only
+Medical and Squad state, matches the supplied exact player/date in memory, and
+logs counts and nonclinical timestamps. No record values, notes, participation,
+identity ids, hashes or full states are printed. Only its own login is revoked.
+The test suite verifies destination/build rejection, read-only requests, content
+suppression, logout on failure, and duplicate/archived identity reporting.
+
+Run 37460932855 narrows the Sessions failure: the second authenticated user was
+team-admin with edit permission; raw local storage and the real state parser
+contained one run-owned block, while the selected runtime session and its DOM
+contained zero. The date matched and the actual session factory's clear/off rule
+returned false. This is a stale runtime observation under the guarded test; the
+root cause is not yet established. Incidental write blocking and deferred reload
+must be distinguished from a product hydration defect before changing code.
+
+A fourth diagnostic run 37461549586 was cancelled while pending because another
+owner started Staging Deploy 37460952461 for `2eb24114`; the pinned staging
+build would change. No fixture writes happened in that cancelled run. Do not
+rerun against an unverified build or bypass the shared release-edge queue.
+
+Final local checks for this QA candidate: 15 node tests and 31 API contracts
+passed. The mutating Sessions acceptance remains red; keep this PR draft and do
+not present its planned offline/conflict checks as completed coverage.

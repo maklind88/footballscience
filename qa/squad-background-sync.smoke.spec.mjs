@@ -27,6 +27,7 @@ async function boot(page) {
     window.footballScienceCentralState.getStatus = () => ({ ...original(), metadata: window.__qaSquadMetadata });
     // Localhost auth has no server. Acknowledge fixture writes before simulating a colleague.
     window.footballScienceCentralState.isHydrated = () => true;
+    window.footballScienceCentralState.isKeyHydrated = () => true;
     window.footballScienceCentralState.syncKey = async (key, value) => {
       await new Promise((resolve) => setTimeout(resolve, 150));
       const metadata = { revision: (window.__qaSquadMetadata[key]?.revision || 0) + 1 };

@@ -75,7 +75,24 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
         window.dispatchEvent(new CustomEvent('platform:open-workspace', { detail: { workspaceId: 'session-planner' } }));
       });
       await page.locator(`[data-session-date="${day}"]`).click();
-      await expect(page.locator('[data-session-field="title"]').first()).toHaveValue('Synthetic baseline');
+      try {
+        await expect(page.locator('[data-session-field="title"]').first()).toHaveValue('Synthetic baseline');
+      } catch (error) {
+        console.log('Session opening diagnostics', await page.evaluate(({ key, day, run }) => {
+          const read = key => { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; } };
+          const saved = read(key), period = read('football-periodization-v2');
+          const session = saved.sessions?.[day];
+          const status = window.footballScienceCentralState?.getStatus?.();
+          return { accountRole: window.platformAuthStore?.getCurrentUser?.()?.role || 'unknown',
+            activeDate: document.querySelector('.session-date-pill.is-active')?.dataset.sessionDate,
+            datePresent: Boolean(session), ownBlockCount: (session?.blocks || []).filter(b => b.id?.startsWith(run + '-')).length,
+            editorCount: document.querySelectorAll('[data-session-field="title"]').length,
+            centralRevision: status?.metadata?.[key]?.revision, pendingCount: status?.pendingCount,
+            periodOff: ['daySchedule', 'sessionType'].some(k => String(period.days?.[day]?.[k] || '').toUpperCase() === 'OFF'),
+            scheduleOff: (read('football-schedule-v1').events || []).some(e => e.date === day && e.type === 'off') };
+        }, { key: sessionsKey, day, run: qa.run }));
+        throw error;
+      }
       return { page, context };
     };
     const a = await open(qa.primary), b = await open(qa.peer);

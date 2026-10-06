@@ -2,6 +2,23 @@ name: Medical Staging Read Boundary
 
 on:
   workflow_dispatch:
+    inputs:
+      diagnose_visibility:
+        description: Read-only production Medical visibility diagnosis; no clinical content logged.
+        type: boolean
+        default: false
+      diagnostic_player:
+        description: Exact player name, used only in memory for matching.
+        type: string
+        default: ''
+      diagnostic_date:
+        description: Exact activity date YYYY-MM-DD.
+        type: string
+        default: ''
+      diagnostic_build:
+        description: Exact verified production buildId.
+        type: string
+        default: ''
   pull_request:
     paths:
       - "supabase/migrations/20260911185738_medical_coach_note_read_boundary.sql"
@@ -38,3 +55,16 @@ jobs:
         run: |
           git rev-parse HEAD
           node scripts/verify-medical-note-staging.mjs
+      - name: Read-only production Medical visibility diagnosis
+        if: github.event_name == 'workflow_dispatch' && inputs.diagnose_visibility
+        env:
+          LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
+          LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
+          DIAGNOSTIC_PLAYER: ${{ inputs.diagnostic_player }}
+          DIAGNOSTIC_DATE: ${{ inputs.diagnostic_date }}
+          DIAGNOSTIC_EXPECTED_BUILD: ${{ inputs.diagnostic_build }}
+        run: |
+          node --test qa/medical-visibility-diagnostic.test.mjs
+          node scripts/diagnose-medical-visibility.mjs

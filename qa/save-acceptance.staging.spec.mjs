@@ -49,6 +49,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
     await qa.sendSession(qa.primary, originalSessions, qa.sessionChange(originalSessions, s));
     const open = async account => {
       const context = await browser.newContext({ serviceWorkers: 'block' }); contexts.push(context);
+      const blockedWrites = new Map();
       // No clinical screenshots/traces and no incidental writes to other modules.
       await context.route('**/api/app-state**', async route => {
         if (route.request().method() === 'GET') return route.continue();
@@ -58,6 +59,8 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
           try { assertOwnedSessionChange(change, qa.run); } catch { return route.abort('blockedbyclient'); }
           return route.continue();
         }
+        const key = typeof body?.key === 'string' && /^football-[a-z0-9-]+$/.test(body.key) ? body.key : 'unknown';
+        blockedWrites.set(key, (blockedWrites.get(key) || 0) + 1);
         return route.abort('blockedbyclient');
       });
       const page = await context.newPage();
@@ -78,6 +81,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
       try {
         await expect(page.locator('[data-session-field="title"]').first()).toHaveValue('Synthetic baseline');
       } catch (error) {
+        console.log('Blocked incidental writes', Object.fromEntries(blockedWrites));
         console.log('Session opening diagnostics', await page.evaluate(async ({ key, day, run }) => {
           const read = key => { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; } };
           const saved = read(key), period = read('football-periodization-v2');
@@ -85,10 +89,14 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
           const status = window.footballScienceCentralState?.getStatus?.();
           const accessors = await import('/src/modules/session-planner/session-planner-runtime-accessors.mjs');
           const permissions = await import('/src/core/platform-runtime-accessors.mjs');
+          const overlays = await import('/src/core/overlay-stability.mjs');
           const selected = accessors.getSessionPlannerSelectedSession();
           const parsed = accessors.readSessionPlannerState();
           return { accountRole: window.platformAuthStore?.getCurrentUser?.()?.role || 'unknown',
             activeDate: document.querySelector('.session-date-pill.is-active')?.dataset.sessionDate,
+            centralHydrated: status?.hydrated, centralHydrating: status?.hydrating, centralHasError: Boolean(status?.lastError),
+            reloadPending: permissions.isCentralizedAppStateReloadPending(), reloadDeferred: permissions.shouldDeferCentralizedAppStateReload(),
+            visibleOverlays: overlays.platformOverlayStabilityRootSelectors.filter(selector => [...document.querySelectorAll(selector)].some(node => overlays.isPlatformOverlayNodeVisible(node))),
             runtimeOwnBlockCount: (selected?.blocks || []).filter(b => b.id?.startsWith(run + '-')).length,
             parsedOwnBlockCount: (parsed.sessions?.[day]?.blocks || []).filter(b => b.id?.startsWith(run + '-')).length,
             runtimeShouldClear: accessors.shouldClearSessionPlannerSessionForDate(day, session),

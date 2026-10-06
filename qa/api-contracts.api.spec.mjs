@@ -654,7 +654,7 @@ test("platform auth boot throttles post-login auth-dependent hydration", () => {
   expect(source).not.toMatch(/await refreshAccessToken\(\)\.catch\(\(\) => null\);\s*let sessionResult;/);
 });
 
-test("platform auth boot hydrates central state in bounded read batches", () => {
+test("platform auth boot hydrates central state in bounded read batches", async () => {
   const { readFileSync } = require("node:fs");
   const path = require("node:path");
   const source = readFileSync(path.join(process.cwd(), "platform-auth-boot.js"), "utf8");
@@ -663,7 +663,28 @@ test("platform auth boot hydrates central state in bounded read batches", () => 
   expect(source).toContain("const CENTRAL_STATE_READ_BATCH_SIZE = 8;");
   expect(source).toContain("function buildCentralStateReadBatches()");
   expect(source).toContain("async function readCentralStateBatches(options = {})");
-  expect(source).toContain("Promise.all(buildCentralStateReadBatches().map((keys)");
+  // Execute the reader: full loads stay bounded and scoped refreshes request only their module.
+  const keys = ['football-medical-team-v1', 'football-session-planner-v3', ...Array.from({ length: 19 }, (_, i) => `small-${i}`)];
+  const requests = [];
+  const executable = source.slice(source.indexOf('  function buildCentralStateReadBatches()'),
+    source.indexOf('  function readCentralSyncManifestEntries()'))
+    .replace('await import("./src/modules/session-planner/session-state-transport.mjs")', 'transport');
+  const read = require('node:vm').runInNewContext(`${executable}\nreadCentralStateBatches`, {
+    CENTRAL_STATE_KEYS: new Set(keys), CENTRAL_STATE_LARGE_READ_KEYS: new Set(keys.slice(0, 2)),
+    CENTRAL_STATE_READ_BATCH_SIZE: 8, API_APP_STATE: '/api/app-state', SESSION_PLANNER_STATE_KEY: keys[1], URLSearchParams,
+    transport: { decodeSessionResponse: async () => {} },
+    apiRequest: async url => {
+      const batch = new URL(url, 'https://fixture.test').searchParams.get('keys').split(',');
+      requests.push(batch); return { ok: true, status: 200, payload: { entries: {}, absentKeys: batch } };
+    },
+  });
+  expect((await read({})).ok).toBe(true);
+  expect(requests.every(batch => batch.length <= 8)).toBe(true);
+  expect(requests.slice(0, 2)).toEqual([[keys[0]], [keys[1]]]);
+  expect(requests.flat()).toEqual(keys);
+  requests.length = 0;
+  expect((await read({ keys: [keys[1]], fresh: true })).ok).toBe(true);
+  expect(requests).toEqual([[keys[1]]]);
   expect(source).toContain('query.set("keys", keys.join(","));');
   expect(source).toContain("const response = await readCentralStateBatches({ ...options, isCurrent });");
   const batchReader = source.slice(source.indexOf("async function readCentralStateBatches(options = {})"),

@@ -123,3 +123,12 @@ Staging run 37518050727 progressed past the peer save but failed reconnect. Diag
 The storage adapter now retains the existing block's exact stored creation metadata (including absence/empty value), while new blocks retain their real creation timestamp. The immutable command and server conflict rules are unchanged. The previously red two-editor/offline test passes. Three cases cover missing, empty and valid metadata, compatible different-field edits, real same-field conflict and new-block timestamps. Five focused browser cases and 12 storage contracts pass. The staging harness searches only absent dates across 30 days and uses existing date navigation; it never reuses or replaces an existing date.
 
 Broad regression and fresh real staging acceptance are required before release; this is not production verification.
+
+
+## Acceptance result for product commit 35b2e6b9
+
+[Staging run 37519079552](https://github.com/maklind88/footballscience/actions/runs/37519079552) passed the real two-account Medical/Sessions acceptance (28.5s), scoped fixture/account cleanup, Medical HTTP boundary 11/11 and six authenticated staging smoke cases. Candidate overlay: nine client files; exact pinned staging backend/build unchanged. This is not a deployed-candidate or production verification.
+
+Local final validation: 1,390 shared contracts, 12 storage contracts, 118 focused browser cases, four fixture guard tests and static/security/architecture gates passed. The broad CI API suite reported 3,367 passed and one stale source-text assertion requiring the old inline batch expression. That assertion is replaced by execution of the actual batch reader, verifying complete bounded reads, isolated large keys and a Sessions-only refresh. No product code changes accompany that test correction. Full CI must pass before release.
+
+Production still runs 2eb24114edc282e4f964d05ab5bf4257cc5c8739; PR259 has not been merged or deployed. Ella's exact affected user view remains unconfirmed. System / Security owns this task; Medical and Sessions retain domain ownership.

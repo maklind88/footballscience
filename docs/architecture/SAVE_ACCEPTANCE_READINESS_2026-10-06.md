@@ -162,3 +162,10 @@ now correctly await the public asynchronous getSessionSaveReviews contract.
 
 These are findings and candidate fixes, not a passing real two-user acceptance
 claim. See SAVE_RECOVERY_VISIBILITY_2026-10-06.md for scope and verification.
+
+
+## Final candidate acceptance, 6 October
+
+Product commit 35b2e6b9 passed [run 37519079552](https://github.com/maklind88/footballscience/actions/runs/37519079552): Medical stale/future-date and archival checks; Sessions two authenticated accounts, offline plus concurrent independent edit, reconnect and reload; same-field conflict retention and explicit Keep central resolution. Unrelated content hashes and scoped cleanup passed. The subsequent deployed-staging smoke passed six cases and the Medical HTTP boundary passed 11/11.
+
+Nine candidate client files were overlaid only in QA browsers against staging dpl_3o1pzxdU5n5eS8YtnB2hkUxHDUAg. See SAVE_RECOVERY_VISIBILITY_2026-10-06.md for reproduced defects and regression evidence. This supersedes earlier red acceptance runs, without asserting deployment or production verification. Safe release and verification of the deployed candidate remain required.

@@ -1768,3 +1768,20 @@ for (const scopeChange of [false, true]) {
     expect(h.manifest.entries[medical].pendingCentralSync).toBe(true);
   });
 }
+
+for (const status of [0, 500, 503]) {
+  test(`failed unrelated write does not prevent verified Sessions delivery (${status})`, async () => {
+    const failed = "football-dashboard-notification-seen-v1", session = "football-session-planner-v1";
+    const h = createServiceHarness({ syncKey: async ({ key, value }) => key === failed
+      ? { ok: false, status, reason: "Synthetic other module unavailable" } : { ok: true, value, metadata: { revision: 8 } } });
+    h.rawValues.set(failed, "pending notification"); h.rawValues.set(session, "training draft");
+    h.service.queueCentralStateWrite(failed, "pending notification");
+    h.service.queueCentralStateWrite(session, "training draft");
+    const [id, fire] = [...h.timers][0]; h.timers.delete(id); await fire();
+    expect(h.syncCalls.map(call => call.key)).toEqual([failed, session]);
+    expect(h.manifest.entries[failed].pendingCentralSync).toBe(true);
+    expect(h.manifest.entries[session].pendingCentralSync).toBe(false);
+    expect(h.rawValues.get(failed)).toBe("pending notification");
+    expect(h.timers.size).toBe(0);
+  });
+}

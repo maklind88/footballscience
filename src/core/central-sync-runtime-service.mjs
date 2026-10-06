@@ -574,6 +574,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     const writes = Array.from(centralStateWriteQueue.values());
     let flushIssue = "";
+    let retryBlocked = false;
     centralStateWriteQueue.clear();
     for (let index = 0; index < writes.length; index += 1) {
       const write = writes[index];
@@ -720,16 +721,15 @@ export function createCentralSyncRuntimeService(deps = {}) {
           reportSyncStatus(write.key, "issue", result?.reason || "Not authorized for this data.");
           continue;
         }
-        for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {
-          const retryWrite = writes[retryIndex];
-          if (retryIndex === index) retryWrite.retryAfterFailure = true;
-          if (!centralStateWriteQueue.has(retryWrite.key)) {
-            centralStateWriteQueue.set(retryWrite.key, retryWrite);
-          }
-        }
-        queueCentralStateStatus(result?.reason || "Sync failed.");
+        // Retain this failed generation, but let other verified modules finish.
+        // A failed pass must not schedule itself again; external recovery can retry.
+        write.retryAfterFailure = true;
+        if (!centralStateWriteQueue.has(write.key)) centralStateWriteQueue.set(write.key, write);
+        retryBlocked = true;
+        flushIssue ||= result?.reason || "Sync failed.";
+        queueCentralStateStatus(flushIssue);
         reportSyncStatus(write.key, "issue", result?.reason || "Sync failed.");
-        return false;
+        continue;
       }
       flushIssue = finishAcknowledgedWrite(write, result) || flushIssue;
       if (result?.merged && write.key === sessionPlannerStorageKey && getActiveWorkspaceId() === "session-planner") {
@@ -737,7 +737,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       }
     }
     queueCentralStateStatus(flushIssue);
-    return !Array.from(centralStateWriteQueue.values()).some((write) => write.predecessorAckRevision);
+    return !retryBlocked && !Array.from(centralStateWriteQueue.values()).some((write) => write.predecessorAckRevision);
   }
 
   function flushCentralStateWrites() {

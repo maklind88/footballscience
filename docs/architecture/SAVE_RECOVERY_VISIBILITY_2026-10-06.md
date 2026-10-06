@@ -71,3 +71,22 @@ this cause. Current changes are candidate work and have not been deployed.
 Browser overlays are explicitly labelled and only replace candidate JS in the
 isolated QA browser. Deployed-frontend acceptance and production verification
 remain required after an authorized Safe Lane release.
+
+## Further real-staging diagnosis: transport failures blocking the queue
+
+Runs 37514957463 and 37515609687 retained the online-peer timeout. The latter's
+content-free diagnostics established that the peer was fully hydrated, Sessions
+was individually ready, the local edit and journal were pending, all eight
+candidate files had loaded, and no Session POST reached even the test guard.
+Only unrelated Workspace/notification writes had failed. Thus the earlier
+peer-save timeout alone did not establish its cause; the cold-start coupling
+was independently real, but this case also hit queue-wide failure propagation.
+
+Three new unit regressions failed for transport status 0, HTTP 500 and HTTP 503:
+a failed unrelated write stopped later verified Sessions writes. The queue now
+retains only that failed generation, continues other verified writes in the
+current pass, and returns failure to prevent a self-scheduled retry loop. Read,
+permission, generation, scope, conflict and whole-key deletion guards remain.
+110 queue contracts and the real-editor synthetic regression pass. The expanded
+117-browser and shared-contract suites and the real staging acceptance are being
+repeated on this final queue change. No production release has occurred.

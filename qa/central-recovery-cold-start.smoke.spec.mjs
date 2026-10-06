@@ -117,3 +117,35 @@ test('Sessions readiness is revoked on organization change until that organizati
     expect(await page.evaluate(() => window.footballScienceCentralState.getReadScope())).toContain('other-synthetic-organization');
   } finally { hold = false; release(); }
 });
+
+test('failed workspace and notification writes do not strand a real Sessions editor save', async ({ page }) => {
+  await installSetPiecesCentralFixture(page);
+  let state = { selectedDate: day, sessions: { [day]: { date: day, title: 'Synthetic session', selectedBlockId: 'qa-block',
+    blocks: [{ id: 'qa-block', title: 'Synthetic exercise', objective: 'Original objective', minutes: 20 }] } } };
+  let revision = 10, blocked = 0;
+  const failedKeys = ['football-workspace-hub-v3', 'football-dashboard-notification-seen-v1'];
+  await page.route('**/api/app-state**', async route => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: { ok: true,
+      entries: { [sessionsKey]: JSON.stringify(state) }, metadata: { [sessionsKey]: { revision } }, absentKeys: [] } });
+    const body = route.request().postDataJSON();
+    if (failedKeys.includes(body.key)) { blocked++; return route.abort('blockedbyclient'); }
+    if (body.key !== sessionsKey) return route.fulfill({ json: { ok: true } });
+    const change = JSON.parse(await transport.decodeSessionStateValue(body.key, body.sessionChange));
+    const result = applySessionDateChange(state, change);
+    expect(result.ok).toBe(true); state = result.state; revision++;
+    return route.fulfill({ json: { ok: true, metadata: { revision }, sessionChange: JSON.stringify({
+      id: change.id, date: change.date, value: sessionDateValue(state, change.date),
+    }) } });
+  });
+  await page.goto('/?workspace=session-planner');
+  await page.waitForFunction(() => window.__footballScienceAppReady && window.footballScienceCentralState.isHydrated());
+  await page.evaluate(() => document.querySelector('#dashboardModalRoot button[data-dashboard-modal-close]')?.click());
+  await page.locator(`[data-session-date="${day}"]`).click();
+  const field = page.locator('[data-session-field="objective"]').first();
+  await expect(field).toHaveValue('Original objective');
+  await expect.poll(() => blocked).toBeGreaterThan(0);
+  await field.fill('Saved despite unrelated failure'); await field.dispatchEvent('change'); await field.blur();
+  await expect.poll(() => state.sessions[day].blocks[0].objective).toBe('Saved despite unrelated failure');
+  await expect(page.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
+  expect(await page.evaluate(keys => keys.some(key => JSON.parse(localStorage.getItem('football-data-safety-v1')).entries[key]?.pendingCentralSync), failedKeys)).toBe(true);
+});

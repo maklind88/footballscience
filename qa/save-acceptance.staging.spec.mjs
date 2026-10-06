@@ -166,10 +166,12 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
     } catch (error) { console.log('Online peer saving diagnostics', await b.diagnostics()); throw error; }
     await a.context.setOffline(false);
     await a.page.evaluate(() => window.dispatchEvent(new Event('online')));
+    try {
     await expect.poll(async () => {
       const row = (await qa.read(qa.primary, sessionsKey)).state.sessions[day].blocks[0];
       return row.title === 'Offline coach A' && row.objective === 'Online coach B';
     }, { timeout: 45000, intervals: [1000, 2000, 5000] }).toBe(true);
+    } catch (error) { console.log('Reconnect saving diagnostics', await a.diagnostics()); throw error; }
     await expect(a.page.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
     await b.page.reload({ waitUntil: 'domcontentloaded' });
     await b.page.waitForFunction(() => window.__footballScienceAppReady);

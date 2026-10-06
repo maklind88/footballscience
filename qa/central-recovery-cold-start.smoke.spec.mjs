@@ -53,14 +53,18 @@ test(`Sessions saves and reviews its verified date despite unrelated recovery fa
   await expect(field).toHaveValue('Original objective');
   expect(medicalDenied).toBeGreaterThan(0);
   expect(await page.evaluate(() => window.footballScienceCentralState.isHydrated())).toBe(false);
+  if (offline) await page.context().setOffline(true);
   await field.fill('Independent training edit'); await field.dispatchEvent('change'); await field.blur();
   await expect.poll(() => sessionWrites, { timeout: 5000 }).toBeGreaterThan(0);
   if (offline) {
     await expect(page.locator('[data-platform-autosave-status]')).not.toHaveClass(/is-saved/);
+    sessions.sessions[day].blocks[0].title = 'Accepted colleague title'; revision++;
     denySession = false;
+    await page.context().setOffline(false);
     await page.evaluate(() => window.dispatchEvent(new Event('online')));
   }
   await expect.poll(() => sessions.sessions[day].blocks[0].objective, { timeout: 10000 }).toBe('Independent training edit');
+  if (offline) expect(sessions.sessions[day].blocks[0].title).toBe('Accepted colleague title');
   await expect(page.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
   const deniedBefore = medicalDenied;
   expect(await page.evaluate(() => window.footballScienceCentralState.hydrateSessionState())).toBe(true);

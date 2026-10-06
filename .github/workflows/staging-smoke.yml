@@ -3,6 +3,14 @@ name: Staging Smoke
 on:
   workflow_dispatch:
     inputs:
+      verify_save_readiness:
+        description: Read-only Medical and Sessions acceptance prerequisites; no saved-data writes.
+        type: boolean
+        default: false
+      expected_save_build_id:
+        description: Exact staging SHA for the read-only saving probe.
+        type: string
+        default: ''
       verify_fresh_backup:
         description: Create and verify an isolated staging backup without restoring data.
         type: boolean
@@ -40,4 +48,11 @@ jobs:
           BACKUP_VERIFY_TARGET: staging
           BACKUP_EXPECTED_BUILD_ID: ${{ inputs.expected_backup_build_id }}
         run: node scripts/verify-fresh-app-state-backup.mjs
+      - name: Read-only save acceptance prerequisites
+        if: inputs.verify_save_readiness
+        env:
+          SAVE_QA_EXPECTED_BUILD: ${{ inputs.expected_save_build_id }}
+          STAGING_QA_PEER_USERNAME: ${{ secrets.STAGING_QA_PEER_USERNAME }}
+          STAGING_QA_PEER_PASSWORD: ${{ secrets.STAGING_QA_PEER_PASSWORD }}
+        run: node scripts/verify-save-acceptance-readiness.mjs
       - run: npm run qa:staging:required

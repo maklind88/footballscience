@@ -39,6 +39,9 @@ jobs:
       LEADERBOARD_LIVE_QA_TEAM_ID: ${{ vars.LEADERBOARD_LIVE_QA_TEAM_ID }}
       LEADERBOARD_LIVE_QA_USERNAME: ${{ secrets.LEADERBOARD_LIVE_QA_USERNAME }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -46,6 +49,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run release:vercel-token
+      - run: npx --yes vercel@53.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
       - name: Verify fresh production backup and read-only restore
         if: github.event_name == 'workflow_dispatch' && inputs.verify_fresh_backup
         env:

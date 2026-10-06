@@ -254,3 +254,21 @@ test("release rules keep deployment user-controlled across chats", () => {
   expect(releaseRules).toContain("Do not create subagents solely to coordinate or run a routine release.");
   expect(releaseRules).toContain("Routine releases are run directly by this owning chat; do not create subagents solely to coordinate or run them.");
 });
+
+for (const [workflowPath, firstProtectedStep] of [
+  [".github/workflows/production-deploy.yml", "node scripts/restore-staging-alias.mjs"],
+  [".github/workflows/production-smoke.yml", "npm run release:monitor"],
+  [".github/workflows/production-rollback.yml", "vercel@53.2.0 rollback"],
+]) {
+  test(`protected release callers prepare authentication before probes or alias changes: ${workflowPath}`, () => {
+    const workflow = readProjectFile(workflowPath);
+    for (const name of ["VERCEL_TOKEN", "VERCEL_ORG_ID", "VERCEL_PROJECT_ID"]) {
+      expect(workflow).toContain(`${name}: $` + `{{ secrets.${name} }}`);
+    }
+    const credentialCheck = workflow.indexOf("npm run release:vercel-token");
+    const projectLink = workflow.indexOf("vercel@53.2.0 pull --yes --environment=production");
+    expect(credentialCheck).toBeGreaterThan(-1);
+    expect(projectLink).toBeGreaterThan(credentialCheck);
+    expect(workflow.indexOf(firstProtectedStep)).toBeGreaterThan(projectLink);
+  });
+}

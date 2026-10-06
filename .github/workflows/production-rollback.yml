@@ -70,6 +70,7 @@ jobs:
             exit 1
           fi
       - run: npm run release:vercel-token
+      - run: npx --yes vercel@53.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
       - name: Roll back production alias
         run: npx --yes vercel@53.2.0 rollback "$ROLLBACK_DEPLOYMENT" --yes --timeout=5m --token="$VERCEL_TOKEN"
       - run: npm run release:staging-isolation:repair

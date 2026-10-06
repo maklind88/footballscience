@@ -122,6 +122,9 @@ test('failed workspace and notification writes do not strand a real Sessions edi
   await installSetPiecesCentralFixture(page);
   let state = { selectedDate: day, sessions: { [day]: { date: day, title: 'Synthetic session', selectedBlockId: 'qa-block',
     blocks: [{ id: 'qa-block', title: 'Synthetic exercise', objective: 'Original objective', minutes: 20 }] } } };
+  const otherDay = '2026-10-05';
+  const otherDate = { date: otherDay, title: 'Existing older session', blocks: [] };
+  state.sessions[otherDay] = structuredClone(otherDate);
   let revision = 10, blocked = 0;
   const failedKeys = ['football-workspace-hub-v3', 'football-dashboard-notification-seen-v1'];
   await page.route('**/api/app-state**', async route => {
@@ -131,6 +134,7 @@ test('failed workspace and notification writes do not strand a real Sessions edi
     if (failedKeys.includes(body.key)) { blocked++; return route.abort('blockedbyclient'); }
     if (body.key !== sessionsKey) return route.fulfill({ json: { ok: true } });
     const change = JSON.parse(await transport.decodeSessionStateValue(body.key, body.sessionChange));
+    if (change.date !== day) return route.abort('blockedbyclient');
     const result = applySessionDateChange(state, change);
     expect(result.ok).toBe(true); state = result.state; revision++;
     return route.fulfill({ json: { ok: true, metadata: { revision }, sessionChange: JSON.stringify({
@@ -146,6 +150,7 @@ test('failed workspace and notification writes do not strand a real Sessions edi
   await expect.poll(() => blocked).toBeGreaterThan(0);
   await field.fill('Saved despite unrelated failure'); await field.dispatchEvent('change'); await field.blur();
   await expect.poll(() => state.sessions[day].blocks[0].objective).toBe('Saved despite unrelated failure');
+  expect(state.sessions[otherDay]).toEqual(otherDate);
   await expect(page.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
   expect(await page.evaluate(keys => keys.some(key => JSON.parse(localStorage.getItem('football-data-safety-v1')).entries[key]?.pendingCentralSync), failedKeys)).toBe(true);
 });

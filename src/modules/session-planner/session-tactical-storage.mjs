@@ -1,3 +1,4 @@
+import { sameSessionValue } from "./session-save-protocol.mjs";
 import { createSessionPlannerTacticalHelpers } from "./session-planner-tactical-helpers.mjs";
 
 const { cloneTacticalElement, normalizeTacticalFrames, getDefaultTacticalColor, getDefaultTacticalLineStyle }
@@ -37,9 +38,26 @@ function sameBoardContent(block, previous) {
     JSON.stringify(elements(block.tacticalElements)) === JSON.stringify(elements(previous.tacticalElements));
 }
 
-export function sessionStateForStorage(state, previousState) {
+export function sessionStateForStorage(state, previousState, viewBaseline) {
   if (!state?.sessions) return state;
   return { ...state, sessions: Object.fromEntries(Object.entries(state.sessions).map(([date, session]) => {
+    const previousSession = previousState?.sessions?.[date];
+    if (previousSession && viewBaseline?.sessions?.[date] &&
+        sameSessionValue(session, viewBaseline.sessions[date]) &&
+        sameSessionValue(state.blockDeletionTombstones?.[date] || {}, viewBaseline.blockDeletionTombstones?.[date] || {})) {
+      // View defaults are not coaching edits. Preserve the original shared shape
+      // of an untouched date, while keeping valid local selection preferences.
+      const next = { ...previousSession, selectedBlockId: session.selectedBlockId };
+      if (Array.isArray(previousSession.blocks)) {
+        const visibleBlocks = new Map((session.blocks || []).map(block => [block.id, block]));
+        next.blocks = previousSession.blocks.map(block => {
+          const frameId = visibleBlocks.get(block.id)?.tacticalActiveFrameId;
+          return frameId && block.tacticalFrames?.some(frame => frame.id === frameId)
+            ? { ...block, tacticalActiveFrameId: frameId } : block;
+        });
+      }
+      return [date, next];
+    }
     if (!Array.isArray(session?.blocks)) return [date, session];
     const previousBlocks = new Map((previousState?.sessions?.[date]?.blocks || []).map((block) => [block.id, block]));
     const blocks = session.blocks.map((block) => {

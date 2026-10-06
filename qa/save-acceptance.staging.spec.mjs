@@ -58,7 +58,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
         // QA-browser-only candidate overlay; never changes the deployed server/assets.
         for (const path of ['platform-auth-boot.js', 'src/core/data-safety-runtime-service.mjs', 'src/core/central-sync-runtime-service.mjs', 'src/core/central-runtime-facade.mjs',
           'src/core/platform-global-runtime-bindings.mjs',
-          'src/modules/session-planner/session-save-client.mjs', 'src/modules/session-planner/session-planner-recovery-controller.mjs',
+          'src/modules/session-planner/session-tactical-storage.mjs', 'src/modules/session-planner/session-save-client.mjs', 'src/modules/session-planner/session-planner-recovery-controller.mjs',
           'src/modules/session-planner/session-planner-runtime-state-service.mjs']) {
           const body = readFileSync(new URL('../' + path, import.meta.url), 'utf8');
           await context.route(qa.origin + '/' + path + '*', route => { candidateFiles.add(path); return route.fulfill({ contentType: 'text/javascript', body }); });
@@ -76,6 +76,10 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
           }
           allowedOwnWrites++;
           return route.continue();
+        }
+        if (body?.key === sessionsKey) {
+          const reason = change?.date ? 'Session change outside own date' : 'Session command missing or undecodable';
+          rejectedOwnWrites.set(reason, (rejectedOwnWrites.get(reason) || 0) + 1);
         }
         const key = typeof body?.key === 'string' && /^football-[a-z0-9-]+$/.test(body.key) ? body.key : 'unknown';
         blockedWrites.set(key, (blockedWrites.get(key) || 0) + 1);

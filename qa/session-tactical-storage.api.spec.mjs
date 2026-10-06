@@ -133,3 +133,45 @@ test("frame size checks use current coaching text, not a stale editor snapshot",
   expect(writes).toBe(0);
   expect(warnings[0]).toContain("too large");
 });
+
+test('view-only defaults on an untouched date do not become a save command', () => {
+  const other = '2026-09-10';
+  const saved = { sessions: {
+    [other]: { date: other, title: 'Older session', blocks: [], legacyExtension: { retained: true } },
+    [date]: { date, title: 'Current', blocks: [{ id: 'edited', objective: 'Before' }] },
+  } };
+  const view = { sessions: Object.fromEntries(Object.entries(saved.sessions).map(([day, value]) =>
+    [day, { date: day, title: value.title, id: `session-${day}`, theme: '', selectedBlockId: '', blocks: value.blocks }])) };
+  const edited = structuredClone(view);
+  edited.sessions[date].blocks[0].objective = 'After';
+  const output = sessionStateForStorage(edited, saved, view);
+  const changes = createSessionDateChanges(saved, output);
+  expect(changes.map(change => change.date)).toEqual([date]);
+  expect(output.sessions[other].legacyExtension).toEqual({ retained: true });
+  expect(Object.hasOwn(saved.sessions[other], 'id')).toBe(false);
+});
+
+test('preserving an unchanged shared date still retains valid local frame and block selection', () => {
+  const saved = stateWith({ id: 'a', tacticalFrames: [{ id: 'one', elements: [] }, { id: 'two', elements: [] }], tacticalActiveFrameId: 'one' });
+  const baseline = hydrate(saved), next = structuredClone(baseline);
+  next.sessions[date].selectedBlockId = 'a'; next.sessions[date].blocks[0].tacticalActiveFrameId = 'two';
+  const output = sessionStateForStorage(next, saved, baseline);
+  expect(createSessionDateChanges(saved, output)).toEqual([]);
+  expect(output.sessions[date].selectedBlockId).toBe('a');
+  expect(output.sessions[date].blocks[0].tacticalActiveFrameId).toBe('two');
+  expect(saved.sessions[date].blocks[0].tacticalActiveFrameId).toBe('one');
+});
+
+test('a real date deletion is retained when other dates keep their stored representation', () => {
+  const saved = stateWith({ id: 'removed', title: 'Exercise' });
+  const baseline = hydrate(saved), next = structuredClone(baseline);
+  next.sessions[date].blocks = [];
+  next.blockDeletionTombstones = { [date]: { removed: '2026-09-11T12:00:00.000Z' } };
+  const output = sessionStateForStorage(next, saved, baseline);
+  const changes = createSessionDateChanges(saved, output);
+  expect(changes).toHaveLength(1);
+  const accepted = applySessionDateChange(saved, changes[0]);
+  expect(accepted.ok).toBe(true);
+  expect(accepted.state.sessions[date].blocks).toEqual([]);
+  expect(accepted.state.blockDeletionTombstones[date].removed).toBe('2026-09-11T12:00:00.000Z');
+});

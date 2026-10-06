@@ -396,7 +396,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         rawExistingState = null;
       }
       const nextState = existingState ? mergeStateForWrite(existingState, state) : cloneState(state);
-      nextValue = JSON.stringify(sessionStateForStorage(nextState, storedState));
+      nextValue = JSON.stringify(sessionStateForStorage(nextState, storedState, existingState));
       if (rawExistingState === nextValue) {
         setSessionPlannerState(nextState);
         if (usesSessionJournal() && !quotaFallbackLastResult && canWriteCentralBackedCache()) {

@@ -90,3 +90,27 @@ permission, generation, scope, conflict and whole-key deletion guards remain.
 110 queue contracts and the real-editor synthetic regression pass. The expanded
 117-browser and shared-contract suites and the real staging acceptance are being
 repeated on this final queue change. No production release has occurred.
+
+## Untouched-date representation at the Sessions write boundary
+
+Run 37516450329 reached a Sessions POST, which the own-date guard blocked; the
+limited diagnostic did not yet distinguish an out-of-date command from a decode
+failure. A local reproduction with a legacy unedited date proved a separate
+write-boundary problem: adding view defaults to that date journaled it before
+the intended edit. Blocking that unrelated date then stranded the desired save.
+
+The existing Sessions storage adapter now accepts the normalized pre-edit view
+as a comparison baseline. Dates unchanged in that view and their tombstones
+retain their original shared representation, including unknown legacy fields.
+Valid local block/frame selection is preserved. Real coaching edits, multi-date
+changes, and tombstoned deletions still use the existing command protocol.
+No filtering or permission guard in the staging harness is relaxed. It now
+reports the blocked Session-command category without revealing content and
+loads the updated storage adapter as its ninth candidate-only JS asset.
+
+194 focused queue/client/recovery/storage contracts and four cold-start/editor
+browser tests pass, including the previously failing untouched-date example.
+The broader regression and pinned real staging proof remain in progress for
+this final adapter change. This is a narrow saved-work boundary change owned by
+the current System/Security task with Sessions as the affected module; it is
+not a transfer of Sessions domain rules or UI ownership.

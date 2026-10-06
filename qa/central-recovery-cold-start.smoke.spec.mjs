@@ -55,8 +55,11 @@ test(`Sessions saves and reviews its verified date despite unrelated recovery fa
   expect(await page.evaluate(() => window.footballScienceCentralState.isHydrated())).toBe(false);
   if (offline) await page.context().setOffline(true);
   await field.fill('Independent training edit'); await field.dispatchEvent('change'); await field.blur();
-  await expect.poll(() => sessionWrites, { timeout: 5000 }).toBeGreaterThan(0);
+  if (!offline) await expect.poll(() => sessionWrites, { timeout: 5000 }).toBeGreaterThan(0);
   if (offline) {
+    // WebKit can block offline requests before routing. Prove durability, not a network attempt.
+    await expect.poll(() => page.evaluate(async () => Boolean(await window.footballScienceCentralState.getSessionPendingState()))).toBe(true);
+    expect(sessions.sessions[day].blocks[0].objective).toBe('Original objective');
     await expect(page.locator('[data-platform-autosave-status]')).not.toHaveClass(/is-saved/);
     sessions.sessions[day].blocks[0].title = 'Accepted colleague title'; revision++;
     denySession = false;

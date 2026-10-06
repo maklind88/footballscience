@@ -52,6 +52,7 @@ export function createSetPiecesRoomController(options = {}) {
   const history = createSetPiecesHistory();
   let state = persistence.read();
   let bound = false;
+  let initialViewLoaded = false;
   let boardClipboard = null;
   let boardPasteCount = 0;
   let preservePresentationAfterFullscreenExit = false;
@@ -1082,6 +1083,11 @@ export function createSetPiecesRoomController(options = {}) {
   }
 
   function mount() {
+    // The shell can mount while auth is still loading the first authoritative view.
+    if (!initialViewLoaded) {
+      state = persistence.read();
+      initialViewLoaded = win.footballScienceCentralState?.isHydrated?.() !== false;
+    }
     bind();
     render();
     if (ui.onboardingOpen) {

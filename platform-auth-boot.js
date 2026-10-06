@@ -1703,7 +1703,7 @@ async function getActiveAccessToken() {
     setPiecesClient?.observe(normalizedEntries[SET_PIECES_ROOM_STATE_KEY] || EMPTY_SET_PIECES_STATE_VALUE, incomingMetadata[SET_PIECES_ROOM_STATE_KEY]);
     const setPiecesView = setPiecesClient ? await setPiecesClient.project().catch(() => null) : null;
     if (hasSetPiecesRead && setPiecesScope !== getSetPiecesSaveScope()) throw new Error("Account or team changed during central load.");
-    if (setPiecesScope && (!setPiecesView || setPiecesView.pending) && !(SET_PIECES_ROOM_STATE_KEY in normalizedEntries)) {
+    if (setPiecesScope && !hasForeignPendingGeneration(SET_PIECES_ROOM_STATE_KEY) && !(SET_PIECES_ROOM_STATE_KEY in normalizedEntries)) {
       normalizedEntries[SET_PIECES_ROOM_STATE_KEY] = EMPTY_SET_PIECES_STATE_VALUE;
     }
     if (options.isCurrent && !options.isCurrent()) throw new Error("Account changed during central load.");
@@ -1782,10 +1782,13 @@ async function getActiveAccessToken() {
         }
         if (key === SET_PIECES_ROOM_STATE_KEY && setPiecesScope) {
           if (!setPiecesClient.isProjectionCurrent(setPiecesView)) return;
-          if (setPiecesView.pending) {
-            setCentralCachedValue(key, setPiecesView.value, { source: "set-pieces-journal-pending", durable: false, serverBacked: false });
-            return;
-          }
+          // Refresh the scoped view without acknowledging or replacing the legacy recovery copy.
+          setCentralCachedValue(key, setPiecesView.value, {
+            source: setPiecesView.pending ? "set-pieces-journal-pending" : "central-acknowledgement",
+            durable: false,
+            serverBacked: !setPiecesView.pending,
+          });
+          return;
         }
         if (key === SESSION_PLANNER_STATE_KEY && sessionClient.isProjectionCurrent(sessionView)) {
           const cached = getCentralCachedValueInfo(key);
@@ -2035,10 +2038,9 @@ async function getActiveAccessToken() {
             }, {});
           }
         }
-        (await getSetPiecesSaveClient()).observe(
-          localEntries[SET_PIECES_ROOM_STATE_KEY] || EMPTY_SET_PIECES_STATE_VALUE,
-          centralState.metadata[SET_PIECES_ROOM_STATE_KEY]
-        );
+        await applyCentralStateEntries({}, metadata, {
+          ...options, isCurrent, readKeys: [SET_PIECES_ROOM_STATE_KEY], absentKeys: response.payload.absentKeys,
+        });
       }
       if (!isCurrent()) return false;
       reconcileCentralTombstones(response.payload.absentKeys, metadata);

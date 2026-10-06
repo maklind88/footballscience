@@ -56,6 +56,7 @@ export function createSetPiecesRoomController(options = {}) {
   let boardPasteCount = 0;
   let preservePresentationAfterFullscreenExit = false;
   let saveReviews = [];
+  let resolvingSaveReview = false;
 
   function hasDismissedOnboarding() {
     try {
@@ -112,7 +113,7 @@ export function createSetPiecesRoomController(options = {}) {
   }
 
   function canEdit() {
-    return options.canEdit?.() !== false;
+    return !resolvingSaveReview && options.canEdit?.() !== false;
   }
 
   function canDelete() {
@@ -190,12 +191,36 @@ export function createSetPiecesRoomController(options = {}) {
     const playId = button.dataset.reviewPlay;
     const row = saveReviews.find((item) => item.payload.change.playId === playId);
     if (!row) return;
-    button.disabled = true;
-    const result = await win.footballScienceCentralState?.resolveSetPiecesSaveReview?.(playId, row.central, button.dataset.setPieceReview)
-      .catch((error) => ({ ok: false, reason: error.message }));
-    if (!result?.ok) setSyncStatus("issue", result?.reason || "The local review could not be saved.");
-    else setSyncStatus("saved");
-    await refreshSaveReviews();
+    const bridge = win.footballScienceCentralState;
+    const actor = getActorId();
+    const scope = bridge?.getReadScope?.();
+    const isCurrent = () => bridge === win.footballScienceCentralState &&
+      actor === getActorId() && scope === bridge?.getReadScope?.();
+    resolvingSaveReview = true;
+    const wasInert = root.inert;
+    root.inert = true;
+    setSyncStatus("saving");
+    try {
+      const result = await bridge?.resolveSetPiecesSaveReview?.(playId, row.central, button.dataset.setPieceReview);
+      if (!isCurrent()) return;
+      if (!result?.ok) throw new Error(result?.reason || "The local review could not be saved.");
+      // Hydration can retain a recovery draft; project the acknowledged journal before reading it.
+      const refreshed = await bridge?.refreshSetPiecesLocalView?.();
+      if (!isCurrent()) return;
+      if (!refreshed) throw new Error("The saved version could not be displayed. Reload Set Pieces to refresh it.");
+      resolvingSaveReview = false;
+      reloadFromStorage();
+      setSyncStatus("saved");
+    } catch (error) {
+      if (isCurrent()) setSyncStatus("issue", error.message || "The local review could not be saved.");
+    } finally {
+      resolvingSaveReview = false;
+      root.inert = wasInert;
+      if (isCurrent()) {
+        render();
+        await refreshSaveReviews();
+      }
+    }
   }
 
   function commit(mutator, { recordHistory = true } = {}) {

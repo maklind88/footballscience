@@ -20,6 +20,7 @@ test("Set Pieces exposes a compact conflict choice and confirms the selected rec
         reviews = [];
         return { ok: true };
       },
+      refreshSetPiecesLocalView: async () => true,
     };
     const controller = createSetPiecesRoomController({ root: replacement, win: window,
       getCurrentUser: () => ({ id: "review-coach" }), canEdit: () => true });

@@ -34,6 +34,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
     requireProof(accepted.state.records.find(row => row.id === recordId)?.comment === 'Accepted central edit', 'Future activity replaced newer Medical edit');
     const archived = structuredClone(accepted.state);
     Object.assign(archived.records.find(row => row.id === recordId), { archivedAt: new Date().toISOString() });
+    Object.assign(archived.players.find(row => row.id === playerId), { archivedAt: new Date().toISOString() });
     await qa.saveMedical(qa.primary, accepted, archived);
     await qa.saveMedical(qa.peer, stale, stale.state);
     accepted = await qa.read(qa.primary, medicalKey);

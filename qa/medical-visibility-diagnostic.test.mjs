@@ -44,3 +44,16 @@ test('duplicate identities, archives and removed players are reported as evidenc
   assert.equal(out.dateRecords, 2); assert.equal(out.distinctMatchedPlayerIds, 2); assert.equal(out.archivedDateRecords, 1); assert.equal(out.explicitlyRemovedMedicalPlayers, 1);
   assert.ok(out.dateRecordMetadata.every(r => !r.matchesActiveMedicalPlayer));
 });
+
+test('normalization diagnostics retain target identity/date without revealing values or mutating source', () => {
+  const medical = { players: [{ id: 'private-id', name: 'Target Player' }], records: [{
+    id: 'private-record', playerId: 'private-id', date: '2026-10-05', participation: 47,
+    comment: 'clinical note', createdAt: '2026-10-05T12:00:00Z',
+  }] };
+  const before = JSON.stringify(medical);
+  const out = summarizeMedicalVisibility(medical, {}, 'Target Player', '2026-10-05');
+  assert.equal(out.normalization.ok, true);
+  assert.equal(out.normalization.activeTargetRecords, 1);
+  assert.equal(JSON.stringify(medical), before);
+  assert.doesNotMatch(JSON.stringify(out), /private-id|private-record|Target Player|clinical note|47/);
+});

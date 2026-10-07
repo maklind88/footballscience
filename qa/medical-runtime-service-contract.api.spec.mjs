@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as medicalOptions from "../src/modules/medical/medical-options.mjs";
 import { createMedicalRuntimeService } from "../src/modules/medical/index.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -157,4 +158,55 @@ test("Medical runtime service composition receives every dependency it consumes"
     .sort();
 
   expect(missingDependencies).toEqual([]);
+});
+
+function coldMedicalRuntime() {
+  const fixture = {
+    rosterVersion: "qa-cold-start", selectedDate: "2026-10-05", selectedPlayerId: "qa-player",
+    players: [{ id: "qa-player", name: "QA Player", position: "Midfielder" }],
+    records: [{ id: "qa-record", playerId: "qa-player", date: "2026-10-05",
+      participation: 50, actualParticipation: "not-logged", status: "controlled",
+      createdAt: "2026-10-05T12:00:00Z" }], injuryPlans: [],
+  };
+  const stored = JSON.stringify(fixture);
+  const writes = [];
+  let state = null;
+  const service = createMedicalRuntimeService({
+    ...medicalOptions,
+    medicalTeamStorageKey: "qa-medical", medicalDefaultRosterVersion: "qa-cold-start",
+    isMedicalDateValue: value => /^\d{4}-\d{2}-\d{2}$/.test(value),
+    formatDateValue: () => "2026-10-05",
+    canEditMedicalTeam: () => true,
+    getCurrentPlatformUser: () => ({ id: "qa-actor" }),
+    getCurrentUser: () => ({ id: "qa-actor" }),
+    getMedicalState: () => state, setMedicalState: value => { state = value; },
+    getScheduleEventsForDate: () => [{ type: "training", title: "QA training" }],
+    isScheduleSessionEvent: event => event.type === "training",
+    win: { localStorage: { getItem: () => stored, setItem: (...args) => writes.push(args) } },
+  });
+  return { service, writes };
+}
+
+test("Medical cold state read preserves stored recommendations before helpers are accessed", () => {
+  const { service, writes } = coldMedicalRuntime();
+  const state = service.stateService.readMedicalState();
+  expect(state.players.map(player => player.id)).toEqual(["qa-player"]);
+  expect(state.records.map(record => [record.id, record.date, record.participation]))
+    .toEqual([["qa-record", "2026-10-05", 50]]);
+  expect(writes).toEqual([]);
+});
+
+test("Medical cold selector initializes its state and exposes the saved recommendation to consumers", () => {
+  const { service, writes } = coldMedicalRuntime();
+  const record = service.facade.getLatestMedicalRecord("qa-player", "2026-10-05");
+  expect(record).toMatchObject({ id: "qa-record", playerId: "qa-player", date: "2026-10-05", participation: 50 });
+  expect(writes).toEqual([]);
+});
+
+test("Medical cold normalizer resolves activity dependencies for a legacy record without an RTP phase", () => {
+  const { service } = coldMedicalRuntime();
+  const record = service.helpers.normalizeMedicalRecord({ id: "qa-legacy", playerId: "qa-player",
+    date: "2026-10-05", participation: 50, createdAt: "2026-10-05T12:00:00Z" });
+  expect(record).toMatchObject({ id: "qa-legacy", date: "2026-10-05", participation: 50 });
+  expect(medicalOptions.medicalRtpPhaseOptions.some(phase => phase.key === record.rtpPhase)).toBe(true);
 });

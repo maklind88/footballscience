@@ -9,9 +9,9 @@ export function createMedicalRuntimeService(deps = {}) {
   let facade = null;
 
   const call = (getTarget, methodName, args) => getTarget()?.[methodName]?.(...args);
-  const fromHelpers = (methodName) => (...args) => call(() => helpers, methodName, args);
-  const fromStateService = (methodName) => (...args) => call(() => stateService, methodName, args);
-  const fromFacade = (methodName) => (...args) => call(() => facade, methodName, args);
+  const fromHelpers = (methodName) => (...args) => call(getHelpers, methodName, args);
+  const fromStateService = (methodName) => (...args) => call(getStateService, methodName, args);
+  const fromFacade = (methodName) => (...args) => call(getFacade, methodName, args);
 
   const renderers = createMedicalRuntimeRenderers({
     addCalendarDays: deps.addCalendarDays,

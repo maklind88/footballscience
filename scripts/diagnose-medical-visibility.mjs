@@ -1,3 +1,4 @@
+import { diagnoseMedicalReadNormalization } from "./lib/medical-read-normalization-diagnostic.mjs";
 import { pathToFileURL } from 'node:url';
 const origin = 'https://footballscience.xyz', backend = 'https://bustidorxevacosqhkcz.supabase.co';
 const medicalKey = 'football-medical-team-v1', squadKey = 'football-player-profiles-v1';
@@ -27,6 +28,7 @@ export function summarizeMedicalVisibility(medical, squad, name, date) {
       matchesActiveMedicalPlayer: medicalPlayers.some(p => p.id === r.playerId && !archived(p) && !removed.has(p.id)),
       createdAt: timestamp(r.createdAt), updatedAt: timestamp(r.updatedAt) })),
     // No names, ids, free text, medical values, notes, participation or content hashes.
+    normalization: diagnoseMedicalReadNormalization(medical, squad, [...ids], date),
     scope: 'Authenticated QA account only; API observation does not prove real-user UI visibility', dataWrites: 0 };
 }
 export async function diagnoseMedicalVisibility({ env = process.env, fetchImpl = fetch } = {}) {

@@ -71,7 +71,13 @@ export async function openSessionSaveReview({ document: doc, bridge, legacy, onR
     for (const row of rows) {
       const section = doc.createElement("section");
       const heading = doc.createElement("h3"); heading.textContent = `${row.date} - ${row.local.session?.title || "Training"}`;
-      section.append(heading);
+      const reason = doc.createElement("p");
+      reason.textContent = row.queued
+        ? (row.conflicts?.includes("An earlier local version needs review.")
+          ? "This change depends on an earlier unresolved local version. Review that version first."
+          : "A queued local edit conflicts with central training. Compare the versions before choosing.")
+        : "This is a retained local recovery copy. Its differences do not by themselves prove another person edited the training.";
+      section.append(heading, reason);
       for (const difference of row.differences) {
         const details = doc.createElement("details");
         const summary = doc.createElement("summary"); summary.textContent = `${difference.title} - ${difference.field}`;

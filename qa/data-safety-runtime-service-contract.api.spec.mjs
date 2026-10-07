@@ -567,6 +567,7 @@ test("pending writes and errors take priority over a successful background read"
   }));
   h.service.refreshStatus();
   expect(h.dataSafetyStatus.textContent).toBe("Sync pending now");
+  expect(h.dataSafetyStatus.title).toBe("Waiting for central confirmation. Keep this page open if local saving has failed.");
   centralStatus.lastWriteError = "Save failed";
   h.service.refreshStatus();
   expect(h.dataSafetyStatus.textContent).toBe("Sync needs attention");
@@ -805,3 +806,12 @@ for (const key of ["football-medical-team-v1", "football-session-planner-v3", "f
     expect(h.service.readManifest().entries[key].writes).toBe(8);
   });
 }
+
+test("a reported Medical queue failure is visible even when its metadata cannot be stored", () => {
+  const h = createHarness({ quotaKey: "football-data-safety-v1" });
+  h.service.install();
+  h.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Medical changes are not saved. Keep this page open.");
+  expect(h.dataSafetyStatus.textContent).toBe("Autosave needs attention");
+  expect(h.dataSafetyStatus.title).toBe("Medical changes are not saved. Keep this page open.");
+  expect(h.queuedWrites).toEqual([]);
+});

@@ -27,6 +27,7 @@ function createServiceHarness(options = {}) {
   const rawWrites = [];
   const centralWrites = [];
   const logs = [];
+  const issues = [];
   let medicalState = options.state || null;
   const service = createMedicalRuntimeStateService({
     archiveMedicalPlayersRemovedFromSquad: options.archiveMedicalPlayersRemovedFromSquad || (() => {}),
@@ -76,7 +77,10 @@ function createServiceHarness(options = {}) {
       return cleanValue === "guest-player" ? "guest" : cleanValue;
     },
     playerProfileRosterTypeCountsInSquad: (value) => String(value || "squad").trim().toLowerCase() === "squad",
-    queueCentralStateWrite: (key, value, writeOptions) => centralWrites.push({ key, value, options: writeOptions }),
+    queueCentralStateWrite: (key, value, writeOptions) => {
+      centralWrites.push({ key, value, options: writeOptions });
+      return options.queueWrite ? options.queueWrite(key, value, writeOptions) : true;
+    },
     rawDataSafetySetItem: (key, value) => {
       rawWrites.push({ key, value });
       storage.setItem(key, value);
@@ -85,12 +89,13 @@ function createServiceHarness(options = {}) {
     setMedicalState: (nextState) => {
       medicalState = nextState;
     },
-    win: { localStorage: storage },
+    win: { localStorage: storage, footballScienceDataSafety: { reportSaveIssue: (...args) => issues.push(args) } },
   });
   return {
     centralWrites,
     getState: () => medicalState,
     logs,
+    issues,
     medicalTeamStorageKey,
     rawWrites,
     service,
@@ -382,7 +387,7 @@ test("Medical runtime state service queues protected central state when browser 
   });
   expect(JSON.parse(harness.centralWrites[0].value).injuryPlans[0].id).toBe("plan-1");
   expect(harness.logs).toContain(
-    "Medical Team browser cache is full; the protected state was queued directly for central sync."
+    "Medical Team browser cache is full; the protected state was queued directly for central sync. Keep this page open until central saving is confirmed."
   );
 });
 
@@ -563,5 +568,25 @@ for (const errorName of ['QuotaExceededError', 'SecurityError']) {
     expect(harness.centralWrites).toEqual([]);
     expect(harness.rawWrites).toHaveLength(1);
     expect(JSON.parse(harness.rawWrites[0].value).records[0].id).toBe('saved-before-cache-error');
+  });
+}
+
+for (const outcome of [false, undefined, "throws"]) {
+  test(`Medical does not claim a rejected full-cache save was queued (${outcome})`, () => {
+    const previous = JSON.stringify(createStoredMedicalState());
+    const state = createStoredMedicalState();
+    state.records[0].coachNote = "New draft";
+    const quota = Object.assign(new Error("quota"), { name: "QuotaExceededError" });
+    const harness = createServiceHarness({ canEdit: true, state,
+      storageAdapter: { getItem: () => previous, setItem: () => { throw quota; } },
+      queueWrite: () => { if (outcome === "throws") throw new Error("queue failed"); return outcome; },
+    });
+    expect(() => harness.service.writeMedicalState()).not.toThrow();
+    expect(harness.logs.some((message) => /was queued/.test(message))).toBe(false);
+    expect(harness.logs.some((message) => /not saved.*Keep this page open/i.test(message))).toBe(true);
+    expect(harness.issues).toHaveLength(1);
+    expect(harness.issues[0][0]).toBe(harness.medicalTeamStorageKey);
+    expect(harness.getState().records[0].coachNote).toBe("New draft");
+    expect(harness.storage.getItem()).toBe(previous);
   });
 }

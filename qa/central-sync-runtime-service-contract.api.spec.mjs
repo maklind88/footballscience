@@ -1785,3 +1785,19 @@ for (const status of [0, 500, 503]) {
     expect(h.timers.size).toBe(0);
   });
 }
+
+for (const mode of ["accepted", "scope-changed", "readonly", "hydrating"]) {
+  test(`queue acceptance is explicit without acknowledging the save: ${mode}`, () => {
+    const h = createServiceHarness({ getReadScope: () => "actor-A",
+      cachedInfo: mode === "readonly" ? { source: "central-readonly-baseline" } : {},
+    });
+    if (mode === "hydrating") h.win.__footballScienceCentralHydrating = true;
+    const result = h.service.queueCentralStateWrite("football-medical-team-v1", "draft", {
+      principalScope: mode === "scope-changed" ? "actor-B" : "actor-A",
+    });
+    expect(result).toBe(mode === "accepted" ? true : undefined);
+    expect(h.syncCalls).toEqual([]);
+    if (mode === "accepted") expect(h.manifest.entries["football-medical-team-v1"].pendingCentralSync).toBe(true);
+    else expect(h.manifest.entries).toEqual({});
+  });
+}

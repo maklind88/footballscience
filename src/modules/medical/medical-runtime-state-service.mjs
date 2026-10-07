@@ -528,9 +528,16 @@ export function createMedicalRuntimeStateService(deps = {}) {
       setMedicalStateStorageValue(nextState, coachSafeOnly);
     } catch (error) {
       if (nextStateJson && canViewPrivateMedicalDetails() && isStorageQuotaError(error)) {
-        queueCentralStateWrite(medicalTeamStorageKey, nextStateJson, { automatic: false });
-        logEvent("Medical Team browser cache is full; the protected state was queued directly for central sync.");
-        return;
+        try {
+          if (queueCentralStateWrite(medicalTeamStorageKey, nextStateJson, { automatic: false }) === true) {
+            logEvent("Medical Team browser cache is full; the protected state was queued directly for central sync. Keep this page open until central saving is confirmed.");
+            return;
+          }
+        } catch { /* Retain the draft in memory and report the rejected save below. */ }
+        const message = "Medical changes are not saved on this device and central queueing failed. Keep this page open and retry when saving is available.";
+        logEvent(message);
+        win.footballScienceDataSafety?.reportSaveIssue?.(medicalTeamStorageKey, message);
+        return false;
       }
       logEvent("Medical Team data could not be written to local storage.");
     }

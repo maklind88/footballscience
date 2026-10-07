@@ -557,6 +557,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
       win.clearTimeout(centralStateWriteTimer);
     }
     centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
+    // Acceptance is not a server receipt or proof of local durability.
+    return true;
   }
 
   async function runCentralStateWriteFlush() {

@@ -1,3 +1,4 @@
+import { openStorageHealth } from "./storage-health-dialog.mjs";
 import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
 import { createLocalDatabaseConnection } from "./local-database-connection.mjs";
 
@@ -567,7 +568,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     }
     if (hasPendingCentralSync) {
       ui.dataSafetyStatus.textContent = savedTime ? `Sync pending ${savedTime}` : "Sync pending";
-      ui.dataSafetyStatus.title = "Saved locally; waiting for Supabase.";
+      ui.dataSafetyStatus.title = "Waiting for central confirmation. Keep this page open if local saving has failed.";
       return;
     }
     if (centralTime) {
@@ -847,10 +848,23 @@ export function createDataSafetyRuntimeService(deps = {}) {
     mutateManifest((manifest) => {
       manifest.lastSeenAt = getNow();
     });
+    ui.dataSafetyHealthButton?.addEventListener("click", () => openStorageHealth({
+      documentRef, navigatorRef, storage: {
+        get length() { return getStorage()?.length || 0; },
+        key: rawKey,
+        getItem: (key) => nativeGetItem.call(getStorage(), key),
+      },
+      storageLabels, storageKey, getScope: () => getCentralStateBridge()?.getReadScope?.() || "",
+    }));
     requestPersistentStorage();
     queueSnapshot("startup");
     refreshStatus();
     win.footballScienceDataSafety = {
+      reportSaveIssue: (key, message) => {
+        if (!isProtectedStorageKey(key)) return;
+        handleWriteError(key, new Error(message));
+        refreshStatus();
+      },
       collect: collectStorageData,
       createBackup: createBackupEnvelope,
       exportBackup,

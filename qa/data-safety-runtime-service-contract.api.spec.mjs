@@ -815,3 +815,17 @@ test("a reported Medical queue failure is visible even when its metadata cannot 
   expect(h.dataSafetyStatus.title).toBe("Medical changes are not saved. Keep this page open.");
   expect(h.queuedWrites).toEqual([]);
 });
+
+test("snapshot comparison context preserves protected pending generations without exporting unrelated metadata",()=>{
+  const h=createHarness(), key="football-schedule-v1";h.service.install();
+  h.win.footballScienceCentralState.getReadScope=()=>"owner-A";
+  h.localStorage.values.set("football-data-safety-v1",JSON.stringify({entries:{
+    [key]:{principalScope:"owner-A",pendingCentralSync:true,writes:3,pendingBaseRevision:7,deletedAt:"pending-deletion",privateExtra:"not-a-contract-field"},
+    unrelated:{secret:"not-protected"},
+  }}));
+  const backup=h.service.createBackupEnvelope();
+  expect(backup.saveContext).toEqual({scope:"owner-A",entries:{[key]:{principalScope:"owner-A",pendingCentralSync:true,writes:3,pendingBaseRevision:7,deletedAt:"pending-deletion"}}});
+  expect(backup.storage[key]).toBeUndefined();
+  expect(JSON.stringify(backup.saveContext)).not.toContain("privateExtra");
+  expect(JSON.stringify(backup.saveContext)).not.toContain("unrelated");
+});

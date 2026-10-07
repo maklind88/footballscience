@@ -1,3 +1,4 @@
+import { storeDistinctSnapshot } from "./distinct-snapshot-store.mjs";
 import { openStorageHealth } from "./storage-health-dialog.mjs";
 import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
 import { createLocalDatabaseConnection } from "./local-database-connection.mjs";
@@ -455,6 +456,15 @@ export function createDataSafetyRuntimeService(deps = {}) {
       },
       storage,
       recoveryCopies: collectRecoveryCopies(),
+      saveContext: {
+        scope: getCentralStateBridge()?.getReadScope?.() || "",
+        entries: Object.fromEntries(Object.entries(manifest.entries || {}).filter(([key]) => isProtectedStorageKey(key)).map(([key, entry]) => [key,
+          entry && typeof entry === "object" && !Array.isArray(entry)
+            ? Object.fromEntries(["principalScope", "pendingCentralSync", "pendingBaseRevision", "serverRevision", "writes", "hash", "updatedAt", "deletedAt", "localWritePrepared"]
+              .filter(field => Object.hasOwn(entry, field)).map(field => [field, entry[field]]))
+            : null,
+        ])),
+      },
       recoverySeparations,
       recoveryState,
     };
@@ -492,15 +502,12 @@ export function createDataSafetyRuntimeService(deps = {}) {
     };
     try {
       const database = await openDatabase();
-      const transaction = database.transaction([snapshotStoreName, latestStoreName], "readwrite");
-      transaction.objectStore(snapshotStoreName).put(snapshot);
-      transaction.objectStore(latestStoreName).put({ ...snapshot, id: "latest" });
-      await waitForTransaction(transaction);
-      await pruneSnapshots(database);
+      const stored = await storeDistinctSnapshot(database, snapshotStoreName, latestStoreName, snapshot);
+      if (stored.written) await pruneSnapshots(database);
       status.lastError = "";
       status.lastSnapshotError = "";
       mutateManifest((manifest) => {
-        manifest.lastSnapshotAt = snapshot.createdAt;
+        manifest.lastSnapshotAt = stored.createdAt;
         manifest.lastError = "";
         manifest.lastSnapshotError = "";
       });

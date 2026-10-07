@@ -1,3 +1,4 @@
+import { reuseUnchangedLibraryBackup } from "./exercise-library-backup-value.mjs";
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 
 function defaultNoop() {}
@@ -147,7 +148,10 @@ export function createExerciseLibraryRuntimeController(options = {}) {
     try {
       win.localStorage.setItem(
         storageKeys.exercisesBackup,
-        JSON.stringify(createSessionPlannerExerciseLibraryBackupEnvelope(normalizedLibrary))
+        reuseUnchangedLibraryBackup(
+          win.localStorage.getItem(storageKeys.exercisesBackup),
+          createSessionPlannerExerciseLibraryBackupEnvelope(normalizedLibrary), "exercises"
+        )
       );
     } catch (error) {
       backupSaved = false;
@@ -275,7 +279,10 @@ export function createExerciseLibraryRuntimeController(options = {}) {
     try {
       win.localStorage.setItem(
         storageKeys.foldersBackup,
-        JSON.stringify(createSessionPlannerExerciseLibraryFoldersBackupEnvelope(normalizedFolders))
+        reuseUnchangedLibraryBackup(
+          win.localStorage.getItem(storageKeys.foldersBackup),
+          createSessionPlannerExerciseLibraryFoldersBackupEnvelope(normalizedFolders), "folders"
+        )
       );
     } catch (error) {
       backupSaved = false;

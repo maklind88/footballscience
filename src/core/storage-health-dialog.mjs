@@ -26,6 +26,14 @@ export async function openStorageHealth(options) {
   const list = doc.createElement("ul");
   for (const row of report.modules) { const item = doc.createElement("li"); item.textContent = `${row.label}: ${size(row.approximateUtf16Bytes)}`; list.append(item); }
   content.append(list);
+  const mirror = report.libraryMirror;
+  const mirrorText = { matching: "The local Exercise Library and its backup contain matching exercise payloads.",
+    different: "The local Exercise Library and its backup contain different exercise payloads. Preserve both.",
+    missing: "A local Exercise Library copy or its backup is absent.", invalid: "Exercise Library backup integrity could not be verified.",
+    changed: "Exercise Library changed during this check. Reopen the check.", unavailable: "Exercise Library comparison unavailable." };
+  add(mirrorText[mirror.status]);
+  if (Number.isInteger(mirror.exerciseCount)) add(`Library: ${mirror.exerciseCount} exercises. Backup: ${mirror.backupExerciseCount} exercises.`);
+  add("Matching local copies do not prove central saving or make either copy safe to delete.");
   add(`Pending module markers for this account/team: ${report.pendingForCurrentScope ?? "Unavailable"}. This is not a count of individual edits or proof they are saved locally.`);
   add(`Recovery copies in local browser storage: ${report.recoveryCopies}. IndexedDB queues, review archives and backup contents are not inspected by this check.`);
   add(`Browser origin estimate: ${size(report.originUsageBytes)} used / ${size(report.originQuotaBytes)} quota. This is not the localStorage limit or its remaining space.`);

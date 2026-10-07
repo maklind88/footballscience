@@ -1,3 +1,4 @@
+import { inspectLibraryMirror } from "./library-storage-diagnostic.mjs";
 async function boundedRead(read) {
   let timer;
   try {
@@ -38,6 +39,7 @@ export async function collectStorageHealth({ storage, storageLabels = {}, storag
     }
     if (storage.length !== length) report.partial = true;
   } catch { report.partial = true; }
+  report.libraryMirror = inspectLibraryMirror(storage);
   report.modules = [...groups.values()].sort((a, b) => b.approximateUtf16Bytes - a.approximateUtf16Bytes);
   const [estimate, persistence] = await Promise.allSettled([
     boundedRead(() => navigatorRef.storage?.estimate?.()),

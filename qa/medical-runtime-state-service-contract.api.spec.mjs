@@ -546,3 +546,22 @@ test("Medical runtime state service seeds missing roster through raw data-safety
   expect(harness.rawWrites[0].key).toBe(harness.medicalTeamStorageKey);
   expect(JSON.parse(harness.rawWrites[0].value).rosterVersion).toBe("medical-roster-v1");
 });
+
+for (const errorName of ['QuotaExceededError', 'SecurityError']) {
+  test(`Medical read retains valid saved records when cache normalization fails with ${errorName}`, () => {
+    const stored = createStoredMedicalState();
+    stored.records = [{ id: 'saved-before-cache-error', playerId: 'p1', date: '2026-05-30',
+      participation: 50, actualParticipation: 'not-logged', createdAt: '2026-05-30T09:00:00Z' }];
+    const value = JSON.stringify(stored);
+    const harness = createServiceHarness({ canEdit: true, storageAdapter: {
+      getItem: () => value,
+      setItem: () => { const error = new Error('Synthetic cache failure'); error.name = errorName; throw error; },
+    } });
+    const state = harness.service.readMedicalState();
+    expect(state.records).toHaveLength(1);
+    expect(state.records[0]).toMatchObject({ id: 'saved-before-cache-error', date: '2026-05-30', participation: 50 });
+    expect(harness.centralWrites).toEqual([]);
+    expect(harness.rawWrites).toHaveLength(1);
+    expect(JSON.parse(harness.rawWrites[0].value).records[0].id).toBe('saved-before-cache-error');
+  });
+}

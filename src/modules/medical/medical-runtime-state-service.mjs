@@ -492,7 +492,12 @@ export function createMedicalRuntimeStateService(deps = {}) {
       const shouldPersistAutoClosedActual = canViewPrivateMedicalDetails()
         && hasAutoClosedMedicalActualRecords(parsed?.records, state.records);
       if (shouldPersistSeededRoster || shouldPersistAutoClosedActual) {
-        setMedicalStateStorageValue(state, true);
+        try {
+          setMedicalStateStorageValue(state, true);
+        } catch {
+          // Cache maintenance must not invalidate a successfully parsed saved state.
+          logEvent("Medical Team data loaded; the browser cache could not be updated.");
+        }
       }
       return state;
     } catch {

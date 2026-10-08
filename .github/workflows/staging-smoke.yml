@@ -68,6 +68,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify:staging-env -- --required
+      - name: Install release traffic client in the disposable container
+        if: inputs.restore_staging_deployment != ''
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends gh
       - name: Restore explicitly reviewed staging routing
         if: inputs.restore_staging_deployment != ''
         env:

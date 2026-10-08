@@ -1,6 +1,33 @@
 import { expect, test } from '@playwright/test';
 import { installSetPiecesCentralFixture } from './helpers/set-pieces-central-fixture.mjs';
 
+
+const pageErrors = new WeakMap();
+test.beforeEach(async ({ page }) => {
+  const errors = [];
+  pageErrors.set(page, errors);
+  page.on('pageerror', error => errors.push(String(error.stack || error.message)));
+});
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus || page.isClosed()) return;
+  const diagnostic = await page.evaluate(async () => {
+    const key = 'football-medical-team-v1';
+    const cached = JSON.parse(localStorage.getItem(key) || '{}');
+    const { getLatestMedicalRecord } = await import('/src/modules/medical/medical-runtime-accessors.mjs');
+    return {
+      inputDate: document.querySelector('[data-medical-date-picker]')?.value,
+      renderedDate: document.querySelector('.medical-roster-panel h2')?.textContent,
+      buttonClass: document.querySelector('[data-medical-quick-recommend="qa-visible-player"][data-medical-quick-participation="50"]')?.className,
+      cachedDate: cached.selectedDate,
+      cachedTargetRecords: cached.records?.filter(record => record.id === 'qa-visible-record').length,
+      currentDateRecord: getLatestMedicalRecord('qa-visible-player')?.date || null,
+      targetDateRecord: getLatestMedicalRecord('qa-visible-player', '2026-10-05')?.date || null,
+    };
+  }).catch(error => ({ diagnosticError: error.message }));
+  // This fixture contains synthetic records only; keep evidence small and value-free.
+  console.log('Medical visibility failure:', JSON.stringify({ ...diagnostic, pageErrors: pageErrors.get(page) }));
+});
+
 const day = '2026-10-05';
 const medicalKey = 'football-medical-team-v1', profileKey = 'football-player-profiles-v1';
 for (const workspace of ['medical-team', 'session-planner']) {

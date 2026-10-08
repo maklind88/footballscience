@@ -1,0 +1,29 @@
+name: Medical visibility diagnostic
+on:
+  pull_request:
+    paths:
+      - 'qa/medical-saved-visibility.smoke.spec.mjs'
+      - '.github/workflows/medical-visibility-diagnostic.yml'
+permissions:
+  contents: read
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: node scripts/ci-install.mjs
+      - run: npm run qa:playwright:ci -- --project=chromium qa/medical-saved-visibility.smoke.spec.mjs --repeat-each=15 --workers=1
+      - name: Preserve failed diagnostic evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: medical-visibility-failure
+          path: test-results/
+          retention-days: 7

@@ -24,7 +24,7 @@ Date and selected-player navigation now use view-only persistence. A small separ
 
 Preferences survive a reload of the same tab. A new tab/session starts from the existing defaults; preferences are not shared clinical content. When preference storage is unavailable, view choices remain in memory. No existing clinical copies are removed or migrated.
 
-The helper is isolated in `src/modules/medical/medical-view-preferences.mjs` to avoid growing the legacy Medical state service. The existing clinical save path is unchanged.
+The helper is isolated in `src/modules/medical/medical-view-preferences.mjs` to avoid growing the legacy Medical state service. Clinical saves also refresh the tab preference when the clinical action selects another date or player. A preference failure cannot block the clinical save; its existing payload and persistence path are unchanged.
 
 ## Verification and release boundary
 

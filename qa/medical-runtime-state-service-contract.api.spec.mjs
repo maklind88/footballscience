@@ -661,3 +661,26 @@ test('Medical view preferences need an authorized scope and never resurrect an a
   });
   expect(reader.service.readMedicalState()).toMatchObject({ selectedDate: stored.selectedDate, selectedPlayerId: 'p1' });
 });
+
+
+test('A clinical action that changes the selected date updates the tab preference for reload', () => {
+  const state = createStoredMedicalState();
+  state.selectedDate = '2026-06-02';
+  const sessionStorage = createStorage({ 'football-medical-view-v1': JSON.stringify({
+    scope: 'qa-scope', selectedDate: '2026-05-30', selectedPlayerId: 'p1',
+  }) });
+  const h = createServiceHarness({ canEdit: true, state, sessionStorage });
+  h.service.writeMedicalState();
+  expect(h.service.readMedicalState().selectedDate).toBe('2026-06-02');
+  expect(JSON.parse(sessionStorage.getItem('football-medical-view-v1')).selectedDate).toBe('2026-06-02');
+});
+
+test('Denied view-preference storage cannot prevent a clinical save', () => {
+  const state = createStoredMedicalState();
+  const h = createServiceHarness({ canEdit: true, state, sessionStorage: {
+    getItem: () => null, setItem: () => { throw new DOMException('Denied', 'SecurityError'); },
+  } });
+  expect(() => h.service.writeMedicalState()).not.toThrow();
+  expect(h.storage.value(h.medicalTeamStorageKey)).toBe(JSON.stringify(state));
+  expect(h.issues).toEqual([]);
+});

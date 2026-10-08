@@ -520,6 +520,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     if (!medicalState) {
       return;
     }
+    viewPreferences.write(medicalState);
     let nextStateJson = "";
     try {
       const coachSafeOnly = !canViewPrivateMedicalDetails();

@@ -78,6 +78,7 @@ jobs:
           RESTORE_STAGING_DEPLOYMENT: ${{ inputs.restore_staging_deployment }}
           RESTORE_STAGING_SOURCE_SHA: ${{ inputs.restore_staging_source_sha }}
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           node --test qa/reviewed-staging-restore.test.mjs
           node scripts/restore-reviewed-staging.mjs
       - name: Verify fresh staging backup and read-only restore

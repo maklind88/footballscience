@@ -69,3 +69,11 @@ Production remains unchanged. New diagnostic UI measurements require a separatel
 
 - Acceptance run 37827357468 completed successfully: one combined saving acceptance passed, followed by six staging smoke cases and eleven Medical boundary checks (the same two unrelated smoke skips). Run-owned Medical fixtures were archived, own Sessions blocks tombstoned, and audit/empty test-date records retained intentionally. The test closes both browser writers before cleanup and requires temporary-account/session cleanup to succeed. Unrelated Medical records and Sessions dates were verified unchanged.
 - Final public configuration probes confirmed production build 65478a34df10687e8b7101a84ec627bddc65ffb6 and staging build dpl_5oarFoQrEzZ1WpJQtAnGd5ee3dhr. No candidate integration into main or production occurred.
+
+## Follow-up: cache snapshots must not acknowledge failed user saves
+
+All checks for candidate a8ae54d9 passed in GitHub, including full QA run 37828169317. Subsequent inspection found a separate save-status defect: a successful browser snapshot cleared both the in-memory and manifest write error even when the failed Medical draft was absent from that snapshot.
+
+Two real Chromium regressions failed before correction: a reported Medical failure before snapshot start, and one reported while the snapshot was awaiting its transaction. The correction lets snapshot success clear only its own snapshot warning. It does not change saved values, queueing, conflict rules, clinical permissions or the browser database schema.
+
+Local verification passed: 86 API contracts, nine Chromium cases, nine WebKit cases, and the full static gate. The snapshot tests prove preserved write-error text, unchanged stored Medical contents, zero central writes and no backed-up indicator; a positive case proves snapshot-only warnings still clear. Exact updated-commit CI remains a separate gate. Medical crash recovery is still not implemented or certified by this change.

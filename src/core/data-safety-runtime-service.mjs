@@ -504,11 +504,11 @@ export function createDataSafetyRuntimeService(deps = {}) {
       const database = await openDatabase();
       const stored = await storeDistinctSnapshot(database, snapshotStoreName, latestStoreName, snapshot);
       if (stored.written) await pruneSnapshots(database);
-      status.lastError = "";
+      // A cache copy is not acknowledgement of a failed user save. An in-memory
+      // draft may be absent from it, including one created while this write awaited.
       status.lastSnapshotError = "";
       mutateManifest((manifest) => {
         manifest.lastSnapshotAt = stored.createdAt;
-        manifest.lastError = "";
         manifest.lastSnapshotError = "";
       });
       queueStatusRefresh();

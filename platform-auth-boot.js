@@ -95,6 +95,33 @@
   const nativeLocalStorageGetItem = window.Storage?.prototype?.getItem;
   const nativeLocalStorageRemoveItem = window.Storage?.prototype?.removeItem;
   const centralStateValues = new Map();
+  let librarySaveBridgePromise = null;
+  let librarySaveBridge = null;
+  function getLibrarySaveBridge() {
+    if (!librarySaveBridgePromise) librarySaveBridgePromise = import("./src/modules/exercise-library/library-save-bridge.mjs").then(({ createLibrarySaveBridge }) => {
+      librarySaveBridge = createLibrarySaveBridge({ win: window, getScope: getCentralReadScope,
+        isDevelopment: () => authState.devMode, canWrite: canCurrentUserAutomaticallyWriteCentralStateKey,
+        getPending: key => readCentralSyncManifestEntries()[key], syncKey: syncCentralStateKey,
+        setCached: setCentralCachedValue, readNative: key => nativeLocalStorageGetItem?.call(window.localStorage, key) });
+      centralState.libraryStorageError = "";
+      return librarySaveBridge;
+    }).catch(() => {
+      // A module asset outage must not prevent other modules from loading.
+      // Library writes/exports fail explicitly; all original local copies stay.
+      librarySaveBridgePromise = null;
+      const reason = "Library saving could not initialize. Reconnect and reload before editing.";
+      centralState.libraryStorageError = reason;
+      const isLibraryKey = key => ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1",
+        "football-session-exercise-library-backup-v1", "football-session-exercise-library-folders-backup-v1"].includes(key);
+      librarySaveBridge = { isLibraryKey, prepare: async () => {}, apply: isLibraryKey,
+        offline: async () => {}, replay: async () => {}, state: () => ({ storageUnavailable: true, reason }),
+        save: async () => ({ saved: false, reason }),
+        exportRecovery: async () => { throw new Error(reason); },
+      };
+      return librarySaveBridge;
+    });
+    return librarySaveBridgePromise;
+  }
   let sessionSaveClientPromise = null;
   let sessionSaveClient = null;
   let sessionBaselineReadScope = "";
@@ -709,7 +736,7 @@ async function getActiveAccessToken() {
     try {
       for (let index = 0; index < window.localStorage.length; index += 1) {
         const key = window.localStorage.key(index);
-        if (isCentralStateKey(key) && getCentralCachedValueInfo(key).source !== "central-readonly-baseline") {
+        if (isCentralStateKey(key) && !librarySaveBridge?.isLibraryKey(key) && getCentralCachedValueInfo(key).source !== "central-readonly-baseline") {
           entries[key] = window.localStorage.getItem(key) ?? "";
         }
       }
@@ -754,7 +781,7 @@ async function getActiveAccessToken() {
     ));
     const sessionTransport = await import("./src/modules/session-planner/session-state-transport.mjs");
     const combined = { ok: true, status: 200,
-      payload: { entries: {}, metadata: {}, absentKeys: [], readKeys: [], failedKeys: [] } };
+      payload: { entries: {}, metadata: {}, absentKeys: [], deniedKeys: [], readKeys: [], failedKeys: [] } };
     for (const { keys, response } of responses) {
       let failure = !response.ok ? response.payload?.reason || "Central read failed." : "";
       if (!failure && (response.payload?.ok === false || !response.payload?.entries ||
@@ -777,6 +804,9 @@ async function getActiveAccessToken() {
       for (const key of keys) {
         if (typeof response.payload?.entries?.[key] === "string") combined.payload.entries[key] = response.payload.entries[key];
         if (response.payload?.metadata?.[key]) combined.payload.metadata[key] = response.payload.metadata[key];
+        if (Array.isArray(response.payload?.deniedKeys) && response.payload.deniedKeys.includes(key)) {
+          combined.payload.deniedKeys.push(key);
+        }
         if (Array.isArray(response.payload?.absentKeys) && response.payload.absentKeys.includes(key)) {
           combined.payload.absentKeys.push(key);
         }
@@ -1714,6 +1744,9 @@ async function getActiveAccessToken() {
     if (sessionScope && (!sessionView || sessionView.pending) && !(SESSION_PLANNER_STATE_KEY in normalizedEntries)) {
       normalizedEntries[SESSION_PLANNER_STATE_KEY] = '{"sessions":{}}';
     }
+    const libraryBridge = await getLibrarySaveBridge();
+    await libraryBridge.prepare(normalizedEntries, incomingMetadata, options);
+    if (options.isCurrent?.() === false) return;
     const pendingEntries = readCentralSyncManifestEntries();
     const nextMetadata = options.readKeys ? { ...centralState.metadata } : {};
     for (const key of options.readKeys || []) {
@@ -1729,7 +1762,7 @@ async function getActiveAccessToken() {
       for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
         const key = window.localStorage.key(index);
         if (
-          shouldRemoveLocalCentralStateKey(key) &&
+          shouldRemoveLocalCentralStateKey(key) && !libraryBridge.isLibraryKey(key) &&
           (!options.readKeys || options.readKeys.includes(key)) &&
           !Object.prototype.hasOwnProperty.call(normalizedEntries, key) &&
           getCentralCachedValueInfo(key).source !== "central-readonly-baseline" &&
@@ -1750,6 +1783,7 @@ async function getActiveAccessToken() {
           centralState.metadata[key] || {},
           options
         );
+        if (libraryBridge.apply(key, value)) return;
         if (key === MEDICAL_TEAM_STATE_KEY && pendingEntry.pendingCentralSync &&
             pendingEntry.principalScope === getCentralReadScope() &&
             window.localStorage.getItem(MEDICAL_RECOVERY_MARKER_KEY) && !hasMedicalRecoverySeparation()) {
@@ -1998,14 +2032,17 @@ async function getActiveAccessToken() {
     try {
       if (!readScope) return false;
       centralState.localDev = false;
+      await getLibrarySaveBridge();
+      if (!isCurrent()) return false;
       const response = await readCentralStateBatches({ ...options, isCurrent });
       if (!isCurrent()) return false;
       if (!response.ok) {
         centralState.lastError = response.payload?.reason || "Central app data could not be loaded.";
+        await (await getLibrarySaveBridge()).offline();
         const readKeys = response.payload?.readKeys || [];
         if (readKeys.length) {
           await applyCentralStateEntries(response.payload.entries, response.payload.metadata, {
-            ...options, isCurrent, readKeys, absentKeys: response.payload.absentKeys,
+            ...options, isCurrent, readKeys, absentKeys: response.payload.absentKeys, deniedKeys: response.payload.deniedKeys,
           });
           if (!isCurrent()) return false;
           reconcileCentralTombstones(response.payload.absentKeys, response.payload.metadata);
@@ -2023,8 +2060,10 @@ async function getActiveAccessToken() {
       const hasCentralEntries = Object.keys(entries).length > 0;
       if (hasCentralEntries || scopedRead) {
         await applyCentralStateEntries(entries, metadata, { ...options, isCurrent,
-          ...(scopedRead ? { readKeys: options.keys } : {}), absentKeys: response.payload.absentKeys });
+          ...(scopedRead ? { readKeys: options.keys } : {}), absentKeys: response.payload.absentKeys, deniedKeys: response.payload.deniedKeys });
       } else {
+        await (await getLibrarySaveBridge()).prepare(entries, metadata, { ...options, isCurrent, absentKeys: response.payload.absentKeys, deniedKeys: response.payload.deniedKeys });
+        if (!isCurrent()) return false;
         clearMissingCentralReadViews(entries, response.payload.absentKeys);
         const localEntries = collectCentralLocalStateEntries();
         // Pending generations require their normal revision/generation-bound receipt, not an untracked batch seed.
@@ -2059,7 +2098,7 @@ async function getActiveAccessToken() {
           }
         }
         await applyCentralStateEntries({}, metadata, {
-          ...options, isCurrent, readKeys: [SET_PIECES_ROOM_STATE_KEY], absentKeys: response.payload.absentKeys,
+          ...options, isCurrent, readKeys: [SET_PIECES_ROOM_STATE_KEY], absentKeys: response.payload.absentKeys, deniedKeys: response.payload.deniedKeys,
         });
       }
       if (!isCurrent()) return false;
@@ -2072,6 +2111,7 @@ async function getActiveAccessToken() {
       centralState.hydrated = true;
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.lastFetchedAt = centralState.lastSyncedAt;
+      if (!authState.devMode && librarySaveBridge) window.setTimeout(() => librarySaveBridge.replay(), 0);
       window.dispatchEvent(
         new CustomEvent("footballscience:central-state-ready", {
           detail: { entries: hasCentralEntries ? entries : collectCentralLocalStateEntries() },
@@ -2081,6 +2121,7 @@ async function getActiveAccessToken() {
     } catch (error) {
       if (!isCurrent()) return false;
       centralState.lastError = error?.message || "Central load failed.";
+      await (await getLibrarySaveBridge()).offline().catch(() => {});
       return false;
     } finally {
       centralState.hydrating = false;
@@ -2182,6 +2223,7 @@ async function getActiveAccessToken() {
         value: options.removed ? "" : transport ? await transport.encodeSessionTransport(key, String(value ?? "")) : String(value ?? ""),
         removed: Boolean(options.removed),
         baseRevision,
+        ...(options.libraryChange ? { libraryChange: options.libraryChange } : {}),
         baseHash: baseMetadata.hash || "",
         baseUpdatedAt: baseMetadata.updatedAt || "",
         metadata: {
@@ -2207,6 +2249,7 @@ async function getActiveAccessToken() {
           ok: false,
           status: response.status,
           conflict: response.status === 409,
+          conflicts: response.payload?.conflicts,
           currentRevision: response.payload?.currentRevision,
           reason: centralState.lastWriteError,
         };
@@ -3328,7 +3371,17 @@ async function getActiveAccessToken() {
     isAdmin: () => ["admin", "club-admin", "team-admin"].includes(normalizeRoleForAuth(authState.currentUser?.role, "")),
     roles: authState.roles,
   };
-  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getReadScope:getCentralReadScope,canAutoSyncKey:canCurrentUserAutomaticallyWriteCentralStateKey,getCachedValue:getCentralCachedValue,getCachedValueInfo:getCentralCachedValueInfo,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState}),
+  window.footballScienceCentralState={
+    usesLibraryStorage: key => !authState.devMode && ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"].includes(key) && !readCentralSyncManifestEntries()[key]?.pendingCentralSync,
+    saveLibrary: async (key, before, after) => (await getLibrarySaveBridge()).save(key, before, after),
+    getLibrarySaveState: key => librarySaveBridge?.state(key),
+    exportLibraryRecovery: async () => (await getLibrarySaveBridge()).exportRecovery(),
+    reviewLibraryRecovery: async () => {
+      const { openLibrarySaveReview } = await import("./src/modules/exercise-library/library-save-review.mjs");
+      return openLibrarySaveReview({ win: window, client: (await getLibrarySaveBridge()).client, getScope: getCentralReadScope,
+        refresh: () => hydrateCentralState({ fresh: true, keys: ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"] }) });
+    },
+    hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getReadScope:getCentralReadScope,canAutoSyncKey:canCurrentUserAutomaticallyWriteCentralStateKey,getCachedValue:getCentralCachedValue,getCachedValueInfo:getCentralCachedValueInfo,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState}),
     isKeyHydrated: (key) => key === SESSION_PLANNER_STATE_KEY && !authState.devMode
       ? Boolean(sessionBaselineReadScope && sessionBaselineReadScope === getCentralReadScope() && sessionSaveClient?.isReady()) : centralState.hydrated,
     hydrateSessionState: () => hydrateCentralState({ fresh: true, keys: [SESSION_PLANNER_STATE_KEY] }),

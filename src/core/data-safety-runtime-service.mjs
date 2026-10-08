@@ -545,9 +545,18 @@ export function createDataSafetyRuntimeService(deps = {}) {
     const manifest = readManifest();
     const centralStatus = getCentralStateBridge()?.getStatus?.() ?? {};
     const error = status.lastError || manifest.lastError;
-    const centralError = centralStatus.lastError || centralStatus.lastWriteError || manifest.lastCentralError;
+    const libraryStorageUnknown = ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"]
+      .some(key => getCentralStateBridge()?.getLibrarySaveState?.(key)?.storageUnavailable);
+    const libraryReadError = ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"]
+      .some(key => getCentralStateBridge()?.getLibrarySaveState?.(key)?.readError);
+    const libraryReadDenied = ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"]
+      .some(key => getCentralStateBridge()?.getLibrarySaveState?.(key)?.readDenied);
+    const centralError = centralStatus.lastError || centralStatus.lastWriteError || manifest.lastCentralError || centralStatus.libraryStorageError ||
+      (libraryReadError ? "The central library could not be verified. Existing copies were retained." : libraryReadDenied ? "Library access was denied. Retained edits have not been discarded." : libraryStorageUnknown ? "Library recovery storage cannot be checked. A confirmed central save is still valid." : "");
     const snapshotWarning = status.lastSnapshotError || manifest.lastSnapshotError;
-    const hasPendingCentralSync = Object.values(manifest.entries || {}).some((entry) => entry?.pendingCentralSync);
+    const libraryPending = ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"]
+      .some(key => getCentralStateBridge()?.getLibrarySaveState?.(key)?.pending);
+    const hasPendingCentralSync = libraryPending || Object.values(manifest.entries || {}).some((entry) => entry?.pendingCentralSync);
     ui.dataSafetyStatus.classList.toggle("is-error", Boolean(error || centralError));
     ui.dataSafetyStatus.classList.toggle(
       "is-backed-up",
@@ -626,9 +635,13 @@ export function createDataSafetyRuntimeService(deps = {}) {
     });
   }
 
-  function exportBackup() {
+  async function exportBackup() {
     try {
+      const scope = getCentralStateBridge()?.getReadScope?.();
+      const libraryRecovery = await getCentralStateBridge()?.exportLibraryRecovery?.();
+      if (scope !== getCentralStateBridge()?.getReadScope?.()) throw new Error("Account changed during export.");
       const backup = createBackupEnvelope("manual-export");
+      if (libraryRecovery) backup.libraryRecovery = libraryRecovery;
       const backupText = JSON.stringify(backup, null, 2);
       const blob = new blobConstructor([backupText], { type: "application/json" });
       const url = urlApi.createObjectURL(blob);
@@ -670,8 +683,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return;
     }
     const storage = getStorageFromBackup(backup);
-    if (Object.keys(backup?.recoveryCopies || {}).length || backup?.recoverySeparations?.length || Object.keys(backup?.recoveryState || {}).length) {
-      win.alert?.("Backup not restored. Archived recovery copies require explicit review and cannot be imported automatically.");
+    if (backup?.libraryRecovery?.baselines?.length || backup?.libraryRecovery?.pending?.length || backup?.libraryRecovery?.recovery?.length || Object.keys(backup?.recoveryCopies || {}).length || backup?.recoverySeparations?.length || Object.keys(backup?.recoveryState || {}).length) {
+      win.alert?.("Backup not restored. Archived recovery copies require explicit review and cannot be imported automatically. Use Storage health to review library backup files.");
       return;
     }
     const entries = Object.entries(storage || {}).filter(([key, value]) => isProtectedStorageKey(key) && typeof value === "string");
@@ -851,6 +864,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return result;
     };
     installed = true;
+    win.addEventListener?.("footballscience:library-save-status", queueStatusRefresh);
     migrateLegacyStorageKeys();
     mutateManifest((manifest) => {
       manifest.lastSeenAt = getNow();
@@ -861,6 +875,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
         key: rawKey,
         getItem: (key) => nativeGetItem.call(getStorage(), key),
       },
+      reviewLibrary: () => getCentralStateBridge()?.reviewLibraryRecovery?.(),
       storageLabels, storageKey, getScope: () => getCentralStateBridge()?.getReadScope?.() || "",
     }));
     requestPersistentStorage();

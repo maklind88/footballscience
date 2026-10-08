@@ -1569,6 +1569,10 @@ updatedBy: getSessionPlannerLibraryUserId(),
 });
 library[exerciseIndex] = nextExercise;
 const writeResult = writeSessionPlannerExerciseLibraryToStorage(library);
+if (writeResult?.then) return writeResult.then(result => {
+  if (!result.saved) { showSessionPlannerToast("Post-session note saved on the block, but not in the exercise library.", "warning"); return false; }
+  setSessionPlannerExerciseLibrary(result.exercises); return true;
+});
 if (!writeResult.saved) {
 showSessionPlannerToast("Post-session note saved on the block, but not in the exercise library.", "warning");
 return false;

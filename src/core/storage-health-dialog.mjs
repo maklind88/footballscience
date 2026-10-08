@@ -33,10 +33,14 @@ export async function openStorageHealth(options) {
     changed: "Exercise Library changed during this check. Reopen the check.", unavailable: "Exercise Library comparison unavailable." };
   add(mirrorText[mirror.status]);
   if (Number.isInteger(mirror.exerciseCount)) add(`Library: ${mirror.exerciseCount} exercises. Backup: ${mirror.backupExerciseCount} exercises.`);
-  add("Matching local copies do not prove central saving or make either copy safe to delete.");
+  add("These are legacy localStorage copies. The active library may use IndexedDB; matching legacy copies do not prove central saving or make either copy safe to delete.");
   add(`Pending module markers for this account/team: ${report.pendingForCurrentScope ?? "Unavailable"}. This is not a count of individual edits or proof they are saved locally.`);
   add(`Recovery copies in local browser storage: ${report.recoveryCopies}. IndexedDB queues, review archives and backup contents are not inspected by this check.`);
   add(`Browser origin estimate: ${size(report.originUsageBytes)} used / ${size(report.originQuotaBytes)} quota. This is not the localStorage limit or its remaining space.`);
   add(`Persistent storage: ${report.persistent === null ? "Unavailable" : report.persistent ? "Granted" : "Not granted"}. This does not increase the localStorage limit.`);
+  if (options.reviewLibrary) {
+    const review = doc.createElement("button"); review.type = "button"; review.textContent = "Review library saved versions";
+    review.addEventListener("click", () => { dialog.close(); options.reviewLibrary(); }); content.append(review);
+  }
   add("If saving fails, keep the page open. Do not clear browser data while edits or local reviews are pending. Open Sessions local review to compare retained versions.");
 }

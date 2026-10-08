@@ -90,6 +90,7 @@ for (const present of [true, false]) {
       PLAYER_PROFILES_STATE_KEY: "profiles", MEDICAL_LOCAL_UI_FIELDS: [],
       getSessionSaveClient: async () => { journalCalls += 1; throw new Error("must not open failed Sessions journal"); },
       getSessionSaveScope: () => "scope", localUi: {},
+      getLibrarySaveBridge: async () => ({ prepare: async () => {}, apply: () => false, isLibraryKey: () => false }),
       isCentralStateKey: () => true, shouldRemoveLocalCentralStateKey: () => true,
       readCentralSyncManifestEntries: () => ({ [sessions]: { pendingCentralSync: true, hash: "draft" } }),
       getCentralCachedValueInfo: () => ({}), removeCentralCachedValue: () => {}, clearMissingCentralReadViews: () => {},

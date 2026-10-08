@@ -467,6 +467,7 @@ test("large Sessions hydrate, edit, save and reload through compressed browser t
 
 async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabName, options = {}) {
   const context = await browser.newContext();
+  if (options.failLibraryModule) await context.route("**/src/modules/exercise-library/library-save-bridge.mjs", route => route.fulfill({ status: 503, body: "Synthetic module outage" }));
   await installCentralRevisionRoutes(context, centralStore, syncBodies, options);
   const page = await context.newPage();
   if (options.fixedDate) {
@@ -3828,4 +3829,158 @@ test("central Medical hydration preserves pending local availability plans", asy
   } finally {
     await closeCentralStateContext(tab.context);
   }
+});
+
+for (const fullIndexedDB of [false,true]) {
+test(`Exercise Library saves centrally with full localStorage (IndexedDB unavailable: ${fullIndexedDB})`,async({browser,baseURL})=>{
+ const key="football-session-exercise-library-v1",initial=JSON.stringify([{id:"exercise-one",title:"Central original"}]);
+ const centralStore={value:createStateValue("Original central sequence"),metadata:createMetadata(1,createStateValue("Original central sequence")),
+  entries:{[key]:initial},metadataEntries:{[key]:{...createMetadata(1,initial),moduleId:"exercise-library"}}};
+ const writes=[];
+ const tab=await bootCentralPage(browser,baseURL,centralStore,[],`library-quota-${fullIndexedDB}`,{
+  appStateWriteBodies:writes,
+  initScript:({key,fullIndexedDB})=>{
+   const original=Storage.prototype.setItem;
+   Storage.prototype.setItem=function(k,v){if(k.includes("exercise-library"))throw new DOMException("full","QuotaExceededError");return original.call(this,k,v);};
+   if(fullIndexedDB){const open=IDBFactory.prototype.open;IDBFactory.prototype.open=function(name,...args){if(name==="football-science-library-v1")throw new DOMException("unavailable","SecurityError");return open.call(this,name,...args);};}
+  },initArg:{key,fullIndexedDB},
+  appStateWriteHandler:async({body})=>{
+   if(!body.libraryChange)return null;
+   const {applyLibraryChange}=await import("../src/modules/exercise-library/library-save-protocol.mjs");
+   const applied=applyLibraryChange(centralStore.entries[key],body.libraryChange);
+   if(!applied.ok)return {status:409,body:{ok:false,conflicts:applied.conflicts}};
+   centralStore.entries[key]=applied.value;centralStore.metadataEntries[key]={...createMetadata(2,applied.value),moduleId:"exercise-library"};
+   return {body:{ok:true,value:applied.value,metadata:centralStore.metadataEntries[key],libraryChange:{id:body.libraryChange.id}}};
+  },
+ });
+ try{
+  await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+  await tab.page.getByRole("button",{name:"Add exercise",exact:true}).click();
+  await tab.page.locator('[data-session-add-from-library]').click();
+  await tab.page.locator('[data-session-edit-library-exercise="exercise-one"]').click();
+  await tab.page.locator('[data-session-library-edit-field="title"]').fill("New central work");
+  await tab.page.locator('[data-session-save-library-edit="exercise-one"]').click();
+  await expect.poll(() => JSON.parse(centralStore.entries[key])[0].title).toBe("New central work");
+  await expect(tab.page.locator('[data-session-library-edit-dialog]')).toHaveCount(0);
+  const result=await tab.page.evaluate(key=>{
+   const bridge=window.footballScienceCentralState, saved=bridge.getLibrarySaveState(key);
+   return {saved,cached:bridge.getCachedValue(key),pending:saved?.pending};
+  },key);
+  expect(result.saved).toMatchObject({saved:true,centrallySaved:true,cached:!fullIndexedDB});
+  expect(JSON.parse(result.cached)[0].title).toBe("New central work");expect(result.pending).toBe(false);
+  expect(writes.filter(body=>body.libraryChange)).toHaveLength(1);
+  await tab.page.reload();await tab.page.waitForFunction(()=>window.footballScienceCentralState?.isHydrated());
+  expect(await tab.page.evaluate(key=>JSON.parse(window.footballScienceCentralState.getCachedValue(key))[0].title,key)).toBe("New central work");
+ }finally{await tab.context.close();}
+});
+}
+
+test("two library editors preserve independent records and retain a same-record conflict", async ({browser,baseURL}) => {
+  const key="football-session-exercise-library-v1", initial=JSON.stringify([{id:"a",title:"Original A"},{id:"b",title:"Original B"}]);
+  const centralStore={value:createStateValue("Original central sequence"),metadata:createMetadata(1,createStateValue("Original central sequence")),
+    entries:{[key]:initial},metadataEntries:{[key]:{...createMetadata(1,initial),moduleId:"exercise-library"}}};
+  let revision=1;
+  const options={appStateWriteHandler:async({body})=>{
+    if(!body.libraryChange)return null;
+    const {applyLibraryChange}=await import("../src/modules/exercise-library/library-save-protocol.mjs");
+    const applied=applyLibraryChange(centralStore.entries[key],body.libraryChange);
+    if(!applied.ok)return {status:409,body:{ok:false,conflicts:applied.conflicts,currentRevision:revision}};
+    centralStore.entries[key]=applied.value;
+    centralStore.metadataEntries[key]={...createMetadata(++revision,applied.value),moduleId:"exercise-library"};
+    return {body:{ok:true,value:applied.value,metadata:centralStore.metadataEntries[key],libraryChange:{id:body.libraryChange.id}}};
+  }};
+  const colleague={...qaUser,id:"qa-library-colleague",email:"library-colleague@footballscience.test"};
+  const a=await bootCentralPage(browser,baseURL,centralStore,[],"library-editor-a",options);
+  const b=await bootCentralPage(browser,baseURL,centralStore,[],"library-editor-b",{...options,sessionUser:colleague,profileUser:colleague});
+  const open = async page => {
+    await page.locator('[data-open-workspace="session-planner"]').first().click();
+    await page.getByRole("button",{name:"Add exercise",exact:true}).click();
+    await page.locator('[data-session-add-from-library]').click();
+  };
+  const edit = async (page,id,title) => {
+    await page.locator(`[data-session-edit-library-exercise="${id}"]`).click();
+    await page.locator('[data-session-library-edit-field="title"]').fill(title);
+    await page.locator(`[data-session-save-library-edit="${id}"]`).click();
+  };
+  try {
+    await open(a.page);await open(b.page);
+    await edit(a.page,"a","First editor A");
+    await expect(a.page.locator('[data-session-library-edit-dialog]')).toHaveCount(0);
+    await edit(b.page,"b","Second editor B");
+    await expect(b.page.locator('[data-session-library-edit-dialog]')).toHaveCount(0);
+    expect(JSON.parse(centralStore.entries[key]).map(row=>row.title)).toEqual(["First editor A","Second editor B"]);
+    // A refresh during editing must not silently rebase the user's old form.
+    await b.page.locator('[data-session-edit-library-exercise="a"]').click();
+    await b.page.locator('[data-session-library-edit-field="title"]').fill("Conflicting B");
+    await edit(a.page,"a","Newest A");
+    await expect(a.page.locator('[data-session-library-edit-dialog]')).toHaveCount(0);
+    await b.page.evaluate(()=>window.footballScienceCentralState.hydrate({fresh:true}));
+    await expect(b.page.locator('[data-session-library-edit-field="title"]')).toHaveValue("Conflicting B");
+    await b.page.locator('[data-session-save-library-edit="a"]').click();
+    await expect.poll(()=>b.page.evaluate(key=>window.footballScienceCentralState.getLibrarySaveState(key)?.conflict,key)).toBe(true);
+    await expect(b.page.locator('[data-session-library-edit-field="title"]')).toHaveValue("Conflicting B");
+    expect(JSON.parse(centralStore.entries[key])[0].title).toBe("Newest A");
+    const retained=await b.page.evaluate(()=>window.footballScienceCentralState.exportLibraryRecovery());
+    expect(retained.pending).toHaveLength(1);
+    expect(retained.pending[0].change.records[0].after.title).toBe("Conflicting B");
+    expect((await a.page.evaluate(()=>window.footballScienceCentralState.exportLibraryRecovery())).pending).toHaveLength(0);
+  } finally {await closeCentralStateContext(a.context);await closeCentralStateContext(b.context);}
+});
+
+test("library edits survive app reload during an API outage and replay after reconnection",async({browser,baseURL})=>{
+ const key="football-session-exercise-library-v1",initial='[{"id":"a","title":"Before outage"}]';
+ const centralStore={value:createStateValue("Original central sequence"),metadata:createMetadata(1,createStateValue("Original central sequence")),
+  entries:{[key]:initial},metadataEntries:{[key]:{...createMetadata(1,initial),moduleId:"exercise-library"}}};
+ const tab=await bootCentralPage(browser,baseURL,centralStore,[],"library-api-outage",{appStateWriteHandler:async({body})=>{
+  if(!body.libraryChange)return null;
+  const {applyLibraryChange}=await import("../src/modules/exercise-library/library-save-protocol.mjs");
+  const applied=applyLibraryChange(centralStore.entries[key],body.libraryChange);
+  if(!applied.ok)return {status:409,body:{ok:false,conflicts:applied.conflicts}};
+  centralStore.entries[key]=applied.value;centralStore.metadataEntries[key]={...createMetadata(2,applied.value),moduleId:"exercise-library"};
+  return {body:{ok:true,value:applied.value,metadata:centralStore.metadataEntries[key],libraryChange:{id:body.libraryChange.id}}};
+ }});
+ const open=async()=>{
+  await tab.page.locator('[data-open-workspace="session-planner"]').first().click();
+  await tab.page.getByRole("button",{name:"Add exercise",exact:true}).click();
+  await tab.page.locator('[data-session-add-from-library]').click();
+ };
+ try{
+  await tab.page.route("**/api/app-state**",route=>route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({ok:false,reason:"Synthetic outage"})}));
+  await tab.page.reload();
+  await tab.page.waitForFunction(()=>window.__footballScienceAppReady && window.footballScienceCentralState?.getStatus().lastError);
+  await open();await tab.page.locator('[data-session-edit-library-exercise="a"]').click();
+  await tab.page.locator('[data-session-library-edit-field="title"]').fill("Retained during outage");
+  await tab.page.locator('[data-session-save-library-edit="a"]').click();
+  await expect(tab.page.locator('[data-session-library-edit-dialog]')).toHaveCount(0);
+  expect((await tab.page.evaluate(()=>window.footballScienceCentralState.exportLibraryRecovery())).pending).toHaveLength(1);
+  expect(centralStore.entries[key]).toBe(initial);
+  await tab.page.reload();
+  await tab.page.waitForFunction(()=>window.__footballScienceAppReady && window.footballScienceCentralState?.getStatus().lastError);
+  await open();await expect(tab.page.locator('[data-session-library-drag-exercise="a"]')).toContainText("Retained during outage");
+  await tab.page.unroute("**/api/app-state**");
+  await tab.page.evaluate(()=>window.footballScienceCentralState.hydrate({fresh:true}));
+  await expect.poll(()=>JSON.parse(centralStore.entries[key])[0].title).toBe("Retained during outage");
+  await expect.poll(()=>tab.page.evaluate(async()=>(await window.footballScienceCentralState.exportLibraryRecovery()).pending.length)).toBe(0);
+ }finally{await closeCentralStateContext(tab.context);}
+});
+
+
+test("a library module asset outage cannot block other central modules or claim a save",async({browser,baseURL})=>{
+ const key="football-session-exercise-library-v1",value='[{"id":"a","title":"Saved centrally"}]';
+ const centralStore={value:createStateValue("Original central sequence"),metadata:createMetadata(1,createStateValue("Original central sequence")),
+  entries:{[key]:value},metadataEntries:{[key]:{...createMetadata(1,value),moduleId:"exercise-library"}}};
+ const writes=[];
+ const tab=await bootCentralPage(browser,baseURL,centralStore,[],"library-module-outage",{failLibraryModule:true,appStateWriteBodies:writes});
+ try{
+  const failed=await tab.page.evaluate(async({key,value})=>{
+   const bridge=window.footballScienceCentralState;
+   return {ready:bridge.isHydrated(),error:bridge.getStatus().libraryStorageError,result:await bridge.saveLibrary(key,value,'[{"id":"a","title":"Unconfirmed"}]')};
+  },{key,value});
+  expect(failed.ready).toBe(true);expect(failed.error).toContain("could not initialize");expect(failed.result.saved).toBe(false);
+  expect(writes.filter(row=>row.libraryChange)).toHaveLength(0);expect(centralStore.entries[key]).toBe(value);
+  await tab.context.unroute("**/src/modules/exercise-library/library-save-bridge.mjs");
+  // Browsers cache a failed module import until a page reload.
+  await tab.page.reload();await tab.page.waitForFunction(()=>window.footballScienceCentralState?.isHydrated());
+  expect(await tab.page.evaluate(key=>window.footballScienceCentralState.getCachedValue(key),key)).toBe(value);
+ }finally{await closeCentralStateContext(tab.context);}
 });

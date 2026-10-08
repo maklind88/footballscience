@@ -5,7 +5,7 @@ export default defineConfig({
   ...baseConfig,
   projects: [{
     name: "save-webkit",
-    testMatch: /(?:central-state-revision|local-database-compatibility|save-offline-recovery|offline-operation-journal|session-save-storage|medical-saved-visibility|storage-health|distinct-snapshot)\.smoke\.spec\.mjs/,
+    testMatch: /(?:central-state-revision|local-database-compatibility|save-offline-recovery|offline-operation-journal|session-save-storage|medical-saved-visibility|storage-health|distinct-snapshot|library-save-storage)\.smoke\.spec\.mjs/,
     use: { ...devices["Desktop Safari"] },
   }],
 });

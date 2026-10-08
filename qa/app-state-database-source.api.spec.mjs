@@ -112,7 +112,7 @@ function toDatabaseRow(entry, applied) {
   };
 }
 
-function createConsistencyFetchMock(initialEntry) {
+function createConsistencyFetchMock(initialEntry, actorId = "coach-1") {
   let databaseEntry = structuredClone(initialEntry);
   const staleStorageEntry = structuredClone(initialEntry);
   const rpcWrites = [];
@@ -123,9 +123,9 @@ function createConsistencyFetchMock(initialEntry) {
     const requestUrl = String(url);
     const method = String(options.method || "GET").toUpperCase();
 
-    if (requestUrl.endsWith("/auth/v1/user") || requestUrl.includes("/auth/v1/admin/users/coach-1")) {
+    if (requestUrl.endsWith("/auth/v1/user") || requestUrl.includes(`/auth/v1/admin/users/${actorId}`)) {
       return new Response(JSON.stringify({
-        id: "coach-1",
+        id: actorId,
         email: "coach@example.com",
         user_metadata: { firstName: "QA", lastName: "Coach" },
         app_metadata: { role: "coach", status: "active" },
@@ -135,7 +135,7 @@ function createConsistencyFetchMock(initialEntry) {
     if (requestUrl.includes("/rest/v1/platform_app_state_records?")) {
       databaseReads.push(requestUrl);
       const rows = requestUrl.includes("state_key=")
-        ? (requestUrl.includes(encodeURIComponent(scheduleKey)) ? [toDatabaseRow(databaseEntry)] : [])
+        ? (requestUrl.includes(encodeURIComponent(initialEntry.key)) ? [toDatabaseRow(databaseEntry)] : [])
         : [toDatabaseRow(databaseEntry)];
       return new Response(JSON.stringify(rows), { status: 200 });
     }
@@ -170,7 +170,7 @@ function createConsistencyFetchMock(initialEntry) {
     if (requestUrl.includes(storageMarker)) {
       const objectPath = decodeURIComponent(requestUrl.split(storageMarker)[1].split("?", 1)[0]);
       if (method === "GET") {
-        return objectPath === schedulePath
+        return objectPath === `global/${initialEntry.key}.json`
           ? new Response(JSON.stringify(staleStorageEntry), { status: 200 })
           : new Response("{}", { status: 404 });
       }
@@ -547,3 +547,55 @@ test("database reads can be restricted to approved central state keys", async ()
     restoreEnv(env);
   }
 });
+
+for (const key of ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"]) {
+test(`library record API preserves another editor and rejects same-record conflicts: ${key}`,async()=>{
+ const {createLibraryChange}=await import("../src/modules/exercise-library/library-save-protocol.mjs");
+ const env=snapshotEnv(),originalFetch=global.fetch;configureDatabaseMode();
+ const initial=[{id:"a",title:"A",name:"A"},{id:"b",title:"B",name:"B"}];
+ const entry={organizationId:"global",key,moduleId:"exercise-library",revision:1,value:JSON.stringify(initial),removed:false,updatedAt:"2026-10-07T00:00:00Z",hash:sha256(JSON.stringify(initial))};
+ const mock=createConsistencyFetchMock(entry,`library-contract-${key}`);global.fetch=mock.fetchMock;
+ const callLibrary=req=>callHandler({...req,headers:{authorization:`Bearer library-contract-${key}`,...req.headers}});
+ const post=change=>callLibrary({method:"POST",headers:{authorization:`Bearer library-${key}-${change.id}`},body:JSON.stringify({key,baseRevision:1,libraryChange:change})});
+ try{
+  const a=createLibraryChange(key,JSON.stringify(initial),JSON.stringify([{...initial[0],title:"Edited A",name:"Edited A"},initial[1]]),"a");
+  const b=createLibraryChange(key,JSON.stringify(initial),JSON.stringify([initial[0],{...initial[1],title:"Edited B",name:"Edited B"}]),"b");
+  expect((await post(a)).status).toBe(200);
+  let second=await post(b);
+  if(second.status===409&&!second.payload.conflicts) second=await callLibrary({method:"POST",body:JSON.stringify({key,baseRevision:second.payload.currentRevision,libraryChange:b})});
+  expect(second.status).toBe(200);
+  expect(JSON.parse(mock.getDatabaseEntry().value).map(row=>row.title)).toEqual(["Edited A","Edited B"]);
+  const count=mock.rpcWrites.length;
+  const oldTab=await callLibrary({method:"POST",body:JSON.stringify({key,baseRevision:1,value:JSON.stringify(initial)})});
+  expect(oldTab.status).toBe(409);expect(mock.rpcWrites).toHaveLength(count);
+  const replay=await post(a);expect(replay.status).toBe(200);expect(replay.payload.libraryChange.id).toBe("a");expect(mock.rpcWrites).toHaveLength(count);
+  const conflict=createLibraryChange(key,JSON.stringify(initial),JSON.stringify([{...initial[0],title:"Other A"},initial[1]]),"conflict");
+  expect((await post(conflict)).status).toBe(409);expect(mock.rpcWrites).toHaveLength(count);
+  const wrong=await callLibrary({method:"POST",body:JSON.stringify({key:scheduleKey,libraryChange:a})});expect(wrong.status).toBe(400);
+ }finally{global.fetch=originalFetch;restoreEnv(env);}
+});
+}
+
+for (const denied of [false,true]) {
+  test(`library GET reports explicit policy denial separately from authorized absence (${denied})`,async()=>{
+    const env=snapshotEnv(),originalFetch=global.fetch;configureDatabaseMode();
+    const keys=["football-session-exercise-library-v1","football-session-exercise-library-folders-v1"];
+    const hub={organizationId:"global",key:"football-workspace-hub-v3",moduleId:"workspace-hub",revision:1,removed:false,
+      value:JSON.stringify({workspaceAccess:{"session-planner":{view:denied?["admin"]:["admin","guest"],edit:["admin"]}}})};
+    const mock=createConsistencyFetchMock(hub);
+    global.fetch=async(url,options)=>{
+      if(String(url).includes("/rest/v1/platform_app_state_records?")) return new Response(JSON.stringify([toDatabaseRow(hub)]));
+      if(String(url).includes("/auth/v1/")) return new Response(JSON.stringify({
+        id:`library-access-guest-${denied}`,email:"library-access@footballscience.test",app_metadata:{role:"guest",status:"active"},user_metadata:{}
+      }),{status:200});
+      return mock.fetchMock(url,options);
+    };
+    try {
+      const result=await callHandler({url:`/api/app-state?fresh=1&keys=${keys.join(',')}`,headers:{authorization:`Bearer library-read-${denied}`}});
+      expect(result.status).toBe(200);expect(result.payload.entries).toEqual({});
+      expect(result.payload.deniedKeys).toEqual(denied?keys:[]);
+      expect(result.payload.absentKeys).toEqual(denied?[]:keys);
+      expect(mock.rpcWrites).toEqual([]);
+    }finally{global.fetch=originalFetch;restoreEnv(env);}
+  });
+}

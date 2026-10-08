@@ -103,6 +103,18 @@ export function createExerciseLibraryActions(options = {}) {
   const getUiState = typeof options.getUiState === "function" ? options.getUiState : defaultGetUiState;
   const setUiState = typeof options.setUiState === "function" ? options.setUiState : defaultNoop;
 
+  function completeWrite(result, apply) {
+    if (!result?.then) return apply(result);
+    return result.then(saved => {
+      const outcome = apply(saved);
+      if (saved.saved) showToast(saved.centrallySaved
+        ? saved.cached ? "Saved centrally and available offline." : "Saved centrally. Offline copy unavailable."
+        : "Saved on this device. Waiting for central sync.", saved.centrallySaved ? "success" : "warning");
+      else if (saved.reason) showToast(saved.reason, "warning");
+      return outcome;
+    }).catch(() => { showToast("Saving failed. Keep this page open.", "error"); return false; });
+  }
+
   function rerenderWorkspace() {
     renderWorkspace({ preserveDateStripScroll: true });
   }
@@ -184,7 +196,7 @@ export function createExerciseLibraryActions(options = {}) {
       updatedBy: currentUserId,
       source: "user",
     });
-    const writeResult = writeFolders([newFolder, ...folders]);
+    return completeWrite(writeFolders([newFolder, ...folders]), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The folder could not be saved. No exercises were changed.", "error");
       return;
@@ -201,6 +213,7 @@ export function createExerciseLibraryActions(options = {}) {
         : `Created folder: "${newFolder.name}". Backup could not be updated.`,
       writeResult.backupSaved ? "success" : "warning"
     );
+    });
   }
 
   function updateFolderFromForm(form) {
@@ -234,7 +247,7 @@ export function createExerciseLibraryActions(options = {}) {
       updatedAt: now,
       updatedBy: currentUserId,
     });
-    const writeResult = writeFolders(getFolders().map((item) => (item.id === folder.id ? nextFolder : item)));
+    return completeWrite(writeFolders(getFolders().map((item) => (item.id === folder.id ? nextFolder : item))), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The folder could not be updated. Exercises were not changed.", "error");
       return;
@@ -251,6 +264,7 @@ export function createExerciseLibraryActions(options = {}) {
         : `Updated folder: "${nextFolder.name}". Backup could not be updated.`,
       writeResult.backupSaved ? "success" : "warning"
     );
+    });
   }
 
   async function archiveFolder(folderId) {
@@ -273,7 +287,7 @@ export function createExerciseLibraryActions(options = {}) {
     }
     const now = getNow();
     const currentUserId = getUserId();
-    const writeResult = writeFolders(
+    return completeWrite(writeFolders(
       getFolders().map((item) =>
         item.id === folder.id
           ? {
@@ -285,7 +299,7 @@ export function createExerciseLibraryActions(options = {}) {
             }
           : item
       )
-    );
+    ), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The folder could not be archived. Exercises were not changed.", "error");
       return;
@@ -299,6 +313,7 @@ export function createExerciseLibraryActions(options = {}) {
     });
     rerenderWorkspace();
     showToast(`Archived folder: "${folder.name}". Exercises stayed saved.`);
+    });
   }
 
   function restoreFolder(folderId) {
@@ -312,7 +327,7 @@ export function createExerciseLibraryActions(options = {}) {
     const now = getNow();
     const currentUserId = getUserId();
     const restoredName = getUniqueFolderName(folder.name, folder.id);
-    const writeResult = writeFolders(
+    return completeWrite(writeFolders(
       getFolders().map((item) =>
         item.id === folder.id
           ? {
@@ -325,7 +340,7 @@ export function createExerciseLibraryActions(options = {}) {
             }
           : item
       )
-    );
+    ), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The folder could not be restored. Exercises were not changed.", "error");
       return;
@@ -343,6 +358,7 @@ export function createExerciseLibraryActions(options = {}) {
         : `Restored folder: "${restoredName}". Backup could not be updated.`,
       writeResult.backupSaved ? "success" : "warning"
     );
+    });
   }
 
   function addExerciseToFolder(exerciseId, folderId) {
@@ -367,7 +383,7 @@ export function createExerciseLibraryActions(options = {}) {
     }
     const now = getNow();
     const currentUserId = getUserId();
-    const writeResult = writeFolders(
+    return completeWrite(writeFolders(
       getFolders().map((item) =>
         item.id === folder.id
           ? {
@@ -378,7 +394,7 @@ export function createExerciseLibraryActions(options = {}) {
             }
           : item
       )
-    );
+    ), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The folder could not be updated. The exercise stayed unchanged.", "error");
       return;
@@ -395,6 +411,7 @@ export function createExerciseLibraryActions(options = {}) {
         : `Added "${exercise.title || "Exercise"}" to "${folder.name}". Backup could not be updated.`,
       writeResult.backupSaved ? "success" : "warning"
     );
+    });
   }
 
   function removeExerciseFromFolder(exerciseId, folderId = getUiState().selectedFolderId) {
@@ -413,7 +430,7 @@ export function createExerciseLibraryActions(options = {}) {
     }
     const now = getNow();
     const currentUserId = getUserId();
-    const writeResult = writeFolders(
+    return completeWrite(writeFolders(
       getFolders().map((item) =>
         item.id === folder.id
           ? {
@@ -424,7 +441,7 @@ export function createExerciseLibraryActions(options = {}) {
             }
           : item
       )
-    );
+    ), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The folder could not be updated. The exercise stayed in place.", "error");
       return;
@@ -438,6 +455,7 @@ export function createExerciseLibraryActions(options = {}) {
         : `Removed "${exercise.title || "Exercise"}" from "${folder.name}". Backup could not be updated.`,
       writeResult.backupSaved ? "success" : "warning"
     );
+    });
   }
 
   function getExerciseEditSnapshot(source = {}) {
@@ -511,7 +529,7 @@ export function createExerciseLibraryActions(options = {}) {
       versions: [createVersionSnapshot(exercise, "Duplicated from original")],
     });
     const library = getExercises().map(cloneExercise);
-    const writeResult = writeExercises([duplicate, ...library]);
+    return completeWrite(writeExercises([duplicate, ...library]), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The duplicate could not be saved. The library was not changed.", "error");
       return;
@@ -529,6 +547,7 @@ export function createExerciseLibraryActions(options = {}) {
         : `Duplicated and saved: "${duplicate.title}". Backup could not be updated.`,
       writeResult.backupSaved ? "success" : "warning"
     );
+    });
   }
 
   function updateExerciseFromEdit(exerciseId) {
@@ -564,7 +583,7 @@ export function createExerciseLibraryActions(options = {}) {
       updatedBy: currentUserId,
       versions: appendVersion(exercise, "Edited"),
     });
-    const writeResult = writeExercises(getExercises().map((item) => (item.id === exercise.id ? nextExercise : item)));
+    return completeWrite(writeExercises(getExercises().map((item) => (item.id === exercise.id ? nextExercise : item))), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The edit could not be saved. The original exercise stayed intact.", "error");
       return;
@@ -578,6 +597,7 @@ export function createExerciseLibraryActions(options = {}) {
         : `Updated in library: "${nextExercise.title}". Backup could not be updated.`,
       writeResult.backupSaved ? "success" : "warning"
     );
+    });
   }
 
   function saveExerciseEditAsCopy(exerciseId) {
@@ -609,7 +629,7 @@ export function createExerciseLibraryActions(options = {}) {
       source: "edited-copy",
       versions: [createVersionSnapshot(exercise, "Copied before edit")],
     });
-    const writeResult = writeExercises([copiedExercise, ...getExercises()]);
+    return completeWrite(writeExercises([copiedExercise, ...getExercises()]), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The copy could not be saved. The original exercise stayed intact.", "error");
       return;
@@ -626,6 +646,7 @@ export function createExerciseLibraryActions(options = {}) {
         : `Saved copy: "${copiedExercise.title}". Backup could not be updated.`,
       writeResult.backupSaved ? "success" : "warning"
     );
+    });
   }
 
   function commitExercise(exercise, mode = "new", existingExerciseId = "") {
@@ -683,7 +704,7 @@ export function createExerciseLibraryActions(options = {}) {
         toastMessage = `Duplicated and saved: "${nextExerciseTitle || "Untitled Exercise"}".`;
       }
     }
-    const writeResult = writeExercises(library);
+    return completeWrite(writeExercises(library), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The library could not be saved. Nothing was overwritten.", "error");
       return false;
@@ -704,6 +725,7 @@ export function createExerciseLibraryActions(options = {}) {
       writeResult.backupSaved ? "success" : "warning"
     );
     return true;
+    });
   }
 
   function queueSaveConflict(exercise, existingExercise) {
@@ -775,7 +797,7 @@ export function createExerciseLibraryActions(options = {}) {
     }
     const now = getNow();
     const currentUserId = getUserId();
-    const writeResult = writeExercises(
+    return completeWrite(writeExercises(
       library.map((item) =>
         item.id === exerciseId
           ? {
@@ -787,7 +809,7 @@ export function createExerciseLibraryActions(options = {}) {
             }
           : item
       )
-    );
+    ), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The library could not be updated. The exercise stayed active.", "error");
       return;
@@ -795,6 +817,7 @@ export function createExerciseLibraryActions(options = {}) {
     setExercises(writeResult.exercises);
     rerenderWorkspace();
     showToast(`Archived in library: "${exercise.title || "Exercise"}".`);
+    });
   }
 
   function restoreExercise(exerciseId) {
@@ -812,7 +835,7 @@ export function createExerciseLibraryActions(options = {}) {
     }
     const now = getNow();
     const currentUserId = getUserId();
-    const writeResult = writeExercises(
+    return completeWrite(writeExercises(
       library.map((item) =>
         item.id === exerciseId
           ? {
@@ -824,7 +847,7 @@ export function createExerciseLibraryActions(options = {}) {
             }
           : item
       )
-    );
+    ), (writeResult) => {
     if (!writeResult.saved) {
       showToast("The exercise could not be restored. It stayed archived.", "error");
       return;
@@ -832,6 +855,7 @@ export function createExerciseLibraryActions(options = {}) {
     setExercises(writeResult.exercises);
     rerenderWorkspace();
     showToast(`Restored to library: "${exercise.title || "Exercise"}".`);
+    });
   }
 
   return Object.freeze({

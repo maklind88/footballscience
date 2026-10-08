@@ -152,7 +152,8 @@ const dataSafetyContracts = Object.freeze([
     key: "football-session-exercise-library-v1",
     recordType: "exercise-library",
     mergePolicy: dataSafetyMergePolicies.appendPreserveNewer,
-    staleWriteStrategy: "merge",
+    // Legacy whole-library writes cannot prove which records the user edited.
+    staleWriteStrategy: "reject",
   }),
   freezeContract({
     moduleId: "exercise-library",

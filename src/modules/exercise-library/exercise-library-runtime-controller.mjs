@@ -1,3 +1,4 @@
+import { prepareLibraryViewChange } from "./library-view-changes.mjs";
 import { reuseUnchangedLibraryBackup } from "./exercise-library-backup-value.mjs";
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 
@@ -51,6 +52,8 @@ export function createExerciseLibraryRuntimeController(options = {}) {
     foldersBackup: options.exerciseLibraryFoldersBackupStorageKey,
   };
   let snapshotRecoveryQueued = false;
+  const observedLibraryValues = new Map();
+  let retainedLibraryEdit = null;
 
   function actions() {
     return getActions() || {};
@@ -138,6 +141,22 @@ export function createExerciseLibraryRuntimeController(options = {}) {
 
   function writeSessionPlannerExerciseLibraryToStorage(exercises = []) {
     const normalizedLibrary = normalizeSessionPlannerExerciseLibraryList(exercises);
+    const bridge = win.footballScienceCentralState;
+    if (bridge?.usesLibraryStorage?.(storageKeys.exercises)) {
+      const beforeView = getExerciseLibrary() || readSessionPlannerExerciseLibrary();
+      const observed = observedLibraryValues.get(storageKeys.exercises);
+      if (!observed || observed.scope !== bridge.getReadScope?.()) return Promise.resolve(createSafeStorageResult("exercises", normalizedLibrary, new Error("Reload this library before editing.")));
+      const change = prepareLibraryViewChange(storageKeys.exercises, observed.value, beforeView, normalizedLibrary,
+        retainedLibraryEdit?.scope === observed.scope && retainedLibraryEdit.id === state().editExerciseId ? retainedLibraryEdit : null);
+      return bridge.saveLibrary(storageKeys.exercises, change.before, change.after).then(result => {
+        if (result.saved && observed.scope === bridge.getReadScope?.()) observedLibraryValues.set(storageKeys.exercises, { scope: observed.scope, value: result.value });
+        return {
+          ...result, backupSaved: Boolean(result.centrallySaved || result.locallySaved),
+          exercises: result.saved ? normalizeSessionPlannerExerciseLibraryList(JSON.parse(result.value)) : normalizedLibrary,
+          error: result.saved ? null : new Error(result.reason),
+        };
+      });
+    }
     try {
       win.localStorage.setItem(storageKeys.exercises, JSON.stringify(normalizedLibrary));
     } catch (error) {
@@ -163,6 +182,7 @@ export function createExerciseLibraryRuntimeController(options = {}) {
 
   async function findSessionPlannerExerciseLibraryInSnapshots() {
     if (!openDataSafetyDatabase || !options.dataSafetySnapshotStoreName) return null;
+    const expectedScope = win.footballScienceCentralState?.getReadScope?.() || "";
     try {
       const database = await openDataSafetyDatabase();
       const snapshots = await new Promise((resolve, reject) => {
@@ -175,6 +195,7 @@ export function createExerciseLibraryRuntimeController(options = {}) {
         String(b?.createdAt || b?.id || "").localeCompare(String(a?.createdAt || a?.id || ""))
       );
       for (const snapshot of orderedSnapshots) {
+        if (expectedScope && (win.footballScienceCentralState?.getReadScope?.() !== expectedScope || snapshot.saveContext?.scope !== expectedScope)) continue;
         const storage = snapshot?.storage && typeof snapshot.storage === "object" ? snapshot.storage : {};
         const candidates = [storage[storageKeys.exercises], storage[storageKeys.exercisesBackup]];
         for (const rawLibrary of candidates) {
@@ -205,6 +226,13 @@ export function createExerciseLibraryRuntimeController(options = {}) {
   }
 
   function readSessionPlannerExerciseLibrary() {
+    const bridge = win.footballScienceCentralState;
+    if (bridge?.usesLibraryStorage?.(storageKeys.exercises)) {
+      const value = bridge.getCachedValue?.(storageKeys.exercises);
+      if (typeof value === "string") observedLibraryValues.set(storageKeys.exercises, { scope: bridge.getReadScope?.(), value });
+      try { return normalizeSessionPlannerExerciseLibraryList(typeof value === "string" ? JSON.parse(value) : []); }
+      catch { return []; }
+    }
     const mainLibrary = readSessionPlannerExerciseLibraryFromStorage(storageKeys.exercises);
     if (mainLibrary) return mainLibrary.exercises;
     const backupLibrary = readSessionPlannerExerciseLibraryFromStorage(storageKeys.exercisesBackup);
@@ -269,6 +297,21 @@ export function createExerciseLibraryRuntimeController(options = {}) {
 
   function writeSessionPlannerExerciseLibraryFoldersToStorage(folders = []) {
     const normalizedFolders = normalizeSessionPlannerExerciseLibraryFolders(folders);
+    const bridge = win.footballScienceCentralState;
+    if (bridge?.usesLibraryStorage?.(storageKeys.folders)) {
+      const beforeView = getExerciseFolders() || readSessionPlannerExerciseLibraryFolders();
+      const observed = observedLibraryValues.get(storageKeys.folders);
+      if (!observed || observed.scope !== bridge.getReadScope?.()) return Promise.resolve(createSafeStorageResult("folders", normalizedFolders, new Error("Reload this library before editing.")));
+      const change = prepareLibraryViewChange(storageKeys.folders, observed.value, beforeView, normalizedFolders);
+      return bridge.saveLibrary(storageKeys.folders, change.before, change.after).then(result => {
+        if (result.saved && observed.scope === bridge.getReadScope?.()) observedLibraryValues.set(storageKeys.folders, { scope: observed.scope, value: result.value });
+        return {
+          ...result, backupSaved: Boolean(result.centrallySaved || result.locallySaved),
+          folders: result.saved ? normalizeSessionPlannerExerciseLibraryFolders(JSON.parse(result.value)) : normalizedFolders,
+          error: result.saved ? null : new Error(result.reason),
+        };
+      });
+    }
     try {
       win.localStorage.setItem(storageKeys.folders, JSON.stringify(normalizedFolders));
     } catch (error) {
@@ -293,6 +336,13 @@ export function createExerciseLibraryRuntimeController(options = {}) {
   }
 
   function readSessionPlannerExerciseLibraryFolders() {
+    const bridge = win.footballScienceCentralState;
+    if (bridge?.usesLibraryStorage?.(storageKeys.folders)) {
+      const value = bridge.getCachedValue?.(storageKeys.folders);
+      if (typeof value === "string") observedLibraryValues.set(storageKeys.folders, { scope: bridge.getReadScope?.(), value });
+      try { return normalizeSessionPlannerExerciseLibraryFolders(typeof value === "string" ? JSON.parse(value) : []); }
+      catch { return []; }
+    }
     const mainFolders = readSessionPlannerExerciseLibraryFoldersFromStorage(storageKeys.folders);
     if (mainFolders) return mainFolders.folders;
     const backupFolders = readSessionPlannerExerciseLibraryFoldersFromStorage(storageKeys.foldersBackup);
@@ -315,6 +365,7 @@ export function createExerciseLibraryRuntimeController(options = {}) {
     const currentLibrary = getExerciseLibrary();
     if (!Array.isArray(currentLibrary)) return false;
     const result = writeSessionPlannerExerciseLibraryToStorage(currentLibrary);
+    if (result?.then) return result.then(saved => { if (saved.saved) setExerciseLibrary(saved.exercises); return saved.saved; });
     if (result.saved) setExerciseLibrary(result.exercises);
     return result.saved;
   }
@@ -651,6 +702,9 @@ export function createExerciseLibraryRuntimeController(options = {}) {
       showToast("Restore the exercise before editing it.", "warning");
       return;
     }
+    const observed = observedLibraryValues.get(storageKeys.exercises);
+    const raw = observed && JSON.parse(observed.value).find(row => row.id === exercise.id);
+    retainedLibraryEdit = raw ? { id: exercise.id, scope: observed.scope, raw: structuredClone(raw), view: structuredClone(exercise) } : null;
     setUiState({ editExerciseId: exercise.id, viewExerciseId: "", filterOpen: "" });
     renderWorkspace({ preserveDateStripScroll: true });
   }

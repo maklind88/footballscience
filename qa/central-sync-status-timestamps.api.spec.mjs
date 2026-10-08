@@ -369,6 +369,8 @@ function createHarness() {
   const context = {
     centralState, authState,
     pendingCentralHydration: null,
+    librarySaveBridge: null,
+    getLibrarySaveBridge: async () => ({ prepare: async () => {}, offline: async () => {}, replay: async () => {} }),
     readCentralSyncManifestEntries: () => ({}),
     readCentralStateBatches: async () => ({ ok: true, payload: { entries: { profile: "{}" } } }),
     applyCentralStateEntries: async () => {},
@@ -485,6 +487,7 @@ for (const signOut of [false, true]) {
     };
     h.context.applyCentralStateEntries = async () => { applied += 1; };
     const first = h.api.hydrateCentralState();
+    await expect.poll(() => reads).toBe(1);
     h.authState.session.access_token = "rotated";
     const queued = h.api.hydrateCentralState({ fresh: true });
     const coalesced = h.api.hydrateCentralState({ fresh: true });
@@ -516,6 +519,7 @@ for (const changedScope of [false, true]) {
       return { ok: true, payload: { entries: { profile: "{}" } } };
     };
     const active = h.api.hydrateCentralState();
+    await expect.poll(() => calls).toBe(1);
     const forced = h.api.hydrateCentralState({ forceApply: true });
     if (changedScope) h.authState.currentUser.organizationId = "new-org";
     const fresh = h.api.hydrateCentralState({ fresh: true });
@@ -545,8 +549,7 @@ test("an already-hydrated conflict caller waits for the actual coalesced read an
   releaseFirst(); await active;
   expect(returned).toBe(false);
   const drain = h.timers.shift()();
-  await Promise.resolve();
-  expect(reads).toBe(2);
+  await expect.poll(() => reads).toBe(2);
   expect(returned).toBe(false);
   releaseSecond(); await drain;
   expect(await conflict).toBe(false);

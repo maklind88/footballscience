@@ -3661,7 +3661,14 @@ module.exports = async (req, res) => {
         ...stateObjects.entries, ...Object.fromEntries(missingKeys.map((key) => [key, "{}"])),
       });
       const absentKeys = missingKeys.filter((key) => Object.hasOwn(readableMissing, key));
+      // Explicit read-policy evidence; an omitted response alone is not revocation.
+      const libraryKeys = [SESSION_EXERCISE_LIBRARY_KEY, SESSION_EXERCISE_LIBRARY_FOLDERS_KEY]
+        .filter(key => !requestedKeys || requestedKeys.includes(key));
+      const libraryAccess = filterStateEntriesForActor(actor, { ...stateObjects.entries,
+        ...Object.fromEntries(libraryKeys.map(key => [key, "[]"])) });
+      const deniedKeys = libraryKeys.filter(key => !Object.hasOwn(libraryAccess, key));
       return sendJson(res, 200, {
+        deniedKeys,
         ok: true,
         absentKeys,
         entries: Object.hasOwn(entries, SESSION_PLANNER_KEY) ? {
@@ -3737,6 +3744,7 @@ module.exports = async (req, res) => {
     let sessionChange = null;
     let sessionProtocol = null;
     let sessionIdentity = null;
+    let libraryChange = null;
     let setPieceChange = null;
     let setPiecesProtocol = null;
     let incomingValue;
@@ -3766,6 +3774,26 @@ module.exports = async (req, res) => {
         incomingValue = JSON.stringify(merged.state);
       } catch (error) {
         return sendJson(res, error.status || 400, { ok: false, reason: error.message || "Invalid session date change." });
+      }
+    } else if (body?.libraryChange !== undefined) {
+      if (![SESSION_EXERCISE_LIBRARY_KEY, SESSION_EXERCISE_LIBRARY_FOLDERS_KEY].includes(key)) {
+        return sendJson(res, 400, { ok: false, reason: "Record changes are only supported for the Exercise Library." });
+      }
+      const access = await measure("authorize", () => authorizeStateWrite(actor, key, previousEntry?.value || "[]", false, { previousEntry, clientBaseRevision }));
+      if (!access.ok) return sendJson(res, access.status || 403, { ok: false, reason: access.reason });
+      if (!isAppStateDatabaseEnabled()) return sendJson(res, 503, { ok: false, reason: "Versioned library storage is unavailable. Local changes were retained." });
+      try {
+        const protocol = await import("../src/modules/exercise-library/library-save-protocol.mjs");
+        libraryChange = body.libraryChange;
+        if (libraryChange?.key !== key) throw new Error("Library change key mismatch.");
+        const applied = protocol.applyLibraryChange(previousEntry?.value || "[]", libraryChange);
+        if (!applied.ok) return sendJson(res, 409, { ok: false, reason: "This library record has conflicting changes. Your version was retained.", conflicts: applied.conflicts, currentRevision: previousEntry?.revision || 0 });
+        if (applied.unchanged && previousEntry?.revision > 0) return sendJson(res, 200, {
+          ok: true, key, value: previousEntry.value, metadata: getStateEntryMetadata(previousEntry), libraryChange: { id: libraryChange.id },
+        });
+        incomingValue = applied.value;
+      } catch (error) {
+        return sendJson(res, 400, { ok: false, reason: error.message || "Invalid library change." });
       }
     } else if (body?.setPieceChange !== undefined) {
       if (key !== SET_PIECES_ROOM_KEY) {
@@ -3813,7 +3841,8 @@ module.exports = async (req, res) => {
 
     // The date protocol has already performed a three-way merge against fresh server content.
     // Legacy timestamp heuristics must not silently undo an explicitly reviewed change.
-    if (sessionChange) authorization.value = incomingValue;
+    if (sessionChange || libraryChange) authorization.value = incomingValue;
+    if (libraryChange) authorization.merged = true;
     if (setPieceChange) {
       authorization.value = incomingValue;
       authorization.merged = true;
@@ -3824,7 +3853,7 @@ module.exports = async (req, res) => {
       return sendJson(res, contentSafety.status || 400, contentSafety);
     }
 
-    const staleWrite = getStaleWriteRejection(
+    const staleWrite = libraryChange ? null : getStaleWriteRejection(
       contract,
       previousEntry,
       authorization,
@@ -3931,6 +3960,7 @@ module.exports = async (req, res) => {
       organizationId: persistedEntry.organizationId,
       moduleId: persistedEntry.moduleId,
       value: responseValue,
+      ...(libraryChange ? { libraryChange: { id: libraryChange.id } } : {}),
       ...(dateReceipt ? { sessionChange: encodedReceipt } : {}),
       ...(setPieceReceipt ? { setPieceChange: setPieceReceipt } : {}),
       metadata: getStateEntryMetadata(persistedEntry),

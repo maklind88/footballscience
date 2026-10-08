@@ -6,7 +6,7 @@ Baseline: 65478a34df10687e8b7101a84ec627bddc65ffb6. Worktree: codex/save-accepta
 
 ## Decision
 
-Finish the actual incident diagnosis and test online saving plus short interruptions before enabling more offline behavior. Preserve all pending work and legacy copies. Do not delete, replay or choose a real user's retained version. A green release is not a platform-wide acceptance certificate. This task has no new release authorization.
+Finish the actual incident diagnosis and test online saving plus short interruptions before enabling more offline behavior. Preserve all pending work and legacy copies. Do not delete, replay or choose a real user's retained version. A green release is not a platform-wide acceptance certificate. Production publication remains outside this task. The user continued the explicitly proposed staging-only recovery; it does not authorize publishing the candidate to production.
 
 ## Current evidence
 
@@ -17,12 +17,12 @@ Finish the actual incident diagnosis and test online saving plus short interrupt
 - The native storage diagnostic measured approximately 7.82 MiB in 32 entries: Library 2.53 MiB, Library Backup 2.53 MiB, Player Profiles 1.32 MiB. Both legacy Library copies matched 49 exercise payloads. This is not a central receipt or deletion permission. Origin estimate: 60.29 MiB; localStorage headroom is unknown. One account/team pending module marker, zero native recovery-copy keys. IndexedDB stores were not yet measured.
 - The profile status separately reported a stale Home write rejected by newer central state. Its relationship to the reported Medical/Sessions incident is unproven and no Home implementation is changed here.
 
-## Staging acceptance blocked by version drift
+## Staging version drift and verified recovery
 
 - Run 37782114740 failed `Future activity replaced newer Medical edit`. Run-owned Medical fixtures were archived and temporary-account cleanup completed. Sessions acceptance was not reached.
 - This run pinned the build reported by staging, but subsequent deployment inspection proved that staging served old commit c1b1821ab796bb680eb3480979542b6a461af964, deployment dpl_FDBULqi5jGigvky6VoXPUqp7Ju86. Current Medical view preferences and Sessions review files returned 404; medical-merge.js did not match the reviewed source. This failure is not evidence against candidate 65478a34.
 - The previously successful staging deployment still exists: dpl_5oarFoQrEzZ1WpJQtAnGd5ee3dhr, footballscience-78h9hb2jb-makattack.vercel.app, from the recorded successful release run 37724366699. Its protected client configuration confirms the staging database.
-- Restoring staging routing requires a direct user release/staging instruction under AGENTS.md. Production remains 65478a34. No alias or deployment was changed in this diagnosis.
+- Following the user's continuation of the proposed staging-only recovery, run 37826930299 restored only staging to dpl_5oarFoQrEzZ1WpJQtAnGd5ee3dhr. It verified nine public source assets against 65478a34 before and after, the canonical project/team, staging database, and unchanged production routing. Production remains 65478a34. This restored an existing deployment; it did not publish the candidate.
 - Acceptance must reject mismatched reviewed frontend bytes before credentials or synthetic fixture creation. A matching self-reported build id alone proves consistency with that id, not that the selected deployment contains the intended change.
 
 ## Acceptance ledger
@@ -31,9 +31,9 @@ Finish the actual incident diagnosis and test online saving plus short interrupt
 | --- | --- | --- |
 | Actual incident record visible on selected date | Observed, including reload | Observed after date selection; reload date reset remains |
 | Current user's unresolved review diagnosis | Not applicable to current Medical view | No unresolved rows in inspected context; other device unknown |
-| Exact currently deployed staging two-user proof | Blocked: wrong staging code served | Not reached in failed run |
-| Central confirmation distinguished from local/queued state | Existing targeted tests; full failure matrix incomplete | Existing receipt/journal tests; current staging proof pending |
-| Full local storage plus unavailable IndexedDB | Memory fallback is not durable; cannot certify crash recovery | Existing journal evidence; current acceptance pending |
+| Exact currently deployed staging two-user proof | Passed on restored 65478a34 deployment: distinct writers, stale future-date edit and archive protection | Passed on restored deployment: two authenticated browsers, independent edits, short offline interval, reconnect, reload and explicit conflict review |
+| Central confirmation distinguished from local/queued state | Existing targeted tests; full failure matrix incomplete | Receipt/journal tests plus deployed two-user proof passed for tested cases |
+| Full local storage plus unavailable IndexedDB | Memory fallback is not durable; cannot certify crash recovery | Deployed short-interruption acceptance passed; full-storage/crash matrix remains incomplete |
 | Crash, lost server reply, account switch and pending work | Not certified against full matrix | Partial prior evidence, not complete module certification |
 | Physical storage inventory and safe legacy cleanup | IndexedDB inventory pending; no cleanup | IndexedDB inventory pending; no cleanup |
 
@@ -49,7 +49,7 @@ No cache purge, native copy removal, clinical restoration, new offline-module ac
 - Three local regressions proved that Medical non-quota storage failures did not return failure or report the issue through the shared save status. The minimal correction retains the draft, returns false and reports unconfirmed saving. It never retries around a permission/hydration guard and does not claim memory is durable.
 - Sessions date navigation intentionally updates transient state without saving coaching content. The observed reset after reload is recorded as a view limitation; this candidate does not change its contract.
 
-Production remains unchanged. New diagnostic UI measurements require a separately authorized release. Restoring the reviewed staging alias has been proposed for direct approval; no approval has yet been received.
+Production remains unchanged. New diagnostic UI measurements require a separately authorized candidate release. The reviewed prior staging deployment has been restored; this does not publish the new diagnostic UI or Medical failure-reporting correction.
 
 ## Verification results
 
@@ -57,4 +57,15 @@ Production remains unchanged. New diagnostic UI measurements require a separatel
 - 86 focused data-safety, Medical runtime and storage-health API contract tests passed. Three new non-quota Medical failure cases first reproduced the missing issue report and then passed after the correction.
 - 14 focused Chromium and 14 WebKit browser tests passed: saved Medical visibility from both modules, cache/read timing variants, storage diagnostics and retained review versions. These local fixtures do not replace authenticated deployed multi-user acceptance.
 - 10 Node tests for acceptance destination/fixture guards and reviewed frontend verification passed. The frontend guard also rejected the actual stale staging `medical-merge.js` using public GET requests only, before any login or fixture creation. This rejection is the intended safety result, not a passing staging acceptance.
-- Pending: direct authorization to restore reviewed staging routing, then authenticated acceptance on verified matching frontend/backend. Current candidate bytes differ from the prior release; candidate acceptance must use a separately approved candidate staging deployment or be explicitly labelled an overlay. A restored prior deployment can certify only that prior release.
+- Deployed two-user acceptance passed in run 37827357468 against main 65478a34 and exact deployment dpl_5oarFoQrEzZ1WpJQtAnGd5ee3dhr, without candidate overlays. It certifies only the tested prior-release behavior. Current candidate bytes differ: candidate release verification remains separate.
+
+## Staging recovery implementation and remaining boundaries
+
+- An optional recovery mode in Staging Smoke uses the shared non-cancelling production-edge queue. It requires an exact clean workflow checkout and a reviewed ancestor SHA, runs the release traffic guard, rejects noncanonical targets and verifies nine public files before assigning only the staging alias. It verifies the resulting alias and unchanged production routing afterward. Public-file matching is not a general attestation of every server function.
+- Eighteen new recovery-policy tests, eleven existing release-automation contracts and the full static gate passed. Initial runs 37826284770 and 37826590930 stopped before mutation because the disposable container needed an explicit trusted checkout path and the GitHub CLI. Both prerequisites were corrected without weakening the traffic or exact-SHA checks.
+- Recovery run 37826930299 completed successfully. Its authenticated staging smoke passed six cases; two skipped cases cover admin Access & Users and peer DM receipts, so those are not claimed as verified. The separate Medical HTTP boundary passed eleven checks without clinical reads/writes.
+- Why staging originally drifted to the old deployment remains unproven. The old public app-runtime also differed, so runtime equality alone does not explain the observed drift. No actor or causal release is attributed.
+- Outstanding: deploy and measure the new local-storage inventory on the affected device; Medical durable pending-work recovery; lost-response/crash/account-switch acceptance; safely retire legacy copies only after verified central/durable coverage; certify the other modules individually. No real user copy was deleted or replayed.
+
+- Acceptance run 37827357468 completed successfully: one combined saving acceptance passed, followed by six staging smoke cases and eleven Medical boundary checks (the same two unrelated smoke skips). Run-owned Medical fixtures were archived, own Sessions blocks tombstoned, and audit/empty test-date records retained intentionally. The test closes both browser writers before cleanup and requires temporary-account/session cleanup to succeed. Unrelated Medical records and Sessions dates were verified unchanged.
+- Final public configuration probes confirmed production build 65478a34df10687e8b7101a84ec627bddc65ffb6 and staging build dpl_5oarFoQrEzZ1WpJQtAnGd5ee3dhr. No candidate integration into main or production occurred.

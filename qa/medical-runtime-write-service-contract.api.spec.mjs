@@ -288,3 +288,14 @@ test("Medical runtime write service preserves plans, clearance, roster upsert, a
   harness.service.shiftMedicalSelectedDate(1);
   expect(harness.getState().selectedDate).toBe("2026-06-04");
 });
+
+test('Medical date and player navigation persist only view preferences', () => {
+  const writes = [];
+  const h = createHarness({ deps: { writeMedicalState: options => writes.push(options) } });
+  const records = JSON.stringify(h.getState().records);
+  h.service.setMedicalSelectedDate('2026-06-01');
+  h.service.openMedicalPlayerModal('p2');
+  expect(writes).toEqual([{ viewOnly: true }, { viewOnly: true }]);
+  expect(JSON.stringify(h.getState().records)).toBe(records);
+  expect(h.commits).toEqual([]);
+});

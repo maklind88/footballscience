@@ -383,7 +383,7 @@ export function createMedicalRuntimeWriteService(deps = {}) {
     medicalState.selectedPlayerId = playerId;
     setMedicalPlayerModalOpen(true);
     setMedicalPlayerModalTab("availability");
-    writeMedicalState();
+    writeMedicalState({ viewOnly: true });
     renderMedicalTeamWorkspace();
 
     const statusLoad = loadMedicalPlayerRtpCoachStatus(playerId);
@@ -404,7 +404,7 @@ export function createMedicalRuntimeWriteService(deps = {}) {
     }
     const medicalState = readState();
     medicalState.selectedDate = dateValue;
-    writeMedicalState();
+    writeMedicalState({ viewOnly: true });
     renderMedicalTeamWorkspace();
   }
 

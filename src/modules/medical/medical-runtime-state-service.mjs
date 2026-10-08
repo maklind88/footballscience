@@ -1,3 +1,5 @@
+import { createMedicalViewPreferences } from "./medical-view-preferences.mjs";
+
 export function createMedicalRuntimeStateService(deps = {}) {
   const {
     archiveMedicalPlayersRemovedFromSquad = () => {},
@@ -37,6 +39,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     setMedicalState = () => {},
     win = globalThis,
   } = deps;
+  const viewPreferences = createMedicalViewPreferences({ win, isDateValue: isMedicalDateValue, logEvent });
   let medicalReadBatchDepth = 0;
 
   function isStorageQuotaError(error) {
@@ -499,7 +502,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
           logEvent("Medical Team data loaded; the browser cache could not be updated.");
         }
       }
-      return state;
+      return viewPreferences.apply(state);
     } catch {
       const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState({}));
       try {
@@ -507,11 +510,12 @@ export function createMedicalRuntimeStateService(deps = {}) {
       } catch {
         logEvent("Medical Team data could not be written to local storage.");
       }
-      return state;
+      return viewPreferences.apply(state);
     }
   }
 
-  function writeMedicalState() {
+  function writeMedicalState({ viewOnly = false } = {}) {
+    if (viewOnly) return viewPreferences.write(getMedicalState());
     const medicalState = getMedicalState();
     if (!medicalState) {
       return;

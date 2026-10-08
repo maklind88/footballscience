@@ -1,8 +1,11 @@
-name: Medical visibility diagnostic
+name: Medical save regression
 on:
   pull_request:
     paths:
       - 'qa/medical-saved-visibility.smoke.spec.mjs'
+      - 'src/modules/medical/medical-view-preferences.mjs'
+      - 'src/modules/medical/medical-runtime-state-service.mjs'
+      - 'src/modules/medical/medical-runtime-write-service.mjs'
       - '.github/workflows/medical-visibility-diagnostic.yml'
 permissions:
   contents: read
@@ -19,7 +22,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: node scripts/ci-install.mjs
-      - run: npm run qa:playwright:ci -- --project=chromium qa/medical-saved-visibility.smoke.spec.mjs --repeat-each=15 --workers=1
+      - run: npm run qa:playwright:ci -- --project=chromium qa/medical-saved-visibility.smoke.spec.mjs --repeat-each=10 --workers=1
       - name: Preserve failed diagnostic evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

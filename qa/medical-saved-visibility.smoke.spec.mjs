@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { installSetPiecesCentralFixture } from './helpers/set-pieces-central-fixture.mjs';
 
-
 const pageErrors = new WeakMap();
 test.beforeEach(async ({ page }) => {
   const errors = [];
@@ -32,7 +31,8 @@ const day = '2026-10-05';
 const medicalKey = 'football-medical-team-v1', profileKey = 'football-player-profiles-v1';
 for (const workspace of ['medical-team', 'session-planner']) {
 for (const cacheFailure of [false, true]) {
-  test(`Centrally saved Medical recommendation survives cold ${workspace} startup and reload (cacheFailure=${cacheFailure})`, async ({ page }) => {
+for (const deferredRead of (workspace === 'medical-team' ? [false, true] : [false])) {
+  test(`Centrally saved Medical recommendation survives cold ${workspace} startup and reload (cacheFailure=${cacheFailure}, deferredRead=${deferredRead})`, async ({ page }) => {
     await page.clock.setFixedTime(new Date((cacheFailure ? '2026-10-07' : day) + 'T16:00:00Z'));
     await installSetPiecesCentralFixture(page);
     if (cacheFailure) await page.addInitScript(key => {
@@ -53,19 +53,20 @@ for (const cacheFailure of [false, true]) {
       players: [player], records: [{ id: 'qa-visible-record', playerId: player.id, date: day,
         participation: 50, actualParticipation: 'not-logged', createdAt: day + 'T08:00:00Z' }], injuryPlans: [] };
     const entries = {
-      [medicalKey]: JSON.stringify(medical),
+      [medicalKey]: JSON.stringify({ ...medical, records: deferredRead ? [] : medical.records }),
       [profileKey]: JSON.stringify({ rosterVersion: 'qa-visibility', players: [player], removedPlayerIds: [] }),
       'football-schedule-v1': JSON.stringify({ events: [{ id: 'qa-training', date: day, type: 'training', title: 'QA training' }] }),
       'football-session-planner-v3': JSON.stringify({ selectedDate: day, sessions: {
         [day]: { date: day, title: 'QA training', blocks: [] },
       } }),
     };
+    let revision = 10;
     await page.route('**/api/app-state**', route => {
       if (route.request().method() !== 'GET') return route.fulfill({ status: 503, json: { ok: false } });
       const keys = new URL(route.request().url()).searchParams.get('keys')?.split(',') || Object.keys(entries);
       return route.fulfill({ json: { ok: true,
         entries: Object.fromEntries(keys.filter(key => key in entries).map(key => [key, entries[key]])),
-        metadata: Object.fromEntries(keys.filter(key => key in entries).map(key => [key, { revision: 10 }])),
+        metadata: Object.fromEntries(keys.filter(key => key in entries).map(key => [key, { revision }])),
         absentKeys: keys.filter(key => !(key in entries)),
       } });
     });
@@ -73,8 +74,8 @@ for (const cacheFailure of [false, true]) {
       await page.waitForFunction(() => window.__footballScienceAppReady && document.querySelector('#loginScreen')?.hidden);
       await page.evaluate(() => document.querySelector('#dashboardModalRoot button[data-dashboard-modal-close]')?.click());
     };
-    const medicalVisible = async () => {
-      await page.getByRole('button', { name: 'Medical', exact: true }).click();
+    const medicalVisible = async (skipNavigation = false) => {
+      if (!skipNavigation) await page.getByRole('button', { name: 'Medical', exact: true }).click();
       const dateInput = page.getByLabel('Selected medical date', { exact: true });
       await dateInput.fill(day);
       await dateInput.dispatchEvent('change');
@@ -96,15 +97,27 @@ for (const cacheFailure of [false, true]) {
     };
     await page.goto('/?workspace=' + workspace);
     await ready();
-    await medicalVisible();
+    if (deferredRead) {
+      await page.getByRole('button', { name: 'Medical', exact: true }).click();
+      await page.getByLabel('Selected medical date', { exact: true }).focus();
+      entries[medicalKey] = JSON.stringify(medical);
+      revision = 11;
+      await page.evaluate(async keys => window.footballScienceCentralState.hydrate({ fresh: true, keys }), [medicalKey, profileKey]);
+      // The verified cache is newer than the focused view. Navigation must not replace it.
+      expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).records.length, medicalKey)).toBe(1);
+    }
+    await medicalVisible(deferredRead);
     await sessionVisible();
     await page.reload();
     await ready();
+    await page.getByRole('button', { name: 'Medical', exact: true }).click();
+    await expect(page.getByLabel('Selected medical date', { exact: true })).toHaveValue(day);
     await sessionVisible();
     await medicalVisible();
     if (cacheFailure) expect(await page.evaluate(() => window.__qaMedicalCacheFailures)).toBeGreaterThan(0);
     // Display initialization must not erase the centrally supplied record from the cache.
     expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).records.some(record => record.id === 'qa-visible-record'), medicalKey)).toBe(true);
   });
+}
 }
 }

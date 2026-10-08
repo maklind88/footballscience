@@ -89,7 +89,8 @@ function createServiceHarness(options = {}) {
     setMedicalState: (nextState) => {
       medicalState = nextState;
     },
-    win: { localStorage: storage, footballScienceDataSafety: { reportSaveIssue: (...args) => issues.push(args) } },
+    win: { localStorage: storage, sessionStorage: options.sessionStorage || createStorage(),
+      footballScienceCentralState: { getReadScope: options.readScope || (() => "qa-scope") }, footballScienceDataSafety: { reportSaveIssue: (...args) => issues.push(args) } },
   });
   return {
     centralWrites,
@@ -590,3 +591,73 @@ for (const outcome of [false, undefined, "throws"]) {
     expect(harness.storage.getItem()).toBe(previous);
   });
 }
+
+for (const canEdit of [true, false]) {
+  test(`Medical view preferences preserve a newer cached clinical generation (can edit: ${canEdit})`, () => {
+    const key = 'football-medical-team-v1';
+    const cached = { selectedDate: '2026-10-07', selectedPlayerId: 'new-player',
+      players: [{ id: 'new-player' }, { id: 'chosen-player' }],
+      records: [{ id: 'new-record', playerId: 'new-player', participation: 50 }],
+      injuryPlans: [{ id: 'new-plan' }], policy: { revision: 3 } };
+    const state = { selectedDate: '2026-10-05', selectedPlayerId: 'chosen-player', players: [], records: [], injuryPlans: [] };
+    const h = createServiceHarness({ canEdit, state, storage: { [key]: JSON.stringify(cached) } });
+    expect(h.service.writeMedicalState({ viewOnly: true })).toBe(true);
+    expect(h.storage.value(key)).toBe(JSON.stringify(cached));
+    expect(h.rawWrites).toEqual([]);
+    expect(h.service.readMedicalState()).toMatchObject({ selectedDate: '2026-10-05', selectedPlayerId: 'chosen-player' });
+    expect(h.centralWrites).toEqual([]);
+    expect(h.getState()).toBe(state);
+    expect(state.records).toEqual([]); // The deferred authorized reload still owns state replacement.
+  });
+}
+
+for (const raw of [null, '{invalid', '[]']) {
+  test(`Medical view preferences never create a clinical snapshot from an unusable cache (${raw})`, () => {
+    const key = 'football-medical-team-v1';
+    const h = createServiceHarness({ canEdit: true, state: { selectedDate: '2026-10-05', records: [] },
+      storage: raw === null ? {} : { [key]: raw } });
+    expect(h.service.writeMedicalState({ viewOnly: true })).toBe(true);
+    expect(h.storage.value(key)).toBe(raw);
+    expect(h.rawWrites).toEqual([]);
+    expect(h.centralWrites).toEqual([]);
+  });
+}
+
+test('Medical view selection survives denied cache writes without queueing clinical data', () => {
+  const raw = JSON.stringify({ selectedDate: '2026-10-07', records: [{ id: 'retained' }] });
+  const state = { selectedDate: '2026-10-05', records: [] };
+  const h = createServiceHarness({ canEdit: true, state, storage: { 'football-medical-team-v1': raw }, sessionStorage: {
+    getItem: () => null, setItem: () => { throw new DOMException('Quota', 'QuotaExceededError'); },
+  } });
+  expect(h.service.writeMedicalState({ viewOnly: true })).toBe(false);
+  expect(h.getState().selectedDate).toBe('2026-10-05');
+  expect(h.centralWrites).toEqual([]);
+  expect(h.issues).toEqual([]);
+  expect(h.logs.at(-1)).toContain('view selection');
+});
+
+for (const storedScope of ['foreign-user-team', '']) {
+  test(`Medical read ignores view preferences from an unauthorized scope (${storedScope})`, () => {
+    const state = createStoredMedicalState();
+    const h = createServiceHarness({ canEdit: true,
+      storage: { 'football-medical-team-v1': JSON.stringify(state) },
+      sessionStorage: createStorage({ 'football-medical-view-v1': JSON.stringify({
+        scope: storedScope, selectedDate: '2026-10-05', selectedPlayerId: 'p1',
+      }) }),
+    });
+    expect(h.service.readMedicalState().selectedDate).toBe(state.selectedDate);
+  });
+}
+
+test('Medical view preferences need an authorized scope and never resurrect an archived selected player', () => {
+  const sessionStorage = createStorage();
+  const h = createServiceHarness({ state: { selectedDate: '2026-10-05' }, readScope: () => '', sessionStorage });
+  expect(h.service.writeMedicalState({ viewOnly: true })).toBe(false);
+  expect(sessionStorage.getItem('football-medical-view-v1')).toBe(null);
+  const stored = createStoredMedicalState();
+  stored.players.push({ id: 'archived', name: 'Archived', archivedAt: '2026-05-30' });
+  const reader = createServiceHarness({ canEdit: true, storage: { 'football-medical-team-v1': JSON.stringify(stored) },
+    sessionStorage: createStorage({ 'football-medical-view-v1': JSON.stringify({ scope: 'qa-scope', selectedDate: 'invalid', selectedPlayerId: 'archived' }) }),
+  });
+  expect(reader.service.readMedicalState()).toMatchObject({ selectedDate: stored.selectedDate, selectedPlayerId: 'p1' });
+});

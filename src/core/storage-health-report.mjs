@@ -1,3 +1,4 @@
+import { collectIndexedDbStorageHealth } from "./indexeddb-storage-health.mjs";
 import { inspectLibraryMirror } from "./library-storage-diagnostic.mjs";
 async function boundedRead(read) {
   let timer;
@@ -9,7 +10,7 @@ async function boundedRead(read) {
 }
 
 // Read-only diagnostics: never return keys, values, identities or error messages.
-export async function collectStorageHealth({ storage, storageLabels = {}, storageKey = "football-data-safety-v1", scope = "", navigatorRef = {} }) {
+export async function collectStorageHealth({ storage, storageLabels = {}, storageKey = "football-data-safety-v1", scope = "", navigatorRef = {}, indexedDB }) {
   const groups = new Map();
   const report = { approximateUtf16Bytes: 0, entries: 0, partial: false, modules: [],
     pendingForCurrentScope: null, recoveryCopies: 0, originUsageBytes: null, originQuotaBytes: null, persistent: null };
@@ -51,5 +52,6 @@ export async function collectStorageHealth({ storage, storageLabels = {}, storag
     }
   }
   if (persistence.status === "fulfilled" && typeof persistence.value === "boolean") report.persistent = persistence.value;
+  report.indexedDb = await collectIndexedDbStorageHealth({ indexedDB });
   return report;
 }

@@ -76,6 +76,6 @@ jobs:
           SAVE_QA_CLIENT_CANDIDATE: ${{ inputs.save_candidate_client && '1' || '0' }}
           SAVE_QA_EXPECTED_BUILD: ${{ inputs.expected_save_build_id }}
         run: |
-          node --test qa/save-acceptance-fixture-guards.test.mjs
+          node --test qa/save-acceptance-fixture-guards.test.mjs qa/save-acceptance-frontend.test.mjs
           npx playwright test --config=qa/save-acceptance.playwright.config.mjs
       - run: npm run qa:staging:required

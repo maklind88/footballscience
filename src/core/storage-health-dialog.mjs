@@ -19,7 +19,7 @@ export async function openStorageHealth(options) {
   const report = await collectStorageHealth({ ...options, scope });
   if (!dialog.isConnected) return;
   if (getScope() !== scope) { status.textContent = "Account or team changed. Reopen this check."; return; }
-  status.textContent = report.partial ? "Storage check incomplete. Some information could not be read." : "Storage check complete. No data was changed.";
+  status.textContent = report.partial ? "Storage check incomplete. Some information could not be read." : "Available storage information read. No data was changed.";
   const add = (text) => { const p = doc.createElement("p"); p.textContent = text; content.append(p); };
   const size = value => value === null ? "Unavailable" : `${(value / 1024 / 1024).toFixed(2)} MiB`;
   add(`Local browser storage: approximately ${size(report.approximateUtf16Bytes)} across ${report.entries} entries.`);
@@ -35,7 +35,14 @@ export async function openStorageHealth(options) {
   if (Number.isInteger(mirror.exerciseCount)) add(`Library: ${mirror.exerciseCount} exercises. Backup: ${mirror.backupExerciseCount} exercises.`);
   add("These are legacy localStorage copies. The active library may use IndexedDB; matching legacy copies do not prove central saving or make either copy safe to delete.");
   add(`Pending module markers for this account/team: ${report.pendingForCurrentScope ?? "Unavailable"}. This is not a count of individual edits or proof they are saved locally.`);
-  add(`Recovery copies in local browser storage: ${report.recoveryCopies}. IndexedDB queues, review archives and backup contents are not inspected by this check.`);
+  add(`Recovery copies in local browser storage: ${report.recoveryCopies}. The IndexedDB summary below counts stored rows, not individual recovery dates or confirmed conflicts.`);
+  add("IndexedDB: approximate JSON sizes in the known Safety/Sessions and Library databases, across accounts on this browser. This is not physical disk usage or proof of central saving. Other databases and media are outside this check.");
+  for (const database of report.indexedDb.databases) {
+    add(`${database.label}: ${database.status === "absent" ? "Not present" : database.status === "unavailable" ? "Unavailable" : `${database.records} rows, approximately ${size(database.approximateJsonUtf16Bytes)}${database.status === "partial" ? " (incomplete scan)" : ""}`}.`);
+    for (const group of database.groups) add(`${group.label}: ${group.records} rows, approximately ${size(group.approximateJsonUtf16Bytes)}.`);
+  }
+  if (report.indexedDb.status !== "complete") add("IndexedDB inventory is incomplete. Unread data must not be treated as empty or safe to delete.");
+  add("Archived and recovery rows remain protected. These counts do not authorize cleanup or select a version to restore.");
   add(`Browser origin estimate: ${size(report.originUsageBytes)} used / ${size(report.originQuotaBytes)} quota. This is not the localStorage limit or its remaining space.`);
   add(`Persistent storage: ${report.persistent === null ? "Unavailable" : report.persistent ? "Granted" : "Not granted"}. This does not increase the localStorage limit.`);
   if (options.reviewLibrary) {

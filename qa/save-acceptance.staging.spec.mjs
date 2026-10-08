@@ -1,9 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { verifySaveAcceptanceFrontend } from './helpers/save-acceptance-frontend.mjs';
 import { readFileSync } from 'node:fs';
 import transport from '../api/_lib/session-state-transport.js';
 import { createStagingAcceptance, medicalKey, sessionsKey, requireProof, digest, assertOwnedSessionChange } from './helpers/save-acceptance-staging.mjs';
 
 test('two authenticated users preserve Medical versions and Sessions offline work', async ({ browser }) => {
+  if (process.env.SAVE_QA_CLIENT_CANDIDATE !== "1") {
+    const proof = await verifySaveAcceptanceFrontend({ baseUrl: process.env.STAGING_QA_BASE_URL });
+    console.log("Reviewed staging frontend verified before fixtures:", proof.verifiedAssets);
+  }
   const qa = await createStagingAcceptance();
   console.log('Frontend under test:', process.env.SAVE_QA_CLIENT_CANDIDATE === '1' ? 'candidate client scripts in QA browser; pinned deployed staging backend' : 'deployed staging frontend and backend');
   const contexts = [], recordId = qa.run + '-record', playerId = qa.run + '-player';

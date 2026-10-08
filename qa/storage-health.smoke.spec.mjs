@@ -10,8 +10,10 @@ test('profile storage health opens in the real app and preserves protected conte
   await page.locator('#profileMenuButton').click();
   await page.getByRole('menuitem',{name:'Storage health',exact:true}).click();
   const dialog = page.getByRole('dialog',{name:'Storage health',exact:true});
-  await expect(dialog).toContainText('Storage check complete. No data was changed.');
+  await expect(dialog).toContainText('Available storage information read. No data was changed.');
   await expect(dialog).toContainText('This is not the localStorage limit');
+  await expect(dialog).toContainText('IndexedDB: approximate JSON sizes');
+  await expect(dialog).toContainText('Archived and recovery rows remain protected.');
   await expect(dialog).not.toContainText('private sentinel');
   await expect(dialog).not.toContainText('qa-health-sentinel');
   expect(await page.evaluate(()=>localStorage.getItem('qa-health-sentinel'))).toBe('private sentinel');

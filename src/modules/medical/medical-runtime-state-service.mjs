@@ -544,7 +544,10 @@ export function createMedicalRuntimeStateService(deps = {}) {
         win.footballScienceDataSafety?.reportSaveIssue?.(medicalTeamStorageKey, message);
         return false;
       }
-      logEvent("Medical Team data could not be written to local storage.");
+      const message = "Medical saving is not confirmed. Keep this page open and retry when saving is available.";
+      logEvent(message);
+      win.footballScienceDataSafety?.reportSaveIssue?.(medicalTeamStorageKey, message);
+      return false;
     }
   }
 

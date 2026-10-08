@@ -684,3 +684,21 @@ test('Denied view-preference storage cannot prevent a clinical save', () => {
   expect(h.storage.value(h.medicalTeamStorageKey)).toBe(JSON.stringify(state));
   expect(h.issues).toEqual([]);
 });
+
+for (const failure of ["SecurityError", "read-denied", "guard-rejected"]) {
+  test(`Medical reports unconfirmed save and retains draft when storage is ${failure}`, () => {
+    const previous = JSON.stringify(createStoredMedicalState());
+    const state = createStoredMedicalState(); state.records[0].coachNote = "Unsaved synthetic draft";
+    const error = Object.assign(new Error("private diagnostic detail"), { name: failure === "guard-rejected" ? "Error" : "SecurityError" });
+    const harness = createServiceHarness({ canEdit: true, state, storageAdapter: {
+      getItem: () => { if (failure === "read-denied") throw error; return previous; },
+      setItem: () => { throw error; },
+    } });
+    expect(harness.service.writeMedicalState()).toBe(false);
+    expect(harness.issues).toHaveLength(1);
+    expect(harness.issues[0][1]).toMatch(/not confirmed.*Keep this page open/i);
+    expect(harness.issues[0][1]).not.toContain("private diagnostic detail");
+    expect(harness.centralWrites).toEqual([]);
+    expect(harness.getState().records[0].coachNote).toBe("Unsaved synthetic draft");
+  });
+}

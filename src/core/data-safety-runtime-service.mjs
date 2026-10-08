@@ -870,7 +870,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       manifest.lastSeenAt = getNow();
     });
     ui.dataSafetyHealthButton?.addEventListener("click", () => openStorageHealth({
-      documentRef, navigatorRef, storage: {
+      documentRef, navigatorRef, indexedDB: win.indexedDB, storage: {
         get length() { return getStorage()?.length || 0; },
         key: rawKey,
         getItem: (key) => nativeGetItem.call(getStorage(), key),

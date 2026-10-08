@@ -1,3 +1,4 @@
+import { createLocalSaveIssues } from "./local-save-issues.mjs";
 import { storeDistinctSnapshot } from "./distinct-snapshot-store.mjs";
 import { openStorageHealth } from "./storage-health-dialog.mjs";
 import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
@@ -36,6 +37,12 @@ export function createDataSafetyRuntimeService(deps = {}) {
     lastError: "",
     lastSnapshotError: "",
   };
+  let issueSequence = 0;
+  const saveIssues = createLocalSaveIssues({ readManifest, status,
+    mutateManifest: mutator => { const manifest = readManifest(); mutator(manifest); return writeManifest(manifest); },
+    getScope: () => getCentralStateBridge()?.getReadScope?.(), isProtectedKey: isProtectedStorageKey,
+    createId: () => win.crypto?.randomUUID?.() || `${Date.now()}-${++issueSequence}-${Math.random().toString(16).slice(2)}`,
+  });
   let nativeGetItem = null;
   let nativeSetItem = null;
   let nativeRemoveItem = null;
@@ -283,9 +290,12 @@ export function createDataSafetyRuntimeService(deps = {}) {
       updatedAt: getNow(),
     };
     try {
+      if (!getStorage() || !nativeSetItem) throw new Error("Data safety manifest storage is unavailable.");
       rawSetItem(storageKey, JSON.stringify(normalizedManifest));
+      return true;
     } catch (error) {
       status.lastError = error?.message || "Data safety manifest could not be saved.";
+      return false;
     }
   }
 
@@ -315,7 +325,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     if (!isProtectedStorageKey(normalizedKey)) return;
     const textValue = String(value ?? "");
     const now = getNow();
-    status.lastError = "";
+    const previousIssue = saveIssues.capture(normalizedKey);
     let retainedBaseRevision;
     const writtenManifest = mutateManifest((manifest) => {
       const previousEntry = manifest.entries[normalizedKey] || {};
@@ -327,7 +337,6 @@ export function createDataSafetyRuntimeService(deps = {}) {
       }
       if (!options.deferQueue) manifest.lastSavedAt = now;
       manifest.lastKey = normalizedKey;
-      manifest.lastError = "";
       manifest.entries[normalizedKey] = {
         label: getStorageLabel(normalizedKey),
         updatedAt: now,
@@ -359,10 +368,12 @@ export function createDataSafetyRuntimeService(deps = {}) {
         throw new Error("Edit remains local: pending sync metadata could not be saved.");
       }
     }
+    saveIssues.resolve(previousIssue);
     queueStatusRefresh();
   }
 
   function writeProtectedValue(key, value, options, mutateRaw) {
+    const previousIssue = saveIssues.capture(key);
     const storage = getStorage();
     const previousRaw = nativeGetItem.call(storage, key);
     const manifest = JSON.parse(nativeGetItem.call(storage, storageKey) || '{"entries":{}}');
@@ -390,17 +401,14 @@ export function createDataSafetyRuntimeService(deps = {}) {
     if (!getCentralStateWriteSuppressionKeys().has(key) && queueCentralStateWrite(key, value, queueOptions) === false) {
       throw new Error("Edit remains local: pending sync metadata could not be saved.");
     }
+    saveIssues.resolve(previousIssue);
     queueStatusRefresh();
     return result;
   }
 
   function handleWriteError(key, error) {
     const message = error?.message || "Save failed.";
-    mutateManifest((manifest) => {
-      manifest.lastKey = String(key || "");
-      manifest.lastError = message;
-    });
-    status.lastError = message;
+    saveIssues.report(String(key || ""), message);
     queueStatusRefresh();
   }
 
@@ -544,7 +552,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     if (!ui.dataSafetyStatus) return;
     const manifest = readManifest();
     const centralStatus = getCentralStateBridge()?.getStatus?.() ?? {};
-    const error = status.lastError || manifest.lastError;
+    const error = saveIssues.error(manifest);
     const libraryStorageUnknown = ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"]
       .some(key => getCentralStateBridge()?.getLibrarySaveState?.(key)?.storageUnavailable);
     const libraryReadError = ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"]

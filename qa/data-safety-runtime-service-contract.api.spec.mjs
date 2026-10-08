@@ -98,6 +98,7 @@ function createHarness(options = {}) {
         return centralCache.delete(String(key));
       },
       getStatus: () => options.centralStatus || {},
+      ...(options.scope !== undefined ? { getReadScope: () => options.scope } : {}),
       canAutoSyncKey: () => options.canEdit !== false,
     },
     setTimeout: (callback, delay) => {
@@ -156,7 +157,7 @@ function createHarness(options = {}) {
     createCentralBackedStorageError: () => new Error("Central sync is not ready."),
     getCentralStateBridge: () => win.footballScienceCentralState,
     getCentralStateWriteSuppressionKeys: () => options.suppressionKeys || new Set(),
-    queueCentralStateWrite: (...args) => queuedWrites.push(args),
+    queueCentralStateWrite: (...args) => { queuedWrites.push(args); return options.onQueue?.(...args); },
   });
   return { centralCache, centralCacheInfo, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
@@ -828,4 +829,103 @@ test("snapshot comparison context preserves protected pending generations withou
   expect(backup.storage[key]).toBeUndefined();
   expect(JSON.stringify(backup.saveContext)).not.toContain("privateExtra");
   expect(JSON.stringify(backup.saveContext)).not.toContain("unrelated");
+});
+
+
+test("a Schedule save cannot clear an outstanding Medical save failure", () => {
+  const h = createHarness({ scope: "owner-A" }); h.service.install();
+  h.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Medical draft is not saved");
+  h.localStorage.setItem("football-schedule-v1", "new schedule"); h.service.refreshStatus();
+  expect(h.dataSafetyStatus.textContent).toBe("Autosave needs attention");
+  expect(h.dataSafetyStatus.title).toBe("Medical draft is not saved");
+  expect(h.service.readManifest().lastError).toBe("Medical draft is not saved");
+});
+
+test("retrying one failed module preserves another module's failure", () => {
+  const h = createHarness({ scope: "owner-A" }); h.service.install();
+  h.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Medical draft is not saved");
+  h.win.footballScienceDataSafety.reportSaveIssue("football-schedule-v1", "Schedule draft is not saved");
+  h.localStorage.setItem("football-schedule-v1", "retried schedule"); h.service.refreshStatus();
+  expect(h.dataSafetyStatus.title).toBe("Medical draft is not saved");
+  h.localStorage.setItem("football-medical-team-v1", "retried Medical"); h.service.refreshStatus();
+  expect(h.service.readManifest().lastError).toBe("");
+  expect(h.dataSafetyStatus.textContent).not.toBe("Autosave needs attention");
+});
+
+test("a later failure reported while queueing is not cleared by the preceding write", () => {
+  const options = { scope: "owner-A" }, h = createHarness(options); h.service.install();
+  h.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Earlier Medical failure");
+  options.onQueue = () => h.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Newer Medical failure");
+  h.localStorage.setItem("football-medical-team-v1", "retried Medical"); h.service.refreshStatus();
+  expect(h.dataSafetyStatus.title).toBe("Newer Medical failure");
+});
+
+test("another account cannot acknowledge the previous account's failed write", () => {
+  const options = { scope: "owner-A" }, h = createHarness(options); h.service.install();
+  h.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Owner A Medical failure");
+  options.scope = "owner-B";
+  h.localStorage.setItem("football-medical-team-v1", "owner B edit"); h.service.refreshStatus();
+  expect(h.dataSafetyStatus.title).not.toContain("Owner A Medical failure");
+  options.scope = "owner-A"; h.service.refreshStatus();
+  expect(h.dataSafetyStatus.title).toBe("Owner A Medical failure");
+});
+
+test("stored module save failures survive a new runtime and an unrelated write", () => {
+  const h = createHarness({ scope: "owner-A" }); h.service.install();
+  h.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Retained Medical failure");
+  const reopened = createHarness({ scope: "owner-A" });
+  reopened.localStorage.values = new Map(h.localStorage.values);
+  reopened.service.install();
+  reopened.localStorage.setItem("football-schedule-v1", "new schedule"); reopened.service.refreshStatus();
+  expect(reopened.dataSafetyStatus.title).toBe("Retained Medical failure");
+});
+
+
+test("failed issue metadata stays visible and cannot be cleared by another module", () => {
+  const options = { scope: "owner-A", quotaKey: "football-data-safety-v1" }, h = createHarness(options); h.service.install();
+  h.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Medical failed while metadata was full");
+  delete options.quotaKey;
+  h.localStorage.setItem("football-schedule-v1", "new schedule"); h.service.refreshStatus();
+  expect(h.dataSafetyStatus.title).toBe("Medical failed while metadata was full");
+  h.localStorage.setItem("football-medical-team-v1", "retried Medical"); h.service.refreshStatus();
+  expect(h.dataSafetyStatus.title).not.toContain("Medical failed while metadata was full");
+});
+
+test("legacy errors with unknown ownership cannot be cleared by a guessed module retry", () => {
+  const h = createHarness({ scope: "owner-A" });
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify({ lastError: "Legacy failure", lastKey: "football-schedule-v1", entries: {} }));
+  h.service.install(); h.localStorage.setItem("football-schedule-v1", "new schedule"); h.service.refreshStatus();
+  expect(h.dataSafetyStatus.title).toBe("Legacy failure");
+});
+
+
+test("a failed acknowledgement metadata write does not clear the original warning", () => {
+  const options = { scope: "owner-A" }, h = createHarness(options); h.service.install();
+  h.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Medical issue retained");
+  options.onQueue = () => { options.quotaKey = "football-data-safety-v1"; };
+  h.localStorage.setItem("football-medical-team-v1", "retried draft"); h.service.refreshStatus();
+  expect(h.dataSafetyStatus.title).toBe("Medical issue retained");
+  expect(h.service.readManifest().lastError).toBe("Medical issue retained");
+});
+
+test("a rejected queue keeps a module warning after its local value was written", () => {
+  const h = createHarness({ scope: "owner-A", onQueue: () => false }); h.service.install();
+  h.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Medical issue retained");
+  expect(() => h.localStorage.setItem("football-medical-team-v1", "retried draft")).toThrow("pending sync metadata could not be saved");
+  h.service.refreshStatus();
+  expect(h.dataSafetyStatus.textContent).toBe("Autosave needs attention");
+  expect(h.dataSafetyStatus.title).toContain("pending sync metadata could not be saved");
+});
+
+
+test("an older memory-only issue cannot erase a newer persisted failure from another runtime", () => {
+  const options = { scope: "owner-A", quotaKey: "football-data-safety-v1" }, first = createHarness(options);
+  first.service.install();
+  first.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Earlier memory-only failure");
+  delete options.quotaKey;
+  const second = createHarness({ scope: "owner-A" }); second.localStorage.values = first.localStorage.values; second.service.install();
+  options.onQueue = () => second.win.footballScienceDataSafety.reportSaveIssue("football-medical-team-v1", "Newer failure in another tab");
+  first.localStorage.setItem("football-medical-team-v1", "retry started before newer issue"); first.service.refreshStatus();
+  expect(first.dataSafetyStatus.title).toBe("Newer failure in another tab");
+  expect(first.service.readManifest().lastError).toBe("Newer failure in another tab");
 });

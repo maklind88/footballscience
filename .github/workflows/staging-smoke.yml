@@ -3,6 +3,14 @@ name: Staging Smoke
 on:
   workflow_dispatch:
     inputs:
+      restore_staging_deployment:
+        description: Explicitly authorized immutable staging deployment URL to restore; empty leaves routing unchanged.
+        type: string
+        default: ''
+      restore_staging_source_sha:
+        description: Exact reviewed 40-character source SHA for staging restore.
+        type: string
+        default: ''
       verify_save_acceptance:
         description: Run two-user saving acceptance with own synthetic staging fixtures and temporary peer account.
         type: boolean
@@ -28,8 +36,12 @@ on:
         type: string
         default: ''
 
+permissions:
+  contents: read
+  actions: read
+
 concurrency:
-  group: ${{ inputs.verify_save_acceptance && 'footballscience-production-edge-release' || format('staging-smoke-{0}', github.run_id) }}
+  group: ${{ (inputs.verify_save_acceptance || inputs.restore_staging_deployment != '') && 'footballscience-production-edge-release' || format('staging-smoke-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -48,12 +60,26 @@ jobs:
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run verify:staging-env -- --required
+      - name: Restore explicitly reviewed staging routing
+        if: inputs.restore_staging_deployment != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          RESTORE_STAGING_DEPLOYMENT: ${{ inputs.restore_staging_deployment }}
+          RESTORE_STAGING_SOURCE_SHA: ${{ inputs.restore_staging_source_sha }}
+        run: |
+          node --test qa/reviewed-staging-restore.test.mjs
+          node scripts/restore-reviewed-staging.mjs
       - name: Verify fresh staging backup and read-only restore
         if: inputs.verify_fresh_backup
         env:

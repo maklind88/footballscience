@@ -53,6 +53,11 @@ for (const cacheFailure of [false, true]) {
       await dateInput.dispatchEvent('change');
       await dateInput.blur();
       await expect(dateInput).toHaveValue(day);
+      // A late verified read must preserve the in-memory date when the cache could not save it.
+      await page.evaluate(key => window.dispatchEvent(new CustomEvent('footballscience:central-state-partial', {
+        detail: { readKeys: [key] },
+      })), medicalKey);
+      await expect(dateInput).toHaveValue(day);
       await expect(page.getByRole('button', { name: 'Synthetic Visibility Player 50% training recommendation', exact: true }))
         .toHaveClass(/is-active/);
     };

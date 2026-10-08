@@ -95,7 +95,7 @@ inventory plus regression coverage, not a production save certification.
 | --- | --- |
 | Exercise Library | New scoped journal/cache and record change pilot; four legacy primary/backup keys retained. |
 | Sessions | Existing durable date journal/receipts and explicit local review; one consuming library call now awaits the result. No session semantics changed. |
-| Medical / RTP | Existing Medical central read, pending preservation and clinical/RTP paths retained; regression tests run. No clinical data migration or new offline promise. |
+| Medical / RTP | Existing central read, pending preservation and clinical/RTP paths retained. Central reload now preserves memory-only date/player choices during cache failure while replacing clinical fields from the verified read. No clinical data migration or new offline promise. |
 | Squad / Player Profiles | Existing protected profile document and dedicated identity paths retained. Large native payload remains a cache-pressure follow-up. |
 | Schedule | Existing revision-rejected shared document/dedicated boundaries retained; no new offline queue. |
 | Periodization | Existing merge contract and date/local-view separation retained. |
@@ -149,3 +149,29 @@ Final static/security/storage/performance/architecture checks passed before
 commit, including the existing architecture warnings. GitHub PR evidence records the resulting exact commit
 and final full-suite outcome. No staging, production deploy, live write or remote
 schema migration has been performed for this candidate.
+
+## CI-discovered Medical view regression
+
+The first exact-commit CI run (`ec35ab7e`, run 37708784996) passed static,
+security, API and three browser shards, but the fourth failed the existing
+Medical cold-start/full-cache visibility test. Repeating the unchanged scenario
+60 times locally passed, so repetition alone was not accepted as evidence that
+the defect was harmless.
+
+A controlled late central-read event reproduced the failure: Medical's date
+selection changed from 2026-10-05 back to the stale cached 2026-10-07 when quota
+prevented saving the UI preference. The recommendation remained present; the
+view showed another date. The browser regression and two contract cases failed
+before the correction. Central reload now preserves the current in-memory date
+and an active selected player, while all clinical fields come from the new
+read. Missing/archived players and absent prior state retain verified defaults.
+The 36 focused browser/reload contract cases, four Medical WebKit cases and
+full 3,414-case API suite passed after the correction. Static/security/storage/
+performance/architecture checks also passed. All 85 central-state browser
+cases passed on an isolated test-server port. A prior concurrent local run
+shared a server that shut down with the API suite (39 connection-refused
+errors); the isolated rerun used unchanged assertions.
+Final exact-commit CI must pass on the follow-up commit; the failed run is not
+waived. The broad preceding local QA completed with 3,934 passed, 3 skipped and
+the previously diagnosed test-actor rate-limit failure; it is not reported as
+a wholly green run.

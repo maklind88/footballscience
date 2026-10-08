@@ -352,6 +352,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     getCentralStateBridge: deps.getCentralStateBridge,
     getCurrentPlatformUser: deps.getCurrentPlatformUser,
     getHubState: deps.getHubState,
+    getMedicalState: deps.getMedicalState,
     getSessionPlannerState: deps.getSessionPlannerState,
     hasPendingCentralStateWrites: deps.hasPendingCentralStateWrites,
     intervalRefreshMinMs: 120000,

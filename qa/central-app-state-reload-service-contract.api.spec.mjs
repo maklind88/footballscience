@@ -358,3 +358,34 @@ test("central app-state reload service preserves central refresh throttling and 
   expect(timers).toHaveLength(1);
   expect(timers[0].delay).toBe(100);
 });
+
+for (const selectedPlayerStillActive of [false, true]) {
+  test(`Medical reload preserves memory-only view choices while replacing clinical data (player active: ${selectedPlayerStillActive})`, () => {
+    let medical = { selectedDate: "2026-10-05", selectedPlayerId: "selected",
+      records: [{ id: "record", participation: 25 }] };
+    const service = createCentralAppStateReloadService({
+      getCurrentPlatformUser: () => ({ id: "actor" }),
+      getMedicalState: () => medical,
+      readMedicalState: () => ({ selectedDate: "2026-10-07", selectedPlayerId: "fallback",
+        players: [{ id: "selected", archivedAt: selectedPlayerStillActive ? "" : "2026-10-06" }, { id: "fallback" }],
+        records: [{ id: "record", participation: 50 }] }),
+      setMedicalState: value => { medical = value; },
+    });
+    service.reloadCentralizedAppStateFromStorage();
+    expect(medical.selectedDate).toBe("2026-10-05");
+    expect(medical.selectedPlayerId).toBe(selectedPlayerStillActive ? "selected" : "fallback");
+    expect(medical.records).toEqual([{ id: "record", participation: 50 }]);
+  });
+}
+for (const previous of [null, { selectedDate: "invalid", selectedPlayerId: "missing" }]) {
+  test(`Medical reload keeps verified defaults without a valid prior view (${previous ? "invalid" : "cold"})`, () => {
+    let result;
+    const verified = { selectedDate: "2026-10-07", selectedPlayerId: "fallback", players: [{ id: "fallback" }], records: [] };
+    const service = createCentralAppStateReloadService({
+      getCurrentPlatformUser: () => ({ id: "actor" }), getMedicalState: () => previous,
+      readMedicalState: () => ({ ...verified }), setMedicalState: value => { result = value; },
+    });
+    service.reloadCentralizedAppStateFromStorage();
+    expect(result).toEqual(verified);
+  });
+}

@@ -75,6 +75,21 @@ export function createCentralAppStateReloadService(deps = {}) {
     return nextState;
   }
 
+  function readMedicalStatePreservingUiSelection() {
+    const previous = call("getMedicalState");
+    const nextState = call("readMedicalState");
+    if (!previous || !nextState) return nextState;
+    // View choices can be newer than the disk cache when storage is full.
+    // Clinical fields always come from the newly authorized read.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(previous.selectedDate || "")) {
+      nextState.selectedDate = previous.selectedDate;
+    }
+    if (nextState.players?.some(player => player.id === previous.selectedPlayerId && !player.archivedAt && !player.deletedAt)) {
+      nextState.selectedPlayerId = previous.selectedPlayerId;
+    }
+    return nextState;
+  }
+
   function reloadCentralizedAppStateFromStorage() {
     if (call("getCurrentPlatformUser") && getHubState()?.activeWorkspaceId === "session-planner") {
       call("syncSelectedSessionPlannerBlockFieldsFromDom");
@@ -111,7 +126,7 @@ export function createCentralAppStateReloadService(deps = {}) {
     }));
     call("setPeriodizationState", call("readPeriodizationState"));
     call("setScheduleState", call("readScheduleState"));
-    call("setMedicalState", call("readMedicalState"));
+    call("setMedicalState", readMedicalStatePreservingUiSelection());
     call("setPlayerProfilesState", call("readPlayerProfilesState"));
     call("setScoutingState", call("readScoutingState"));
     call("setTransferRoomState", call("readTransferRoomState"));

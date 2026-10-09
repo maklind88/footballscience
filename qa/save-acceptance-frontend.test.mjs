@@ -37,3 +37,13 @@ test("deployed frontend guard precedes account and fixture creation; intentional
   assert.ok(saveAcceptanceAssets.includes("src/modules/medical/medical-view-preferences.mjs"));
   assert.ok(saveAcceptanceAssets.includes("src/modules/session-planner/session-save-review.mjs"));
 });
+
+for (const path of ["medical-runtime-service", "medical-working-drafts", "medical-draft-recovery", "medical-draft-store", "medical-draft-verification"]) {
+  test(`stale ${path} stops acceptance before credentials and fixtures`, async () => {
+    const target = `src/modules/medical/${path}.mjs`;
+    assert.ok(saveAcceptanceAssets.includes(target));
+    await assert.rejects(verifySaveAcceptanceFrontend({ baseUrl, readSource,
+      fetchImpl: async url => new Response(url.endsWith(target) ? "old implementation" : readSource(url.slice(baseUrl.length + 1))),
+    }), /differs from reviewed source/);
+  });
+}

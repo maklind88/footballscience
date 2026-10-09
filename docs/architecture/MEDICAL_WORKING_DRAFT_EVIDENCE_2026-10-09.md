@@ -68,3 +68,34 @@ The prior safe release is blocked at main QA, not completed. Main/staging contai
 d16ff9ea; last inspected production was 56063c14. This follow-up is isolated on
 codex/medical-working-draft-contract-20261009. No unrelated root-checkout files
 are included and no real clinical records are read/edited for local fixtures.
+
+## Follow-up: make deployed acceptance exercise the new boundary
+
+The existing two-user Medical acceptance checked API ordering/archive protection;
+it did not exercise the failed working version in the browser runtime. The
+acceptance now opens the primary user's actual Medical runtime, rejects browser
+writes, injects quota and recovery-IDB failure, and invokes the normal reread.
+The second authenticated user updates only the run-owned Medical record through
+the existing guarded API helper. A fresh hydration must show that accepted change
+while the primary user's original unsaved content remains in the review panel.
+The test closes the browser before fixture cleanup. It uses no clinical screenshots,
+traces or downloads. This is a runtime/recovery-panel exercise; the real form
+submit is separately covered by the local regression above.
+
+The synthetic player requires a Squad identity for the real Medical runtime.
+Otherwise normal roster reconciliation archives it. The test adds exactly that
+run-owned profile to the test browser's read response, preserving all existing
+rows and rejecting identity collisions. No Squad write is made. Medical reads
+and the peer's guarded Medical writes remain server-backed. This explicit data
+fixture is not proof of Squad persistence or a completely unmodified read pipeline.
+Candidate-code overlays remain explicitly labelled and cannot certify deployment.
+
+The public frontend check now includes 13 files, adding Medical runtime wiring,
+working ownership, recovery, store and verification. Each newly covered file has
+a test proving stale bytes stop acceptance before login/fixture creation.
+
+Follow-up local validation: 23 Node guard tests, six Chromium and six WebKit
+working-draft cases, and `npm run qa:static` passed. The shared browser exercise
+is run locally with synthetic remote responses; authenticated staging execution
+is still pending and must not be inferred from these results. No product code
+was changed in this follow-up.

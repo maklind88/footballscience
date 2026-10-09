@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { verifySaveAcceptanceFrontend } from './helpers/save-acceptance-frontend.mjs';
+import { addMedicalAcceptanceRoster } from './helpers/medical-acceptance-roster-fixture.mjs';
+import { installMedicalWorkingFailure, verifyMedicalWorkingAcceptance } from './helpers/medical-working-draft-acceptance.mjs';
+import { verifySaveAcceptanceFrontend, saveAcceptanceAssets } from './helpers/save-acceptance-frontend.mjs';
 import { readFileSync } from 'node:fs';
 import transport from '../api/_lib/session-state-transport.js';
 import { createStagingAcceptance, medicalKey, sessionsKey, requireProof, digest, assertOwnedSessionChange } from './helpers/save-acceptance-staging.mjs';
@@ -40,6 +42,56 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
     await qa.saveMedical(qa.peer, stale, staleFuture);
     let accepted = await qa.read(qa.peer, medicalKey);
     requireProof(accepted.state.records.find(row => row.id === recordId)?.comment === 'Accepted central edit', 'Future activity replaced newer Medical edit');
+    // Medical runtime (explicit candidate overlay only when requested), with
+    // browser writes blocked. The second
+    // authenticated writer may change only this run's synthetic record via the
+    // existing API ownership guard. No clinical screenshots, downloads or traces.
+    const medicalContext = await browser.newContext({ serviceWorkers: 'block' }); contexts.push(medicalContext);
+    if (process.env.SAVE_QA_CLIENT_CANDIDATE === '1') {
+      for (const path of saveAcceptanceAssets) {
+        const body = readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+        await medicalContext.route(qa.origin + '/' + path + '*', route => route.fulfill({ contentType: 'text/javascript', body }));
+      }
+    }
+    await medicalContext.route('**/api/**', async route => {
+      if (route.request().method() !== 'GET') return route.fulfill({ status: 503, json: { ok: false } });
+      const url = new URL(route.request().url());
+      if (url.origin !== qa.origin || url.pathname !== '/api/app-state') return route.continue();
+      const response = await route.fetch();
+      if (!response.ok()) return route.fulfill({ response });
+      // Only the browser sees this run-owned Squad prerequisite. Medical GETs
+      // and the authenticated peer write remain server-backed and unchanged.
+      const payload = await response.json();
+      return route.fulfill({ response, json: addMedicalAcceptanceRoster(payload, { run: qa.run,
+        player: { id: playerId, name: 'Synthetic Save QA', rosterType: 'squad', status: 'available' } }) });
+    });
+    const medicalPage = await medicalContext.newPage(), marker = qa.run + '-unsaved-working';
+    const acceptedMarker = qa.run + '-accepted-peer';
+    await installMedicalWorkingFailure(medicalPage, marker);
+    await medicalPage.goto(qa.origin, { waitUntil: 'domcontentloaded' });
+    await medicalPage.waitForFunction(() => window.platformAuthStore?.getSupabaseClient?.());
+    requireProof(await medicalPage.evaluate(async session => {
+      const { error } = await window.platformAuthStore.getSupabaseClient().auth.setSession(session);
+      return !error;
+    }, { access_token: qa.primary.session.access_token, refresh_token: qa.primary.session.refresh_token }), 'Medical browser session restoration failed');
+    await medicalPage.reload({ waitUntil: 'domcontentloaded' });
+    await medicalPage.waitForFunction(() => window.__footballScienceAppReady && document.querySelector('#loginScreen')?.hidden);
+    await medicalPage.evaluate(() => {
+      document.querySelector('#dashboardModalRoot button[data-dashboard-modal-close]')?.click();
+      window.dispatchEvent(new CustomEvent('platform:open-workspace', { detail: { workspaceId: 'medical-team' } }));
+    });
+    await verifyMedicalWorkingAcceptance(medicalPage, { recordId, marker, acceptedMarker, publishPeer: async () => {
+      const before = await qa.read(qa.peer, medicalKey), next = structuredClone(before.state);
+      Object.assign(next.records.find(row => row.id === recordId), { comment: acceptedMarker, updatedAt: new Date(Date.now() + 2000).toISOString() });
+      await qa.saveMedical(qa.peer, before, next);
+      requireProof((await qa.read(qa.primary, medicalKey)).state.records.find(row => row.id === recordId)?.comment === acceptedMarker, 'Peer Medical fixture was not accepted');
+    } });
+    await medicalContext.close();
+    contexts.splice(contexts.indexOf(medicalContext), 1);
+    accepted = await qa.read(qa.primary, medicalKey);
+    requireProof(digest(others(originalMedical.state, medicalKey)) === digest(others(accepted.state, medicalKey)), 'Unrelated Medical content changed during working acceptance');
+    console.log('Medical fixture boundary: one run-owned roster row added only to browser reads; no Squad writes or Squad certification.');
+    console.log('PASS Medical working runtime: distinct authenticated peer; blocked browser writes; quota and rescue failure; reread preservation; newer accepted peer visible; original unsaved version retained.');
     const archived = structuredClone(accepted.state);
     Object.assign(archived.records.find(row => row.id === recordId), { archivedAt: new Date().toISOString() });
     Object.assign(archived.players.find(row => row.id === playerId), { archivedAt: new Date().toISOString() });

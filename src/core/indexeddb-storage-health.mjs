@@ -1,11 +1,14 @@
 const databases = [
   { name: "football-science-data-safety-v1", label: "Safety and Sessions", stores: ["snapshots", "latest", "offline-operations-v1"] },
   { name: "football-science-library-v1", label: "Exercise Library", stores: ["baselines", "pending", "recovery", "access"] },
+  { name: "football-science-medical-drafts-v1", label: "Medical recovery", stores: ["drafts", "catalog"] },
 ];
 const category = (labels, status, fallback) => Object.hasOwn(labels, status) ? labels[status] : fallback;
 const empty = (label, status) => ({ label, status, records: 0, approximateJsonUtf16Bytes: 0, groups: [] });
 
 function classify(store, row) {
+  if (store === "catalog") return "Medical recovery metadata";
+  if (store === "drafts") return "Medical retained drafts";
   if (store === "snapshots") return row?.reason === "session-planner-recovery-review" ? "Sessions recovery snapshots"
     : row?.reason === "session-planner-quota-fallback" ? "Sessions fallback snapshots" : "Safety snapshots";
   if (store === "latest") {

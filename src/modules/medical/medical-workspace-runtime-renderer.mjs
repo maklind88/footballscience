@@ -64,6 +64,7 @@ ${teamLogoUrl
 </div>
 </div>
 </header>
+<section class="medical-draft-recovery" data-medical-draft-recovery aria-label="Medical recovery copies" hidden></section>
 ${renderOperationsTopMenu()}
 ${
   showAvailabilityWorkspace
@@ -73,6 +74,7 @@ ${
 ${playerModalRenderer.renderPlayerModal(options)}
 </div>
 `;
+      deps.mountDraftRecovery?.(workspace.querySelector("[data-medical-draft-recovery]"));
       if (options.focusRosterSearch) {
         const searchInput = workspace.querySelector("[data-medical-roster-search]");
         if (searchInput) {

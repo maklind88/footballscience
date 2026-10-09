@@ -236,6 +236,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
   }
 
   const { renderMedicalTeamWorkspace } = createMedicalWorkspaceRuntimeRenderer({
+    mountDraftRecovery: deps.mountMedicalDraftRecovery,
     canViewPrivateDetails: deps.canViewPrivateMedicalDetails,
     ensureState: deps.ensureMedicalState,
     escapeHtml: deps.escapeHtml,

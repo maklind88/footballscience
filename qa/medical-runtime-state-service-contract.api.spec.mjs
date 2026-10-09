@@ -77,6 +77,8 @@ function createServiceHarness(options = {}) {
       return cleanValue === "guest-player" ? "guest" : cleanValue;
     },
     playerProfileRosterTypeCountsInSquad: (value) => String(value || "squad").trim().toLowerCase() === "squad",
+    retainMedicalDraft: options.retainMedicalDraft,
+    beginMedicalDraftWrite: options.beginMedicalDraftWrite,
     queueCentralStateWrite: (key, value, writeOptions) => {
       centralWrites.push({ key, value, options: writeOptions });
       return options.queueWrite ? options.queueWrite(key, value, writeOptions) : true;
@@ -702,3 +704,51 @@ for (const failure of ["SecurityError", "read-denied", "guard-rejected"]) {
     expect(harness.getState().records[0].coachNote).toBe("Unsaved synthetic draft");
   });
 }
+
+for (const queueAccepted of [true, false]) {
+  test(`Quota rescue captures exact draft and previous value independently of central queue (${queueAccepted})`, async () => {
+    const previous = JSON.stringify(createStoredMedicalState());
+    const state = createStoredMedicalState(); state.records[0].coachNote = "Rescue me";
+    const copies = [];
+    const h = createServiceHarness({ canEdit: true, state, queueWrite: () => queueAccepted,
+      retainMedicalDraft: (value, previousValue, readScope) => { copies.push({ value, previousValue, readScope }); return Promise.resolve(true); },
+      storageAdapter: { getItem: () => previous, setItem: () => { throw new DOMException("Full", "QuotaExceededError"); } },
+    });
+    h.service.readMedicalState();
+    h.service.writeMedicalState();
+    expect(copies).toEqual([{ value: JSON.stringify(state), previousValue: previous, readScope: "qa-scope" }]);
+    expect(h.centralWrites).toHaveLength(1);
+    expect(h.getState()).toBe(state);
+  });
+}
+
+test("Successful writes and view-only changes do not allocate rescue copies", () => {
+  const copies = [];
+  const h = createServiceHarness({ canEdit: true, state: createStoredMedicalState(), retainMedicalDraft: (...args) => copies.push(args) });
+  h.service.writeMedicalState(); h.service.writeMedicalState({ viewOnly: true });
+  expect(copies).toEqual([]);
+});
+
+
+test("ordinary Medical clinical saves supersede older rescue status; view navigation does not", () => {
+  let generations = 0;
+  const h = createServiceHarness({ canEdit: true, state: createStoredMedicalState(), beginMedicalDraftWrite: () => { generations++; } });
+  h.service.writeMedicalState({ viewOnly: true }); expect(generations).toBe(0);
+  h.service.writeMedicalState(); expect(generations).toBe(1);
+  expect(h.storage.value(h.medicalTeamStorageKey)).toBe(JSON.stringify(h.getState()));
+});
+
+
+test("rescue keeps the state's read owner even if the active account changes before the write", () => {
+  let scope = "original-owner";
+  const copies = [];
+  const previous = JSON.stringify(createStoredMedicalState());
+  const h = createServiceHarness({ canEdit: true, state: createStoredMedicalState(), readScope: () => scope,
+    retainMedicalDraft: (...args) => copies.push(args),
+    storageAdapter: { getItem: () => previous, setItem: () => { throw new DOMException("Full", "QuotaExceededError"); } },
+  });
+  h.service.readMedicalState(); scope = "other-owner";
+  h.getState().records[0].coachNote = "Late original-owner edit";
+  h.service.writeMedicalState();
+  expect(copies[0][2]).toBe("original-owner");
+});

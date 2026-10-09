@@ -1,9 +1,11 @@
+import { createMedicalDraftRecovery } from "./medical-draft-recovery.mjs";
 import { createMedicalRuntimeFacade } from "./medical-runtime-facade.mjs";
 import { createMedicalRuntimeHelpers } from "./medical-runtime-helpers.mjs";
 import { createMedicalRuntimeRenderers } from "./medical-runtime-renderers.mjs";
 import { createMedicalRuntimeStateService } from "./medical-runtime-state-service.mjs";
 
 export function createMedicalRuntimeService(deps = {}) {
+  const draftRecovery = createMedicalDraftRecovery({ win: deps.win, key: deps.medicalTeamStorageKey, canEdit: deps.canEditMedicalTeam });
   let helpers = null;
   let stateService = null;
   let facade = null;
@@ -149,6 +151,8 @@ export function createMedicalRuntimeService(deps = {}) {
 
   function getStateService() {
     stateService ??= createMedicalRuntimeStateService({
+      retainMedicalDraft: draftRecovery.retain,
+      beginMedicalDraftWrite: draftRecovery.beginWrite,
       archiveMedicalPlayersRemovedFromSquad: deps.archiveMedicalPlayersRemovedFromSquad,
       canEditMedicalTeam: deps.canEditMedicalTeam,
       compareMedicalPlayers: fromHelpers("compareMedicalPlayers"),
@@ -191,6 +195,7 @@ export function createMedicalRuntimeService(deps = {}) {
 
   function getFacade() {
     facade ??= createMedicalRuntimeFacade({
+      mountMedicalDraftRecovery: draftRecovery.mount,
       addCalendarDays: deps.addCalendarDays,
       canEditMedicalTeam: deps.canEditMedicalTeam,
       canViewPrivateMedicalDetails: fromStateService("canViewPrivateMedicalDetails"),

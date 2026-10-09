@@ -262,3 +262,38 @@
   #medicalTeamWorkspace .medical-rtp-exercise-catalog-card { grid-template-columns: 4rem minmax(0, 1fr); gap: 0.65rem; padding: 0.75rem; }
   #medicalTeamWorkspace :is(.medical-programs-workspace, .medical-rtp-case-workspace) :is(input, select, textarea) { font-size: 1rem; }
 }
+
+/* Rescue review stays separate from the current editable clinical state. */
+#medicalTeamWorkspace .medical-draft-recovery {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--medical-warning);
+  border-radius: 8px;
+  background: var(--medical-surface);
+  color: var(--medical-ink);
+}
+#medicalTeamWorkspace .medical-draft-recovery :is(h2, p) { margin: 0 0 0.75rem; }
+#medicalTeamWorkspace .medical-draft-recovery h2 { font-size: 1rem; }
+#medicalTeamWorkspace .medical-draft-recovery details {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--medical-line);
+  overflow-wrap: anywhere;
+}
+#medicalTeamWorkspace .medical-draft-recovery summary { cursor: pointer; padding: 0.35rem 0; }
+#medicalTeamWorkspace .medical-draft-recovery table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+#medicalTeamWorkspace .medical-draft-recovery :is(th, td) {
+  padding: 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--medical-line);
+}
+#medicalTeamWorkspace .medical-draft-recovery pre {
+  max-height: 24rem;
+  overflow: auto;
+  white-space: pre-wrap;
+}

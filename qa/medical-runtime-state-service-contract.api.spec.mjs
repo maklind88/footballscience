@@ -739,7 +739,7 @@ test("ordinary Medical clinical saves supersede older rescue status; view naviga
 });
 
 
-test("rescue keeps the state's read owner even if the active account changes before the write", () => {
+test("a late write after account change cannot relabel clinical state or send it under the new owner", () => {
   let scope = "original-owner";
   const copies = [];
   const previous = JSON.stringify(createStoredMedicalState());
@@ -749,6 +749,8 @@ test("rescue keeps the state's read owner even if the active account changes bef
   });
   h.service.readMedicalState(); scope = "other-owner";
   h.getState().records[0].coachNote = "Late original-owner edit";
-  h.service.writeMedicalState();
-  expect(copies[0][2]).toBe("original-owner");
+  expect(h.service.writeMedicalState()).toBe(false);
+  expect(copies).toEqual([]);
+  expect(h.centralWrites).toEqual([]);
+  expect(h.issues.at(-1)?.[1]).toContain("account or team changed");
 });

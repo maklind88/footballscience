@@ -35,6 +35,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     playerProfileRosterTypeCountsInSquad = (value) => String(value || "squad").trim() === "squad",
     queueCentralStateWrite = () => {},
     retainMedicalDraft = () => {},
+    readMedicalWorkingDraft = () => undefined,
     beginMedicalDraftWrite = () => {},
     rawDataSafetySetItem = (key, value) => win.localStorage?.setItem?.(key, value),
     sanitizeMedicalGovernancePolicyForCoachView = () => ({}),
@@ -492,6 +493,11 @@ export function createMedicalRuntimeStateService(deps = {}) {
     medicalReadScope = win.footballScienceCentralState?.getReadScope?.() || "";
     try {
       const raw = win.localStorage.getItem(medicalTeamStorageKey);
+      const workingDraft = canViewPrivateMedicalDetails() ? readMedicalWorkingDraft(raw, medicalReadScope) : undefined;
+      if (typeof workingDraft === "string") {
+        // A working projection is neither cache maintenance nor a save receipt.
+        return viewPreferences.apply(sanitizeMedicalStateForCurrentUser(cloneMedicalState(JSON.parse(workingDraft))));
+      }
       const parsed = raw ? JSON.parse(raw) : {};
       const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState(parsed));
       const shouldPersistSeededRoster =
@@ -519,6 +525,13 @@ export function createMedicalRuntimeStateService(deps = {}) {
   }
 
   function writeMedicalState({ viewOnly = false } = {}) {
+    const activeScope = win.footballScienceCentralState?.getReadScope?.() || "";
+    if (medicalReadScope && medicalReadScope !== activeScope) {
+      const message = "Medical saving was blocked because the account or team changed. Return to the original account to review unsaved work.";
+      logEvent(message);
+      win.footballScienceDataSafety?.reportSaveIssue?.(medicalTeamStorageKey, message);
+      return false;
+    }
     if (viewOnly) return viewPreferences.write(getMedicalState());
     const medicalState = getMedicalState();
     if (!medicalState) {
@@ -539,10 +552,11 @@ export function createMedicalRuntimeStateService(deps = {}) {
       }
       setMedicalStateStorageValue(nextState, coachSafeOnly);
     } catch (error) {
-      if (nextStateJson && canViewPrivateMedicalDetails() && isStorageQuotaError(error)) {
-        // Begin protecting the actual draft independently of central queue acceptance.
-        // Callers remain synchronous; the recovery panel reports transaction completion.
+      if (nextStateJson && canViewPrivateMedicalDetails()) {
+        // Retain working intent independently of cache, rescue storage and transport.
         try { Promise.resolve(retainMedicalDraft(nextStateJson, previousValue, medicalReadScope)).catch(() => {}); } catch {}
+      }
+      if (nextStateJson && canViewPrivateMedicalDetails() && isStorageQuotaError(error)) {
         try {
           if (queueCentralStateWrite(medicalTeamStorageKey, nextStateJson, { automatic: false }) === true) {
             logEvent("Medical Team browser cache is full; the protected state was queued directly for central sync. Keep this page open until central saving is confirmed.");

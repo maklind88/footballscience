@@ -77,3 +77,22 @@ All checks for candidate a8ae54d9 passed in GitHub, including full QA run 378281
 Two real Chromium regressions failed before correction: a reported Medical failure before snapshot start, and one reported while the snapshot was awaiting its transaction. The correction lets snapshot success clear only its own snapshot warning. It does not change saved values, queueing, conflict rules, clinical permissions or the browser database schema.
 
 Local verification passed: 86 API contracts, nine Chromium cases, nine WebKit cases, and the full static gate. The snapshot tests prove preserved write-error text, unchanged stored Medical contents, zero central writes and no backed-up indicator; a positive case proves snapshot-only warnings still clear. Exact updated-commit CI remains a separate gate. Medical crash recovery is still not implemented or certified by this change.
+
+## Follow-up, 9 October: failed Medical writes need an independent working owner
+
+Main QA for d16ff9ea exposed a working-draft loss after browser quota failure,
+unavailable recovery IndexedDB and rejected central saving. Production release
+was stopped. A deterministic normal runtime reread reproduces the issue, including
+through the real recommendation form. The prior central visibility observations
+and two-user acceptance above do not cover this failure boundary.
+
+The isolated candidate on `codex/medical-working-draft-contract-20261009` retains
+failed working intent by original owner and observed baseline, makes volatile
+work inspectable/exportable, and rejects a known read-owner mismatch before
+writing or queueing. This implements a missing boundary of the existing saving
+program; it is not platform-wide offline certification.
+
+See [contract and remaining matrix](SAVED_WORK_CONTRACT_2026-10-09.md) and
+[exact local evidence and release boundary](MEDICAL_WORKING_DRAFT_EVIDENCE_2026-10-09.md).
+Historical deployment results above remain historical; they must not be read as
+proof that this candidate is deployed or that its full matrix is approved.

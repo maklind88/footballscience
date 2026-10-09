@@ -99,3 +99,24 @@ working-draft cases, and `npm run qa:static` passed. The shared browser exercise
 is run locally with synthetic remote responses; authenticated staging execution
 is still pending and must not be inferred from these results. No product code
 was changed in this follow-up.
+
+### Acceptance startup correction
+
+GitHub QA 37930029501 on c3c2ea5e failed the new shared exercise before its edit:
+a record observed by the per-key-ready check was absent by the later browser
+call that attempted to change it. Existing real-form retention regressions passed
+in the same job. Local diagnostics also showed blocked startup Medical writes
+and a failed hydration status, so a global `hydrated` flag is not a valid success
+requirement while the test deliberately rejects those writes.
+
+The exercise now explicitly awaits a fresh Medical/roster read, verifies the
+expected central fixture and its authorized scope, and begins the edit within
+one browser action. It does not retry the edit or weaken any post-save assertion.
+Ten Chromium repetitions, all six working-draft WebKit cases, 23 guard tests,
+syntax and diff checks passed after this correction. No product code changed.
+
+This defines an edit-after-fresh-read acceptance case. The exact callback causing
+the transient startup absence is not fully attributed; cold startup with all
+bootstrap writes blocked is a separate unresolved acceptance case, not certified
+by making this exercise start from an explicit read. Exact updated-commit GitHub
+QA and authenticated staging execution remain separate gates.

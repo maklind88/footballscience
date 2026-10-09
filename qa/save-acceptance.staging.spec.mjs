@@ -80,7 +80,7 @@ test('two authenticated users preserve Medical versions and Sessions offline wor
       document.querySelector('#dashboardModalRoot button[data-dashboard-modal-close]')?.click();
       window.dispatchEvent(new CustomEvent('platform:open-workspace', { detail: { workspaceId: 'medical-team' } }));
     });
-    await verifyMedicalWorkingAcceptance(medicalPage, { recordId, marker, acceptedMarker, publishPeer: async () => {
+    await verifyMedicalWorkingAcceptance(medicalPage, { recordId, marker, baselineMarker: "Accepted central edit", acceptedMarker, publishPeer: async () => {
       const before = await qa.read(qa.peer, medicalKey), next = structuredClone(before.state);
       Object.assign(next.records.find(row => row.id === recordId), { comment: acceptedMarker, updatedAt: new Date(Date.now() + 2000).toISOString() });
       await qa.saveMedical(qa.peer, before, next);

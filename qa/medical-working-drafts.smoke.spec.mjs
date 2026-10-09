@@ -86,7 +86,7 @@ test("shared acceptance exercise proves the actual Medical runtime under failed 
     document.querySelector("#dashboardModalRoot button[data-dashboard-modal-close]")?.click();
     window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "medical-team" } }));
   });
-  await verifyMedicalWorkingAcceptance(page, { recordId, marker, acceptedMarker, publishPeer: async () => {
+  await verifyMedicalWorkingAcceptance(page, { recordId, marker, baselineMarker: "Synthetic baseline", acceptedMarker, publishPeer: async () => {
     medical = { ...medical, records: [{ ...medical.records[0], comment: acceptedMarker, updatedAt: "2026-10-09T12:00:00Z" }] };
     revision++;
   } });

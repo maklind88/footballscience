@@ -18,21 +18,26 @@ export async function installMedicalWorkingFailure(page, marker) {
 
 // The caller blocks browser data mutations, opens the actual Medical runtime and
 // supplies a guarded peer write of its own fixture. Never print clinical payloads.
-export async function verifyMedicalWorkingAcceptance(page, { recordId, marker, acceptedMarker, publishPeer }) {
+export async function verifyMedicalWorkingAcceptance(page, { recordId, marker, baselineMarker, acceptedMarker, publishPeer }) {
   const key = "football-medical-team-v1";
-  await page.waitForFunction(async ({ recordId, key }) => {
-    const state = (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState();
-    return window.footballScienceCentralState?.isKeyHydrated?.(key) === true
-      && state.records.some(row => row.id === recordId);
-  }, { recordId, key });
-  const owner = await page.evaluate(() => window.footballScienceCentralState.getReadScope());
-  expect(Boolean(owner)).toBe(true);
-  await page.evaluate(async ({ recordId, marker }) => {
+  // Read/reload and begin the edit in one browser action. A transient key-ready
+  // flag can change between separate test calls during startup. A blocked
+  // bootstrap write may leave hydrate() false even though its read was applied;
+  // verify the actual expected central fixture before touching it instead.
+  const owner = await page.evaluate(async ({ key, recordId, marker, baselineMarker }) => {
     const medical = await import("/src/modules/medical/medical-runtime-accessors.mjs");
-    medical.ensureMedicalState().records.find(row => row.id === recordId).comment = marker;
+    const runtime = await import("/src/core/platform-runtime-accessors.mjs");
+    const bridge = window.footballScienceCentralState;
+    await bridge.hydrate({ keys: [key, "football-player-profiles-v1"], fresh: true, forceApply: true });
+    runtime.reloadCentralizedAppStateFromStorage();
+    const scope = bridge.getReadScope(), record = medical.ensureMedicalState().records.find(row => row.id === recordId);
+    if (!scope || bridge.canAutoSyncKey(key) !== true || record?.comment !== baselineMarker) return null;
+    record.comment = marker;
     medical.writeMedicalState();
-    (await import("/src/core/platform-runtime-accessors.mjs")).reloadCentralizedAppStateFromStorage();
-  }, { recordId, marker });
+    runtime.reloadCentralizedAppStateFromStorage();
+    return scope;
+  }, { key, recordId, marker, baselineMarker });
+  expect(Boolean(owner)).toBe(true);
   const hasRecord = value => page.evaluate(async ({ recordId, value }) =>
     (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records
       .some(row => row.id === recordId && row.comment === value), { recordId, value });
@@ -44,10 +49,10 @@ export async function verifyMedicalWorkingAcceptance(page, { recordId, marker, a
   await expect.poll(() => panel.evaluate(node => node.textContent.includes("will be lost if it closes"))).toBe(true);
 
   await publishPeer();
-  await page.evaluate(async () => {
-    await window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true });
+  await page.evaluate(async key => {
+    await window.footballScienceCentralState.hydrate({ keys: [key, "football-player-profiles-v1"], fresh: true, forceApply: true });
     (await import("/src/core/platform-runtime-accessors.mjs")).reloadCentralizedAppStateFromStorage();
-  });
+  }, key);
   await expect.poll(() => hasRecord(acceptedMarker)).toBe(true);
   expect(await page.evaluate(owner => window.footballScienceCentralState.getReadScope() === owner, owner)).toBe(true);
   await panel.getByText(/^Unsaved in this tab from /).click();

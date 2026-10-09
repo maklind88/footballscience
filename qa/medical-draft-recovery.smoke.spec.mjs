@@ -114,7 +114,7 @@ test("the storage inventory counts rescue copies without clinical content or del
   expect(JSON.stringify(report)).not.toContain("Rescue exact draft"); expect(await list(page)).toHaveLength(1);
 });
 
-for (const rescueUnavailable of [false, true]) {
+for (const rescueUnavailable of [false, true, "real-form"]) {
 test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) preserves honest recovery and central state`, async ({ page }) => {
   await installSetPiecesCentralFixture(page);
   const day = "2026-10-09", marker = "Synthetic full-app rescue";
@@ -136,12 +136,12 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
       return open.call(this, name, ...args);
     };
   });
-  let posts = 0;
+  let posts = 0, revision = 10;
   await page.route("**/api/app-state**", route => {
     if (route.request().method() !== "GET") { posts++; return route.fulfill({ status: 503, json: { ok: false } }); }
     const keys = new URL(route.request().url()).searchParams.get("keys")?.split(",") || Object.keys(entries);
     return route.fulfill({ json: { ok: true, entries: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, entries[k]])),
-      metadata: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, { revision: 10 }])), absentKeys: keys.filter(k => !(k in entries)) } });
+      metadata: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, { revision }])), absentKeys: keys.filter(k => !(k in entries)) } });
   });
   const ready = async () => {
     await page.waitForFunction(() => window.__footballScienceAppReady && document.querySelector("#loginScreen")?.hidden);
@@ -149,17 +149,54 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
     await page.getByRole("button", { name: "Medical", exact: true }).click();
     await page.waitForFunction(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.some(row => row.id === "rescue-record"));
   };
+  if (rescueUnavailable === "real-form") {
+    entries["football-schedule-v1"] = JSON.stringify({ selectedDate: day, importVersion: "working-draft-qa",
+      events: [{ id: "training", date: day, time: "10:00", type: "training", title: "Training" }] });
+    await page.route("**/api/medical**", route => route.fulfill({ status: 503, json: { ok: false } }));
+  }
   await page.goto("/?workspace=medical-team"); await ready();
-  await page.evaluate(async marker => {
+  if (rescueUnavailable === "real-form") {
+    await page.locator("[data-medical-roster-row]:visible .medical-roster-player-cell").first().click();
+    const form = page.locator("#medicalRecommendationForm:visible").first();
+    await form.locator('textarea[name="comment"]').fill(marker);
+    await form.locator('button[type="submit"]').click();
+    await page.locator(".medical-modal-close[data-medical-close-modal]").click();
+  } else await page.evaluate(async marker => {
     const access = await import("/src/modules/medical/medical-runtime-accessors.mjs");
     access.ensureMedicalState().records.find(row => row.id === "rescue-record").comment = marker;
     access.writeMedicalState();
   }, marker);
   if (rescueUnavailable) {
+    // A normal background reload must not discard an uncommitted working draft.
+    await page.evaluate(async () => {
+      const runtime = await import("/src/core/platform-runtime-accessors.mjs");
+      runtime.reloadCentralizedAppStateFromStorage();
+    });
+    if (rescueUnavailable === "real-form") {
+      expect(await page.evaluate(async marker => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.some(row => row.comment === marker), marker)).toBe(true);
+    } else expect(await page.evaluate(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.find(row => row.id === "rescue-record").comment)).toBe(marker);
     await expect(page.locator("[data-medical-draft-recovery]")).toContainText("could not be saved on this device");
-    expect(await page.evaluate(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.find(row => row.id === "rescue-record").comment)).toBe(marker);
     expect(await page.evaluate(key => localStorage.getItem(key), key)).not.toContain(marker);
-    await expect(page.locator("[data-medical-draft-recovery] summary")).toHaveCount(0);
+    await page.getByText(/^Unsaved in this tab from /).click();
+    await expect(page.locator("[data-medical-draft-recovery]")).toContainText("will be lost if it closes");
+    await expect(page.locator("[data-medical-draft-recovery]")).toContainText(marker);
+    const downloading = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download this recovery copy" }).click();
+    const stream = await (await downloading).createReadStream();
+    const chunks = []; for await (const chunk of stream) chunks.push(chunk);
+    expect(JSON.parse(Buffer.concat(chunks)).value).toContain(marker);
+    if (rescueUnavailable === "real-form") {
+      revision = 11;
+      entries[key] = JSON.stringify({ ...medical, records: [{ ...medical.records[0],
+        comment: "Colleague's accepted recommendation", updatedAt: `${day}T12:00:00Z` }] });
+      await page.evaluate(async () => {
+        await window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true });
+        (await import("/src/core/platform-runtime-accessors.mjs")).reloadCentralizedAppStateFromStorage();
+      });
+      expect(await page.evaluate(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.some(row => row.comment === "Colleague's accepted recommendation"))).toBe(true);
+      await page.getByText(/^Unsaved in this tab from /).click();
+      await expect(page.locator("[data-medical-draft-recovery]")).toContainText(marker);
+    }
     return;
   }
   await expect(page.locator("[data-medical-draft-recovery]")).toContainText("saved on this device");

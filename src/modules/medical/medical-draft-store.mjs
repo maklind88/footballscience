@@ -1,3 +1,4 @@
+import { medicalRecoveryMatchesCentral } from "./medical-recovery-central-read.mjs";
 import { createLocalDatabaseConnection } from "../../core/local-database-connection.mjs";
 
 export const MEDICAL_DRAFT_DATABASE = "football-science-medical-drafts-v1";
@@ -105,5 +106,33 @@ export function createMedicalDraftStore({ indexedDB, getIndexedDB = () => indexe
     });
   }
 
-  return { retain, list, read, close: connection.close };
+  async function removeVerified(expected, proof, isCurrent) {
+    if (!medicalRecoveryMatchesCentral(expected, proof) || typeof isCurrent !== "function" || !isCurrent()) return false;
+    const db = await bounded(connection.open());
+    if (!isCurrent()) return false;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(["drafts", "catalog"], "readwrite");
+      let removed = false, received = 0;
+      const payload = tx.objectStore("drafts").get(expected.id), metadata = tx.objectStore("catalog").get(expected.id);
+      const timer = setTimeout(() => tx.abort(), timeoutMs);
+      tx.onabort = tx.onerror = () => { clearTimeout(timer); reject(tx.error || new Error("Medical recovery removal did not commit.")); };
+      tx.oncomplete = () => { clearTimeout(timer); resolve(removed); };
+      const checked = () => {
+        if (++received !== 2) return;
+        const copy = payload.result, catalog = metadata.result;
+        if (!isCurrent() || !copy || !catalog || copy.schema !== 1 || catalog.schema !== 1
+          || copy.id !== expected.id || copy.scope !== expected.scope || catalog.scope !== expected.scope
+          || copy.value !== expected.value || copy.previousValue !== expected.previousValue
+          || copy.baseRevision !== expected.baseRevision || copy.createdAt !== expected.createdAt
+          || !medicalRecoveryMatchesCentral(copy, proof)) return;
+        const deletingPayload = tx.objectStore("drafts").delete(expected.id);
+        const deletingMetadata = tx.objectStore("catalog").delete(expected.id);
+        deletingPayload.onsuccess = deletingMetadata.onsuccess = () => { if (!isCurrent()) tx.abort(); };
+        removed = true;
+      };
+      payload.onsuccess = metadata.onsuccess = checked;
+    });
+  }
+
+  return { retain, list, read, removeVerified, close: connection.close };
 }

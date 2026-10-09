@@ -3670,6 +3670,8 @@ module.exports = async (req, res) => {
       return sendJson(res, 200, {
         deniedKeys,
         ok: true,
+        // A coach projection must never be used to retire a private recovery copy.
+        medicalRecoveryRead: { private: Object.hasOwn(entries, MEDICAL_TEAM_KEY) && canActorViewPrivateMedical(actor) },
         absentKeys,
         entries: Object.hasOwn(entries, SESSION_PLANNER_KEY) ? {
           ...entries,

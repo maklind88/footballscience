@@ -297,3 +297,5 @@
   overflow: auto;
   white-space: pre-wrap;
 }
+
+#medicalTeamWorkspace .medical-draft-recovery button { margin: 0.35rem 0.5rem 0.65rem 0; }

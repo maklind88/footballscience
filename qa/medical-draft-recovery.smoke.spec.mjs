@@ -1,25 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { installSetPiecesCentralFixture } from "./helpers/set-pieces-central-fixture.mjs";
 
-const key = "football-medical-team-v1";
-const draft = { players: [{ id: "synthetic", name: "Synthetic Player" }],
-  records: [{ id: "r1", playerId: "synthetic", date: "2026-10-09", participation: 50, comment: "Rescue exact draft" }], injuryPlans: [] };
-async function install(page, options = {}) {
-  await page.evaluate(async options => {
-    const { createMedicalDraftStore } = await import("/src/modules/medical/medical-draft-store.mjs");
-    const { createMedicalDraftRecovery } = await import("/src/modules/medical/medical-draft-recovery.mjs");
-    window.__scope = options.scope ?? "owner-team-a"; window.__canEdit = true; window.__issues = [];
-    window.footballScienceCentralState = { getReadScope: () => window.__scope, canAutoSyncKey: () => window.__canEdit,
-      isKeyHydrated: () => true, getStatus: () => ({ metadata: { "football-medical-team-v1": { revision: 7 } } }) };
-    window.footballScienceDataSafety = { reportSaveIssue: (_, message) => window.__issues.push(message) };
-    window.__store = createMedicalDraftStore({ indexedDB, ...options });
-    window.__recovery = createMedicalDraftRecovery({ win: window, canEdit: () => window.__canEdit, store: window.__store });
-    const host = document.createElement("section"); host.id = "recovery"; document.body.append(host);
-    window.__recovery.mount(host);
-  }, options);
-}
-const retain = (page, value = draft) => page.evaluate(value => window.__recovery.retain(JSON.stringify(value), '{"records":[]}'), value);
-const list = page => page.evaluate(async () => Promise.all((await window.__store.list(window.__scope)).map(row => window.__store.read(window.__scope, row.id))));
+import { key, draft, install, retain, list } from "./helpers/medical-draft-fixture.mjs";
 
 test("committed exact draft and previous value survive reload, are reviewable and downloadable without central writes", async ({ page }) => {
   let writes = 0; page.on("request", request => { if (request.method() !== "GET") writes++; });

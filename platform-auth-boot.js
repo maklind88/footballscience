@@ -3384,6 +3384,13 @@ async function getActiveAccessToken() {
     hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getReadScope:getCentralReadScope,canAutoSyncKey:canCurrentUserAutomaticallyWriteCentralStateKey,getCachedValue:getCentralCachedValue,getCachedValueInfo:getCentralCachedValueInfo,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState}),
     isKeyHydrated: (key) => key === SESSION_PLANNER_STATE_KEY && !authState.devMode
       ? Boolean(sessionBaselineReadScope && sessionBaselineReadScope === getCentralReadScope() && sessionSaveClient?.isReady()) : centralState.hydrated,
+    readMedicalRecoveryState: async (expectedScope) => {
+      const { readMedicalRecoveryCentralState } = await import("./src/modules/medical/medical-recovery-central-read.mjs");
+      return readMedicalRecoveryCentralState({ expectedScope, getScope: getCentralReadScope,
+        getToken: () => authState.session?.access_token,
+        canRead: () => !authState.devMode && canCurrentUserAutomaticallyWriteCentralStateKey(MEDICAL_TEAM_STATE_KEY),
+        apiRequest, path: buildCentralStateReadPath([MEDICAL_TEAM_STATE_KEY], { fresh: true }) });
+    },
     hydrateSessionState: () => hydrateCentralState({ fresh: true, keys: [SESSION_PLANNER_STATE_KEY] }),
     rememberSessionDraft: (value, previousValue) => sessionSaveClient?.rememberDraft(value, previousValue),
     stageSessionWrite: async (value, options) => {

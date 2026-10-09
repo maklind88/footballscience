@@ -1,5 +1,10 @@
 # Medical quota rescue: a bounded durable copy and authorized review
 
+Historical first implementation at `e4fa0628`. The follow-up
+[verified-copy retirement gate](MEDICAL_VERIFIED_COPY_RETIREMENT_2026-10-08.md)
+adds only explicit removal of a selected exact server-verified copy; the original
+no-automatic-pruning and no-central-replay boundaries remain.
+
 Task owner: System / Security for the failed-save boundary. Affected owners:
 Medical (clinical state and access), Platform Shell (save status and storage
 inventory). No clinical merge, permissions, central API or Sessions ownership is

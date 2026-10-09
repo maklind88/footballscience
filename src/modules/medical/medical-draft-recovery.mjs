@@ -1,7 +1,8 @@
+import { mountMedicalDraftVerification } from "./medical-draft-verification.mjs";
 import { createMedicalDraftStore } from "./medical-draft-store.mjs";
 
-// Read-only rescue review. This service has no central write, replay, merge,
-// deletion or cache-cleanup capability. Medical's accepted state stays separate.
+// Rescue review has no central write, replay or merge capability. Only a user-
+// selected exact server-verified copy can be retired; other work stays separate.
 export function createMedicalDraftRecovery({ win = globalThis, key = "football-medical-team-v1",
   canEdit = () => false, store = createMedicalDraftStore({ getIndexedDB: () => win.indexedDB }) } = {}) {
   let host = null, generation = 0, renderGeneration = 0, notice = null;
@@ -64,6 +65,14 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
         link.click(); win.setTimeout(() => win.URL.revokeObjectURL(url), 1000);
       });
       item.append(text, table, node("p", "The table shows up to 200 recommendations. All retained content and the download include the complete copy."), full, download);
+      mountMedicalDraftVerification({ win, container: item, copy: row, store,
+        isCurrent: () => current(scope) && host === container && container.contains(item),
+        getGeneration: () => generation,
+        onRemoved: () => {
+          generation++;
+          notice = { scope, message: "One verified local recovery copy was removed. Central work and other copies are unchanged." };
+          void refresh();
+        } });
     });
   }
 

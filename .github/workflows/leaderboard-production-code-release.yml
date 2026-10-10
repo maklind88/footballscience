@@ -187,7 +187,7 @@ jobs:
           TARGET_DIR: ${{ github.workspace }}
 
       - name: Download exact same-run Files preview plan
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: leaderboard-files-preview-plan-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/leaderboard-files-preview-plan

@@ -96,3 +96,17 @@ See [contract and remaining matrix](SAVED_WORK_CONTRACT_2026-10-09.md) and
 [exact local evidence and release boundary](MEDICAL_WORKING_DRAFT_EVIDENCE_2026-10-09.md).
 Historical deployment results above remain historical; they must not be read as
 proof that this candidate is deployed or that its full matrix is approved.
+
+## Follow-up, 12 October: released baseline and Sessions restart evidence
+
+The Medical candidate `8f2333d58deee481c1fcff846931f8e84d4ab202` completed
+Safe Lane production release in GitHub run 38246710939 after exact-candidate
+staging two-user acceptance 37972400723. Main, staging and live matched; full QA
+passed 4,067 cases with three known file-dependent skips. Live authenticated QA
+passed seven cases with one staging-only IDP skip. This supersedes the earlier
+release-pending statements for that candidate, not the remaining module limits.
+
+The next QA-only checkpoint adds real disk-profile browser restart proof for
+Sessions pending/review rows, owner scope and generation-specific receipts.
+See [Sessions matrix and limits](SESSIONS_SAVE_ACCEPTANCE_2026-10-12.md).
+No product bug or need for a runtime change was established by these cases.

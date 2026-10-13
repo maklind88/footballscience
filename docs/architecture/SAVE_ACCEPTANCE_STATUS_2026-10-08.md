@@ -110,3 +110,19 @@ The next QA-only checkpoint adds real disk-profile browser restart proof for
 Sessions pending/review rows, owner scope and generation-specific receipts.
 See [Sessions matrix and limits](SESSIONS_SAVE_ACCEPTANCE_2026-10-12.md).
 No product bug or need for a runtime change was established by these cases.
+
+## Follow-up, 13 October: Sessions compatibility and browser crash
+
+Selected historical/current Sessions clients preserve pending and review work
+through bidirectional restarts and the shared v1 -> v2 schema upgrade. A real
+older fixed-version reader is incompatible with v2, but current source recovers
+its exact pending work without deletion. See the
+[compatibility limits](SESSIONS_VERSION_COMPATIBILITY_2026-10-13.md).
+
+Five additional Chromium process-crash cases pass around local commit and
+server-receipt retirement. Earlier committed work survives; uncommitted work is
+not reported complete; a receipt cannot clear a later generation. See the
+[crash evidence and remaining boundaries](SESSIONS_CRASH_ACCEPTANCE_2026-10-13.md).
+These are local QA-only checkpoints with synthetic server transport, not a new
+production release or full-platform offline certification. Next is combined
+storage failure in the full app with honest save status and recoverable work.

@@ -11,7 +11,8 @@ export const initial = () => ({ sessions: { [day]: { date: day, title: "Training
 
 // Real disk-backed browser profile, IDB store and save client; synthetic transport.
 // Closing a persistent context terminates its browser. No storageState export or
-// journal reinjection is used. This is graceful restart, not power-loss proof.
+// journal reinjection is used. close() is graceful; crash() terminates Chromium
+// through its browser-level crash command. Neither proves OS power-loss safety.
 export async function createRestartHarness(baseURL, browserName) {
   const profile = await mkdtemp(join(tmpdir(), "fs-session-restart-"));
   const state = { value: initial(), revision: 10, calls: [], effects: 0, mode: "offline", receipts: new Map() };
@@ -75,7 +76,23 @@ export async function createRestartHarness(baseURL, browserName) {
     return page;
   }
   async function close() { if (context) { await context.close(); context = null; } }
-  return { state, open, close, peer: async (scope = owner, sources = new Map()) => {
+  async function crash() {
+    if (browserName !== "chromium" || !context) throw new Error("Crash requires an open, isolated Chromium profile");
+    const current = context, browser = current.browser();
+    const cdp = await browser.newBrowserCDPSession();
+    const disconnected = new Promise(resolve => browser.once("disconnected", resolve));
+    const closed = new Promise(resolve => current.once("close", resolve));
+    // Only this harness-owned browser is targeted. Do not gracefully close it
+    // before the crash: doing so would flush the very writes under test.
+    await cdp.send("Browser.crash").catch(error => {
+      if (!/Target page, context or browser has been closed/.test(error.message)) throw error;
+    });
+    await Promise.all([disconnected, closed]);
+    context = null;
+    if (browser.isConnected()) throw new Error("Browser did not disconnect after crash");
+    return { disconnected: true };
+  }
+  return { state, open, close, crash, peer: async (scope = owner, sources = new Map()) => {
     if (!context) throw new Error("Open the primary browser first");
     return boot(await context.newPage(), scope, sources);
   }, loadedSources: () => [...loadedSources].sort(), async dispose() { try { await close(); } finally { await rm(profile, { recursive: true, force: true }); } } };

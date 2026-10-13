@@ -112,3 +112,13 @@ that the pre-compatibility fixed-version reader is inaccessible after v2, while
 current source recovers the exact pending work without deletion. This closes
 only the tested client-pair boundary; whole-app rollback and arbitrary versions
 remain uncertified. Unexpected process termination is the next separate gate.
+
+## Follow-up, 13 October: actual Chromium browser crash
+
+The [crash checkpoint](SESSIONS_CRASH_ACCEPTANCE_2026-10-13.md) adds five real
+browser-process crash cases around local put commit, unobserved server receipt,
+and local receipt-retirement commit. Committed pending work survives exactly;
+uncommitted work does not receive a completed save result; A's receipt never
+clears B. This supersedes the process-termination gap above only for the tested
+Chromium harness. Full-product combined storage failures, OS power loss and the
+other documented boundaries remain open. No runtime fix or release was needed.

@@ -104,3 +104,10 @@ No new staging/production release, main integration, remote CI or real-user data
 mutation is part of this checkpoint. Next: actual interrupted browser processes
 around local commit and server acknowledgement, followed by the remaining full
 application failure matrix. Sessions and the platform remain partially certified.
+
+## Follow-up: process-crash evidence
+
+The subsequent [Chromium crash checkpoint](SESSIONS_CRASH_ACCEPTANCE_2026-10-13.md)
+verifies five local transaction/receipt boundaries with the actual browser crash
+command. It complements the graceful historical-version matrix; it does not
+certify crashes during arbitrary historical upgrades, OS power loss or eviction.

@@ -16,7 +16,8 @@ export async function createRestartHarness(baseURL, browserName) {
   const profile = await mkdtemp(join(tmpdir(), "fs-session-restart-"));
   const state = { value: initial(), revision: 10, calls: [], effects: 0, mode: "offline", receipts: new Map() };
   let context;
-  async function open(scope = owner) {
+  let loadedSources = new Set();
+  async function open(scope = owner, sourceFiles = new Map()) {
     if (context) throw new Error("Close the previous browser before reopening its profile");
     context = await ({ chromium, webkit }[browserName]).launchPersistentContext(profile, { headless: true, baseURL, serviceWorkers: "block" });
     await context.route("**/*", async route => {
@@ -45,7 +46,16 @@ export async function createRestartHarness(baseURL, browserName) {
       if (state.mode === "lost-reply") return route.abort("connectionreset");
       return route.fulfill({ json: { metadata: { revision: state.revision }, sessionChange: { id: change.id, date: day, value: sessionDateValue(state.value, day) } } });
     });
-    const page = context.pages()[0];
+    return boot(context.pages()[0], scope, sourceFiles);
+  }
+  async function boot(page, scope, sourceFiles) {
+    loadedSources = new Set();
+    if (sourceFiles.size) await page.route("**/*", route => {
+      const path = new URL(route.request().url()).pathname;
+      if (!sourceFiles.has(path)) return route.fallback();
+      loadedSources.add(path);
+      return route.fulfill({ contentType: "text/javascript", body: sourceFiles.get(path) });
+    });
     await page.goto("/qa/session-restart-harness");
     await page.evaluate(async ({ scope, value, revision }) => {
       const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
@@ -65,7 +75,10 @@ export async function createRestartHarness(baseURL, browserName) {
     return page;
   }
   async function close() { if (context) { await context.close(); context = null; } }
-  return { state, open, close, async dispose() { try { await close(); } finally { await rm(profile, { recursive: true, force: true }); } } };
+  return { state, open, close, peer: async (scope = owner, sources = new Map()) => {
+    if (!context) throw new Error("Open the primary browser first");
+    return boot(await context.newPage(), scope, sources);
+  }, loadedSources: () => [...loadedSources].sort(), async dispose() { try { await close(); } finally { await rm(profile, { recursive: true, force: true }); } } };
 }
 export const rows = page => page.evaluate(scope => window.saveStore.list(scope), owner);
 export const stage = (page, value, previousValue) => page.evaluate(({ value, previousValue }) =>

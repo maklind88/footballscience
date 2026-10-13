@@ -1,0 +1,18 @@
+{
+  "review-aware-20260930": {
+    "commit": "0df86782fe27a5633c9b778b16bcfbef58d83be4",
+    "sha256": {
+      "/src/modules/session-planner/session-save-client.mjs": "5b6b000151e728d6b1525930f3c74d3eba68025971589b0c2f133350cf834090",
+      "/src/modules/session-planner/session-save-store.mjs": "f1ecdd1f7837b7e555d13c5213f3fe8912be60c449015fb96240da1f1827434e",
+      "/src/modules/session-planner/session-save-protocol.mjs": "cdbecb0963fcc5b9aa9cd062c90e19415874801f1dac32572712a4ac0b25eea5",
+      "/src/modules/session-planner/session-save-dependencies.mjs": "fb3fbea5eb23c1e70520b96b25337c30e772508f05fc3c4b08165d263088fca0",
+      "/src/core/local-database-connection.mjs": "7b4d0da9033123dcc3adf9e53cfe2dd64764434be47bc39604b798757508fe68"
+    }
+  },
+  "fixed-version-reader-20260923": {
+    "commit": "778f55fa7271040eebe6789a038a317da108ac93",
+    "sha256": {
+      "/src/modules/session-planner/session-save-store.mjs": "33ff2b1aa39d47e7a0ae33f2d1524ced45f2352067b4699834d74796f6b9f192"
+    }
+  }
+}

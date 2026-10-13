@@ -102,3 +102,13 @@ Next: old/new client and upgrade/rollback compatibility with unresolved work,
 then interrupted-commit and combined full-product storage failure. Keep module
 certification open until those gates and their deployed prerequisites are met.
 Do not use cache deletion or automatic review resolution to make tests pass.
+
+## Follow-up, 13 October: selected historical clients and schema upgrade
+
+The [version compatibility checkpoint](SESSIONS_VERSION_COMPATIBILITY_2026-10-13.md)
+adds bidirectional pending/review preservation and old/new tabs around a real
+v1 -> v2 database upgrade. Thirty Chromium/WebKit cases passed. It also proves
+that the pre-compatibility fixed-version reader is inaccessible after v2, while
+current source recovers the exact pending work without deletion. This closes
+only the tested client-pair boundary; whole-app rollback and arbitrary versions
+remain uncertified. Unexpected process termination is the next separate gate.

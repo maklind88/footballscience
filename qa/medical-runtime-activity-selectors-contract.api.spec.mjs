@@ -16,7 +16,7 @@ function createSelectors(overrides = {}) {
     selectedDate: "2026-05-31",
     players: [
       { id: "p1", name: "Alex Morgan", updatedAt: "2026-05-30T08:00:00.000Z" },
-      { id: "p2", name: "Sam Kerr", status: "injured", updatedAt: "2026-05-31T08:00:00.000Z" },
+      { id: "p2", name: "Sam Kerr", status: "national-team", updatedAt: "2026-05-31T08:00:00.000Z" },
       { id: "p3", name: "Temp Player", temporaryFrom: "2026-06-01", temporaryTo: "2026-06-05" },
       { id: "p4", name: "Removed Player" },
       { id: "p5", name: "Archived Player", archivedAt: "2026-05-01T00:00:00.000Z" },
@@ -68,8 +68,8 @@ function createSelectors(overrides = {}) {
     getCurrentUser: () => ({ teamName: "North Carolina Courage" }),
     getFormValues: (form) => form.values || {},
     getMedicalEntityUpdatedMs: (entity = {}) => Date.parse(entity.updatedAt || entity.createdAt || "") || 0,
-    getMedicalPlayerAvailabilityStatusOption: (player) => ({ label: player?.status === "injured" ? "Injured" : "Unavailable" }),
-    getMedicalPlayerSquadAvailabilityBlockReason: (player) => player?.status === "injured" ? "Blocked by Squad Room" : "",
+    getMedicalPlayerAvailabilityStatusOption: (player) => ({ label: player?.status === "national-team" ? "International duty" : "Available" }),
+    getMedicalPlayerSquadAvailabilityBlockReason: (player) => player?.status === "national-team" ? "Blocked by Squad Room" : "",
     getMedicalRtpPhaseOption: (phaseKey) => ({ key: phaseKey, status: "full", participation: 100 }),
     getMedicalState: () => state,
     getMedicalStatusOptionForDate: (statusKey) => ({ key: statusKey, label: statusKey === "modified" ? "Modified" : statusKey }),
@@ -82,7 +82,7 @@ function createSelectors(overrides = {}) {
     isAdmin: () => false,
     isDateValue: (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")),
     isItemArchived: (item) => Boolean(item?.archivedAt),
-    isPlayerBlockedBySquadAvailability: (player) => player?.status === "injured",
+    isPlayerBlockedBySquadAvailability: (player) => player?.status === "national-team",
     isPlayerRemovedFromSquad: (player, removedIds) => removedIds.has(player.id),
     isScheduleSessionEvent: (event) => event?.type === "training",
     isTemporaryPlayerProfile: (player) => player?.countsInSquad === false || Boolean(player?.temporaryFrom || player?.temporaryTo),
@@ -261,14 +261,13 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
   expect(draftMap.has("p1")).toBe(false);
 });
 
-test("Medical runtime activity selectors only apply Squad availability blocks on eligible dates", () => {
+test("Medical runtime activity selectors keep injury context out of Squad availability blocks", () => {
   const { selectors, state } = createSelectors({
     getMedicalPlayerAvailabilityStatusOption: (player, dateValue) => ({
       label: player?.status === "injured" && dateValue >= "2026-06-01" ? "Injured" : "Available",
     }),
-    getMedicalPlayerSquadAvailabilityBlockReason: (player, dateValue) =>
-      player?.status === "injured" && dateValue >= "2026-06-01" ? "Blocked by Squad Room" : "",
-    isPlayerBlockedBySquadAvailability: (player, dateValue) => player?.status === "injured" && dateValue >= "2026-06-01",
+    getMedicalPlayerSquadAvailabilityBlockReason: () => "",
+    isPlayerBlockedBySquadAvailability: () => false,
   });
   state.players.push({
     id: "p6",
@@ -279,11 +278,6 @@ test("Medical runtime activity selectors only apply Squad availability blocks on
 
   expect(selectors.getLatestMedicalRecord("p6", "2026-05-31")).toBeNull();
   expect(selectors.getMedicalRecommendationBlockReason("p6", 100, "2026-05-31")).toBe("");
-  expect(selectors.getLatestMedicalRecord("p6", "2026-06-01")).toMatchObject({
-    id: "squad-availability:p6:2026-06-01",
-    status: "unavailable",
-    participation: 0,
-    coachNote: "Injured - not available for team activity",
-  });
-  expect(selectors.getMedicalRecommendationBlockReason("p6", 100, "2026-06-01")).toBe("Blocked by Squad Room");
+  expect(selectors.getLatestMedicalRecord("p6", "2026-06-01")).toBeNull();
+  expect(selectors.getMedicalRecommendationBlockReason("p6", 100, "2026-06-01")).toBe("");
 });

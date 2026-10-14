@@ -138,3 +138,10 @@ pending/review rows and other accounts/teams.
 Safe Lane release remains separate. This checkpoint is a local candidate with
 local verification, not production acceptance, a full-platform certificate or
 proof that every reported user storage incident is resolved.
+
+### Subsequent local checkpoint
+
+The explicit retry/download gap identified above is implemented in the subsequent
+[memory recovery candidate](SESSIONS_WORKING_RECOVERY_2026-10-14.md). Its evidence
+and remaining limits are separate from the original combined-failure tests here.
+Neither checkpoint implies a production release.

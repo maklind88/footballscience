@@ -1,6 +1,7 @@
+import { mountSessionWorkingRecovery } from "./session-working-recovery.mjs";
 import { describeSessionDifferences } from "./session-save-protocol.mjs";
 
-export async function openSessionSaveReview({ document: doc, bridge, legacy, onResolved = () => {}, canReview, returnFocus = doc.activeElement }) {
+export async function openSessionSaveReview({ document: doc, bridge, legacy, working, onResolved = () => {}, canReview, returnFocus = doc.activeElement }) {
   if (!canReview() || doc.querySelector("dialog.session-save-review")) return;
   if (!doc.querySelector("[data-session-save-review-css]")) {
     const link = doc.createElement("link");
@@ -17,10 +18,16 @@ export async function openSessionSaveReview({ document: doc, bridge, legacy, onR
   const close = doc.createElement("button"); close.type = "button"; close.textContent = "Close";
   close.addEventListener("click", () => dialog.close());
   head.append(title, close);
+  const hasWorkingCopy = Boolean(working?.get?.());
   const content = doc.createElement("div"); content.className = "session-save-review-content";
   const status = doc.createElement("p"); status.setAttribute("role", "status"); status.textContent = "Loading local saves...";
-  content.append(status); dialog.append(head, content); doc.body.append(dialog);
+  content.append(status); dialog.append(head);
+  mountSessionWorkingRecovery({ document: doc, host: dialog, working, canUse: canReview });
+  dialog.append(content); doc.body.append(dialog);
+  const onUserChange = () => { dialog.close(); };
+  doc.defaultView.addEventListener("platform:user-change", onUserChange);
   dialog.addEventListener("close", () => {
+    doc.defaultView.removeEventListener("platform:user-change", onUserChange);
     dialog.remove();
     if (returnFocus?.isConnected && returnFocus.ownerDocument === doc) returnFocus.focus();
   }, { once: true });
@@ -56,7 +63,7 @@ export async function openSessionSaveReview({ document: doc, bridge, legacy, onR
     content.replaceChildren(status);
     const rows = [...queued.map((row) => ({ ...row, date: row.change.date, local: row.change.after,
       differences: describeSessionDifferences(row.central, row.change.after, row.change.date), queued: true })), ...old];
-    status.textContent = rows.length ? `${rows.length} local version${rows.length === 1 ? "" : "s"} to review` : "No unresolved local versions.";
+    status.textContent = rows.length ? `${rows.length} local version${rows.length === 1 ? "" : "s"} to review` : hasWorkingCopy ? "No saved local versions needed review at the last check." : "No unresolved local versions.";
     if (rows.length > 1) {
       const keepCentral = doc.createElement("button");
       keepCentral.type = "button";

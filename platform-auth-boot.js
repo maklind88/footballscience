@@ -137,7 +137,7 @@
   async function getSessionSaveClient() {
     if (!sessionSaveClientPromise) {
       sessionSaveClientPromise = import("./src/modules/session-planner/session-save-client.mjs").then(({ createSessionSaveClient }) => createSessionSaveClient({
-        getScope: getSessionSaveScope,
+        getScope: getSessionSaveScope, getWorkingScope: getCentralReadScope,
         getLatest: async (expectedScope) => {
           const response = await apiRequest(buildCentralStateReadPath([SESSION_PLANNER_STATE_KEY], { fresh: true }), {
             method: "GET",
@@ -3393,6 +3393,8 @@ async function getActiveAccessToken() {
     },
     hydrateSessionState: () => hydrateCentralState({ fresh: true, keys: [SESSION_PLANNER_STATE_KEY] }),
     rememberSessionDraft: (value, previousValue) => sessionSaveClient?.rememberDraft(value, previousValue),
+    getSessionWorkingCopy: () => canCurrentUserAutomaticallyWriteCentralStateKey(SESSION_PLANNER_STATE_KEY)
+      ? sessionSaveClient?.workingCopy?.() || null : null,
     stageSessionWrite: async (value, options) => {
       if (authState.devMode) return { ok: true };
       const actor = JSON.stringify([authState.currentUser?.id, authState.currentUser?.clubId, authState.currentUser?.teamId]);

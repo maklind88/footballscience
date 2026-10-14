@@ -143,3 +143,15 @@ Sessions still needs explicit retry/export for memory-only work. Its current
 warning is honest, but such work cannot survive reload when all durable paths
 fail. These findings do not close the platform-wide acceptance matrix and are
 not yet released.
+
+## Follow-up, 14 October: explicit Sessions memory recovery candidate
+
+The [memory recovery checkpoint](SESSIONS_WORKING_RECOVERY_2026-10-14.md) adds
+explicit retry and exact JSON download for the latest memory-only Sessions copy
+inside Review local saves. Export works without durable storage or a server read,
+including during a stalled retry. Retry preserves the original edit generation
+and conflict baseline; older reviews and newer drafts remain separate.
+
+This closes the missing local retry/export interface described immediately above
+for the candidate only. It does not make browser memory durable, add an import
+workflow, establish production acceptance or close other modules' matrix rows.

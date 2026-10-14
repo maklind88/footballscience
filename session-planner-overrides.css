@@ -1,3 +1,5 @@
+@import url("./src/modules/session-planner/session-save-review.css");
+
 /*
   Session Planner overlays must sit above the compact platform navigation.
   The sidebar/more menu uses z-index values up to 430, so planner modals need
@@ -361,4 +363,12 @@ body.is-dark-mode #sessionPlannerWorkspace .session-post-notes-field textarea {
   justify-items: start;
   gap: 0.32rem;
   margin-top: 0;
+}
+
+/* Keep recovery reachable above the fixed mobile navigation and save notice. */
+@media (max-width: 820px) {
+  #sessionPlannerWorkspace [data-session-review-local] {
+    margin-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+    scroll-margin-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+  }
 }

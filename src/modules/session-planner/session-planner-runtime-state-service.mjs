@@ -1,3 +1,4 @@
+import { openSessionSaveReview } from "./session-save-review.mjs";
 import { createSessionPlannerRecoveryController, getSessionPlannerQuotaSnapshotId } from "./session-planner-recovery-controller.mjs";
 import { createSessionLocalReviewService } from "./session-local-review-service.mjs";
 import { sessionStateForStorage } from "./session-tactical-storage.mjs";
@@ -151,7 +152,10 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
         setSaveStatus("saving", "Saved locally; syncing");
       } catch (error) {
         succeeded = false;
-        setSaveStatus("issue", "Not saved on this device. Keep this page open and retry.");
+        const workingCopy = win.footballScienceCentralState?.getSessionWorkingCopy?.();
+        setSaveStatus("issue", workingCopy
+          ? "Not saved on this device. Keep this page open. Open Review local saves to retry or download a copy."
+          : "Not saved on this device. Keep this page open and retry.");
         logEvent(`Session planner fallback save failed: ${error?.message || "Unknown error"}`);
       }
     }
@@ -332,14 +336,31 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     return recovery.queue();
   }
 
+  async function retryWorkingCopy(token, expectedScope) {
+    await flushQuotaFallback();
+    const context = getRecoveryContext();
+    const draft = win.footballScienceCentralState?.getSessionWorkingCopy?.();
+    if (!context?.ready || context.scope !== expectedScope || !draft || draft.token !== token) {
+      return { ok: false, reason: "Work or access changed. Review the latest unsaved work before retrying." };
+    }
+    // Reuse the exact draft token and original edit baseline. Do not create a
+    // replacement operation against a colleague's newer accepted version.
+    pendingQuotaFallback = { value: draft.value, previousValue: draft.previousValue,
+      draftToken: draft.token, previousPending: false, context: { ...context } };
+    cacheQuotaFallbackValue(draft.value, draft.token);
+    setSaveStatus("saving", "Saving");
+    const ok = await ensureQuotaFallbackDrain();
+    return { ok };
+  }
+
   async function openLocalSaveReview(returnFocus = win.document.activeElement) {
     const context = getRecoveryContext();
     const centralBridge = win.footballScienceCentralState;
     const bridge = centralBridge?.hydrateSessionState
       ? { ...centralBridge, hydrate: centralBridge.hydrateSessionState } : centralBridge;
     if (!context?.ready || !bridge?.getSessionCentralValue) return;
-    const expectedLocalValue = win.localStorage.getItem(sessionPlannerStorageKey);
-    const { openSessionSaveReview } = await import("./session-save-review.mjs");
+    let expectedLocalValue;
+    try { expectedLocalValue = win.localStorage.getItem(sessionPlannerStorageKey); } catch {}
     const legacy = createSessionLocalReviewService({
       openDatabase: openDataSafetyDatabase, getContext: getRecoveryContext,
       getCentralValue: () => bridge.getSessionCentralValue(),
@@ -347,10 +368,11 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     });
     return openSessionSaveReview({ document: win.document, bridge, legacy, returnFocus,
       canReview: () => getRecoveryContext()?.scope === context.scope && getRecoveryContext()?.ready,
+      working: { get: () => centralBridge.getSessionWorkingCopy?.(), retry: (token) => retryWorkingCopy(token, context.scope) },
       onResolved: async () => {
         await bridge.hydrate({ fresh: true });
         if (!(await legacy.list()).length && !(await bridge.getSessionSaveReviews()).length && !(await bridge.getSessionPendingState())) {
-          if (await bridge.finishSessionLocalReview?.(expectedLocalValue)) setSaveStatus("saved", "Local review complete");
+          if (expectedLocalValue !== undefined && await bridge.finishSessionLocalReview?.(expectedLocalValue)) setSaveStatus("saved", "Local review complete");
         }
       },
     });

@@ -24,3 +24,7 @@
 .session-save-review button:focus-visible, .session-save-review summary:focus-visible { outline: 2px solid #0868c9; outline-offset: 3px; }
 .session-save-review button:disabled { opacity: .55; cursor: wait; }
 @media (max-width: 560px) { .session-save-comparison { grid-template-columns: minmax(0, 1fr); } }
+
+.session-save-review .session-working-recovery { padding: 16px; background: #fff8e7; }
+.session-working-recovery pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto; font: 13px/1.5 ui-monospace, monospace; }
+.session-working-recovery p { overflow-wrap: anywhere; }

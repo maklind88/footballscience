@@ -2,7 +2,7 @@ import { applySessionDateChange, createSessionDateChanges, replaceSessionDate, s
 import { createSessionSaveStore } from "./session-save-store.mjs";
 import { sessionChangesOverlap } from "./session-save-dependencies.mjs";
 
-export function createSessionSaveClient({ getScope, getLatest, send, store = createSessionSaveStore(), makeId, onReview = () => {} }) {
+export function createSessionSaveClient({ getScope, getWorkingScope = getScope, getLatest, send, store = createSessionSaveStore(), makeId, onReview = () => {} }) {
   let baseline = null;
   let revision = 0;
   let scope = "";
@@ -13,6 +13,8 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
   let viewVersion = 0;
   const drafts = [];
   const draftTokens = new Map();
+  // One exact latest working copy per owner, not a full calendar per keystroke.
+  const workingCopies = new Map();
   const unstaged = new Map();
   let sequence = 0;
   const writer = makeId ? makeId() : globalThis.crypto.randomUUID();
@@ -38,6 +40,8 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
     const changes = createSessionDateChanges(JSON.parse(previousValue), JSON.parse(value), () => `${token}-${sequence++}`);
     drafts.push({ scope: expected, token, changes });
     draftTokens.set(expected, token);
+    const owner = getWorkingScope();
+    if (owner) workingCopies.set(owner, { scope: expected, owner, token, value, previousValue, baseRevision: revision });
     viewVersion++;
     return token;
   }
@@ -47,7 +51,17 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
     if (last >= 0) {
       for (let index = last; index >= 0; index--) if (drafts[index].scope === expected) drafts.splice(index, 1);
     }
+    for (const [owner, record] of workingCopies) {
+      if (record.scope === expected && record.token === token) workingCopies.delete(owner);
+    }
     viewVersion++;
+  }
+
+  function workingCopy() {
+    const expected = getScope();
+    const record = current(expected) && getWorkingScope() && workingCopies.get(getWorkingScope());
+    if (record && record.scope !== expected) return null;
+    return record ? { ...record } : null;
   }
 
   async function project() {
@@ -272,7 +286,7 @@ export function createSessionSaveClient({ getScope, getLatest, send, store = cre
     serial = work.then(() => {});
     return work;
   }
-  return { observe, stage, replay, save, pendingState, reviews, resolve, isSettled, rememberDraft, project,
+  return { observe, stage, replay, save, pendingState, reviews, resolve, isSettled, rememberDraft, workingCopy, project,
     isProjectionCurrent: (view) => Boolean(view && current(view.scope) && view.version === viewVersion),
     isReady: () => Boolean(current(getScope()) && baseline),
     centralValue: () => current(getScope()) && baseline ? JSON.stringify(baseline) : null,

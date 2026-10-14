@@ -88,6 +88,8 @@ function createHelpers(options = {}) {
     playerProfileStatusOptions: [
       { key: "available", label: "Available" },
       { key: "injured", label: "Injured" },
+      { key: "managed", label: "Managed load" },
+      { key: "rehab", label: "Rehab" },
       { key: "national-team", label: "International duty" },
     ],
     normalizePlayerProfileName: (value) => String(value || "").trim().toLowerCase(),
@@ -157,18 +159,22 @@ test("Medical runtime helpers preserve linked Squad availability and player norm
   expect(helpers.getMedicalLinkedPlayerProfile(linkedPlayer)).toMatchObject({ id: "p1" });
   expect(helpers.getMedicalLinkedPlayerProfile(linkedPlayer, profileIndex)).toMatchObject({ id: "p1" });
   expect(helpers.getMedicalPlayerAvailabilityStatus(linkedPlayer)).toBe("injured");
-  expect(helpers.isMedicalPlayerBlockedBySquadAvailability(linkedPlayer)).toBe(true);
-  expect(helpers.getMedicalPlayerSquadAvailabilityBlockReason(linkedPlayer)).toContain("Injured");
+  expect(helpers.isMedicalPlayerBlockedBySquadAvailability(linkedPlayer)).toBe(false);
+  expect(helpers.getMedicalPlayerSquadAvailabilityBlockReason(linkedPlayer)).toBe("");
+  expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ status: "managed" })).toBe(false);
+  expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ status: "rehab" })).toBe(false);
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p3", name: "Future Injury", number: "7" }, "2026-06-09")).toBe("available");
   expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ id: "p3", name: "Future Injury", number: "7" }, "2026-06-09")).toBe(false);
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p3", name: "Future Injury", number: "7" }, "2026-06-10")).toBe("injured");
-  expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ id: "p3", name: "Future Injury", number: "7" }, "2026-06-10")).toBe(true);
+  expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ id: "p3", name: "Future Injury", number: "7" }, "2026-06-10")).toBe(false);
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p4", name: "Future Injury Without From", number: "8" }, "2026-06-09")).toBe("available");
   expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ id: "p4", name: "Future Injury Without From", number: "8" }, "2026-06-09")).toBe(false);
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p4", name: "Future Injury Without From", number: "8" }, "2026-06-10")).toBe("injured");
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p5", name: "Return Without Start", number: "9" }, "2026-06-16")).toBe("available");
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p6", name: "Explicit International Interval", number: "10" }, "2026-06-14")).toBe("available");
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p6", name: "Explicit International Interval", number: "10" }, "2026-06-16")).toBe("national-team");
+  expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ id: "p6", name: "Explicit International Interval", number: "10" }, "2026-06-16")).toBe(true);
+  expect(helpers.getMedicalPlayerSquadAvailabilityBlockReason({ id: "p6", name: "Explicit International Interval", number: "10" }, "2026-06-16")).toContain("International duty");
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p6", name: "Explicit International Interval", number: "10" }, "2026-06-17")).toBe("available");
 
   expect(helpers.normalizeMedicalPlayerPosition("striker")).toBe("Forward");

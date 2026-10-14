@@ -13,7 +13,8 @@ test("Session Planner medical availability selectors preserve medical, temporary
     { player: { id: "p2", name: "Limited" }, record: { participation: 50 }, participation: 50 },
     { player: { id: "p3", name: "Unconfirmed" }, record: null, participation: null },
     { player: { id: "tmp-2", name: "Existing Temporary", temporary: true }, record: null, participation: null },
-    { player: { id: "blocked", name: "Blocked" }, record: { participation: 100 }, participation: 100 },
+    { player: { id: "injured", name: "Injured", status: "injured" }, record: { participation: 25 }, participation: 25 },
+    { player: { id: "external", name: "External absence" }, record: { participation: 100 }, participation: 100 },
   ];
 
   const selectors = createSessionPlannerMedicalAvailabilitySelectors({
@@ -24,20 +25,20 @@ test("Session Planner medical availability selectors preserve medical, temporary
     getMedicalRecordStatus: (record) => ({ key: record.status, label: record.status }),
     getSessionPlannerPlayerBoardProfileState: () => ({ players: profiles }),
     getSessionPlannerPlayerBoardSyncedPlayer: (player) => player,
-    isMedicalPlayerBlockedBySquadAvailability: (player) => player.id === "blocked",
+    isMedicalPlayerBlockedBySquadAvailability: (player) => player.id === "external",
     isPlayerProfileTemporaryActiveOnDate: (profile) => profile.active !== false,
     isTemporaryPlayerProfile: (player) => player.temporary === true,
   });
 
   const availability = selectors.getMedicalAvailability("2026-06-07");
 
-  expect(availability.all.map((item) => item.player.id)).toEqual(["p1", "p2", "p3", "tmp-2", "tmp-1"]);
+  expect(availability.all.map((item) => item.player.id)).toEqual(["p1", "p2", "p3", "tmp-2", "injured", "tmp-1"]);
   expect(availability.all.find((item) => item.player.id === "tmp-2")).toMatchObject({
     participation: 100,
     planningOnly: true,
     status: { key: "planning-guest" },
   });
-  expect(availability.limited.map((item) => item.player.id)).toEqual(["p2"]);
+  expect(availability.limited.map((item) => item.player.id)).toEqual(["p2", "injured"]);
   expect(availability.available.map((item) => item.player.id)).toEqual(["p1", "tmp-2", "tmp-1"]);
   expect(availability.unconfirmed.map((item) => item.player.id)).toEqual(["p3"]);
 });

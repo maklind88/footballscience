@@ -42,12 +42,22 @@ export function createMedicalRuntimeHelpers(deps = {}) {
     playerProfileRosterTypeCountsInSquad = () => true,
   } = deps;
 
-  const medicalSquadAvailabilityBlockStatusKeys = new Set(
+  const medicalSquadAvailabilityContextStatusKeys = new Set(
     [
       ...playerProfileStatusOptions.map((option) => option.key),
       "unknown",
     ].filter((status) => status && status !== "available")
   );
+  // Squad provides roster context; Medical owns clinical availability and RTP progression.
+  const medicalSquadAvailabilityBlockStatusKeys = new Set([
+    "unavailable",
+    "national-team",
+    "vacation",
+    "personal",
+    "suspended",
+    "loan",
+    "unknown",
+  ]);
 
   function getMedicalStatusOption(statusKey) { return medicalOptionSelectors.getMedicalStatusOption(statusKey); }
   function getMedicalStatusActivityType(dateValue, rtpPhase = "") { return medicalOptionSelectors.getMedicalStatusActivityType(dateValue, rtpPhase); }
@@ -138,7 +148,7 @@ export function createMedicalRuntimeHelpers(deps = {}) {
       profile?.status || profile?.availabilityStatus || profile?.availability_status,
       ""
     );
-    if (profileStatus && medicalSquadAvailabilityBlockStatusKeys.has(profileStatus)) {
+    if (profileStatus && medicalSquadAvailabilityContextStatusKeys.has(profileStatus)) {
       return profileStatus;
     }
     return normalizeMedicalPlayerAvailabilityStatus(
@@ -193,7 +203,7 @@ export function createMedicalRuntimeHelpers(deps = {}) {
     if (
       statusUpdatedDate &&
       statusUpdatedDate > cleanDate &&
-      medicalSquadAvailabilityBlockStatusKeys.has(currentStatus)
+      medicalSquadAvailabilityContextStatusKeys.has(currentStatus)
     ) {
       return "available";
     }

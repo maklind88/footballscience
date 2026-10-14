@@ -86,6 +86,7 @@ export const medicalOperationsTabOptions = [
   { key: "history", label: "History" },
   { key: "rtp-library", label: "RTP Library" },
   { key: "season", label: "Reports" },
+  { key: "recovery", label: "Recovery" },
 ];
 
 export const medicalPlayerModalTabOptions = [

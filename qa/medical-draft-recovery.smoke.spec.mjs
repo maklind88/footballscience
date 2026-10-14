@@ -175,6 +175,8 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
     if (rescueUnavailable === "real-form") {
       expect(await page.evaluate(async marker => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.some(row => row.comment === marker), marker)).toBe(true);
     } else expect(await page.evaluate(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.find(row => row.id === "rescue-record").comment)).toBe(marker);
+    await expect(page.locator("[data-medical-draft-recovery]")).toHaveCount(0);
+    await page.getByRole("button", { name: "Recovery", exact: true }).click();
     await expect(page.locator("[data-medical-draft-recovery]")).toContainText("could not be saved on this device");
     expect(await page.evaluate(key => localStorage.getItem(key), key)).not.toContain(marker);
     await page.getByText(/^Unsaved in this tab from /).click();
@@ -199,8 +201,11 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
     }
     return;
   }
+  await expect(page.locator("[data-medical-draft-recovery]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Recovery", exact: true }).click();
   await expect(page.locator("[data-medical-draft-recovery]")).toContainText("saved on this device");
   await page.reload(); await ready();
+  await page.getByRole("button", { name: "Recovery", exact: true }).click();
   await page.locator("[data-medical-draft-recovery] summary").first().click();
   await expect(page.locator("[data-medical-draft-recovery]")).toContainText(marker);
   expect(await page.evaluate(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.find(row => row.id === "rescue-record").comment)).toBe("Central baseline");

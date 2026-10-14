@@ -48,6 +48,7 @@ export function createMedicalWorkspaceRuntimeRenderer(deps = {}) {
       const operationsTab = normalizeOperationsTab(getOperationsTab());
       setOperationsTab(operationsTab);
       const showAvailabilityWorkspace = !canViewPrivateDetails() || operationsTab === "availability";
+      const showRecoveryWorkspace = canViewPrivateDetails() && operationsTab === "recovery";
       workspace.innerHTML = `
 <div class="medical-shell">
 <header class="medical-hero">
@@ -64,12 +65,15 @@ ${teamLogoUrl
 </div>
 </div>
 </header>
-<section class="medical-draft-recovery" data-medical-draft-recovery aria-label="Medical recovery copies" hidden></section>
 ${renderOperationsTopMenu()}
 ${
-  showAvailabilityWorkspace
-    ? rosterRenderer.renderAvailabilityWorkspace(message)
-    : `${message ? `<div class="medical-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}${renderOperationsSystem()}`
+  showRecoveryWorkspace
+    ? `<section class="medical-recovery-workspace" aria-label="Medical recovery copies">
+<section class="medical-draft-recovery" data-medical-draft-recovery aria-label="Medical recovery copies" hidden></section>
+</section>`
+    : showAvailabilityWorkspace
+      ? rosterRenderer.renderAvailabilityWorkspace(message)
+      : `${message ? `<div class="medical-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}${renderOperationsSystem()}`
 }
 ${playerModalRenderer.renderPlayerModal(options)}
 </div>

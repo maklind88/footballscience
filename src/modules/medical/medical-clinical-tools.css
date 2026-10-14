@@ -264,8 +264,15 @@
 }
 
 /* Rescue review stays separate from the current editable clinical state. */
+#medicalTeamWorkspace .medical-recovery-workspace {
+  min-width: 0;
+  display: grid;
+}
+
 #medicalTeamWorkspace .medical-draft-recovery {
   min-width: 0;
+  width: min(100%, 72rem);
+  margin: 0 auto;
   padding: 1rem;
   border: 1px solid var(--medical-warning);
   border-radius: 8px;

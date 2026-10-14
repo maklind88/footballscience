@@ -52,6 +52,7 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
     innerHTML: "",
     querySelector: () => null,
   };
+  let operationsTab = "availability";
   let batchCalls = 0;
   let batchOpen = false;
   let renderedInsideBatch = false;
@@ -61,7 +62,7 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
     escapeHtml: (value) => String(value).replaceAll("<", "&lt;"),
     getHeroTeamLogoUrl: () => "assets/team-logos/test-team.svg",
     getHeroTeamName: () => "First Team",
-    getOperationsTab: () => "availability",
+    getOperationsTab: () => operationsTab,
     getWorkspace: () => workspace,
     normalizeOperationsTab: (value) => value,
     playerModalRenderer: { renderPlayerModal: () => "<aside>Modal</aside>" },
@@ -105,4 +106,11 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
   expect(workspaceRenderer).not.toContain("recordMedicalDatabaseSyncEvent");
   expect(workspaceRenderer).not.toContain("localStorage");
   expect(index).toContain('export * from "./medical-workspace-runtime-renderer.mjs";');
+
+  operationsTab = "recovery";
+  renderer.renderMedicalTeamWorkspace("Saved.");
+  expect(workspace.innerHTML).toContain("medical-recovery-workspace");
+  expect(workspace.innerHTML).toContain("data-medical-draft-recovery");
+  expect(workspace.innerHTML).not.toContain("<main>Saved.</main>");
+  expect(workspace.innerHTML).not.toContain("<section>System</section>");
 });

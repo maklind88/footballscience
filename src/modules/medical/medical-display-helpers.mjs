@@ -25,10 +25,6 @@ export function createMedicalDisplayHelpers(options = {}) {
       : () => ({ key: "unknown", tone: "unknown", label: "Unknown" });
   const medicalOperationsTabOptions = Array.isArray(options.medicalOperationsTabOptions) ? options.medicalOperationsTabOptions : [];
   const medicalPlayerModalTabOptions = Array.isArray(options.medicalPlayerModalTabOptions) ? options.medicalPlayerModalTabOptions : [];
-  const isMedicalPlayerBlockedBySquadAvailability =
-    typeof options.isMedicalPlayerBlockedBySquadAvailability === "function"
-      ? options.isMedicalPlayerBlockedBySquadAvailability
-      : () => false;
   const isPlayerProfileTemporaryActiveOnDate =
     typeof options.isPlayerProfileTemporaryActiveOnDate === "function"
       ? options.isPlayerProfileTemporaryActiveOnDate
@@ -75,10 +71,10 @@ export function createMedicalDisplayHelpers(options = {}) {
   }
 
   function renderMedicalSquadAvailabilityBadge(player = {}, dateValue = getSelectedDate()) {
-    if (!isMedicalPlayerBlockedBySquadAvailability(player, dateValue)) {
+    const option = getMedicalPlayerAvailabilityStatusOption(player, dateValue);
+    if (!option?.key || option.key === "available") {
       return "";
     }
-    const option = getMedicalPlayerAvailabilityStatusOption(player, dateValue);
     return `<span class="medical-squad-availability-badge is-${escapeHtml(option.tone || option.key)}">${escapeHtml(option.label)}</span>`;
   }
 

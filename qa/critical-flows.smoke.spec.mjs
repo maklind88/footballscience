@@ -4969,19 +4969,19 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
   await expect(playerRow).toContainText("ACL long-term injury");
 });
 
-test("Medical availability blocks training recommendations for Squad non-available players", async ({ page }) => {
+test("Medical availability lets Medical progress active Squad injuries while external absences remain blocked", async ({ page }) => {
   await page.addInitScript(({ medicalStorageKey, playerProfilesStorageKey, scheduleStorageKey }) => {
     window.localStorage.setItem(
       scheduleStorageKey,
       JSON.stringify({
         selectedYear: 2026,
         selectedMonthIndex: 4,
-        selectedDate: "2026-05-19",
+        selectedDate: "2026-05-21",
         viewMode: "month",
         overviewSpan: 6,
         visibleEventTypes: ["training", "match", "meeting", "travel", "recovery", "off"],
         importVersion: "qa-medical-squad-block-v1",
-        events: [{ id: "qa-training", date: "2026-05-19", time: "10:00", type: "training", title: "Training", note: "" }],
+        events: [{ id: "qa-training", date: "2026-05-21", time: "10:00", type: "training", title: "Training", note: "" }],
       })
     );
     const players = [
@@ -5049,7 +5049,7 @@ test("Medical availability blocks training recommendations for Squad non-availab
     window.localStorage.setItem(
       medicalStorageKey,
       JSON.stringify({
-        selectedDate: "2026-05-19",
+        selectedDate: "2026-05-21",
         selectedPlayerId: "qa-international",
         rosterVersion: "qa-medical-squad-block-v1",
         players: players.map((player) =>
@@ -5059,7 +5059,7 @@ test("Medical availability blocks training recommendations for Squad non-availab
           {
             id: "qa-stale-international-full",
             playerId: "qa-international",
-            date: "2026-05-19",
+            date: "2026-05-21",
             status: "full",
             participation: 100,
             actualParticipation: "not-logged",
@@ -5082,7 +5082,7 @@ test("Medical availability blocks training recommendations for Squad non-availab
   await expect(internationalRow.locator(".medical-squad-availability-badge")).toHaveText("International duty");
   await expect(internationalRow.locator(".medical-quick-rec-button.is-active")).toHaveText("0%");
   await expect(internationalRow.locator('[data-medical-quick-participation="100"]')).toBeDisabled();
-  await expect(futureInjuryRow.locator(".medical-squad-availability-badge")).toHaveCount(0);
+  await expect(futureInjuryRow.locator(".medical-squad-availability-badge")).toHaveText("Injured");
   await expect(futureInjuryRow.locator('[data-medical-quick-participation="100"]')).toBeEnabled();
   await expect(availableRow.locator('[data-medical-quick-participation="100"]')).toBeEnabled();
   await expect(page.locator(".medical-bulk-panel")).toHaveCount(0);

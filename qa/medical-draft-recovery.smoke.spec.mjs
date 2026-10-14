@@ -156,6 +156,11 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
   }
   await page.goto("/?workspace=medical-team"); await ready();
   if (rescueUnavailable === "real-form") {
+    // The workspace intentionally opens on today; choose the seeded training date before exercising the real form.
+    const dateInput = page.getByLabel("Selected medical date", { exact: true });
+    await dateInput.fill(day);
+    await dateInput.dispatchEvent("change");
+    await expect(dateInput).toHaveValue(day);
     await page.locator("[data-medical-roster-row]:visible .medical-roster-player-cell").first().click();
     const form = page.locator("#medicalRecommendationForm:visible").first();
     await form.locator('textarea[name="comment"]').fill(marker);

@@ -9,7 +9,7 @@ const localDate = () => {
   return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
 };
 
-async function boot(page, { presentation = false, pitchMode = "full-wide", frames = true, visualImage = "", blockCount = 2, legacyFrameMirror = false } = {}) {
+async function boot(page, { presentation = false, pitchMode = "full-wide", frames = true, visualImage = "", blockCount = 2, legacyFrameMirror = false, detachedFrameMirror = false } = {}) {
   const date = localDate();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -25,6 +25,8 @@ async function boot(page, { presentation = false, pitchMode = "full-wide", frame
   if (legacyFrameMirror) Object.assign(block, {
     tacticalActiveFrameId: "first", tacticalFrames: [{ id: "first", label: "Frame 1", elements: [] }],
   });
+  // Central date changes omit local frame selection but retain the last mirror.
+  if (detachedFrameMirror) delete block.tacticalActiveFrameId;
   await page.addInitScript(({ key, date, block, blockCount }) => {
     if (localStorage.getItem(key)) return;
     localStorage.setItem(key, JSON.stringify({ selectedDate: date, sessions: { [date]: {
@@ -135,6 +137,40 @@ test("Preview starts on frame one, plays without editing, and resets on reopenin
   await assertFirst(view);
   expect(await storage(page)).toBe(before);
   expect(await page.evaluate(() => window.qaPlaybackWrites)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("central reload with a detached last-frame mirror preserves preview, editor and later saves", async ({ page }, testInfo) => {
+  const { view, errors } = await boot(page, { detachedFrameMirror: true });
+  const before = await storage(page);
+  await assertFirst(view);
+  await seek(view, 1);
+  expect((await position(view.locator(`${animated} ${player}`))).x).toBeCloseTo(40, 1);
+  await page.locator("[data-session-close-visual-preview]").click();
+  expect((await position(page.locator(`.session-media-preview ${player}`))).x).toBeCloseTo(20, 1);
+  await page.locator("[data-session-open-tacticalboard]").click();
+  const editor = page.locator(".session-tacticalboard-modal");
+  const editorPlayer = editor.locator(`.session-visual-board-editor ${player}`);
+  expect((await position(editorPlayer)).x).toBeCloseTo(20, 1);
+  await editor.locator('[data-session-tactical-frame="second"]').click();
+  expect((await position(editorPlayer)).x).toBeCloseTo(40, 1);
+  expect(await storage(page)).toBe(before);
+  await editorPlayer.click();
+  await editorPlayer.press("ArrowRight");
+  await expect.poll(async () => {
+    const saved = JSON.parse(await storage(page));
+    const block = saved.sessions[saved.selectedDate].blocks[0];
+    return block.tacticalFrames[1].elements[0].x;
+  }).toBeGreaterThan(40);
+  const savedValue = await storage(page);
+  const saved = JSON.parse(savedValue);
+  const block = saved.sessions[saved.selectedDate].blocks[0];
+  expect(block.tacticalFrames[0].elements[0].x).toBe(20);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.locator("[data-session-preview-visual]").click();
+  await assertFirst(view);
+  expect(await storage(page)).toBe(savedValue);
+  await page.screenshot({ path: testInfo.outputPath("first-frame-after-central-reload.png") });
   expect(errors).toEqual([]);
 });
 

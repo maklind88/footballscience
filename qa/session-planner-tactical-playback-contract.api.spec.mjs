@@ -81,6 +81,7 @@ test("frame edits fail closed if another editor changed the saved board", () => 
   const stale = controller.getEditorBlock();
   stale.tacticalElements[0].x = 90;
   state.source.tacticalElements[0].x = 35;
+  state.source.tacticalFrames[0].elements[0].x = 35;
   const remote = structuredClone(state.source);
   expect(controller.persist(stale)).toBe(false);
   expect(state.source).toEqual(remote);

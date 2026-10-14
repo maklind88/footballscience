@@ -38,7 +38,7 @@ Only player marker types may carry these optional additive fields:
 - Frame creation and growing board edits check a 240 KiB payload budget below the existing server limit. An oversized assignment is refused with a visible warning before saved content is changed. Existing longer sequences can still be read and reduced; no silent truncation is allowed.
 - The animation engine retains native coordinate interpolation. Rendering only replaces a segment at frame boundaries, not each animation tick. Browsers reuse normal HTTPS image caching.
 - No assignment controls exist in read-only previews/presentations. Both the inspector and existing frame persistence enforce edit permission. Search/selection/playback are not saves.
-- Read-only frames reconcile the saved active-frame element mirror exactly as the editor does before choosing frame one. This preserves older drawings with stale frame snapshots without writing a migration or filling deliberately empty non-active frames.
+- Multi-frame sequences use their saved frame snapshots in both editor and read-only views. The local selected-frame id can be restored independently of the compatibility element mirror after a central save, so it must never redirect that mirror onto another frame. Single-frame legacy boards still use their unambiguous active-frame mirror; boards without frames retain their original drawing. Reading or browsing never migrates or rewrites saved content.
 
 ## Verification
 

@@ -33,7 +33,11 @@ export function createSessionPlannerTacticalFramesController({
         label: "Frame 1",
         elements: block.tacticalElements || [],
       }));
-    } else {
+    } else if (frames.length === 1) {
+      // Multi-frame snapshots own their content. The local selection may be
+      // restored independently of the legacy mirror after a central receipt.
+      // Reapplying that mirror would replace the selected frame with another.
+      // Only a single-frame legacy board has an unambiguous mirror owner.
       const active = frames.find((frame) => frame.id === block.tacticalActiveFrameId);
       if (active && Array.isArray(block.tacticalElements)) {
         active.elements = block.tacticalElements.map(cloneElement);

@@ -26,13 +26,13 @@ test("readonly projection starts at the first frame and excludes unrelated sessi
   expect(getReadonlyTacticalView(source).tacticalElements).toEqual([]);
 });
 
-test("readonly frames honor the editor's legacy active-frame mirror without changing saved data", () => {
+test("readonly sequences preserve snapshots while single-frame legacy boards retain their mirror", () => {
   const source = block();
   source.tacticalFrames[1].elements = [];
   const before = structuredClone(source);
   const view = getReadonlyTacticalView(source);
   expect(view.tacticalElements).toEqual(source.tacticalFrames[0].elements);
-  expect(view.tacticalFrames[1].elements).toEqual(source.tacticalElements);
+  expect(view.tacticalFrames[1].elements).toEqual([]);
   expect(source).toEqual(before);
 
   source.tacticalFrames = [{ id: "first", elements: [] }];

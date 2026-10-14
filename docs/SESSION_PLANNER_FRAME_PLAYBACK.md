@@ -40,6 +40,8 @@ Legacy single-image boards acquire a first frame only on an actual edit. No migr
 
 Changed source content/date/block invalidates stale editor drafts. Destructive confirmation rechecks the current frame and edit permission. Playback clones the editor view and has no persistence callback. Transient animation positions, speed, loop, and scrub position never enter saved data. Equivalent background renders retain the playback overlay; changed board content or permissions stop it.
 
+Multi-frame snapshots are authoritative on read. Date-scoped central saves intentionally omit `tacticalActiveFrameId` as local UI state, while keeping `tacticalElements`. Hydration can select frame one or restore another local selection independently of that compatibility mirror. Overlaying the mirror onto the selected frame therefore displayed the last edited positions as frame one and could persist that replacement on a later edit. Editor, preview, overview and print now read each saved frame's own elements; the unambiguous single-frame legacy fallback remains. No frames are reordered, deleted or deduplicated, and no read triggers a repair write. If an earlier edit already persisted incorrect frame content, recovery needs a verified prior exercise version rather than guessing from duplicate positions.
+
 Native Web Animations interpolate marker coordinates. The entire rendered board is scaled uniformly to fit playback, preserving pitch and marker proportions. Editing retains its existing dimensions and scroll position. Reduced-motion users see frame steps. Leaving the workspace or hiding the tab stops playback and releases animations/observers. Editor shortcuts and tools cannot alter the hidden source during playback.
 
 ## Validation And Release
@@ -47,6 +49,7 @@ Native Web Animations interpolate marker coordinates. The entire rendered board 
 Focused coverage lives in:
 
 - `qa/session-planner-tactical-playback-contract.api.spec.mjs`
+- `qa/session-planner-frame-integrity.api.spec.mjs` (central save, hydration, local selection receipts, later-frame edits and deliberately empty starts)
 - `qa/session-planner-tactical-playback.smoke.spec.mjs`
 - `qa/session-planner-readonly-playback.api.spec.mjs`
 - `qa/session-planner-readonly-playback.smoke.spec.mjs`

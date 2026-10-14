@@ -5,8 +5,10 @@ export function getReadonlyTacticalView(block) {
   if (!block) return null;
   const frames = (Array.isArray(block.tacticalFrames) ? block.tacticalFrames : [])
     .filter((frame) => frame && Array.isArray(frame.elements))
-    // Match the editor's legacy active-frame mirror before selecting frame one.
-    .map((frame) => frame.id && frame.id === block.tacticalActiveFrameId && Array.isArray(block.tacticalElements)
+    // A restored local selection cannot identify the owner of a multi-frame
+    // legacy mirror. Use saved frame snapshots; retain single-frame fallback.
+    .map((frame, _index, savedFrames) => savedFrames.length === 1 && frame.id &&
+      frame.id === block.tacticalActiveFrameId && Array.isArray(block.tacticalElements)
       ? { ...frame, elements: block.tacticalElements }
       : frame);
   return {

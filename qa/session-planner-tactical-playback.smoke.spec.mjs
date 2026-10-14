@@ -219,6 +219,7 @@ test("background renders retain playback while changed board content stops it wi
   await page.evaluate(async () => {
     const runtime = await import("/src/modules/session-planner/session-planner-runtime-accessors.mjs");
     runtime.getSessionPlannerSelectedBlock().tacticalElements[0].x = 30;
+    runtime.getSessionPlannerSelectedBlock().tacticalFrames[0].elements[0].x = 30;
     runtime.renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
   });
   await expect(modal.locator(".session-tactical-playback-surface")).toHaveCount(0);

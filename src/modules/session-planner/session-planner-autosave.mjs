@@ -41,11 +41,10 @@ export function createSessionPlannerAutosaveBoundary(options = {}) {
     if (normalizedState === "issue") {
       return true;
     }
-    // A terminal "saved" outcome for a write we already told the user was
-    // "Saving" must always be allowed through, even once the active window
-    // has elapsed: slow saves (e.g. IndexedDB quota fallback + central sync)
-    // can resolve well after activeWindowMs, and dropping that update would
-    // leave the "Saving" indicator stuck on screen forever.
+    // A verified "saved" outcome must resolve a surfaced saving/issue state
+    // even outside the activity window. Restored pending work can fail and
+    // recover after reload without any new local edit timestamp. The sync
+    // owner remains responsible for verifying the receipt and pending work.
     if (normalizedState === "saved" && hasPendingResolution) {
       return true;
     }
@@ -58,9 +57,9 @@ export function createSessionPlannerAutosaveBoundary(options = {}) {
     }
     setStatus(state, message);
     const normalizedState = String(state || "");
-    if (normalizedState === "saving") {
+    if (normalizedState === "saving" || normalizedState === "issue") {
       hasPendingResolution = true;
-    } else if (normalizedState === "saved" || normalizedState === "issue") {
+    } else if (normalizedState === "saved") {
       hasPendingResolution = false;
     }
     return true;

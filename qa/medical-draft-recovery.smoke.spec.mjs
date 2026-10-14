@@ -118,6 +118,8 @@ for (const rescueUnavailable of [false, true, "real-form"]) {
 test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) preserves honest recovery and central state`, async ({ page }) => {
   await installSetPiecesCentralFixture(page);
   const day = "2026-10-09", marker = "Synthetic full-app rescue";
+  // Keep the actual form on the fixture training day as calendar time advances.
+  await page.clock.setFixedTime(new Date(`${day}T12:00:00Z`));
   const player = { id: "rescue-player", name: "Synthetic Rescue Player", rosterType: "squad", status: "available" };
   const medical = { rosterVersion: "rescue", selectedDate: day, selectedPlayerId: player.id, players: [player], injuryPlans: [],
     records: [{ id: "rescue-record", playerId: player.id, date: day, participation: 50, comment: "Central baseline", createdAt: `${day}T08:00:00Z` }] };

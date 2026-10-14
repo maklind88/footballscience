@@ -1801,3 +1801,27 @@ for (const mode of ["accepted", "scope-changed", "readonly", "hydrating"]) {
     else expect(h.manifest.entries).toEqual({});
   });
 }
+
+for (const partial of [false, true]) {
+  for (const scopeChange of [false, true]) {
+    test(`retained Sessions review restores status without replay (partial=${partial}, scope change=${scopeChange})`, async () => {
+      let scope = "actor-A";
+      const h = createServiceHarness({ getReadScope: () => scope });
+      const key = "football-session-planner-v1";
+      h.win.footballScienceCentralState.isKeyHydrated = value => value === key;
+      h.win.footballScienceCentralState.getSessionPendingState = async () => null;
+      h.win.footballScienceCentralState.getSessionSaveReviews = async () => {
+        // Like the real scoped store, a subsequent read by B cannot return A.
+        if (scope !== "actor-A") return [];
+        if (scopeChange) scope = "actor-B";
+        return [{ status: "review", change: { id: "retained" } }];
+      };
+      const before = structuredClone(h.manifest);
+      await h.service.retryCentral(() => h.manifest, partial ? { readKeys: [key] } : {});
+      await h.service.flushCentralStateWrites();
+      expect(h.syncCalls).toEqual([]);
+      expect(h.manifest).toEqual(before);
+      expect(h.autosaveStatuses).toEqual(scopeChange ? [] : [[key, "issue", "Local changes need review"]]);
+    });
+  }
+}

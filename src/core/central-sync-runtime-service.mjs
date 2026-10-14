@@ -201,6 +201,15 @@ export function createCentralSyncRuntimeService(deps = {}) {
     return Object.values(manifest.entries || {}).some((entry) => entry?.pendingCentralSync);
   }
 
+  async function reportRetainedSessionReview(bridge, scope) {
+    const key = sessionPlannerStorageKey;
+    if (!scope || !bridge?.isKeyHydrated?.(key) || !bridge.getSessionSaveReviews) return;
+    const reviews = await bridge.getSessionSaveReviews();
+    if (reviews.length && scope === bridge.getReadScope?.() && bridge.isKeyHydrated(key)) {
+      reportSyncStatus(key, "issue", "Local changes need review");
+    }
+  }
+
   async function retryVerifiedSessionRead(readKeys) {
     const bridge = getCentralStateBridge(), key = sessionPlannerStorageKey;
     if (!readKeys.includes(key) || !bridge?.isKeyHydrated?.(key) || !bridge.getSessionPendingState) return;
@@ -208,7 +217,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (!scope) return;
     try {
       const pending = await bridge.getSessionPendingState();
-      if (!pending || scope !== bridge.getReadScope?.() || !bridge.isKeyHydrated(key)) return;
+      if (scope !== bridge.getReadScope?.() || !bridge.isKeyHydrated(key)) return;
+      if (!pending) { await reportRetainedSessionReview(bridge, scope); return; }
       if (centralStateWriteQueue.has(key)) {
         if (!centralStateWriteTimer) centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
       } else if (!centralStateActiveWrites.has(key)) {
@@ -245,6 +255,9 @@ export function createCentralSyncRuntimeService(deps = {}) {
     try {
       durableState = getCentralStateBridge()?.getSessionPendingState ? await getCentralStateBridge().getSessionPendingState() : null;
       if (getCurrentUser()?.id !== userId || getCentralStateBridge()?.getReadScope?.() !== principalScope) return;
+      if (!durableState && getCentralStateBridge()?.getSessionSaveReviews) {
+        await reportRetainedSessionReview(getCentralStateBridge(), principalScope);
+      }
       setPiecesDurableState = getCentralStateBridge()?.getSetPiecesPendingState
         ? await getCentralStateBridge().getSetPiecesPendingState() : null;
     } catch {

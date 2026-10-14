@@ -126,3 +126,20 @@ not reported complete; a receipt cannot clear a later generation. See the
 These are local QA-only checkpoints with synthetic server transport, not a new
 production release or full-platform offline certification. Next is combined
 storage failure in the full app with honest save status and recoverable work.
+
+## Follow-up, 14 October: full-app combined failure and stuck status
+
+The [combined storage-failure checkpoint](SESSIONS_COMBINED_STORAGE_FAILURE_2026-10-14.md)
+found a reproducible Sessions display defect: after reload, a successful retry
+emptied the journal but left Sync issue visible. The candidate keeps a surfaced
+issue unresolved until a verified completion can clear it. Real editor tests
+cover durable pending work, simultaneous cache/journal failures, recovery and
+retained conflict review. The full-app check also reproduced Saved alongside a retained review after
+reload; the central read/retry path now restores that warning with scope guards
+and no review writes. The existing Medical real-form fixture now fixes its
+clock to its synthetic training day.
+
+Sessions still needs explicit retry/export for memory-only work. Its current
+warning is honest, but such work cannot survive reload when all durable paths
+fail. These findings do not close the platform-wide acceptance matrix and are
+not yet released.

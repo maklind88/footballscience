@@ -665,6 +665,25 @@ test("Session Planner autosave boundary resolves a slow save as an issue when it
   ]);
 });
 
+test("Session Planner autosave resolves a restored issue without a new edit, once only and only in its workspace", () => {
+  let workspaceId = "session-planner";
+  const statuses = [];
+  const boundary = createSessionPlannerAutosaveBoundary({
+    now: () => 60000,
+    getActiveWorkspaceId: () => workspaceId,
+    setStatus: (...args) => statuses.push(args),
+  });
+  // After reload there is no local write timestamp, but replay reports failure.
+  expect(boundary.setStatusForKey(sessionPlannerStorageKey, "issue", "Sync failed")).toBe(true);
+  expect(boundary.setStatusForKey("football-schedule-v1", "saved", "Saved")).toBe(false);
+  workspaceId = "schedule";
+  expect(boundary.setStatusForKey(sessionPlannerStorageKey, "saved", "Saved")).toBe(false);
+  workspaceId = "session-planner";
+  expect(boundary.setStatusForKey(sessionPlannerStorageKey, "saved", "Saved")).toBe(true);
+  expect(boundary.setStatusForKey(sessionPlannerStorageKey, "saved", "Saved")).toBe(false);
+  expect(statuses).toEqual([["issue", "Sync failed"], ["saved", "Saved"]]);
+});
+
 test("Session Planner app integration delegates autosave policy and block rendering to the module", () => {
   const app = readProjectFile("app-runtime.js");
   const appRuntimeComposer = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");

@@ -113,11 +113,19 @@ test("actual Sessions client/API with atomic PostgreSQL receipts", { timeout: 12
         const pointer = http.objects.get("backups/app-state/latest.json");
         const backup = http.objects.get(pointer.path);
         assert.equal(backup.entries[key], (await central()).value);
-        assert.equal(backup.sessionSaveSnapshot.schema, "session-save-backup-v2");
+        assert.equal(backup.sessionSaveSnapshot.schema, "session-save-backup-v3");
         assert.equal(backup.sessionSaveSnapshot.receiptCount, 2);
         const { decodeBackupChunk, encodeBackupChunk } = require("../api/_lib/session-save-backup-chunks.js");
-        assert.equal(backup.sessionSaveSnapshot.chunks.flatMap(decodeBackupChunk).length, 2);
+        const packPath = (ref) => `backups/app-state/session-ledger/global/${ref.sha256}.json`;
+        const pack = http.objects.get(packPath(backup.sessionSaveSnapshot.packs[0]));
+        assert.equal(pack.chunks.flatMap(decodeBackupChunk).length, 2);
         assert.equal((await invoke("/api/app-state-backup?mode=restore-drill", "GET")).status, 200);
+        const ref = backup.sessionSaveSnapshot.packs[0];
+        const storedPack = http.objects.get(packPath(ref));
+        http.objects.delete(packPath(ref));
+        assert.equal((await invoke("/api/app-state-backup?mode=status", "GET")).status, 409);
+        assert.equal((await invoke("/api/app-state-backup?mode=restore-drill", "GET")).status, 409);
+        http.objects.set(packPath(ref), storedPack);
         // A failed final page must not replace the previous successful archive/pointer.
         const preservedPointer = JSON.stringify(pointer);
         const preservedObjects = [...http.objects.keys()];
@@ -135,9 +143,13 @@ test("actual Sessions client/API with atomic PostgreSQL receipts", { timeout: 12
           assert.deepEqual([...http.objects.keys()], preservedObjects);
         } finally { global.fetch = http.fetch; }
         // Rehash to prove semantic validation, not only envelope hashing, catches missing events.
-        const rows = decodeBackupChunk(backup.sessionSaveSnapshot.chunks[0]);
+        const rows = decodeBackupChunk(pack.chunks[0]);
         rows[0].effect = null;
-        backup.sessionSaveSnapshot.chunks[0] = encodeBackupChunk(rows);
+        pack.chunks[0] = encodeBackupChunk(rows);
+        const packText = JSON.stringify(pack);
+        ref.sha256 = createHash("sha256").update(packText).digest("hex");
+        ref.bytes = Buffer.byteLength(packText);
+        http.objects.set(packPath(ref), pack);
         const { contentSha256, ...core } = backup;
         backup.contentSha256 = createHash("sha256").update(JSON.stringify(core)).digest("hex");
         pointer.contentSha256 = backup.contentSha256;

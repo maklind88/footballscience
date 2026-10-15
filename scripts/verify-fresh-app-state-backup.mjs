@@ -17,7 +17,7 @@ export async function verifyFreshBackup({ target, expectedBuildId, username, pas
     let response;
     try {
       response = await fetchImpl(new URL(path, config.origin), {
-        ...options, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(75_000),
+        ...options, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(path === "/api/app-state-backup" ? 300_000 : 75_000),
       });
     } catch {
       throw new Error(`Backup verification transport failed at ${path.split("?")[0]}.`);

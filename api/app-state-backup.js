@@ -9,7 +9,7 @@ const {
 const { guardApiRequest } = require("./_lib/platform-security.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 const { isAppStateDatabaseEnabled } = require("./_lib/app-state-records-database.js");
-const { readSessionSaveBackup, validateSessionSaveBackup } = require("./_lib/session-save-backup.js");
+const { readStoredSessionSaveBackup, validateStoredSessionSaveBackup } = require("./_lib/session-save-backup-archive.js");
 const { readBackupStateEntry } = require("./_lib/app-state-backup-source.js");
 const SESSION_PLANNER_KEY = "football-session-planner-v3";
 
@@ -176,11 +176,21 @@ function hashText(value) {
   return createHash("sha256").update(String(value ?? ""), "utf8").digest("hex");
 }
 
+const sessionBackupStorage = {
+  readObject: (path) => storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
+    method: "GET", raw: true, contentType: "", headers: { "Cache-Control": "no-cache, no-store" },
+  }),
+  writeObject: (path, body) => storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
+    method: "POST", body, headers: { "Cache-Control": "no-store" },
+  }),
+};
+
 async function collectCentralStateBackupEntries() {
   const entries = {};
   const manifest = {};
-  const sessionSaveSnapshot = isAppStateDatabaseEnabled() ? await readSessionSaveBackup() : null;
-  const sessionEntry = sessionSaveSnapshot ? validateSessionSaveBackup(sessionSaveSnapshot) : null;
+  const sessionArchive = isAppStateDatabaseEnabled() ? await readStoredSessionSaveBackup(sessionBackupStorage) : null;
+  const sessionSaveSnapshot = sessionArchive?.snapshot;
+  const sessionEntry = sessionArchive?.entry;
 
   await Promise.all(
     Array.from(CENTRAL_STATE_KEYS).map(async (key) => {
@@ -401,7 +411,7 @@ function createModuleRestoreSummary() {
   return modules;
 }
 
-function createRestoreDrillSummary(backup, statusSummary) {
+async function createRestoreDrillSummary(backup, statusSummary) {
   const manifest = backup.manifest && typeof backup.manifest === "object" && !Array.isArray(backup.manifest) ? backup.manifest : {};
   const entries = backup.entries && typeof backup.entries === "object" && !Array.isArray(backup.entries) ? backup.entries : {};
   const modules = createModuleRestoreSummary();
@@ -411,7 +421,7 @@ function createRestoreDrillSummary(backup, statusSummary) {
   const invalidEntries = [];
   if (isAppStateDatabaseEnabled() || backup.sessionSaveSnapshot) {
     try {
-      const record = validateSessionSaveBackup(backup.sessionSaveSnapshot);
+      const record = await validateStoredSessionSaveBackup(backup.sessionSaveSnapshot, sessionBackupStorage.readObject);
       const present = Boolean(record && !record.removed);
       if (Boolean(manifest[SESSION_PLANNER_KEY]?.present) !== present || (present &&
           (entries[SESSION_PLANNER_KEY] !== record.value || manifest[SESSION_PLANNER_KEY].revision !== record.revision))) {
@@ -1566,6 +1576,10 @@ async function sendBackupStatus(res) {
   }
 
   const summary = summarizeBackupStatus(pointer, backupResult.payload || {});
+  if (backupResult.payload?.sessionSaveSnapshot?.schema === "session-save-backup-v3") {
+    try { await validateStoredSessionSaveBackup(backupResult.payload.sessionSaveSnapshot, sessionBackupStorage.readObject); }
+    catch { summary.backupMatchesPointer = false; }
+  }
   if (!summary.backupMatchesPointer) {
     return sendJson(res, 409, {
       ok: false,
@@ -1604,7 +1618,7 @@ async function sendBackupRestoreDrill(res) {
 
   const backup = backupResult.payload || {};
   const summary = summarizeBackupStatus(pointer, backup);
-  const restoreDrill = createRestoreDrillSummary(backup, summary);
+  const restoreDrill = await createRestoreDrillSummary(backup, summary);
   if (!restoreDrill.restorable) {
     return sendJson(res, 409, {
       ok: false,

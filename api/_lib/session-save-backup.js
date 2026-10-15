@@ -33,7 +33,7 @@ function validateSessionSaveBackup(snapshot, organizationId = "global") {
   return entry;
 }
 
-async function readSessionSaveBackup(organizationId = "global") {
+async function scanSessionSaveBackup(organizationId, onChunk) {
   const body = { p_organization_id: organizationId };
   let snapshot;
   let seen = 0;
@@ -61,16 +61,27 @@ async function readSessionSaveBackup(organizationId = "global") {
     // Require an empty final page, still bound to the same revision/hash/count.
     if (!page.rows.length) {
       if (seen !== snapshot.receiptCount) fail();
-      validatePagedBackup(snapshot, organizationId);
       return snapshot;
     }
-    snapshot.chunks.push(encodeBackupChunk(page.rows));
-    if (Buffer.byteLength(JSON.stringify(snapshot)) > MAX_BYTES) fail();
+    await onChunk(encodeBackupChunk(page.rows));
     const last = page.rows.at(-1).receipt;
     body.p_after_actor = last.actor_id;
     body.p_after_operation = last.operation_id;
   }
   fail();
+}
+
+async function readSessionSaveBackup(organizationId = "global") {
+  const chunks = [];
+  let bytes = 0;
+  const snapshot = await scanSessionSaveBackup(organizationId, async (chunk) => {
+    bytes += Buffer.byteLength(JSON.stringify(chunk));
+    if (bytes > MAX_BYTES) fail();
+    chunks.push(chunk);
+  });
+  snapshot.chunks = chunks;
+  validatePagedBackup(snapshot, organizationId);
+  return snapshot;
 }
 
 function validatePageRows(rows, snapshot, identities) {
@@ -95,4 +106,4 @@ function validatePagedBackup(snapshot, organizationId) {
   return entry;
 }
 
-module.exports = { readSessionSaveBackup, validateSessionSaveBackup };
+module.exports = { readSessionSaveBackup, validateSessionSaveBackup, scanSessionSaveBackup, validatePageRows };

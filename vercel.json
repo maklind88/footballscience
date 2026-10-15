@@ -3,6 +3,9 @@
   "functions": {
     "api/client-config.js": {
       "maxDuration": 75
+    },
+    "api/app-state-backup.js": {
+      "maxDuration": 300
     }
   },
   "rewrites": [

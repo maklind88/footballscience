@@ -139,3 +139,19 @@ Safe Lane release and authenticated exact-candidate verification remain separate
 The broader per-module saved-work matrix remains open; this checkpoint does not
 certify Medical, every offline startup path, every browser or all reported cache
 incidents. No cache clearing or deletion is needed for this recovery flow.
+
+## Release preparation — 16 October 2026
+
+The candidate was rebased without content changes onto released main `ad05626b`.
+The first full release QA exposed an existing setup race in the three Storage
+health review-explanation cases: they opened a synthetic dialog before real app
+login finished. The new user-change guard correctly closed it when boot assigned
+the user, leaving the test waiting for a Close button that no longer existed.
+The release was stopped before any push or deployment.
+
+Those cases now wait for app/auth readiness and dismiss the dashboard before
+opening the dialog. Their conflict/recovery wording and zero-mutation assertions
+are unchanged; product user-change handling is unchanged. The four Storage health
+cases plus seven working-recovery cases pass together (11/11 Chromium). The full
+Safe Lane gate is rerun on the committed candidate; this note alone is not release
+or production-verification evidence.

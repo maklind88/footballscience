@@ -24,6 +24,11 @@ test('profile storage health opens in the real app and preserves protected conte
 for (const kind of ['conflict','predecessor','recovery']) {
   test(`review explains ${kind} without resolving or rewriting any version`, async ({page})=>{
     await page.goto('/');
+    await page.waitForFunction(() => window.__footballScienceAppReady && document.querySelector('#loginScreen')?.hidden);
+    await page.evaluate(async () => {
+      await window.platformAuthReadyPromise;
+      document.querySelector('#dashboardModalRoot button[data-dashboard-modal-close]')?.click();
+    });
     await page.evaluate(async kind=>{
       const {openSessionSaveReview}=await import('/src/modules/session-planner/session-save-review.mjs');
       const local={session:{title:'Synthetic draft',blocks:[]}},central={session:{title:'Synthetic central',blocks:[]}};

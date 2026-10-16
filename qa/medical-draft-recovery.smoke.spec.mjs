@@ -114,8 +114,13 @@ test("the storage inventory counts rescue copies without clinical content or del
   expect(JSON.stringify(report)).not.toContain("Rescue exact draft"); expect(await list(page)).toHaveLength(1);
 });
 
-for (const rescueUnavailable of [false, true, "real-form"]) {
-test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) preserves honest recovery and central state`, async ({ page }) => {
+for (const { rescueUnavailable, delayedHydration = false } of [
+  { rescueUnavailable: false },
+  { rescueUnavailable: true },
+  { rescueUnavailable: "real-form" },
+  { rescueUnavailable: false, delayedHydration: true },
+]) {
+test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}${delayedHydration ? ", delayed hydration" : ""}) preserves honest recovery and central state`, async ({ page }) => {
   await installSetPiecesCentralFixture(page);
   const day = "2026-10-09", marker = "Synthetic full-app rescue";
   const player = { id: "rescue-player", name: "Synthetic Rescue Player", rosterType: "squad", status: "available" };
@@ -137,17 +142,34 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
     };
   });
   let posts = 0, revision = 10;
+  let releaseHydration;
+  const hydrationGate = new Promise(resolve => { releaseHydration = resolve; });
+  let hydrationReleased = !delayedHydration;
   await page.route("**/api/app-state**", route => {
     if (route.request().method() !== "GET") { posts++; return route.fulfill({ status: 503, json: { ok: false } }); }
     const keys = new URL(route.request().url()).searchParams.get("keys")?.split(",") || Object.keys(entries);
-    return route.fulfill({ json: { ok: true, entries: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, entries[k]])),
+    const respond = () => route.fulfill({ json: { ok: true, entries: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, entries[k]])),
       metadata: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, { revision }])), absentKeys: keys.filter(k => !(k in entries)) } });
+    return delayedHydration && keys.includes(key) ? hydrationGate.then(respond) : respond();
   });
   const ready = async () => {
     await page.waitForFunction(() => window.__footballScienceAppReady && document.querySelector("#loginScreen")?.hidden);
     await page.evaluate(() => document.querySelector("#dashboardModalRoot button[data-dashboard-modal-close]")?.click());
     await page.getByRole("button", { name: "Medical", exact: true }).click();
-    await page.waitForFunction(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.some(row => row.id === "rescue-record"));
+    if (!hydrationReleased) {
+      expect(await page.evaluate(async () =>
+        (await import("/src/modules/medical/medical-runtime-accessors.mjs"))
+          .ensureMedicalState().records.some(row => row.id === "rescue-record")
+      )).toBe(false);
+      hydrationReleased = true;
+      // Deliberately deliver the baseline after readiness polling starts.
+      setTimeout(releaseHydration, 250);
+    }
+    // Poll the resolved boolean: waitForFunction treats an async predicate's Promise as truthy.
+    await expect.poll(() => page.evaluate(async () =>
+      (await import("/src/modules/medical/medical-runtime-accessors.mjs"))
+        .ensureMedicalState().records.some(row => row.id === "rescue-record")
+    ), { message: "Medical must hydrate the saved recommendation before editing it" }).toBe(true);
   };
   if (rescueUnavailable === "real-form") {
     entries["football-schedule-v1"] = JSON.stringify({ selectedDate: day, importVersion: "working-draft-qa",

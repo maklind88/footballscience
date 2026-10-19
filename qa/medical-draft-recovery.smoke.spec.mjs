@@ -164,7 +164,9 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
     await page.waitForFunction(() => window.__footballScienceAppReady && document.querySelector("#loginScreen")?.hidden);
     await page.evaluate(() => document.querySelector("#dashboardModalRoot button[data-dashboard-modal-close]")?.click());
     await page.getByRole("button", { name: "Medical", exact: true }).click();
-    await page.waitForFunction(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.some(row => row.id === "rescue-record"));
+    await expect.poll(() => page.evaluate(async () =>
+      (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.some(row => row.id === "rescue-record")
+    ), { message: "The synthetic Medical record must finish loading before editing" }).toBe(true);
   };
   if (rescueUnavailable === "real-form") {
     entries["football-schedule-v1"] = JSON.stringify({ selectedDate: day, importVersion: "working-draft-qa",

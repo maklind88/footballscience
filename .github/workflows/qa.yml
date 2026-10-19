@@ -23,4 +23,5 @@ jobs:
           node-version: 24
           cache: npm
       - run: node scripts/ci-install.mjs
-      - run: npx playwright test --config=qa/playwright.ci.config.mjs --project=chromium qa/medical-draft-recovery.smoke.spec.mjs --grep 'rescue unavailable: false' --repeat-each=30 --workers=1
+      - run: |
+          npx playwright test --config=qa/playwright.ci.config.mjs --project=chromium qa/medical-draft-recovery.smoke.spec.mjs --grep 'rescue unavailable: false' --repeat-each=30 --workers=1

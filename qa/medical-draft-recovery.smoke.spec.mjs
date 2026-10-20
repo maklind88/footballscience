@@ -139,26 +139,11 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
     };
   });
   let posts = 0, revision = 10;
-  await page.route("**/api/app-state**", async route => {
+  await page.route("**/api/app-state**", route => {
     if (route.request().method() !== "GET") { posts++; return route.fulfill({ status: 503, json: { ok: false } }); }
     const keys = new URL(route.request().url()).searchParams.get("keys")?.split(",") || Object.keys(entries);
-
     return route.fulfill({ json: { ok: true, entries: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, entries[k]])),
       metadata: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, { revision }])), absentKeys: keys.filter(k => !(k in entries)) } });
-  });
-  await page.addInitScript(() => {
-    window.__medicalWrites = [];
-    for (const name of ['setItem', 'removeItem']) {
-      const native = Storage.prototype[name];
-      Storage.prototype[name] = function(key, value) {
-        if (key === 'football-medical-team-v1' || key === 'football-player-profiles-v1') {
-          let state; try { state = JSON.parse(value); } catch {}
-          window.__medicalWrites.push({name, key, time: performance.now(), scope: window.footballScienceCentralState?.getReadScope?.(),
-            records: state?.records?.map(r=>r.id), players: state?.players?.map(r=>r.id), stack:new Error().stack});
-        }
-        return native.apply(this, arguments);
-      };
-    }
   });
   const ready = async () => {
     await page.waitForFunction(() => window.__footballScienceAppReady && document.querySelector("#loginScreen")?.hidden);
@@ -173,7 +158,6 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
       events: [{ id: "training", date: day, time: "10:00", type: "training", title: "Training" }] });
     await page.route("**/api/medical**", route => route.fulfill({ status: 503, json: { ok: false } }));
   }
-  await page.addInitScript(()=> window.addEventListener('platform:user-change',e=>window.__medicalWrites.push({event:'user-change',role:e.detail?.user?.role,scope:window.footballScienceCentralState?.getReadScope?.(),time:performance.now()})));
   await page.goto("/?workspace=medical-team"); await ready();
   if (rescueUnavailable === "real-form") {
     await page.locator("[data-medical-roster-row]:visible .medical-roster-player-cell").first().click();
@@ -183,9 +167,7 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
     await page.locator(".medical-modal-close[data-medical-close-modal]").click();
   } else await page.evaluate(async marker => {
     const access = await import("/src/modules/medical/medical-runtime-accessors.mjs");
-    const row = access.ensureMedicalState().records.find(row => row.id === "rescue-record");
-    if (!row) throw new Error('Missing synthetic record; writes=' + JSON.stringify({writes:window.__medicalWrites,errors:window.__medicalReadErrors,cache:window.footballScienceCentralState?.getCachedValueInfo?.('football-medical-team-v1')}));
-    row.comment = marker;
+    access.ensureMedicalState().records.find(row => row.id === "rescue-record").comment = marker;
     access.writeMedicalState();
   }, marker);
   if (rescueUnavailable) {

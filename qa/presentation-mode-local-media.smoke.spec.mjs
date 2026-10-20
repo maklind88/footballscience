@@ -104,7 +104,7 @@ test("Presentation Mode keeps local edits after reload and can relink a missing 
   });
 
   await expect(presentation.locator(".presentation-info-media-panel.is-image.has-media img")).toHaveAttribute("src", /^blob:/);
-  await page.waitForFunction(
+  await expect.poll(() => page.evaluate(
     async ({ key, date, databaseName, storeName }) => {
       const store = JSON.parse(window.localStorage.getItem(key) || "{}");
       const mediaId = store.decks?.[date]?.infoSlides?.find((slide) => slide.id === "qa-persistent-media")?.mediaId;
@@ -127,7 +127,7 @@ test("Presentation Mode keeps local edits after reload and can relink a missing 
       });
     },
     { key: presentationKey, date: dateValue, databaseName: mediaDatabaseName, storeName: mediaStoreName }
-  );
+  ), { message: "The presentation image must be stored in IndexedDB before reload" }).toBe(true);
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitForPlatformShell(page);

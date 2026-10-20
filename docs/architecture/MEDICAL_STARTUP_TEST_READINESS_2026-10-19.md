@@ -2,7 +2,8 @@
 
 Owner: System / Security (test infrastructure and release diagnosis).
 Affected test boundaries: Medical draft recovery and Presentation Mode local media.
-Product data ownership, saving, permissions, and runtime code are unchanged.
+Product data ownership, saving, and permissions are unchanged. The recovery panel
+now preserves the selected copy across same-scope background refreshes.
 
 ## Failure and cause
 
@@ -47,3 +48,24 @@ final diff. No sleeps, weaker assertions, retries, or product workarounds are ad
   every reported live saving/cache problem is resolved or certify all modules.
 - No production deploy, migration, clinical-data mutation, or main integration is
   part of this diagnostic correction. Release verification remains a separate step.
+
+## Additional recovery-panel defect found by repeated verification
+
+After correcting the async wait, Linux run 39344620961 passed 29/30 repetitions.
+The remaining failure occurred after reload: an opened recovery copy disappeared
+from view during a background refresh. The original missing-record failure did
+not recur. Therefore the readiness correction alone was insufficient for approval.
+
+Three deterministic regression cases then failed before the panel correction:
+window focus, central-state-ready, and a workspace remount all closed the selected
+copy. The panel rebuilt its DOM without preserving the selection.
+
+The panel now remembers only selected copy identifiers within the current access
+scope. It reloads selected content using the existing authorized store read. User
+change or a different access scope clears the selection; removed copies are pruned.
+Closing a copy remains effective after subsequent refreshes. No clinical payload
+is added to selection state, and saving/export/retirement permissions are unchanged.
+
+The expanded local recovery, verification, working-draft, wait-guard and
+presentation suite passed 59 tests. Linux repetition and final CI results belong
+to the PR checks; the candidate must not be approved while those checks fail.

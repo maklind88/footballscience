@@ -7,7 +7,9 @@ import { createMedicalDraftStore } from "./medical-draft-store.mjs";
 export function createMedicalDraftRecovery({ win = globalThis, key = "football-medical-team-v1",
   canEdit = () => false, store = createMedicalDraftStore({ getIndexedDB: () => win.indexedDB }) } = {}) {
   const working = createMedicalWorkingDrafts();
-  let host = null, generation = 0, renderGeneration = 0, notice = null;
+  let host = null, generation = 0, renderGeneration = 0, notice = null, reviewScope = "";
+  const openedCopies = new Set();
+  const copyKey = row => `${row.memoryOnly ? "working" : "saved"}:${row.id}`;
   const access = () => {
     const bridge = win.footballScienceCentralState;
     return canEdit() && bridge?.canAutoSyncKey?.(key) === true ? bridge.getReadScope?.() || "" : "";
@@ -24,9 +26,17 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
   function addCopy(container, row, scope) {
     const item = node("details"), title = node("summary", `${row.memoryOnly ? "Unsaved in this tab" : "Copy"} from ${new Date(row.createdAt).toLocaleString()}`);
     item.append(title); container.append(item);
+    const selectionKey = copyKey(row);
+    item.open = openedCopies.has(selectionKey);
+    const activeItem = () => current(scope) && container === host && container.contains(item);
+    const select = open => open ? openedCopies.add(selectionKey) : openedCopies.delete(selectionKey);
+    // Record the click before a background refresh can detach the details node.
+    title.addEventListener("click", () => { if (activeItem()) select(!item.open); });
     let loaded = false;
     item.addEventListener("toggle", async () => {
       if (!current(scope)) { host?.replaceChildren(); return; }
+      if (!activeItem()) return;
+      select(item.open);
       if (!item.open || loaded) return;
       loaded = true;
       try { if (!row.memoryOnly) row = await store.read(scope, row.id); } catch { row = null; }
@@ -92,6 +102,7 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
 
   async function refresh() {
     const target = host, epoch = ++renderGeneration, scope = access();
+    if (reviewScope !== scope) { openedCopies.clear(); reviewScope = scope; }
     if (!target) return;
     target.replaceChildren(); target.hidden = true;
     if (!scope) return;
@@ -99,6 +110,8 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
     try { rows = await store.list(scope); } catch { unavailable = true; }
     if (epoch !== renderGeneration || target !== host || !current(scope)) return;
     const volatile = working.list(scope);
+    const available = new Set([...volatile, ...rows].map(copyKey));
+    for (const id of openedCopies) if (!available.has(id)) openedCopies.delete(id);
     const message = notice?.scope === scope ? notice.message : "";
     if (!rows.length && !volatile.length && !message && !unavailable) return;
     target.hidden = false;
@@ -148,7 +161,10 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
 
   function mount(element) { host = element; void refresh(); }
   for (const event of ["platform:user-change", "footballscience:central-state-ready"]) {
-    win.addEventListener?.(event, () => { host?.replaceChildren(); void refresh(); });
+    win.addEventListener?.(event, () => {
+      if (event === "platform:user-change") { openedCopies.clear(); reviewScope = ""; }
+      host?.replaceChildren(); void refresh();
+    });
   }
   win.addEventListener?.("focus", () => { void refresh(); });
   function readWorkingDraft(raw, scope) {

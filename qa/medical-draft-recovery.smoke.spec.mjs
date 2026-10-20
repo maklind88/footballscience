@@ -23,6 +23,26 @@ test("committed exact draft and previous value survive reload, are reviewable an
   expect(writes).toBe(0);
 });
 
+for (const refresh of ["focus", "footballscience:central-state-ready", "remount"]) {
+  test(`opened recovery copy stays visible after ${refresh}`, async ({ page }) => {
+    await page.goto("/medical-merge.js"); await install(page); await retain(page);
+    await page.getByText(/^Copy from /).click();
+    await expect(page.locator("#recovery")).toContainText("Rescue exact draft");
+    await page.evaluate(refresh => {
+      if (refresh === "remount") {
+        const old = document.querySelector("#recovery");
+        const next = old.cloneNode(false); old.replaceWith(next); window.__recovery.mount(next);
+      } else window.dispatchEvent(new Event(refresh));
+    }, refresh);
+    await expect(page.locator("#recovery > details")).toHaveAttribute("open", "");
+    await expect(page.locator("#recovery")).toContainText("Rescue exact draft");
+    await expect(page.getByRole("button", { name: "Download this recovery copy" })).toBeVisible();
+    await page.getByText(/^Copy from /).click();
+    await page.evaluate(() => window.__recovery.refresh());
+    await expect(page.locator("#recovery > details")).not.toHaveAttribute("open", "");
+  });
+}
+
 test("repeated identical rescue is deduplicated; concurrent divergent tabs retain both generations", async ({ page, context }) => {
   await page.goto("/medical-merge.js"); await install(page);
   const other = await context.newPage(); await other.goto("/medical-merge.js"); await install(other);

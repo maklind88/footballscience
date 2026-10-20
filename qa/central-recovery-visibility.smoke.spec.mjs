@@ -3,6 +3,9 @@ import { installSetPiecesCentralFixture } from './helpers/set-pieces-central-fix
 const medicalKey = 'football-medical-team-v1', sessionKey = 'football-session-planner-v3', manifestKey = 'football-data-safety-v1';
 const day = '2026-10-06';
 
+// Keep the synthetic session inside the calendar window regardless of the run date.
+test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date(`${day}T12:00:00Z`)); });
+
 for (const failure of [503, 403, 'network']) {
 test(`failed Medical recovery keeps verified Sessions visible without acknowledging the draft (${failure})`, async ({ page }) => {
   await installSetPiecesCentralFixture(page);

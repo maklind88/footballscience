@@ -71,3 +71,12 @@ The expanded local recovery, verification, working-draft, wait-guard and
 presentation suite passed 59 tests. All three panel regression cases also pass
 with an explicit close-and-refresh check. `npm run qa:static` passes. Linux repetition and final CI results belong
 to the PR checks; the candidate must not be approved while those checks fail.
+
+## Calendar-dependent Sessions fixtures
+
+Full QA also exposed seven test cases that still used a fixed 2026-10-06
+session with the real current browser date. Traces show the tests waiting for
+that date's calendar button; it had moved outside the displayed calendar window.
+The cold-start, visibility and two-editor offline fixtures now set the browser
+clock to noon UTC on their synthetic date. Timer scheduling is not frozen.
+Production calendar behavior and the assertions about saving/conflicts are unchanged.

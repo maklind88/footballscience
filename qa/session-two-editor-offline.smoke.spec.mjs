@@ -12,6 +12,7 @@ test('two real editors merge independent offline edits to a legacy session witho
   const open = async name => {
     const context = await browser.newContext(); contexts.push(context);
     const page = await context.newPage();
+    await page.clock.setFixedTime(new Date(`${day}T12:00:00Z`));
     const fixture = await installSetPiecesCentralFixture(page); fixture.actor.id = name;
     await page.route('**/api/app-state**', async route => {
       if (route.request().method() === 'GET') return route.fulfill({ json: { ok: true,

@@ -6,6 +6,9 @@ import { applySessionDateChange, sessionDateValue } from '../src/modules/session
 const medicalKey = 'football-medical-team-v1', sessionsKey = 'football-session-planner-v3';
 const day = '2026-10-06';
 
+// Keep the synthetic session inside the calendar window regardless of the run date.
+test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date(`${day}T12:00:00Z`)); });
+
 for (const offline of [false, true]) {
 test(`Sessions saves and reviews its verified date despite unrelated recovery failure (offline=${offline})`, async ({ page }) => {
   await installSetPiecesCentralFixture(page);

@@ -35,7 +35,8 @@ guard, correcting the initial single-line search result.
 multiline calls, throughout QA JavaScript files. It is intentionally a narrow
 source guard; it does not detect every indirect Promise-returning callback.
 Temporary browser instrumentation and the diagnostic CI job are removed from the
-final diff. No sleeps, weaker assertions, retries, or product workarounds are added.
+final diff. No sleeps, weaker assertions or test retries are added. The separate panel
+visibility correction is described below.
 
 ## Evidence and limits
 
@@ -67,5 +68,6 @@ Closing a copy remains effective after subsequent refreshes. No clinical payload
 is added to selection state, and saving/export/retirement permissions are unchanged.
 
 The expanded local recovery, verification, working-draft, wait-guard and
-presentation suite passed 59 tests. Linux repetition and final CI results belong
+presentation suite passed 59 tests. All three panel regression cases also pass
+with an explicit close-and-refresh check. `npm run qa:static` passes. Linux repetition and final CI results belong
 to the PR checks; the candidate must not be approved while those checks fail.

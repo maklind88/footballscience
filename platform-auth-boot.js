@@ -884,6 +884,8 @@ async function getActiveAccessToken() {
   }
   function getCentralCachedValue(key) {
     const normalizedKey = String(key || "");
+    // Late startup/render callbacks cannot reopen Medical data after sign-out.
+    if (normalizedKey === MEDICAL_TEAM_STATE_KEY && !getCentralReadScope()) return "{}";
     const info = centralStateValueMetadata.get(normalizedKey);
     if (info?.source !== "central-readonly-baseline" && (hasForeignPendingGeneration(normalizedKey) ||
         (normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()))) return "{}";
@@ -909,8 +911,9 @@ async function getActiveAccessToken() {
   }
   function getCentralCachedValueInfo(key) {
     const normalizedKey = String(key || "");
-    if (centralStateValueMetadata.get(normalizedKey)?.source !== "central-readonly-baseline" &&
-        (hasForeignPendingGeneration(normalizedKey) || (normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation()))) {
+    if ((normalizedKey === MEDICAL_TEAM_STATE_KEY && !getCentralReadScope()) ||
+        (centralStateValueMetadata.get(normalizedKey)?.source !== "central-readonly-baseline" &&
+        (hasForeignPendingGeneration(normalizedKey) || (normalizedKey === MEDICAL_TEAM_STATE_KEY && hasMedicalRecoverySeparation())))) {
       return { value: "{}", source: "central-readonly-baseline", durable: false, serverBacked: false, canEdit: false };
     }
     if (!centralStateValues.has(normalizedKey)) {

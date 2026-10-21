@@ -2639,6 +2639,24 @@ test("Medical recovery marker failure never exposes an unscoped private draft", 
   } finally { await closeCentralStateContext(tab.context); }
 });
 
+for (const source of ["local-write", "central-readonly-baseline"]) {
+  test(`signed-out Medical cache reads deny a late ${source} projection`, async ({ browser, baseURL }) => {
+    const value = createStateValue("Original central sequence");
+    const tab = await bootCentralPage(browser, baseURL, { value, metadata: createMetadata(1, value) }, [], "medical-signout-cache");
+    try {
+      await tab.page.waitForFunction(() => window.__footballScienceAppReady && document.body.dataset.appReady === "true");
+      const result = await tab.page.evaluate(({ key, source }) => {
+        const bridge = window.footballScienceCentralState;
+        window.platformAuthStore.clearCurrentUser();
+        // Reproduce a late renderer filling the cache after the access scope was cleared.
+        bridge.setCachedValue(key, '{"records":[{"id":"private-late-projection"}]}', { source, serverBacked: true });
+        return { scope: bridge.getReadScope(), value: bridge.getCachedValue(key), info: bridge.getCachedValueInfo(key) };
+      }, { key: medicalTeamStateKey, source });
+      expect(result).toMatchObject({ scope: "", value: "{}", info: { value: "{}", canEdit: false, durable: false, serverBacked: false } });
+    } finally { await closeCentralStateContext(tab.context); }
+  });
+}
+
 test("a deferred Medical read cannot publish a signed-out actor's data", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");
   const value = JSON.stringify({ players: [], records: [{ id: "private-to-actor" }], injuryPlans: [] });

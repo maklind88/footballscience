@@ -1,6 +1,7 @@
 import { createMedicalWorkingDrafts } from "./medical-working-drafts.mjs";
 import { mountMedicalDraftVerification } from "./medical-draft-verification.mjs";
 import { createMedicalDraftStore } from "./medical-draft-store.mjs";
+import { medicalRecoveryFailureMessage } from "./medical-recovery-failure.mjs";
 
 // Rescue review has no central write, replay or merge capability. Only a user-
 // selected exact server-verified copy can be retired; other work stays separate.
@@ -113,8 +114,25 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
     const available = new Set([...volatile, ...rows].map(copyKey));
     for (const id of openedCopies) if (!available.has(id)) openedCopies.delete(id);
     const message = notice?.scope === scope ? notice.message : "";
-    if (!rows.length && !volatile.length && !message && !unavailable) return;
+    if (!rows.length && !volatile.length && !message && !unavailable) {
+      if (target.dataset.medicalRecoveryMode === "full") {
+        target.hidden = false;
+        target.append(node("h2", "Recovery"), node("p", "No recovery copies on this device."));
+      }
+      return;
+    }
     target.hidden = false;
+    if (target.dataset.medicalRecoveryMode === "summary") {
+      const status = node("p", volatile.length
+        ? "Unsaved Medical work remains in this tab. Keep it open and review Recovery."
+        : unavailable ? "Recovery storage could not be checked. Review Recovery."
+          : "Medical recovery needs review. Central saving is not confirmed by recovery copies.");
+      status.setAttribute("role", "status");
+      const open = node("button", "Open Recovery"); open.type = "button";
+      open.dataset.medicalOpsTab = "recovery";
+      target.append(status, open);
+      return;
+    }
     target.append(node("h2", "Medical recovery copies"));
     const status = node("p", message || (unavailable
       ? "Recovery storage could not be checked. Keep this page open; any working drafts shown below are not saved on this device."
@@ -145,8 +163,8 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
       working.committed(row, result);
       setNotice("A Medical recovery copy is saved on this device. Review it here; central saving is not confirmed by this copy.");
       return true;
-    }, () => {
-      setNotice("The new Medical changes could not be saved on this device. Keep this page open. Older recovery copies are preserved.");
+    }, error => {
+      setNotice(`The new Medical changes could not be saved on this device. ${medicalRecoveryFailureMessage(error)} Keep this page open. Older recovery copies are preserved.`);
       return false;
     });
   }
@@ -167,6 +185,13 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
     });
   }
   win.addEventListener?.("focus", () => { void refresh(); });
+  win.addEventListener?.("beforeunload", event => {
+    const scope = access();
+    if (scope && working.list(scope).length) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
   function readWorkingDraft(raw, scope) {
     if (!current(scope) || win.footballScienceCentralState?.getCachedValueInfo?.(key)?.source === "central-readonly-baseline") return undefined;
     return working.projectUnchangedBaseline(scope, raw, win.footballScienceCentralState?.getStatus?.()?.metadata?.[key]?.revision ?? null);

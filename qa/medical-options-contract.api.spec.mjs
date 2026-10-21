@@ -40,6 +40,7 @@ test("Medical options expose stable availability, RTP, and roster constants", ()
     "history",
     "rtp-library",
     "season",
+    "recovery",
   ]);
   expect(medicalPlayerModalTabOptions.map((tab) => tab.key)).toContain("plan");
   expect(medicalDataSafetySyncStatusOptions.has("failed")).toBe(true);

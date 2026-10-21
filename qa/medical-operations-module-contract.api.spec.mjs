@@ -10,6 +10,7 @@ test("Medical operations renderer owns operations tabs, private system, and coac
     "history",
     "rtp-library",
     "season",
+    "recovery",
   ]);
   expect(medicalOperationsTabOptions.map((tab) => tab.label)).toEqual([
     "Availability",
@@ -19,6 +20,7 @@ test("Medical operations renderer owns operations tabs, private system, and coac
     "History",
     "RTP Library",
     "Reports",
+    "Recovery",
   ]);
 
   const signal = {

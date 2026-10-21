@@ -55,13 +55,15 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
   let batchCalls = 0;
   let batchOpen = false;
   let renderedInsideBatch = false;
+  let tab = "availability";
+  let privateAccess = true;
   const renderer = createMedicalWorkspaceRuntimeRenderer({
-    canViewPrivateDetails: () => true,
+    canViewPrivateDetails: () => privateAccess,
     ensureState: () => {},
     escapeHtml: (value) => String(value).replaceAll("<", "&lt;"),
     getHeroTeamLogoUrl: () => "assets/team-logos/test-team.svg",
     getHeroTeamName: () => "First Team",
-    getOperationsTab: () => "availability",
+    getOperationsTab: () => tab,
     getWorkspace: () => workspace,
     normalizeOperationsTab: (value) => value,
     playerModalRenderer: { renderPlayerModal: () => "<aside>Modal</aside>" },
@@ -95,6 +97,16 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
   expect(workspace.innerHTML).toContain("<main>Saved.</main>");
   expect(batchCalls).toBe(1);
   expect(renderedInsideBatch).toBe(true);
+  expect(workspace.innerHTML).toContain('data-medical-recovery-mode="summary"');
+  expect(workspace.innerHTML.indexOf("<nav>Tabs</nav>")).toBeLessThan(workspace.innerHTML.indexOf("data-medical-draft-recovery"));
+  tab = "recovery";
+  renderer.renderMedicalTeamWorkspace();
+  expect(workspace.innerHTML).toContain('data-medical-recovery-mode="full"');
+  expect(workspace.innerHTML).not.toContain("<main>");
+  expect(workspace.innerHTML).not.toContain("<section>System</section>");
+  privateAccess = false;
+  renderer.renderMedicalTeamWorkspace();
+  expect(workspace.innerHTML).not.toContain("data-medical-draft-recovery");
   expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
   expect(runtimeService).toContain("createMedicalRuntimeFacade({");
   expect(accessors).toContain('export function renderMedicalTeamWorkspace(...args) { return callFacade("renderMedicalTeamWorkspace", args); }');

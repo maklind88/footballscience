@@ -150,6 +150,7 @@ test("full auth bridge verifies via a fresh private GET without hydrating or wri
     (await import("/src/modules/medical/medical-runtime-accessors.mjs")).renderMedicalTeamWorkspace();
   }, draft);
   const panel = page.locator("[data-medical-draft-recovery]");
+  await page.getByRole("button", { name: "Recovery", exact: true }).click();
   await panel.getByText(/^Copy from /).click();
   await panel.getByRole("button", { name: "Check against central copy" }).click();
   await expect(panel).toContainText("matches central version 12");

@@ -43,6 +43,7 @@ export async function verifyMedicalWorkingAcceptance(page, { recordId, marker, b
       .some(row => row.id === recordId && row.comment === value), { recordId, value });
   expect(await hasRecord(marker)).toBe(true);
   expect(await page.evaluate(({ key, marker }) => localStorage.getItem(key)?.includes(marker) === true, { key, marker })).toBe(false);
+  await page.getByRole("button", { name: "Recovery", exact: true }).click();
   const panel = page.locator("[data-medical-draft-recovery]");
   await panel.getByText(/^Unsaved in this tab from /).click();
   await expect.poll(() => panel.evaluate((node, marker) => node.textContent.includes(marker), marker)).toBe(true);
@@ -55,7 +56,7 @@ export async function verifyMedicalWorkingAcceptance(page, { recordId, marker, b
   }, key);
   await expect.poll(() => hasRecord(acceptedMarker)).toBe(true);
   expect(await page.evaluate(owner => window.footballScienceCentralState.getReadScope() === owner, owner)).toBe(true);
-  await panel.getByText(/^Unsaved in this tab from /).click();
+  await expect(panel.locator(":scope > details").first()).toHaveAttribute("open", "");
   await expect.poll(() => panel.evaluate((node, marker) => node.textContent.includes(marker), marker)).toBe(true);
   expect(await panel.getByRole("button", { name: "Remove this verified local copy" }).count()).toBe(0);
 }

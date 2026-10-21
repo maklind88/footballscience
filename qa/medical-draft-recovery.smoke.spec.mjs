@@ -190,6 +190,22 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
     access.ensureMedicalState().records.find(row => row.id === "rescue-record").comment = marker;
     access.writeMedicalState();
   }, marker);
+  await expect(page.getByRole("button", { name: "Open Recovery", exact: true })).toBeVisible();
+  await expect(page.locator("[data-medical-draft-recovery] details")).toHaveCount(0);
+  if (rescueUnavailable === "real-form") {
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 850 });
+      const summary = page.locator("[data-medical-draft-recovery]");
+      await expect(summary).toBeVisible();
+      const bounds = await summary.boundingBox();
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+      expect(bounds.height).toBeLessThan(width === 390 ? 180 : 100);
+      await summary.screenshot({ path: `/private/tmp/medical-recovery-summary-${width}.png` });
+    }
+    await page.setViewportSize({ width: 1440, height: 850 });
+  }
+  await page.getByRole("button", { name: "Open Recovery", exact: true }).click();
   if (rescueUnavailable) {
     // A normal background reload must not discard an uncommitted working draft.
     await page.evaluate(async () => {
@@ -225,6 +241,7 @@ test(`full Medical app quota failure (rescue unavailable: ${rescueUnavailable}) 
   }
   await expect(page.locator("[data-medical-draft-recovery]")).toContainText("saved on this device");
   await page.reload(); await ready();
+  await page.getByRole("button", { name: "Recovery", exact: true }).click();
   await page.locator("[data-medical-draft-recovery] summary").first().click();
   await expect(page.locator("[data-medical-draft-recovery]")).toContainText(marker);
   expect(await page.evaluate(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs")).ensureMedicalState().records.find(row => row.id === "rescue-record").comment)).toBe("Central baseline");

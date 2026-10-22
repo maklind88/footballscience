@@ -1,3 +1,5 @@
+@import url("./src/modules/presentation-mode/presentation-text-editing.css");
+
 .dashboard-presentation-band {
   grid-column: 1 / -1;
   justify-self: start;

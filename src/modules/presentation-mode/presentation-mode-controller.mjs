@@ -24,10 +24,10 @@ import {
   createPresentationLocalMediaStore,
   pickPresentationMediaHandle,
 } from "./presentation-local-media-store.mjs";
-import { createScopedTextDraftStore } from "../../core/scoped-text-draft-store.mjs";
+import { createPresentationTextEditing, presentationTextDraftStorageKey } from "./presentation-text-editing.mjs";
+export { presentationTextDraftStorageKey };
 
 export const dashboardPresentationStorageKey = "football-dashboard-presentation-mode-v1";
-export const presentationTextDraftStorageKey = "football-presentation-text-drafts-v1";
 
 const presentationSchema = "footballscience-presentation-mode-v1";
 const presentationMeetingTypes = {
@@ -938,13 +938,6 @@ export function createPresentationModeController(dependencies = {}) {
     escapeHtml = defaultEscapeHtml,
     onDeckChange = noop,
   } = dependencies;
-  const textDraftStore = createScopedTextDraftStore({
-    storage: win?.sessionStorage,
-    storageKey: presentationTextDraftStorageKey,
-    getScope: dependencies.getDraftScope,
-    setTimeout: win?.setTimeout?.bind(win),
-    clearTimeout: win?.clearTimeout?.bind(win),
-  });
   const localMediaStore = dependencies.localMediaStore || createPresentationLocalMediaStore({ win });
 
   const state = {
@@ -2116,6 +2109,7 @@ export function createPresentationModeController(dependencies = {}) {
     pendingDragRender = false;
     const currentRoot = ensureRoot();
     const model = buildModel();
+    const retainedText = textEditing.beforeRender();
     const slide = model.slides[model.slideIndex];
     const retainedExercise = exercisePlayback.retain(
       slide?.type === "block" ? slide.block : null,
@@ -2123,8 +2117,12 @@ export function createPresentationModeController(dependencies = {}) {
     );
     const retainedFocus = retainedExercise?.contains(documentRef.activeElement) ? documentRef.activeElement : null;
     currentRoot.hidden = false;
-    currentRoot.innerHTML = renderer.render(model);
-    renderedModel = model;
+    try {
+      currentRoot.innerHTML = renderer.render(model);
+      renderedModel = model;
+    } finally {
+      textEditing.afterRender(retainedText);
+    }
     if (retainedExercise) {
       currentRoot.querySelector("[data-session-readonly-playback]")?.replaceWith(retainedExercise);
       retainedFocus?.focus({ preventScroll: true });
@@ -2296,6 +2294,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function copyActiveSlideToDate(targetDateValue = "") {
+    textEditing.leave();
     const targetDate = normalizeDateValue(targetDateValue, "");
     const sourceDate = state.dateValue;
     const meetingType = state.meetingType;
@@ -2345,6 +2344,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function open(dateValue = "", meetingType = "team", options = {}) {
+    textEditing.leave();
     setPiecePlayback.stop({ resetFrame: false });
     fullscreenIntent = false;
     state.activeShapeTarget = null;
@@ -2382,7 +2382,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function close() {
-    commitPresentationTextField(getFocusedTextElement());
+    textEditing.leave();
     exercisePlayback.reset();
     setPiecePlayback.stop({ resetFrame: false });
     fullscreenIntent = false;
@@ -2428,6 +2428,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function goToSlide(index) {
+    textEditing.leave();
     setPiecePlayback.stop({ resetFrame: false });
     const slideCount = buildModel().slides.length;
     state.slideIndex = Math.min(Math.max(0, Number(index) || 0), Math.max(0, slideCount - 1));
@@ -2462,7 +2463,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     const updatedAt = new Date().toISOString();
-    writeDeckForDate(state.dateValue, (deck) => ({
+    writeDeckForDate(options.dateValue || state.dateValue, (deck) => ({
       ...deck,
       infoSlides: deck.infoSlides.map((slide) =>
         slide.id === slideId
@@ -2477,8 +2478,8 @@ export function createPresentationModeController(dependencies = {}) {
                       : String(value ?? ""),
               }, [field], updatedAt),
               0,
-              state.dateValue,
-              state.meetingType
+              options.dateValue || state.dateValue,
+              options.meetingType || state.meetingType
             )
           : slide
       ),
@@ -2496,7 +2497,7 @@ export function createPresentationModeController(dependencies = {}) {
               ),
             }
           : deck.slideStyles,
-    }));
+    }), options);
     if (options.render) {
       render();
     }
@@ -2692,14 +2693,14 @@ export function createPresentationModeController(dependencies = {}) {
     render();
   }
 
-  function updateTextOverride(slideId = "", field = "", value = "") {
+  function updateTextOverride(slideId = "", field = "", value = "", options = {}) {
     const safeSlideId = String(slideId || "").trim();
     const safeField = String(field || "").trim();
     if (!safeSlideId || !safeField) {
       return;
     }
     const nextValue = String(value ?? "").slice(0, maxTextOverrideLength);
-    writeDeckForDate(state.dateValue, (deck) => {
+    writeDeckForDate(options.dateValue || state.dateValue, (deck) => {
       const currentFields = deck.textOverrides?.[safeSlideId] || {};
       if (Object.prototype.hasOwnProperty.call(currentFields, safeField) && String(currentFields[safeField] ?? "") === nextValue) {
         return deck;
@@ -2716,7 +2717,7 @@ export function createPresentationModeController(dependencies = {}) {
         }),
         textOverrideUpdatedAt: markTextOverrideUpdatedAt(deck, safeSlideId, safeField, updatedAt),
       };
-    });
+    }, options);
   }
 
   function getActiveTextStyle() {
@@ -3244,6 +3245,9 @@ export function createPresentationModeController(dependencies = {}) {
         ),
       }),
     }));
+    if (!getDeckForDate().textBoxes?.[safeSlideId]?.some((box) => box.id === safeBoxId)) {
+      textEditing.discardDeletedRecord(`${state.dateValue}:${state.meetingType}:${safeSlideId}`, field);
+    }
     state.activeTextTarget = null;
     render();
   }
@@ -3840,6 +3844,9 @@ export function createPresentationModeController(dependencies = {}) {
         Object.entries(currentDeck.textOverrideUpdatedAt || {}).filter(([textSlideId]) => textSlideId !== slideId)
       ),
     }));
+    if (!getDeckForDate().infoSlides.some((slide) => slide.id === slideId)) {
+      textEditing.discardDeletedRecord(`${state.dateValue}:${state.meetingType}:${slideId}`);
+    }
     const nextModel = buildModel();
     const nextInfoIndexes = nextModel.slides.map((slide, index) => (slide.infoSlide?.id ? index : -1)).filter((index) => index >= 0);
     const nextInfoIndex = nextInfoIndexes.find((index) => index >= deletedIndex) ?? nextInfoIndexes.at(-1);
@@ -3919,6 +3926,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function startFullscreen() {
+    textEditing.leave();
     const currentRoot = ensureRoot();
     fullscreenIntent = true;
     currentRoot.requestFullscreen?.().catch?.(noop);
@@ -5162,71 +5170,41 @@ export function createPresentationModeController(dependencies = {}) {
     }
   }
 
-  function getPresentationTextValue(textField) {
-    const rawValue = String(
-      typeof textField?.value === "string" ? textField.value : textField?.innerText ?? textField?.textContent ?? ""
-    ).replace(/\u00a0/g, " ");
-    if (textField?.dataset?.presentationTextMultiline === "true") {
-      return rawValue
-        .replace(/\r\n?/g, "\n")
-        .split("\n")
-        .map((line) => line.trimEnd())
-        .join("\n")
-        .replace(/^\n+|\n+$/g, "");
-    }
-    return rawValue.replace(/\s+/g, " ").trim();
-  }
-
-  function getPresentationTextDraftContext(textField) {
-    const slideId = String(textField?.dataset?.presentationInfoId || textField?.dataset?.presentationSlideId || "").trim();
-    const field = String(textField?.dataset?.presentationTextField || "").trim();
+  function getPresentationTextDraftContext(element) {
+    const slideId = String(element?.dataset?.presentationInfoId || element?.dataset?.presentationSlideId || "").trim();
+    const field = String(element?.dataset?.presentationTextField || "").trim();
     if (!state.dateValue || !slideId || !field) return null;
-    return { field, recordId: `${state.dateValue}:${state.meetingType}:${slideId}` };
+    return { scope: String(dependencies.getDraftScope?.() || "").trim(), field, slideId,
+      infoField: element.dataset.presentationInfoField || "", dateValue: state.dateValue, meetingType: state.meetingType,
+      recordId: `${state.dateValue}:${state.meetingType}:${slideId}` };
   }
 
-  function restorePresentationTextDraft(textField) {
-    const context = getPresentationTextDraftContext(textField);
-    if (!context) return false;
-    const currentValue = getPresentationTextValue(textField);
-    const result = textDraftStore.restore(context, currentValue);
-    if (result.status === "restore") {
-      if (typeof textField.value === "string") textField.value = result.value;
-      else textField.textContent = result.value;
+  function readPresentationSavedText(context, fallback = "") {
+    const deck = getDeckForDate(context.dateValue, context.meetingType);
+    if (context.infoField) {
+      const slide = deck.infoSlides.find((item) => item.id === context.slideId);
+      return { exists: Boolean(slide), value: String(slide?.[context.infoField] ?? "") };
     }
-    textField.dataset.presentationDraftBaseValue = getPresentationTextValue(textField);
-    textField.toggleAttribute?.("data-presentation-draft-conflict", result.status === "conflict");
-    return result.status === "restore";
+    const textBoxId = context.field.startsWith("textbox.") ? context.field.split(".")[1] : "";
+    const exists = !textBoxId || Boolean(deck.textBoxes?.[context.slideId]?.some((box) => box.id === textBoxId));
+    return { exists, value: String(deck.textOverrides?.[context.slideId]?.[context.field] ?? fallback) };
   }
 
-  function recordPresentationTextDraft(textField) {
-    const context = getPresentationTextDraftContext(textField);
-    if (!context) return false;
-    const currentValue = getPresentationTextValue(textField);
-    return textDraftStore.record(context, currentValue, textField.dataset.presentationDraftBaseValue ?? currentValue);
+  const textEditing = createPresentationTextEditing({
+    win, documentRef, getRoot: () => root, getContext: getPresentationTextDraftContext,
+    getScope: dependencies.getDraftScope, readSaved: readPresentationSavedText,
+    writeSaved: (context, value) => {
+      if (context.infoField) updateInfoSlideField(context.slideId, context.infoField, value, context);
+      else updateTextOverride(context.slideId, context.field, value, context);
+    },
+  });
+
+  function recordPresentationTextDraft(element) {
+    return textEditing.record(element);
   }
 
   function commitPresentationTextField(target) {
-    const textField = target?.closest?.("[data-presentation-text-field]");
-    if (!textField || !state.isOpen || !root?.contains(textField)) {
-      return false;
-    }
-    const infoField = textField.closest?.("[data-presentation-info-field]");
-    if (infoField) {
-      updateInfoSlideField(
-        infoField.dataset.presentationInfoId,
-        infoField.dataset.presentationInfoField,
-        getPresentationTextValue(textField)
-      );
-      textDraftStore.clear(getPresentationTextDraftContext(textField));
-      return true;
-    }
-    updateTextOverride(
-      textField.dataset.presentationSlideId,
-      textField.dataset.presentationTextField,
-      getPresentationTextValue(textField)
-    );
-    textDraftStore.clear(getPresentationTextDraftContext(textField));
-    return true;
+    return textEditing.commit(target?.closest?.("[data-presentation-text-field]"));
   }
 
   function shouldCommitPresentationTextOnEnter(event, target) {
@@ -5238,7 +5216,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function handleFocusout(event) {
     commitPresentationTextField(event.target);
-    textDraftStore.flush();
+    textEditing.flush();
   }
 
   function handleChange(event) {
@@ -5334,6 +5312,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     state.contextMenu = null;
+    textEditing.leave();
     state.dateValue = nextDate;
     state.slideIndex = 0;
     state.editorOpen = false;
@@ -5440,7 +5419,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     const textField = event.target.closest?.("[data-presentation-text-field]");
-    if (textField) restorePresentationTextDraft(textField);
+    if (textField) textEditing.focus(textField);
     setActiveTextTargetFromElement(event.target);
     if (event.target.closest?.("[data-presentation-shape]")) {
       setActiveShapeTargetFromElement(event.target);
@@ -5623,7 +5602,8 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.addEventListener("focus", handleFocusin, true);
     documentRef.addEventListener("focusin", handleFocusin, true);
     documentRef.addEventListener("focusout", handleFocusout, true);
-    win?.addEventListener?.("pagehide", textDraftStore.flush);
+    win?.addEventListener?.("pagehide", textEditing.flush);
+    win?.addEventListener?.("beforeunload", textEditing.beforeUnload);
     documentRef.addEventListener("input", handleInput);
     documentRef.addEventListener("change", handleChange);
     documentRef.addEventListener("keydown", handleKeydown);

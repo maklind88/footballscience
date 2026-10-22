@@ -1,0 +1,42 @@
+.presentation-draft-recovery {
+  position: fixed;
+  z-index: 40;
+  right: 1rem;
+  bottom: 1rem;
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: 55vh;
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid #d8b56c;
+  border-radius: 12px;
+  background: #fffaf0;
+  color: #332919;
+  box-shadow: 0 8px 32px #0003;
+}
+.presentation-draft-recovery p { margin: 0 0 .5rem; }
+.presentation-draft-recovery textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 5rem;
+  margin-bottom: .5rem;
+  color: #1d1d1f;
+  background: #fff;
+}
+.presentation-draft-recovery button { margin: .25rem .5rem .25rem 0; }
+.presentation-draft-recovery { font: 500 .875rem/1.45 var(--font-ui, system-ui, sans-serif); }
+.presentation-draft-recovery textarea { padding: .5rem; border: 1px solid #d5d0c4; border-radius: 6px; font: inherit; }
+.presentation-draft-recovery button {
+  padding: .45rem .7rem;
+  border: 1px solid #d5d0c4;
+  border-radius: 6px;
+  background: #fff;
+  color: #332919;
+  font: inherit;
+  cursor: pointer;
+}
+.presentation-draft-recovery button:first-of-type { background: #203c32; border-color: #203c32; color: #fff; }
+.presentation-draft-recovery button:focus-visible, .presentation-draft-recovery textarea:focus-visible {
+  outline: 2px solid #276cba;
+  outline-offset: 2px;
+}

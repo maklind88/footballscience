@@ -5677,7 +5677,7 @@ test("Medical operations board separates signals, cases, history and season view
   const operationsMenu = page.locator("[data-medical-ops-top-menu]");
   await expect(operationsMenu).toBeVisible();
   await expect(operationsMenu).not.toContainText("Intelligence Board");
-  await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(7);
+  await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(8);
   await expect(operationsMenu.locator('[data-medical-ops-tab="overview"]')).toHaveCount(0);
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveText("Availability");
   await expect(operationsMenu.locator('[data-medical-ops-tab="programs"]')).toHaveText("Rehab Programs");
@@ -5829,6 +5829,10 @@ test("Medical operations board separates signals, cases, history and season view
   await operationsMenu.locator('[data-medical-ops-tab="season"]').click();
   await expect(operations).toContainText("Managed days");
   await expect(operations).toContainText("Major");
+  await operationsMenu.locator('[data-medical-ops-tab="recovery"]').click();
+  await expect(page.locator('[data-medical-recovery-mode="full"]')).toContainText("No recovery copies on this device.");
+  await expect(operations).toHaveCount(0);
+  await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
 });
 
 test("Medical availability list keeps participation states after overview removal", async ({ page }) => {

@@ -53,18 +53,23 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await page.addInitScript(() => {
     Object.defineProperty(window, "showOpenFilePicker", { configurable: true, value: undefined });
   });
-  const localToday = new Date();
-  const dateValue = [
-    localToday.getFullYear(),
-    String(localToday.getMonth() + 1).padStart(2, "0"),
-    String(localToday.getDate()).padStart(2, "0"),
-  ].join("-");
-  const now = new Date().toISOString();
-  const selectedDayLabel = new Intl.DateTimeFormat("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date(`${dateValue}T00:00:00`));
+  const { dateValue, now, selectedDayLabel } = await page.evaluate(() => {
+    const current = new Date();
+    const localDateValue = [
+      current.getFullYear(),
+      String(current.getMonth() + 1).padStart(2, "0"),
+      String(current.getDate()).padStart(2, "0"),
+    ].join("-");
+    return {
+      dateValue: localDateValue,
+      now: current.toISOString(),
+      selectedDayLabel: new Intl.DateTimeFormat("en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(current),
+    };
+  });
 
   await page.addInitScript(
     ({ dateValue: seededDate, now: seededNow, keys }) => {

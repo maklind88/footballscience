@@ -1,0 +1,93 @@
+{
+  "schema": "fs-desktop-local-vertical-slice-evidence-v2",
+  "recordedOn": "2026-08-31",
+  "environment": {
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "webview": "WKWebView via Tauri",
+    "rust": "1.98.0",
+    "tauriRust": "2.11.5",
+    "tauriCli": "2.11.4",
+    "productionCredentialsUsed": false,
+    "productionDataUsed": false
+  },
+  "candidateA": {
+    "shellBuildId": "hosted-spike-v11",
+    "nativeShellCache": "fs-desktop-native-shell-cache-v1",
+    "localSchemaVersion": 2,
+    "syncProtocolVersion": 1,
+    "activeBuildId": "hosted-spike-v11",
+    "previousBuildId": "hosted-spike-v10",
+    "results": [
+      {
+        "scenario": "verified download, application-ready promotion and packaged online startup",
+        "recordedAtUnixMs": 1788181972596,
+        "result": "passed",
+        "bootMode": "online"
+      },
+      {
+        "scenario": "same-process online to offline transition with local projection retained",
+        "recordedAtUnixMs": 1788181990198,
+        "result": "passed",
+        "bootMode": "offline"
+      },
+      {
+        "scenario": "packaged cold process restart with update source unavailable",
+        "recordedAtUnixMs": 1788182042000,
+        "result": "passed",
+        "bootMode": "offline"
+      },
+      {
+        "scenario": "same-process offline to online recovery after cold restart",
+        "recordedAtUnixMs": 1788182069172,
+        "result": "passed",
+        "bootMode": "online"
+      },
+      {
+        "scenario": "incompatible local-schema manifest rejected without replacing active or previous generations",
+        "recordedAtUnixMs": 1788182197250,
+        "result": "passed",
+        "bootMode": "compatibility-blocked"
+      },
+      {
+        "scenario": "process restart while incompatible manifest remained reachable",
+        "recordedAtUnixMs": 1788182317623,
+        "result": "passed",
+        "bootMode": "compatibility-blocked"
+      },
+      {
+        "scenario": "same-process recovery when compatible source returned",
+        "recordedAtUnixMs": 1788182349150,
+        "result": "passed",
+        "bootMode": "online"
+      }
+    ],
+    "nativeEvidence": {
+      "selectedSessionRevision": 7,
+      "localProjectionLoaded": true,
+      "partitionValidated": true,
+      "syntheticIdentity": true,
+      "browserServiceWorkerRequired": false,
+      "unauthorizedCommandRejected": true
+    }
+  },
+  "candidateB": {
+    "scenario": "bundled fallback smoke build and packaged local-asset startup",
+    "recordedAtUnixMs": 1788182431784,
+    "result": "passed",
+    "networkDependency": false,
+    "unauthorizedCommandRejected": true,
+    "continuouslyFeatureEquivalent": false
+  },
+  "unauthorizedOrigin": {
+    "origin": "http://127.0.0.1:47843",
+    "attemptedCommand": "desktop_runtime_info",
+    "result": "passed",
+    "allowedCommandRejected": true
+  },
+  "limitations": [
+    "Synthetic identity and data only; no real FS account or production data was used.",
+    "Reconnect synchronization is verified against an in-process trusted-server test double, not a real endpoint.",
+    "Secure credential storage, logout/account switching, sleep/wake, installer, signing and native update UX remain unimplemented or manual gates."
+  ]
+}

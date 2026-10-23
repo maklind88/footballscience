@@ -5083,6 +5083,7 @@ test("Medical availability lets Medical progress active Squad injuries while ext
   await expect(internationalRow.locator(".medical-quick-rec-button.is-active")).toHaveText("0%");
   await expect(internationalRow.locator('[data-medical-quick-participation="100"]')).toBeDisabled();
   await expect(futureInjuryRow.locator(".medical-squad-availability-badge")).toHaveText("Injured");
+  await expect(futureInjuryRow.locator(".medical-quick-rec-button.is-active")).toHaveText("0%");
   await expect(futureInjuryRow.locator('[data-medical-quick-participation="100"]')).toBeEnabled();
   await expect(availableRow.locator('[data-medical-quick-participation="100"]')).toBeEnabled();
   await expect(page.locator(".medical-bulk-panel")).toHaveCount(0);

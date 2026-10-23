@@ -136,10 +136,12 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
   }
 
   function createMedicalRecordFromSquadAvailabilityBlock(player, dateValue) {
-    if (!player || !isDateValue(dateValue) || !isPlayerBlockedBySquadAvailability(player, dateValue)) {
+    if (!player || !isDateValue(dateValue)) {
       return null;
     }
     const option = getMedicalPlayerAvailabilityStatusOption(player, dateValue);
+    const clinicalFallback = ["injured", "managed", "rehab"].includes(option.key);
+    if (!clinicalFallback && !isPlayerBlockedBySquadAvailability(player, dateValue)) return null;
     const reason = option.label || "Unavailable";
     return {
       id: `squad-availability:${player.id}:${dateValue}`,
@@ -256,7 +258,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     const state = readState();
     const player = (state.players || []).find((candidate) => candidate.id === playerId);
     const squadBlockRecord = createMedicalRecordFromSquadAvailabilityBlock(player, dateValue);
-    if (squadBlockRecord) {
+    if (squadBlockRecord && isPlayerBlockedBySquadAvailability(player, dateValue)) {
       return squadBlockRecord;
     }
     const manualRecord = (state.records || [])
@@ -267,7 +269,8 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     if (manualRecord && planRecord) {
       return getMedicalEntityUpdatedMs(activePlan) >= getMedicalEntityUpdatedMs(manualRecord) ? planRecord : manualRecord;
     }
-    return manualRecord || planRecord;
+    // Clinical Squad status remains absence unless Medical supplies a dated recommendation or plan.
+    return manualRecord || planRecord || squadBlockRecord;
   }
 
   function getMedicalPlayerRecords(playerId, options = {}) {

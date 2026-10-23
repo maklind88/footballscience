@@ -58,3 +58,24 @@ The follow-up diagnostic records only the browser dialog type and bounds the
 reload attempt to 20 seconds within the unchanged 90-second test-body budget.
 It must continue to dismiss beforeunload rather than silently discard drafts.
 The cause of the stalled reload is not yet established.
+
+## Confirmed reload blocker
+
+Production Monitor `39896180873`, candidate `0c726558`, reported a `beforeunload`
+dialog at reload. The handler dismissed it, correctly preserving unsaved work,
+so navigation never completed. Its exact synthetic record was centrally saved
+and its cleanup was verified. The same six other live checks passed, including
+Medical 11/11, with one intentional staging-only skip.
+
+This establishes why navigation stopped, but not which pending write generated
+the warning. Medical's memory-only recovery guard and the library in-flight
+guard must not be disabled or automatically accepted to make the check green.
+The next investigation must identify and secure that pending work before any
+product change. A read-side Medical roster sync can call `writeMedicalState`;
+that is a candidate path, not an established cause of this live incident.
+
+The candidate remains blocked for integration/release. Eight local contracts,
+three focused browser checks, four unchanged Medical Recovery browser checks,
+syntax/diff checks and live-suite discovery pass. No `main`/staging integration
+or deployment was performed during this follow-up. The unknown record from the
+original release run remains unverified; neither follow-up deletes old records.

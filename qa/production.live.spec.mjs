@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { openScoutingDatabaseTab, startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
+import { createScheduleProbeFixture, showScheduleDateInPlanner } from "./helpers/live-schedule-probe.mjs";
 
 const scheduleKey = "football-schedule-v1";
 const primaryLiveCredentials = {
@@ -550,42 +551,21 @@ async function expectCentralSyncExcludes(page, key, text) {
     .toBe(true);
 }
 
-async function showScheduleDateInPlanner(page, targetDate, maxWindowShifts = 24) {
-  if (!targetDate) {
-    return;
-  }
-  const targetDay = page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`);
-  for (let attempt = 0; attempt <= maxWindowShifts; attempt += 1) {
-    if ((await targetDay.count()) > 0) {
-      return;
-    }
-    const firstVisibleDate = await page.locator(".schedule-planner-day").first().getAttribute("data-schedule-date");
-    const navigationButton = targetDate < String(firstVisibleDate || "")
-      ? page.locator("#schedulePreviousMonthButton")
-      : page.locator("#scheduleNextMonthButton");
-    await navigationButton.click();
-    await expect
-      .poll(() => page.locator(".schedule-planner-day").first().getAttribute("data-schedule-date"), {
-        timeout: 15_000,
-      })
-      .not.toBe(firstVisibleDate);
-  }
-  throw new Error(`Schedule cleanup could not show ${targetDate} in the planner.`);
-}
-
 async function removeScheduleEventIfPresent(page, title, targetDate) {
   const localContainsTitle = await page.evaluate(
     ({ key, expectedTitle }) => window.localStorage.getItem(key)?.includes(expectedTitle) ?? false,
     { key: scheduleKey, expectedTitle: title }
   );
   if (!localContainsTitle) {
+    await expectCentralSyncExcludes(page, scheduleKey, title);
     return false;
   }
 
   await openWorkspace(page, "schedule");
   await showScheduleDateInPlanner(page, targetDate);
   const targetDay = page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`);
-  const eventChip = targetDay.locator(".schedule-planner-event-chip").filter({ hasText: title }).first();
+  const eventChip = targetDay.locator(".schedule-planner-event-chip").filter({ has: page.getByText(title, { exact: true }) });
+  await expect(eventChip).toHaveCount(1);
   await expect(eventChip).toBeVisible();
   await eventChip.click();
   await expect(eventChip).toHaveAttribute("aria-pressed", "true");
@@ -852,7 +832,11 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
   }
 });
 
-test("production test account can save and reload a schedule record", async ({ page }) => {
+const scheduleTest = test.extend({
+  scheduleProbe: createScheduleProbeFixture({ signIn, getCurrentUser: getLiveCurrentUser, removeRecord: removeScheduleEventIfPresent }),
+});
+
+scheduleTest("production test account can save and reload a schedule record", async ({ page, scheduleProbe }) => {
   page.on("dialog", async (dialog) => {
     if (dialog.type() === "confirm") {
       await dialog.accept();
@@ -861,7 +845,7 @@ test("production test account can save and reload a schedule record", async ({ p
     await dialog.dismiss().catch(() => {});
   });
 
-  const title = `QA Live ${Date.now()}`;
+  const title = `QA Live ${Date.now()}-${crypto.randomUUID()}`;
   const scheduleWrites = [];
   let targetDate = "";
 
@@ -889,9 +873,10 @@ test("production test account can save and reload a schedule record", async ({ p
     });
   });
 
-  await signIn(page);
+  await test.step("Schedule: authenticate and hydrate", () => signIn(page));
+  const user = await getLiveCurrentUser(page);
 
-  try {
+  await test.step("Schedule: create a run-owned record and verify central save", async () => {
     await openWorkspace(page, "schedule");
     await page.locator("#scheduleTodayButton").click();
     const targetDay = await findEmptySchedulePlannerDay(page);
@@ -901,17 +886,19 @@ test("production test account can save and reload a schedule record", async ({ p
     const addInput = page.locator(`[data-schedule-planner-add-date="${targetDate}"] [name="plannerTitle"]`);
     await expect(addInput).toBeFocused();
     await addInput.fill(title);
+    scheduleProbe.arm({ title, targetDate, user });
     await addInput.press("Enter");
     await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
     await expectStorageContains(page, scheduleKey, title);
     await expectCentralSyncContains(page, scheduleKey, title, { writes: scheduleWrites });
+  });
 
+  await test.step("Schedule: reload and return to the saved date", async () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.locator("#hubShell")).toBeVisible();
     await openWorkspace(page, "schedule");
+    await showScheduleDateInPlanner(page, targetDate);
     await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
     await expectStorageContains(page, scheduleKey, title);
-  } finally {
-    await removeScheduleEventIfPresent(page, title, targetDate);
-  }
+  });
 });

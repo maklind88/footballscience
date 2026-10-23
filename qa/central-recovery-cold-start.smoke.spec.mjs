@@ -135,13 +135,14 @@ test('failed workspace and notification writes do not strand a real Sessions edi
   const otherDay = '2026-10-05';
   const otherDate = { date: otherDay, title: 'Existing older session', blocks: [] };
   state.sessions[otherDay] = structuredClone(otherDate);
-  let revision = 10, blocked = 0;
+  let revision = 10;
+  const blockedKeys = new Set();
   const failedKeys = ['football-workspace-hub-v3', 'football-dashboard-notification-seen-v1'];
   await page.route('**/api/app-state**', async route => {
     if (route.request().method() === 'GET') return route.fulfill({ json: { ok: true,
       entries: { [sessionsKey]: JSON.stringify(state) }, metadata: { [sessionsKey]: { revision } }, absentKeys: [] } });
     const body = route.request().postDataJSON();
-    if (failedKeys.includes(body.key)) { blocked++; return route.abort('blockedbyclient'); }
+    if (failedKeys.includes(body.key)) { blockedKeys.add(body.key); return route.abort('blockedbyclient'); }
     if (body.key !== sessionsKey) return route.fulfill({ json: { ok: true } });
     const change = JSON.parse(await transport.decodeSessionStateValue(body.key, body.sessionChange));
     if (change.date !== day) return route.abort('blockedbyclient');
@@ -157,10 +158,17 @@ test('failed workspace and notification writes do not strand a real Sessions edi
   await page.locator(`[data-session-date="${day}"]`).click();
   const field = page.locator('[data-session-field="objective"]').first();
   await expect(field).toHaveValue('Original objective');
-  await expect.poll(() => blocked).toBeGreaterThan(0);
+  // Inject actual save intent; navigation/boot must not manufacture failed writes.
+  await page.evaluate(keys => {
+    const hub = JSON.parse(localStorage.getItem(keys[0]) || '{}');
+    localStorage.setItem(keys[0], JSON.stringify({ ...hub, sidebarCollapsed: !hub.sidebarCollapsed }));
+    const seen = JSON.parse(localStorage.getItem(keys[1]) || '{}');
+    localStorage.setItem(keys[1], JSON.stringify({ ...seen, 'set-pieces-coach': '2026-10-06T12:00:00.000Z' }));
+  }, failedKeys);
+  await expect.poll(() => [...blockedKeys].sort()).toEqual([...failedKeys].sort());
   await field.fill('Saved despite unrelated failure'); await field.dispatchEvent('change'); await field.blur();
   await expect.poll(() => state.sessions[day].blocks[0].objective).toBe('Saved despite unrelated failure');
   expect(state.sessions[otherDay]).toEqual(otherDate);
   await expect(page.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
-  expect(await page.evaluate(keys => keys.some(key => JSON.parse(localStorage.getItem('football-data-safety-v1')).entries[key]?.pendingCentralSync), failedKeys)).toBe(true);
+  expect(await page.evaluate(keys => keys.every(key => JSON.parse(localStorage.getItem('football-data-safety-v1')).entries[key]?.pendingCentralSync), failedKeys)).toBe(true);
 });

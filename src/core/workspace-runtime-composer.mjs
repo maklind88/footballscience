@@ -342,7 +342,6 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     unmountLeaderboardHome: deps.unmountLeaderboardHome,
     win: deps.win,
     workspaceHubDefaultActiveWorkspaceId: deps.workspaceHubDefaultActiveWorkspaceId,
-    writeWorkspaceHubState: deps.writeWorkspaceHubState,
   });
 
   const centralAppStateReloadService = createCentralAppStateReloadService({

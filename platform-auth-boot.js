@@ -1471,6 +1471,7 @@ async function getActiveAccessToken() {
     "daySchedule",
     "matchDay",
     "sessionType",
+    "nutritionPlan",
     "physicalLoad",
     "pitchSize",
     "preTrainingVideo",

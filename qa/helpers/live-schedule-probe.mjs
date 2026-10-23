@@ -1,5 +1,16 @@
 import { expect } from "@playwright/test";
 
+export function installScheduleDialogHandler(page) {
+  let lastDialogType = "none";
+  page.on("dialog", async dialog => {
+    lastDialogType = dialog.type();
+    console.info(`Schedule probe dialog: ${lastDialogType}`);
+    if (lastDialogType === "confirm") await dialog.accept();
+    else await dialog.dismiss(); // Never discard unsaved work to make a smoke test pass.
+  });
+  return () => lastDialogType;
+}
+
 export async function showScheduleDateInPlanner(page, targetDate, maxWindowShifts = 24) {
   if (!targetDate) return;
   const targetDay = page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`);

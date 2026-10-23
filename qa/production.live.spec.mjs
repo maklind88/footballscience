@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { openScoutingDatabaseTab, startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
-import { createScheduleProbeFixture, showScheduleDateInPlanner } from "./helpers/live-schedule-probe.mjs";
+import { createScheduleProbeFixture, installScheduleDialogHandler, showScheduleDateInPlanner } from "./helpers/live-schedule-probe.mjs";
 
 const scheduleKey = "football-schedule-v1";
 const primaryLiveCredentials = {
@@ -837,13 +837,7 @@ const scheduleTest = test.extend({
 });
 
 scheduleTest("production test account can save and reload a schedule record", async ({ page, scheduleProbe }) => {
-  page.on("dialog", async (dialog) => {
-    if (dialog.type() === "confirm") {
-      await dialog.accept();
-      return;
-    }
-    await dialog.dismiss().catch(() => {});
-  });
+  const lastDialogType = installScheduleDialogHandler(page);
 
   const title = `QA Live ${Date.now()}-${crypto.randomUUID()}`;
   const scheduleWrites = [];
@@ -894,7 +888,11 @@ scheduleTest("production test account can save and reload a schedule record", as
   });
 
   await test.step("Schedule: reload and return to the saved date", async () => {
-    await page.reload({ waitUntil: "domcontentloaded" });
+    try {
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 20_000 });
+    } catch (cause) {
+      throw new Error(`Schedule reload failed; last dialog type: ${lastDialogType()}`, { cause });
+    }
     await expect(page.locator("#hubShell")).toBeVisible();
     await openWorkspace(page, "schedule");
     await showScheduleDateInPlanner(page, targetDate);

@@ -44,3 +44,17 @@ This candidate does not remove any unknown record from the earlier live run.
 That requires identifying the exact record under the dedicated QA account; never
 bulk-delete events whose titles merely begin with `QA Live`. Original Medical
 draft recovery is also not established by these test changes.
+
+## First authenticated follow-up
+
+Production Monitor `39895060558`, candidate `e9effe58`, confirmed central save
+and cleanup of its exact synthetic record. The newly isolated failure was
+`page.reload` waiting for DOMContentLoaded; the test-body budget expired.
+Medical's 11 read-boundary checks and the other live tests passed. Postdeploy,
+auth health, staging isolation, backup freshness and read-only restore checks
+also passed. No new deployment or restoration was performed.
+
+The follow-up diagnostic records only the browser dialog type and bounds the
+reload attempt to 20 seconds within the unchanged 90-second test-body budget.
+It must continue to dismiss beforeunload rather than silently discard drafts.
+The cause of the stalled reload is not yet established.

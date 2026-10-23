@@ -2272,7 +2272,7 @@ test("central Schedule hydration preserves the local selected day", async ({ bro
   }
 });
 
-test("central Periodization hydration preserves the local selected day", async ({ browser, baseURL }) => {
+test("central Periodization hydration preserves nutrition and the local selected day after reload", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");
   const localPeriodizationState = {
     selectedYear: 2026,
@@ -2297,6 +2297,7 @@ test("central Periodization hydration preserves the local selected day", async (
         seasonPhase: "Competition",
         daySchedule: "Training",
         sessionNotes: "Central training note",
+        nutritionPlan: "Central nutrition plan",
       },
     },
   };
@@ -2327,6 +2328,7 @@ test("central Periodization hydration preserves the local selected day", async (
             selectedMonthIndex: state.selectedMonthIndex,
             daySchedule: state.days?.["2026-05-09"]?.daySchedule || "",
             note: state.days?.["2026-05-09"]?.sessionNotes || "",
+            nutrition: state.days?.["2026-05-09"]?.nutritionPlan || "",
           };
         }, periodizationStateKey),
         { timeout: 10_000 }
@@ -2336,14 +2338,17 @@ test("central Periodization hydration preserves the local selected day", async (
         selectedMonthIndex: 4,
         daySchedule: "Training",
         note: "Central training note",
+        nutrition: "Central nutrition plan",
       });
 
     await tab.page.evaluate((key) => {
       const state = JSON.parse(window.localStorage.getItem(key) || "{}");
       state.days["2026-05-09"].sessionNotes = "Fresh local note after central load";
+      state.days["2026-05-09"].nutritionPlan = "Fresh Performance nutrition";
       state.days["2026-05-09"].fieldUpdatedAt = {
         ...(state.days["2026-05-09"].fieldUpdatedAt || {}),
         sessionNotes: "2026-05-07T17:00:00.000Z",
+        nutritionPlan: "2026-05-07T17:00:00.000Z",
       };
       window.localStorage.setItem(key, JSON.stringify(state));
     }, periodizationStateKey);
@@ -2353,6 +2358,7 @@ test("central Periodization hydration preserves the local selected day", async (
     centralPeriodizationState.days["2026-05-09"].sessionNotes = "Older central note";
     centralPeriodizationState.days["2026-05-09"].fieldUpdatedAt = {
       sessionNotes: "2026-05-07T16:00:00.000Z",
+      nutritionPlan: "2026-05-07T16:00:00.000Z",
     };
     centralStore.entries[periodizationStateKey] = JSON.stringify(centralPeriodizationState);
     centralStore.metadataEntries[periodizationStateKey] = createMetadata(5, centralStore.entries[periodizationStateKey]);
@@ -2366,6 +2372,7 @@ test("central Periodization hydration preserves the local selected day", async (
             selectedDate: state.selectedDate,
             selectedMonthIndex: state.selectedMonthIndex,
             note: state.days?.["2026-05-09"]?.sessionNotes || "",
+            nutrition: state.days?.["2026-05-09"]?.nutritionPlan || "",
           };
         }, periodizationStateKey),
         { timeout: 10_000 }
@@ -2374,7 +2381,13 @@ test("central Periodization hydration preserves the local selected day", async (
         selectedDate: "2026-05-09",
         selectedMonthIndex: 4,
         note: "Fresh local note after central load",
+        nutrition: "Fresh Performance nutrition",
       });
+    await tab.page.reload({ waitUntil: "domcontentloaded" });
+    await tab.page.waitForFunction(() => window.footballScienceCentralState?.isHydrated?.());
+    await expect.poll(() => tab.page.evaluate((key) =>
+      JSON.parse(localStorage.getItem(key)).days["2026-05-09"].nutritionPlan,
+    periodizationStateKey)).toBe("Central nutrition plan");
   } finally {
     await closeCentralStateContext(tab.context);
   }

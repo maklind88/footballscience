@@ -85,6 +85,7 @@ const PERIODIZATION_SCALAR_FIELDS = [
   "daySchedule",
   "matchDay",
   "sessionType",
+  "nutritionPlan",
   "physicalLoad",
   "pitchSize",
   "preTrainingVideo",

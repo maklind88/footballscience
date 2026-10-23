@@ -3208,7 +3208,7 @@ test("app-state preserves newest Session Planner tactical frame state during sta
   }
 });
 
-test("app-state merges stale Periodization day edits by field timestamps", async () => {
+test("app-state merges stale Periodization day edits and Performance nutrition by field timestamps", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
@@ -3227,7 +3227,9 @@ test("app-state merges stale Periodization day edits by field timestamps", async
         daySchedule: "Training",
         physicalLoad: "High",
         sessionNotes: "Central note",
+        nutritionPlan: "Previous nutrition plan",
         fieldUpdatedAt: {
+          nutritionPlan: "2026-05-07T13:00:00.000Z",
           physicalLoad: "2026-05-07T15:00:00.000Z",
           sessionNotes: "2026-05-07T13:00:00.000Z",
         },
@@ -3236,6 +3238,7 @@ test("app-state merges stale Periodization day edits by field timestamps", async
         seasonPhase: "Competition",
         daySchedule: "Recovery",
         sessionNotes: "Existing recovery",
+        nutritionPlan: "Recovery nutrition",
       },
     },
   };
@@ -3250,7 +3253,9 @@ test("app-state merges stale Periodization day edits by field timestamps", async
         daySchedule: "Training",
         physicalLoad: "Low",
         sessionNotes: "Fresh coach edit",
+        nutritionPlan: "Performance nutrition plan",
         fieldUpdatedAt: {
+          nutritionPlan: "2026-05-07T16:00:00.000Z",
           physicalLoad: "2026-05-07T14:00:00.000Z",
           sessionNotes: "2026-05-07T16:00:00.000Z",
         },
@@ -3262,7 +3267,7 @@ test("app-state merges stale Periodization day edits by field timestamps", async
       ...createAppStateStorageEntry(periodizationKey, existingState),
       revision: 2,
     },
-  });
+  }, "performance");
   global.fetch = storage.fetchMock;
 
   try {
@@ -3289,7 +3294,18 @@ test("app-state merges stale Periodization day edits by field timestamps", async
     const storedState = JSON.parse(storage.objects.get(periodizationPath).value);
     expect(storedState.days["2026-05-09"].physicalLoad).toBe("High");
     expect(storedState.days["2026-05-09"].sessionNotes).toBe("Fresh coach edit");
+    expect(storedState.days["2026-05-09"].nutritionPlan).toBe("Performance nutrition plan");
+    expect(storedState.days["2026-05-09"].fieldUpdatedAt.nutritionPlan).toBe("2026-05-07T16:00:00.000Z");
     expect(storedState.days["2026-05-10"].sessionNotes).toBe("Existing recovery");
+    expect(storedState.days["2026-05-10"].nutritionPlan).toBe("Recovery nutrition");
+    const reload = await callHandler(appStateHandler, {
+      method: "GET",
+      url: "/api/app-state?fresh=1",
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(reload.status).toBe(200);
+    expect(JSON.parse(reload.payload.entries[periodizationKey]).days["2026-05-09"].nutritionPlan)
+      .toBe("Performance nutrition plan");
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

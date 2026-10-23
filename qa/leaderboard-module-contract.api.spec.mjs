@@ -233,12 +233,13 @@ test("active Team B uses only its server roster for zero rows and award selectio
 
 test("selectors tolerate current database snapshot aliases without inventing points", () => {
   const payload = makePayload({
-    standings: [{ playerId: "former-player", displayName: "Former Captain", points: 4, rank: 1, awardCount: 1, lastAwardOn: "2026-08-22" }],
+    roster: [{ playerId: "captain", displayName: "Current Captain" }],
+    standings: [{ playerId: "captain", displayName: "Current Captain", points: 4, rank: 1, awardCount: 1, lastAwardOn: "2026-08-22" }],
     events: [{ id: "backend-event", occurredOn: "2026-08-22", title: "Pressing game", points: 4, createdAt: "2026-08-22T15:00:00Z", awards: [] }],
   });
   const context = makeContext({ getPlayerProfilesState: () => ({ players: [] }) });
   const [standing] = getLeaderboardRankedStandings(payload, context);
-  expect(standing).toMatchObject({ name: "Former Captain", points: 4, lastScoredOn: "2026-08-22" });
+  expect(standing).toMatchObject({ name: "Current Captain", points: 4, lastScoredOn: "2026-08-22" });
 
   const state = { ...createLeaderboardState(fixedNow), status: "ready", data: payload };
   state.ui = { ...state.ui, tab: "activity" };

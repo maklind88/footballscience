@@ -56,12 +56,13 @@ function normalizeStanding(row = {}, player = null) {
 }
 
 export function getLeaderboardStandings(data = {}, context = {}) {
-  const currentPlayers = getLeaderboardSquadPlayers(data, { includeArchived: true });
+  const currentPlayers = getLeaderboardSquadPlayers(data);
   const currentById = new Map(currentPlayers.map((player) => [player.id, player]));
   const rawRows = Array.isArray(data?.standings) ? data.standings : [];
   const rows = rawRows
     .map((row) => normalizeStanding(row, currentById.get(String(firstValue(row, ["playerId", "player_id", "id"]))) || null))
-    .filter((row) => row.playerId);
+    // Ledger history survives squad removal, but the ranking follows the current server roster.
+    .filter((row) => row.playerId && !row.archived);
   let previousPoints = null;
   let calculatedRank = 0;
   return rows
@@ -69,7 +70,7 @@ export function getLeaderboardStandings(data = {}, context = {}) {
     .map((row, index) => {
       if (previousPoints !== row.points) calculatedRank = index + 1;
       previousPoints = row.points;
-      return { ...row, rank: row.rank > 0 ? row.rank : calculatedRank };
+      return { ...row, rank: calculatedRank };
     });
 }
 

@@ -583,11 +583,10 @@ export function createMedicalRuntimeStateService(deps = {}) {
       setMedicalState(readMedicalState());
     }
     archiveMedicalPlayersRemovedFromSquad({ persist: canViewPrivateMedicalDetails() });
-    const rosterChanged = syncMedicalRosterFromPlayerProfiles();
-    const availabilityChanged = syncMedicalPlayerAvailabilityStatusesFromProfiles();
-    if (canViewPrivateMedicalDetails() && (rosterChanged || availabilityChanged)) {
-      writeMedicalState();
-    }
+    // Squad owns these fields. Reading their latest values is not a clinical edit.
+    // An explicit Medical save will include the projected roster as before.
+    syncMedicalRosterFromPlayerProfiles();
+    syncMedicalPlayerAvailabilityStatusesFromProfiles();
     return getMedicalState();
   }
 

@@ -465,7 +465,7 @@ test("Medical runtime state service materializes Squad players and date-bound tr
   });
 });
 
-test("Medical runtime state service persists roster sync during private Medical ensure", () => {
+test("Medical runtime state service projects roster sync without saving until an explicit write", () => {
   const harness = createServiceHarness({
     canEdit: true,
     playerProfiles: [
@@ -486,6 +486,9 @@ test("Medical runtime state service persists roster sync during private Medical 
 
   harness.service.ensureMedicalState();
 
+  expect(harness.getState().players.map((player) => player.id)).toContain("p2");
+  expect(harness.storage.value(harness.medicalTeamStorageKey)).toBeNull();
+  harness.service.writeMedicalState();
   const persisted = JSON.parse(harness.storage.value(harness.medicalTeamStorageKey));
   expect(persisted.players.map((player) => player.id)).toContain("p2");
   expect(persisted.players.find((player) => player.id === "p2")).toMatchObject({
@@ -494,6 +497,60 @@ test("Medical runtime state service persists roster sync during private Medical 
     rosterType: "squad",
   });
 });
+
+test("a roster read cannot overwrite a newer cached recommendation or Medical Plan", () => {
+  const oldState = createStoredMedicalState();
+  const newer = structuredClone(oldState);
+  newer.records[0].participation = 25;
+  newer.injuryPlans[0].endDate = "2026-08-01";
+  const raw = JSON.stringify(newer);
+  const harness = createServiceHarness({ canEdit: true, state: oldState,
+    storage: { "football-medical-team-v1": raw },
+    playerProfiles: [{ ...oldState.players[0], name: "Updated Squad Name" }],
+  });
+  harness.service.ensureMedicalState();
+  expect(harness.getState().players[0].name).toBe("Updated Squad Name");
+  expect(harness.storage.value(harness.medicalTeamStorageKey)).toBe(raw);
+});
+
+for (const errorName of ["QuotaExceededError", "SecurityError"]) {
+  test(`Medical roster reads do not create clinical drafts when storage throws ${errorName}`, () => {
+    const baseline = createStoredMedicalState();
+    const raw = JSON.stringify(baseline);
+    const retained = [], edits = [], writes = [];
+    const harness = createServiceHarness({
+      canEdit: true,
+      state: structuredClone(baseline),
+      playerProfiles: [{ ...baseline.players[0], name: "Updated Squad Name", position: "Forward", status: "Available" }],
+      storageAdapter: {
+        getItem: () => raw,
+        setItem: (...args) => { writes.push(args); throw Object.assign(new Error("Synthetic storage failure"), { name: errorName }); },
+      },
+      retainMedicalDraft: (...args) => retained.push(args),
+      beginMedicalDraftWrite: () => edits.push(true),
+    });
+    for (let pass = 0; pass < 3; pass++) harness.service.ensureMedicalState();
+    expect(harness.getState().players[0].name).toBe("Updated Squad Name");
+    expect(harness.getState().records).toEqual(baseline.records);
+    expect(harness.getState().injuryPlans).toEqual(baseline.injuryPlans);
+    expect(writes).toEqual([]);
+    expect(retained).toEqual([]);
+    expect(edits).toEqual([]);
+    expect(harness.centralWrites).toEqual([]);
+    expect(harness.issues).toEqual([]);
+
+    // An actual edit must still enter the existing recovery path.
+    harness.getState().records[0].participation = 25;
+    harness.getState().injuryPlans[0].endDate = "2026-07-01";
+    harness.service.writeMedicalState();
+    expect(retained).toHaveLength(1);
+    expect(JSON.parse(retained[0][0])).toMatchObject({
+      records: [{ participation: 25 }], injuryPlans: [{ endDate: "2026-07-01" }],
+    });
+    expect(retained[0][1]).toBe(raw);
+    expect(edits).toHaveLength(1);
+  });
+}
 
 test("Medical runtime state service batches repeated render reads behind one roster sync", () => {
   const players = Array.from({ length: 28 }, (_, index) => ({

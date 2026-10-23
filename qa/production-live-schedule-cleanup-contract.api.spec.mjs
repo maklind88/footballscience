@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createScheduleProbeFixture } from "./helpers/live-schedule-probe.mjs";
+import { createScheduleProbeFixture, installScheduleDialogHandler } from "./helpers/live-schedule-probe.mjs";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import os from "node:os";
@@ -29,6 +29,20 @@ const record = {
   title: "QA Live 1234567890-abcdef", targetDate: "2026-10-23",
   user: { id: "qa-user", clubId: "qa-club", teamId: "qa-team" },
 };
+
+test("Schedule diagnostics never accept a warning that would discard unsaved work", async () => {
+  let onDialog;
+  const calls = [];
+  const lastType = installScheduleDialogHandler({ on: (event, handler) => {
+    expect(event).toBe("dialog"); onDialog = handler;
+  } });
+  expect(lastType()).toBe("none");
+  for (const type of ["confirm", "beforeunload", "alert"]) {
+    await onDialog({ type: () => type, accept: async () => calls.push(`${type}:accept`), dismiss: async () => calls.push(`${type}:dismiss`) });
+    expect(lastType()).toBe(type);
+  }
+  expect(calls).toEqual(["confirm:accept", "beforeunload:dismiss", "alert:dismiss"]);
+});
 
 function fixtureHarness({ user = record.user, cleanupError } = {}) {
   const calls = [];

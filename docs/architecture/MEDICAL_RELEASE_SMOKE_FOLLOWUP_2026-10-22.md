@@ -79,3 +79,25 @@ three focused browser checks, four unchanged Medical Recovery browser checks,
 syntax/diff checks and live-suite discovery pass. No `main`/staging integration
 or deployment was performed during this follow-up. The unknown record from the
 original release run remains unverified; neither follow-up deletes old records.
+
+## Candidate refresh, 2026-10-23
+
+The preceding sections are historical evidence, not the current release state.
+Medical read/save isolation subsequently shipped on main `2e263ce4`, with the
+Safe Lane and production verification passing. This does not establish which
+guard caused every earlier beforeunload warning, nor recover unidentified old
+test records.
+
+The QA-only changes are now prepared separately on
+`codex/medical-smoke-ready-20261023`, based on that main commit. Medical owns this
+bounded release follow-up; Schedule owns product data and System/Security owns
+shared release infrastructure. No Schedule product code, central sync, clinical
+data, or protection guard changes are included.
+
+Local validation covers the helper contracts, real timeout teardown, date-window
+navigation, and cleanup after the original browser page closes. The authenticated
+production probe has not been rerun as part of this preparation. It must pass in
+the later user-authorized release; do not dismiss a pending-write failure as a
+test flake. Do not delete old unowned Schedule records.
+
+No main/staging integration or deployment is authorized by this preparation.

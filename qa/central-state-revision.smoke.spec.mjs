@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createRequire } from "node:module";
 import { applySessionDateChange, sessionDateValue } from "../src/modules/session-planner/session-save-protocol.mjs";
 import { cloneScheduleState } from "../src/modules/schedule/schedule-state.mjs";
+import { saveMedicalFixtureBaseline } from "./helpers/medical-central-baseline.mjs";
 const require = createRequire(import.meta.url);
 const { decodeSessionStateValue, encodeSessionStateValue } = require("../api/_lib/session-state-transport.js");
 
@@ -3096,6 +3097,7 @@ test(`Medical replacement reconciles a lost receipt without adopting a newer dra
       window.__qaSession = { access_token: "medical-token", user };
       await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
     }, profile);
+    await saveMedicalFixtureBaseline(tab.page, medicalTeamStateKey);
     await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
       const bridge = window.footballScienceCentralState;
       return !bridge.getStatus().hydrating && bridge.getCachedValueInfo(key).source === "local-write" &&
@@ -3217,6 +3219,7 @@ test(`a replacement Medical draft is never adopted after an organization switch 
       window.__qaSession = { access_token: "medical-token", user };
       await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
     }, profile);
+    await saveMedicalFixtureBaseline(tab.page, medicalTeamStateKey);
     await expect.poll(() => tab.page.evaluate(({ key, manifestKey, revision }) => {
       const bridge = window.footballScienceCentralState, info = bridge.getCachedValueInfo(key);
       const pending = JSON.parse(localStorage.getItem(manifestKey)).entries[key]?.pendingCentralSync;
@@ -3385,10 +3388,11 @@ test("an old account Medical receipt cannot poison a new account's queued edit",
       window.__qaSession = { access_token: "org-a-token", user };
       await window.__qaAuthStateCallback("SIGNED_IN", window.__qaSession);
     }, profile);
+    await saveMedicalFixtureBaseline(tab.page, medicalTeamStateKey);
     await expect.poll(() => tab.page.evaluate(({ key, manifestKey, revision }) => {
       const bridge = window.footballScienceCentralState, info = bridge.getCachedValueInfo(key);
       const pending = JSON.parse(localStorage.getItem(manifestKey)).entries[key]?.pendingCentralSync;
-      // Finish the module's real default normalization before holding the next runtime receipt.
+      // Finish the fixture's explicit baseline save before holding the next runtime receipt.
       return revision > 4 && !bridge.getStatus().hydrating && bridge.getStatus().metadata[key]?.revision === revision &&
         info.source === "local-write" && !pending;
     }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey, revision: store.metadataEntries[medicalTeamStateKey].revision })).toBe(true);

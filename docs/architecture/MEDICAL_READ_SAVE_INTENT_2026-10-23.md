@@ -65,3 +65,20 @@ No main integration, staging, production write, or deployment in this task.
 - Initial new browser test used a training-only accessible label on a fixture
   match day. Corrected the test to target the player's percentage control for
   either activity; no product rule was changed to accommodate the fixture.
+
+## Authorized Safe Lane follow-up
+
+The user subsequently authorized `Deploy safe`. The first full run was stopped
+before staging/main/production after 3,572 passing tests and eight failures in
+Medical replacement fixture preparation. These fixtures waited for an automatic
+roster-normalization write after a coach-to-medical role change. That write is
+intentionally absent now. Their seeded legacy pending draft correctly remains
+protected until an explicit replacement is saved.
+
+`saveMedicalFixtureBaseline` now performs that explicit synthetic baseline save
+after verified editable hydration (or the existing authorized archive write).
+Only three Medical fixture setup sites in the central revision suite change.
+All original assertions of receipt reconciliation, revision counts, retained
+recovery copies, lost responses, manifest/cache failure and organization
+isolation remain. The 17 affected browser scenarios pass; no shared sync or auth
+product code changes were needed. The official Safe Lane must run again in full.

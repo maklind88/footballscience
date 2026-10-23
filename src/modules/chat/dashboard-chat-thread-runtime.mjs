@@ -300,33 +300,30 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     return Number.isFinite(seenTime) ? seenTime : 0;
   }
 
-  function hasDashboardHomeNotifications(user = getCurrentPlatformUser()) {
-    if (!user?.id) {
-      return false;
-    }
-
-    const seenAt = getDashboardNotificationSeenAt(user);
-    return (readDashboardTasks() || []).some((task) => {
+  function getLatestDashboardHomeNotificationTime(user) {
+    if (!user?.id) return 0;
+    return (readDashboardTasks() || []).reduce((latest, task) => {
       const createdAt = new Date(task.createdAt || 0).getTime();
-      return (
-        task.status === "open" &&
-        task.scope === "team" &&
-        task.assignedTo === user.id &&
-        task.createdBy !== user.id &&
-        Number.isFinite(createdAt) &&
-        createdAt > seenAt
-      );
-    });
+      return task.status === "open" && task.scope === "team" &&
+        task.assignedTo === user.id && task.createdBy !== user.id && Number.isFinite(createdAt)
+        ? Math.max(latest, createdAt) : latest;
+    }, 0);
+  }
+
+  function hasDashboardHomeNotifications(user = getCurrentPlatformUser()) {
+    return getLatestDashboardHomeNotificationTime(user) > getDashboardNotificationSeenAt(user);
   }
 
   function markDashboardHomeSeenForCurrentUser() {
     const user = getCurrentPlatformUser();
-    if (!user?.id) {
-      return;
-    }
+    if (!user?.id) return;
+    const latest = getLatestDashboardHomeNotificationTime(user);
+    if (latest <= getDashboardNotificationSeenAt(user)) return;
+    // Rendering is not a new edit. Acknowledge only notifications actually read,
+    // so refreshes are idempotent and delayed tasks are not hidden by the clock.
     writeDashboardNotificationSeenMap({
       ...readDashboardNotificationSeenMap(),
-      [user.id]: new Date().toISOString(),
+      [user.id]: new Date(latest).toISOString(),
     });
   }
 

@@ -49,15 +49,11 @@ export function createMedicalRuntimeHelpers(deps = {}) {
     ].filter((status) => status && status !== "available")
   );
   // Squad provides roster context; Medical owns clinical availability and RTP progression.
-  const medicalSquadAvailabilityBlockStatusKeys = new Set([
-    "unavailable",
-    "national-team",
-    "vacation",
-    "personal",
-    "suspended",
-    "loan",
-    "unknown",
-  ]);
+  const medicalSquadAvailabilityBlockStatusKeys = new Set(
+    [...medicalSquadAvailabilityContextStatusKeys].filter(
+      (status) => !["injured", "managed", "rehab"].includes(status)
+    )
+  );
 
   function getMedicalStatusOption(statusKey) { return medicalOptionSelectors.getMedicalStatusOption(statusKey); }
   function getMedicalStatusActivityType(dateValue, rtpPhase = "") { return medicalOptionSelectors.getMedicalStatusActivityType(dateValue, rtpPhase); }

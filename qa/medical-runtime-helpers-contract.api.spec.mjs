@@ -91,6 +91,7 @@ function createHelpers(options = {}) {
       { key: "managed", label: "Managed load" },
       { key: "rehab", label: "Rehab" },
       { key: "national-team", label: "International duty" },
+      { key: "future-absence", label: "Future absence" },
     ],
     normalizePlayerProfileName: (value) => String(value || "").trim().toLowerCase(),
     normalizePlayerProfileRole: (value, fallback = "") => String(value || fallback || "").trim(),
@@ -163,6 +164,8 @@ test("Medical runtime helpers preserve linked Squad availability and player norm
   expect(helpers.getMedicalPlayerSquadAvailabilityBlockReason(linkedPlayer)).toBe("");
   expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ status: "managed" })).toBe(false);
   expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ status: "rehab" })).toBe(false);
+  expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ status: "unknown" })).toBe(true);
+  expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ status: "future-absence" })).toBe(true);
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p3", name: "Future Injury", number: "7" }, "2026-06-09")).toBe("available");
   expect(helpers.isMedicalPlayerBlockedBySquadAvailability({ id: "p3", name: "Future Injury", number: "7" }, "2026-06-09")).toBe(false);
   expect(helpers.getMedicalPlayerAvailabilityStatusForDate({ id: "p3", name: "Future Injury", number: "7" }, "2026-06-10")).toBe("injured");

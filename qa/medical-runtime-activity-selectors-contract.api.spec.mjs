@@ -264,6 +264,7 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
 test("Medical runtime activity selectors keep injury context out of Squad availability blocks", () => {
   const { selectors, state } = createSelectors({
     getMedicalPlayerAvailabilityStatusOption: (player, dateValue) => ({
+      key: player?.status === "injured" && dateValue >= "2026-06-01" ? "injured" : "available",
       label: player?.status === "injured" && dateValue >= "2026-06-01" ? "Injured" : "Available",
     }),
     getMedicalPlayerSquadAvailabilityBlockReason: () => "",
@@ -278,6 +279,17 @@ test("Medical runtime activity selectors keep injury context out of Squad availa
 
   expect(selectors.getLatestMedicalRecord("p6", "2026-05-31")).toBeNull();
   expect(selectors.getMedicalRecommendationBlockReason("p6", 100, "2026-05-31")).toBe("");
-  expect(selectors.getLatestMedicalRecord("p6", "2026-06-01")).toBeNull();
+  expect(selectors.getLatestMedicalRecord("p6", "2026-06-01")).toMatchObject({ participation: 0, source: "squad-availability" });
   expect(selectors.getMedicalRecommendationBlockReason("p6", 100, "2026-06-01")).toBe("");
+  state.records.push({ id: "rehab-rec", playerId: "p6", date: "2026-06-01", participation: 25, updatedAt: "2026-06-01T10:00:00Z" });
+  expect(selectors.getLatestMedicalRecord("p6", "2026-06-01")).toMatchObject({ id: "rehab-rec", participation: 25 });
+  state.injuryPlans.push({ id: "new-restriction", playerId: "p6", startDate: "2026-06-01", endDate: "2026-07-01", participation: 0, updatedAt: "2026-06-01T11:00:00Z" });
+  expect(selectors.getLatestMedicalRecord("p6", "2026-06-01")).toMatchObject({ participation: 0, source: "injury-plan" });
+  expect(selectors.getMedicalRecommendationBlockReason("p6", 100, "2026-06-01")).toContain("Clearance checklist");
+  expect(selectors.getMedicalRecommendationBlockReason("p6", 25, "2026-06-01")).toBe("");
+  state.injuryPlans.at(-1).archivedAt = "2026-06-01T12:00:00Z";
+  expect(selectors.getLatestMedicalRecord("p6", "2026-06-01")).toMatchObject({ participation: 25 });
+  state.records.at(-1).archivedAt = "2026-06-01T12:01:00Z";
+  expect(selectors.getLatestMedicalRecord("p6", "2026-06-01")).toMatchObject({ participation: 0, source: "squad-availability" });
+  expect(state.players.find((player) => player.id === "p6").status).toBe("injured");
 });

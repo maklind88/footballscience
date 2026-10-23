@@ -89,7 +89,8 @@ guard caused every earlier beforeunload warning, nor recover unidentified old
 test records.
 
 The QA-only changes are now prepared separately on
-`codex/medical-smoke-ready-20261023`, based on that main commit. Medical owns this
+`codex/medical-smoke-ready-20261023`, based on main `009acef3` (which includes
+`2e263ce4`). Medical owns this
 bounded release follow-up; Schedule owns product data and System/Security owns
 shared release infrastructure. No Schedule product code, central sync, clinical
 data, or protection guard changes are included.

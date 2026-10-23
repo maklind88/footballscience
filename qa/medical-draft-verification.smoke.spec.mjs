@@ -116,7 +116,11 @@ test("full auth bridge verifies via a fresh private GET without hydrating or wri
   let writes = 0; const reads = [];
   await page.route("**/api/app-state**", route => {
     const req = route.request();
-    if (req.method() !== "GET") { writes++; return route.fulfill({ status: 503, json: { ok: false } }); }
+    if (req.method() !== "GET") {
+      // Unrelated Home initialization may save workspace or notification state.
+      if (req.postDataJSON()?.key === key) writes++;
+      return route.fulfill({ status: 503, json: { ok: false } });
+    }
     reads.push({ url: req.url(), headers: req.headers() });
     const keys = new URL(req.url()).searchParams.get("keys")?.split(",") || [key];
     return route.fulfill({ json: { ok: true, entries: keys.includes(key) ? { [key]: JSON.stringify(draft) } : {},

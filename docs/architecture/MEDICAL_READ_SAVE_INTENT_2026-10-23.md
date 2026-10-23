@@ -82,3 +82,10 @@ All original assertions of receipt reconciliation, revision counts, retained
 recovery copies, lost responses, manifest/cache failure and organization
 isolation remain. The 17 affected browser scenarios pass; no shared sync or auth
 product code changes were needed. The official Safe Lane must run again in full.
+
+The second full run passed 4,134 tests with three skipped and stopped on the
+Medical recovery verification test's global POST counter. Its trace shows only
+`football-workspace-hub-v3` and `football-dashboard-notification-seen-v1` writes,
+not a Medical write. Count the Medical key specifically; retain the cache,
+metadata, local-storage, fresh-read and verified-removal assertions. No product
+code or background-write behavior changes for this test correction.

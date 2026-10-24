@@ -9,7 +9,7 @@ test('two real editors merge independent offline edits to a legacy session witho
     blocks: [{ id: 'qa-block', title: 'Original title', objective: 'Original objective', minutes: 20 }] } } };
   let revision = 10;
   const conflicts = [], contexts = [];
-  const open = async name => {
+  const open = async (name, expectedTitle = 'Original title') => {
     const context = await browser.newContext(); contexts.push(context);
     const page = await context.newPage();
     await page.clock.setFixedTime(new Date(`${day}T12:00:00Z`));
@@ -35,7 +35,7 @@ test('two real editors merge independent offline edits to a legacy session witho
     await page.waitForFunction(() => window.__footballScienceAppReady && window.footballScienceCentralState.isHydrated());
     await page.evaluate(() => document.querySelector('#dashboardModalRoot button[data-dashboard-modal-close]')?.click());
     await page.locator(`[data-session-date="${day}"]`).click();
-    await expect(page.locator('[data-session-field="title"]').first()).toHaveValue('Original title');
+    await expect(page.locator('[data-session-field="title"]').first()).toHaveValue(expectedTitle);
     return { page, context };
   };
   const edit = async (client, field, value) => {
@@ -54,5 +54,16 @@ test('two real editors merge independent offline edits to a legacy session witho
       .toEqual({ title: 'Offline A', conflicts: [] });
     expect(state.sessions[day].blocks[0].objective).toBe('Online B');
     await expect(a.page.locator('[data-platform-autosave-status]')).toHaveClass(/is-saved/);
+    // A server receipt alone is not proof the work can be opened elsewhere.
+    // A third browser context has neither editor's cache or IndexedDB journal.
+    const reader = await open('coach-c', 'Offline A');
+    await expect(reader.page.locator('[data-session-field="objective"]').first()).toHaveValue('Online B');
+    for (const client of [a, b]) {
+      await client.page.reload();
+      await client.page.waitForFunction(() => window.__footballScienceAppReady && window.footballScienceCentralState.isHydrated());
+      await client.page.locator(`[data-session-date="${day}"]`).click();
+      await expect(client.page.locator('[data-session-field="title"]').first()).toHaveValue('Offline A');
+      await expect(client.page.locator('[data-session-field="objective"]').first()).toHaveValue('Online B');
+    }
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });

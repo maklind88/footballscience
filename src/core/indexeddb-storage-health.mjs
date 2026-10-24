@@ -4,7 +4,11 @@ const databases = [
   { name: "football-science-medical-drafts-v1", label: "Medical recovery", stores: ["drafts", "catalog"] },
 ];
 const category = (labels, status, fallback) => Object.hasOwn(labels, status) ? labels[status] : fallback;
-const empty = (label, status) => ({ label, status, records: 0, approximateJsonUtf16Bytes: 0, groups: [] });
+const empty = (label, status) => ({ label, status, records: 0, totalRecords: status === "absent" ? 0 : null,
+  approximateJsonUtf16Bytes: 0, groups: [], stores: [], stoppedBecause: null });
+const storeLabels = { snapshots: "Safety snapshots and recovery", latest: "Safety latest copies and Sessions edits",
+  "offline-operations-v1": "Shared operations", baselines: "Library read cache", pending: "Library pending and review edits",
+  recovery: "Library recovery originals", access: "Library access metadata", drafts: "Medical retained drafts", catalog: "Medical recovery metadata" };
 
 function classify(store, row) {
   if (store === "catalog") return "Medical recovery metadata";
@@ -28,14 +32,16 @@ function inspectDatabase(factory, spec, { timeoutMs, maxRecords, maxBytes }) {
   return new Promise(resolve => {
     const report = empty(spec.label, "complete"), groups = new Map();
     let database, transaction, request, ended = false;
-    const finish = status => {
+    const finish = (status, stoppedBecause = null) => {
       if (ended) return;
       ended = true; clearTimeout(timer);
-      report.status = status; report.groups = [...groups.values()];
+      report.status = status; report.stoppedBecause = stoppedBecause; report.groups = [...groups.values()];
+      if (report.stores.length && report.stores.every(store => Number.isInteger(store.totalRecords)))
+        report.totalRecords = report.stores.reduce((total, store) => total + store.totalRecords, 0);
       if (status !== "complete") { try { transaction?.abort(); } catch {} }
       database?.close(); resolve(report);
     };
-    const timer = setTimeout(() => finish("partial"), timeoutMs);
+    const timer = setTimeout(() => finish("partial", "timeout"), timeoutMs);
     try {
       request = factory.open(spec.name); // No version: never request an upgrade.
       request.onupgradeneeded = () => { request.transaction.abort(); };
@@ -50,14 +56,24 @@ function inspectDatabase(factory, spec, { timeoutMs, maxRecords, maxBytes }) {
           transaction = database.transaction(stores, "readonly");
           transaction.oncomplete = () => finish("complete");
           transaction.onerror = transaction.onabort = () => finish("partial");
-          for (const store of stores) {
+          // Count every known store before materializing any values. A large
+          // snapshot can exhaust the byte budget; unread edits must stay visible
+          // as unclassified rows, never become an implied zero pending count.
+          report.stores = stores.map(name => ({ label: storeLabels[name], totalRecords: null, scannedRecords: 0 }));
+          for (const [index, store] of stores.entries()) {
+            const count = transaction.objectStore(store).count();
+            count.onsuccess = () => { if (!ended) report.stores[index].totalRecords = count.result; };
+            count.onerror = () => finish("partial");
+          }
+          for (const [index, store] of stores.entries()) {
             const cursorRequest = transaction.objectStore(store).openCursor();
             cursorRequest.onerror = () => finish("partial");
             cursorRequest.onsuccess = () => {
               if (ended) return;
               const cursor = cursorRequest.result;
               if (!cursor) return;
-              if (report.records >= maxRecords || report.approximateJsonUtf16Bytes >= maxBytes) { finish("partial"); return; }
+              if (report.records >= maxRecords) { finish("partial", "records"); return; }
+              if (report.approximateJsonUtf16Bytes >= maxBytes) { finish("partial", "bytes"); return; }
               try {
                 const serialized = JSON.stringify(cursor.value);
                 if (typeof serialized !== "string") { finish("partial"); return; }
@@ -65,7 +81,7 @@ function inspectDatabase(factory, spec, { timeoutMs, maxRecords, maxBytes }) {
                 const label = classify(store, cursor.value);
                 const group = groups.get(label) || { label, records: 0, approximateJsonUtf16Bytes: 0 };
                 group.records++; group.approximateJsonUtf16Bytes += bytes;
-                groups.set(label, group); report.records++; report.approximateJsonUtf16Bytes += bytes;
+                groups.set(label, group); report.records++; report.stores[index].scannedRecords++; report.approximateJsonUtf16Bytes += bytes;
                 cursor.continue();
               } catch { finish("partial"); }
             };

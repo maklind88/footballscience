@@ -102,3 +102,20 @@ the later user-authorized release; do not dismiss a pending-write failure as a
 test flake. Do not delete old unowned Schedule records.
 
 No main/staging integration or deployment is authorized by this preparation.
+
+## Authorized release validation, 2026-10-26
+
+The user requested Live in the Medical chat. The combined candidate is based on
+`9aadc492`; its clinical recommendation rules require Safe Lane validation.
+The first local full QA stopped before publishing on the recovery verification
+test: a Medical POST arrived during its read-only assertion. The trace showed
+removed-player archival, timestamped before the verification GET, for the
+synthetic player omitted from the mocked Squad response. The same test passed
+alone, confirming that timing affected the assertion.
+
+The Medical test now returns the matching synthetic Squad profile and asserts
+zero Medical writes at startup, after verification, and after local-copy removal.
+No archival, recovery, or central-sync production code was changed. The recovery
+suite passed 16/16, the amended auth-bridge test passed three sequential runs,
+and Medical state/Squad sync contracts passed 47/47. These local checks do not
+constitute production verification; the official Safe Lane must still pass.

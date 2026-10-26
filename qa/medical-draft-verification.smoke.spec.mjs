@@ -113,6 +113,15 @@ test("transaction rejects a changed selected envelope and wrong ownership withou
 
 test("full auth bridge verifies via a fresh private GET without hydrating or writing Medical state", async ({ page }) => {
   await installSetPiecesCentralFixture(page);
+  // Keep the Medical player in Squad so unrelated removed-player archival cannot
+  // race the read-only recovery check during application initialization.
+  const profileKey = "football-player-profiles-v1";
+  const entries = {
+    [key]: JSON.stringify(draft),
+    [profileKey]: JSON.stringify({ rosterVersion: "qa-recovery-verification", removedPlayerIds: [],
+      players: draft.players.map(player => ({ ...player, position: "Midfielder",
+        status: "available", rosterType: "squad", countsInSquad: true })) }),
+  };
   let writes = 0; const reads = [];
   await page.route("**/api/app-state**", route => {
     const req = route.request();
@@ -123,14 +132,17 @@ test("full auth bridge verifies via a fresh private GET without hydrating or wri
     }
     reads.push({ url: req.url(), headers: req.headers() });
     const keys = new URL(req.url()).searchParams.get("keys")?.split(",") || [key];
-    return route.fulfill({ json: { ok: true, entries: keys.includes(key) ? { [key]: JSON.stringify(draft) } : {},
-      metadata: keys.includes(key) ? { [key]: { revision: 12 } } : {}, absentKeys: keys.filter(k => k !== key),
+    return route.fulfill({ json: { ok: true,
+      entries: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, entries[k]])),
+      metadata: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, { revision: 12 }])),
+      absentKeys: keys.filter(k => !(k in entries)),
       medicalRecoveryRead: { private: keys.includes(key) } } });
   });
   await page.goto("/");
   await page.waitForFunction(() => window.__footballScienceAppReady && window.footballScienceCentralState?.getReadScope?.()
     && !window.footballScienceCentralState.getStatus().hydrating);
-  const beforeWrites = writes, beforeReads = reads.length;
+  const beforeReads = reads.length;
+  expect(writes).toBe(0);
   const result = await page.evaluate(async key => {
     const bridge = window.footballScienceCentralState;
     const before = { value: bridge.getCachedValue(key), metadata: bridge.getStatus().metadata[key], stored: localStorage.getItem(key) };
@@ -140,7 +152,7 @@ test("full auth bridge verifies via a fresh private GET without hydrating or wri
   }, key);
   expect(result.before).toEqual(result.after);
   expect(result.proof).toMatchObject({ ok: true, private: true, value: JSON.stringify(draft), revision: 12 });
-  expect(writes).toBe(beforeWrites);
+  expect(writes).toBe(0);
   const call = reads.slice(beforeReads).find(r => new URL(r.url).searchParams.get("keys") === key);
   expect(call).toBeTruthy(); expect(new URL(call.url).searchParams.get("fresh")).toBe("1");
   expect(call.headers["x-footballscience-fresh-state"]).toBe("1");
@@ -161,6 +173,7 @@ test("full auth bridge verifies via a fresh private GET without hydrating or wri
   await panel.screenshot({ path: "/private/tmp/fs-medical-verified-copy-panel.png" });
   await panel.getByRole("button", { name: "Remove this verified local copy" }).click();
   await expect(panel).toContainText("One verified local recovery copy was removed");
+  expect(writes).toBe(0);
 });
 
 

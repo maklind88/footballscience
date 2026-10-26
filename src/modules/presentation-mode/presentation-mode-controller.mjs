@@ -1473,6 +1473,7 @@ export function createPresentationModeController(dependencies = {}) {
     const plannedIds = new Set(plannedFromAvailability.map((item) => item.player.id));
     const nonParticipants = availabilityItems.filter(
       (item) =>
+        !isTemporaryMedicalRecommendation(item) &&
         item.record &&
         !plannedIds.has(item.player.id) &&
         Number.isFinite(Number(item.participation)) &&

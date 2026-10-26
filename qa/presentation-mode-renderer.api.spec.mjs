@@ -43,6 +43,60 @@ function createDocumentHarness() {
   };
 }
 
+for (const meetingType of ["team", "technical"]) {
+  test(`${meetingType}: block non-participants only include squad players across load thresholds and refreshes`, () => {
+    const harness = createDocumentHarness();
+    const renderer = createPresentationModeRenderer();
+    const writes = [];
+    const item = (id, participation, membership = {}, reviewed = true) => ({
+      player: { id, name: id, ...membership },
+      ...(reviewed ? { record: { id: `record-${id}` } } : {}),
+      participation,
+    });
+    let items = [
+      item("Squad out", 0, { countsInSquad: true, rosterType: "squad" }),
+      item("Squad modified", 25, { countsInSquad: true, rosterType: "squad" }),
+      item("Legacy squad out", 0),
+      item("Squad full", 100, { countsInSquad: true }),
+      item("Unreviewed squad", 0, { countsInSquad: true }, false),
+      item("Guest out", 0, { countsInSquad: false, rosterType: "guest" }),
+      item("Trial modified", 25, { rosterType: "trialist" }),
+      item("Academy out", 0, { rosterType: "academy" }),
+      item("Loan out", 0, { rosterType: "loan" }),
+      item("Temporary out", 0, { countsInSquad: false }),
+      item("Guest full", 100, { countsInSquad: false, rosterType: "guest" }),
+    ];
+    const controller = createPresentationModeController({
+      documentRef: harness.documentRef, win: {}, renderer,
+      readJson: (key, fallback) => fallback,
+      writeJson: (...args) => writes.push(args),
+      getTodayValue: () => "2026-10-27",
+      getSessionForDate: () => ({ blocks: Array.from({ length: 4 }, (_, i) => ({ id: `b${i + 1}` })) }),
+      getAvailabilityItems: () => items,
+    });
+    controller.open("2026-10-27", meetingType);
+    const blocks = () => controller.buildModel().slides.filter((slide) => slide.type === "block");
+    const names = (slide) => slide.playerSummary.nonParticipants.map(({ player }) => player.name);
+    expect(names(blocks()[0])).toEqual(["Legacy squad out", "Squad out"]);
+    expect(names(blocks()[1])).toEqual(["Legacy squad out", "Squad out", "Squad modified"]);
+    expect(names(blocks()[2])).toEqual(["Legacy squad out", "Squad out", "Squad modified"]);
+    expect(names(blocks()[3])).toEqual(["Legacy squad out", "Squad out", "Squad modified"]);
+    expect(blocks()[0].playerSummary.plannedPlayers.map(({ player }) => player.name)).toContain("Trial modified");
+    expect(blocks()[3].playerSummary.plannedPlayers.map(({ player }) => player.name)).toContain("Guest full");
+    const html = renderer.renderBlockSlide(controller.buildModel(), blocks()[3]);
+    expect(html).toContain("3 Players");
+    expect(html).toContain("Squad modified");
+    expect(html).not.toContain("Trial modified");
+    expect(html).not.toContain("Guest out");
+    items = items.map((entry) => entry.player.id === "Squad out"
+      ? { ...entry, player: { ...entry.player, countsInSquad: false, rosterType: "guest" } }
+      : entry);
+    controller.render();
+    expect(names(blocks()[0])).toEqual(["Legacy squad out"]);
+    expect(writes).toEqual([]);
+  });
+}
+
 test("birthday slide builder is deterministic, date-bound and Team Meeting only", () => {
   const birthdayCalendar = {
     items: [
@@ -241,7 +295,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(model.medicalRecommendations.map((item) => item.player.name)).not.toContain("Unavailable Guest");
   const blockSlide = model.slides.find((slide) => slide.type === "block");
   expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach", "Recommended Guest"]);
-  expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid", "Unavailable Guest"]);
+  expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid"]);
   expect(harness.root.innerHTML).toContain("Presentation Mode");
   expect(harness.root.innerHTML).toMatch(/<footer class="presentation-footer-nav">[\s\S]*<nav class="presentation-slide-tabs"/);
   expect(harness.root.innerHTML).toMatch(/<nav class="presentation-slide-tabs"[\s\S]*<div class="presentation-footer-pager">/);
@@ -576,11 +630,11 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockHtml).not.toContain("Coaching Points");
   expect(blockHtml).not.toContain("In this block");
   expect(blockHtml).toContain("Not in this block");
-  expect(blockHtml).toContain("(2 Players)");
+  expect(blockHtml).toContain("(1 Player)");
   expect(blockHtml).not.toContain("Ada Keeper");
   expect(blockHtml).not.toContain("Coach");
   expect(blockHtml).toContain("Bea Mid");
-  expect(blockHtml).toContain("Unavailable Guest");
+  expect(blockHtml).not.toContain("Unavailable Guest");
   expect(storage.has(dashboardPresentationStorageKey)).toBe(false);
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({

@@ -216,7 +216,7 @@ test("workspace shell controller switches workspaces and preserves simulator/pro
   expect(harness.calls).toContainEqual(["stop-simulator"]);
   expect(harness.calls).toContainEqual(["preload", "schedule"]);
   expect(harness.calls).toContainEqual(["remember", "schedule"]);
-  expect(harness.calls).toContainEqual(["write-hub"]);
+  expect(harness.calls).not.toContainEqual(["write-hub"]);
 });
 
 test("workspace shell controller blocks leaving Home while Leaderboard rejects normal unmount", () => {
@@ -243,6 +243,7 @@ test("workspace shell controller keeps browser back inside platform workspace hi
   ]);
 
   win.triggerPopState({ footballScienceWorkspaceId: "home" });
+  expect(harness.calls).not.toContainEqual(["write-hub"]);
 
   expect(harness.getHubState().activeWorkspaceId).toBe("home");
   expect(win.getHistoryCalls()).toEqual([
@@ -286,4 +287,5 @@ test("workspace shell controller initializes pending workspace before URL and re
   expect(harness.calls).toContainEqual(["chat-css"]);
   expect(harness.calls).toContainEqual(["critical-preloads"]);
   expect(harness.calls).toContainEqual(["login-popups"]);
+  expect(harness.calls).not.toContainEqual(["write-hub"]);
 });

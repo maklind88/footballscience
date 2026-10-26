@@ -44,7 +44,6 @@ export function createWorkspaceShellController(deps = {}) {
     unmountLeaderboardHome = () => true,
     win = globalThis,
     workspaceHubDefaultActiveWorkspaceId = "home",
-    writeWorkspaceHubState = () => {},
   } = deps;
   let workspaceHistoryBound = false;
 
@@ -185,8 +184,8 @@ export function createWorkspaceShellController(deps = {}) {
       queueWorkspaceModulePreload(targetWorkspaceId);
     }
     hubState.activeWorkspaceId = targetWorkspaceId;
+    // Navigation is device-local; it must not publish normalized shared settings.
     rememberActiveWorkspaceId(targetWorkspaceId);
-    writeWorkspaceHubState();
     if (!options.skipHistory && previousWorkspaceId !== targetWorkspaceId) {
       pushWorkspaceHistory(targetWorkspaceId);
     }
@@ -223,7 +222,6 @@ export function createWorkspaceShellController(deps = {}) {
     rememberActiveWorkspaceId(nextHubState.activeWorkspaceId);
     win.__pendingWorkspaceId = null;
     hydrateWorkspaceModuleState(nextHubState.activeWorkspaceId);
-    writeWorkspaceHubState();
     bindWorkspaceHistoryNavigation();
     replaceWorkspaceHistory(nextHubState.activeWorkspaceId);
     win?.footballScienceOverlayStability?.prepareWorkspaceRestore?.(nextHubState.activeWorkspaceId);

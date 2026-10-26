@@ -137,7 +137,9 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function wasWriteAcknowledgedByRead(write) {
     const bridge = getCentralStateBridge();
-    if ((!write.removed && write.key !== "football-medical-team-v1") || !write.pendingEntry ||
+    // Schedule can also reconcile a lost receipt by reading the exact committed
+    // generation. Retire its queued/active retry before cache bookkeeping changes.
+    if ((!write.removed && write.key !== "football-medical-team-v1" && write.key !== scheduleStorageKey) || !write.pendingEntry ||
         (write.principalScope && write.principalScope !== bridge?.getReadScope?.()) ||
         bridge?.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") return false;
     const entry = readManifest()?.entries?.[write.key];

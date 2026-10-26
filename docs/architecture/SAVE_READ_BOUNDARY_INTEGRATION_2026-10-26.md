@@ -2,101 +2,106 @@
 
 Task owner: System / Security. Affected boundaries: Home task notifications
 (Home / Dashboard and its existing Chat helper), Platform Shell navigation,
-and release QA diagnostics. These are this chat's existing candidates, not
-another specialist's unfinished work.
+Schedule as a consumer of the shared sync queue, and release QA. Medical changes
+are confined to its synthetic acceptance fixture; clinical behavior is unchanged.
 
-Base: `9aadc49223deea5a2c9d9f174fc5e10ea7e39a11` (verified origin/main).
+Base: `9aadc49223deea5a2c9d9f174fc5e10ea7e39a11` (origin/main at integration).
 Branch: `codex/save-read-boundaries-20261026`.
 
-## Scope and decision
+## Final scope
 
-Combine PRs #281, #282 and #283 on the current main in separate merge commits,
-preserving their original ancestry so they remain independently reviewable.
-No conflicts occurred. Only three product source files differ from main:
-`dashboard-chat-thread-runtime.mjs`, `workspace-shell-controller.mjs` and
-`workspace-runtime-composer.mjs`. Their changes are unchanged from #282/#283.
+PRs #281, #282 and #283 are combined on current main in separate merge commits,
+preserving their original ancestry. Their three product files merged without
+conflicts. Full CI exposed a further shared-queue race; that correction is a
+separate commit. Four product source files now differ from the base:
 
-- Home acknowledges the latest eligible notification only when its timestamp
-  advances the user's saved cursor. Rendering unchanged Home creates no save.
-- Boot and page navigation normalize settings in memory and remember the page
-  locally, without publishing the shared settings object. Explicit settings
-  handlers still save through the existing pipeline.
-- QA diagnostics measure sign-in stages and bounded request counters. They do
-  not collect user content or alter product timeouts, authentication or retries.
+- `dashboard-chat-thread-runtime.mjs`: acknowledge only a newly observed eligible
+  Home notification. Rendering unchanged Home creates no save intent.
+- `workspace-shell-controller.mjs` and `workspace-runtime-composer.mjs`: boot and
+  navigation normalize their working view and remember the page locally, without
+  publishing shared settings. Explicit settings handlers continue to save.
+- `central-sync-runtime-service.mjs`: include Schedule in the existing strict
+  read-receipt check for queued and active writes. A confirmed generation is
+  retired before a stale retry can send it again at its old base revision.
 
-The existing APIs, revision checks, permissions, pending generations and recovery
-stores remain authoritative. No historical repair, cache deletion, schema change,
-new persistence system or production write is part of this integration work.
+QA also gains bounded, content-free sign-in/readiness measurements. No database,
+API contract, permission, token validation, retry timeout, cache retention or
+historical content is changed. Existing server revisions and recovery stores
+remain authoritative. This task has not deployed staging or production.
 
-## Failure reproduced and corrected
+## Schedule read-receipt race
 
-PR #283's GitHub run 39878850033 failed one Chromium assertion: the legacy
-workspace test expected `activeWorkspaceId` to be removed from stored settings
-just by booting. The combined candidate reproduced that exact failure locally.
-The visible active page was already correctly Home. The old assertion depended
-on the automatic settings write that #283 intentionally removes.
+With a request held across token rotation, its late response is correctly rejected
+as obsolete and a fresh read follows. That read can confirm the exact Schedule
+write, clearing its pending flag and advancing the server revision. A queued or
+active retry nevertheless survived because `wasWriteAcknowledgedByRead` admitted
+Medical and deletions, but not Schedule. A later queue flush sent the same content
+again with the older base revision and received an avoidable conflict.
 
-The regression now proves the intended contract end to end: legacy shared page
-information does not control the active page; the stored settings remain byte-for-
-byte unchanged across boot, navigation and reload; a real sidebar settings edit
-still saves and excludes the device-local active page from its shared payload.
-Home access settings are also preserved by that explicit save.
+The initial raw Schedule fixture also mixed receipt reconciliation with legacy
+import/event-key normalization. Canonical editor data and a fixed date removed
+that ambiguity, but were not a sufficient fix: full CI run 40411605477 reproduced
+the duplicate request with byte-identical values. The final correction is in the
+shared queue, not a relaxed test assertion.
 
-The central-backend fixture now includes a legacy shared active page as well.
-Its existing zero-write tests require the raw central value to remain unchanged;
-its explicit-save tests require the obsolete navigation field to be excluded.
-Central reads already strip the legacy active page from the local cache in
-`sanitizeWorkspaceHubStateValue`; the fixture initially expected the raw server
-bytes there too. Both engines reproduced that mismatch. The corrected test
-expects the normalized local projection while still requiring zero POSTs, an
-unchanged server record and no pending save. Local-only boot and central hydration
-therefore have separate, explicit expectations.
-Home and shell boundary tests are included in the persistent WebKit saving suite.
+The existing receipt conditions are retained: matching principal, non-read-only
+view, exact raw value and generation fields, cleared durable pending flag, no
+prepared newer edit, and a strictly newer confirmed server revision. Schedule is
+the only additional admitted module. A deterministic active-receipt contract
+failed before the code fix. Seven additional Schedule contract cases cover active
+and queued acknowledgements and reject wrong revision, generation, owner, raw
+value or read-only view. Existing account/scope and successor protections remain.
 
-A broader run also exposed timing sensitivity in the Schedule token-rotation
-fixture: it injected a noncanonical event into a legacy empty schedule, then a
-later read normalized its JSON field order while the receipt was held. One extra
-write attempt violated the exact-one-write assertion. The original fixture passed
-six baseline-main runs but failed one of six repeated candidate runs, so this is
-not claimed to be a reproduced production-main defect. The receipt fixture now
-uses the same normalized Schedule/event format as actual edits, an already-imported
-baseline and a fixed date, following the neighboring account-switch fixture.
-All receipt, revision, pending-draft and exact-one-write assertions are retained.
-Both receipt variants then passed five times each. A real Schedule UI edit also
-passed save/reload verification. Arbitrary legacy/raw formatting normalization is
-not certified by this correction and remains a separate persistence boundary.
+## Acceptance fixture corrections
 
-## Validation
+1. The old #283 workspace test expected boot to remove a legacy active page from
+   persisted settings. It now proves the correct active page and byte-identical
+   local-only settings across boot/navigation/reload, then verifies that an
+   explicit settings save excludes the local page and preserves access settings.
+2. Central hydration already strips the legacy active page from its local cache.
+   The central shell fixture therefore asserts that normalized projection, zero
+   POSTs, an unchanged server record and no pending save. Both Chromium and WebKit
+   reproduced the original incorrect raw-byte expectation before correction.
+3. The Medical private-read fixture had a player absent from Squad. Diagnostics
+   showed a roster-archival generation was already pending before the verification
+   read, and the unchanged generation was sent during the read. The fixture now
+   supplies a consistent Squad roster. It additionally requires no initial Medical
+   writes, no initial pending generation, an unchanged full manifest entry/cache,
+   and no writes after the production debounce window. No Medical assertion is
+   disabled and no clinical product source is modified.
 
-Final local coverage: 343 API/contract cases, 112 distinct Chromium cases and
-13 distinct WebKit cases passed across the runs (468 distinct cases total).
-Repeated attempts are not counted as additional cases.
+## Validation and evidence
 
-- `npm run qa:static` passed, including syntax, release rules, storage/security
-  guards and architecture budgets. Existing architecture size warnings remain.
-- The initial 107-case Chromium run had 105 passes and the two fixture failures
-  described above. All six shell cases passed after correcting the projection
-  expectation; both Schedule receipt variants passed five repeated runs each.
-- Four additional Chromium cases cover legacy navigation, reload, back navigation
-  and profile changes; a fifth covers an actual Schedule edit and reload.
-- The initial 13-case WebKit run had 12 passes and the same shell projection
-  mismatch; all six shell cases passed after correction. The union of final
-  passing cases includes Home cache pressure, failed writes, shell navigation,
-  explicit settings, offline edits and peer visibility.
-- Syntax checks for all additionally edited test/config files and
-  `git diff --check` passed. No timeout, production assertion, or required failure
-  was bypassed. Full GitHub CI is reported on the combined PR and exact SHA.
+Before final shared-queue correction, 468 distinct scoped cases had passing local
+results, but full CI found the Schedule race and Medical fixture mismatch. That
+local checkpoint was insufficient to declare the candidate ready.
 
-## Limits and release status
+After the final correction:
 
-Local browser tests use synthetic HTTP state and authentication. They exercise
-real app handlers and browser storage, but do not certify the actual database or
-production behavior under concurrent users. Existing same-timestamp notification
-and shared-map conflict limits from #282 remain. Concurrent whole-settings edits
-retain the existing revision policy; this is not field-level settings merging.
+- 350 API/contract cases passed, including all 125 shared-sync cases and the seven
+  new Schedule cases. The deterministic active-receipt case failed before the fix.
+- Both Schedule token-rotation browser variants passed ten times each in Chromium
+  (20 runs), retaining exact-one-write and newer-pending-draft assertions.
+- 29 Chromium cases passed covering Medical verification/removal safeguards,
+  Home cache pressure, settings retries, navigation, and offline peer visibility.
+- Both Schedule variants and the full Medical private-read flow passed three times
+  each in WebKit (nine runs). Home/shell cases also belong to the persistent WebKit
+  saving suite and passed earlier in this integration.
+- `npm run qa:static` passed again after the product fix, including syntax,
+  storage/security/release guards and architecture budgets. Existing architecture
+  size warnings remain. Changed-file syntax and `git diff --check` passed.
+- Full CI outcome belongs to PR #287 and its exact final SHA. The failed earlier
+  run is retained as evidence; it was not bypassed or relabeled successful.
 
-This reduces unnecessary writes and conflicts. It does not bound snapshot storage
-growth, eliminate all local reviews, or complete the platform-wide saving plan.
-No staging/main/production release has been performed for this combined candidate.
-The earlier three evidence documents describe their original checkpoints; this
-document describes the integration and the correction of the full-CI failure.
+## Limits
+
+Browser tests use synthetic HTTP state/authentication and real browser storage;
+they are not a certification of the actual database or production load. Existing
+same-timestamp notification and whole-map conflict limits remain. Concurrent
+whole-settings edits retain the existing revision policy. Legacy/raw Schedule
+format normalization is not certified by the canonical receipt fixture.
+
+This removes avoidable saves and a confirmed stale-retry race. It does not bound
+snapshot growth, eliminate every local review, or complete platform-wide saving
+acceptance. Earlier evidence documents describe their original checkpoints; this
+document describes the final integration and its additional correction.

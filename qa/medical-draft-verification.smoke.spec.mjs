@@ -113,33 +113,45 @@ test("transaction rejects a changed selected envelope and wrong ownership withou
 
 test("full auth bridge verifies via a fresh private GET without hydrating or writing Medical state", async ({ page }) => {
   await installSetPiecesCentralFixture(page);
+  // Keep the synthetic player in Squad too; otherwise startup legitimately queues
+  // a roster archival before this private-read-only boundary is measured.
+  const entries = { [key]: JSON.stringify(draft),
+    "football-player-profiles-v1": JSON.stringify({ rosterVersion: "qa-recovery-proof",
+      players: draft.players, removedPlayerIds: [] }) };
   let writes = 0; const reads = [];
   await page.route("**/api/app-state**", route => {
     const req = route.request();
     if (req.method() !== "GET") {
-      // Unrelated Home initialization may save workspace or notification state.
+      // Observe Medical writes without changing the existing failure transport.
       if (req.postDataJSON()?.key === key) writes++;
       return route.fulfill({ status: 503, json: { ok: false } });
     }
     reads.push({ url: req.url(), headers: req.headers() });
     const keys = new URL(req.url()).searchParams.get("keys")?.split(",") || [key];
-    return route.fulfill({ json: { ok: true, entries: keys.includes(key) ? { [key]: JSON.stringify(draft) } : {},
-      metadata: keys.includes(key) ? { [key]: { revision: 12 } } : {}, absentKeys: keys.filter(k => k !== key),
+    const present = keys.filter(k => Object.hasOwn(entries, k));
+    return route.fulfill({ json: { ok: true, entries: Object.fromEntries(present.map(k => [k, entries[k]])),
+      metadata: Object.fromEntries(present.map(k => [k, { revision: 12 }])), absentKeys: keys.filter(k => !Object.hasOwn(entries, k)),
       medicalRecoveryRead: { private: keys.includes(key) } } });
   });
   await page.goto("/");
   await page.waitForFunction(() => window.__footballScienceAppReady && window.footballScienceCentralState?.getReadScope?.()
     && !window.footballScienceCentralState.getStatus().hydrating);
+  expect(writes).toBe(0);
   const beforeWrites = writes, beforeReads = reads.length;
   const result = await page.evaluate(async key => {
     const bridge = window.footballScienceCentralState;
-    const before = { value: bridge.getCachedValue(key), metadata: bridge.getStatus().metadata[key], stored: localStorage.getItem(key) };
+    const snapshot = () => ({ value: bridge.getCachedValue(key), metadata: bridge.getStatus().metadata[key],
+      stored: localStorage.getItem(key), pending: JSON.parse(localStorage.getItem("football-data-safety-v1") || "{}").entries?.[key] });
+    const before = snapshot();
     const proof = await bridge.readMedicalRecoveryState(bridge.getReadScope());
-    const after = { value: bridge.getCachedValue(key), metadata: bridge.getStatus().metadata[key], stored: localStorage.getItem(key) };
+    const after = snapshot();
     return { before, after, proof };
   }, key);
+  expect(result.before.pending?.pendingCentralSync).not.toBe(true);
   expect(result.before).toEqual(result.after);
   expect(result.proof).toMatchObject({ ok: true, private: true, value: JSON.stringify(draft), revision: 12 });
+  // Include the central write debounce so a deferred side effect cannot escape the assertion.
+  await page.waitForTimeout(300);
   expect(writes).toBe(beforeWrites);
   const call = reads.slice(beforeReads).find(r => new URL(r.url).searchParams.get("keys") === key);
   expect(call).toBeTruthy(); expect(new URL(call.url).searchParams.get("fresh")).toBe("1");

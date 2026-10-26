@@ -12,11 +12,11 @@ function createManifest() {
   };
 }
 
-test("a ready read retires an active lost receipt before later cache bookkeeping", async () => {
+for (const key of ["football-medical-team-v1", "football-schedule-v1"]) {
+test(`a ready read retires an active ${key} lost receipt before later cache bookkeeping`, async () => {
   let release;
   const barrier = new Promise((resolve) => { release = resolve; });
   const h = createServiceHarness({ getReadScope: () => "actor-A", syncKey: () => barrier });
-  const key = "football-medical-team-v1";
   h.rawValues.set(key, "draft");
   h.manifest.entries[key] = { label: "Medical", hash: "draft", writes: 7, updatedAt: "generation-a", serverRevision: 7 };
   h.service.queueCentralStateWrite(key, "draft");
@@ -34,6 +34,8 @@ test("a ready read retires an active lost receipt before later cache bookkeeping
   expect(h.rawValues.get(key)).toBe("normalized cache");
   expect(h.manifest.entries[key].hash).toBe("cache-normalization");
 });
+}
+
 
 test("a previously hydrated runtime waits for the active reconciliation read before retrying", async () => {
   const options = { hydrating: false, syncResult: { ok: false, status: 503 } }, h = createServiceHarness(options), key = "football-schedule-v1";
@@ -225,9 +227,9 @@ test("failed pending metadata persistence cannot enqueue a request or report a s
   expect(h.syncCalls).toHaveLength(1);
 });
 
+for (const key of ["football-medical-team-v1", "football-schedule-v1"]) {
 for (const mismatch of ["none", "revision", "generation", "owner", "raw", "read-only"]) {
-test(`a queued failed Medical write retires only an exact read-acknowledged generation (${mismatch})`, async () => {
-  const key = "football-medical-team-v1";
+test(`a queued failed ${key} write retires only an exact read-acknowledged generation (${mismatch})`, async () => {
   const cachedInfo = { source: "local-write" };
   const h = createServiceHarness({ revision: 1, cachedInfo, syncResult: { ok: false, status: 503, reason: "Lost receipt" } });
   h.rawValues.set(key, "draft");
@@ -248,6 +250,7 @@ test(`a queued failed Medical write retires only an exact read-acknowledged gene
   expect(h.syncStatuses.some(([, status]) => status === "saved")).toBe(mismatch === "none");
   expect(h.manifest.entries[key]).toEqual(expected);
 });
+}
 }
 
 test("Medical read-only baseline never becomes a retry or acknowledgement even after access changes", async () => {

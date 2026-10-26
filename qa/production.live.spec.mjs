@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { createLiveReadinessProbe } from "./helpers/live-readiness-probe.mjs";
 import { expect, test } from "@playwright/test";
 import { openScoutingDatabaseTab, startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
 
@@ -19,6 +20,13 @@ const dynamicPeerUsername = String(process.env.LIVE_QA_DYNAMIC_PEER_USERNAME || 
 const canCreateDynamicPeerLiveAccount = expectsAdminCredentials;
 
 test.skip(!hasLiveCredentials, "Set LIVE_QA_USERNAME and LIVE_QA_PASSWORD for production-safe live smoke.");
+let readinessTestStartedAt = 0;
+let readinessAttempt = 0;
+test.beforeEach(() => {
+  readinessTestStartedAt = performance.now();
+  readinessAttempt = 0;
+});
+
 
 function getLiveBaseUrl() {
   return process.env.PLAYWRIGHT_BASE_URL || process.env.LIVE_QA_BASE_URL || "https://footballscience.xyz";
@@ -71,8 +79,8 @@ async function waitForAppReady(page) {
 async function waitForCentralStateReady(page, options = {}) {
   await expect
     .poll(
-      async () =>
-        page.evaluate(async () => {
+      async () => {
+        const readiness = await page.evaluate(async () => {
           const bridge = window.footballScienceCentralState;
           if (!bridge?.getStatus) {
             return "missing";
@@ -92,7 +100,10 @@ async function waitForCentralStateReady(page, options = {}) {
           }
           const lastError = String(nextStatus.lastError || "").trim() || "none";
           return `hydrated=${Boolean(nextStatus.hydrated)} hydrating=${Boolean(nextStatus.hydrating)} error=${lastError}`;
-        }),
+        });
+        options.probe?.readiness(readiness);
+        return readiness;
+      },
       { timeout: options.timeout ?? 75_000, intervals: [500, 1_000, 2_000, 3_000] }
     )
     .toBe("ready");
@@ -153,25 +164,38 @@ async function establishServerBackedSession(page, credentials = primaryLiveCrede
 }
 
 async function signIn(page, credentials = primaryLiveCredentials) {
-  await page.goto(getLiveBaseUrl(), { waitUntil: "domcontentloaded" });
-  await waitForAuthReady(page);
-  await waitForAppReady(page);
-  if (await page.locator("#loginScreen:visible").count()) {
-    await expect(page.locator('#loginForm button[type="submit"]')).toBeEnabled();
-    await page.locator("#loginUsername").fill(credentials.username);
-    await page.locator("#loginPassword").fill(credentials.password);
-    await page.locator('#loginForm button[type="submit"]').click();
-  }
-
-  await expect(page.locator("#hubShell")).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator("#loginScreen")).toBeHidden();
+  const probe = createLiveReadinessProbe(page, {
+    origin: new URL(getLiveBaseUrl()).origin,
+    attempt: ++readinessAttempt,
+    testStartedAt: readinessTestStartedAt,
+    budgetMs: test.info().timeout,
+  });
+  let passed = false;
   try {
-    await waitForCentralStateReady(page, { timeout: 15_000 });
-  } catch {
-    await establishServerBackedSession(page, credentials);
-    await waitForCentralStateReady(page);
+    await probe.step("navigation", () => page.goto(getLiveBaseUrl(), { waitUntil: "domcontentloaded" }));
+    await probe.step("auth-ready", () => waitForAuthReady(page));
+    await probe.step("app-ready", () => waitForAppReady(page));
+    await probe.step("login-ui", async () => {
+      if (await page.locator("#loginScreen:visible").count()) {
+        await expect(page.locator('#loginForm button[type="submit"]')).toBeEnabled();
+        await page.locator("#loginUsername").fill(credentials.username);
+        await page.locator("#loginPassword").fill(credentials.password);
+        await page.locator('#loginForm button[type="submit"]').click();
+      }
+      await expect(page.locator("#hubShell")).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator("#loginScreen")).toBeHidden();
+    });
+    try {
+      await probe.step("central-initial", () => waitForCentralStateReady(page, { timeout: 15_000, probe }));
+    } catch {
+      await probe.step("server-session", () => establishServerBackedSession(page, credentials));
+      await probe.step("central-retry", () => waitForCentralStateReady(page, { probe }));
+    }
+    await probe.step("dismiss", () => dismissDashboardModal(page));
+    passed = true;
+  } finally {
+    probe.finish(passed);
   }
-  await dismissDashboardModal(page);
 }
 
 async function getLiveCurrentUser(page) {

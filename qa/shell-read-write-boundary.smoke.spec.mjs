@@ -3,7 +3,7 @@ import { installSetPiecesCentralFixture } from "./helpers/set-pieces-central-fix
 
 const hubKey = "football-workspace-hub-v3";
 const lastActiveKey = "football-workspace-last-active-local-v1";
-const centralHub = { sidebarCollapsed: false, profile: { name: "Synthetic central profile" },
+const centralHub = { activeWorkspaceId: "game-simulator", sidebarCollapsed: false, profile: { name: "Synthetic central profile" },
   workspaceAccess: { home: { view: ["admin", "coach"], edit: ["admin"] } } };
 
 async function fixture(page, { absent = false, deny = false } = {}) {
@@ -37,6 +37,9 @@ for (const absent of [false, true]) {
 test(`shell boot, navigation, history and reload never save normalized settings (central absent: ${absent})`, async ({ page }) => {
   const server = await fixture(page, { absent });
   const original = server.value;
+  // Central reads already remove legacy device navigation from the local projection.
+  const { activeWorkspaceId, ...sharedSettings } = centralHub;
+  const localProjection = absent ? null : JSON.stringify(sharedSettings);
   await page.goto("/?workspace=home", { waitUntil: "domcontentloaded" });
   await ready(page);
   await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "home");
@@ -55,7 +58,7 @@ test(`shell boot, navigation, history and reload never save normalized settings 
   await drain(page);
   expect(server.writes).toEqual([]);
   expect(server.value).toBe(original);
-  expect(await page.evaluate(key => localStorage.getItem(key), hubKey)).toBe(original);
+  expect(await page.evaluate(key => localStorage.getItem(key), hubKey)).toBe(localProjection);
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem("football-data-safety-v1"))?.entries?.[key]?.pendingCentralSync === true, hubKey)).toBe(false);
 });
 }
@@ -78,6 +81,7 @@ test(`existing sidebar setting handler still saves across reload (failed request
   }
   await expect.poll(() => Boolean(JSON.parse(server.value || "{}").sidebarCollapsed)).toBe(true);
   await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem("football-data-safety-v1"))?.entries?.[key]?.pendingCentralSync, hubKey)).toBe(false);
+  expect(JSON.parse(server.value).activeWorkspaceId).toBeUndefined();
   const count = server.writes.length;
   await page.reload({ waitUntil: "domcontentloaded" }); await ready(page); await drain(page);
   await expect(page.locator("#hubShell")).toHaveClass(/is-sidebar-collapsed/);

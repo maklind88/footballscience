@@ -469,28 +469,36 @@ test("localhost boots through dev auth and keeps Supabase config off the local p
   await expect(page.locator("#dataSafetyImportButton")).toBeVisible();
 });
 
-test("Workspace hub ignores stale shared active workspace on boot", async ({ page }) => {
-  await page.addInitScript(
-    ({ key }) => {
-      window.localStorage.setItem(
-        key,
-        JSON.stringify({
-          activeWorkspaceId: "game-simulator",
-          workspaceAccess: {
-            home: { view: ["admin", "coach"], edit: ["admin", "coach"] },
-            "game-simulator": { view: ["admin", "coach"], edit: ["admin", "coach"] },
-          },
-        })
-      );
+test("Workspace hub ignores stale shared navigation without rewriting settings on boot", async ({ page }) => {
+  const legacyHubState = {
+    activeWorkspaceId: "game-simulator",
+    workspaceAccess: {
+      home: { view: ["admin", "coach"], edit: ["admin", "coach"] },
+      "game-simulator": { view: ["admin", "coach"], edit: ["admin", "coach"] },
     },
-    { key: workspaceHubKey }
-  );
+  };
+  const original = JSON.stringify(legacyHubState);
+  await page.addInitScript(({ key, value }) => {
+    if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, value);
+  }, { key: workspaceHubKey, value: original });
 
   await bootApp(page);
-
   await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "home");
-  const storedHubState = JSON.parse(await page.evaluate((key) => window.localStorage.getItem(key), workspaceHubKey));
-  expect(storedHubState.activeWorkspaceId).toBeUndefined();
+  expect(await page.evaluate(key => localStorage.getItem(key), workspaceHubKey)).toBe(original);
+
+  await openWorkspace(page, "schedule");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "schedule");
+  expect(await page.evaluate(key => localStorage.getItem(key), workspaceHubKey)).toBe(original);
+
+  // Only an explicit settings edit persists normalization; navigation remains local.
+  await page.locator("#sidebarToggle").dispatchEvent("click");
+  await expect(page.locator("#hubShell")).toHaveClass(/is-sidebar-collapsed/);
+  const saved = JSON.parse(await page.evaluate(key => localStorage.getItem(key), workspaceHubKey));
+  expect(saved.sidebarCollapsed).toBe(true);
+  expect(saved.activeWorkspaceId).toBeUndefined();
+  expect(saved.workspaceAccess.home).toEqual(legacyHubState.workspaceAccess.home);
 });
 
 test("Refresh keeps the active workspace without flashing the login screen", async ({ page }) => {

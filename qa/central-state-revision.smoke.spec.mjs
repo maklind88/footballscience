@@ -3451,13 +3451,21 @@ test("an old account Medical receipt cannot poison a new account's queued edit",
 
 for (const newerDraft of [false, true]) {
 test(`Schedule reconciles a committed write after same-principal token rotation (newer draft: ${newerDraft})`, async ({ browser, baseURL }) => {
-  const baseline = JSON.stringify({ events: [] });
+  // Isolate receipt reconciliation from legacy import and event-key normalization.
+  // Real Schedule edits use cloneScheduleState/cloneScheduleEvent before persisting.
+  const schedule = cloneScheduleState({ selectedYear: 2026, selectedMonthIndex: 8,
+    selectedDate: "2026-09-28", importVersion: "ncc-2026-numbers-v1", events: [] });
+  const baseline = JSON.stringify(schedule);
+  const editedEvent = cloneScheduleState({ ...schedule, events: [
+    { id: "same-actor-edit", date: "2026-09-28", title: "Training", type: "training", time: "", note: "" },
+  ] }).events[0];
   const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
     entries: { [scheduleStateKey]: baseline }, metadataEntries: { [scheduleStateKey]: createMetadata(1, baseline) } };
   let release, held = false;
   const barrier = new Promise((resolve) => { release = resolve; });
   const writes = [], reads = [];
   const tab = await bootCentralPage(browser, baseURL, store, [], "schedule-token-receipt", {
+    fixedDate: "2026-09-28T12:00:00.000Z",
     appStateReadHandler: ({ request }) => { reads.push({ token: request.headers().authorization, revision: store.metadataEntries[scheduleStateKey].revision }); return null; },
     appStateWriteHandler: async ({ body }) => {
       if (body.key !== scheduleStateKey) return null;
@@ -3471,11 +3479,11 @@ test(`Schedule reconciles a committed write after same-principal token rotation 
     },
   });
   try {
-    await tab.page.evaluate((key) => {
+    await tab.page.evaluate(({ key, event }) => {
       const value = JSON.parse(localStorage.getItem(key));
-      value.events = [{ id: "same-actor-edit", date: "2026-09-28", title: "Training", type: "training", time: "", note: "" }];
+      value.events = [event];
       localStorage.setItem(key, JSON.stringify(value));
-    }, scheduleStateKey);
+    }, { key: scheduleStateKey, event: editedEvent });
     await expect.poll(() => held).toBe(true);
     await tab.page.evaluate(async () => {
       window.__qaSession = { ...window.__qaSession, access_token: "rotated-token" };

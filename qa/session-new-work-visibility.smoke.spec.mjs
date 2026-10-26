@@ -26,6 +26,7 @@ for (const fullCache of [false, true]) {
     async function open(actor) {
       const context = await browser.newContext(); contexts.push(context);
       const page = await context.newPage();
+      const transportState = { offline: false };
       const fixture = await installSetPiecesCentralFixture(page); fixture.actor.id = actor;
       await page.clock.setFixedTime(new Date(`${day}T12:00:00Z`));
       if (fullCache) await page.addInitScript(key => {
@@ -37,7 +38,8 @@ for (const fullCache of [false, true]) {
         };
       }, key);
       await page.route("**/api/app-state**", async route => {
-        if (!await page.evaluate(() => navigator.onLine)) return route.abort("internetdisconnected");
+        // Route callbacks can overlap reload; do not evaluate a disappearing page.
+        if (transportState.offline) return route.abort("internetdisconnected");
         if (route.request().method() === "GET") {
           const entries = { "football-schedule-v1": JSON.stringify({ selectedDate: day,
             events: [{ id: "qa-training", date: day, type: "training", title: "Synthetic training" }] }) };
@@ -72,7 +74,11 @@ for (const fullCache of [false, true]) {
           sessionChange: JSON.stringify({ id: change.id, date: change.date, value: sessionDateValue(server.value, change.date) }) } });
       });
       await page.goto("/?workspace=session-planner"); await ready(page);
-      return { context, page };
+      return { context, page, async setOffline(value) {
+        transportState.offline = value;
+        await context.setOffline(value);
+        expect(await page.evaluate(() => navigator.onLine)).toBe(!value);
+      } };
     }
     try {
       const a = await open("author-a");
@@ -86,7 +92,7 @@ for (const fullCache of [false, true]) {
       const b = await open("author-b");
       await expect(field(b.page, "title")).toHaveValue("New shared exercise");
 
-      await a.context.setOffline(true);
+      await a.setOffline(true);
       await edit(a.page, "objective", "Offline new work");
       await expect.poll(() => readJournal(a.page)).toHaveLength(1);
       const pending = await readJournal(a.page);
@@ -97,7 +103,7 @@ for (const fullCache of [false, true]) {
       // Reload while central writes remain unavailable. Static assets and reads
       // are reachable again; this is not a claim of full offline app-shell boot.
       server.denyA = true;
-      await a.context.setOffline(false);
+      await a.setOffline(false);
       await a.page.reload(); await ready(a.page);
       expect(await readJournal(a.page)).toEqual(pending);
       await expect(field(a.page, "objective")).toHaveValue("Offline new work");

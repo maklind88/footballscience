@@ -173,14 +173,16 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
     return modulePromise;
   }
 
-  function disposeMountedHome({ forceScopeChange = false } = {}) {
+  function disposeMountedHome({ forceScopeChange = false, onDialogClose } = {}) {
     mountGeneration += 1;
     if (!homeHandle) {
       clearRoot(homeSummaryRoot);
       homeSummaryRoot = null;
       return true;
     }
-    const didUnmount = homeHandle.unmount(forceScopeChange ? { force: true } : undefined) !== false;
+    const options = forceScopeChange ? { force: true }
+      : typeof onDialogClose === "function" ? { onDialogClose } : undefined;
+    const didUnmount = homeHandle.unmount(options) !== false;
     if (!didUnmount && !forceScopeChange) return false;
     homeHandle = null;
     clearRoot(homeSummaryRoot);
@@ -244,13 +246,14 @@ export function createLeaderboardSurfaceRuntime(deps = {}) {
       });
   }
 
-  function unmountHome() {
+  function unmountHome(options = {}) {
     const scopeChanged = Boolean(activeScopeSignature && activeScopeSignature !== getScopeSignature());
     if (scopeChanged) {
       syncScope();
       return true;
     }
-    return disposeMountedHome();
+    if (!canView()) return disposeMountedHome({ forceScopeChange: true });
+    return disposeMountedHome({ onDialogClose: options.onDialogClose });
   }
 
   async function ensureCommandHandle() {

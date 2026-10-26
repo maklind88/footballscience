@@ -232,6 +232,13 @@ function closeDialog(surface, restoreFocus = true) {
   surface.dialogHost.innerHTML = "";
   unlockBackground(surface);
   if (restoreFocus) queueFocus(surface, findReturnFocus(surface));
+  const refresh = surface.refreshAfterClose;
+  surface.refreshAfterClose = null;
+  if (refresh) Promise.resolve().then(() => {
+    if (!surface.mounted) return;
+    if (surface.dialogOpen) surface.refreshAfterClose ||= refresh;
+    else refresh();
+  });
   return true;
 }
 
@@ -357,6 +364,7 @@ function cleanupSurface(surface, options = {}) {
   }
   surface.mounted = false;
   surface.dialogOpen = false;
+  surface.refreshAfterClose = null;
   surface.unsubscribe?.();
   surface.removeRuntimeDispose?.();
   surface.listeners.splice(0).forEach((remove) => remove());
@@ -383,6 +391,7 @@ export function mountLeaderboardHome(context = {}) {
     workspace: null,
     dialogContext: null,
     dialogOpen: false,
+    refreshAfterClose: null,
     mounted: true,
     opener: null,
     openerPlayerId: "",
@@ -410,7 +419,13 @@ export function mountLeaderboardHome(context = {}) {
         cleanupSurface(surface);
         return true;
       }
+      // Background Home paints wait; navigation and scope disposal still unmount normally.
+      if (surface.dialogOpen && typeof options?.onDialogClose === "function") {
+        surface.refreshAfterClose = options.onDialogClose;
+        return false;
+      }
       if (isProtectedWrite(surface.runtime.store.getState())) return false;
+      surface.refreshAfterClose = null;
       closeDialog(surface, false);
       cleanupSurface(surface);
       return true;

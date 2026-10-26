@@ -232,7 +232,7 @@ test("Home dashboard runtime opens the exact Presentation Mode selection target"
   ]);
 });
 
-test("Home dashboard runtime mounts Leaderboard for permitted staff and unmounts before every Home rerender", () => {
+test("Home dashboard runtime requests a safe Leaderboard unmount before rendering permitted staff cards", () => {
   const { calls, controller, leaderboardDialogHost, leaderboardSummary } = createRuntime({
     canViewLeaderboard: () => true,
   });
@@ -270,3 +270,26 @@ test("Home dashboard runtime preserves the mounted DOM while Leaderboard rejects
   expect(calls.leaderboardLifecycle).toEqual(["blocked-unmount"]);
   expect(calls.leaderboardMount).toEqual([]);
 });
+
+for (const workspace of ["home", "schedule"]) {
+  test(`Deferred Home cards replay only when Home remains active: ${workspace}`, async () => {
+    let onDialogClose;
+    let dialogOpen = true;
+    const { controller, dashboardGrid } = createRuntime({
+      getActiveWorkspaceId: () => workspace,
+      unmountLeaderboardHome: (options) => {
+        onDialogClose = options.onDialogClose;
+        return !dialogOpen;
+      },
+    });
+    dashboardGrid.innerHTML = "original cards";
+
+    expect(controller.renderCards()).toBe(false);
+    expect(onDialogClose).toEqual(expect.any(Function));
+    expect(dashboardGrid.innerHTML).toBe("original cards");
+    dialogOpen = false;
+    onDialogClose();
+    await Promise.resolve();
+    expect(dashboardGrid.innerHTML === "original cards").toBe(workspace !== "home");
+  });
+}

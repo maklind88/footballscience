@@ -166,6 +166,39 @@ test("Leaderboard Home rerender force-disposes a pending surface after scope cha
   expect(calls.handles).toContainEqual(["unmount", { force: true }]);
 });
 
+test("Home refresh forwards its close callback without clearing a deferred surface", async () => {
+  const { calls, dialogHost, runtime } = createHarness({ unmountResult: false });
+  const summary = createRoot();
+  await runtime.mountHome({ leaderboardSummary: summary, leaderboardDialogHost: dialogHost });
+  const onDialogClose = () => {};
+
+  expect(runtime.unmountHome({ onDialogClose })).toBe(false);
+  expect(calls.handles).toContainEqual(["unmount", { onDialogClose }]);
+  expect(summary.hidden).toBe(false);
+});
+
+test("Scope changes discard deferred Home refresh callbacks", async () => {
+  const { calls, dialogHost, runtime, setTeam } = createHarness();
+  await runtime.mountHome({ leaderboardSummary: createRoot(), leaderboardDialogHost: dialogHost });
+  setTeam({ id: "team-b", name: "Team B" });
+
+  expect(runtime.unmountHome({ onDialogClose: () => {} })).toBe(true);
+  expect(calls.handles).toContainEqual(["unmount", { force: true }]);
+});
+
+test("Revoked view access force-disposes a surface even when normal unmount is protected", async () => {
+  let mayView = true;
+  const { calls, dialogHost, runtime } = createHarness({
+    canView: () => mayView,
+    unmountResult: (options) => Boolean(options?.force),
+  });
+  await runtime.mountHome({ leaderboardSummary: createRoot(), leaderboardDialogHost: dialogHost });
+  mayView = false;
+
+  expect(runtime.unmountHome({ onDialogClose: () => {} })).toBe(true);
+  expect(calls.handles).toContainEqual(["unmount", { force: true }]);
+});
+
 test("Leaderboard commands dispose stale scope and defer write authorization to the remounted module", async () => {
   let mayEdit = true;
   const { calls, dialogHost, runtime, setTeam } = createHarness({

@@ -371,10 +371,18 @@ export function createDashboardRuntimeController(dependencies = {}) {
     }
   }
 
+  function refreshAfterLeaderboardClose() {
+    if (getActiveWorkspaceId() !== "home") return;
+    renderCards();
+    Promise.resolve().then(() => {
+      getElement("leaderboardSummary")?.querySelector?.("[data-leaderboard-home-open]")?.focus?.({ preventScroll: true });
+    });
+  }
+
   function renderCards() {
     const ui = getUi();
     const schedulePreview = getElement("dashboardSchedulePreview") || ui.dashboardSchedulePreview;
-    if (unmountLeaderboardHome() === false) {
+    if (unmountLeaderboardHome({ onDialogClose: refreshAfterLeaderboardClose }) === false) {
       return false;
     }
     if (!ui.dashboardGrid) {

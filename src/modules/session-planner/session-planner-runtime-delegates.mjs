@@ -86,6 +86,7 @@ export const sessionPlannerRuntimeDelegateMethodNames = Object.freeze([
   "selectSessionPlannerTacticalFrame",
   "duplicateSessionPlannerTacticalFrame",
   "deleteSessionPlannerTacticalFrame",
+  "resetSessionPlannerTacticalAnimation",
   "refreshSessionPlannerTacticalboardCanvas",
   "isSessionPlannerTacticalLineTool",
   "isSessionPlannerTacticalStrokeElement",

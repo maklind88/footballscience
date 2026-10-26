@@ -18,6 +18,7 @@ export function createSessionPlannerTacticalFramesController({
   render,
   showToast,
   confirmDelete,
+  confirmReset = async () => false,
   maxFrames = 24,
 }) {
   let entry = null;
@@ -194,10 +195,23 @@ export function createSessionPlannerTacticalFramesController({
     return saved;
   }
 
+  async function resetAnimation() {
+    if (!canEdit()) return false;
+    const view = getEditorBlock();
+    if (!view || view.tacticalFrames.length <= 1) return false;
+    const before = signature(view);
+    if (!(await confirmReset(view.tacticalFrames.length - 1))) return false;
+    // Confirmation applies only to the board and content the user reviewed.
+    if (!canEdit() || view !== getEditorBlock() || signature(view) !== before) return false;
+    syncFrame(view);
+    const first = cloneFrame(view.tacticalFrames[0]);
+    return replace(view, [first], first.id);
+  }
+
   function reset() {
     entry = null;
     selection.clear();
   }
 
-  return { getEditorBlock, getFrames, getActiveId, persist, select, replace, next, remove, reset };
+  return { getEditorBlock, getFrames, getActiveId, persist, select, replace, next, remove, resetAnimation, reset };
 }

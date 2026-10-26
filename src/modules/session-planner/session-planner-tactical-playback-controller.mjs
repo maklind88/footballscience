@@ -222,7 +222,7 @@ export function createSessionPlannerTacticalPlaybackController({
       if (action === "restart" && prepare()) { elapsed = 0; lastTime = null; paint(); }
       event.preventDefault();
       event.stopPropagation();
-    } else if (event.target.closest("[data-session-tactical-frame], [data-session-add-tactical-frame], [data-session-delete-tactical-frame], [data-session-close-tacticalboard]")) {
+    } else if (event.target.closest("[data-session-tactical-frame], [data-session-add-tactical-frame], [data-session-delete-tactical-frame], [data-session-reset-tactical-animation], [data-session-close-tacticalboard]")) {
       stop();
     }
   }
@@ -292,7 +292,7 @@ export function createSessionPlannerTacticalPlaybackController({
     const active = frames?.querySelector('[aria-pressed="true"]');
     if (active) frames.scrollLeft = active.offsetLeft - (frames.clientWidth - active.offsetWidth) / 2;
     if (modal && !canEdit()) {
-      modal.querySelectorAll("[data-session-add-tactical-frame], [data-session-delete-tactical-frame]").forEach((button) => { button.disabled = true; });
+      modal.querySelectorAll("[data-session-add-tactical-frame], [data-session-delete-tactical-frame], [data-session-reset-tactical-animation]").forEach((button) => { button.disabled = true; });
     }
   }
 

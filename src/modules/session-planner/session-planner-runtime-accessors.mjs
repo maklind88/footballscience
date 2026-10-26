@@ -173,6 +173,7 @@ export const {
   selectSessionPlannerTacticalFrame,
   duplicateSessionPlannerTacticalFrame,
   deleteSessionPlannerTacticalFrame,
+  resetSessionPlannerTacticalAnimation,
   refreshSessionPlannerTacticalboardCanvas,
   isSessionPlannerTacticalLineTool,
   isSessionPlannerTacticalStrokeElement,

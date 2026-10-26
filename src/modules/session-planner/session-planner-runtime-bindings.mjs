@@ -89,6 +89,7 @@ export function bindSessionPlannerRuntimeBindings(deps = {}) {
     addTacticalFrame: runtimeDelegates.addSessionPlannerTacticalFrame,
     duplicateTacticalFrame: runtimeDelegates.duplicateSessionPlannerTacticalFrame,
     deleteTacticalFrame: runtimeDelegates.deleteSessionPlannerTacticalFrame,
+    resetTacticalAnimation: runtimeDelegates.resetSessionPlannerTacticalAnimation,
     arrangeTacticalElements: runtimeDelegates.arrangeSelectedSessionPlannerTacticalElements,
     normalizeTacticalColor,
     getTacticalColor: () => state.sessionPlannerTacticalColor,

@@ -62,6 +62,7 @@
 .session-tactical-frame-navigation { display: flex; align-items: center; gap: .35rem; flex: 1 1 10rem; min-width: 0; }
 .session-tactical-frame-navigation select { flex: 0 0 4.5rem; width: 4.5rem; }
 .session-tactical-playback-frames { position: relative; display: flex; gap: .25rem; flex: 1; min-width: 0; height: 2.6rem; align-items: center; overflow-x: auto; scrollbar-width: thin; }
+.session-tactical-playback .session-tactical-reset-animation,
 .session-tactical-playback .session-tactical-next-frame { width: auto; gap: .3rem; padding-inline: .55rem; font-size: .75rem; white-space: nowrap; }
 .session-tactical-playback-surface { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; }
 .session-tacticalboard-canvas-wrap .session-tactical-playback-surface > .session-visual-board {

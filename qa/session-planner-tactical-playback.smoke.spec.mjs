@@ -5,7 +5,7 @@ const date = "2026-05-19";
 const modalSelector = ".session-tacticalboard-modal";
 const markerSelector = '[data-session-tactical-element-id="player"]';
 
-async function bootBoard(page, { legacy = false, pitchMode = "full-wide" } = {}) {
+async function bootBoard(page, { legacy = false, pitchMode = "full-wide", frameCount = 2 } = {}) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const elements = [
@@ -19,10 +19,11 @@ async function bootBoard(page, { legacy = false, pitchMode = "full-wide" } = {})
     tacticalElements: elements,
     ...(legacy ? {} : {
       tacticalActiveFrameId: "frame-one",
-      tacticalFrames: [
-        { id: "frame-one", label: "Frame 1", elements },
-        { id: "frame-two", label: "Frame 2", elements: elements.map((item) => ({ ...item, x: item.x + 15, y: item.y + 15 })) },
-      ],
+      tacticalFrames: Array.from({ length: frameCount }, (_, index) => ({
+        id: index === 0 ? "frame-one" : index === 1 ? "frame-two" : `frame-${index + 1}`,
+        label: `Frame ${index + 1}`,
+        elements: elements.map((item) => ({ ...item, x: item.x + (index ? 15 : 0), y: item.y + (index ? 15 : 0) })),
+      })),
     }),
   };
   await page.addInitScript(({ key, date, block }) => {
@@ -36,7 +37,7 @@ async function bootBoard(page, { legacy = false, pitchMode = "full-wide" } = {})
   await page.locator("[data-session-open-tacticalboard]").click();
   const modal = page.locator(modalSelector);
   await expect(modal).toBeVisible();
-  await expect(modal.locator("[data-session-tactical-frame]")).toHaveCount(legacy ? 1 : 2);
+  await expect(modal.locator("[data-session-tactical-frame]")).toHaveCount(legacy ? 1 : frameCount);
   return { modal, errors };
 }
 
@@ -243,4 +244,43 @@ test("appearing and disappearing objects change only at frame boundaries", async
   await seek(modal, 1);
   await expect(preview.locator('[data-session-tactical-element-id="opponent"]')).toHaveCount(0);
   await expect(preview.locator('[data-session-tactical-element-id="new-player"]')).toHaveCount(1);
+});
+
+
+test("reset animation confirms, keeps frame one, supports undo/redo and survives reload", async ({ page }, testInfo) => {
+  const { modal, errors } = await bootBoard(page, { frameCount: 14 });
+  await page.screenshot({ path: testInfo.outputPath("reset-animation-14-frames.png") });
+  const original = await savedBlock(page);
+  await modal.locator("[data-session-tactical-frame]").last().click();
+  const reset = modal.getByRole("button", { name: "Reset animation", exact: true });
+  await reset.click();
+  const dialog = page.locator(".platform-confirm-dialog");
+  await expect(dialog).toContainText("Keep frame 1 and its setup. Delete the other 13 frames?");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(await savedBlock(page)).toEqual(original);
+  await seek(modal, 0.5);
+  await reset.click();
+  await expect(modal.locator(".session-tactical-playback-surface")).toHaveCount(0);
+  await dialog.locator("[data-platform-confirm-ok]").click();
+  await expect(modal.locator("[data-session-tactical-frame]")).toHaveCount(1);
+  const changed = await savedBlock(page);
+  expect(changed.tacticalFrames).toEqual([original.tacticalFrames[0]]);
+  expect(changed.tacticalElements).toEqual(original.tacticalFrames[0].elements);
+  expect(changed.tacticalActiveFrameId).toBe("frame-one");
+  expect(changed.title).toBe(original.title);
+  expect(changed.objective).toBe(original.objective);
+  await expect(reset).toBeDisabled();
+  await modal.locator('[data-session-undo-board="tactical"]').click();
+  await expect(modal.locator("[data-session-tactical-frame]")).toHaveCount(14);
+  expect((await savedBlock(page)).tacticalFrames).toEqual(original.tacticalFrames);
+  await modal.locator('[data-session-redo-board="tactical"]').click();
+  await expect(modal.locator("[data-session-tactical-frame]")).toHaveCount(1);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.locator("[data-session-open-tacticalboard]").click();
+  await expect(modal.locator("[data-session-tactical-frame]")).toHaveCount(1);
+  expect((await savedBlock(page)).tacticalFrames).toEqual([original.tacticalFrames[0]]);
+  await modal.locator("[data-session-add-tactical-frame]").click();
+  await expect(modal.locator("[data-session-tactical-frame]")).toHaveCount(2);
+  expect((await savedBlock(page)).tacticalFrames[1].elements).toEqual(original.tacticalFrames[0].elements);
+  expect(errors).toEqual([]);
 });

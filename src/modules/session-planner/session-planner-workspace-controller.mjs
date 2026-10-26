@@ -945,6 +945,11 @@ maxFrames: sessionPlannerTacticalMaxFrames,
 confirmDelete: () => confirmSessionPlannerAction({
 title: "Delete frame?", message: "Delete this tactical board frame?", confirmLabel: "Delete", tone: "danger",
 }),
+confirmReset: (count) => confirmSessionPlannerAction({
+title: "Reset animation?",
+message: `Keep frame 1 and its setup. Delete ${count === 1 ? "the other frame" : `the other ${count} frames`}? You can undo this while editing.`,
+confirmLabel: "Reset animation", tone: "danger",
+}),
 });
 const tacticalPlaybackController = createSessionPlannerTacticalPlaybackController({
 win,
@@ -998,6 +1003,9 @@ return tacticalFramesController.select(frameId);
 }
 function duplicateSessionPlannerTacticalFrame() {
 return tacticalFramesController.next();
+}
+function resetSessionPlannerTacticalAnimation() {
+return tacticalFramesController.resetAnimation();
 }
 function deleteSessionPlannerTacticalFrame() {
 return tacticalFramesController.remove();
@@ -2863,6 +2871,7 @@ let profileWorkspaceFlashTimer = null;
     selectSessionPlannerTacticalFrame,
     duplicateSessionPlannerTacticalFrame,
     deleteSessionPlannerTacticalFrame,
+    resetSessionPlannerTacticalAnimation,
     refreshSessionPlannerTacticalboardCanvas,
     isSessionPlannerTacticalLineTool,
     isSessionPlannerTacticalStrokeElement,

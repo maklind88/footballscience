@@ -26,6 +26,7 @@ export function renderTacticalPlaybackControls(frames, activeId, escapeHtml) {
     </div>
     <button type="button" class="session-tactical-next-frame" data-session-add-tactical-frame title="Copy this frame as the next step">${renderSetPieceToolIcon("plus")}<span>Next frame</span></button>
     <button type="button" data-session-delete-tactical-frame aria-label="Delete frame" title="Delete frame" ${disabled}>${renderSetPieceToolIcon("trash")}</button>
+    <button type="button" class="session-tactical-reset-animation" data-session-reset-tactical-animation title="Keep frame 1 and remove the rest of the animation" ${disabled}>Reset animation</button>
   </div>`;
 }
 

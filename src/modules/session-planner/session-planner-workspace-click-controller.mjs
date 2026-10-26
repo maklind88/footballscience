@@ -34,6 +34,7 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     addTacticalFrame = () => {},
     duplicateTacticalFrame = () => {},
     deleteTacticalFrame = () => {},
+    resetTacticalAnimation = () => {},
     arrangeTacticalElements = () => {},
     normalizeTacticalColor = (value) => value,
     getTacticalColor = () => "",
@@ -181,6 +182,7 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     if (callIfClosest(event, "[data-session-add-tactical-frame]", () => addTacticalFrame())) return;
     if (callIfClosest(event, "[data-session-duplicate-tactical-frame]", () => duplicateTacticalFrame())) return;
     if (callIfClosest(event, "[data-session-delete-tactical-frame]", () => deleteTacticalFrame())) return;
+    if (callIfClosest(event, "[data-session-reset-tactical-animation]", () => resetTacticalAnimation())) return;
     if (callIfClosest(event, "[data-session-arrange-tactical]", (el) => arrangeTacticalElements(el.dataset.sessionArrangeTactical))) return;
     if (callIfClosest(event, "[data-session-tactical-color-choice]", (el) => {
       const nextColor = normalizeTacticalColor(el.dataset.sessionTacticalColorChoice, getTacticalColor());

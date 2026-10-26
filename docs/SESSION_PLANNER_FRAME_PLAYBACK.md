@@ -72,3 +72,11 @@ Candidate implementation only; not a production verification record. Release req
 - Coverage includes 24-frame saving/reload/library copies, preservation of existing 30/60-frame sequences, four-character labels across frames, unchanged-value/no-browsing writes, clipboard/undo, first-frame stills, photo fallback, desktop/mobile layout, and refusal of oversized changes without saved-data mutation.
 - Fixed an existing Sessions callback wiring gap exposed by the size-limit browser test: board warnings now use the module-owned toast controller directly. This does not change central synchronization or authentication.
 - These are local tests, including mocked network responses. No production deploy or authenticated Live saving verification was performed for this candidate. The separately reported platform auth/central-sync incident remains with System/Security.
+
+## Reset animation (2026-10-26)
+
+The editor's `Reset animation` action keeps frame 1, including its objects and frame identity, and removes every later frame in one confirmed operation. It selects frame 1 and updates the legacy mirror through the existing frame persistence boundary. Exercise text, images and pitch mode remain unchanged. The action is disabled for a single frame and for viewers. Playback stops before confirmation.
+
+The confirmation states how many frames will be removed. Cancellation or a change to edit permission, selected exercise/date, frame selection or board content while the dialog is open leaves the saved frames untouched. The existing board history restores the complete sequence with one Undo and supports Redo. No central sync, API, storage schema or recovery behavior is changed.
+
+Coverage: 24-frame controller reset; cancellation and stale-confirmation guards; 14-frame browser reset, Undo/Redo, reload and starting a new sequence; existing frame integrity and desktop/mobile playback controls.

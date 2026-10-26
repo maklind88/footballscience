@@ -119,3 +119,17 @@ No archival, recovery, or central-sync production code was changed. The recovery
 suite passed 16/16, the amended auth-bridge test passed three sequential runs,
 and Medical state/Squad sync contracts passed 47/47. These local checks do not
 constitute production verification; the official Safe Lane must still pass.
+
+The corrected candidate `0a3cb410` passed local full QA (4210 passed, 3 skipped),
+Staging Deploy `40414478889`, and main QA `40416462947`. Production workflow
+`40418013519` stopped before its deploy job: the late-account Medical receipt
+test timed out during its explicit baseline save, before any account switch.
+Its trace showed a synthetic `qa-player` absent from Squad being archived;
+the archival write advanced revision 4 to 5, then the fixture baseline write
+received 409 at revision 4. The production deployment job was skipped.
+
+That test now supplies its own matching synthetic Squad profile. Its receipt,
+revision, token, and cross-account assertions are unchanged; five sequential
+focused runs pass. No shared sync, authorization, or clinical write implementation
+was changed. Existing production monitor-mode health checks passed after the
+stopped workflow. A new successful release is still required.

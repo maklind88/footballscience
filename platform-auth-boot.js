@@ -247,7 +247,9 @@
     lastWriteError: "",
     lastSyncedAt: "",
     lastFetchedAt: "",
+    lastFetchedScope: "",
     lastSavedAt: "",
+    lastSavedScope: "",
     localDev: false,
     metadata: {},
   };
@@ -2005,6 +2007,7 @@ async function getActiveAccessToken() {
       centralState.lastError = "";
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.lastFetchedAt = centralState.lastSyncedAt;
+      centralState.lastFetchedScope = getCentralReadScope();
       centralState.localDev = true;
       centralState.metadata = {};
       window.dispatchEvent(
@@ -2115,6 +2118,7 @@ async function getActiveAccessToken() {
       centralState.hydrated = true;
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.lastFetchedAt = centralState.lastSyncedAt;
+      centralState.lastFetchedScope = readScope;
       if (!authState.devMode && librarySaveBridge) window.setTimeout(() => librarySaveBridge.replay(), 0);
       window.dispatchEvent(
         new CustomEvent("footballscience:central-state-ready", {
@@ -2149,6 +2153,7 @@ async function getActiveAccessToken() {
       centralState.lastWriteError = "";
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.lastSavedAt = centralState.lastSyncedAt;
+      centralState.lastSavedScope = getCentralReadScope();
       centralState.localDev = true;
       return { ok: true, localDev: true };
     }
@@ -2188,6 +2193,7 @@ async function getActiveAccessToken() {
         if (result.ok) {
           centralState.lastSyncedAt = new Date().toISOString();
           centralState.lastSavedAt = centralState.lastSyncedAt;
+          centralState.lastSavedScope = writeScope;
         }
         return result;
       }
@@ -2212,6 +2218,7 @@ async function getActiveAccessToken() {
         if (result.ok) {
           centralState.lastSyncedAt = new Date().toISOString();
           centralState.lastSavedAt = centralState.lastSyncedAt;
+          centralState.lastSavedScope = writeScope;
         }
         return result;
       }
@@ -2263,6 +2270,7 @@ async function getActiveAccessToken() {
       centralState.lastWriteError = "";
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.lastSavedAt = centralState.lastSyncedAt;
+      centralState.lastSavedScope = writeScope;
       if (response.payload?.metadata) {
         centralState.metadata = {
           ...centralState.metadata,

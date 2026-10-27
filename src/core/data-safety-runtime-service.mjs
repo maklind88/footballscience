@@ -1,3 +1,4 @@
+import { projectSaveStatusScope } from "./save-status-scope.mjs";
 import { createLocalSaveIssues } from "./local-save-issues.mjs";
 import { storeDistinctSnapshot } from "./distinct-snapshot-store.mjs";
 import { openStorageHealth } from "./storage-health-dialog.mjs";
@@ -551,7 +552,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
   function refreshStatus() {
     if (!ui.dataSafetyStatus) return;
     const manifest = readManifest();
-    const centralStatus = getCentralStateBridge()?.getStatus?.() ?? {};
+    const bridge = getCentralStateBridge();
+    const centralStatus = bridge?.getStatus?.() ?? {};
+    const scopedStatus = projectSaveStatusScope(manifest, centralStatus, bridge?.getReadScope?.());
     const error = saveIssues.error(manifest);
     const libraryStorageUnknown = ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"]
       .some(key => getCentralStateBridge()?.getLibrarySaveState?.(key)?.storageUnavailable);
@@ -564,11 +567,11 @@ export function createDataSafetyRuntimeService(deps = {}) {
     const snapshotWarning = status.lastSnapshotError || manifest.lastSnapshotError;
     const libraryPending = ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"]
       .some(key => getCentralStateBridge()?.getLibrarySaveState?.(key)?.pending);
-    const hasPendingCentralSync = libraryPending || Object.values(manifest.entries || {}).some((entry) => entry?.pendingCentralSync);
+    const hasPendingCentralSync = libraryPending || scopedStatus.pending;
     ui.dataSafetyStatus.classList.toggle("is-error", Boolean(error || centralError));
     ui.dataSafetyStatus.classList.toggle(
       "is-backed-up",
-      Boolean((centralStatus.lastSyncedAt || manifest.lastCentralSyncedAt) && !hasPendingCentralSync && !error && !centralError)
+      Boolean(scopedStatus.confirmedAt && !hasPendingCentralSync && !error && !centralError)
     );
     if (centralError) {
       ui.dataSafetyStatus.textContent = "Sync needs attention";
@@ -580,18 +583,18 @@ export function createDataSafetyRuntimeService(deps = {}) {
       ui.dataSafetyStatus.title = error;
       return;
     }
-    const centralTime = formatDataSafetyTime(centralStatus.lastSyncedAt || manifest.lastCentralSyncedAt);
-    const centralSavedTime = formatDataSafetyTime(centralStatus.lastSavedAt);
-    const fetchedTime = formatDataSafetyTime(centralStatus.lastFetchedAt);
+    const centralTime = formatDataSafetyTime(scopedStatus.confirmedAt);
+    const centralSavedTime = formatDataSafetyTime(scopedStatus.savedAt);
+    const fetchedTime = formatDataSafetyTime(scopedStatus.fetchedAt);
     const snapshotTime = formatDataSafetyTime(manifest.lastSnapshotAt);
-    const savedTime = formatDataSafetyTime(manifest.lastSavedAt);
+    const pendingTime = formatDataSafetyTime(scopedStatus.pendingAt);
     if (centralStatus.localDev) {
       ui.dataSafetyStatus.textContent = "Local dev cache";
       ui.dataSafetyStatus.title = "Localhost cache only.";
       return;
     }
     if (hasPendingCentralSync) {
-      ui.dataSafetyStatus.textContent = savedTime ? `Sync pending ${savedTime}` : "Sync pending";
+      ui.dataSafetyStatus.textContent = pendingTime ? `Sync pending ${pendingTime}` : "Sync pending";
       ui.dataSafetyStatus.title = "Waiting for central confirmation. Keep this page open if local saving has failed.";
       return;
     }
@@ -606,13 +609,6 @@ export function createDataSafetyRuntimeService(deps = {}) {
     if (snapshotTime) {
       ui.dataSafetyStatus.textContent = `Central cache ${snapshotTime}`;
       ui.dataSafetyStatus.title = "Browser cache snapshot exists.";
-      return;
-    }
-    if (savedTime) {
-      ui.dataSafetyStatus.textContent = `Waiting for central sync ${savedTime}`;
-      ui.dataSafetyStatus.title = snapshotWarning
-        ? `Supabase is the source of truth. Browser cache snapshot issue: ${snapshotWarning}`
-        : "Waiting for central sync.";
       return;
     }
     ui.dataSafetyStatus.textContent = "Sync ready";

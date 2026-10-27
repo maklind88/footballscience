@@ -362,7 +362,7 @@ test(`replacement Medical drafts keep their owner after reload and cannot be rea
 }
 
 function createHarness() {
-  const centralState = { metadata: {}, hydrated: true, lastSavedAt: "previous-save", lastFetchedAt: "previous-read" };
+  const centralState = { metadata: {}, hydrated: true, lastSavedAt: "previous-save", lastSavedScope: "previous-scope", lastFetchedAt: "previous-read", lastFetchedScope: "previous-scope" };
   const authState = { session: { access_token: "test-only" }, currentUser: { id: "actor-1", teamId: "team-1", role: "coach" }, devMode: false };
   const events = [];
   const timers = [];
@@ -390,7 +390,7 @@ function createHarness() {
     collectCentralLocalStateEntries: () => ({}),
   };
   const tombstoneSource = source.slice(source.indexOf("  function reconcileCentralTombstones("), source.indexOf("  function persistCentralHydrationRevisions("));
-  const api = runInNewContext(`${readScopeSource}\n${tombstoneSource}\n${hydrateSource}\n${syncSource}\n({ hydrateCentralState, syncCentralStateKey })`, context);
+  const api = runInNewContext(`${readScopeSource}\n${tombstoneSource}\n${hydrateSource}\n${syncSource}\n({ hydrateCentralState, syncCentralStateKey, getCentralReadScope })`, context);
   return { api, centralState, authState, context, events, timers };
 }
 
@@ -408,6 +408,7 @@ test(`partial hydration publishes only current verified reads without claiming c
   expect(h.centralState.hydrated).toBe(false);
   expect(h.centralState.hydrating).toBe(false);
   expect(h.centralState.lastFetchedAt).toBe("previous-read");
+  expect(h.centralState.lastFetchedScope).toBe("previous-scope");
   expect(applied).toHaveLength(stale ? 0 : 1);
   expect(h.events.map((event) => event.type)).toEqual(stale ? [] : ["footballscience:central-state-partial"]);
   if (!stale) {
@@ -441,6 +442,7 @@ for (const change of ["organizationId", "token", "sign-out"]) {
       expect(h.centralState.metadata[key]).toEqual({ revision: 2 });
       expect(h.centralState.lastWriteError).toBe("new account status");
       expect(h.centralState.lastSavedAt).toBe("previous-save");
+      expect(h.centralState.lastSavedScope).toBe("previous-scope");
     });
   }
 }
@@ -560,11 +562,14 @@ test("successful fetch preserves saved timestamp; successful write preserves fet
   const h = createHarness();
   expect(await h.api.hydrateCentralState()).toBe(true);
   expect(h.centralState.lastSavedAt).toBe("previous-save");
+  expect(h.centralState.lastSavedScope).toBe("previous-scope");
   expect(h.centralState.lastFetchedAt).toBe(h.centralState.lastSyncedAt);
+  expect(h.centralState.lastFetchedScope).toBe(h.api.getCentralReadScope());
   expect(h.events.map((event) => event.type)).toEqual(["footballscience:central-state-ready"]);
   const fetched = h.centralState.lastFetchedAt;
   expect((await h.api.syncCentralStateKey("football-player-profiles-v1", "{}")).ok).toBe(true);
   expect(h.centralState.lastSavedAt).not.toBe("previous-save");
+  expect(h.centralState.lastSavedScope).toBe(h.api.getCentralReadScope());
   expect(h.centralState.lastFetchedAt).toBe(fetched);
   const saved = h.centralState.lastSavedAt;
   await h.api.hydrateCentralState();
@@ -576,10 +581,12 @@ test("failed fetch and rejected writes never advance successful operation timest
   h.context.readCentralStateBatches = async () => ({ ok: false, payload: { reason: "Offline" } });
   expect(await h.api.hydrateCentralState()).toBe(false);
   expect(h.centralState.lastFetchedAt).toBe("previous-read");
+  expect(h.centralState.lastFetchedScope).toBe("previous-scope");
   for (const status of [403, 409, 500]) {
     h.context.apiRequest = async () => ({ ok: false, status, payload: { reason: "Rejected" } });
     expect((await h.api.syncCentralStateKey("football-player-profiles-v1", "{}")).ok).toBe(false);
     expect(h.centralState.lastSavedAt).toBe("previous-save");
+    expect(h.centralState.lastSavedScope).toBe("previous-scope");
   }
 });
 
@@ -588,6 +595,7 @@ test("local development hydration is not mistaken for a write", async () => {
   h.authState.devMode = true;
   await h.api.hydrateCentralState();
   expect(h.centralState.lastSavedAt).toBe("previous-save");
+  expect(h.centralState.lastSavedScope).toBe("previous-scope");
   expect(h.centralState.lastFetchedAt).not.toBe("previous-read");
 });
 
@@ -604,6 +612,7 @@ for (const changedField of ["id", "organizationId", "clubId", "teamId", "role"])
     expect(applied).toBe(false);
     expect(h.events).toEqual([]);
     expect(h.centralState.lastFetchedAt).toBe("previous-read");
+    expect(h.centralState.lastFetchedScope).toBe("previous-scope");
     expect(h.centralState.hydrating).toBe(false);
   });
 }
@@ -623,6 +632,7 @@ for (const alreadyReadOnly of [true, false]) {
     expect(requests).toBe(alreadyReadOnly ? 0 : 1);
     expect(h.centralState.metadata).toEqual({});
     expect(h.centralState.lastSavedAt).toBe("previous-save");
+    expect(h.centralState.lastSavedScope).toBe("previous-scope");
   });
 }
 
@@ -653,6 +663,7 @@ for (const phase of ["apply", "empty-client", "seed-response"]) {
     expect(h.events).toEqual([]);
     expect(h.centralState.metadata).toEqual({});
     expect(h.centralState.lastFetchedAt).toBe("previous-read");
+    expect(h.centralState.lastFetchedScope).toBe("previous-scope");
     expect(h.centralState.hydrating).toBe(false);
   });
 }

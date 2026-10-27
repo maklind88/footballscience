@@ -154,7 +154,9 @@ test("platform global runtime bindings preserve boot, escape, and storage behavi
   expect(medicalPlayerModalTab).toBe("availability");
   expect(calls).toEqual(expect.arrayContaining(["profile-menu:false", "profile-focus", "render-medical"]));
 
+  const beforeUserChange = calls.length;
   win.dispatch("platform:user-change", {});
+  expect(calls.slice(beforeUserChange)).toContain("data-safety");
   expect(calls).toEqual(expect.arrayContaining(["presence-start", "reload-central"]));
   expect(calls).not.toContain("login-popups");
 

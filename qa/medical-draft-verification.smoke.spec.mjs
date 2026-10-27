@@ -113,11 +113,15 @@ test("transaction rejects a changed selected envelope and wrong ownership withou
 
 test("full auth bridge verifies via a fresh private GET without hydrating or writing Medical state", async ({ page }) => {
   await installSetPiecesCentralFixture(page);
-  // Keep the synthetic player in Squad too; otherwise startup legitimately queues
-  // a roster archival before this private-read-only boundary is measured.
-  const entries = { [key]: JSON.stringify(draft),
-    "football-player-profiles-v1": JSON.stringify({ rosterVersion: "qa-recovery-proof",
-      players: draft.players, removedPlayerIds: [] }) };
+  // Keep the Medical player in Squad so unrelated removed-player archival cannot
+  // race the read-only recovery check during application initialization.
+  const profileKey = "football-player-profiles-v1";
+  const entries = {
+    [key]: JSON.stringify(draft),
+    [profileKey]: JSON.stringify({ rosterVersion: "qa-recovery-verification", removedPlayerIds: [],
+      players: draft.players.map(player => ({ ...player, position: "Midfielder",
+        status: "available", rosterType: "squad", countsInSquad: true })) }),
+  };
   let writes = 0; const reads = [];
   await page.route("**/api/app-state**", route => {
     const req = route.request();
@@ -173,6 +177,7 @@ test("full auth bridge verifies via a fresh private GET without hydrating or wri
   await panel.screenshot({ path: "/private/tmp/fs-medical-verified-copy-panel.png" });
   await panel.getByRole("button", { name: "Remove this verified local copy" }).click();
   await expect(panel).toContainText("One verified local recovery copy was removed");
+  expect(writes).toBe(0);
 });
 
 

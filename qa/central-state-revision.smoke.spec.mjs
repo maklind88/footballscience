@@ -3371,8 +3371,15 @@ test(`a replacement Medical draft is never adopted after an organization switch 
 test("an old account Medical receipt cannot poison a new account's queued edit", async ({ browser, baseURL }) => {
   const profile = { ...qaUser, app_metadata: { ...qaUser.app_metadata, role: "coach", organization_id: "org-a" } };
   const initial = JSON.stringify({ players: [{ id: "qa-player", name: "QA Player" }], records: [], injuryPlans: [] });
+  // The synthetic Medical player belongs to Squad; otherwise startup archival
+  // competes with the explicit baseline save before the receipt scenario starts.
+  const squadKey = "football-player-profiles-v1";
+  const squad = JSON.stringify({ rosterVersion: "qa-late-receipt", removedPlayerIds: [],
+    players: [{ id: "qa-player", name: "QA Player", position: "Midfielder",
+      status: "available", rosterType: "squad", countsInSquad: true }] });
   const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
-    entries: { [medicalTeamStateKey]: initial }, metadataEntries: { [medicalTeamStateKey]: createMetadata(4, initial) } };
+    entries: { [medicalTeamStateKey]: initial, [squadKey]: squad },
+    metadataEntries: { [medicalTeamStateKey]: createMetadata(4, initial), [squadKey]: createMetadata(1, squad) } };
   let release, held = false;
   const barrier = new Promise((resolve) => { release = resolve; });
   const requests = [];

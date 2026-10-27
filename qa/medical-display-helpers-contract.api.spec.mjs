@@ -8,11 +8,14 @@ const helpers = createMedicalDisplayHelpers({
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;"),
-  getMedicalPlayerAvailabilityStatusOption: () => ({ key: "unavailable", tone: "danger", label: "Unavailable" }),
+  getMedicalPlayerAvailabilityStatusOption: (player = {}) => {
+    if (player.status === "available") return { key: "available", tone: "available", label: "Available" };
+    if (player.status === "injured") return { key: "injured", tone: "injured", label: "Injured" };
+    return { key: "unavailable", tone: "danger", label: "Unavailable" };
+  },
   getPlayerProfileRosterLabel: () => "Temporary",
   getPlayerProfileTemporaryWindowLabel: () => "2 sessions",
   getSelectedDate: () => "2026-05-29",
-  isMedicalPlayerBlockedBySquadAvailability: (player = {}) => player.blocked,
   isPlayerProfileTemporaryActiveOnDate: (_player, dateValue) => dateValue === "2026-05-29",
   isTemporaryPlayerProfile: (player = {}) => player.temporary,
   medicalOperationsTabOptions: [{ key: "availability" }, { key: "system" }],
@@ -48,8 +51,11 @@ test("Medical display helpers own temporary and squad availability badges", () =
     '<span class="medical-temporary-badge">Temporary / 2 sessions</span>'
   );
 
-  expect(helpers.renderMedicalSquadAvailabilityBadge({ blocked: false })).toBe("");
-  expect(helpers.renderMedicalSquadAvailabilityBadge({ blocked: true })).toContain(
+  expect(helpers.renderMedicalSquadAvailabilityBadge({ status: "available" })).toBe("");
+  expect(helpers.renderMedicalSquadAvailabilityBadge({ status: "injured" })).toContain(
+    '<span class="medical-squad-availability-badge is-injured">Injured</span>'
+  );
+  expect(helpers.renderMedicalSquadAvailabilityBadge({ status: "unavailable" })).toContain(
     '<span class="medical-squad-availability-badge is-danger">Unavailable</span>'
   );
 });

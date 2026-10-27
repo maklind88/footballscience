@@ -1,0 +1,284 @@
+{
+  "productBaseSha": "845a0ed95bbd8795bf574a8aeb0c9f37ed903250",
+  "fixture": "qa/snapshot-growth.smoke.spec.mjs",
+  "limits": [
+    "Synthetic content, isolated browser contexts, no user data.",
+    "JSON UTF-8 sizes are not physical disk usage, compression, browser origin usage or localStorage capacity.",
+    "Snapshot scheduling is explicit; this does not measure production save frequency or elapsed growth.",
+    "Local service uses a stub central queue. No central acknowledgement, remote API or database is certified."
+  ],
+  "reports": [
+    {
+      "browser": "chromium",
+      "libraryKiB": 128,
+      "libraryJsonUtf8Bytes": 131119,
+      "changedPayloadUtf8Bytes": 26,
+      "measurements": [
+        {
+          "phase": "baseline",
+          "historyRows": 1,
+          "historyJsonUtf8Bytes": 131806,
+          "latestJsonUtf8Bytes": 131834,
+          "libraryPayloadCopies": 2
+        },
+        {
+          "phase": "unchanged-12",
+          "historyRows": 1,
+          "historyJsonUtf8Bytes": 131806,
+          "latestJsonUtf8Bytes": 131834,
+          "libraryPayloadCopies": 2
+        },
+        {
+          "phase": "same-payload-new-generation",
+          "historyRows": 2,
+          "historyJsonUtf8Bytes": 263836,
+          "latestJsonUtf8Bytes": 132058,
+          "libraryPayloadCopies": 3
+        },
+        {
+          "phase": "edit-1",
+          "historyRows": 3,
+          "historyJsonUtf8Bytes": 395879,
+          "latestJsonUtf8Bytes": 132071,
+          "libraryPayloadCopies": 4
+        },
+        {
+          "phase": "edit-10",
+          "historyRows": 12,
+          "historyJsonUtf8Bytes": 1584255,
+          "latestJsonUtf8Bytes": 132072,
+          "libraryPayloadCopies": 13
+        },
+        {
+          "phase": "edit-30",
+          "historyRows": 30,
+          "historyJsonUtf8Bytes": 3961268,
+          "latestJsonUtf8Bytes": 132072,
+          "libraryPayloadCopies": 31
+        },
+        {
+          "phase": "edit-36",
+          "historyRows": 30,
+          "historyJsonUtf8Bytes": 3961273,
+          "latestJsonUtf8Bytes": 132071,
+          "libraryPayloadCopies": 31
+        }
+      ],
+      "allSnapshotsCommitted": true,
+      "retained": {
+        "snapshots": true,
+        "latest": true,
+        "offline-operations-v1": true
+      },
+      "queuedWrites": 37,
+      "originalLibraryUnchanged": true,
+      "latestEditPresent": true,
+      "pendingGenerationRetained": true,
+      "metric": "Serialized JSON UTF-8 bytes; not browser physical usage or localStorage quota."
+    },
+    {
+      "browser": "chromium",
+      "libraryKiB": 1024,
+      "libraryJsonUtf8Bytes": 1048623,
+      "changedPayloadUtf8Bytes": 26,
+      "measurements": [
+        {
+          "phase": "baseline",
+          "historyRows": 1,
+          "historyJsonUtf8Bytes": 1049312,
+          "latestJsonUtf8Bytes": 1049340,
+          "libraryPayloadCopies": 2
+        },
+        {
+          "phase": "unchanged-12",
+          "historyRows": 1,
+          "historyJsonUtf8Bytes": 1049312,
+          "latestJsonUtf8Bytes": 1049340,
+          "libraryPayloadCopies": 2
+        },
+        {
+          "phase": "same-payload-new-generation",
+          "historyRows": 2,
+          "historyJsonUtf8Bytes": 2098848,
+          "latestJsonUtf8Bytes": 1049564,
+          "libraryPayloadCopies": 3
+        },
+        {
+          "phase": "edit-1",
+          "historyRows": 3,
+          "historyJsonUtf8Bytes": 3148398,
+          "latestJsonUtf8Bytes": 1049578,
+          "libraryPayloadCopies": 4
+        },
+        {
+          "phase": "edit-10",
+          "historyRows": 12,
+          "historyJsonUtf8Bytes": 12594338,
+          "latestJsonUtf8Bytes": 1049578,
+          "libraryPayloadCopies": 13
+        },
+        {
+          "phase": "edit-30",
+          "historyRows": 30,
+          "historyJsonUtf8Bytes": 31486482,
+          "latestJsonUtf8Bytes": 1049579,
+          "libraryPayloadCopies": 31
+        },
+        {
+          "phase": "edit-36",
+          "historyRows": 30,
+          "historyJsonUtf8Bytes": 31486484,
+          "latestJsonUtf8Bytes": 1049578,
+          "libraryPayloadCopies": 31
+        }
+      ],
+      "allSnapshotsCommitted": true,
+      "retained": {
+        "snapshots": true,
+        "latest": true,
+        "offline-operations-v1": true
+      },
+      "queuedWrites": 37,
+      "originalLibraryUnchanged": true,
+      "latestEditPresent": true,
+      "pendingGenerationRetained": true,
+      "metric": "Serialized JSON UTF-8 bytes; not browser physical usage or localStorage quota."
+    },
+    {
+      "browser": "webkit",
+      "libraryKiB": 128,
+      "libraryJsonUtf8Bytes": 131119,
+      "changedPayloadUtf8Bytes": 26,
+      "measurements": [
+        {
+          "phase": "baseline",
+          "historyRows": 1,
+          "historyJsonUtf8Bytes": 131805,
+          "latestJsonUtf8Bytes": 131833,
+          "libraryPayloadCopies": 2
+        },
+        {
+          "phase": "unchanged-12",
+          "historyRows": 1,
+          "historyJsonUtf8Bytes": 131805,
+          "latestJsonUtf8Bytes": 131833,
+          "libraryPayloadCopies": 2
+        },
+        {
+          "phase": "same-payload-new-generation",
+          "historyRows": 2,
+          "historyJsonUtf8Bytes": 263834,
+          "latestJsonUtf8Bytes": 132057,
+          "libraryPayloadCopies": 3
+        },
+        {
+          "phase": "edit-1",
+          "historyRows": 3,
+          "historyJsonUtf8Bytes": 395876,
+          "latestJsonUtf8Bytes": 132070,
+          "libraryPayloadCopies": 4
+        },
+        {
+          "phase": "edit-10",
+          "historyRows": 12,
+          "historyJsonUtf8Bytes": 1584254,
+          "latestJsonUtf8Bytes": 132072,
+          "libraryPayloadCopies": 13
+        },
+        {
+          "phase": "edit-30",
+          "historyRows": 30,
+          "historyJsonUtf8Bytes": 3961270,
+          "latestJsonUtf8Bytes": 132072,
+          "libraryPayloadCopies": 31
+        },
+        {
+          "phase": "edit-36",
+          "historyRows": 30,
+          "historyJsonUtf8Bytes": 3961274,
+          "latestJsonUtf8Bytes": 132071,
+          "libraryPayloadCopies": 31
+        }
+      ],
+      "allSnapshotsCommitted": true,
+      "retained": {
+        "snapshots": true,
+        "latest": true,
+        "offline-operations-v1": true
+      },
+      "queuedWrites": 37,
+      "originalLibraryUnchanged": true,
+      "latestEditPresent": true,
+      "pendingGenerationRetained": true,
+      "metric": "Serialized JSON UTF-8 bytes; not browser physical usage or localStorage quota."
+    },
+    {
+      "browser": "webkit",
+      "libraryKiB": 1024,
+      "libraryJsonUtf8Bytes": 1048623,
+      "changedPayloadUtf8Bytes": 26,
+      "measurements": [
+        {
+          "phase": "baseline",
+          "historyRows": 1,
+          "historyJsonUtf8Bytes": 1049312,
+          "latestJsonUtf8Bytes": 1049340,
+          "libraryPayloadCopies": 2
+        },
+        {
+          "phase": "unchanged-12",
+          "historyRows": 1,
+          "historyJsonUtf8Bytes": 1049312,
+          "latestJsonUtf8Bytes": 1049340,
+          "libraryPayloadCopies": 2
+        },
+        {
+          "phase": "same-payload-new-generation",
+          "historyRows": 2,
+          "historyJsonUtf8Bytes": 2098849,
+          "latestJsonUtf8Bytes": 1049565,
+          "libraryPayloadCopies": 3
+        },
+        {
+          "phase": "edit-1",
+          "historyRows": 3,
+          "historyJsonUtf8Bytes": 3148398,
+          "latestJsonUtf8Bytes": 1049577,
+          "libraryPayloadCopies": 4
+        },
+        {
+          "phase": "edit-10",
+          "historyRows": 12,
+          "historyJsonUtf8Bytes": 12594337,
+          "latestJsonUtf8Bytes": 1049579,
+          "libraryPayloadCopies": 13
+        },
+        {
+          "phase": "edit-30",
+          "historyRows": 30,
+          "historyJsonUtf8Bytes": 31486477,
+          "latestJsonUtf8Bytes": 1049579,
+          "libraryPayloadCopies": 31
+        },
+        {
+          "phase": "edit-36",
+          "historyRows": 30,
+          "historyJsonUtf8Bytes": 31486482,
+          "latestJsonUtf8Bytes": 1049578,
+          "libraryPayloadCopies": 31
+        }
+      ],
+      "allSnapshotsCommitted": true,
+      "retained": {
+        "snapshots": true,
+        "latest": true,
+        "offline-operations-v1": true
+      },
+      "queuedWrites": 37,
+      "originalLibraryUnchanged": true,
+      "latestEditPresent": true,
+      "pendingGenerationRetained": true,
+      "metric": "Serialized JSON UTF-8 bytes; not browser physical usage or localStorage quota."
+    }
+  ]
+}

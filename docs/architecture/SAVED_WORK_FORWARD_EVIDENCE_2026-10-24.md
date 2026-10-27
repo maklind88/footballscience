@@ -139,3 +139,80 @@ The scope includes the diagnostic regression cases, two-editor and new-work
 visibility, full-app combined storage failures, browser restart/crash, historical
 version transition, distinct snapshot protection and API receipt/durability tests.
 Full release/staging/production verification remains a separate authorized step.
+
+## Follow-up: snapshot growth, 27 October 2026
+
+System / Security owns this measurement, based on production source at
+`845a0ed95bbd8795bf574a8aeb0c9f37ed903250`. Branch:
+`codex/storage-growth-evidence-20261027`. Only tests and evidence change;
+no module writer, retention rule or live record is modified. PR #289 is separate:
+its full GitHub QA and CodeQL succeeded for `7dde6276`, but it remains undeployed.
+
+The existing production tab was at the login screen during this follow-up.
+No reload, sign-in, storage clear, export or repair was performed. A fresh
+on-device measurement requires the user to sign in. The 24 October observation
+above is not a current reading or a measured growth rate.
+
+### Repeatable measurement
+
+`qa/snapshot-growth.smoke.spec.mjs` runs the actual data-safety service, envelope
+creation, distinct-snapshot transaction and pruning code against real IndexedDB
+in an isolated browser context. The central queue is a stub; snapshot scheduling
+is explicitly controlled, without startup/debounce timers. One unchanged synthetic
+Library payload and a 26-byte changing Schedule payload model cross-module
+amplification. A new pending generation with unchanged content is also included.
+
+Both Chromium and WebKit produced the following results:
+
+| Phase | History rows | Copies of unchanged Library payload, including latest |
+| --- | ---: | ---: |
+| Initial snapshot | 1 | 2 |
+| Twelve further unchanged snapshots | 1 | 2 |
+| New pending generation, same payload | 2 | 3 |
+| Ten subsequent tiny edits | 12 | 13 |
+| Thirty subsequent tiny edits | 30 | 31 |
+| Thirty-six subsequent tiny edits | 30 | 31 |
+
+At the last phase, the 128 KiB fixture occupied about **3.90 MiB** of serialized
+history plus latest; the 1 MiB fixture occupied about **31.03 MiB**. These are
+JSON UTF-8 sizes, not physical disk usage, browser quota or the UTF-16 estimates
+shown in Storage health. The repeated synthetic text may compress differently
+from real content. Neither elapsed production growth nor central saving is tested.
+Exact values and limitations are retained in
+[evidence/snapshot-growth-2026-10-27.json](evidence/snapshot-growth-2026-10-27.json).
+
+All snapshot operations completed, the latest pending generation remained present,
+and the unchanged Library value was byte-identical. Seeded fallback recovery,
+Sessions review and offline pending rows remained byte-identical after rotation.
+This proves preservation of those specific rows, not that every ordinary snapshot
+is reconstructible or safe to delete. Existing tests separately cover transactional
+deduplication, missing history, metadata changes, save-error preservation and
+read-only incomplete inventories. Fourteen cases passed in each browser (28 total).
+The new growth test joins the existing WebKit save suite.
+
+### Decision and remaining gate
+
+The measured mechanism is whole-envelope amplification, not failed consecutive
+deduplication. A count limit bounds row count, but storage grows with the size of
+each envelope. Removing metadata from deduplication would lose distinctions needed
+for recovery; blindly shrinking history could discard useful versions.
+
+Before changing production retention or the snapshot format:
+
+1. Complete the fresh device inventory through Storage health after sign-in.
+   Record known-store totals, inspected sizes and incomplete classifications;
+   do not treat unread data as empty. Separate localStorage pressure from IndexedDB.
+2. Obtain comparable follow-up observations during ordinary work. Record time,
+   version and known-store counts; a single pair of totals without workload context
+   does not establish causality. Preserve payload privacy.
+3. Define a byte budget for **new replaceable snapshot history** separately from
+   pending/review/recovery data and each module's required local journal. Prove
+   reconstructibility before allowing any cleanup. No old-work repair is authorized.
+4. Test a bounded snapshot admission/storage pilot: unchanged-data reuse or fewer
+   full-envelope captures must preserve exact recovery generations, latest readable
+   copies, concurrent-tab atomicity, old-reader compatibility and truthful failures.
+   A cache budget must never prevent or pretend to complete a module's durable save.
+
+No automatic deletion, arbitrary byte threshold, new universal save framework or
+platform-wide offline certification follows from this measurement. A complete
+device inventory and workload evidence are still required to select the pilot.

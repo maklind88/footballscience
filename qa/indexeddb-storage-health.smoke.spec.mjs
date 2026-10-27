@@ -115,13 +115,13 @@ test("large snapshots cannot hide the total rows in uninspected operation stores
   });
   expect(result.unchanged).toBe(true);
   expect(result.modes).toEqual(["readonly"]);
-  expect(result.report.databases[0]).toMatchObject({ status: "partial", stoppedBecause: "bytes", records: 1, totalRecords: 4,
+  expect(result.report.databases[0]).toMatchObject({ status: "partial", stoppedBecause: "bytes", records: 3, totalRecords: 4,
     stores: [
       { label: "Safety snapshots and recovery", totalRecords: 2, scannedRecords: 1 },
-      { label: "Safety latest copies and Sessions edits", totalRecords: 1, scannedRecords: 0 },
-      { label: "Shared operations", totalRecords: 1, scannedRecords: 0 },
+      { label: "Safety latest copies and Sessions edits", totalRecords: 1, scannedRecords: 1 },
+      { label: "Shared operations", totalRecords: 1, scannedRecords: 1 },
     ] });
-  expect(result.report.databases[0].groups.map(row => row.label)).not.toContain("Sessions review edits");
+  expect(result.report.databases[0].groups.map(row => row.label)).toEqual(expect.arrayContaining(["Sessions review edits", "Shared pending operations"]));
   expect(JSON.stringify(result.report)).not.toContain("private");
 });
 
@@ -165,4 +165,104 @@ test("failed row counts remain unknown rather than reporting an empty database",
   expect(result.databases[1]).toMatchObject({ status: "unavailable", totalRecords: null,
     stores: [{ label: "Library pending and review edits", totalRecords: null, scannedRecords: 0 }] });
   expect(JSON.stringify(result)).not.toContain("private");
+});
+
+
+test("large latest cache is inspected after Sessions work and cannot hide another store", async ({ page }) => {
+  await page.goto("/medical-merge.js");
+  const result = await page.evaluate(async () => {
+    const { collectIndexedDbStorageHealth } = await import("/src/core/indexeddb-storage-health.mjs");
+    const request = indexedDB.open("football-science-data-safety-v1");
+    request.onupgradeneeded = () => {
+      for (const name of ["snapshots", "latest", "offline-operations-v1"]) request.result.createObjectStore(name, { keyPath: "id" });
+    };
+    const db = await new Promise(resolve => { request.onsuccess = () => resolve(request.result); });
+    const tx = db.transaction(["snapshots", "latest", "offline-operations-v1"], "readwrite");
+    for (let n = 0; n < 2; n++) tx.objectStore("snapshots").put({ id: n, value: "private".repeat(1000) });
+    tx.objectStore("latest").put({ id: "latest", value: "private".repeat(1000) });
+    for (const status of ["pending", "review", "archived"]) tx.objectStore("latest").put({ id: "session-save:" + status, status });
+    tx.objectStore("offline-operations-v1").put({ id: "operation", status: "pending" });
+    await new Promise(resolve => { tx.oncomplete = resolve; });
+    const report = await collectIndexedDbStorageHealth({ indexedDB, maxBytes: 3000 });
+    const read = db.transaction("latest").objectStore("latest").get("latest");
+    const retained = await new Promise(resolve => { read.onsuccess = () => resolve(read.result.value.length); });
+    db.close(); return { report, retained };
+  });
+  expect(result.report.status).toBe("partial");
+  const db = result.report.databases[0];
+  expect(db.totalRecords).toBe(7);
+  expect(db.groups.map(row => row.label)).toEqual(expect.arrayContaining([
+    "Sessions pending edits", "Sessions review edits", "Sessions archived edits", "Shared pending operations",
+  ]));
+  expect(db.stores.find(row => row.label === "Safety latest copies and Sessions edits")).toMatchObject({
+    totalRecords: 4, scannedRecords: 4, status: "complete",
+  });
+  expect(result.retained).toBe(7000);
+  expect(JSON.stringify(result.report)).not.toContain("private");
+});
+
+
+test("a work-store row limit leaves the deferred cache unread without aborting other stores", async ({ page }) => {
+  await page.goto("/medical-merge.js");
+  const result = await page.evaluate(async () => {
+    const { collectIndexedDbStorageHealth } = await import("/src/core/indexeddb-storage-health.mjs");
+    const open = indexedDB.open("football-science-data-safety-v1");
+    open.onupgradeneeded = () => {
+      for (const name of ["snapshots", "latest", "offline-operations-v1"]) open.result.createObjectStore(name, { keyPath: "id" });
+    };
+    const db = await new Promise(resolve => { open.onsuccess = () => resolve(open.result); });
+    const tx = db.transaction(["snapshots", "latest", "offline-operations-v1"], "readwrite");
+    for (let id = 0; id < 3; id++) {
+      tx.objectStore("snapshots").put({ id, value: "retained" });
+      tx.objectStore("latest").put({ id: "session-save:" + id, status: "pending", value: "retained" });
+    }
+    tx.objectStore("latest").put({ id: "latest", value: "private".repeat(1000) });
+    tx.objectStore("offline-operations-v1").put({ id: "op", status: "review", value: "retained" });
+    await new Promise(resolve => { tx.oncomplete = resolve; });
+    let cacheReads = 0;
+    const original = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function(key) {
+      if (this.name === "latest" && key === "latest") cacheReads++;
+      return original.call(this, key);
+    };
+    let report;
+    try { report = await collectIndexedDbStorageHealth({ indexedDB, maxRecords: 6 }); }
+    finally { IDBObjectStore.prototype.get = original; }
+    const counts = await Promise.all(["snapshots", "latest", "offline-operations-v1"].map(name => new Promise(resolve => {
+      const count = db.transaction(name).objectStore(name).count(); count.onsuccess = () => resolve(count.result);
+    })));
+    db.close(); return { report, cacheReads, counts };
+  });
+  expect(result.cacheReads).toBe(0);
+  expect(result.counts).toEqual([3, 4, 1]);
+  expect(result.report.databases[0]).toMatchObject({ status: "partial", records: 5, totalRecords: 8,
+    stores: [
+      { totalRecords: 3, scannedRecords: 2, status: "partial", stoppedBecause: "records" },
+      { totalRecords: 4, scannedRecords: 2, status: "partial", stoppedBecause: "records" },
+      { totalRecords: 1, scannedRecords: 1, status: "complete", stoppedBecause: null },
+    ],
+  });
+  expect(JSON.stringify(result.report)).not.toContain("private");
+});
+
+test("health dialog distinguishes a limited history scan from fully inspected work rows", async ({ page }) => {
+  await page.goto("/medical-merge.js");
+  await page.evaluate(async () => {
+    const open = indexedDB.open("football-science-data-safety-v1");
+    open.onupgradeneeded = () => { for (const name of ["snapshots", "latest"]) open.result.createObjectStore(name, { keyPath: "id" }); };
+    const db = await new Promise(resolve => { open.onsuccess = () => resolve(open.result); });
+    const tx = db.transaction(["snapshots", "latest"], "readwrite");
+    for (let id = 0; id < 1501; id++) tx.objectStore("snapshots").put({ id, value: "private" });
+    tx.objectStore("latest").put({ id: "session-save:private-review", status: "review", value: "private" });
+    tx.objectStore("latest").put({ id: "latest", value: "private" });
+    await new Promise(resolve => { tx.oncomplete = resolve; }); db.close();
+    const { openStorageHealth } = await import("/src/core/storage-health-dialog.mjs");
+    await openStorageHealth({ documentRef: document, storage: localStorage, indexedDB });
+  });
+  const dialog = page.getByRole("dialog", { name: "Storage health", exact: true });
+  await expect(dialog.getByRole("status")).toHaveText("Storage check incomplete. Some information could not be read.");
+  await expect(dialog).toContainText("Safety snapshots and recovery: 1501 stored rows; 1500 inspected. Incomplete: row limit.");
+  await expect(dialog).toContainText("Safety latest copies and Sessions edits: 2 stored rows; 2 inspected. All rows in this store inspected.");
+  await expect(dialog).toContainText("Sessions review edits: 1 rows");
+  await expect(dialog).not.toContainText("private");
 });

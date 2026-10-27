@@ -133,3 +133,49 @@ revision, token, and cross-account assertions are unchanged; five sequential
 focused runs pass. No shared sync, authorization, or clinical write implementation
 was changed. Existing production monitor-mode health checks passed after the
 stopped workflow. A new successful release is still required.
+
+## Published release and bounded follow-up, 2026-10-27 UTC
+
+Medical candidate `72f214ce` was published in production workflow `40425176457`.
+Full local QA passed (4210 passed, 3 skipped); staging `40422158874` and main QA
+`40423903971` passed. Production promotion, postdeploy, staging isolation and
+Medical's 11 HTTP boundary checks passed. The final live suite reported six
+passes, one skip and one failure in Schedule probe cleanup. This is not a fully
+green release result and must not be described as such.
+
+The exact run-owned probe was
+`QA Live 1793061123580-80c2357a-82ce-4b8b-bebf-d2c39d49e4a3`, dated `2026-10-11`.
+Creation and reload completed. After the delete confirmation, the UI still
+contained the title; the central absence assertion was never reached. The run
+published no downloadable trace artifacts. Its current central presence remains
+unverified. Never delete by prefix or under an unrelated user/team.
+
+Read-only investigation reproduced a separate, concrete Schedule defect:
+`removeScheduleEvents` captures `getState()` before awaiting confirmation, then
+mutates that captured object, while `writeState()` persists the current runtime
+object. Replacing the runtime state with an equivalent clone while confirmation
+is pending gives this deterministic result after confirmation:
+
+```json
+{"originalEvents":0,"currentEvents":1,"savedEvents":1}
+```
+
+The reproduction uses only a synthetic in-memory event and the actual Schedule
+controller, with no network, real account or user data. It establishes a stale
+state deletion bug, not proof that the same race caused the recorded live failure.
+The shared overlay guard also does not include `role="alertdialog"`, used by the
+danger confirmation, but its involvement in the incident is not established.
+
+Medical owns this release follow-up; Schedule owns event mutations and
+System/Security owns shared reload/overlay behavior. No product fix was applied:
+the user has been asked to approve a narrowly scoped Schedule correction before
+crossing that boundary. Proposed validation: deletion after state replacement,
+preservation of unrelated/new events, cancellation, changed permissions and the
+existing Schedule delete/undo browser flow. Do not change shared sync or weaken
+the live cleanup assertions to hide the problem.
+
+The original dedicated live QA account credentials are unavailable locally.
+Cleanup of the exact historical probe still requires authenticated access to
+that same account/team. The old root authentication snapshot has not been used.
+No new release, main/staging integration or production data write was performed
+during this follow-up.

@@ -544,12 +544,13 @@ test("read-only central view rejects write/remove/clear before touching any dura
 });
 
 test("background reads do not appear as saves or move the last saved time", () => {
-  const centralStatus = { hydrated: true, lastSyncedAt: "10:00", lastFetchedAt: "10:00", lastSavedAt: "" };
-  const h = createHarness({ centralStatus, formatTime: (value) => value || "" });
+  const centralStatus = { hydrated: true, lastSyncedAt: "10:00", lastFetchedAt: "10:00", lastFetchedScope: "owner-A", lastSavedAt: "" };
+  const h = createHarness({ scope: "owner-A", centralStatus, formatTime: (value) => value || "" });
   h.service.refreshStatus();
   expect(h.dataSafetyStatus.textContent).toBe("Up to date");
   expect(h.dataSafetyStatus.title).toContain("Last checked for updates 10:00");
   centralStatus.lastSavedAt = "10:01";
+  centralStatus.lastSavedScope = "owner-A";
   h.service.refreshStatus();
   expect(h.dataSafetyStatus.textContent).toBe("Saved 10:01");
   centralStatus.lastFetchedAt = centralStatus.lastSyncedAt = "10:04";
@@ -560,11 +561,11 @@ test("background reads do not appear as saves or move the last saved time", () =
 });
 
 test("pending writes and errors take priority over a successful background read", () => {
-  const centralStatus = { lastSyncedAt: "10:04", lastFetchedAt: "10:04", lastSavedAt: "10:01" };
-  const h = createHarness({ centralStatus });
+  const centralStatus = { lastSyncedAt: "10:04", lastFetchedAt: "10:04", lastFetchedScope: "owner-A", lastSavedAt: "10:01", lastSavedScope: "owner-A" };
+  const h = createHarness({ scope: "owner-A", centralStatus });
   h.service.install();
   h.localStorage.values.set("football-data-safety-v1", JSON.stringify({
-    lastSavedAt: "10:03", entries: { "football-schedule-v1": { pendingCentralSync: true } },
+    lastSavedAt: "10:03", entries: { "football-schedule-v1": { pendingCentralSync: true, principalScope: "owner-A", updatedAt: "10:03" } },
   }));
   h.service.refreshStatus();
   expect(h.dataSafetyStatus.textContent).toBe("Sync pending now");
@@ -929,3 +930,102 @@ test("an older memory-only issue cannot erase a newer persisted failure from ano
   expect(first.dataSafetyStatus.title).toBe("Newer failure in another tab");
   expect(first.service.readManifest().lastError).toBe("Newer failure in another tab");
 });
+
+
+test("a scoped save indicator excludes foreign pending work without changing it", () => {
+  const h = createHarness({ scope: "owner-B", formatTime: value => value || "", centralStatus: {
+    lastSyncedAt: "10:04", lastFetchedAt: "10:04", lastFetchedScope: "owner-B",
+    lastSavedAt: "09:00", lastSavedScope: "owner-A",
+  } });
+  h.service.install();
+  const retained = JSON.stringify({ lastSavedAt: "09:00", entries: {
+    "football-schedule-v1": { principalScope: "owner-A", pendingCentralSync: true, updatedAt: "09:00" },
+  } });
+  h.localStorage.values.set("football-data-safety-v1", retained);
+  h.localStorage.values.set("football-schedule-v1", "foreign retained draft");
+  const before = [...h.localStorage.values];
+  h.service.refreshStatus();
+  expect(h.dataSafetyStatus.textContent).toBe("Up to date");
+  expect(h.dataSafetyStatus.title).toContain("Last checked for updates 10:04");
+  expect(h.dataSafetyStatus.title).not.toContain("09:00");
+  expect(h.localStorage.values.get("football-data-safety-v1")).toBe(retained);
+  expect([...h.localStorage.values]).toEqual(before);
+  expect(h.queuedWrites).toEqual([]);
+});
+
+for (const currentScope of ["owner-B", ""]) {
+  test(`old server times cannot certify the current scope (${currentScope || "signed out"})`, () => {
+    const h = createHarness({ scope: currentScope, centralStatus: {
+      lastSyncedAt: "10:00", lastFetchedAt: "10:00", lastFetchedScope: "owner-A",
+      lastSavedAt: "10:00", lastSavedScope: "owner-A",
+    } });
+    h.service.install();
+    h.localStorage.values.set("football-data-safety-v1", JSON.stringify({
+      lastCentralSyncedAt: "10:00", lastSavedAt: "10:00", entries: {},
+    }));
+    h.service.refreshStatus();
+    expect(h.dataSafetyStatus.textContent).not.toMatch(/Saved|Up to date|Waiting for central sync/);
+    expect(h.dataSafetyStatus.toggles).toContainEqual(["is-backed-up", false]);
+    expect(h.queuedWrites).toEqual([]);
+  });
+}
+
+test("current pending work uses its own timestamp, while unknown ownership remains pending", () => {
+  const h = createHarness({ scope: "owner-B", formatTime: value => value || "", centralStatus: {
+    lastSyncedAt: "10:04", lastFetchedAt: "10:04", lastFetchedScope: "owner-B",
+  } });
+  h.service.install();
+  const manifest = { lastSavedAt: "11:00", entries: {
+    "football-schedule-v1": { principalScope: "owner-B", pendingCentralSync: true, updatedAt: "10:03" },
+    "football-medical-team-v1": { principalScope: "owner-A", pendingCentralSync: true, updatedAt: "11:00" },
+  } };
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify(manifest));
+  h.service.refreshStatus();
+  expect(h.dataSafetyStatus.textContent).toBe("Sync pending 10:03");
+  delete manifest.entries["football-schedule-v1"].principalScope;
+  h.localStorage.values.set("football-data-safety-v1", JSON.stringify(manifest));
+  h.service.refreshStatus();
+  expect(h.dataSafetyStatus.textContent).toBe("Sync pending");
+  expect(h.queuedWrites).toEqual([]);
+});
+
+for (const scope of [undefined, "", "owner-A"]) {
+  test(`unattributed legacy confirmation cannot certify saving (scope=${String(scope)})`, () => {
+    const h = createHarness({ scope, centralStatus: {
+      lastSyncedAt: "10:00", lastFetchedAt: "10:00", lastSavedAt: "10:00",
+    } });
+    h.service.install();
+    h.localStorage.values.set("football-data-safety-v1", JSON.stringify({
+      lastCentralSyncedAt: "10:00", lastSavedAt: "10:00", entries: {},
+    }));
+    h.service.refreshStatus();
+    expect(h.dataSafetyStatus.textContent).toBe("Sync ready");
+    expect(h.dataSafetyStatus.toggles.at(-1)).toEqual(["is-backed-up", false]);
+    expect(h.queuedWrites).toEqual([]);
+  });
+}
+
+for (const changedIndex of [0, 1, 2, 3, 4]) {
+  test(`a changed identity component ${changedIndex} cannot inherit save proof`, () => {
+    const identity = ["actor", "organization", "club", "team", "coach"];
+    const original = JSON.stringify(identity);
+    const options = { scope: original, formatTime: value => value || "", centralStatus: {
+      lastSavedAt: "10:00", lastSavedScope: original,
+      lastFetchedAt: "10:01", lastFetchedScope: original,
+    } };
+    const h = createHarness(options);
+    h.service.refreshStatus();
+    expect(h.dataSafetyStatus.textContent).toBe("Saved 10:00");
+    identity[changedIndex] = "different";
+    options.scope = JSON.stringify(identity);
+    h.service.refreshStatus();
+    expect(h.dataSafetyStatus.textContent).toBe("Sync ready");
+    expect(h.dataSafetyStatus.toggles.at(-1)).toEqual(["is-backed-up", false]);
+    options.centralStatus.lastFetchedAt = "10:02";
+    options.centralStatus.lastFetchedScope = options.scope;
+    h.service.refreshStatus();
+    expect(h.dataSafetyStatus.textContent).toBe("Up to date");
+    expect(h.dataSafetyStatus.title).toContain("10:02");
+    expect(h.queuedWrites).toEqual([]);
+  });
+}

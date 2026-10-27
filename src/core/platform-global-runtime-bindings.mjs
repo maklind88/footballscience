@@ -77,6 +77,7 @@ export function bindPlatformGlobalRuntimeEvents(deps = {}) {
 
   win.addEventListener("platform:user-change", () => {
     deps.syncPlatformUserFromAuth?.();
+    deps.refreshDataSafetyStatus?.();
     deps.syncAccountMenu?.();
     deps.setProfileMenuOpen?.(false);
     if (getCurrentPlatformUser()) {

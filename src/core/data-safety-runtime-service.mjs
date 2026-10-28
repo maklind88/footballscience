@@ -1,5 +1,5 @@
 import { createLocalSaveIssues } from "./local-save-issues.mjs";
-import { storeDistinctSnapshot } from "./distinct-snapshot-store.mjs";
+import { pruneSnapshotHistory, storeDistinctSnapshot } from "./distinct-snapshot-store.mjs";
 import { openStorageHealth } from "./storage-health-dialog.mjs";
 import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
 import { createLocalDatabaseConnection } from "./local-database-connection.mjs";
@@ -19,6 +19,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     snapshotStoreName = "snapshots",
     latestStoreName = "latest",
     maxSnapshots = 30,
+    maxSnapshotBytes = undefined,
     protectedStorageKeys = [],
     journaledStorageKeys = ["football-session-planner-v3"],
     storageLabels = {},
@@ -486,21 +487,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
     });
   }
 
-  async function pruneSnapshots(database) {
-    const keys = await new Promise((resolve, reject) => {
-      const transaction = database.transaction(snapshotStoreName, "readonly");
-      const request = transaction.objectStore(snapshotStoreName).getAllKeys();
-      request.onsuccess = () => resolve(Array.from(request.result || []));
-      request.onerror = () => reject(request.error);
-    });
-    // Pending Sessions recovery copies are not rotating historical snapshots.
-    const rotatingKeys = keys.filter((key) => !String(key).startsWith("football-session-planner-v3-quota-fallback"));
-    if (rotatingKeys.length <= maxSnapshots) return;
-    const keysToDelete = rotatingKeys.sort().slice(0, rotatingKeys.length - maxSnapshots);
-    const transaction = database.transaction(snapshotStoreName, "readwrite");
-    const store = transaction.objectStore(snapshotStoreName);
-    keysToDelete.forEach((key) => store.delete(key));
-    await waitForTransaction(transaction);
+  function pruneSnapshots(database) {
+    return pruneSnapshotHistory(database, snapshotStoreName, latestStoreName, { maxSnapshots, maxSnapshotBytes });
   }
 
   async function saveSnapshot(reason = "autosave") {
@@ -510,8 +498,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     };
     try {
       const database = await openDatabase();
-      const stored = await storeDistinctSnapshot(database, snapshotStoreName, latestStoreName, snapshot);
-      if (stored.written) await pruneSnapshots(database);
+      const stored = await storeDistinctSnapshot(database, snapshotStoreName, latestStoreName, snapshot, { maxSnapshots, maxSnapshotBytes });
       // A cache copy is not acknowledgement of a failed user save. An in-memory
       // draft may be absent from it, including one created while this write awaited.
       status.lastSnapshotError = "";
@@ -716,7 +703,10 @@ export function createDataSafetyRuntimeService(deps = {}) {
       win,
     });
     if (!confirmed || !canRestore()) return;
-    await saveSnapshot("before-restore");
+    if (!await saveSnapshot("before-restore")) {
+      win.alert?.("Backup not restored. The current work could not be snapshotted. Existing data was retained.");
+      return;
+    }
     if (!canRestore()) return;
     try {
       entries.forEach(([key, value]) => {

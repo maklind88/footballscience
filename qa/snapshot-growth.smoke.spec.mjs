@@ -63,9 +63,12 @@ for (const libraryKiB of [128, 1024]) {
       service.recordWrite(scheduleKey, schedule(0), { requirePersisted: true });
       successes.push(await service.saveSnapshot("new-pending-generation"));
       measurements.push(await measure("same-payload-new-generation"));
+      let lastCommittedEdit = 0;
       for (let n = 1; n <= 36; n++) {
         localStorage.setItem(scheduleKey, schedule(n));
-        successes.push(await service.saveSnapshot("tiny-edit"));
+        const committed = await service.saveSnapshot("tiny-edit");
+        successes.push(committed);
+        if (committed) lastCommittedEdit = n;
         if ([1, 10, 30, 36].includes(n)) measurements.push(await measure(`edit-${n}`));
       }
       const retained = {};
@@ -77,7 +80,10 @@ for (const libraryKiB of [128, 1024]) {
       const output = { libraryKiB, libraryJsonUtf8Bytes: new Blob([library]).size, changedPayloadUtf8Bytes: new Blob([schedule(36)]).size,
         measurements, allSnapshotsCommitted: successes.every(Boolean), retained, queuedWrites,
         originalLibraryUnchanged: localStorage.getItem(libraryKey) === library,
-        latestEditPresent: latest.storage[scheduleKey] === schedule(36),
+        latestSnapshotMatchesLastCommitted: latest.storage[scheduleKey] === schedule(lastCommittedEdit),
+        latestPrimaryEditPresent: localStorage.getItem(scheduleKey) === schedule(36),
+        primaryPending: service.readManifest().entries[scheduleKey]?.pendingCentralSync === true,
+        snapshotWarning: service.readManifest().lastSnapshotError,
         pendingGenerationRetained: latest.saveContext.entries[scheduleKey]?.pendingCentralSync === true,
         metric: "Serialized JSON UTF-8 bytes; not browser physical usage or localStorage quota." };
       (await service.openDatabase()).close(); database.close();
@@ -86,9 +92,14 @@ for (const libraryKiB of [128, 1024]) {
     const reportPath = testInfo.outputPath("snapshot-growth.json");
     await writeFile(reportPath, JSON.stringify(result, null, 2));
     await testInfo.attach("snapshot-growth.json", { path: reportPath, contentType: "application/json" });
-    expect(result.allSnapshotsCommitted).toBe(true);
+    // The baseline evidence file records the old unbounded-by-bytes behavior.
+    // Current containment refuses copies once protected generations fill the budget.
+    expect(result.allSnapshotsCommitted).toBe(false);
+    expect(result.snapshotWarning).toContain("this snapshot was not saved");
+    expect(result.latestPrimaryEditPresent).toBe(true);
+    expect(result.primaryPending).toBe(true);
     expect(result.originalLibraryUnchanged).toBe(true);
-    expect(result.latestEditPresent).toBe(true);
+    expect(result.latestSnapshotMatchesLastCommitted).toBe(true);
     expect(result.pendingGenerationRetained).toBe(true);
     expect(Object.values(result.retained)).toEqual([true, true, true]);
     expect(result.queuedWrites).toBe(37);

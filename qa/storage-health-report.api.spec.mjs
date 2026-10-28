@@ -40,3 +40,15 @@ test('changed enumeration cannot be reported as a complete measurement', async (
   const report = await collectStorageHealth({ storage: { get length() { return ++count; }, key: ()=>'key',getItem: ()=>'value' } });
   expect(report.partial).toBe(true);
 });
+
+
+for (const [scope, error, state] of [["owner", "private failure detail", "paused"], ["other", "private failure detail", "unknown"], ["owner", "", "unknown"]]) {
+  test(`snapshot diagnostic is scoped and discards stale legacy outcomes (${scope}, ${state})`, async () => {
+    const manifest = { entries: {}, lastSnapshotError: error,
+      snapshotOutcome: { scope: "owner", state: "paused", error: "private failure detail" } };
+    const report = await collectStorageHealth({ storage: storage({ [storageKey]: JSON.stringify(manifest) }), storageKey, scope });
+    expect(report.snapshotState).toBe(state);
+    expect(JSON.stringify(report)).not.toContain("private failure detail");
+    expect(JSON.stringify(report)).not.toContain('"owner"');
+  });
+}

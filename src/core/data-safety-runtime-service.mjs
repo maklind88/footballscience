@@ -16,6 +16,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     storageKey = "football-data-safety-v1",
     exportSchema = "football-science-backup-v1",
     databaseName = "football-science-data-safety-v1",
+    snapshotDatabaseName = "football-science-browser-snapshots-v2",
     snapshotStoreName = "snapshots",
     latestStoreName = "latest",
     maxSnapshots = 30,
@@ -50,9 +51,13 @@ export function createDataSafetyRuntimeService(deps = {}) {
   let nativeClear = null;
   let nativeKey = null;
   let snapshotTimer = null;
+  let snapshotAttempt = 0;
+  let snapshotOutcome = null;
   let statusTimer = null;
   const { open: openDatabase } = createLocalDatabaseConnection({ getIndexedDB: () => win.indexedDB, databaseName,
     stores: [snapshotStoreName, latestStoreName].map((name) => ({ name, keyPath: "id" })) });
+  const { open: openSnapshotDatabase } = createLocalDatabaseConnection({ getIndexedDB: () => win.indexedDB,
+    databaseName: snapshotDatabaseName, stores: [snapshotStoreName, latestStoreName].map((name) => ({ name, keyPath: "id" })) });
   let installed = false;
 
   function getStorage() {
@@ -492,28 +497,37 @@ export function createDataSafetyRuntimeService(deps = {}) {
   }
 
   async function saveSnapshot(reason = "autosave") {
+    const attempt = ++snapshotAttempt;
     const snapshot = {
       ...createBackupEnvelope(reason),
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     };
     try {
-      const database = await openDatabase();
+      const database = await openSnapshotDatabase();
       const stored = await storeDistinctSnapshot(database, snapshotStoreName, latestStoreName, snapshot, { maxSnapshots, maxSnapshotBytes });
       // A cache copy is not acknowledgement of a failed user save. An in-memory
       // draft may be absent from it, including one created while this write awaited.
-      status.lastSnapshotError = "";
-      mutateManifest((manifest) => {
-        manifest.lastSnapshotAt = stored.createdAt;
-        manifest.lastSnapshotError = "";
-      });
+      if (attempt === snapshotAttempt && snapshot.saveContext.scope === (getCentralStateBridge()?.getReadScope?.() || "")) {
+        status.lastSnapshotError = "";
+        snapshotOutcome = { state: "available", scope: snapshot.saveContext.scope, snapshotAt: stored.createdAt };
+        mutateManifest((manifest) => {
+          manifest.lastSnapshotAt = stored.createdAt;
+          manifest.lastSnapshotError = "";
+          manifest.snapshotOutcome = snapshotOutcome;
+        });
+      }
       queueStatusRefresh();
       return true;
     } catch (error) {
       const message = error?.message || "Backup snapshot could not be saved.";
-      status.lastSnapshotError = message;
-      mutateManifest((manifest) => {
-        manifest.lastSnapshotError = message;
-      });
+      if (attempt === snapshotAttempt && snapshot.saveContext.scope === (getCentralStateBridge()?.getReadScope?.() || "")) {
+        status.lastSnapshotError = message;
+        snapshotOutcome = { state: error?.name === "SnapshotBudgetError" ? "paused" : "failed", scope: snapshot.saveContext.scope, error: message };
+        mutateManifest((manifest) => {
+          manifest.lastSnapshotError = message;
+          manifest.snapshotOutcome = snapshotOutcome;
+        });
+      }
       queueStatusRefresh();
       return false;
     }
@@ -873,6 +887,10 @@ export function createDataSafetyRuntimeService(deps = {}) {
         key: rawKey,
         getItem: (key) => nativeGetItem.call(getStorage(), key),
       },
+      retrySnapshot: async () => {
+        const ok = await saveSnapshot("storage-health-retry");
+        return { ok, state: snapshotOutcome?.state || "unknown" };
+      },
       reviewLibrary: () => getCentralStateBridge()?.reviewLibraryRecovery?.(),
       storageLabels, storageKey, getScope: () => getCentralStateBridge()?.getReadScope?.() || "",
     }));
@@ -918,6 +936,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     createBackupEnvelope,
     waitForTransaction,
     openDatabase,
+    openSnapshotDatabase,
     pruneSnapshots,
     saveSnapshot,
     queueSnapshot,

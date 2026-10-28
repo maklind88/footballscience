@@ -16,7 +16,10 @@ could contain pending or unknown recovery state. A quota failure during insertio
 could prevent the later cleanup from running; a more aggressive pre-cleanup would
 instead risk deleting the only retained work before its replacement committed.
 
-Keep the full v1 envelope and existing database version. Use one read/write
+Keep the full v1 envelope. Write future browser snapshots to the separate
+`football-science-browser-snapshots-v2` database (schema version 1). Keep the
+legacy `football-science-data-safety-v1` database and Sessions journal connection
+unchanged. Do not migrate, copy, clean or remove existing history. Use one read/write
 transaction for inspecting eligibility, retiring replaceable history and writing
 both new copies. Success requires transaction completion. Any synchronous failure,
 request error, budget refusal or transaction abort leaves previous rows intact.
@@ -36,7 +39,16 @@ transaction: an actual quota failure must still roll back safely.
   have matching manifest metadata. The legacy short hash is a consistency veto,
   not an independent central receipt or permission to retire pending work.
 - Unknown fields/shapes, missing acknowledgements, prepared writes, other scopes,
-  pending entries and recovery payloads are protected. No age-based expiry exists.
+  pending entries and recovery payloads are protected from ordinary rotation. No
+  age-based expiry exists. A replacement may retire an old row only when it carries
+  the protected values and metadata exactly, or retains the exact payload with an
+  accepted receipt for that same generation. Generation identity includes scope,
+  write counter, timestamp, hash, pending base revision and deletion intent; the
+  accepted revision must advance beyond the pending base. A hash alone is never
+  acceptance. Missing raw data requires explicit deletion intent for that transition.
+- Recovery payloads/separations require preservation of their entire prior storage
+  and metadata context. We do not infer which surrounding fields they depend on.
+  Standalone pruning cannot use replacement proof because it commits no new copy.
 - Dedicated Sessions recovery rows are skipped without reading their payloads.
   Sessions rows in `latest` and other stores are untouched and outside this budget.
 - The new history row cannot be retired to make its own admission appear successful.
@@ -60,64 +72,86 @@ It now stops before any restoration writes, central queueing, import success mar
 or reload. Existing recovery review and authorization checks remain in place.
 This does not newly certify concurrent multi-tab restore or the entire restore flow.
 
+## Receipt capture and user-visible pause
+
+The central runtime optionally captures a snapshot immediately after its existing
+verified receipt has durably updated the manifest, before later UI callbacks can
+create a successor edit. Exact read acknowledgements use the same hook. Capture
+failure, rejection or noncompletion cannot reject a central save. Server requests,
+permissions, conflict handling and acknowledgement eligibility are unchanged.
+Capturing a snapshot still copies the full envelope; this is not a delta journal.
+
+Storage health distinguishes available, paused, failed and unknown browser snapshot
+outcomes, scoped to the current account/team and cross-checked against legacy
+manifest fields. It explicitly separates snapshot status from module/central save
+status. Failed or paused copies offer a retry without clearing data or resolving
+conflicts. Account changes block retry/status publication; stale results do not
+replace a newer attempt's diagnostic. After retry the inventory asks to reopen for
+fresh measurements rather than claiming that no data changed.
+
+## Old-client and rollback boundary
+
+The separate snapshot database prevents already-open old writers and rollback
+writers from pruning future copies. The legacy `openDatabase` connection continues
+to serve Sessions recovery unchanged; `openSnapshotDatabase` owns the new copies.
+Diagnostics inventory both databases without exposing payloads. A frozen writer
+from main commit `845a0ed95bbd8795bf574a8aeb0c9f37ed903250` exercises actual old
+write/prune behavior in another tab and in a fresh rollback tab. Tests prove old
+pruning ran, legacy Sessions pending/fallback rows remained, and the new protected
+copy survived that pruning and reload.
+
+This is isolation of future snapshot retention, not certification of every old
+client's saving behavior. Old UI does not discover the new snapshot database.
+Legacy history remains governed by any old client still writing there. Both
+locations share the browser's origin quota; separation creates no extra capacity.
+No forced reload may discard volatile or offline work.
+
 ## Verification and release boundary
 
 Tests cover count and serialized-byte admission, pending/unknown/foreign/recovery
-protection, unknown future fields, latest-without-history preservation, duplicate
-identity refusal, competing writers, unchanged protected Sessions rows, atomic
-rollback after quota/request/put failure, a repeated-edit sequence and reload,
-existing deduplication and database version compatibility, snapshot/save-status
+protection, future fields, exact generation versus wrong generation acceptance,
+latest-without-history preservation, duplicate identity refusal, competing writers,
+unchanged Sessions rows, atomic rollback after quota/request/put failure, repeated
+editing and reload, deduplication, database compatibility, snapshot/save-status
 separation, and restore refusal when its protective snapshot cannot commit.
 
-The initial ten-case regression run against the old writer failed nine cases;
-its existing abort protection passed. Follow-up tests cover additional boundaries.
-A synthetic 30 MiB history is also measured without claiming a production SLO.
-Final local validation passed: `npm run qa:static` (including `npm run check`,
-storage/security guards and architecture budgets), `git diff --check`, 74 API
-contracts, 61 Chromium cases and 46 WebKit cases: 181 targeted cases total.
-The browser union includes retention/growth/dedup/status, Sessions storage,
-database compatibility, Medical working drafts, full-app storage failures,
-new-work peer visibility and offline restart/replay. The final synthetic 30 MiB
-history replacement took about 94 ms in Chromium and 71 ms in WebKit on this
-machine. These single observations are not production latency guarantees.
+The repeated-receipt fixture wires the real central runtime to the real snapshot
+service: twelve pending-to-accepted generations remain within one history slot.
+Another fixture retains unchanged pending work across 25 acknowledged changes.
+Pause/retry is exercised through the actual Storage health dialog, including a
+wrong-generation refusal and account transition. These are synthetic local tests,
+not authenticated staging or production acceptance.
 
-The old writer failed 9/10 initial targeted regression cases. The existing
-unknown-history pruning fixture was deliberately tightened: its 40 metadata-free
-rows must now be retained rather than treated as expendable by key alone. This
-is an intentional safety-policy change, not a weakened test assertion.
+The initial old-writer regression failed nine of ten cases; its abort protection
+passed. The earlier candidate `37598bfcc4998178cee27352219e73cece3f22b7` passed 181
+local targeted cases and the full GitHub QA/CodeQL workflow. This follow-up passed
+414 targeted cases: 232 API contracts, 91 Chromium and 91 WebKit cases.
+`npm run qa:static` (including syntax, storage/security and architecture guards)
+and `git diff --check` also passed. Full GitHub CI for the follow-up commit remains
+a separate check. A previous synthetic 30 MiB replacement
+observation was approximately 94 ms in Chromium and 71 ms in WebKit; these single
+observations are not production latency guarantees or an overhead budget for
+receipt-driven capture.
 
-Full repository CI and authenticated staging/production acceptance remain separate.
-No percentage or all-module certification follows from these checks.
-
-This candidate follows the storage-growth characterization PR #290. Its baseline
-measurement remains a historical observation, not a requirement to keep generating
-31 full payload copies. The assertions must accept explicit budget refusal while
-proving the latest primary value and pending generation remain untouched.
-
-No staging/main/production release has been started. A direct user release command
-and Safe Lane validation are required. PR #291's independent diagnostic change is
-not bundled here; its full GitHub QA and CodeQL passed at the final status check.
+This candidate follows storage-growth PR #290. It does not bundle PR #291's
+independent bounded diagnostic scans; integration must retain those scan limits
+alongside the new database inventory. The save-status scope correction in PR #289
+also remains a separate candidate. No staging/main/production release has started.
+Direct user release authorization and Safe Lane validation are required.
 
 ## Remaining obligations / critique
 
-This is containment, not the complete storage solution. It does not shrink the
-underlying localStorage values or remove cross-module full-envelope amplification.
-It does not automatically retire historical pending generations when later writes
-are accepted: inferring that from a new global sync timestamp would be unsafe.
-Protected data can therefore fill the budget and pause future optional snapshots.
-Before promoting this candidate, validate that paused state and its recovery path
-on representative fixtures; define owner/generation-specific retirement and the
-user-visible response. Ordinary snapshot/orphan retention does not itself provide
-a newly certified recovery UI. Never present the pause as a successful backup.
-The narrower save-status scope correction in PR #289 should also be included in
-production acceptance; it remains a separate candidate.
+This is containment, not the complete storage solution. Distinct unresolved
+protected generations can still fill the budget and pause optional snapshots.
+Exact replacement cannot replace owner-specific review or safely discard a
+conflict. Historical pending generations with no exact receipt remain protected.
+Recovery review/export accessibility, receipt-capture overhead under sustained
+load, browser eviction, physical quota/localStorage exhaustion, full-envelope
+amplification and cross-tab diagnostic freshness still need separate acceptance.
+Adding a database does not reduce existing disk usage.
 
-Already open old clients still have the old writer and pruning policy; rollback
-restores that policy too. The unchanged data format remains readable, but stronger
-retention is not guaranteed while old writers run. Deployment acceptance must
-include that boundary and an explicit client-update strategy.
-
-Other journals, browser eviction, localStorage quota, memory-only drafts, central
-read visibility, distinct-user conflict handling and all-module acceptance remain
-separate obligations. No cache clearing or historical review resolution is part
-of this candidate. The live device report remains local and is not published here.
+The primary journals, memory-only drafts, central read visibility, distinct-user
+conflict handling and all-module acceptance remain separate obligations. No cache
+clearing or historical review resolution is part of this candidate. The live
+device report remains local and is not published here. No platform completion
+percentage follows from this scoped evidence.

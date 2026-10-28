@@ -13,19 +13,32 @@ function hashString(value) {
   return (hash >>> 0).toString(36);
 }
 
+export function knownSnapshotShape(row, scope) {
+  return row?.schema === "football-science-backup-v1" && row.app === "Football Science" &&
+    !Object.keys(row).some(key => !snapshotFields.has(key)) && typeof scope === "string" && Boolean(scope) &&
+    row.saveContext?.scope === scope && record(row.storage) && record(row.saveContext.entries) &&
+    !Object.keys(row.saveContext).some(key => !["scope", "entries"].includes(key)) &&
+    record(row.recoveryCopies) && record(row.recoveryState) && Array.isArray(row.recoverySeparations) &&
+    row.recoverySeparations.every(key => typeof key === "string");
+}
+
+export function knownSnapshotEntry(entry, scope) {
+  return record(entry) && !Object.keys(entry).some(key => !entryFields.has(key)) && entry.principalScope === scope;
+}
+
+export function acknowledgedSnapshotEntry(entry, scope, storage, key) {
+  return knownSnapshotEntry(entry, scope) && entry.pendingCentralSync === false && !entry.localWritePrepared &&
+    Number.isInteger(entry.serverRevision) && entry.serverRevision > 0 &&
+    (!Object.hasOwn(storage, key) || (typeof storage[key] === "string" && entry.hash === hashString(storage[key])));
+}
+
 // Missing/foreign ownership, recovery state and unacknowledged generations are
 // protected. A hash is only a consistency veto, never proof of central acceptance.
 export function canRotateSnapshot(row, scope) {
-  if (row?.schema !== "football-science-backup-v1" || row.app !== "Football Science" || Object.keys(row).some(key => !snapshotFields.has(key)) ||
-      typeof scope !== "string" || !scope || row.saveContext?.scope !== scope ||
-      !record(row.storage) || Object.keys(row.saveContext).some(key => !["scope", "entries"].includes(key)) || !record(row.saveContext.entries) || !empty(row.recoveryCopies) ||
-      !empty(row.recoveryState) || !Array.isArray(row.recoverySeparations) || row.recoverySeparations.length) return false;
+  if (!knownSnapshotShape(row, scope) || !empty(row.recoveryCopies) || !empty(row.recoveryState) || row.recoverySeparations.length) return false;
   const entries = row.saveContext.entries;
-  if (Object.values(entries).some(entry => !record(entry) || Object.keys(entry).some(key => !entryFields.has(key)) || entry.principalScope !== scope ||
-      entry.pendingCentralSync !== false || entry.localWritePrepared ||
-      !Number.isInteger(entry.serverRevision) || entry.serverRevision <= 0)) return false;
-  return Object.entries(row.storage).every(([key, value]) => typeof value === "string" &&
-    Object.hasOwn(entries, key) && entries[key].hash === hashString(value));
+  const keys = new Set([...Object.keys(entries), ...Object.keys(row.storage)]);
+  return [...keys].every(key => acknowledgedSnapshotEntry(entries[key], scope, row.storage, key));
 }
 
 export function snapshotBudgetError() {

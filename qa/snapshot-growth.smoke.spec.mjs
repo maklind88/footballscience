@@ -37,7 +37,7 @@ for (const libraryKiB of [128, 1024]) {
       const win = { localStorage, indexedDB, crypto, location: { href: "https://synthetic.invalid" },
         setTimeout: () => ++timer, clearTimeout() {}, addEventListener() {} };
       const service = createDataSafetyRuntimeService({ win, documentRef: document, navigatorRef: {}, storageConstructor: Storage,
-        databaseName, protectedStorageKeys: [libraryKey, scheduleKey],
+        snapshotDatabaseName: databaseName, protectedStorageKeys: [libraryKey, scheduleKey],
         getCentralStateBridge: () => ({ getReadScope: () => "synthetic-owner", getStatus: () => ({}) }),
         queueCentralStateWrite: () => { queuedWrites++; return true; },
       });
@@ -86,7 +86,7 @@ for (const libraryKiB of [128, 1024]) {
         snapshotWarning: service.readManifest().lastSnapshotError,
         pendingGenerationRetained: latest.saveContext.entries[scheduleKey]?.pendingCentralSync === true,
         metric: "Serialized JSON UTF-8 bytes; not browser physical usage or localStorage quota." };
-      (await service.openDatabase()).close(); database.close();
+      (await service.openSnapshotDatabase()).close(); database.close();
       return output;
     }, libraryKiB);
     const reportPath = testInfo.outputPath("snapshot-growth.json");

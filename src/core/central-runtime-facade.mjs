@@ -138,6 +138,7 @@ export function createCentralRuntimeFacade(deps = {}) {
     readManifest: dataSafetyRuntimeService.readManifest,
     periodizationStorageKey: storageKeys.periodizationStorageKey,
     queueSnapshot: dataSafetyRuntimeService.queueSnapshot,
+    captureReceiptSnapshot: dataSafetyRuntimeService.saveSnapshot,
     queueStatusRefresh: dataSafetyRuntimeService.queueStatusRefresh,
     rawGetItem: dataSafetyRuntimeService.rawGetItem,
     rawSetItem: dataSafetyRuntimeService.rawSetItem,

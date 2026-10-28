@@ -1,3 +1,4 @@
+import { canReplaceSnapshot } from "./snapshot-replacement-proof.mjs";
 import { canRotateSnapshot, isDedicatedRecoveryKey, planSnapshotRetirement, snapshotBytes, snapshotBudgetError } from "./snapshot-retention-policy.mjs";
 
 // Compare the recoverable contents, never only a short hash or the snapshot time.
@@ -76,7 +77,8 @@ function transactSnapshots(database, snapshotStore, latestStore, snapshot, optio
             try {
               const value = request.result;
               rows.push({ id: cursor.primaryKey, bytes: snapshotBytes(value),
-                rotatable: canRotateSnapshot(value, scope) && (Boolean(snapshot) || cursor.primaryKey !== previous?.sourceSnapshotId) });
+                rotatable: (canRotateSnapshot(value, scope) || (snapshot && canReplaceSnapshot(value, snapshot))) &&
+                  (Boolean(snapshot) || cursor.primaryKey !== previous?.sourceSnapshotId) });
               cursor.continue();
             } catch (error) { abort(error); }
           };

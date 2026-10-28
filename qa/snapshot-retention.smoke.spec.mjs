@@ -141,7 +141,7 @@ test("repeated small edits stop snapshot growth without acknowledging or discard
       setTimeout: () => 1, clearTimeout() {}, addEventListener() {} };
     let queued = 0;
     const service = createDataSafetyRuntimeService({ win, storageConstructor: Storage, navigatorRef: {}, documentRef: document,
-      databaseName, maxSnapshotBytes: 128 * 1024, protectedStorageKeys: [key, library],
+      snapshotDatabaseName: databaseName, maxSnapshotBytes: 128 * 1024, protectedStorageKeys: [key, library],
       getCentralStateBridge: () => ({ getReadScope: () => "owner", getStatus: () => ({}) }),
       queueCentralStateWrite: () => { queued++; return true; } });
     service.install();
@@ -150,7 +150,7 @@ test("repeated small edits stop snapshot growth without acknowledging or discard
       localStorage.setItem(key, `edit-${i}`);
       outcomes.push(await service.saveSnapshot("synthetic-edit"));
     }
-    const db = await service.openDatabase();
+    const db = await service.openSnapshotDatabase();
     const read = name => new Promise(resolve => { const r = db.transaction(name).objectStore(name).getAll(); r.onsuccess = () => resolve(r.result); });
     const history = await read("snapshots"), latest = await read("latest");
     const output = { outcomes, bytes: [...history, ...latest].reduce((total, row) => total + JSON.stringify(row).length * 2, 0),

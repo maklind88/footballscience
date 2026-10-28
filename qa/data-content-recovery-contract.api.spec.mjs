@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 test("normal API QA runs offline recovery guards without accessing production credentials", () => {
   const root = fileURLToPath(new URL("../", import.meta.url));
-  const result = spawnSync(process.execPath, ["--test", "qa/data-content-recovery.test.mjs"], {
+  const result = spawnSync(process.execPath, ["--test", "qa/data-content-recovery.test.mjs", "qa/data-content-recovery-process.test.mjs"], {
     cwd: root, encoding: "utf8", timeout: 15_000,
     env: { PATH: process.env.PATH, HOME: root, GITHUB_ACTIONS: "false" },
   });

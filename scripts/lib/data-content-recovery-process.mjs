@@ -15,34 +15,46 @@ export function postgresRunner(bin, root, signal) {
     let output = [];
     let bytes = 0;
     let failed = false;
+    let failureKind = "";
+    let ioCode = "";
     let forceTimer;
     const child = spawn(join(bin, tool), args, { cwd: root, env: { ...base, ...env }, stdio: ["pipe", "pipe", "pipe"] });
-    function stop() {
+    function stop(reason = "cancelled") {
       failed = true;
+      failureKind ||= reason;
       // psql/pg_dump SIGINT sends PostgreSQL's query-cancel request before disconnecting.
       child.kill(tool === "psql" || tool === "pg_dump" ? "SIGINT" : "SIGTERM");
       forceTimer ??= setTimeout(() => child.kill("SIGKILL"), 1000);
     }
-    const timer = setTimeout(stop, timeout);
-    const abort = () => stop();
+    const timer = setTimeout(() => stop("timeout"), timeout);
+    const abort = () => stop("aborted");
     if (!cleanup) signal?.addEventListener("abort", abort, { once: true });
     const done = new Promise((resolve, reject) => {
-      child.on("error", () => { failed = true; });
-      child.stdin.on("error", () => { failed = true; });
+      const ioFailure = (kind, error) => {
+        failed = true; failureKind ||= kind;
+        // Only a fixed code allowlist; never expose paths, SQL, values or stderr.
+        if (["EPIPE", "ENOENT", "EACCES", "ENOTCONN", "ECONNRESET", "EMFILE"].includes(error?.code)) ioCode = error.code;
+      };
+      child.on("error", error => ioFailure("spawn", error));
+      child.stdin.on("error", error => ioFailure("stdin", error));
       child.stderr.on("data", () => { /* Never publish raw database errors, values or SQL. */ });
       child.stdout.on("data", (chunk) => {
         bytes += chunk.length;
-        if (bytes > maxBytes) return stop();
+        if (bytes > maxBytes) return stop("output-limit");
         try {
           if (onChunk) onChunk(chunk);
           else output.push(chunk);
-        } catch { stop(); }
+        } catch { stop("consumer"); }
       });
-      child.on("close", (code) => {
+      child.on("close", (code, signalName) => {
         clearTimeout(timer);
         clearTimeout(forceTimer);
         signal?.removeEventListener("abort", abort);
-        if (failed || code !== 0) reject(new Error(`postgres-command-failed:${tool}`));
+        if (failed || code !== 0) {
+          const exit = Number.isInteger(code) ? code : "none";
+          const signalLabel = ["SIGTERM", "SIGKILL", "SIGINT", "SIGSEGV", "SIGABRT"].includes(signalName) ? signalName : "none";
+          reject(new Error(`postgres-command-failed:${tool}:${failureKind || "exit"}:code=${exit}:signal=${signalLabel}${ioCode ? `:io=${ioCode}` : ""}`));
+        }
         else resolve(Buffer.concat(output).toString("utf8"));
         output = [];
       });

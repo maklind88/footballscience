@@ -51,6 +51,8 @@ jobs:
           printf '%s\n' 'deb [signed-by=/usr/share/keyrings/fs-recovery-pgdg.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main' | sudo tee /etc/apt/sources.list.d/fs-recovery-pgdg.list > /dev/null
           sudo apt-get update -qq
           sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends postgresql-17 postgresql-client-17
+      - name: Verify bounded PostgreSQL process diagnostics
+        run: node --test qa/data-content-recovery-process.test.mjs
       - name: Parse migrations, export, restore and test concurrent saves without live credentials
         env:
           FS_RECOVERY_PG_BIN: /usr/lib/postgresql/17/bin

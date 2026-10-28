@@ -83,7 +83,7 @@ for (const libraryKiB of [128, 1024]) {
         latestSnapshotMatchesLastCommitted: latest.storage[scheduleKey] === schedule(lastCommittedEdit),
         latestPrimaryEditPresent: localStorage.getItem(scheduleKey) === schedule(36),
         primaryPending: service.readManifest().entries[scheduleKey]?.pendingCentralSync === true,
-        snapshotWarning: service.readManifest().lastSnapshotError,
+        snapshotWarning: service.readSnapshotDiagnostics().lastSnapshotError,
         pendingGenerationRetained: latest.saveContext.entries[scheduleKey]?.pendingCentralSync === true,
         metric: "Serialized JSON UTF-8 bytes; not browser physical usage or localStorage quota." };
       (await service.openSnapshotDatabase()).close(); database.close();

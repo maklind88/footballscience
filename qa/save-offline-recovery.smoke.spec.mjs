@@ -67,7 +67,8 @@ async function boot(page, server, principal = scope) {
   }, { url: server.url, value: server.state.value, revision: server.state.revision, principal });
 }
 
-test("Sessions offline commit survives a fully closed browser profile and replays once after reconnect", async ({ playwright, browserName, baseURL }) => {
+for (const snapshotsPaused of [false, true]) {
+test(`Sessions offline commit survives a fully closed browser profile and replays once after reconnect (snapshots paused: ${snapshotsPaused})`, async ({ playwright, browserName, baseURL }) => {
   const profile = await mkdtemp(join(tmpdir(), "fs-save-restart-"));
   const server = await saveServer(baseURL);
   let context;
@@ -75,6 +76,24 @@ test("Sessions offline commit survives a fully closed browser profile and replay
     context = await playwright[browserName].launchPersistentContext(profile, { headless: true });
     let page = await context.newPage();
     await boot(page, server);
+    if (snapshotsPaused) {
+      const paused = await page.evaluate(async scope => {
+        const { createDataSafetyRuntimeService } = await import("/src/core/data-safety-runtime-service.mjs");
+        const key = "synthetic-protected-work";
+        const service = createDataSafetyRuntimeService({ protectedStorageKeys: [key], maxSnapshots: 1,
+          getCentralStateBridge: () => ({ getReadScope: () => scope, getStatus: () => ({}) }) });
+        service.install();
+        const nativeSet = service.rawSetItem;
+        nativeSet(key, "unresolved version one");
+        service.mutateManifest(manifest => { manifest.entries[key] = { principalScope: scope, pendingCentralSync: true, writes: 1 }; });
+        if (!await service.saveSnapshot("synthetic-before-full")) throw new Error("Initial copy failed");
+        nativeSet(key, "unresolved version two");
+        service.mutateManifest(manifest => { manifest.entries[key].writes = 2; });
+        const ok = await service.saveSnapshot("synthetic-full");
+        return { ok, state: service.readSnapshotDiagnostics().snapshotOutcome.state };
+      }, scope);
+      expect(paused).toEqual({ ok: false, state: "paused" });
+    }
     await context.setOffline(true);
     const desired = initial(); desired.sessions[date].blocks[0].objective = "Offline objective";
     expect(await page.evaluate((value) => window.saveClient.save(JSON.stringify(value)), desired)).toMatchObject({ ok: false, durablePending: true });
@@ -107,6 +126,18 @@ test("Sessions offline commit survives a fully closed browser profile and replay
     expect(server.state.value.sessions[date].blocks[0].objective).toBe("Offline objective");
     expect(await page.evaluate((scope) => window.saveStore.list(scope), scope)).toEqual([]);
     expect(await page.evaluate(() => window.saveClient.isSettled())).toBe(true);
+    if (snapshotsPaused) {
+      const retained = await page.evaluate(async () => {
+        const { createDataSafetyRuntimeService } = await import("/src/core/data-safety-runtime-service.mjs");
+        const service = createDataSafetyRuntimeService();
+        const db = await service.openSnapshotDatabase();
+        const rows = await new Promise(resolve => { const r = db.transaction("snapshots").objectStore("snapshots").getAll(); r.onsuccess = () => resolve(r.result); });
+        db.close();
+        return { count: rows.length, value: rows[0].storage["synthetic-protected-work"],
+          current: localStorage.getItem("synthetic-protected-work") };
+      });
+      expect(retained).toEqual({ count: 1, value: "unresolved version one", current: "unresolved version two" });
+    }
     expect(await page.evaluate(async (scope) => {
       const { createOfflineOperationJournal } = await import("/src/core/offline-operation-journal.mjs");
       const journal = createOfflineOperationJournal();
@@ -116,6 +147,7 @@ test("Sessions offline commit survives a fully closed browser profile and replay
     await context?.close(); await server.close(); await rm(profile, { recursive: true, force: true });
   }
 });
+}
 
 for (const sameField of [false, true]) {
   test(`two independent Sessions users ${sameField ? "retain a same-field conflict for review" : "merge independent fields through revision CAS"}`, async ({ browser, baseURL }) => {

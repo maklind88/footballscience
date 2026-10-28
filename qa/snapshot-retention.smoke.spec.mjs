@@ -155,7 +155,7 @@ test("repeated small edits stop snapshot growth without acknowledging or discard
     const history = await read("snapshots"), latest = await read("latest");
     const output = { outcomes, bytes: [...history, ...latest].reduce((total, row) => total + JSON.stringify(row).length * 2, 0),
       raw: localStorage.getItem(key), queued, pending: service.readManifest().entries[key].pendingCentralSync,
-      warning: service.readManifest().lastSnapshotError, databaseName, ids: history.map(row => row.id) };
+      warning: service.readSnapshotDiagnostics().lastSnapshotError, databaseName, ids: history.map(row => row.id) };
     db.close(); return output;
   });
   expect(result.outcomes[0]).toBe(true);

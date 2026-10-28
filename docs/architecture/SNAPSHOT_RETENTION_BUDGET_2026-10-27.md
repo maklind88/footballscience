@@ -77,13 +77,18 @@ This does not newly certify concurrent multi-tab restore or the entire restore f
 The central runtime optionally captures a snapshot immediately after its existing
 verified receipt has durably updated the manifest, before later UI callbacks can
 create a successor edit. Exact read acknowledgements use the same hook. Capture
-failure, rejection or noncompletion cannot reject a central save. Server requests,
+failure, rejection or noncompletion cannot reject a central save. Identical
+in-flight copies share one commit result before hashing the summary or scheduling
+a database transaction. Equality compares the actual values, scope, generation and
+recovery metadata; it does not rely on a short hash. Different versions never join. Server requests,
 permissions, conflict handling and acknowledgement eligibility are unchanged.
 Capturing a snapshot still copies the full envelope; this is not a delta journal.
 
 Storage health distinguishes available, paused, failed and unknown browser snapshot
-outcomes, scoped to the current account/team and cross-checked against legacy
-manifest fields. It explicitly separates snapshot status from module/central save
+outcomes, scoped to the current account/team and internally cross-checked. The
+follow-up stores these diagnostics in one dedicated `:snapshot-status` localStorage
+record. Snapshot completion no longer rewrites the primary pending-save manifest.
+Legacy snapshot fields remain untouched and are not treated as fresh diagnostics. It explicitly separates snapshot status from module/central save
 status. Failed or paused copies offer a retry without clearing data or resolving
 conflicts. Account changes block retry/status publication; stale results do not
 replace a newer attempt's diagnostic. After retry the inventory asks to reopen for
@@ -155,3 +160,62 @@ conflict handling and all-module acceptance remain separate obligations. No cach
 clearing or historical review resolution is part of this candidate. The live
 device report remains local and is not published here. No platform completion
 percentage follows from this scoped evidence.
+
+
+## Follow-up: pressure, concurrency and CI startup (28 October 2026)
+
+The original failed PostgreSQL job (40612401263) failed in the initial process
+startup before the paged-backup assertions. Added bounded process diagnostics keep
+stderr/SQL/data private while distinguishing spawn, stdin, output-budget, timeout
+and exit failures. The diagnostic job (40614066659) reproduced EPIPE on a quick
+synthetic command with empty stdin. Commands without input now use an ignored
+stdin descriptor; SQL and held snapshot connections retain their pipe and fail
+on undelivered input. PostgreSQL job 40614304246 passed after this change. This
+fix changes process plumbing, not SQL, schema, permissions or backup policy.
+
+The initial two pressure/concurrency tests failed because snapshot completion
+rewrote the primary manifest. Snapshot diagnostics now use a separate single
+record, avoiding that particular read/modify/write race with module pending
+metadata. Two real browser tabs and a 20-call / 2 MiB burst assert zero snapshot
+writes to that manifest. This does not certify atomicity of all other manifest
+writers or cross-tab freshness of advisory snapshot diagnostics.
+
+Before coalescing, a synthetic 20-call identical burst blocked capture for roughly
+53–150 ms in local observations and scheduled redundant transactions. After
+coalescing, one observed Chromium run captured in about 6 ms and finished in about
+15 ms, with one transaction and one history row. These are synthetic observations,
+not an SLO or proof about phones. All 20 callers still read current native values
+for exact comparison; different incoming generations are not bounded by this
+coalescing optimization. Tests reject sharing across payload/generation/scope
+changes and require all joined callers to receive failure on a quota fault, with
+a later retry able to succeed.
+
+The Sessions restart/replay scenario now also runs with the snapshot budget
+already blocked by two distinct unresolved versions. New Sessions work commits
+offline, survives a fully closed browser profile, stays invisible to another
+scope, and replays once on reconnect. Both old protected work and current work
+remain present. This proves the primary journal can recover independently of a
+paused optional snapshot; it does not certify a user-facing browser-snapshot
+selection/export/import flow under physical quota exhaustion.
+
+Release remains blocked on final candidate validation and the outstanding
+acceptance work. The original failing test is not waived. All-module acceptance,
+a bounded strategy for many distinct rapid versions, advisory diagnostics under
+cross-tab races, physical quota, and the retained-copy recovery UI remain open.
+
+
+Final local follow-up validation: 529 targeted Playwright cases passed (233 API,
+148 Chromium, 148 WebKit), plus `qa:static` and `git diff --check`. The process
+wrapper also runs 22 native Node checks as part of the API guard. WebKit's synthetic
+20-call / 2 MiB duplicate burst recorded one transaction, roughly 6 ms synchronous
+capture and 11 ms total on this machine. Raw protected content is never logged.
+The final combined commit still needs its own GitHub CI results.
+
+| Acceptance boundary | Current evidence | Still required |
+| --- | --- | --- |
+| PostgreSQL tool startup and real backup contracts | Synthetic process regression and GitHub job 40614304246 pass | Final combined SHA CI |
+| Snapshot completion versus pending module metadata | Zero primary-manifest writes in burst and two-tab tests | Other primary manifest writers are outside this correction |
+| Identical concurrent capture | One transaction; exact equality; shared success/failure; different generations stay distinct | Sustained distinct-version load and resource bounds |
+| Sessions recovery with full snapshot history | Offline commit, full browser restart, scoped replay exactly once; originals retained, Chromium/WebKit | Physical-device quota acceptance and snapshot-selection UI |
+| Medical regression boundary | Working drafts, draft verification/recovery and central visibility under cache faults pass, Chromium/WebKit, synthetic server fixtures | Authenticated release acceptance for the exact combined build |
+| Whole platform | No new blanket certification | Module-by-module acceptance remains open |

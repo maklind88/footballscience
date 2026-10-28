@@ -46,7 +46,7 @@ for (const [scope, error, state] of [["owner", "private failure detail", "paused
   test(`snapshot diagnostic is scoped and discards stale legacy outcomes (${scope}, ${state})`, async () => {
     const manifest = { entries: {}, lastSnapshotError: error,
       snapshotOutcome: { scope: "owner", state: "paused", error: "private failure detail" } };
-    const report = await collectStorageHealth({ storage: storage({ [storageKey]: JSON.stringify(manifest) }), storageKey, scope });
+    const report = await collectStorageHealth({ storage: storage({ [`${storageKey}:snapshot-status`]: JSON.stringify(manifest) }), storageKey, scope });
     expect(report.snapshotState).toBe(state);
     expect(JSON.stringify(report)).not.toContain("private failure detail");
     expect(JSON.stringify(report)).not.toContain('"owner"');

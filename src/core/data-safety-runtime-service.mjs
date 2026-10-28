@@ -1,5 +1,5 @@
 import { createLocalSaveIssues } from "./local-save-issues.mjs";
-import { pruneSnapshotHistory, storeDistinctSnapshot } from "./distinct-snapshot-store.mjs";
+import { sameSnapshotContents, pruneSnapshotHistory, storeDistinctSnapshot } from "./distinct-snapshot-store.mjs";
 import { openStorageHealth } from "./storage-health-dialog.mjs";
 import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
 import { createLocalDatabaseConnection } from "./local-database-connection.mjs";
@@ -51,6 +51,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
   let nativeClear = null;
   let nativeKey = null;
   let snapshotTimer = null;
+  const snapshotFlights = new Set();
   let snapshotAttempt = 0;
   let snapshotOutcome = null;
   let statusTimer = null;
@@ -440,7 +441,17 @@ export function createDataSafetyRuntimeService(deps = {}) {
     return data;
   }
 
-  function createBackupEnvelope(reason = "manual") {
+  function summarizeSnapshotStorage(storage) {
+    const entries = Object.entries(storage).map(([key, value]) => ({
+      key,
+      label: getStorageLabel(key),
+      size: value.length,
+      hash: hashString(value),
+    }));
+    return { keyCount: entries.length, totalBytes: entries.reduce((total, entry) => total + entry.size, 0), entries };
+  }
+
+  function createBackupEnvelope(reason = "manual", deferSummary = false) {
     const storage = collectStorageData();
     const manifest = readManifest();
     const recoverySeparations = [...protectedStorageKeySet].filter((key) =>
@@ -451,23 +462,13 @@ export function createDataSafetyRuntimeService(deps = {}) {
       entry: manifest.entries[key] || null,
       marker: key === "football-medical-team-v1" ? nativeGetItem?.call(getStorage(), `${storageKey}:medical-recovery`) ?? null : null,
     }]));
-    const entries = Object.entries(storage).map(([key, value]) => ({
-      key,
-      label: getStorageLabel(key),
-      size: value.length,
-      hash: hashString(value),
-    }));
     return {
       schema: exportSchema,
       app: "Football Science",
       createdAt: getNow(),
       reason,
       source: win.location?.href,
-      summary: {
-        keyCount: entries.length,
-        totalBytes: entries.reduce((total, entry) => total + entry.size, 0),
-        entries,
-      },
+      summary: deferSummary ? null : summarizeSnapshotStorage(storage),
       storage,
       recoveryCopies: collectRecoveryCopies(),
       saveContext: {
@@ -496,12 +497,34 @@ export function createDataSafetyRuntimeService(deps = {}) {
     return pruneSnapshotHistory(database, snapshotStoreName, latestStoreName, { maxSnapshots, maxSnapshotBytes });
   }
 
+  // Optional backup diagnostics never rewrite primary pending-save metadata.
+  function readSnapshotDiagnostics() {
+    try {
+      const value = JSON.parse(nativeGetItem?.call(getStorage(), `${storageKey}:snapshot-status`) || "{}");
+      return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    } catch { return {}; }
+  }
+
+  function publishSnapshotOutcome(outcome) {
+    snapshotOutcome = outcome;
+    const diagnostic = { snapshotOutcome: outcome, lastSnapshotAt: outcome.snapshotAt || "",
+      lastSnapshotError: outcome.error || "" };
+    try { nativeSetItem?.call(getStorage(), `${storageKey}:snapshot-status`, JSON.stringify(diagnostic)); }
+    catch { /* Diagnostics are best effort; never change primary save status. */ }
+  }
+
   async function saveSnapshot(reason = "autosave") {
-    const attempt = ++snapshotAttempt;
-    const snapshot = {
-      ...createBackupEnvelope(reason),
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    };
+    const snapshot = { ...createBackupEnvelope(reason, true), id: `${Date.now()}-${Math.random().toString(16).slice(2)}` };
+    // Capture first, then join only an exact in-flight copy, including scope and
+    // recovery metadata. Every caller receives the same durable commit outcome.
+    for (const flight of snapshotFlights) if (sameSnapshotContents(flight.snapshot, snapshot)) return flight.promise;
+    snapshot.summary = summarizeSnapshotStorage(snapshot.storage);
+    const flight = { snapshot, promise: persistSnapshot(snapshot, ++snapshotAttempt) };
+    snapshotFlights.add(flight);
+    try { return await flight.promise; } finally { snapshotFlights.delete(flight); }
+  }
+
+  async function persistSnapshot(snapshot, attempt) {
     try {
       const database = await openSnapshotDatabase();
       const stored = await storeDistinctSnapshot(database, snapshotStoreName, latestStoreName, snapshot, { maxSnapshots, maxSnapshotBytes });
@@ -509,12 +532,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       // draft may be absent from it, including one created while this write awaited.
       if (attempt === snapshotAttempt && snapshot.saveContext.scope === (getCentralStateBridge()?.getReadScope?.() || "")) {
         status.lastSnapshotError = "";
-        snapshotOutcome = { state: "available", scope: snapshot.saveContext.scope, snapshotAt: stored.createdAt };
-        mutateManifest((manifest) => {
-          manifest.lastSnapshotAt = stored.createdAt;
-          manifest.lastSnapshotError = "";
-          manifest.snapshotOutcome = snapshotOutcome;
-        });
+        publishSnapshotOutcome({ state: "available", scope: snapshot.saveContext.scope, snapshotAt: stored.createdAt });
       }
       queueStatusRefresh();
       return true;
@@ -522,11 +540,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       const message = error?.message || "Backup snapshot could not be saved.";
       if (attempt === snapshotAttempt && snapshot.saveContext.scope === (getCentralStateBridge()?.getReadScope?.() || "")) {
         status.lastSnapshotError = message;
-        snapshotOutcome = { state: error?.name === "SnapshotBudgetError" ? "paused" : "failed", scope: snapshot.saveContext.scope, error: message };
-        mutateManifest((manifest) => {
-          manifest.lastSnapshotError = message;
-          manifest.snapshotOutcome = snapshotOutcome;
-        });
+        publishSnapshotOutcome({ state: error?.name === "SnapshotBudgetError" ? "paused" : "failed", scope: snapshot.saveContext.scope, error: message });
       }
       queueStatusRefresh();
       return false;
@@ -562,7 +576,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
       .some(key => getCentralStateBridge()?.getLibrarySaveState?.(key)?.readDenied);
     const centralError = centralStatus.lastError || centralStatus.lastWriteError || manifest.lastCentralError || centralStatus.libraryStorageError ||
       (libraryReadError ? "The central library could not be verified. Existing copies were retained." : libraryReadDenied ? "Library access was denied. Retained edits have not been discarded." : libraryStorageUnknown ? "Library recovery storage cannot be checked. A confirmed central save is still valid." : "");
-    const snapshotWarning = status.lastSnapshotError || manifest.lastSnapshotError;
+    const diagnostic = readSnapshotDiagnostics();
+    const scopedSnapshot = diagnostic.snapshotOutcome?.scope === (getCentralStateBridge()?.getReadScope?.() || "") ? diagnostic : {};
+    const snapshotWarning = scopedSnapshot.lastSnapshotError || "";
     const libraryPending = ["football-session-exercise-library-v1", "football-session-exercise-library-folders-v1"]
       .some(key => getCentralStateBridge()?.getLibrarySaveState?.(key)?.pending);
     const hasPendingCentralSync = libraryPending || Object.values(manifest.entries || {}).some((entry) => entry?.pendingCentralSync);
@@ -584,7 +600,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     const centralTime = formatDataSafetyTime(centralStatus.lastSyncedAt || manifest.lastCentralSyncedAt);
     const centralSavedTime = formatDataSafetyTime(centralStatus.lastSavedAt);
     const fetchedTime = formatDataSafetyTime(centralStatus.lastFetchedAt);
-    const snapshotTime = formatDataSafetyTime(manifest.lastSnapshotAt);
+    const snapshotTime = formatDataSafetyTime(scopedSnapshot.lastSnapshotAt);
     const savedTime = formatDataSafetyTime(manifest.lastSavedAt);
     if (centralStatus.localDev) {
       ui.dataSafetyStatus.textContent = "Local dev cache";
@@ -937,6 +953,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     waitForTransaction,
     openDatabase,
     openSnapshotDatabase,
+    readSnapshotDiagnostics,
     pruneSnapshots,
     saveSnapshot,
     queueSnapshot,

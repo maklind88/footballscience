@@ -1,3 +1,4 @@
+import { equalSnapshotValue } from "./snapshot-content-equality.mjs";
 import { canReplaceSnapshot } from "./snapshot-replacement-proof.mjs";
 import { canRotateSnapshot, isDedicatedRecoveryKey, planSnapshotRetirement, snapshotBytes, snapshotBudgetError } from "./snapshot-retention-policy.mjs";
 
@@ -7,10 +8,10 @@ export function sameSnapshotContents(previous, next) {
   if (!previous || !next || previous.schema !== next.schema || previous.app !== next.app) return false;
   const fields = ["storage", "recoveryCopies", "recoverySeparations", "recoveryState", "saveContext"];
   if (!fields.every(field => Object.hasOwn(previous, field) && Object.hasOwn(next, field) &&
-    JSON.stringify(previous[field]) === JSON.stringify(next[field]))) return false;
+    equalSnapshotValue(previous[field], next[field]))) return false;
   const ignored = new Set([...fields, "id", "schema", "app", "createdAt", "reason", "source", "summary", "sourceSnapshotId"]);
   const additional = value => Object.fromEntries(Object.entries(value).filter(([key]) => !ignored.has(key)));
-  return JSON.stringify(additional(previous)) === JSON.stringify(additional(next));
+  return equalSnapshotValue(additional(previous), additional(next));
 }
 
 function hasExactBacking(previous, backing) {

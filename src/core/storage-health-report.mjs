@@ -30,10 +30,13 @@ export async function collectStorageHealth({ storage, storageLabels = {}, storag
       group.entries++; group.approximateUtf16Bytes += bytes; groups.set(label, group);
       report.entries++; report.approximateUtf16Bytes += bytes;
       if (recovery) report.recoveryCopies++;
+      if (key === `${storageKey}:snapshot-status` && scope) {
+        try { report.snapshotState = readSnapshotState(JSON.parse(value), scope); }
+        catch { report.partial = true; }
+      }
       if (key === storageKey && scope) {
         try {
           const manifest = JSON.parse(value);
-          report.snapshotState = readSnapshotState(manifest, scope);
           const entries = manifest?.entries;
           if (entries && typeof entries === "object" && !Array.isArray(entries)) {
             report.pendingForCurrentScope = Object.values(entries).filter(entry => entry?.principalScope === scope && entry.pendingCentralSync === true).length;

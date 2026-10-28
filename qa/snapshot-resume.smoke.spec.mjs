@@ -24,7 +24,7 @@ async function setup(page, scenario = "accepted") {
     nativeSet(manifestKey, JSON.stringify(metadata));
     // A newer known revision alone is not acceptance of this pending generation.
     const unconfirmed = await service.saveSnapshot("revision-without-acceptance");
-    const paused = service.readManifest().snapshotOutcome.state;
+    const paused = service.readSnapshotDiagnostics().snapshotOutcome.state;
     const accepted = service.readManifest(); accepted.entries[key].pendingCentralSync = false;
     if (scenario === "different") {
       nativeSet(key, "different intent"); accepted.entries[key].writes = 2; accepted.entries[key].hash = hash("different intent");
@@ -50,7 +50,7 @@ for (const scenario of ["accepted", "different"]) {
     const state = await page.evaluate(async () => {
       const db = await window.__safety.openSnapshotDatabase();
       const rows = await new Promise(resolve => { const r = db.transaction("snapshots").objectStore("snapshots").getAll(); r.onsuccess = () => resolve(r.result); });
-      return { rows, primary: localStorage.getItem("football-schedule-v1"), writes: window.__queueWrites, outcome: window.__safety.readManifest().snapshotOutcome.state };
+      return { rows, primary: localStorage.getItem("football-schedule-v1"), writes: window.__queueWrites, outcome: window.__safety.readSnapshotDiagnostics().snapshotOutcome.state };
     });
     expect(state.rows).toHaveLength(1);
     expect(state.rows[0].storage["football-schedule-v1"]).toBe("same pending intent");
@@ -76,18 +76,18 @@ test("retry cannot start after the account changes", async ({ page }) => {
   await page.evaluate(() => { window.__scope = "other"; });
   await button.click();
   await expect(page.getByRole("dialog", { name: "Storage health", exact: true })).toContainText("Account or team changed");
-  expect(await page.evaluate(() => window.__safety.readManifest().snapshotOutcome.state)).toBe("paused");
+  expect(await page.evaluate(() => window.__safety.readSnapshotDiagnostics().snapshotOutcome.state)).toBe("paused");
 });
 
 test("snapshot completion after an account switch does not publish an outcome for the new account", async ({ page }) => {
   await setup(page);
   const result = await page.evaluate(async () => {
-    const before = JSON.stringify(window.__safety.readManifest().snapshotOutcome);
+    const before = JSON.stringify(window.__safety.readSnapshotDiagnostics().snapshotOutcome);
     const pending = window.__safety.saveSnapshot("scope-transition");
     window.__scope = "other";
     const committed = await pending;
     const { readSnapshotState } = await import("/src/core/snapshot-status.mjs");
-    return { committed, unchanged: JSON.stringify(window.__safety.readManifest().snapshotOutcome) === before,
+    return { committed, unchanged: JSON.stringify(window.__safety.readSnapshotDiagnostics().snapshotOutcome) === before,
       state: readSnapshotState(window.__safety.readManifest(), "other") };
   });
   expect(result).toEqual({ committed: true, unchanged: true, state: "unknown" });
@@ -152,7 +152,7 @@ test("real save receipts keep repeated offline-to-online generations within one 
     }
     const db = await service.openSnapshotDatabase();
     const rows = await new Promise(resolve => { const r = db.transaction("snapshots").objectStore("snapshots").getAll(); r.onsuccess = () => resolve(r.result); });
-    db.close(); return { allCommitted: outcomes.every(Boolean), sends, receiptCount: receipts.length, rows, outcome: service.readManifest().snapshotOutcome.state };
+    db.close(); return { allCommitted: outcomes.every(Boolean), sends, receiptCount: receipts.length, rows, outcome: service.readSnapshotDiagnostics().snapshotOutcome.state };
   });
   expect(result).toMatchObject({ allCommitted: true, sends: 12, receiptCount: 12, outcome: "available" });
   expect(result.rows).toHaveLength(1);

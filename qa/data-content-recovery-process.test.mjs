@@ -35,3 +35,10 @@ test("quick version command has no database dependency", async () => {
     for (let attempt = 0; attempt < 100; attempt++) assert.match(await pg.run("psql", ["--version"]), /17.synthetic/);
   });
 });
+
+test("SQL input is still delivered in full", async () => {
+  await probe('cat', async pg => assert.equal(await pg.sql({}, "synthetic query"), "synthetic query"));
+});
+test("a closed input pipe cannot acknowledge undelivered SQL", async () => {
+  await probe('exit 0', pg => assert.rejects(pg.sql({}, "x".repeat(2 * 1024 * 1024)), /:stdin:.*io=(EPIPE|ECONNRESET|ENOTCONN)/));
+});

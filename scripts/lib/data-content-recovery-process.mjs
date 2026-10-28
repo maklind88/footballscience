@@ -18,7 +18,7 @@ export function postgresRunner(bin, root, signal) {
     let failureKind = "";
     let ioCode = "";
     let forceTimer;
-    const child = spawn(join(bin, tool), args, { cwd: root, env: { ...base, ...env }, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(join(bin, tool), args, { cwd: root, env: { ...base, ...env }, stdio: [input === "" ? "ignore" : "pipe", "pipe", "pipe"] });
     function stop(reason = "cancelled") {
       failed = true;
       failureKind ||= reason;
@@ -36,7 +36,7 @@ export function postgresRunner(bin, root, signal) {
         if (["EPIPE", "ENOENT", "EACCES", "ENOTCONN", "ECONNRESET", "EMFILE"].includes(error?.code)) ioCode = error.code;
       };
       child.on("error", error => ioFailure("spawn", error));
-      child.stdin.on("error", error => ioFailure("stdin", error));
+      child.stdin?.on("error", error => ioFailure("stdin", error));
       child.stderr.on("data", () => { /* Never publish raw database errors, values or SQL. */ });
       child.stdout.on("data", (chunk) => {
         bytes += chunk.length;
@@ -61,7 +61,7 @@ export function postgresRunner(bin, root, signal) {
     });
     // Long-lived snapshot children can fail while another command is awaited.
     done.catch(() => {});
-    if (input !== undefined) child.stdin.end(input);
+    if (input !== undefined) child.stdin?.end(input);
     return { child, done, stop };
   }
   const run = async (tool, args, options) => start(tool, args, { input: "", ...options }).done;

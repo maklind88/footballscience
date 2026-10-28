@@ -1,3 +1,4 @@
+import { addSnapshotHealthPanel } from "./snapshot-health-panel.mjs";
 import { collectStorageHealth } from "./storage-health-report.mjs";
 
 export async function openStorageHealth(options) {
@@ -9,7 +10,7 @@ export async function openStorageHealth(options) {
   dialog.dataset.storageHealth = "";
   dialog.setAttribute("aria-label", "Storage health");
   const title = doc.createElement("h2"); title.textContent = "Storage health";
-  const status = doc.createElement("p"); status.setAttribute("role", "status"); status.textContent = "Checking storage...";
+  const status = doc.createElement("p"); status.setAttribute("role", "status"); status.setAttribute("aria-label", "Storage inventory status"); status.textContent = "Checking storage...";
   const content = doc.createElement("div");
   const close = doc.createElement("button"); close.type = "button"; close.textContent = "Close storage health";
   close.addEventListener("click", () => dialog.close());
@@ -20,6 +21,7 @@ export async function openStorageHealth(options) {
   if (!dialog.isConnected) return;
   if (getScope() !== scope) { status.textContent = "Account or team changed. Reopen this check."; return; }
   status.textContent = (report.partial || report.indexedDb.status !== "complete") ? "Storage check incomplete. Some information could not be read." : "Available storage information read. No data was changed.";
+  addSnapshotHealthPanel({ doc, content, dialog, report, scope, getScope, retrySnapshot: options.retrySnapshot, inventoryStatus: status });
   const add = (text) => { const p = doc.createElement("p"); p.textContent = text; content.append(p); };
   const size = value => value === null ? "Unavailable" : `${(value / 1024 / 1024).toFixed(2)} MiB`;
   add(`Local browser storage: approximately ${size(report.approximateUtf16Bytes)} across ${report.entries} entries.`);
@@ -36,7 +38,7 @@ export async function openStorageHealth(options) {
   add("These are legacy localStorage copies. The active library may use IndexedDB; matching legacy copies do not prove central saving or make either copy safe to delete.");
   add(`Pending module markers for this account/team: ${report.pendingForCurrentScope ?? "Unavailable"}. This is not a count of individual edits or proof they are saved locally.`);
   add(`Recovery copies in local browser storage: ${report.recoveryCopies}. The IndexedDB summary below counts stored rows, not individual recovery dates or confirmed conflicts.`);
-  add("IndexedDB: approximate JSON sizes in the known Safety/Sessions, Library and Medical recovery databases, across accounts on this browser. This is not physical disk usage or proof of central saving. Other databases and media are outside this check.");
+  add("IndexedDB: approximate JSON sizes in the known Safety/Sessions, Library, Medical recovery and Browser snapshots databases, across accounts on this browser. This is not physical disk usage or proof of central saving. Other databases and media are outside this check.");
   for (const database of report.indexedDb.databases) {
     add(`${database.label}: ${database.status === "absent" ? "Not present" : database.status === "unavailable" ? "Unavailable" : `${database.records} rows inspected of ${database.totalRecords ?? "an unknown number of"} stored rows, approximately ${size(database.approximateJsonUtf16Bytes)} inspected${database.status === "partial" ? " (incomplete scan)" : ""}`}.`);
     if (database.status === "partial") {

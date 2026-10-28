@@ -50,3 +50,14 @@ test("an aborted snapshot transaction never reports success or removes the previ
   });
   expect(result).toEqual({rejected:true,rows:[{id:"old",storage:{key:"original"}}]});
 });
+
+
+test("unknown recovery fields cannot be silently deduplicated away", async ({ page }) => {
+  await page.goto("/medical-merge.js");
+  const equal = await page.evaluate(async () => {
+    const { sameSnapshotContents } = await import("/src/core/distinct-snapshot-store.mjs");
+    const first = { schema: "v1", app: "FS", storage: {}, recoveryCopies: {}, recoverySeparations: [], recoveryState: {}, saveContext: {}, futureRecovery: "first" };
+    return sameSnapshotContents(first, { ...first, futureRecovery: "second" });
+  });
+  expect(equal).toBe(false);
+});

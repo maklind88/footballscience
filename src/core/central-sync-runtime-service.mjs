@@ -16,6 +16,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     readManifest = () => ({}),
     queueStatusRefresh = () => {},
     queueSnapshot = () => {},
+    captureReceiptSnapshot = () => {},
     rawGetItem = () => null,
     rawSetItem = () => {},
     cacheAcknowledgedValue = rawSetItem,
@@ -41,6 +42,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
   const centralStateWriteSuppressionKeys = new Set();
   let sessionPlannerCentralSyncNoticeAt = 0;
   const centralStateHydrationRetryMs = 250;
+  const capturedReceiptWrites = new WeakSet();
   const successorPersistenceIssue = "Local save metadata could not be verified. Retry when browser storage is available.";
   function isConflictedWrite(write) {
     const previous = conflictedWrites.get(write.key);
@@ -237,6 +239,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     // Retire the exact read receipt at the ready event, before later hydration cache bookkeeping.
     for (const [key, write] of [...centralStateWriteQueue, ...centralStateActiveWrites]) {
       if (!wasWriteAcknowledgedByRead(write)) continue;
+      captureAcknowledgedSnapshot(write);
       if (centralStateWriteQueue.get(key) === write) centralStateWriteQueue.delete(key);
       if (centralStateActiveWrites.get(key) === write) write.readAcknowledged = true;
       conflictedWrites.delete(key);
@@ -368,6 +371,14 @@ export function createCentralSyncRuntimeService(deps = {}) {
     return write;
   }
 
+  function captureAcknowledgedSnapshot(write) {
+    if (capturedReceiptWrites.has(write) || (write.principalScope && write.principalScope !== getCentralStateBridge()?.getReadScope?.())) return;
+    capturedReceiptWrites.add(write);
+    // Capture synchronously before a later UI callback/edit can replace this
+    // generation. Optional snapshot failure must not reject an accepted save.
+    try { Promise.resolve(captureReceiptSnapshot("central-receipt")).catch(() => {}); } catch { /* Saving keeps its own receipt. */ }
+  }
+
   function finishAcknowledgedWrite(write, result) {
     write = reconcileScheduleAcknowledgementOrder(write);
     const cached = getCentralStateBridge()?.getCachedValueInfo?.(write.key);
@@ -385,7 +396,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     const applied = applyCentralSyncedStateValue(write, result.value);
     // Refresh callbacks can create a newer edit. Never acknowledge it with A's receipt.
     if (currentBeforeApply && isCentralStateWriteGenerationCurrent({ ...write, value: applied?.appliedValue ?? write.value })) {
-      setCentralSyncPendingState(write.key, false, write.removed);
+      if (setCentralSyncPendingState(write.key, false, write.removed)) captureAcknowledgedSnapshot(write);
       reportSyncStatus(write.key, applied?.issue ? "issue" : "saved", applied?.issue || "Saved");
     }
     return applied?.issue || successorIssue;
@@ -602,6 +613,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         continue;
       }
       if (wasWriteAcknowledgedByRead(write)) {
+        captureAcknowledgedSnapshot(write);
         conflictedWrites.delete(write.key);
         reportSyncStatus(write.key, "saved", "Saved");
         continue;
@@ -633,6 +645,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
         // Earlier requests can yield while a read starts or acknowledges this retry.
         if (write.readAcknowledged || wasWriteAcknowledgedByRead(write)) {
+          captureAcknowledgedSnapshot(write);
           reportSyncStatus(write.key, "saved", "Saved");
           continue;
         }
@@ -651,6 +664,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
           retryReadOk = await Promise.resolve().then(() => bridge.hydrate?.({ fresh: true })).catch(() => false);
           if (write.principalScope && write.principalScope !== bridge.getReadScope?.()) continue;
           if (write.readAcknowledged || wasWriteAcknowledgedByRead(write)) {
+            captureAcknowledgedSnapshot(write);
             reportSyncStatus(write.key, "saved", "Saved");
             continue;
           }

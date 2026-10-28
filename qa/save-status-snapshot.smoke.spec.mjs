@@ -48,9 +48,9 @@ test("a successful snapshot clears only its own snapshot warning", async ({ page
     service.status.lastSnapshotError = "Earlier snapshot failure";
     service.mutateManifest(manifest => { manifest.lastSnapshotError = "Earlier snapshot failure"; });
     const saved = await service.saveSnapshot("qa-cache-retry"); service.refreshStatus();
-    return { saved, snapshotError: service.status.lastSnapshotError, persistedSnapshotError: service.readManifest().lastSnapshotError,
+    return { saved, snapshotError: service.status.lastSnapshotError, persistedSnapshotError: service.readSnapshotDiagnostics().lastSnapshotError, legacyWarning: service.readManifest().lastSnapshotError,
       saveError: service.status.lastError, title: element.title };
   });
-  expect(result).toMatchObject({ saved: true, snapshotError: "", persistedSnapshotError: "", saveError: "" });
+  expect(result).toMatchObject({ saved: true, snapshotError: "", persistedSnapshotError: "", legacyWarning: "Earlier snapshot failure", saveError: "" });
   expect(result.title).not.toContain("Earlier snapshot failure");
 });

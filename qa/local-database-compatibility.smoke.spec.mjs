@@ -17,8 +17,8 @@ async function boot(page) {
     window.journal = createOfflineOperationJournal();
     window.operation = { id: "offline-edit", scope: "qa-coach:qa-org:qa-team", moduleId: "periodization",
       key: "football-periodization-v2", type: "day.patch", payload: { title: "Keep this edit" }, baseRevision: 7 };
-    window.rows = async (name) => {
-      const db = await window.backup.openDatabase();
+    window.rows = async (name, legacy = false) => {
+      const db = await (name === "snapshots" && !legacy ? window.backup.openSnapshotDatabase() : window.backup.openDatabase());
       return new Promise((resolve, reject) => {
         const request = db.transaction(name).objectStore(name).getAll();
         request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
@@ -37,17 +37,17 @@ for (const journalFirst of [false, true]) {
       await window.sessions.put({ change: { id: "session-pending", payload: "Unacknowledged" }, scope, status: "pending", createdAt: 1 });
       await window.sessions.archiveLocal("Original recovery copy", { scope, revision: 7 });
       if (!await window.backup.saveSnapshot("schema-test")) throw new Error("Backup failed");
-      return { snapshots: await window.rows("snapshots"), latest: await window.rows("latest") };
+      return { snapshots: await window.rows("snapshots"), legacySnapshots: await window.rows("snapshots", true), latest: await window.rows("latest") };
     }, scope);
     if (!journalFirst) await peer.evaluate(() => window.journal.put(window.operation));
     // Reuse already-open Sessions/backup clients after the peer upgraded v1 -> v2.
     expect(await page.evaluate((scope) => window.sessions.list(scope), scope)).toHaveLength(1);
-    expect(await page.evaluate(async () => ({ snapshots: await window.rows("snapshots"), latest: await window.rows("latest") }))).toEqual(before);
+    expect(await page.evaluate(async () => ({ snapshots: await window.rows("snapshots"), legacySnapshots: await window.rows("snapshots", true), latest: await window.rows("latest") }))).toEqual(before);
     expect(await page.evaluate(() => window.backup.saveSnapshot("after-upgrade"))).toBe(true);
-    const expected = await page.evaluate(async () => ({ snapshots: await window.rows("snapshots"), latest: await window.rows("latest") }));
+    const expected = await page.evaluate(async () => ({ snapshots: await window.rows("snapshots"), legacySnapshots: await window.rows("snapshots", true), latest: await window.rows("latest") }));
     await page.reload();
     await boot(page);
-    expect(await page.evaluate(async () => ({ snapshots: await window.rows("snapshots"), latest: await window.rows("latest") }))).toEqual(expected);
+    expect(await page.evaluate(async () => ({ snapshots: await window.rows("snapshots"), legacySnapshots: await window.rows("snapshots", true), latest: await window.rows("latest") }))).toEqual(expected);
     expect(await page.evaluate((scope) => window.journal.list(scope), scope)).toMatchObject([{ id: "offline-edit", status: "pending", baseRevision: 7 }]);
     expect(await page.evaluate(() => window.journal.list("another:org:team"))).toEqual([]);
     expect(await page.evaluate(async () => (await window.backup.openDatabase()).version)).toBe(2);

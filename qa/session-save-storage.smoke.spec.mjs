@@ -210,7 +210,9 @@ test("real IndexedDB retains queued frames after reload and snapshot pruning nev
       tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
     });
     const { createDataSafetyRuntimeService } = await import("/src/core/data-safety-runtime-service.mjs");
-    await createDataSafetyRuntimeService({ maxSnapshots: 3 }).pruneSnapshots(db);
+    let budgetError = "";
+    try { await createDataSafetyRuntimeService({ maxSnapshots: 3 }).pruneSnapshots(db); }
+    catch (error) { budgetError = error.name; }
     const remaining = await new Promise((resolve, reject) => {
       const request = db.transaction("snapshots").objectStore("snapshots").getAll();
       request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
@@ -218,10 +220,13 @@ test("real IndexedDB retains queued frames after reload and snapshot pruning nev
     db.close();
     return { frameCount: rows[0].change.after.session.blocks[0].tacticalFrames.length,
       marker: rows[0].change.after.session.blocks[0].tacticalFrames[0].elements[0],
-      otherScope: await store.list("other:team"), remaining, queued: (await store.list("coach:team")).length };
+      otherScope: await store.list("other:team"), remaining, budgetError, queued: (await store.list("coach:team")).length };
   });
   expect(result).toMatchObject({ frameCount: 24, marker: { playerNumber: "CB", x: 0, y: 40 }, otherScope: [], queued: 1 });
-  expect(result.remaining).toHaveLength(4);
+  // Legacy rows with missing ownership/recovery metadata cannot be certified as
+  // replaceable history. Exceeding the budget must preserve them, too.
+  expect(result.budgetError).toBe("SnapshotBudgetError");
+  expect(result.remaining).toHaveLength(41);
   expect(result.remaining.some((row) => row.storage?.important === "Retained")).toBe(true);
 });
 

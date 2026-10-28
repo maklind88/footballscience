@@ -580,6 +580,7 @@ function createServiceHarness(options = {}) {
   const syncCalls = [];
   const autosaveStatuses = [];
   const snapshots = [];
+  const receiptSnapshots = [];
   const syncStatuses = [];
   const setPiecesStages = [];
   const handledKeys = [];
@@ -675,6 +676,10 @@ function createServiceHarness(options = {}) {
     readManifest: () => structuredClone(manifest),
     periodizationStorageKey: "football-periodization-v2",
     queueSnapshot: (reason) => snapshots.push(reason),
+    captureReceiptSnapshot: (reason) => {
+      receiptSnapshots.push({ reason, manifest: structuredClone(manifest), values: Object.fromEntries(rawValues) });
+      return options.onReceiptSnapshot?.();
+    },
     queueStatusRefresh: () => {},
     rawGetItem: (key) => rawValues.get(key) ?? null,
     rawSetItem: (key, value) => {
@@ -705,6 +710,7 @@ function createServiceHarness(options = {}) {
       revision = Number(nextRevision) || 0;
     },
     snapshots,
+    receiptSnapshots,
     setPiecesStages,
     syncStatuses,
     syncCalls,
@@ -1828,3 +1834,34 @@ for (const partial of [false, true]) {
     });
   }
 }
+
+
+for (const failure of ["none", "throw", "reject", "slow"]) {
+  test(`receipt snapshot captures accepted metadata without delaying or rejecting saving (${failure})`, async () => {
+    const key = "football-schedule-v1", value = '{"events":[]}';
+    const h = createServiceHarness({ getReadScope: () => "owner", syncResult: { ok: true, value, revision: 8 },
+      onReceiptSnapshot: () => {
+        if (failure === "throw") throw new Error("Snapshot unavailable");
+        if (failure === "reject") return Promise.reject(new Error("Snapshot unavailable"));
+        if (failure === "slow") return new Promise(() => {});
+      } });
+    h.rawValues.set(key, value);
+    h.service.queueCentralStateWrite(key, value);
+    await h.service.flushCentralStateWrites();
+    expect(h.receiptSnapshots).toHaveLength(1);
+    expect(h.receiptSnapshots[0]).toMatchObject({ reason: "central-receipt", values: { [key]: value },
+      manifest: { entries: { [key]: { pendingCentralSync: false, principalScope: "owner", serverRevision: 8 } } } });
+    expect(h.syncStatuses.some(([, state]) => state === "saved")).toBe(true);
+  });
+}
+
+test("a successor created during refresh is not captured as accepted by its predecessor", async () => {
+  const key = "football-schedule-v1";
+  const h = createServiceHarness({ getReadScope: () => "owner", syncResult: { ok: true, value: "server merge", revision: 8 },
+    onApply: ({ rawValues, manifest }) => { rawValues.set(key, "newer edit"); manifest.entries[key].pendingCentralSync = true; manifest.entries[key].writes = 2; } });
+  h.rawValues.set(key, "original edit");
+  h.service.queueCentralStateWrite(key, "original edit");
+  await h.service.flushCentralStateWrites();
+  expect(h.receiptSnapshots).toEqual([]);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+});

@@ -2,6 +2,8 @@ const databases = [
   { name: "football-science-data-safety-v1", label: "Safety and Sessions", stores: ["snapshots", "latest", "offline-operations-v1"] },
   { name: "football-science-library-v1", label: "Exercise Library", stores: ["baselines", "pending", "recovery", "access"] },
   { name: "football-science-medical-drafts-v1", label: "Medical recovery", stores: ["drafts", "catalog"] },
+  { name: "football-science-browser-snapshots-v2", label: "Browser snapshots", stores: ["snapshots", "latest"],
+    storeLabels: { snapshots: "Browser snapshot history", latest: "Latest browser snapshot" } },
 ];
 const category = (labels, status, fallback) => Object.hasOwn(labels, status) ? labels[status] : fallback;
 const empty = (label, status) => ({ label, status, records: 0, totalRecords: status === "absent" ? 0 : null,
@@ -59,7 +61,7 @@ function inspectDatabase(factory, spec, { timeoutMs, maxRecords, maxBytes }) {
           // Count every known store before materializing any values. A large
           // snapshot can exhaust the byte budget; unread edits must stay visible
           // as unclassified rows, never become an implied zero pending count.
-          report.stores = stores.map(name => ({ label: storeLabels[name], totalRecords: null, scannedRecords: 0 }));
+          report.stores = stores.map(name => ({ label: spec.storeLabels?.[name] || storeLabels[name], totalRecords: null, scannedRecords: 0 }));
           for (const [index, store] of stores.entries()) {
             const count = transaction.objectStore(store).count();
             count.onsuccess = () => { if (!ended) report.stores[index].totalRecords = count.result; };

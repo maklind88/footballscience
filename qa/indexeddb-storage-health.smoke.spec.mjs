@@ -138,7 +138,7 @@ test("an incomplete IndexedDB scan is incomplete at the top of the health dialog
     await openStorageHealth({ documentRef: document, storage: localStorage, indexedDB });
   });
   const dialog = page.getByRole("dialog", { name: "Storage health", exact: true });
-  await expect(dialog.getByRole("status")).toHaveText("Storage check incomplete. Some information could not be read.");
+  await expect(dialog.getByRole("status", { name: "Storage inventory status" })).toHaveText("Storage check incomplete. Some information could not be read.");
   await expect(dialog).toContainText("3000 rows inspected of 3002 stored rows");
   await expect(dialog).toContainText("Inspection stopped at row limit");
   await expect(dialog).toContainText("Library pending and review edits: 3002 stored rows; 3000 inspected.");

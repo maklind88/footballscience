@@ -929,3 +929,17 @@ test("an older memory-only issue cannot erase a newer persisted failure from ano
   expect(first.dataSafetyStatus.title).toBe("Newer failure in another tab");
   expect(first.service.readManifest().lastError).toBe("Newer failure in another tab");
 });
+
+
+test("restore stops before writes when the protective snapshot cannot commit", async () => {
+  const h = createHarness({ scope: "owner" }), key = "football-schedule-v1", alerts = [];
+  h.localStorage.values.set(key, "existing work");
+  h.win.confirm = () => true;
+  h.win.alert = message => alerts.push(message);
+  h.service.install();
+  await h.service.importBackupFile({ text: async () => JSON.stringify({ keys: { [key]: "replacement" } }) });
+  expect(h.localStorage.getItem(key)).toBe("existing work");
+  expect(h.queuedWrites).toEqual([]);
+  expect(alerts).toContain("Backup not restored. The current work could not be snapshotted. Existing data was retained.");
+  expect(h.service.readManifest().lastImportedAt).toBeFalsy();
+});

@@ -1,3 +1,4 @@
+import { readSnapshotState } from "./snapshot-status.mjs";
 import { collectIndexedDbStorageHealth } from "./indexeddb-storage-health.mjs";
 import { inspectLibraryMirror } from "./library-storage-diagnostic.mjs";
 async function boundedRead(read) {
@@ -13,7 +14,7 @@ async function boundedRead(read) {
 export async function collectStorageHealth({ storage, storageLabels = {}, storageKey = "football-data-safety-v1", scope = "", navigatorRef = {}, indexedDB }) {
   const groups = new Map();
   const report = { approximateUtf16Bytes: 0, entries: 0, partial: false, modules: [],
-    pendingForCurrentScope: null, recoveryCopies: 0, originUsageBytes: null, originQuotaBytes: null, persistent: null };
+    snapshotState: "unknown", pendingForCurrentScope: null, recoveryCopies: 0, originUsageBytes: null, originQuotaBytes: null, persistent: null };
   try {
     const length = storage.length;
     for (let index = 0; index < length; index++) {
@@ -29,9 +30,14 @@ export async function collectStorageHealth({ storage, storageLabels = {}, storag
       group.entries++; group.approximateUtf16Bytes += bytes; groups.set(label, group);
       report.entries++; report.approximateUtf16Bytes += bytes;
       if (recovery) report.recoveryCopies++;
+      if (key === `${storageKey}:snapshot-status` && scope) {
+        try { report.snapshotState = readSnapshotState(JSON.parse(value), scope); }
+        catch { report.partial = true; }
+      }
       if (key === storageKey && scope) {
         try {
-          const entries = JSON.parse(value)?.entries;
+          const manifest = JSON.parse(value);
+          const entries = manifest?.entries;
           if (entries && typeof entries === "object" && !Array.isArray(entries)) {
             report.pendingForCurrentScope = Object.values(entries).filter(entry => entry?.principalScope === scope && entry.pendingCentralSync === true).length;
           } else report.partial = true;

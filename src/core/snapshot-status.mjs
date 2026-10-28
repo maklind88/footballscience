@@ -5,7 +5,7 @@ export function readSnapshotState(manifest, scope) {
   if (typeof scope !== "string" || !scope || outcome?.scope !== scope) return "unknown";
   if (outcome.state === "available" && typeof outcome.snapshotAt === "string" && outcome.snapshotAt &&
       outcome.snapshotAt === manifest.lastSnapshotAt && !manifest.lastSnapshotError) return "available";
-  if (["paused", "failed"].includes(outcome.state) && typeof outcome.error === "string" && outcome.error &&
+  if (["paused", "failed", "busy"].includes(outcome.state) && typeof outcome.error === "string" && outcome.error &&
       outcome.error === manifest.lastSnapshotError) return outcome.state;
   return "unknown";
 }

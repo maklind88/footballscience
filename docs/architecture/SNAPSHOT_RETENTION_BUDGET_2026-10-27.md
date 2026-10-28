@@ -4,6 +4,7 @@ Task/release owner: System / Security. Affected boundaries: shared browser safet
 snapshots; Sessions owns its recovery prefix and operation rows; Medical owns its
 clinical writes and recovery rules; Library owns its records and retained copies.
 This candidate changes no module journal, central API, permission or merge rule.
+Shared file restore now rechecks the existing write permission contract.
 No historical user data has been inspected, repaired, cleaned or exported by this
 implementation. Fixtures and timings below are synthetic.
 
@@ -219,3 +220,75 @@ The final combined commit still needs its own GitHub CI results.
 | Sessions recovery with full snapshot history | Offline commit, full browser restart, scoped replay exactly once; originals retained, Chromium/WebKit | Physical-device quota acceptance and snapshot-selection UI |
 | Medical regression boundary | Working drafts, draft verification/recovery and central visibility under cache faults pass, Chromium/WebKit, synthetic server fixtures | Authenticated release acceptance for the exact combined build |
 | Whole platform | No new blanket certification | Module-by-module acceptance remains open |
+
+
+## Follow-up: distinct bursts and restore boundaries (28 October 2026)
+
+All GitHub checks for predecessor `e083f4be63ab95119ce3d8e4d09e14be2bcb2af5`
+passed, including real PostgreSQL backup contracts, API/static checks, all browser
+shards and CodeQL. This closes that predecessor's final-CI obligation; it does not
+stand in for CI on this new candidate.
+
+### Bounded active copying
+
+The previous exact-duplicate optimization admitted every different generation.
+The service now admits at most four distinct active captures and 64 MiB of their
+serialized UTF-16 envelopes per service/tab. Exact duplicates join an admitted
+write even when capacity is full. The count check precedes hashing/serialization.
+The byte and count limits are configurable engineering containment policies, not
+measured universal browser limits. The history budget is separate.
+
+A refused attempt returns false, publishes a scoped `busy` outcome, and retains no
+queued full envelope. It does not reject primary module saving or assert that the
+refused generation was captured. When active captures finish, one debounced attempt
+captures the then-current work. That refresh rechecks account/team scope when
+scheduled and again when its timer runs or pagehide flushes it. A single envelope
+larger than the byte limit pauses without an automatic retry loop. Restores are
+never automatically retried. Manual retry also reports refusal honestly.
+
+There is still one transient incoming capture before admission, native reads for
+exact comparison, serialized-string allocation for the byte estimate, IndexedDB
+cloning, and transaction scan cost. This is not a hard JavaScript RAM, CPU, whole
+origin, or multi-tab resource bound. A protected generation whose exact acceptance
+receipt was not captured stays protected; later success cannot retroactively
+justify removing it. Sustained primary editing does not promise that every
+intermediate optional snapshot will exist.
+
+The four initial pressure cases failed against the unbounded writer. New tests
+cover a 20-distinct-version burst (four committed, sixteen explicitly refused),
+one fresh capture of the latest version, byte admission below the count ceiling,
+no oversize retry loop, duplicate joining at capacity, scope transitions before
+and after drain, pagehide flush, and the visible busy/retry message. Primary pending
+metadata and the latest local content remain unchanged by these captures.
+
+### Restore boundaries
+
+Seven injected races/ownership cases reproduced unsafe writes before the fix.
+The shared import flow now pins the account/team from before file reading,
+rejects an explicitly different source scope or entry owner, and rechecks existing
+write permissions before confirmation and after awaited steps. A bridge exposing
+no active scope is denied. A changed full protected payload or generation/recovery
+metadata while the protective snapshot commits aborts restore before any import
+write, central enqueue, import marker or reload. A successful unchanged authorized
+restore still takes a committed before-copy and an after-copy.
+
+These checks cover async boundaries, not a cross-tab compare-and-swap transaction.
+Legacy files without ownership metadata retain their existing compatibility path;
+they do not gain verified provenance. Multi-key localStorage import can still fail
+partway and central publication is not atomic across modules. Physical quota,
+partial-import recovery UX, authenticated end-to-end release acceptance and a
+scope-safe retained-snapshot selection/export flow remain open. No historical work
+was repaired or replayed; no browser data was cleared.
+
+Task/release owner remains System / Security, with Medical and Sessions retaining
+their module rules. Changes remain on the isolated draft candidate; no main,
+staging or production release is included.
+
+
+Local validation for this increment: 565 distinct targeted Playwright cases passed
+across API (233), Chromium (166) and WebKit (166). The initial combined run passed
+396; the final edge additions and restore contracts passed in an 84-case rerun,
+with the complete 18 new browser cases also checked on their final content.
+`qa:static` and `git diff --check` passed. These local counts do not include a
+claim of authenticated production acceptance. Fresh GitHub CI for the final SHA
+is tracked on draft PR #292.

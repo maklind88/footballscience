@@ -5,7 +5,7 @@ export default defineConfig({
   ...baseConfig,
   projects: [{
     name: "save-webkit",
-    testMatch: /(?:home-read-write-boundary|shell-read-write-boundary|session-new-work-visibility|session-two-editor-offline|session-working-recovery|session-full-app-storage|session-version-transition|session-browser-restart|medical-working-drafts|medical-draft-verification|medical-draft-recovery|central-state-revision|local-database-compatibility|save-offline-recovery|offline-operation-journal|session-save-storage|medical-saved-visibility|storage-health|indexeddb-storage-health|save-status-snapshot|local-save-issues|distinct-snapshot|snapshot-retention|snapshot-resume|snapshot-client-isolation|snapshot-load-boundary|snapshot-growth|library-save-storage)\.smoke\.spec\.mjs/,
+    testMatch: /(?:home-read-write-boundary|shell-read-write-boundary|session-new-work-visibility|session-two-editor-offline|session-working-recovery|session-full-app-storage|session-version-transition|session-browser-restart|medical-working-drafts|medical-draft-verification|medical-draft-recovery|central-state-revision|local-database-compatibility|save-offline-recovery|offline-operation-journal|session-save-storage|medical-saved-visibility|storage-health|indexeddb-storage-health|save-status-snapshot|local-save-issues|distinct-snapshot|snapshot-retention|snapshot-resume|snapshot-client-isolation|snapshot-load-boundary|snapshot-pressure|snapshot-restore-boundary|snapshot-growth|library-save-storage)\.smoke\.spec\.mjs/,
     use: { ...devices["Desktop Safari"] },
   }],
 });

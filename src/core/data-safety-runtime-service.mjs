@@ -1,3 +1,4 @@
+import { createSnapshotFlightAdmission } from "./snapshot-flight-admission.mjs";
 import { createLocalSaveIssues } from "./local-save-issues.mjs";
 import { sameSnapshotContents, pruneSnapshotHistory, storeDistinctSnapshot } from "./distinct-snapshot-store.mjs";
 import { openStorageHealth } from "./storage-health-dialog.mjs";
@@ -21,6 +22,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
     latestStoreName = "latest",
     maxSnapshots = 30,
     maxSnapshotBytes = undefined,
+    maxQueuedSnapshots = 4,
+    maxQueuedSnapshotBytes = undefined,
     protectedStorageKeys = [],
     journaledStorageKeys = ["football-session-planner-v3"],
     storageLabels = {},
@@ -51,7 +54,14 @@ export function createDataSafetyRuntimeService(deps = {}) {
   let nativeClear = null;
   let nativeKey = null;
   let snapshotTimer = null;
-  const snapshotFlights = new Set();
+  let snapshotTimerScope;
+  let snapshotRefreshScope = null;
+  const snapshotAdmission = createSnapshotFlightAdmission({ maxCount: maxQueuedSnapshots, maxBytes: maxQueuedSnapshotBytes,
+    onDrain: () => {
+      const scope = snapshotRefreshScope; snapshotRefreshScope = null;
+      if (scope !== null && scope === (getCentralStateBridge()?.getReadScope?.() || "")) queueSnapshot("after-busy", scope);
+    },
+  });
   let snapshotAttempt = 0;
   let snapshotOutcome = null;
   let statusTimer = null;
@@ -514,14 +524,27 @@ export function createDataSafetyRuntimeService(deps = {}) {
   }
 
   async function saveSnapshot(reason = "autosave") {
-    const snapshot = { ...createBackupEnvelope(reason, true), id: `${Date.now()}-${Math.random().toString(16).slice(2)}` };
-    // Capture first, then join only an exact in-flight copy, including scope and
-    // recovery metadata. Every caller receives the same durable commit outcome.
-    for (const flight of snapshotFlights) if (sameSnapshotContents(flight.snapshot, snapshot)) return flight.promise;
-    snapshot.summary = summarizeSnapshotStorage(snapshot.storage);
-    const flight = { snapshot, promise: persistSnapshot(snapshot, ++snapshotAttempt) };
-    snapshotFlights.add(flight);
-    try { return await flight.promise; } finally { snapshotFlights.delete(flight); }
+    const scope = getCentralStateBridge()?.getReadScope?.() || "";
+    try {
+      const snapshot = { ...createBackupEnvelope(reason, true), id: `${Date.now()}-${Math.random().toString(16).slice(2)}` };
+      return await snapshotAdmission.submit(snapshot,
+        value => { value.summary = summarizeSnapshotStorage(value.storage); },
+        value => persistSnapshot(value, ++snapshotAttempt));
+    } catch (error) {
+      const attempt = ++snapshotAttempt;
+      if (error?.name === "SnapshotBusyError" && scope === (getCentralStateBridge()?.getReadScope?.() || "")) snapshotRefreshScope = scope;
+      reportSnapshotFailure(error, scope, attempt);
+      return false;
+    }
+  }
+
+  function reportSnapshotFailure(error, scope, attempt) {
+    if (attempt !== snapshotAttempt || scope !== (getCentralStateBridge()?.getReadScope?.() || "")) return;
+    const message = error?.message || "Backup snapshot could not be saved.";
+    const state = error?.name === "SnapshotBudgetError" ? "paused" : error?.name === "SnapshotBusyError" ? "busy" : "failed";
+    status.lastSnapshotError = message;
+    publishSnapshotOutcome({ state, scope, error: message });
+    queueStatusRefresh();
   }
 
   async function persistSnapshot(snapshot, attempt) {
@@ -537,20 +560,17 @@ export function createDataSafetyRuntimeService(deps = {}) {
       queueStatusRefresh();
       return true;
     } catch (error) {
-      const message = error?.message || "Backup snapshot could not be saved.";
-      if (attempt === snapshotAttempt && snapshot.saveContext.scope === (getCentralStateBridge()?.getReadScope?.() || "")) {
-        status.lastSnapshotError = message;
-        publishSnapshotOutcome({ state: error?.name === "SnapshotBudgetError" ? "paused" : "failed", scope: snapshot.saveContext.scope, error: message });
-      }
-      queueStatusRefresh();
+      reportSnapshotFailure(error, snapshot.saveContext.scope, attempt);
       return false;
     }
   }
 
-  function queueSnapshot(reason = "autosave") {
+  function queueSnapshot(reason = "autosave", expectedScope) {
     if (snapshotTimer) win.clearTimeout(snapshotTimer);
+    snapshotTimerScope = expectedScope;
     snapshotTimer = win.setTimeout(() => {
-      snapshotTimer = null;
+      snapshotTimer = null; snapshotTimerScope = undefined;
+      if (expectedScope !== undefined && expectedScope !== (getCentralStateBridge()?.getReadScope?.() || "")) return;
       saveSnapshot(reason);
     }, 900);
   }
@@ -558,7 +578,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
   function flushQueuedSnapshot(reason = "pagehide") {
     if (!snapshotTimer) return false;
     win.clearTimeout(snapshotTimer);
-    snapshotTimer = null;
+    const expectedScope = snapshotTimerScope;
+    snapshotTimer = null; snapshotTimerScope = undefined;
+    if (expectedScope !== undefined && expectedScope !== (getCentralStateBridge()?.getReadScope?.() || "")) return false;
     saveSnapshot(reason);
     return true;
   }
@@ -700,6 +722,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
 
   async function importBackupFile(file) {
     if (!file) return;
+    const restoreScope = getCentralStateBridge()?.getReadScope?.() || "";
     let backup;
     try {
       backup = JSON.parse(await file.text());
@@ -718,6 +741,20 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return;
     }
     const canRestore = () => {
+      const bridge = getCentralStateBridge();
+      if ((typeof bridge?.getReadScope === "function" && !restoreScope) || (bridge?.getReadScope?.() || "") !== restoreScope) {
+        win.alert?.("Backup not restored. Account or team changed. Start again in the intended account/team.");
+        return false;
+      }
+      const sourceScopes = [backup.saveContext?.scope, ...entries.map(([key]) => backup.saveContext?.entries?.[key]?.principalScope)];
+      if (sourceScopes.some(scope => typeof scope === "string" && scope && scope !== restoreScope)) {
+        win.alert?.("Backup not restored. This file contains work from another account or team.");
+        return false;
+      }
+      if (typeof bridge?.canAutoSyncKey === "function" && entries.some(([key]) => !bridge.canAutoSyncKey(key))) {
+        win.alert?.("Backup not restored. Editing permission is not available for every item in this file.");
+        return false;
+      }
       if (!entries.some(([key]) => getCentralCachedValueInfo(key).source === "central-readonly-baseline" || hasUnauthorizedMedicalRecovery(key))) return true;
       win.alert?.("Backup not restored. A local recovery copy needs review before replacing this central view.");
       return false;
@@ -733,11 +770,16 @@ export function createDataSafetyRuntimeService(deps = {}) {
       win,
     });
     if (!confirmed || !canRestore()) return;
+    const protectedBefore = createBackupEnvelope("before-restore-check", true);
     if (!await saveSnapshot("before-restore")) {
       win.alert?.("Backup not restored. The current work could not be snapshotted. Existing data was retained.");
       return;
     }
     if (!canRestore()) return;
+    if (!sameSnapshotContents(protectedBefore, createBackupEnvelope("before-restore-check", true))) {
+      win.alert?.("Backup not restored. Current work changed while the protective copy was being saved. Review it before trying again.");
+      return;
+    }
     try {
       entries.forEach(([key, value]) => {
         rawSetItem(key, value);

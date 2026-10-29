@@ -11,9 +11,9 @@ export function selectJourneyDay(sessions, schedule, now = Date.now()) {
   prerequisiteProof(!schedule.events || Array.isArray(schedule.events), 'Invalid Schedule prerequisite');
   prerequisiteProof(!sessions.sessions || (typeof sessions.sessions === 'object' && !Array.isArray(sessions.sessions)), 'Invalid Sessions prerequisite');
   const occupied = new Set((schedule.events || []).map(event => event.date));
-  const day = Array.from({ length: 14 }, (_, index) => new Date(now + (index + 1) * 86400000).toISOString().slice(0, 10))
+  const day = Array.from({ length: 90 }, (_, index) => new Date(now + (index + 1) * 86400000).toISOString().slice(0, 10))
     .find(date => !sessions.sessions?.[date] && !occupied.has(date));
-  prerequisiteProof(day, 'No unused nearby Sessions and Schedule date; no recommendation written');
+  prerequisiteProof(day, 'No unused Sessions and Schedule date within 90 days; no recommendation written');
   return day;
 }
 
@@ -141,7 +141,7 @@ export async function verifyStagingJourneyViews(page, fixture, recordId) {
     return r?.id === recordId && r?.date === day && r?.participation === 50;
   }, { day, playerId: player.id, recordId }), 'Medical did not display the accepted recommendation identity');
   await page.getByRole('button', { name: 'Sessions', exact: true }).click();
-  for (let step = 0; step < 8; step++) {
+  for (let step = 0; step < 12; step++) {
     const target = page.locator(`[data-session-date="${day}"]`);
     if (await target.count()) { await target.click(); break; }
     const dates = await page.locator('[data-session-date]').evaluateAll(nodes => nodes.map(n => n.dataset.sessionDate).sort());

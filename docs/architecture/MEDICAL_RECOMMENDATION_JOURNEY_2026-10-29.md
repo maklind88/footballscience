@@ -256,3 +256,12 @@ now reads both modules and chooses a nearby date unused in both; the browser
 collision guards remain in place to catch changes after selection. A fully occupied
 window fails before any recommendation. Schedule access added to the shared helper
 is read-only; no Schedule write or historical repair is permitted.
+
+Run 40905207325 confirmed that all 14 nearby dates are already occupied in at
+least one planner. No recommendation was clicked. The synthetic fixture window
+is now bounded at 90 future days, still requiring absence in both modules and
+still rejecting collisions at browser read time. This expands only the choice
+of test date, not permission to overwrite or share an existing session. Sessions
+navigation uses the existing date buttons (10-day jumps); the local normal-mode
+rehearsal now exercises a date 88 days ahead. A fully occupied 90-day window still
+stops the test before any recommendation.

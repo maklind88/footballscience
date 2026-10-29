@@ -38,8 +38,8 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
       requireProof(!(await qa.read(qa.primary, medicalKey)).state.records?.some(row => row.playerId === fixture.player.id), 'Recommendation must not exist before the click');
       guard.arm();
       await author.page.getByRole('button', { name: fixture.player.name + ' 50% training recommendation', exact: true }).click();
-      await expect.poll(() => ledger.some(e => e.stage === 'canonical-request')).toBe(true);
-      await expect.poll(() => ledger.some(e => e.stage === 'generic-request')).toBe(true);
+      await expect.poll(() => author.errors.length ? author.errors.join('; ') : ledger.some(e => e.stage === 'canonical-request')).toBe(true);
+      await expect.poll(() => author.errors.length ? author.errors.join('; ') : ledger.some(e => e.stage === 'generic-request')).toBe(true);
       const recordId = guard.ids()[0];
       requireProof(guard.ids().length === 1, 'Exactly one UI-generated recommendation required');
       const message = author.page.locator('.medical-message');

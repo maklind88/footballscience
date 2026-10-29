@@ -196,6 +196,8 @@ test('journey date must be unused in both Sessions and Schedule; neither is chan
   assert.equal(selectJourneyDay(sessions, schedule, now), '2026-11-01');
   assert.deepEqual({ sessions, schedule }, before);
   const busy = { events: Array.from({ length: 14 }, (_, index) => ({ date: new Date(now + (index + 1) * 86400000).toISOString().slice(0, 10) })) };
-  assert.throws(() => selectJourneyDay({}, busy, now), /No unused/);
+  assert.equal(selectJourneyDay({}, busy, now), '2026-11-13');
+  const fullyBusy = { events: Array.from({ length: 90 }, (_, index) => ({ date: new Date(now + (index + 1) * 86400000).toISOString().slice(0, 10) })) };
+  assert.throws(() => selectJourneyDay({}, fullyBusy, now), /No unused/);
   assert.throws(() => selectJourneyDay({}, { events: {} }, now), /Invalid Schedule/);
 });

@@ -10,7 +10,7 @@ import { medicalKey, sessionsKey } from './helpers/save-acceptance-staging.mjs';
 // requests and local synthetic HTTP. This is not authenticated staging evidence.
 for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-failed']) {
   test(`staging journey harness rehearsal with real browser requests: ${mode}`, async ({ browser, baseURL }) => {
-    const fixture = { run: 'qa-save-rehearsal', day: '2026-10-30', player: { id: 'qa-save-rehearsal-player',
+    const fixture = { run: 'qa-save-rehearsal', day: mode === 'normal' ? '2027-01-25' : '2026-10-30', player: { id: 'qa-save-rehearsal-player',
       name: 'Synthetic Journey Rehearsal', rosterType: 'squad', countsInSquad: true, status: 'available', position: 'Midfielder' } };
     let medical = { rosterVersion: 'qa-staging', players: [], records: [], injuryPlans: [] }, revision = 10;
     const effects = new Map(), contexts = [], ledger = [], errors = [];

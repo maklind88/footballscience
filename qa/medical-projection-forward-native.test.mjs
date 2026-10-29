@@ -17,6 +17,8 @@ test('forward alignment preserves history and supports the current Medical event
   const insert = (n, type, payload) => sql(`insert into public.medical_state_sync_events(id,event_type,idempotency_key,payload,payload_hash) values ('${id(n)}','${type}','synthetic-${n}',${literal(payload)},repeat('a',64))`);
   try {
     await sql(old);
+    // Match the inspected staging service role; plain PostgreSQL lacks Supabase extension grants.
+    await sql("grant usage on schema extensions to service_role; grant execute on function extensions.digest(bytea,text) to service_role");
     await sql("grant select,insert,update on public.medical_state_sync_events,public.platform_app_state_records to service_role");
     await sql(`insert into public.platform_app_state_records(organization_id,state_key,module_id,merge_policy,revision,value,value_hash) values ('global','football-medical-team-v1','medical-team','medical-records',10,'{"records":[],"players":[],"injuryPlans":[],"preserve":"untouched"}',repeat('a',64))`);
     await insert(901, 'recommendation-saved', { record: { ...record, id: 'historical-unprocessed' } });

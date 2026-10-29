@@ -242,7 +242,7 @@ test("Medical runtime bindings preserve quick recommendation, clear, archive, an
     closest: { "[data-medical-quick-recommend]": { dataset: { medicalQuickRecommend: "full", medicalQuickParticipation: "100" } } },
   })));
   expect(calls).toContainEqual(["sync", "recommendation-saved", expect.objectContaining({ playerId: "p-1" })]);
-  expect(calls).toContainEqual(["render", "Ada: 100% recommendation saved."]);
+  expect(calls).toContainEqual(["render", "Ada: 100% recommendation saved.", { recommendationFeedbackIsCurrent: expect.any(Function) }]);
 
   await workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-quick-clear]": { dataset: { medicalQuickClear: "p-1" } } },
@@ -260,7 +260,7 @@ test("Medical runtime bindings preserve quick recommendation, clear, archive, an
   await workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-quick-recommend]": { dataset: { medicalQuickRecommend: "full", medicalQuickParticipation: "100" } } },
   })));
-  expect(calls).toContainEqual(["render", "Ada: recommendation already set."]);
+  expect(calls).toContainEqual(["render", "Ada: recommendation already set.", { recommendationFeedbackIsCurrent: expect.any(Function) }]);
 
   mutable.syncResult = { ok: false, stored: true, canonicalStored: false };
   mutable.quickRecommendationResult = { player: { name: "Ada" }, record: { id: "r-failed", playerId: "p-1", participation: 50 } };
@@ -270,6 +270,7 @@ test("Medical runtime bindings preserve quick recommendation, clear, archive, an
   expect(calls).toContainEqual([
     "render",
     "Ada's recommendation is in the recovery journal, but central confirmation failed after retry. Do not re-enter it; notify an administrator.",
+    { recommendationFeedbackIsCurrent: expect.any(Function) },
   ]);
   expect(calls.filter((call) => (
     Array.isArray(call) && call[0] === "sync" && call[2]?.record?.id === "r-failed"
@@ -1184,7 +1185,7 @@ test('older quick recommendation failure cannot replace a newer success', async 
   h.mutable.syncResult = { ok: true, canonicalStored: true };
   await click();
   const renders = h.calls.filter(call => call[0] === 'render');
-  expect(renders.at(-1)).toEqual(['render', 'Ada: 75% recommendation saved.']);
+  expect(renders.at(-1)).toEqual(['render', 'Ada: 75% recommendation saved.', { recommendationFeedbackIsCurrent: expect.any(Function) }]);
   h.mutable.syncResult = { ok: false, stored: false };
   finish(h.mutable.syncResult); await older;
   expect(h.calls.filter(call => call[0] === 'render')).toEqual(renders);
@@ -1199,5 +1200,23 @@ test('an unrelated click does not leave a finished recommendation stuck confirmi
   } })));
   await h.workspace.listeners.click(createEvent(createTarget()));
   finish({ ok: true, canonicalStored: true }); await pending;
-  expect(h.calls.filter(call => call[0] === 'render').at(-1)).toEqual(['render', 'Ada: 100% recommendation saved.']);
+  expect(h.calls.filter(call => call[0] === 'render').at(-1)).toEqual(['render', 'Ada: 100% recommendation saved.', { recommendationFeedbackIsCurrent: expect.any(Function) }]);
+});
+
+
+test('retained feedback revalidates its account, date, permission and newer intent', async () => {
+  for (const transition of ['scope', 'date', 'input', 'permission']) {
+    let scope = 'first', canEdit = true;
+    const h = createHarness({ win: { footballScienceCentralState: { getReadScope: () => scope } }, canEdit: () => canEdit });
+    await h.workspace.listeners.click(createEvent(createTarget({ closest: {
+      '[data-medical-quick-recommend]': { dataset: { medicalQuickRecommend: 'p-1', medicalQuickParticipation: '100' } },
+    } })));
+    const guard = h.calls.filter(call => call[0] === 'render').at(-1)[2].recommendationFeedbackIsCurrent;
+    expect(guard()).toBe(true);
+    if (transition === 'scope') scope = 'second';
+    if (transition === 'date') h.mutable.medicalState.selectedDate = '2026-05-30';
+    if (transition === 'permission') canEdit = false;
+    if (transition === 'input') h.workspace.listeners.input(createEvent(createTarget()));
+    expect(guard()).toBe(false);
+  }
 });

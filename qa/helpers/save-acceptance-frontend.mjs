@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 export const saveAcceptanceAssets = Object.freeze([
   "medical-merge.js",
   "src/modules/medical/medical-runtime-bindings.mjs",
+  "src/modules/medical/medical-workspace-runtime-renderer.mjs",
   "src/modules/medical/medical-runtime-write-service.mjs",
   "src/modules/medical/medical-runtime-operations-service.mjs",
   "src/modules/medical/medical-runtime-activity-selectors.mjs",

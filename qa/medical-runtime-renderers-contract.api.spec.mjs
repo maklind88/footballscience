@@ -118,3 +118,25 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
   expect(workspaceRenderer).not.toContain("localStorage");
   expect(index).toContain('export * from "./medical-workspace-runtime-renderer.mjs";');
 });
+
+
+test("guarded recommendation feedback survives background refresh but never a changed intent", () => {
+  const workspace = { innerHTML: "", querySelector: () => null };
+  let current = true, refresh = () => {};
+  const { renderMedicalTeamWorkspace: render } = createMedicalWorkspaceRuntimeRenderer({
+    getWorkspace: () => workspace,
+    rosterRenderer: { renderAvailabilityWorkspace: message => `<main>${message}</main>` },
+    withEnsuredState: callback => { refresh(); return callback(); },
+  });
+  render("50% saved", { recommendationFeedbackIsCurrent: () => current });
+  render(); expect(workspace.innerHTML).toContain("50% saved");
+  refresh = () => { current = false; };
+  render(); expect(workspace.innerHTML).not.toContain("50% saved");
+  render("invalid receipt", { recommendationFeedbackIsCurrent: () => current });
+  expect(workspace.innerHTML).not.toContain("invalid receipt");
+  refresh = () => {}; current = true;
+  render(); expect(workspace.innerHTML).not.toContain("50% saved");
+  render("newer failure", { recommendationFeedbackIsCurrent: () => current });
+  render(""); render(); expect(workspace.innerHTML).not.toContain("newer failure");
+  render("ordinary message"); render(); expect(workspace.innerHTML).not.toContain("ordinary message");
+});

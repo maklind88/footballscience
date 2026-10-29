@@ -37,12 +37,24 @@ export function createMedicalWorkspaceRuntimeRenderer(deps = {}) {
           return callback();
         };
 
-  function renderMedicalTeamWorkspace(message = "", options = {}) {
+  let recommendationFeedback = null;
+  function renderMedicalTeamWorkspace(message, options = {}) {
     const workspace = getWorkspace();
     if (!workspace) {
       return;
     }
     return withEnsuredState(() => {
+      // Background central refreshes must not erase an accepted save receipt.
+      // Only opt-in recommendation feedback survives, with its original guard
+      // rechecked after state refresh. Explicit messages/clears replace it.
+      if (message !== undefined) {
+        recommendationFeedback = typeof options.recommendationFeedbackIsCurrent === "function"
+          ? { message, isCurrent: options.recommendationFeedbackIsCurrent }
+          : null;
+        if (recommendationFeedback) message = undefined;
+      }
+      if (recommendationFeedback && !recommendationFeedback.isCurrent()) recommendationFeedback = null;
+      message = message ?? recommendationFeedback?.message ?? "";
       const teamName = getHeroTeamName();
       const teamLogoUrl = getHeroTeamLogoUrl();
       const operationsTab = normalizeOperationsTab(getOperationsTab());

@@ -60,11 +60,12 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     const generation = ++viewGeneration;
     const scope = win.footballScienceCentralState?.getReadScope?.();
     const date = state.getMedicalState?.()?.selectedDate;
+    const isCurrent = () => generation === viewGeneration && canEdit() &&
+      scope === win.footballScienceCentralState?.getReadScope?.() &&
+      date === state.getMedicalState?.()?.selectedDate;
     return (message) => {
-      if (generation !== viewGeneration || !canEdit() ||
-          scope !== win.footballScienceCentralState?.getReadScope?.() ||
-          date !== state.getMedicalState?.()?.selectedDate) return;
-      render(message);
+      if (!isCurrent()) return;
+      render(message, { recommendationFeedbackIsCurrent: isCurrent });
     };
   };
 

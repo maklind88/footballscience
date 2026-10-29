@@ -352,3 +352,28 @@ The journey guard now distinguishes the canonical aggregate updatedAt receipt
 from clinical record timestamps. All 33 guard tests passed; unrelated clinical
 fields and per-record timestamps remain protected. No historical user-data repair,
 cache clearance, main integration or production release is part of this step.
+
+
+## Canonical activation and delayed-receipt finding
+
+Staging deploy 40923651429 passed Full QA and authenticated smoke from
+`9c83f09ea057e42d786c68906b104c627f34a1de`, publishing
+`dpl_x2QDzbrdQ5fnzC1hm2kV35DVcyoe`. The explicitly passed runtime mode worked.
+Journey run 40925880748 passed normal saving, both author/peer Medical and Sessions
+views, both reloads, and synthetic cleanup. Lost-response saving committed once
+and its retry returned the same event with duplicate=true, but the UI receipt
+was absent; two remaining modes did not run. Both test records were independently
+confirmed archived. The overall four-case acceptance remains unapproved.
+
+A local regression now reproduces the missing receipt: a delayed generic reply
+with the server's updated aggregate timestamp causes a background Medical render
+after the canonical confirmation. The renderer used to erase that confirmation.
+Only quick-recommendation feedback can now opt into surviving background renders,
+using its original generation/account/date/permission guard. The guard is checked
+after the read batch; explicit replacement/clear and invalidated guards discard it.
+No record, persistence policy, request or permission rule changes in this UI fix.
+
+Validation: 58 API/guard/render contracts, all eight Chromium journeys, all eight
+WebKit journeys, npm run check and qa:static passed. The source manifest now
+includes the workspace renderer (20 assets). A new guarded staging publication
+and the four real acceptance cases are required before approval.

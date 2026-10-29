@@ -14,11 +14,11 @@ test('forward alignment preserves history and supports the current Medical event
   const sql = query => db.pg.sql(db.source, query);
   const state = async () => JSON.parse(await sql("select value from public.platform_app_state_records where organization_id='global' and state_key='football-medical-team-v1'"));
   const project = async n => JSON.parse(await sql(`set role service_role; select row_to_json(r) from public.project_medical_state_sync_events(array['${id(n)}'::uuid]) r; reset role;`));
-  const insert = (n, type, payload) => sql(`insert into public.medical_state_sync_events(id,event_type,idempotency_key,payload,payload_hash) values ('${id(n)}','${type}','synthetic-${n}',${literal(payload)},'synthetic')`);
+  const insert = (n, type, payload) => sql(`insert into public.medical_state_sync_events(id,event_type,idempotency_key,payload,payload_hash) values ('${id(n)}','${type}','synthetic-${n}',${literal(payload)},repeat('a',64))`);
   try {
     await sql(old);
     await sql("grant select,insert,update on public.medical_state_sync_events,public.platform_app_state_records to service_role");
-    await sql(`insert into public.platform_app_state_records(organization_id,state_key,module_id,merge_policy,revision,value,value_hash) values ('global','football-medical-team-v1','medical-team','medical-records',10,'{"records":[],"players":[],"injuryPlans":[],"preserve":"untouched"}','synthetic')`);
+    await sql(`insert into public.platform_app_state_records(organization_id,state_key,module_id,merge_policy,revision,value,value_hash) values ('global','football-medical-team-v1','medical-team','medical-records',10,'{"records":[],"players":[],"injuryPlans":[],"preserve":"untouched"}',repeat('a',64))`);
     await insert(901, 'recommendation-saved', { record: { ...record, id: 'historical-unprocessed' } });
     const fingerprint = () => sql("select md5((select jsonb_agg(to_jsonb(s) order by state_key)::text from public.platform_app_state_records s) || (select jsonb_agg(to_jsonb(e) order by id)::text from public.medical_state_sync_events e))");
     await t.test('install changes no existing row, revision or pending event', async () => {

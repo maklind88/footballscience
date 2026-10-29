@@ -48,9 +48,25 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   if (!workspaceElement?.addEventListener) return {};
   bindMedicalDialogFocus(workspaceElement, win);
 
-  const renderWorkspace = actions.renderMedicalTeamWorkspace ?? (() => {});
+  const render = actions.renderMedicalTeamWorkspace ?? (() => {});
+  let viewGeneration = 0;
+  const renderWorkspace = (...args) => { viewGeneration += 1; return render(...args); };
   const canEdit = actions.canEditMedicalTeam ?? (() => false);
   let lastRtpProfileTrigger = null;
+
+  // A receipt may still belong to valid older work, but must not replace feedback
+  // for a newer interaction, another date, or another account/team.
+  const captureRecommendationFeedback = () => {
+    const generation = ++viewGeneration;
+    const scope = win.footballScienceCentralState?.getReadScope?.();
+    const date = state.getMedicalState?.()?.selectedDate;
+    return (message) => {
+      if (generation !== viewGeneration || !canEdit() ||
+          scope !== win.footballScienceCentralState?.getReadScope?.() ||
+          date !== state.getMedicalState?.()?.selectedDate) return;
+      render(message);
+    };
+  };
 
   const recordSync = (eventType, payload) => Promise.resolve(
     actions.recordMedicalDatabaseSyncEvent?.(eventType, payload) ?? { ok: false, stored: false }
@@ -901,17 +917,18 @@ ${renderRtpExerciseCards(profile, 3)}
         quickRecommendationButton.dataset.medicalQuickRecommend,
         quickRecommendationButton.dataset.medicalQuickParticipation
       ) ?? {};
+      const renderRecommendationFeedback = captureRecommendationFeedback();
       const playerName = result.player?.name || "Player";
       const recordToConfirm = result.record || result.existingRecord || null;
       if (recordToConfirm) {
-        renderWorkspace(`${playerName}: confirming ${recordToConfirm.participation}% recommendation...`);
+        renderRecommendationFeedback(`${playerName}: confirming ${recordToConfirm.participation}% recommendation...`);
         const syncResult = await recordCanonicalSync("recommendation-saved", {
           playerId: recordToConfirm.playerId,
           record: recordToConfirm,
           idempotencyKey: `recommendation-saved:${recordToConfirm.id}`,
         });
         if (!isCanonicalMedicalWriteConfirmed(syncResult)) {
-          renderWorkspace(getRecommendationSyncFailureMessage(syncResult, `${playerName}'s recommendation`));
+          renderRecommendationFeedback(getRecommendationSyncFailureMessage(syncResult, `${playerName}'s recommendation`));
           return;
         }
       }
@@ -923,11 +940,11 @@ ${renderRtpExerciseCards(profile, 3)}
       if (archivedRecords.length) {
         const archiveResult = await syncArchivedRecommendationRecords(archivedRecords);
         if (!isCanonicalMedicalWriteConfirmed(archiveResult)) {
-          renderWorkspace(getRecommendationSyncFailureMessage(archiveResult, `${playerName}'s recommendation update`));
+          renderRecommendationFeedback(getRecommendationSyncFailureMessage(archiveResult, `${playerName}'s recommendation update`));
           return;
         }
       }
-      renderWorkspace(
+      renderRecommendationFeedback(
         result.record
           ? `${playerName}: ${result.record.participation}% recommendation saved.`
           : result.unchanged
@@ -1380,6 +1397,7 @@ ${renderRtpExerciseCards(profile, 3)}
   };
 
   const onInput = (event) => {
+    viewGeneration += 1;
     if (event.target.closest("[data-medical-rtp-library-search]")) {
       filterMedicalRtpLibrary({ resetLimit: true });
       return;
@@ -1402,6 +1420,7 @@ ${renderRtpExerciseCards(profile, 3)}
   };
 
   const onChange = (event) => {
+    viewGeneration += 1;
     if (event.target.closest("[data-medical-rtp-library-filter]")) {
       filterMedicalRtpLibrary({ resetLimit: true });
       return;
@@ -1514,6 +1533,7 @@ ${renderRtpExerciseCards(profile, 3)}
   };
 
   const onSubmit = async (event) => {
+    viewGeneration += 1;
     const boardExerciseForm = event.target.closest("[data-medical-board-exercise-form]");
     if (boardExerciseForm) {
       event.preventDefault();

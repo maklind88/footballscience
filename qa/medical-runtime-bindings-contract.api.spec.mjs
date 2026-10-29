@@ -112,7 +112,7 @@ function createHarness({ canEdit = true, configureWorkspace = () => {}, win = { 
       addMedicalRecord: () => ({ id: "r-2", playerId: "p-1" }),
       applyMedicalBulkRecommendation: () => ({ savedCount: 1, records: [{ id: "bulk-1" }], blockedCount: 0, blockedNames: [] }),
       applyMedicalQuickRecommendation: () => mutable.quickRecommendationResult,
-      canEditMedicalTeam: () => canEdit,
+      canEditMedicalTeam: () => typeof canEdit === "function" ? canEdit() : canEdit,
       clearMedicalQuickRecommendation: () => mutable.quickClearResult,
       clearMedicalInjuryPlanDraft: (playerId) => calls.push(`clear-draft:${playerId}`),
       closeMedicalPlayerModal: () => calls.push("close-modal"),
@@ -1151,4 +1151,53 @@ test("Medical runtime bindings preserve roster search, filters, and protected su
   expect(mutable.modalOpen).toBe(false);
   expect(calls).toContainEqual(["sync", "recommendation-saved", expect.objectContaining({ playerId: "p-1" })]);
   expect(calls).toContainEqual(["render", "Status saved."]);
+});
+
+for (const transition of ['scope', 'date', 'input', 'submit', 'permission']) {
+  test(`late quick recommendation feedback is suppressed after ${transition} changes`, async () => {
+    let scope = 'first', canEdit = true, finish;
+    const win = { footballScienceCentralState: { getReadScope: () => scope } };
+    const h = createHarness({ win, canEdit: () => canEdit });
+    h.mutable.syncResult = new Promise(resolve => { finish = resolve; });
+    const pending = h.workspace.listeners.click(createEvent(createTarget({ closest: {
+      '[data-medical-quick-recommend]': { dataset: { medicalQuickRecommend: 'p-1', medicalQuickParticipation: '100' } },
+    } })));
+    if (transition === 'scope') scope = 'second';
+    if (transition === 'date') h.mutable.medicalState.selectedDate = '2026-05-30';
+    if (transition === 'permission') canEdit = false;
+    if (transition === 'input' || transition === 'submit') await h.workspace.listeners[transition](createEvent(createTarget()));
+    const renders = h.calls.filter(call => call[0] === 'render').length;
+    finish({ ok: true, canonicalStored: true }); await pending;
+    expect(h.calls.filter(call => call[0] === 'render')).toHaveLength(renders);
+    expect(h.calls.filter(call => call[0] === 'sync')).toHaveLength(1);
+  });
+}
+
+test('older quick recommendation failure cannot replace a newer success', async () => {
+  const h = createHarness(); let finish;
+  h.mutable.syncResult = new Promise(resolve => { finish = resolve; });
+  const click = () => h.workspace.listeners.click(createEvent(createTarget({ closest: {
+    '[data-medical-quick-recommend]': { dataset: { medicalQuickRecommend: 'p-1', medicalQuickParticipation: '100' } },
+  } })));
+  const older = click();
+  h.mutable.quickRecommendationResult = { player: { name: 'Ada' }, record: { id: 'newer', playerId: 'p-1', participation: 75 } };
+  h.mutable.syncResult = { ok: true, canonicalStored: true };
+  await click();
+  const renders = h.calls.filter(call => call[0] === 'render');
+  expect(renders.at(-1)).toEqual(['render', 'Ada: 75% recommendation saved.']);
+  h.mutable.syncResult = { ok: false, stored: false };
+  finish(h.mutable.syncResult); await older;
+  expect(h.calls.filter(call => call[0] === 'render')).toEqual(renders);
+  expect(h.calls.filter(call => call[0] === 'sync')).toHaveLength(3);
+});
+
+test('an unrelated click does not leave a finished recommendation stuck confirming', async () => {
+  const h = createHarness(); let finish;
+  h.mutable.syncResult = new Promise(resolve => { finish = resolve; });
+  const pending = h.workspace.listeners.click(createEvent(createTarget({ closest: {
+    '[data-medical-quick-recommend]': { dataset: { medicalQuickRecommend: 'p-1', medicalQuickParticipation: '100' } },
+  } })));
+  await h.workspace.listeners.click(createEvent(createTarget()));
+  finish({ ok: true, canonicalStored: true }); await pending;
+  expect(h.calls.filter(call => call[0] === 'render').at(-1)).toEqual(['render', 'Ada: 100% recommendation saved.']);
 });

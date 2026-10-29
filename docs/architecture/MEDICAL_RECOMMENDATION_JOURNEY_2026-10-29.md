@@ -282,3 +282,34 @@ cleanup of this test, not historical user-data repair. Canonical acceptance is n
 relaxed: subsequent runs must first confirm Medical database capability is enabled.
 The sanitized synthetic ledger is emitted before cleanup so a cleanup failure
 cannot hide request stages in future CI runs.
+
+
+## Staging outcome — 2026-10-29 16:04 UTC
+
+- Product candidate c451afca remains published at staging build
+  `dpl_EhTbUeLpapUbRMNv19zSb8QBn9tR`; full staging-deploy QA and smoke passed.
+- Journey acceptance remains **failed / not approved**. Its normal case created
+  one synthetic recommendation through generic app-state persistence, but no
+  canonical event was found in that run window. The other three modes did not run.
+- Authenticated capability inspection in recovery run 40907646457 confirmed HTTP
+  200, `enabled:false`, `canWrite:true`, `databaseMode:false`. Staging Medical is
+  in legacy mode. Canonical acceptance cannot pass in this configuration. No
+  environment flag was changed or database migration applied in this task.
+- Recovery run 40907646457 passed: exactly one unchanged synthetic record and
+  one player archived through the API; unrelated content equal before/after;
+  temporary account/session cleanup succeeded; all six authenticated staging
+  smoke cases passed. Separate database readback confirmed both archival flags,
+  revision 4288. No direct SQL mutation was used.
+- Final test changes passed 32 guard cases, nine recovery refusal/ownership cases,
+  targeted Chromium/WebKit future-date rehearsals, syntax, qa:static and diff
+  checks. These do not replace the failed actual journey acceptance.
+- Production client-config remained at
+  `845a0ed95bbd8795bf574a8aeb0c9f37ed903250`, with the production backend. This chat
+  did not merge main or publish production.
+
+Before another writing acceptance: review the staging-only Medical storage mode,
+intended canonical projection setup and its compatibility with the target release.
+Do not simply flip a mode or weaken canonical receipt requirements to get green.
+Run the four cases only after the capability preflight passes. Simultaneous
+writers, real offline restart, storage growth and other module acceptance remain
+outside this completed staging publication and unresolved acceptance attempt.

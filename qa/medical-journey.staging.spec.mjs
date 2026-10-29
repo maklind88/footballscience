@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createStagingAcceptance, medicalKey, requireProof } from './helpers/save-acceptance-staging.mjs';
 import { verifySaveAcceptanceFrontend } from './helpers/save-acceptance-frontend.mjs';
 import { createMedicalJourneyGuard } from './helpers/medical-journey-staging-guard.mjs';
-import { selectJourneyDay, openJourneyBrowser, verifyStagingJourneyViews } from './helpers/medical-journey-staging-browser.mjs';
+import { verifyJourneyCapability, selectJourneyDay, openJourneyBrowser, verifyStagingJourneyViews } from './helpers/medical-journey-staging-browser.mjs';
 
 // Dedicated opt-in config only. No candidate overlays, screenshots, traces, video
 // or clinical payload attachments. No production origin is accepted by setup.
@@ -23,9 +23,10 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
           body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
         payload = await response.json();
       } catch { throw new Error('Synthetic record archival transport failed; content suppressed'); }
-      requireProof(response.ok && payload.ok && payload.canonicalStored === true, 'Synthetic record archival was not confirmed');
+      requireProof(response.ok && payload.ok && payload.canonicalStored === true, 'Synthetic record archival was not confirmed: ' + JSON.stringify({ status: response.status, ok: payload.ok === true, stored: payload.stored === true, canonicalStored: payload.canonicalStored === true, enabled: payload.enabled === true }));
     };
     try {
+      await verifyJourneyCapability(qa);
       const baseline = await qa.read(qa.primary, medicalKey);
       const sessions = await qa.read(qa.primary, 'football-session-planner-v3');
       const schedule = await qa.read(qa.primary, 'football-schedule-v1');
@@ -78,6 +79,7 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
       }
       await qa.identity();
     } finally {
+      console.log(JSON.stringify({ syntheticJourney: { mode, stages: ledger } }));
       // Close every writer before cleanup. Canonical archival is idempotent;
       // unknown/external edits are preserved and make cleanup fail loudly.
       try {

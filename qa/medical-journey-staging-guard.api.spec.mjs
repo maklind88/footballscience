@@ -3,7 +3,7 @@ import sessionTransport from '../api/_lib/session-state-transport.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createMedicalJourneyGuard } from './helpers/medical-journey-staging-guard.mjs';
-import { selectJourneyDay, addJourneyPrerequisites, createJourneyRequestHandler } from './helpers/medical-journey-staging-browser.mjs';
+import { verifyJourneyCapability, selectJourneyDay, addJourneyPrerequisites, createJourneyRequestHandler } from './helpers/medical-journey-staging-browser.mjs';
 import { medicalKey, sessionsKey } from './helpers/save-acceptance-staging.mjs';
 import { saveAcceptanceAssets, verifySaveAcceptanceFrontend } from './helpers/save-acceptance-frontend.mjs';
 const run = 'qa-save-test', day = '2026-10-30', actorId = 'synthetic-author';
@@ -200,4 +200,15 @@ test('journey date must be unused in both Sessions and Schedule; neither is chan
   const fullyBusy = { events: Array.from({ length: 90 }, (_, index) => ({ date: new Date(now + (index + 1) * 86400000).toISOString().slice(0, 10) })) };
   assert.throws(() => selectJourneyDay({}, fullyBusy, now), /No unused/);
   assert.throws(() => selectJourneyDay({}, { events: {} }, now), /Invalid Schedule/);
+});
+
+
+test('canonical capability must be explicitly enabled before any recommendation', async () => {
+  const qa = { origin, primary: { token: 'synthetic-secret' }, identity: async () => {} };
+  const enabled = { ok: true, enabled: true, canWrite: true, mode: 'database' };
+  assert.equal((await verifyJourneyCapability(qa, async () => new Response(JSON.stringify(enabled)))).enabled, true);
+  for (const change of [{ enabled: false }, { canWrite: false }, { mode: 'legacy' }, { ok: false }]) {
+    await assert.rejects(verifyJourneyCapability(qa, async () => new Response(JSON.stringify({ ...enabled, ...change, private: 'sensitive' }))), error => error.message.includes('unavailable') && !error.message.includes('sensitive'));
+  }
+  await assert.rejects(verifyJourneyCapability(qa, async () => { throw new Error('synthetic-secret'); }), error => !error.message.includes('synthetic-secret'));
 });

@@ -265,3 +265,20 @@ of test date, not permission to overwrite or share an existing session. Sessions
 navigation uses the existing date buttons (10-day jumps); the local normal-mode
 rehearsal now exercises a date 88 days ahead. A fully occupied 90-day window still
 stops the test before any recommendation.
+
+
+Run 40905953798 reached the synthetic recommendation, then failed during archival
+with no canonical confirmation. It is not accepted. Read-only staging inspection
+identified exactly one synthetic record and player from its time window and run
+identity; no matching canonical sync event was present. The fixture is recorded
+in `qa/fixtures/medical-journey-recovery-40905953798.json` with full synthetic
+values for strict recovery comparison, not adoption based on an ID prefix.
+
+A default-off recovery action uses the existing staging API, exact build/source
+checks, the original author, optimistic revision, and exact equality of both rows.
+It archives only those two rows and verifies all unrelated content remains equal.
+Any content change, duplicate, new work or new plan refuses recovery. This is
+cleanup of this test, not historical user-data repair. Canonical acceptance is not
+relaxed: subsequent runs must first confirm Medical database capability is enabled.
+The sanitized synthetic ledger is emitted before cleanup so a cleanup failure
+cannot hide request stages in future CI runs.

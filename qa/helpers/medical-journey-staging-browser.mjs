@@ -7,6 +7,19 @@ function prerequisiteProof(ok, label) {
   if (!ok) throw Object.assign(new Error(label), { journeyGuard: true });
 }
 
+export async function verifyJourneyCapability(qa, fetchImpl = fetch) {
+  await qa.identity();
+  let response, payload;
+  try {
+    response = await fetchImpl(qa.origin + '/api/medical', { headers: { Authorization: 'Bearer ' + qa.primary.token }, redirect: 'error', signal: AbortSignal.timeout(30000) });
+    payload = await response.json();
+  } catch { throw new Error('Medical capability transport failed; private details suppressed'); }
+  const flags = { status: response.status, enabled: payload.enabled === true, canWrite: payload.canWrite === true, databaseMode: payload.mode === 'database' };
+  requireProof(response.ok && payload.ok === true && flags.enabled && flags.canWrite && flags.databaseMode,
+    'Medical canonical prerequisites unavailable: ' + JSON.stringify(flags));
+  return flags;
+}
+
 export function selectJourneyDay(sessions, schedule, now = Date.now()) {
   prerequisiteProof(!schedule.events || Array.isArray(schedule.events), 'Invalid Schedule prerequisite');
   prerequisiteProof(!sessions.sessions || (typeof sessions.sessions === 'object' && !Array.isArray(sessions.sessions)), 'Invalid Sessions prerequisite');

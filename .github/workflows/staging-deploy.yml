@@ -77,6 +77,11 @@ jobs:
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
       - run: npx --yes vercel@53.2.0 pull --yes --environment=preview --git-branch=staging --token="$VERCEL_TOKEN"
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+      - name: Carry reviewed staging Medical mode into runtime
+        if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+        run: |
+          node --test qa/staging-medical-runtime-env.test.mjs
+          node scripts/staging-medical-runtime-env.mjs >> "$GITHUB_ENV"
       - run: npx --yes vercel@53.2.0 build --target=preview --token="$VERCEL_TOKEN"
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
 
@@ -84,7 +89,7 @@ jobs:
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
         shell: bash
         run: |
-          npx --yes vercel@53.2.0 deploy --prebuilt --target=preview --meta githubCommitRef=staging --token="$VERCEL_TOKEN" | tee deployment-url.txt
+          npx --yes vercel@53.2.0 deploy --prebuilt --target=preview --env "MEDICAL_STORAGE_MODE=$STAGING_MEDICAL_STORAGE_MODE" --meta githubCommitRef=staging --token="$VERCEL_TOKEN" | tee deployment-url.txt
           deployment_url="$(grep -Eo 'https://[^[:space:]]+\.vercel\.app' deployment-url.txt | tail -n 1)"
           if [ -z "$deployment_url" ]; then
             echo "Could not resolve staging deployment URL from Vercel output."

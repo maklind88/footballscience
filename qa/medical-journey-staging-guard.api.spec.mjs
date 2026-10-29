@@ -3,7 +3,7 @@ import sessionTransport from '../api/_lib/session-state-transport.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createMedicalJourneyGuard } from './helpers/medical-journey-staging-guard.mjs';
-import { addJourneyPrerequisites, createJourneyRequestHandler } from './helpers/medical-journey-staging-browser.mjs';
+import { selectJourneyDay, addJourneyPrerequisites, createJourneyRequestHandler } from './helpers/medical-journey-staging-browser.mjs';
 import { medicalKey, sessionsKey } from './helpers/save-acceptance-staging.mjs';
 import { saveAcceptanceAssets, verifySaveAcceptanceFrontend } from './helpers/save-acceptance-frontend.mjs';
 const run = 'qa-save-test', day = '2026-10-30', actorId = 'synthetic-author';
@@ -185,4 +185,17 @@ test('compressed session prerequisites preserve unrelated content and transport'
   assert.deepEqual(decoded.sessions['2026-01-01'], existing.sessions['2026-01-01']);
   assert.equal(decoded.sessions[day].title, run);
   await assert.rejects(addJourneyPrerequisites({ entries: { [sessionsKey]: { encoding: 'gzip-base64-v1', data: 'broken' } } }, { run, day, player }), /Unreadable/);
+});
+
+
+test('journey date must be unused in both Sessions and Schedule; neither is changed', () => {
+  const now = Date.parse('2026-10-29T12:00:00Z');
+  const sessions = { sessions: { '2026-10-30': { title: 'existing' } } };
+  const schedule = { events: [{ date: '2026-10-31', title: 'existing' }] };
+  const before = structuredClone({ sessions, schedule });
+  assert.equal(selectJourneyDay(sessions, schedule, now), '2026-11-01');
+  assert.deepEqual({ sessions, schedule }, before);
+  const busy = { events: Array.from({ length: 14 }, (_, index) => ({ date: new Date(now + (index + 1) * 86400000).toISOString().slice(0, 10) })) };
+  assert.throws(() => selectJourneyDay({}, busy, now), /No unused/);
+  assert.throws(() => selectJourneyDay({}, { events: {} }, now), /Invalid Schedule/);
 });

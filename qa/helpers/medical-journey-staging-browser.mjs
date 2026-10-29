@@ -7,6 +7,16 @@ function prerequisiteProof(ok, label) {
   if (!ok) throw Object.assign(new Error(label), { journeyGuard: true });
 }
 
+export function selectJourneyDay(sessions, schedule, now = Date.now()) {
+  prerequisiteProof(!schedule.events || Array.isArray(schedule.events), 'Invalid Schedule prerequisite');
+  prerequisiteProof(!sessions.sessions || (typeof sessions.sessions === 'object' && !Array.isArray(sessions.sessions)), 'Invalid Sessions prerequisite');
+  const occupied = new Set((schedule.events || []).map(event => event.date));
+  const day = Array.from({ length: 14 }, (_, index) => new Date(now + (index + 1) * 86400000).toISOString().slice(0, 10))
+    .find(date => !sessions.sessions?.[date] && !occupied.has(date));
+  prerequisiteProof(day, 'No unused nearby Sessions and Schedule date; no recommendation written');
+  return day;
+}
+
 // Only prerequisites are synthetic browser reads. Medical responses and canonical
 // receipts are never invented. This does NOT certify Squad/Schedule persistence.
 export async function addJourneyPrerequisites(payload, { run, day, player }, requestUrl = "/api/app-state?sessionTransport=gzip-base64-v1") {

@@ -114,7 +114,7 @@ export async function createStagingAcceptance(env = process.env) {
     const peer = await login(email, password);
     requireProof(peer.user.id === peerId && peer.user.app_metadata?.role === 'team-admin', 'Distinct peer identity/role required');
     const read = async (account, key) => {
-      requireProof([medicalKey, sessionsKey].includes(key), 'Unexpected module');
+      requireProof([medicalKey, sessionsKey, 'football-schedule-v1'].includes(key), 'Unexpected module');
       const { payload } = await request('/api/app-state?fresh=1&sessionTransport=gzip-base64-v1&keys=' + encodeURIComponent(key), { token: account.token });
       requireProof(payload.ok && payload.entries && payload.metadata, 'Central read failed');
       if (!Object.hasOwn(payload.entries, key)) {

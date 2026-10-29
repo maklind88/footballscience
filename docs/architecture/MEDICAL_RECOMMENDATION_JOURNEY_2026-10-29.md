@@ -247,3 +247,12 @@ build only after the source manifest and backend/build guards pass again.
 Correction validation: all 30 guard cases, all four Chromium and all four
 WebKit rehearsals passed, as did `npm run check`, `npm run qa:static` and
 `git diff --check`. These remain local checks, not a staging acceptance result.
+
+
+The instrumented rerun (40904779917, test runner e3d6041b) identified an existing
+Schedule activity on the selected date. It again stopped before any recommendation
+click. The fixture selected a date unused by Sessions alone. The corrected selector
+now reads both modules and chooses a nearby date unused in both; the browser
+collision guards remain in place to catch changes after selection. A fully occupied
+window fails before any recommendation. Schedule access added to the shared helper
+is read-only; no Schedule write or historical repair is permitted.

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createStagingAcceptance, medicalKey, requireProof } from './helpers/save-acceptance-staging.mjs';
 import { verifySaveAcceptanceFrontend } from './helpers/save-acceptance-frontend.mjs';
 import { createMedicalJourneyGuard } from './helpers/medical-journey-staging-guard.mjs';
-import { openJourneyBrowser, verifyStagingJourneyViews } from './helpers/medical-journey-staging-browser.mjs';
+import { selectJourneyDay, openJourneyBrowser, verifyStagingJourneyViews } from './helpers/medical-journey-staging-browser.mjs';
 
 // Dedicated opt-in config only. No candidate overlays, screenshots, traces, video
 // or clinical payload attachments. No production origin is accepted by setup.
@@ -28,9 +28,8 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
     try {
       const baseline = await qa.read(qa.primary, medicalKey);
       const sessions = await qa.read(qa.primary, 'football-session-planner-v3');
-      const day = Array.from({ length: 14 }, (_, index) => new Date(Date.now() + (index + 1) * 86400000).toISOString().slice(0, 10))
-        .find(date => !sessions.state.sessions?.[date]);
-      requireProof(day, 'No unused nearby session date; no recommendation written');
+      const schedule = await qa.read(qa.primary, 'football-schedule-v1');
+      const day = selectJourneyDay(sessions.state, schedule.state);
       fixture = { run: qa.run, day, player: { id: qa.run + '-player', name: 'Synthetic Journey ' + qa.run,
         position: 'Midfielder', rosterType: 'squad', countsInSquad: true, status: 'available' } };
       guard = createMedicalJourneyGuard({ ...fixture, actorId: qa.primary.user.id, baseline: baseline.state });

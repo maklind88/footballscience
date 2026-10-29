@@ -13,6 +13,14 @@ The adjacent dormant SQL contains the definition-only section of
 20260901103202_medical_plan_canonical_projection.sql. It omits all historical row
 repair and event replay. A fingerprint guard rejects any projector other than
 the observed August definition, and existing plan helpers stop installation.
+It also fixes the existing version helper: an activity date is not a write timestamp.
+The native rehearsal exposed that a future recommendation could report an archive
+as stored while silently leaving it active. Comparing activity dates also made
+older/newer edits for that future day compare equal. The helper now compares only
+write metadata; a missing write timestamp stays unknown rather than borrowing the
+activity date. An exact helper fingerprint protects this additional replacement.
+No existing row is rewritten, and clinical participation rules are unchanged.
+
 It adds the current event constraint and plan functions while retaining invoker
 security and service-role-only execution. Existing records, revisions and events
 must be identical before and after installation.
@@ -28,7 +36,8 @@ settings must remain unchanged. Use the existing guarded staging deploy and
 rerun all four Medical journey cases against its exact build ID.
 
 The native test covers installation without rewriting history, rejection of a
-changed baseline, denied client roles, recommendation retry, all six plan event
+changed baseline, denied client roles, recommendation retry, stale edits on future activity days, archival before the
+activity date, all six plan event
 types, archival and invalid payload refusal. This does not certify tenant
 isolation changes: the existing compatibility projector still uses the global
 app-state row, as does this unchanged contract. No broader schema rewrite is

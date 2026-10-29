@@ -38,6 +38,15 @@ test('forward alignment preserves history and supports the current Medical event
       assert.equal(first.canonical_stored, true); assert.equal(duplicate.revision, first.revision);
       const s = await state(); assert.equal(s.preserve, 'untouched'); assert.deepEqual(s.records, [record]);
     });
+    await t.test('future activity date cannot override real edit order', async () => {
+      const newer = { ...record, participation: 75, updatedAt: '2026-10-29T12:30:00Z' };
+      await insert(903, 'recommendation-saved', { record: newer });
+      assert.equal((await project(903)).canonical_stored, true);
+      await insert(904, 'recommendation-saved', { record });
+      assert.equal((await project(904)).canonical_stored, true);
+      assert.deepEqual((await state()).records, [newer]);
+      assert.equal(await sql("select app_private.medical_compat_entity_timestamp('{\"date\":\"2099-01-01\"}')"), '\n');
+    });
     for (const [n, event] of ['availability-plan-created','availability-plan-updated','clearance-saved','medical-board-updated','availability-plan-archived','availability-plan-deleted'].entries()) {
       await t.test(event + ' projects the exact plan', async () => {
         const next = { ...plan, updatedAt: `2026-10-29T12:00:0${n}Z`, ...(n >= 4 ? { archivedAt: '2026-10-29T12:01:00Z' } : {}) };
@@ -48,7 +57,7 @@ test('forward alignment preserves history and supports the current Medical event
     await t.test('archive recommendation preserves its identity and all plans', async () => {
       const before = await state(); await insert(920, 'record-archived', { recordId: record.id, archivedAt: '2026-10-29T13:00:00Z' });
       assert.equal((await project(920)).canonical_stored, true);
-      const after = await state(); assert.equal(after.records[0].archivedAt, '2026-10-29T13:00:00Z'); assert.deepEqual(after.injuryPlans, before.injuryPlans);
+      const after = await state(); assert.equal(after.records[0].archivedAt, '2026-10-29T13:00:00Z'); assert.equal(after.records[0].id, record.id); assert.equal(after.records[0].participation, 75); assert.deepEqual(after.injuryPlans, before.injuryPlans);
     });
     await t.test('invalid plan fails without altering canonical state', async () => {
       const before = await state(); await insert(921, 'availability-plan-created', { plan: { ...plan, participation: 51 } });

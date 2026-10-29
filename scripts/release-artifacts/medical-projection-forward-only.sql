@@ -6,6 +6,7 @@ set statement_timeout = '30s';
 do $precondition$
 begin
   if (select md5(pg_get_functiondef('public.project_medical_state_sync_events(uuid[])'::regprocedure))) <> 'b4b656b5a95453f11c7f3755b92cfcb4'
+    or (select md5(pg_get_functiondef('app_private.medical_compat_entity_timestamp(jsonb)'::regprocedure))) <> '2d80a598eee0c4f64b1ecaa9231961b9'
     or to_regprocedure('app_private.upsert_medical_compat_plan(jsonb,jsonb)') is not null
     or to_regprocedure('app_private.validate_medical_compat_plan(jsonb)') is not null then
     raise exception 'Medical projection baseline differs; preserve current definitions';
@@ -297,3 +298,24 @@ $$;
 
 revoke all on function public.project_medical_state_sync_events(uuid[]) from public, anon, authenticated;
 grant execute on function public.project_medical_state_sync_events(uuid[]) to service_role;
+
+-- An activity date is not a write version. Future activities must not suppress
+-- today's archive, nor make newer and older writes compare equal.
+-- Missing write metadata means unknown age; do not invent a version from date.
+create or replace function app_private.medical_compat_entity_timestamp(entity jsonb)
+returns text
+language sql
+immutable
+strict
+set search_path = public, pg_temp
+as $$
+  select greatest(
+    coalesce(entity ->> 'archivedAt', ''),
+    coalesce(entity ->> 'deletedAt', ''),
+    coalesce(entity ->> 'updatedAt', ''),
+    coalesce(entity ->> 'createdAt', ''),
+    coalesce(entity ->> 'lastClinicalChangeAt', '')
+  );
+$$;
+revoke all on function app_private.medical_compat_entity_timestamp(jsonb) from public, anon, authenticated;
+grant execute on function app_private.medical_compat_entity_timestamp(jsonb) to service_role;

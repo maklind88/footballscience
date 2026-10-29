@@ -212,3 +212,18 @@ test('canonical capability must be explicitly enabled before any recommendation'
   }
   await assert.rejects(verifyJourneyCapability(qa, async () => { throw new Error('synthetic-secret'); }), error => !error.message.includes('synthetic-secret'));
 });
+
+
+test('server aggregate receipt timestamp is distinct from protected clinical record timestamps', () => {
+  const f = fixture(); f.guard.arm(); f.guard.event(f.event, f.baseline);
+  const projected = { ...structuredClone(f.state), updatedAt: '2026-10-29T12:00:01.123Z' };
+  assert.ok(f.guard.unrelatedUnchanged(projected));
+  assert.equal(f.guard.generic(f.body, projected), f.row.id);
+  const unrelatedEdit = structuredClone(projected);
+  unrelatedEdit.records[1].updatedAt = '2026-10-29T12:00:02.000Z';
+  assert.equal(f.guard.unrelatedUnchanged(unrelatedEdit), false);
+  assert.throws(() => f.guard.generic(f.body, unrelatedEdit), /Unrelated/);
+  const ownEdit = structuredClone(projected); ownEdit.records[0].updatedAt = '2026-10-29T12:00:02.000Z';
+  assert.throws(() => f.guard.archiveEvent(f.row.id, ownEdit, new Date().toISOString()), /externally/);
+  assert.throws(() => f.guard.unrelatedUnchanged({ ...projected, updatedAt: { unexpected: true } }), /timestamp/);
+});

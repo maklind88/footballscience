@@ -36,7 +36,12 @@ export function createMedicalJourneyGuard({ run, day, player, actorId, baseline 
   };
   const remember = row => { records.set(row.id, structuredClone(row)); return row.id; };
   const clinical = state => {
-    const { selectedDate, selectedPlayerId, dataSafety, ...rest } = state;
+    // The canonical projector stamps aggregate updatedAt after each accepted event.
+    // It is receipt metadata; per-record timestamps remain fully protected below.
+    requireProof(state.updatedAt == null || state.updatedAt === '' || (typeof state.updatedAt === 'string'
+      && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(state.updatedAt)
+      && Number.isFinite(Date.parse(state.updatedAt))), 'Invalid aggregate save timestamp');
+    const { selectedDate, selectedPlayerId, dataSafety, updatedAt, ...rest } = state;
     return { ...rest, players: (state.players || []).filter(row => row.id !== player.id).sort((a,b) => a.id.localeCompare(b.id)),
       records: (state.records || []).filter(row => !records.has(row.id)).sort((a,b) => a.id.localeCompare(b.id)),
       injuryPlans: [...(state.injuryPlans || [])].sort((a,b) => a.id.localeCompare(b.id)) };

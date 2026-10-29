@@ -22,7 +22,11 @@ test("only staging alias is assigned after all reviewed assets, and verified aft
   const f = fixture(), result = await restoreReviewedStaging(f.options);
   assert.deepEqual(f.writes, [{ id: "dpl_reviewed", alias: target.staging }]);
   assert.equal(result.productionUnchanged, true);
-  assert.equal(result.verifiedAssets, 9);
+  assert.equal(result.verifiedAssets, stagingRestoreAssets.length);
+  for (const host of [new URL(f.options.input.deploymentUrl).hostname, target.staging]) {
+    assert.deepEqual(f.reads.filter(([readHost]) => readHost === host).map(([, asset]) => asset),
+      ['api/client-config', ...stagingRestoreAssets]);
+  }
   assert.equal(f.reads.length, 2 * (stagingRestoreAssets.length + 1));
 });
 for (const mutation of [

@@ -15,6 +15,10 @@ on:
         description: Run two-user saving acceptance with own synthetic staging fixtures and temporary peer account.
         type: boolean
         default: false
+      verify_medical_journey:
+        description: Verify new Medical recommendation receipts and cold-peer Medical/Sessions views on reviewed staging assets.
+        type: boolean
+        default: false
       save_candidate_client:
         description: Test only this candidate's saving client scripts in the QA browser; deployed staging assets remain unchanged.
         type: boolean
@@ -41,7 +45,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: ${{ (inputs.verify_save_acceptance || inputs.restore_staging_deployment != '') && 'footballscience-production-edge-release' || format('staging-smoke-{0}', github.run_id) }}
+  group: ${{ (inputs.verify_save_acceptance || inputs.verify_medical_journey || inputs.restore_staging_deployment != '') && 'footballscience-production-edge-release' || format('staging-smoke-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -49,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
       STAGING_QA_BASE_URL: ${{ vars.STAGING_QA_BASE_URL }}
@@ -110,4 +114,13 @@ jobs:
         run: |
           node --test qa/save-acceptance-fixture-guards.test.mjs qa/save-acceptance-frontend.test.mjs
           npx playwright test --config=qa/save-acceptance.playwright.config.mjs
+      - name: New Medical recommendation acceptance
+        if: inputs.verify_medical_journey
+        env:
+          SAVE_QA_ALLOW_FIXTURES: '1'
+          SAVE_QA_CLIENT_CANDIDATE: '0'
+          SAVE_QA_EXPECTED_BUILD: ${{ inputs.expected_save_build_id }}
+        run: |
+          npx playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/medical-journey-staging-guard.api.spec.mjs
+          npx playwright test --config=qa/medical-journey.staging.config.mjs
       - run: npm run qa:staging:required

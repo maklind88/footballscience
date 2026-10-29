@@ -42,3 +42,27 @@ types, archival and invalid payload refusal. This does not certify tenant
 isolation changes: the existing compatibility projector still uses the global
 app-state row, as does this unchanged contract. No broader schema rewrite is
 included.
+
+## Staging installation evidence — 2026-10-29
+
+- Reviewed candidate: `33161aae87d0f18f3a347a0662cd103d52c818bd`.
+- Native PostgreSQL 17 rehearsal: GitHub run `40919578788`, passed.
+- Local `npm run check`, `npm run qa:static`, syntax and diff checks passed.
+- Clean candidate matched its remote SHA; release traffic guard passed.
+- Applied only to `pokrksgempkuraueglpu`, migration `20261029171642`, name
+  `medical_projection_forward_only_staging_alignment`.
+- All 8 app-state rows had identical before/after content fingerprint
+  `e2f99e08d4acddfa207d32cad8bcce16`; event count remained zero and fingerprint
+  `d41d8cd98f00b204e9800998ecf8427e` unchanged.
+- Projector definition MD5: `462d583bb2028f79fa3f199e99ad3107`.
+- Timestamp helper MD5: `5219258aef9bc1859efa4fe5ca5223d3`.
+- Plan validator/upsert MD5: `d47a621ab7fc46a74f3116f3e29b2848` /
+  `affc1a542729c3f93a324de792036a74`.
+- All four functions retain invoker execution, service-role access, and denied
+  anon/authenticated execution. Security advisors retained the existing findings:
+  65 informational service-only RLS tables and the existing password-protection warning.
+- Original schema definitions retained locally in private temporary evidence files.
+- This artifact is now applied in staging only. Its exact-old-schema precondition
+  intentionally rejects reapplication. Do not put it into a broad production migration.
+- Staging deployment and four-case browser acceptance are still pending; native
+  success does not establish real API/UI acceptance or production readiness.

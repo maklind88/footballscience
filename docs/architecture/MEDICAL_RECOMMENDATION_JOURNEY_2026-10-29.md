@@ -313,3 +313,42 @@ Do not simply flip a mode or weaken canonical receipt requirements to get green.
 Run the four cases only after the capability preflight passes. Simultaneous
 writers, real offline restart, storage growth and other module acceptance remain
 outside this completed staging publication and unresolved acceptance attempt.
+
+
+## Forward-only staging alignment — current work, 2026-10-29
+
+The previous disabled-mode blocker was investigated before changing configuration.
+Staging lacked the September plan projector/validators and its event constraint
+omitted medical-board-updated. Only definition changes were applied, not the
+historical repair/replay part of that migration. Native PostgreSQL 17 acceptance
+also exposed a real bug: using a future activity date as a write version could
+silently suppress archival and allow older edits to replace newer ones. The
+version helper now uses write metadata, matching the generic Medical merge path.
+
+Migration `20261029171642` was applied only to staging project
+`pokrksgempkuraueglpu`. All existing state/event content fingerprints remained
+identical; role restrictions and invoker security were verified. Native run
+40919578788 passed all 14 checks. Detailed fingerprints and guards are in
+scripts/release-artifacts/medical-projection-forward-only.md. Production has not
+received this schema change; the dormant artifact intentionally refuses replay
+against any different baseline.
+
+`MEDICAL_STORAGE_MODE=database` was added only to Vercel Preview branch `staging`.
+Staging-deploy run 40920015062 passed Full QA and authenticated smoke, publishing
+source `33ab9f179f21b42a0e8231af91a5ecb0c14d003b` as
+`dpl_AgkZErLTos7F4ymG7HmHrqNg6oA7`. All 19 frontend assets and backend identity
+matched. However, journey run 40922764694 stopped before writing: authenticated
+Medical capability still reported legacy/disabled mode. The branch-scoped build
+pull plus githubCommitRef metadata had not supplied the mode to runtime.
+
+Candidate `9c83f09ea057e42d786c68906b104c627f34a1de` explicitly carries only the
+configured non-secret Medical mode from the staging preview env file to CLI
+`--env` runtime configuration. Missing/invalid modes fail closed; `legacy` remains
+an explicit rollback choice. Three focused runtime-config tests and qa:static
+passed. The shared release queue and Full QA gate are retained. Redeploy run
+40923651429 is in progress; four-case journey acceptance remains unapproved.
+
+The journey guard now distinguishes the canonical aggregate updatedAt receipt
+from clinical record timestamps. All 33 guard tests passed; unrelated clinical
+fields and per-record timestamps remain protected. No historical user-data repair,
+cache clearance, main integration or production release is part of this step.

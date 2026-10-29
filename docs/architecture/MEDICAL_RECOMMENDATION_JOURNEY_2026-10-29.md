@@ -211,3 +211,39 @@ harness cases also passed in WebKit. The 34 existing fixture/frontend/staging
 restore unit cases passed. `npm run qa:static`, `git diff --check` and collection
 of all four opt-in staging cases passed. These are 78 local test executions;
 the four actual staging cases were discovered, **not executed**.
+
+
+## Authorized staging execution and test transport correction
+
+The user explicitly approved staging publication and acceptance, with production
+excluded. Workflow run 40900628744 published exact candidate
+`c451afca86f043c701d98587a623fc352b35a65f` using the staging environment and passed
+full QA and authenticated staging smoke. Staging build is
+`dpl_EhTbUeLpapUbRMNv19zSb8QBn9tR`; all 19 frontend manifest assets match.
+Production remained at `845a0ed95bbd8795bf574a8aeb0c9f37ed903250`.
+
+An earlier attempt to reuse the automatic branch preview (run 40899859114) was
+rejected by the staging database/build identity guard before alias assignment.
+No protection was bypassed; the ordinary staging-specific build was used.
+
+The first real journey execution, run 40903085955, failed its author prerequisites
+before arming or clicking the recommendation. The other three cases did not run.
+This is not a successful saving acceptance. No cleanup failure was reported.
+
+Inspection found that the test prerequisite reader parsed Sessions directly as
+JSON, although the real read API supports gzip-base64-v1 objects. The test now
+uses the existing server transport codec for decoding and negotiated re-encoding.
+A regression checks compressed content, unchanged existing sessions, unchanged
+raw Medical bytes and rejection of invalid transport. All four local browser
+rehearsals now include a large synthetic Sessions payload. Failure diagnostics
+report a fixed request phase and safe guard messages, never private response
+bodies or transport exception contents. The actual cause of the first staging
+failure remains unconfirmed until the instrumented rerun.
+
+This correction changes test infrastructure only. The published product assets
+remain the same; subsequent test-runner commits may target that exact staging
+build only after the source manifest and backend/build guards pass again.
+
+Correction validation: all 30 guard cases, all four Chromium and all four
+WebKit rehearsals passed, as did `npm run check`, `npm run qa:static` and
+`git diff --check`. These remain local checks, not a staging acceptance result.

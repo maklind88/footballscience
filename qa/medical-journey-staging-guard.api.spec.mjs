@@ -1,4 +1,5 @@
 import { test } from '@playwright/test';
+import sessionTransport from '../api/_lib/session-state-transport.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createMedicalJourneyGuard } from './helpers/medical-journey-staging-guard.mjs';
@@ -81,16 +82,16 @@ test('canonical cleanup targets only the exact observed recommendation', () => {
   assert.equal(body.eventType, 'record-archived'); assert.equal(body.payload.recordId, f.row.id);
   assert.equal(body.payload.playerId, player.id); assert.ok(!JSON.stringify(body).includes('unrelated'));
 });
-test('prerequisite overlay preserves raw Medical and existing roster; collisions stop', () => {
+test('prerequisite overlay preserves raw Medical and existing roster; collisions stop', async () => {
   const payload = { entries: { [medicalKey]: 'raw clinical bytes', 'football-player-profiles-v1': JSON.stringify({ players: [{ id: 'unrelated' }] }) },
     absentKeys: ['football-schedule-v1', sessionsKey] };
-  const before = structuredClone(payload), next = addJourneyPrerequisites(payload, { run, day, player });
+  const before = structuredClone(payload), next = await addJourneyPrerequisites(payload, { run, day, player });
   assert.deepEqual(payload, before); assert.equal(next.entries[medicalKey], 'raw clinical bytes');
   assert.equal(JSON.parse(next.entries['football-player-profiles-v1']).players.length, 2);
   for (const key of ['football-schedule-v1', sessionsKey]) {
     const collision = structuredClone(payload);
     collision.entries[key] = key === sessionsKey ? JSON.stringify({ sessions: { [day]: {} } }) : JSON.stringify({ events: [{ date: day }] });
-    assert.throws(() => addJourneyPrerequisites(collision, { run, day, player }), /already/);
+    await assert.rejects(() => addJourneyPrerequisites(collision, { run, day, player }), /already/);
   }
 });
 
@@ -167,4 +168,21 @@ test('new staging acceptance is explicit, serialized, deployed-source only and h
   const config = readFileSync(new URL('./medical-journey.staging.config.mjs', import.meta.url), 'utf8');
   assert.match(config, /retries: 0, maxFailures: 1/);
   for (const type of ['screenshot', 'trace', 'video']) assert.ok(config.includes(type + ": 'off'"));
+});
+
+
+test('compressed session prerequisites preserve unrelated content and transport', async () => {
+  const existing = { sessions: { '2026-01-01': { title: 'preserved', notes: 'synthetic'.repeat(40000) } } };
+  const encoded = await sessionTransport.encodeSessionStateValue({ url: '/?sessionTransport=gzip-base64-v1' }, sessionsKey, JSON.stringify(existing));
+  assert.equal(encoded.encoding, 'gzip-base64-v1');
+  const payload = { entries: { [medicalKey]: 'raw clinical bytes', [sessionsKey]: encoded } };
+  const before = structuredClone(payload);
+  const next = await addJourneyPrerequisites(payload, { run, day, player });
+  assert.deepEqual(payload, before);
+  assert.equal(next.entries[medicalKey], 'raw clinical bytes');
+  assert.equal(next.entries[sessionsKey].encoding, 'gzip-base64-v1');
+  const decoded = JSON.parse(await sessionTransport.decodeSessionStateValue(sessionsKey, next.entries[sessionsKey]));
+  assert.deepEqual(decoded.sessions['2026-01-01'], existing.sessions['2026-01-01']);
+  assert.equal(decoded.sessions[day].title, run);
+  await assert.rejects(addJourneyPrerequisites({ entries: { [sessionsKey]: { encoding: 'gzip-base64-v1', data: 'broken' } } }, { run, day, player }), /Unreadable/);
 });

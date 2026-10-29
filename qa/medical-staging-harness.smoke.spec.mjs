@@ -1,9 +1,10 @@
+import sessionTransport from '../api/_lib/session-state-transport.js';
 import { test, expect } from '@playwright/test';
 import { createServer } from 'node:http';
 import { installSetPiecesCentralFixture } from './helpers/set-pieces-central-fixture.mjs';
 import { createMedicalJourneyGuard } from './helpers/medical-journey-staging-guard.mjs';
 import { createJourneyRequestHandler, openJourneyMedical, verifyStagingJourneyViews } from './helpers/medical-journey-staging-browser.mjs';
-import { medicalKey } from './helpers/save-acceptance-staging.mjs';
+import { medicalKey, sessionsKey } from './helpers/save-acceptance-staging.mjs';
 
 // Rehearse the exact staging route guards and selectors with actual browser
 // requests and local synthetic HTTP. This is not authenticated staging evidence.
@@ -21,7 +22,7 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
         let response;
         if (req.method === 'GET') {
           const keys = url.searchParams.get('keys')?.split(',') || [medicalKey, 'football-player-profiles-v1', 'football-schedule-v1', 'football-session-planner-v3'];
-          const entries = { [medicalKey]: JSON.stringify(medical), 'football-player-profiles-v1': JSON.stringify({ rosterVersion: 'qa-staging', players: [] }) };
+          const entries = { [sessionsKey]: await sessionTransport.encodeSessionStateValue(req, sessionsKey, JSON.stringify({ sessions: { '2026-01-01': { title: 'Synthetic preserved', notes: 'synthetic'.repeat(40000), blocks: [] } } })), [medicalKey]: JSON.stringify(medical), 'football-player-profiles-v1': JSON.stringify({ rosterVersion: 'qa-staging', players: [] }) };
           response = { ok: true, entries: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, entries[k]])),
             metadata: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, { revision, organizationId: 'set-pieces-org' }])),
             absentKeys: keys.filter(k => !(k in entries)) };

@@ -35,7 +35,7 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
         position: 'Midfielder', rosterType: 'squad', countsInSquad: true, status: 'available' } };
       guard = createMedicalJourneyGuard({ ...fixture, actorId: qa.primary.user.id, baseline: baseline.state });
       const author = await openJourneyBrowser({ browser, qa, account: qa.primary, fixture, guard, mode, ledger, contexts, writable: true });
-      requireProof(author.errors.length === 0, 'Author prerequisites failed before recommendation');
+      requireProof(author.errors.length === 0, 'Author prerequisites failed before recommendation: ' + author.errors.join('; '));
       requireProof(!(await qa.read(qa.primary, medicalKey)).state.records?.some(row => row.playerId === fixture.player.id), 'Recommendation must not exist before the click');
       guard.arm();
       await author.page.getByRole('button', { name: fixture.player.name + ' 50% training recommendation', exact: true }).click();
@@ -74,7 +74,7 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
         await verifyStagingJourneyViews(client.page, fixture, recordId);
         requireProof(ledger.filter(e => e.stage === 'read' && e.actor === actor && e.ownIds.includes(recordId)).length > beforeReads,
           'Reload did not produce a fresh server read of the recommendation');
-        requireProof(client.errors.length === 0, 'Journey guard rejected a relevant request');
+        requireProof(client.errors.length === 0, 'Journey guard rejected a relevant request: ' + client.errors.join('; '));
         ledger.push({ stage: 'both-views-and-reload', actor, id: recordId });
       }
       await qa.identity();

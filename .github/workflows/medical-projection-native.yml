@@ -1,9 +1,17 @@
 name: Medical Projection Native
 on:
   workflow_dispatch:
+    inputs:
+      expected_production_build:
+        description: Optional exact production SHA for read-only Medical mode verification; empty skips it.
+        type: string
+        default: ''
   pull_request:
     paths:
       - 'scripts/release-artifacts/medical-projection-forward-only.sql'
+      - 'scripts/release-artifacts/medical-production-timestamp-only.sql'
+      - 'scripts/verify-medical-production-mode.mjs'
+      - 'qa/medical-production-mode.test.mjs'
       - 'qa/medical-projection-forward-native.test.mjs'
       - '.github/workflows/medical-projection-native.yml'
 permissions:
@@ -36,3 +44,22 @@ jobs:
         env:
           FS_RECOVERY_PG_BIN: /usr/lib/postgresql/17/bin
         run: node --test qa/medical-projection-forward-native.test.mjs
+  production-mode:
+    if: github.event_name == 'workflow_dispatch' && inputs.expected_production_build != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Verify probe guards without credentials
+        run: node --test qa/medical-production-mode.test.mjs
+      - name: Read actual Medical runtime mode and revoke own QA session
+        env:
+          MEDICAL_EXPECTED_PRODUCTION_BUILD: ${{ inputs.expected_production_build }}
+          LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
+          LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
+        run: node scripts/verify-medical-production-mode.mjs

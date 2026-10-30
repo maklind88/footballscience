@@ -64,5 +64,10 @@ included.
 - Original schema definitions retained locally in private temporary evidence files.
 - This artifact is now applied in staging only. Its exact-old-schema precondition
   intentionally rejects reapplication. Do not put it into a broad production migration.
-- Staging deployment and four-case browser acceptance are still pending; native
-  success does not establish real API/UI acceptance or production readiness.
+- Staging deployment and all four real browser cases subsequently passed for
+  product source `d1e9374df42e0d792ae49a245098df735e6d9821`; see
+  `docs/architecture/MEDICAL_RECOMMENDATION_JOURNEY_2026-10-29.md`.
+- Production compatibility was reviewed separately on 2026-10-30. Production
+  already has the plan projector/helpers and requires only the timestamp helper
+  correction; this staging artifact must not be applied there. See
+  `docs/architecture/MEDICAL_PRODUCTION_COMPATIBILITY_2026-10-30.md`.

@@ -10,7 +10,7 @@ async function createJourney(browser, mode) {
   let revision = 10, release, releaseReceipt;
   const receiptGate = new Promise(resolve => { releaseReceipt = resolve; });
   const canonicalGate = new Promise(resolve => { release = resolve; });
-  const server = { medical: { rosterVersion: 'qa-journey', players: [player], records: [], injuryPlans: [] }, effects: 0 };
+  const server = { medical: { rosterVersion: 'qa-journey', players: mode === 'generic-failed' ? [] : [player], records: [], injuryPlans: [] }, effects: 0 };
   const entries = () => ({
     [key]: JSON.stringify(server.medical),
     'football-player-profiles-v1': JSON.stringify({ rosterVersion: 'qa-journey', players: [player], removedPlayerIds: [] }),

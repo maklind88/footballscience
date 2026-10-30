@@ -377,3 +377,43 @@ Validation: 58 API/guard/render contracts, all eight Chromium journeys, all eigh
 WebKit journeys, npm run check and qa:static passed. The source manifest now
 includes the workspace renderer (20 assets). A new guarded staging publication
 and the four real acceptance cases are required before approval.
+
+
+## Cold-reader roster lag regression
+
+The canonical-only local journey was strengthened to begin without a saved
+Medical player, matching the staging fixture. It then reproduced a second real
+visibility issue: cloneMedicalState filtered a valid canonical record before
+ensureMedicalState projected its already-known Squad player into the Medical
+roster. A cold second browser consequently showed no accepted recommendation.
+
+Automatic approval review rejected removing the roster filter because unknown
+clinical identities could become visible. That proposed broad change was not
+executed. The implemented alternative keeps the filter and links only a missing
+exact ID to one unique, active profile from the existing Squad-to-Medical read
+projection, with a signed-in user and unchanged nonempty read scope. It performs
+no write and does not infer identity from names. Unknown, same-name-only,
+archived, deleted, duplicate and no-scope identities remain filtered. Coach
+sanitization remains in place. No historical records are repaired or replayed.
+
+The focused canonical-only cold-peer journey now passes; 46 state-service
+contracts pass including retention only for the exact permitted profile,
+unchanged raw storage, no central writes and private/coach sanitization. The
+previous staging attempt 40927894482 was cancelled during QA, before deploy,
+so both visibility corrections can be verified together. Staging still serves
+`dpl_x2QDzbrdQ5fnzC1hm2kV35DVcyoe`; full four-case acceptance is pending.
+
+
+## Resumed verification of the combined visibility candidate
+
+A standalone WebKit blank-page probe succeeded. A fresh isolated output directory
+and sequential browser runs then passed all eight WebKit and all eight Chromium
+journeys, including canonical-only saving with an initially empty Medical roster.
+The previous interrupted/artifact-collision run is not counted as acceptance.
+All 104 focused state/binding/renderer/staging-guard contracts passed, including
+no-user and scope-change rejection; npm run qa:static (including syntax) and
+git diff --check passed. The release traffic guard found no active release.
+
+The next authorized action is staging publication of this combined candidate,
+followed by the four real API acceptance cases. No main integration or production
+release is included. These checks do not certify all modules or concurrent writers.

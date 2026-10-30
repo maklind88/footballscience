@@ -811,3 +811,38 @@ test("a late write after account change cannot relabel clinical state or send it
   expect(h.centralWrites).toEqual([]);
   expect(h.issues.at(-1)?.[1]).toContain("account or team changed");
 });
+
+
+for (const canEdit of [true, false]) test(`canonical work links only to an exact active roster identity, private access=${canEdit}`, () => {
+  const source = createStoredMedicalState(); source.players = []; source.selectedPlayerId = '';
+  source.records.push({ ...source.records[0], id: 'unknown-record', playerId: 'unknown' });
+  source.injuryPlans.push({ ...source.injuryPlans[0], id: 'unknown-plan', playerId: 'unknown' });
+  const raw = JSON.stringify(source);
+  const h = createServiceHarness({ canEdit, playerProfiles: [{ id: 'p1', name: 'Alex Morgan' }], storage: { 'football-medical-team-v1': raw } });
+  const read = h.service.readMedicalState();
+  expect(read.records.map(row => row.id)).toEqual(['r1']);
+  expect(read.injuryPlans.map(row => row.id)).toEqual(['plan-1']);
+  expect(read.players.map(row => row.id)).toEqual(['p1']);
+  expect(read.records[0].comment).toBe(canEdit ? 'Private clinical note' : '');
+  expect(read.injuryPlans[0].bodyArea).toBe(canEdit ? 'Left' : '');
+  expect(h.rawWrites).toEqual([]); expect(h.centralWrites).toEqual([]);
+  expect(h.storage.value(h.medicalTeamStorageKey)).toBe(raw);
+});
+for (const scenario of ['unknown', 'same-name', 'archived', 'deleted', 'duplicate', 'no-scope', 'no-user', 'changed-scope']) {
+  test(`canonical read roster refuses ${scenario} identity`, () => {
+    const source = createStoredMedicalState(); source.players = []; source.selectedPlayerId = '';
+    let profiles = [{ id: 'p1', name: 'Alex Morgan' }];
+    if (scenario === 'unknown') profiles = [];
+    if (scenario === 'same-name') profiles[0].id = 'other-id';
+    if (scenario === 'archived') profiles[0].archivedAt = '2026-05-30';
+    if (scenario === 'deleted') profiles[0].deletedAt = '2026-05-30';
+    if (scenario === 'duplicate') profiles.push({ ...profiles[0] });
+    let scope = scenario === 'no-scope' ? '' : 'qa-scope';
+    const h = createServiceHarness({ canEdit: true, currentUser: scenario === 'no-user' ? false : { id: 'user-1' }, playerProfiles: profiles, readScope: () => scope,
+      onCreateMedicalLinkedPlayerProfileIndex: () => { if (scenario === 'changed-scope') scope = 'other-scope'; },
+      storage: { 'football-medical-team-v1': JSON.stringify(source) } });
+    const read = h.service.readMedicalState();
+    expect(read.records).toEqual([]); expect(read.injuryPlans).toEqual([]);
+    expect(h.rawWrites).toEqual([]); expect(h.centralWrites).toEqual([]);
+  });
+}

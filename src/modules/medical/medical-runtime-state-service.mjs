@@ -354,15 +354,40 @@ export function createMedicalRuntimeStateService(deps = {}) {
     writeMedicalState();
   }
 
+  function linkCanonicalReadRoster(players, source) {
+    // Keep the roster filter. Only link a missing ID to an active profile that
+    // the existing Squad-to-Medical read projection already supplies in this scope.
+    const scope = win.footballScienceCentralState?.getReadScope?.() || "";
+    if (!getCurrentPlatformUser() || !medicalReadScope || scope !== medicalReadScope) return players;
+    const known = new Set(players.map(player => player.id));
+    const missing = new Set([...(Array.isArray(source.records) ? source.records : []),
+      ...(Array.isArray(source.injuryPlans) ? source.injuryPlans : [])]
+      .map(row => row?.playerId).filter(id => typeof id === "string" && id && !known.has(id)));
+    if (!missing.size) return players;
+    const index = createMedicalLinkedPlayerProfileIndex();
+    if (scope !== win.footballScienceCentralState?.getReadScope?.()) return players;
+    const profiles = Array.isArray(index?.profiles) ? index.profiles : [];
+    const linked = [];
+    for (const id of missing) {
+      // Never infer identity from a name, adopt an unknown player, or resurrect
+      // an archived profile. Ambiguous duplicate IDs remain filtered out.
+      const matches = profiles.filter(profile => profile?.id === id);
+      if (matches.length !== 1 || !isActivePlayerProfileForMedicalRoster(matches[0])) continue;
+      const player = buildMedicalPlayerFromProfile(matches[0]);
+      if (player?.id === id) linked.push(player);
+    }
+    return linked.length ? [...players, ...linked].sort(compareMedicalPlayers) : players;
+  }
+
   function cloneMedicalState(source = {}) {
     const todayValue = getMedicalTodayValue();
     const shouldAutoCloseActual = source.__medicalAutoCloseActual !== false;
     const shouldSeedDefaultRoster =
       !Array.isArray(source.players) || (!source.rosterVersion && source.players.length === 0);
-    const players = (shouldSeedDefaultRoster ? defaultMedicalPlayers : source.players)
+    const players = linkCanonicalReadRoster((shouldSeedDefaultRoster ? defaultMedicalPlayers : source.players)
       .map(normalizeMedicalPlayer)
       .filter(Boolean)
-      .sort(compareMedicalPlayers);
+      .sort(compareMedicalPlayers), source);
     const playerIds = new Set(players.map((player) => player.id));
     const records = Array.isArray(source.records)
       ? source.records

@@ -417,3 +417,36 @@ git diff --check passed. The release traffic guard found no active release.
 The next authorized action is staging publication of this combined candidate,
 followed by the four real API acceptance cases. No main integration or production
 release is included. These checks do not certify all modules or concurrent writers.
+
+
+## Real staging revision race — 2026-10-30 UTC
+
+Candidate 37dff4fdaa8b7accd134d735200da48d20533536 passed full QA and
+authenticated staging smoke in 40980066422; build dpl_DWYgjfZcsyMYUDQFqcH9YGFAMfmy
+matched all 20 reviewed frontend assets. Production remained at 845a0ed95.
+Acceptance 40981484076 passed normal saving but stopped in lost-response mode:
+canonical commit/retry returned the same event (duplicate=true), while generic
+saving returned HTTP 409 and never obtained a receipt. Its cleanup completed
+without a reported cleanup error; two subsequent cases did not run.
+
+Inspection found a compare-and-swap collision between the two Medical writes.
+The runtime correctly keeps a conflict pending; it does not retry Medical.
+System / Security owns the bounded central-sync correction; Medical's server
+merge rules and Sessions consuming view remain unchanged. The implemented retry
+applies only to the existing database-race response, once, for the same current
+scoped generation. It must preserve the ORIGINAL base revision: advancing it
+would bypass Medical's stale-write merge and could overwrite concurrent work.
+Semantic conflicts, whole-key deletions, recovered generations, changed
+identity/access and newer local edits remain protected. No acceptance assertion
+is weakened, no historical repair, cache clearance or production release occurs.
+
+
+The new runtime contract failed before the correction (only one request) and
+passed afterwards. All 136 central-sync contracts, ten existing Medical server
+merge/version contracts, all nine Chromium journeys, all nine WebKit journeys,
+qa:static and diff checks passed. The browser race fixes the observed ordering:
+the generic 409 arrives before the dropped canonical response. It asserts the
+first retry retains the identical request/base and that pending clears only after
+acceptance. Later canonical bookkeeping retains its own local generation.
+Temporary local diagnostic instrumentation was removed. The real staging
+acceptance assertions and four-case sequence remain unchanged.

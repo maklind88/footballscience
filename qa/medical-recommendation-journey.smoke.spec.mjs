@@ -7,7 +7,9 @@ import { journeyDay as day, journeyPlayer as player, journeyKey as key, openMedi
 // Remote authentication, canonical projection and app-state storage are synthetic.
 async function createJourney(browser, mode) {
   const contexts = [], ledger = [], records = new Map();
-  let revision = 10, release, releaseReceipt;
+  let revision = 10, release, releaseReceipt, releaseCommit, racedBody, releaseGenericReceipt;
+  const genericReceiptGate = new Promise(resolve => { releaseGenericReceipt = resolve; });
+  const commitGate = new Promise(resolve => { releaseCommit = resolve; });
   const receiptGate = new Promise(resolve => { releaseReceipt = resolve; });
   const canonicalGate = new Promise(resolve => { release = resolve; });
   const server = { medical: { rosterVersion: 'qa-journey', players: mode === 'generic-failed' ? [] : [player], records: [], injuryPlans: [] }, effects: 0 };
@@ -42,7 +44,17 @@ async function createJourney(browser, mode) {
       }
       const body = route.request().postDataJSON();
       if (body.key !== key) return route.fulfill({ status: 403, json: { ok: false } });
-      ledger.push({ stage: 'generic-write', actor });
+      ledger.push({ stage: 'generic-write', actor, baseRevision: body.baseRevision });
+      if (mode === 'lost-response-revision-race' && !ledger.some(e => e.stage === 'generic-receipt')) {
+        await commitGate;
+        if (!racedBody) {
+          racedBody = body;
+          ledger.push({ stage: 'generic-revision-race', actor });
+          return route.fulfill({ status: 409, json: { ok: false, currentRevision: revision,
+            reason: 'Central app-state revision changed before save.' } });
+        }
+        expect(body).toEqual(racedBody);
+      }
       if (['generic-failed', 'both-failed', 'newer-failed'].includes(mode)) return route.fulfill({ status: 503, json: { ok: false } });
       if (mode === 'lost-response-late-generic') {
         await receiptGate;
@@ -51,6 +63,7 @@ async function createJourney(browser, mode) {
       server.medical = JSON.parse(body.value); revision++;
       if (mode === 'lost-response-late-generic') server.medical.updatedAt = new Date(Date.parse(day + 'T12:00:00Z') + revision).toISOString();
       ledger.push({ stage: 'generic-receipt', actor });
+      releaseGenericReceipt();
       return route.fulfill({ json: { ok: true, metadata: { revision }, value: JSON.stringify(server.medical) } });
     });
     await page.route('**/api/medical', async route => {
@@ -67,8 +80,11 @@ async function createJourney(browser, mode) {
         records.set(body.idempotencyKey, row); server.effects++; revision++;
         server.medical.records = [...server.medical.records.filter(r => r.id !== row.id), row];
         ledger.push({ stage: 'canonical-commit', actor, recordId: row.id, revision });
+        releaseCommit();
+        if (mode === 'lost-response-revision-race') await genericReceiptGate;
         if (mode.startsWith('lost-response')) return route.abort('failed');
       }
+      if (mode === 'lost-response-revision-race') await genericReceiptGate;
       releaseReceipt();
       ledger.push({ stage: 'canonical-receipt', actor, recordId: row.id, revision, duplicate });
       return route.fulfill({ json: { ok: true, stored: true, canonicalStored: true, processingStatus: 'processed',
@@ -77,10 +93,10 @@ async function createJourney(browser, mode) {
     await page.goto('/?workspace=medical-team'); await openMedicalJourney(page);
     return page;
   }
-  return { open, server, ledger, release, close: async () => { release(); releaseReceipt(); await Promise.all(contexts.map(c => c.close())); } };
+  return { open, server, ledger, release, close: async () => { release(); releaseReceipt(); releaseCommit(); releaseGenericReceipt(); await Promise.all(contexts.map(c => c.close())); } };
 }
 
-for (const mode of ['normal', 'cache-full', 'generic-failed', 'lost-response', 'lost-response-late-generic', 'canonical-failed', 'both-failed']) {
+for (const mode of ['normal', 'cache-full', 'generic-failed', 'lost-response', 'lost-response-late-generic', 'lost-response-revision-race', 'canonical-failed', 'both-failed']) {
   test(`new Medical recommendation traced through both write paths and a cold peer: ${mode}`, async ({ browser }) => {
     const journey = await createJourney(browser, mode);
     try {
@@ -111,9 +127,13 @@ for (const mode of ['normal', 'cache-full', 'generic-failed', 'lost-response', '
         }
         return;
       }
-      if (mode === 'lost-response-late-generic') {
+      if (['lost-response-late-generic', 'lost-response-revision-race'].includes(mode)) {
         await expect.poll(() => journey.ledger.some(e => e.stage === 'generic-receipt')).toBe(true);
         await author.waitForLoadState('networkidle');
+      }
+      if (mode === 'lost-response-revision-race') {
+        expect(journey.ledger.filter(e => e.stage === 'generic-write').slice(0, 2).map(e => e.baseRevision)).toEqual([10, 10]);
+        await expect.poll(() => author.evaluate(key => JSON.parse(localStorage.getItem('football-data-safety-v1')).entries[key].pendingCentralSync, key)).toBe(false);
       }
       await expect(recommendationMessage(author)).toContainText('50% recommendation saved');
       expect(journey.server.effects).toBe(1);

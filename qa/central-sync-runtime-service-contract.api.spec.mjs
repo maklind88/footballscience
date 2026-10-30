@@ -1828,3 +1828,47 @@ for (const partial of [false, true]) {
     });
   }
 }
+
+
+const medicalRevisionRace = { ok: false, status: 409, currentRevision: 8,
+  reason: "Central app-state revision changed before save." };
+
+test("Medical database race retries once with its original base, requiring a real receipt", async () => {
+  const key = "football-medical-team-v1";
+  const h = createServiceHarness({ getReadScope: () => "actor-A", syncResults: [medicalRevisionRace,
+    { ok: true, value: "server merged draft", metadata: { revision: 9 } }] });
+  h.rawValues.set(key, "draft");
+  h.service.queueCentralStateWrite(key, "draft");
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.filter(call => !call.hydrate)).toHaveLength(2);
+  expect(h.syncCalls.filter(call => !call.hydrate).map(call => call.options.baseRevision)).toEqual([7, 7]);
+  expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+  expect(h.rawValues.get(key)).toBe("server merged draft");
+});
+
+for (const scenario of ["second-race", "content-conflict", "retained", "deleted", "no-scope", "scope-changed", "read-only", "permission", "new-value", "new-generation"]) {
+  test(`Medical revision race preserves pending work: ${scenario}`, async () => {
+    const key = "football-medical-team-v1";
+    let scope = scenario === "no-scope" ? "" : "actor-A", requests = 0;
+    const cachedInfo = { source: "local-write" };
+    const options = { getReadScope: scenario === "no-scope" ? undefined : () => scope, cachedInfo,
+      canAutoSyncKey: () => scenario !== "permission",
+      syncKey: async () => {
+        requests++;
+        if (scenario === "scope-changed") scope = "actor-B";
+        if (scenario === "read-only") cachedInfo.source = "central-readonly-baseline";
+        if (scenario === "new-value") h.rawValues.set(key, "newer draft");
+        if (scenario === "new-generation") h.manifest.entries[key].writes++;
+        return scenario === "content-conflict" ? { ...medicalRevisionRace, reason: "Clinical reduction blocked" } : medicalRevisionRace;
+      } };
+    const h = createServiceHarness(options);
+    if (scenario !== "deleted") h.rawValues.set(key, "draft");
+    h.manifest.entries[key] = { writes: 3, hash: "generation" };
+    h.service.queueCentralStateWrite(key, scenario === "deleted" ? "" : "draft", { removed: scenario === "deleted", retainedGeneration: scenario === "retained" });
+    await h.service.flushCentralStateWrites();
+    expect(requests).toBe(scenario === "second-race" ? 2 : 1);
+    expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+    expect(h.syncStatuses.some(([, status]) => status === "saved")).toBe(false);
+    expect(h.rawValues.get(key)).toBe(scenario === "deleted" ? undefined : scenario === "new-value" ? "newer draft" : "draft");
+  });
+}

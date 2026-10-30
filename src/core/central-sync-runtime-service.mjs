@@ -456,15 +456,35 @@ export function createCentralSyncRuntimeService(deps = {}) {
     return retryableKeys.has(key) && !write.removed && Number(write.retryCount || 0) <= 0;
   }
 
+  function canRetryMedicalRevisionRace(write, result, bridge) {
+    // A database CAS race is not a clinical conflict. Preserve the original base
+    // so the server MUST merge against current clinical state on this one retry.
+    if (write.key !== "football-medical-team-v1" || write.removed || write.retainedGeneration ||
+        Number(write.retryCount || 0) > 0 || result.status !== 409 ||
+        result.reason !== "Central app-state revision changed before save." ||
+        !Number.isInteger(write.baseRevision) || write.baseRevision < 0 ||
+        !Number.isInteger(result.currentRevision) || result.currentRevision <= write.baseRevision ||
+        !getCurrentUser() || !write.principalScope || write.principalScope !== bridge?.getReadScope?.() ||
+        bridge.canAutoSyncKey?.(write.key) === false ||
+        bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline" ||
+        !isCentralStateWriteGenerationCurrent(write)) return false;
+    const entry = readManifest()?.entries?.[write.key];
+    return entry?.pendingCentralSync === true && !entry.localWritePrepared && write.pendingEntry &&
+      ["hash", "writes", "updatedAt", "deletedAt", "principalScope", "pendingBaseRevision"].every(
+        field => entry[field] === write.pendingEntry[field]);
+  }
+
   async function retryCentralStateWriteAfterConflict(write = {}, result = {}, bridge = getCentralStateBridge()) {
     if (write.principalScope && write.principalScope !== bridge?.getReadScope?.()) return { ok: false, staleContext: true };
-    if (!shouldRetryCentralStateWriteAfterConflict(write)) {
+    const medicalRace = canRetryMedicalRevisionRace(write, result, bridge);
+    if (!medicalRace && !shouldRetryCentralStateWriteAfterConflict(write)) {
       return null;
     }
-    const retryBaseRevision = getCentralSyncResultRevision(result);
-    if (!retryBaseRevision || !bridge?.syncKey) {
+    const retryBaseRevision = medicalRace ? write.baseRevision : getCentralSyncResultRevision(result);
+    if ((!medicalRace && !retryBaseRevision) || !bridge?.syncKey) {
       return null;
     }
+    if (medicalRace) write.retryCount = 1;
     centralStateActiveWrites.set(write.key, write);
     let retryResult;
     try {

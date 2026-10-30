@@ -1,5 +1,15 @@
 # Medical recommendation to Sessions: evidence and one feedback correction
 
+**Current outcome — 2026-10-30 UTC:** the bounded staging recommendation journey
+is approved on product commit `d1e9374df42e0d792ae49a245098df735e6d9821`, build
+`dpl_EiWkM8G5aQp2AC5eVxUyjFUzkV2U`. Full QA/deploy run `40985824616` and
+real four-case acceptance plus authenticated smoke `41008796744` passed.
+Production remains `845a0ed95bbd8795bf574a8aeb0c9f37ed903250`; no main integration
+or production release occurred. Earlier pending/blocked entries below are the
+investigation history, not the current status. This is not platform-wide
+offline, storage-growth or concurrent-writer certification.
+
+
 Task/release owner: System / Security, for the user-authorized saved-work
 verification and scoped acknowledgement correction. Affected owners: Medical
 Room owns clinical writes, permissions and recommendation rules; Sessions owns
@@ -477,3 +487,39 @@ maintenance and a scope change during source reading. All ten Chromium and
 ten WebKit journeys passed, including a new-save fixture containing unlisted
 archived records/plans. qa:static and diff checks passed. The correction changes
 only future serialization, never the visible state or existing central rows.
+
+
+## Final staging acceptance — 2026-10-30 UTC
+
+- Product source: `d1e9374df42e0d792ae49a245098df735e6d9821` on
+  `codex/medical-recommendation-journey-20261029`; clean local/remote exact SHA.
+- Staging deployment: `40985824616` passed all four browser shards, API contracts,
+  static/security gates, deployment and authenticated staging smoke.
+- Staging build: `dpl_EiWkM8G5aQp2AC5eVxUyjFUzkV2U`; all 20 frontend assets
+  match, backend remains `pokrksgempkuraueglpu.supabase.co`.
+- Acceptance: `41008796744`, 33 guard contracts, four real journeys and six
+  authenticated smoke cases passed. No assertions were removed or relaxed.
+
+| Real case | Canonical path | Generic path | Author/peer Medical + Sessions + fresh reload |
+| --- | --- | --- | --- |
+| Normal | Accepted once | Actual 409 then accepted 200 | Passed for both |
+| Lost response | Commit accepted; same event/key retry duplicate=true | Actual 409 then accepted 200 | Passed for both |
+| Generic failed | Accepted | Injected failure; no invented receipt | Passed for both |
+| Canonical failed | Both attempts failed; UI retained failure message | Accepted | Passed for both |
+
+Every test completed its guarded archival and temporary-account cleanup.
+Independent read-only database verification confirmed all four own records
+archived and no active corresponding synthetic player. These record IDs are:
+`medical-record-1793338278791-705bfd49ae2fe`,
+`medical-record-1793338303831-5f1f352505005`,
+`medical-record-1793338327177-e126f0761ffca8`,
+`medical-record-1793338349571-0d07ca4fdcdb08`.
+
+Production's public identity remained source
+`845a0ed95bbd8795bf574a8aeb0c9f37ed903250` with backend
+`bustidorxevacosqhkcz.supabase.co`. This is an unchanged-version/isolation check,
+not a production acceptance of this candidate. No historical repair or cache
+clearance was performed. Production database compatibility/release review and
+explicit production authorization remain separate. Sustained concurrent writers,
+real offline restart, disk exhaustion, storage growth, all Medical form variants
+and other modules remain outside this bounded staging approval.

@@ -12,7 +12,13 @@ async function createJourney(browser, mode) {
   const commitGate = new Promise(resolve => { releaseCommit = resolve; });
   const receiptGate = new Promise(resolve => { releaseReceipt = resolve; });
   const canonicalGate = new Promise(resolve => { release = resolve; });
-  const server = { medical: { rosterVersion: 'qa-journey', players: mode === 'generic-failed' ? [] : [player], records: [], injuryPlans: [] }, effects: 0 };
+  const unlistedRecord = { id: 'qa-unlisted-record', playerId: 'qa-unlisted-player', date: day, participation: 25,
+    comment: 'Synthetic unlisted private note', archivedAt: day + 'T10:00:00Z' };
+  const unlistedPlan = { id: 'qa-unlisted-plan', playerId: 'qa-unlisted-player', startDate: day,
+    bodyArea: 'Synthetic unlisted private plan', archivedAt: day + 'T10:00:00Z' };
+  const server = { medical: { rosterVersion: 'qa-journey', players: mode === 'generic-failed' ? [] : [player],
+    records: mode === 'unlisted-history' ? [unlistedRecord] : [],
+    injuryPlans: mode === 'unlisted-history' ? [unlistedPlan] : [] }, effects: 0 };
   const entries = () => ({
     [key]: JSON.stringify(server.medical),
     'football-player-profiles-v1': JSON.stringify({ rosterVersion: 'qa-journey', players: [player], removedPlayerIds: [] }),
@@ -60,7 +66,12 @@ async function createJourney(browser, mode) {
         await receiptGate;
         await new Promise(resolve => setTimeout(resolve, 150));
       }
-      server.medical = JSON.parse(body.value); revision++;
+      const incoming = JSON.parse(body.value);
+      if (mode === 'unlisted-history') {
+        expect(incoming.records.find(row => row.id === unlistedRecord.id)).toEqual(unlistedRecord);
+        expect(incoming.injuryPlans.find(row => row.id === unlistedPlan.id)).toEqual(unlistedPlan);
+      }
+      server.medical = incoming; revision++;
       if (mode === 'lost-response-late-generic') server.medical.updatedAt = new Date(Date.parse(day + 'T12:00:00Z') + revision).toISOString();
       ledger.push({ stage: 'generic-receipt', actor });
       releaseGenericReceipt();
@@ -96,12 +107,12 @@ async function createJourney(browser, mode) {
   return { open, server, ledger, release, close: async () => { release(); releaseReceipt(); releaseCommit(); releaseGenericReceipt(); await Promise.all(contexts.map(c => c.close())); } };
 }
 
-for (const mode of ['normal', 'cache-full', 'generic-failed', 'lost-response', 'lost-response-late-generic', 'lost-response-revision-race', 'canonical-failed', 'both-failed']) {
+for (const mode of ['normal', 'unlisted-history', 'cache-full', 'generic-failed', 'lost-response', 'lost-response-late-generic', 'lost-response-revision-race', 'canonical-failed', 'both-failed']) {
   test(`new Medical recommendation traced through both write paths and a cold peer: ${mode}`, async ({ browser }) => {
     const journey = await createJourney(browser, mode);
     try {
       const author = await journey.open('author');
-      expect(journey.server.medical.records).toEqual([]);
+      expect(journey.server.medical.records.filter(row => row.playerId === player.id)).toEqual([]);
       expect(journey.ledger.some(e => e.stage.endsWith('write') || e.stage === 'canonical-request')).toBe(false);
       await recommendationButton(author).click();
       await expect.poll(() => journey.ledger.filter(e => e.stage === 'canonical-request').length).toBe(1);
@@ -118,7 +129,7 @@ for (const mode of ['normal', 'cache-full', 'generic-failed', 'lost-response', '
         await expect(recommendationMessage(author)).toContainText('could not be saved centrally');
         expect(journey.server.effects).toBe(0);
         expect(journey.ledger.filter(e => e.stage === 'canonical-request')).toHaveLength(2);
-        if (mode === 'both-failed') expect(journey.server.medical.records).toEqual([]);
+        if (mode === 'both-failed') expect(journey.server.medical.records.filter(row => row.playerId === player.id)).toEqual([]);
         if (mode === 'canonical-failed') {
           // Generic acceptance can make a record readable even while the Medical
           // event lacks its own canonical confirmation. Keep both outcomes explicit.

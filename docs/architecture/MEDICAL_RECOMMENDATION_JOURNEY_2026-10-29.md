@@ -450,3 +450,30 @@ first retry retains the identical request/base and that pending clears only afte
 acceptance. Later canonical bookkeeping retains its own local generation.
 Temporary local diagnostic instrumentation was removed. The real staging
 acceptance assertions and four-case sequence remain unchanged.
+
+
+## Acceptance ownership stop — 2026-10-30 UTC
+
+Staging 40982982188 passed full QA and authenticated smoke for 6ec55ba5c,
+build dpl_ieSWu1JoprE8XxQ6TuZAEkYWfuzH; all 20 assets matched.
+Acceptance 40984709466 stopped in normal mode before generic delivery because
+the synthetic ownership guard found unrelated Medical content missing from the
+proposed payload. Canonical saving succeeded; all subsequent cases were skipped.
+Read-only staging inspection found 23 archived records, two without a Medical
+player. The latest own test record was confirmed archived.
+
+The existing UI roster filter must remain. A subsequent full-state save must
+therefore preserve out-of-roster records/plans in storage without adding them to
+the rendered view. The correction is confined to Medical serialization for an
+unchanged private read scope; coach sanitization and server write/merge policy
+remain unchanged. This protects future saves, not historical repair. No real
+user rows are changed by diagnosis, and the acceptance guard remains strict.
+
+
+Both unlisted-row regressions failed before the serialization correction.
+Afterwards all 51 Medical state contracts passed, covering active/archived
+unlisted records and plans, unchanged private fields, coach sanitization, read
+maintenance and a scope change during source reading. All ten Chromium and
+ten WebKit journeys passed, including a new-save fixture containing unlisted
+archived records/plans. qa:static and diff checks passed. The correction changes
+only future serialization, never the visible state or existing central rows.

@@ -846,3 +846,62 @@ for (const scenario of ['unknown', 'same-name', 'archived', 'deleted', 'duplicat
     expect(h.rawWrites).toEqual([]); expect(h.centralWrites).toEqual([]);
   });
 }
+
+
+for (const archived of [false, true]) test(`saving the visible Medical view preserves unlisted clinical rows without exposing them (archived=${archived})`, () => {
+  const visible = createStoredMedicalState(), source = structuredClone(visible);
+  const hiddenRecord = { ...source.records[0], id: "unlisted-record", playerId: "unlisted", comment: "Unlisted private note", ...(archived ? { archivedAt: "2026-05-30T12:00:00Z" } : {}) };
+  const hiddenPlan = { ...source.injuryPlans[0], id: "unlisted-plan", playerId: "unlisted", bodyArea: "Unlisted private plan", ...(archived ? { archivedAt: "2026-05-30T12:00:00Z" } : {}) };
+  source.records.push(hiddenRecord); source.injuryPlans.push(hiddenPlan);
+  const h = createServiceHarness({ canEdit: true, state: visible, storage: { "football-medical-team-v1": JSON.stringify(source) } });
+  const read = h.service.readMedicalState();
+  expect(read.records.map(row => row.id)).toEqual(["r1"]);
+  expect(read.injuryPlans.map(row => row.id)).toEqual(["plan-1"]);
+  visible.records[0].participation = 50;
+  h.service.writeMedicalState();
+  const saved = JSON.parse(h.storage.value(h.medicalTeamStorageKey));
+  expect(saved.records.find(row => row.id === hiddenRecord.id)).toEqual(hiddenRecord);
+  expect(saved.injuryPlans.find(row => row.id === hiddenPlan.id)).toEqual(hiddenPlan);
+  expect(saved.records.find(row => row.id === "r1").participation).toBe(50);
+  expect(h.getState().records.map(row => row.id)).toEqual(["r1"]);
+});
+
+
+test("coach serialization never carries unlisted private rows into its cache", () => {
+  const source = createStoredMedicalState();
+  source.records.push({ ...source.records[0], id: "unlisted", playerId: "unknown", comment: "Unlisted private note" });
+  const h = createServiceHarness({ canEdit: false, state: source, storage: { "football-medical-team-v1": JSON.stringify(source) } });
+  h.service.readMedicalState();
+  h.service.writeMedicalState();
+  const saved = JSON.parse(h.storage.value(h.medicalTeamStorageKey));
+  expect(saved.records.map(row => row.id)).toEqual(["r1"]);
+  expect(saved.records[0].comment).toBe("");
+  expect(h.centralWrites).toEqual([]);
+});
+
+test("Medical read maintenance preserves unlisted rows without including them in the view", () => {
+  const source = createStoredMedicalState();
+  source.records[0].date = "2026-05-30";
+  const hidden = { ...source.records[0], id: "unlisted", playerId: "unknown", archivedAt: "2026-05-30T10:00:00Z" };
+  source.records.push(hidden);
+  const h = createServiceHarness({ canEdit: true, storage: { "football-medical-team-v1": JSON.stringify(source) } });
+  const view = h.service.readMedicalState();
+  expect(view.records.map(row => row.id)).toEqual(["r1"]);
+  expect(JSON.parse(h.storage.value(h.medicalTeamStorageKey)).records.find(row => row.id === "unlisted")).toEqual(hidden);
+});
+
+
+test("Medical serialization stops if reading the preservation source changes account scope", () => {
+  const source = createStoredMedicalState(), raw = JSON.stringify(source);
+  const storage = createStorage({ "football-medical-team-v1": raw });
+  let scope = "actor-A", changeDuringRead = false;
+  const get = storage.getItem;
+  storage.getItem = key => { const value = get(key); if (changeDuringRead) scope = "actor-B"; return value; };
+  const h = createServiceHarness({ canEdit: true, state: structuredClone(source), storageAdapter: storage, readScope: () => scope });
+  h.service.readMedicalState();
+  h.getState().records[0].participation = 50;
+  changeDuringRead = true;
+  expect(h.service.writeMedicalState()).toBe(false);
+  expect(storage.value(h.medicalTeamStorageKey)).toBe(raw);
+  expect(h.centralWrites).toEqual([]);
+});

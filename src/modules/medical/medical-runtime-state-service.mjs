@@ -506,12 +506,40 @@ export function createMedicalRuntimeStateService(deps = {}) {
     });
   }
 
-  function setMedicalStateStorageValue(state = getMedicalState(), suppressCentralSync = false) {
+  function serializeMedicalStateForStorage(state) {
+    // Display filtering is not deletion intent. Keep unlisted clinical rows only
+    // in the serialized private state, never in the rendered Medical projection.
+    if (!state || typeof state !== "object" || Array.isArray(state)) return JSON.stringify(state);
+    const scope = win.footballScienceCentralState?.getReadScope?.() || "";
+    if (!getCurrentPlatformUser() || !canViewPrivateMedicalDetails() || !medicalReadScope ||
+        scope !== medicalReadScope) return JSON.stringify(state);
+    const raw = win.localStorage.getItem(medicalTeamStorageKey);
+    let source;
+    try { source = raw ? JSON.parse(raw) : null; } catch { return JSON.stringify(state); }
+    if (scope !== win.footballScienceCentralState?.getReadScope?.()) {
+      throw new Error("Medical saving was blocked because the account or team changed.");
+    }
+    if (!source || typeof source !== "object" || Array.isArray(source)) return JSON.stringify(state);
+    const playerIds = new Set((state.players || []).map(player => player.id));
+    const persisted = { ...state };
+    for (const key of ["records", "injuryPlans"]) {
+      const rows = Array.isArray(state[key]) ? state[key] : [];
+      const ids = new Set(rows.map(row => row.id));
+      const unlisted = (Array.isArray(source[key]) ? source[key] : []).filter(row =>
+        row && typeof row.id === "string" && row.id && typeof row.playerId === "string" && row.playerId &&
+        !playerIds.has(row.playerId) && !ids.has(row.id));
+      if (unlisted.length) persisted[key] = [...rows, ...unlisted];
+    }
+    return JSON.stringify(persisted);
+  }
+
+  function setMedicalStateStorageValue(state = getMedicalState(), suppressCentralSync = false,
+    serialized = serializeMedicalStateForStorage(state)) {
     if (suppressCentralSync) {
-      rawDataSafetySetItem(medicalTeamStorageKey, JSON.stringify(state));
+      rawDataSafetySetItem(medicalTeamStorageKey, serialized);
       return;
     }
-    win.localStorage.setItem(medicalTeamStorageKey, JSON.stringify(state));
+    win.localStorage.setItem(medicalTeamStorageKey, serialized);
   }
 
   function readMedicalState() {
@@ -569,13 +597,13 @@ export function createMedicalRuntimeStateService(deps = {}) {
     try {
       const coachSafeOnly = !canViewPrivateMedicalDetails();
       const nextState = coachSafeOnly ? sanitizeMedicalStateForCurrentUser(medicalState) : medicalState;
-      nextStateJson = JSON.stringify(nextState);
+      nextStateJson = serializeMedicalStateForStorage(nextState);
       const currentStateJson = win.localStorage.getItem(medicalTeamStorageKey);
       previousValue = currentStateJson;
       if (currentStateJson === nextStateJson) {
         return;
       }
-      setMedicalStateStorageValue(nextState, coachSafeOnly);
+      setMedicalStateStorageValue(nextState, coachSafeOnly, nextStateJson);
     } catch (error) {
       if (nextStateJson && canViewPrivateMedicalDetails()) {
         // Retain working intent independently of cache, rescue storage and transport.

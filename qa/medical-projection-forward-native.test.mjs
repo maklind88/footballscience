@@ -46,7 +46,8 @@ test(name + ' preserves history and supports the current Medical event contract'
       ]) {
         await t.test('refuses ' + label + ' atomically', async () => {
           const before = await fingerprint();
-          await assert.rejects(sql('begin; ' + mutation + '; ' + patch + ' commit;'), /Medical production baseline/);
+          assert.equal(await statementOutcome(db, patch, { role: 'synthetic', before: mutation + ';' }), 'P0001');
+          assert.equal(await definitions(), beforeDefinitions);
           assert.equal(await fingerprint(), before);
         });
       }
@@ -61,7 +62,7 @@ test(name + ' preserves history and supports the current Medical event contract'
       assert.equal(await sql("select has_function_privilege('service_role','app_private.medical_compat_entity_timestamp(jsonb)','EXECUTE')"), 't\n');
       assert.equal(await sql("select md5(pg_get_functiondef('public.project_medical_state_sync_events(uuid[])'::regprocedure))"), '462d583bb2028f79fa3f199e99ad3107\n');
     });
-    await t.test('reapplication refuses unexpected baseline', async () => { await assert.rejects(sql('begin; ' + patch + ' commit;')); });
+    await t.test('reapplication refuses unexpected baseline', async () => { assert.equal(await statementOutcome(db, patch, { role: 'synthetic' }), 'P0001'); });
     await t.test('anon and authenticated cannot execute projection or private helpers', async () => {
       for (const role of ['anon','authenticated']) for (const query of ["select public.project_medical_state_sync_events(array[]::uuid[])", "select app_private.upsert_medical_compat_plan('{}','{}')"])
         assert.equal(await statementOutcome(db, query, { role }), '42501');

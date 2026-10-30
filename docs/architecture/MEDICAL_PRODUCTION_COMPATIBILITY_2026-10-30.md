@@ -2,16 +2,17 @@
 
 Owner: System / Security for this bounded saved-work task and release preparation.
 Medical owns clinical rules/writes; Sessions consumes Medical's public read contract.
-This is a completed read-only compatibility review, not production release approval.
+This records the completed compatibility review and subsequent release preparation,
+not production release approval.
 No production data, schema, environment setting or deployment was changed.
 
 ## Decision
 
 Do not copy the staging database alignment to production. Production already has
 its projector, plan helpers and event constraint. Only the inspected timestamp
-helper differs within this projection contract. Prepare a separate, definition-only,
-fingerprint-guarded correction for that helper, rehearse it against the observed
-production baseline, and verify the authenticated runtime capability before release.
+helper differs within this projection contract. A separate definition-only,
+fingerprint-guarded correction has now been prepared and rehearsed against the
+observed production baseline. Authenticated runtime capability is verified below.
 The existing staging SQL intentionally rejects production's newer baseline.
 A frontend deploy alone would leave the timestamp defect in the database.
 
@@ -64,40 +65,61 @@ No real clinical content was read or changed for this probe.
 This makes different writes compare equal and can suppress an archive before its
 activity date. Record upsert, plan upsert and record archival use this helper.
 The replacement already passed native PostgreSQL future-edit/archive tests in
-staging preparation; the production-specific installation path still needs rehearsal.
+staging preparation; the production-specific installation path has now also passed rehearsal (below).
 This defect does not explain or close the broader cache-capacity investigation.
 
-## Runtime configuration: outstanding evidence
+## Runtime configuration: verified 2026-10-30
 
-Vercel metadata, read through the documented CLI fallback after connector HTTP 403,
-confirms MEDICAL_STORAGE_MODE exists for production as a sensitive variable and
-for the staging branch as a separate preview variable. No other Medical mode
-fallback variable was present in that project inventory. No values or secrets
-were printed or downloaded. No configuration was changed.
+Vercel metadata confirms separate production and staging Medical settings. The
+connector returned HTTP 403; its documented CLI metadata fallback worked. No
+secret values were printed/downloaded and no configuration was changed.
 
-Presence is not runtime proof. The current production value and authenticated
-Medical status response were not verified in this review. The existing signed-in
-browser was observed on Home only, without navigation, reload or edits. Its login
-and production client-config response do not establish canonical Medical mode.
-Before release, obtain the authenticated Medical status response for the exact
-production build and record only mode/enabled. If it is legacy, enabling database
-mode is a separate behavior change requiring explicit scope and validation; do
-not silently switch it to match staging. Do not run the fixture-writing staging
-acceptance harness against production.
+The new status-only QA probe succeeded in workflow `41104063540`, job
+`124228575337` (production-mode), source `a54c139ef6e019106396c0b1c27b437d6743fdb3`:
+
+- Origin: `https://footballscience.xyz`.
+- Exact build: `845a0ed95bbd8795bf574a8aeb0c9f37ed903250`.
+- Backend: `bustidorxevacosqhkcz.supabase.co`.
+- Authenticated GET /api/medical: mode `database`, enabled `true`.
+- Build/backend checked before login and after status; the new QA session was
+  revoked using local-scope logout before emitting the successful result.
+- No Medical POST, fixture, clinical read/write or environment change occurred.
+
+The workflow's original native job failed because five tests expected raw error
+text that the harness intentionally suppresses. Only the production-mode job of
+that run is cited as successful. The corrected native suite uses SQLSTATE P0001
+and validates transaction rollback; its separate final run passed below.
+
+## Prepared artifact and final validation
+
+- Dormant artifact: `scripts/release-artifacts/medical-production-timestamp-only.sql`.
+- SQL SHA-256: `6b7619eb9b4901cecea2913b259372716e8c85de060d81d3022d8ba36864d7a2`.
+- Tested preparation SHA: `e7049963a15af72be0685c4274e692494c07757d`.
+- Native PostgreSQL 17: run `41104534931`, all 37 tests passed (35 subtests and
+  two parent tests), including both staging and production-equivalent baselines.
+- The old future-date defect was reproduced before installing the correction.
+  Rehearsal confirmed unchanged existing values/revisions/pending events, unchanged
+  unrelated function definitions/ACLs, rejected drift/missing dependencies/elevated
+  execution/client grants/reapplication, future/stale writes, unknown age, all six
+  plan events, idempotent retry, invalid-plan refusal and archival.
+- Nine probe guards and `npm run qa:static` (including `npm run check`) passed.
+- The runtime-probe source and SQL are unchanged between `a54c139ef` and `e7049963a`;
+  the latter changes only native test assertions. Later evidence commits do not
+  change the tested artifact. The production artifact has NOT been applied.
 
 ## Concrete preparation and release order
 
-1. Prepare a dormant SQL artifact that changes only the timestamp helper. Guard
+1. Prepared and tested: a dormant SQL artifact changes only the timestamp helper. It guards
    the seven observed function identities/definitions and relevant execution grants;
    fail if the baseline has drifted. Keep invoker security and restricted execution.
    Use a transaction and bounded locks; include no row rewrite, event replay,
    broad migration push, constraint replacement or historical repair.
-2. Rehearse that exact artifact on native PostgreSQL with the production-equivalent
+2. Completed: rehearsal of the exact artifact on native PostgreSQL with the production-equivalent
    September projector plus old timestamp helper. Prove installation leaves stored
    values/revisions/events untouched; reject drift/reapplication; verify grants,
    future edits, stale edits, archive, retry/idempotency and unknown timestamps.
    This installation test is additional to the already passed staging acceptance.
-3. Resolve the runtime capability evidence above. Recheck live/main SHA and isolation
+3. Runtime evidence above is resolved. Recheck live/main SHA and isolation
    just before release; the current findings are a snapshot, not a permanent permit.
 4. After direct user production authorization, use the owned Safe Lane and shared
    release traffic guards. Apply only the reviewed helper correction to the exact
@@ -115,7 +137,9 @@ stop for a reviewed forward correction or explicitly authorized rollback.
 
 ## Scope still open
 
-Production-specific SQL artifact/rehearsal and runtime evidence are not complete.
+Production-specific SQL preparation/rehearsal and runtime evidence are complete.
+Production application, release gates and postdeploy verification remain pending
+a direct user production release instruction. No application or database was deployed.
 The broader platform remains unapproved for sustained concurrent writers, true
 offline cold restart, exhausted disk quota, bounded storage growth, all Medical
 form variants and all other modules. Staging success establishes the documented

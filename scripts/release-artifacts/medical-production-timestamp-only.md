@@ -39,6 +39,13 @@ identity mismatch, invalid capability or failed session revocation fail the chec
 A legacy result is reported honestly and requires separate scope review before
 any change to that mode.
 
-Local probe tests (9) and qa:static passed. Native rehearsal and actual runtime
-result are pending at this preparation commit. See the compatibility evidence in
-`docs/architecture/MEDICAL_PRODUCTION_COMPATIBILITY_2026-10-30.md` for final results.
+Local probe tests (9) and qa:static passed. Final native run `41104534931` passed
+all 37 tests at source `e7049963a15af72be0685c4274e692494c07757d`. The production-mode
+job `124228575337` in run `41104063540` verified `database` / enabled `true` on Live
+build `845a0ed95bbd8795bf574a8aeb0c9f37ed903250` and revoked its own QA session.
+That run's original native tests failed on their suppressed-error-text assertions;
+the separate final native run uses SQLSTATE and is the passing installation proof.
+
+Artifact SHA-256: `6b7619eb9b4901cecea2913b259372716e8c85de060d81d3022d8ba36864d7a2`.
+Prepared and tested, not applied to production. Full evidence:
+`docs/architecture/MEDICAL_PRODUCTION_COMPATIBILITY_2026-10-30.md`.

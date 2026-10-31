@@ -1,5 +1,10 @@
 # Medical production compatibility review — 2026-10-30
 
+> Release hold — 2026-10-31: expanded acceptance reproduces a false current-status
+> confirmation after peer archival in both old and candidate clients. The timestamp
+> preparation below remains valid but is not sufficient for release approval. See
+> `docs/architecture/MEDICAL_MULTIWRITER_ACCEPTANCE_2026-10-31.md`.
+
 Owner: System / Security for this bounded saved-work task and release preparation.
 Medical owns clinical rules/writes; Sessions consumes Medical's public read contract.
 This records the completed compatibility review and subsequent release preparation,

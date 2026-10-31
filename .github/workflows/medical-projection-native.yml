@@ -13,6 +13,7 @@ on:
       - 'scripts/verify-medical-production-mode.mjs'
       - 'qa/medical-production-mode.test.mjs'
       - 'qa/medical-projection-forward-native.test.mjs'
+      - 'qa/medical-multiwriter-acceptance-native.test.mjs'
       - '.github/workflows/medical-projection-native.yml'
 permissions:
   contents: read
@@ -43,7 +44,7 @@ jobs:
       - name: Test forward-only alignment without remote credentials
         env:
           FS_RECOVERY_PG_BIN: /usr/lib/postgresql/17/bin
-        run: node --test qa/medical-projection-forward-native.test.mjs
+        run: node --test qa/medical-projection-forward-native.test.mjs qa/medical-multiwriter-acceptance-native.test.mjs
   production-mode:
     if: github.event_name == 'workflow_dispatch' && inputs.expected_production_build != ''
     runs-on: ubuntu-24.04

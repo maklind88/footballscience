@@ -1,3 +1,4 @@
+import { exerciseMedicalReconnect } from './helpers/medical-reconnect-scenario.mjs';
 import { test, expect } from '@playwright/test';
 import { createStagingAcceptance, medicalKey, requireProof } from './helpers/save-acceptance-staging.mjs';
 import { verifySaveAcceptanceFrontend } from './helpers/save-acceptance-frontend.mjs';
@@ -6,7 +7,7 @@ import { verifyJourneyCapability, selectJourneyDay, openJourneyBrowser, verifySt
 
 // Dedicated opt-in config only. No candidate overlays, screenshots, traces, video
 // or clinical payload attachments. No production origin is accepted by setup.
-for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-failed']) {
+for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-failed', 'peer-archived']) {
   test(`new authenticated Medical recommendation reaches a cold peer: ${mode}`, async ({ browser }) => {
     requireProof(process.env.SAVE_QA_CLIENT_CANDIDATE !== '1', 'This acceptance requires deployed reviewed assets');
     await verifySaveAcceptanceFrontend({ baseUrl: process.env.STAGING_QA_BASE_URL });
@@ -14,12 +15,12 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
     const contexts = [], ledger = [];
     let guard, fixture;
     // This helper is only used for an already guarded run-owned archival event.
-    const archive = async body => {
+    const archive = async (body, account = qa.primary) => {
       await qa.identity();
       let response, payload;
       try {
         response = await fetch(qa.origin + '/api/medical', { method: 'POST', redirect: 'error',
-          headers: { Authorization: 'Bearer ' + qa.primary.token, 'Content-Type': 'application/json' },
+          headers: { Authorization: 'Bearer ' + account.token, 'Content-Type': 'application/json' },
           body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
         payload = await response.json();
       } catch { throw new Error('Synthetic record archival transport failed; content suppressed'); }
@@ -51,7 +52,7 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
         await expect(message).toContainText('50% recommendation saved');
         requireProof(ledger.some(e => e.stage === 'canonical-server-response' && e.accepted), 'No real canonical receipt');
       }
-      if (mode !== 'generic-failed') await expect.poll(() => ledger.some(e => e.stage === 'generic-server-response' && e.accepted)).toBe(true);
+      if (!['generic-failed', 'peer-archived'].includes(mode)) await expect.poll(() => ledger.some(e => e.stage === 'generic-server-response' && e.accepted)).toBe(true);
       if (mode === 'lost-response') {
         const replies = ledger.filter(e => e.stage === 'canonical-server-response' && e.accepted);
         requireProof(ledger.filter(e => e.stage === 'accepted-response-dropped').length === 1
@@ -66,13 +67,17 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
         return rows.length === 1 && rows[0].id === recordId && rows[0].date === fixture.day && rows[0].participation === 50;
       }).toBe(true);
       requireProof(guard.unrelatedUnchanged((await qa.read(qa.primary, medicalKey)).state), 'Unrelated Medical content changed');
+      if (mode === 'peer-archived') {
+        await exerciseMedicalReconnect({ qa, fixture, guard, author, archive, ledger });
+        await author.page.reload({ waitUntil: 'domcontentloaded' });
+      }
       const peer = await openJourneyBrowser({ browser, qa, account: qa.peer, fixture, guard, mode, ledger, contexts });
       for (const [actor, client] of [['author', author], ['peer', peer]]) {
-        await verifyStagingJourneyViews(client.page, fixture, recordId);
-        const beforeReads = ledger.filter(e => e.stage === 'read' && e.actor === actor && e.ownIds.includes(recordId)).length;
+        await verifyStagingJourneyViews(client.page, fixture, mode === 'peer-archived' ? null : recordId);
+        const beforeReads = ledger.filter(e => e.stage === 'read' && e.actor === actor && (mode === 'peer-archived' ? e.archivedOwnIds : e.ownIds)?.includes(recordId)).length;
         await client.page.reload({ waitUntil: 'domcontentloaded' });
-        await verifyStagingJourneyViews(client.page, fixture, recordId);
-        requireProof(ledger.filter(e => e.stage === 'read' && e.actor === actor && e.ownIds.includes(recordId)).length > beforeReads,
+        await verifyStagingJourneyViews(client.page, fixture, mode === 'peer-archived' ? null : recordId);
+        requireProof(ledger.filter(e => e.stage === 'read' && e.actor === actor && (mode === 'peer-archived' ? e.archivedOwnIds : e.ownIds)?.includes(recordId)).length > beforeReads,
           'Reload did not produce a fresh server read of the recommendation');
         requireProof(client.errors.length === 0, 'Journey guard rejected a relevant request: ' + client.errors.join('; '));
         ledger.push({ stage: 'both-views-and-reload', actor, id: recordId });

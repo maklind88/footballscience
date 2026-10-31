@@ -227,3 +227,19 @@ test('server aggregate receipt timestamp is distinct from protected clinical rec
   assert.throws(() => f.guard.archiveEvent(f.row.id, ownEdit, new Date().toISOString()), /externally/);
   assert.throws(() => f.guard.unrelatedUnchanged({ ...projected, updatedAt: { unexpected: true } }), /timestamp/);
 });
+
+test('reconnect blocks generic/foreign requests and preserves the real non-conflict response as a failed proof', async () => {
+  const h=transportHarness('peer-archived');h.guard.arm();
+  assert.deepEqual(await h.send(),['fetch','real-response']);h.guard.seal();h.reconnect.freeze();
+  assert.deepEqual(await h.send('/api/app-state',undefined,'GET'),['abort']);
+  const timestamp='2026-10-29T15:00:00Z';
+  const archived={...h.state,records:[{...h.row,archivedAt:timestamp,updatedAt:timestamp},h.state.records[1]]};
+  h.reconnect.expectArchive(archived,timestamp);h.qa.read=async()=>({state:archived});
+  assert.deepEqual(await h.send('/api/app-state',h.body),['abort']);
+  assert.deepEqual(await h.send('https://footballscience.xyz/api/medical'),['abort']);
+  assert.deepEqual(await h.send('/api/admin-users'),['abort']);
+  // A real server 200 must fail the proof, never be replaced with an invented 409.
+  assert.deepEqual(await h.send(),['fetch','abort']);
+  assert.equal(h.errors.length,1);assert.match(h.errors[0],/explicit conflict/);
+  assert.equal(h.ledger.some(e=>e.stage==='archived-replay-conflict'),false);
+});

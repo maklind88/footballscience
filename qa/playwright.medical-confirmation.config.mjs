@@ -7,7 +7,7 @@ export default defineConfig({
   ...base,
   projects: ['Desktop Chrome', 'Desktop Safari'].map((device, index) => ({
     name: index ? 'confirmation-webkit' : 'confirmation-chromium',
-    testMatch: /medical-mixed-client-acceptance\.native-browser\.spec\.mjs/,
+    testMatch: /medical-(?:mixed-client-acceptance|reconnect-harness)\.native-browser\.spec\.mjs/,
     use: { ...devices[device] },
   })),
 });

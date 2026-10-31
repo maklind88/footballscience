@@ -115,3 +115,70 @@ replacement contract. References checked: [PostgreSQL CREATE FUNCTION](https://w
 [Supabase function security](https://supabase.com/docs/guides/database/functions).
 Current Supabase changelog was checked; its recent minor-version/legacy-TLS changes
 do not require changes to this JSONB/function contract or a dependency upgrade here.
+
+## Staging reconnect preparation follow-up
+
+The full GitHub PR suite for product source `abcb2b8111bb1db9ff42c97dfa3227fafea68c46`
+is now green: [full QA](https://github.com/maklind88/footballscience/actions/runs/41200674376),
+[Medical native/mixed-client gate](https://github.com/maklind88/footballscience/actions/runs/41200674349),
+and [Medical visibility reproduction](https://github.com/maklind88/footballscience/actions/runs/41200674401).
+This follow-up changes test preparation/workflow wiring only; product and SQL code
+remain exactly as in that product source.
+
+The existing default-off `verify_medical_journey` staging input now includes a fifth
+case, `peer-archived`. The real author UI first saves a new run-owned recommendation
+through the canonical path. Generic publication is deliberately blocked for this
+case to isolate canonical confirmation. The author browser is then set offline;
+the distinct peer archives that exact observed record through its authenticated API
+session. Peer archival is an API operation, not a peer UI test.
+
+After reconnection the test delays the author's refresh GETs, including responses
+already in flight. Only one exact original recommendation envelope and idempotency
+key may be delivered. The test requires a real HTTP 409 with the original event ID,
+duplicate=true, stored=true, canonicalStored=false and medical_recommendation_changed.
+It observes the new attempt's feedback, rejects transient false success, checks that
+canonical state/revision did not change, then releases reads and verifies fresh
+Medical and Sessions views for both users. The archived recommendation must be
+absent from active selectors; Sessions must show the player as unconfirmed, never
+implicitly 100% available.
+
+A separate test-only replay guard requires the original ownership-checked accepted
+receipt, the exact archived row, an unchanged replay payload and a single permitted
+request. Changed identities/content, further retries, unrelated endpoints and generic
+writes cannot pass. A server 200/503 or mismatched receipt fails the test; the harness
+does not replace it with an invented 409. Existing cleanup ownership and version/
+origin checks stay in force. Staging screenshots, video, traces and clinical payload
+attachments remain disabled. The synthetic ledger contains only owned IDs/statuses.
+
+Local rehearsal uses the same scenario and routing guard with actual Chromium/WebKit,
+API handler and PostgreSQL. Authentication, baseline and HTTP transport are synthetic.
+The normal four staging scenarios are retained as regression controls. The native CI
+job includes the new reconnect rehearsal; staging runs its guard contracts before
+creating any fixture. Offline cold restart, peer archive UI, full disk behavior and
+sustained writers remain outside this proof.
+
+Read-only target recheck on 31 October:
+- Staging: HTTP 200, build `dpl_EiWkM8G5aQp2AC5eVxUyjFUzkV2U`, backend
+  `pokrksgempkuraueglpu.supabase.co`.
+- All seven staging function MD5s/privileges match the new artifact preconditions;
+  the new helper is absent. Existing functions are invoker-only, unavailable to
+  anon/authenticated, and executable by service_role.
+- Live remains HTTP 200, build `845a0ed95bbd8795bf574a8aeb0c9f37ed903250`, backend
+  `bustidorxevacosqhkcz.supabase.co`.
+
+No remote test accounts, clinical rows, schema or deployments were changed during
+this preparation. Under AGENTS.md, a direct instruction such as **Deploy safe till
+staging** is required before installing the artifact/deploying the candidate and
+running the authenticated staging exercise. That would authorize this staging scope,
+not production. Recheck exact SHA, current target fingerprints and release traffic
+at execution time; do not reuse this snapshot as a permanent permission or lock.
+
+Follow-up validation: 55 guard/API contracts, six native PostgreSQL-backed browser
+cases (four mixed-version cases plus two reconnect rehearsals), and eight existing
+staging-harness browser controls (four each in Chromium/WebKit) passed. `npm run check`,
+`npm run release:rules`, staging `--list` (five cases, no execution) and
+`git diff --check` passed. Product/SQL diff against abcb2b811 is empty.
+Logs: `/private/tmp/medical-reconnect-guards.log`,
+`/private/tmp/medical-reconnect-final-browser.log`,
+`/private/tmp/medical-staging-harness-regression.log`,
+`/private/tmp/medical-staging-harness-webkit.log`.

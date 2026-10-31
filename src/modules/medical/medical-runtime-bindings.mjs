@@ -79,12 +79,14 @@ export function bindMedicalRuntimeBindings(deps = {}) {
 
   const recordCanonicalSync = async (eventType, payload) => {
     const firstResult = await recordSync(eventType, payload);
-    if (isCanonicalMedicalWriteConfirmed(firstResult)) return firstResult;
+    if (isCanonicalMedicalWriteConfirmed(firstResult) || firstResult?.code === "medical_recommendation_changed") return firstResult;
     return recordSync(eventType, payload);
   };
 
   const getRecommendationSyncFailureMessage = (result = {}, action = "Recommendation") => (
-    result.stored
+    result.code === "medical_recommendation_changed"
+      ? `${action} has changed centrally. Refresh Medical before making another recommendation. The original submission remains in the recovery journal.`
+      : result.stored
       ? `${action} is in the recovery journal, but central confirmation failed after retry. Do not re-enter it; notify an administrator.`
       : `${action} could not be saved centrally after retry. Check the connection and try again.`
   );

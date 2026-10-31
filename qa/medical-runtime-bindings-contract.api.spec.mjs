@@ -1220,3 +1220,17 @@ test('retained feedback revalidates its account, date, permission and newer inte
     expect(guard()).toBe(false);
   }
 });
+
+
+test('changed canonical recommendation asks for refresh without retry or clearing local work', async () => {
+  const { calls, mutable, workspace } = createHarness();
+  const before = structuredClone(mutable.medicalState);
+  mutable.syncResult = { ok:false, stored:true, canonicalStored:false, code:'medical_recommendation_changed' };
+  await workspace.listeners.click(createEvent(createTarget({
+    closest: { '[data-medical-quick-recommend]': { dataset: { medicalQuickRecommend:'p-1', medicalQuickParticipation:'50' } } },
+  })));
+  expect(calls.filter(call => Array.isArray(call) && call[0] === 'sync')).toHaveLength(1);
+  expect(calls).toContainEqual(['render', expect.stringContaining('has changed centrally. Refresh Medical'), {recommendationFeedbackIsCurrent:expect.any(Function)}]);
+  expect(calls.some(call => Array.isArray(call) && call[0] === 'render' && /recommendation saved|already set/.test(call[1]))).toBe(false);
+  expect(mutable.medicalState).toEqual(before);
+});

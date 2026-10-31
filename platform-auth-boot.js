@@ -2834,6 +2834,7 @@ async function getActiveAccessToken() {
         canonicalStored: response.payload?.canonicalStored === true,
         eventId: response.payload?.eventId || "",
         processingStatus: response.payload?.processingStatus || "",
+        code: response.payload?.code === "medical_recommendation_changed" ? "medical_recommendation_changed" : "",
         reason: response.payload?.reason || "Medical database event could not be saved.",
       };
     }

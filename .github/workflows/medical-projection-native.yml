@@ -10,6 +10,13 @@ on:
     paths:
       - 'scripts/release-artifacts/medical-projection-forward-only.sql'
       - 'scripts/release-artifacts/medical-production-timestamp-only.sql'
+      - 'scripts/release-artifacts/medical-recommendation-confirmation.sql'
+      - 'qa/helpers/medical-confirmation-postgres.mjs'
+      - 'qa/medical-mixed-client-acceptance.native-browser.spec.mjs'
+      - 'qa/playwright.medical-confirmation.config.mjs'
+      - 'api/_lib/medical-database.js'
+      - 'platform-auth-boot.js'
+      - 'src/modules/medical/medical-runtime-bindings.mjs'
       - 'scripts/verify-medical-production-mode.mjs'
       - 'qa/medical-production-mode.test.mjs'
       - 'qa/medical-projection-forward-native.test.mjs'
@@ -20,11 +27,12 @@ permissions:
 jobs:
   native:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -45,6 +53,14 @@ jobs:
         env:
           FS_RECOVERY_PG_BIN: /usr/lib/postgresql/17/bin
         run: node --test qa/medical-projection-forward-native.test.mjs qa/medical-multiwriter-acceptance-native.test.mjs
+      - name: Prepare mixed-client browsers
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium webkit
+      - name: Test old and new browser clients against real API and PostgreSQL
+        env:
+          FS_RECOVERY_PG_BIN: /usr/lib/postgresql/17/bin
+        run: npx playwright test --config=qa/playwright.medical-confirmation.config.mjs --reporter=list
   production-mode:
     if: github.event_name == 'workflow_dispatch' && inputs.expected_production_build != ''
     runs-on: ubuntu-24.04

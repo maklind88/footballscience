@@ -1,9 +1,9 @@
 # Medical production timestamp correction — prepared, not applied
 
-> Release hold — 2026-10-31: expanded acceptance reproduces a false current-status
-> confirmation after peer archival in both old and candidate clients. The timestamp
-> preparation below remains valid but is not sufficient for release approval. See
-> `docs/architecture/MEDICAL_MULTIWRITER_ACCEPTANCE_2026-10-31.md`.
+> Release hold — 2026-10-31: the stale-confirmation defect now has a locally
+> passing correction, but authenticated staging acceptance is still required.
+> The timestamp artifact alone remains insufficient. See
+> `docs/architecture/MEDICAL_RECOMMENDATION_CONFIRMATION_2026-10-31.md`.
 
 Owner: System / Security; Medical retains clinical writes/rules and Sessions is
 only a consuming view. Target on release: `bustidorxevacosqhkcz`. This is a dormant

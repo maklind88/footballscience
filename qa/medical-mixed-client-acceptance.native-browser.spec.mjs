@@ -1,14 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
+import { medicalConfirmationPostgres } from './helpers/medical-confirmation-postgres.mjs';
 import { installSetPiecesCentralFixture } from './helpers/set-pieces-central-fixture.mjs';
 import { journeyDay as day, journeyPlayer as player, journeyKey as key, openMedicalJourney, recommendationButton, recommendationMessage } from './helpers/medical-recommendation-journey.mjs';
 const oldSha='845a0ed95bbd8795bf574a8aeb0c9f37ed903250';
-const changed=['src/core/central-sync-runtime-service.mjs','src/modules/medical/medical-runtime-bindings.mjs','src/modules/medical/medical-runtime-state-service.mjs','src/modules/medical/medical-workspace-runtime-renderer.mjs'];
+const changed=['platform-auth-boot.js','src/core/central-sync-runtime-service.mjs','src/modules/medical/medical-runtime-bindings.mjs','src/modules/medical/medical-runtime-state-service.mjs','src/modules/medical/medical-workspace-runtime-renderer.mjs'];
 const oldSources=new Map(changed.map(path=>['/'+path,execFileSync('git',['show',oldSha+':'+path],{encoding:'utf8'})]));
 
-// Actual old/current browser code; remote HTTP/auth synthetic. Native acceptance
-// independently checks the real projector's archived duplicate response.
+// Actual old/current browser, API handler and PostgreSQL projector. Auth and
+// generic state transport are synthetic; no remote credentials or writes.
 for(const authorVersion of ['old','candidate']) test(`stale ${authorVersion} client cannot confirm a recommendation cleared by a peer`,async({browser})=>{
+  const database=await medicalConfirmationPostgres();
   const contexts=[],ledger=[];let revision=10, blockAuthorReads=false, originalRequest;
   let record={id:'synthetic-existing-recommendation',playerId:player.id,date:day,participation:50,createdAt:day+'T09:00:00Z',updatedAt:day+'T09:00:00Z'};
   const entries=()=>({[key]:JSON.stringify({rosterVersion:'qa-journey',players:[player],records:[record],injuryPlans:[]}),
@@ -27,7 +29,7 @@ for(const authorVersion of ['old','candidate']) test(`stale ${authorVersion} cli
     });
     await page.clock.setFixedTime(new Date(day+'T12:00:00Z'));
     const served=new Set();
-    if(version==='old')await page.route('**/src/**',async route=>{
+    if(version==='old')await page.route(/\/(?:src\/|platform-auth-boot\.js)/,async route=>{
       const path=new URL(route.request().url()).pathname;
       if(oldSources.has(path)){served.add(path);return route.fulfill({contentType:'text/javascript',body:oldSources.get(path)});}
       return route.fallback();
@@ -43,14 +45,18 @@ for(const authorVersion of ['old','candidate']) test(`stale ${authorVersion} cli
       const body=route.request().postDataJSON();ledger.push({actor,type:body.eventType,body});
       if(body.eventType==='record-archived'){
         expect(actor).toBe('peer');expect(body.payload.recordId).toBe(record.id);
-        record={...record,archivedAt:body.payload.archivedAt,updatedAt:body.payload.archivedAt};revision++;
+
       }else{
         expect(actor).toBe('author');expect(body.eventType).toBe('recommendation-saved');
         expect(body.payload.record.id).toBe(record.id);
-        if(!record.archivedAt){originalRequest=body;revision++;}
+        if(!record.archivedAt){originalRequest=body;}
         else {expect(originalRequest).toBeTruthy();expect(body).toEqual(originalRequest);}
       }
-      return route.fulfill({json:{ok:true,stored:true,canonicalStored:true,processingStatus:'processed',eventId:'synthetic-event',revision,duplicate:actor==='author'&&Boolean(record.archivedAt)}});
+      const response=await database.handle(body,actor==='author'?1:2);
+      const canonical=await database.state();record=canonical.records.find(r=>r.id===record.id);
+      revision=response.json.revision||revision;
+      ledger.at(-1).status=response.status;
+      return route.fulfill(response);
     });
     await page.goto('/?workspace=medical-team');await openMedicalJourney(page);await expect(recommendationButton(page)).toHaveClass(/is-active/);
     if(version==='old')expect([...served].sort()).toEqual([...oldSources.keys()].sort());
@@ -68,10 +74,13 @@ for(const authorVersion of ['old','candidate']) test(`stale ${authorVersion} cli
     expect(record.archivedAt).toBeTruthy();await expect(recommendationButton(peer)).not.toHaveClass(/is-active/);
     await author.evaluate(()=>{window.__medicalFeedback=[];});
     await recommendationButton(author).click();
-    await expect.poll(()=>ledger.filter(e=>e.actor==='author'&&e.type==='recommendation-saved').length).toBe(2);
-    await expect.poll(()=>author.evaluate(()=>window.__medicalFeedback.some(text=>/already set|could not|changed|review/i.test(text)))).toBe(true);
+    await expect.poll(()=>ledger.filter(e=>e.actor==='author'&&e.type==='recommendation-saved').length).toBe(authorVersion==='old'?3:2);
+    await expect.poll(()=>author.evaluate(()=>window.__medicalFeedback.some(text=>/already set|could not|changed|review|recovery journal/i.test(text)))).toBe(true);
     const messages=await author.evaluate(()=>window.__medicalFeedback);
     console.log(JSON.stringify({mixedClientAcceptance:{authorVersion,peerArchived:true,duplicateRequest:true,messages}}));
     expect(messages.join('\n')).not.toContain('recommendation already set');
-  }finally{await Promise.allSettled(contexts.map(c=>c.close()));}
+    expect(ledger.filter(e=>e.actor==='author').slice(1).every(e=>e.status===409)).toBe(true);
+    if(authorVersion==='candidate')expect(messages.join('\n')).toContain('has changed centrally');
+    expect(record.archivedAt).toBeTruthy();
+  }finally{await Promise.allSettled(contexts.map(c=>c.close()));await database.db.close();}
 });

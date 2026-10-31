@@ -1,6 +1,10 @@
 # Medical concurrency and mixed-client acceptance — 2026-10-31
 
-**Release hold: acceptance failed.** The prepared timestamp correction is still
+**Follow-up:** the original failure below is now corrected and passes local native,
+API and mixed-client browser acceptance. Authenticated staging is still required;
+release remains on hold. See [the correction and precise limits](MEDICAL_RECOMMENDATION_CONFIRMATION_2026-10-31.md).
+
+**Original reproduction at commit 88b24443f: acceptance failed.** The prepared timestamp correction is still
 valid within its tested scope, but it does not resolve the confirmation defect
 below. Do not treat the earlier 37 passing database tests as approval of this
 broader user journey. No production/staging mutation or deployment was performed.

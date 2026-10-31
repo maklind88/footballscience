@@ -405,6 +405,10 @@ async function projectMedicalSyncEvents(eventIds = []) {
     processedCount: Number(projection.processed_count) || 0,
     failedCount: Number(projection.failed_count) || 0,
     revision: Number(projection.revision) || 0,
+    // A completed projection whose submitted recommendation no longer matches
+    // the locked canonical state is a semantic conflict, not a retryable outage.
+    recommendationChanged: projection.canonical_stored === false &&
+      projection.processed_count === ids.length && projection.failed_count === 0,
   };
 }
 
@@ -484,12 +488,12 @@ async function handleMedicalPost(req, res, actor) {
     action: projectionValidation.projected
       ? projection?.canonicalStored
         ? "medical.database.sync.projected"
-        : "medical.database.sync.projection_failed"
+        : projection?.recommendationChanged ? "medical.database.sync.conflict" : "medical.database.sync.projection_failed"
       : "medical.database.sync.queued",
     summary: projectionValidation.projected
       ? projection?.canonicalStored
         ? "Saved medical event to canonical state"
-        : "Medical canonical state confirmation failed"
+        : projection?.recommendationChanged ? "Medical recommendation changed centrally" : "Medical canonical state confirmation failed"
       : "Queued medical database sync event",
     details: {
       eventType: normalized.row.event_type,
@@ -503,18 +507,21 @@ async function handleMedicalPost(req, res, actor) {
   });
 
   if (projectionValidation.projected && !projection?.canonicalStored) {
-    return sendJson(res, 503, {
+    return sendJson(res, projection?.recommendationChanged ? 409 : 503, {
       ok: false,
       schema: MEDICAL_DATABASE_SCHEMA,
       mode: "database",
       stored: true,
       canonicalStored: false,
+      ...(projection?.recommendationChanged ? { code: "medical_recommendation_changed", revision: projection.revision } : {}),
       duplicate,
       eventId: syncEvent.id,
       eventType: normalized.row.event_type,
-      processingStatus: projection?.failedCount ? "failed" : syncEvent.processing_status || "pending",
+      processingStatus: projection?.recommendationChanged ? "processed" : projection?.failedCount ? "failed" : syncEvent.processing_status || "pending",
       payloadHash: normalized.row.payload_hash,
-      reason: projection?.reason || "Medical data reached the recovery journal but canonical save confirmation failed.",
+      reason: projection?.recommendationChanged
+        ? "Medical recommendation has changed centrally. Refresh Medical before making another recommendation."
+        : projection?.reason || "Medical data reached the recovery journal but canonical save confirmation failed.",
     });
   }
 

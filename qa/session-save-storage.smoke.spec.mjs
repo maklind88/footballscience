@@ -185,7 +185,7 @@ test("legacy cache archival is durable and never resets a reviewed copy", async 
   expect(result.rows[0].storage["football-session-planner-v3"]).toBe(result.raw);
 });
 
-test("real IndexedDB retains queued frames after reload and snapshot pruning never removes unresolved copies", async ({ page }) => {
+test("real IndexedDB retains queued frames after reload and snapshot admission never removes unresolved or unknown copies", async ({ page }) => {
   await boot(page);
   await page.evaluate(async () => {
     const { createSessionSaveStore } = await import("/src/modules/session-planner/session-save-store.mjs");
@@ -210,7 +210,9 @@ test("real IndexedDB retains queued frames after reload and snapshot pruning nev
       tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
     });
     const { createDataSafetyRuntimeService } = await import("/src/core/data-safety-runtime-service.mjs");
-    await createDataSafetyRuntimeService({ maxSnapshots: 3 }).pruneSnapshots(db);
+    const service = createDataSafetyRuntimeService({ maxSnapshots: 3 });
+    service.install();
+    const saved = await service.saveSnapshot("qa-legacy-over-budget");
     const remaining = await new Promise((resolve, reject) => {
       const request = db.transaction("snapshots").objectStore("snapshots").getAll();
       request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
@@ -218,10 +220,10 @@ test("real IndexedDB retains queued frames after reload and snapshot pruning nev
     db.close();
     return { frameCount: rows[0].change.after.session.blocks[0].tacticalFrames.length,
       marker: rows[0].change.after.session.blocks[0].tacticalFrames[0].elements[0],
-      otherScope: await store.list("other:team"), remaining, queued: (await store.list("coach:team")).length };
+      otherScope: await store.list("other:team"), remaining, saved, queued: (await store.list("coach:team")).length };
   });
-  expect(result).toMatchObject({ frameCount: 24, marker: { playerNumber: "CB", x: 0, y: 40 }, otherScope: [], queued: 1 });
-  expect(result.remaining).toHaveLength(4);
+  expect(result).toMatchObject({ frameCount: 24, marker: { playerNumber: "CB", x: 0, y: 40 }, otherScope: [], saved: false, queued: 1 });
+  expect(result.remaining).toHaveLength(41);
   expect(result.remaining.some((row) => row.storage?.important === "Retained")).toBe(true);
 });
 

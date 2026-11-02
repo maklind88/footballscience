@@ -1,4 +1,5 @@
 import { createLocalSaveIssues } from "./local-save-issues.mjs";
+import { DEFAULT_SNAPSHOT_BUDGET } from "./snapshot-budget.mjs";
 import { storeDistinctSnapshot } from "./distinct-snapshot-store.mjs";
 import { openStorageHealth } from "./storage-health-dialog.mjs";
 import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
@@ -18,7 +19,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
     databaseName = "football-science-data-safety-v1",
     snapshotStoreName = "snapshots",
     latestStoreName = "latest",
-    maxSnapshots = 30,
+    maxSnapshots = DEFAULT_SNAPSHOT_BUDGET.maxSnapshots,
+    maxSnapshotBytes = DEFAULT_SNAPSHOT_BUDGET.maxSnapshotBytes,
+    maxTotalSnapshotBytes = DEFAULT_SNAPSHOT_BUDGET.maxTotalBytes,
     protectedStorageKeys = [],
     journaledStorageKeys = ["football-session-planner-v3"],
     storageLabels = {},
@@ -486,23 +489,6 @@ export function createDataSafetyRuntimeService(deps = {}) {
     });
   }
 
-  async function pruneSnapshots(database) {
-    const keys = await new Promise((resolve, reject) => {
-      const transaction = database.transaction(snapshotStoreName, "readonly");
-      const request = transaction.objectStore(snapshotStoreName).getAllKeys();
-      request.onsuccess = () => resolve(Array.from(request.result || []));
-      request.onerror = () => reject(request.error);
-    });
-    // Pending Sessions recovery copies are not rotating historical snapshots.
-    const rotatingKeys = keys.filter((key) => !String(key).startsWith("football-session-planner-v3-quota-fallback"));
-    if (rotatingKeys.length <= maxSnapshots) return;
-    const keysToDelete = rotatingKeys.sort().slice(0, rotatingKeys.length - maxSnapshots);
-    const transaction = database.transaction(snapshotStoreName, "readwrite");
-    const store = transaction.objectStore(snapshotStoreName);
-    keysToDelete.forEach((key) => store.delete(key));
-    await waitForTransaction(transaction);
-  }
-
   async function saveSnapshot(reason = "autosave") {
     const snapshot = {
       ...createBackupEnvelope(reason),
@@ -510,8 +496,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
     };
     try {
       const database = await openDatabase();
-      const stored = await storeDistinctSnapshot(database, snapshotStoreName, latestStoreName, snapshot);
-      if (stored.written) await pruneSnapshots(database);
+      const stored = await storeDistinctSnapshot(database, snapshotStoreName, latestStoreName, snapshot, {
+        maxSnapshots, maxSnapshotBytes, maxTotalBytes: maxTotalSnapshotBytes,
+      });
       // A cache copy is not acknowledgement of a failed user save. An in-memory
       // draft may be absent from it, including one created while this write awaited.
       status.lastSnapshotError = "";
@@ -568,7 +555,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     ui.dataSafetyStatus.classList.toggle("is-error", Boolean(error || centralError));
     ui.dataSafetyStatus.classList.toggle(
       "is-backed-up",
-      Boolean((centralStatus.lastSyncedAt || manifest.lastCentralSyncedAt) && !hasPendingCentralSync && !error && !centralError)
+      Boolean((centralStatus.lastSyncedAt || manifest.lastCentralSyncedAt) && !hasPendingCentralSync && !error && !centralError && !snapshotWarning)
     );
     if (centralError) {
       ui.dataSafetyStatus.textContent = "Sync needs attention";
@@ -592,7 +579,12 @@ export function createDataSafetyRuntimeService(deps = {}) {
     }
     if (hasPendingCentralSync) {
       ui.dataSafetyStatus.textContent = savedTime ? `Sync pending ${savedTime}` : "Sync pending";
-      ui.dataSafetyStatus.title = "Waiting for central confirmation. Keep this page open if local saving has failed.";
+      ui.dataSafetyStatus.title = ["Waiting for central confirmation. Keep this page open if local saving has failed.", snapshotWarning].filter(Boolean).join(" ");
+      return;
+    }
+    if (snapshotWarning) {
+      ui.dataSafetyStatus.textContent = "Local history needs attention";
+      ui.dataSafetyStatus.title = snapshotWarning;
       return;
     }
     if (centralTime) {
@@ -928,7 +920,6 @@ export function createDataSafetyRuntimeService(deps = {}) {
     createBackupEnvelope,
     waitForTransaction,
     openDatabase,
-    pruneSnapshots,
     saveSnapshot,
     queueSnapshot,
     flushQueuedSnapshot,

@@ -155,3 +155,15 @@ and conflict baseline; older reviews and newer drafts remain separate.
 This closes the missing local retry/export interface described immediately above
 for the candidate only. It does not make browser memory durable, add an import
 workflow, establish production acceptance or close other modules' matrix rows.
+
+## Follow-up, 2 November: measured snapshot amplification
+
+The [snapshot growth checkpoint](SNAPSHOT_GROWTH_EVIDENCE_2026-11-02.md) proves the
+current 30-row history limit, unchanged-repeat suppression, full-envelope copying
+when receipt metadata changes, preservation after an injected quota abort, and
+persistence of committed copies across a closed disk-profile browser. Eighteen
+Chromium/WebKit cases passed. A count limit alone is not a byte budget; protected
+recovery work must remain separate from future replaceable-cache policy. This is
+QA/evidence only, not a storage cleanup, a byte-policy implementation, offline
+app-shell approval or a new production release. No fresh affected-device inventory
+was obtained in this checkpoint.

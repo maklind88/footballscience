@@ -167,3 +167,14 @@ recovery work must remain separate from future replaceable-cache policy. This is
 QA/evidence only, not a storage cleanup, a byte-policy implementation, offline
 app-shell approval or a new production release. No fresh affected-device inventory
 was obtained in this checkpoint.
+
+### 2 November 2026 — non-destructive snapshot admission candidate
+
+Follow-up to growth checkpoint `9a57ac370`: see
+[SNAPSHOT_ADMISSION_BUDGET_2026-11-02.md](SNAPSHOT_ADMISSION_BUDGET_2026-11-02.md).
+The isolated candidate bounds admission of extra history by count and serialized
+bytes, preserves existing unknown/pending/review copies, and exposes a separate
+history warning. It intentionally pauses history at capacity. Safe automatic
+retirement needs exact per-module proof still unavailable from current projected
+cache metadata. This is an interim local candidate, not all-module approval or a
+production deployment.

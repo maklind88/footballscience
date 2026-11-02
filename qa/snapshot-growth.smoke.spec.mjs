@@ -47,7 +47,7 @@ async function boot(page, options = {}) {
 }
 
 for (const change of ['payload', 'receipt-metadata']) {
-  test(`snapshot growth is count-bounded, not byte-bounded, for ${change} changes`, async ({ page }) => {
+  test(`snapshot admission preserves history at its count limit for ${change} changes`, async ({ page }) => {
     await boot(page);
     const result = await page.evaluate(async change => {
       const p = window.snapshotProbe;
@@ -62,9 +62,15 @@ for (const change of ['payload', 'receipt-metadata']) {
         statuses.push(await p.service.saveSnapshot('qa-growth'));
       }
       const before = await p.inspect();
-      for (let repeat = 0; repeat < 10; repeat++) statuses.push(await p.service.saveSnapshot('qa-unchanged'));
+      // Restore the last admitted envelope: repeats still succeed without growth at capacity.
+      if (change === 'payload') p.setValue(29);
+      else p.service.mutateManifest(manifest => {
+        manifest.entries['football-exercises-v2'] = { principalScope: 'synthetic-owner', pendingCentralSync: false, serverRevision: 29 };
+      });
+      const repeats = [];
+      for (let repeat = 0; repeat < 10; repeat++) repeats.push(await p.service.saveSnapshot('qa-unchanged'));
       const after = await p.inspect();
-      return { allSaved: statuses.every(Boolean), count: after.count,
+      return { admitted: statuses.filter(Boolean).length, refused: statuses.filter(saved => !saved).length, repeatsSaved: repeats.every(Boolean), count: after.count,
         bytesUnchanged: after.historyBytes === before.historyBytes && after.latestBytes === before.latestBytes,
         rowsUnchanged: JSON.stringify(after.rows) === JSON.stringify(before.rows),
         latestRevision: JSON.parse(after.latest[0].storage['football-exercises-v2']).revision,
@@ -73,8 +79,8 @@ for (const change of ['payload', 'receipt-metadata']) {
         historyBytes: after.historyBytes, latestBytes: after.latestBytes,
         payloadBytes: after.latest[0].storage['football-exercises-v2'].length * 2 };
     }, change);
-    expect(result).toMatchObject({ allSaved: true, count: 30, bytesUnchanged: true, rowsUnchanged: true,
-      latestRevision: change === 'payload' ? 34 : 0, allPayloadsRetained: true, recoveryUnchanged: true });
+    expect(result).toMatchObject({ admitted: 30, refused: 5, repeatsSaved: true, count: 30, bytesUnchanged: true, rowsUnchanged: true,
+      latestRevision: change === 'payload' ? 29 : 0, allPayloadsRetained: true, recoveryUnchanged: true });
     expect(result.historyBytes).toBeGreaterThanOrEqual(30 * result.payloadBytes);
     expect(result.latestBytes).toBeGreaterThanOrEqual(result.payloadBytes);
     console.log(JSON.stringify({ snapshotGrowth: { change, count: result.count, historyBytes: result.historyBytes,
@@ -82,8 +88,8 @@ for (const change of ['payload', 'receipt-metadata']) {
   });
 }
 
-test('snapshot quota failure preserves committed history, latest and recovery; retry resumes rotation', async ({ page }) => {
-  await boot(page, { maxSnapshots: 3 });
+test('snapshot quota failure preserves committed history, latest and recovery; retry adds history without deletion', async ({ page }) => {
+  await boot(page, { maxSnapshots: 4 });
   const result = await page.evaluate(async () => {
     const p = window.snapshotProbe;
     await p.seedRecovery();
@@ -115,7 +121,7 @@ test('snapshot quota failure preserves committed history, latest and recovery; r
       recoveryUnchanged: JSON.stringify(after.recovery) === JSON.stringify(p.retained) };
   });
   expect(result).toEqual({ saved: false, injected: 1, errorReported: true, unchanged: true, retried: true,
-    warningCleared: true, count: 3, latestRevision: 3, recoveryUnchanged: true });
+    warningCleared: true, count: 4, latestRevision: 3, recoveryUnchanged: true });
 });
 
 test('offline snapshot and protected recovery survive a closed disk profile and an offline read', async ({ playwright, browserName, baseURL }) => {

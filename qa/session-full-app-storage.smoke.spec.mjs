@@ -99,3 +99,60 @@ test("full Sessions app preserves unresolved review across combined failure and 
   expect(await readJournal(page)).toEqual(reviewed);
   expect(server.effects).toBe(0);
 });
+
+
+test("Sessions syncs its committed journal when localStorage metadata and extra history cannot be written", async ({ page }) => {
+  const server = await installSessionStorageFixture(page);
+  server.reject = false;
+  await page.goto("/?workspace=session-planner"); await ready(page);
+  await page.evaluate(() => { window.__storageFault.manifest = true; window.__storageFault.history = true; });
+  await edit(page, "Journal survives unavailable cache metadata");
+  await expect.poll(() => server.effects).toBe(1);
+  await expect.poll(() => readJournal(page)).toEqual([]);
+  await expect(status(page)).toHaveClass(/is-saved/);
+  expect(server.value.sessions[day].blocks[0].objective).toBe("Journal survives unavailable cache metadata");
+  expect(await page.evaluate(() => window.__storageFault.manifestFailures)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__storageFault.historyFailures)).toBeGreaterThan(0);
+  await page.reload(); await ready(page);
+  await expect(objective(page)).toHaveValue("Journal survives unavailable cache metadata");
+  expect(server.effects).toBe(1);
+});
+
+for (const overlap of [false, true]) {
+  test(`Sessions reload and colleague edits remain safe without cache metadata or history (conflict=${overlap})`, async ({ page }) => {
+    const server = await installSessionStorageFixture(page, { failManifest: true, failHistory: true });
+    await page.goto("/?workspace=session-planner"); await ready(page);
+    await edit(page, "Owner work retained in journal");
+    await expect.poll(() => server.writes.length).toBeGreaterThan(0);
+    const retained = await readJournal(page);
+    expect(retained).toHaveLength(1);
+    expect(retained[0].status).toBe("pending");
+    await expect(status(page)).not.toHaveClass(/is-saved/);
+    await page.reload(); await ready(page);
+    await expect(objective(page)).toHaveValue("Owner work retained in journal");
+    expect(await readJournal(page)).toEqual(retained);
+    if (overlap) server.value.sessions[day].blocks[0].objective = "Accepted colleague objective";
+    else server.value.sessions[day].blocks[0].title = "Accepted colleague title";
+    server.revision++; server.reject = false;
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    if (overlap) {
+      await expect.poll(async () => (await readJournal(page)).map(row => row.status)).toEqual(["review"]);
+      expect(server.effects).toBe(0);
+      expect(server.value.sessions[day].blocks[0].objective).toBe("Accepted colleague objective");
+      await expect(status(page)).not.toHaveClass(/is-saved/);
+      await page.reload(); await ready(page);
+      expect((await readJournal(page))[0].change).toEqual(retained[0].change);
+      await page.getByRole("button", { name: "Review local saves", exact: true }).click();
+      await expect(page.locator("dialog.session-save-review")).toContainText("Owner work retained in journal");
+    } else {
+      await expect.poll(() => server.effects).toBe(1);
+      await expect.poll(() => readJournal(page)).toEqual([]);
+      await expect(status(page)).toHaveClass(/is-saved/);
+      expect(server.value.sessions[day].blocks[0].title).toBe("Accepted colleague title");
+      await page.reload(); await ready(page);
+      await expect(objective(page)).toHaveValue("Owner work retained in journal");
+      await expect(page.locator('[data-session-field="title"]').first()).toHaveValue("Accepted colleague title");
+    }
+    expect(await page.evaluate(() => window.__storageFault.manifestFailures)).toBeGreaterThan(0);
+  });
+}

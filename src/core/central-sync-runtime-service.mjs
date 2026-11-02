@@ -1,3 +1,5 @@
+import { verifySessionJournalReplay } from "./session-journal-replay-guard.mjs";
+
 export function createCentralSyncRuntimeService(deps = {}) {
   const {
     getActiveWorkspaceId = () => "",
@@ -323,7 +325,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         win.__footballScienceCentralHydrating = wasHydrating;
       }
       phase = "manifest";
-      mutateManifest((manifest) => {
+      if (!write.journalOnlyReplay) mutateManifest((manifest) => {
         const currentEntry = manifest.entries[key] || {};
         manifest.entries[key] = {
           ...(currentEntry?.label ? currentEntry : { label: getStorageLabel(key), writes: 0 }),
@@ -369,6 +371,11 @@ export function createCentralSyncRuntimeService(deps = {}) {
   }
 
   function finishAcknowledgedWrite(write, result) {
+    if (write.journalOnlyReplay && getCentralStateBridge()?.getSessionWorkingCopy?.()) {
+      const issue = "Newer training changes are not saved on this device. Keep this page open and retry.";
+      reportSyncStatus(write.key, "issue", issue);
+      return issue;
+    }
     write = reconcileScheduleAcknowledgementOrder(write);
     const cached = getCentralStateBridge()?.getCachedValueInfo?.(write.key);
     // A read projection can refresh unrelated server fields without creating a
@@ -380,12 +387,12 @@ export function createCentralSyncRuntimeService(deps = {}) {
     advanceQueuedWriteBaseRevision(write.key, result);
     const successorIssue = centralStateWriteQueue.get(write.key)?.predecessorAckRevision ? successorPersistenceIssue : "";
     if (successorIssue) reportSyncStatus(write.key, "issue", successorIssue);
-    persistCentralStateServerRevision(write.key, result);
+    if (!write.journalOnlyReplay) persistCentralStateServerRevision(write.key, result);
     const currentBeforeApply = isCentralStateWriteGenerationCurrent(write);
     const applied = applyCentralSyncedStateValue(write, result.value);
     // Refresh callbacks can create a newer edit. Never acknowledge it with A's receipt.
     if (currentBeforeApply && isCentralStateWriteGenerationCurrent({ ...write, value: applied?.appliedValue ?? write.value })) {
-      setCentralSyncPendingState(write.key, false, write.removed);
+      if (!write.journalOnlyReplay) setCentralSyncPendingState(write.key, false, write.removed);
       reportSyncStatus(write.key, applied?.issue ? "issue" : "saved", applied?.issue || "Saved");
     }
     return applied?.issue || successorIssue;
@@ -491,6 +498,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       retryResult = await bridge.syncKey(write.key, write.value, {
         removed: false,
         baseRevision: retryBaseRevision,
+        ...(write.journalOnlyReplay ? { sessionStaged: true } : {}),
       });
     } finally {
       centralStateActiveWrites.delete(write.key);
@@ -546,7 +554,12 @@ export function createCentralSyncRuntimeService(deps = {}) {
       : isCentralWriteReady(bridge, { key: normalizedKey, removed: options.removed }) ? getCentralStateRevisionForKey(normalizedKey) : null;
     reportSyncStatus(normalizedKey, "saving", "Saving");
     const pendingEntry = setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed), principalScope, baseRevision);
-    if (!pendingEntry) {
+    // A committed module journal can own replay durability when cache metadata fails.
+    // Ordinary cached writes must still persist their pending metadata first.
+    const journalOnlyReplay = !pendingEntry && normalizedKey === sessionPlannerStorageKey && !options.removed &&
+      options.sessionReplay === true && Boolean(principalScope) && typeof bridge.stageSessionWrite === "function" &&
+      typeof bridge.getSessionPendingState === "function" && typeof bridge.getSessionWorkingCopy === "function";
+    if (!pendingEntry && !journalOnlyReplay) {
       reportSyncStatus(normalizedKey, "issue", successorPersistenceIssue);
       return false;
     }
@@ -555,7 +568,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (normalizedKey === sessionPlannerStorageKey && !options.removed && bridge.stageSessionWrite) {
       stageKind = "session";
       stage = () => options.sessionReplay
-        ? Promise.resolve({ ok: true })
+        ? journalOnlyReplay ? verifySessionJournalReplay(bridge, normalizedKey, principalScope) : Promise.resolve({ ok: true })
         : bridge.stageSessionWrite(String(value ?? ""), {
             previousValue: options.previousValue,
             previousPending: options.previousPending,
@@ -578,6 +591,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       principalScope,
       baseRevision,
       pendingEntry,
+      ...(journalOnlyReplay ? { journalOnlyReplay: true } : {}),
       followsActiveWrite: centralStateActiveWrites.has(normalizedKey),
       ...(normalizedKey === sessionPlannerStorageKey ? { sessionViewToken: options.sessionViewToken || bridge.getCachedValueInfo?.(normalizedKey)?.sessionViewToken } : {}),
       previousValue: typeof options.previousValue === "string" ? options.previousValue : undefined,
@@ -703,7 +717,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       if (!result?.ok) {
         if (result?.reviewRequired) {
           flushIssue = result.reason;
-          setCentralSyncPendingState(write.key, true, false);
+          if (!write.journalOnlyReplay) setCentralSyncPendingState(write.key, true, false);
           queueCentralStateStatus(result.reason);
           reportSyncStatus(write.key, "issue", result.reason);
           continue;
@@ -750,7 +764,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
           // is not a receipt: retain durable retry/recovery intent for a later
           // explicit edit or external recovery event after access is restored.
           if (write.key === sessionPlannerStorageKey && result.durablePending) {
-            setCentralSyncPendingState(write.key, true, false);
+            if (!write.journalOnlyReplay) setCentralSyncPendingState(write.key, true, false);
             flushIssue = result.reason || "Local changes retained; access denied.";
           } else if (isCentralStateWriteGenerationCurrent(write)) {
             setCentralSyncPendingState(write.key, true, write.removed);

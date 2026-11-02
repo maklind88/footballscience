@@ -5,29 +5,38 @@ import { installSetPiecesCentralFixture } from "./set-pieces-central-fixture.mjs
 import { applySessionDateChange, sessionDateValue } from "../../src/modules/session-planner/session-save-protocol.mjs";
 
 export const key = "football-session-planner-v3", day = "2026-10-14";
-export async function installSessionStorageFixture(page) {
+export async function installSessionStorageFixture(page, { failManifest = false, failHistory = false } = {}) {
   // Reuse the established synthetic auth/HTTP fixture. No live account or data.
   await installSetPiecesCentralFixture(page);
   await page.clock.setFixedTime(new Date(`${day}T12:00:00Z`));
   const server = { revision: 10, reject: true, writes: [], effects: 0,
     value: { selectedDate: day, sessions: { [day]: { date: day, title: "Training", selectedBlockId: "a",
       blocks: [{ id: "a", title: "Press", objective: "Central baseline", minutes: 20 }] } } } };
-  await page.addInitScript(key => {
-    window.__storageFault = { journal: false, cacheFailures: 0, journalFailures: 0 };
+  await page.addInitScript(({ key, failManifest, failHistory }) => {
+    window.__storageFault = { journal: false, manifest: failManifest, history: failHistory, cacheFailures: 0, journalFailures: 0, manifestFailures: 0, historyFailures: 0 };
     const get = Storage.prototype.getItem, set = Storage.prototype.setItem, put = IDBObjectStore.prototype.put;
     window.__nativeStorageRead = name => get.call(localStorage, name);
     Storage.prototype.setItem = function(name, value) {
+      if (name === 'football-data-safety-v1' && window.__storageFault.manifest) {
+        window.__storageFault.manifestFailures++;
+        throw new DOMException("Synthetic full save metadata", "QuotaExceededError");
+      }
       if (name === key) { window.__storageFault.cacheFailures++; throw new DOMException("Synthetic full cache", "QuotaExceededError"); }
       return set.call(this, name, value);
     };
     IDBObjectStore.prototype.put = function(value, ...args) {
+      if (window.__storageFault.history && this.transaction.db.name === "football-science-data-safety-v1" &&
+          (this.name === "snapshots" || (this.name === "latest" && value?.id === "latest"))) {
+        window.__storageFault.historyFailures++;
+        throw new DOMException("Synthetic unavailable extra history", "QuotaExceededError");
+      }
       if (window.__storageFault.journal && this.transaction.db.name === "football-science-data-safety-v1") {
         window.__storageFault.journalFailures++;
         throw new DOMException("Synthetic full journal", "QuotaExceededError");
       }
       return put.call(this, value, ...args);
     };
-  }, key);
+  }, { key, failManifest, failHistory });
   await page.route("**/api/app-state**", async route => {
     if (route.request().method() === "GET") {
       const entries = { [key]: JSON.stringify(server.value), "football-schedule-v1": JSON.stringify({ selectedDate: day,

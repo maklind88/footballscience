@@ -155,3 +155,18 @@ and conflict baseline; older reviews and newer drafts remain separate.
 This closes the missing local retry/export interface described immediately above
 for the candidate only. It does not make browser memory durable, add an import
 workflow, establish production acceptance or close other modules' matrix rows.
+
+## Follow-up, 2 November: journal replay independent of cache metadata
+
+The [Sessions cache-independence checkpoint](SESSION_JOURNAL_CACHE_INDEPENDENCE_2026-11-02.md)
+reproduced a new-work failure: a committed Sessions journal operation could
+not sync when shared localStorage metadata could not be written. The isolated
+candidate permits only verified, scoped journal replay through that failure,
+retains existing permission/conflict/generation guards, and never turns a
+cached calendar into a new operation on retry. It excludes the earlier hard
+snapshot budget and performs no historical cleanup.
+
+This is a local candidate, not production verification or approval of all
+modules. Medical's localStorage-first save path and durable pending-work
+contract remain the next substantive boundary to address. See the linked
+checkpoint for exact verification and limits.

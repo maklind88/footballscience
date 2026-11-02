@@ -1872,3 +1872,67 @@ for (const scenario of ["second-race", "content-conflict", "retained", "deleted"
     expect(h.rawValues.get(key)).toBe(scenario === "deleted" ? undefined : scenario === "new-value" ? "newer draft" : "draft");
   });
 }
+
+for (const condition of ['ready', 'no-journal', 'journal-error', 'working-copy', 'permission', 'scope-change', 'late-permission', 'missing-capability', 'ordinary-write', 'deletion', 'other-module']) {
+  test(`failed cache metadata permits only verified Sessions journal replay (${condition})`, async () => {
+    let scope = 'owner-A', allowed = condition !== 'permission';
+    const h = createServiceHarness({ getReadScope: () => scope, failManifestWrite: () => true, canAutoSyncKey: () => allowed });
+    const session = 'football-session-planner-v1', key = condition === 'other-module' ? 'football-medical-team-v1' : session;
+    const bridge = h.win.footballScienceCentralState;
+    let stages = 0;
+    bridge.stageSessionWrite = async () => { stages++; return { ok: true }; };
+    bridge.getSessionPendingState = async () => {
+      if (condition === 'scope-change') scope = 'owner-B';
+      if (condition === 'late-permission') allowed = false;
+      if (condition === 'journal-error') throw new Error('Journal unavailable');
+      return condition === 'no-journal' ? null : 'verified pending baseline';
+    };
+    bridge.getSessionWorkingCopy = () => condition === 'working-copy' ? { value: 'volatile edit' } : null;
+    if (condition === 'missing-capability') delete bridge.getSessionWorkingCopy;
+    h.rawValues.set(key, 'current view');
+    const before = structuredClone(h.manifest.entries);
+    const queued = h.service.queueCentralStateWrite(key, 'current view', {
+      sessionReplay: condition !== 'ordinary-write', removed: condition === 'deletion',
+    });
+    await h.service.flushCentralStateWrites();
+    const blockedAtQueue = ['missing-capability', 'ordinary-write', 'deletion', 'other-module'].includes(condition);
+    expect(queued).toBe(!blockedAtQueue);
+    expect(h.syncCalls).toHaveLength(condition === 'ready' ? 1 : 0);
+    expect(h.syncStatuses.some(([, state]) => state === 'saved')).toBe(condition === 'ready');
+    if (condition === 'ready') expect(h.syncCalls[0].options.sessionStaged).toBe(true);
+    expect(stages).toBe(0); // Never turn the cached calendar into a new edit.
+    expect(h.manifest.entries).toEqual(before);
+  });
+}
+
+test('a journal-only retry after a revision race never stages the cached calendar', async () => {
+  const h = createServiceHarness({ getReadScope: () => 'owner-A', failManifestWrite: () => true,
+    syncResults: [{ ok: false, status: 409, currentRevision: 8 }, { ok: true, value: 'central view', revision: 9 }] });
+  const key = 'football-session-planner-v1', bridge = h.win.footballScienceCentralState;
+  bridge.stageSessionWrite = async () => { throw new Error('No new staging permitted'); };
+  bridge.getSessionPendingState = async () => 'pending baseline';
+  bridge.getSessionWorkingCopy = () => null;
+  h.rawValues.set(key, 'current view');
+  h.service.queueCentralStateWrite(key, 'current view', { sessionReplay: true });
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(2);
+  expect(h.syncCalls.every(call => call.options.sessionStaged === true)).toBe(true);
+  expect(h.rawValues.get(key)).toBe('central view');
+});
+
+test('a newer volatile draft cannot be acknowledged by an older journal-only receipt', async () => {
+  let working = null;
+  const h = createServiceHarness({ getReadScope: () => 'owner-A', failManifestWrite: () => true,
+    syncKey: async () => { working = { value: 'new volatile draft' }; return { ok: true, value: 'earlier saved value', revision: 8 }; } });
+  const key = 'football-session-planner-v1', bridge = h.win.footballScienceCentralState;
+  bridge.stageSessionWrite = async () => ({ ok: true });
+  bridge.getSessionPendingState = async () => 'pending baseline';
+  bridge.getSessionWorkingCopy = () => working;
+  h.rawValues.set(key, 'current view');
+  h.service.queueCentralStateWrite(key, 'current view', { sessionReplay: true });
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls).toHaveLength(1);
+  expect(h.rawValues.get(key)).toBe('current view');
+  expect(h.syncStatuses.some(([, state]) => state === 'saved')).toBe(false);
+  expect(h.syncStatuses.at(-1)[2]).toContain('Newer training changes are not saved');
+});

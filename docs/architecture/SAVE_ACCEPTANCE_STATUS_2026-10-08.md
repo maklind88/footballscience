@@ -178,3 +178,12 @@ history warning. It intentionally pauses history at capacity. Safe automatic
 retirement needs exact per-module proof still unavailable from current projected
 cache metadata. This is an interim local candidate, not all-module approval or a
 production deployment.
+
+### 2 November 2026 — exact local replacement candidate
+
+See [SNAPSHOT_EXACT_RETENTION_2026-11-02.md](SNAPSHOT_EXACT_RETENTION_2026-11-02.md).
+The next isolated candidate permits atomic retirement only of newly marked clean
+automatic snapshots whose exact contents and save metadata are present in the new
+copy. Legacy, pending, review, manual and unknown copies remain protected. It helps
+non-consecutive exact duplicates at capacity; it does not yet permit rotation of
+different central-saved generations or unblock a budget filled by protected history.

@@ -1,3 +1,5 @@
+import { hasSessionPlannerTacticalPoint } from "./session-planner-tactical-coordinate-helpers.mjs";
+
 export function createSessionPlannerTacticalSelectionHelpers(options = {}) {
   const clamp = options.clamp;
   const getEndpointCoordinates = options.getEndpointCoordinates;
@@ -42,7 +44,7 @@ export function createSessionPlannerTacticalSelectionHelpers(options = {}) {
     const addPoint = (x, y) => {
       const pointX = Number(x);
       const pointY = Number(y);
-      if (Number.isFinite(pointX) && Number.isFinite(pointY)) {
+      if (hasSessionPlannerTacticalPoint(x, y)) {
         points.push({
           x: clamp(pointX, 0, 100),
           y: clamp(pointY, 0, 100),
@@ -50,12 +52,14 @@ export function createSessionPlannerTacticalSelectionHelpers(options = {}) {
       }
     };
     addPoint(element.x, element.y);
-    addPoint(element.x2, element.y2);
+    if (isStrokeElement(element)) {
+      addPoint(element.x2, element.y2);
+    }
     if (element.type === "curve") {
       const coordinates = getEndpointCoordinates(element);
       addPoint(coordinates?.controlX, coordinates?.controlY);
     }
-    if (Array.isArray(element.points)) {
+    if (element.type === "freehand" && Array.isArray(element.points)) {
       element.points.forEach((point) => addPoint(point.x, point.y));
     }
     if (!points.length) {
@@ -104,7 +108,7 @@ export function createSessionPlannerTacticalSelectionHelpers(options = {}) {
     const addPoint = (x, y) => {
       const pointX = Number(x);
       const pointY = Number(y);
-      if (Number.isFinite(pointX) && Number.isFinite(pointY)) {
+      if (hasSessionPlannerTacticalPoint(x, y)) {
         points.push({
           x: clamp(pointX, 0, 100),
           y: clamp(pointY, 0, 100),
@@ -112,7 +116,11 @@ export function createSessionPlannerTacticalSelectionHelpers(options = {}) {
       }
     };
     addPoint(element.x, element.y);
-    if (Number.isFinite(Number(element.x2)) && Number.isFinite(Number(element.y2))) {
+    // Markers render only x/y. Ignore stray endpoints from older copy/drag operations.
+    if (!isStrokeElement(element)) {
+      return points;
+    }
+    if (hasSessionPlannerTacticalPoint(element.x2, element.y2)) {
       addPoint(element.x2, element.y2);
       addPoint(
         (Number(element.x) + Number(element.x2)) / 2,
@@ -123,7 +131,7 @@ export function createSessionPlannerTacticalSelectionHelpers(options = {}) {
       const coordinates = getEndpointCoordinates(element);
       addPoint(coordinates?.controlX, coordinates?.controlY);
     }
-    if (Array.isArray(element.points)) {
+    if (element.type === "freehand" && Array.isArray(element.points)) {
       element.points.forEach((point) => addPoint(point.x, point.y));
     }
     const bounds = getElementBounds(element);

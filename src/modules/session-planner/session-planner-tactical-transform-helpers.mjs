@@ -1,3 +1,6 @@
+import { hasSessionPlannerTacticalPoint } from "./session-planner-tactical-coordinate-helpers.mjs";
+import { isSessionPlannerTacticalLineTool } from "./session-planner-tactical-placement-helpers.mjs";
+
 export function createSessionPlannerTacticalTransformHelpers(options = {}) {
   const clamp = options.clamp;
   const cloneElement = options.cloneElement;
@@ -16,12 +19,12 @@ export function createSessionPlannerTacticalTransformHelpers(options = {}) {
     const moved = clampMovedPoint(initial, deltaX, deltaY);
     element.x = moved.x;
     element.y = moved.y;
-    if (Number.isFinite(Number(initial.x2)) && Number.isFinite(Number(initial.y2))) {
+    if (isSessionPlannerTacticalLineTool(initial.type) && hasSessionPlannerTacticalPoint(initial.x2, initial.y2)) {
       const movedEnd = clampMovedPoint({ x: initial.x2, y: initial.y2 }, deltaX, deltaY);
       element.x2 = movedEnd.x;
       element.y2 = movedEnd.y;
     }
-    if (Number.isFinite(Number(initial.controlX)) && Number.isFinite(Number(initial.controlY))) {
+    if (initial.type === "curve" && hasSessionPlannerTacticalPoint(initial.controlX, initial.controlY)) {
       const movedControl = clampMovedPoint(
         { x: initial.controlX, y: initial.controlY },
         deltaX,

@@ -91,3 +91,19 @@ Existing recovery/export checks must keep that visible rather than claim saved.
 Origin eviction, manually cleared site data, a lost device and indefinitely
 retained unsynced work cannot be solved by a cache-size threshold. They remain
 explicit recovery/retention requirements, not guarantees from this change.
+
+## Release attempt and deterministic fault precondition
+
+The first authorized Safe Lane attempt passed local static/security checks and
+4,374 tests (three configured skips). GitHub staging run 41569564320 stopped
+before deployment: the new cache/history case timed out waiting for a history
+write failure, after central application, journal acknowledgement and saved
+status had already passed. All other CI jobs passed. Main remained unchanged.
+
+The test enabled history failure only after app readiness. A successful startup
+snapshot could therefore precede the fault, and exact-content deduplication could
+legitimately avoid the later write the test expected. History failure is now
+installed before startup and observed before editing; the manifest failure,
+central write, committed-journal acknowledgement, saved status and reload
+assertions remain. No product logic or release guard was changed. The six-case
+suite passed five consecutive Chromium runs (30 cases) and all six WebKit cases.

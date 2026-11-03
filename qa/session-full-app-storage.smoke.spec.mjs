@@ -102,17 +102,20 @@ test("full Sessions app preserves unresolved review across combined failure and 
 
 
 test("Sessions syncs its committed journal when localStorage metadata and extra history cannot be written", async ({ page }) => {
-  const server = await installSessionStorageFixture(page);
+  // Fail history from startup: an earlier successful identical snapshot may
+  // legitimately suppress later writes, so enabling the fault after ready races
+  // startup and does not prove the unavailable-history precondition.
+  const server = await installSessionStorageFixture(page, { failHistory: true });
   server.reject = false;
   await page.goto("/?workspace=session-planner"); await ready(page);
-  await page.evaluate(() => { window.__storageFault.manifest = true; window.__storageFault.history = true; });
+  await expect.poll(() => page.evaluate(() => window.__storageFault.historyFailures)).toBeGreaterThan(0);
+  await page.evaluate(() => { window.__storageFault.manifest = true; });
   await edit(page, "Journal survives unavailable cache metadata");
   await expect.poll(() => server.effects).toBe(1);
   await expect.poll(() => readJournal(page)).toEqual([]);
   await expect(status(page)).toHaveClass(/is-saved/);
   expect(server.value.sessions[day].blocks[0].objective).toBe("Journal survives unavailable cache metadata");
   expect(await page.evaluate(() => window.__storageFault.manifestFailures)).toBeGreaterThan(0);
-  await expect.poll(() => page.evaluate(() => window.__storageFault.historyFailures)).toBeGreaterThan(0);
   await page.reload(); await ready(page);
   await expect(objective(page)).toHaveValue("Journal survives unavailable cache metadata");
   expect(server.effects).toBe(1);

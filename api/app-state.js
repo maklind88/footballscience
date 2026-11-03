@@ -27,6 +27,7 @@ const {
   normalizePlatformAppearanceValue,
   summarizePlatformAppearanceChange,
 } = require("../src/core/appearance-governance.cjs");
+const { checkMedicalRecoveryRetry } = require("./_lib/medical-recovery-retry.js");
 const crypto = require("crypto");
 
 const STATE_BUCKET = "footballscience-app-state";
@@ -3672,7 +3673,9 @@ module.exports = async (req, res) => {
         deniedKeys,
         ok: true,
         // A coach projection must never be used to retire a private recovery copy.
-        medicalRecoveryRead: { private: Object.hasOwn(entries, MEDICAL_TEAM_KEY) && canActorViewPrivateMedical(actor) },
+        medicalRecoveryRead: { private: Object.hasOwn(entries, MEDICAL_TEAM_KEY) && canActorViewPrivateMedical(actor),
+          ...(isAppStateDatabaseEnabled() && Object.hasOwn(entries, MEDICAL_TEAM_KEY) && canActorViewPrivateMedical(actor)
+            ? { retryProtocol: "medical-recovery-retry-v1" } : {}) },
         absentKeys,
         entries: Object.hasOwn(entries, SESSION_PLANNER_KEY) ? {
           ...entries,
@@ -3690,6 +3693,11 @@ module.exports = async (req, res) => {
     }
 
     const body = await parseJsonBody(req, { maxBytes: MAX_APP_STATE_JSON_BODY_BYTES });
+    const medicalRetryRoute = new URL(req.url, "http://localhost").searchParams.get("medicalRecoveryRetry") === "1";
+    if ((medicalRetryRoute || body?.medicalRetry !== undefined) &&
+        (req.method !== "POST" || body?.entries || body?.removed || body?.key !== MEDICAL_TEAM_KEY || !body?.medicalRetry)) {
+      return sendJson(res, 400, { ok: false, reason: "Medical recovery requires one versioned copy." });
+    }
     if (body?.entries && typeof body.entries === "object" && req.method !== "DELETE") {
       const result = await applyStateEntries(actor, body.entries, body.metadata || body.revisions || {});
       return sendJson(res, result.ok ? 200 : result.status || 400, result);
@@ -3842,6 +3850,12 @@ module.exports = async (req, res) => {
       return sendJson(res, authorization.status || 403, { ok: false, ...authorization });
     }
 
+    // A recovery retry cannot use legacy whole-state merging. The existing DB
+    // compare-and-set below also protects the race after this authorized read.
+    const medicalRetry = checkMedicalRecoveryRetry({ request: body?.medicalRetry, key, clientBaseRevision,
+      previousEntry, databaseEnabled: isAppStateDatabaseEnabled() });
+    if (!medicalRetry.ok) return sendJson(res, medicalRetry.status, medicalRetry);
+
     // The date protocol has already performed a three-way merge against fresh server content.
     // Legacy timestamp heuristics must not silently undo an explicitly reviewed change.
     if (sessionChange || libraryChange) authorization.value = incomingValue;
@@ -3963,6 +3977,7 @@ module.exports = async (req, res) => {
       organizationId: persistedEntry.organizationId,
       moduleId: persistedEntry.moduleId,
       value: responseValue,
+      ...(medicalRetry.id ? { medicalRetry: { id: medicalRetry.id, protocol: "medical-recovery-retry-v1" } } : {}),
       ...(libraryChange ? { libraryChange: { id: libraryChange.id } } : {}),
       ...(dateReceipt ? { sessionChange: encodedReceipt } : {}),
       ...(setPieceReceipt ? { setPieceChange: setPieceReceipt } : {}),

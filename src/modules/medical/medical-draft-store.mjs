@@ -19,15 +19,16 @@ export function createMedicalDraftStore({ indexedDB, getIndexedDB = () => indexe
     } finally { clearTimeout(timer); }
   }
 
-  async function retain({ scope, value, previousValue = null, baseRevision = null }) {
+  async function retain({ scope, value, previousValue = null, baseRevision = null, retryProtocol }) {
     if (!scope || typeof value !== "string" || !value) throw new Error("Medical draft ownership is unavailable.");
     const parsed = JSON.parse(value);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid Medical draft.");
     const row = { id: createId(), schema: 1, scope, value, previousValue, baseRevision,
+      ...(retryProtocol === "medical-recovery-retry-v1" ? { retryProtocol } : {}),
       createdAt: new Date().toISOString() };
     row.bytes = JSON.stringify(row).length * 2;
     if (row.bytes > Math.min(maxBytes, 8 * 1024 * 1024)) throw new Error("Medical rescue storage is full.");
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([scope, value, previousValue, baseRevision])));
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([scope, value, previousValue, baseRevision, ...(row.retryProtocol ? [row.retryProtocol] : [])])));
     const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
     const metadata = { id: row.id, schema: 1, scope, createdAt: row.createdAt, bytes: row.bytes, fingerprint };
     const db = await bounded(connection.open());
@@ -56,7 +57,7 @@ export function createMedicalDraftStore({ indexedDB, getIndexedDB = () => indexe
           const read = tx.objectStore("drafts").get(duplicate.id);
           read.onsuccess = () => {
             const copy = read.result;
-            if (copy?.scope !== scope || copy.value !== value || copy.previousValue !== previousValue || copy.baseRevision !== baseRevision) {
+            if (copy?.scope !== scope || copy.value !== value || copy.previousValue !== previousValue || copy.baseRevision !== baseRevision || copy.retryProtocol !== row.retryProtocol) {
               abort("Medical recovery copy could not be verified."); return;
             }
             saved = duplicate;

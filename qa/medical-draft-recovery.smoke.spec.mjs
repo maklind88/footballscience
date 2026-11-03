@@ -370,3 +370,120 @@ test("an old in-memory state cannot be relabeled as the newly active owner's res
   expect(await page.evaluate(value => window.__recovery.retain(JSON.stringify(value), null, ""), draft)).toBe(false);
   expect(await list(page)).toEqual([]);
 });
+
+for (const scenario of ["saved", "colleague", "race", "lost-reply"]) {
+  test(`new Medical work can retry its durable copy after full cache and reload (${scenario})`, async ({ page }) => {
+    const day = "2026-11-02", marker = "New durable Medical work", protocol = "medical-recovery-retry-v1";
+    const player = { id: "retry-player", name: "Synthetic Retry Player", rosterType: "squad", status: "available" };
+    let revision = 7, value = JSON.stringify({ rosterVersion: "retry", selectedDate: day, players: [player], injuryPlans: [],
+      records: [{ id: "retry-record", playerId: player.id, date: day, participation: 50, comment: "Baseline", createdAt: `${day}T08:00:00Z` }] });
+    const server = { ordinary: 0, retries: 0, effects: 0 };
+    await installSetPiecesCentralFixture(page);
+    await page.clock.setFixedTime(new Date(`${day}T12:00:00Z`));
+    await page.addInitScript(key => {
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function(name, value) {
+        if (name === key || name === "football-data-safety-v1") throw new DOMException("Synthetic full cache", "QuotaExceededError");
+        return set.call(this, name, value);
+      };
+    }, key);
+    await page.route(/\/api\/(app-state|medical-recovery-save)(\?|$)/, route => {
+      if (route.request().method() === "GET") {
+        const entries = { [key]: value, "football-player-profiles-v1": JSON.stringify({ rosterVersion: "retry", players: [player] }) };
+        const keys = new URL(route.request().url()).searchParams.get("keys")?.split(",") || Object.keys(entries);
+        return route.fulfill({ json: { ok: true, entries: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, entries[k]])),
+          metadata: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, { revision }])),
+          absentKeys: keys.filter(k => !(k in entries)), medicalRecoveryRead: { private: true, retryProtocol: protocol } } });
+      }
+      const body = route.request().postDataJSON();
+      if (!body.medicalRetry) { server.ordinary++; return route.fulfill({ status: 503, json: { ok: false } }); }
+      server.retries++;
+      if (scenario === "race") { revision++; value = JSON.stringify({ ...JSON.parse(value), peer: "Accepted concurrent work" }); }
+      if (body.baseRevision !== revision) return route.fulfill({ status: 409, json: { ok: false } });
+      value = body.value; revision++; server.effects++;
+      if (scenario === "lost-reply") return route.fulfill({ status: 503, json: { ok: false } });
+      return route.fulfill({ json: { ok: true, key, value, metadata: { revision }, medicalRetry: { id: body.medicalRetry.id, protocol } } });
+    });
+    const ready = async () => {
+      await page.waitForFunction(() => window.__footballScienceAppReady && document.querySelector("#loginScreen")?.hidden);
+      await page.evaluate(() => document.querySelector("#dashboardModalRoot button[data-dashboard-modal-close]")?.click());
+      await page.getByRole("button", { name: "Medical", exact: true }).click();
+      await expect.poll(() => page.evaluate(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs"))
+        .ensureMedicalState().records.some(row => row.id === "retry-record"))).toBe(true);
+    };
+    const openCopy = async () => {
+      await page.getByRole("button", { name: "Recovery", exact: true }).click();
+      await page.getByText(/^Copy from /).first().click();
+      await expect(page.getByRole("button", { name: "Retry central saving", exact: true })).toBeVisible();
+    };
+    await page.goto("/?workspace=medical-team"); await ready();
+    await page.evaluate(async marker => {
+      const medical = await import("/src/modules/medical/medical-runtime-accessors.mjs");
+      medical.ensureMedicalState().records.find(row => row.id === "retry-record").comment = marker;
+      medical.writeMedicalState();
+    }, marker);
+    await page.getByRole("button", { name: "Open Recovery", exact: true }).click();
+    await expect(page.locator("[data-medical-draft-recovery]")).toContainText("saved on this device");
+    await page.reload(); await ready(); await openCopy();
+    await expect(page.locator("[data-medical-draft-recovery]")).toContainText(marker);
+    if (scenario === "colleague") { revision++; value = JSON.stringify({ ...JSON.parse(value), peer: "Accepted colleague work" }); }
+    await page.getByRole("button", { name: "Retry central saving", exact: true }).click();
+    const panel = page.locator("[data-medical-draft-recovery]");
+    if (scenario === "lost-reply") {
+      await expect(panel).toContainText("Central saving could not be confirmed");
+      await page.getByRole("button", { name: "Retry central saving", exact: true }).click();
+    }
+    if (["saved", "lost-reply"].includes(scenario)) {
+      await expect(panel).toContainText("This copy is confirmed saved centrally");
+      expect(server.effects).toBe(1); expect(server.retries).toBe(1);
+      await expect.poll(() => page.evaluate(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs"))
+        .ensureMedicalState().records.find(row => row.id === "retry-record").comment)).toBe(marker);
+      await page.reload(); await ready();
+      expect(await page.evaluate(async () => (await import("/src/modules/medical/medical-runtime-accessors.mjs"))
+        .ensureMedicalState().records.find(row => row.id === "retry-record").comment)).toBe(marker);
+      await openCopy(); await expect(panel).toContainText(marker); // No implicit retirement.
+    } else {
+      await expect(panel).toContainText("retained for review");
+      expect(server.effects).toBe(0); expect(JSON.parse(value).peer).toContain("Accepted");
+    }
+    expect(server.ordinary).toBe(0);
+  });
+}
+
+test("historical recovery copies are never upgraded to retryable work by deduplication", async ({ page }) => {
+  await page.goto("/medical-merge.js"); await install(page);
+  await retain(page);
+  await page.evaluate(value => window.__recovery.retainForRetry(JSON.stringify(value), '{"records":[]}', window.__scope,
+      { scope: window.__scope, value: '{"records":[]}', revision: 7 }), draft);
+  const rows = await list(page);
+  expect(rows).toHaveLength(2);
+  expect(rows.filter(row => row.retryProtocol === "medical-recovery-retry-v1")).toHaveLength(1);
+  await page.locator("#recovery > details > summary").nth(0).click();
+  await page.locator("#recovery > details > summary").nth(1).click();
+  await expect(page.getByRole("button", { name: "Retry central saving", exact: true })).toHaveCount(1);
+});
+
+for (const scenario of ["missing-copy", "changed-copy", "new-edit"]) {
+  test(`Medical retry UI rechecks the persisted selection before sending (${scenario})`, async ({ page }) => {
+    await page.goto("/medical-merge.js"); await install(page);
+    await page.evaluate(value => window.__recovery.retainForRetry(JSON.stringify(value), '{"records":[]}', window.__scope,
+      { scope: window.__scope, value: '{"records":[]}', revision: 7 }), draft);
+    await page.getByText(/^Copy from /).click();
+    await expect(page.getByRole("button", { name: "Retry central saving", exact: true })).toBeVisible();
+    await page.evaluate(scenario => {
+      window.__retryCalls = 0;
+      window.footballScienceCentralState.retryMedicalRecoveryCopy = async () => { window.__retryCalls++; return { ok: true }; };
+      const read = window.__store.read;
+      window.__store.read = async (...args) => {
+        const row = await read(...args);
+        if (scenario === "new-edit") window.__recovery.beginWrite();
+        return scenario === "missing-copy" ? null : scenario === "changed-copy" ? { ...row, value: "changed" } : row;
+      };
+    }, scenario);
+    await page.getByRole("button", { name: "Retry central saving", exact: true }).click();
+    if (scenario !== "new-edit") await expect(page.locator("#recovery")).toContainText("retained copy could not be verified");
+    else await expect(page.locator("#recovery")).not.toContainText("Verifying the saved copy");
+    expect(await page.evaluate(() => window.__retryCalls)).toBe(0);
+    await expect(page.locator("#recovery")).not.toContainText("confirmed saved centrally");
+  });
+}

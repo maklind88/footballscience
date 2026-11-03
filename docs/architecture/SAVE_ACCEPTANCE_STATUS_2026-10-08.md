@@ -170,3 +170,18 @@ This is a local candidate, not production verification or approval of all
 modules. Medical's localStorage-first save path and durable pending-work
 contract remain the next substantive boundary to address. See the linked
 checkpoint for exact verification and limits.
+
+## Follow-up, 2 November: Medical durable-copy retry candidate
+
+The [Medical durable retry checkpoint](MEDICAL_DURABLE_RETRY_2026-11-02.md)
+adds an explicit retry for new committed recovery copies when browser cache and
+shared metadata cannot be written. A fresh private read and server/database
+revision checks protect intervening colleague work; a lost reply is reconciled
+without another write. Older copies remain review-only, and no copies are
+silently retired. The dedicated retry route prevents older servers from accepting
+this request through the ordinary legacy save path after rollback.
+
+This is a separate unreleased candidate. Automatic Medical offline queueing,
+record-level conflict handling, bounded unresolved-work retention and the other
+modules' acceptance matrix remain open. Per-copy confirmation does not certify
+a newer edit or the whole platform.

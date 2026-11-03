@@ -112,7 +112,7 @@ function toDatabaseRow(entry, applied) {
   };
 }
 
-function createConsistencyFetchMock(initialEntry, actorId = "coach-1") {
+function createConsistencyFetchMock(initialEntry, actorId = "coach-1", actorRole = "coach") {
   let databaseEntry = structuredClone(initialEntry);
   const staleStorageEntry = structuredClone(initialEntry);
   const rpcWrites = [];
@@ -128,7 +128,7 @@ function createConsistencyFetchMock(initialEntry, actorId = "coach-1") {
         id: actorId,
         email: "coach@example.com",
         user_metadata: { firstName: "QA", lastName: "Coach" },
-        app_metadata: { role: "coach", status: "active" },
+        app_metadata: { role: actorRole, status: "active" },
       }), { status: 200 });
     }
 
@@ -599,3 +599,63 @@ for (const denied of [false,true]) {
     }finally{global.fetch=originalFetch;restoreEnv(env);}
   });
 }
+
+for (const scenario of ["success", "stale", "race", "denied", "malformed"]) {
+  test(`actual Medical recovery endpoint protects exact revision before and during persistence (${scenario})`, async () => {
+    const env = snapshotEnv(), originalFetch = global.fetch;
+    const modulePath = require.resolve("../api/app-state.js");
+    const freshHandler = () => { delete require.cache[modulePath]; return require(modulePath); };
+    configureDatabaseMode();
+    const key = "football-medical-team-v1", value = JSON.stringify({ players: [], records: [{ id: "record", participation: 50 }], injuryPlans: [] });
+    const entry = { organizationId: "global", key, moduleId: "medical-team", revision: 7, value,
+      removed: false, updatedAt: "2026-11-02T10:00:00Z", hash: sha256(value) };
+    const mock = createConsistencyFetchMock(entry, `medical-retry-${scenario}`, scenario === "denied" ? "coach" : "medical");
+    let races = 0;
+    global.fetch = async (url, options = {}) => {
+      if (scenario === "race" && String(url).endsWith("/rpc/write_platform_app_state_record")) {
+        races++;
+        return new Response(JSON.stringify([toDatabaseRow({ ...entry, revision: 8 }, false)]));
+      }
+      return mock.fetchMock(url, options);
+    };
+    try {
+      const baseRevision = scenario === "stale" ? 6 : 7;
+      const response = await callHandler({ method: "POST", body: JSON.stringify({ key, value, baseRevision,
+        medicalRetry: { id: "copy-1", protocol: scenario === "malformed" ? "old" : "medical-recovery-retry-v1", baseRevision } }) }, freshHandler());
+      expect(response.status).toBe(scenario === "success" ? 200 : scenario === "denied" ? 403 : scenario === "malformed" ? 400 : 409);
+      expect(mock.rpcWrites).toHaveLength(scenario === "success" ? 1 : 0);
+      expect(mock.getDatabaseEntry().revision).toBe(scenario === "success" ? 8 : 7);
+      expect(races).toBe(scenario === "race" ? 1 : 0);
+      if (scenario === "success") expect(response.payload.medicalRetry).toEqual({ id: "copy-1", protocol: "medical-recovery-retry-v1" });
+      if (scenario !== "success") expect(mock.storageWrites).toEqual([]);
+    } finally { global.fetch = originalFetch; restoreEnv(env); }
+  });
+}
+
+for (const malformed of ["missing-operation", "bulk", "delete", "removed", "wrong-key"]) {
+  test(`Medical retry route rejects non-copy writes (${malformed})`, async () => {
+    const env = snapshotEnv(), originalFetch = global.fetch;
+    configureDatabaseMode();
+    const key = "football-medical-team-v1", entry = { organizationId: "global", key, moduleId: "medical-team", revision: 7,
+      value: '{"records":[]}', removed: false };
+    const mock = createConsistencyFetchMock(entry, `invalid-retry-${malformed}`, "medical"); global.fetch = mock.fetchMock;
+    const body = { key, value: entry.value, baseRevision: 7,
+      medicalRetry: { id: "copy", protocol: "medical-recovery-retry-v1", baseRevision: 7 } };
+    if (malformed === "missing-operation") delete body.medicalRetry;
+    if (malformed === "bulk") body.entries = { [key]: entry.value };
+    if (malformed === "removed") body.removed = true;
+    if (malformed === "wrong-key") body.key = scheduleKey;
+    try {
+      const response = await callHandler({ method: malformed === "delete" ? "DELETE" : "POST",
+        url: "/api/app-state?medicalRecoveryRetry=1", body: JSON.stringify(body) });
+      expect(response.status).toBe(400); expect(mock.rpcWrites).toEqual([]); expect(mock.storageWrites).toEqual([]);
+    } finally { global.fetch = originalFetch; restoreEnv(env); }
+  });
+}
+
+test("Medical retry has a separate route so rollback cannot silently accept it as a legacy save", async () => {
+  const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+  expect(config.rewrites).toContainEqual({ source: "/api/medical-recovery-save", destination: "/api/app-state?medicalRecoveryRetry=1" });
+  const boot = await readFile(new URL("../platform-auth-boot.js", import.meta.url), "utf8");
+  expect(boot).toContain('apiRequest, path: "/api/medical-recovery-save"');
+});

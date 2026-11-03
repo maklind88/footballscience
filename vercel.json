@@ -10,6 +10,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/medical-recovery-save",
+      "destination": "/api/app-state?medicalRecoveryRetry=1"
+    },
+    {
       "source": "/api/app-state-backup-status",
       "destination": "/api/app-state-backup?mode=status"
     }

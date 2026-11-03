@@ -17,7 +17,9 @@ export async function readMedicalRecoveryCentralState({ expectedScope, getScope,
     const value = payload?.entries?.[key], metadata = payload?.metadata?.[key];
     if (!isCurrent() || response?.ok !== true || payload?.ok !== true || payload?.medicalRecoveryRead?.private !== true
       || typeof value !== "string" || !Number.isSafeInteger(metadata?.revision) || metadata.revision < 1 || metadata.removed) return unavailable();
-    return { ok: true, private: true, scope, value, revision: metadata.revision };
+    return { ok: true, private: true, scope, value, revision: metadata.revision,
+      ...(payload.medicalRecoveryRead.retryProtocol === "medical-recovery-retry-v1"
+        ? { retryProtocol: payload.medicalRecoveryRead.retryProtocol } : {}) };
   } catch { return unavailable(); }
   finally { active = false; clearTimeout(timer); }
 }

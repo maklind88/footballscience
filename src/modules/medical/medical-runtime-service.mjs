@@ -151,7 +151,7 @@ export function createMedicalRuntimeService(deps = {}) {
 
   function getStateService() {
     stateService ??= createMedicalRuntimeStateService({
-      retainMedicalDraft: draftRecovery.retain,
+      retainMedicalDraft: draftRecovery.retainForRetry,
       beginMedicalDraftWrite: draftRecovery.beginWrite,
       readMedicalWorkingDraft: draftRecovery.readWorkingDraft,
       archiveMedicalPlayersRemovedFromSquad: deps.archiveMedicalPlayersRemovedFromSquad,

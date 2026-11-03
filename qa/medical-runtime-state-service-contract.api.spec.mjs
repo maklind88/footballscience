@@ -92,7 +92,7 @@ function createServiceHarness(options = {}) {
       medicalState = nextState;
     },
     win: { localStorage: storage, sessionStorage: options.sessionStorage || createStorage(),
-      footballScienceCentralState: { getReadScope: options.readScope || (() => "qa-scope") }, footballScienceDataSafety: { reportSaveIssue: (...args) => issues.push(args) } },
+      footballScienceCentralState: { getReadScope: options.readScope || (() => "qa-scope"), ...options.centralBridge }, footballScienceDataSafety: { reportSaveIssue: (...args) => issues.push(args) } },
   });
   return {
     centralWrites,
@@ -904,4 +904,22 @@ test("Medical serialization stops if reading the preservation source changes acc
   expect(h.service.writeMedicalState()).toBe(false);
   expect(storage.value(h.medicalTeamStorageKey)).toBe(raw);
   expect(h.centralWrites).toEqual([]);
+});
+
+
+test("Medical recovery retry keeps the editor's read baseline when cache and metadata advance before a failed save", () => {
+  const old = JSON.stringify(createStoredMedicalState()); let cached = old, revision = 7;
+  const copies = [];
+  const h = createServiceHarness({ canEdit: true,
+    centralBridge: { isKeyHydrated: () => true, getStatus: () => ({ metadata: { "football-medical-team-v1": { revision } } }) },
+    storageAdapter: { getItem: () => cached, setItem: () => { throw new DOMException("Full", "QuotaExceededError"); } },
+    retainMedicalDraft: (...args) => copies.push(args),
+  });
+  h.service.ensureMedicalState();
+  cached = JSON.stringify({ ...JSON.parse(old), peer: "Accepted colleague work" }); revision = 8;
+  h.service.readMedicalState(); // A separate read cannot relabel the older editor object.
+  h.getState().records[0].coachNote = "Local intent from old view";
+  h.service.writeMedicalState();
+  expect(copies).toHaveLength(1);
+  expect(copies[0][3]).toEqual({ scope: "qa-scope", value: old, revision: 7 });
 });

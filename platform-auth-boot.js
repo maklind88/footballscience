@@ -3389,6 +3389,13 @@ async function getActiveAccessToken() {
     hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getReadScope:getCentralReadScope,canAutoSyncKey:canCurrentUserAutomaticallyWriteCentralStateKey,getCachedValue:getCentralCachedValue,getCachedValueInfo:getCentralCachedValueInfo,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState}),
     isKeyHydrated: (key) => key === SESSION_PLANNER_STATE_KEY && !authState.devMode
       ? Boolean(sessionBaselineReadScope && sessionBaselineReadScope === getCentralReadScope() && sessionSaveClient?.isReady()) : centralState.hydrated,
+    retryMedicalRecoveryCopy: async (copy, isCurrent) => {
+      const { retryMedicalRecoveryCopy } = await import("./src/modules/medical/medical-recovery-retry.mjs");
+      return retryMedicalRecoveryCopy({ copy, isCurrent, getScope: getCentralReadScope,
+        getToken: () => authState.session?.access_token,
+        canWrite: () => !authState.devMode && canCurrentUserAutomaticallyWriteCentralStateKey(MEDICAL_TEAM_STATE_KEY),
+        apiRequest, path: "/api/medical-recovery-save", readPath: buildCentralStateReadPath([MEDICAL_TEAM_STATE_KEY], { fresh: true }) });
+    },
     readMedicalRecoveryState: async (expectedScope) => {
       const { readMedicalRecoveryCentralState } = await import("./src/modules/medical/medical-recovery-central-read.mjs");
       return readMedicalRecoveryCentralState({ expectedScope, getScope: getCentralReadScope,

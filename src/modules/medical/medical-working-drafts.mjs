@@ -3,14 +3,14 @@
 // different baseline stays a separate unresolved branch. No central writes here.
 export function createMedicalWorkingDrafts({ makeId = () => crypto.randomUUID() } = {}) {
   const branches = new Map(), active = new Map();
-  function capture({ scope, value, previousValue, baseRevision, observedRevision = baseRevision }) {
+  function capture({ scope, value, previousValue, baseRevision, observedRevision = baseRevision, retryProtocol }) {
     const existing = [...branches.values()].find(row => row.scope === scope && row.previousValue === previousValue
-      && row.baseRevision === baseRevision && row.observedRevision === observedRevision);
+      && row.baseRevision === baseRevision && row.observedRevision === observedRevision && row.retryProtocol === retryProtocol);
     if (existing?.value === value) { active.set(scope, existing); return existing; }
     // Committed historical copies live in IndexedDB, not in this tab's working set.
     for (const [branch, row] of branches) if (row.scope === scope && row.durableId) branches.delete(branch);
     const row = { id: makeId(), schema: 1, scope, value, previousValue, baseRevision, observedRevision,
-      createdAt: new Date().toISOString(), memoryOnly: true };
+      createdAt: new Date().toISOString(), memoryOnly: true, ...(retryProtocol ? { retryProtocol } : {}) };
     if (existing) branches.delete(existing.id);
     branches.set(row.id, row);
     active.set(scope, row);

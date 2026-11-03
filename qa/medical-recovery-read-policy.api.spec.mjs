@@ -28,7 +28,9 @@ for (const role of ["admin", "medical", "performance", "coach", "guest"]) {
         const res = { statusCode: 200, setHeader() {}, end(body) { this.body = JSON.parse(body); } };
         await handler({ method: "GET", url: `/api/app-state?fresh=1&keys=${key}`, headers: { authorization: `Bearer synthetic-${role}-${present}` } }, res);
         expect(res.statusCode).toBe(200);
-        expect(res.body.medicalRecoveryRead).toEqual({ private: present && ["admin", "medical", "performance"].includes(role) });
+        const privateRead = present && ["admin", "medical", "performance"].includes(role);
+        expect(res.body.medicalRecoveryRead).toEqual({ private: privateRead,
+          ...(privateRead ? { retryProtocol: "medical-recovery-retry-v1" } : {}) });
         if (res.body.medicalRecoveryRead.private) {
           expect(res.body.entries[key]).toBe(value); expect(res.body.metadata[key].revision).toBe(12);
         }

@@ -45,6 +45,22 @@ export function createMedicalRuntimeStateService(deps = {}) {
   const viewPreferences = createMedicalViewPreferences({ win, isDateValue: isMedicalDateValue, logEvent });
   let medicalReadBatchDepth = 0;
   let medicalReadScope = "";
+  // Bind retry authority to the actual state object returned by a read. A later
+  // cache/metadata read must not relabel an older editor's clinical baseline.
+  const medicalReadContexts = new WeakMap();
+  function readRetryContext(raw) {
+    const bridge = win.footballScienceCentralState;
+    const revision = bridge?.getStatus?.()?.metadata?.[medicalTeamStorageKey]?.revision;
+    if (!canViewPrivateMedicalDetails() || typeof raw !== "string" || !medicalReadScope ||
+        bridge?.getReadScope?.() !== medicalReadScope || bridge?.isKeyHydrated?.(medicalTeamStorageKey) !== true ||
+        bridge?.getCachedValueInfo?.(medicalTeamStorageKey)?.source === "central-readonly-baseline" ||
+        !Number.isSafeInteger(revision) || revision < 1) return undefined;
+    return Object.freeze({ scope: medicalReadScope, value: raw, revision });
+  }
+  function trackMedicalRead(state, context) {
+    if (context) medicalReadContexts.set(state, context);
+    return state;
+  }
 
   function isStorageQuotaError(error) {
     return (
@@ -546,10 +562,11 @@ export function createMedicalRuntimeStateService(deps = {}) {
     medicalReadScope = win.footballScienceCentralState?.getReadScope?.() || "";
     try {
       const raw = win.localStorage.getItem(medicalTeamStorageKey);
+      const retryContext = readRetryContext(raw);
       const workingDraft = canViewPrivateMedicalDetails() ? readMedicalWorkingDraft(raw, medicalReadScope) : undefined;
       if (typeof workingDraft === "string") {
         // A working projection is neither cache maintenance nor a save receipt.
-        return viewPreferences.apply(sanitizeMedicalStateForCurrentUser(cloneMedicalState(JSON.parse(workingDraft))));
+        return trackMedicalRead(viewPreferences.apply(sanitizeMedicalStateForCurrentUser(cloneMedicalState(JSON.parse(workingDraft)))), retryContext);
       }
       const parsed = raw ? JSON.parse(raw) : {};
       const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState(parsed));
@@ -565,7 +582,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
           logEvent("Medical Team data loaded; the browser cache could not be updated.");
         }
       }
-      return viewPreferences.apply(state);
+      return trackMedicalRead(viewPreferences.apply(state), retryContext);
     } catch {
       const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState({}));
       try {
@@ -579,7 +596,8 @@ export function createMedicalRuntimeStateService(deps = {}) {
 
   function writeMedicalState({ viewOnly = false } = {}) {
     const activeScope = win.footballScienceCentralState?.getReadScope?.() || "";
-    if (medicalReadScope && medicalReadScope !== activeScope) {
+    const retryContext = medicalReadContexts.get(getMedicalState());
+    if ((medicalReadScope && medicalReadScope !== activeScope) || (retryContext && retryContext.scope !== activeScope)) {
       const message = "Medical saving was blocked because the account or team changed. Return to the original account to review unsaved work.";
       logEvent(message);
       win.footballScienceDataSafety?.reportSaveIssue?.(medicalTeamStorageKey, message);
@@ -607,7 +625,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     } catch (error) {
       if (nextStateJson && canViewPrivateMedicalDetails()) {
         // Retain working intent independently of cache, rescue storage and transport.
-        try { Promise.resolve(retainMedicalDraft(nextStateJson, previousValue, medicalReadScope)).catch(() => {}); } catch {}
+        try { Promise.resolve(retainMedicalDraft(nextStateJson, previousValue, medicalReadScope, retryContext)).catch(() => {}); } catch {}
       }
       if (nextStateJson && canViewPrivateMedicalDetails() && isStorageQuotaError(error)) {
         try {

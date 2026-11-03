@@ -1,15 +1,17 @@
 import { createMedicalWorkingDrafts } from "./medical-working-drafts.mjs";
 import { mountMedicalDraftVerification } from "./medical-draft-verification.mjs";
 import { createMedicalDraftStore } from "./medical-draft-store.mjs";
+import { mountMedicalDraftRetry } from "./medical-draft-retry.mjs";
 import { medicalRecoveryFailureMessage } from "./medical-recovery-failure.mjs";
 
-// Rescue review has no central write, replay or merge capability. Only a user-
-// selected exact server-verified copy can be retired; other work stays separate.
+// Historical rescue copies remain review-only. New opted-in copies can be retried
+// explicitly through the strict central revision protocol; retirement is separate.
 export function createMedicalDraftRecovery({ win = globalThis, key = "football-medical-team-v1",
   canEdit = () => false, store = createMedicalDraftStore({ getIndexedDB: () => win.indexedDB }) } = {}) {
   const working = createMedicalWorkingDrafts();
   let host = null, generation = 0, renderGeneration = 0, notice = null, reviewScope = "";
   const openedCopies = new Set();
+  let retryBusy = false;
   const copyKey = row => `${row.memoryOnly ? "working" : "saved"}:${row.id}`;
   const access = () => {
     const bridge = win.footballScienceCentralState;
@@ -89,6 +91,16 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
         item.append(retry);
         return;
       }
+      mountMedicalDraftRetry({ win, container: item, copy: row, store,
+        isCurrent: activeItem, getGeneration: () => generation,
+        acquire: () => { if (retryBusy) return false; retryBusy = true; return true; },
+        release: () => { retryBusy = false; },
+        onConfirmed: message => {
+          if (!current(scope)) return;
+          notice = { scope, message }; void refresh();
+          // Use the normal scoped read rules; never force over a newer pending edit.
+          Promise.resolve(win.footballScienceCentralState?.hydrate?.({ fresh: true, keys: [key] })).catch(() => {});
+        } });
       mountMedicalDraftVerification({ win, container: item, copy: row, store,
         isCurrent: () => current(scope) && host === container && container.contains(item),
         getGeneration: () => generation,
@@ -142,24 +154,24 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
     for (const row of rows) addCopy(target, row, scope);
   }
 
-  function retain(value, previousValue = null, expectedScope = access()) {
+  function retain(value, previousValue = null, expectedScope = access(), retryProtocol, retryRevision) {
     const scope = access(), attempt = ++generation;
     if (!scope || expectedScope !== scope) return Promise.resolve(false);
     const metadata = win.footballScienceCentralState?.getStatus?.()?.metadata?.[key];
-    const baseRevision = win.footballScienceCentralState?.isKeyHydrated?.(key) === true
+    const baseRevision = retryProtocol ? retryRevision : win.footballScienceCentralState?.isKeyHydrated?.(key) === true
       && Number.isInteger(metadata?.revision) && metadata.revision >= 0 ? metadata.revision : null;
-    const row = working.capture({ scope, value, previousValue, baseRevision, observedRevision: metadata?.revision ?? null });
+    const row = working.capture({ scope, value, previousValue, baseRevision, observedRevision: metadata?.revision ?? null, retryProtocol });
     return persistRow(row, attempt);
   }
 
   function persistRow(row, attempt) {
-    const { scope, value, previousValue, baseRevision } = row;
+    const { scope, value, previousValue, baseRevision, retryProtocol } = row;
     const setNotice = message => {
       if (attempt !== generation || !current(scope)) return;
       notice = { scope, message }; report(message); void refresh();
     };
     setNotice("Medical saving is not confirmed. Creating a recovery copy; keep this page open.");
-    return persist({ scope, value, previousValue, baseRevision }).then(result => {
+    return persist({ scope, value, previousValue, baseRevision, retryProtocol }).then(result => {
       working.committed(row, result);
       setNotice("A Medical recovery copy is saved on this device. Review it here; central saving is not confirmed by this copy.");
       return true;
@@ -196,5 +208,12 @@ export function createMedicalDraftRecovery({ win = globalThis, key = "football-m
     if (!current(scope) || win.footballScienceCentralState?.getCachedValueInfo?.(key)?.source === "central-readonly-baseline") return undefined;
     return working.projectUnchangedBaseline(scope, raw, win.footballScienceCentralState?.getStatus?.()?.metadata?.[key]?.revision ?? null);
   }
-  return { retain, mount, refresh, beginWrite, readWorkingDraft };
+  function retainForRetry(value, previousValue, scope, context) {
+    const verified = context?.scope === scope && typeof context?.value === "string" &&
+      Number.isSafeInteger(context?.revision) && context.revision > 0;
+    return verified ? retain(value, context.value, scope, "medical-recovery-retry-v1", context.revision)
+      : retain(value, previousValue, scope);
+  }
+  return { retain, retainForRetry,
+    mount, refresh, beginWrite, readWorkingDraft };
 }

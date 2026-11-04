@@ -1012,9 +1012,9 @@ export function createPresentationModeRenderer(options = {}) {
                     ${
                       kind === "video"
                         ? `<video class="presentation-local-media-object" src="${escapeHtml(mediaSrc)}" controls preload="metadata" playsinline title="${escapeHtml(mediaName)}"></video>`
-                        : `<img class="presentation-local-media-object" src="${escapeHtml(mediaSrc)}" alt="${escapeHtml(mediaName)}" />`
+                        : `<img draggable="false" class="presentation-local-media-object" src="${escapeHtml(mediaSrc)}" alt="${escapeHtml(mediaName)}" />`
                     }
-                    <figcaption>${escapeHtml(mediaName)}</figcaption>
+                    ${kind === "video" ? `<figcaption>${escapeHtml(mediaName)}</figcaption>` : ""}
                   </figure>
                 `
                 : (kind === "image" || kind === "video") && hasMediaReference
@@ -1057,7 +1057,7 @@ export function createPresentationModeRenderer(options = {}) {
                   );
             return `
               <div
-                class="presentation-free-text-box-shell is-${escapeHtml(kind)}${isActive ? " is-selected" : ""}"
+                class="presentation-free-text-box-shell is-${escapeHtml(kind)}${kind === "image" && mediaSrc ? " has-image" : ""}${isActive ? " is-selected" : ""}"
                 data-presentation-text-box-shell
                 data-presentation-text-box-id="${escapeHtml(box.id)}"
                 data-presentation-text-box-kind="${escapeHtml(kind)}"

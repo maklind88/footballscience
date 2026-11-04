@@ -1452,3 +1452,24 @@ test("Team Meeting links and deduplicates a live Set Pieces variant", () => {
   expect(controller.getSetPieceReferenceUsage({ playId: play.id })).toMatchObject({ count: 1, dates: ["2026-08-16"] });
   expect(controller.getSetPieceReferenceUsage({ playId: play.id, variantId: variant.id }).slideIds).toEqual([first.slideId]);
 });
+
+test("free image geometry survives saving and reopening beyond the old text-box boundaries", () => {
+  const storage = new Map();
+  const makeController = () => createPresentationModeController({
+    documentRef: createDocumentHarness().documentRef, win: {},
+    renderer: { render: () => "" },
+    readJson: (key, fallback) => storage.has(key) ? JSON.parse(storage.get(key)) : fallback,
+    writeJson: (key, value) => storage.set(key, JSON.stringify(value)),
+    getTodayValue: () => "2026-11-04",
+  });
+  const controller = makeController();
+  const image = { id: "photo", kind: "image", mediaId: "saved-image", mediaName: "photo.png", mediaLocal: true,
+    x: -20, y: 0, width: 130, height: 160 };
+  controller.writeDeckForDate("2026-11-04", (deck) => ({ ...deck, textBoxes: { cover: [image] } }));
+  expect(makeController().getDeckForDate("2026-11-04").textBoxes.cover[0]).toMatchObject(image);
+  controller.writeDeckForDate("2026-11-04", (deck) => ({ ...deck,
+    textBoxes: { cover: [{ ...deck.textBoxes.cover[0], x: 0, y: 0, width: 4, height: 6 }] } }));
+  expect(makeController().getDeckForDate("2026-11-04").textBoxes.cover[0]).toMatchObject({
+    mediaId: image.mediaId, mediaName: image.mediaName, x: 0, y: 0, width: 4, height: 6,
+  });
+});

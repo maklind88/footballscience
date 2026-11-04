@@ -662,8 +662,33 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(imageBox).toBeVisible();
   await expect(imageBox.locator(".presentation-local-media-box.is-image")).toBeVisible();
   await expect(imageBox.locator(".presentation-local-media-object")).toHaveAttribute("src", /^blob:/);
-  await expect(imageBox.locator("figcaption")).toContainText("session-board.png");
+  await expect(imageBox.locator("figcaption")).toHaveCount(0);
   await expect(imageBox.locator("[data-presentation-resize-text-box]")).toHaveCount(8);
+  const imageGeometry = await imageBox.evaluate((shell) => {
+    const image = shell.querySelector("img");
+    const figure = shell.querySelector("figure");
+    const rect = shell.getBoundingClientRect();
+    const imgRect = image.getBoundingClientRect();
+    return { width: rect.width, height: rect.height, imageWidth: imgRect.width, imageHeight: imgRect.height,
+      background: getComputedStyle(figure).backgroundColor, border: getComputedStyle(figure).borderTopWidth,
+      shadow: getComputedStyle(figure).boxShadow };
+  });
+  expect(imageGeometry.background).toBe("rgba(0, 0, 0, 0)");
+  expect(imageGeometry.border).toBe("0px");
+  expect(imageGeometry.shadow).toBe("none");
+  expect(imageGeometry.imageWidth).toBeCloseTo(imageGeometry.width, 0);
+  expect(imageGeometry.imageHeight).toBeCloseTo(imageGeometry.height, 0);
+  for (const delta of [120, -180]) {
+    const before = await imageBox.boundingBox();
+    const handle = await imageBox.locator("[data-presentation-resize-axis='e']").boundingBox();
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + handle.width / 2 + delta, handle.y + handle.height / 2, { steps: 6 });
+    await page.mouse.up();
+    const after = await imageBox.boundingBox();
+    expect(after.width - before.width).toBeCloseTo(delta, -1);
+    expect(after.width / after.height).toBeCloseTo(before.width / before.height, 1);
+  }
   await imageBox.focus();
   await page.keyboard.press("Delete");
   await expect(presentation.locator("[data-presentation-text-box-shell][data-presentation-text-box-kind='image']")).toHaveCount(0);

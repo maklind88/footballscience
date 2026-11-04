@@ -2440,6 +2440,29 @@ body.is-presentation-mode-open {
   background: rgba(2, 6, 23, .42);
 }
 
+.presentation-free-text-box-shell.is-image.has-image {
+  min-width: 0;
+  min-height: 0;
+  height: auto !important;
+  container-type: normal;
+}
+
+.presentation-free-text-box-shell.has-image .presentation-local-media-box.is-image {
+  display: block;
+  height: auto;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.presentation-free-text-box-shell.has-image img.presentation-local-media-object {
+  height: auto;
+  background: transparent;
+  pointer-events: none;
+}
+
 .presentation-local-media-box.is-video .presentation-local-media-object {
   object-fit: contain;
 }

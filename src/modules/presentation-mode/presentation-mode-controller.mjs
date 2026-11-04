@@ -1,3 +1,4 @@
+import { imageBounds, resizeImageBounds } from "./presentation-image-bounds.mjs";
 import {
   getPresentationThemePreset,
   normalizePresentationSlideStyle,
@@ -471,6 +472,7 @@ function normalizeTextBoxes(textBoxes = {}) {
               y: Math.min(96 - height, Math.max(2, Number(safeBox.y) || 22)),
               width,
               height,
+              ...(kind === "image" ? imageBounds(safeBox) : {}),
               text: String(safeBox.text ?? "Text box").slice(0, maxTextOverrideLength),
               fontSize: normalizeFontSize(safeBox.fontSize || "36"),
               textColor: normalizeHexColor(safeBox.textColor, "#f8fafc"),
@@ -3265,7 +3267,9 @@ export function createPresentationModeController(dependencies = {}) {
     const nextId = `${sourceKind === "text" ? "textbox" : sourceKind}-${Date.now()}`;
     const sourceField = getTextBoxField(safeBoxId);
     const nextField = getTextBoxField(nextId);
-    const position = clampTextBoxPosition(Number(sourceBox.x) + 3, Number(sourceBox.y) + 3, sourceBox.width, sourceBox.height);
+    const position = sourceBox.kind === "image"
+      ? imageBounds({ ...sourceBox, x: Number(sourceBox.x) + 3, y: Number(sourceBox.y) + 3 })
+      : clampTextBoxPosition(Number(sourceBox.x) + 3, Number(sourceBox.y) + 3, sourceBox.width, sourceBox.height);
     writeDeckForDate(state.dateValue, (currentDeck) => ({
       ...currentDeck,
       textBoxes: normalizeTextBoxes({
@@ -3323,7 +3327,7 @@ export function createPresentationModeController(dependencies = {}) {
           }
           return {
             ...box,
-            ...clampTextBoxPosition(x, y, box.width, box.height),
+            ...(box.kind === "image" ? imageBounds({ ...box, x, y }) : clampTextBoxPosition(x, y, box.width, box.height)),
           };
         }),
       }),
@@ -3356,6 +3360,7 @@ export function createPresentationModeController(dependencies = {}) {
             ...clampTextBoxPosition(box.x, box.y, safeWidth, safeHeight),
             width: safeWidth,
             height: safeHeight,
+            ...(box.kind === "image" ? imageBounds({ ...box, width, height }) : {}),
             fontSize: safeFontSize,
           };
         }),
@@ -3401,6 +3406,7 @@ export function createPresentationModeController(dependencies = {}) {
             ...clampTextBoxPosition(bounds.x ?? box.x, bounds.y ?? box.y, safeWidth, safeHeight),
             width: safeWidth,
             height: safeHeight,
+            ...(box.kind === "image" ? imageBounds({ ...box, ...bounds }) : {}),
             fontSize: safeFontSize,
           };
         }),
@@ -4333,8 +4339,9 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     event.preventDefault?.();
-    const position = clampTextBoxPosition(box.x, box.y, box.width, box.height);
+    const position = box.kind === "image" ? imageBounds(box) : clampTextBoxPosition(box.x, box.y, box.width, box.height);
     state.dragTextBox = {
+      kind: box.kind,
       boxId,
       shell,
       slideId,
@@ -4362,7 +4369,8 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     event.preventDefault?.();
-    const nextPosition = clampTextBoxPosition(
+    const positionForDrag = drag.kind === "image" ? (x, y, width, height) => imageBounds({ x, y, width, height }) : clampTextBoxPosition;
+    const nextPosition = positionForDrag(
       drag.startX + ((event.clientX - drag.startClientX) / drag.slideWidth) * 100,
       drag.startY + ((event.clientY - drag.startClientY) / drag.slideHeight) * 100,
       drag.width,
@@ -4402,11 +4410,14 @@ export function createPresentationModeController(dependencies = {}) {
     }
     event.preventDefault?.();
     event.stopPropagation?.();
-    const startWidth = clampTextBoxWidth(box.width);
-    const startHeight = clampTextBoxHeight(box.height);
-    const startPosition = clampTextBoxPosition(box.x, box.y, startWidth, startHeight);
+    const isImage = box.kind === "image" && Boolean(shell.querySelector("img"));
+    const rect = shell.getBoundingClientRect();
+    const startWidth = isImage ? rect.width / slideRect.width * 100 : clampTextBoxWidth(box.width);
+    const startHeight = isImage ? rect.height / slideRect.height * 100 : clampTextBoxHeight(box.height);
+    const startPosition = isImage ? imageBounds({ ...box, width: startWidth, height: startHeight }) : clampTextBoxPosition(box.x, box.y, startWidth, startHeight);
     const startFontSize = Number(normalizeFontSize(box.fontSize || "36"));
     state.resizeTextBox = {
+      isImage,
       boxId,
       shell,
       slideId,
@@ -4439,6 +4450,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function getResizedTextBoxBounds(resize, event) {
+    if (resize.isImage) return resizeImageBounds(resize, event);
     const axis = resize.axis || "se";
     const deltaWidth = ((event.clientX - resize.startClientX) / resize.slideWidth) * 100;
     const deltaHeight = ((event.clientY - resize.startClientY) / resize.slideHeight) * 100;

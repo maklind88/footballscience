@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { installSetPiecesCentralFixture, setPiecesKey } from './helpers/set-pieces-central-fixture.mjs';
+import { setPiecesKey } from './helpers/set-pieces-central-fixture.mjs';
+import { installStorageHealthAppFixture, waitForStorageHealthApp } from './helpers/storage-health-app-fixture.mjs';
 
 async function isolated(page) {
   await page.goto('/medical-merge.js');
@@ -20,10 +21,9 @@ async function isolated(page) {
 }
 
 for(const role of ['admin','coach','medical','club-admin','guest'])test(`real app exposes whole-copy review only to admin: ${role}`,async({page},info)=>{
-  const server=await installSetPiecesCentralFixture(page);server.actor.app_metadata.role=role;
+  const {server}=await installStorageHealthAppFixture(page);server.actor.app_metadata.role=role;
   await page.goto('/?workspace=medical-team');
-  await page.waitForFunction(()=>window.__footballScienceAppReady&&document.querySelector('#loginScreen')?.hidden);
-  await page.evaluate(()=>document.querySelector('#dashboardModalRoot button[data-dashboard-modal-close]')?.click());
+  await waitForStorageHealthApp(page);
   if(role==='admin')await page.evaluate(async key=>{
     if(!await window.footballScienceDataSafety.saveSnapshot('qa-history-fixture'))throw new Error('Fixture snapshot was not committed');
     const scope=window.footballScienceCentralState.getReadScope();
@@ -224,9 +224,8 @@ test('failed lazy loading leaves Storage health open with a retry explanation',a
 
 
 test('closing Storage health during lazy loading cancels the later review opening',async({page})=>{
-  await installSetPiecesCentralFixture(page);await page.goto('/?workspace=medical-team');
-  await page.waitForFunction(()=>window.__footballScienceAppReady&&document.querySelector('#loginScreen')?.hidden);
-  await page.evaluate(()=>document.querySelector('#dashboardModalRoot button[data-dashboard-modal-close]')?.click());
+  await installStorageHealthAppFixture(page);await page.goto('/?workspace=medical-team');
+  await waitForStorageHealthApp(page);
   let release,requested=false;const gate=new Promise(resolve=>{release=resolve;});
   await page.route('**/src/core/snapshot-history-dialog.mjs',async route=>{requested=true;await gate;await route.continue();});
   await page.locator('#profileMenuButton').click();await page.getByRole('menuitem',{name:'Storage health',exact:true}).click();

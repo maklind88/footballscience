@@ -27,10 +27,13 @@ existing database compare-and-swap RPC. Revision 2532 became 2533. Both existing
 FIFA Window events and all other server content were retained and read back.
 
 No permissions, Medical eligibility rules, schema, or tenant boundaries changed.
-No whole older browser snapshot was uploaded. The browser recovery copy and its
-pending metadata were not cleared. Resolving an old pending conflict must compare
-its current content against the central record; this fix must never silently
-acknowledge a different shared value.
+No whole older browser snapshot was uploaded. A second browser export confirmed
+that no new shared Schedule edits had appeared. A Schedule-only backup containing
+the verified central value then reconciled the browser through the existing
+restore UI. A fresh export after reload contained all 278 events, both FIFA
+Window records, server revision 2535, and `pendingCentralSync: false`. The central
+value hash remained unchanged. No other module was included in that import.
+An old pending conflict must never acknowledge a different shared value.
 
 ## Verification
 
@@ -43,6 +46,17 @@ acknowledge a different shared value.
   the real staff members' browsers.
 - Syntax and diff checks passed before release. Deployment/postdeploy results
   are reported separately; this note does not assert that the code is live.
+
+## Release Test Blocker
+
+The first staging CI attempt stopped before deploy in the Storage health lazy
+loading test. The trace shows a late initial user-list response around the
+profile-menu click. Post-auth hydration emits a user-change event, which closes
+the menu after the app-ready flag has already become true. The test now waits
+for a fixture-only profile marker proving that this response was applied before
+starting its menu journey. A delayed-response regression explicitly reproduces
+the menu closure and then verifies the complete Storage health journey. Auth
+behavior, role checks, cancellation assertions, and timeouts are unchanged.
 
 The Schedule UI now distinguishes pending saves, server receipts, and errors.
 Rejected drafts remain visible, and leaving the page warns when local saving

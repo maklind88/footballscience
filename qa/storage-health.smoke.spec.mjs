@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { installSetPiecesCentralFixture } from './helpers/set-pieces-central-fixture.mjs';
+import { installStorageHealthAppFixture, waitForStorageHealthApp } from './helpers/storage-health-app-fixture.mjs';
 
 test('profile storage health opens in the real app and preserves protected content', async ({page}) => {
-  await installSetPiecesCentralFixture(page);
+  await installStorageHealthAppFixture(page);
   await page.goto('/?workspace=medical-team');
-  await page.waitForFunction(()=>window.__footballScienceAppReady && document.querySelector('#loginScreen')?.hidden);
-  await page.evaluate(()=>document.querySelector('#dashboardModalRoot button[data-dashboard-modal-close]')?.click());
+  await waitForStorageHealthApp(page);
   await page.evaluate(()=>localStorage.setItem('qa-health-sentinel','private sentinel'));
   await page.locator('#profileMenuButton').click();
   await page.getByRole('menuitem',{name:'Storage health',exact:true}).click();
@@ -19,6 +18,29 @@ test('profile storage health opens in the real app and preserves protected conte
   expect(await page.evaluate(()=>localStorage.getItem('qa-health-sentinel'))).toBe('private sentinel');
   await dialog.getByRole('button',{name:'Close storage health'}).click();
   await expect(dialog).toHaveCount(0);
+});
+
+test('late startup user refresh closes the menu before the Storage health journey starts', async ({page}) => {
+  const fixture = await installStorageHealthAppFixture(page, { deferUserList: true });
+  try {
+    await page.goto('/?workspace=medical-team');
+    await page.waitForFunction(() => window.__footballScienceAppReady && document.querySelector('#loginScreen')?.hidden);
+    await expect.poll(fixture.userListRequested).toBe(true);
+    const profile = page.locator('#profileMenuButton');
+    await profile.click();
+    await expect(profile).toHaveAttribute('aria-expanded', 'true');
+    fixture.releaseUserList();
+    await waitForStorageHealthApp(page);
+    await expect(profile).toHaveAttribute('aria-expanded', 'false');
+    await profile.click();
+    await page.getByRole('menuitem', { name: 'Storage health', exact: true }).click();
+    const health = page.getByRole('dialog', { name: 'Storage health', exact: true });
+    await expect(health).toBeVisible();
+    await health.getByRole('button', { name: 'Close storage health' }).click();
+    await expect(health).toHaveCount(0);
+  } finally {
+    fixture.releaseUserList();
+  }
 });
 
 for (const kind of ['conflict','predecessor','recovery']) {

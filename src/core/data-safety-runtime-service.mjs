@@ -54,6 +54,12 @@ export function createDataSafetyRuntimeService(deps = {}) {
     stores: [snapshotStoreName, latestStoreName].map((name) => ({ name, keyPath: "id" })) });
   let installed = false;
 
+  function getSnapshotReviewScope() {
+    const auth = win.platformAuthStore, user = auth?.getCurrentUser?.();
+    if (auth?.isDevMode?.() !== false || user?.role !== "admin" || user.status !== "active" || !user.id) return "";
+    return getCentralStateBridge()?.getReadScope?.() || "";
+  }
+
   function getStorage() {
     try {
       return win.localStorage;
@@ -884,6 +890,14 @@ export function createDataSafetyRuntimeService(deps = {}) {
         getItem: (key) => nativeGetItem.call(getStorage(), key),
       },
       reviewLibrary: () => getCentralStateBridge()?.reviewLibraryRecovery?.(),
+      getSnapshotScope: getSnapshotReviewScope,
+      reviewSnapshots: async (closeHealth) => {
+        const { openSnapshotHistory } = await import("./snapshot-history-dialog.mjs");
+        if (!getSnapshotReviewScope()) throw new Error("Snapshot review access changed.");
+        if (!closeHealth()) return;
+        return openSnapshotHistory({ win, documentRef, databaseName, storeName: snapshotStoreName,
+          getScope: getSnapshotReviewScope, protectedStorageKeys, storageLabels });
+      },
       storageLabels, storageKey, getScope: () => getCentralStateBridge()?.getReadScope?.() || "",
     }));
     requestPersistentStorage();

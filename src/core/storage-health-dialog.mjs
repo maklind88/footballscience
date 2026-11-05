@@ -50,6 +50,22 @@ export async function openStorageHealth(options) {
   add("Archived and recovery rows remain protected. These counts do not authorize cleanup or select a version to restore.");
   add(`Browser origin estimate: ${size(report.originUsageBytes)} used / ${size(report.originQuotaBytes)} quota. This is not the localStorage limit or its remaining space.`);
   add(`Persistent storage: ${report.persistent === null ? "Unavailable" : report.persistent ? "Granted" : "Not granted"}. This does not increase the localStorage limit.`);
+  if (options.reviewSnapshots && options.getSnapshotScope?.()) {
+    const review = doc.createElement("button"); review.type = "button"; review.textContent = "Review saved browser copies";
+    review.addEventListener("click", async () => {
+      review.disabled = true;
+      try { await options.reviewSnapshots(() => {
+        if (!dialog.isConnected) return false;
+        dialog.close(); return true;
+      }); }
+      catch {
+        if (dialog.isConnected) {
+          status.textContent = "Saved-copy review could not open. Reconnect or reopen this check and try again. Your data is unchanged.";
+          review.disabled = false;
+        }
+      }
+    }); content.append(review);
+  }
   if (options.reviewLibrary) {
     const review = doc.createElement("button"); review.type = "button"; review.textContent = "Review library saved versions";
     review.addEventListener("click", () => { dialog.close(); options.reviewLibrary(); }); content.append(review);

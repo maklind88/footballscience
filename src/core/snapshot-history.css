@@ -1,0 +1,18 @@
+dialog[data-snapshot-history] {
+  box-sizing: border-box;
+  width: min(760px, calc(100vw - 32px));
+  max-height: 85vh;
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid #ccd4dd;
+  border-radius: 12px;
+  color: #172331;
+  background: #fff;
+}
+dialog[data-snapshot-history]::backdrop { background: rgb(12 22 35 / 55%); }
+dialog[data-snapshot-history] h2 { margin-top: 0; }
+dialog[data-snapshot-history] section { border-top: 1px solid #dce2e8; padding: 16px 0; }
+dialog[data-snapshot-history] summary { cursor: pointer; padding: 8px 0; }
+dialog[data-snapshot-history] pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; background: #f2f5f8; padding: 12px; }
+dialog[data-snapshot-history] button { min-height: 40px; padding: 8px 14px; margin-top: 8px; cursor: pointer; }
+dialog[data-snapshot-history] button:focus-visible, dialog[data-snapshot-history] summary:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }

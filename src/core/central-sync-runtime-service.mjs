@@ -319,13 +319,20 @@ export function createCentralSyncRuntimeService(deps = {}) {
       const wasHydrating = win.__footballScienceCentralHydrating;
       win.__footballScienceCentralHydrating = true;
       try {
-        (key === sessionPlannerStorageKey ? cacheAcknowledgedValue : rawSetItem)(key, valueToApply);
+        // A verified receipt must refresh the view even when native cache is full.
+        // The shared helper retains the disk copy and marks a quota fallback as
+        // server-backed memory, never as a durable local save.
+        cacheAcknowledgedValue(key, valueToApply);
         appliedValue = valueToApply;
       } finally {
         win.__footballScienceCentralHydrating = wasHydrating;
       }
       phase = "manifest";
-      if (!write.journalOnlyReplay) mutateManifest((manifest) => {
+      const cacheInfo = getCentralStateBridge()?.getCachedValueInfo?.(key);
+      const memoryOnly = cacheInfo?.durable === false && cacheInfo?.serverBacked === true;
+      // Backup capture reads the native bytes. Keep their generation metadata
+      // when only the in-memory read view was refreshed by this receipt.
+      if (!write.journalOnlyReplay && !memoryOnly) mutateManifest((manifest) => {
         const currentEntry = manifest.entries[key] || {};
         manifest.entries[key] = {
           ...(currentEntry?.label ? currentEntry : { label: getStorageLabel(key), writes: 0 }),

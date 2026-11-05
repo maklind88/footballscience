@@ -109,7 +109,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       const entry = manifest.entries[normalizedKey];
       if (!entry?.pendingCentralSync || !expected || fields.some((field) => field !== "pendingBaseRevision" && entry[field] !== expected[field]) ||
           ![expected.pendingBaseRevision, nextBaseRevision].includes(entry.pendingBaseRevision) ||
-          rawGetItem(normalizedKey) !== (queuedWrite.removed ? null : queuedWrite.value)) return;
+          !matchesScheduleWriteValue(rawGetItem(normalizedKey), queuedWrite)) return;
       entry.pendingBaseRevision = nextBaseRevision;
       advanced = true;
     });
@@ -118,7 +118,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     const persisted = readManifest()?.entries?.[normalizedKey];
     if (!persisted?.pendingCentralSync || fields.some((field) => persisted[field] !==
         (field === "pendingBaseRevision" ? nextBaseRevision : expected[field])) ||
-        rawGetItem(normalizedKey) !== (queuedWrite.removed ? null : queuedWrite.value)) return false;
+        !matchesScheduleWriteValue(rawGetItem(normalizedKey), queuedWrite)) return false;
     queuedWrite.baseRevision = nextBaseRevision;
     queuedWrite.pendingEntry = { ...persisted };
     queuedWrite.followsActiveWrite = false;
@@ -352,6 +352,20 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
   }
 
+  function matchesScheduleWriteValue(value, write) {
+    if (write.removed) return value === null;
+    if (value === write.value) return true;
+    if (write.key !== scheduleStorageKey) return false;
+    // Ignore only local UI fields and object key order, never shared data or array order.
+    const ordered = (item) => Array.isArray(item) ? item.map(ordered)
+      : item && typeof item === "object" ? Object.fromEntries(Object.keys(item).sort().map((key) => [key, ordered(item[key])])) : item;
+    try {
+      const current = JSON.stringify(ordered(JSON.parse(value)));
+      if (current === JSON.stringify(ordered(JSON.parse(write.value)))) return true;
+      return current === JSON.stringify(ordered(JSON.parse(mergeScheduleStatePreservingLocalUi(value, write.value))));
+    } catch { return false; }
+  }
+
   function reconcileScheduleAcknowledgementOrder(write) {
     if (write.key !== scheduleStorageKey || write.removed || !write.pendingEntry) return write;
     const value = rawGetItem(write.key), entry = readManifest()?.entries?.[write.key];
@@ -359,14 +373,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (value === write.value || !entry?.pendingCentralSync || entry.localWritePrepared ||
         fields.some((field) => entry[field] !== write.pendingEntry[field]) ||
         !isCentralStateWriteGenerationCurrent({ ...write, value })) return write;
-    // Only object key order may change; array order, fields and values remain significant.
-    const ordered = (item) => Array.isArray(item) ? item.map(ordered)
-      : item && typeof item === "object" ? Object.fromEntries(Object.keys(item).sort().map((key) => [key, ordered(item[key])])) : item;
-    try {
-      if (JSON.stringify(ordered(JSON.parse(value))) === JSON.stringify(ordered(JSON.parse(write.value)))) {
-        return { ...write, value };
-      }
-    } catch { /* Malformed values cannot acknowledge a generation. */ }
+    if (matchesScheduleWriteValue(value, write)) return { ...write, value };
     return write;
   }
 

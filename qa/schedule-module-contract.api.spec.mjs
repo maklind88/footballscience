@@ -216,6 +216,44 @@ test("Schedule controller owns date navigation and shortcut clipboard wiring", a
   await expect.poll(() => state.events.map((event) => event.date)).toEqual(["2026-06-01", "2026-06-02"]);
 });
 
+test("Schedule exposes failed local saves, retains the draft and does not accept an older receipt", async () => {
+  const state = createDefaultScheduleState(new Date(2026, 10, 5));
+  state.events = [{ id: "training", date: "2026-11-05", type: "training", title: "Training" }];
+  const listeners = new Map();
+  let fails = true;
+  const controller = createScheduleWorkspaceController({
+    document: { addEventListener() {} },
+    window: { addEventListener: (name, fn) => listeners.set(name, fn) },
+    renderer: { renderWorkspace() {} },
+    getState: () => state, ensureState: () => state,
+    writeState: (options = {}) => options.syncCentral === false || !fails,
+    canEdit: () => true, isActive: () => true,
+    getEventsForDate: date => state.events.filter(event => event.date === date),
+    getVisibleEvents: events => events,
+    getSelectedDayContext: () => ({ sessionSnapshot: { hasSession: false, blocks: [], minutes: 0 } }),
+  });
+  controller.bind();
+  controller.copySelectedDay();
+  controller.selectDate("2026-11-06");
+  await controller.pasteClipboardToSelectedDay();
+  expect(state.events).toHaveLength(2);
+  expect(controller.getUiState().syncStatus).toMatchObject({ status: "issue", message: expect.stringContaining("Not saved to team") });
+  controller.updateSyncStatus("saved", "Saved");
+  expect(controller.getUiState().syncStatus.status).toBe("issue");
+  let warned = false;
+  listeners.get("beforeunload")({ preventDefault: () => { warned = true; } });
+  expect(warned).toBe(true);
+  fails = false;
+  controller.selectDate("2026-11-09");
+  await controller.pasteClipboardToSelectedDay();
+  expect(controller.getUiState().syncStatus.status).toBe("saving");
+  controller.updateSyncStatus("saved", "Saved");
+  expect(controller.getUiState().syncStatus).toMatchObject({ status: "saved", message: "Saved to team" });
+  warned = false;
+  listeners.get("beforeunload")({ preventDefault: () => { warned = true; } });
+  expect(warned).toBe(false);
+});
+
 test("Schedule controller remeasures planner width after the view becomes active", () => {
   const state = createDefaultScheduleState(new Date(2026, 5, 1));
   state.viewMode = "planner";

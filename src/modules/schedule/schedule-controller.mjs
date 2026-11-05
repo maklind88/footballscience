@@ -146,7 +146,15 @@ export function createScheduleWorkspaceController(options = {}) {
 
   function writeState(writeOptions = {}) {
     if (typeof options.writeState === "function") {
-      options.writeState(writeOptions);
+      if (writeOptions.syncCentral !== false) updateSyncStatus("saving", "Saving to team...");
+      const result = options.writeState(writeOptions);
+      if (writeOptions.syncCentral !== false) {
+        hasUnsavedLocalChanges = result === false;
+        if (hasUnsavedLocalChanges) {
+          updateSyncStatus("issue", "Not saved to team. Keep this page open; your changes remain in this view.");
+        }
+      }
+      return result;
     }
   }
 
@@ -211,8 +219,20 @@ export function createScheduleWorkspaceController(options = {}) {
     };
   }
 
+  let scheduleSyncNotice = null;
+  let hasUnsavedLocalChanges = false;
+  function updateSyncStatus(status, message) {
+    if (hasUnsavedLocalChanges && status === "saved") return;
+    scheduleSyncNotice = {
+      status,
+      message: status === "saved" ? "Saved to team" : (message || "Not saved to team"),
+    };
+    if (isActive()) renderScheduleNoticePortal();
+  }
+
   function dismissScheduleNotice({ shouldRender = true } = {}) {
     scheduleNotice = null;
+    if (scheduleSyncNotice?.status === "saved") scheduleSyncNotice = null;
     if (shouldRender) {
       render();
     }
@@ -223,7 +243,10 @@ export function createScheduleWorkspaceController(options = {}) {
   }
 
   function renderScheduleNoticePortal(state = getState()) {
-    if (!doc?.body || !scheduleNotice?.message || state?.viewMode !== "planner") {
+    const notice = scheduleSyncNotice?.status === "issue"
+      ? { ...scheduleNotice, message: scheduleSyncNotice.message, tone: "warning" }
+      : { ...scheduleNotice, message: [scheduleNotice?.message, scheduleSyncNotice?.message].filter(Boolean).join(" · ") };
+    if (!doc?.body || !notice.message || state?.viewMode !== "planner") {
       removeScheduleNoticePortal();
       return;
     }
@@ -240,17 +263,17 @@ export function createScheduleWorkspaceController(options = {}) {
       doc.body.append?.(portal);
     }
 
-    portal.className = `schedule-planner-feedback is-${scheduleNotice.tone || "success"}`;
-    portal.setAttribute("aria-label", scheduleNotice.message);
+    portal.className = `schedule-planner-feedback is-${notice.tone || "neutral"}`;
+    portal.setAttribute("aria-label", notice.message);
     portal.replaceChildren?.();
 
     const message = doc.createElement?.("span");
     if (message) {
-      message.textContent = scheduleNotice.message;
+      message.textContent = notice.message;
       portal.append?.(message);
     }
 
-    if (scheduleNotice.canUndo) {
+    if (notice.canUndo) {
       const undoButton = doc.createElement?.("button");
       if (undoButton) {
         undoButton.type = "button";
@@ -261,7 +284,7 @@ export function createScheduleWorkspaceController(options = {}) {
     }
 
     const closeButton = doc.createElement?.("button");
-    if (closeButton) {
+    if (closeButton && (!scheduleSyncNotice || scheduleSyncNotice.status === "saved")) {
       closeButton.type = "button";
       closeButton.dataset.scheduleDismissNotice = "true";
       closeButton.setAttribute("aria-label", "Dismiss notification");
@@ -1909,6 +1932,11 @@ export function createScheduleWorkspaceController(options = {}) {
     doc?.addEventListener?.("copy", handleDocumentCopy);
     doc?.addEventListener?.("paste", handleDocumentPaste);
     win?.addEventListener?.("resize", handleScheduleResize);
+    win?.addEventListener?.("beforeunload", (event) => {
+      if (!hasUnsavedLocalChanges) return;
+      event.preventDefault?.();
+      event.returnValue = "";
+    });
   }
 
   return Object.freeze({
@@ -1917,6 +1945,7 @@ export function createScheduleWorkspaceController(options = {}) {
     copyEvent,
     copySelectedDay,
     getUiState: () => ({
+      syncStatus: scheduleSyncNotice ? { ...scheduleSyncNotice } : null,
       clipboard,
       editingEventId,
       plannerNoteDate,
@@ -1930,5 +1959,6 @@ export function createScheduleWorkspaceController(options = {}) {
     render,
     selectDate,
     startEditingEvent,
+    updateSyncStatus,
   });
 }

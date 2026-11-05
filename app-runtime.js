@@ -474,6 +474,7 @@ platformUserRuntimeService.configureAccountMenu({
 });
 installAppController.initialize();
 let updateSetPiecesRoomSyncStatus = () => {};
+let updateScheduleSyncStatus = () => {};
 const centralRuntimeFacade = createCentralRuntimeFacade({
 win,
 documentRef: document,
@@ -517,6 +518,7 @@ getCurrentPlatformUser,
 handleSyncedStateValue: handleCentralSyncedStateValue,
 handleSyncStatus: (key, status, message) => {
 if (key === setPiecesRoomStorageKey) updateSetPiecesRoomSyncStatus(status, message);
+if (key === scheduleStorageKey) updateScheduleSyncStatus(status, message);
 },
 isSessionPlannerAutosaveKey,
 mergeDashboardPresentationStatePreservingLocalEdits,
@@ -2342,6 +2344,7 @@ transferRoomRuntime,
 workspaceAccessRuntimeService,
 renderScheduleWorkspace,
 } = platformRuntimeServices;
+updateScheduleSyncStatus = scheduleWorkspaceController.updateSyncStatus;
 workspaceDataRuntimeService = platformRuntimeServices.workspaceDataRuntimeService;
 workspaceModuleRuntimeController = platformRuntimeServices.workspaceModuleRuntimeController;
 const profileImageRuntimeActions = createProfileImageRuntimeActions({

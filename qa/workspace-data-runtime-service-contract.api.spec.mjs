@@ -22,7 +22,7 @@ function createMemoryStorage(initial = {}) {
 function createHarness(options = {}) {
   const rawWrites = [];
   const calls = [];
-  const storage = createMemoryStorage(options.storage);
+  const storage = options.storageApi || createMemoryStorage(options.storage);
   const state = {
     activeWorkspaceId: options.activeWorkspaceId || "periodization",
     periodizationState: options.periodizationState ?? null,
@@ -91,6 +91,7 @@ function createHarness(options = {}) {
     rawDataSafetySetItem: (key, value) => {
       if (options.failRawWrites) throw new Error("Browser cache unavailable");
       rawWrites.push([key, value]);
+      options.rawWrite?.(key, value);
     },
     readPlayerProfilesState: () => ({ players: [{ id: "p1" }] }),
     renderPeriodizationWorkspace: () => calls.push("render-periodization"),
@@ -198,6 +199,28 @@ test("Schedule still handles invalid cached JSON without writing fallback data",
   expect(storage.getItem("schedule")).toBe("invalid");
   expect(storage.writes).toEqual([]);
   expect(rawWrites).toEqual([]);
+});
+
+test("Schedule navigation cannot persist an edit rejected by protected storage", () => {
+  const saved = { selectedDate: "2026-11-04", events: [{ id: "saved", title: "Training" }], dayNotes: {} };
+  const storage = createMemoryStorage({ schedule: JSON.stringify(saved) });
+  const rawWrite = storage.setItem;
+  storage.setItem = () => { throw new Error("Recovery metadata could not be saved"); };
+  const draft = clone(saved);
+  draft.events.push({ id: "unsaved", date: "2026-11-05", title: "Training/Lift" });
+  draft.dayNotes["2026-11-05"] = "Unsaved note";
+  const { service } = createHarness({ storageApi: storage, scheduleState: draft, rawWrite });
+
+  service.writeScheduleState();
+  draft.selectedDate = "2026-11-06";
+  service.writeScheduleState({ syncCentral: false });
+
+  const persisted = JSON.parse(storage.getItem("schedule"));
+  expect(persisted.events).toEqual(saved.events);
+  expect(persisted.dayNotes).toEqual(saved.dayNotes);
+  expect(persisted.selectedDate).toBe("2026-11-06");
+  expect(draft.events).toHaveLength(2);
+  expect(draft.dayNotes["2026-11-05"]).toBe("Unsaved note");
 });
 
 test("workspace data runtime service preserves transfer room linked state sync", () => {

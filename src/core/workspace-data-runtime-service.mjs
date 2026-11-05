@@ -1,3 +1,5 @@
+import { mergeScheduleStatePreservingLocalUi } from "../modules/schedule/schedule-state.mjs";
+
 export function createWorkspaceDataRuntimeService(deps = {}) {
   const win = deps.win ?? globalThis.window ?? {};
   const ui = deps.ui ?? {};
@@ -265,12 +267,23 @@ export function createWorkspaceDataRuntimeService(deps = {}) {
   function writeScheduleState(options = {}) {
     const state = getScheduleState();
     if (!state) {
-      return;
+      return false;
     }
     try {
-      setScheduleStateStorageValue(state, options);
+      if (options.syncCentral === false) {
+        const saved = win.localStorage.getItem(deps.scheduleStorageKey);
+        // Navigation cannot smuggle rejected edits through the untracked cache path.
+        if (saved) {
+          const viewValue = mergeScheduleStatePreservingLocalUi(JSON.stringify(state), saved);
+          call("rawDataSafetySetItem", deps.scheduleStorageKey, viewValue);
+        }
+      } else {
+        setScheduleStateStorageValue(state, options);
+      }
+      return true;
     } catch {
       call("logEvent", "Schedule could not be written to local storage.");
+      return false;
     }
   }
 

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { createCentralSyncRuntimeService } from "../src/core/central-sync-runtime-service.mjs";
+import { mergeScheduleStatePreservingLocalUi } from "../src/modules/schedule/schedule-state.mjs";
 import { createSessionSaveClient } from "../src/modules/session-planner/session-save-client.mjs";
 import { applySessionDateChange, sessionDateValue } from "../src/modules/session-planner/session-save-protocol.mjs";
 
@@ -574,6 +575,61 @@ test(`Schedule acknowledgement tolerates only key ordering within the same gener
 });
 }
 
+for (const change of ["navigation", "event", "note", "generation", "owner"]) {
+test(`Schedule receipt after navigation acknowledges only the same shared generation (${change})`, async () => {
+  const key = "football-schedule-v1";
+  const value = JSON.stringify({ selectedDate: "2026-11-05", viewMode: "planner", events: [{ id: "a", title: "Training" }], dayNotes: {} });
+  let release;
+  const h = createServiceHarness({ getReadScope: () => "actor-A", mergeScheduleStatePreservingLocalUi,
+    syncKey: () => new Promise(resolve => { release = resolve; }) });
+  h.rawValues.set(key, value);
+  h.manifest.entries[key] = { hash: "original", writes: 1, updatedAt: "generation-a", serverRevision: 7 };
+  h.service.queueCentralStateWrite(key, value);
+  const flushing = h.service.flushCentralStateWrites();
+  await expect.poll(() => typeof release).toBe("function");
+  const current = { ...JSON.parse(value), selectedDate: "2026-11-06" };
+  if (change === "event") current.events[0].title = "New unsent title";
+  if (change === "note") current.dayNotes["2026-11-06"] = "New unsent note";
+  if (change === "generation") h.manifest.entries[key].writes++;
+  if (change === "owner") h.manifest.entries[key].principalScope = "actor-B";
+  h.rawValues.set(key, JSON.stringify(current));
+  release({ ok: true, value, revision: 8 });
+  await flushing;
+  expect(h.manifest.entries[key]).toMatchObject({ pendingCentralSync: change !== "navigation", serverRevision: 8 });
+  expect(JSON.parse(h.rawValues.get(key)).selectedDate).toBe("2026-11-06");
+  expect(h.syncStatuses.some(([, status]) => status === "saved")).toBe(change === "navigation");
+  if (change !== "navigation") expect(JSON.parse(h.rawValues.get(key))).toEqual(current);
+});
+}
+
+test("Schedule queued successor advances its base despite UI navigation, without an extra write", async () => {
+  const key = "football-schedule-v1";
+  const state = { selectedDate: "2026-11-05", viewMode: "planner", events: [{ id: "a", title: "Training" }], dayNotes: {} };
+  let release;
+  const h = createServiceHarness({ getReadScope: () => "actor-A", mergeScheduleStatePreservingLocalUi,
+    syncKey: ({ value }) => h.syncCalls.length === 1
+      ? new Promise(resolve => { release = resolve; }) : { ok: true, value, revision: 9 } });
+  const first = JSON.stringify(state);
+  h.rawValues.set(key, first);
+  h.manifest.entries[key] = { hash: "first", writes: 1, updatedAt: "generation-a", serverRevision: 7 };
+  h.service.queueCentralStateWrite(key, first);
+  const flushing = h.service.flushCentralStateWrites();
+  await expect.poll(() => typeof release).toBe("function");
+  state.events.push({ id: "b", title: "Training/Lift" });
+  const second = JSON.stringify(state);
+  h.rawValues.set(key, second);
+  Object.assign(h.manifest.entries[key], { hash: "second", writes: 2, updatedAt: "generation-b" });
+  h.service.queueCentralStateWrite(key, second);
+  state.selectedDate = "2026-11-06";
+  h.rawValues.set(key, JSON.stringify(state));
+  release({ ok: true, value: first, revision: 8 });
+  await flushing;
+  await h.service.flushCentralStateWrites();
+  expect(h.syncCalls.map(call => call.options.baseRevision)).toEqual([7, 8]);
+  expect(h.manifest.entries[key]).toMatchObject({ pendingCentralSync: false, serverRevision: 9 });
+  expect(JSON.parse(h.rawValues.get(key))).toEqual(state);
+});
+
 function createServiceHarness(options = {}) {
   const manifest = createManifest();
   const rawValues = new Map();
@@ -665,7 +721,7 @@ function createServiceHarness(options = {}) {
     isSessionPlannerAutosaveKey: (key) => key === "football-session-planner-v1",
     mergeDashboardPresentationStatePreservingLocalEdits: (currentValue, syncedValue) => `presentation:${currentValue}:${syncedValue}`,
     mergePeriodizationStatePreservingLocalUi: (_currentValue, syncedValue) => `periodization:${syncedValue}`,
-    mergeScheduleStatePreservingLocalUi: (_currentValue, syncedValue) => `schedule:${syncedValue}`,
+    mergeScheduleStatePreservingLocalUi: options.mergeScheduleStatePreservingLocalUi || ((_currentValue, syncedValue) => `schedule:${syncedValue}`),
     mutateManifest: (mutator) => {
       const attempted = structuredClone(manifest);
       mutator(attempted);

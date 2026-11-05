@@ -2911,6 +2911,106 @@ test("a Schedule manifest quota failure cannot expose or seed the rejected edit 
   } finally { await closeCentralStateContext(tab.context); }
 });
 
+test("Schedule UI retains a rejected draft with a warning without leaking it through navigation", async ({ browser, baseURL }) => {
+  const value = JSON.stringify({ selectedDate: "2026-11-05", selectedYear: 2026, selectedMonthIndex: 10,
+    viewMode: "planner", importVersion: "ncc-2026-numbers-v1", events: [], dayNotes: {} });
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [scheduleStateKey]: value }, metadataEntries: { [scheduleStateKey]: createMetadata(4, value) } };
+  const writes = [];
+  const tab = await bootCentralPage(browser, baseURL, store, [], "schedule-ui-rejected", {
+    fixedDate: "2026-11-05T12:00:00Z", appStateWriteBodies: writes,
+    initScript: key => {
+      const set = Storage.prototype.setItem;
+      window.__qaNativeGetItem = Storage.prototype.getItem;
+      Storage.prototype.setItem = function(name, value) {
+        if (window.__qaFailManifest && name === key) throw new DOMException("Manifest quota", "QuotaExceededError");
+        return set.call(this, name, value);
+      };
+    }, initArg: dataSafetyManifestKey,
+  });
+  try {
+    await tab.page.locator('[data-open-workspace="schedule"]').first().click();
+    await tab.page.locator('.schedule-planner-day[data-schedule-date="2026-11-05"]').dblclick();
+    const input = tab.page.locator('[data-schedule-planner-add-date="2026-11-05"] input');
+    await input.fill("Unsent November training");
+    await tab.page.evaluate(() => { window.__qaFailManifest = true; });
+    await input.press("Enter");
+    await expect(tab.page.locator("#schedulePlannerFeedbackPortal")).toContainText("Not saved to team");
+    await expect(tab.page.locator('.schedule-planner-day[data-schedule-date="2026-11-05"]')).toContainText("Unsent November training");
+    await tab.page.locator('.schedule-planner-day[data-schedule-date="2026-11-06"]').click();
+    expect(await tab.page.evaluate(key => window.__qaNativeGetItem.call(localStorage, key), scheduleStateKey))
+      .not.toContain("Unsent November training");
+    expect(writes.filter(body => body.key === scheduleStateKey)).toEqual([]);
+    expect(store.entries[scheduleStateKey]).not.toContain("Unsent November training");
+  } finally { await closeCentralStateContext(tab.context); }
+});
+
+test("Schedule navigation during a real UI save preserves its receipt and coach/Medical visibility", async ({ browser, baseURL }) => {
+  const day = "2026-11-05";
+  const trainingDays = [
+    [day, "Training/Lift"], ["2026-11-06", "Training"], ["2026-11-09", "Training/IDP"],
+    ["2026-11-10", "Training/Lift"], ["2026-11-12", "Training/Lift"], ["2026-11-13", "Training"],
+    ["2026-11-16", "Training"], ["2026-11-17", "Training"],
+  ];
+  const schedule = { selectedDate: day, selectedYear: 2026, selectedMonthIndex: 10,
+    viewMode: "planner", importVersion: "ncc-2026-numbers-v1", dayNotes: {},
+    events: trainingDays.slice(1).map(([date, title]) => ({ id: `qa-${date}`, date, title, type: "training" })) };
+  const value = JSON.stringify(schedule);
+  const store = { value: createStateValue("Original central sequence"), metadata: createMetadata(1, "sequence"),
+    entries: { [scheduleStateKey]: value }, metadataEntries: { [scheduleStateKey]: createMetadata(4, value) } };
+  let release;
+  const barrier = new Promise(resolve => { release = resolve; });
+  const writes = [];
+  const editor = await bootCentralPage(browser, baseURL, store, [], "schedule-ui-receipt", {
+    fixedDate: day + "T12:00:00Z",
+    appStateWriteHandler: async ({ body }) => {
+      if (body.key !== scheduleStateKey) return null;
+      writes.push(body);
+      if (writes.length === 1) await barrier;
+      const revision = store.metadataEntries[scheduleStateKey].revision;
+      if (body.metadata.baseRevision !== revision) return { status: 409, body: { ok: false, currentRevision: revision } };
+      store.entries[scheduleStateKey] = body.value;
+      store.metadataEntries[scheduleStateKey] = createMetadata(revision + 1, body.value);
+      return { status: 200, body: { ok: true, value: body.value, revision: revision + 1 } };
+    },
+  });
+  try {
+    await editor.page.locator('[data-open-workspace="schedule"]').first().click();
+    await editor.page.locator(`.schedule-planner-day[data-schedule-date="${day}"]`).dblclick();
+    const input = editor.page.locator(`[data-schedule-planner-add-date="${day}"] input`);
+    await input.fill("Training/Lift"); await input.press("Enter");
+    await expect.poll(() => writes.length).toBe(1);
+    await expect(editor.page.locator("#schedulePlannerFeedbackPortal")).not.toContainText("Saved to team");
+    await editor.page.locator('.schedule-planner-day[data-schedule-date="2026-11-06"]').click();
+    release();
+    await expect(editor.page.locator("#schedulePlannerFeedbackPortal")).toContainText("Saved to team");
+    await expect.poll(() => editor.page.evaluate(key => JSON.parse(localStorage.getItem(key)).entries["football-schedule-v1"].pendingCentralSync, dataSafetyManifestKey)).toBe(false);
+    for (const role of ["coach", "medical"]) {
+      const profile = { ...qaUser, id: `qa-${role}`, app_metadata: { role, status: "active" } };
+      const reader = await bootCentralPage(browser, baseURL, store, [], `schedule-reader-${role}`, {
+        fixedDate: day + "T12:00:00Z", sessionUser: profile, profileUser: profile,
+      });
+      try {
+        await reader.page.locator('[data-open-workspace="schedule"]').first().click();
+        for (const [date, title] of trainingDays) {
+          await expect(reader.page.locator(`.schedule-planner-day[data-schedule-date="${date}"]`)).toContainText(title);
+        }
+        await reader.page.locator('[data-open-workspace="medical-team"]').first().click();
+        const activities = await reader.page.evaluate(async dates => {
+          const { getMedicalRecommendationActivityContext } = await import('/src/modules/medical/medical-runtime-accessors.mjs');
+          return dates.map(date => getMedicalRecommendationActivityContext(date));
+        }, trainingDays.map(([date]) => date));
+        expect(activities).toMatchObject(trainingDays.map(([date, title]) => ({ date, isRecommendable: true, scheduleLabel: title, type: "training" })));
+        if (role === "medical") {
+          const dateInput = reader.page.getByLabel("Selected medical date", { exact: true });
+          await dateInput.fill(day); await dateInput.dispatchEvent("change"); await dateInput.blur();
+          await expect(reader.page.locator('[data-medical-quick-recommend][data-medical-quick-participation="100"]').first()).toBeEnabled();
+        }
+      } finally { await closeCentralStateContext(reader.context); }
+    }
+  } finally { release(); await closeCentralStateContext(editor.context); }
+});
+
 test("a failed Medical deletion survives real fresh hydration before its server retry", async ({ browser, baseURL }) => {
   const key = medicalTeamStateKey;
   const value = JSON.stringify({ players: [], records: [], injuryPlans: [] });

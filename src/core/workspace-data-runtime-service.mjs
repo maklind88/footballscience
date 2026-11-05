@@ -240,7 +240,12 @@ export function createWorkspaceDataRuntimeService(deps = {}) {
       const mergedState = mergeImportedNccSchedule(state);
       const mergedValue = JSON.stringify(mergedState);
       if (raw !== mergedValue) {
-        setScheduleStateStorageValue(mergedState, { syncCentral: false });
+        // A cache failure must not replace successfully read planning data.
+        try {
+          setScheduleStateStorageValue(mergedState, { syncCentral: false });
+        } catch {
+          call("logEvent", "Schedule data loaded; the browser cache could not be updated.");
+        }
       }
       return mergedState;
     } catch {

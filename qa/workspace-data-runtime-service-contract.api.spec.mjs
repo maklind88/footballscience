@@ -88,7 +88,10 @@ function createHarness(options = {}) {
       ...nextState,
       transient: previousState?.transient || "",
     }),
-    rawDataSafetySetItem: (key, value) => rawWrites.push([key, value]),
+    rawDataSafetySetItem: (key, value) => {
+      if (options.failRawWrites) throw new Error("Browser cache unavailable");
+      rawWrites.push([key, value]);
+    },
     readPlayerProfilesState: () => ({ players: [{ id: "p1" }] }),
     renderPeriodizationWorkspace: () => calls.push("render-periodization"),
     renderTransferRoomWorkspace: () => calls.push("render-transfer-room"),
@@ -166,6 +169,35 @@ test("workspace data runtime service preserves schedule and scouting storage nor
   state.scheduleState = scheduleState;
   service.writeScheduleState({ syncCentral: false });
   expect(rawWrites.at(-1)?.[0]).toBe("schedule");
+});
+
+test("Schedule keeps valid days and notes when normalization cannot update the cache", () => {
+  const saved = {
+    selectedDate: "2026-11-05", selectedMonthIndex: 10,
+    events: [{ id: "saved-training", date: "2026-11-05", type: "training", title: "Training/Lift" }],
+    dayNotes: { "2026-11-05": "Morning training" },
+  };
+  const raw = JSON.stringify(saved);
+  const { service, state, storage, rawWrites, calls } = createHarness({
+    storage: { schedule: raw }, failRawWrites: true,
+  });
+
+  const loaded = service.ensureScheduleState();
+  expect(loaded).toMatchObject({ ...saved, events: expect.arrayContaining(saved.events) });
+  expect(loaded.events.map((event) => event.id)).toEqual(["saved-training", "imported"]);
+  expect(state.scheduleState).toBe(loaded);
+  expect(storage.getItem("schedule")).toBe(raw);
+  expect(storage.writes).toEqual([]);
+  expect(rawWrites).toEqual([]);
+  expect(calls).toContainEqual(["log", "Schedule data loaded; the browser cache could not be updated."]);
+});
+
+test("Schedule still handles invalid cached JSON without writing fallback data", () => {
+  const { service, storage, rawWrites } = createHarness({ storage: { schedule: "invalid" }, failRawWrites: true });
+  expect(service.readScheduleState().events.map((event) => event.id)).toEqual(["imported"]);
+  expect(storage.getItem("schedule")).toBe("invalid");
+  expect(storage.writes).toEqual([]);
+  expect(rawWrites).toEqual([]);
 });
 
 test("workspace data runtime service preserves transfer room linked state sync", () => {

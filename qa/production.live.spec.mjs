@@ -823,7 +823,31 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
     const peerThreadButton = peerPage.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
     await expect(peerThreadButton).toBeVisible({ timeout: 45_000 });
     await expect(peerThreadButton.locator(".dashboard-chat-thread-unread")).toContainText("1", { timeout: 15_000 });
+    // Release proof only: exhaust this disposable QA browser profile, never a user profile.
+    const quotaProof = await peerPage.evaluate(() => {
+      const key = "football-dashboard-chat-widget-state-v1";
+      const previous = localStorage.getItem(key);
+      const setItem = Storage.prototype.setItem;
+      window.__liveChatNavigationQuotaFailures = 0;
+      Storage.prototype.setItem = function(name, value) {
+        try { return setItem.call(this, name, value); }
+        catch (error) {
+          if (this === localStorage && name === key && error.name === "QuotaExceededError") window.__liveChatNavigationQuotaFailures++;
+          throw error;
+        }
+      };
+      let failures = 0, index = 0;
+      for (const size of [262144, 16384, 1024, 16, 1]) for (let n = 0; n < 1000; n++) {
+        try { setItem.call(localStorage, `qa-live-quota-${index++}`, "x".repeat(size)); }
+        catch (error) { if (error.name !== "QuotaExceededError") throw error; failures++; break; }
+      }
+      return { previous, failures };
+    });
+    expect(quotaProof.failures, "Native localStorage quota must actually be reached").toBe(5);
     const peerActiveThread = await openLiveChatThread(peerPage, threadId);
+    expect(await peerPage.evaluate(() => window.__liveChatNavigationQuotaFailures)).toBeGreaterThan(0);
+    expect(await peerPage.evaluate(() => localStorage.getItem("football-dashboard-chat-widget-state-v1"))).toBe(quotaProof.previous);
+    console.log("[live-chat-quota] native quota reached; thread switched while stale disk selection was retained");
     await expect(peerActiveThread).toContainText(messageText, { timeout: 45_000 });
 
     await expect

@@ -57,4 +57,20 @@ jobs:
           BACKUP_VERIFY_TARGET: production
           BACKUP_EXPECTED_BUILD_ID: ${{ inputs.expected_backup_build_id }}
         run: node scripts/verify-fresh-app-state-backup.mjs
-      - run: npm run release:monitor
+      # Diagnostic branch only: no deploy, no replacement for a release gate.
+      - name: Verify exact released Chat modules
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          for (const name of ['chat-widget-state.mjs','dashboard-chat-domain-runtime.mjs','dashboard-chat-widget-runtime.mjs']) {
+            const path = 'src/modules/chat/' + name;
+            const response = await fetch('https://footballscience.xyz/' + path);
+            if (!response.ok) throw new Error('Missing live module: ' + name);
+            const hash = value => createHash('sha256').update(value).digest('hex');
+            if (hash(Buffer.from(await response.arrayBuffer())) !== hash(readFileSync(path))) throw new Error('Live module mismatch: ' + name);
+            console.log('Exact live module verified: ' + name);
+          }
+          NODE
+      - name: Authenticated live suite with real quota pressure on peer navigation
+        run: npm run qa:live:required

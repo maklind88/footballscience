@@ -331,6 +331,8 @@ test("Presentation playback, native keyboard controls, fullscreen and navigation
   await presentation.locator("[data-presentation-start]").click();
   await expect(presentation).toHaveClass(/is-presenting/);
   await expect(view).toHaveAttribute("data-retained", "yes");
+  await view.getByLabel("Animation position").press("ArrowRight");
+  await expect(presentation.locator(".presentation-block-copy")).toContainText("Passing sequence");
   await view.getByRole("button", { name: "Stop", exact: true }).click();
   await assertFirst(view);
   await view.locator(".session-readonly-viewport").click({ position: { x: 5, y: 5 } });

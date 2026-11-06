@@ -4947,7 +4947,7 @@ export function createPresentationModeController(dependencies = {}) {
     }
     if (event.target.closest("[data-presentation-delete-object]")) { deleteSelectedObject(); return; }
     if (objectTools.click(event)) return;
-    if (state.presenting && event.target.closest('.presentation-slide') && !event.target.closest('button,video,a,input:not([readonly]),select')) {
+    if (state.presenting && event.target.closest('.presentation-slide') && !event.target.closest('button,video,a,input:not([readonly]),select,[data-session-readonly-playback]')) {
       if (!motionPlayback.step()) goToSlide(state.slideIndex + 1);
       return;
     }
@@ -5460,7 +5460,7 @@ export function createPresentationModeController(dependencies = {}) {
       }
     }
     if (event.key === "Escape" && objectTools.escape()) { event.preventDefault(); return; }
-    if (isEditableTarget(event.target) && !state.presenting) {
+    if (isEditableTarget(event.target) && (!state.presenting || !event.target.closest("[readonly][data-presentation-text-field]"))) {
       return;
     }
     if (event.key === " " && getActiveSetPieceContext()) {

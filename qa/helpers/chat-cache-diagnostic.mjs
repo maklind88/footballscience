@@ -1,16 +1,19 @@
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+const diagnosticRoot = fileURLToPath(new URL('../../', import.meta.url));
 const expectedHash = '9cc631f769787bdac5d2c8da3e29c37055060d681c8800ace51cf933b8428d9b';
 const baseline = process.env.CHAT_CACHE_DIAGNOSTIC === 'before';
 export async function installChatCacheDiagnostic(context) {
   if (!process.env.CHAT_CACHE_DIAGNOSTIC) return;
-  await context.route('**/src/core/central-sync-runtime-service.mjs*', async route => {
+  if(process.env.CHAT_CACHE_DIAGNOSTIC !== 'observe') await context.route('**/src/core/central-sync-runtime-service.mjs*', async route => {
     const response = await route.fetch();
     const body = await response.body();
     const hash = crypto.createHash('sha256').update(body).digest('hex');
     console.log('[chat-cache-module]', JSON.stringify({ variant: process.env.CHAT_CACHE_DIAGNOSTIC, hash, matches: hash === expectedHash }));
     if (hash !== expectedHash) { await route.abort(); throw new Error('Live central module changed; diagnostic comparison invalid'); }
-    const source = baseline ? execFileSync('git', ['show', 'afa32b726474ea0648d51a47d757da240aabc694^:src/core/central-sync-runtime-service.mjs'], { encoding: 'utf8' }) : body;
+    const source = baseline ? execFileSync('git', ['-c', `safe.directory=${diagnosticRoot.replace(/\/$/, '')}`, 'show', '009c792fccda564b3d7764e530d78e3f9252f5d7:src/core/central-sync-runtime-service.mjs'], { encoding: 'utf8', cwd: diagnosticRoot }) : body;
+    if(baseline && crypto.createHash('sha256').update(source).digest('hex') !== 'ba2e4197ff39ea7840ad8bebd525443d74acacb5043aac37b94867e3ea104d81')throw new Error('Unexpected baseline source');
     await route.fulfill({ response, body: source });
   });
   await context.addInitScript(() => {

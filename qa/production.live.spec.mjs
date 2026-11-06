@@ -443,9 +443,9 @@ async function openTeamChat(page) {
 async function openLiveChatThread(page, threadId) {
   const threadButton = page.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
   await expect(threadButton).toBeVisible({ timeout: 45_000 });
-  await logChatCacheDiagnostic(page, threadId, "before-click");
+  if (process.env.CHAT_CACHE_DIAGNOSTIC !== "observe") await logChatCacheDiagnostic(page, threadId, "before-click");
   await threadButton.click();
-  await logChatCacheDiagnostic(page, threadId, "after-click");
+  if (process.env.CHAT_CACHE_DIAGNOSTIC !== "observe") await logChatCacheDiagnostic(page, threadId, "after-click");
   const activeThread = page.locator(`[data-dashboard-chat-list][data-dashboard-chat-active-thread="${threadId}"]`);
   try { await expect(activeThread).toBeVisible({ timeout: 20_000 }); }
   finally { await logChatCacheDiagnostic(page, threadId, "after-assertion"); }

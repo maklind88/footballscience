@@ -825,6 +825,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
     const currentUser = getCurrentPlatformUser();
     if (!currentUser) {
+      readDashboardChatWidgetState(); // Drop the previous principal's navigation on logout.
       documentRef?.body?.classList.remove("has-dashboard-chat-widget");
       documentRef?.body?.classList.remove("is-dashboard-chat-closed");
       documentRef?.body?.classList.remove("is-dashboard-chat-open");

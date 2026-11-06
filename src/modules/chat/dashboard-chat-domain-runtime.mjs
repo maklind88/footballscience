@@ -1,3 +1,4 @@
+import { createChatWidgetState } from "./chat-widget-state.mjs";
 import {
   isGenericDashboardChatIdentity,
   resolveDashboardChatParticipantName,
@@ -33,7 +34,14 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
   const createMessageTextRenderer = createDashboardChatMessageTextRenderer;
   const safeReadDashboardJson = readDashboardJson;
   const safeWriteDashboardJson = writeDashboardJson;
-  let dashboardChatWidgetSessionOpen = false;
+  const widgetState = createChatWidgetState({
+    getCurrentUser: getCurrentPlatformUser,
+    readJson: safeReadDashboardJson,
+    writeJson: safeWriteDashboardJson,
+    storageKey: dashboardChatWidgetStateStorageKey,
+    normalizeThreadId: normalizeDashboardChatThreadId,
+    teamThreadId: dashboardChatTeamThreadId,
+  });
 
   if (typeof createMessageTextRenderer !== "function") {
     throw new Error("createDashboardChatDomainRuntime requires createDashboardChatMessageTextRenderer.");
@@ -184,22 +192,11 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
   }
 
   function readDashboardChatWidgetState() {
-    const parsed = safeReadDashboardJson(dashboardChatWidgetStateStorageKey, {
-      isOpen: false,
-      selectedThreadId: dashboardChatTeamThreadId,
-    });
-    return {
-      isOpen: dashboardChatWidgetSessionOpen,
-      selectedThreadId: normalizeDashboardChatThreadId(parsed?.selectedThreadId, dashboardChatTeamThreadId),
-    };
+    return widgetState.read();
   }
 
   function writeDashboardChatWidgetState(nextState) {
-    dashboardChatWidgetSessionOpen = Boolean(nextState?.isOpen);
-    safeWriteDashboardJson(dashboardChatWidgetStateStorageKey, {
-      isOpen: false,
-      selectedThreadId: normalizeDashboardChatThreadId(nextState?.selectedThreadId, dashboardChatTeamThreadId),
-    });
+    widgetState.write(nextState);
   }
 
   function readDashboardChatWidgetNotificationState() {

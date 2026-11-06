@@ -1,3 +1,5 @@
+import { normalizeLineupBoard, resizeLineupBoardBounds } from "./presentation-lineup-board.mjs";
+import { createLineupBoardEditor } from "./presentation-lineup-board-editor.mjs";
 import { selectedDeletionTarget, syncObjectDeleteControl } from "./presentation-object-deletion.mjs";
 import { normalizeMotion, createMotionPlayback } from "./presentation-motion.mjs";
 import { presentationPlayers, createObjectTools } from "./presentation-object-tools.mjs";
@@ -53,7 +55,7 @@ const maxTextBoxesPerSlide = 12;
 const maxShapesPerSlide = 24;
 const maxUndoHistory = 80;
 const shapeTypes = new Set(["rect", "circle", "triangle", "diamond", "line", "arrow", "star"]);
-const textBoxKinds = new Set(["text", "symbol", "image", "video"]);
+const textBoxKinds = new Set(["text", "symbol", "image", "video", "lineup"]);
 const resizeAxes = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
 const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "match-squad", "starting-xi", "set-piece", "leaderboard", "blank"]);
 const localMediaKinds = new Set(["image", "video"]);
@@ -472,6 +474,7 @@ function normalizeTextBoxes(textBoxes = {}) {
             return {
               id,
               kind,
+              ...(kind === "lineup" ? { lineup: normalizeLineupBoard(safeBox.lineup) } : {}),
               x: Math.min(96 - width, Math.max(2, Number(safeBox.x) || 12)),
               y: Math.min(96 - height, Math.max(2, Number(safeBox.y) || 22)),
               width,
@@ -999,6 +1002,21 @@ export function createPresentationModeController(dependencies = {}) {
     insertPlayer: (id) => {
       const player = presentationPlayers(getPlayerProfilesState()).find(p => p.id === id);
       if (player?.photoUrl) addTextBox({ kind: "image", playerId: player.id, text: player.name, width: 16, height: 28 });
+    },
+  });
+  const lineupEditor = createLineupBoardEditor({
+    getRoot: () => root, getModel: buildModel, render, maxBoxes: maxTextBoxesPerSlide,
+    select: (slideId, textBoxId) => {
+      state.activeShapeTarget = null;
+      state.activeTextTarget = { slideId, textBoxId, field: getTextBoxField(textBoxId), infoId: "" };
+    },
+    updateBoxes: (slideId, update) => {
+      const slide = buildModel().slides[state.slideIndex];
+      if (state.presenting || !slide || slide.readOnly || slide.id !== slideId) return;
+      motionPlayback.stop(); textEditing.leave();
+      writeDeckForDate(state.dateValue, deck => ({ ...deck,
+        textBoxes: normalizeTextBoxes({ ...deck.textBoxes, [slideId]: update(deck.textBoxes?.[slideId] || []) }),
+      }));
     },
   });
   let renderedModel = null;
@@ -2414,6 +2432,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function close() {
+    lineupEditor.close();
     objectTools.cancel(); motionPlayback.stop();
     textEditing.leave();
     exercisePlayback.reset();
@@ -2879,6 +2898,7 @@ export function createPresentationModeController(dependencies = {}) {
   function syncTextToolbar() {
     if (!root) return;
     objectTools.sync();
+    lineupEditor.sync();
     syncActiveCanvasSelection();
     syncObjectDeleteControl(root, buildModel());
     const shell = root.querySelector("[data-presentation-mode-shell]");
@@ -4490,6 +4510,7 @@ export function createPresentationModeController(dependencies = {}) {
     const startFontSize = Number(normalizeFontSize(box.fontSize || "36"));
     state.resizeTextBox = {
       isImage,
+      isLineup: box.kind === "lineup",
       boxId,
       shell,
       slideId,
@@ -4522,6 +4543,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function getResizedTextBoxBounds(resize, event) {
+    if (resize.isLineup) return resizeLineupBoardBounds(resize, event);
     if (resize.isImage) return resizeImageBounds(resize, event);
     const axis = resize.axis || "se";
     const deltaWidth = ((event.clientX - resize.startClientX) / resize.slideWidth) * 100;
@@ -4946,6 +4968,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     if (event.target.closest("[data-presentation-delete-object]")) { deleteSelectedObject(); return; }
+    if (lineupEditor.click(event)) return;
     if (objectTools.click(event)) return;
     if (state.presenting && event.target.closest('.presentation-slide') && !event.target.closest('button,video,a,input:not([readonly]),select,[data-session-readonly-playback]')) {
       if (!motionPlayback.step()) goToSlide(state.slideIndex + 1);
@@ -5139,7 +5162,7 @@ export function createPresentationModeController(dependencies = {}) {
     }
     if (
       event.target.closest?.(
-        "[data-presentation-object-actions], [data-presentation-context-menu], .presentation-tool-popover-panel, .presentation-insert-popover, .presentation-new-slide-popover, .presentation-theme-popover"
+        "[data-lineup-picker], [data-presentation-object-actions], [data-presentation-context-menu], .presentation-tool-popover-panel, .presentation-insert-popover, .presentation-new-slide-popover, .presentation-theme-popover"
       )
     ) {
       return;
@@ -5424,6 +5447,10 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function handleKeydown(event) {
+    if (event.target.closest?.('[data-lineup-picker]')) {
+      if (event.key === 'Escape') { event.preventDefault(); lineupEditor.escape(); }
+      return;
+    }
     if (!state.isOpen) {
       return;
     }

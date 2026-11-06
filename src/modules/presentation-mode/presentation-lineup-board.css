@@ -1,0 +1,91 @@
+.presentation-free-text-box-shell.is-lineup {
+  min-width: 0;
+  min-height: 0;
+}
+.presentation-lineup-board {
+  width: 100%; height: 100%;
+  display: grid; grid-template-rows: 9% 91%;
+  border: 1px solid #47556924; border-radius: 3cqw;
+  background: linear-gradient(150deg, #f8fafcf5, #e2e8f0ed);
+  color: #152c3d; box-shadow: 0 1cqw 4cqw #0f172a12;
+  overflow: hidden;
+}
+.presentation-lineup-board > header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 5%; font-size: 3.4cqw; line-height: 1; cursor: grab;
+}
+.presentation-lineup-board > header strong { font-weight: 800; }
+.presentation-lineup-board > header > span { color: #597181; font-size: 2.7cqw; letter-spacing: .1em; }
+.presentation-lineup-board-pitch { position: relative; min-height: 0; margin: 0 2% 2%; }
+.presentation-lineup-board-lines { position: absolute; width: 100%; height: 100%; inset: 0; fill: none; stroke: #64748b28; stroke-width: .35; pointer-events: none; }
+.presentation-lineup-board .presentation-lineup-board-slot {
+  position: absolute; transform: translate(-50%, -50%); width: 21%;
+  display: flex; flex-direction: column; align-items: center; gap: .7cqw;
+  min-width: 0; min-height: 0; height: auto; margin: 0; padding: 0;
+  border: 0; border-radius: 0; background: none; box-shadow: none;
+  color: inherit; text-transform: none; font: inherit; cursor: pointer;
+}
+.presentation-lineup-board-avatar {
+  display: grid; place-items: center; width: min(13cqw, 13cqh); aspect-ratio: 1;
+  border: .45cqw solid #fff; border-radius: 50%; overflow: hidden;
+  background: #e0e9ee; box-shadow: 0 .6cqw 1.6cqw #142e3e20;
+  font-size: 3.4cqw; font-weight: 800; color: #516b7a;
+}
+.presentation-lineup-board-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; }
+.presentation-lineup-board-name { max-width: 100%; font-size: 2.35cqw; font-weight: 700; line-height: 1.12; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.presentation-lineup-board-slot:not(.is-filled) .presentation-lineup-board-avatar { border: .35cqw dashed #78909d80; background: #ffffff80; box-shadow: none; }
+.presentation-lineup-board-slot:not(.is-filled) .presentation-lineup-board-name { color: #627b88; font-weight: 500; }
+.presentation-lineup-board button:hover .presentation-lineup-board-avatar,
+.presentation-lineup-board button:focus-visible .presentation-lineup-board-avatar,
+.presentation-lineup-board .is-lineup-editing .presentation-lineup-board-avatar { outline: .5cqw solid #1687b6; outline-offset: .3cqw; }
+.presentation-lineup-board button:focus-visible { outline: none; }
+.presentation-mode-shell.is-presenting .presentation-lineup-board > header,
+.presentation-mode-shell.is-presenting .presentation-lineup-board-slot { cursor: default; }
+
+.presentation-text-toolbar .presentation-lineup-insert { display: grid; gap: .4rem; margin-bottom: .9rem; width: min(22rem, 80vw); }
+.presentation-text-toolbar .presentation-lineup-insert > strong { font-size: .82rem; color: #e2e8f0; text-transform: none; letter-spacing: 0; }
+.presentation-text-toolbar .presentation-lineup-insert > button { width: 100%; height: auto; padding: .65rem; font-size: .85rem; text-transform: none; }
+.presentation-lineup-insert > p:empty { display: none; }
+.presentation-lineup-insert > p { margin: 0; white-space: normal; }
+
+.presentation-lineup-picker {
+  position: fixed; inset: 6rem 1.25rem auto auto; margin: 0;
+  width: min(22rem, calc(100vw - 2rem)); max-width: none;
+  max-height: calc(100dvh - 8rem); padding: 1rem;
+  border: 1px solid #cad7df; border-radius: 1rem;
+  background: #f8fafc; color: #162b3d; box-shadow: 0 18px 65px #102b3c40;
+  font-family: inherit; overflow: auto;
+}
+.presentation-lineup-picker.is-left { inset: 6rem auto auto 1.25rem; }
+.presentation-lineup-picker::backdrop { background: #102b3c0c; }
+.presentation-lineup-picker > header { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.presentation-lineup-picker h2 { margin: .3rem 0; font-size: 1.2rem; }
+.presentation-lineup-picker h2 > span { font-size: .9rem; font-weight: 500; }
+.presentation-lineup-picker small { color: #52697a; }
+.presentation-lineup-picker > p { margin: .5rem 0 .8rem; font-size: .8rem; }
+.presentation-lineup-picker input { width: 100%; padding: .65rem .8rem; border: 1px solid #b6c8d3; border-radius: .5rem; background: #fff; color: #162b3d; font: inherit; }
+.presentation-lineup-picker button { color: inherit; border: 1px solid #cbd5e1; border-radius: .5rem; background: #fff; padding: .5rem; font: inherit; text-transform: none; letter-spacing: normal; cursor: pointer; }
+.presentation-lineup-picker button:focus-visible { outline: 2px solid #1687b6; outline-offset: 2px; }
+.presentation-lineup-picker button:disabled { opacity: .45; cursor: default; }
+.presentation-lineup-picker-list { display: grid; gap: .35rem; max-height: 45dvh; overflow: auto; margin: .8rem 0; }
+.presentation-lineup-picker-list > button { display: flex; align-items: center; gap: .7rem; text-align: left; min-height: 3.5rem; width: 100%; font-size: .9rem; }
+.presentation-lineup-picker-list > button[hidden], .presentation-lineup-picker [hidden] { display: none; }
+.presentation-lineup-picker-list > button:hover, .presentation-lineup-picker-list > button[aria-pressed="true"] { border-color: #1687b6; background: #e8f4fa; }
+.presentation-lineup-picker-list small { display: block; margin-top: .15rem; font-size: .7rem; }
+.presentation-lineup-picker-avatar { flex: 0 0 2.5rem; height: 2.5rem; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #e2e8f0; }
+.presentation-lineup-picker-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; }
+.presentation-lineup-picker footer { display: flex; justify-content: space-between; gap: .5rem; }
+@media (max-width: 600px) { .presentation-lineup-picker, .presentation-lineup-picker.is-left { inset: auto 1rem 1rem; width: calc(100vw - 2rem); max-height: calc(100dvh - 2rem); } }
+
+/* Individual player portraits use the same circular crop as the formation. */
+.presentation-free-text-box-shell.is-player-portrait.has-image { min-width: 0; min-height: 0; }
+.presentation-free-text-box-shell.is-player-portrait.has-image .presentation-local-media-box.is-image {
+  width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); margin: auto;
+  border-radius: 50%; overflow: hidden;
+}
+.presentation-free-text-box-shell.is-player-portrait.has-image img.presentation-local-media-object {
+  width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%;
+}
+.presentation-free-text-box-shell.is-lineup.is-selected .presentation-lineup-board { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.presentation-lineup-picker [data-lineup-save-status]:empty { display: none; }
+.presentation-lineup-picker [data-lineup-save-status]:not(:empty) { padding: .6rem; background: #fef3c7; color: #78350f; border-radius: .4rem; }

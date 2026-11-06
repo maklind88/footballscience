@@ -20,3 +20,19 @@
 .presentation-object-actions { position: absolute; right: 1rem; bottom: .65rem; z-index: 10; }
 .presentation-object-actions button { border: 1px solid #fca5a5; border-radius: .5rem; background: #321d25; color: #fff1f2; padding: .55rem .85rem; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px #0003; }
 .presentation-object-actions button:hover, .presentation-object-actions button:focus-visible { background: #7f1d1d; outline: 2px solid #fca5a5; outline-offset: 2px; }
+
+/* Explicit tracks stop a long squad list compressing cards into overlapping rows. */
+.presentation-text-toolbar .presentation-player-picker > div {
+  grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: max-content;
+  align-content: start; max-height: 16rem;
+}
+.presentation-text-toolbar .presentation-player-picker > strong { font-size: .8rem; color: #cbd5e1; text-transform: none; letter-spacing: 0; }
+.presentation-text-toolbar .presentation-player-picker button {
+  height: auto; min-height: 6.5rem; min-width: 0; padding: .55rem .3rem;
+  grid-template-rows: 3.25rem auto; align-content: start;
+  font-size: .7rem; line-height: 1.25; text-transform: none; letter-spacing: normal;
+}
+.presentation-text-toolbar .presentation-player-picker img { width: 3.25rem; height: 3.25rem; border-radius: 50%; object-fit: cover; object-position: 50% 22%; }
+.presentation-text-toolbar .presentation-player-picker button > span { max-width: 100%; overflow-wrap: anywhere; }
+.presentation-text-toolbar [data-presentation-players-menu] > .presentation-tool-popover-panel { max-height: calc(100dvh - 9rem); overflow-y: auto; }
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-player-picker button > span { text-transform: none; letter-spacing: normal; font-weight: 600; }

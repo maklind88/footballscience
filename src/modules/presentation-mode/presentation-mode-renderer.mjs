@@ -1,3 +1,4 @@
+import { renderLineupBoard } from "./presentation-lineup-board.mjs";
 import { renderObjectTools } from "./presentation-object-tools.mjs";
 import {
   periodizationPhaseLibrary,
@@ -985,7 +986,7 @@ export function createPresentationModeRenderer(options = {}) {
         ${boxes
           .map((box) => {
             const field = `textbox.${box.id}.text`;
-            const kind = ["symbol", "image", "video"].includes(box.kind) ? box.kind : "text";
+            const kind = ["symbol", "image", "video", "lineup"].includes(box.kind) ? box.kind : "text";
             const mediaSrc = String(box.mediaSrc || "").trim();
             const mediaName = String(box.mediaName || box.text || (kind === "video" ? "Local video" : "Local image")).trim();
             const mediaStatus = String(box.mediaStatus || "").trim();
@@ -1004,7 +1005,7 @@ export function createPresentationModeRenderer(options = {}) {
               isFixedObject
                 ? `data-presentation-drag-text-box="${escapeHtml(box.id)}" data-presentation-slide-id="${escapeHtml(slide.id)}"`
                 : "";
-            const textBox =
+            const textBox = kind === "lineup" ? renderLineupBoard(box, slide, model) :
               (kind === "image" || kind === "video") && mediaSrc
                 ? `
                   <figure
@@ -1062,14 +1063,14 @@ export function createPresentationModeRenderer(options = {}) {
                   );
             return `
               <div
-                class="presentation-free-text-box-shell is-${escapeHtml(kind)}${kind === "image" && mediaSrc ? " has-image" : ""}${isActive ? " is-selected" : ""}"
+                class="presentation-free-text-box-shell is-${escapeHtml(kind)}${box.playerId ? " is-player-portrait" : ""}${kind === "image" && mediaSrc ? " has-image" : ""}${isActive ? " is-selected" : ""}"
                 data-presentation-motion-field="${escapeHtml(field)}"
                 data-presentation-text-box-shell
                 data-presentation-text-box-id="${escapeHtml(box.id)}"
                 data-presentation-text-box-kind="${escapeHtml(kind)}"
                 data-presentation-slide-id="${escapeHtml(slide.id)}"
                 tabindex="${model.presenting ? "-1" : "0"}"
-                aria-label="${escapeHtml(kind === "symbol" ? "Symbol object" : kind === "image" ? "Image placeholder object" : kind === "video" ? "Video placeholder object" : "Text box object")}"
+                aria-label="${escapeHtml(kind === "lineup" ? "Lineup object" : kind === "symbol" ? "Symbol object" : kind === "image" ? "Image placeholder object" : kind === "video" ? "Video placeholder object" : "Text box object")}"
                 style="left: ${escapeHtml(box.x)}%; top: ${escapeHtml(box.y)}%; width: ${escapeHtml(box.width)}%; height: ${escapeHtml(box.height || (kind === "symbol" ? 14 : kind === "image" || kind === "video" ? 24 : 12))}%;"
               >
                 ${textBox}

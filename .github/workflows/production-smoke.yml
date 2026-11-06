@@ -44,6 +44,8 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 3
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -57,4 +59,15 @@ jobs:
           BACKUP_VERIFY_TARGET: production
           BACKUP_EXPECTED_BUILD_ID: ${{ inputs.expected_backup_build_id }}
         run: node scripts/verify-fresh-app-state-backup.mjs
-      - run: npm run release:monitor
+      # Diagnostic branch only. Does not deploy or certify a release.
+      - name: Compare peer DM with and without cache acknowledgement change
+        shell: bash
+        run: |
+          node scripts/verify-live-qa-env.mjs
+          set +e
+          CHAT_CACHE_DIAGNOSTIC=after npx playwright test --config=qa/live.playwright.config.mjs qa/production.live.spec.mjs --grep "production peer accounts prove" --workers=1
+          after_status=$?
+          CHAT_CACHE_DIAGNOSTIC=before npx playwright test --config=qa/live.playwright.config.mjs qa/production.live.spec.mjs --grep "production peer accounts prove" --workers=1
+          before_status=$?
+          echo "Diagnostic result: after=$after_status before=$before_status"
+          if [ "$after_status" -ne 0 ] || [ "$before_status" -ne 0 ]; then exit 1; fi

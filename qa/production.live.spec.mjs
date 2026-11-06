@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { installChatCacheDiagnostic, logChatCacheDiagnostic } from "./helpers/chat-cache-diagnostic.mjs";
 import { createLiveReadinessProbe } from "./helpers/live-readiness-probe.mjs";
 import { expect, test } from "@playwright/test";
 import { openScoutingDatabaseTab, startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
@@ -23,7 +24,8 @@ const canCreateDynamicPeerLiveAccount = expectsAdminCredentials;
 test.skip(!hasLiveCredentials, "Set LIVE_QA_USERNAME and LIVE_QA_PASSWORD for production-safe live smoke.");
 let readinessTestStartedAt = 0;
 let readinessAttempt = 0;
-test.beforeEach(() => {
+test.beforeEach(async ({ context }) => {
+  await installChatCacheDiagnostic(context);
   readinessTestStartedAt = performance.now();
   readinessAttempt = 0;
 });
@@ -441,9 +443,12 @@ async function openTeamChat(page) {
 async function openLiveChatThread(page, threadId) {
   const threadButton = page.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
   await expect(threadButton).toBeVisible({ timeout: 45_000 });
+  await logChatCacheDiagnostic(page, threadId, "before-click");
   await threadButton.click();
+  await logChatCacheDiagnostic(page, threadId, "after-click");
   const activeThread = page.locator(`[data-dashboard-chat-list][data-dashboard-chat-active-thread="${threadId}"]`);
-  await expect(activeThread).toBeVisible({ timeout: 20_000 });
+  try { await expect(activeThread).toBeVisible({ timeout: 20_000 }); }
+  finally { await logChatCacheDiagnostic(page, threadId, "after-assertion"); }
   return activeThread;
 }
 
@@ -763,6 +768,7 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
     baseURL: getLiveBaseUrl(),
     storageState: { cookies: [], origins: [] },
   });
+  await installChatCacheDiagnostic(peerContext);
   const peerPage = await peerContext.newPage();
   await signIn(peerPage, peerAccount.credentials);
   const peerToken = await getLiveAccessToken(peerPage);

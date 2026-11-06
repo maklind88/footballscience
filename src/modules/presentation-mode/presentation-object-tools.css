@@ -16,3 +16,7 @@
 .presentation-keynote-icon.is-players::after { content: ""; position: absolute; bottom: 0; width: 1rem; height: .6rem; border: 1.5px solid currentColor; border-radius: .6rem .6rem .15rem .15rem; }
 .presentation-keynote-icon.is-animate::before { content: ""; width: .85rem; height: .9rem; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); }
 .presentation-info-media-panel.is-image.is-selected { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+.presentation-object-actions { position: absolute; right: 1rem; bottom: .65rem; z-index: 10; }
+.presentation-object-actions button { border: 1px solid #fca5a5; border-radius: .5rem; background: #321d25; color: #fff1f2; padding: .55rem .85rem; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px #0003; }
+.presentation-object-actions button:hover, .presentation-object-actions button:focus-visible { background: #7f1d1d; outline: 2px solid #fca5a5; outline-offset: 2px; }

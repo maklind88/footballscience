@@ -1,3 +1,4 @@
+import { selectedDeletionTarget, syncObjectDeleteControl } from "./presentation-object-deletion.mjs";
 import { normalizeMotion, createMotionPlayback } from "./presentation-motion.mjs";
 import { presentationPlayers, createObjectTools } from "./presentation-object-tools.mjs";
 import { imageBounds, resizeImageBounds } from "./presentation-image-bounds.mjs";
@@ -2827,7 +2828,28 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function focusActiveTextElement() {
-    getActiveTextElement()?.focus?.({ preventScroll: true });
+    const target = state.activeTextTarget;
+    const shell = [...(root?.querySelectorAll("[data-presentation-text-box-shell]") || [])].find(element => element.dataset.presentationTextBoxId === target?.textBoxId);
+    (getActiveTextElement() || shell)?.focus?.({ preventScroll: true });
+  }
+
+  function deleteSelectedObject() {
+    const target = selectedDeletionTarget(buildModel());
+    if (!target) return false;
+    objectTools.cancel(); motionPlayback.stop();
+    textEditing.leave();
+    if (target.kind === "textBox") deleteTextBox(target.slideId, target.id);
+    else if (target.kind === "shape") deleteShape(target.slideId, target.id);
+    else {
+      // Keep the local attachment available for Undo and for other slides using it.
+      writeDeckForDate(state.dateValue, deck => ({ ...deck,
+        infoSlides: deck.infoSlides.map(slide => slide.id === target.slideId ? { ...slide, mediaId: "", mediaName: "", mediaMimeType: "", mediaSize: 0 } : slide),
+        textFieldStyles: { ...deck.textFieldStyles, [target.slideId]: Object.fromEntries(Object.entries(deck.textFieldStyles?.[target.slideId] || {}).filter(([field]) => field !== "info.media")) },
+      }));
+      state.activeTextTarget = null;
+      render();
+    }
+    return true;
   }
 
   function syncActiveCanvasSelection() {
@@ -2858,6 +2880,7 @@ export function createPresentationModeController(dependencies = {}) {
     if (!root) return;
     objectTools.sync();
     syncActiveCanvasSelection();
+    syncObjectDeleteControl(root, buildModel());
     const shell = root.querySelector("[data-presentation-mode-shell]");
     const toolbar = root.querySelector("[data-presentation-text-toolbar]");
     if (!shell || !toolbar || state.presenting) {
@@ -2925,6 +2948,7 @@ export function createPresentationModeController(dependencies = {}) {
     const textElement = element?.closest?.("[data-presentation-text-field]");
     const textBoxShell = textElement ? null : element?.closest?.("[data-presentation-text-box-shell]");
     const infoMedia = element?.closest?.(".presentation-info-media-panel.is-image");
+    if (infoMedia && !state.presenting && isEditableTarget(documentRef.activeElement)) documentRef.activeElement?.blur?.();
     const textBoxId = String(textBoxShell?.dataset.presentationTextBoxId || "").trim();
     const slideId = String(textElement?.dataset.presentationSlideId || textBoxShell?.dataset.presentationSlideId || infoMedia?.dataset.presentationInfoMediaPanel || "").trim();
     const field = String(textElement?.dataset.presentationTextField || (textBoxId ? getTextBoxField(textBoxId) : infoMedia ? "info.media" : "")).trim();
@@ -4385,6 +4409,8 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     event.preventDefault?.();
+    textEditing.leave();
+    shell.focus?.({ preventScroll: true });
     const position = box.kind === "image" ? imageBounds(box) : clampTextBoxPosition(box.x, box.y, box.width, box.height);
     state.dragTextBox = {
       kind: box.kind,
@@ -4643,6 +4669,8 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     event.preventDefault?.();
+    textEditing.leave();
+    documentRef.activeElement?.blur?.();
     const position = clampShapePosition(shape.x, shape.y, shape.width, shape.height);
     state.dragShape = {
       shapeElement,
@@ -4917,6 +4945,7 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    if (event.target.closest("[data-presentation-delete-object]")) { deleteSelectedObject(); return; }
     if (objectTools.click(event)) return;
     if (state.presenting && event.target.closest('.presentation-slide') && !event.target.closest('button,video,a,input:not([readonly]),select')) {
       if (!motionPlayback.step()) goToSlide(state.slideIndex + 1);
@@ -5090,7 +5119,7 @@ export function createPresentationModeController(dependencies = {}) {
       setActiveShapeTargetFromElement(shapeElement);
       return;
     }
-    if (event.target.closest("[data-presentation-text-field], .presentation-info-media-panel.is-image")) {
+    if (event.target.closest("[data-presentation-text-field], [data-presentation-text-box-shell], .presentation-info-media-panel.is-image")) {
       setActiveTextTargetFromElement(event.target);
       return;
     }
@@ -5110,7 +5139,7 @@ export function createPresentationModeController(dependencies = {}) {
     }
     if (
       event.target.closest?.(
-        "[data-presentation-context-menu], .presentation-tool-popover-panel, .presentation-insert-popover, .presentation-new-slide-popover, .presentation-theme-popover"
+        "[data-presentation-object-actions], [data-presentation-context-menu], .presentation-tool-popover-panel, .presentation-insert-popover, .presentation-new-slide-popover, .presentation-theme-popover"
       )
     ) {
       return;
@@ -5169,7 +5198,7 @@ export function createPresentationModeController(dependencies = {}) {
       beginShapeDrag(event, shapeElement);
       return;
     }
-    if (event.target.closest("[data-presentation-text-field], .presentation-info-media-panel.is-image")) {
+    if (event.target.closest("[data-presentation-text-field], [data-presentation-text-box-shell], .presentation-info-media-panel.is-image")) {
       setActiveTextTargetFromElement(event.target);
       return;
     }
@@ -5416,15 +5445,17 @@ export function createPresentationModeController(dependencies = {}) {
       event.target.blur?.();
       return;
     }
-    if ((event.key === "Delete" || event.key === "Backspace") && !isEditableTarget(event.target)) {
-      if (state.activeShapeTarget?.slideId && state.activeShapeTarget?.shapeId) {
+    if ((event.key === "Delete" || event.key === "Backspace") && !isEditableTarget(event.target) && deleteSelectedObject()) {
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "Escape" && !state.presenting && isEditableTarget(event.target)) {
+      const shell = event.target.closest("[data-presentation-text-box-shell]");
+      if (shell) {
         event.preventDefault();
-        deleteShape(state.activeShapeTarget.slideId, state.activeShapeTarget.shapeId);
-        return;
-      }
-      if (state.activeTextTarget?.slideId && state.activeTextTarget?.textBoxId) {
-        event.preventDefault();
-        deleteTextBox(state.activeTextTarget.slideId, state.activeTextTarget.textBoxId);
+        textEditing.leave();
+        shell.focus({ preventScroll: true });
+        setActiveTextTargetFromElement(shell);
         return;
       }
     }

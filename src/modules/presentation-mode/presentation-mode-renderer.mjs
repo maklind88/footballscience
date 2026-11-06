@@ -497,7 +497,7 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderEditableTextArea(model = {}, slide = {}, field = "", fallback = "", attributes = "", options = {}) {
     const value = getSlideText(slide, field, fallback).replace(/\r\n?/g, "\n").trim();
-    if (!value) {
+    if (!value && !options.keepEmpty) {
       return "";
     }
     const editableAttributes = getEditableAttributes(model, slide, field, { ...options, multiline: true });
@@ -1055,6 +1055,7 @@ export function createPresentationModeRenderer(options = {}) {
                     `class="presentation-free-text-box" data-presentation-text-box-id="${escapeHtml(box.id)}" ${objectDragAttributes}`,
                     {
                       label: "Text box",
+                      keepEmpty: !model.presenting,
                       objectFrame: false,
                       style: fallbackStyle,
                     }

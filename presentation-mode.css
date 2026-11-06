@@ -1,3 +1,4 @@
+@import url("./src/modules/presentation-mode/presentation-object-tools.css");
 @import url("./src/modules/presentation-mode/presentation-text-editing.css");
 
 .dashboard-presentation-band {
@@ -4795,7 +4796,7 @@ body.is-presentation-info-media-resizing {
   font-size: clamp(.9rem, 1.1cqw, 2.2rem);
 }
 
-@media (min-width: 1181px) and (max-width: 1420px) {
+@media (min-width: 1261px) and (max-width: 1600px) {
   .presentation-control-edit-slot .presentation-text-toolbar {
     gap: 0;
     padding-inline: .12rem;
@@ -4822,7 +4823,14 @@ body.is-presentation-info-media-resizing {
   }
 }
 
-@media (max-width: 1180px) {
+@media (min-width: 1261px) and (max-width: 1320px) {
+  .presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool {
+    width: 1.75rem;
+    min-width: 1.75rem;
+  }
+}
+
+@media (max-width: 1260px) {
   .presentation-control-bar {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
@@ -4864,8 +4872,8 @@ body.is-presentation-info-media-resizing {
     max-width: 100%;
     transform: none;
     justify-content: center;
-    overflow-x: auto;
-    overflow-y: visible;
+    overflow: visible;
+    flex-wrap: wrap;
   }
 }
 

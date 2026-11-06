@@ -1,3 +1,5 @@
+import { normalizeMotion, createMotionPlayback } from "./presentation-motion.mjs";
+import { presentationPlayers, createObjectTools } from "./presentation-object-tools.mjs";
 import { imageBounds, resizeImageBounds } from "./presentation-image-bounds.mjs";
 import {
   getPresentationThemePreset,
@@ -422,6 +424,7 @@ function normalizeTextFieldStyles(textFieldStyles = {}) {
               .map(([field, style]) => {
                 const textStyle = style && typeof style === "object" && !Array.isArray(style) ? style : {};
                 const normalized = {
+                  motion: normalizeMotion(textStyle.motion),
                   fontSize: textStyle.fontSize ? normalizeFontSize(textStyle.fontSize) : "",
                   textColor: textStyle.textColor ? normalizeHexColor(textStyle.textColor, "") : "",
                   offsetX: normalizeTextFieldOffset(textStyle.offsetX),
@@ -429,7 +432,7 @@ function normalizeTextFieldStyles(textFieldStyles = {}) {
                   width: normalizeTextFieldWidth(textStyle.width),
                   height: normalizeTextFieldHeight(textStyle.height),
                 };
-                return [String(field || "").trim(), Object.fromEntries(Object.entries(normalized).filter(([, value]) => value !== "" && value !== 0))];
+                return [String(field || "").trim(), Object.fromEntries(Object.entries(normalized).filter(([, value]) => value !== "" && value !== 0 && (!Array.isArray(value) || value.length)))];
               })
               .filter(([field, style]) => field && Object.keys(style).length)
           ),
@@ -473,6 +476,7 @@ function normalizeTextBoxes(textBoxes = {}) {
               width,
               height,
               ...(kind === "image" ? imageBounds(safeBox) : {}),
+              ...(kind === "image" && safeBox.playerId ? { playerId: String(safeBox.playerId).slice(0, 160) } : {}),
               text: String(safeBox.text ?? "Text box").slice(0, maxTextOverrideLength),
               fontSize: normalizeFontSize(safeBox.fontSize || "36"),
               textColor: normalizeHexColor(safeBox.textColor, "#f8fafc"),
@@ -979,6 +983,23 @@ export function createPresentationModeController(dependencies = {}) {
   const localMediaAttachments = new Map();
   const localMediaHydrationIds = new Set();
   let root = null;
+  const motionPlayback = createMotionPlayback(win);
+  const objectTools = createObjectTools({
+    getRoot: () => root, getModel: buildModel, getTarget: () => state.activeTextTarget,
+    playback: motionPlayback, render,
+    saveStyles: (styles) => {
+      motionPlayback.stop();
+      textEditing.leave();
+      const slide = buildModel().slides[state.slideIndex];
+      if (!slide || slide.readOnly || state.presenting) return;
+      writeDeckForDate(state.dateValue, deck => ({ ...deck, textFieldStyles: { ...deck.textFieldStyles, [slide.id]: styles } }));
+      render();
+    },
+    insertPlayer: (id) => {
+      const player = presentationPlayers(getPlayerProfilesState()).find(p => p.id === id);
+      if (player?.photoUrl) addTextBox({ kind: "image", playerId: player.id, text: player.name, width: 16, height: 28 });
+    },
+  });
   let renderedModel = null;
   let pendingDragRender = false;
   let stageResizeObserver = null;
@@ -1677,6 +1698,10 @@ export function createPresentationModeController(dependencies = {}) {
       if (!localMediaKinds.has(String(box.kind || "").trim())) {
         return box;
       }
+      if (box.playerId) {
+        const player = presentationPlayers(getPlayerProfilesState()).find(p => p.id === box.playerId);
+        return { ...box, mediaSrc: player?.photoUrl || "", mediaName: player?.name || box.text, mediaStatus: player?.photoUrl ? "ready" : "missing" };
+      }
       const attachment = localMediaAttachments.get(String(box.mediaId || "").trim());
       if (!attachment?.url) {
         return {
@@ -1869,6 +1894,7 @@ export function createPresentationModeController(dependencies = {}) {
       blockCount: blocks.length,
       blocks,
       brand,
+      presentationPlayers: presentationPlayers(getPlayerProfilesState()),
       canViewLeaderboard: mayViewLeaderboard(),
       dateLabel: formatDateLabel(dateValue),
       dateValue,
@@ -2136,6 +2162,7 @@ export function createPresentationModeController(dependencies = {}) {
     observeStageMetrics();
     schedulePresentingTextFit();
     scheduleLeaderboardRefresh(model);
+    motionPlayback.mount(currentRoot, model);
   }
 
   let activeSetPieceRouteIds = new Set();
@@ -2347,6 +2374,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function open(dateValue = "", meetingType = "team", options = {}) {
+    objectTools.cancel(); motionPlayback.stop();
     textEditing.leave();
     setPiecePlayback.stop({ resetFrame: false });
     fullscreenIntent = false;
@@ -2385,6 +2413,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function close() {
+    objectTools.cancel(); motionPlayback.stop();
     textEditing.leave();
     exercisePlayback.reset();
     setPiecePlayback.stop({ resetFrame: false });
@@ -2431,6 +2460,8 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function goToSlide(index) {
+    if (state.presenting && (Number(index) < 0 || Number(index) >= buildModel().slides.length)) return;
+    objectTools.cancel(); motionPlayback.stop();
     textEditing.leave();
     setPiecePlayback.stop({ resetFrame: false });
     const slideCount = buildModel().slides.length;
@@ -2815,6 +2846,9 @@ export function createPresentationModeController(dependencies = {}) {
         textBoxShell.dataset.presentationTextBoxId === state.activeTextTarget.textBoxId;
       textBoxShell.classList.toggle("is-selected", isActive);
     });
+    root.querySelectorAll(".presentation-info-media-panel.is-image").forEach(element => {
+      element.classList.toggle("is-selected", !state.presenting && state.activeTextTarget?.field === "info.media" && element.dataset.presentationInfoMediaPanel === state.activeTextTarget.slideId);
+    });
     if (!state.presenting && activeTextElement) {
       activeTextElement.setAttribute("data-presentation-active-text", "true");
     }
@@ -2822,6 +2856,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function syncTextToolbar() {
     if (!root) return;
+    objectTools.sync();
     syncActiveCanvasSelection();
     const shell = root.querySelector("[data-presentation-mode-shell]");
     const toolbar = root.querySelector("[data-presentation-text-toolbar]");
@@ -2889,9 +2924,10 @@ export function createPresentationModeController(dependencies = {}) {
   function setActiveTextTargetFromElement(element) {
     const textElement = element?.closest?.("[data-presentation-text-field]");
     const textBoxShell = textElement ? null : element?.closest?.("[data-presentation-text-box-shell]");
+    const infoMedia = element?.closest?.(".presentation-info-media-panel.is-image");
     const textBoxId = String(textBoxShell?.dataset.presentationTextBoxId || "").trim();
-    const slideId = String(textElement?.dataset.presentationSlideId || textBoxShell?.dataset.presentationSlideId || "").trim();
-    const field = String(textElement?.dataset.presentationTextField || (textBoxId ? getTextBoxField(textBoxId) : "")).trim();
+    const slideId = String(textElement?.dataset.presentationSlideId || textBoxShell?.dataset.presentationSlideId || infoMedia?.dataset.presentationInfoMediaPanel || "").trim();
+    const field = String(textElement?.dataset.presentationTextField || (textBoxId ? getTextBoxField(textBoxId) : infoMedia ? "info.media" : "")).trim();
     if (!slideId || !field || state.presenting) {
       return;
     }
@@ -2963,6 +2999,7 @@ export function createPresentationModeController(dependencies = {}) {
             fontSize,
             textColor,
             ...mediaFields,
+            ...(options.playerId ? { playerId: options.playerId } : {}),
           },
         ],
       }),
@@ -3828,8 +3865,16 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function duplicateInfoSlide(slideId) {
-    const sourceSlide = getDeckForDate().infoSlides.find((slide) => slide.id === slideId);
-    addInfoSlide(sourceSlide || null);
+    textEditing.leave();
+    const deck = getDeckForDate();
+    const copied = copyPresentationSlideToDeck({
+      sourceDeck: deck, targetDeck: deck, sourceSlideId: slideId,
+      targetDateValue: state.dateValue, targetSlideOrder: buildModel().slides.map(slide => slide.id),
+    });
+    if (!copied.copiedSlideId) return;
+    copied.deck.infoSlides.find(slide => slide.id === copied.copiedSlideId).title += " Copy";
+    writeDeckForDate(state.dateValue, () => copied.deck);
+    goToSlide(buildModel().slides.findIndex(slide => slide.id === copied.copiedSlideId));
   }
 
   function deleteInfoSlide(slideId) {
@@ -3933,6 +3978,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function startFullscreen() {
+    objectTools.cancel(); motionPlayback.stop();
     textEditing.leave();
     const currentRoot = ensureRoot();
     fullscreenIntent = true;
@@ -4871,6 +4917,11 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    if (objectTools.click(event)) return;
+    if (state.presenting && event.target.closest('.presentation-slide') && !event.target.closest('button,video,a,input:not([readonly]),select')) {
+      if (!motionPlayback.step()) goToSlide(state.slideIndex + 1);
+      return;
+    }
     const setPiecePhaseButton = event.target.closest("[data-presentation-set-piece-phase]");
     if (setPiecePhaseButton) {
       selectSetPiecePhase(setPiecePhaseButton.dataset.presentationSetPiecePhase);
@@ -4899,11 +4950,11 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     if (event.target.closest("[data-presentation-next]")) {
-      goToSlide(state.slideIndex + 1);
+      if (!state.presenting || !motionPlayback.step()) goToSlide(state.slideIndex + 1);
       return;
     }
     if (event.target.closest("[data-presentation-prev]")) {
-      goToSlide(state.slideIndex - 1);
+      if (!state.presenting || !motionPlayback.step(-1)) goToSlide(state.slideIndex - 1);
       return;
     }
     if (event.target.closest("[data-presentation-close]")) {
@@ -5039,7 +5090,7 @@ export function createPresentationModeController(dependencies = {}) {
       setActiveShapeTargetFromElement(shapeElement);
       return;
     }
-    if (event.target.closest("[data-presentation-text-field]")) {
+    if (event.target.closest("[data-presentation-text-field], .presentation-info-media-panel.is-image")) {
       setActiveTextTargetFromElement(event.target);
       return;
     }
@@ -5064,6 +5115,7 @@ export function createPresentationModeController(dependencies = {}) {
     ) {
       return;
     }
+    if (objectTools.down(event)) return;
     const infoMediaResizeHandle = event.target.closest("[data-presentation-resize-info-media]");
     if (infoMediaResizeHandle) {
       beginInfoMediaResize(event, infoMediaResizeHandle);
@@ -5117,7 +5169,7 @@ export function createPresentationModeController(dependencies = {}) {
       beginShapeDrag(event, shapeElement);
       return;
     }
-    if (event.target.closest("[data-presentation-text-field]")) {
+    if (event.target.closest("[data-presentation-text-field], .presentation-info-media-panel.is-image")) {
       setActiveTextTargetFromElement(event.target);
       return;
     }
@@ -5134,6 +5186,7 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    objectTools.input(event);
     const setPieceScrubber = event.target.closest("[data-presentation-set-piece-scrubber]");
     if (setPieceScrubber) {
       setPiecePlayback.seek(setPieceScrubber.value);
@@ -5375,7 +5428,8 @@ export function createPresentationModeController(dependencies = {}) {
         return;
       }
     }
-    if (isEditableTarget(event.target)) {
+    if (event.key === "Escape" && objectTools.escape()) { event.preventDefault(); return; }
+    if (isEditableTarget(event.target) && !state.presenting) {
       return;
     }
     if (event.key === " " && getActiveSetPieceContext()) {
@@ -5408,12 +5462,12 @@ export function createPresentationModeController(dependencies = {}) {
     }
     if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
       event.preventDefault();
-      goToSlide(state.slideIndex + 1);
+      if (!state.presenting || !motionPlayback.step()) goToSlide(state.slideIndex + 1);
       return;
     }
     if (event.key === "ArrowLeft" || event.key === "PageUp") {
       event.preventDefault();
-      goToSlide(state.slideIndex - 1);
+      if (!state.presenting || !motionPlayback.step(-1)) goToSlide(state.slideIndex - 1);
       return;
     }
     if (event.key === "Home") {
@@ -5586,6 +5640,9 @@ export function createPresentationModeController(dependencies = {}) {
     }
     state.bound = true;
     documentRef.addEventListener("pointerdown", handleTextActivation, true);
+    documentRef.addEventListener("pointermove", event => objectTools.move(event), true);
+    documentRef.addEventListener("pointerup", event => objectTools.up(event), true);
+    documentRef.addEventListener("pointercancel", event => objectTools.up(event), true);
     documentRef.addEventListener("pointermove", updateTextFieldDrag, true);
     documentRef.addEventListener("pointermove", updateTextFieldResize, true);
     documentRef.addEventListener("pointermove", updateInfoMediaResize, true);

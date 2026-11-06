@@ -1,3 +1,4 @@
+import { renderObjectTools } from "./presentation-object-tools.mjs";
 import {
   periodizationPhaseLibrary,
 } from "../periodization/periodization-state.mjs";
@@ -400,9 +401,10 @@ export function createPresentationModeRenderer(options = {}) {
 
   function getEditableAttributes(model = {}, slide = {}, field = "", options = {}) {
     if (model.presenting || slide.readOnly || !slide.id || !field) {
-      return "";
+      return slide.id && field ? `data-presentation-motion-field="${escapeHtml(field)}"` : "";
     }
     return [
+      `data-presentation-motion-field="${escapeHtml(field)}"`,
       `data-presentation-slide-id="${escapeHtml(slide.id)}"`,
       `data-presentation-text-field="${escapeHtml(field)}"`,
       getActiveTextAttribute(model, slide, field),
@@ -826,6 +828,7 @@ export function createPresentationModeRenderer(options = {}) {
         ${renderToolbarButton("Text", "text", "data-presentation-add-text-box title=\"Add text box\" aria-label=\"Add text box\"", { iconLabel: "A" })}
         ${renderShapeMenu(model)}
         ${renderSymbolMenu()}
+        ${renderObjectTools(model, renderToolPopover)}
         ${renderColorMenu(style)}
         ${renderStyleMenu(style)}
         <span class="presentation-toolbar-separator" aria-hidden="true"></span>
@@ -986,7 +989,8 @@ export function createPresentationModeRenderer(options = {}) {
             const mediaSrc = String(box.mediaSrc || "").trim();
             const mediaName = String(box.mediaName || box.text || (kind === "video" ? "Local video" : "Local image")).trim();
             const mediaStatus = String(box.mediaStatus || "").trim();
-            const hasMediaReference = Boolean(String(box.mediaId || "").trim());
+            const hasMediaReference = Boolean(String(box.mediaId || box.playerId || "").trim());
+            const missingLabel = box.playerId ? "Player photo unavailable" : `${kind === "video" ? "Video" : "Image"} file missing`;
             const isMediaLoading = hasMediaReference && !mediaSrc && mediaStatus === "loading";
             const isMediaMissing = hasMediaReference && !mediaSrc && !isMediaLoading;
             const isActive =
@@ -1023,14 +1027,14 @@ export function createPresentationModeRenderer(options = {}) {
                       class="presentation-local-media-box is-${escapeHtml(kind)} ${isMediaMissing ? "is-missing" : "is-loading"}"
                       data-presentation-drag-text-box="${escapeHtml(box.id)}"
                       data-presentation-slide-id="${escapeHtml(slide.id)}"
-                      aria-label="${escapeHtml(isMediaMissing ? `${kind === "video" ? "Video" : "Image"} file missing` : `Loading local ${kind}`)}"
+                      aria-label="${escapeHtml(isMediaMissing ? missingLabel : `Loading local ${kind}`)}"
                     >
                       <span class="presentation-local-media-missing">
-                        <strong>${escapeHtml(isMediaMissing ? `${kind === "video" ? "Video" : "Image"} file missing` : `Loading local ${kind}`)}</strong>
-                        ${isMediaMissing && !model.presenting ? `<small>Choose the file again to reconnect it.</small>` : ""}
+                        <strong>${escapeHtml(isMediaMissing ? missingLabel : `Loading local ${kind}`)}</strong>
+                        ${isMediaMissing && !model.presenting ? `<small>${box.playerId ? "Update the photo in the player profile." : "Choose the file again to reconnect it."}</small>` : ""}
                       </span>
                       ${
-                        isMediaMissing && !model.presenting
+                        isMediaMissing && !model.presenting && !box.playerId
                           ? `<button
                               type="button"
                               class="presentation-local-media-relink"
@@ -1058,6 +1062,7 @@ export function createPresentationModeRenderer(options = {}) {
             return `
               <div
                 class="presentation-free-text-box-shell is-${escapeHtml(kind)}${kind === "image" && mediaSrc ? " has-image" : ""}${isActive ? " is-selected" : ""}"
+                data-presentation-motion-field="${escapeHtml(field)}"
                 data-presentation-text-box-shell
                 data-presentation-text-box-id="${escapeHtml(box.id)}"
                 data-presentation-text-box-kind="${escapeHtml(kind)}"
@@ -1236,6 +1241,7 @@ export function createPresentationModeRenderer(options = {}) {
       <figure
         class="presentation-info-media-panel is-${escapeHtml(mediaKind)}${hasMedia ? " has-media" : " is-empty"}${isLoading ? " is-loading" : ""}${isMissing ? " is-missing" : ""}"
         data-presentation-info-media-panel="${escapeHtml(infoSlide.id)}"
+        ${mediaKind === "image" ? 'data-presentation-motion-field="info.media"' : ""}
         style="--presentation-info-media-width: ${mediaWidth}%; --presentation-info-media-height: ${mediaHeight}%; transform: translate3d(calc(var(--presentation-slide-width, 1px) * ${mediaOffsetX / 100}), calc(var(--presentation-slide-height, 1px) * ${mediaOffsetY / 100}), 0);"
       >
         <div class="presentation-info-media-stage">
@@ -1365,6 +1371,7 @@ export function createPresentationModeRenderer(options = {}) {
             data-presentation-info-field="title"
             data-presentation-info-id="${escapeHtml(infoSlide.id)}"
             data-presentation-slide-id="${escapeHtml(frameSlide.id)}"
+            data-presentation-motion-field="info.title"
             data-presentation-text-field="info.title"
             ${getActiveTextAttribute(model, frameSlide, "info.title")}
             aria-label="Info slide title"
@@ -1378,6 +1385,7 @@ export function createPresentationModeRenderer(options = {}) {
             data-presentation-info-field="body"
             data-presentation-info-id="${escapeHtml(infoSlide.id)}"
             data-presentation-slide-id="${escapeHtml(frameSlide.id)}"
+            data-presentation-motion-field="info.body"
             data-presentation-text-field="info.body"
             data-presentation-text-multiline="true"
             ${getActiveTextAttribute(model, frameSlide, "info.body")}

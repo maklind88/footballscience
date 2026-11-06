@@ -1,0 +1,18 @@
+.presentation-player-picker { width: min(22rem, 80vw); display: grid; gap: .6rem; }
+.presentation-player-picker > div { display: grid; grid-template-columns: repeat(3, 1fr); max-height: 22rem; overflow: auto; gap: .45rem; }
+.presentation-player-picker button { display: grid; justify-items: center; gap: .3rem; padding: .4rem; white-space: normal; }
+.presentation-player-picker button[hidden] { display: none; }
+.presentation-player-picker img { width: 3.5rem; height: 4rem; object-fit: contain; }
+.presentation-motion-panel { width: min(22rem, 80vw); max-height: 65vh; overflow: auto; display: grid; gap: .6rem; }
+.presentation-motion-panel p { margin: 0; white-space: normal; }
+.presentation-motion-effects { display: flex; flex-wrap: wrap; gap: .4rem; }
+.presentation-motion-panel ol { list-style: none; padding: 0; margin: 0; display: grid; gap: .3rem; }
+.presentation-motion-panel li { display: flex; align-items: center; gap: .3rem; }
+.presentation-motion-panel li span { flex: 1; white-space: normal; font-size: .8rem; }
+.presentation-motion-panel button { min-height: 2rem; }
+.presentation-motion-destination-hint { position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%); z-index: 20; padding: .6rem 1rem; border-radius: .5rem; background: #17251e; color: white; pointer-events: none; }
+
+.presentation-keynote-icon.is-players::before { content: ""; position: absolute; top: 0; width: .45rem; height: .45rem; border: 1.5px solid currentColor; border-radius: 50%; }
+.presentation-keynote-icon.is-players::after { content: ""; position: absolute; bottom: 0; width: 1rem; height: .6rem; border: 1.5px solid currentColor; border-radius: .6rem .6rem .15rem .15rem; }
+.presentation-keynote-icon.is-animate::before { content: ""; width: .85rem; height: .9rem; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.presentation-info-media-panel.is-image.is-selected { outline: 2px solid #38bdf8; outline-offset: 2px; }

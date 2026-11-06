@@ -1409,8 +1409,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation).not.toContainText("Coaching Points");
   await expect(presentation).not.toContainText("In this block");
   await expect(presentation).toContainText("Not in this block");
-  await expect(presentation).not.toContainText("Madison White");
-  await expect(presentation).toContainText("Kailen Sheridan");
+  await expect(presentation.locator(".presentation-slide-block")).not.toContainText("Madison White");
+  await expect(presentation.locator(".presentation-slide-block")).toContainText("Kailen Sheridan");
   await expect(presentation).not.toContainText("Lead Coach");
   const blockVisualLayout = await presentation.evaluate(() => {
     const visual = document.querySelector(".presentation-block-visual");

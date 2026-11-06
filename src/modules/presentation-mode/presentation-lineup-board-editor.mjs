@@ -1,4 +1,4 @@
-import { lineupBoardSlots, normalizeLineupBoard, assignLineupBoardPlayer, escapeLineupHtml as esc, lineupInitials } from './presentation-lineup-board.mjs';
+import { lineupBoardColors, lineupBoardColor, lineupBoardSlots, normalizeLineupBoard, assignLineupBoardPlayer, escapeLineupHtml as esc, lineupInitials } from './presentation-lineup-board.mjs';
 
 export function createLineupBoardEditor({ getRoot, getModel, updateBoxes, select, render, maxBoxes = 12 }) {
   let target = null;
@@ -33,7 +33,7 @@ export function createLineupBoardEditor({ getRoot, getModel, updateBoxes, select
     dialog.setAttribute('aria-label', 'Choose lineup player');
     const assignments = normalizeLineupBoard(box.lineup);
     const slot = lineupBoardSlots.find(s => s.id === target.slot);
-    dialog.innerHTML = `<header><div><small>${esc(box.text)} · ${Object.keys(assignments).length}/11</small><h2>${esc(slot.label)} <span>Choose player</span></h2></div><button type="button" data-lineup-done aria-label="Close player selection">×</button></header>
+    dialog.innerHTML = `<header><div><small>${lineupBoardColor(box)} · ${Object.keys(assignments).length}/11</small><h2>${esc(slot.label)} <span>Choose player</span></h2></div><button type="button" data-lineup-done aria-label="Close player selection">×</button></header>
       <p>Choose a player. The next empty position opens automatically.</p>
       <p role="alert" data-lineup-save-status></p><input type="search" value="${esc(query)}" data-lineup-search placeholder="Search players" aria-label="Search lineup players">
       <div class="presentation-lineup-picker-list">${(model.presentationPlayers || []).map(p => {
@@ -67,7 +67,7 @@ export function createLineupBoardEditor({ getRoot, getModel, updateBoxes, select
     const stamp = globalThis.crypto?.randomUUID?.() || String(Date.now());
     const existing = boxes.filter(b => b.kind === 'lineup').length;
     const additions = Array.from({length:count}, (_, i) => ({
-      id: `lineup-${stamp}-${i}`, kind: 'lineup', text: `Team ${String.fromCharCode(65 + (existing + i) % 26)}`,
+      id: `lineup-${stamp}-${i}`, kind: 'lineup', text: (existing + i) % 2 ? "Red" : "Blue",
       x: count === 2 ? 5 + 47 * i : existing === 1 ? 52 : 5, y: 31, width: 43, height: 61, lineup: {},
     }));
     try { updateBoxes(slide.id, current => [...current, ...additions]); }
@@ -104,5 +104,21 @@ export function createLineupBoardEditor({ getRoot, getModel, updateBoxes, select
     }
     render(); return true;
   }
-  return { click, sync, close, escape() { if (!target) return false; close(); return true; } };
+  function change(event) {
+    const input = event.target.closest('[data-lineup-color]');
+    if (!input) return false;
+    const { model, slide } = context();
+    const box = slide?.textBoxes?.find(b => b.id === input.dataset.lineupColor && b.kind === 'lineup');
+    if (!box || model.presenting || slide.readOnly || !Object.hasOwn(lineupBoardColors, input.value)) return true;
+    const color = input.value;
+    const failure = () => {
+      input.value = lineupBoardColor(box);
+      input.closest('header').querySelector('[data-lineup-color-status]').textContent = 'Color could not be saved. Try again.';
+    };
+    try { updateBoxes(slide.id, boxes => boxes.map(b => b.id === box.id ? { ...b, text: color } : b)); }
+    catch { failure(); return true; }
+    if (context().slide.textBoxes?.find(b => b.id === box.id)?.text !== color) { failure(); return true; }
+    select(slide.id, box.id); render(); return true;
+  }
+  return { click, change, sync, close, escape() { if (!target) return false; close(); return true; } };
 }

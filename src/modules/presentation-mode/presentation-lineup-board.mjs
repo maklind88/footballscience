@@ -1,3 +1,8 @@
+export const lineupBoardColors = Object.freeze({ Blue: '#2563eb', Red: '#dc2626', Yellow: '#eab308', Orange: '#ea580c', Green: '#16a34a', White: '#ffffff' });
+export function lineupBoardColor(box) {
+  if (Object.hasOwn(lineupBoardColors, box.text)) return box.text;
+  return box.text === 'Team B' ? 'Red' : 'Blue';
+}
 // Presentation-only formations. Player profiles remain the source of names and photos.
 export const lineupBoardSlots = Object.freeze([
   { id: 'gk', label: 'GK', x: 50, y: 88 },
@@ -41,8 +46,9 @@ export function renderLineupBoard(box, slide, model) {
   const esc = escapeLineupHtml;
   const players = new Map((model.presentationPlayers || []).map(p => [p.id, p]));
   const assignments = normalizeLineupBoard(box.lineup);
-  return `<section class="presentation-lineup-board" aria-label="${esc(box.text)} 4-3-3">
-    <header data-presentation-drag-text-box="${esc(box.id)}" data-presentation-slide-id="${esc(slide.id)}"><strong>${esc(box.text)}</strong><span>4–3–3</span></header>
+  const color = lineupBoardColor(box);
+  return `<section class="presentation-lineup-board" aria-label="${color} 4-3-3" style="--lineup-color:${lineupBoardColors[color]}">
+    <header data-presentation-drag-text-box="${esc(box.id)}" data-presentation-slide-id="${esc(slide.id)}">${model.presenting || slide.readOnly ? `<strong>${color}</strong>` : `<select data-lineup-color="${esc(box.id)}" aria-label="Team bib color">${Object.keys(lineupBoardColors).map(name => `<option value="${name}" ${name === color ? 'selected' : ''}>${name}</option>`).join('')}</select>`}<span>4–3–3</span><span role="alert" data-lineup-color-status></span></header>
     <div class="presentation-lineup-board-pitch">
       <svg class="presentation-lineup-board-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="3" y="2" width="94" height="96" rx="1"/><path d="M3 50H97 M32 2V18H68V2 M40 2V8H60V2 M32 98V82H68V98 M40 98V92H60V98"/><ellipse cx="50" cy="50" rx="12" ry="9"/></svg>
       ${lineupBoardSlots.map(slot => {
@@ -51,7 +57,7 @@ export function renderLineupBoard(box, slide, model) {
         const parts = name.trim().split(/\s+/);
         const displayName = playerId && parts.length > 1 ? `${parts[0][0]}. ${parts.slice(1).join(' ')}` : name;
         const tag = model.presenting || slide.readOnly ? 'div' : 'button';
-        return `<${tag} ${tag === 'button' ? 'type="button"' : ''} class="presentation-lineup-board-slot ${playerId ? 'is-filled' : ''}" data-lineup-slot="${slot.id}" data-lineup-board="${esc(box.id)}" title="${esc(name)}" aria-label="${esc(`${box.text}, ${slot.label}: ${playerId ? name : 'Choose player'}`)}" style="left:${slot.x}%;top:${slot.y}%">
+        return `<${tag} ${tag === 'button' ? 'type="button"' : ''} class="presentation-lineup-board-slot ${playerId ? 'is-filled' : ''}" data-lineup-slot="${slot.id}" data-lineup-board="${esc(box.id)}" title="${esc(name)}" aria-label="${esc(`${color}, ${slot.label}: ${playerId ? name : 'Choose player'}`)}" style="left:${slot.x}%;top:${slot.y}%">
           <span class="presentation-lineup-board-avatar">${player?.photoUrl ? `<img src="${esc(player.photoUrl)}" alt="" draggable="false">` : `<span>${esc(playerId ? lineupInitials(name) : slot.label)}</span>`}</span>
           <span class="presentation-lineup-board-name">${esc(playerId ? displayName : '+ Add')}</span>
         </${tag}>`;

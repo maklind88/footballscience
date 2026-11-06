@@ -160,3 +160,22 @@ test('lineup movement and proportional resize persist, and copies retain assignm
   await page.keyboard.press('ArrowRight');
   await expect.poll(()=>page.locator('.is-lineup').evaluateAll(els=>els.filter(e=>getComputedStyle(e).opacity==='1').length)).toBe(2);
 });
+
+test('bib colors default to Blue and Red and persist independently with undo and save failure feedback',async({page})=>{
+  await open(page);await insert(page);
+  const colors=page.locator('[data-lineup-color]');
+  await expect(colors.nth(0)).toHaveValue('Blue');await expect(colors.nth(1)).toHaveValue('Red');
+  await colors.first().selectOption('Green');
+  await expect(colors.first()).toHaveValue('Green');await expect(colors.nth(1)).toHaveValue('Red');
+  await page.keyboard.press('ControlOrMeta+z');await expect(colors.first()).toHaveValue('Blue');
+  await colors.first().selectOption('Yellow');
+  await open(page);await expect(colors.first()).toHaveValue('Yellow');await expect(colors.nth(1)).toHaveValue('Red');
+  await page.evaluate(()=>window.failWrite=true);await colors.first().selectOption('Orange');
+  await expect(colors.first()).toHaveValue('Yellow');await expect(board(page).first().locator('[data-lineup-color-status]')).toContainText('could not be saved');
+  await page.evaluate(()=>window.failWrite=false);await colors.first().selectOption('White');
+  await board(page).first().locator('[data-lineup-slot="gk"]').click();await expect(page.locator('[data-lineup-picker] header')).toContainText('White');await page.keyboard.press('Escape');
+  await page.locator('[data-presentation-start]').click();
+  await expect(page.locator('[data-lineup-color]')).toHaveCount(0);
+  await expect(board(page).first().locator('header')).toContainText('White');
+  await expect(board(page).nth(1).locator('header')).toContainText('Red');
+});

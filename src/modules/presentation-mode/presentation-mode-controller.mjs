@@ -5198,7 +5198,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     const dragHandle = event.target.closest("[data-presentation-drag-text-box]");
-    if (dragHandle) {
+    if (dragHandle && !event.target.closest("[data-lineup-color]")) {
       beginTextBoxDrag(event, dragHandle);
       return;
     }
@@ -5341,6 +5341,7 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    if (lineupEditor.change(event)) return;
     const setPieceSpeed = event.target.closest("[data-presentation-set-piece-speed]");
     if (setPieceSpeed) {
       setPiecePlayback.setSpeed(setPieceSpeed.value);

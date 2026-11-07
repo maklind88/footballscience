@@ -35,6 +35,13 @@ function inspectDatabase(factory, spec, { timeoutMs, maxRecords, maxBytes }) {
     const finish = (status, stoppedBecause = null) => {
       if (ended) return;
       ended = true; clearTimeout(timer);
+      if (status === "complete" && report.stores.some(store => store.status !== "complete")) {
+        status = "partial";
+        stoppedBecause = report.stores.find(store => store.stoppedBecause)?.stoppedBecause || null;
+      }
+      for (const store of report.stores) {
+        if (store.status !== "complete" && !store.stoppedBecause) store.stoppedBecause = stoppedBecause || "unavailable";
+      }
       report.status = status; report.stoppedBecause = stoppedBecause; report.groups = [...groups.values()];
       if (report.stores.length && report.stores.every(store => Number.isInteger(store.totalRecords)))
         report.totalRecords = report.stores.reduce((total, store) => total + store.totalRecords, 0);
@@ -59,31 +66,70 @@ function inspectDatabase(factory, spec, { timeoutMs, maxRecords, maxBytes }) {
           // Count every known store before materializing any values. A large
           // snapshot can exhaust the byte budget; unread edits must stay visible
           // as unclassified rows, never become an implied zero pending count.
-          report.stores = stores.map(name => ({ label: storeLabels[name], totalRecords: null, scannedRecords: 0 }));
+          report.stores = stores.map(name => ({ label: storeLabels[name], totalRecords: null, scannedRecords: 0,
+            approximateJsonUtf16Bytes: 0, status: "partial", stoppedBecause: null }));
+          // Reserve a share for each store; unused cache capacity cannot consume
+          // the allowance for retained work. Keep the original database-wide timeout.
+          const storeMaxRecords = Math.max(0, Math.floor(maxRecords / stores.length));
+          const storeMaxBytes = Math.max(0, Math.floor(maxBytes / stores.length));
           for (const [index, store] of stores.entries()) {
             const count = transaction.objectStore(store).count();
             count.onsuccess = () => { if (!ended) report.stores[index].totalRecords = count.result; };
             count.onerror = () => finish("partial");
           }
           for (const [index, store] of stores.entries()) {
-            const cursorRequest = transaction.objectStore(store).openCursor();
+            const storeReport = report.stores[index], objectStore = transaction.objectStore(store);
+            let deferredLatest = false;
+            const hasBudget = () => {
+              const reason = storeReport.scannedRecords >= storeMaxRecords ? "records"
+                : storeReport.approximateJsonUtf16Bytes >= storeMaxBytes ? "bytes" : null;
+              if (reason) storeReport.stoppedBecause = reason;
+              return !reason;
+            };
+            const record = value => {
+              const serialized = JSON.stringify(value);
+              if (typeof serialized !== "string") throw new Error();
+              const bytes = serialized.length * 2, label = classify(store, value);
+              const group = groups.get(label) || { label, records: 0, approximateJsonUtf16Bytes: 0 };
+              group.records++; group.approximateJsonUtf16Bytes += bytes;
+              groups.set(label, group); report.records++; report.approximateJsonUtf16Bytes += bytes;
+              storeReport.scannedRecords++; storeReport.approximateJsonUtf16Bytes += bytes;
+            };
+            const cursorRequest = store === "latest" ? objectStore.openKeyCursor() : objectStore.openCursor();
             cursorRequest.onerror = () => finish("partial");
             cursorRequest.onsuccess = () => {
               if (ended) return;
               const cursor = cursorRequest.result;
-              if (!cursor) return;
-              if (report.records >= maxRecords) { finish("partial", "records"); return; }
-              if (report.approximateJsonUtf16Bytes >= maxBytes) { finish("partial", "bytes"); return; }
-              try {
-                const serialized = JSON.stringify(cursor.value);
-                if (typeof serialized !== "string") { finish("partial"); return; }
-                const bytes = serialized.length * 2;
-                const label = classify(store, cursor.value);
-                const group = groups.get(label) || { label, records: 0, approximateJsonUtf16Bytes: 0 };
-                group.records++; group.approximateJsonUtf16Bytes += bytes;
-                groups.set(label, group); report.records++; report.stores[index].scannedRecords++; report.approximateJsonUtf16Bytes += bytes;
-                cursor.continue();
-              } catch { finish("partial"); }
+              if (!cursor) {
+                if (!deferredLatest) { storeReport.status = "complete"; return; }
+                if (!hasBudget()) return;
+                // The latest cache shares its store with Sessions recovery rows.
+                // Inspect it last, within this same read-only transaction.
+                const latest = objectStore.get("latest");
+                latest.onerror = () => finish("partial");
+                latest.onsuccess = () => {
+                  if (ended) return;
+                  try { record(latest.result); storeReport.status = "complete"; }
+                  catch { finish("partial"); }
+                };
+                return;
+              }
+              if (store === "latest" && cursor.key === "latest") {
+                deferredLatest = true; cursor.continue(); return;
+              }
+              if (!hasBudget()) return;
+              if (store === "latest") {
+                const value = objectStore.get(cursor.primaryKey);
+                value.onerror = () => finish("partial");
+                value.onsuccess = () => {
+                  if (ended) return;
+                  try { record(value.result); cursor.continue(); }
+                  catch { finish("partial"); }
+                };
+              } else {
+                try { record(cursor.value); cursor.continue(); }
+                catch { finish("partial"); }
+              }
             };
           }
         } catch { finish("unavailable"); }

@@ -3,6 +3,14 @@ name: Production Monitor
 on:
   workflow_dispatch:
     inputs:
+      verify_medical_role:
+        description: Explicit live Medical verification using a temporary medical account and one synthetic recommendation only.
+        type: boolean
+        default: false
+      expected_medical_build_id:
+        description: Exact reviewed production SHA for the explicitly authorized synthetic Medical test.
+        type: string
+        default: ''
       verify_fresh_backup:
         description: Create and verify a fresh production backup without restoring data.
         type: boolean
@@ -18,7 +26,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-monitor
+  group: ${{ inputs.verify_medical_role && 'footballscience-production-edge-release' || 'production-monitor' }}
   cancel-in-progress: false
 
 jobs:
@@ -50,11 +58,22 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run release:vercel-token
+        if: ${{ !inputs.verify_medical_role }}
       - run: npx --yes vercel@53.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+        if: ${{ !inputs.verify_medical_role }}
       - name: Verify fresh production backup and read-only restore
-        if: github.event_name == 'workflow_dispatch' && inputs.verify_fresh_backup
+        if: github.event_name == 'workflow_dispatch' && inputs.verify_fresh_backup && !inputs.verify_medical_role
         env:
           BACKUP_VERIFY_TARGET: production
           BACKUP_EXPECTED_BUILD_ID: ${{ inputs.expected_backup_build_id }}
         run: node scripts/verify-fresh-app-state-backup.mjs
       - run: npm run release:monitor
+        if: ${{ !inputs.verify_medical_role }}
+      - name: Explicit Medical-role live verification
+        if: github.event_name == 'workflow_dispatch' && inputs.verify_medical_role
+        env:
+          MEDICAL_LIVE_TEST_INTENT: synthetic-medical-only
+          MEDICAL_LIVE_EXPECTED_BUILD: ${{ inputs.expected_medical_build_id }}
+        run: |
+          node --test qa/medical-role-production-guards.test.mjs
+          npx playwright test --config=qa/medical-role-production.config.mjs

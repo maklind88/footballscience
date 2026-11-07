@@ -67,7 +67,9 @@ export function createJourneyRequestHandler({ qa, fixture, guard, mode, ledger, 
         if (url.pathname !== '/api/app-state') return route.continue();
         if (reconnect?.blocksReads()) return route.abort('internetdisconnected');
         phase = 'read-fetch';
-        const response = await route.fetch({ maxRedirects: 0, timeout: 30000 });
+        // Retry one connection reset on this idempotent GET only. HTTP failures
+        // remain unchanged; exhausted retries fail and writes never inherit this.
+        const response = await route.fetch({ maxRedirects: 0, timeout: 30000, maxRetries: 1 });
         if (!response.ok()) return route.fulfill({ response });
         phase = 'read-json';
         const payload = await response.json();

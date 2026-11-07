@@ -16,6 +16,10 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
     const effects = new Map(), contexts = [], ledger = [], errors = [];
     const guard = { isArmed: () => false, ids: () => [] };
     const server = createServer(async (req, res) => {
+      // route.fetch can reuse a socket as Node closes it at the idle timeout.
+      // This synthetic upstream does not need pooling; close only after the
+      // complete response so transport races cannot obscure journey failures.
+      res.setHeader('Connection', 'close');
       try {
         let raw = ''; for await (const chunk of req) raw += chunk;
         const url = new URL(req.url, 'http://localhost');

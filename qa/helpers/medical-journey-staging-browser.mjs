@@ -53,7 +53,7 @@ export async function addJourneyPrerequisites(payload, { run, day, player }, req
   return next;
 }
 
-export function createJourneyRequestHandler({ qa, fixture, guard, mode, ledger, writable = false }) {
+export function createJourneyRequestHandler({ qa, fixture, guard, mode, ledger, writable = false, canonicalOnly = false }) {
   const errors = [];
   const actor = writable ? 'author' : 'peer';
   const reconnect = writable && mode === 'peer-archived' ? createMedicalReconnectGuard() : null;
@@ -86,6 +86,10 @@ export function createJourneyRequestHandler({ qa, fixture, guard, mode, ledger, 
       // Incidental mutations and peer browser writes are blocked. Initial writes
       // require the armed ownership guard; reconnect permits one exact sealed replay.
       if (!writable || request.method() !== 'POST' || !['/api/medical', '/api/app-state'].includes(url.pathname)) return route.abort('blockedbyclient');
+      if (canonicalOnly && url.pathname === '/api/app-state') {
+        ledger.push({ stage: 'aggregate-write-blocked', actor });
+        return route.abort('blockedbyclient');
+      }
       let body; try { body = request.postDataJSON(); } catch { return route.abort('blockedbyclient'); }
       if (url.pathname === '/api/app-state' && body?.key !== medicalKey) return route.abort('blockedbyclient');
       if (reconnect?.isReplaying()) {
@@ -138,9 +142,9 @@ export function createJourneyRequestHandler({ qa, fixture, guard, mode, ledger, 
   return { handler, errors, reconnect };
 }
 
-export async function openJourneyBrowser({ browser, qa, account, fixture, guard, mode, ledger, contexts, writable = false }) {
+export async function openJourneyBrowser({ browser, qa, account, fixture, guard, mode, ledger, contexts, writable = false, canonicalOnly = false }) {
   const context = await browser.newContext({ serviceWorkers: 'block' }); contexts.push(context);
-  const { handler, errors, reconnect } = createJourneyRequestHandler({ qa, fixture, guard, mode, ledger, writable });
+  const { handler, errors, reconnect } = createJourneyRequestHandler({ qa, fixture, guard, mode, ledger, writable, canonicalOnly });
   await context.route('**/api/**', handler);
   const page = await context.newPage();
   await page.goto(qa.origin, { waitUntil: 'domcontentloaded' });

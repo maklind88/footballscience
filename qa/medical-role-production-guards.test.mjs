@@ -30,6 +30,7 @@ test('live test uses canonical-only guarded writes, real identities, cleanup and
   assert.match(helper, /Test account deletion not confirmed/);
   const spec = source('./medical-role-production.spec.mjs');
   assert.match(spec, /mode: 'generic-failed'/);
+  assert.match(spec, /canonicalOnly: true/);
   assert.match(spec, /guard.archiveEvent/);
   assert.match(spec, /guard.unrelatedUnchanged/);
   assert.ok(spec.includes('await qa.finish()'));

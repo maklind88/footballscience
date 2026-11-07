@@ -21,9 +21,9 @@ test('live medical role sees server training and saves only a synthetic recommen
       id: qa.run + '-player', name: 'Synthetic Medical QA ' + qa.run, position: 'Midfielder', rosterType: 'squad', countsInSquad: true, status: 'available',
     } };
     guard = createMedicalJourneyGuard({ ...fixture, actorId: qa.primary.user.id, baseline: baseline.state });
-    // Reuse the proven guard: generic-failed blocks ALL aggregate Medical writes.
+    // Reject aggregate writes before parsing or ownership validation.
     // Only the exact new synthetic canonical recommendation reaches production.
-    const args = { browser, qa, fixture, guard, mode: 'generic-failed', ledger, contexts };
+    const args = { browser, qa, fixture, guard, mode: 'generic-failed', ledger, contexts, canonicalOnly: true };
     const author = await openJourneyBrowser({ ...args, account: qa.primary, writable: true });
     for (const day of dates) {
       await openJourneyMedical(author.page, { ...fixture, day });
@@ -46,7 +46,7 @@ test('live medical role sees server training and saves only a synthetic recommen
       await client.page.reload({ waitUntil: 'domcontentloaded' });
       await verifyStagingJourneyViews(client.page, fixture, recordId);
       requireProof(ledger.filter(e => e.stage === 'read' && e.actor === actor && e.ownIds?.includes(recordId)).length > reads, 'Missing fresh server read after reload');
-      requireProof(client.errors.length === 0, 'Live request guard rejected a request');
+      requireProof(client.errors.length === 0, 'Live request guard rejected a request: ' + client.errors.join('; '));
       ledger.push({ stage: 'medical-and-sessions-reload-passed', actor });
     }
     requireProof(guard.unrelatedUnchanged((await qa.read(qa.primary, medicalKey)).state), 'Other Medical data changed during verification; investigate without restoring');

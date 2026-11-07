@@ -95,11 +95,11 @@ test('prerequisite overlay preserves raw Medical and existing roster; collisions
   }
 });
 
-function transportHarness(mode = 'normal', writable = true) {
+function transportHarness(mode = 'normal', writable = true, canonicalOnly = false) {
   const f = fixture(), ledger = [], calls = [];
   const qa = { origin, identity: async () => calls.push('identity'), primary: {},
     read: async () => ({ state: f.baseline }) };
-  const routing = createJourneyRequestHandler({ qa, fixture: { run, day, player }, guard: f.guard, mode, ledger, writable });
+  const routing = createJourneyRequestHandler({ qa, fixture: { run, day, player }, guard: f.guard, mode, ledger, writable, canonicalOnly });
   let duplicate = false;
   async function send(path = '/api/medical', body = f.event, method = 'POST') {
     const operations = [];
@@ -124,6 +124,17 @@ test('unarmed, peer, foreign-origin and unrelated endpoint writes never reach th
   for (const path of ['https://footballscience.xyz/api/medical', '/api/admin-users']) assert.deepEqual(await h.send(path), ['abort']);
   const peer = transportHarness('normal', false); peer.guard.arm();
   assert.deepEqual(await peer.send(), ['abort']); assert.deepEqual(peer.calls, []);
+});
+test('canonical-only verification blocks every aggregate write before ownership parsing or network', async () => {
+  const h = transportHarness('normal', true, true); h.guard.arm();
+  for (const body of [h.body, { key: medicalKey, value: 'private malformed state' }]) {
+    assert.deepEqual(await h.send('/api/app-state', body), ['abort']);
+  }
+  assert.deepEqual(h.calls, []);
+  assert.deepEqual(h.errors, []);
+  assert.deepEqual(h.guard.ids(), []);
+  assert.equal(h.ledger.filter(e => e.stage === 'aggregate-write-blocked').length, 2);
+  assert.deepEqual(await h.send(), ['fetch', 'real-response']);
 });
 test('sealed read phase cannot deliver queued retries', async () => {
   const h = transportHarness(); h.guard.arm();

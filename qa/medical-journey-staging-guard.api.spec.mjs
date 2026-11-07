@@ -162,9 +162,15 @@ test('new staging acceptance is explicit, serialized, deployed-source only and h
   const source = readFileSync(new URL('./medical-journey.staging.spec.mjs', import.meta.url), 'utf8');
   assert.ok(source.indexOf('await verifySaveAcceptanceFrontend') < source.indexOf('await createStagingAcceptance'));
   const workflow = readFileSync(new URL('../.github/workflows/staging-smoke.yml', import.meta.url), 'utf8');
-  assert.match(workflow, /inputs.verify_medical_journey \|\| inputs.restore_staging_deployment/);
+  assert.match(workflow, /inputs.verify_medical_journey \|\| inputs.verify_medical_role \|\| inputs.restore_staging_deployment/);
   assert.match(workflow, /cancel-in-progress: false/);
   assert.match(workflow, /verify_medical_journey:[\s\S]*?default: false/);
+  assert.match(workflow, /verify_medical_role:[\s\S]*?default: false/);
+  assert.match(workflow, /--grep 'medical-role\$'/);
+  assert.match(source, /peerRole: mode === 'medical-role' \? 'medical' : 'team-admin'/);
+  assert.match(source, /primary: accounts.peer, peer: accounts.primary/);
+  assert.match(source, /digest\(schedule.state\) === digest\(peerSchedule.state\)/);
+  assert.match(source, /server-training-enabled/);
   const config = readFileSync(new URL('./medical-journey.staging.config.mjs', import.meta.url), 'utf8');
   assert.match(config, /retries: 0, maxFailures: 1/);
   for (const type of ['screenshot', 'trace', 'video']) assert.ok(config.includes(type + ": 'off'"));

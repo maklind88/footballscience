@@ -19,6 +19,10 @@ on:
         description: Verify Medical receipts, peer archival during disconnect, and cold Medical/Sessions views on reviewed staging assets.
         type: boolean
         default: false
+      verify_medical_role:
+        description: Test a temporary medical-role account and synthetic player on reviewed staging; no production writes.
+        type: boolean
+        default: false
       recover_medical_journey:
         description: Archive only the exact unchanged synthetic fixture from workflow 40905953798; no new recommendation.
         type: boolean
@@ -49,7 +53,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: ${{ (inputs.verify_save_acceptance || inputs.recover_medical_journey || inputs.verify_medical_journey || inputs.restore_staging_deployment != '') && 'footballscience-production-edge-release' || format('staging-smoke-{0}', github.run_id) }}
+  group: ${{ (inputs.verify_save_acceptance || inputs.recover_medical_journey || inputs.verify_medical_journey || inputs.verify_medical_role || inputs.restore_staging_deployment != '') && 'footballscience-production-edge-release' || format('staging-smoke-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -136,4 +140,14 @@ jobs:
         run: |
           npx playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/medical-journey-staging-guard.api.spec.mjs qa/medical-reconnect-guard.api.spec.mjs
           npx playwright test --config=qa/medical-journey.staging.config.mjs
+      - name: Medical-role isolated recommendation acceptance
+        if: inputs.verify_medical_role
+        env:
+          SAVE_QA_ALLOW_FIXTURES: '1'
+          SAVE_QA_CLIENT_CANDIDATE: '0'
+          SAVE_QA_EXPECTED_BUILD: ${{ inputs.expected_save_build_id }}
+        run: |
+          node --test qa/save-acceptance-fixture-guards.test.mjs qa/save-acceptance-frontend.test.mjs
+          npx playwright test --config=qa/medical-journey.staging.config.mjs --grep 'medical-role$'
       - run: npm run qa:staging:required
+        if: ${{ !inputs.verify_medical_role }}

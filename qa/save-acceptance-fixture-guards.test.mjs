@@ -3,6 +3,14 @@ import { addMedicalAcceptanceRoster } from './helpers/medical-acceptance-roster-
 import assert from 'node:assert/strict';
 import { assertOwnedMedicalChange, assertOwnedSessionChange, createStagingAcceptance } from './helpers/save-acceptance-staging.mjs';
 const run = 'qa-save-test';
+test('temporary peer roles cannot elevate or change an existing account', async () => {
+  for (const peerRole of ['admin', 'coach', '', null]) {
+    await assert.rejects(createStagingAcceptance({}, { peerRole }), /Unsupported temporary peer role/);
+  }
+  for (const peerRole of ['medical', 'team-admin']) {
+    await assert.rejects(createStagingAcceptance({}, { peerRole }), /Exact staging origin/);
+  }
+});
 test('Medical fixture guard preserves existing records, policy, players and other fields', () => {
   const before = { records: [{ id: 'real', participation: 50 }], policy: { months: 12 }, players: [{ id: 'player' }] };
   const after = structuredClone(before); after.records.push({ id: run + '-record', participation: 100 });

@@ -16,7 +16,8 @@ export function assertOwnedSessionChange(change, run) {
 }
 
 
-export async function createStagingAcceptance(env = process.env) {
+export async function createStagingAcceptance(env = process.env, { peerRole = 'team-admin' } = {}) {
+  requireProof(['team-admin', 'medical'].includes(peerRole), 'Unsupported temporary peer role');
   requireProof(env.STAGING_QA_BASE_URL?.replace(/\/$/, '') === origin, 'Exact staging origin required');
   requireProof(env.STAGING_SUPABASE_PROJECT_REF === 'pokrksgempkuraueglpu', 'Exact staging backend required');
   requireProof(env.SAVE_QA_ALLOW_FIXTURES === '1', 'Synthetic staging fixtures must be explicitly enabled');
@@ -81,7 +82,7 @@ export async function createStagingAcceptance(env = process.env) {
         const own = (inventory.payload.users || []).filter(user => user.email === peerEmail && user.username === run);
         requireProof(own.length <= 1, 'Ambiguous temporary peer; preserved');
         if (own[0]) {
-          requireProof(own[0].id !== primary.user.id && own[0].role === 'team-admin', 'Unexpected peer ownership; preserved');
+          requireProof(own[0].id !== primary.user.id && own[0].role === peerRole, 'Unexpected peer ownership; preserved');
           peerId = own[0].id;
         }
       }
@@ -106,13 +107,13 @@ export async function createStagingAcceptance(env = process.env) {
     const password = randomBytes(24).toString('base64url') + '!7a';
     const email = run + '@footballscience.qa'; peerEmail = email;
     const created = await request('/api/admin-users', { token: primary.token, method: 'POST', statuses: [201], data: {
-      email, password, username: run, firstName: 'Synthetic', lastName: 'Save QA', role: 'team-admin', status: 'active',
+      email, password, username: run, firstName: 'Synthetic', lastName: 'Save QA', role: peerRole, status: 'active',
       clubId: metadata.clubId, clubName: metadata.clubName, teamId: metadata.teamId, teamName: metadata.teamName, team: metadata.team,
     } });
     requireProof(created.payload.ok && created.payload.user?.id && created.payload.user.id !== primary.user.id, 'Temporary peer creation failed');
     peerId = created.payload.user.id;
     const peer = await login(email, password);
-    requireProof(peer.user.id === peerId && peer.user.app_metadata?.role === 'team-admin', 'Distinct peer identity/role required');
+    requireProof(peer.user.id === peerId && peer.user.app_metadata?.role === peerRole, 'Distinct peer identity/role required');
     const read = async (account, key) => {
       requireProof([medicalKey, sessionsKey, 'football-schedule-v1'].includes(key), 'Unexpected module');
       const { payload } = await request('/api/app-state?fresh=1&sessionTransport=gzip-base64-v1&keys=' + encodeURIComponent(key), { token: account.token });

@@ -1,17 +1,20 @@
 import { exerciseMedicalReconnect } from './helpers/medical-reconnect-scenario.mjs';
 import { test, expect } from '@playwright/test';
-import { createStagingAcceptance, medicalKey, requireProof } from './helpers/save-acceptance-staging.mjs';
+import { createStagingAcceptance, medicalKey, requireProof, digest } from './helpers/save-acceptance-staging.mjs';
 import { verifySaveAcceptanceFrontend } from './helpers/save-acceptance-frontend.mjs';
 import { createMedicalJourneyGuard } from './helpers/medical-journey-staging-guard.mjs';
-import { verifyJourneyCapability, selectJourneyDay, openJourneyBrowser, verifyStagingJourneyViews } from './helpers/medical-journey-staging-browser.mjs';
+import { verifyJourneyCapability, selectJourneyDay, openJourneyBrowser, openJourneyMedical, verifyStagingJourneyViews } from './helpers/medical-journey-staging-browser.mjs';
 
 // Dedicated opt-in config only. No candidate overlays, screenshots, traces, video
 // or clinical payload attachments. No production origin is accepted by setup.
-for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-failed', 'peer-archived']) {
+for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-failed', 'peer-archived', 'medical-role']) {
   test(`new authenticated Medical recommendation reaches a cold peer: ${mode}`, async ({ browser }) => {
     requireProof(process.env.SAVE_QA_CLIENT_CANDIDATE !== '1', 'This acceptance requires deployed reviewed assets');
     await verifySaveAcceptanceFrontend({ baseUrl: process.env.STAGING_QA_BASE_URL });
-    const qa = await createStagingAcceptance();
+    const accounts = await createStagingAcceptance(process.env, { peerRole: mode === 'medical-role' ? 'medical' : 'team-admin' });
+    // Account cleanup retains its original admin closure. The medical test author
+    // uses a real Auth medical identity, never a browser-only role override.
+    const qa = mode === 'medical-role' ? { ...accounts, primary: accounts.peer, peer: accounts.primary } : accounts;
     const contexts = [], ledger = [];
     let guard, fixture;
     // This helper is only used for an already guarded run-owned archival event.
@@ -31,12 +34,26 @@ for (const mode of ['normal', 'lost-response', 'generic-failed', 'canonical-fail
       const baseline = await qa.read(qa.primary, medicalKey);
       const sessions = await qa.read(qa.primary, 'football-session-planner-v3');
       const schedule = await qa.read(qa.primary, 'football-schedule-v1');
+      if (mode === 'medical-role') {
+        requireProof(qa.primary.user.app_metadata?.role === 'medical', 'Author must authenticate with the medical role');
+        const peerSchedule = await qa.read(qa.peer, 'football-schedule-v1');
+        requireProof(schedule.revision === peerSchedule.revision && digest(schedule.state) === digest(peerSchedule.state), 'Medical and admin do not receive the same server schedule');
+        ledger.push({ stage: 'medical-role-server-schedule', role: 'medical', sameAsAdmin: true, revision: schedule.revision });
+      }
       const day = selectJourneyDay(sessions.state, schedule.state);
       fixture = { run: qa.run, day, player: { id: qa.run + '-player', name: 'Synthetic Journey ' + qa.run,
         position: 'Midfielder', rosterType: 'squad', countsInSquad: true, status: 'available' } };
       guard = createMedicalJourneyGuard({ ...fixture, actorId: qa.primary.user.id, baseline: baseline.state });
       const author = await openJourneyBrowser({ browser, qa, account: qa.primary, fixture, guard, mode, ledger, contexts, writable: true });
       requireProof(author.errors.length === 0, 'Author prerequisites failed before recommendation: ' + author.errors.join('; '));
+      if (mode === 'medical-role') {
+        const training = (schedule.state.events || []).filter(event => event.type === 'training' && /^\d{4}-\d{2}-\d{2}$/.test(event.date)).sort((a, b) => b.date.localeCompare(a.date))[0];
+        requireProof(training, 'No server-owned staging training is available for medical visibility verification');
+        await openJourneyMedical(author.page, { ...fixture, day: training.date });
+        await expect(author.page.getByRole('button', { name: fixture.player.name + ' 50% training recommendation', exact: true })).toBeEnabled();
+        ledger.push({ stage: 'server-training-enabled', date: training.date, recommendationWritten: false });
+        await openJourneyMedical(author.page, fixture);
+      }
       requireProof(!(await qa.read(qa.primary, medicalKey)).state.records?.some(row => row.playerId === fixture.player.id), 'Recommendation must not exist before the click');
       guard.arm();
       await author.page.getByRole('button', { name: fixture.player.name + ' 50% training recommendation', exact: true }).click();

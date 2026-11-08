@@ -50,6 +50,33 @@ export function storeDistinctSnapshot(database, snapshotStore, latestStore, snap
       pointTo(snapshot);
       result = { written: true, createdAt: snapshot.createdAt };
     };
+    const reuse = row => {
+      if (typeof row?.id !== "string" || !row.id || typeof row.createdAt !== "string" || !row.createdAt ||
+          !sameSnapshotContents(row, snapshot)) return false;
+      pointTo(row);
+      result = { written: false, createdAt: row.createdAt };
+      return true;
+    };
+    const findUnhintedScope = () => {
+      // The eight hints are an optimization, not a reason to duplicate unchanged
+      // recovery data forever. Bound this exceptional lookup by rows and bytes;
+      // an exhausted budget appends normally and never deletes or retags history.
+      let records = 0, bytes = 0;
+      const request = transaction.objectStore(snapshotStore).openCursor(null, "prev");
+      request.onsuccess = () => {
+        try {
+          const cursor = request.result;
+          if (!cursor) { append(); return; }
+          const row = cursor.value;
+          bytes += (JSON.stringify(row)?.length || 0) * 2;
+          records++;
+          if (bytes > 8 * 1024 * 1024) { append(); return; }
+          if (row?.id === cursor.primaryKey && row?.saveContext?.scope === snapshot.saveContext.scope && reuse(row)) return;
+          if (records >= 32) { append(); return; }
+          cursor.continue();
+        } catch (error) { failure = error; transaction.abort(); }
+      };
+    };
     read.onsuccess = () => {
       try {
         previous = read.result;
@@ -58,7 +85,12 @@ export function storeDistinctSnapshot(database, snapshotStore, latestStore, snap
           typeof previous.createdAt === "string" && previous.createdAt && sameSnapshotContents(previous, snapshot);
         const sourceId = consecutive ? previous.sourceSnapshotId
           : references.find(ref => ref.scope === snapshot.saveContext?.scope)?.id;
-        if (!sourceId) { append(); return; }
+        if (!sourceId) {
+          if (references.length === referenceLimit && typeof snapshot.saveContext?.scope === "string" && snapshot.saveContext.scope)
+            findUnhintedScope();
+          else append();
+          return;
+        }
         const history = transaction.objectStore(snapshotStore).get(sourceId);
         history.onsuccess = () => {
           try {

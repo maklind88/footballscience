@@ -1,5 +1,6 @@
 import { createLocalSaveIssues } from "./local-save-issues.mjs";
 import { storeDistinctSnapshot } from "./distinct-snapshot-store.mjs";
+import { pruneAcknowledgedSnapshots } from "./snapshot-retention-store.mjs";
 import { openStorageHealth } from "./storage-health-dialog.mjs";
 import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
 import { createLocalDatabaseConnection } from "./local-database-connection.mjs";
@@ -493,20 +494,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
   }
 
   async function pruneSnapshots(database) {
-    const keys = await new Promise((resolve, reject) => {
-      const transaction = database.transaction(snapshotStoreName, "readonly");
-      const request = transaction.objectStore(snapshotStoreName).getAllKeys();
-      request.onsuccess = () => resolve(Array.from(request.result || []));
-      request.onerror = () => reject(request.error);
-    });
-    // Pending Sessions recovery copies are not rotating historical snapshots.
-    const rotatingKeys = keys.filter((key) => !String(key).startsWith("football-session-planner-v3-quota-fallback"));
-    if (rotatingKeys.length <= maxSnapshots) return;
-    const keysToDelete = rotatingKeys.sort().slice(0, rotatingKeys.length - maxSnapshots);
-    const transaction = database.transaction(snapshotStoreName, "readwrite");
-    const store = transaction.objectStore(snapshotStoreName);
-    keysToDelete.forEach((key) => store.delete(key));
-    await waitForTransaction(transaction);
+    return pruneAcknowledgedSnapshots(database, { snapshotStore: snapshotStoreName, latestStore: latestStoreName,
+      maxSnapshots, schema: exportSchema, hashString });
   }
 
   async function saveSnapshot(reason = "autosave") {

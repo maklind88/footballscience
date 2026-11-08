@@ -203,12 +203,17 @@ test("real IndexedDB retains queued frames after reload and snapshot pruning nev
       request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
     });
     const protectedId = "football-session-planner-v3-quota-fallback:coach:review:1";
+    // Only fully acknowledged history is eligible for rotation. Empty legacy
+    // shells deliberately no longer prove that a copy is safe to discard.
+    const { retentionHarness } = await import("/qa/helpers/snapshot-preservation-harness.mjs");
+    const fixture = await retentionHarness();
     await new Promise((resolve, reject) => {
       const tx = db.transaction("snapshots", "readwrite"), snapshots = tx.objectStore("snapshots");
-      for (let i = 0; i < 40; i++) snapshots.put({ id: `snapshot-${String(i).padStart(2, "0")}` });
+      for (let i = 0; i < 40; i++) snapshots.put(fixture.row(`snapshot-${String(i).padStart(2, "0")}`));
       snapshots.put({ id: protectedId, reason: "session-planner-recovery-review", storage: { important: "Retained" } });
       tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
     });
+    fixture.db.close();
     const { createDataSafetyRuntimeService } = await import("/src/core/data-safety-runtime-service.mjs");
     await createDataSafetyRuntimeService({ maxSnapshots: 3 }).pruneSnapshots(db);
     const remaining = await new Promise((resolve, reject) => {

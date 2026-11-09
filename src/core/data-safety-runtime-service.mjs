@@ -881,11 +881,17 @@ export function createDataSafetyRuntimeService(deps = {}) {
       reviewLibrary: () => getCentralStateBridge()?.reviewLibraryRecovery?.(),
       getSnapshotScope: getSnapshotReviewScope,
       reviewSnapshots: async (closeHealth) => {
-        const { openSnapshotHistory } = await import("./snapshot-history-dialog.mjs");
-        if (!getSnapshotReviewScope()) throw new Error("Snapshot review access changed.");
-        if (!closeHealth()) return;
-        return openSnapshotHistory({ win, documentRef, databaseName, storeName: snapshotStoreName,
-          getScope: getSnapshotReviewScope, protectedStorageKeys, storageLabels });
+        const openingScope = getSnapshotReviewScope();
+        let changed = false;
+        const invalidateOpening = () => { changed = true; };
+        win.addEventListener?.("platform:user-change", invalidateOpening);
+        try {
+          const { openSnapshotHistory } = await import("./snapshot-history-dialog.mjs");
+          if (!openingScope || changed || getSnapshotReviewScope() !== openingScope) throw new Error("Snapshot review access changed.");
+          if (!closeHealth()) return;
+          return openSnapshotHistory({ win, documentRef, databaseName, storeName: snapshotStoreName,
+            getScope: getSnapshotReviewScope, protectedStorageKeys, storageLabels });
+        } finally { win.removeEventListener?.("platform:user-change", invalidateOpening); }
       },
       storageLabels, storageKey, getScope: () => getCentralStateBridge()?.getReadScope?.() || "",
     }));

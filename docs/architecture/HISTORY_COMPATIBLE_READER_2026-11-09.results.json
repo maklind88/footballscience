@@ -1,0 +1,27 @@
+{
+  "baseSha": "94a452c0432c77ca76d0b351f529a5f1f3d609c0",
+  "branch": "codex/history-compatible-reader-20261109",
+  "deployed": false,
+  "productionWriterAdded": false,
+  "runtimeOutsideReviewCallbackUnchanged": true,
+  "existingAuthStoreUsed": true,
+  "backendResponsesSimulated": true,
+  "tests": {
+    "uniquePassed": 335,
+    "failed": 0,
+    "skipped": 0,
+    "fullAffectedSuite": 329,
+    "additionalUniqueCases": 6,
+    "mobileRepeats": 2
+  },
+  "static": "passed",
+  "syntax": "passed",
+  "diffCheck": "passed",
+  "limits": [
+    "No production verification",
+    "No new compact writer or migration",
+    "No storage space freed",
+    "Older pre-preservation retention remains unsafe",
+    "No cold offline startup or live server-auth certification"
+  ]
+}

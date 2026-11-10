@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { verifyAuthenticatedHistory } from "./helpers/history-live-probe.mjs";
 import { createLiveReadinessProbe } from "./helpers/live-readiness-probe.mjs";
 import { expect, test } from "@playwright/test";
 import { openScoutingDatabaseTab, startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
@@ -621,6 +622,16 @@ async function findEmptySchedulePlannerDay(page, maxWindowShifts = 24) {
 
   throw new Error(`No empty schedule day was found after ${maxWindowShifts} planner window shifts.`);
 }
+
+test.describe('authenticated saved-copy history', () => {
+  // Avoid retaining authenticated history or session data in CI failure artifacts.
+  test.use({ trace: 'off', screenshot: 'off', video: 'off' });
+  test('production history reads both formats and revokes access during export', async ({ page }) => {
+    test.skip(!expectsAdminCredentials, 'Requires the configured live QA admin account.');
+    await signIn(page);
+    await verifyAuthenticatedHistory(page);
+  });
+});
 
 test("production admin account can open Access & Users", async ({ page }) => {
   test.skip(!expectsAdminCredentials, "This live smoke account is not expected to have admin access.");

@@ -1,5 +1,18 @@
 # Historikvy med kompatibel läsning och befintlig behörighetskontroll
 
+## Releaseförberedelse efter användarens deploykommando
+
+Den 9 november kompletterades kandidaten med en riktad autentiserad live-QA i
+`production.live.spec.mjs`, delad med lokal produkt-QA. Den använder ordinarie
+inloggning och en disponibel testprofil: syntetiska kopior i båda formaten,
+exakt review-export, främmande scope som avvisas, faktisk authstore-invalidering
+under export och byte-oförändrade testkopior efteråt. Inga serverroller ändras.
+Trace, skärmbilder och video är avstängda för detta autentiserade historiktest.
+Samma kontroll passerade lokalt i Chromium och WebKit (2 testfall, 6,3 sekunder).
+Live-resultatet är ännu inte känt; nedanstående implementeringsrapport beskriver
+läget före release. Den första lokala Safe Lane-körningen avbröts före push för
+att komplettera denna kontroll. Ingen fjärrrelease hade startat då.
+
 9 november 2026. Ägare: System/Security, gemensam lokal historik/review.
 Branch: `codex/history-compatible-reader-20261109`.
 Verifierad bas/main: `94a452c0432c77ca76d0b351f529a5f1f3d609c0`.

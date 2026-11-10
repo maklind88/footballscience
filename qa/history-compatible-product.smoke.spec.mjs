@@ -2,6 +2,14 @@ import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { installStorageHealthAppFixture, waitForStorageHealthApp } from './helpers/storage-health-app-fixture.mjs';
 import { setPiecesKey } from './helpers/set-pieces-central-fixture.mjs';
+import { verifyAuthenticatedHistory } from './helpers/history-live-probe.mjs';
+
+test('authenticated production history probe against the local app fixture', async ({ page }) => {
+  await installStorageHealthAppFixture(page);
+  await page.goto('/?workspace=medical-team');
+  await waitForStorageHealthApp(page);
+  await verifyAuthenticatedHistory(page);
+});
 
 async function isolated(page, mode = 'pooled', count = 1) {
   await page.goto('/medical-merge.js');

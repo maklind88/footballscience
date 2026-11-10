@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FS verified signed desktop shell</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body data-candidate="hosted">
+    <main>
+      <p class="eyebrow">FS desktop offline vertical slice</p>
+      <h1>Verified signed shell</h1>
+      <dl>
+        <div><dt>Shell generation</dt><dd id="shell">checking</dd></div>
+        <div><dt>Connectivity</dt><dd id="connectivity">starting</dd></div>
+        <div><dt>Authority</dt><dd id="authority">checking</dd></div>
+        <div><dt>Local projection</dt><dd id="projection">checking</dd></div>
+        <div><dt>Session sync</dt><dd id="sync">checking</dd></div>
+        <div><dt>Native bridge</dt><dd id="bridge">checking</dd></div>
+      </dl>
+      <section class="session" id="session" hidden></section>
+      <pre id="details"></pre>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

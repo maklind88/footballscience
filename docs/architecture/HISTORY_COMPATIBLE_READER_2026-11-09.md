@@ -7,7 +7,8 @@ Den 9 november kompletterades kandidaten med en riktad autentiserad live-QA i
 inloggning och en disponibel testprofil: syntetiska kopior i båda formaten,
 exakt review-export, främmande scope som avvisas, faktisk authstore-invalidering
 under export och byte-oförändrade testkopior efteråt. Inga serverroller ändras.
-Trace, skärmbilder och video är avstängda för detta autentiserade historiktest.
+Trace, skärmbilder och video är avstängda på filnivå för autentiserade
+`production.live.spec.mjs`, inklusive historiktestet.
 Samma kontroll passerade lokalt i Chromium och WebKit (2 testfall, 6,3 sekunder).
 Live-resultatet är ännu inte känt; nedanstående implementeringsrapport beskriver
 läget före release. Den första lokala Safe Lane-körningen avbröts före push för
@@ -21,6 +22,18 @@ containerns Git-ägarskapskontroll. Övriga QA-jobb passerade; main/produktion
 under `qa/fixtures/` (utesluten från produktion). Ingen Git-guard försvagas och
 testet beror inte längre på checkout-djup eller nätåtkomst. Den stora fixturen
 är avsiktligt fryst originalkod, inte en ny runtime eller implementation.
+
+Nästa kandidat `2689e6468` passerade full lokal QA (4 609 passed, 3 skipped).
+Staging 42736426940 hade först ett intermittent Schedule-bekräftelsefel i en
+kodväg som inte laddar historikläsaren; fem oförändrade lokala prov med viloskydd
+passerade. En enda omkörning av felande CI-jobb passerade alla QA-jobb.
+Staging publicerades men dess autentiserade smoke stoppades före testkörning:
+Playwright tillåter inte worker-scoped trace/video-inställningar i `describe`.
+Inställningarna flyttades till filnivå. En ny kontraktskontroll läser den riktiga
+live-konfigurationen med `--list` så samma fel stoppas redan i lokal/full QA.
+Den faktiska registrerade live-historikkontrollen, inklusive ordinarie sign-in-
+hjälpare, passerade även mot en isolerad lokal auth/server-fixtur (1 passed,
+3,5 sekunder). Det är ännu inte produktionsevidens. Produktkoden ändrades inte.
 
 9 november 2026. Ägare: System/Security, gemensam lokal historik/review.
 Branch: `codex/history-compatible-reader-20261109`.

@@ -21,6 +21,9 @@ const dynamicPeerEmail = String(process.env.LIVE_QA_DYNAMIC_PEER_EMAIL || "live-
 const dynamicPeerUsername = String(process.env.LIVE_QA_DYNAMIC_PEER_USERNAME || "live.chat.peer").trim().toLowerCase();
 const canCreateDynamicPeerLiveAccount = expectsAdminCredentials;
 
+// Authenticated production artifacts can contain session data or saved history.
+// Worker-scoped options must be declared at file level, not inside describe.
+test.use({ trace: 'off', screenshot: 'off', video: 'off' });
 test.skip(!hasLiveCredentials, "Set LIVE_QA_USERNAME and LIVE_QA_PASSWORD for production-safe live smoke.");
 let readinessTestStartedAt = 0;
 let readinessAttempt = 0;
@@ -624,8 +627,6 @@ async function findEmptySchedulePlannerDay(page, maxWindowShifts = 24) {
 }
 
 test.describe('authenticated saved-copy history', () => {
-  // Avoid retaining authenticated history or session data in CI failure artifacts.
-  test.use({ trace: 'off', screenshot: 'off', video: 'off' });
   test('production history reads both formats and revokes access during export', async ({ page }) => {
     test.skip(!expectsAdminCredentials, 'Requires the configured live QA admin account.');
     await signIn(page);

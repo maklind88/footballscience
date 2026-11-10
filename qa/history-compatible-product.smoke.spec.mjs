@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { installStorageHealthAppFixture, waitForStorageHealthApp } from './helpers/storage-health-app-fixture.mjs';
 import { setPiecesKey } from './helpers/set-pieces-central-fixture.mjs';
 import { verifyAuthenticatedHistory } from './helpers/history-live-probe.mjs';
@@ -70,8 +71,10 @@ test('older production tab keeps saving legacy copies while new view reads compa
   const legacyName = await page.evaluate(() => legacyName);
   const peer = await context.newPage();
   // Pinned pre-integration runtime; preserve the existing writer contract.
-  const { execFileSync } = await import('node:child_process');
-  const old = execFileSync('git', ['show', '94a452c0432c77ca76d0b351f529a5f1f3d609c0:src/core/data-safety-runtime-service.mjs'], { encoding: 'utf8' });
+  // A byte-exact fixture also works in CI's shallow checkout/container ownership.
+  // Do not weaken Git ownership checks or depend on fetching history during QA.
+  const old = await readFile(new URL('./fixtures/data-safety-runtime-94a452c04.mjs.txt', import.meta.url), 'utf8');
+  expect(createHash('sha256').update(old).digest('hex')).toBe('3248e789b091107f7c99ed22408d1d7f2dc6a54c732b0c6004acf84c2f59cbee');
   await peer.route('**/src/core/data-safety-runtime-service.mjs', route => route.fulfill({ contentType: 'text/javascript', body: old }));
   await peer.goto('/medical-merge.js');
   await peer.evaluate(async name => {

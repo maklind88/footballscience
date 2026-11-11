@@ -137,7 +137,9 @@ test('real auth ABA during lazy loading cancels opening even after same admin re
     const auth = window.platformAuthStore, user = auth.getCurrentUser();
     auth.clearCurrentUser(); auth.writeUsers([user]); auth.setCurrentUser(user.id);
   }); release();
-  await expect(health).toContainText('Saved-copy review could not open');
+  await expect(health.getByRole('status')).toHaveText('Account or team changed. Reopen this check.');
+  await expect(health).not.toContainText('Local browser storage:');
+  await expect(health.getByRole('button', { name: 'Review saved browser copies' })).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: 'Saved browser copies', exact: true })).toHaveCount(0);
 });
 

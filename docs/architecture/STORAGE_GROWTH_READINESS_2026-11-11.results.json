@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-11",
+  "owner": "System/Security",
+  "branch": "codex/storage-growth-observability-20261111",
+  "verifiedBase": "92fdbf47a8347e8633267fa7b96ec40fb33c6e07",
+  "prototypeSource": "eb3205743bd1480e424173c5be1649a671582636",
+  "productionFiles": [
+    "src/core/data-safety-runtime-service.mjs",
+    "src/core/indexeddb-storage-health.mjs",
+    "src/core/storage-health-dialog.mjs",
+    "src/core/storage-health-report.mjs",
+    "src/core/snapshot-protection-diagnostic.mjs"
+  ],
+  "validation": {
+    "command": "npx playwright test --config=qa/playwright.snapshot-history.config.mjs",
+    "passed": 365,
+    "failed": 0,
+    "skipped": 0,
+    "newCasesIncluded": 28,
+    "reportedDuration": "1.9 minutes",
+    "static": "passed",
+    "diffCheck": "passed",
+    "newFileSyntax": "passed",
+    "initialRestoreCounterexample": "QuotaExceededError during before-restore allowed replacement of unsynced work before the fix",
+    "initialRegression": "335 passed, 2 auth ABA text assertions failed; updated assertions now require invalidation and removal of old diagnostic content and review entrypoint",
+    "production": "not run"
+  },
+  "formatProof": {
+    "mode": "standalone",
+    "uniquePendingGenerations": 35,
+    "exactProductReaderRoundTrips": 35,
+    "quotaTest": "injected",
+    "unchangedAfterQuotaCollisionOversizeAndRetry": true,
+    "readerDatabaseMapping": "readonly QA alias, not production discovery or real authentication"
+  },
+  "activation": {
+    "compactProductWriter": false,
+    "historicalMigration": false,
+    "newCleanup": false,
+    "deploymentPerformed": false,
+    "readyForCompactWriteActivation": false,
+    "remainingGates": [
+      "Explicit authorized recovery/replay beyond review-only export",
+      "Writer admission must respect the 8 MiB reader limit including envelope metadata",
+      "Cold offline app startup and offline access policy remain unproven/unsupported",
+      "Old-client and rollback compatibility for a future activated writer",
+      "Capacity policy for indefinitely growing unique protected versions"
+    ]
+  }
+}

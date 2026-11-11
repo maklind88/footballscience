@@ -37,6 +37,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
   const status = {
     lastError: "",
     lastSnapshotError: "",
+    lastSnapshotRotation: null,
   };
   let issueSequence = 0;
   const saveIssues = createLocalSaveIssues({ readManifest, status,
@@ -494,8 +495,12 @@ export function createDataSafetyRuntimeService(deps = {}) {
   }
 
   async function pruneSnapshots(database) {
-    return pruneAcknowledgedSnapshots(database, { snapshotStore: snapshotStoreName, latestStore: latestStoreName,
-      maxSnapshots, schema: exportSchema, hashString });
+    try {
+      const result = await pruneAcknowledgedSnapshots(database, { snapshotStore: snapshotStoreName, latestStore: latestStoreName,
+        maxSnapshots, schema: exportSchema, hashString });
+      status.lastSnapshotRotation = result.limited ? 'limited' : 'complete';
+      return result;
+    } catch (error) { status.lastSnapshotRotation = 'failed'; throw error; }
   }
 
   async function saveSnapshot(reason = "autosave") {
@@ -711,7 +716,10 @@ export function createDataSafetyRuntimeService(deps = {}) {
       win,
     });
     if (!confirmed || !canRestore()) return;
-    await saveSnapshot("before-restore");
+    if (!await saveSnapshot("before-restore")) {
+      win.alert?.("Backup not restored. The current local work could not be protected in a saved copy. Keep this page open; do not clear browser data.");
+      return;
+    }
     if (!canRestore()) return;
     try {
       entries.forEach(([key, value]) => {
@@ -873,6 +881,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
       manifest.lastSeenAt = getNow();
     });
     ui.dataSafetyHealthButton?.addEventListener("click", () => openStorageHealth({
+      snapshotPolicy: { schema: exportSchema, hashString },
+      getSnapshotRotation: () => status.lastSnapshotRotation,
       documentRef, navigatorRef, indexedDB: win.indexedDB, storage: {
         get length() { return getStorage()?.length || 0; },
         key: rawKey,

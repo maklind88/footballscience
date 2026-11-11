@@ -69,9 +69,10 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
       </div>
       ${playlist ? "" : renderClipReview(review, clip.id, clip)}
       <div class="video-analysis-clip-editor__confirm" data-clip-review-close-confirm hidden>
-        <span>Discard unsaved changes?</span>
+        <span>Unsaved playlist changes</span>
         <button type="button" data-clip-review-keep>Keep editing</button>
         <button type="button" data-clip-review-discard>Discard</button>
+        ${canEdit ? '<button type="button" class="video-analysis-clip-editor__save" data-clip-review-save-close>Save and close</button>' : ""}
       </div>
       <dialog id="video-analysis-clip-edit-dialog" class="video-analysis-clip-editor__edit-dialog" aria-labelledby="video-analysis-clip-edit-title">
         <header>
@@ -105,7 +106,7 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
       <footer>
         <button type="button" data-clip-edit-back>Back</button>
         ${canEdit ? '<button type="button" class="video-analysis-clip-editor__delete" data-video-analysis-clip-editor-delete>Remove</button>' : ""}
-        ${canEdit ? '<button type="submit" class="video-analysis-clip-editor__save" data-video-analysis-timeline-edit-save>Apply</button>' : ""}
+        ${canEdit ? '<button type="submit" class="video-analysis-clip-editor__save" data-video-analysis-timeline-edit-save>Save playlist</button>' : ""}
       </footer>
       </dialog>
       ${renderClipPrinciples(clip, canEdit)}

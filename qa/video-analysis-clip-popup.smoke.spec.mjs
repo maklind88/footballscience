@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const matchId = "2a4e615e-f3e7-4fc7-bb70-a02db63c9152";
 const videoId = "26c70a43-5ee1-43f7-9e56-8e1c1be3a725";
-const clipSelector = '.video-analysis-clip-block[data-video-analysis-seek="popup-clip"]';
+const clipSelector = '.video-analysis-clip-block[data-video-analysis-seek="popup-clip"]:not([data-video-analysis-row-key^="playlist:"] *)';
 const popupSelector = "[data-video-analysis-clip-editor]";
 const field = (page, name) => page.locator(`[data-video-analysis-timeline-edit-field="${name}"]`);
 const writes = page => page.evaluate(() => (window.__videoAnalysisRequests || []).filter(r => r.action === "save-clip"));
@@ -11,7 +11,7 @@ const back = page => page.getByRole("button", { name: "Back to video", exact: tr
 const expectSaved = async page => {
   await expect(page.locator("#video-analysis-clip-edit-dialog")).not.toBeVisible();
   await expect(page.locator(popupSelector)).toBeVisible();
-  await expect(page.locator("[data-clip-review-notice]")).toHaveText("Playlist changed");
+  await expect(page.locator("[data-clip-review-notice]")).toHaveText("Saved");
 };
 
 async function openTimeline(page, canEdit = true, durationMs = 625000) {
@@ -106,7 +106,7 @@ for (const width of [1470, 390]) {
     await timingToggle.click();
     await expect(field(page, "duration")).toHaveValue("16");
     await field(page, "note").fill("Unsaved note");
-    await popup.getByRole("button", { name: "Apply", exact: true }).focus();
+    await page.locator("#video-analysis-clip-edit-dialog").getByRole("button", { name: "Save playlist", exact: true }).focus();
     await page.keyboard.press("Tab");
     expect(await page.locator("#video-analysis-clip-edit-dialog").evaluate(el => el.contains(document.activeElement))).toBe(true);
     await page.keyboard.press("Escape");
@@ -125,7 +125,7 @@ for (const width of [1470, 390]) {
   });
 }
 
-test("clip popup applies local timing and tags without editing the original", async ({ page }) => {
+test("clip popup saves playlist timing and tags without editing the original", async ({ page }) => {
   await openTimeline(page);
   await page.locator(clipSelector).dblclick();
   await edit(page);
@@ -140,7 +140,7 @@ test("clip popup applies local timing and tags without editing the original", as
   expect(await writes(page)).toEqual([]);
   await expect(field(page, "note")).toHaveValue("Playlist note");
   await page.keyboard.press("Escape");
-  await page.locator("[data-clip-review-discard]").click();
+  await expect(page.locator(popupSelector)).toHaveCount(0);
   await page.locator(clipSelector).dblclick();
   await expect(field(page, "startMs")).toHaveValue("0:01:07.025");
   await expect(field(page, "note")).toHaveValue("Original note");
@@ -192,7 +192,7 @@ test("clip popup rejects invalid ranges and cancelling never writes", async ({ p
   await edit(page);
   for (const [end, message] of [["0:99:00", "Enter a time"], ["0:01:00", "End must be after"], ["0:15:00", "End cannot exceed"]]) {
     await field(page, "endMs").fill(end);
-    await popup.getByRole("button", { name: "Apply", exact: true }).click();
+    await page.locator("#video-analysis-clip-edit-dialog").getByRole("button", { name: "Save playlist", exact: true }).click();
     await expect(popup.getByRole("alert")).toContainText(message);
     await expect(field(page, "endMs")).toBeVisible();
     await expect(field(page, "endMs")).toBeFocused();

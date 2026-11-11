@@ -33,7 +33,7 @@ export function renderClipPrinciples(clip, canEdit) {
     <p class="video-analysis-clip-editor__error" role="alert" hidden></p>
     <footer><span data-clip-principles-selected>${selected.size} selected</span>
       <button type="button" data-clip-principles-back>Back</button>
-      ${canEdit ? '<button type="submit" class="video-analysis-clip-editor__save" data-clip-principles-save>Apply</button>' : ""}
+      ${canEdit ? '<button type="submit" class="video-analysis-clip-editor__save" data-clip-principles-save>Save playlist</button>' : ""}
     </footer>
   </dialog>`;
 }

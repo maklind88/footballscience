@@ -963,12 +963,12 @@ test("Video Analysis Timeline keeps true scale, overlays clips, and undoes merge
   await page.locator('[data-video-analysis-timeline-edit-field="tags"]').fill("press, regain");
   await page.locator('[data-video-analysis-timeline-edit-field="note"]').fill("Corrected after review.");
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
-  await expect(page.locator("[data-clip-review-notice]")).toHaveText("Playlist changed");
+  await expect(page.locator("[data-clip-review-notice]")).toHaveText("Saved");
   await expect(page.locator('[data-video-analysis-timeline-edit-field="note"]')).toHaveValue("Corrected after review.");
   expect(await page.evaluate(() => (window.__videoAnalysisRequests || []).filter(item =>
     item.action === "save-clip" && item.body?.clip?.id === "overlap-1"))).toEqual([]);
   await page.locator("[data-video-analysis-timeline-edit-cancel]").click();
-  await page.locator("[data-clip-review-discard]").click();
+  await expect(page.locator("[data-video-analysis-clip-editor]")).toHaveCount(0);
 });
 
 test("Video Analysis deletes a selected timeline tag with the Delete key", async ({ page }) => {

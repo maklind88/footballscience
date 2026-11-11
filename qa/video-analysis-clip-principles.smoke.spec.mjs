@@ -71,7 +71,7 @@ for (const [width, kind] of [[1470, "subPhase"], [390, "player"]]) {
     await tool.click();
     await page.locator("[data-clip-principles-save]").click();
     await expect(page.locator(panel)).not.toBeVisible();
-    await expect(page.locator("[data-clip-review-notice]")).toHaveText("Playlist changed");
+    await expect(page.locator("[data-clip-review-notice]")).toHaveText("Saved");
     expect(await writes(page)).toEqual([]);
     await expect(page.locator("[data-video-analysis-timeline-edit-principle]:checked")).toHaveCount(3);
     await tool.click();
@@ -98,11 +98,14 @@ test("failed MG save retains principles and text drafts without claiming success
       ? Promise.resolve(Response.json({ ok: false, reason: "Save unavailable" }, { status: 503 })) : original(...args);
   });
   await page.locator("[data-clip-principles-save]").click();
-  await page.locator("[data-playlist-save]").click();
+  await expect(page.locator(panel)).toBeVisible();
+  await expect(page.locator(panel).getByRole("alert")).toHaveText("Save unavailable");
   await expect(page.locator("[data-review-playlist] [role=alert]")).toHaveText("Save unavailable");
   await expect(page.locator(option("ballside"))).toBeChecked();
   await expect(page.locator(field("note"))).toHaveValue("Unsaved text");
   await expect(page.locator("[data-playlist-status]")).toHaveText("Unsaved");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(panel)).not.toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-clip-review-close-confirm]")).toBeVisible();
 });

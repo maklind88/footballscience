@@ -3,7 +3,7 @@ import { activeAnalysisTimeline } from "../domain/timelineWorkspace.model.js";
 import { renderClipReview } from "./timeline.clip-review.js";
 
 const snapshot = (review, playlist) => JSON.stringify({
-  label: playlist.label.trim(), clipIds: review.entries.map(entry => entry.clip.id),
+  key: playlist.key, label: playlist.label.trim(), clipIds: review.entries.map(entry => entry.clip.id),
   edits: review.entries.map(entry => entry.clip.playlistEdits || {}),
 });
 
@@ -19,13 +19,21 @@ export function createReviewPlaylist(review, row, state) {
 
 export const reviewPlaylistDirty = (review, playlist) => review.hasDrafts() || snapshot(review, playlist) !== playlist.baseline;
 
+const saveStatus = (review, playlist) => playlist.pending ? "Saving..."
+  : reviewPlaylistDirty(review, playlist) ? "Unsaved" : playlist.saved ? "Saved" : "Not saved";
+
+export function updateReviewPlaylistStatus(dialog, review, playlist) {
+  for (const element of dialog.querySelectorAll("[data-playlist-status], [data-clip-review-notice]")) {
+    element.textContent = saveStatus(review, playlist);
+  }
+}
+
 export function renderReviewPlaylist(review, playlist, activeId, canEdit) {
-  const dirty = reviewPlaylistDirty(review, playlist);
   return `<section class="video-analysis-review-playlist" data-review-playlist aria-label="Playlist">
     <div class="video-analysis-review-playlist__tools">
       <input type="text" data-playlist-name aria-label="Playlist name" maxlength="120" value="${escapeHtml(playlist.label)}" ${!canEdit || playlist.pending ? "disabled" : ""}>
-      <span role="status" data-playlist-status>${playlist.pending ? "Saving..." : playlist.saved && !dirty ? "Saved" : dirty ? "Unsaved" : ""}</span>
-      ${canEdit ? `<button type="button" data-playlist-copy ${playlist.pending ? "disabled" : ""}>New playlist</button>
+      <span role="status" data-playlist-status>${saveStatus(review, playlist)}</span>
+      ${canEdit ? `<button type="button" data-playlist-copy ${playlist.pending ? "disabled" : ""}>Copy playlist</button>
       <button type="button" data-playlist-save ${playlist.pending || !review.entries.length ? "disabled" : ""}>Save playlist</button>` : ""}
     </div>
     ${renderClipReview(review, activeId)}
@@ -33,7 +41,7 @@ export function renderReviewPlaylist(review, playlist, activeId, canEdit) {
   </section>`;
 }
 
-export function bindReviewPlaylist({ dialog, review, playlist, getState, save, applyDrafts, busy, refresh, setPending }) {
+export function bindReviewPlaylist({ dialog, review, playlist, getState, save, applyDrafts, busy, refresh, setPending, onError }) {
   let dragId = "";
   let suppressClick = false;
   const item = target => target?.closest?.("[data-clip-review-select]");
@@ -91,8 +99,7 @@ export function bindReviewPlaylist({ dialog, review, playlist, getState, save, a
   dialog.addEventListener("input", event => {
     if (!event.target.matches("[data-playlist-name]") || busy()) return;
     playlist.label = event.target.value;
-    const status = dialog.querySelector("[data-playlist-status]");
-    status.textContent = reviewPlaylistDirty(review, playlist) ? "Unsaved" : playlist.saved ? "Saved" : "";
+    updateReviewPlaylistStatus(dialog, review, playlist);
   });
   dialog.addEventListener("click", async event => {
     if (suppressClick && item(event.target)) { event.stopImmediatePropagation(); suppressClick = false; return; }
@@ -107,7 +114,12 @@ export function bindReviewPlaylist({ dialog, review, playlist, getState, save, a
       const input = dialog.querySelector("[data-playlist-name]");
       input.focus(); input.select();
     }
-    if (!event.target.closest("[data-playlist-save]")) return;
+    if (event.target.closest("[data-playlist-save]")) await persist();
+  }, true);
+
+  async function persist(fromEditor = false) {
+    if (playlist.pending || (!fromEditor && busy()) || !getState().canEdit) return false;
+    let saved = false;
     try {
       applyDrafts();
       playlist.pending = true;
@@ -124,11 +136,20 @@ export function bindReviewPlaylist({ dialog, review, playlist, getState, save, a
       playlist.label = result.row.label;
       playlist.saved = true;
       playlist.baseline = snapshot(review, playlist);
-    } catch (error) { playlist.error = error.message || "Could not save playlist. Your changes are still here."; }
+      saved = true;
+    } catch (error) {
+      playlist.error = error.message || "Could not save playlist. Your changes are still here.";
+      onError?.(playlist.error);
+    }
     finally {
       playlist.pending = false;
       setPending(false);
-      if (dialog.isConnected) { refresh(); dialog.querySelector("[data-playlist-save]")?.focus(); }
+      if (dialog.isConnected) {
+        refresh();
+        if (!fromEditor) dialog.querySelector("[data-playlist-save]")?.focus();
+      }
     }
-  }, true);
+    return saved;
+  }
+  return persist;
 }

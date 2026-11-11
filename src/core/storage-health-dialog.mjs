@@ -41,8 +41,11 @@ export async function openStorageHealth(options) {
     add(`${database.label}: ${database.status === "absent" ? "Not present" : database.status === "unavailable" ? "Unavailable" : `${database.records} rows inspected of ${database.totalRecords ?? "an unknown number of"} stored rows, approximately ${size(database.approximateJsonUtf16Bytes)} inspected${database.status === "partial" ? " (incomplete scan)" : ""}`}.`);
     if (database.status === "partial") {
       const reason = { bytes: "size limit", records: "row limit", timeout: "time limit" }[database.stoppedBecause] || "unavailable storage";
-      add(`Inspection stopped at ${reason}. Sizes and categories below describe inspected rows only.`);
-      for (const store of database.stores) add(`${store.label}: ${store.totalRecords ?? "Unknown"} stored rows; ${store.scannedRecords} inspected.`);
+      add(`Inspection stopped at ${reason} for part of this database. Other stores are checked within their own share of the read budget. Sizes and categories below describe inspected rows only.`);
+      for (const store of database.stores) {
+        const limit = { bytes: "size limit", records: "row limit", timeout: "time limit" }[store.stoppedBecause] || "unavailable storage";
+        add(`${store.label}: ${store.totalRecords ?? "Unknown"} stored rows; ${store.scannedRecords} inspected. ${store.status === "complete" ? "All rows in this store inspected." : `Incomplete: ${limit}.`}`);
+      }
     }
     for (const group of database.groups) add(`${group.label}: ${group.records} rows, approximately ${size(group.approximateJsonUtf16Bytes)}.`);
   }

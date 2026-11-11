@@ -7,7 +7,7 @@ const {
   actorScope,
   buildTeamParams,
   containsForbiddenVideoPayload,
-  deleteRows,
+  dbRequest,
   insertRow,
   normalizeCodingMode,
   normalizeDescriptorType,
@@ -374,6 +374,7 @@ async function clipHasPlayerLinks(scope = {}, clipId = "") {
   const params = buildTeamParams(scope);
   params.set("select", "id");
   params.set("clip_instance_id", `eq.${id}`);
+  params.set("archived_at", "is.null");
   params.set("limit", "1");
   const result = await selectRows("video_clip_players", params);
   return result.ok && Boolean(result.payload?.[0]?.id);
@@ -428,6 +429,7 @@ async function attachClipRelations(clips, scope) {
     const params = buildTeamParams(scope);
     params.set("select", select);
     params.set("clip_instance_id", idFilter);
+    params.set("archived_at", "is.null");
     return params;
   };
   const [players, tags, notes, labels, descriptors, matches, videos] = await Promise.all([
@@ -495,26 +497,6 @@ function clipMatchesFilters(clip = {}, query = {}) {
     if (primary !== miniGamePrincipleId && !matchesLabel) return false;
   }
   return true;
-}
-
-async function replaceClipChildRows(table, scope = {}, clipId = "") {
-  const params = buildTeamParams(scope);
-  params.set("clip_instance_id", `eq.${clipId}`);
-  const result = await deleteRows(table, params);
-  if (!result.ok && result.status !== 404) return result;
-  return { ok: true };
-}
-
-async function replaceClipRelationRows(scope = {}, clipId = "") {
-  const tables = [
-    "video_clip_players",
-    "video_clip_tags",
-    "video_clip_labels",
-    "video_clip_descriptors",
-    "video_clip_notes",
-  ];
-  const results = await Promise.all(tables.map((table) => replaceClipChildRows(table, scope, clipId)));
-  return results.find((result) => !result.ok) || { ok: true };
 }
 
 async function listClips(query, actor) {
@@ -592,21 +574,36 @@ async function saveClip(payload, actor) {
     revision: existing ? Number(existing.revision || 1) + 1 : 1,
     updated_by: clip.actorId || null,
   };
-  const patchParams = buildTeamParams(scope);
-  patchParams.set("id", `eq.${clip.id}`);
-  if (existing && clip.expectedRevision) patchParams.set("revision", `eq.${clip.expectedRevision}`);
-  const clipResult = clip.id ? await patchRows("video_clip_instances", patchParams, row) : await insertRow("video_clip_instances", row);
+  if (existing) {
+    const result = await dbRequest("/rpc/video_analysis_update_clip", {
+      method: "POST",
+      body: {
+        p_organization_id: clip.organizationId, p_team_id: clip.teamId, p_actor_id: clip.actorId,
+        p_id: clip.id, p_expected_revision: clip.expectedRevision || Number(existing.revision || 1),
+        p_clip: row,
+        p_relations: { players: clip.players, tags: clip.tags, labels: clip.labels, descriptors: clip.descriptors, note: clip.note },
+      },
+    });
+    if (!result.ok) {
+      if (["PGRST202", "42883"].includes(result.payload?.code)) {
+        return { ok: false, status: 503, reason: "Clip editing needs a database update. Your changes were not saved." };
+      }
+      const status = { "40001": 409, "42501": 403, P0002: 404 }[result.payload?.code];
+      return status ? { ...result, status } : result;
+    }
+    const saved = result.payload?.clip;
+    if (!saved?.id || saved.id !== clip.id) return { ok: false, status: 500, reason: "The saved clip could not be verified. Reload before retrying." };
+    const withRelations = attachClipSharingState({ ...saved, ...clipSourceMetadata(saved,
+      new Map([[saved.match_id, result.payload.match]]), new Map([[saved.video_id, result.payload.video]])) });
+    const idpClipBank = await syncClipPlayersToIdp(clip, saved, actor);
+    // The durable revision is already committed; an optional collaboration log must not turn success into failure.
+    const auditResult = await recordClipAnalysisOperation(clip, existing, saved, actor).catch(() => ({ ok: false }));
+    return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations, idpClipBank, operationRecorded: auditResult.ok } };
+  }
+  const clipResult = await insertRow("video_clip_instances", row);
   if (!clipResult.ok) return clipResult;
   const saved = clipResult.payload?.[0];
-  if (!saved?.id) {
-    return existing && clip.expectedRevision
-      ? { ok: false, status: 409, reason: "Clip revision conflict. Reload the clip before saving again." }
-      : { ok: false, status: 500, reason: "Clip could not be saved." };
-  }
-  if (existing) {
-    const relationsReplaced = await replaceClipRelationRows(scope, saved.id);
-    if (!relationsReplaced.ok) return relationsReplaced;
-  }
+  if (!saved?.id) return { ok: false, status: 500, reason: "Clip could not be saved." };
   const childWrites = [];
   for (const player of clip.players) {
     childWrites.push(insertRow("video_clip_players", {

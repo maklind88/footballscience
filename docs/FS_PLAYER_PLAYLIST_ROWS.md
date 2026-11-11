@@ -59,6 +59,8 @@ Only allowlisted fields enter clip overrides; IDs, permissions, source media and
 
 The previously diagnosed original-clip relation-save defect is separate. A local PostgreSQL diagnostic on 2026-11-11 reproduced `save-clip` attempting a hard delete of clip labels, rejected by the archive-only trigger after timing/revision had already changed. Archive and restore passed in the same diagnostic. This feature does not change that API or its database rules, and passing diagnostic tests confirm the defect rather than resolving it. Playlist persistence uses the separate atomic timeline RPC.
 
+A subsequent local candidate fixes original-clip edits separately; see [Clip Save Reliability](video-analysis/CLIP_SAVE_RELIABILITY.md). Its database migration and release prerequisites do not change playlist isolation. Neither local verification record is evidence of a production release.
+
 ### Local Candidate Verification, 2026-11-11
 
 - Base: `92fdbf47a8347e8633267fa7b96ec40fb33c6e07` (`origin/main` and `origin/staging` when inspected).

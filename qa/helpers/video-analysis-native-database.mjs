@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -12,6 +12,12 @@ export function createVideoAnalysisNativeDatabase() {
   const env = { PATH: process.env.PATH, HOME: process.env.HOME, LANG: "C", PGHOST: socket, PGPORT: "55439", PGUSER: "fs_test", PGDATABASE: "postgres" };
   const run = (tool, args, input) => execFileSync(join(bin, tool), args, { env, input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
   const sql = input => run("psql", ["-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose"], input).trim();
+  const sqlAsync = input => new Promise((resolve, reject) => {
+    const child = execFile(join(bin, "psql"), ["-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose"], { env, encoding: "utf8" }, (error, stdout, stderr) => {
+      if (error) reject(Object.assign(error, { stderr })); else resolve(stdout.trim());
+    });
+    child.stdin.end(input);
+  });
   const close = () => {
     if (existsSync(join(data, "postmaster.pid"))) run("pg_ctl", ["-D", data, "-m", "immediate", "-w", "stop"]);
     rmSync(root, { recursive: true, force: true });
@@ -24,10 +30,10 @@ export function createVideoAnalysisNativeDatabase() {
       create table platform_permission_matrix (module_id text, action text, roles text[], scope text,
         requires_organization_scope boolean, requires_team_scope boolean, description text,
         updated_at timestamptz, primary key (module_id, action));`);
-    for (const name of ["20260613000100_video_analysis_metadata_foundation.sql", "20260614004604_video_analysis_workstation_v2_metadata.sql", "20260824212110_video_analysis_elite_workstation_foundation.sql"]) {
+    for (const name of ["20260613000100_video_analysis_metadata_foundation.sql", "20260614004604_video_analysis_workstation_v2_metadata.sql", "20260824212110_video_analysis_elite_workstation_foundation.sql", "20260825014500_video_analysis_intelligence_facts.sql", "20261111232205_video_analysis_atomic_clip_update.sql"]) {
       sql(readFileSync(new URL(`../../supabase/migrations/${name}`, import.meta.url), "utf8"));
     }
-    return { sql, close };
+    return { sql, sqlAsync, close };
   } catch (error) { close(); throw error; }
 }
 
@@ -40,9 +46,17 @@ const identifier = value => {
 export function videoAnalysisTestRest(db, calls) {
   return async (address, options = {}) => {
     const url = new URL(address);
+    const method = options.method || "GET", body = options.body ? JSON.parse(options.body) : {};
+    if (url.origin === "https://fs-clip-test.invalid" && url.pathname === "/rest/v1/rpc/video_analysis_update_clip" && method === "POST") {
+      calls.push({ method, rpc: "video_analysis_update_clip", body });
+      try {
+        const args = [body.p_organization_id, body.p_team_id, body.p_actor_id, body.p_id,
+          body.p_expected_revision, body.p_clip, body.p_relations].map(literal).join(",");
+        return new Response(await db.sqlAsync(`begin; set local role service_role; select public.video_analysis_update_clip(${args}); commit;`), { status: 200 });
+      } catch (error) { return databaseError(error); }
+    }
     if (url.origin !== "https://fs-clip-test.invalid" || !/^\/rest\/v1\/video_[a-z_]+$/.test(url.pathname)) throw new Error("Unexpected test request");
     const table = identifier(url.pathname.split("/").at(-1));
-    const method = options.method || "GET", body = options.body ? JSON.parse(options.body) : {};
     calls.push({ method, table, body });
     const conditions = [];
     for (const [key, value] of url.searchParams) {
@@ -50,6 +64,7 @@ export function videoAnalysisTestRest(db, calls) {
       const column = identifier(key);
       if (value.startsWith("eq.")) conditions.push(`${column} = ${literal(value.slice(3))}`);
       else if (value.startsWith("in.(")) conditions.push(`${column} in (${value.slice(4, -1).split(",").map(literal).join(",")})`);
+      else if (value === "is.null") conditions.push(`${column} is null`);
       else throw new Error("Unsupported test filter");
     }
     const where = conditions.length ? ` where ${conditions.join(" and ")}` : "";
@@ -62,9 +77,11 @@ export function videoAnalysisTestRest(db, calls) {
     try {
       const payload = db.sql(`with result as (${statement}) select coalesce(jsonb_agg(result), '[]'::jsonb) from result;`);
       return new Response(payload, { status: 200 });
-    } catch (error) {
-      const message = String(error.stderr).match(/ERROR:\s+([A-Z0-9]+):\s+([^\n]+)/);
-      return new Response(JSON.stringify({ code: message?.[1], message: message?.[2] || "Synthetic database error" }), { status: 400 });
-    }
+    } catch (error) { return databaseError(error); }
   };
+}
+
+function databaseError(error) {
+  const message = String(error.stderr).match(/ERROR:\s+([A-Z0-9]+):\s+([^\n]+)/);
+  return new Response(JSON.stringify({ code: message?.[1], message: message?.[2] || "Synthetic database error" }), { status: 400 });
 }

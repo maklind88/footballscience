@@ -1236,7 +1236,8 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(api).toContain('clipKind === "phase"');
   expect(api).toContain('clipKind === "subPhase"');
   expect(api).toContain('clipKind === "miniGamePrinciple"');
-  expect(api).toContain("replaceClipRelationRows");
+  expect(api).toContain("/rpc/video_analysis_update_clip");
+  expect(api).not.toContain("replaceClipRelationRows");
   expect(api).toContain("\"video_clip_players\"");
   expect(api).toContain("\"video_clip_descriptors\"");
   expect(api).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);

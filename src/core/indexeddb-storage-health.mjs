@@ -97,8 +97,10 @@ function inspectDatabase(factory, spec, { timeoutMs, maxRecords, maxBytes, snaps
                 const { approximateJsonUtf16Bytes: bytes, binaryBytes } = measureStoredRow(cursor.value);
                 const label = classify(store, cursor.value);
                 const add = (map, label) => {
-                  const group = map.get(label) || { label, records: 0, approximateJsonUtf16Bytes: 0, binaryBytes: 0 };
-                  group.records++; group.approximateJsonUtf16Bytes += bytes; group.binaryBytes += binaryBytes; map.set(label, group);
+                  const group = map.get(label) || { label, records: 0, approximateJsonUtf16Bytes: 0 };
+                  group.records++; group.approximateJsonUtf16Bytes += bytes;
+                  if (binaryBytes) group.binaryBytes = (group.binaryBytes || 0) + binaryBytes;
+                  map.set(label, group);
                 };
                 add(groups, label);
                 if (store === 'snapshots') add(protection, snapshotProtectionReason(cursor.value, {

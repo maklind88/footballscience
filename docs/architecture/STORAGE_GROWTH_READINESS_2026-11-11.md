@@ -37,6 +37,16 @@ Den identiska kontrollen passerade lokalt i Chromium och WebKit: 2 passed,
 8,9 sekunder. Live-specens registreringskontroll kräver att det nya testet finns.
 Produktionsresultatet är ännu inte känt vid releaseförberedelsen.
 
+Första fulla Safe Lane-körningen stoppades lokalt före push/deploy efter ett
+kompatibilitetsfel i Medicals befintliga inventeringsprov: vanliga JSON-grupper
+hade fått ett extra `binaryBytes: 0`. Rapporten behåller nu den gamla gruppformen
+när binärdata saknas; fältet tillkommer endast där binärbyte faktiskt räknas.
+Medicals kontroll och produktkod ändras inte. En ny full Safe Lane-körning krävs
+för den korrigerade kandidaten; den avbrutna körningen räknas inte som godkänd.
+Riktad omkontroll efter korrigeringen: Medicals oförändrade återställningssvit
+36 passed (29,9 s); komplett lagrings-/historiksvit inklusive den nya liveproben
+367 passed (2,2 min), inga fel eller överhoppningar.
+
 ## Produktändringar
 
 1. Storage health använder den **befintliga** retentionens positiva

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { verifyAuthenticatedHistory } from "./helpers/history-live-probe.mjs";
+import { verifyStorageGrowthLive } from "./helpers/storage-growth-live-probe.mjs";
 import { createLiveReadinessProbe } from "./helpers/live-readiness-probe.mjs";
 import { expect, test } from "@playwright/test";
 import { openScoutingDatabaseTab, startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
@@ -627,6 +628,11 @@ async function findEmptySchedulePlannerDay(page, maxWindowShifts = 24) {
 }
 
 test.describe('authenticated saved-copy history', () => {
+  test('production storage diagnostics preserve pending work and stop restore under quota pressure', async ({ page }) => {
+    test.skip(!expectsAdminCredentials, 'Requires the configured live QA admin account.');
+    await signIn(page);
+    await verifyStorageGrowthLive(page);
+  });
   test('production history reads both formats and revokes access during export', async ({ page }) => {
     test.skip(!expectsAdminCredentials, 'Requires the configured live QA admin account.');
     await signIn(page);

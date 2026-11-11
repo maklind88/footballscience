@@ -13,8 +13,29 @@ kompakt produktlagring ännu. Det krävs en återställningsväg för varje form
 en writer accepterar; att kunna avkoda och ladda ned en review-fil räcker inte.
 Historiska kopior ska inte migreras eller raderas i denna etapp.
 
-Detta arbete är lokalt. Ingen push, staging, main-integration eller deploy ingår.
-Tidigare deployauktorisering avsåg den redan levererade läsadaptern.
+Implementeringsresultatet nedan är lokalt verifierat. Användaren har därefter
+uttryckligen auktoriserat deploy av diagnostiken och bevarandekorrigeringen,
+utan kompakt skrivning eller radering av sparat/osynkat arbete. Release går via
+Safe Lane. Slutlig releaseevidens dokumenteras separat efter produktionskontroll.
+
+## Riktad produktionskontroll för denna release
+
+`qa/helpers/storage-growth-live-probe.mjs` körs av ordinarie autentiserad
+`production.live.spec.mjs` med live-QA-admin. Den öppnar verklig Storage health,
+inspekterar en syntetisk pending/prepared-historikpost i en disponibel profil,
+och verifierar att posten är byte-oförändrad samt att compact-databasen inte
+skapats. Muterande API-anrop spärras i testfliken efter inloggning.
+
+Samma serverade data-safety-modul provas mot en separat Storage-instans och en
+syntetisk IDB-databas: ett injicerat kvotfel före restore ska stoppa ersättning,
+bevara pending-metadata och ge noll nya central-write-anrop. Det är ett beteende-
+prov av livekod med isolerad testlagring, inte en import i användarens riktiga
+arbetsyta eller ett försök att fylla datorns fysiska disk. Ingen teststädning
+raderar användardata. Kompakt writer aktiveras inte ens för denna kontroll.
+
+Den identiska kontrollen passerade lokalt i Chromium och WebKit: 2 passed,
+8,9 sekunder. Live-specens registreringskontroll kräver att det nya testet finns.
+Produktionsresultatet är ännu inte känt vid releaseförberedelsen.
 
 ## Produktändringar
 

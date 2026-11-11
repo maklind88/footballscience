@@ -4,6 +4,14 @@ import { createHash } from 'node:crypto';
 import { installStorageHealthAppFixture, waitForStorageHealthApp } from './helpers/storage-health-app-fixture.mjs';
 import { setPiecesKey } from './helpers/set-pieces-central-fixture.mjs';
 import { verifyAuthenticatedHistory } from './helpers/history-live-probe.mjs';
+import { verifyStorageGrowthLive } from './helpers/storage-growth-live-probe.mjs';
+
+test('authenticated storage growth live probe against the local app fixture', async ({ page }) => {
+  await installStorageHealthAppFixture(page);
+  await page.goto('/?workspace=medical-team');
+  await waitForStorageHealthApp(page);
+  await verifyStorageGrowthLive(page);
+});
 
 test('authenticated production history probe against the local app fixture', async ({ page }) => {
   await installStorageHealthAppFixture(page);

@@ -1,12 +1,15 @@
 import { createSnapshotCompatibleReader } from './snapshot-compatible-reader.mjs';
 import { encodeSnapshotReview } from './snapshot-history-format.mjs';
+import { createSnapshotRecoveryDrafts } from './snapshot-recovery-draft-service.mjs';
+import { mountSnapshotRecoveryDraftPanel } from './snapshot-recovery-draft-panel.mjs';
 
 export async function openSnapshotHistory({win,documentRef:doc=win.document,indexedDB=win.indexedDB,
-  databaseName,storeName='snapshots',getScope,protectedStorageKeys,storageLabels={}}) {
+  databaseName,storeName='snapshots',getScope,protectedStorageKeys,storageLabels={},canPrepareRecoveryDraft=()=>false}) {
   const scope=getScope();
   if(!scope||!doc?.body||doc.querySelector('dialog[data-snapshot-history]'))return;
   const focus=doc.activeElement,keys=new Set(protectedStorageKeys);
   let invalid=false, generation=0, requestSequence=0, selectedSource='legacy';
+  const recoveryAbort=new AbortController();let recoveryPanel;
   const dialog=doc.createElement('dialog');dialog.dataset.snapshotHistory='';dialog.setAttribute('aria-label','Saved browser copies');
   if(!doc.getElementById('snapshot-history-style')){
     const link=doc.createElement('link');link.id='snapshot-history-style';link.rel='stylesheet';
@@ -17,7 +20,7 @@ export async function openSnapshotHistory({win,documentRef:doc=win.document,inde
   const status=doc.createElement('p');status.setAttribute('role','status');status.textContent='Reading saved copies…';
   const list=doc.createElement('div'),close=doc.createElement('button');close.type='button';close.textContent='Close saved copies';
   close.onclick=()=>dialog.close();dialog.append(heading,intro,status,list,close);doc.body.append(dialog);
-  const invalidate=()=>{invalid=true;generation++;list.replaceChildren();status.textContent='Account or access changed. Close and reopen this review.';};
+  const invalidate=()=>{invalid=true;generation++;recoveryAbort.abort();recoveryPanel?.invalidate();list.replaceChildren();status.textContent='Account or access changed. Close and reopen this review.';};
   const active=()=>{
     if(!dialog.isConnected||invalid)return false;
     if(getScope()!==scope){invalidate();return false;}
@@ -25,15 +28,26 @@ export async function openSnapshotHistory({win,documentRef:doc=win.document,inde
   };
   // Invalidate on every auth event, including A -> B -> A within an async read.
   win.addEventListener('platform:user-change',invalidate);
-  const timer=win.setInterval(()=>{if(dialog.isConnected&&getScope()!==scope)invalidate();},500);
+  const mayPrepare=()=>{try{return active()&&canPrepareRecoveryDraft()===true;}catch{return false;}};
+  const timer=win.setInterval(()=>{
+    if(dialog.isConnected&&getScope()!==scope)invalidate();
+    if(recoveryPanel&&!mayPrepare())invalidate();
+  },500);
   dialog.addEventListener('close',()=>{
-    invalid=true;win.clearInterval(timer);win.removeEventListener('platform:user-change',invalidate);dialog.remove();
+    invalid=true;recoveryAbort.abort();recoveryPanel?.invalidate();win.clearInterval(timer);win.removeEventListener('platform:user-change',invalidate);dialog.remove();
     if(focus?.isConnected)focus.focus();
   },{once:true});
   dialog.showModal();
   const reader=createSnapshotCompatibleReader({indexedDB,databaseName,storeName,getAccess:()=>({
     scope:getScope(),generation:String(generation),canReview:active(),allowedKeys:keys,
   })});
+  if(mayPrepare()){
+    const host=doc.createElement('div');dialog.insertBefore(host,list);
+    const service=createSnapshotRecoveryDrafts({indexedDB,reader,signal:recoveryAbort.signal,getAccess:()=>({
+      scope:getScope(),generation:String(generation),canPrepare:mayPrepare(),allowedKeys:keys,
+    })});
+    recoveryPanel=mountSnapshotRecoveryDraftPanel({win,doc,host,service,active:mayPrepare,status});
+  }
   async function load(beforeKey) {
     if(!active())return;
     const source=selectedSource,sequence=++requestSequence;
@@ -84,7 +98,7 @@ export async function openSnapshotHistory({win,documentRef:doc=win.document,inde
         }catch{status.textContent='The review file could not be downloaded. Your saved copy remains unchanged.';}
         finally{if(current())download.disabled=false;}
       };
-      section.append(download);list.append(section);
+      section.append(download);recoveryPanel?.addPrepareButton(section,{row,source,current});list.append(section);
     }
     if(report.status==='partial'&&report.nextKey!==null){
       const next=doc.createElement('button');next.type='button';next.textContent='Next copies';

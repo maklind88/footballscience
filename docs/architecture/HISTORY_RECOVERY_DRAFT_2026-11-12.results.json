@@ -1,0 +1,56 @@
+{
+  "schema": "history-recovery-draft-verification-v1",
+  "branch": "codex/history-recovery-draft-20261112",
+  "baseSha": "98a8682642534cdcf0c5b1f97a126dfc9492a923",
+  "productBaseSha": "62116896cfa43b8f6c3b08beaf37ea5a8d8b46c1",
+  "status": "locally-verified",
+  "tests": {
+    "passed": 425,
+    "failed": 0,
+    "skipped": 0,
+    "duration": "5.5m",
+    "newRecoveryCases": 58,
+    "browsers": [
+      "Chromium",
+      "WebKit"
+    ],
+    "apiContracts": true
+  },
+  "checks": {
+    "qaStatic": "passed",
+    "syntax": "passed",
+    "diffCheck": "passed"
+  },
+  "productFileSha256": {
+    "src/core/data-safety-runtime-service.mjs": "1f13aa41719e91e44676fdca1dc892221c5313a5a953d8fba16e6ae464aef4b8",
+    "src/core/indexeddb-storage-health.mjs": "cd1190377980ba13d74819cd8dffce9748e6072425ead23a082df7f96cfe20ae",
+    "src/core/snapshot-history-dialog.mjs": "a2f5bf9675da7cef884e9b30d46d6bbcfc45f80897e2dc139de4a07086069e5a",
+    "src/core/storage-health-dialog.mjs": "ae8f39adc01edf56f69229e2745df64be78fc112930f530b00c3ecb265262931",
+    "src/core/snapshot-recovery-draft-format.mjs": "2d86eb48f22edcf49a617a1e05e1cd200c011955c08c54e6d4bb1f9ea34b1ab4",
+    "src/core/snapshot-recovery-draft-panel.mjs": "3721182e7ad5260c0591c3a8099d0b4acb4e725fb4be002fb14943fdebe538c3",
+    "src/core/snapshot-recovery-draft-service.mjs": "32841a95deacc471e43983305c5aa3523e7d111fe52640600bc4ce7aa36117cf",
+    "src/core/snapshot-recovery-draft-store.mjs": "3e3b4b4eb99af76cadf4e8834213c0afd4e2f7186731d61de133784f6b404cd9"
+  },
+  "release": false,
+  "compactWriterActivated": false,
+  "historicalMigrationOrCleanup": false,
+  "currentModuleWritesOrReplay": false,
+  "draftStore": {
+    "maxCopies": 32,
+    "maxLogicalBytes": 16777216,
+    "maxCopyBytes": 8388608,
+    "automaticDeletion": false
+  },
+  "limitations": [
+    "Separate immutable review draft; no in-editor editing or applying to current plan.",
+    "Admin-only existing history policy; synthetic auth/HTTP fixtures, no live verification.",
+    "Injected quota, not physical disk exhaustion.",
+    "Loaded offline view only, not cold offline app startup.",
+    "Existing mobile chat launcher overlaps profile button at 390x844; dialog responsive test starts after opening on desktop.",
+    "Local drafts are not included in central or ordinary localStorage backup; explicit draft download provided."
+  ],
+  "logs": [
+    "/private/tmp/history-recovery-verified-20261112.log",
+    "/private/tmp/history-recovery-static-final-20261112.log"
+  ]
+}

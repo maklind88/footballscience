@@ -5,6 +5,8 @@ const databases = [
   { name: "football-science-library-v1", label: "Exercise Library", stores: ["baselines", "pending", "recovery", "access"] },
   { name: "football-science-medical-drafts-v1", label: "Medical recovery", stores: ["drafts", "catalog"] },
   { name: "football-science-snapshots-compact-v1", label: "Additional saved copies", stores: ["versions", "blocks"] },
+  { name: "football-science-history-drafts-v1", label: "Separate recovery drafts", stores: ["drafts", "catalog"],
+    labels: { drafts: "Recovery draft copies", catalog: "Recovery draft metadata" } },
 ];
 const category = (labels, status, fallback) => Object.hasOwn(labels, status) ? labels[status] : fallback;
 const empty = (label, status) => ({ label, status, records: 0, totalRecords: status === "absent" ? 0 : null,
@@ -14,7 +16,8 @@ const storeLabels = { snapshots: "Safety snapshots and recovery", latest: "Safet
   recovery: "Library recovery originals", access: "Library access metadata", drafts: "Medical retained drafts", catalog: "Medical recovery metadata",
   versions: "Compact versions", blocks: "Compact content blocks" };
 
-function classify(store, row) {
+function classify(store, row, spec) {
+  if (spec?.name === 'football-science-history-drafts-v1') return spec.labels[store];
   if (store === 'versions') return row?.format === 1 && ['standalone', 'pooled'].includes(row.mode)
     ? 'Compact versions retained (integrity not checked)' : 'Unknown compact versions retained';
   if (store === 'blocks') return 'Compact content blocks retained (references not checked)';
@@ -68,7 +71,7 @@ function inspectDatabase(factory, spec, { timeoutMs, maxRecords, maxBytes, snaps
           // Count every known store before materializing any values. A large
           // snapshot can exhaust the byte budget; unread edits must stay visible
           // as unclassified rows, never become an implied zero pending count.
-          report.stores = stores.map(name => ({ label: storeLabels[name], totalRecords: null, scannedRecords: 0 }));
+          report.stores = stores.map(name => ({ label: spec.labels?.[name] || storeLabels[name], totalRecords: null, scannedRecords: 0 }));
           for (const [index, store] of stores.entries()) {
             const count = transaction.objectStore(store).count();
             count.onsuccess = () => { if (!ended) report.stores[index].totalRecords = count.result; };
@@ -95,7 +98,7 @@ function inspectDatabase(factory, spec, { timeoutMs, maxRecords, maxBytes, snaps
               if (report.approximateJsonUtf16Bytes + report.binaryBytes >= maxBytes) { finish("partial", "bytes"); return; }
               try {
                 const { approximateJsonUtf16Bytes: bytes, binaryBytes } = measureStoredRow(cursor.value);
-                const label = classify(store, cursor.value);
+                const label = classify(store, cursor.value, spec);
                 const add = (map, label) => {
                   const group = map.get(label) || { label, records: 0, approximateJsonUtf16Bytes: 0 };
                   group.records++; group.approximateJsonUtf16Bytes += bytes;

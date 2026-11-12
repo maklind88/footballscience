@@ -4,6 +4,7 @@ import { pruneAcknowledgedSnapshots } from "./snapshot-retention-store.mjs";
 import { openStorageHealth } from "./storage-health-dialog.mjs";
 import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
 import { createLocalDatabaseConnection } from "./local-database-connection.mjs";
+import { canEditSessionPlanner } from "./platform-runtime-accessors.mjs";
 
 export function createDataSafetyRuntimeService(deps = {}) {
   const {
@@ -900,7 +901,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
           if (!openingScope || changed || getSnapshotReviewScope() !== openingScope) throw new Error("Snapshot review access changed.");
           if (!closeHealth()) return;
           return openSnapshotHistory({ win, documentRef, databaseName, storeName: snapshotStoreName,
-            getScope: getSnapshotReviewScope, protectedStorageKeys, storageLabels });
+            getScope: getSnapshotReviewScope, protectedStorageKeys, storageLabels,
+            canPrepareRecoveryDraft: () => Boolean(getSnapshotReviewScope()) && canEditSessionPlanner() === true });
         } finally { win.removeEventListener?.("platform:user-change", invalidateOpening); }
       },
       storageLabels, storageKey, getScope: () => getCentralStateBridge()?.getReadScope?.() || "",

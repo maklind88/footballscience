@@ -42,7 +42,7 @@ test('compact inventory counts binary bytes without decoding, writing or claimin
     try { return await collectIndexedDbStorageHealth({ indexedDB }); }
     finally { globalThis.DecompressionStream = original; }
   });
-  const compact = result.databases.at(-1);
+  const compact = result.databases.find(db => db.label === 'Additional saved copies');
   expect(compact.status).toBe('complete'); expect(compact.records).toBe(1);
   expect(compact.binaryBytes).toBeGreaterThan(0);
   expect(compact.approximateJsonUtf16Bytes).toBeLessThan(3000);
@@ -115,7 +115,8 @@ test('unknown collections and unread binary rows remain explicitly unclassified'
       const read = db.transaction('private-future-store').objectStore('private-future-store').get('private');
       read.onsuccess = () => resolve(read.result.work);
     }); db.close();
-    return { limited: limited.databases.at(-1), known: completeKnown.databases.at(-1), retained };
+    return { limited: limited.databases.find(db => db.label === 'Additional saved copies'),
+      known: completeKnown.databases.find(db => db.label === 'Additional saved copies'), retained };
   });
   expect(result.limited).toMatchObject({ status: 'partial', stoppedBecause: 'bytes', records: 1, binaryBytes: 1024, totalRecords: null });
   expect(result.known).toMatchObject({ status: 'partial', stoppedBecause: 'unknown-stores', records: 2, unknownStores: 1, totalRecords: null });

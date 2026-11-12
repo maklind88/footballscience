@@ -50,7 +50,7 @@ export async function openStorageHealth(options) {
   add("These are legacy localStorage copies. The active library may use IndexedDB; matching legacy copies do not prove central saving or make either copy safe to delete.");
   add(`Pending module markers for this account/team: ${report.pendingForCurrentScope ?? "Unavailable"}. This is not a count of individual edits or proof they are saved locally.`);
   add(`Recovery copies in local browser storage: ${report.recoveryCopies}. The IndexedDB summary below counts stored rows, not individual recovery dates or confirmed conflicts.`);
-  add("IndexedDB: approximate JSON sizes in the known Safety/Sessions, Library, Medical recovery and additional saved-copy databases, across accounts on this browser. Binary payload bytes are counted separately without decoding. This is not physical disk usage or proof of central saving. Other databases and media are outside this check.");
+  add("IndexedDB: approximate JSON sizes in the known Safety/Sessions, Library, Medical recovery, additional saved-copy and separate recovery-draft databases, across accounts on this browser. Binary payload bytes are counted separately without decoding. This is not physical disk usage or proof of central saving. Other databases and media are outside this check.");
   const rotation = options.getSnapshotRotation?.();
   add(rotation === 'limited' ? 'The last history rotation on this page reached its inspection limit. No copies were removed by that attempt; saving a copy does not mean history growth is bounded.'
     : rotation === 'failed' ? 'The last history rotation on this page failed. Retained copies must be preserved.'

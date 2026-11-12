@@ -141,3 +141,8 @@ test('opened recovery dialog fits mobile, prepares offline and clears revoked ex
   expect(await page.evaluate(() => recoveryDownloads)).toBe(0);
   expect(await page.evaluate(async () => (await (await import('/qa/helpers/history-recovery-draft-fixture.mjs')).recoveryDump()).drafts.length)).toBe(1);
 });
+
+test('live recovery probe rehearses with real app permissions', async ({ page }) => {
+  await installStorageHealthAppFixture(page); await page.goto('/?workspace=session-planner'); await waitForStorageHealthApp(page);
+  await (await import('./helpers/recovery-draft-live-probe.mjs')).verifyRecoveryDraftLive(page);
+});

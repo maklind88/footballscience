@@ -162,3 +162,16 @@ behöver en avgränsad UI-korrigering innan mobilflödet kan godkännas i sin he
 Offlineprovet gäller en redan laddad vy. Kall offline-start är fortfarande ett
 separat kvarvarande plattformsproblem. Utkastsformatet ger inte automatisk replay,
 samredigering eller obegränsat offlinearbete. Kompakt skrivning förblir avstängd.
+
+## Release verification addition
+
+The authenticated production suite now includes a disposable-profile recovery
+probe. It adds only two synthetic history rows, blocks mutating API requests,
+and checks explicit draft creation, exact downloaded payload and metadata,
+idempotency, unchanged current Sessions value/manifest/working copy/journal,
+quota failure with prior draft retained, reopen, and access revocation during
+export. It also checks that no compact database was created. No real history is
+expanded or exported. This same probe passed in local Chromium and WebKit
+(2 passed, `/private/tmp/recovery-live-rehearsal-20261112.log`). Production
+execution remains pending until the authorized Safe Lane release completes;
+local rehearsal is not production evidence.

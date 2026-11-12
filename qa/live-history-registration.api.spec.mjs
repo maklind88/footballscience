@@ -12,5 +12,6 @@ test('authenticated history is registered by the real live config without worker
     encoding: 'utf8', timeout: 20_000,
   });
   expect(output).toContain('production history reads both formats and revokes access during export');
+  expect(output).toContain('production recovery creates separate drafts and preserves work under quota and revoked access');
   expect(output).toContain('production storage diagnostics preserve pending work and stop restore under quota pressure');
 });

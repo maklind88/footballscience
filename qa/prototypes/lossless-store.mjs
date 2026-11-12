@@ -1,4 +1,5 @@
-import { serialize, pack, unpack, digest, bytesEqual } from './lossless-codec.mjs';
+import { serialize, pack, unpack, digest, bytesEqual, maxPlainBytes } from './lossless-codec.mjs';
+import { isReviewableSnapshot } from '../../src/core/snapshot-history-format.mjs';
 
 // Deliberately separate QA database: no migration, deletes, legacy writes,
 // auth, sync, retention, browser cleanup, or production activation path.
@@ -28,9 +29,16 @@ export async function openLosslessStore(name, mode = 'standalone') {
     const original = serialize(snapshot), copy = JSON.parse(original);
     const scope = copy.saveContext?.scope, id = copy.id;
     failScope(scope, id);
+    // Format admission only, NOT authorization. Real role/scope access remains
+    // a product integration gate; synthetic scopes never grant product access.
+    const keys = new Set(Object.keys(copy.storage || {}));
+    if (!isReviewableSnapshot(copy, scope, keys) ||
+        Object.keys(copy.saveContext.entries).some(key => !keys.has(key)))
+      throw new Error('Product reader format not admitted');
     const blocks = [], refs = [];
     if (mode === 'pooled') {
       if (!copy.storage || Array.isArray(copy.storage) || typeof copy.storage !== 'object') throw new Error('Storage object required');
+      if (Object.keys(copy.storage).length > 256) throw new Error('Product reader admission limit');
       for (const [key, value] of Object.entries(copy.storage)) {
         if (typeof value !== 'string' || copy.saveContext.entries?.[key]?.principalScope !== scope) throw new Error('Unverified payload owner');
         const packet = await pack(JSON.stringify(value));
@@ -43,6 +51,13 @@ export async function openLosslessStore(name, mode = 'standalone') {
     const row = { key: versionKey(scope, id), scope, id, format: 1, mode,
       originalDigest: await digest(new TextEncoder().encode(original)),
       packet: await pack(JSON.stringify(copy)), refs };
+    // The product reader budgets the envelope AND its dependencies. Original
+    // JSON alone can fit while the pooled representation exceeds that budget.
+    // Reject before any transaction; never commit something it cannot decode.
+    const packets = [row.packet, ...blocks];
+    if (packets.reduce((sum, packet) => sum + packet.rawLength, 0) > maxPlainBytes ||
+        packets.reduce((sum, packet) => sum + packet.bytes.length, 0) > maxPlainBytes)
+      throw new Error('Product reader admission limit');
     return new Promise((resolve, reject) => {
       const tx = db.transaction(['versions', 'blocks'], 'readwrite');
       let failure, inserted = false;

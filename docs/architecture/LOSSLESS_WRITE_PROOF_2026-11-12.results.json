@@ -1,0 +1,1144 @@
+{
+  "schema": "football-science-lossless-write-proof-v1",
+  "baseSha": "62116896cfa43b8f6c3b08beaf37ea5a8d8b46c1",
+  "branch": "codex/lossless-write-proof-20261112",
+  "stats": {
+    "startTime": "2026-11-12T01:38:07.071Z",
+    "duration": 44557.551999999996,
+    "expected": 72,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "measurements": [
+    {
+      "corpus": "repetitive",
+      "checkpoints": [
+        {
+          "generation": 1,
+          "baselineBytes": 424763,
+          "commonBytes": 212489,
+          "legacyHistoryBytes": 212274,
+          "protectedCount": 1,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 1,
+              "blocks": 0,
+              "encodedBytes": 949,
+              "metadataUtf8Bytes": 457,
+              "historyBytes": 1431,
+              "replacementLogicalBytes": 320059,
+              "shadowLogicalBytes": 426194
+            },
+            {
+              "mode": "pooled",
+              "versions": 1,
+              "blocks": 2,
+              "encodedBytes": 982,
+              "metadataUtf8Bytes": 1403,
+              "historyBytes": 2409,
+              "replacementLogicalBytes": 321037,
+              "shadowLogicalBytes": 427172
+            }
+          ]
+        },
+        {
+          "generation": 10,
+          "baselineBytes": 2335256,
+          "commonBytes": 212495,
+          "legacyHistoryBytes": 2122761,
+          "protectedCount": 10,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 10,
+              "blocks": 0,
+              "encodedBytes": 9630,
+              "metadataUtf8Bytes": 4575,
+              "historyBytes": 14230,
+              "replacementLogicalBytes": 1288110,
+              "shadowLogicalBytes": 2349486
+            },
+            {
+              "mode": "pooled",
+              "versions": 10,
+              "blocks": 11,
+              "encodedBytes": 7875,
+              "metadataUtf8Bytes": 11065,
+              "historyBytes": 18964,
+              "replacementLogicalBytes": 1292844,
+              "shadowLogicalBytes": 2354220
+            }
+          ]
+        },
+        {
+          "generation": 30,
+          "baselineBytes": 6580939,
+          "commonBytes": 212495,
+          "legacyHistoryBytes": 6368444,
+          "protectedCount": 30,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 30,
+              "blocks": 0,
+              "encodedBytes": 28954,
+              "metadataUtf8Bytes": 13713,
+              "historyBytes": 42692,
+              "replacementLogicalBytes": 3439424,
+              "shadowLogicalBytes": 6623631
+            },
+            {
+              "mode": "pooled",
+              "versions": 30,
+              "blocks": 31,
+              "encodedBytes": 23230,
+              "metadataUtf8Bytes": 32523,
+              "historyBytes": 55777,
+              "replacementLogicalBytes": 3452509,
+              "shadowLogicalBytes": 6636716
+            }
+          ]
+        },
+        {
+          "generation": 60,
+          "baselineBytes": 9765209,
+          "commonBytes": 212500,
+          "legacyHistoryBytes": 9552709,
+          "protectedCount": 60,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 60,
+              "blocks": 0,
+              "encodedBytes": 57997,
+              "metadataUtf8Bytes": 27413,
+              "historyBytes": 85435,
+              "replacementLogicalBytes": 3482201,
+              "shadowLogicalBytes": 9850644
+            },
+            {
+              "mode": "pooled",
+              "versions": 60,
+              "blocks": 61,
+              "encodedBytes": 46332,
+              "metadataUtf8Bytes": 64703,
+              "historyBytes": 111059,
+              "replacementLogicalBytes": 3507825,
+              "shadowLogicalBytes": 9876268
+            }
+          ]
+        }
+      ],
+      "preserved": true,
+      "recovered": [
+        60,
+        60
+      ],
+      "physicalOverheadMeasured": false,
+      "backend": "deterministic fake server; real save/sync runtime",
+      "productWriterActivated": false,
+      "browser": "chromium"
+    },
+    {
+      "corpus": "stable-noise",
+      "checkpoints": [
+        {
+          "generation": 1,
+          "baselineBytes": 266910,
+          "commonBytes": 133563,
+          "legacyHistoryBytes": 133347,
+          "protectedCount": 1,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 1,
+              "blocks": 0,
+              "encodedBytes": 50047,
+              "metadataUtf8Bytes": 458,
+              "historyBytes": 50530,
+              "replacementLogicalBytes": 250768,
+              "shadowLogicalBytes": 317440
+            },
+            {
+              "mode": "pooled",
+              "versions": 1,
+              "blocks": 2,
+              "encodedBytes": 50038,
+              "metadataUtf8Bytes": 1401,
+              "historyBytes": 51463,
+              "replacementLogicalBytes": 251701,
+              "shadowLogicalBytes": 318373
+            }
+          ]
+        },
+        {
+          "generation": 10,
+          "baselineBytes": 1467044,
+          "commonBytes": 133569,
+          "legacyHistoryBytes": 1333475,
+          "protectedCount": 10,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 10,
+              "blocks": 0,
+              "encodedBytes": 500592,
+              "metadataUtf8Bytes": 4559,
+              "historyBytes": 505176,
+              "replacementLogicalBytes": 1305490,
+              "shadowLogicalBytes": 1972220
+            },
+            {
+              "mode": "pooled",
+              "versions": 10,
+              "blocks": 11,
+              "encodedBytes": 55971,
+              "metadataUtf8Bytes": 11019,
+              "historyBytes": 67014,
+              "replacementLogicalBytes": 867328,
+              "shadowLogicalBytes": 1534058
+            }
+          ]
+        },
+        {
+          "generation": 30,
+          "baselineBytes": 4134205,
+          "commonBytes": 133571,
+          "legacyHistoryBytes": 4000634,
+          "protectedCount": 30,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 30,
+              "blocks": 0,
+              "encodedBytes": 1501897,
+              "metadataUtf8Bytes": 13675,
+              "historyBytes": 1515597,
+              "replacementLogicalBytes": 3649502,
+              "shadowLogicalBytes": 5649802
+            },
+            {
+              "mode": "pooled",
+              "versions": 30,
+              "blocks": 31,
+              "encodedBytes": 69242,
+              "metadataUtf8Bytes": 32395,
+              "historyBytes": 101661,
+              "replacementLogicalBytes": 2235566,
+              "shadowLogicalBytes": 4235866
+            }
+          ]
+        },
+        {
+          "generation": 60,
+          "baselineBytes": 6134610,
+          "commonBytes": 133576,
+          "legacyHistoryBytes": 6001034,
+          "protectedCount": 60,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 60,
+              "blocks": 0,
+              "encodedBytes": 3003916,
+              "metadataUtf8Bytes": 27351,
+              "historyBytes": 3031292,
+              "replacementLogicalBytes": 5165249,
+              "shadowLogicalBytes": 9165902
+            },
+            {
+              "mode": "pooled",
+              "versions": 60,
+              "blocks": 61,
+              "encodedBytes": 89209,
+              "metadataUtf8Bytes": 64461,
+              "historyBytes": 153694,
+              "replacementLogicalBytes": 2287651,
+              "shadowLogicalBytes": 6288304
+            }
+          ]
+        }
+      ],
+      "preserved": true,
+      "recovered": [
+        60,
+        60
+      ],
+      "physicalOverheadMeasured": false,
+      "backend": "deterministic fake server; real save/sync runtime",
+      "productWriterActivated": false,
+      "browser": "chromium"
+    },
+    {
+      "corpus": "changing-noise",
+      "checkpoints": [
+        {
+          "generation": 1,
+          "baselineBytes": 529043,
+          "commonBytes": 264626,
+          "legacyHistoryBytes": 264417,
+          "protectedCount": 1,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 1,
+              "blocks": 0,
+              "encodedBytes": 99470,
+              "metadataUtf8Bytes": 457,
+              "historyBytes": 99952,
+              "replacementLogicalBytes": 496788,
+              "shadowLogicalBytes": 628995
+            },
+            {
+              "mode": "pooled",
+              "versions": 1,
+              "blocks": 2,
+              "encodedBytes": 99431,
+              "metadataUtf8Bytes": 1403,
+              "historyBytes": 100858,
+              "replacementLogicalBytes": 497694,
+              "shadowLogicalBytes": 629901
+            }
+          ]
+        },
+        {
+          "generation": 10,
+          "baselineBytes": 2908807,
+          "commonBytes": 264641,
+          "legacyHistoryBytes": 2644166,
+          "protectedCount": 10,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 10,
+              "blocks": 0,
+              "encodedBytes": 994665,
+              "metadataUtf8Bytes": 4563,
+              "historyBytes": 999253,
+              "replacementLogicalBytes": 2585989,
+              "shadowLogicalBytes": 3908060
+            },
+            {
+              "mode": "pooled",
+              "versions": 10,
+              "blocks": 20,
+              "encodedBytes": 994183,
+              "metadataUtf8Bytes": 14023,
+              "historyBytes": 1008230,
+              "replacementLogicalBytes": 2594966,
+              "shadowLogicalBytes": 3917037
+            }
+          ]
+        },
+        {
+          "generation": 30,
+          "baselineBytes": 8197418,
+          "commonBytes": 264637,
+          "legacyHistoryBytes": 7932781,
+          "protectedCount": 30,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 30,
+              "blocks": 0,
+              "encodedBytes": 2984055,
+              "metadataUtf8Bytes": 13701,
+              "historyBytes": 2997781,
+              "replacementLogicalBytes": 7228837,
+              "shadowLogicalBytes": 11195199
+            },
+            {
+              "mode": "pooled",
+              "versions": 30,
+              "blocks": 60,
+              "encodedBytes": 2982599,
+              "metadataUtf8Bytes": 42081,
+              "historyBytes": 3024704,
+              "replacementLogicalBytes": 7255760,
+              "shadowLogicalBytes": 11222122
+            }
+          ]
+        },
+        {
+          "generation": 60,
+          "baselineBytes": 12163931,
+          "commonBytes": 264642,
+          "legacyHistoryBytes": 11899289,
+          "protectedCount": 60,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 60,
+              "blocks": 0,
+              "encodedBytes": 5968171,
+              "metadataUtf8Bytes": 27409,
+              "historyBytes": 5995605,
+              "replacementLogicalBytes": 10226742,
+              "shadowLogicalBytes": 18159536
+            },
+            {
+              "mode": "pooled",
+              "versions": 60,
+              "blocks": 120,
+              "encodedBytes": 5965250,
+              "metadataUtf8Bytes": 84169,
+              "historyBytes": 6049443,
+              "replacementLogicalBytes": 10280580,
+              "shadowLogicalBytes": 18213374
+            }
+          ]
+        }
+      ],
+      "preserved": true,
+      "recovered": [
+        60,
+        60
+      ],
+      "physicalOverheadMeasured": false,
+      "backend": "deterministic fake server; real save/sync runtime",
+      "productWriterActivated": false,
+      "browser": "chromium"
+    },
+    {
+      "corpus": "tiny",
+      "checkpoints": [
+        {
+          "generation": 1,
+          "baselineBytes": 4753,
+          "commonBytes": 2486,
+          "legacyHistoryBytes": 2267,
+          "protectedCount": 1,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 1,
+              "blocks": 0,
+              "encodedBytes": 508,
+              "metadataUtf8Bytes": 455,
+              "historyBytes": 988,
+              "replacementLogicalBytes": 4609,
+              "shadowLogicalBytes": 5741
+            },
+            {
+              "mode": "pooled",
+              "versions": 1,
+              "blocks": 2,
+              "encodedBytes": 649,
+              "metadataUtf8Bytes": 1394,
+              "historyBytes": 2067,
+              "replacementLogicalBytes": 5688,
+              "shadowLogicalBytes": 6820
+            }
+          ]
+        },
+        {
+          "generation": 10,
+          "baselineBytes": 25186,
+          "commonBytes": 2494,
+          "legacyHistoryBytes": 22692,
+          "protectedCount": 10,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 10,
+              "blocks": 0,
+              "encodedBytes": 5187,
+              "metadataUtf8Bytes": 4553,
+              "historyBytes": 9765,
+              "replacementLogicalBytes": 23609,
+              "shadowLogicalBytes": 34951
+            },
+            {
+              "mode": "pooled",
+              "versions": 10,
+              "blocks": 11,
+              "encodedBytes": 6552,
+              "metadataUtf8Bytes": 11018,
+              "historyBytes": 17594,
+              "replacementLogicalBytes": 31438,
+              "shadowLogicalBytes": 42780
+            }
+          ]
+        },
+        {
+          "generation": 30,
+          "baselineBytes": 70798,
+          "commonBytes": 2498,
+          "legacyHistoryBytes": 68300,
+          "protectedCount": 30,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 30,
+              "blocks": 0,
+              "encodedBytes": 15659,
+              "metadataUtf8Bytes": 13655,
+              "historyBytes": 29339,
+              "replacementLogicalBytes": 66002,
+              "shadowLogicalBytes": 100137
+            },
+            {
+              "mode": "pooled",
+              "versions": 30,
+              "blocks": 31,
+              "encodedBytes": 19750,
+              "metadataUtf8Bytes": 32400,
+              "historyBytes": 52174,
+              "replacementLogicalBytes": 88837,
+              "shadowLogicalBytes": 122972
+            }
+          ]
+        },
+        {
+          "generation": 60,
+          "baselineBytes": 105032,
+          "commonBytes": 2501,
+          "legacyHistoryBytes": 102531,
+          "protectedCount": 60,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 60,
+              "blocks": 0,
+              "encodedBytes": 31431,
+              "metadataUtf8Bytes": 27297,
+              "historyBytes": 58753,
+              "replacementLogicalBytes": 95469,
+              "shadowLogicalBytes": 163785
+            },
+            {
+              "mode": "pooled",
+              "versions": 60,
+              "blocks": 61,
+              "encodedBytes": 39618,
+              "metadataUtf8Bytes": 64462,
+              "historyBytes": 104104,
+              "replacementLogicalBytes": 140820,
+              "shadowLogicalBytes": 209136
+            }
+          ]
+        }
+      ],
+      "preserved": true,
+      "recovered": [
+        60,
+        60
+      ],
+      "physicalOverheadMeasured": false,
+      "backend": "deterministic fake server; real save/sync runtime",
+      "productWriterActivated": false,
+      "browser": "chromium"
+    },
+    {
+      "corpus": "repetitive",
+      "checkpoints": [
+        {
+          "generation": 1,
+          "baselineBytes": 424760,
+          "commonBytes": 212487,
+          "legacyHistoryBytes": 212273,
+          "protectedCount": 1,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 1,
+              "blocks": 0,
+              "encodedBytes": 946,
+              "metadataUtf8Bytes": 457,
+              "historyBytes": 1428,
+              "replacementLogicalBytes": 320053,
+              "shadowLogicalBytes": 426188
+            },
+            {
+              "mode": "pooled",
+              "versions": 1,
+              "blocks": 2,
+              "encodedBytes": 977,
+              "metadataUtf8Bytes": 1403,
+              "historyBytes": 2404,
+              "replacementLogicalBytes": 321029,
+              "shadowLogicalBytes": 427164
+            }
+          ]
+        },
+        {
+          "generation": 10,
+          "baselineBytes": 2335256,
+          "commonBytes": 212495,
+          "legacyHistoryBytes": 2122761,
+          "protectedCount": 10,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 10,
+              "blocks": 0,
+              "encodedBytes": 9617,
+              "metadataUtf8Bytes": 4571,
+              "historyBytes": 14213,
+              "replacementLogicalBytes": 1288095,
+              "shadowLogicalBytes": 2349469
+            },
+            {
+              "mode": "pooled",
+              "versions": 10,
+              "blocks": 11,
+              "encodedBytes": 7841,
+              "metadataUtf8Bytes": 11061,
+              "historyBytes": 18926,
+              "replacementLogicalBytes": 1292808,
+              "shadowLogicalBytes": 2354182
+            }
+          ]
+        },
+        {
+          "generation": 30,
+          "baselineBytes": 6580946,
+          "commonBytes": 212497,
+          "legacyHistoryBytes": 6368449,
+          "protectedCount": 30,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 30,
+              "blocks": 0,
+              "encodedBytes": 28978,
+              "metadataUtf8Bytes": 13721,
+              "historyBytes": 42724,
+              "replacementLogicalBytes": 3439459,
+              "shadowLogicalBytes": 6623670
+            },
+            {
+              "mode": "pooled",
+              "versions": 30,
+              "blocks": 31,
+              "encodedBytes": 23193,
+              "metadataUtf8Bytes": 32531,
+              "historyBytes": 55748,
+              "replacementLogicalBytes": 3452483,
+              "shadowLogicalBytes": 6636694
+            }
+          ]
+        },
+        {
+          "generation": 60,
+          "baselineBytes": 9765225,
+          "commonBytes": 212500,
+          "legacyHistoryBytes": 9552725,
+          "protectedCount": 60,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 60,
+              "blocks": 0,
+              "encodedBytes": 58047,
+              "metadataUtf8Bytes": 27435,
+              "historyBytes": 85507,
+              "replacementLogicalBytes": 3482278,
+              "shadowLogicalBytes": 9850732
+            },
+            {
+              "mode": "pooled",
+              "versions": 60,
+              "blocks": 61,
+              "encodedBytes": 46256,
+              "metadataUtf8Bytes": 64725,
+              "historyBytes": 111005,
+              "replacementLogicalBytes": 3507776,
+              "shadowLogicalBytes": 9876230
+            }
+          ]
+        }
+      ],
+      "preserved": true,
+      "recovered": [
+        60,
+        60
+      ],
+      "physicalOverheadMeasured": false,
+      "backend": "deterministic fake server; real save/sync runtime",
+      "productWriterActivated": false,
+      "browser": "webkit"
+    },
+    {
+      "corpus": "stable-noise",
+      "checkpoints": [
+        {
+          "generation": 1,
+          "baselineBytes": 266909,
+          "commonBytes": 133563,
+          "legacyHistoryBytes": 133346,
+          "protectedCount": 1,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 1,
+              "blocks": 0,
+              "encodedBytes": 50330,
+              "metadataUtf8Bytes": 456,
+              "historyBytes": 50811,
+              "replacementLogicalBytes": 251049,
+              "shadowLogicalBytes": 317720
+            },
+            {
+              "mode": "pooled",
+              "versions": 1,
+              "blocks": 2,
+              "encodedBytes": 50303,
+              "metadataUtf8Bytes": 1399,
+              "historyBytes": 51726,
+              "replacementLogicalBytes": 251964,
+              "shadowLogicalBytes": 318635
+            }
+          ]
+        },
+        {
+          "generation": 10,
+          "baselineBytes": 1467048,
+          "commonBytes": 133569,
+          "legacyHistoryBytes": 1333479,
+          "protectedCount": 10,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 10,
+              "blocks": 0,
+              "encodedBytes": 503490,
+              "metadataUtf8Bytes": 4565,
+              "historyBytes": 508080,
+              "replacementLogicalBytes": 1308395,
+              "shadowLogicalBytes": 1975128
+            },
+            {
+              "mode": "pooled",
+              "versions": 10,
+              "blocks": 11,
+              "encodedBytes": 56210,
+              "metadataUtf8Bytes": 11025,
+              "historyBytes": 67259,
+              "replacementLogicalBytes": 867574,
+              "shadowLogicalBytes": 1534307
+            }
+          ]
+        },
+        {
+          "generation": 30,
+          "baselineBytes": 4134216,
+          "commonBytes": 133573,
+          "legacyHistoryBytes": 4000643,
+          "protectedCount": 30,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 30,
+              "blocks": 0,
+              "encodedBytes": 1510600,
+              "metadataUtf8Bytes": 13683,
+              "historyBytes": 1524308,
+              "replacementLogicalBytes": 3658220,
+              "shadowLogicalBytes": 5658524
+            },
+            {
+              "mode": "pooled",
+              "versions": 30,
+              "blocks": 31,
+              "encodedBytes": 69453,
+              "metadataUtf8Bytes": 32403,
+              "historyBytes": 101880,
+              "replacementLogicalBytes": 2235792,
+              "shadowLogicalBytes": 4236096
+            }
+          ]
+        },
+        {
+          "generation": 60,
+          "baselineBytes": 6134618,
+          "commonBytes": 133576,
+          "legacyHistoryBytes": 6001042,
+          "protectedCount": 60,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 60,
+              "blocks": 0,
+              "encodedBytes": 3021296,
+              "metadataUtf8Bytes": 27361,
+              "historyBytes": 3048682,
+              "replacementLogicalBytes": 5182642,
+              "shadowLogicalBytes": 9183300
+            },
+            {
+              "mode": "pooled",
+              "versions": 60,
+              "blocks": 61,
+              "encodedBytes": 89336,
+              "metadataUtf8Bytes": 64471,
+              "historyBytes": 153831,
+              "replacementLogicalBytes": 2287791,
+              "shadowLogicalBytes": 6288449
+            }
+          ]
+        }
+      ],
+      "preserved": true,
+      "recovered": [
+        60,
+        60
+      ],
+      "physicalOverheadMeasured": false,
+      "backend": "deterministic fake server; real save/sync runtime",
+      "productWriterActivated": false,
+      "browser": "webkit"
+    },
+    {
+      "corpus": "changing-noise",
+      "checkpoints": [
+        {
+          "generation": 1,
+          "baselineBytes": 529043,
+          "commonBytes": 264626,
+          "legacyHistoryBytes": 264417,
+          "protectedCount": 1,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 1,
+              "blocks": 0,
+              "encodedBytes": 99982,
+              "metadataUtf8Bytes": 457,
+              "historyBytes": 100464,
+              "replacementLogicalBytes": 497300,
+              "shadowLogicalBytes": 629507
+            },
+            {
+              "mode": "pooled",
+              "versions": 1,
+              "blocks": 2,
+              "encodedBytes": 99949,
+              "metadataUtf8Bytes": 1403,
+              "historyBytes": 101376,
+              "replacementLogicalBytes": 498212,
+              "shadowLogicalBytes": 630419
+            }
+          ]
+        },
+        {
+          "generation": 10,
+          "baselineBytes": 2908806,
+          "commonBytes": 264637,
+          "legacyHistoryBytes": 2644169,
+          "protectedCount": 10,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 10,
+              "blocks": 0,
+              "encodedBytes": 999912,
+              "metadataUtf8Bytes": 4573,
+              "historyBytes": 1004510,
+              "replacementLogicalBytes": 2591240,
+              "shadowLogicalBytes": 3913316
+            },
+            {
+              "mode": "pooled",
+              "versions": 10,
+              "blocks": 20,
+              "encodedBytes": 999565,
+              "metadataUtf8Bytes": 14033,
+              "historyBytes": 1013622,
+              "replacementLogicalBytes": 2600352,
+              "shadowLogicalBytes": 3922428
+            }
+          ]
+        },
+        {
+          "generation": 30,
+          "baselineBytes": 8197436,
+          "commonBytes": 264639,
+          "legacyHistoryBytes": 7932797,
+          "protectedCount": 30,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 30,
+              "blocks": 0,
+              "encodedBytes": 2999788,
+              "metadataUtf8Bytes": 13721,
+              "historyBytes": 3013534,
+              "replacementLogicalBytes": 7244598,
+              "shadowLogicalBytes": 11210970
+            },
+            {
+              "mode": "pooled",
+              "versions": 30,
+              "blocks": 60,
+              "encodedBytes": 2998804,
+              "metadataUtf8Bytes": 42101,
+              "historyBytes": 3040929,
+              "replacementLogicalBytes": 7271993,
+              "shadowLogicalBytes": 11238365
+            }
+          ]
+        },
+        {
+          "generation": 60,
+          "baselineBytes": 12163934,
+          "commonBytes": 264640,
+          "legacyHistoryBytes": 11899294,
+          "protectedCount": 60,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 60,
+              "blocks": 0,
+              "encodedBytes": 5999578,
+              "metadataUtf8Bytes": 27427,
+              "historyBytes": 6027030,
+              "replacementLogicalBytes": 10258161,
+              "shadowLogicalBytes": 18190964
+            },
+            {
+              "mode": "pooled",
+              "versions": 60,
+              "blocks": 120,
+              "encodedBytes": 5997612,
+              "metadataUtf8Bytes": 84187,
+              "historyBytes": 6081823,
+              "replacementLogicalBytes": 10312954,
+              "shadowLogicalBytes": 18245757
+            }
+          ]
+        }
+      ],
+      "preserved": true,
+      "recovered": [
+        60,
+        60
+      ],
+      "physicalOverheadMeasured": false,
+      "backend": "deterministic fake server; real save/sync runtime",
+      "productWriterActivated": false,
+      "browser": "webkit"
+    },
+    {
+      "corpus": "tiny",
+      "checkpoints": [
+        {
+          "generation": 1,
+          "baselineBytes": 4754,
+          "commonBytes": 2486,
+          "legacyHistoryBytes": 2268,
+          "protectedCount": 1,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 1,
+              "blocks": 0,
+              "encodedBytes": 508,
+              "metadataUtf8Bytes": 457,
+              "historyBytes": 990,
+              "replacementLogicalBytes": 4611,
+              "shadowLogicalBytes": 5744
+            },
+            {
+              "mode": "pooled",
+              "versions": 1,
+              "blocks": 2,
+              "encodedBytes": 647,
+              "metadataUtf8Bytes": 1396,
+              "historyBytes": 2067,
+              "replacementLogicalBytes": 5688,
+              "shadowLogicalBytes": 6821
+            }
+          ]
+        },
+        {
+          "generation": 10,
+          "baselineBytes": 25188,
+          "commonBytes": 2494,
+          "legacyHistoryBytes": 22694,
+          "protectedCount": 10,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 10,
+              "blocks": 0,
+              "encodedBytes": 5196,
+              "metadataUtf8Bytes": 4547,
+              "historyBytes": 9768,
+              "replacementLogicalBytes": 23617,
+              "shadowLogicalBytes": 34956
+            },
+            {
+              "mode": "pooled",
+              "versions": 10,
+              "blocks": 11,
+              "encodedBytes": 6530,
+              "metadataUtf8Bytes": 11012,
+              "historyBytes": 17566,
+              "replacementLogicalBytes": 31415,
+              "shadowLogicalBytes": 42754
+            }
+          ]
+        },
+        {
+          "generation": 30,
+          "baselineBytes": 70791,
+          "commonBytes": 2494,
+          "legacyHistoryBytes": 68297,
+          "protectedCount": 30,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 30,
+              "blocks": 0,
+              "encodedBytes": 15698,
+              "metadataUtf8Bytes": 13649,
+              "historyBytes": 29372,
+              "replacementLogicalBytes": 66031,
+              "shadowLogicalBytes": 100163
+            },
+            {
+              "mode": "pooled",
+              "versions": 30,
+              "blocks": 31,
+              "encodedBytes": 19708,
+              "metadataUtf8Bytes": 32394,
+              "historyBytes": 52126,
+              "replacementLogicalBytes": 88785,
+              "shadowLogicalBytes": 122917
+            }
+          ]
+        },
+        {
+          "generation": 60,
+          "baselineBytes": 105029,
+          "commonBytes": 2499,
+          "legacyHistoryBytes": 102530,
+          "protectedCount": 60,
+          "compact": [
+            {
+              "mode": "standalone",
+              "versions": 60,
+              "blocks": 0,
+              "encodedBytes": 31473,
+              "metadataUtf8Bytes": 27295,
+              "historyBytes": 58793,
+              "replacementLogicalBytes": 95507,
+              "shadowLogicalBytes": 163822
+            },
+            {
+              "mode": "pooled",
+              "versions": 60,
+              "blocks": 61,
+              "encodedBytes": 39496,
+              "metadataUtf8Bytes": 64460,
+              "historyBytes": 103980,
+              "replacementLogicalBytes": 140694,
+              "shadowLogicalBytes": 209009
+            }
+          ]
+        }
+      ],
+      "preserved": true,
+      "recovered": [
+        60,
+        60
+      ],
+      "physicalOverheadMeasured": false,
+      "backend": "deterministic fake server; real save/sync runtime",
+      "productWriterActivated": false,
+      "browser": "webkit"
+    }
+  ],
+  "tabCloseOutcomes": [
+    {
+      "browser": "proof-chromium",
+      "test": "standalone: closing a tab during an active transaction leaves all or none of the generation",
+      "result": {
+        "originalExact": true,
+        "interruptedStatus": "absent",
+        "unchanged": true,
+        "complete": false,
+        "retry": {
+          "inserted": true
+        },
+        "stats": {
+          "versions": 2,
+          "blocks": 0,
+          "encodedBytes": 597,
+          "metadataUtf8Bytes": 837
+        }
+      }
+    },
+    {
+      "browser": "proof-chromium",
+      "test": "pooled: closing a tab during an active transaction leaves all or none of the generation",
+      "result": {
+        "originalExact": true,
+        "interruptedStatus": "absent",
+        "unchanged": true,
+        "complete": false,
+        "retry": {
+          "inserted": true
+        },
+        "stats": {
+          "versions": 2,
+          "blocks": 4,
+          "encodedBytes": 926,
+          "metadataUtf8Bytes": 2483
+        }
+      }
+    },
+    {
+      "browser": "proof-webkit",
+      "test": "standalone: closing a tab during an active transaction leaves all or none of the generation",
+      "result": {
+        "originalExact": true,
+        "interruptedStatus": "absent",
+        "unchanged": true,
+        "complete": false,
+        "retry": {
+          "inserted": true
+        },
+        "stats": {
+          "versions": 2,
+          "blocks": 0,
+          "encodedBytes": 590,
+          "metadataUtf8Bytes": 837
+        }
+      }
+    },
+    {
+      "browser": "proof-webkit",
+      "test": "pooled: closing a tab during an active transaction leaves all or none of the generation",
+      "result": {
+        "originalExact": true,
+        "interruptedStatus": "absent",
+        "unchanged": true,
+        "complete": false,
+        "retry": {
+          "inserted": true
+        },
+        "stats": {
+          "versions": 2,
+          "blocks": 4,
+          "encodedBytes": 918,
+          "metadataUtf8Bytes": 2483
+        }
+      }
+    }
+  ],
+  "productFilesChanged": false,
+  "productCompactWriterActivated": false,
+  "userDataMigrationOrCleanup": false,
+  "server": "deterministic synthetic bridge, real save/sync runtime",
+  "physicalIdbOverheadMeasured": false,
+  "isolatedDraftRecoveryOnly": true,
+  "logs": [
+    "/private/tmp/lossless-write-red-20261112.log",
+    "/private/tmp/lossless-write-final-20261112.log",
+    "/private/tmp/lossless-write-static-20261112.log"
+  ]
+}

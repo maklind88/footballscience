@@ -100,6 +100,7 @@ async function selectMiniGameLabelsByClipIds(scope, clipIds = []) {
   params.set("select", "clip_instance_id,label_type,label_value,label_text");
   params.set("clip_instance_id", idFilter(safeIds));
   params.set("label_type", "eq.mini_game_principle");
+  params.set("archived_at", "is.null");
   params.set("limit", String(Math.max(1, safeIds.length * 8)));
   const result = await selectRows("video_clip_labels", params);
   const labelsByClip = new Map();

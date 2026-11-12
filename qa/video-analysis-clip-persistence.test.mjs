@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { createVideoAnalysisNativeDatabase, videoAnalysisTestRest } from "./helpers/video-analysis-native-database.mjs";
 
 const { handleVideoAnalysisRequest } = createRequire(import.meta.url)("../api/_lib/video-analysis-database.js");
+const { enrichClipBankItems } = createRequire(import.meta.url)("../api/_lib/idp-clip-bank-metadata.js");
 const actor = { id: "test-coach", clubId: "test-club", teamId: "test-team" };
 const matchId = "10000000-0000-4000-8000-000000000001";
 const videoId = "10000000-0000-4000-8000-000000000002";
@@ -194,6 +195,22 @@ test("original clip edits are atomic, archived and tenant-scoped", async t => {
       const before = snapshot();
       db.sql(readFileSync(new URL("../supabase/migrations/20261111232205_video_analysis_atomic_clip_update.sql", import.meta.url), "utf8"));
       assert.equal(snapshot(), before);
+    });
+
+    await t.test("IDP reads active MG principles after edits without restoring archived relations", async () => {
+      const relatedId = "10000000-0000-4000-8000-000000000004";
+      db.sql(`insert into video_clip_instances (id, organization_id, team_id, match_id, video_id, start_ms, end_ms, phase, sub_phase)
+        values ('${relatedId}', 'test-club', 'test-team', '${matchId}', '${videoId}', 58000, 73000, 'In Possession', 'Build Up');
+        insert into video_clip_labels (organization_id, team_id, clip_instance_id, label_type, label_value, archived_at)
+        values ('test-club', 'test-team', '${relatedId}', 'mini_game_principle', 'related-active', null),
+          ('test-club', 'test-team', '${relatedId}', 'mini_game_principle', 'related-archived', now()),
+          ('test-club', 'other-team', '${relatedId}', 'mini_game_principle', 'other-team', null);`);
+      const before = snapshot(), offset = calls.length;
+      const [item] = await enrichClipBankItems([{ clip_instance_id: clipId }], { organizationId: actor.clubId, teamId: actor.teamId });
+      assert.deepEqual(item.mini_game_principles.map(label => label.value).sort(), ["related-active", "second-principle", "trigger"]);
+      assert.equal(snapshot(), before);
+      assert.ok(calls.slice(offset).every(call => call.method === "GET"));
+      assert.equal(db.sql(`select count(*) from video_clip_labels where clip_instance_id='${relatedId}' and archived_at is not null`), "1");
     });
 
     await t.test("new live tags still use the existing create path and return active metadata", async () => {

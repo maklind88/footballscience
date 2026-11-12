@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const api = require("../api/_lib/idp-database.js");
 const core = require("../api/_lib/idp-database-core.js");
 const moments = require("../api/_lib/idp-clip-bank-moments.js");
+const { enrichClipBankItems } = require("../api/_lib/idp-clip-bank-metadata.js");
 
 const actor = {
   id: "coach-1",
@@ -207,4 +208,65 @@ test("idp clip bank aggregates related MG principles onto one player moment", ()
     { type: "mini_game_principle", value: "third-player", label: "Third Player" },
     { type: "mini_game_principle", value: "ft3", label: "FT3" },
   ]);
+});
+
+test("idp clip bank reads only active scoped MG labels from the clip and related moments", async () => {
+  const previousFetch = global.fetch;
+  const previousEnv = { SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY };
+  const scope = { organizationId: "test-club", teamId: "test-team" };
+  const clipId = "10000000-0000-4000-8000-000000000001";
+  const relatedId = "10000000-0000-4000-8000-000000000002";
+  const videoId = "10000000-0000-4000-8000-000000000003";
+  const rows = [clipId, relatedId].map(id => ({ id, video_id: videoId, start_ms: 10000,
+    organization_id: scope.organizationId, team_id: scope.teamId }));
+  const label = (id, value, archived_at = null, extra = {}) => ({
+    organization_id: scope.organizationId, team_id: scope.teamId, clip_instance_id: id,
+    label_type: "mini_game_principle", label_value: value, label_text: value, archived_at, ...extra,
+  });
+  const labels = [
+    label(clipId, "own-active"), label(relatedId, "related-active"),
+    label(clipId, "own-archived", "2026-11-11T00:00:00Z"),
+    label(relatedId, "related-archived", "2026-11-11T00:00:00Z"),
+    label(clipId, "other-team", null, { team_id: "other-team" }),
+    label(clipId, "other-club", null, { organization_id: "other-club" }),
+  ];
+  const requests = [];
+  process.env.SUPABASE_URL = "https://idp-test.invalid";
+  process.env.SUPABASE_SECRET_KEY = "test-only-key";
+  global.fetch = async (address, options) => {
+    const url = new URL(address);
+    expect(url.origin).toBe("https://idp-test.invalid");
+    expect(options.method).toBe("GET");
+    requests.push(url);
+    const source = url.pathname.endsWith("/video_clip_labels") ? labels
+      : url.pathname.endsWith("/video_clip_instances") ? rows : [];
+    const filtered = source.filter(row => [...url.searchParams].every(([key, value]) => {
+      if (["select", "limit"].includes(key)) return true;
+      if (value === "is.null") return row[key] === null;
+      if (value.startsWith("eq.")) return row[key] === value.slice(3);
+      if (value.startsWith("in.(")) return value.slice(4, -1).split(",").includes(row[key]);
+      throw new Error("Unexpected test filter");
+    }));
+    return Response.json(filtered);
+  };
+  try {
+    const read = async () => (await enrichClipBankItems([{ clip_instance_id: clipId }], scope))[0].mini_game_principles.map(item => item.value);
+    expect(await read()).toEqual(["own-active", "related-active"]);
+    labels[2].archived_at = null;
+    expect(await read()).toEqual(["own-active", "own-archived", "related-active"]);
+    labels.forEach(row => { row.archived_at = "2026-11-11T00:00:00Z"; });
+    expect(await read()).toEqual([]);
+    const labelRequests = requests.filter(url => url.pathname.endsWith("/video_clip_labels"));
+    expect(labelRequests).toHaveLength(3);
+    for (const url of requests) {
+      expect(url.searchParams.get("organization_id")).toBe("eq.test-club");
+      expect(url.searchParams.get("team_id")).toBe("eq.test-team");
+    }
+    for (const url of labelRequests) expect(url.searchParams.get("archived_at")).toBe("is.null");
+  } finally {
+    global.fetch = previousFetch;
+    for (const [name, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
 });

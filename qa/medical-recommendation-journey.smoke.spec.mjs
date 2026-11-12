@@ -7,7 +7,8 @@ import { journeyDay as day, journeyPlayer as player, journeyKey as key, openMedi
 // Remote authentication, canonical projection and app-state storage are synthetic.
 async function createJourney(browser, mode) {
   const contexts = [], ledger = [], records = new Map();
-  let revision = 10, release, releaseReceipt, releaseCommit, racedBody, releaseGenericReceipt;
+  let revision = 10, release, releaseReceipt, releaseCommit, racedBody, releaseGenericReceipt, releaseBackground;
+  const backgroundGate = new Promise(resolve => { releaseBackground = resolve; });
   const genericReceiptGate = new Promise(resolve => { releaseGenericReceipt = resolve; });
   const commitGate = new Promise(resolve => { releaseCommit = resolve; });
   const receiptGate = new Promise(resolve => { releaseReceipt = resolve; });
@@ -102,9 +103,25 @@ async function createJourney(browser, mode) {
         eventId: 'qa-event', revision, duplicate } });
     });
     await page.goto('/?workspace=medical-team'); await openMedicalJourney(page);
+    if (actor === 'author' && ['lost-response-revision-race', 'newer-failed'].includes(mode)) {
+      // Unrelated background traffic must not gate a Medical save acknowledgement.
+      await page.route('**/qa/medical-background-poll', async route => {
+        ledger.push({ stage: 'background-request', actor });
+        await backgroundGate;
+        await route.fulfill({ json: { ok: true } });
+      });
+      await page.evaluate(() => { void fetch('/qa/medical-background-poll').catch(() => {}); });
+      await expect.poll(() => ledger.some(e => e.stage === 'background-request')).toBe(true);
+    }
     return page;
   }
-  return { open, server, ledger, release, close: async () => { release(); releaseReceipt(); releaseCommit(); releaseGenericReceipt(); await Promise.all(contexts.map(c => c.close())); } };
+  return { open, server, ledger, release, close: async () => {
+    release(); releaseReceipt(); releaseCommit(); releaseGenericReceipt(); releaseBackground();
+    await Promise.all(contexts.map(async context => {
+      await context.unrouteAll({ behavior: 'wait' });
+      await context.close();
+    }));
+  } };
 }
 
 for (const mode of ['normal', 'unlisted-history', 'cache-full', 'generic-failed', 'lost-response', 'lost-response-late-generic', 'lost-response-revision-race', 'canonical-failed', 'both-failed']) {
@@ -140,7 +157,6 @@ for (const mode of ['normal', 'unlisted-history', 'cache-full', 'generic-failed'
       }
       if (['lost-response-late-generic', 'lost-response-revision-race'].includes(mode)) {
         await expect.poll(() => journey.ledger.some(e => e.stage === 'generic-receipt')).toBe(true);
-        await author.waitForLoadState('networkidle');
       }
       if (mode === 'lost-response-revision-race') {
         expect(journey.ledger.filter(e => e.stage === 'generic-write').slice(0, 2).map(e => e.baseRevision)).toEqual([10, 10]);
@@ -181,8 +197,10 @@ test('late success for an older recommendation cannot erase the newer failure', 
     const failure = await recommendationMessage(author).textContent();
     journey.release();
     await expect.poll(() => journey.ledger.filter(e => e.stage === 'canonical-receipt').length).toBe(1);
-    // Wait for the actual receipt handler to render, without retrying another write.
-    await author.waitForLoadState('networkidle');
+    // Observe the client's receipt handler, not unrelated polling on the page.
+    await expect.poll(() => author.evaluate(key =>
+      JSON.parse(window.__setPiecesNativeGet.call(localStorage, key))?.dataSafety?.lastDatabaseSyncStatus,
+    key)).toBe('stored');
     await expect(recommendationMessage(author)).toHaveText(failure);
     await expect(author.getByRole('button', { name: 'Synthetic Journey Player 75% training recommendation', exact: true })).toHaveClass(/is-active/);
   } finally {

@@ -1,0 +1,13 @@
+{
+  "base": "0046d3363b24b8b4b315537184c1e72f63820122",
+  "sourceCandidate": "805e923a725ef6ad541c27d5ac7a9a22f6744054",
+  "compactWriterIncluded": false,
+  "offlineWorkerIncluded": false,
+  "targetedTestsPassed": 26,
+  "sha256": {
+    "src/core/data-safety-runtime-service.mjs": "13f8a292ce8bf1bd0e1e05dfdfbde6659f0c4fdde4838f3cc5ba24414c05b1b9",
+    "src/core/snapshot-compact-reuse.mjs": "f776e77f9e7b23b1388e48b164b22df8371d813ffc0ac033c36204cc5165b6bf",
+    "src/core/snapshot-history-compatibility.mjs": "7e0cef937a2e995b47c89bc3533385bce8151cb2c67d2eeb76734ce760d6f57e",
+    "src/core/snapshot-history-lock.mjs": "3ab2b31bec79afe8a3ea90cde24a555a9d2d7347d290c42be99ec0547d8404da"
+  }
+}

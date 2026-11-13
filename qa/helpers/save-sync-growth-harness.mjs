@@ -6,6 +6,7 @@ export async function saveSyncGrowthHarness({ name = 'qa-save-sync-growth-' + cr
   const key = 'football-player-profiles-v1', secondary = 'football-team-notes-v1';
   const originalSet = Storage.prototype.setItem, nativeSet = originalSet.bind(localStorage);
   const cache = new Map(), server = new Map(), calls = [], statuses = [], timers = new Map();
+  const listeners = new Map();
   let scope = 'actor-A', offline = false, sync, timer = 0, failedKey = '', hold, releaseReceipt;
   Storage.prototype.setItem = function(k, value) {
     if (this === localStorage && k === failedKey) throw new DOMException('Synthetic full storage', 'QuotaExceededError');
@@ -28,9 +29,9 @@ export async function saveSyncGrowthHarness({ name = 'qa-save-sync-growth-' + cr
     },
   };
   const win = { localStorage, indexedDB, location, crypto, footballScienceCentralState: bridge,
-    addEventListener() {}, console: { warn() {} },
+    addEventListener(name, fn) { const callbacks = listeners.get(name) || []; callbacks.push(fn); listeners.set(name, callbacks); }, console: { warn() {} },
     setTimeout(fn) { timers.set(++timer, fn); return timer; }, clearTimeout(id) { timers.delete(id); } };
-  const safety = createDataSafetyRuntimeService({ win, documentRef: {}, navigatorRef: {}, storageConstructor: Storage,
+  const safety = createDataSafetyRuntimeService({ win, documentRef: {}, navigatorRef: navigator, storageConstructor: Storage,
     databaseName: name, protectedStorageKeys: [key, secondary], journaledStorageKeys: [],
     getCentralStateBridge: () => bridge, queueCentralStateWrite: (...args) => sync.queueCentralStateWrite(...args) });
   sync = createCentralSyncRuntimeService({ win, getCurrentUser: () => ({ id: scope }),
@@ -60,6 +61,7 @@ export async function saveSyncGrowthHarness({ name = 'qa-save-sync-growth-' + cr
     safety.mutateManifest(m => { m.entries = saved.manifest.entries; });
   };
   return { db, key, secondary, safety, sync, server, calls, statuses, all, capture, measure, savedScope, restoreScope,
+    notifyUserChange: () => listeners.get('platform:user-change')?.forEach(fn => fn()),
     setScope: value => { scope = value; cache.clear(); }, offline: value => { offline = value; },
     failWritesFor: value => { failedKey = value; },
     holdReceipt: () => { hold = new Promise(resolve => { releaseReceipt = resolve; }); },

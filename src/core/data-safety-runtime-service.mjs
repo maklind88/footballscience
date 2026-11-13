@@ -5,6 +5,8 @@ import { openStorageHealth } from "./storage-health-dialog.mjs";
 import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
 import { createLocalDatabaseConnection } from "./local-database-connection.mjs";
 import { canEditSessionPlanner } from "./platform-runtime-accessors.mjs";
+import { findRetainedCompactSnapshot } from "./snapshot-history-compatibility.mjs";
+import { withSnapshotHistoryLock } from "./snapshot-history-lock.mjs";
 
 export function createDataSafetyRuntimeService(deps = {}) {
   const {
@@ -56,6 +58,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
   const { open: openDatabase } = createLocalDatabaseConnection({ getIndexedDB: () => win.indexedDB, databaseName,
     stores: [snapshotStoreName, latestStoreName].map((name) => ({ name, keyPath: "id" })) });
   let installed = false;
+  let historyAccountEpoch = 0;
+  win.addEventListener?.("platform:user-change", () => { historyAccountEpoch++; });
 
   function getSnapshotReviewScope() {
     const auth = win.platformAuthStore, user = auth?.getCurrentUser?.();
@@ -505,14 +509,29 @@ export function createDataSafetyRuntimeService(deps = {}) {
   }
 
   async function saveSnapshot(reason = "autosave") {
+    const epoch = historyAccountEpoch;
     const snapshot = {
       ...createBackupEnvelope(reason),
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     };
+    const current = () => epoch === historyAccountEpoch &&
+      snapshot.saveContext.scope === (getCentralStateBridge()?.getReadScope?.() || "");
     try {
-      const database = await openDatabase();
-      const stored = await storeDistinctSnapshot(database, snapshotStoreName, latestStoreName, snapshot);
-      if (stored.written) await pruneSnapshots(database);
+      // Only the optional extra history path changes. Compact errors must not
+      // silently fall back after a possible commit or create duplicate history.
+      const legacySave = async () => {
+        if (!current()) throw new Error("History account changed.");
+        const database = await openDatabase();
+        const stored = await storeDistinctSnapshot(database, snapshotStoreName, latestStoreName, snapshot);
+        if (stored.written) await pruneSnapshots(database);
+        return stored;
+      };
+      const retained = () => findRetainedCompactSnapshot({ indexedDB: win.indexedDB, snapshot, current,
+        allowedKeys: new Set(Object.keys(snapshot.storage).filter(isProtectedStorageKey)) });
+      const stored = await withSnapshotHistoryLock(async () => (await retained()) || legacySave(),
+        { locks: navigatorRef?.locks });
+      if (!stored || (stored.status && stored.status !== "stored")) throw new Error("Snapshot archive did not confirm storage.");
+      if (!current()) return false; // Never stamp a different account's manifest.
       // A cache copy is not acknowledgement of a failed user save. An in-memory
       // draft may be absent from it, including one created while this write awaited.
       status.lastSnapshotError = "";
@@ -523,6 +542,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       queueStatusRefresh();
       return true;
     } catch (error) {
+      if (!current()) return false;
       const message = error?.message || "Backup snapshot could not be saved.";
       status.lastSnapshotError = message;
       mutateManifest((manifest) => {

@@ -6,7 +6,7 @@ import { renderFsPlayerWorkspace } from "./components/FsPlayerWorkspace.js";
 import { createTimelineClipEditor, preserveTimelineViewport } from "./timeline/timeline.clip-editor.controller.js";
 import { createTimelineRowOrderController } from "./timeline/timeline.row-order.controller.js";
 import { selectTimelineGroup } from "./timeline/timeline.selection.js";
-import { playlistTimelineLanes } from "./timeline/timeline.playlist-rows.js";
+import { preserveClipBrowserFocus } from "./services/clipBrowserFocus.js";
 import { VIDEO_SHUTTLE_MIN_SPEED, VIDEO_SHUTTLE_MIN_DELTA_PX, VIDEO_SHUTTLE_IDLE_MS, VIDEO_SHUTTLE_MAX_FRAME_MS,
   videoShuttleHorizontalDelta, videoShuttleHasHorizontalIntent, videoShuttleSpeedFromDelta } from "./services/videoShuttleGesture.js";
 import { handlePlayerHeaderClick, handlePlayerHeaderKeydown } from "./controllers/playerHeaderController.js";
@@ -21,6 +21,7 @@ import { escapeHtml } from "./components/renderHelpers.js";
 import { createDrawingController } from "./controllers/drawingController.js";
 import { runTagButtonAction } from "./services/tagButtonFeedbackService.js";
 import { createPresentationController } from "./controllers/presentationController.js";
+import { createPlaylistLibraryController } from "./controllers/playlistLibraryController.js";
 import { createPresenterController } from "./controllers/presenterController.js";
 import { createThumbnailController } from "./controllers/thumbnailController.js";
 import { createClipIntelligenceController } from "./controllers/clipIntelligenceController.js";
@@ -331,6 +332,16 @@ function timelineClipEditor(context = {}) {
     });
   }
   return run.timelineClipEditor;
+}
+
+function playlistLibrary(context = {}) {
+  const run = ensureRuntime(context);
+  run.playlistLibraryController ||= createPlaylistLibraryController({
+    getRuntime: () => run,
+    openMatch: key => libraryController().openLibraryItem(key, run.context || context, { activeTab: "presentation" }),
+    openEditor: (...args) => timelineClipEditor(run.context || context).open(...args),
+  });
+  return run.playlistLibraryController;
 }
 
 function drawingControls(context = {}) {
@@ -1602,6 +1613,7 @@ async function ensureMetadataForRestoredReference(run, context = {}, reference =
 
 function paint(root, state) {
   const cameraFocus = runtime?.mediaRuntime?.controller.camera.beforePaint();
+  const restoreClipBrowserFocus = preserveClipBrowserFocus(root);
   state = runtime?.timelineRowOrder.prepare(state) || state;
   const previousFsPlayerVideo = root.querySelector(".video-analysis-fs-player-deck [data-video-analysis-video]");
   const previousVideo = previousFsPlayerVideo || root.querySelector("[data-video-analysis-video]");
@@ -1646,7 +1658,7 @@ function paint(root, state) {
   root.innerHTML = `
     <section class="analysis-room-shell">
       ${renderAnalysisRoomHeader(runtime?.context || {}, activeTabId)}
-      <section class="analysis-room-tab-panel" aria-label="${escapeHtml(activeTabId === "team-performance" ? "Team Performance" : activeTabId === "presentation" ? "Presentation" : activeTabId === "match-report" ? "Clip Library" : activeTabId === "overview" ? "Overview" : "FS Player")}">
+      <section class="analysis-room-tab-panel" aria-label="${escapeHtml(activeTabId === "team-performance" ? "Team Performance" : activeTabId === "presentation" ? "Playlists" : activeTabId === "match-report" ? "Clip Library" : activeTabId === "overview" ? "Overview" : "FS Player")}">
         <section class="video-analysis-shell">
           ${state.message || state.error ? `
             <div class="video-analysis-notifications" aria-live="polite">
@@ -1731,7 +1743,7 @@ function paint(root, state) {
     if (Number.isFinite(selectionStart) && typeof nextFocus.setSelectionRange === "function") {
       nextFocus.setSelectionRange(selectionStart, selectionStart);
     }
-  }
+  } else restoreClipBrowserFocus();
   if (video) {
     applyPlaybackRate(runtime?.context || context, video);
     if (previousSrc && (video.currentSrc || video.src) === previousSrc && Number.isFinite(previousTime)) {
@@ -2164,8 +2176,7 @@ function currentPlayheadMs(context = {}, state = {}) {
   return videoReady ? matchTimeFromActiveVideoMs(state, videoMs) : timelineMs;
 }
 
-function findTimelineCategoryClips(state = {}, laneMode = "", label = "", rowId = "") {
-  if (rowId) return playlistTimelineLanes(state).find(lane => lane.id === rowId)?.clips || [];
+function findTimelineCategoryClips(state = {}, laneMode = "", label = "") {
   const normalizedLaneMode = normalizeTimelineLaneMode(laneMode);
   const lanes = buildTimelineLanes(Array.isArray(state.clips) ? state.clips : [], normalizedLaneMode);
   return lanes.find((lane) => lane.label === label)?.clips || [];
@@ -2173,7 +2184,7 @@ function findTimelineCategoryClips(state = {}, laneMode = "", label = "", rowId 
 
 function visibleTimelineLanes(state = {}) {
   const laneMode = normalizeTimelineLaneMode(state.timeline?.laneMode);
-  const lanes = [...buildTimelineLanes(Array.isArray(state.clips) ? state.clips : [], laneMode), ...playlistTimelineLanes(state)];
+  const lanes = buildTimelineLanes(Array.isArray(state.clips) ? state.clips : [], laneMode);
   return { laneMode, lanes: runtime?.timelineRowOrder.orderLanes(lanes, state) || lanes };
 }
 
@@ -3099,6 +3110,7 @@ async function initialize(context = {}) {
     if (run.store.getState().view !== "library") await loadClips();
     await loadSavedSearches();
     await loadPresentations({ skipSources: true });
+    if (run.store.getState().activeAnalysisRoomTab === "presentation") await playlistLibrary(context).load();
     if (run.store.getState().match?.id || run.store.getState().video?.id) {
       await restoreLocalVideoHandle(context, { silent: true });
     }
@@ -4519,6 +4531,17 @@ export function handleClick(event, context = {}) {
   if (run.trackingRuntime.controller.handleClick(event)) return true;
   if (intelligenceControls(context).handleClick(event)) return true;
   if (workspaceTimelineController(context).handleClick(event)) return true;
+  const playlistOpen = target.closest("[data-playlist-library-open]");
+  if (playlistOpen) {
+    playlistLibrary(context).open(playlistOpen.dataset.playlistLibraryOpen, playlistOpen);
+    return true;
+  }
+  if (target.closest("[data-playlist-library-retry]")) { playlistLibrary(context).load(); return true; }
+  const playlistPage = target.closest("[data-playlist-library-page]");
+  if (playlistPage) {
+    run.store.update(state => ({ ...state, presentation: { ...state.presentation, libraryPage: Number(playlistPage.dataset.playlistLibraryPage) } }));
+    return true;
+  }
   const roomTab = target.closest("[data-video-analysis-room-tab]");
   if (roomTab) {
     const tabId = roomTab.dataset.videoAnalysisRoomTab;
@@ -4533,10 +4556,11 @@ export function handleClick(event, context = {}) {
         ...state,
         view: "workspace",
         activeAnalysisRoomTab: tabId,
+        ...(tabId === "presentation" ? { presentation: { ...state.presentation, mode: "overview" } } : {}),
         message: "",
         error: "",
       }));
-      if (tabId === "presentation") loadPresentationSources(null, { silent: true });
+      if (tabId === "presentation") { playlistLibrary(context).load(); loadPresentationSources(null, { silent: true }); }
       if (tabId === "match-report") loadClips(null);
       return true;
     }
@@ -5112,9 +5136,7 @@ export function handleClick(event, context = {}) {
   const seekButton = target.closest("[data-video-analysis-seek]");
   if (seekButton) {
     const state = run.store.getState();
-    const playlistLane = playlistTimelineLanes(state).find(lane => lane.id === seekButton.closest(".video-analysis-lane")?.dataset.videoAnalysisRowKey);
-    const clip = playlistLane?.clips.find(item => item.id === seekButton.dataset.videoAnalysisSeek)
-      || selectedClipFromPresentationSources(state, seekButton.dataset.videoAnalysisSeek);
+    const clip = selectedClipFromPresentationSources(state, seekButton.dataset.videoAnalysisSeek);
     if (seekButton.matches(".video-analysis-clip-block") && timelineClipEditor(context).handleClipClick(event, clip, seekButton)) return true;
     const restoreViewport = seekButton.matches(".video-analysis-clip-block") ? preserveTimelineViewport(getRoot(context)) : null;
     const startMs = clip?.startMs ?? clip?.start_ms ?? 0;
@@ -5903,8 +5925,14 @@ export function handleInput(event, context = {}) {
       presentation: {
         ...(state.presentation || {}),
         librarySearch: presentationLibrarySearch.value,
+        libraryPage: 0,
       },
     }));
+    return true;
+  }
+  const playlistSort = target.closest("[data-playlist-library-sort]");
+  if (playlistSort) {
+    run.store.update(state => ({ ...state, presentation: { ...state.presentation, librarySort: playlistSort.value, libraryPage: 0 } }));
     return true;
   }
   const miniGamePrincipleSearch = target.closest("[data-video-analysis-mg-principle-search]");

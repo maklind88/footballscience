@@ -15,6 +15,11 @@ const queue = page => page.locator("[data-clip-review-select]");
 const queueIds = page => queue(page).evaluateAll(items => items.map(item => item.dataset.clipReviewSelect));
 const field = (page, name) => page.locator(`[data-video-analysis-timeline-edit-field="${name}"]`);
 const writes = page => page.evaluate(() => window.__videoAnalysisRequests.filter(request => request.action === "save-timeline"));
+const savedList = (page, name) => page.locator(".video-analysis-playlist-library__title").filter({ hasText: name });
+const openLibrary = async page => {
+  await page.getByRole("button", { name: "Playlists", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Playlist library", exact: true })).toBeVisible();
+};
 let mediaPath;
 
 test.beforeAll(() => {
@@ -97,16 +102,19 @@ test("saved playlist preserves ordering and local edits after reopening without 
   expect(saved.rows.at(-1).clipIds).toEqual([id(1), id(4), id(2), id(3)]);
   expect(saved.rows.at(-1).query.clipEdits[id(1)].note).toBe("Only in this playlist");
   await popup(page).getByRole("button", { name: "Close", exact: true }).click();
-  const savedRow = page.locator('[data-video-analysis-playlist-row][data-video-analysis-timeline-category-label="Team meeting"]');
+  await expect(page.locator("[data-video-analysis-playlist-row]")).toHaveCount(0);
+  await openLibrary(page);
+  const savedRow = savedList(page, "Team meeting");
   await expect(savedRow).toBeVisible();
-  await savedRow.dblclick();
+  await savedRow.click();
+  await expect(popup(page)).toBeVisible();
   expect(await queueIds(page)).toEqual([id(1), id(4), id(2), id(3)]);
   await expect(field(page, "note")).toHaveValue("Only in this playlist");
   await popup(page).getByRole("button", { name: "Close", exact: true }).click();
   await savedRow.focus();
   await page.keyboard.press("Delete");
   await expect(page.locator(".platform-confirm-dialog")).toHaveCount(0);
-  await savedRow.dblclick();
+  await savedRow.click();
   await page.locator("[data-playlist-name]").fill("Renamed meeting");
   await page.locator("[data-playlist-save]").click();
   await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
@@ -122,6 +130,7 @@ test("saved playlist preserves ordering and local edits after reopening without 
   await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
   expect((await writes(page)).at(-1).body.timeline.rows).toHaveLength(2);
   await popup(page).getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "FS Player", exact: true }).click();
   await clip(page, "High Press", 1).click({ modifiers: ["Meta"] });
   await clip(page, "High Press", 1).dblclick();
   await expect(field(page, "note")).toHaveValue("Original 1");
@@ -144,9 +153,11 @@ test("persisted playlists hydrate on a new page with their own order and tags", 
   const snapshot = await page.evaluate(async () => (await (await fetch("/api/video-analysis?action=timelines")).json()).timelines);
   await page.addInitScript(timelines => { window.__videoAnalysisSmokeTimelines = timelines; }, snapshot);
   await page.reload();
-  const savedRow = page.locator('[data-video-analysis-playlist-row][data-video-analysis-timeline-category-label="Saved review"]');
+  await openLibrary(page);
+  const savedRow = savedList(page, "Saved review");
   await expect(savedRow).toBeVisible();
-  await savedRow.dblclick();
+  await savedRow.click();
+  await expect(popup(page)).toBeVisible();
   expect(await queueIds(page)).toEqual([id(2), id(1)]);
   await page.locator(`[data-clip-review-select="${id(1)}"]`).click();
   await expect(field(page, "note")).toHaveValue("Retained on reload");
@@ -305,7 +316,85 @@ test("save and close retains failed work and closes only after verified persiste
   await popup(page).getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("button", { name: "Save and close", exact: true }).click();
   await expect(popup(page)).toHaveCount(0);
-  await expect(page.locator('[data-video-analysis-playlist-row][data-video-analysis-timeline-category-label="Saved before closing"]')).toBeVisible();
+  await expect(page.locator("[data-video-analysis-playlist-row]")).toHaveCount(0);
+  await openLibrary(page);
+  await expect(savedList(page, "Saved before closing")).toBeVisible();
   expect(await writes(page)).toHaveLength(1);
   expect(await page.evaluate(() => window.__videoAnalysisRequests.filter(request => ["save-clip", "archive-clip", "delete-clip"].includes(request.action)))).toEqual([]);
+});
+
+for (const width of [1470, 390]) test(`Playlists preserves old lists, search, sorting and pagination at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 844 });
+  await page.addInitScript(({ matchId, clipId }) => {
+    window.__videoAnalysisSmokeTimelines = [{
+      id: "9a4e615e-f3e7-4fc7-bb70-a02db63c9152", matchId, title: "Match timeline", revision: 8,
+      rows: Array.from({ length: 75 }, (_, index) => ({
+        id: `saved-${index}`, label: `Saved meeting ${String(index).padStart(2, "0")}`, kind: "manual", hidden: index === 74,
+        clipIds: [clipId], query: { source: "fs-player-playlist", playlistKey: `key-${index}`, clipEdits: { [clipId]: { note: `Retained ${index}` } } },
+      })),
+    }];
+  }, { matchId, clipId: id(1) });
+  await setup(page);
+  await expect(page.locator("[data-video-analysis-playlist-row]")).toHaveCount(0);
+  await openLibrary(page);
+  await expect(page.locator("[data-playlist-library-item]")).toHaveCount(50);
+  await page.getByRole("combobox", { name: "Sort playlists" }).focus();
+  await page.getByRole("combobox", { name: "Sort playlists" }).selectOption("name");
+  await expect(page.getByRole("combobox", { name: "Sort playlists" })).toBeFocused();
+  await expect(page.locator(".video-analysis-playlist-library__title").first()).toContainText("Football Science Review");
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.locator("[data-playlist-library-item]")).toHaveCount(26);
+  await page.getByRole("searchbox", { name: "Search playlists" }).fill("Saved meeting 74");
+  await expect(page.locator("[data-playlist-library-item]")).toHaveCount(1);
+  await savedList(page, "Saved meeting 74").click();
+  await expect(popup(page)).toBeVisible();
+  await expect(field(page, "note")).toHaveValue("Retained 74");
+  await expect(popup(page).getByRole("button", { name: "Close", exact: true })).toHaveAttribute("title", "Close and return to Playlists");
+  await popup(page).getByRole("button", { name: "Close", exact: true }).click();
+  await expect(savedList(page, "Saved meeting 74")).toBeFocused();
+  await page.getByRole("searchbox", { name: "Search playlists" }).fill("");
+  await expect(page.locator("[data-playlist-library-item]")).toHaveCount(50);
+  const library = page.locator(".video-analysis-playlist-library");
+  expect(await library.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath(`playlist-library-${width}.png`), fullPage: true });
+  expect(await writes(page)).toEqual([]);
+  await page.locator('[data-video-analysis-presentation-open="presentation-1"]').click();
+  await expect(page.locator(".video-analysis-presentation-builder-v2")).toBeVisible();
+});
+
+test("a saved playlist from another match opens from Playlists without inheriting timeline selection", async ({ page }) => {
+  await setup(page);
+  await row(page, "High Press").dblclick();
+  await page.locator("[data-playlist-name]").fill("Earlier match review");
+  await page.locator("[data-playlist-save]").click();
+  await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
+  const snapshot = await page.evaluate(async () => (await (await fetch("/api/video-analysis?action=timelines")).json()).timelines);
+  await page.addInitScript(timelines => {
+    window.__videoAnalysisSmokeTimelines = timelines;
+    window.__videoAnalysisInitialState.match = { id: "11111111-1111-4111-8111-111111111111", title: "Different match" };
+    window.__videoAnalysisInitialState.video = null;
+  }, snapshot);
+  await page.reload();
+  await openLibrary(page);
+  await savedList(page, "Earlier match review").click();
+  await expect(popup(page)).toBeVisible();
+  expect(await queueIds(page)).toEqual([id(1), id(2)]);
+  await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
+  expect(await writes(page)).toEqual([]);
+});
+
+test("saved library playback uses the existing video preview", async ({ page }) => {
+  await setup(page, { media: true });
+  await row(page, "High Press").dblclick();
+  await page.locator("[data-playlist-name]").fill("Playable review");
+  await page.locator("[data-playlist-save]").click();
+  await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
+  await popup(page).getByRole("button", { name: "Close", exact: true }).click();
+  await openLibrary(page);
+  await page.getByRole("button", { name: "Play Playable review", exact: true }).click();
+  const preview = page.locator("[data-video-analysis-clip-preview]");
+  await expect.poll(() => preview.evaluate(video => video.readyState)).toBeGreaterThanOrEqual(2);
+  await page.getByRole("button", { name: "Play clip", exact: true }).click();
+  await expect.poll(() => preview.evaluate(video => video.currentTime)).toBeGreaterThan(1);
+  await expect(page.getByRole("button", { name: "Pause clip", exact: true })).toBeVisible();
 });

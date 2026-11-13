@@ -226,7 +226,7 @@ function renderClip(clip = {}, state = {}) {
       </div>
       <div class="video-analysis-clip-library-card__actions">
         ${renderClipSourceAction(clip, state)}
-        <button type="button" data-video-analysis-review="${escapeHtml(clipId)}">Presentation</button>
+        <button type="button" data-video-analysis-review="${escapeHtml(clipId)}">Add to playlist</button>
       </div>
     </article>
   `;

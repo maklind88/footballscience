@@ -261,8 +261,8 @@ export function renderPresentationModule(state = {}) {
     <section class="video-analysis-presentation" data-video-analysis-presentation-module>
       <div class="video-analysis-presentation-topbar">
         <div class="video-analysis-presentation-title-fields">
-          <p class="video-analysis-kicker">Presentation room</p>
-          <input type="text" aria-label="Presentation title" data-video-analysis-presentation-title value="${escapeHtml(current.title || "Football Science Review")}">
+          <p class="video-analysis-kicker">Playlist</p>
+          <input type="text" aria-label="Playlist title" data-video-analysis-presentation-title value="${escapeHtml(current.title || "Football Science Review")}">
           <div class="video-analysis-presentation-meta">
             <span>${escapeHtml(`${current.sections?.length || 0} sections`)}</span>
             <span>${escapeHtml(`${queue.length} clips`)}</span>
@@ -272,8 +272,8 @@ export function renderPresentationModule(state = {}) {
         <div class="video-analysis-presentation-command-stack">
           ${renderModeBar(activeMode)}
           <div class="video-analysis-presentation-actions">
-            <select aria-label="Saved presentations" data-video-analysis-presentation-load>
-              <option value="">New / unsaved presentation</option>
+            <select aria-label="Saved playlists" data-video-analysis-presentation-load>
+              <option value="">New / unsaved playlist</option>
               ${presentations.map((presentation) => renderPresentationOption(presentation, current.id)).join("")}
             </select>
             <button type="button" data-video-analysis-presentation-new>New</button>

@@ -26,7 +26,6 @@ import { formatClipEditorTime } from "./timeline.clip-editor.renderer.js";
 import { timelineClipHitInsets } from "./timeline.clip-targets.js";
 import { orderTimelineLanes } from "./timeline.row-order.js";
 import { playerHeaderIcon } from "../components/playerHeaderIcons.js";
-import { playlistTimelineLanes } from "./timeline.playlist-rows.js";
 
 function outcomeClass(outcome = "") {
   const value = String(outcome || "neutral").trim().toLowerCase();
@@ -307,7 +306,7 @@ export function renderTimeline(state = {}) {
   const laneMode = normalizeTimelineLaneMode(timeline.laneMode);
   const zoom = normalizeTimelineZoom(timeline.zoom);
   const timelineIndex = buildTimelineIndex(clips, laneMode);
-  const lanes = orderTimelineLanes([...timelineIndex.lanes, ...playlistTimelineLanes(state)], timeline.rowOrder);
+  const lanes = orderTimelineLanes(timelineIndex.lanes, timeline.rowOrder);
   const laneModeCounts = buildTimelineLaneModeCounts(clips);
   const density = getTimelineDensity(timelineIndex, totalMs);
   const selectedLane = selectedTimelineLane(lanes, laneMode, timeline);

@@ -164,6 +164,8 @@ async function listMatches(query, actor) {
   const params = buildTeamParams(scope);
   params.set("select", "*");
   params.set("status", "eq.active");
+  const matchId = normalizeUuid(query.matchId || query.match_id);
+  if (matchId) params.set("id", `eq.${matchId}`);
   params.set("order", "match_date.desc.nullslast,created_at.desc");
   params.set("limit", String(asLimit(query.limit, 120)));
   const result = await selectRows("video_matches", params);

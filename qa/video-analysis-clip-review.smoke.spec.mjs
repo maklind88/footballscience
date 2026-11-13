@@ -126,6 +126,8 @@ for (const [width, height] of [[1470, 772], [1280, 720], [1920, 1080], [844, 390
     else await page.keyboard.press("Escape");
     await expect(page.locator(popup)).toHaveCount(0);
     await expect(page.locator(highPress)).toBeFocused();
+    await page.locator(highPress).evaluate(button => button.click());
+    await expect(page.locator(highPress)).toBeFocused();
     await expect.poll(() => page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }))).toEqual(originalViewport);
     expect(await page.locator("[data-video-analysis-video]").evaluate(el => el.currentTime)).toBeCloseTo(mainTime, 2);
     expect(await writes(page)).toEqual([]);

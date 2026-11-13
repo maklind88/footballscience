@@ -22,7 +22,7 @@ async function openDrawingWorkspace(page) {
     };
   }, { currentMatchId: matchId, currentVideoId: videoId });
   await page.goto("/qa/video-analysis-browser-smoke.html?elite=1", { waitUntil: "domcontentloaded" });
-  await page.getByRole("button", { name: "Presentation", exact: true }).click();
+  await page.getByRole("button", { name: "Playlists", exact: true }).click();
   await page.locator('[data-video-analysis-presentation-open="presentation-1"]').click();
   await page.locator("[data-video-analysis-presentation-add]").first().click();
   await page.getByRole("tab", { name: "Telestrate" }).click();

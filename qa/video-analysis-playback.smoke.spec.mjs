@@ -538,16 +538,16 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   });
   await expect(page.locator(".video-analysis-clip-block").first()).toHaveAttribute("title", /0:00:12 - 0:00:18/);
 
-  await page.getByRole("button", { name: "Presentation", exact: true }).click();
+  await page.getByRole("button", { name: "Playlists", exact: true }).click();
   await expect(page.locator("[data-video-analysis-presentation-module]")).toBeVisible();
-  await expect(page.locator(".video-analysis-presentation-library")).toBeVisible();
-  await expect(page.locator(".video-analysis-presentation-library")).toContainText("Presentations");
-  await expect(page.locator(".video-analysis-presentation-library-card")).toContainText("Football Science Review");
+  await expect(page.locator(".video-analysis-playlist-library")).toBeVisible();
+  await expect(page.locator(".video-analysis-playlist-library")).toContainText("Playlists");
+  await expect(page.locator(".video-analysis-playlist-library__row")).toContainText("Football Science Review");
   await expect(page.locator("[data-video-analysis-presentation-library-search]")).toBeVisible();
   await page.locator('[data-video-analysis-presentation-open="presentation-1"]').click();
   await expect(page.locator(".video-analysis-presentation-builder-v2")).toBeVisible();
   await expect(page.locator(".video-analysis-presentation")).toContainText("Football Science Review");
-  await expect(page.locator(".video-analysis-presentation")).toContainText("Presentation room");
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Playlist");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Data Explorer");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Meeting order");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Clip prep");

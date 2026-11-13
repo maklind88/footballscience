@@ -10,8 +10,10 @@ Owner: FS Player / Video Analysis. Release status is reported separately by the 
 - Clip order is independent of match time. Drag or Alt+Left/Right changes playlist order.
 - Editing in the popup changes only that playlist's clip version. It must never call `save-clip`.
 - Removing an item from the popup removes its playlist reference, never the source clip.
-- Save playlist persists a named row in the current match Timeline. Copy playlist creates a separate draft; changing the name and saving renames the existing row.
-- A saved row reopens with its own order, clip timing, tags, notes and MG principles. Original source rows retain their original timing and metadata.
+- Save playlist persists the existing ordered record and exposes it in **Playlists**, not as a visible Timeline row. Copy playlist creates a separate draft; changing the name and saving renames the existing list.
+- A saved list reopens from Playlists with its own order, clip timing, tags, notes and MG principles. Original source rows retain their original timing and metadata.
+- Timeline displays tags only. The former FS Player Presentation tab is named Playlists; the global Presentation Mode shell is unchanged.
+- See [Playlist Library](FS_PLAYER_PLAYLIST_LIBRARY.md) for backwards-compatible discovery and read-safety behavior.
 
 ## Saving Interaction
 

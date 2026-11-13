@@ -6,7 +6,7 @@ const analysisRoomTabs = Object.freeze([
   { id: "overview", label: "Overview", icon: "overview" },
   { id: "fs-player", label: "FS Player", icon: "play" },
   { id: "team-performance", label: "Team Performance", icon: "numbers", disabled: true },
-  { id: "presentation", label: "Presentation", icon: "presentation" },
+  { id: "presentation", label: "Playlists", icon: "presentation" },
   { id: "match-report", label: "Clip Library", icon: "report" },
 ]);
 

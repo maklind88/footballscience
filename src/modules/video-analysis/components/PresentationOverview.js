@@ -1,160 +1,57 @@
-import { presentationQueue } from "../services/presentationService.js";
-import { thumbnailCacheKey } from "../services/localThumbnailCacheService.js";
-import { formatVideoTime } from "../services/videoPlaybackService.js";
+import { filteredPlaylistLibrary, playlistLibraryEntries } from "../services/playlistLibraryService.js";
+import { playerHeaderIcon } from "./playerHeaderIcons.js";
 import { escapeHtml } from "./renderHelpers.js";
 
-function parseDateLabel(value = "") {
-  if (!value) return "Draft";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Draft";
-  return new Intl.DateTimeFormat("en", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+function dateLabel(value) {
+  const date = new Date(value || "");
+  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("en", { day: "2-digit", month: "short", year: "numeric" }).format(date);
 }
 
-function safeNumber(value, fallback = 0) {
-  const number = Math.round(Number(value));
-  return Number.isFinite(number) && number >= 0 ? number : fallback;
-}
-
-function itemDurationMs(item = {}) {
-  const clip = item.clip || {};
-  const startMs = safeNumber(item.startMs ?? clip.startMs ?? clip.start_ms, 0);
-  const endMs = safeNumber(item.endMs ?? clip.endMs ?? clip.end_ms, startMs);
-  return Math.max(0, endMs - startMs);
-}
-
-function presentationStats(presentation = {}) {
-  const queue = presentationQueue(presentation);
-  const metadata = presentation.metadata || {};
-  const metadataClipCount = metadata.clipCount ?? metadata.clip_count;
-  const hasKnownClipCount = queue.length > 0 || metadataClipCount !== undefined;
-  const clipCount = hasKnownClipCount ? (queue.length || safeNumber(metadataClipCount, 0)) : null;
-  const totalDurationMs = queue.length
-    ? queue.reduce((sum, item) => sum + itemDurationMs(item), 0)
-    : safeNumber(metadata.totalDurationMs || metadata.total_duration_ms, 0);
-  return { clipCount, hasKnownClipCount, totalDurationMs, queue };
-}
-
-function shareLabel(presentation = {}) {
-  const targets = Array.isArray(presentation.shareTargets) ? presentation.shareTargets : [];
-  if (targets.some((target) => target.targetType === "team")) return "Team";
-  if (targets.some((target) => target.targetType === "player")) return "Players";
-  if (targets.some((target) => target.targetType === "group")) return "Group";
-  if (targets.some((target) => target.targetType === "user")) return "Selected users";
-  return "Coach + analyst";
-}
-
-function cardPresentation(presentation = {}, current = {}) {
-  if (presentation.id && presentation.id === current.id) return { ...presentation, ...current };
-  return presentation;
-}
-
-function cardThumbnail(state = {}, presentation = {}, queue = []) {
-  const firstClip = queue[0]?.clip || null;
-  if (!firstClip) return "";
-  return state.presentation?.thumbnails?.[thumbnailCacheKey(state.videoRef || {}, firstClip)] || "";
-}
-
-function presentationSearchText(presentation = {}) {
-  return [
-    presentation.title,
-    presentation.purpose,
-    presentation.status,
-    presentation.ownerId,
-    presentation.updatedAt,
-    presentation.createdAt,
-  ].filter(Boolean).join(" ").toLowerCase();
-}
-
-function renderPresentationCard(state = {}, presentation = {}) {
-  const current = state.presentation?.current || {};
-  const card = cardPresentation(presentation, current);
-  const { clipCount, hasKnownClipCount, totalDurationMs, queue } = presentationStats(card);
-  const thumbnailUrl = cardThumbnail(state, card, queue);
-  const title = card.title || "Football Science Review";
-  const updatedAt = parseDateLabel(card.updatedAt || card.createdAt);
-  const owner = card.ownerName || card.ownerId || "Football Science";
-  const duration = totalDurationMs ? formatVideoTime(totalDurationMs) : "00:00";
-  const canPresent = Boolean(card.id || clipCount > 0);
-  const clipLabel = hasKnownClipCount ? `${clipCount} clips` : "Open deck";
-  return `
-    <article class="video-analysis-presentation-library-card">
-      <button type="button" class="video-analysis-presentation-library-card__media" data-video-analysis-presentation-present="${escapeHtml(card.id || "")}" aria-label="Present ${escapeHtml(title)}" ${canPresent ? "" : "disabled"}>
-        ${thumbnailUrl ? `<img src="${escapeHtml(thumbnailUrl)}" alt="">` : `<span class="video-analysis-presentation-library-card__field" aria-hidden="true"></span>`}
-        <span class="video-analysis-presentation-library-card__play" aria-hidden="true"></span>
-        <span class="video-analysis-presentation-library-card__runtime">
-          <strong>${escapeHtml(clipLabel)}</strong>
-          <small>${escapeHtml(duration)}</small>
-        </span>
-      </button>
-      <div class="video-analysis-presentation-library-card__body">
-        <div class="video-analysis-presentation-library-card__meta">
-          <span>${escapeHtml(updatedAt)}</span>
-          <span>${escapeHtml(card.status || "Draft")}</span>
-        </div>
-        <h3 title="${escapeHtml(title)}">${escapeHtml(title)}</h3>
-        <p title="${escapeHtml(`${owner} / ${shareLabel(card)}`)}">${escapeHtml(owner)} / ${escapeHtml(shareLabel(card))}</p>
-        <div class="video-analysis-presentation-library-card__actions">
-          <button type="button" data-video-analysis-presentation-open="${escapeHtml(card.id || "")}">Open</button>
-          <button type="button" class="video-analysis-primary-action" data-video-analysis-presentation-present="${escapeHtml(card.id || "")}" ${canPresent ? "" : "disabled"}>Present</button>
-          <button type="button" aria-label="More presentation actions">...</button>
-        </div>
-      </div>
-    </article>
-  `;
+function renderPlaylist(item, state) {
+  const title = escapeHtml(item.title);
+  const key = escapeHtml(item.key);
+  const attributes = item.kind === "timeline" ? `data-playlist-library-open="${key}"`
+    : `data-video-analysis-presentation-open="${escapeHtml(item.presentation.id || "")}"`;
+  const playAttributes = item.kind === "timeline" ? attributes
+    : `data-video-analysis-presentation-present="${escapeHtml(item.presentation.id || "")}"`;
+  const busy = state.playlistLibrary?.openingKey ? "disabled" : "";
+  return `<li class="video-analysis-playlist-library__row" data-playlist-library-item="${key}">
+    <button type="button" class="video-analysis-playlist-library__title" ${attributes} ${busy}>
+      <strong>${title}</strong><span>${escapeHtml(item.matchTitle)}</span>
+    </button>
+    <span class="video-analysis-playlist-library__count">${item.clipCount == null ? "" : `${item.clipCount} ${item.clipCount === 1 ? "clip" : "clips"}`}</span>
+    <span class="video-analysis-playlist-library__date">${item.draft ? "Not saved" : escapeHtml(dateLabel(item.updatedAt))}</span>
+    <button type="button" class="video-analysis-playlist-library__play" ${playAttributes} title="Play ${title}" aria-label="Play ${title}" ${busy}>${playerHeaderIcon("play")}</button>
+  </li>`;
 }
 
 export function renderPresentationOverview(state = {}) {
-  const presentationState = state.presentation || {};
-  const current = presentationState.current || {};
-  const saved = Array.isArray(presentationState.presentations) ? presentationState.presentations : [];
-  const currentIsUnsaved = !current.id && presentationQueue(current).length;
-  const presentations = [
-    ...(currentIsUnsaved ? [{ ...current, id: "", updatedAt: "", ownerId: "Unsaved draft" }] : []),
-    ...saved,
-  ];
-  const search = String(presentationState.librarySearch || "").trim().toLowerCase();
-  const filtered = search
-    ? presentations.filter((presentation) => presentationSearchText(cardPresentation(presentation, current)).includes(search))
-    : presentations;
-  const totalClips = presentations.reduce((sum, presentation) => sum + (presentationStats(cardPresentation(presentation, current)).clipCount || 0), 0);
-
-  return `
-    <section class="video-analysis-presentation-library" aria-label="Presentation library">
-      <header class="video-analysis-presentation-library-hero">
-        <div>
-          <h2>Presentations</h2>
-          <p>Build, collect and present coaching clip decks.</p>
-        </div>
-        <button type="button" class="video-analysis-presentation-library-new" data-video-analysis-presentation-new>
-          <span aria-hidden="true">+</span>
-          New
-        </button>
-      </header>
-      <section class="video-analysis-presentation-library-toolbar" aria-label="Presentation tools">
-        <div class="video-analysis-presentation-library-stat">
-          <strong>${escapeHtml(String(presentations.length))}</strong>
-          <span>presentations</span>
-        </div>
-        <div class="video-analysis-presentation-library-stat">
-          <strong>${escapeHtml(String(totalClips))}</strong>
-          <span>clips</span>
-        </div>
-        <label>
-          <span aria-hidden="true">Search</span>
-          <input type="search" placeholder="Search presentations" data-video-analysis-presentation-library-search value="${escapeHtml(presentationState.librarySearch || "")}">
-        </label>
-      </section>
-      <section class="video-analysis-presentation-library-grid" aria-label="Saved presentations">
-        ${filtered.length
-          ? filtered.map((presentation) => renderPresentationCard(state, presentation)).join("")
-          : `
-            <div class="video-analysis-presentation-library-empty">
-              <strong>No presentations found</strong>
-              <span>Create a new deck or adjust the search.</span>
-              <button type="button" data-video-analysis-presentation-new>New presentation</button>
-            </div>
-          `}
-      </section>
-    </section>
-  `;
+  const library = state.playlistLibrary || {};
+  const entries = filteredPlaylistLibrary(state);
+  const pageSize = 50;
+  const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
+  const page = Math.max(0, Math.min(Number(state.presentation?.libraryPage) || 0, totalPages - 1));
+  const sort = state.presentation?.librarySort || "updated";
+  return `<section class="video-analysis-playlist-library" aria-label="Playlist library">
+    <header><h2>Playlists <small>${playlistLibraryEntries(state).length}</small></h2>
+      <button type="button" data-video-analysis-presentation-new ${state.canEdit ? "" : "disabled"}>New playlist</button>
+    </header>
+    <div class="video-analysis-playlist-library__toolbar">
+      <input type="search" aria-label="Search playlists" placeholder="Search playlists" data-video-analysis-presentation-library-search value="${escapeHtml(state.presentation?.librarySearch || "")}">
+      <select aria-label="Sort playlists" data-playlist-library-sort>
+        ${[["updated", "Recently updated"], ["name", "Name"], ["clips", "Clip count"]].map(([value, label]) => `<option value="${value}" ${sort === value ? "selected" : ""}>${label}</option>`).join("")}
+      </select>
+    </div>
+    ${library.status === "loading" ? '<p role="status">Loading playlists...</p>' : ""}
+    ${library.error ? `<p role="alert">${escapeHtml(library.error)} <button type="button" data-playlist-library-retry>Retry</button></p>` : ""}
+    <ul class="video-analysis-playlist-library__list" aria-label="Saved playlists">
+      ${entries.slice(page * pageSize, (page + 1) * pageSize).map(item => renderPlaylist(item, state)).join("")}
+    </ul>
+    ${!entries.length && library.status !== "loading" && !library.error ? '<p class="video-analysis-playlist-library__empty">No playlists found</p>' : ""}
+    ${totalPages > 1 ? `<nav class="video-analysis-playlist-library__pages" aria-label="Playlist pages">
+      <button type="button" data-playlist-library-page="${page - 1}" aria-label="Previous page" ${page ? "" : "disabled"}>${playerHeaderIcon("chevronLeft")}</button>
+      <span>${page + 1} / ${totalPages}</span>
+      <button type="button" data-playlist-library-page="${page + 1}" aria-label="Next page" ${page + 1 < totalPages ? "" : "disabled"}>${playerHeaderIcon("chevronRight")}</button>
+    </nav>` : ""}
+  </section>`;
 }

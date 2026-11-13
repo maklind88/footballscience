@@ -1,5 +1,6 @@
 const {
   asLimit,
+  asOffset,
   asMs,
   actorScope,
   buildTeamParams,
@@ -349,6 +350,7 @@ async function listPresentations(query = {}, actor = {}) {
   params.set("status", "neq.archived");
   params.set("order", "updated_at.desc,id.desc");
   params.set("limit", String(asLimit(query.limit, 40)));
+  params.set("offset", String(asOffset(query.offset)));
   const result = await selectRows("video_presentations", params);
   if (!result.ok) {
     if (isMissingPresentationSchema(result)) return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, presentations: [], smartCollections: [] } };

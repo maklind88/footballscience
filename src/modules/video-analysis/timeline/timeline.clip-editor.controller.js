@@ -35,6 +35,7 @@ export function createTimelineClipEditor({ getState, getRoot, savePlaylist, paus
   let lastClick = null;
   let returnLane = "";
   let returnToRow = false;
+  let returnPlaylistKey = "";
   let preview = null;
   let originalContext = "";
   let review = null;
@@ -95,6 +96,11 @@ export function createTimelineClipEditor({ getState, getRoot, savePlaylist, paus
     review = null;
     baseline = null;
     const root = getRoot();
+    if (returnPlaylistKey) {
+      const button = [...(root?.querySelectorAll("[data-playlist-library-open]") || [])]
+        .find(item => item.dataset.playlistLibraryOpen === returnPlaylistKey);
+      if (button) { button.focus({ preventScroll: true }); return; }
+    }
     if (returnToRow) {
       const row = [...(root?.querySelectorAll("[data-video-analysis-timeline-category]") || [])]
         .find(button => button.dataset.videoAnalysisTimelineCategoryLabel === returnLane);
@@ -152,7 +158,7 @@ export function createTimelineClipEditor({ getState, getRoot, savePlaylist, paus
     principlesDialog()?.close();
     activeClip = structuredClone(clip);
     dialog.setAttribute("data-video-analysis-clip-editor", clip.id);
-    dialog.innerHTML = renderClipEditor(clip, { laneMode: getState().timeline?.laneMode, canEdit: getState().canEdit, title: editorTitle, review, playlist });
+    dialog.innerHTML = renderClipEditor(clip, { laneMode: getState().timeline?.laneMode, canEdit: getState().canEdit, title: editorTitle, review, playlist, returnToLibrary: Boolean(returnPlaylistKey) });
     baseline = readClipEditorDraft(dialog);
     restoreDraft(review?.entries.find(entry => entry.clip.id === clip.id)?.draft);
     bindClipPrincipleSearch(dialog);
@@ -280,22 +286,23 @@ export function createTimelineClipEditor({ getState, getRoot, savePlaylist, paus
     }
   }
 
-  function open(clip, trigger, rowClips = null) {
+  function open(clip, trigger, rowClips = null, savedPlaylist = null) {
     if (!clip?.id || dialog) return false;
     restoreViewport = preserveTimelineViewport(getRoot());
     pause();
     originalContext = contextKey();
     returnLane = trigger?.closest(".video-analysis-lane")?.querySelector("[data-video-analysis-timeline-category-label]")?.dataset.videoAnalysisTimelineCategoryLabel || "";
     returnToRow = Boolean(trigger?.matches("[data-video-analysis-timeline-category]"));
+    returnPlaylistKey = trigger?.dataset.playlistLibraryOpen || "";
     const doc = getRoot().ownerDocument;
     dialog = doc.createElement("dialog");
-    const selectedClips = timelineReviewSelection(getState(), rowClips || [clip]);
-    const row = playlistRowFromTrigger(getState(), trigger);
+    const selectedClips = savedPlaylist ? rowClips || [clip] : timelineReviewSelection(getState(), rowClips || [clip]);
+    const row = savedPlaylist || playlistRowFromTrigger(getState(), trigger);
     const exactPlaylist = row && row.clipIds.length === selectedClips.length && row.clipIds.every(id => selectedClips.some(item => item.id === id));
     review = createClipReview(exactPlaylist ? row.clipIds.map(id => playlistClipVersion(selectedClips.find(item => item.id === id), row.query.clipEdits?.[id])) : selectedClips, "Clips", { preserveOrder: Boolean(exactPlaylist) });
     dialog.className = `video-analysis-clip-editor${rowClips || selectedClips.length > 1 ? " is-row-review" : ""}`;
     dialog.setAttribute("aria-labelledby", "video-analysis-clip-editor-title");
-    editorTitle = trigger?.closest(".video-analysis-lane")?.querySelector(".video-analysis-lane__name")?.textContent || "";
+    editorTitle = savedPlaylist?.label || trigger?.closest(".video-analysis-lane")?.querySelector(".video-analysis-lane__name")?.textContent || "";
     if (selectedClips.length > (rowClips?.length || 1)) editorTitle = "Selected clips";
     review.title = editorTitle || "Clips";
     playlist = createReviewPlaylist(review, exactPlaylist ? row : null, getState());

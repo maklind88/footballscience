@@ -23,9 +23,9 @@ function idempotencyKey(timeline = {}) {
 export function createTimelineWorkspaceRepository(context = {}) {
   const getAuthToken = context.getAuthToken || (() => "");
   return {
-    list(matchId, limit = 40) {
+    list(matchId, limit = 40, offset = 0, timelineId = "") {
       return requestJson(
-        buildVideoAnalysisApiUrl("timelines", { matchId, limit }),
+        buildVideoAnalysisApiUrl("timelines", { matchId, limit, offset, timelineId }),
         { method: "GET" },
         getAuthToken,
       );

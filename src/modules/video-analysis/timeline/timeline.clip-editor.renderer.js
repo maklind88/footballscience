@@ -33,7 +33,7 @@ export function clipEditorSubPhaseOptions(phase, current = "") {
   return `<option value="">Choose sub-phase</option>${optionList(choices, current)}`;
 }
 
-export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false, title = "", review = null, playlist = null } = {}) {
+export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false, title = "", review = null, playlist = null, returnToLibrary = false } = {}) {
   const start = getClipStartMs(clip);
   const end = getClipEndMs(clip);
   const subPhase = clip.subPhase || clip.sub_phase || "";
@@ -46,7 +46,7 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
         <span class="video-analysis-clip-review__notice" data-clip-review-notice role="status"></span>
         ${renderClipPrincipleTool(clip)}
         <button type="button" ${canEdit ? "data-clip-edit-open" : "data-clip-details-open"} aria-label="${canEdit ? "Edit clip" : "Clip details"}" title="${canEdit ? "Edit clip" : "Clip details"}" aria-haspopup="dialog" aria-expanded="false" aria-controls="video-analysis-clip-edit-dialog">${playerHeaderIcon(canEdit ? "pencil" : "info")}</button>
-        <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" aria-description="Return to the timeline" title="Close and return to timeline">${playerHeaderIcon("x")}</button>
+        <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" aria-description="Return to ${returnToLibrary ? "Playlists" : "the timeline"}" title="Close and return to ${returnToLibrary ? "Playlists" : "timeline"}">${playerHeaderIcon("x")}</button>
       </div>
     </header>
     <form data-video-analysis-timeline-editor novalidate>

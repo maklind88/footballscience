@@ -15,8 +15,8 @@ async function requestJson(url, options = {}, getAuthToken = () => "") {
 export function createPresentationRepository(context = {}) {
   const getAuthToken = context.getAuthToken || (() => "");
   return {
-    list(limit = 40) {
-      return requestJson(buildVideoAnalysisApiUrl("list-presentations", { limit }), { method: "GET" }, getAuthToken);
+    list(limit = 40, offset = 0) {
+      return requestJson(buildVideoAnalysisApiUrl("list-presentations", { limit, offset }), { method: "GET" }, getAuthToken);
     },
     get(id = "") {
       return requestJson(buildVideoAnalysisApiUrl("get-presentation", { id }), { method: "GET" }, getAuthToken);

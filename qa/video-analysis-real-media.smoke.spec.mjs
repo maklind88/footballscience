@@ -112,7 +112,7 @@ for (const viewport of [{ width: 1468, height: 900 }, { width: 390, height: 844 
     await video.scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath(`real-media-${viewport.width}.png`), fullPage: true });
 
-    await page.getByRole("button", { name: "Presentation", exact: true }).click();
+    await page.getByRole("button", { name: "Playlists", exact: true }).click();
     await page.locator('[data-video-analysis-presentation-open="presentation-1"]').click();
     await page.locator("[data-video-analysis-presentation-add]").first().click();
     await page.getByRole("tab", { name: "Telestrate" }).click();

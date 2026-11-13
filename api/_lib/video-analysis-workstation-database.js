@@ -1,6 +1,7 @@
 const { randomUUID } = require("node:crypto");
 const {
   asLimit,
+  asOffset,
   actorScope,
   buildTeamParams,
   dbRequest,
@@ -136,6 +137,21 @@ function mapTimelineRows(timelines = [], lanes = [], memberships = []) {
   }));
 }
 
+async function completeTimelineChildren(table, params) {
+  const rows = [];
+  const pageSize = 500;
+  for (let offset = 0; offset <= 200000; offset += pageSize) {
+    const page = new URLSearchParams(params);
+    page.set("limit", String(pageSize));
+    page.set("offset", String(offset));
+    const result = await selectRows(table, page);
+    if (!result.ok) return result;
+    rows.push(...rowList(result));
+    if (result.payload.length < pageSize) return { ok: true, payload: rows };
+  }
+  return { ok: false, status: 422, reason: "The playlist data could not be loaded completely." };
+}
+
 async function listTimelines(query = {}, actor = {}) {
   const scope = actorScope(actor);
   const params = buildTeamParams(scope);
@@ -143,8 +159,11 @@ async function listTimelines(query = {}, actor = {}) {
   params.set("status", "eq.active");
   const matchId = normalizeUuid(query.matchId || query.match_id);
   if (matchId) params.set("match_id", `eq.${matchId}`);
-  params.set("order", "is_default.desc,updated_at.desc");
+  const timelineId = normalizeUuid(query.timelineId);
+  if (timelineId) params.set("id", `eq.${timelineId}`);
+  params.set("order", "is_default.desc,updated_at.desc,id.asc");
   params.set("limit", String(asLimit(query.limit, 40)));
+  params.set("offset", String(asOffset(query.offset)));
   const timelinesResult = await selectRows("video_timelines", params);
   if (!timelinesResult.ok) {
     if (isMissingSchema(timelinesResult)) {
@@ -160,8 +179,7 @@ async function listTimelines(query = {}, actor = {}) {
   laneParams.set("timeline_id", `in.(${timelineIds.join(",")})`);
   laneParams.set("status", "eq.active");
   laneParams.set("order", "sort_order.asc,id.asc");
-  laneParams.set("limit", "1000");
-  const lanesResult = await selectRows("video_timeline_lanes", laneParams);
+  const lanesResult = await completeTimelineChildren("video_timeline_lanes", laneParams);
   if (!lanesResult.ok) return lanesResult;
   const lanes = rowList(lanesResult);
   const membershipParams = buildTeamParams(scope);
@@ -169,8 +187,7 @@ async function listTimelines(query = {}, actor = {}) {
   membershipParams.set("timeline_id", `in.(${timelineIds.join(",")})`);
   membershipParams.set("status", "eq.active");
   membershipParams.set("order", "sort_order.asc,id.asc");
-  membershipParams.set("limit", "5000");
-  const membershipsResult = await selectRows("video_timeline_lane_clips", membershipParams);
+  const membershipsResult = await completeTimelineChildren("video_timeline_lane_clips", membershipParams);
   if (!membershipsResult.ok) return membershipsResult;
   return {
     ok: true,

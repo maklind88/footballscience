@@ -4,15 +4,16 @@ import { savedPlaylistEntries } from "../services/playlistLibraryService.js";
 
 const PAGE_SIZE = 40;
 
-export function createPlaylistLibraryController({ getRuntime, openMatch, openEditor }) {
+export function createPlaylistLibraryController({ getRuntime, openMatch, openEditor, shouldLoadMetadata = () => true }) {
   let loading = false;
   let opening = false;
   const update = patch => getRuntime().store.update(state => ({ ...state, playlistLibrary: { ...state.playlistLibrary, ...patch } }));
 
   async function load() {
     if (loading) return;
-    loading = true;
     const run = getRuntime();
+    if (!shouldLoadMetadata(run.context, run.store.getState())) return;
+    loading = true;
     update({ status: "loading", error: "" });
     try {
       const timelines = [];
@@ -41,6 +42,7 @@ export function createPlaylistLibraryController({ getRuntime, openMatch, openEdi
   async function open(key, trigger) {
     if (opening) return false;
     const run = getRuntime();
+    if (!shouldLoadMetadata(run.context, run.store.getState())) return false;
     const entry = savedPlaylistEntries(run.store.getState()).find(item => item.key === key);
     if (!entry) return false;
     opening = true;

@@ -20,6 +20,8 @@ Popup lists retain their existing `video_timelines` / manual row records, stable
 
 Discovery reads all accessible timeline and presentation pages within the API's existing offset boundary. Hidden popup rows and lists in non-active timelines remain discoverable. Failed reads retain the last loaded library and display an error rather than replacing it with an empty result.
 
+Discovery and opening use the same metadata-read eligibility guard as the existing Video Analysis controllers, including local-static isolation.
+
 Opening a saved popup list re-reads its exact parent timeline, fetches the source match when needed, and hydrates source clips without current Timeline filters. If any member is unavailable, opening fails closed with a visible message; there is no partial playlist save that drops missing members. Concurrent workspace changes also prevent replacement.
 
 Timeline child reads page through memberships and rows so large saved collections are not silently truncated. Match and timeline lookup filters only narrow existing organization/team-scoped queries. Existing atomic save/revision checks remain in force. Source matches that are archived or inaccessible remain unavailable, but their library entries are not deleted.
@@ -31,7 +33,7 @@ Timeline child reads page through memberships and rows so large saved collection
 - Existing clip-popup/review/principles/playback suites continue to cover live tagging and editing behavior.
 - Native playlist persistence tests cover the unchanged atomic storage contract with synthetic data only; they were not rerun for this read-path/UI candidate because local PostgreSQL binaries were unavailable.
 
-Local verification on 2026-11-12:
+Implementation baseline verification on 2026-11-12:
 
 - `npm run check`, `npm run architecture:budgets`, and `git diff --check` passed.
 - Video Analysis API contracts and Chromium smoke suites: 634 passed (487 contracts, 147 browser tests); 2 private-match-video tests skipped because the source file was unavailable.

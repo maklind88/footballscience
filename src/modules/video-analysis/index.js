@@ -338,6 +338,7 @@ function playlistLibrary(context = {}) {
   const run = ensureRuntime(context);
   run.playlistLibraryController ||= createPlaylistLibraryController({
     getRuntime: () => run,
+    shouldLoadMetadata,
     openMatch: key => libraryController().openLibraryItem(key, run.context || context, { activeTab: "presentation" }),
     openEditor: (...args) => timelineClipEditor(run.context || context).open(...args),
   });

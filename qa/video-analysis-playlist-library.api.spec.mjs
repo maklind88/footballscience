@@ -84,6 +84,20 @@ test("opening rehydrates every source and uses exact saved membership, not curre
   expect(h.calls[0][3].query.clipEdits[clipId].note).toBe("Saved note");
 });
 
+test("local metadata isolation blocks discovery and opening before any repository read", async () => {
+  const h = harness();
+  const reads = [];
+  h.run.timelineWorkspaceRuntime.repository.list = async () => { reads.push("timeline"); return { timelines: [] }; };
+  h.run.presentations.list = async () => { reads.push("presentation"); return { presentations: [] }; };
+  h.run.clips.list = async () => { reads.push("clips"); return { clips: [] }; };
+  const controller = createPlaylistLibraryController({ getRuntime: () => h.run, shouldLoadMetadata: () => false,
+    openMatch: async () => { reads.push("match"); }, openEditor: () => { reads.push("editor"); } });
+  await controller.load();
+  expect(await controller.open(h.key)).toBe(false);
+  expect(reads).toEqual([]);
+  expect(h.state().playlistLibrary).toBeUndefined();
+});
+
 test("unavailable clips fail closed without replacing or reducing the saved membership", async () => {
   const h = harness({ clips: { list: async () => ({ clips: [] }) } });
   const before = structuredClone(h.state().timelineWorkspace);

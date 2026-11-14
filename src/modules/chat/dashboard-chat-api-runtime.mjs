@@ -117,6 +117,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
   const DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS = 8000;
   const DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS = 15000;
   let dashboardChatApiLastRequestedAt = 0;
+  let threadSummaryRequestSequence = 0;
 
   function normalizeRefreshDelay(value = 0) {
     const delayMs = Number(value) || 0;
@@ -630,6 +631,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     if (!options.forceNetwork && !getDashboardChatCurrentViewState()?.isOpen) {
       return createDashboardChatClosedResult();
     }
+    const requestSequence = ++threadSummaryRequestSequence;
     const previousThreadSummarySignature = JSON.stringify(getApiThreads());
     const previousMessageSummarySignature = JSON.stringify(
       getDashboardMessages().map((message) => [
@@ -641,7 +643,16 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       ])
     );
     setChatApiSyncingStatus("threads");
-    const result = await fetchDashboardChatApi({ view: "threads", limit: options.limit || 80, __activeChatRead: true });
+    const result = await fetchDashboardChatApi({
+      view: "threads",
+      limit: options.limit || 80,
+      __activeChatRead: true,
+      ...(options.forceNetwork ? { __forceNetwork: true } : {}),
+    });
+    // An older inbox read must not undo a newer refresh or its error state.
+    if (requestSequence !== threadSummaryRequestSequence) {
+      return { ...result, superseded: true };
+    }
     setChatApiResultStatus(result, "threads");
     if (!result.ok) {
       if (!canFallbackDashboardChatApiResult(result)) {
@@ -685,11 +696,13 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       win.clearTimeout(getThreadSummarySyncTimer());
     }
 
-    const delayMs = refreshDelayWithBudget(
-      options.delayMs ?? 200,
-      getThreadSummaryLastRequestedAt(),
-      DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS
-    );
+    const delayMs = options.immediate
+      ? normalizeRefreshDelay(options.delayMs ?? 0)
+      : refreshDelayWithBudget(
+          options.delayMs ?? 200,
+          getThreadSummaryLastRequestedAt(),
+          DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS
+        );
     setThreadSummarySyncTimer(
       win.setTimeout(() => {
         setThreadSummarySyncTimer(0);
@@ -709,7 +722,8 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       return;
     }
 
-    queueDashboardChatThreadSummaryRefresh({ delayMs: Number(options.delayMs ?? 120), render: false, forceNetwork: options.forceNetwork });
+    // Inbox and message requests finish independently; each must render its own result.
+    queueDashboardChatThreadSummaryRefresh({ delayMs: Number(options.delayMs ?? 120), forceNetwork: options.forceNetwork });
 
     if (state.isOpen) {
       queueDashboardChatApiRefresh({

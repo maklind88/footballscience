@@ -2556,7 +2556,7 @@ dashboardChatApiRuntime = createDashboardChatApiRuntime({
   getDashboardChatThreadSettings: () => dashboardChatThreadSettings,
   getDashboardMessageDraft: () => dashboardChatMessageSearchQuery,
   getDashboardChatApiThreadSummarySyncLastRequestedAt: () => dashboardChatThreadSummaryLastRequestedAt,
-  setDashboardChatApiThreadSummaryLastRequestedAt: (value = 0) => {
+  setDashboardChatApiThreadSummarySyncLastRequestedAt: (value = 0) => {
     dashboardChatThreadSummaryLastRequestedAt = Number(value) || 0;
   },
   getDashboardChatApiThreadSummarySyncTimer: () => dashboardChatThreadSummarySyncTimer,
@@ -4344,7 +4344,7 @@ const threadId = normalizeDashboardChatThreadId(
 retrySyncButton.dataset.dashboardChatRetrySync || currentState.selectedThreadId,
 dashboardChatTeamThreadId
 );
-queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: false, forceNetwork: true });
+queueDashboardChatThreadSummaryRefresh({ delayMs: 0, immediate: true, forceNetwork: true });
 await refreshDashboardChatFromApi({ threadId, forceNetwork: true });
 renderDashboardChatWidget();
 return;
@@ -4513,7 +4513,7 @@ if (nextState.isOpen) {
 dashboardChatMobileConversationOpen = false;
 hideDashboardChatWidgetToast();
 requestDashboardChatScrollToLatest(nextState.selectedThreadId || dashboardChatTeamThreadId);
-queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: false, forceNetwork: true });
+queueDashboardChatThreadSummaryRefresh({ delayMs: 0, immediate: true, forceNetwork: true });
 void refreshDashboardChatFromApi({
 threadId: normalizeDashboardChatThreadId(nextState.selectedThreadId, dashboardChatTeamThreadId),
 forceNetwork: true,
@@ -4582,7 +4582,7 @@ renderDashboardChatWidget();
 if (isThreadSwitch) {
 scrollDashboardChatActiveThreadToLatest(threadId);
 }
-queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: false, forceNetwork: true });
+queueDashboardChatThreadSummaryRefresh({ delayMs: 0, immediate: true, forceNetwork: true });
 void refreshDashboardChatFromApi({ threadId, forceNetwork: true });
 focusDashboardChatWidgetComposer();
 return;

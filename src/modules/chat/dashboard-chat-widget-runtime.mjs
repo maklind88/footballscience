@@ -750,6 +750,19 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     );
   }
 
+  function appendNewDashboardChatThreads(currentList, nextList) {
+    const selector = "[data-dashboard-chat-thread]";
+    const currentThreadIds = new Set(
+      Array.from(currentList.querySelectorAll(selector), (thread) => thread.dataset.dashboardChatThread)
+    );
+    // Preserve pointer targets, but never hide a newly discovered conversation.
+    nextList.querySelectorAll(selector).forEach((thread) => {
+      if (!currentThreadIds.has(thread.dataset.dashboardChatThread)) {
+        currentList.appendChild(thread.cloneNode(true));
+      }
+    });
+  }
+
   function reconcileDashboardChatRegions(currentParent, nextParent) {
     const currentChildren = Array.from(currentParent?.children || []);
     const currentByKey = new Map(currentChildren.map((child) => [getDashboardChatRegionKey(child), child]));
@@ -768,6 +781,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
         key === "dashboard-chat-thread-scroll" &&
         shouldDeferDashboardChatThreadListUpdate(currentChild, nextChild)
       ) {
+        appendNewDashboardChatThreads(currentChild, nextChild);
         dashboardChatThreadListUpdateDeferred = true;
         queueDashboardChatThreadListRefreshAfterPointerLeave(currentChild);
       } else if (key === "dashboard-chat-list") {

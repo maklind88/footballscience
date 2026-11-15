@@ -3,6 +3,7 @@ import fs from "node:fs";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyDmScheduleReleaseReview } from "./lib/dm-schedule-release-review.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const canonicalVercelProjectName = "footballscience";
@@ -189,6 +190,14 @@ function requireCleanWorkingTree(context) {
     console.error(status.join("\n"));
     throw new Error(`${context} requires a clean worktree.`);
   }
+}
+
+function requireManualReleaseReview(options, mode) {
+  if (!options.deploy) return;
+  verifyDmScheduleReleaseReview({ branch: currentBranch(), sha: git(["rev-parse", "HEAD"]), mode,
+    skipGithubWait: options.skipGithubWait, runId: process.env.RELEASE_REVIEW_RUN_ID,
+    readApi: endpoint => JSON.parse(capture("gh", ["api", endpoint])),
+  });
 }
 
 function normalizeMode(mode) {
@@ -379,6 +388,7 @@ function deployThroughGithub(options) {
     waitForWorkflow("Staging Deploy", "staging", sha);
   }
 
+  requireManualReleaseReview(options, "safe");
   run("git", ["push", "origin", "HEAD:main"]);
   if (!options.skipGithubWait) {
     waitForWorkflow("QA", "main", sha);
@@ -419,6 +429,7 @@ async function runRelease(options) {
 
   const paths = releasePaths(options);
   const mode = classifyReleaseMode(paths, options.mode);
+  requireManualReleaseReview(options, mode);
 
   console.log(`- mode: ${mode}`);
   console.log(`- changed files: ${paths.length || 0}`);
@@ -443,6 +454,7 @@ async function runRelease(options) {
   }
 
   if (options.push) {
+    requireManualReleaseReview(options, mode);
     requireCleanWorkingTree("Push");
     pushCurrentBranch();
   }

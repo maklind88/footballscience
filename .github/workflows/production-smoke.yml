@@ -1,8 +1,25 @@
 name: Production Monitor
+run-name: ${{ inputs.review_action && inputs.review_action != 'monitor' && format('DM/Schedule {0} {1}', inputs.review_action, github.sha) || 'Production Monitor' }}
 
 on:
   workflow_dispatch:
     inputs:
+      review_action:
+        description: Task-scoped manual review; diagnostics never deploys
+        type: choice
+        options:
+          - monitor
+          - diagnostics
+          - release
+        default: monitor
+      expected_candidate_sha:
+        description: Exact candidate SHA for DM/Schedule review
+        type: string
+        default: ''
+      expected_live_build_id:
+        description: Exact existing production buildId for DM/Schedule review
+        type: string
+        default: ''
       verify_fresh_backup:
         description: Create and verify a fresh production backup without restoring data.
         type: boolean
@@ -18,11 +35,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-monitor
+  group: ${{ inputs.review_action && inputs.review_action != 'monitor' && 'dm-schedule-review' || 'production-monitor' }}
   cancel-in-progress: false
 
 jobs:
   monitor:
+    if: github.ref == 'refs/heads/main' && (!inputs.review_action || inputs.review_action == 'monitor')
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
@@ -58,3 +76,73 @@ jobs:
           BACKUP_EXPECTED_BUILD_ID: ${{ inputs.expected_backup_build_id }}
         run: node scripts/verify-fresh-app-state-backup.mjs
       - run: npm run release:monitor
+
+  dm-schedule-review:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/dm-reload-race-20261113' && (inputs.review_action == 'diagnostics' || inputs.review_action == 'release')
+    name: DM/Schedule ${{ inputs.review_action }} review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: dm-schedule-review
+      url: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+    steps:
+      - name: Checkout exact reviewed commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.15.0
+      - name: Verify reviewed commit and unchanged live target
+        env:
+          REVIEW_ACTION: ${{ inputs.review_action }}
+          EXPECTED_CANDIDATE_SHA: ${{ inputs.expected_candidate_sha }}
+          EXPECTED_LIVE_BUILD_ID: ${{ inputs.expected_live_build_id }}
+        run: node scripts/verify-dm-schedule-review-target.mjs
+
+  dm-schedule-diagnostics:
+    needs: dm-schedule-review
+    if: inputs.review_action == 'diagnostics' && needs.dm-schedule-review.result == 'success'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53
+    timeout-minutes: 15
+    concurrency:
+      group: production-monitor
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.15.0
+      - name: Install diagnostic dependencies without service credentials
+        run: node scripts/ci-install.mjs
+      - name: Recheck the exact target after the monitor queue
+        env:
+          REVIEW_ACTION: ${{ inputs.review_action }}
+          EXPECTED_CANDIDATE_SHA: ${{ inputs.expected_candidate_sha }}
+          EXPECTED_LIVE_BUILD_ID: ${{ inputs.expected_live_build_id }}
+        run: node scripts/verify-dm-schedule-review-target.mjs
+      - name: Run Schedule and two-account DM diagnostics
+        env:
+          LIVE_QA_BASE_URL: https://footballscience.xyz
+          LIVE_QA_EXPECT_ADMIN: '1'
+          LIVE_QA_REQUIRE_PEER_CHAT: '1'
+          LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
+          LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
+          LIVE_QA_PEER_USERNAME: ${{ secrets.LIVE_QA_PEER_USERNAME }}
+          LIVE_QA_PEER_PASSWORD: ${{ secrets.LIVE_QA_PEER_PASSWORD }}
+        run: |
+          node --input-type=module <<'NODE'
+          for (const name of ['LIVE_QA_USERNAME', 'LIVE_QA_PASSWORD']) {
+            if (!process.env[name]?.trim()) throw new Error(`Missing ${name}`);
+          }
+          if (Boolean(process.env.LIVE_QA_PEER_USERNAME?.trim()) !== Boolean(process.env.LIVE_QA_PEER_PASSWORD?.trim())) {
+            throw new Error('Both peer credentials must be configured together.');
+          }
+          NODE
+          npm run qa:live -- qa/production.live.spec.mjs --grep 'production test account can save and reload a schedule record|production peer accounts prove DM unread state and read receipt end-to-end'

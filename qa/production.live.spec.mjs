@@ -6,6 +6,7 @@ import { createLiveReadinessProbe } from "./helpers/live-readiness-probe.mjs";
 import { expect, test } from "@playwright/test";
 import { openScoutingDatabaseTab, startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
 import { createScheduleProbeFixture, installScheduleDialogHandler, showScheduleDateInPlanner } from "./helpers/live-schedule-probe.mjs";
+import { readScheduleSaveDiagnostics } from "./helpers/schedule-save-diagnostics.mjs";
 
 const scheduleKey = "football-schedule-v1";
 const primaryLiveCredentials = {
@@ -454,16 +455,21 @@ async function openLiveChatThread(page, threadId) {
 }
 
 async function expectStorageContains(page, key, text) {
-  await expect
-    .poll(
-      async () =>
-        page.evaluate(
-          ({ storageKey, expectedText }) => window.localStorage.getItem(storageKey)?.includes(expectedText) ?? false,
-          { storageKey: key, expectedText: text }
-        ),
-      { timeout: 15_000 }
-    )
-    .toBe(true);
+  try {
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            ({ storageKey, expectedText }) => window.localStorage.getItem(storageKey)?.includes(expectedText) ?? false,
+            { storageKey: key, expectedText: text }
+          ),
+        { timeout: 15_000 }
+      )
+      .toBe(true);
+  } catch (cause) {
+    const diagnostics = await readScheduleSaveDiagnostics(page, key, text);
+    throw new Error(`Schedule local save verification failed: ${JSON.stringify(diagnostics)}`, { cause });
+  }
 }
 
 async function expectStorageExcludes(page, key, text) {

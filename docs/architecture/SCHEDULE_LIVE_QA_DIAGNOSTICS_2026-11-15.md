@@ -2,7 +2,7 @@
 
 Owner: the FS Player/DM release chat, expressly authorized by the user to investigate
 the blocking Schedule test before releasing the DM inbox fix. Schedule product
-changes and release-protection changes have not been made in this candidate.
+changes have not been made. The task-specific manual review gate is described below.
 
 ## Confirmed evidence
 
@@ -22,6 +22,27 @@ changes and release-protection changes have not been made in this candidate.
   is not a completed persistence/reload proof and used a different account from QA.
 
 ## Candidate diagnostics
+
+### Approved run outcome
+
+Run `43737582514` was approved by the required reviewer and executed against the
+unchanged production build. The two-account DM test passed and Schedule failed;
+its run-owned cleanup was verified. The Schedule report showed a hydrated view,
+no pending Schedule generation, rejected UI save feedback, and a global manifest
+`lastError` classified as `quota`. The global central last-write error was a
+conflict. Neither global error field proves the current Schedule exception.
+
+A follow-up test-only observer captures the actual Schedule `setItem` exception
+as a fixed category, rethrows the original error unchanged, and measures native
+storage string lengths before the save. It reports no values, arbitrary key names,
+account scopes or tokens. Its wrapper is restored in `finally`; no application
+save guard, assertion, timeout or central-write path is relaxed. This new exact
+commit needs its own diagnostic approval before CI credentials can be used.
+
+Follow-up validation: `npm run check`, `git diff --check`, and 44 targeted tests
+passed, including native Chromium quota/success behavior, exception passthrough,
+privacy, cleanup, and exact-commit release approval contracts. No production code
+or saved record was changed by this follow-up candidate.
 
 `qa/helpers/schedule-save-diagnostics.mjs` adds failure-only diagnostics to the
 existing Schedule local-storage assertion. It reports fixed error categories,

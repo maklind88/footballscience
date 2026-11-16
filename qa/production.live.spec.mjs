@@ -7,6 +7,7 @@ import { expect, test } from "@playwright/test";
 import { openScoutingDatabaseTab, startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
 import { createScheduleProbeFixture, installScheduleDialogHandler, showScheduleDateInPlanner } from "./helpers/live-schedule-probe.mjs";
 import { readScheduleSaveDiagnostics } from "./helpers/schedule-save-diagnostics.mjs";
+import { observeScheduleWrite } from "./helpers/schedule-write-observer.mjs";
 
 const scheduleKey = "football-schedule-v1";
 const primaryLiveCredentials = {
@@ -934,11 +935,16 @@ scheduleTest("production test account can save and reload a schedule record", as
     const addInput = page.locator(`[data-schedule-planner-add-date="${targetDate}"] [name="plannerTitle"]`);
     await expect(addInput).toBeFocused();
     await addInput.fill(title);
-    scheduleProbe.arm({ title, targetDate, user });
-    await addInput.press("Enter");
-    await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
-    await expectStorageContains(page, scheduleKey, title);
-    await expectCentralSyncContains(page, scheduleKey, title, { writes: scheduleWrites });
+    const stopObserving = await observeScheduleWrite(page, scheduleKey);
+    try {
+      scheduleProbe.arm({ title, targetDate, user });
+      await addInput.press("Enter");
+      await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
+      await expectStorageContains(page, scheduleKey, title);
+      await expectCentralSyncContains(page, scheduleKey, title, { writes: scheduleWrites });
+    } finally {
+      await stopObserving();
+    }
   });
 
   await test.step("Schedule: reload and return to the saved date", async () => {

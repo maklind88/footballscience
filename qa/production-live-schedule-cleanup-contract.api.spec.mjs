@@ -21,7 +21,7 @@ test("production Schedule smoke confirms deletion and proves central cleanup", (
   expect(source).not.toContain("removeScheduleEventIfPresent(page, title).catch");
   expect(source).toContain('await expect(eventChip).toHaveCount(1)');
   expect(source).toContain('if (!localContainsTitle) {\n    await expectCentralSyncExcludes(page, scheduleKey, title)');
-  expect(source).toContain('scheduleProbe.arm({ title, targetDate, user });\n    await addInput.press("Enter")');
+  expect(source).toMatch(/scheduleProbe\.arm\(\{ title, targetDate, user \}\);\s+await addInput\.press\("Enter"\)/);
   expect(source).toContain('await openWorkspace(page, "schedule");\n    await showScheduleDateInPlanner(page, targetDate)');
 });
 

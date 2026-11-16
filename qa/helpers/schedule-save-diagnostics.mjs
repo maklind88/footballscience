@@ -42,6 +42,7 @@ export async function readScheduleSaveDiagnostics(page, key, expectedText) {
       lastError: errorCategory(manifest.lastError),
       centralError: errorCategory(status.lastError),
       lastWriteError: errorCategory(status.lastWriteError),
+      writeObservation: window.__qaScheduleWriteObservation?.report || null,
       saveIssues: (Array.isArray(manifest.localSaveIssues) ? manifest.localSaveIssues : [])
         .filter(issue => issue?.key === key).slice(0, 5).map(issue => errorCategory(issue.message)),
       feedback: (() => {

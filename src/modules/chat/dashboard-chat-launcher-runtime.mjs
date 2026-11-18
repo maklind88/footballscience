@@ -71,6 +71,15 @@ export function createDashboardChatLauncherRuntime({
     root.style.removeProperty("bottom");
   }
 
+  function getLauncherViewportHeight() {
+    const { viewportHeight } = getViewportSize();
+    const rail = documentRef?.getElementById?.("hubSidebar");
+    const rect = rail?.getBoundingClientRect?.();
+    return rect && rect.height > 0 && rect.top > viewportHeight / 2 &&
+      rect.bottom >= viewportHeight - 1 && windowRef?.getComputedStyle?.(rail)?.position === "fixed"
+      ? rect.top : viewportHeight;
+  }
+
   function getClampedPosition(root, position) {
     const rect = root.getBoundingClientRect();
     return clampDashboardChatLauncherPosition({
@@ -79,6 +88,9 @@ export function createDashboardChatLauncherRuntime({
       width: rect.width,
       height: rect.height,
       ...getViewportSize(),
+      // Reserve mobile navigation even for saved positions and dragging.
+      // Clamping the view never rewrites a saved preference.
+      viewportHeight: getLauncherViewportHeight(),
     });
   }
 

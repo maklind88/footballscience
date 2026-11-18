@@ -1,4 +1,5 @@
 import { collectStorageHealth } from "./storage-health-report.mjs";
+import { mountStorageUpgradeGuide } from "./storage-upgrade-guide.mjs";
 
 export async function openStorageHealth(options) {
   const { documentRef: doc, getScope = () => "" } = options;
@@ -13,9 +14,11 @@ export async function openStorageHealth(options) {
   const content = doc.createElement("div");
   const win = doc.defaultView;
   let invalidated = false;
+  let disposeUpgradeGuide = () => {};
   const invalidate = () => {
     if (invalidated) return;
     invalidated = true;
+    disposeUpgradeGuide();
     content.replaceChildren();
     status.textContent = "Account or team changed. Reopen this check.";
   };
@@ -26,6 +29,7 @@ export async function openStorageHealth(options) {
   close.addEventListener("click", () => dialog.close());
   dialog.append(title, status, content, close); doc.body.append(dialog);
   dialog.addEventListener("close", () => {
+    disposeUpgradeGuide();
     win?.removeEventListener('platform:user-change', invalidate); win?.clearInterval(scopeTimer);
     dialog.remove(); if (returnFocus?.isConnected) returnFocus.focus();
   }, { once: true });
@@ -96,4 +100,8 @@ export async function openStorageHealth(options) {
     review.addEventListener("click", () => { dialog.close(); options.reviewLibrary(); }); content.append(review);
   }
   add("If saving fails, keep the page open. Do not clear browser data while edits or local reviews are pending. Open Sessions local review to compare retained versions.");
+  const upgrade = doc.createElement('details'), summary = doc.createElement('summary');
+  summary.textContent = 'Prepare older tabs for upgrade'; upgrade.append(summary); content.append(upgrade);
+  disposeUpgradeGuide = mountStorageUpgradeGuide({ doc, host: upgrade, getScope, isCurrent, report,
+    getWorkingCopy: options.getSessionWorkingCopy, canReviewWorkingCopy: options.canReviewSessionWorkingCopy });
 }

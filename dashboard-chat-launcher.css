@@ -150,7 +150,7 @@ html body.has-dashboard-chat-widget.is-booting .dashboard-chat-widget-root {
 @media (max-width: 820px) {
   html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-widget-root {
     right: max(0.9rem, env(safe-area-inset-right)) !important;
-    bottom: max(0.9rem, calc(0.9rem + env(safe-area-inset-bottom))) !important;
+    bottom: var(--platform-rail-chat-mobile-bottom, calc(5.35rem + env(safe-area-inset-bottom))) !important;
     width: 3.2rem !important;
     max-width: 3.2rem !important;
     height: 3.2rem !important;

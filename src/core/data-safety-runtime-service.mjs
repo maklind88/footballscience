@@ -904,6 +904,8 @@ export function createDataSafetyRuntimeService(deps = {}) {
     ui.dataSafetyHealthButton?.addEventListener("click", () => openStorageHealth({
       snapshotPolicy: { schema: exportSchema, hashString },
       getSnapshotRotation: () => status.lastSnapshotRotation,
+      getSessionWorkingCopy: () => getCentralStateBridge()?.getSessionWorkingCopy?.() || null,
+      canReviewSessionWorkingCopy: () => Boolean(getSnapshotReviewScope()) && canEditSessionPlanner() === true,
       documentRef, navigatorRef, indexedDB: win.indexedDB, storage: {
         get length() { return getStorage()?.length || 0; },
         key: rawKey,

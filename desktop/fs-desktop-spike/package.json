@@ -1,0 +1,25 @@
+{
+  "name": "@football-science/desktop-architecture-spike",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "release:test:generate": "node tools/generate-test-releases.mjs",
+    "pretest": "node tools/generate-test-releases.mjs --quiet",
+    "ci:build:windows": "node tools/build-windows-candidates.mjs",
+    "ci:verify:windows": "node tools/windows-ci-verifier.mjs",
+    "verify:packaged:macos": "node tools/macos-packaged-verifier.mjs",
+    "host:hosted": "node tools/hosted-server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:integration:postgres": "node --test tests/local-postgres-sync.test.mjs",
+    "tauri:build:bundled": "node tools/build-local-candidate.mjs --candidate=bundled",
+    "tauri:build:hosted": "node tools/build-local-candidate.mjs --candidate=hosted",
+    "tauri:package:hosted:macos": "node tools/build-local-candidate.mjs --candidate=hosted --bundle=app",
+    "tauri:build:unauthorized-origin": "node tools/build-local-candidate.mjs --candidate=unauthorized-origin"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/cli": "2.11.4"
+  }
+}

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FS Player - Two-player review</title>
+  <link rel="stylesheet" href="../../../../src/modules/video-analysis/video-analysis.css">
+  <style>body { margin: 24px; font: 14px system-ui; color: #173727; background: #f4f6f5; } h1 { font-size: 22px; } button { padding: 10px; } [hidden] { display: none; }</style>
+</head>
+<body>
+  <main id="fixture">
+    <h1>FS Player</h1>
+    <input type="file" accept="video/*" aria-label="Local clip">
+    <button type="button" id="reopen" disabled>Open clip</button>
+    <output id="status" role="status"></output>
+  </main>
+  <script type="module">
+    import { createTimelineClipEditor } from '../../../../src/modules/video-analysis/timeline/timeline.clip-editor.controller.js';
+    import { createLocalVideoReference, revokeLocalVideoReference } from '../../../../src/modules/video-analysis/services/localVideoBridgeService.js';
+    const root = document.querySelector('#fixture');
+    const input = root.querySelector('input');
+    const button = root.querySelector('button');
+    const status = root.querySelector('output');
+    const listeners = new Set();
+    let clip;
+    const state = {
+      canEdit: false, match: { id: 'pair-review-match', title: 'Seattle - 4 July' },
+      video: { id: 'pair-review-video' }, source: { id: 'pair-review-source' },
+      timeline: { laneMode: 'all', selectedClipIds: [], selectedRowKeys: [] },
+      presentation: { spatial: {} }, videoRef: null,
+    };
+    const editor = createTimelineClipEditor({
+      getState: () => state, getRoot: () => root, pause: () => {},
+      getContext: () => ({ currentUser: { id: 'local-review', clubId: 'local-review', teamId: 'local-review' } }),
+      subscribe: listener => { listeners.add(listener); return () => listeners.delete(listener); },
+      reconnect: () => input.click(), selectFile: load,
+      savePlaylist: () => { throw new Error('This local review cannot write tags or playlists'); },
+    });
+    async function load(file) {
+      if (!file) return;
+      editor.close();
+      if (state.videoRef) revokeLocalVideoReference(state.videoRef);
+      state.videoRef = await createLocalVideoReference(file);
+      const probe = document.createElement('video');
+      probe.src = state.videoRef.objectUrl;
+      await new Promise((resolve, reject) => { probe.onloadedmetadata = resolve; probe.onerror = reject; });
+      state.videoRef.durationMs = Math.round(probe.duration * 1000);
+      const startMs = state.videoRef.durationMs > 193000 ? 177515 : 0;
+      clip = { id: 'seattle-pair-review', videoId: state.video.id, matchId: state.match.id,
+        startMs, endMs: Math.min(startMs + 15000, state.videoRef.durationMs), subPhase: 'High Press', phase: 'Out of Possession' };
+      probe.removeAttribute('src'); probe.load();
+      button.disabled = false;
+      status.textContent = file.name;
+      listeners.forEach(listener => listener());
+      editor.open(clip, button);
+    }
+    input.addEventListener('change', () => load(input.files[0]).catch(error => { status.textContent = error.message || 'Video unavailable'; }));
+    button.addEventListener('click', () => editor.open(clip, button));
+  </script>
+</body>
+</html>

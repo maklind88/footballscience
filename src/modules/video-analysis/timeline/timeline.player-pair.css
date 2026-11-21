@@ -1,0 +1,8 @@
+.video-analysis-player-pair { position: absolute; inset: 0; pointer-events: none; }
+.video-analysis-player-pair canvas { display: block; width: 100%; height: 100%; }
+.video-analysis-player-pair.is-selecting canvas { pointer-events: auto; touch-action: none; cursor: crosshair; }
+.video-analysis-player-pair__status { position: absolute; top: 12px; left: 12px; display: flex; align-items: center; gap: 6px; max-width: calc(100% - 24px); padding: 4px 6px 4px 10px; border: 1px solid #71877c; border-radius: 4px; background: #092219ed; color: #fff; pointer-events: auto; }
+.video-analysis-player-pair__status output { min-width: 0; font: 600 12px/1.3 system-ui; overflow-wrap: anywhere; }
+.video-analysis-clip-editor .video-analysis-player-pair__status button { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; min-height: 32px; padding: 0; color: #fff; border: 0; background: transparent; }
+.video-analysis-clip-editor .video-analysis-player-pair__status button:hover { background: #365046; }
+.video-analysis-clip-editor__tools [data-player-pair-toggle][aria-pressed="true"] { background: #d9f1ee; color: #12585c; }

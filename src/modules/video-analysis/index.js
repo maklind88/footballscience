@@ -318,6 +318,7 @@ function timelineClipEditor(context = {}) {
   const run = ensureRuntime(context);
   if (!run.timelineClipEditor) {
     run.timelineClipEditor = createTimelineClipEditor({
+      getContext: () => run.context || context,
       getState: () => run.store.getState(),
       getRoot: () => getRoot(run.context || context),
       subscribe: listener => run.store.subscribe(listener),

@@ -7,6 +7,7 @@ import { createReviewPlaylist, renderReviewPlaylist, bindReviewPlaylist, reviewP
 import { playlistClipVersion } from "./timeline.playlist-clips.js";
 import { playlistRowFromTrigger } from "./timeline.playlist-rows.js";
 import { timelineReviewSelection } from "./timeline.selection.js";
+import { createPlayerPairCache, createPlayerPairController } from "./timeline.player-pair.controller.js";
 
 export function preserveTimelineViewport(root) {
   const ancestors = [];
@@ -28,7 +29,7 @@ export function preserveTimelineViewport(root) {
   };
 }
 
-export function createTimelineClipEditor({ getState, getRoot, savePlaylist, pause, subscribe, reconnect, selectFile }) {
+export function createTimelineClipEditor({ getState, getRoot, getContext, savePlaylist, pause, subscribe, reconnect, selectFile }) {
   let dialog = null;
   let activeClip = null;
   let pending = false;
@@ -37,6 +38,8 @@ export function createTimelineClipEditor({ getState, getRoot, savePlaylist, paus
   let returnToRow = false;
   let returnPlaylistKey = "";
   let preview = null;
+  let playerPair = null;
+  const playerPairCache = createPlayerPairCache();
   let originalContext = "";
   let review = null;
   let playlist = null;
@@ -82,6 +85,8 @@ export function createTimelineClipEditor({ getState, getRoot, savePlaylist, paus
   function close() {
     if (!dialog || pending) return;
     const clipId = activeClip?.id;
+    playerPair?.dispose();
+    playerPair = null;
     preview?.dispose();
     preview = null;
     editDialog()?.close();
@@ -153,6 +158,7 @@ export function createTimelineClipEditor({ getState, getRoot, savePlaylist, paus
   }
 
   function renderCurrentClip(clip) {
+    playerPair?.dispose();
     preview?.dispose();
     editDialog()?.close();
     principlesDialog()?.close();
@@ -188,6 +194,13 @@ export function createTimelineClipEditor({ getState, getRoot, savePlaylist, paus
         endMs: field("duration").valueAsNumber > 0 ? parseClipEditorTime(field("endMs").value) : NaN,
       }),
       onContextChange: close,
+    });
+    playerPair = createPlayerPairController({
+      dialog, clipId: clip.id, getState, getContext, cache: playerPairCache,
+      getRange: () => ({
+        startMs: parseClipEditorTime(field("startMs").value),
+        endMs: parseClipEditorTime(field("endMs").value),
+      }),
     });
   }
 

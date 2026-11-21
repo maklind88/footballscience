@@ -8,6 +8,7 @@ import { getClipPrimaryLabel, getClipStartMs, getClipEndMs } from "./timeline.se
 import { renderClipReview } from "./timeline.clip-review.js";
 import { renderClipPrinciples, renderClipPrincipleTool } from "./timeline.clip-principles.js";
 import { renderReviewPlaylist } from "./timeline.playlist.controller.js";
+import { renderPlayerPairTool, renderPlayerPairOverlay } from "./timeline.player-pair.view.js";
 
 export function formatClipEditorTime(ms = 0) {
   const value = Math.max(0, Math.round(ms));
@@ -44,6 +45,7 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
       <div><span>Clip</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(title || getClipPrimaryLabel(clip, laneMode) || "Selected clip")}${review?.entries.length > 1 ? ` (${review.entries.length})` : ""}</h2></div>
       <div class="video-analysis-clip-editor__tools">
         <span class="video-analysis-clip-review__notice" data-clip-review-notice role="status"></span>
+        ${renderPlayerPairTool()}
         ${renderClipPrincipleTool(clip)}
         <button type="button" ${canEdit ? "data-clip-edit-open" : "data-clip-details-open"} aria-label="${canEdit ? "Edit clip" : "Clip details"}" title="${canEdit ? "Edit clip" : "Clip details"}" aria-haspopup="dialog" aria-expanded="false" aria-controls="video-analysis-clip-edit-dialog">${playerHeaderIcon(canEdit ? "pencil" : "info")}</button>
         <button type="button" class="video-analysis-clip-editor__close" data-video-analysis-timeline-edit-cancel aria-label="Close" aria-description="Return to ${returnToLibrary ? "Playlists" : "the timeline"}" title="Close and return to ${returnToLibrary ? "Playlists" : "timeline"}">${playerHeaderIcon("x")}</button>
@@ -54,6 +56,7 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
       <section class="video-analysis-clip-editor__media" aria-label="Clip preview">
         <div class="video-analysis-clip-editor__screen">
           <video data-video-analysis-clip-preview playsinline preload="metadata" tabindex="0" aria-label="Selected clip" aria-keyshortcuts="Space"></video>
+          ${renderPlayerPairOverlay()}
           <div class="video-analysis-clip-editor__media-state" data-clip-preview-empty>
             <span data-clip-preview-status role="status"></span>
             <button type="button" data-clip-preview-reconnect>Reconnect local file</button>

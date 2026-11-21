@@ -4,6 +4,7 @@ import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyDmScheduleReleaseReview } from "./lib/dm-schedule-release-review.mjs";
+import { verifyTrackingReleaseReview } from "./lib/fs-player-tracking-release-review.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const canonicalVercelProjectName = "footballscience";
@@ -194,6 +195,10 @@ function requireCleanWorkingTree(context) {
 
 function requireManualReleaseReview(options, mode) {
   if (!options.deploy) return;
+  verifyTrackingReleaseReview({ branch: currentBranch(), sha: git(["rev-parse", "HEAD"]), mode,
+    skipGithubWait: options.skipGithubWait, runId: process.env.TRACKING_RELEASE_REVIEW_RUN_ID,
+    readApi: endpoint => JSON.parse(capture("gh", ["api", endpoint])),
+  });
   verifyDmScheduleReleaseReview({ branch: currentBranch(), sha: git(["rev-parse", "HEAD"]), mode,
     skipGithubWait: options.skipGithubWait, runId: process.env.RELEASE_REVIEW_RUN_ID,
     readApi: endpoint => JSON.parse(capture("gh", ["api", endpoint])),

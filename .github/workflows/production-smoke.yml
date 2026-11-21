@@ -1,9 +1,13 @@
 name: Production Monitor
-run-name: ${{ inputs.review_action && inputs.review_action != 'monitor' && format('DM/Schedule {0} {1}', inputs.review_action, github.sha) || 'Production Monitor' }}
+run-name: ${{ inputs.tracking_review && format('FS Player tracking release {0}', github.sha) || inputs.review_action && inputs.review_action != 'monitor' && format('DM/Schedule {0} {1}', inputs.review_action, github.sha) || 'Production Monitor' }}
 
 on:
   workflow_dispatch:
     inputs:
+      tracking_review:
+        description: Exact-commit approval for the Seattle tracking release; never deploys
+        type: boolean
+        default: false
       review_action:
         description: Task-scoped manual review; diagnostics never deploys
         type: choice
@@ -13,11 +17,11 @@ on:
           - release
         default: monitor
       expected_candidate_sha:
-        description: Exact candidate SHA for DM/Schedule review
+        description: Exact candidate SHA for the selected task review
         type: string
         default: ''
       expected_live_build_id:
-        description: Exact existing production buildId for DM/Schedule review
+        description: Exact existing production buildId for the selected task review
         type: string
         default: ''
       verify_fresh_backup:
@@ -35,12 +39,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ inputs.review_action && inputs.review_action != 'monitor' && 'dm-schedule-review' || 'production-monitor' }}
+  group: ${{ inputs.tracking_review && 'fs-player-tracking-review' || inputs.review_action && inputs.review_action != 'monitor' && 'dm-schedule-review' || 'production-monitor' }}
   cancel-in-progress: false
 
 jobs:
   monitor:
-    if: github.ref == 'refs/heads/main' && (!inputs.review_action || inputs.review_action == 'monitor')
+    if: github.ref == 'refs/heads/main' && (!inputs.review_action || inputs.review_action == 'monitor') && !inputs.tracking_review
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
@@ -146,3 +150,26 @@ jobs:
           }
           NODE
           npm run qa:live -- qa/production.live.spec.mjs --grep 'production test account can save and reload a schedule record|production peer accounts prove DM unread state and read receipt end-to-end'
+
+  fs-player-tracking-review:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/fs-player-two-player-distance-20261119' && inputs.tracking_review && inputs.review_action == 'monitor'
+    name: FS Player tracking release review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: fs-player-tracking-review
+      url: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+    steps:
+      - name: Checkout exact reviewed commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.15.0
+      - name: Verify reviewed commit and unchanged live target
+        env:
+          EXPECTED_CANDIDATE_SHA: ${{ inputs.expected_candidate_sha }}
+          EXPECTED_LIVE_BUILD_ID: ${{ inputs.expected_live_build_id }}
+        run: node scripts/verify-fs-player-tracking-review-target.mjs

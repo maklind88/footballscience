@@ -1,6 +1,7 @@
 # Seattle Two-Player Pilot
 
-Updated: 2026-11-21. Local candidate; no deployment authorization or production writes.
+Updated: 2026-11-21. Local candidate. The user has authorized deployment and a
+task-scoped GitHub review gate. No production deployment or data writes yet.
 
 ## Scope and ownership
 
@@ -163,3 +164,27 @@ Preview: `http://127.0.0.1:9441/qa/fixtures/video-analysis/player-pair/index.htm
 The fixture uses the actual shared popup and companion. Select the original file;
 its save callback rejects writes. The old 15-second transcode is not a registered
 source for the prepared metre profile.
+
+## Release approval
+
+The FS Player task owns this release, including the explicitly approved narrow
+System/Security/Release review boundary. Other module releases are unchanged.
+The calibration packaging script requires Safe Lane. The normal staging and
+production jobs share the existing `footballscience-production-edge-release`
+queue; no direct production shortcut is used.
+
+GitHub `main` has neither branch protection nor applicable rulesets. Before any
+secret-bearing deploy jobs run, the owner must approve the exact candidate in
+`fs-player-tracking-review`, restricted to this branch with admin bypass disabled.
+The existing Production Monitor workflow offers a secret-free `tracking_review`
+action that checks the SHA and unchanged live build. `release-ship.mjs` verifies
+the completed original run, owner approval and current environment restrictions
+using `TRACKING_RELEASE_REVIEW_RUN_ID`; fast mode or skipped GitHub waits are
+rejected for this candidate branch.
+
+Release preparation: 106 targeted tests passed (64 tracking/playlist tests, 22
+tracking-release guards and 20 unchanged DM/Schedule guard regressions).
+`npm run qa:static` passed, including release rules, platform security, migration
+safety, performance and architecture checks. Full Safe Lane and production
+verification remain pending manual approval. The review environment and its
+single-branch policy were read back and verified against the local guard.

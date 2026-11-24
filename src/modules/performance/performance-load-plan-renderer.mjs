@@ -105,9 +105,11 @@ function referencesView({ escape, players, referenceScope, draft, selected, canE
 }
 
 export function renderLoadPlanning(context) {
-  const { days, mode, status, escape, isSample, persisted, phase, canEdit, retry, feedbackForm, activityId } = context;
+  const { days, mode, status, escape, isSample, persisted, phase, canEdit, retry, feedbackForm, activityId, teamView } = context;
   const label = persisted ? (phase === "ready" && !canEdit ? "Read only" : "Saved team plan") : `${isSample ? "Example week · " : ""}Draft in this tab`;
-  const inlineFeedback = mode === "team" && (feedbackForm === "week-goal" || (canEdit && activityId && feedbackForm === "team-activity"));
+  const inlineFeedback = mode === "team" && (feedbackForm === "week-goal" ||
+    (teamView === "players" && feedbackForm === "team-week") ||
+    (teamView === "activities" && canEdit && activityId && feedbackForm === "team-activity"));
   const panels = { team: renderTeamWeek, player: playerPlan, references: referencesView };
   return `<section class="pr-plan-workbench pr-panel">
     <header class="pr-plan-heading">

@@ -1,6 +1,7 @@
 import { dateLabel } from "./performance-overview.mjs";
-import { formatLoad, loadMetrics, planningRole, playerTargetInputPrefix, summarizeLoadTargets, summarizePlayerWeek } from "./performance-load-plan.mjs";
+import { activityFormKey, formatLoad, loadMetrics, planningRole, playerTargetInputPrefix, summarizeLoadTargets, summarizePlayerWeek } from "./performance-load-plan.mjs";
 import { amountInput, dayAndActivity, metricHeader } from "./performance-load-plan-fields.mjs";
+import { renderTeamWeekMatrix } from "./performance-team-week-matrix.mjs";
 
 function weekGoals({ escape, draft, week, canEdit, readTeamInput, status, feedbackForm }, planned) {
   const saved = draft.getWeekGoal(week);
@@ -52,7 +53,7 @@ function activityEditor({ escape, draft, players, teamPlayers, days, activityId,
   }
   const picker = activityPicker(days, activityId, escape, editableActivity);
   if (!activity) return `<div class="pr-team-editor">${picker}${note}</div>`;
-  const formKey = `activity:${activity.id}`;
+  const formKey = activityFormKey(activity.id);
   const rows = teamPlayers.map((player) => {
     const targets = draft.getTargets(player.id, activity.id);
     const prefix = playerTargetInputPrefix(player.id);
@@ -94,16 +95,9 @@ function activityEditor({ escape, draft, players, teamPlayers, days, activityId,
   </section>`;
 }
 
-export function renderTeamWeek(context) {
+function renderActivitySummary(context, activities, playerTotals, totals) {
   const { escape, draft, players, teamPlayers, days, canEdit, activityId, editableActivity } = context;
-  const activities = days.flatMap((day) => day.activities);
-  const playerTotals = players.map((player) => summarizePlayerWeek(draft, player.id, activities));
   const rosterSize = players.length;
-  const totals = Object.fromEntries(["training", "matches"].map((type) => [type,
-    summarizeLoadTargets(playerTotals.map((summary) => Object.fromEntries(
-      loadMetrics.map(({ key }) => [key, summary[type][key].total])
-    ))),
-  ]));
   const rows = days.flatMap((day) => {
     if (!day.activities.length) return [`<tr class="pr-plan-rest"><th scope="row">${dayAndActivity(day, null, escape)}</th><td colspan="3">—</td></tr>`];
     return day.activities.map((activity) => {
@@ -117,8 +111,7 @@ export function renderTeamWeek(context) {
     });
   }).join("");
 
-  return `${weekGoals(context, totals.training)}
-    <p class="pr-plan-explanation">Each activity shows the average per player, the squad total, and how many players have a target.</p>
+  return `<p class="pr-plan-explanation">Each activity shows the average per player, the squad total, and how many players have a target.</p>
     <div class="pr-plan-table-wrap"><table class="pr-plan-table"><thead><tr><th scope="col">Activity · Periodization</th>${metricHeader()}</tr></thead>
     <tbody>${rows}</tbody>
     <tfoot>${[["training", "Training week"], ["matches", "Match estimates"]].map(([key, label]) => {
@@ -131,4 +124,22 @@ export function renderTeamWeek(context) {
         }).join("")}</tr>`;
     }).join("")}</tfoot></table></div>
     ${canEdit ? activityEditor(context) : ""}`;
+}
+
+export function renderTeamWeek(context) {
+  const { days, draft, players, teamView } = context;
+  const activities = days.flatMap((day) => day.activities);
+  const playerTotals = players.map((player) => summarizePlayerWeek(draft, player.id, activities));
+  const totals = Object.fromEntries(["training", "matches"].map((type) => [type,
+    summarizeLoadTargets(playerTotals.map((summary) => Object.fromEntries(
+      loadMetrics.map(({ key }) => [key, summary[type][key].total])
+    ))),
+  ]));
+  return `${weekGoals(context, totals.training)}
+    <div class="pr-plan-switches" role="group" aria-label="Team week layout">
+      ${[["activities", "By activity"], ["players", "By player"]].map(([id, label]) =>
+        `<button type="button" data-pr-action="plan-team-view" data-pr-value="${id}" data-pr-focus="team-view:${id}" aria-pressed="${teamView === id}">${label}</button>`
+      ).join("")}
+    </div>
+    ${teamView === "players" ? renderTeamWeekMatrix(context) : renderActivitySummary(context, activities, playerTotals, totals)}`;
 }

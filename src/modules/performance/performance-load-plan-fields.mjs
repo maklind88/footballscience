@@ -22,11 +22,11 @@ export function dayAndActivity(day, activity, escape) {
     ${activity ? plannedActivityLabel(activity, escape) : `<span class="pr-plan-no-activity">${day.sessionType === "Off" ? "Off" : "No training or match scheduled"}</span>`}`;
 }
 
-export function amountInput(metric, name, value, label, escape, canEdit, { typed, focus } = {}) {
+export function amountInput(metric, name, value, label, escape, canEdit, { typed, focus, invalid } = {}) {
   const display = typed ?? (value == null ? "" : String(value / metric.scale));
   return `<div class="pr-plan-input">
     <input type="text" inputmode="${metric.scale === 1000 ? "decimal" : "numeric"}" name="${escape(name)}" aria-label="${escape(label)}"
-      value="${escape(display)}"${focus ? ` data-pr-focus="${escape(focus)}"` : ""} placeholder="—" autocomplete="off"${canEdit ? "" : " readonly"}>
+      value="${escape(display)}"${focus ? ` data-pr-focus="${escape(focus)}"` : ""} placeholder="—" autocomplete="off"${invalid ? ' aria-invalid="true"' : ""}${canEdit ? "" : " readonly"}>
     <span aria-hidden="true">${metric.unit}</span>
   </div>`;
 }

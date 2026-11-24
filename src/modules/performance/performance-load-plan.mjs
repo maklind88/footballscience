@@ -9,7 +9,7 @@ const numeric = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 3 });
 const dayMilliseconds = 86_400_000;
 
 export function formatLoad(value, metric) {
-  return value == null ? "—" : numeric.format(value / metric.scale);
+  return Number.isFinite(value) ? numeric.format(value / metric.scale) : "—";
 }
 
 export function parseLoadInput(input, metric, max = 1000000) {
@@ -31,6 +31,26 @@ export function activityInputPrefix(event) {
 
 export function playerTargetInputPrefix(playerId) {
   return `player-${encodeURIComponent(playerId)}-`;
+}
+
+export function teamWeekInputPrefix(playerId, activityId) {
+  return `week:${encodeURIComponent(playerId)}:${encodeURIComponent(activityId)}:`;
+}
+
+export function activityFormKey(activityId) {
+  return `activity:${activityId}`;
+}
+
+export function previewTeamTargets(draft, playerId, activityId, readInput) {
+  const saved = draft.getTargets(playerId, activityId);
+  const prefix = playerTargetInputPrefix(playerId);
+  return Object.fromEntries(loadMetrics.map((metric) => {
+    const typed = readInput(activityFormKey(activityId), prefix + metric.key);
+    if (typed === undefined) return [metric.key, saved?.[metric.key]];
+    const parsed = parseLoadInput(typed, metric);
+    // Invalid input makes this total unavailable until the field is corrected.
+    return [metric.key, parsed === undefined ? NaN : parsed];
+  }));
 }
 
 export function readLoadTargets(fields, prefix = "", max) {
@@ -89,6 +109,12 @@ export function createLoadPlanDraft(seed = {}) {
     return collectEdits(players.map(({ id }) => preparePlayerTarget(id, activityId, fields, playerTargetInputPrefix(id))));
   }
 
+  function prepareTeamWeek(players, activities, fields) {
+    return collectEdits(players.flatMap((player) => activities.map((activity) =>
+      preparePlayerTarget(player.id, activity.id, fields, teamWeekInputPrefix(player.id, activity.id))
+    )));
+  }
+
   function prepareReference(scope, fields) {
     return collectEdits([prepareRecord("baseline", scope, "", fields, "", references.get(scope))]);
   }
@@ -123,7 +149,7 @@ export function createLoadPlanDraft(seed = {}) {
     getTargets: (playerId, activityId) => plans.get(playerId)?.get(activityId),
     getExplicitReference: (scope) => references.get(scope),
     getWeekGoal: (week) => weekGoals.get(week),
-    getReference, preparePlayerWeek, prepareTeamActivity, prepareWeekGoal, prepareReference, applyRecords,
+    getReference, preparePlayerWeek, prepareTeamActivity, prepareTeamWeek, prepareWeekGoal, prepareReference, applyRecords,
     savePlayerWeek: (...args) => saveDraft(preparePlayerWeek(...args)),
     saveReference: (...args) => saveDraft(prepareReference(...args)),
   };
@@ -166,8 +192,11 @@ export function summarizeLoadTargets(targets) {
 }
 
 export function summarizePlayerWeek(draft, playerId, activities) {
-  const summarize = (isMatch) => summarizeLoadTargets(activities
-    .filter(({ type }) => (type === "match") === isMatch)
-    .map(({ id }) => draft.getTargets(playerId, id)));
-  return { training: summarize(false), matches: summarize(true) };
+  const entries = activities.map(({ id, type }) => ({ type, targets: draft.getTargets(playerId, id) }));
+  const summarize = (items) => summarizeLoadTargets(items.map(({ targets }) => targets));
+  return {
+    week: summarize(entries),
+    training: summarize(entries.filter(({ type }) => type !== "match")),
+    matches: summarize(entries.filter(({ type }) => type === "match")),
+  };
 }

@@ -291,3 +291,85 @@ test("Team week saves squad goals and edits all individual targets from one acti
   await expect(plan.getByRole("button", { name: "Save weekly goals" })).toHaveCount(0);
   await expect(training.getByRole("button", { name: /Edit player targets/ })).toHaveCount(0);
 });
+
+test("Team week shows live totals across activities per player and saves the changed records together", async ({ page }) => {
+  await page.setViewportSize({ width: 1460, height: 980 });
+  const record = (player, activity, revision, targets) => ({
+    kind: "plan", subjectKey: `player:${player}`, activityId: activity, revision, targets,
+  });
+  const backend = { records: [
+    record("qa-player-a", "qa-first", 1, { distance: 8000, hsr: 450, sprint: 100 }),
+    record("qa-player-a", "qa-training", 2, { distance: 5000, hsr: 300, sprint: 65 }),
+  ], writes: [], canEdit: true };
+  const room = await boot(page, { backend });
+  await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
+  await room.getByRole("button", { name: /Open load planning/ }).click();
+  const plan = room.locator(".pr-plan-workbench");
+  const byPlayer = plan.getByRole("button", { name: "By player", exact: true });
+  const byActivity = plan.getByRole("button", { name: "By activity", exact: true });
+  const grid = plan.getByRole("table", { name: "Player microcycles by day" });
+  const alex = grid.getByRole("row", { name: /Alex Example/ });
+  const blair = grid.getByRole("row", { name: /Blair Example/ });
+  const trainingDistance = alex.getByRole("textbox", { name: /Midweek training.*Total distance/ });
+  const weekTotal = (key) => alex.locator(`[data-pr-week-total="week:${key}"]`);
+
+  await byPlayer.click();
+  await expect(grid.locator("thead tr").first().getByRole("columnheader")).toHaveCount(8);
+  await expect(grid.getByRole("columnheader", { name: /First match/ })).toBeVisible();
+  await expect(grid.getByRole("columnheader", { name: /Second match/ })).toBeVisible();
+  await expect(weekTotal("distance")).toHaveText("13 km");
+
+  await trainingDistance.fill("-4");
+  await expect(trainingDistance).toHaveAttribute("aria-invalid", "true");
+  await expect(weekTotal("distance")).toHaveText("—");
+  await trainingDistance.fill("6,2");
+  await expect(trainingDistance).not.toHaveAttribute("aria-invalid", "true");
+  await alex.getByRole("textbox", { name: /Midweek training.*High-speed running/ }).fill("420");
+  await alex.getByRole("textbox", { name: /Midweek training.*Sprint distance/ }).fill("");
+  await alex.getByRole("textbox", { name: /Second match.*Total distance/ }).fill("9");
+  await alex.getByRole("textbox", { name: /Second match.*High-speed running/ }).fill("500");
+  await alex.getByRole("textbox", { name: /Second match.*Sprint distance/ }).fill("0");
+  await blair.getByRole("textbox", { name: /First match.*Total distance/ }).fill("0");
+  await expect(weekTotal("distance")).toHaveText("23.2 km");
+  await expect(weekTotal("hsr")).toHaveText("1,370 m");
+  await expect(weekTotal("sprint")).toHaveText("100 m");
+  await expect(alex.locator('[data-pr-week-total="training:distance"]')).toHaveText("6.2 km");
+  await expect(alex.locator('[data-pr-week-total="matches:distance"]')).toHaveText("17 km");
+  await expect(blair.locator('[data-pr-week-total="week:distance"]')).toHaveText("0 km");
+
+  await byActivity.click();
+  await plan.getByRole("button", { name: /Edit player targets for Midweek training/ }).click();
+  const editor = plan.getByRole("region", { name: "Player targets" });
+  await expect(editor.getByRole("textbox", { name: "Alex Example Total distance" })).toHaveValue("6,2");
+  await editor.getByRole("textbox", { name: "Alex Example High-speed running" }).fill("440");
+  await byPlayer.click();
+  await expect(weekTotal("hsr")).toHaveText("1,390 m");
+  expect(backend.writes).toHaveLength(0);
+
+  await plan.getByRole("button", { name: "Save week changes" }).click();
+  await expect(plan.getByRole("status")).toContainText("Week changes saved. Team week updated.");
+  expect(backend.writes).toHaveLength(1);
+  expect(backend.writes[0]).toHaveLength(3);
+  expect(backend.writes[0]).toEqual(expect.arrayContaining([
+    record("qa-player-a", "qa-training", 2, { distance: 6200, hsr: 440 }),
+    record("qa-player-a", "qa-next", 0, { distance: 9000, hsr: 500, sprint: 0 }),
+    record("qa-player-b", "qa-first", 0, { distance: 0 }),
+  ]));
+  await byActivity.click();
+  await expect(plan.getByRole("row", { name: /Midweek training/ })).toContainText("6.2 km total");
+
+  backend.canEdit = false;
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
+  await room.getByRole("button", { name: /Open load planning/ }).click();
+  await byPlayer.click();
+  await expect(weekTotal("distance")).toHaveText("23.2 km");
+  await expect(weekTotal("hsr")).toHaveText("1,390 m");
+  await expect(grid.getByRole("textbox")).toHaveCount(0);
+  await expect(plan.getByRole("button", { name: "Save week changes" })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const scrollArea = plan.getByRole("region", { name: "Scrollable player week" });
+  expect(await scrollArea.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
+  expect(await room.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
+});

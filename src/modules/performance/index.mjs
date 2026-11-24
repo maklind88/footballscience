@@ -3,6 +3,7 @@ import { createPerformancePlatformAdapter } from "./performance-platform-adapter
 import { renderPerformanceRoom, performanceViews } from "./performance-renderer.mjs";
 import { createLoadPlanApi } from "./performance-load-plan-api.mjs";
 import { createLoadPlanController } from "./performance-load-plan-controller.mjs";
+import { updateTeamWeekTotals } from "./performance-team-week-matrix.mjs";
 
 export function createPerformanceSurface(context) {
   const { root, canRead, isActive, getScope, getToday, getTeam, getTeamName, getLogo, openSource } = context;
@@ -42,12 +43,15 @@ export function createPerformanceSurface(context) {
     const team = getTeam();
     const planning = view === "load-plan" ? loadPlan?.getView(overview, sources) : null;
     const focus = focusKey || root.ownerDocument.activeElement?.dataset?.prFocus;
+    const previousMatrix = root.querySelector(".pr-week-grid-wrap");
+    const matrixScroll = previousMatrix ? { left: previousMatrix.scrollLeft, top: previousMatrix.scrollTop } : null;
     root.innerHTML = renderPerformanceRoom({
       overview, sources, summary, date, today: getToday(), view, metric, range, playerId, availabilityFilter,
       canRead: context.isSampleLoadPlan ? () => false : canRead,
       escape: context.escapeHtml, teamName: getTeamName(), teamLogo: getLogo(team || {}),
       planning, loadPlanningEnabled: Boolean(loadPlan), isSample: context.isSampleLoadPlan,
     });
+    if (matrixScroll) root.querySelector(".pr-week-grid-wrap")?.scrollTo(matrixScroll);
     if (focus) {
       const match = Array.from(root.querySelectorAll("[data-pr-focus]")).find((element) => element.dataset.prFocus === focus);
       // Restore focus without changing the page's scroll position during central refreshes.
@@ -108,6 +112,9 @@ export function createPerformanceSurface(context) {
         focusKey = "plan-player";
         render();
         return;
+      case "plan-team-view":
+        if (view !== "load-plan" || !loadPlan?.selectTeamView(prValue)) return;
+        break;
       case "plan-team-activity":
         if (view !== "load-plan" || !loadPlan?.selectActivity(prValue)) return;
         focusKey = "team-activity-selector";
@@ -143,14 +150,21 @@ export function createPerformanceSurface(context) {
   });
 
   root.addEventListener("input", (event) => {
-    if (view === "load-plan" && isActive() && event.target.matches("input")) loadPlan?.rememberTeamInput(event.target);
+    if (view !== "load-plan" || !isActive() || !event.target.matches("input")) return;
+    const change = loadPlan?.rememberTeamInput(event.target);
+    if (change) updateTeamWeekTotals(change.row, change.totals);
   });
 
   root.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || view !== "load-plan" || !isActive() ||
-        !event.target.matches('[data-pr-load-form="team-activity"] input[name^="bulk-"]')) return;
-    event.preventDefault();
-    loadPlan?.fillTeamActivity(event.target.form);
+    if (event.key !== "Enter" || view !== "load-plan" || !isActive()) return;
+    if (event.target.matches('[data-pr-load-form="team-week"] input')) {
+      event.preventDefault();
+      return;
+    }
+    if (event.target.matches('[data-pr-load-form="team-activity"] input[name^="bulk-"]')) {
+      event.preventDefault();
+      loadPlan?.fillTeamActivity(event.target.form);
+    }
   });
 
   root.addEventListener("submit", (event) => {

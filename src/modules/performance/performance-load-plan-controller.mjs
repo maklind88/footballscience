@@ -1,4 +1,4 @@
-import { createLoadPlanDraft, createLoadPlanWeek, loadMetrics, planningRole, playerTargetInputPrefix, readLoadTargets } from "./performance-load-plan.mjs";
+import { activityFormKey, createLoadPlanDraft, createLoadPlanWeek, loadMetrics, parseLoadInput, planningRole, playerTargetInputPrefix, previewTeamTargets, readLoadTargets, summarizePlayerWeek } from "./performance-load-plan.mjs";
 
 export function createLoadPlanController(seed, isSample, persistence, render) {
   const modes = new Set(["team", "player", "references"]);
@@ -10,6 +10,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   let status;
   let feedbackForm;
   let activityId;
+  let teamView;
   const teamInputs = new Map();
   let players = [];
   let activities = [];
@@ -24,6 +25,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     status = "";
     feedbackForm = "";
     activityId = "";
+    teamView = "activities";
     teamInputs.clear();
     current = null;
   }
@@ -74,18 +76,52 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     return true;
   }
 
+  function selectTeamView(value) {
+    if (mode !== "team" || current?.saving || !["activities", "players"].includes(value)) return false;
+    teamView = value;
+    return true;
+  }
+
+  function readTeamInput(key, field) {
+    return teamInputs.get(key)?.get(field);
+  }
+
+  function getTeamWeekTotals(id) {
+    const preview = { getTargets: (player, activity) => previewTeamTargets(draft, player, activity, readTeamInput) };
+    return summarizePlayerWeek(current?.canEdit ? preview : draft, id, activities);
+  }
+
   function teamFormKey(form) {
     if (form?.dataset.prLoadForm === "week-goal") return "week-goal";
-    if (form?.dataset.prLoadForm === "team-activity") return `activity:${form.dataset.prActivityId}`;
+    if (form?.dataset.prLoadForm === "team-activity") return activityFormKey(form.dataset.prActivityId);
     return "";
   }
 
-  function rememberTeamInput(input) {
-    const key = teamFormKey(input.form);
-    if (!key || mode !== "team" || !current?.canEdit || current.saving || !input.name) return;
+  function writeTeamInput(key, name, value) {
     const values = teamInputs.get(key) ?? new Map();
-    values.set(input.name, input.value);
+    values.set(name, value);
     teamInputs.set(key, values);
+  }
+
+  function rememberTeamInput(input) {
+    if (!input.form || mode !== "team" || !current?.canEdit || current.saving || !input.name) return null;
+    const key = teamFormKey(input.form);
+    if (key) writeTeamInput(key, input.name, input.value);
+    if (input.form.dataset.prLoadForm !== "team-week") return null;
+
+    const row = input.closest("[data-pr-week-player]");
+    const activity = input.closest("[data-pr-week-activity]")?.dataset.prWeekActivity;
+    const metricKey = input.closest("[data-pr-week-metric]")?.dataset.prWeekMetric;
+    const metric = loadMetrics.find(({ key }) => key === metricKey);
+    if (!row || !activity || !metric) return null;
+    const playerId = row.dataset.prWeekPlayer;
+    writeTeamInput(activityFormKey(activity), playerTargetInputPrefix(playerId) + metric.key, input.value);
+    if (parseLoadInput(input.value, metric) === undefined) input.setAttribute("aria-invalid", "true");
+    else input.removeAttribute("aria-invalid");
+    if (!current.conflict && (feedbackForm !== "team-week" || status !== "Unsaved week changes.")) {
+      setFormStatus(input.form, "Unsaved week changes.");
+    }
+    return { row, totals: getTeamWeekTotals(playerId) };
   }
 
   function fillTeamActivity(form) {
@@ -158,8 +194,8 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     return {
       days, players, selected, playerUnavailable, mode, referenceScope, status, draft, isSample, persisted: Boolean(persistence),
       phase: current.phase, canEdit: current.canEdit, retry: current.conflict,
-      week, activityId, feedbackForm, teamPlayers: editablePlayers(), editableActivity,
-      readTeamInput: (key, field) => teamInputs.get(key)?.get(field),
+      week, activityId, feedbackForm, teamView, teamPlayers: editablePlayers(), editableActivity,
+      readTeamInput, getTeamWeekTotals,
     };
   }
 
@@ -195,14 +231,38 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     if (type === "team-activity" && activityId && activityId === form.dataset.prActivityId) {
       return draft.prepareTeamActivity(activityId, editablePlayers(), fields);
     }
+    if (type === "team-week") {
+      return draft.prepareTeamWeek(editablePlayers(), activities.filter(({ id }) => editableActivity(id)), fields);
+    }
     return null;
+  }
+
+  function clearSavedPlayerInputs(records) {
+    for (const { subjectKey, activityId } of records) {
+      const inputs = teamInputs.get(activityFormKey(activityId));
+      if (!inputs) continue;
+      const prefix = playerTargetInputPrefix(subjectKey.slice("player:".length));
+      for (const { key } of loadMetrics) inputs.delete(prefix + key);
+    }
   }
 
   function saveConfirmed(form, records) {
     const type = form.dataset.prLoadForm;
-    const label = { "week-goal": "Weekly goals", reference: persistence ? "Baseline" : "Reference", player: "Player plan", "team-activity": "Player targets" }[type];
+    const label = {
+      "week-goal": "Weekly goals", reference: persistence ? "Baseline" : "Reference", player: "Player plan",
+      "team-activity": "Player targets", "team-week": "Week changes",
+    }[type];
     draft.applyRecords(records);
     teamInputs.delete(teamFormKey(form));
+    if (type === "player") clearSavedPlayerInputs(records);
+    if (type === "team-week") {
+      for (const { id } of activities) {
+        const inputs = teamInputs.get(activityFormKey(id));
+        for (const key of inputs?.keys() ?? []) {
+          if (key.startsWith("player-")) inputs.delete(key);
+        }
+      }
+    }
     const result = label + (persistence ? " saved." : " saved in this tab.");
     setFormStatus(form, type === "reference" ? result : result + " Team week updated.");
     render();
@@ -217,6 +277,10 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     if (edit.invalid.length) return;
     if (!edit.records.length) {
       setFormStatus(form, "No changes to save.");
+      return;
+    }
+    if (persistence && form.dataset.prLoadForm === "team-week" && edit.records.length > 500) {
+      setFormStatus(form, "Save up to 500 changed player targets at once. Use By activity to save part of this week, then return here.");
       return;
     }
     if (!persistence) return saveConfirmed(form, edit.records);
@@ -243,7 +307,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   }
 
   return {
-    reset, selectFromEvent, selectReference, selectActivity, setMode, getView, submit, fillTeamActivity, rememberTeamInput,
+    reset, selectFromEvent, selectReference, selectActivity, selectTeamView, setMode, getView, submit, fillTeamActivity, rememberTeamInput,
     reload() { current = null; },
     openPlayer(value) {
       requestedPlayerId = value;

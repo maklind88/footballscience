@@ -231,14 +231,19 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     }
     if (!invalid.length) return;
     form.elements.namedItem(invalid[0])?.focus();
-    const limit = form.dataset.prLoadForm === "week-goal" ? "10,000 km or 10,000,000 m" : "1,000 km or 1,000,000 m";
-    setFormStatus(form, `Enter non-negative values up to ${limit}. Use up to three decimal places for km and whole meters for HSR and sprint.`);
+    const weekGoal = form.dataset.prLoadForm === "week-goal";
+    const limit = weekGoal ? Math.floor(10000000 / editablePlayers().length) : 1000000;
+    const label = new Intl.NumberFormat("en-GB").format(limit);
+    setFormStatus(form, `Enter non-negative values up to ${label} m or its equivalent in km. Use up to three decimal places for km and whole meters for HSR and sprint.`);
   }
 
   function prepareForm(form) {
     const fields = new FormData(form);
     const type = form.dataset.prLoadForm;
-    if (type === "week-goal") return draft.prepareWeekGoal(current.week, fields);
+    if (type === "week-goal") {
+      const playerCount = editablePlayers().length;
+      return playerCount ? draft.prepareWeekGoal(current.week, fields, playerCount) : null;
+    }
     if (type === "reference") return draft.prepareReference(referenceScope, fields);
     if (type === "player" && playerId) return draft.preparePlayerWeek(playerId, activities, fields);
     if (type === "team-activity" && activityId && activityId === form.dataset.prActivityId) {

@@ -208,8 +208,8 @@ test("a Squad profile opens its saved plan, keeps changes after reload, and upda
 
   await workbench.getByRole("button", { name: "Team week" }).click();
   const training = workbench.getByRole("row", { name: /Midweek training/ });
-  await expect(training.getByRole("cell").first()).toContainText("5.25 km total");
-  await expect(training.getByRole("cell").last()).toContainText("0 m total");
+  await expect(training.getByRole("cell").first()).toContainText("5.25 km");
+  await expect(training.getByRole("cell").last()).toContainText("0 m");
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(player).toHaveValue("qa-player-b");
   await expect(distance).toHaveValue("5.25");
@@ -227,21 +227,28 @@ test("a Squad profile opens its saved plan, keeps changes after reload, and upda
   await expect(workbench.getByRole("button", { name: "Save player plan" })).toHaveCount(0);
 });
 
-test("Team week saves squad goals and edits all individual targets from one activity", async ({ page }) => {
-  const backend = { records: [], writes: [], canEdit: true };
+test("Team week displays existing goals per player and saves per-player edits against the planning roster", async ({ page }) => {
+  const backend = { records: [{
+    kind: "week-goal", subjectKey: "week:2026-11-23", activityId: "", revision: 1,
+    targets: { distance: 120001, hsr: 8011 },
+  }], writes: [], canEdit: true };
   const room = await boot(page, { backend });
   await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
   await room.getByRole("button", { name: /Open load planning/ }).click();
   const plan = room.locator(".pr-plan-workbench");
-  const goal = plan.getByRole("textbox", { name: "Weekly squad Total distance" });
-  await goal.fill("120");
-  await plan.getByRole("textbox", { name: "Weekly squad High-speed running" }).fill("8000");
-  await plan.getByRole("textbox", { name: "Weekly squad Sprint distance" }).fill("2400");
+  const goal = plan.getByRole("textbox", { name: "Weekly per-player Total distance" });
+  await expect(goal).toHaveValue("40");
+  await expect(plan.getByRole("textbox", { name: "Weekly per-player High-speed running" })).toHaveValue("2670");
+  await plan.getByRole("button", { name: "Save weekly goals" }).click();
+  await expect(plan.getByRole("status")).toContainText("No changes to save.");
+  expect(backend.writes).toHaveLength(0);
+  await goal.fill("42");
+  await plan.getByRole("textbox", { name: "Weekly per-player Sprint distance" }).fill("800");
   await plan.getByRole("button", { name: "Save weekly goals" }).click();
   await expect(plan.getByRole("status")).toContainText("Weekly goals saved");
   expect(backend.writes[0]).toEqual([{
-    kind: "week-goal", subjectKey: "week:2026-11-23", activityId: "", revision: 0,
-    targets: { distance: 120000, hsr: 8000, sprint: 2400 },
+    kind: "week-goal", subjectKey: "week:2026-11-23", activityId: "", revision: 1,
+    targets: { distance: 126000, hsr: 8011, sprint: 2400 },
   }]);
 
   const training = plan.getByRole("row", { name: /Midweek training/ });
@@ -273,10 +280,10 @@ test("Team week saves squad goals and edits all individual targets from one acti
     { kind: "plan", subjectKey: "player:qa-player-a", activityId: "qa-training", revision: 0, targets: { distance: 6200, hsr: 400, sprint: 80 } },
     { kind: "plan", subjectKey: "player:qa-player-b", activityId: "qa-training", revision: 0, targets: { distance: 5200, hsr: 400, sprint: 0 } },
   ]));
-  await expect(training.locator("td").last()).toContainText(`${((backend.writes[1].length - 1) * 80).toLocaleString("en-GB")} m total`);
-  const plannedDistance = (backend.writes[1].length * 5.2 + 1).toLocaleString("en-GB", { maximumFractionDigits: 1 });
-  await expect(plan.getByRole("region", { name: "Weekly training goals" })).toContainText(`Planned · ${plannedDistance} km`);
-  await expect(goal).toHaveValue("120");
+  await expect(training.locator("td").last()).toContainText("53 m");
+  await expect(training.locator("td").last()).not.toContainText("160 m");
+  await expect(plan.getByRole("region", { name: "Weekly training goals" })).toContainText("Plan avg · 5.533 km");
+  await expect(goal).toHaveValue("42");
 
   await plan.getByRole("button", { name: "Player plan" }).click();
   await plan.getByRole("combobox", { name: "Player", exact: true }).selectOption("qa-player-a");
@@ -286,7 +293,7 @@ test("Team week saves squad goals and edits all individual targets from one acti
   await page.reload({ waitUntil: "domcontentloaded" });
   await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
   await room.getByRole("button", { name: /Open load planning/ }).click();
-  await expect(goal).toHaveValue("120");
+  await expect(goal).toHaveValue("42");
   await expect(goal).toHaveAttribute("readonly", "");
   await expect(plan.getByRole("button", { name: "Save weekly goals" })).toHaveCount(0);
   await expect(training.getByRole("button", { name: /Edit player targets/ })).toHaveCount(0);
@@ -356,7 +363,7 @@ test("Team week shows live totals across activities per player and saves the cha
     record("qa-player-b", "qa-first", 0, { distance: 0 }),
   ]));
   await byActivity.click();
-  await expect(plan.getByRole("row", { name: /Midweek training/ })).toContainText("6.2 km total");
+  await expect(plan.getByRole("row", { name: /Midweek training/ })).toContainText("6.2 km");
 
   backend.canEdit = false;
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -383,7 +390,10 @@ test("Team week pairs saved and edited plans with GPS by player and activity", a
     gpsActuals: { status: "ready", sample: true, rows: [
       { playerId: "qa-player-a", activityId: "qa-training", metrics: { distance: 5400, hsr: 390, sprint: 0 },
         comparable: ["distance", "sprint"] },
+      { playerId: "qa-player-b", activityId: "qa-training", metrics: { distance: 4200 }, comparable: ["distance"] },
       { playerId: "qa-player-b", activityId: "qa-first", metrics: { distance: 8200 }, comparable: ["distance"] },
+      { playerId: "qa-player-b", activityId: "qa-next", metrics: { distance: 2800 }, comparable: ["distance"] },
+      { playerId: "qa-player-a", activityId: "qa-next", metrics: { distance: 9000 }, comparable: ["distance"] },
     ] },
   };
   const room = await boot(page, { backend });
@@ -394,8 +404,10 @@ test("Team week pairs saved and edited plans with GPS by player and activity", a
   await expect(compare).toHaveAttribute("aria-pressed", "true");
   await expect(plan.getByText("Example GPS data", { exact: true })).toBeVisible();
   const training = plan.getByRole("row", { name: /Midweek training/ });
-  await expect(training.locator("td").first()).toContainText("GPS total · 5.4 km");
-  await expect(training.locator("td").first()).toContainText("1 player included");
+  await expect(training.locator("td").first()).toContainText("GPS avg · 4.8 km");
+  await expect(training.locator("td").first()).toContainText(/2 \/ \d+ players in GPS avg/);
+  await expect(plan.getByRole("row", { name: /Match estimates Average per player/ }).locator("td").first())
+    .toContainText("GPS avg · 10 km");
 
   await plan.getByRole("button", { name: "By player" }).click();
   const grid = plan.getByRole("table", { name: "Player microcycles by day" });

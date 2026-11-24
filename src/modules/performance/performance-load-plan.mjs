@@ -86,11 +86,15 @@ export function createLoadPlanDraft(seed = {}) {
   const revisions = new Map();
   const recordKey = (kind, subject, activity) => JSON.stringify([kind, subject, activity]);
 
-  function prepareRecord(kind, subjectKey, activityId, fields, prefix, current) {
-    const { values: targets, invalid } = readLoadTargets(fields, prefix, kind === "week-goal" ? 10000000 : undefined);
+  function compareRecord(kind, subjectKey, activityId, targets, invalid, current) {
     const revision = revisions.get(recordKey(kind, subjectKey, activityId)) ?? 0;
     const changed = loadMetrics.some(({ key }) => targets[key] !== current?.[key]);
     return { invalid, record: changed ? { kind, subjectKey, activityId, revision, targets } : null };
+  }
+
+  function prepareRecord(kind, subjectKey, activityId, fields, prefix, current) {
+    const { values, invalid } = readLoadTargets(fields, prefix);
+    return compareRecord(kind, subjectKey, activityId, values, invalid, current);
   }
 
   function collectEdits(changes) {
@@ -119,8 +123,24 @@ export function createLoadPlanDraft(seed = {}) {
     return collectEdits([prepareRecord("baseline", scope, "", fields, "", references.get(scope))]);
   }
 
-  function prepareWeekGoal(week, fields) {
-    return collectEdits([prepareRecord("week-goal", `week:${week}`, "", fields, "", weekGoals.get(week))]);
+  function getWeekGoalPerPlayer(week, playerCount) {
+    const saved = weekGoals.get(week);
+    if (!saved || !playerCount) return {};
+    return Object.fromEntries(Object.entries(saved).map(([key, value]) => [key, Math.round(value / playerCount)]));
+  }
+
+  function prepareWeekGoal(week, fields, playerCount) {
+    const saved = weekGoals.get(week);
+    const shown = getWeekGoalPerPlayer(week, playerCount);
+    const { values, invalid } = readLoadTargets(fields, "", Math.ceil(10000000 / playerCount));
+    const targets = {};
+    for (const [key, value] of Object.entries(values)) {
+      // Retain the exact saved total when a rounded per-player display value is unchanged.
+      const total = value === shown[key] ? saved[key] : value * playerCount;
+      if (total > 10000000) invalid.push(key);
+      targets[key] = total;
+    }
+    return collectEdits([compareRecord("week-goal", `week:${week}`, "", targets, invalid, saved)]);
   }
 
   function applyRecords(records) {
@@ -148,7 +168,7 @@ export function createLoadPlanDraft(seed = {}) {
   return {
     getTargets: (playerId, activityId) => plans.get(playerId)?.get(activityId),
     getExplicitReference: (scope) => references.get(scope),
-    getWeekGoal: (week) => weekGoals.get(week),
+    getWeekGoalPerPlayer,
     getReference, preparePlayerWeek, prepareTeamActivity, prepareTeamWeek, prepareWeekGoal, prepareReference, applyRecords,
     savePlayerWeek: (...args) => saveDraft(preparePlayerWeek(...args)),
     saveReference: (...args) => saveDraft(prepareReference(...args)),
@@ -199,4 +219,22 @@ export function summarizePlayerWeek(draft, playerId, activities) {
     training: summarize(entries.filter(({ type }) => type !== "match")),
     matches: summarize(entries.filter(({ type }) => type === "match")),
   };
+}
+
+export function averageLoad({ total, count }) {
+  return count ? Math.round(total / count) : null;
+}
+
+export function summarizeSquadWeek(players, activities, getTargets) {
+  const playerWeeks = players.map(({ id }) => summarizePlayerWeek({ getTargets }, id, activities));
+  return Object.fromEntries(["training", "matches"].map((group) => {
+    const summaries = playerWeeks.map((week) => week[group]);
+    const totals = summarizeLoadTargets(summaries.map((week) => Object.fromEntries(
+      loadMetrics.map(({ key }) => [key, week[key].total])
+    )));
+    return [group, Object.fromEntries(loadMetrics.map(({ key }) => [key, {
+      ...totals[key],
+      entries: summaries.reduce((sum, week) => sum + week[key].count, 0),
+    }]))];
+  }));
 }

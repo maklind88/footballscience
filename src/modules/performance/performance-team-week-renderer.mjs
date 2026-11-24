@@ -1,34 +1,39 @@
 import { dateLabel } from "./performance-overview.mjs";
-import { activityFormKey, formatLoad, loadMetrics, parseLoadInput, planningRole, playerTargetInputPrefix, summarizeLoadTargets, summarizePlayerWeek } from "./performance-load-plan.mjs";
+import { activityFormKey, averageLoad, loadMetrics, parseLoadInput, planningRole, playerTargetInputPrefix, summarizeLoadTargets, summarizeSquadWeek } from "./performance-load-plan.mjs";
 import { amountInput, dayAndActivity, metricHeader } from "./performance-load-plan-fields.mjs";
 import { renderTeamWeekMatrix } from "./performance-team-week-matrix.mjs";
 import { formatGpsValue, gpsSummaryMetrics, renderGpsAvailability, renderGpsMetric } from "./performance-week-gps.mjs";
 
-function weekGoals({ escape, draft, week, canEdit, readTeamInput, status, feedbackForm }, planned) {
-  const saved = draft.getWeekGoal(week);
+function weekGoals({ escape, draft, week, canEdit, readTeamInput, status, feedbackForm, teamPlayers }, planned) {
+  const playerCount = teamPlayers.length;
+  const saved = draft.getWeekGoalPerPlayer(week, playerCount);
+  const editable = canEdit && playerCount > 0;
   return `<section class="pr-team-goals" aria-labelledby="pr-team-goals-title">
     <h3 id="pr-team-goals-title">Weekly training goals</h3>
     <form data-pr-load-form="week-goal" novalidate>
       <div class="pr-plan-reference-fields">
         ${loadMetrics.map((metric) => `<label><span>${metric.name}</span>${amountInput(
-          metric, metric.key, saved?.[metric.key], `Weekly squad ${metric.name}`, escape, canEdit,
+          metric, metric.key, saved[metric.key], `Weekly per-player ${metric.name}`, escape, editable,
           { typed: readTeamInput("week-goal", metric.key), focus: `week-goal:${metric.key}` }
-        )}<small>Planned · ${formatLoad(planned[metric.key].total, metric)} ${metric.unit}</small></label>`).join("")}
+        )}<small>Plan avg · ${formatGpsValue(averageLoad(planned[metric.key]), metric)}</small></label>`).join("")}
       </div>
       <div class="pr-plan-form-foot">
-        <span>Squad totals across all training and recovery sessions this week.</span>
-        ${canEdit ? '<button type="submit" class="pr-plan-primary" data-pr-focus="save-week-goals">Save weekly goals</button>' : ""}
+        <span>Weekly training and recovery goals per player${playerCount ? ` · ${playerCount} players in the planning roster` : ""}.</span>
+        ${editable ? '<button type="submit" class="pr-plan-primary" data-pr-focus="save-week-goals">Save weekly goals</button>' : ""}
       </div>
       <p class="pr-team-feedback" data-pr-team-feedback="week-goal" aria-hidden="true">${feedbackForm === "week-goal" ? escape(status) : ""}</p>
     </form>
   </section>`;
 }
 
-function aggregateCell({ total, count }, metric, rosterSize, coverage = "", actual) {
-  return `<td><strong>${formatLoad(count ? Math.round(total / count) : null, metric)}</strong>
-    <small>${count} / ${rosterSize} players</small>${count ? `<small>${formatLoad(total, metric)} ${metric.unit} total</small>` : ""}${coverage ? `<small>${coverage}</small>` : ""}
-    ${actual ? `<small class="pr-gps-aggregate">GPS total · ${formatGpsValue(actual.total, metric)}</small>
-      <small>${actual.count} player${actual.count === 1 ? "" : "s"} included</small>` : ""}
+function aggregateCell(planned, metric, rosterSize, activityCount = 0, actual) {
+  const coverage = (summary, label) => activityCount
+    ? `<small>${summary.entries} / ${activityCount * rosterSize} ${label}</small>`
+    : "";
+  return `<td><strong>${formatGpsValue(averageLoad(planned), metric)}</strong>
+    <small>${planned.count} / ${rosterSize} players planned</small>${coverage(planned, "activity targets set")}
+    ${actual ? `<small class="pr-gps-aggregate">GPS avg · ${formatGpsValue(averageLoad(actual), metric)}</small>
+      <small>${actual.count} / ${rosterSize} players in GPS avg</small>${coverage(actual, "GPS activity values")}` : ""}
   </td>`;
 }
 
@@ -102,34 +107,32 @@ function activityEditor({ escape, draft, players, teamPlayers, days, activityId,
   </section>`;
 }
 
-function renderActivitySummary(context, activities, playerTotals, totals) {
-  const { escape, draft, players, teamPlayers, days, canEdit, activityId, editableActivity, gps, showGps } = context;
+function renderActivitySummary(context, activities, plannedWeeks, actualWeeks, getActual) {
+  const { escape, draft, players, teamPlayers, days, canEdit, activityId, editableActivity, showGps } = context;
   const rosterSize = players.length;
   const rows = days.flatMap((day) => {
     if (!day.activities.length) return [`<tr class="pr-plan-rest"><th scope="row">${dayAndActivity(day, null, escape)}</th><td colspan="3">—</td></tr>`];
     return day.activities.map((activity) => {
       const summary = summarizeLoadTargets(players.map((player) => draft.getTargets(player.id, activity.id)));
-      const actual = showGps ? summarizeLoadTargets(players.map((player) => gpsSummaryMetrics(gps.getActual(player.id, activity.id)))) : null;
+      const actual = showGps ? summarizeLoadTargets(players.map(({ id }) => getActual(id, activity.id))) : null;
       const active = activity.id === activityId;
       return `<tr><th scope="row">${dayAndActivity(day, activity, escape)}
         ${canEdit && teamPlayers.length && editableActivity(activity.id) ? `<button type="button" data-pr-action="plan-team-activity" data-pr-value="${escape(activity.id)}"
           aria-pressed="${active}" aria-label="Edit player targets for ${escape(activity.title || activity.type)} on ${dateLabel(day.date)}"
           class="pr-plan-reference-link pr-team-row-action">${active ? "Editing player targets" : "Edit player targets"}</button>` : ""}</th>
-        ${loadMetrics.map((metric) => aggregateCell(summary[metric.key], metric, rosterSize, "", actual?.[metric.key])).join("")}</tr>`;
+        ${loadMetrics.map((metric) => aggregateCell(summary[metric.key], metric, rosterSize, 0, actual?.[metric.key])).join("")}</tr>`;
     });
   }).join("");
 
-  return `<p class="pr-plan-explanation">Each activity shows the average per player, the squad total, and how many players have a target.${showGps ? " GPS totals show how many players are included per metric." : ""}</p>
+  return `<p class="pr-plan-explanation">Averages use players with a value for that metric. Weekly averages use each player’s weekly subtotal.${showGps ? " Plan and GPS coverage are shown separately." : ""}</p>
     <div class="pr-plan-table-wrap"><table class="pr-plan-table"><thead><tr><th scope="col">Activity · Periodization</th>${metricHeader()}</tr></thead>
     <tbody>${rows}</tbody>
     <tfoot>${[["training", "Training week"], ["matches", "Match estimates"]].map(([key, label]) => {
       const activityCount = activities.filter(({ type }) => (type === "match") === (key === "matches")).length;
-      return `<tr><th scope="row">${label} <small>Average of players’ entered totals</small></th>
-        ${loadMetrics.map((metric) => {
-          const entries = playerTotals.reduce((sum, player) => sum + player[key][metric.key].count, 0);
-          const coverage = activityCount ? `${entries} / ${activityCount * rosterSize} activity targets set` : "";
-          return aggregateCell(totals[key][metric.key], metric, rosterSize, coverage);
-        }).join("")}</tr>`;
+      return `<tr><th scope="row">${label} <small>Average per player</small></th>
+        ${loadMetrics.map((metric) => aggregateCell(
+          plannedWeeks[key][metric.key], metric, rosterSize, activityCount, actualWeeks?.[key][metric.key]
+        )).join("")}</tr>`;
     }).join("")}</tfoot></table></div>
     ${canEdit ? activityEditor(context) : ""}`;
 }
@@ -137,13 +140,10 @@ function renderActivitySummary(context, activities, playerTotals, totals) {
 export function renderTeamWeek(context) {
   const { days, draft, players, teamView, gps, showGps } = context;
   const activities = days.flatMap((day) => day.activities);
-  const playerTotals = players.map((player) => summarizePlayerWeek(draft, player.id, activities));
-  const totals = Object.fromEntries(["training", "matches"].map((type) => [type,
-    summarizeLoadTargets(playerTotals.map((summary) => Object.fromEntries(
-      loadMetrics.map(({ key }) => [key, summary[type][key].total])
-    ))),
-  ]));
-  return `${weekGoals(context, totals.training)}
+  const plannedWeeks = summarizeSquadWeek(players, activities, draft.getTargets);
+  const getActual = (playerId, activityId) => gpsSummaryMetrics(gps.getActual(playerId, activityId));
+  const actualWeeks = showGps && teamView === "activities" ? summarizeSquadWeek(players, activities, getActual) : null;
+  return `${weekGoals(context, plannedWeeks.training)}
     <div class="pr-team-view-tools">
       <div class="pr-plan-switches" role="group" aria-label="Team week layout">
         ${[["activities", "By activity"], ["players", "By player"]].map(([id, label]) =>
@@ -153,5 +153,5 @@ export function renderTeamWeek(context) {
       <button class="pr-team-secondary pr-team-gps-toggle" type="button" data-pr-action="plan-team-gps" data-pr-focus="team-gps" aria-pressed="${showGps}">Plan vs GPS</button>
     </div>
     ${showGps ? renderGpsAvailability(gps) : ""}
-    ${teamView === "players" ? renderTeamWeekMatrix(context) : renderActivitySummary(context, activities, playerTotals, totals)}`;
+    ${teamView === "players" ? renderTeamWeekMatrix(context) : renderActivitySummary(context, activities, plannedWeeks, actualWeeks, getActual)}`;
 }

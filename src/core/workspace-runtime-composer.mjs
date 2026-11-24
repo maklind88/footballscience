@@ -180,6 +180,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     if (activeViewId === "staff") renderStaffWorkspace();
     if (activeViewId === "admin") deps.renderAdminWorkspace();
     if (activeViewId === "medical-team") deps.renderMedicalTeamWorkspace();
+    deps.renderPerformanceWorkspace?.();
     if (activeViewId === "player-profiles") deps.renderPlayerProfilesWorkspace();
     if (activeViewId === "idp") deps.renderIdpWorkspace();
     if (activeViewId === "scouting") deps.renderScoutingWorkspace();

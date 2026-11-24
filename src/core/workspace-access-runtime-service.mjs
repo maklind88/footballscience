@@ -87,6 +87,9 @@ if (!workspace) {
 return false;
 }
 const normalizedRole = normalizePlatformRole(user?.role, "guest");
+if (workspace.id === "performance-room" && (!user?.id || !defaultWorkspaceAccess[workspace.id]?.includes(normalizedRole))) {
+return false;
+}
 if (normalizedRole === "admin") {
 return true;
 }
@@ -108,6 +111,9 @@ workspaceId,
 user = getCurrentPlatformUser(),
 accessConfig = getWorkspaceAccessConfig()
 ) {
+if (workspaceId === "performance-room") {
+return false;
+}
 const normalizedRole = normalizePlatformRole(user?.role, "guest");
 if (normalizedRole === "admin") {
 return true;
@@ -338,6 +344,9 @@ return "gameplan";
 }
 if (workspace.kind === "periodization") {
 return "periodization";
+}
+if (workspace.id === "performance-room") {
+return "performance-room";
 }
 if (workspace.kind === "session") {
 return "session-planner";

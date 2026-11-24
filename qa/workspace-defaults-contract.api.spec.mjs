@@ -26,6 +26,7 @@ test("Workspace defaults expose stable hub workspaces and navigation order", () 
     "player-profiles",
     "schedule",
     "periodization",
+    "performance-room",
     "medical-team",
     "session-planner",
     "set-pieces-room",

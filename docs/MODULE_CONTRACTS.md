@@ -210,6 +210,16 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `qa`: session planner block edits persist after refresh; `qa/session-planner-module-contract.api.spec.mjs` locks the autosave boundary, block/form renderer selectors, tactical visual renderer markup, Player Board renderer markup, and print renderer markup so autosave status only belongs to active Session Planner writes and UI extraction keeps the same controls.
 - `migration`: autosave policy, block/form rendering, tactical visual rendering, Player Board rendering, and print rendering now live in `src/modules/session-planner`; tactical board event handling, print runtime, and save flows remain in `app.js` for later passes. Migrate exercise library before session blocks if possible; preserve library entries with soft archive, never destructive seed overwrite.
 
+## Performance Room
+
+- `id`: `performance-room`
+- `purpose`: read-only staff overview of the selected day, calendar week, planned block time, and Squad availability.
+- `data`: Schedule supplies activities. Periodization supplies match-day context, saved load focus, and report links. Session Planner supplies date-level blocks and exercise references. Squad supplies the roster. Medical supplies the dated participation recommendation for linked Squad IDs.
+- `permissions`: signed-in staff in the existing Courage first-team workspace. Each source retains its own workspace access check. The Performance workspace has no edit action or storage key.
+- `refresh`: follows the platform's existing central state reload. Clears the rendered workspace on exit and waits for central readiness when the authenticated scope changes.
+- `coverage`: measured GPS load, positional match demands, wellness, RPE, physical tests, and official match minutes await connected sources. A stored GPS report link opens the report directly.
+- `qa`: `qa/performance-room.smoke.spec.mjs` covers the platform entry point, two-match week, session and player details, source navigation, and background source refresh.
+
 ## Medical Team
 
 - `id`: `medical-team`

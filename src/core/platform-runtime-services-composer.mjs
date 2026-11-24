@@ -4,6 +4,7 @@ import { createWorkspaceModuleRuntimeController } from "./workspace-module-runti
 import { createScheduleWorkspaceController } from "../modules/schedule/schedule-controller.mjs";
 import { createScheduleRuntimeSelectors } from "../modules/schedule/schedule-runtime-selectors.mjs";
 import { createPlatformStructureRuntimeService } from "../modules/platform/platform-structure-runtime-service.mjs";
+import { createPerformanceSurfaceRuntime } from "../modules/performance/performance-surface-runtime.mjs";
 import { createTransferRoomRuntime } from "../../transfer-room-runtime.js";
 import { platformModules } from "./platform-contracts.mjs";
 
@@ -481,6 +482,43 @@ export function createPlatformRuntimeServices(deps = {}) {
     },
   });
 
+  const performance = createPerformanceSurfaceRuntime({
+    root: ui.performanceWorkspace, win, loader: platformModuleLoader, assetVersion: platformAssetVersion, escapeHtml,
+    getAuth: getPlatformAuthStore, getUser: getCurrentPlatformUser, defaultTeamId: platformDefaultTeamId,
+    getActiveWorkspace: () => getHubState()?.activeWorkspaceId,
+    getWorkspace: workspaceAccessRuntimeService.getWorkspaceById,
+    openSource: setActiveWorkspace,
+    onOpenSourceDate: (id, date) => {
+      if (id === "schedule") scheduleWorkspaceController.selectDate(date, { scrollIntoView: true });
+      if (id === "periodization") selectPeriodizationDate(date, true, "view");
+      if (id === "session-planner") deps.selectSessionPlannerDate(date);
+      if (id === "medical-team") deps.setMedicalSelectedDate(date);
+    },
+    getToday: () => formatScheduleDateValue(new Date()),
+    getTeam: platformStructureRuntimeService.getPlatformTeamDisplayTeam,
+    getTeamName: platformStructureRuntimeService.getPlatformTeamDisplayName,
+    getLogo: getPlatformTeamLogoUrl,
+    getSchedule: () => deps.getScheduleState() || readScheduleState(),
+    getUniqueEvents: getUniqueScheduleEvents,
+    getPeriodizationDay: (date, hasSchedule) => {
+      const saved = ensurePeriodizationState()?.days?.[date];
+      const day = hasSchedule ? getPeriodizationDay(date) : saved || {};
+      return {
+        matchDay: getPeriodizationMatchDayLabel(day.matchDay),
+        sessionType: day.sessionType,
+        physicalLoad: saved?.physicalLoad || "",
+        gpsReport: day.sessionGpsReportLink,
+      };
+    },
+    getSessions: () => getSessionPlannerState() || readSessionPlannerState(),
+    getSquad: () => deps.getPlayerProfilesState() || readPlayerProfilesState(),
+    isTemporaryPlayer: deps.isTemporaryPlayerProfile,
+    isTemporaryPlayerActive: deps.isPlayerProfileTemporaryActiveOnDate,
+    getMedicalState: () => deps.getMedicalState() || deps.readMedicalState(),
+    medicalRules: deps.performanceMedicalRules,
+    getDrillLibrary: getExerciseLibraryForIdp,
+  });
+
   return {
     platformStructureRuntimeService,
     scheduleRuntimeSelectors,
@@ -490,5 +528,6 @@ export function createPlatformRuntimeServices(deps = {}) {
     workspaceDataRuntimeService,
     workspaceModuleRuntimeController,
     renderScheduleWorkspace: () => scheduleWorkspaceController.render(),
+    renderPerformanceWorkspace: performance.render,
   };
 }

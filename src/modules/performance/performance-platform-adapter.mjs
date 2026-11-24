@@ -34,16 +34,18 @@ export function createPerformancePlatformAdapter(context) {
   function read(date, { includeDrills = false } = {}) {
     const hasSchedule = canRead("schedule");
     const squad = canRead("player-profiles") ? getSquad()?.players ?? [] : [];
-    const players = squad
-      .filter((player) => player?.id && player.name && !player.archivedAt && !player.deletedAt)
-      .filter((player) => !isTemporaryPlayer(player) || isTemporaryPlayerActive(player, date))
+    const activeSquad = squad.filter((player) => player?.id && player.name && !player.archivedAt && !player.deletedAt);
+    const playersFor = (dates) => activeSquad
+      .filter((player) => !isTemporaryPlayer(player) || dates.some((day) => isTemporaryPlayerActive(player, day)))
       .map(({ id, name, number, position, roleGroup }) => ({ id, name, number, position, roleGroup }));
+    const players = playersFor([date]);
 
     return {
       events: hasSchedule ? getUniqueEvents(getSchedule()?.events ?? []) : [],
       getPeriodization: canRead("periodization") ? (day) => getPeriodizationDay(day, hasSchedule) : () => ({}),
       sessions: canRead("session-planner") ? getSessions()?.sessions ?? {} : {},
       players,
+      playersFor,
       getAvailability: (day) => getAvailability(day, players),
       drills: includeDrills && canRead("session-planner") ? getDrillLibrary() : [],
     };

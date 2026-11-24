@@ -2,7 +2,7 @@ const id = "performance-room";
 
 export function createPerformanceSurfaceRuntime({
   root, win, loader, assetVersion, getAuth, getUser, getActiveWorkspace, getWorkspace,
-  defaultTeamId, openSource, onOpenSourceDate, ...sources
+  defaultTeamId, getAuthToken, openSource, onOpenSourceDate, ...sources
 }) {
   let surface;
   let loading;
@@ -53,7 +53,9 @@ export function createPerformanceSurfaceRuntime({
     ]).then(([, module]) => {
       surface = module.createPerformanceSurface({
         ...sources, root, canRead, isActive, openSource: openAuthorizedSource,
-        loadPlanningEnabled: getAuth()?.isDevMode?.() === true,
+        loadPlanningEnabled: canRead("player-profiles") && canRead("schedule"),
+        getLoadPlanToken: getAuth()?.isDevMode?.() === true ? null : getAuthToken,
+        initialLoadPlanPlayer: () => new URLSearchParams(win.location?.search).get("performancePlayer"),
         getScope: () => JSON.stringify([getUser()?.id, getUser()?.role, getScope()]),
       });
       if (isActive()) surface.render();

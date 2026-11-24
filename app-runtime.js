@@ -1980,6 +1980,12 @@ squadProfileSupportRenderer,
 squadRosterRenderer,
 squadWorkspaceRenderer,
 } = createPlatformWorkspaceRenderers({
+canOpenPerformancePlan: () => {
+  const user = getCurrentPlatformUser();
+  const teamId = user?.teamId || user?.team_id || getPlatformTeamDisplayTeam()?.id;
+  return [platformDefaultTeamId, "team-ncc-first"].includes(teamId) &&
+    Boolean(getWorkspaceById("performance-room") && getWorkspaceById("schedule"));
+},
 canAdminManageUser,
 canEditPlayerProfiles,
 dashboardTaskListRenderer,

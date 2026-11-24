@@ -213,13 +213,14 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 ## Performance Room
 
 - `id`: `performance-room`
-- `purpose`: read-only staff overview of the selected day, calendar week, planned block time, and Squad availability.
+- `purpose`: staff overview of the selected day and calendar week, with physical load baselines and individual plans.
 - `data`: Schedule supplies activities. Periodization supplies match-day context, saved load focus, and report links. Session Planner supplies date-level blocks and exercise references. Squad supplies the roster. Medical supplies the dated participation recommendation for linked Squad IDs.
-- `permissions`: signed-in staff in the existing Courage first-team workspace. Each source retains its own workspace access check. The Performance workspace has no edit action or storage key.
+- `permissions`: the Courage launch path requires an active membership in the exact mapped platform team before it reads the legacy Squad and Schedule snapshots. Coaches and Medical can read. Performance staff and platform, club, or team admins can save within their membership scope. The server and database enforce the roles independently of the workspace controls.
 - `refresh`: follows the platform's existing central state reload. Clears the rendered workspace on exit and waits for central readiness when the authenticated scope changes.
 - `coverage`: measured GPS load, positional match demands, wellness, RPE, physical tests, and official match minutes await connected sources. A stored GPS report link opens the report directly.
 - `qa`: `qa/performance-room.smoke.spec.mjs` covers the platform entry point, two-match week, session and player details, source navigation, and background source refresh.
-- `load planning preview`: local development opens an in-memory draft from Microcycle or a Performance player profile. Targets use Squad player IDs and Schedule activity IDs. Position and team defaults resolve per metric, and the team week is projected from player targets. Drafts reset when the page reloads or the account scope changes.
+- `load planning`: Squad's Performance tab and Performance Room open the same individual plan. Performance owns `/api/performance-load-plan` and the append-only `performance_load_records` store. Plans use stable Squad player and Schedule activity IDs. Reference priority is individual, position, then team per metric. The team week derives sums, averages and coverage from saved player targets. Training and match estimates are shown separately. Zero is a planned value and blank is an unset target. Weekly saves are atomic and require the revision originally read.
+- `release dependency`: apply the load-record migration and verify the exact Courage membership mapping and the existing central Squad and Schedule snapshots before enabling real use. Confirm database backup and recovery coverage for the new table. The separate local prototype remains an in-memory example.
 
 ## Medical Team
 

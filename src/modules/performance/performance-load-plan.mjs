@@ -18,7 +18,7 @@ export function parseLoadInput(input, metric) {
   const pattern = metric.scale === 1000 ? /^\d+(?:[.,]\d{1,3})?$/ : /^\d+$/;
   if (!pattern.test(text)) return undefined;
   const normalized = Math.round(Number(text.replace(",", ".")) * metric.scale);
-  return Number.isSafeInteger(normalized) ? normalized : undefined;
+  return Number.isSafeInteger(normalized) && normalized <= 1000000 ? normalized : undefined;
 }
 
 export function planningRole(player) {
@@ -58,32 +58,54 @@ export function createLoadPlanDraft(seed = {}) {
     }));
   }
 
-  function savePlayerWeek(id, activities, fields) {
-    const targets = activities.map((event) => readLoadTargets(fields, activityInputPrefix(event)));
-    const invalid = targets.flatMap((target) => target.invalid);
-    if (invalid.length) return invalid;
-    const week = plans.get(id) ?? new Map();
-    activities.forEach((event, index) => {
-      const { values } = targets[index];
-      if (Object.keys(values).length) week.set(event.id, values);
-      else week.delete(event.id);
-    });
-    plans.set(id, week);
+  const revisions = new Map();
+  const recordKey = (kind, subject, activity) => JSON.stringify([kind, subject, activity]);
+
+  function prepareRecord(kind, subjectKey, activityId, fields, prefix, current) {
+    const { values: targets, invalid } = readLoadTargets(fields, prefix);
+    const revision = revisions.get(recordKey(kind, subjectKey, activityId)) ?? 0;
+    const changed = loadMetrics.some(({ key }) => targets[key] !== current?.[key]);
+    return { invalid, record: changed ? { kind, subjectKey, activityId, revision, targets } : null };
+  }
+
+  function preparePlayerWeek(id, activities, fields) {
+    const changes = activities.map((event) => prepareRecord(
+      "plan", `player:${id}`, event.id, fields, activityInputPrefix(event), plans.get(id)?.get(event.id)
+    ));
+    return { invalid: changes.flatMap(({ invalid }) => invalid), records: changes.flatMap(({ record }) => record ? [record] : []) };
+  }
+
+  function prepareReference(scope, fields) {
+    const { invalid, record } = prepareRecord("baseline", scope, "", fields, "", references.get(scope));
+    return { invalid, records: record ? [record] : [] };
+  }
+
+  function applyRecords(records) {
+    for (const { kind, subjectKey, activityId, revision, targets } of records) {
+      revisions.set(recordKey(kind, subjectKey, activityId), revision);
+      if (kind === "baseline") {
+        references.set(subjectKey, targets);
+      } else {
+        const id = subjectKey.slice("player:".length);
+        const player = plans.get(id) ?? new Map();
+        player.set(activityId, targets);
+        plans.set(id, player);
+      }
+    }
+  }
+
+  function saveDraft({ invalid, records }) {
+    if (!invalid.length) applyRecords(records);
     return invalid;
   }
 
-  function saveReference(scope, fields) {
-    const { values, invalid } = readLoadTargets(fields);
-    if (!invalid.length) references.set(scope, values);
-    return invalid;
-  }
-
+  applyRecords(seed.records ?? []);
   return {
     getTargets: (playerId, activityId) => plans.get(playerId)?.get(activityId),
     getExplicitReference: (scope) => references.get(scope),
-    getReference,
-    savePlayerWeek,
-    saveReference,
+    getReference, preparePlayerWeek, prepareReference, applyRecords,
+    savePlayerWeek: (...args) => saveDraft(preparePlayerWeek(...args)),
+    saveReference: (...args) => saveDraft(prepareReference(...args)),
   };
 }
 

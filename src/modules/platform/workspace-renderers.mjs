@@ -244,6 +244,7 @@ export function createPlatformWorkspaceRenderers(deps = {}) {
     resolvePlayerWorkActorLabel,
   });
   const squadProfileSelectedRenderer = createSquadProfileSelectedRenderer({
+    canOpenPerformancePlan: deps.canOpenPerformancePlan,
     escapeHtml,
     canEditPlayerProfiles,
     getActiveTab: deps.getPlayerProfileActiveTab,

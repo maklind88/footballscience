@@ -213,6 +213,17 @@ const platformPermissionMatrix = Object.freeze([
   }, {
     storageKeys: ["football-periodization-v2"],
   }),
+  moduleContract("performance-room", "Performance Room", "team", {
+    read: ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
+    write: ["admin", "club-admin", "team-admin", "performance"],
+    delete: ["admin"],
+    export: ["admin"],
+    restore: ["admin"],
+    admin: ["admin"],
+    observe: ["admin", "performance"],
+  }, {
+    routes: ["/api/performance-load-plan"],
+  }),
   moduleContract("medical-team", "Medical Team", "team", {
     read: medicalAccessRoles,
     write: medicalWriteRoles,
@@ -481,6 +492,12 @@ const apiRouteSecurity = Object.freeze({
     moduleId: "medical-team",
     actions: Object.freeze({ GET: "read", POST: "write", PUT: "write", PATCH: "write", DELETE: "delete" }),
     rateLimits: Object.freeze({ read: 80, write: 40, delete: 10 }),
+    enforcePermission: true,
+  }),
+  "/api/performance-load-plan": Object.freeze({
+    moduleId: "performance-room",
+    actions: Object.freeze({ GET: "read", POST: "write" }),
+    rateLimits: Object.freeze({ read: 80, write: 30 }),
     enforcePermission: true,
   }),
   "/api/rtp": Object.freeze({

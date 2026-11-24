@@ -485,6 +485,7 @@ export function createPlatformRuntimeServices(deps = {}) {
   const performance = createPerformanceSurfaceRuntime({
     root: ui.performanceWorkspace, win, loader: platformModuleLoader, assetVersion: platformAssetVersion, escapeHtml,
     getAuth: getPlatformAuthStore, getUser: getCurrentPlatformUser, defaultTeamId: platformDefaultTeamId,
+    getAuthToken: getPlatformApiAccessToken,
     getActiveWorkspace: () => getHubState()?.activeWorkspaceId,
     getWorkspace: workspaceAccessRuntimeService.getWorkspaceById,
     openSource: setActiveWorkspace,

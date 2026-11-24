@@ -9,6 +9,7 @@ const defaultEscapeHtml = (value) =>
 export function createSquadProfileSelectedRenderer({
   escapeHtml = defaultEscapeHtml,
   canEditPlayerProfiles,
+  canOpenPerformancePlan = () => false,
   getActiveTab,
   getPlayerProfileDisplayBirthDateValue,
   getPlayerProfileEffectiveStatusFromSnapshot,
@@ -224,7 +225,15 @@ export function createSquadProfileSelectedRenderer({
         </form>
       </article>
       ${activeTab === "medical" ? renderPlayerProfileMedicalPanel(player) : ""}
-      ${activeTab === "performance" ? renderPlayerProfileFuturePanel(player) : ""}
+      ${activeTab === "performance" ? `
+        ${canOpenPerformancePlan() && !player.archivedAt && !player.deletedAt ? `
+          <section class="squad-profile-section">
+            <header class="squad-section-head">
+              <h2>Physical load plan</h2>
+              <a href="?workspace=performance-room&amp;performancePlayer=${escapeHtml(encodeURIComponent(player.id))}">Open performance plan</a>
+            </header>
+          </section>` : ""}
+        ${renderPlayerProfileFuturePanel(player)}` : ""}
       ${activeTab === "history" ? `${renderPlayerProfileHistoryPanel(player)}${removePlayerAction}` : ""}
     </aside>
   `;

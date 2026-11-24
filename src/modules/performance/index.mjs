@@ -1,13 +1,15 @@
 import { createPerformanceOverview, isValidDate, shiftDate, summarizePlannedRange } from "./performance-overview.mjs";
 import { createPerformancePlatformAdapter } from "./performance-platform-adapter.mjs";
 import { renderPerformanceRoom, performanceViews } from "./performance-renderer.mjs";
+import { createLoadPlanApi } from "./performance-load-plan-api.mjs";
 import { createLoadPlanController } from "./performance-load-plan-controller.mjs";
 
 export function createPerformanceSurface(context) {
   const { root, canRead, isActive, getScope, getToday, getTeam, getTeamName, getLogo, openSource } = context;
   const adapter = createPerformancePlatformAdapter(context);
+  const persistence = context.getLoadPlanToken ? createLoadPlanApi(context.getLoadPlanToken) : null;
   const loadPlan = context.loadPlanningEnabled
-    ? createLoadPlanController(context.loadPlanSeed, context.isSampleLoadPlan)
+    ? createLoadPlanController(context.loadPlanSeed, context.isSampleLoadPlan, persistence, render)
     : null;
   let scope;
   let date;
@@ -24,13 +26,15 @@ export function createPerformanceSurface(context) {
     if (scope !== activeScope) {
       scope = activeScope;
       date = getToday();
-      view = loadPlan && context.openLoadPlan ? "load-plan" : "overview";
+      const profileId = context.initialLoadPlanPlayer?.();
+      view = loadPlan && (context.openLoadPlan || profileId) ? "load-plan" : "overview";
       playerId = "";
       metric = "minutes";
       range = "7";
       availabilityFilter = "all";
       focusKey = "";
       loadPlan?.reset();
+      if (view === "load-plan" && profileId) loadPlan.openPlayer(profileId);
     }
     const sources = adapter.read(date, { includeDrills: view === "drills" });
     const overview = createPerformanceOverview({ date, ...sources });
@@ -90,6 +94,10 @@ export function createPerformanceSurface(context) {
         availabilityFilter = prValue;
         view = "players";
         break;
+      case "plan-reload":
+        if (view !== "load-plan" || !loadPlan) return;
+        loadPlan.reload();
+        break;
       case "plan-mode":
         if (view !== "load-plan" || !loadPlan?.setMode(prValue)) return;
         break;
@@ -128,7 +136,7 @@ export function createPerformanceSurface(context) {
   root.addEventListener("submit", (event) => {
     if (view !== "load-plan" || !isActive() || !event.target.matches("[data-pr-load-form]")) return;
     event.preventDefault();
-    if (loadPlan.submit(event.target)) render();
+    void loadPlan.submit(event.target);
   });
 
   return { render };

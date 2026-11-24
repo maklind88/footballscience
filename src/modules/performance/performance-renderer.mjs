@@ -1,5 +1,6 @@
 import { scheduleEventTypes } from "../schedule/events.mjs";
 import { availabilityLabels, dateLabel } from "./performance-overview.mjs";
+import { renderLoadPlanning } from "./performance-load-plan-renderer.mjs";
 
 export const performanceViews = Object.freeze({
   overview: "Overview",
@@ -222,7 +223,8 @@ function playerDetail(ctx) {
   return panel(ctx.escape(player.name), `<dl class="pr-paired"><div><dt>Position</dt><dd>${ctx.escape(player.position || "—")}</dd></div>
     <div><dt>Availability recommendation</dt><dd class="pr-tone-${player.availability}">${availabilityLabels[player.availability]}</dd></div>
     <div><dt>Measured load</dt><dd>—</dd></div><div><dt>Individual load target</dt><dd>—</dd></div></dl>
-    <div class="pr-source-links">${sourceLink(ctx, "player-profiles", "Squad")}${sourceLink(ctx, "idp", "Player Development")}</div>`, { subtitle: dateLabel(ctx.date) });
+    <div class="pr-source-links">${ctx.loadPlanningEnabled ? action(ctx.escape, "plan-player", player.id, "Open player's load plan ›", ' class="pr-source"') : ""}
+    ${sourceLink(ctx, "player-profiles", "Squad")}${sourceLink(ctx, "idp", "Player Development")}</div>`, { subtitle: dateLabel(ctx.date) });
 }
 
 function positionGroups(ctx) {
@@ -274,14 +276,16 @@ function dataReview(ctx) {
 
 export function renderPerformanceRoom(ctx) {
   const { escape, date, teamName, teamLogo, view, overview } = ctx;
-  const activeNav = view === "session" ? "microcycle" : view === "player" ? "players" : view;
+  const activeNav = ["session", "load-plan"].includes(view) ? "microcycle" : view === "player" ? "players" : view;
   const match = overview.nextMatch;
-  const heading = performanceViews[view] || (view === "session" ? "Session Details" : "Player Profile");
+  const heading = performanceViews[view] || ({ session: "Session Details", "load-plan": "Load planning" }[view] ?? "Player Profile");
   const views = {
     overview: () => `${kpis(ctx)}<div class="pr-middle">${dayChart(ctx)}${weekLoad(ctx)}${availabilitySummary(ctx)}</div>
       <div class="pr-lower">${gpsTable(ctx)}${individualFollowUp(ctx)}${readiness(ctx)}</div>
       ${selectedActivity(ctx)}`,
-    microcycle: () => `<div class="pr-microcycle-grid">${dayChart(ctx)}${weekLoad(ctx)}</div>${sessionDetails(ctx)}`,
+    microcycle: () => `${ctx.loadPlanningEnabled ? action(escape, "view", "load-plan", "Open load planning ›", ' class="pr-link"') : ""}
+      <div class="pr-microcycle-grid">${dayChart(ctx)}${weekLoad(ctx)}</div>${sessionDetails(ctx)}`,
+    "load-plan": () => renderLoadPlanning({ ...ctx.planning, escape }),
     session: () => sessionDetails(ctx),
     season: () => seasonMonitoring(ctx),
     players: () => players(ctx),
@@ -295,7 +299,7 @@ export function renderPerformanceRoom(ctx) {
     <header class="pr-header">
       <div class="pr-heading"><div class="pr-team">${teamLogo ? `<img src="${escape(teamLogo)}" alt="" width="26" height="26">` : ""}<span>${escape(teamName)}</span><span class="pr-team-year">${date.slice(0, 4)}</span></div>
         <h1>Head of Performance</h1></div>
-      ${match ? action(escape, "source", "schedule", `<span>Next match</span><strong>${escape(match.title || "Match")}</strong>
+      ${match && !ctx.isSample ? action(escape, "source", "schedule", `<span>Next match</span><strong>${escape(match.title || "Match")}</strong>
         <small>${dateLabel(match.date)}${match.time ? ` · ${escape(match.time)}` : ""}</small>`,
         ` class="pr-next-match" data-pr-date="${match.date}"`) : ""}
     </header>

@@ -53,6 +53,7 @@ export function createPerformanceSurfaceRuntime({
     ]).then(([, module]) => {
       surface = module.createPerformanceSurface({
         ...sources, root, canRead, isActive, openSource: openAuthorizedSource,
+        loadPlanningEnabled: getAuth()?.isDevMode?.() === true,
         getScope: () => JSON.stringify([getUser()?.id, getUser()?.role, getScope()]),
       });
       if (isActive()) surface.render();

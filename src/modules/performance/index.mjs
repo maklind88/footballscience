@@ -1,10 +1,14 @@
 import { createPerformanceOverview, isValidDate, shiftDate, summarizePlannedRange } from "./performance-overview.mjs";
 import { createPerformancePlatformAdapter } from "./performance-platform-adapter.mjs";
 import { renderPerformanceRoom, performanceViews } from "./performance-renderer.mjs";
+import { createLoadPlanController } from "./performance-load-plan-controller.mjs";
 
 export function createPerformanceSurface(context) {
   const { root, canRead, isActive, getScope, getToday, getTeam, getTeamName, getLogo, openSource } = context;
   const adapter = createPerformancePlatformAdapter(context);
+  const loadPlan = context.loadPlanningEnabled
+    ? createLoadPlanController(context.loadPlanSeed, context.isSampleLoadPlan)
+    : null;
   let scope;
   let date;
   let view;
@@ -20,21 +24,25 @@ export function createPerformanceSurface(context) {
     if (scope !== activeScope) {
       scope = activeScope;
       date = getToday();
-      view = "overview";
+      view = loadPlan && context.openLoadPlan ? "load-plan" : "overview";
       playerId = "";
       metric = "minutes";
       range = "7";
       availabilityFilter = "all";
       focusKey = "";
+      loadPlan?.reset();
     }
     const sources = adapter.read(date, { includeDrills: view === "drills" });
     const overview = createPerformanceOverview({ date, ...sources });
     const summary = view === "season" ? summarizePlannedRange({ date, range, ...sources }) : null;
     const team = getTeam();
+    const planning = view === "load-plan" ? loadPlan?.getView(overview, sources) : null;
     const focus = focusKey || root.ownerDocument.activeElement?.dataset?.prFocus;
     root.innerHTML = renderPerformanceRoom({
-      overview, sources, summary, date, today: getToday(), view, metric, range, playerId, availabilityFilter, canRead,
+      overview, sources, summary, date, today: getToday(), view, metric, range, playerId, availabilityFilter,
+      canRead: context.isSampleLoadPlan ? () => false : canRead,
       escape: context.escapeHtml, teamName: getTeamName(), teamLogo: getLogo(team || {}),
+      planning, loadPlanningEnabled: Boolean(loadPlan), isSample: context.isSampleLoadPlan,
     });
     if (focus) {
       const match = Array.from(root.querySelectorAll("[data-pr-focus]")).find((element) => element.dataset.prFocus === focus);
@@ -53,7 +61,7 @@ export function createPerformanceSurface(context) {
         openSource(prValue, isValidDate(prDate) ? prDate : undefined);
         return;
       case "view":
-        if (prValue !== "session" && !Object.hasOwn(performanceViews, prValue)) return;
+        if (prValue !== "session" && !(prValue === "load-plan" && loadPlan) && !Object.hasOwn(performanceViews, prValue)) return;
         view = prValue;
         if (view === "players") availabilityFilter = "all";
         break;
@@ -82,6 +90,21 @@ export function createPerformanceSurface(context) {
         availabilityFilter = prValue;
         view = "players";
         break;
+      case "plan-mode":
+        if (view !== "load-plan" || !loadPlan?.setMode(prValue)) return;
+        break;
+      case "plan-player":
+        if (!loadPlan) return;
+        loadPlan.openPlayer(prValue);
+        view = "load-plan";
+        focusKey = "plan-player";
+        render();
+        return;
+      case "plan-reference":
+        if (view !== "load-plan" || !loadPlan?.selectReference(prValue)) return;
+        focusKey = "plan-reference-scope";
+        render();
+        return;
       default:
         return;
     }
@@ -93,9 +116,19 @@ export function createPerformanceSurface(context) {
   });
 
   root.addEventListener("change", (event) => {
-    if (!isActive() || !event.target.matches("[data-pr-date-picker]") || !isValidDate(event.target.value)) return;
-    date = event.target.value;
-    render();
+    if (!isActive()) return;
+    if (event.target.matches("[data-pr-date-picker]") && isValidDate(event.target.value)) {
+      date = event.target.value;
+      render();
+    } else if (view === "load-plan" && loadPlan?.selectFromEvent(event)) {
+      render();
+    }
+  });
+
+  root.addEventListener("submit", (event) => {
+    if (view !== "load-plan" || !isActive() || !event.target.matches("[data-pr-load-form]")) return;
+    event.preventDefault();
+    if (loadPlan.submit(event.target)) render();
   });
 
   return { render };

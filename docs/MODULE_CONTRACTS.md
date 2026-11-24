@@ -219,6 +219,7 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `refresh`: follows the platform's existing central state reload. Clears the rendered workspace on exit and waits for central readiness when the authenticated scope changes.
 - `coverage`: measured GPS load, positional match demands, wellness, RPE, physical tests, and official match minutes await connected sources. A stored GPS report link opens the report directly.
 - `qa`: `qa/performance-room.smoke.spec.mjs` covers the platform entry point, two-match week, session and player details, source navigation, and background source refresh.
+- `load planning preview`: local development opens an in-memory draft from Microcycle or a Performance player profile. Targets use Squad player IDs and Schedule activity IDs. Position and team defaults resolve per metric, and the team week is projected from player targets. Drafts reset when the page reloads or the account scope changes.
 
 ## Medical Team
 

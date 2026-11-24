@@ -64,6 +64,11 @@ test("Performance Room joins a two-match week and links back to the source works
   await room.screenshot({ path: testInfo.outputPath("performance-overview.png") });
 
   await navigation.getByRole("button", { name: "Microcycle" }).click();
+  await room.getByRole("button", { name: /Open load planning/ }).click();
+  const planning = room.locator(".pr-plan-workbench");
+  await expect(planning.getByRole("row", { name: /Midweek training/ })).toContainText("High · 60 plan min");
+  await expect(planning.getByRole("row", { name: /Staff meeting/ })).toHaveCount(0);
+  await navigation.getByRole("button", { name: "Microcycle" }).click();
   await room.getByRole("button", { name: "Load focus", exact: true }).click();
   await expect(room.getByRole("button", { name: /Midweek training.*Load focus High/ })).toBeVisible();
   await expect(room.getByRole("row", { name: /Transition games 35 min/ })).toBeVisible();

@@ -15,20 +15,27 @@ function weekEnd(week) {
   return date.toISOString().slice(0, 10);
 }
 
-function validateRecords(records, sources) {
-  if (!Array.isArray(records) || records.length < 1 || records.length > 30) return false;
+function validRecordKey(kind, subjectKey, activityId, sources, weekKey) {
+  if (kind === "week-goal") return subjectKey === weekKey && activityId === "";
+  if (!sources.subjectKeys.has(subjectKey)) return false;
+  if (kind === "baseline") return activityId === "";
+  return kind === "plan" && subjectKey.startsWith("player:") && sources.activityIds.has(activityId);
+}
+
+function validateRecords(records, sources, weekKey) {
+  if (!Array.isArray(records) || !records.length || records.length > 500) return false;
   const seen = new Set();
   return records.every((record) => {
     if (!record || typeof record !== "object") return false;
     const { kind, subjectKey, activityId, revision, targets } = record;
-    if (kind !== records[0].kind || subjectKey !== records[0].subjectKey || !sources.subjectKeys.has(subjectKey)) return false;
-    const validKey = kind === "baseline" ? activityId === "" :
-      kind === "plan" && subjectKey.startsWith("player:") && sources.activityIds.has(activityId);
-    if (!validKey || seen.has(activityId) || !Number.isInteger(revision) || revision < 0 || revision >= 2147483647) return false;
-    seen.add(activityId);
+    const key = JSON.stringify([kind, subjectKey, activityId]);
+    if (!validRecordKey(kind, subjectKey, activityId, sources, weekKey) ||
+        seen.has(key) || !Number.isInteger(revision) || revision < 0 || revision >= 2147483647) return false;
+    seen.add(key);
+    const max = kind === "week-goal" ? 10000000 : 1000000;
     return targets && typeof targets === "object" && !Array.isArray(targets) &&
-      Object.entries(targets).every(([key, value]) =>
-        metrics.includes(key) && Number.isInteger(value) && value >= 0 && value <= 1000000
+      Object.entries(targets).every(([metric, value]) =>
+        metrics.includes(metric) && Number.isInteger(value) && value >= 0 && value <= max
       );
   });
 }
@@ -74,7 +81,7 @@ function createPerformanceLoadPlanHandler({
       const options = { route, actor, requireAuth: true };
       if (!guardApiRequest(req, res, { ...options, enforcePermission: false }).ok) return;
       const write = req.method === "POST";
-      const body = write ? await parseJsonBody(req, { maxBytes: 24576 }) : null;
+      const body = write ? await parseJsonBody(req, { maxBytes: 384 * 1024 }) : null;
       const week = write ? body?.week : new URL(req.url, "http://localhost").searchParams.get("week");
       const end = weekEnd(week);
       if (!end) return fail(400, "Choose the Monday of the plan week.");
@@ -86,11 +93,12 @@ function createPerformanceLoadPlanHandler({
       if (!enforceApiPermission(req, res, { ...options, actor: scope.actor }).ok) return;
 
       const sources = await readSources(week, end);
-      if (write && !validateRecords(body.records, sources)) {
+      const weekKey = `week:${week}`;
+      if (write && !validateRecords(body.records, sources, weekKey)) {
         return fail(400, "Check the targets and make sure the player and activities are saved in Squad and Schedule.");
       }
       const result = write ? await rpc("save", scope, { p_records: body.records.map(rpcRecord) }) :
-        await rpc("read", scope, { p_subject_keys: [...sources.subjectKeys], p_activity_ids: [...sources.activityIds] });
+        await rpc("read", scope, { p_subject_keys: [...sources.subjectKeys, weekKey], p_activity_ids: [...sources.activityIds] });
       if (!result.ok) {
         if (["40001", "23505"].includes(result.data?.code)) return fail(409, "The plan has changed. Reload saved values before editing again.");
         if (result.data?.code === "42501") return fail(403, "Your access to the plan has changed.");
@@ -100,7 +108,11 @@ function createPerformanceLoadPlanHandler({
         ({ kind, subjectKey, activityId, revision: revision + 1, targets })
       ) : result.data;
       if (!Array.isArray(records)) return fail(503, unavailable);
-      return reply(200, { ok: true, week, canEdit: scope.canEdit, records });
+      const planningSources = write ? undefined : {
+        playerIds: [...sources.subjectKeys].filter((key) => key.startsWith("player:")).map((key) => key.slice("player:".length)),
+        activityIds: [...sources.activityIds],
+      };
+      return reply(200, { ok: true, week, canEdit: scope.canEdit, records, planningSources });
     } catch (error) {
       if (error?.code === "BODY_TOO_LARGE") return fail(413, "The plan is too large.");
       return fail(503, unavailable);

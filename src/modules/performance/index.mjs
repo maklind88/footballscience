@@ -108,6 +108,15 @@ export function createPerformanceSurface(context) {
         focusKey = "plan-player";
         render();
         return;
+      case "plan-team-activity":
+        if (view !== "load-plan" || !loadPlan?.selectActivity(prValue)) return;
+        focusKey = "team-activity-selector";
+        render();
+        root.querySelector(".pr-team-editor")?.scrollIntoView({ block: "start" });
+        return;
+      case "plan-team-fill":
+        if (view === "load-plan") loadPlan?.fillTeamActivity(control.closest("form"));
+        return;
       case "plan-reference":
         if (view !== "load-plan" || !loadPlan?.selectReference(prValue)) return;
         focusKey = "plan-reference-scope";
@@ -131,6 +140,17 @@ export function createPerformanceSurface(context) {
     } else if (view === "load-plan" && loadPlan?.selectFromEvent(event)) {
       render();
     }
+  });
+
+  root.addEventListener("input", (event) => {
+    if (view === "load-plan" && isActive() && event.target.matches("input")) loadPlan?.rememberTeamInput(event.target);
+  });
+
+  root.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || view !== "load-plan" || !isActive() ||
+        !event.target.matches('[data-pr-load-form="team-activity"] input[name^="bulk-"]')) return;
+    event.preventDefault();
+    loadPlan?.fillTeamActivity(event.target.form);
   });
 
   root.addEventListener("submit", (event) => {

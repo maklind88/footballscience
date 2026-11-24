@@ -1,39 +1,12 @@
 import { dateLabel } from "./performance-overview.mjs";
-import { activityInputPrefix, formatLoad, loadMetrics, planningRole, summarizeLoadTargets, summarizePlayerWeek } from "./performance-load-plan.mjs";
-
-function metricHeader() {
-  return loadMetrics.map(({ name, unit }) => `<th scope="col">${name} <small>${unit}</small></th>`).join("");
-}
+import { activityInputPrefix, formatLoad, loadMetrics, planningRole, summarizePlayerWeek } from "./performance-load-plan.mjs";
+import { amountInput, dayAndActivity, metricHeader } from "./performance-load-plan-fields.mjs";
+import { renderTeamWeek } from "./performance-team-week-renderer.mjs";
 
 function rangeLabel(days) {
   const first = dateLabel(days[0].date, { day: "numeric", month: "short" });
   const last = dateLabel(days.at(-1).date, { day: "numeric", month: "short", year: "numeric" });
   return `${first} – ${last}`;
-}
-
-function plannedActivityLabel(activity, escape) {
-  const info = [
-    activity.type === "match" ? "Match estimate" : activity.physicalLoad,
-    activity.minutes != null ? `${activity.minutes} plan min` : "",
-    activity.time,
-  ].filter(Boolean);
-  return `<div class="pr-plan-activity">
-    <strong>${escape(activity.title || (activity.type === "match" ? "Match" : "Training"))}</strong>
-    ${info.length ? `<small>${escape(info.join(" · "))}</small>` : ""}
-  </div>`;
-}
-
-function dayAndActivity(day, activity, escape) {
-  return `<span class="pr-plan-day-label">${dateLabel(day.date)} ${day.matchContext ? `<small>${escape(day.matchContext)}</small>` : ""}</span>
-    ${activity ? plannedActivityLabel(activity, escape) : `<span class="pr-plan-no-activity">${day.sessionType === "Off" ? "Off" : "No training or match scheduled"}</span>`}`;
-}
-
-function amountInput(metric, name, value, label, escape, canEdit) {
-  return `<div class="pr-plan-input">
-    <input type="text" inputmode="${metric.scale === 1000 ? "decimal" : "numeric"}" name="${name}" aria-label="${escape(label)}"
-      value="${value == null ? "" : value / metric.scale}" placeholder="—" autocomplete="off"${canEdit ? "" : " readonly"}>
-    <span aria-hidden="true">${metric.unit}</span>
-  </div>`;
 }
 
 function weeklyLoads(summary, title) {
@@ -95,44 +68,6 @@ function playerPlan({ escape, draft, selected, players, days, canEdit, playerUna
     </form>`;
 }
 
-function aggregateCell({ total, count }, metric, rosterSize, coverage = "") {
-  return `<td><strong>${formatLoad(count ? Math.round(total / count) : null, metric)}</strong>
-    <small>${count} / ${rosterSize} players</small>${count ? `<small>${formatLoad(total, metric)} ${metric.unit} total</small>` : ""}${coverage ? `<small>${coverage}</small>` : ""}
-  </td>`;
-}
-
-function teamPlan({ escape, draft, players, days }) {
-  const activities = days.flatMap((day) => day.activities);
-  const playerTotals = players.map((player) => summarizePlayerWeek(draft, player.id, activities));
-  const rosterSize = players.length;
-  function weekTotals(type) {
-    return summarizeLoadTargets(playerTotals.map((summary) => Object.fromEntries(
-      loadMetrics.map(({ key }) => [key, summary[type][key].total])
-    )));
-  }
-  const rows = days.flatMap((day) => {
-    if (!day.activities.length) return [`<tr class="pr-plan-rest"><th scope="row">${dayAndActivity(day, null, escape)}</th><td colspan="3">—</td></tr>`];
-    return day.activities.map((activity) => {
-      const summary = summarizeLoadTargets(players.map((player) => draft.getTargets(player.id, activity.id)));
-      return `<tr><th scope="row">${dayAndActivity(day, activity, escape)}</th>
-        ${loadMetrics.map((metric) => aggregateCell(summary[metric.key], metric, rosterSize)).join("")}</tr>`;
-    });
-  }).join("");
-  return `<p class="pr-plan-explanation">Each activity shows the average per player, the squad total, and how many players have a target.</p>
-    <div class="pr-plan-table-wrap"><table class="pr-plan-table"><thead><tr><th scope="col">Activity · Periodization</th>${metricHeader()}</tr></thead>
-    <tbody>${rows}</tbody>
-    <tfoot>${[["training", "Training week"], ["matches", "Match estimates"]].map(([key, label]) => {
-      const summary = weekTotals(key);
-      const activityCount = activities.filter(({ type }) => (type === "match") === (key === "matches")).length;
-      return `<tr><th scope="row">${label} <small>Average of players’ entered totals</small></th>
-        ${loadMetrics.map((metric) => {
-          const entries = playerTotals.reduce((sum, player) => sum + player[key][metric.key].count, 0);
-          const coverage = activityCount ? `${entries} / ${activityCount * rosterSize} activity targets set` : "";
-          return aggregateCell(summary[metric.key], metric, rosterSize, coverage);
-        }).join("")}</tr>`;
-    }).join("")}</tfoot></table></div>`;
-}
-
 function referencesView({ escape, players, referenceScope, draft, selected, canEdit }) {
   const roles = [...new Set(players.map(planningRole).filter(Boolean))].sort();
   const choices = [
@@ -170,9 +105,10 @@ function referencesView({ escape, players, referenceScope, draft, selected, canE
 }
 
 export function renderLoadPlanning(context) {
-  const { days, mode, status, escape, isSample, persisted, phase, canEdit, retry } = context;
+  const { days, mode, status, escape, isSample, persisted, phase, canEdit, retry, feedbackForm, activityId } = context;
   const label = persisted ? (phase === "ready" && !canEdit ? "Read only" : "Saved team plan") : `${isSample ? "Example week · " : ""}Draft in this tab`;
-  const panels = { team: teamPlan, player: playerPlan, references: referencesView };
+  const inlineFeedback = mode === "team" && (feedbackForm === "week-goal" || (canEdit && activityId && feedbackForm === "team-activity"));
+  const panels = { team: renderTeamWeek, player: playerPlan, references: referencesView };
   return `<section class="pr-plan-workbench pr-panel">
     <header class="pr-plan-heading">
       <div><p>${rangeLabel(days)}</p><h2>Microcycle Load Plan</h2></div>
@@ -184,7 +120,7 @@ export function renderLoadPlanning(context) {
           aria-pressed="${mode === id}">${label}</button>`).join("")}
     </div>
     ${phase === "ready" ? panels[mode](context) : ""}
-    <p class="pr-plan-status" role="status">${phase === "loading" ? "Loading saved plans…" : escape(status)}</p>
+    <p class="pr-plan-status${inlineFeedback ? " pr-plan-status-inline" : ""}" role="status">${phase === "loading" ? "Loading saved plans…" : escape(status)}</p>
     ${persisted ? `<button type="button" class="pr-plan-reference-link" data-pr-action="plan-reload"${phase === "error" || retry ? "" : " hidden"}>Reload saved values</button>` : ""}
   </section>`;
 }

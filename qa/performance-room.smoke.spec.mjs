@@ -83,7 +83,11 @@ async function attachLoadPlanRoutes(page, entries, backend) {
     expect(request.headers().authorization).toBe("Bearer qa-load-plan-token");
     if (request.method() === "GET") {
       const week = new URL(request.url()).searchParams.get("week");
-      return route.fulfill({ json: { ok: true, week, canEdit: backend.canEdit, records: backend.records } });
+      const planningSources = {
+        playerIds: entries[squadKey].players.map(({ id }) => id),
+        activityIds: entries[scheduleKey].events.filter(({ type }) => type !== "meeting").map(({ id }) => id),
+      };
+      return route.fulfill({ json: { ok: true, week, canEdit: backend.canEdit, records: backend.records, planningSources } });
     }
     const { week, records } = request.postDataJSON();
     backend.writes.push(records);
@@ -221,4 +225,69 @@ test("a Squad profile opens its saved plan, keeps changes after reload, and upda
   await expect(distance).toHaveValue("5.25");
   await expect(distance).toHaveAttribute("readonly", "");
   await expect(workbench.getByRole("button", { name: "Save player plan" })).toHaveCount(0);
+});
+
+test("Team week saves squad goals and edits all individual targets from one activity", async ({ page }) => {
+  const backend = { records: [], writes: [], canEdit: true };
+  const room = await boot(page, { backend });
+  await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
+  await room.getByRole("button", { name: /Open load planning/ }).click();
+  const plan = room.locator(".pr-plan-workbench");
+  const goal = plan.getByRole("textbox", { name: "Weekly squad Total distance" });
+  await goal.fill("120");
+  await plan.getByRole("textbox", { name: "Weekly squad High-speed running" }).fill("8000");
+  await plan.getByRole("textbox", { name: "Weekly squad Sprint distance" }).fill("2400");
+  await plan.getByRole("button", { name: "Save weekly goals" }).click();
+  await expect(plan.getByRole("status")).toContainText("Weekly goals saved");
+  expect(backend.writes[0]).toEqual([{
+    kind: "week-goal", subjectKey: "week:2026-11-23", activityId: "", revision: 0,
+    targets: { distance: 120000, hsr: 8000, sprint: 2400 },
+  }]);
+
+  const training = plan.getByRole("row", { name: /Midweek training/ });
+  await training.getByRole("button", { name: /Edit player targets/ }).click();
+  const editor = plan.getByRole("region", { name: "Player targets" });
+  const alex = editor.getByRole("row", { name: /Alex Example/ });
+  const blair = editor.getByRole("row", { name: /Blair Example/ });
+  const allDistance = editor.getByRole("textbox", { name: "All players Total distance" });
+  await allDistance.fill("5,2");
+  await editor.getByRole("textbox", { name: "All players High-speed running" }).fill("400");
+  await editor.getByRole("textbox", { name: "All players Sprint distance" }).fill("80");
+  await editor.getByRole("button", { name: "Apply to all" }).click();
+  await expect(alex.getByRole("textbox", { name: /Total distance/ })).toHaveValue("5.2");
+  await expect(blair.getByRole("textbox", { name: /High-speed running/ })).toHaveValue("400");
+  await blair.getByRole("textbox", { name: /Sprint distance/ }).fill("0");
+  await alex.getByRole("textbox", { name: /Total distance/ }).fill("6.2");
+  const activity = editor.getByRole("combobox", { name: "Activity to edit" });
+  await activity.selectOption("qa-first");
+  await activity.selectOption("qa-training");
+  await expect(alex.getByRole("textbox", { name: /Total distance/ })).toHaveValue("6.2");
+  await expect(blair.getByRole("textbox", { name: /Sprint distance/ })).toHaveValue("0");
+  expect(backend.writes).toHaveLength(1);
+
+  await editor.getByRole("button", { name: "Save player targets" }).click();
+  await expect(plan.getByRole("status")).toContainText("Player targets saved. Team week updated.");
+  expect(backend.writes).toHaveLength(2);
+  expect(backend.writes[1]).toHaveLength(3);
+  expect(backend.writes[1]).toEqual(expect.arrayContaining([
+    { kind: "plan", subjectKey: "player:qa-player-a", activityId: "qa-training", revision: 0, targets: { distance: 6200, hsr: 400, sprint: 80 } },
+    { kind: "plan", subjectKey: "player:qa-player-b", activityId: "qa-training", revision: 0, targets: { distance: 5200, hsr: 400, sprint: 0 } },
+  ]));
+  await expect(training.locator("td").last()).toContainText(`${((backend.writes[1].length - 1) * 80).toLocaleString("en-GB")} m total`);
+  const plannedDistance = (backend.writes[1].length * 5.2 + 1).toLocaleString("en-GB", { maximumFractionDigits: 1 });
+  await expect(plan.getByRole("region", { name: "Weekly training goals" })).toContainText(`Planned · ${plannedDistance} km`);
+  await expect(goal).toHaveValue("120");
+
+  await plan.getByRole("button", { name: "Player plan" }).click();
+  await plan.getByRole("combobox", { name: "Player", exact: true }).selectOption("qa-player-a");
+  await expect(plan.getByRole("textbox", { name: /Midweek training.*Total distance/ })).toHaveValue("6.2");
+
+  backend.canEdit = false;
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
+  await room.getByRole("button", { name: /Open load planning/ }).click();
+  await expect(goal).toHaveValue("120");
+  await expect(goal).toHaveAttribute("readonly", "");
+  await expect(plan.getByRole("button", { name: "Save weekly goals" })).toHaveCount(0);
+  await expect(training.getByRole("button", { name: /Edit player targets/ })).toHaveCount(0);
 });

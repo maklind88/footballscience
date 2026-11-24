@@ -12,13 +12,13 @@ export function formatLoad(value, metric) {
   return value == null ? "—" : numeric.format(value / metric.scale);
 }
 
-export function parseLoadInput(input, metric) {
+export function parseLoadInput(input, metric, max = 1000000) {
   const text = String(input ?? "").trim();
   if (!text) return null;
   const pattern = metric.scale === 1000 ? /^\d+(?:[.,]\d{1,3})?$/ : /^\d+$/;
   if (!pattern.test(text)) return undefined;
   const normalized = Math.round(Number(text.replace(",", ".")) * metric.scale);
-  return Number.isSafeInteger(normalized) && normalized <= 1000000 ? normalized : undefined;
+  return Number.isSafeInteger(normalized) && normalized <= max ? normalized : undefined;
 }
 
 export function planningRole(player) {
@@ -29,12 +29,16 @@ export function activityInputPrefix(event) {
   return `activity-${encodeURIComponent(event.id)}-`;
 }
 
-export function readLoadTargets(fields, prefix = "") {
+export function playerTargetInputPrefix(playerId) {
+  return `player-${encodeURIComponent(playerId)}-`;
+}
+
+export function readLoadTargets(fields, prefix = "", max) {
   const values = {};
   const invalid = [];
   for (const metric of loadMetrics) {
     const field = prefix + metric.key;
-    const value = parseLoadInput(fields.get(field), metric);
+    const value = parseLoadInput(fields.get(field), metric, max);
     if (value === undefined) invalid.push(field);
     if (value != null) values[metric.key] = value;
   }
@@ -44,6 +48,7 @@ export function readLoadTargets(fields, prefix = "") {
 export function createLoadPlanDraft(seed = {}) {
   const plans = new Map(Object.entries(seed.plans ?? {}).map(([id, entries]) => [id, new Map(Object.entries(entries))]));
   const references = new Map(Object.entries(seed.references ?? {}));
+  const weekGoals = new Map();
 
   function getReference(player) {
     const role = planningRole(player);
@@ -62,22 +67,34 @@ export function createLoadPlanDraft(seed = {}) {
   const recordKey = (kind, subject, activity) => JSON.stringify([kind, subject, activity]);
 
   function prepareRecord(kind, subjectKey, activityId, fields, prefix, current) {
-    const { values: targets, invalid } = readLoadTargets(fields, prefix);
+    const { values: targets, invalid } = readLoadTargets(fields, prefix, kind === "week-goal" ? 10000000 : undefined);
     const revision = revisions.get(recordKey(kind, subjectKey, activityId)) ?? 0;
     const changed = loadMetrics.some(({ key }) => targets[key] !== current?.[key]);
     return { invalid, record: changed ? { kind, subjectKey, activityId, revision, targets } : null };
   }
 
-  function preparePlayerWeek(id, activities, fields) {
-    const changes = activities.map((event) => prepareRecord(
-      "plan", `player:${id}`, event.id, fields, activityInputPrefix(event), plans.get(id)?.get(event.id)
-    ));
+  function collectEdits(changes) {
     return { invalid: changes.flatMap(({ invalid }) => invalid), records: changes.flatMap(({ record }) => record ? [record] : []) };
   }
 
+  function preparePlayerTarget(playerId, activityId, fields, prefix) {
+    return prepareRecord("plan", `player:${playerId}`, activityId, fields, prefix, plans.get(playerId)?.get(activityId));
+  }
+
+  function preparePlayerWeek(playerId, activities, fields) {
+    return collectEdits(activities.map((event) => preparePlayerTarget(playerId, event.id, fields, activityInputPrefix(event))));
+  }
+
+  function prepareTeamActivity(activityId, players, fields) {
+    return collectEdits(players.map(({ id }) => preparePlayerTarget(id, activityId, fields, playerTargetInputPrefix(id))));
+  }
+
   function prepareReference(scope, fields) {
-    const { invalid, record } = prepareRecord("baseline", scope, "", fields, "", references.get(scope));
-    return { invalid, records: record ? [record] : [] };
+    return collectEdits([prepareRecord("baseline", scope, "", fields, "", references.get(scope))]);
+  }
+
+  function prepareWeekGoal(week, fields) {
+    return collectEdits([prepareRecord("week-goal", `week:${week}`, "", fields, "", weekGoals.get(week))]);
   }
 
   function applyRecords(records) {
@@ -85,7 +102,9 @@ export function createLoadPlanDraft(seed = {}) {
       revisions.set(recordKey(kind, subjectKey, activityId), revision);
       if (kind === "baseline") {
         references.set(subjectKey, targets);
-      } else {
+      } else if (kind === "week-goal") {
+        weekGoals.set(subjectKey.slice("week:".length), targets);
+      } else if (kind === "plan") {
         const id = subjectKey.slice("player:".length);
         const player = plans.get(id) ?? new Map();
         player.set(activityId, targets);
@@ -103,7 +122,8 @@ export function createLoadPlanDraft(seed = {}) {
   return {
     getTargets: (playerId, activityId) => plans.get(playerId)?.get(activityId),
     getExplicitReference: (scope) => references.get(scope),
-    getReference, preparePlayerWeek, prepareReference, applyRecords,
+    getWeekGoal: (week) => weekGoals.get(week),
+    getReference, preparePlayerWeek, prepareTeamActivity, prepareWeekGoal, prepareReference, applyRecords,
     savePlayerWeek: (...args) => saveDraft(preparePlayerWeek(...args)),
     saveReference: (...args) => saveDraft(prepareReference(...args)),
   };

@@ -1,4 +1,4 @@
-import { createLoadPlanDraft, createLoadPlanWeek, planningRole } from "./performance-load-plan.mjs";
+import { createLoadPlanDraft, createLoadPlanWeek, loadMetrics, planningRole, playerTargetInputPrefix, readLoadTargets } from "./performance-load-plan.mjs";
 
 export function createLoadPlanController(seed, isSample, persistence, render) {
   const modes = new Set(["team", "player", "references"]);
@@ -8,6 +8,9 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   let referenceScope;
   let requestedPlayerId;
   let status;
+  let feedbackForm;
+  let activityId;
+  const teamInputs = new Map();
   let players = [];
   let activities = [];
   let current;
@@ -19,6 +22,9 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     requestedPlayerId = "";
     referenceScope = "team";
     status = "";
+    feedbackForm = "";
+    activityId = "";
+    teamInputs.clear();
     current = null;
   }
 
@@ -26,6 +32,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     if (!modes.has(value)) return false;
     mode = value;
     status = "";
+    feedbackForm = "";
     return true;
   }
 
@@ -50,9 +57,62 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     return true;
   }
 
+  function editablePlayers() {
+    return current?.playerIds ? players.filter(({ id }) => current.playerIds.has(id)) : players;
+  }
+
+  function editableActivity(id) {
+    return activities.some((activity) => activity.id === id) && (!current?.activityIds || current.activityIds.has(id));
+  }
+
+  function selectActivity(value) {
+    if (mode !== "team" || !current?.canEdit || current.saving ||
+        (value && !editableActivity(value))) return false;
+    activityId = value;
+    status = "";
+    feedbackForm = "";
+    return true;
+  }
+
+  function teamFormKey(form) {
+    if (form?.dataset.prLoadForm === "week-goal") return "week-goal";
+    if (form?.dataset.prLoadForm === "team-activity") return `activity:${form.dataset.prActivityId}`;
+    return "";
+  }
+
+  function rememberTeamInput(input) {
+    const key = teamFormKey(input.form);
+    if (!key || mode !== "team" || !current?.canEdit || current.saving || !input.name) return;
+    const values = teamInputs.get(key) ?? new Map();
+    values.set(input.name, input.value);
+    teamInputs.set(key, values);
+  }
+
+  function fillTeamActivity(form) {
+    if (!form || !current?.canEdit || current.saving || current.conflict) return;
+    const { values, invalid } = readLoadTargets(new FormData(form), "bulk-");
+    markInvalid(form, invalid);
+    if (invalid.length) return;
+    if (!Object.keys(values).length) {
+      setFormStatus(form, "Enter one or more targets to apply.");
+      return;
+    }
+    const team = editablePlayers();
+    for (const { id } of team) {
+      for (const { key, scale } of loadMetrics) {
+        if (values[key] == null) continue;
+        const input = form.elements.namedItem(playerTargetInputPrefix(id) + key);
+        input.value = String(values[key] / scale);
+        rememberTeamInput(input);
+      }
+    }
+    setFormStatus(form, `Targets applied to ${team.length} player rows. Save player targets to update the week.`);
+  }
+
   function selectFromEvent(event) {
     if (event.target.matches("[data-pr-plan-player]")) return selectPlayer(event.target.value);
     if (event.target.matches("[data-pr-reference-scope]")) return selectReference(event.target.value);
+    if (event.target.matches("[data-pr-team-activity]")) return selectActivity(event.target.value);
     return false;
   }
 
@@ -62,6 +122,10 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
       if (current !== state) return;
       draft = createLoadPlanDraft({ records: result.records });
       state.canEdit = result.canEdit === true;
+      const { playerIds, activityIds } = result.planningSources ?? {};
+      if (Array.isArray(playerIds)) state.playerIds = new Set(playerIds);
+      if (Array.isArray(activityIds)) state.activityIds = new Set(activityIds);
+      if (activityId && !editableActivity(activityId)) activityId = "";
       state.phase = "ready";
     } catch (error) {
       if (current !== state) return;
@@ -82,19 +146,33 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     playerId = selected?.id ?? "";
     const week = days[0].date;
     const key = JSON.stringify([week, players.map((player) => [player.id, planningRole(player)]), activities.map(({ id }) => id)]);
-    if (persistence && current?.key !== key) {
-      current = { key, week, phase: "loading", canEdit: false, saving: false, conflict: false };
+    if (current?.key !== key) {
+      if (current && current.week !== week) activityId = "";
+      if (!activities.some(({ id }) => id === activityId)) activityId = "";
+      teamInputs.clear();
+      current = { key, week, phase: persistence ? "loading" : "ready", canEdit: !persistence, saving: false, conflict: false };
       status = "";
-      void load(current);
+      feedbackForm = "";
+      if (persistence) void load(current);
     }
     return {
       days, players, selected, playerUnavailable, mode, referenceScope, status, draft, isSample, persisted: Boolean(persistence),
-      phase: current?.phase ?? "ready", canEdit: current?.canEdit ?? !persistence, retry: current?.conflict,
+      phase: current.phase, canEdit: current.canEdit, retry: current.conflict,
+      week, activityId, feedbackForm, teamPlayers: editablePlayers(), editableActivity,
+      readTeamInput: (key, field) => teamInputs.get(key)?.get(field),
     };
   }
 
   function setFormStatus(form, message) {
-    form.closest(".pr-plan-workbench")?.querySelector(".pr-plan-status")?.replaceChildren(message);
+    status = message;
+    feedbackForm = form.dataset.prLoadForm;
+    const workbench = form.closest(".pr-plan-workbench");
+    const live = workbench?.querySelector(".pr-plan-status");
+    const inline = form.querySelector("[data-pr-team-feedback]");
+    for (const note of workbench?.querySelectorAll("[data-pr-team-feedback]") ?? []) note.textContent = "";
+    if (inline) inline.textContent = message;
+    live?.classList.toggle("pr-plan-status-inline", Boolean(inline));
+    live?.replaceChildren(message);
   }
 
   function markInvalid(form, invalid) {
@@ -104,47 +182,58 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     }
     if (!invalid.length) return;
     form.elements.namedItem(invalid[0])?.focus();
-    setFormStatus(form, "Enter non-negative values up to 1,000 km or 1,000,000 m. Use up to three decimal places for km and whole meters for HSR and sprint.");
+    const limit = form.dataset.prLoadForm === "week-goal" ? "10,000 km or 10,000,000 m" : "1,000 km or 1,000,000 m";
+    setFormStatus(form, `Enter non-negative values up to ${limit}. Use up to three decimal places for km and whole meters for HSR and sprint.`);
+  }
+
+  function prepareForm(form) {
+    const fields = new FormData(form);
+    const type = form.dataset.prLoadForm;
+    if (type === "week-goal") return draft.prepareWeekGoal(current.week, fields);
+    if (type === "reference") return draft.prepareReference(referenceScope, fields);
+    if (type === "player" && playerId) return draft.preparePlayerWeek(playerId, activities, fields);
+    if (type === "team-activity" && activityId && activityId === form.dataset.prActivityId) {
+      return draft.prepareTeamActivity(activityId, editablePlayers(), fields);
+    }
+    return null;
+  }
+
+  function saveConfirmed(form, records) {
+    const type = form.dataset.prLoadForm;
+    const label = { "week-goal": "Weekly goals", reference: persistence ? "Baseline" : "Reference", player: "Player plan", "team-activity": "Player targets" }[type];
+    draft.applyRecords(records);
+    teamInputs.delete(teamFormKey(form));
+    const result = label + (persistence ? " saved." : " saved in this tab.");
+    setFormStatus(form, type === "reference" ? result : result + " Team week updated.");
+    render();
   }
 
   async function submit(form) {
     const state = current;
-    if (persistence && (state?.phase !== "ready" || !state.canEdit || state.saving || state.conflict)) return;
-    const fields = new FormData(form);
-    const isPlan = form.dataset.prLoadForm === "player";
-    if (isPlan && !playerId) return;
-    const edit = isPlan ? draft.preparePlayerWeek(playerId, activities, fields) : draft.prepareReference(referenceScope, fields);
+    if (state?.phase !== "ready" || !state.canEdit || state.saving || state.conflict) return;
+    const edit = prepareForm(form);
+    if (!edit) return;
     markInvalid(form, edit.invalid);
     if (edit.invalid.length) return;
     if (!edit.records.length) {
       setFormStatus(form, "No changes to save.");
       return;
     }
+    if (!persistence) return saveConfirmed(form, edit.records);
 
-    if (!persistence) {
-      draft.applyRecords(edit.records);
-      status = isPlan ? "Player plan saved in this tab. Team week updated." : "Reference saved in this tab.";
-      render();
-      return;
-    }
-
-    const controls = [...form.querySelectorAll("input, button[type=submit]")].filter((item) => !item.disabled);
+    const controls = [...form.querySelectorAll("input, button")].filter((item) => !item.disabled);
     controls.forEach((item) => { item.disabled = true; });
     state.saving = true;
     setFormStatus(form, "Saving…");
     try {
       const result = await persistence.save(state.week, edit.records);
       if (current !== state) return;
-      draft.applyRecords(result.records);
       state.canEdit = result.canEdit === true;
-      status = isPlan ? "Player plan saved. Team week updated." : "Baseline saved.";
-      render();
+      saveConfirmed(form, result.records);
     } catch (error) {
       if (current !== state) return;
-      const message = error.status ? error.message : "Could not confirm the save. Your entered values are still in the form.";
       state.conflict = error.status === 409;
-      status = message;
-      setFormStatus(form, message);
+      setFormStatus(form, error.status ? error.message : "Could not confirm the save. Your entered values are still in the form.");
       const reload = form.closest(".pr-plan-workbench")?.querySelector("[data-pr-action=plan-reload]");
       if (reload) reload.hidden = !state.conflict;
     } finally {
@@ -154,7 +243,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   }
 
   return {
-    reset, selectFromEvent, selectReference, setMode, getView, submit,
+    reset, selectFromEvent, selectReference, selectActivity, setMode, getView, submit, fillTeamActivity, rememberTeamInput,
     reload() { current = null; },
     openPlayer(value) {
       requestedPlayerId = value;

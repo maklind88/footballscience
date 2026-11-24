@@ -11,6 +11,7 @@ const organizationId = "8065153f-58c1-4955-a0ee-361a4255431b";
 const week = "2026-11-23";
 const subjectKey = "player:squad-athlete";
 const activityId = "central-training";
+const secondSubjectKey = "player:second-athlete";
 const saved = { kind: "plan", subjectKey, activityId, revision: 0, targets: { distance: 5200, sprint: 0 } };
 
 function platformFixture(roles = ["performance"]) {
@@ -52,7 +53,7 @@ function fixture({ roles, tenantMatch = true, conflict = false } = {}) {
     }),
     readSources: async (start, end) => {
       calls.push({ sourceWeek: [start, end] });
-      return { subjectKeys: new Set([subjectKey, "role:Midfielder", "team"]), activityIds: new Set([activityId]) };
+      return { subjectKeys: new Set([subjectKey, secondSubjectKey, "role:Midfielder", "team"]), activityIds: new Set([activityId]) };
     },
     rpc: async (operation, scope, fields) => {
       calls.push({ operation, scope, fields });
@@ -77,7 +78,8 @@ test("saved load plans use exact team membership and preserve zero values and re
   ]);
   const read = await send(handler, "GET");
   expect(read.body.records).toEqual(write.body.records);
-  expect(calls.at(-1).fields).toEqual({ p_subject_keys: [subjectKey, "role:Midfielder", "team"], p_activity_ids: [activityId] });
+  expect(read.body.planningSources).toEqual({ playerIds: ["squad-athlete", "second-athlete"], activityIds: [activityId] });
+  expect(calls.at(-1).fields).toEqual({ p_subject_keys: [subjectKey, secondSubjectKey, "role:Midfielder", "team", `week:${week}`], p_activity_ids: [activityId] });
 });
 
 test("unmapped teams and unauthorized roles cannot touch the legacy owner state", async () => {
@@ -127,4 +129,20 @@ test("the owner projection uses saved identities and activities within the reque
   });
   expect([...sources.subjectKeys]).toEqual(["team", subjectKey, "role:Midfielder"]);
   expect([...sources.activityIds]).toEqual([activityId, "fixture"]);
+});
+
+test("Team week saves multiple player targets together and restricts team goals to the requested week", async () => {
+  const { handler, calls } = fixture();
+  const goal = { kind: "week-goal", subjectKey: `week:${week}`, activityId: "", revision: 0, targets: { distance: 1200000, hsr: 0 } };
+  const second = { ...saved, subjectKey: secondSubjectKey, revision: 2, targets: { hsr: 450 } };
+  const write = await send(handler, "POST", { week, records: [saved, second] });
+  expect(write.status).toBe(200);
+  expect(write.body.records).toEqual([{ ...saved, revision: 1 }, { ...second, revision: 3 }]);
+  expect(calls.filter(({ operation }) => operation === "save")).toHaveLength(1);
+  expect(calls.at(-1).fields.p_records.map(({ subject_key }) => subject_key)).toEqual([subjectKey, secondSubjectKey]);
+  expect((await send(handler, "POST", { week, records: [goal] })).body.records).toEqual([{ ...goal, revision: 1 }]);
+  expect((await send(handler, "POST", { week, records: [{ ...goal, subjectKey: "week:2026-11-30" }] })).status).toBe(400);
+  expect((await send(handler, "POST", { week, records: [{ ...goal, targets: { distance: 10000001 } }] })).status).toBe(400);
+  expect((await send(handler, "POST", { week, records: [saved, { ...second, targets: { distance: 1200000 } }] })).status).toBe(400);
+  expect(calls.filter(({ operation }) => operation === "save")).toHaveLength(2);
 });

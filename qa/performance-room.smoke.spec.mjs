@@ -87,7 +87,7 @@ async function attachLoadPlanRoutes(page, entries, backend) {
         playerIds: entries[squadKey].players.map(({ id }) => id),
         activityIds: entries[scheduleKey].events.filter(({ type }) => type !== "meeting").map(({ id }) => id),
       };
-      return route.fulfill({ json: { ok: true, week, canEdit: backend.canEdit, records: backend.records, planningSources } });
+      return route.fulfill({ json: { ok: true, week, canEdit: backend.canEdit, records: backend.records, planningSources, gpsActuals: backend.gpsActuals } });
     }
     const { week, records } = request.postDataJSON();
     backend.writes.push(records);
@@ -372,4 +372,64 @@ test("Team week shows live totals across activities per player and saves the cha
   const scrollArea = plan.getByRole("region", { name: "Scrollable player week" });
   expect(await scrollArea.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
   expect(await room.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
+});
+
+test("Team week pairs saved and edited plans with GPS by player and activity", async ({ page }) => {
+  const backend = {
+    records: [
+      { kind: "plan", subjectKey: "player:qa-player-a", activityId: "qa-training", revision: 1,
+        targets: { distance: 5100, hsr: 410, sprint: 70 } },
+    ], writes: [], canEdit: true,
+    gpsActuals: { status: "ready", sample: true, rows: [
+      { playerId: "qa-player-a", activityId: "qa-training", metrics: { distance: 5400, hsr: 390, sprint: 0 },
+        comparable: ["distance", "sprint"] },
+      { playerId: "qa-player-b", activityId: "qa-first", metrics: { distance: 8200 }, comparable: ["distance"] },
+    ] },
+  };
+  const room = await boot(page, { backend });
+  await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
+  await room.getByRole("button", { name: /Open load planning/ }).click();
+  const plan = room.locator(".pr-plan-workbench");
+  const compare = plan.getByRole("button", { name: "Plan vs GPS" });
+  await expect(compare).toHaveAttribute("aria-pressed", "true");
+  await expect(plan.getByText("Example GPS data", { exact: true })).toBeVisible();
+  const training = plan.getByRole("row", { name: /Midweek training/ });
+  await expect(training.locator("td").first()).toContainText("GPS total · 5.4 km");
+  await expect(training.locator("td").first()).toContainText("1 player included");
+
+  await plan.getByRole("button", { name: "By player" }).click();
+  const grid = plan.getByRole("table", { name: "Player microcycles by day" });
+  const alex = grid.getByRole("row", { name: /Alex Example/ });
+  const session = alex.locator('[data-pr-week-activity="qa-training"]');
+  const measure = (key) => session.locator(`[data-pr-week-metric="${key}"]`);
+  const distance = measure("distance").getByRole("textbox");
+  const gpsValue = (key) => measure(key).locator(".pr-gps-amount > span");
+  const delta = (key) => measure(key).locator("[data-pr-gps-actual]");
+  await expect(distance).toHaveValue("5.1");
+  await expect(gpsValue("distance")).toHaveText("5.4 km");
+  await expect(delta("distance")).toHaveText("+0.3 km");
+  await expect(gpsValue("hsr")).toHaveText("390 m");
+  await expect(delta("hsr")).toHaveCount(0);
+  await expect(gpsValue("sprint")).toHaveText("0 m");
+  await expect(delta("sprint")).toHaveText("−70 m");
+  await expect(alex.locator('[data-pr-week-activity="qa-first"] .pr-gps-amount > span').first()).toHaveText("—");
+  await expect(alex.locator(".pr-week-gps-total")).toContainText("1 included");
+  await expect(alex.locator(".pr-week-gps-total")).not.toContainText("390 m");
+
+  await distance.fill("5,6");
+  await expect(delta("distance")).toHaveText("−0.2 km");
+  await compare.click();
+  await expect(gpsValue("distance")).toHaveCount(0);
+  await compare.click();
+  await expect(distance).toHaveValue("5,6");
+  await expect(delta("distance")).toHaveText("−0.2 km");
+  expect(backend.writes).toHaveLength(0);
+
+  await plan.getByRole("button", { name: "Save week changes" }).click();
+  await expect(plan.getByRole("status")).toContainText("Week changes saved");
+  expect(backend.writes).toEqual([[{
+    kind: "plan", subjectKey: "player:qa-player-a", activityId: "qa-training", revision: 1,
+    targets: { distance: 5600, hsr: 410, sprint: 70 },
+  }]]);
+  await expect(gpsValue("distance")).toHaveText("5.4 km");
 });

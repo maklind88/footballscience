@@ -1,3 +1,4 @@
+import { createWeekGps, updateGpsDelta } from "./performance-week-gps.mjs";
 import { activityFormKey, createLoadPlanDraft, createLoadPlanWeek, loadMetrics, parseLoadInput, planningRole, playerTargetInputPrefix, previewTeamTargets, readLoadTargets, summarizePlayerWeek } from "./performance-load-plan.mjs";
 
 export function createLoadPlanController(seed, isSample, persistence, render) {
@@ -11,6 +12,8 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   let feedbackForm;
   let activityId;
   let teamView;
+  let gps;
+  let gpsPreference;
   const teamInputs = new Map();
   let players = [];
   let activities = [];
@@ -26,6 +29,8 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     feedbackForm = "";
     activityId = "";
     teamView = "activities";
+    gps = createWeekGps(seed?.gpsActuals);
+    gpsPreference = undefined;
     teamInputs.clear();
     current = null;
   }
@@ -79,6 +84,12 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   function selectTeamView(value) {
     if (mode !== "team" || current?.saving || !["activities", "players"].includes(value)) return false;
     teamView = value;
+    return true;
+  }
+
+  function toggleGpsComparison() {
+    if (mode !== "team" || current?.saving) return false;
+    gpsPreference = !(gpsPreference ?? gps.hasRows);
     return true;
   }
 
@@ -140,6 +151,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
         const input = form.elements.namedItem(playerTargetInputPrefix(id) + key);
         input.value = String(values[key] / scale);
         rememberTeamInput(input);
+        updateGpsDelta(input);
       }
     }
     setFormStatus(form, `Targets applied to ${team.length} player rows. Save player targets to update the week.`);
@@ -157,6 +169,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
       const result = await persistence.read(state.week);
       if (current !== state) return;
       draft = createLoadPlanDraft({ records: result.records });
+      gps = createWeekGps(result.gpsActuals);
       state.canEdit = result.canEdit === true;
       const { playerIds, activityIds } = result.planningSources ?? {};
       if (Array.isArray(playerIds)) state.playerIds = new Set(playerIds);
@@ -195,7 +208,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
       days, players, selected, playerUnavailable, mode, referenceScope, status, draft, isSample, persisted: Boolean(persistence),
       phase: current.phase, canEdit: current.canEdit, retry: current.conflict,
       week, activityId, feedbackForm, teamView, teamPlayers: editablePlayers(), editableActivity,
-      readTeamInput, getTeamWeekTotals,
+      readTeamInput, getTeamWeekTotals, gps, showGps: gpsPreference ?? gps.hasRows,
     };
   }
 
@@ -307,7 +320,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   }
 
   return {
-    reset, selectFromEvent, selectReference, selectActivity, selectTeamView, setMode, getView, submit, fillTeamActivity, rememberTeamInput,
+    reset, selectFromEvent, selectReference, selectActivity, selectTeamView, toggleGpsComparison, setMode, getView, submit, fillTeamActivity, rememberTeamInput,
     reload() { current = null; },
     openPlayer(value) {
       requestedPlayerId = value;

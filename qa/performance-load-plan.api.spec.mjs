@@ -39,9 +39,10 @@ async function send(handler, method, body, signedIn = true, requestedWeek = week
   return { status: res.statusCode, body: res.body, headers };
 }
 
-function fixture({ roles, tenantMatch = true, conflict = false } = {}) {
+function fixture({ roles, tenantMatch = true, conflict = false, readActuals } = {}) {
   const calls = [];
   const handler = createPerformanceLoadPlanHandler({
+    readActuals,
     readActor: async (auth) => auth ? { id: actorId, role: "admin" } : null,
     readScope: async () => platformFixture(roles),
     resolveTeam: (platform, action) => resolvePerformanceTeam(platform, action, async (table, query) => {
@@ -78,6 +79,7 @@ test("saved load plans use exact team membership and preserve zero values and re
   ]);
   const read = await send(handler, "GET");
   expect(read.body.records).toEqual(write.body.records);
+  expect(read.body.gpsActuals).toEqual({ status: "not-connected", rows: [] });
   expect(read.body.planningSources).toEqual({ playerIds: ["squad-athlete", "second-athlete"], activityIds: [activityId] });
   expect(calls.at(-1).fields).toEqual({ p_subject_keys: [subjectKey, secondSubjectKey, "role:Midfielder", "team", `week:${week}`], p_activity_ids: [activityId] });
 });
@@ -145,4 +147,44 @@ test("Team week saves multiple player targets together and restricts team goals 
   expect((await send(handler, "POST", { week, records: [{ ...goal, targets: { distance: 10000001 } }] })).status).toBe(400);
   expect((await send(handler, "POST", { week, records: [saved, { ...second, targets: { distance: 1200000 } }] })).status).toBe(400);
   expect(calls.filter(({ operation }) => operation === "save")).toHaveLength(2);
+});
+
+test("weekly GPS reads project exact player and activity IDs, keep measured zero and reject duplicate summaries", async () => {
+  const { handler } = fixture({ readActuals: async (scope) => {
+    expect(scope).toEqual({ organizationId, teamId, week, playerIds: ["squad-athlete", "second-athlete"], activityIds: [activityId] });
+    const row = { playerId: "squad-athlete", activityId, metrics: { distance: 5801.2, hsr: "450", sprint: 0, ignored: 18 },
+      comparable: ["distance", "hsr", "sprint"] };
+    const duplicate = { ...row, playerId: "second-athlete" };
+    return { rows: [row, duplicate, { ...duplicate, metrics: { distance: 100 } },
+      { ...row, playerId: "outside-squad" }, { ...row, activityId: "outside-week" }] };
+  } });
+  const read = await send(handler, "GET");
+  expect(read.status).toBe(200);
+  expect(read.body.gpsActuals).toEqual({ status: "ready", sample: false, rows: [{
+    playerId: "squad-athlete", activityId, metrics: { distance: 5801.2, sprint: 0 }, comparable: ["distance", "sprint"],
+  }] });
+});
+
+test("a GPS outage does not block planning reads or affect writes", async () => {
+  let reads = 0;
+  const { handler } = fixture({ readActuals: async () => { reads++; throw new Error("source unavailable"); } });
+  const read = await send(handler, "GET");
+  expect(read.status).toBe(200);
+  expect(read.body.records).toEqual([{ ...saved, revision: 1 }]);
+  expect(read.body.gpsActuals).toEqual({ status: "unavailable", rows: [] });
+  expect((await send(handler, "POST", { week, records: [saved] })).status).toBe(200);
+  expect(reads).toBe(1);
+});
+
+test("a slow GPS source is canceled without blocking the saved plan", async () => {
+  let canceled = false;
+  const { handler } = fixture({ readActuals: (_query, { signal }) => new Promise(() => {
+    signal.addEventListener("abort", () => { canceled = true; }, { once: true });
+  }) });
+  const read = await send(handler, "GET");
+  expect(canceled).toBe(true);
+  expect(read.status).toBe(200);
+  expect(read.body).toMatchObject({
+    records: [{ ...saved, revision: 1 }], gpsActuals: { status: "unavailable", rows: [] },
+  });
 });

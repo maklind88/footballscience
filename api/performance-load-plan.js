@@ -1,6 +1,7 @@
 const { buildSupabaseKeyHeaders, getCurrentActor, parseJsonBody, readConfig, sendCorsHeaders, sendJson } = require("./_lib/supabase-admin.js");
 const { enforceApiPermission, guardApiRequest } = require("./_lib/platform-security.js");
 const { resolvePlatformActorScope } = require("./_lib/platform-identity.js");
+const { readWeekGpsActuals } = require("./_lib/performance-gps-actuals.js");
 const { resolvePerformanceTeam, readPerformanceSources } = require("./_lib/performance-load-sources.js");
 
 const route = "/api/performance-load-plan";
@@ -67,7 +68,7 @@ function rpcRecord({ kind, subjectKey, activityId, revision, targets }) {
 
 function createPerformanceLoadPlanHandler({
   readActor = getCurrentActor, readScope = resolvePlatformActorScope, resolveTeam = resolvePerformanceTeam,
-  readSources = readPerformanceSources, rpc = callPerformanceRpc,
+  readSources = readPerformanceSources, rpc = callPerformanceRpc, readActuals,
 } = {}) {
   return async function performanceLoadPlan(req, res) {
     sendCorsHeaders(res);
@@ -97,8 +98,12 @@ function createPerformanceLoadPlanHandler({
       if (write && !validateRecords(body.records, sources, weekKey)) {
         return fail(400, "Check the targets and make sure the player and activities are saved in Squad and Schedule.");
       }
-      const result = write ? await rpc("save", scope, { p_records: body.records.map(rpcRecord) }) :
-        await rpc("read", scope, { p_subject_keys: [...sources.subjectKeys, weekKey], p_activity_ids: [...sources.activityIds] });
+      const [result, gpsActuals] = write
+        ? [await rpc("save", scope, { p_records: body.records.map(rpcRecord) })]
+        : await Promise.all([
+          rpc("read", scope, { p_subject_keys: [...sources.subjectKeys, weekKey], p_activity_ids: [...sources.activityIds] }),
+          readWeekGpsActuals(readActuals, scope, week, sources),
+        ]);
       if (!result.ok) {
         if (["40001", "23505"].includes(result.data?.code)) return fail(409, "The plan has changed. Reload saved values before editing again.");
         if (result.data?.code === "42501") return fail(403, "Your access to the plan has changed.");
@@ -112,7 +117,7 @@ function createPerformanceLoadPlanHandler({
         playerIds: [...sources.subjectKeys].filter((key) => key.startsWith("player:")).map((key) => key.slice("player:".length)),
         activityIds: [...sources.activityIds],
       };
-      return reply(200, { ok: true, week, canEdit: scope.canEdit, records, planningSources });
+      return reply(200, { ok: true, week, canEdit: scope.canEdit, records, planningSources, gpsActuals });
     } catch (error) {
       if (error?.code === "BODY_TOO_LARGE") return fail(413, "The plan is too large.");
       return fail(503, unavailable);

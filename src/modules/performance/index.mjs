@@ -4,6 +4,7 @@ import { renderPerformanceRoom, performanceViews } from "./performance-renderer.
 import { createLoadPlanApi } from "./performance-load-plan-api.mjs";
 import { createLoadPlanController } from "./performance-load-plan-controller.mjs";
 import { updateTeamWeekTotals } from "./performance-team-week-matrix.mjs";
+import { updateGpsDelta } from "./performance-week-gps.mjs";
 
 export function createPerformanceSurface(context) {
   const { root, canRead, isActive, getScope, getToday, getTeam, getTeamName, getLogo, openSource } = context;
@@ -112,6 +113,9 @@ export function createPerformanceSurface(context) {
         focusKey = "plan-player";
         render();
         return;
+      case "plan-team-gps":
+        if (view !== "load-plan" || !loadPlan?.toggleGpsComparison()) return;
+        break;
       case "plan-team-view":
         if (view !== "load-plan" || !loadPlan?.selectTeamView(prValue)) return;
         break;
@@ -153,6 +157,7 @@ export function createPerformanceSurface(context) {
     if (view !== "load-plan" || !isActive() || !event.target.matches("input")) return;
     const change = loadPlan?.rememberTeamInput(event.target);
     if (change) updateTeamWeekTotals(change.row, change.totals);
+    updateGpsDelta(event.target);
   });
 
   root.addEventListener("keydown", (event) => {

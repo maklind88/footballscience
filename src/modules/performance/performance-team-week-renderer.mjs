@@ -1,14 +1,16 @@
-import { dateLabel } from "./performance-overview.mjs";
+import { availabilityLabels, dateLabel, participationStatus } from "./performance-overview.mjs";
 import { activityFormKey, averageLoad, loadMetrics, parseLoadInput, planningRole, playerTargetInputPrefix, summarizeLoadTargets, summarizeSquadWeek } from "./performance-load-plan.mjs";
 import { amountInput, dayAndActivity, metricHeader } from "./performance-load-plan-fields.mjs";
+import { pairedSquadWeeks } from "./performance-session-review-data.mjs";
+import { matchExposure, renderSessionReview } from "./performance-session-review.mjs";
 import { renderTeamWeekMatrix } from "./performance-team-week-matrix.mjs";
 import { formatGpsValue, gpsSummaryMetrics, renderGpsAvailability, renderGpsMetric } from "./performance-week-gps.mjs";
 
-function weekGoals({ escape, draft, week, canEdit, readTeamInput, status, feedbackForm, teamPlayers }, planned) {
+function weekGoals({ escape, draft, week, canEdit, readTeamInput, status, feedbackForm, teamPlayers, goalsOpen }, planned) {
   const playerCount = teamPlayers.length;
   const saved = draft.getWeekGoalPerPlayer(week, playerCount);
   const editable = canEdit && playerCount > 0;
-  return `<section class="pr-team-goals" aria-labelledby="pr-team-goals-title">
+  return `<section class="pr-team-goals" id="pr-week-goals-panel" aria-labelledby="pr-team-goals-title"${goalsOpen ? "" : " hidden"}>
     <h3 id="pr-team-goals-title">Weekly training goals</h3>
     <form data-pr-load-form="week-goal" novalidate>
       <div class="pr-plan-reference-fields">
@@ -26,7 +28,7 @@ function weekGoals({ escape, draft, week, canEdit, readTeamInput, status, feedba
   </section>`;
 }
 
-function aggregateCell(planned, metric, rosterSize, activityCount = 0, actual) {
+function aggregateCell(planned, metric, rosterSize, activityCount = 0, actual, pairedPlan, pairedActual) {
   const coverage = (summary, label) => activityCount
     ? `<small>${summary.entries} / ${activityCount * rosterSize} ${label}</small>`
     : "";
@@ -34,6 +36,8 @@ function aggregateCell(planned, metric, rosterSize, activityCount = 0, actual) {
     <small>${planned.count} / ${rosterSize} players planned</small>${coverage(planned, "activity targets set")}
     ${actual ? `<small class="pr-gps-aggregate">GPS avg · ${formatGpsValue(averageLoad(actual), metric)}</small>
       <small>${actual.count} / ${rosterSize} players in GPS avg</small>${coverage(actual, "GPS activity values")}` : ""}
+    ${pairedPlan?.count ? `<small class="pr-gps-aggregate">Paired avg · ${formatGpsValue(averageLoad(pairedPlan), metric)} plan / ${formatGpsValue(averageLoad(pairedActual), metric)} GPS</small>
+      <small>${pairedPlan.count} / ${rosterSize} players · ${pairedPlan.entries} paired values</small>` : ""}
   </td>`;
 }
 
@@ -51,7 +55,9 @@ function activityPicker(days, activityId, escape, editableActivity) {
   </label>`;
 }
 
-function activityEditor({ escape, draft, players, teamPlayers, days, activityId, editableActivity, readTeamInput, status, feedbackForm, gps, showGps }) {
+function activityEditor(context) {
+  const { escape, draft, players, teamPlayers, days, activityId, editableActivity, readTeamInput, status, feedbackForm, gps, showGps,
+    reviewMode = false, review, recommendation, getTargetSource, matchGps } = context;
   const activity = days.flatMap((day) => day.activities).find(({ id }) => id === activityId);
   if (!players.length || !days.some(({ activities }) => activities.length)) return "";
   const waiting = players.length - teamPlayers.length;
@@ -62,12 +68,20 @@ function activityEditor({ escape, draft, players, teamPlayers, days, activityId,
   const picker = activityPicker(days, activityId, escape, editableActivity);
   if (!activity) return `<div class="pr-team-editor">${picker}${note}</div>`;
   const formKey = activityFormKey(activity.id);
+  const match = reviewMode && review.match;
+  const showRecommendation = reviewMode && activity.type !== "match" && recommendation?.size > 0;
   const rows = teamPlayers.map((player) => {
     const targets = draft.getTargets(player.id, activity.id);
     const prefix = playerTargetInputPrefix(player.id);
     const role = planningRole(player);
     const measured = showGps ? gps.getActual(player.id, activity.id) : null;
-    return `<tr><th scope="row">${escape(player.name)}${role ? `<small class="pr-team-role">${escape(role)}</small>` : ""}</th>
+    const name = escape(player.name);
+    const groupSelector = reviewMode
+      ? `<input type="checkbox" class="pr-review-select-player" name="selected-player" value="${escape(player.id)}" aria-label="Select ${name} for group targets">`
+      : "";
+    return `<tr><th scope="row"><div class="pr-review-player-name">${groupSelector}<span>${name}${role ? `<small class="pr-team-role">${escape(role)}</small>` : ""}</span></div></th>
+      ${match ? `<td>${matchExposure(matchGps, player.id, match)}</td>` : ""}
+      ${showRecommendation ? `<td>${availabilityLabels[participationStatus(recommendation.get(player.id))]}</td>` : ""}
       ${loadMetrics.map((metric) => {
         const field = prefix + metric.key;
         const typed = readTeamInput(formKey, field);
@@ -75,12 +89,14 @@ function activityEditor({ escape, draft, players, teamPlayers, days, activityId,
           typed, focus: `team-target:${field}`,
         });
         const planned = typed === undefined ? targets?.[metric.key] : parseLoadInput(typed, metric);
-        return `<td>${showGps ? renderGpsMetric(plannedMarkup, planned, measured, metric) : plannedMarkup}</td>`;
+        const source = getTargetSource(activity.id, field) || (targets?.[metric.key] != null ? "Saved target" : "");
+        return `<td>${showGps ? renderGpsMetric(plannedMarkup, planned, measured, metric) : plannedMarkup}
+          ${reviewMode ? `<small class="pr-review-target-source" data-pr-target-source>${source}</small>` : ""}</td>`;
       }).join("")}</tr>`;
   }).join("");
 
-  return `<section class="pr-team-editor" aria-labelledby="pr-team-target-title">
-    <header class="pr-team-editor-head"><h3 id="pr-team-target-title">Player targets</h3>${picker}</header>
+  return `<section class="pr-team-editor${reviewMode ? " pr-review-editor" : ""}" aria-labelledby="pr-team-target-title">
+    <header class="pr-team-editor-head"><h3 id="pr-team-target-title">Player targets</h3>${reviewMode ? "" : picker}</header>
     ${note}
     <form data-pr-load-form="team-activity" data-pr-activity-id="${escape(activity.id)}" novalidate>
       <div class="pr-team-bulk">
@@ -92,11 +108,15 @@ function activityEditor({ escape, draft, players, teamPlayers, days, activityId,
             })}</label>`;
           }).join("")}
         </div>
-        <button type="button" data-pr-action="plan-team-fill" class="pr-team-secondary">Apply to all</button>
+        <div class="pr-review-bulk-actions">
+          <button type="button" data-pr-action="plan-team-fill" class="pr-team-secondary">Fill empty targets</button>
+          ${reviewMode ? '<button type="button" data-pr-action="plan-team-fill-selected" class="pr-team-secondary">Replace targets for selected players</button>' : ""}
+        </div>
       </div>
-      <p class="pr-plan-explanation">Apply filled values to every row below, then adjust individual targets before saving.</p>
-      <div class="pr-plan-table-wrap"><table class="pr-plan-table" aria-label="Player targets for selected activity">
-        <thead><tr><th scope="col">Player</th>${metricHeader()}</tr></thead><tbody>${rows}</tbody>
+      <p class="pr-plan-explanation">Enter a team proposal to fill empty targets.${reviewMode ? " Check player rows to apply a group adjustment to just those players." : ""}</p>
+      <div class="pr-plan-table-wrap"><table class="pr-plan-table${reviewMode ? " pr-review-edit-table" : ""}" aria-label="Player targets for selected activity">
+        <thead><tr><th scope="col">Player</th>${match ? '<th scope="col">Match GPS time</th>' : ""}
+        ${showRecommendation ? '<th scope="col">Medical recommendation</th>' : ""}${metricHeader()}</tr></thead><tbody>${rows}</tbody>
       </table></div>
       <div class="pr-plan-form-foot">
         <span>Blank means no target set. Use 0 for planned zero.</span>
@@ -107,7 +127,7 @@ function activityEditor({ escape, draft, players, teamPlayers, days, activityId,
   </section>`;
 }
 
-function renderActivitySummary(context, activities, plannedWeeks, actualWeeks, getActual) {
+function renderActivitySummary(context, activities, plannedWeeks, actualWeeks, getActual, paired) {
   const { escape, draft, players, teamPlayers, days, canEdit, activityId, editableActivity, showGps } = context;
   const rosterSize = players.length;
   const rows = days.flatMap((day) => {
@@ -124,34 +144,41 @@ function renderActivitySummary(context, activities, plannedWeeks, actualWeeks, g
     });
   }).join("");
 
-  return `<p class="pr-plan-explanation">Averages use players with a value for that metric. Weekly averages use each player’s weekly subtotal.${showGps ? " Plan and GPS coverage are shown separately." : ""}</p>
+  return `<p class="pr-plan-explanation">Averages use players with a value for that metric. Weekly averages use each player’s weekly subtotal.${showGps ? " Paired weekly averages use the same player and activity values on both sides." : ""}</p>
     <div class="pr-plan-table-wrap"><table class="pr-plan-table"><thead><tr><th scope="col">Activity · Periodization</th>${metricHeader()}</tr></thead>
     <tbody>${rows}</tbody>
     <tfoot>${[["training", "Training week"], ["matches", "Match estimates"]].map(([key, label]) => {
       const activityCount = activities.filter(({ type }) => (type === "match") === (key === "matches")).length;
       return `<tr><th scope="row">${label} <small>Average per player</small></th>
         ${loadMetrics.map((metric) => aggregateCell(
-          plannedWeeks[key][metric.key], metric, rosterSize, activityCount, actualWeeks?.[key][metric.key]
+          plannedWeeks[key][metric.key], metric, rosterSize, activityCount, actualWeeks?.[key][metric.key],
+          paired?.plan[key][metric.key], paired?.actual[key][metric.key]
         )).join("")}</tr>`;
     }).join("")}</tfoot></table></div>
     ${canEdit ? activityEditor(context) : ""}`;
 }
 
 export function renderTeamWeek(context) {
-  const { days, draft, players, teamView, gps, showGps } = context;
+  const { days, draft, players, teamView, gps, showGps, goalsOpen, canEdit, teamPlayers } = context;
   const activities = days.flatMap((day) => day.activities);
   const plannedWeeks = summarizeSquadWeek(players, activities, draft.getTargets);
   const getActual = (playerId, activityId) => gpsSummaryMetrics(gps.getActual(playerId, activityId));
   const actualWeeks = showGps && teamView === "activities" ? summarizeSquadWeek(players, activities, getActual) : null;
-  return `${weekGoals(context, plannedWeeks.training)}
-    <div class="pr-team-view-tools">
+  const paired = actualWeeks && gps.hasRows ? pairedSquadWeeks(players, activities, draft.getTargets, gps) : null;
+  return `<div class="pr-team-view-tools">
       <div class="pr-plan-switches" role="group" aria-label="Team week layout">
-        ${[["activities", "By activity"], ["players", "By player"]].map(([id, label]) =>
+        ${[["review", "Session review"], ["activities", "By activity"], ["players", "By player"]].map(([id, label]) =>
           `<button type="button" data-pr-action="plan-team-view" data-pr-value="${id}" data-pr-focus="team-view:${id}" aria-pressed="${teamView === id}">${label}</button>`
         ).join("")}
       </div>
-      <button class="pr-team-secondary pr-team-gps-toggle" type="button" data-pr-action="plan-team-gps" data-pr-focus="team-gps" aria-pressed="${showGps}">Plan vs GPS</button>
+      <button class="pr-plan-reference-link pr-review-goals-link" type="button" data-pr-action="plan-week-goals"
+        data-pr-focus="week-goals" aria-expanded="${goalsOpen}" aria-controls="pr-week-goals-panel">
+        ${goalsOpen ? "Hide goals" : canEdit && teamPlayers.length ? "Edit weekly goals" : "View weekly goals"}
+      </button>
+      ${teamView === "review" ? "" : `<button class="pr-team-secondary pr-team-gps-toggle" type="button" data-pr-action="plan-team-gps" data-pr-focus="team-gps" aria-pressed="${showGps}">Plan vs GPS</button>`}
     </div>
-    ${showGps ? renderGpsAvailability(gps) : ""}
-    ${teamView === "players" ? renderTeamWeekMatrix(context) : renderActivitySummary(context, activities, plannedWeeks, actualWeeks, getActual)}`;
+    ${weekGoals(context, plannedWeeks.training)}
+    ${teamView !== "review" && showGps ? renderGpsAvailability(gps) : ""}
+    ${teamView === "review" ? renderSessionReview(context, activityEditor) : teamView === "players"
+      ? renderTeamWeekMatrix(context) : renderActivitySummary(context, activities, plannedWeeks, actualWeeks, getActual, paired)}`;
 }

@@ -113,6 +113,23 @@ export function createPerformanceSurface(context) {
         focusKey = "plan-player";
         render();
         return;
+      case "plan-review-day":
+      case "plan-review-activity":
+        if (view !== "load-plan" || !loadPlan?.setReviewSelection(prValue, prAction === "plan-review-day")) return;
+        break;
+      case "plan-review-jump":
+        if (view !== "load-plan" || !isValidDate(prDate) || prDate === date || !loadPlan?.requestReviewJump(prDate, prValue)) return;
+        date = prDate;
+        break;
+      case "plan-review-metric":
+        if (view !== "load-plan" || !loadPlan?.setReviewMetric(prValue)) return;
+        break;
+      case "plan-review-edit":
+        if (view !== "load-plan" || !loadPlan?.setReviewEditing(prValue)) return;
+        break;
+      case "plan-week-goals":
+        if (view !== "load-plan" || !loadPlan?.toggleGoals()) return;
+        break;
       case "plan-team-gps":
         if (view !== "load-plan" || !loadPlan?.toggleGpsComparison()) return;
         break;
@@ -126,7 +143,8 @@ export function createPerformanceSurface(context) {
         root.querySelector(".pr-team-editor")?.scrollIntoView({ block: "start" });
         return;
       case "plan-team-fill":
-        if (view === "load-plan") loadPlan?.fillTeamActivity(control.closest("form"));
+      case "plan-team-fill-selected":
+        if (view === "load-plan") loadPlan?.fillTeamActivity(control.closest("form"), prAction === "plan-team-fill-selected");
         return;
       case "plan-reference":
         if (view !== "load-plan" || !loadPlan?.selectReference(prValue)) return;
@@ -154,7 +172,7 @@ export function createPerformanceSurface(context) {
   });
 
   root.addEventListener("input", (event) => {
-    if (view !== "load-plan" || !isActive() || !event.target.matches("input")) return;
+    if (view !== "load-plan" || !isActive() || !event.target.matches("input[type=text]")) return;
     const change = loadPlan?.rememberTeamInput(event.target);
     if (change) updateTeamWeekTotals(change.row, change.totals);
     updateGpsDelta(event.target);

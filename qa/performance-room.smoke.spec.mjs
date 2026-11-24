@@ -11,6 +11,7 @@ async function boot(page, { fromSquad = false, backend } = {}) {
   await page.clock.setFixedTime(new Date(`${day}T15:00:00Z`));
   const entries = {
     [scheduleKey]: { events: [
+      ...(backend?.extraEvents ?? []),
       { id: "qa-first", date: "2026-11-23", title: "First match", type: "match", time: "19:00" },
       { id: "qa-training", date: day, title: "Midweek training", type: "training", time: "10:00" },
       { id: "qa-meeting", date: day, title: "Staff meeting", type: "meeting", time: "08:30" },
@@ -121,6 +122,7 @@ test("Performance Room joins a two-match week and links back to the source works
   await navigation.getByRole("button", { name: "Microcycle" }).click();
   await room.getByRole("button", { name: /Open load planning/ }).click();
   const planning = room.locator(".pr-plan-workbench");
+  await planning.getByRole("button", { name: "By activity", exact: true }).click();
   await expect(planning.getByRole("row", { name: /Midweek training/ })).toContainText("High · 60 plan min");
   await expect(planning.getByRole("row", { name: /Staff meeting/ })).toHaveCount(0);
   await navigation.getByRole("button", { name: "Microcycle" }).click();
@@ -207,6 +209,7 @@ test("a Squad profile opens its saved plan, keeps changes after reload, and upda
   ]);
 
   await workbench.getByRole("button", { name: "Team week" }).click();
+  await workbench.getByRole("button", { name: "By activity", exact: true }).click();
   const training = workbench.getByRole("row", { name: /Midweek training/ });
   await expect(training.getByRole("cell").first()).toContainText("5.25 km");
   await expect(training.getByRole("cell").last()).toContainText("0 m");
@@ -236,6 +239,8 @@ test("Team week displays existing goals per player and saves per-player edits ag
   await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
   await room.getByRole("button", { name: /Open load planning/ }).click();
   const plan = room.locator(".pr-plan-workbench");
+  await plan.getByRole("button", { name: "By activity", exact: true }).click();
+  await plan.getByRole("button", { name: "Edit weekly goals", exact: true }).click();
   const goal = plan.getByRole("textbox", { name: "Weekly per-player Total distance" });
   await expect(goal).toHaveValue("40");
   await expect(plan.getByRole("textbox", { name: "Weekly per-player High-speed running" })).toHaveValue("2670");
@@ -260,7 +265,7 @@ test("Team week displays existing goals per player and saves per-player edits ag
   await allDistance.fill("5,2");
   await editor.getByRole("textbox", { name: "All players High-speed running" }).fill("400");
   await editor.getByRole("textbox", { name: "All players Sprint distance" }).fill("80");
-  await editor.getByRole("button", { name: "Apply to all" }).click();
+  await editor.getByRole("button", { name: "Fill empty targets" }).click();
   await expect(alex.getByRole("textbox", { name: /Total distance/ })).toHaveValue("5.2");
   await expect(blair.getByRole("textbox", { name: /High-speed running/ })).toHaveValue("400");
   await blair.getByRole("textbox", { name: /Sprint distance/ }).fill("0");
@@ -293,6 +298,8 @@ test("Team week displays existing goals per player and saves per-player edits ag
   await page.reload({ waitUntil: "domcontentloaded" });
   await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
   await room.getByRole("button", { name: /Open load planning/ }).click();
+  await plan.getByRole("button", { name: "By activity", exact: true }).click();
+  await plan.getByRole("button", { name: "View weekly goals", exact: true }).click();
   await expect(goal).toHaveValue("42");
   await expect(goal).toHaveAttribute("readonly", "");
   await expect(plan.getByRole("button", { name: "Save weekly goals" })).toHaveCount(0);
@@ -400,6 +407,7 @@ test("Team week pairs saved and edited plans with GPS by player and activity", a
   await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
   await room.getByRole("button", { name: /Open load planning/ }).click();
   const plan = room.locator(".pr-plan-workbench");
+  await plan.getByRole("button", { name: "By activity", exact: true }).click();
   const compare = plan.getByRole("button", { name: "Plan vs GPS" });
   await expect(compare).toHaveAttribute("aria-pressed", "true");
   await expect(plan.getByText("Example GPS data", { exact: true })).toBeVisible();
@@ -408,6 +416,8 @@ test("Team week pairs saved and edited plans with GPS by player and activity", a
   await expect(training.locator("td").first()).toContainText(/2 \/ \d+ players in GPS avg/);
   await expect(plan.getByRole("row", { name: /Match estimates Average per player/ }).locator("td").first())
     .toContainText("GPS avg · 10 km");
+  await expect(plan.getByRole("row", { name: /Training week Average per player/ }).locator("td").first())
+    .toContainText("Paired avg · 5.1 km plan / 5.4 km GPS");
 
   await plan.getByRole("button", { name: "By player" }).click();
   const grid = plan.getByRole("table", { name: "Player microcycles by day" });
@@ -444,4 +454,103 @@ test("Team week pairs saved and edited plans with GPS by player and activity", a
     targets: { distance: 5600, hsr: 410, sprint: 70 },
   }]]);
   await expect(gpsValue("distance")).toHaveText("5.4 km");
+});
+
+test("Session review leads from match to training and saves only intentional player edits", async ({ page }) => {
+  const saved = (playerId, targets) => ({
+    kind: "plan", subjectKey: `player:qa-player-${playerId}`, activityId: "qa-training", revision: 1, targets,
+  });
+  const backend = {
+    records: [saved("a", { distance: 6000, hsr: 400 }), saved("c", { distance: 9000, sprint: 0 })],
+    extraEvents: [{ id: "qa-after", date: "2026-11-30", title: "Monday recovery", type: "recovery", time: "09:00" }],
+    writes: [],
+    canEdit: true,
+    gpsActuals: { status: "ready", rows: [
+      { playerId: "qa-player-a", activityId: "qa-first", metrics: { distance: 8900 }, comparable: ["distance"], sessionDurationMinutes: 94.2 },
+      { playerId: "qa-player-b", activityId: "qa-first", metrics: { distance: 3600 }, comparable: ["distance"], sessionDurationMinutes: 32 },
+      { playerId: "qa-player-a", activityId: "qa-next", metrics: { distance: 9300 }, comparable: ["distance"], sessionDurationMinutes: 96 },
+      { playerId: "qa-player-a", activityId: "qa-training", metrics: { distance: 5700, hsr: 300 }, comparable: ["distance"] },
+      { playerId: "qa-player-b", activityId: "qa-training", metrics: { distance: 0, sprint: 0 }, comparable: ["distance", "sprint"] },
+    ] },
+  };
+  const room = await boot(page, { backend });
+  await room.getByRole("navigation", { name: "Performance Room" }).getByRole("button", { name: "Microcycle" }).click();
+  await room.getByRole("button", { name: /Open load planning/ }).click();
+  const review = room.getByRole("region", { name: "Session review", exact: true });
+  const compare = review.getByRole("table", { name: "Session player comparison" });
+  const summary = review.locator(".pr-review-summary");
+  await expect(review.getByRole("heading", { name: "Midweek training" })).toBeVisible();
+  await expect(summary).toContainText("1 of 3 players comparable");
+  await expect(summary).toContainText("5.7 km");
+  await expect(summary).toContainText("−0.3 km");
+  await expect(summary).toContainText("7.5 km");
+  await expect(compare.getByRole("row", { name: /Blair Example/ })).toContainText("0 km");
+  await expect(compare.getByRole("row", { name: /Blair Example/ })).toContainText("No target");
+  await expect(compare.getByRole("row", { name: /Casey Example/ })).toContainText("No linked GPS");
+  await expect(compare.getByRole("row", { name: /Blair Example/ })).toContainText("Modified");
+  await expect(review).not.toContainText("Private clinical note");
+
+  await review.getByRole("button", { name: "First match", exact: true }).click();
+  await expect(review.getByRole("heading", { name: "First match" })).toBeVisible();
+  await expect(compare.getByRole("row", { name: /Alex Example/ })).toContainText("94.2 min");
+  await expect(compare.getByRole("row", { name: /Blair Example/ })).toContainText("32 min");
+  await expect(review.getByText(/Official playing minutes are unavailable/)).toBeVisible();
+  await review.getByRole("button", { name: "Midweek training", exact: true }).click();
+  await review.getByRole("button", { name: "HSR", exact: true }).click();
+  await expect(summary).toContainText("0 of 3 players comparable");
+  await expect(compare.getByRole("row", { name: /Alex Example/ })).toContainText("Zones unconfirmed");
+  await review.getByRole("button", { name: "Distance", exact: true }).click();
+
+  await review.getByRole("button", { name: "Edit player targets" }).click();
+  const editor = review.getByRole("region", { name: "Player targets" });
+  const alex = editor.getByRole("row", { name: /Alex Example/ });
+  const blair = editor.getByRole("row", { name: /Blair Example/ });
+  const casey = editor.getByRole("row", { name: /Casey Example/ });
+  const proposal = editor.getByRole("textbox", { name: "All players Total distance" });
+  const playerDistance = (row) => row.getByRole("textbox", { name: /Total distance/i });
+  await proposal.fill("4");
+  await editor.getByRole("button", { name: "Fill empty targets" }).click();
+  await expect(playerDistance(alex)).toHaveValue("6");
+  await expect(playerDistance(casey)).toHaveValue("9");
+  await expect(playerDistance(blair)).toHaveValue("4");
+  await expect(blair).toContainText("Team draft");
+
+  await alex.getByRole("checkbox").check();
+  await blair.getByRole("checkbox").check();
+  await proposal.fill("5");
+  await editor.getByRole("button", { name: "Replace targets for selected players" }).click();
+  await expect(alex).toContainText("Group draft");
+  await expect(playerDistance(blair)).toHaveValue("5");
+  await expect(playerDistance(casey)).toHaveValue("9");
+  await playerDistance(blair).fill("6");
+  await expect(blair).toContainText("Individual draft");
+  await expect(summary.locator("[data-pr-review-week-avg]")).toHaveText("6.667 km");
+  expect(backend.writes).toHaveLength(0);
+
+  await editor.getByRole("button", { name: "Save player targets" }).click();
+  await expect(room.locator(".pr-plan-status")).toContainText("Player targets saved");
+  expect(backend.writes).toHaveLength(1);
+  expect(backend.writes[0]).toHaveLength(2);
+  expect(backend.writes[0]).toEqual(expect.arrayContaining([
+    saved("a", { distance: 5000, hsr: 400 }),
+    { ...saved("b", { distance: 6000 }), revision: 0 },
+  ]));
+  await review.getByRole("button", { name: "Back to review" }).click();
+  await expect(summary).toContainText("2 of 3 players comparable");
+  await expect(summary).toContainText("5.5 km");
+  await expect(summary).toContainText("2.85 km");
+  await expect(summary.locator("[data-pr-review-week-avg]")).toHaveText("6.667 km");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(review.getByRole("group", { name: "Week days" })).toBeVisible();
+  expect(await room.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  await compare.getByRole("button", { name: "Alex Example", exact: true }).click();
+  await expect(room.getByRole("combobox", { name: "Player", exact: true })).toHaveValue("qa-player-a");
+  await expect(room.getByRole("heading", { name: "Measured this week" })).toBeVisible();
+
+  await room.getByRole("button", { name: "Team week", exact: true }).click();
+  await review.getByRole("group", { name: "Week days" }).getByRole("button", { name: /Sat 28.*Match/ }).click();
+  await review.getByRole("button", { name: "Monday recovery", exact: true }).click();
+  await expect(review.getByRole("heading", { name: "Monday recovery" })).toBeVisible();
+  await expect(compare.getByRole("row", { name: /Alex Example/ })).toContainText("96 min");
 });

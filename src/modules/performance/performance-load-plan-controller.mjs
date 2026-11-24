@@ -1,4 +1,6 @@
-import { createWeekGps, updateGpsDelta } from "./performance-week-gps.mjs";
+import { weekDates } from "./performance-overview.mjs";
+import { selectReviewSession, trainingPlanAverage } from "./performance-session-review-data.mjs";
+import { createWeekGps, formatGpsValue, updateGpsDelta } from "./performance-week-gps.mjs";
 import { activityFormKey, createLoadPlanDraft, createLoadPlanWeek, loadMetrics, parseLoadInput, planningRole, playerTargetInputPrefix, previewTeamTargets, readLoadTargets, summarizePlayerWeek } from "./performance-load-plan.mjs";
 
 export function createLoadPlanController(seed, isSample, persistence, render) {
@@ -14,6 +16,15 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   let teamView;
   let gps;
   let gpsPreference;
+  let gpsWeek;
+  let previousGps;
+  let reviewJump;
+  let reviewDate;
+  let reviewActivityId;
+  let reviewMetric;
+  let reviewEditing;
+  let goalsOpen;
+  const targetSources = new Map();
   const teamInputs = new Map();
   let players = [];
   let activities = [];
@@ -28,9 +39,18 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     status = "";
     feedbackForm = "";
     activityId = "";
-    teamView = "activities";
+    teamView = "review";
+    reviewDate = "";
+    reviewActivityId = "";
+    reviewMetric = "distance";
+    reviewEditing = false;
+    goalsOpen = false;
+    targetSources.clear();
     gps = createWeekGps(seed?.gpsActuals);
     gpsPreference = undefined;
+    gpsWeek = "";
+    previousGps = null;
+    reviewJump = null;
     teamInputs.clear();
     current = null;
   }
@@ -82,9 +102,65 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   }
 
   function selectTeamView(value) {
-    if (mode !== "team" || current?.saving || !["activities", "players"].includes(value)) return false;
+    if (mode !== "team" || current?.saving || !["review", "activities", "players"].includes(value)) return false;
     teamView = value;
     return true;
+  }
+
+  function setReviewSelection(value, byDay) {
+    if (mode !== "team" || teamView !== "review" || current?.saving) return false;
+    const activity = activities.find(({ id }) => id === value);
+    const nextDate = byDay ? value : activity?.date;
+    if (!current?.days.some(({ date }) => date === nextDate)) return false;
+    reviewDate = nextDate;
+    reviewActivityId = byDay ? "" : activity.id;
+    reviewEditing = false;
+    return true;
+  }
+
+  function requestReviewJump(date, id) {
+    if (mode !== "team" || teamView !== "review" || current?.saving) return false;
+    reviewJump = { date, id };
+    return true;
+  }
+
+  function getMatchGps(match, week) {
+    if (!match) return null;
+    const matchWeek = weekDates(match.date)[0];
+    if (matchWeek === week) return gps;
+    if (previousGps?.week === matchWeek) return previousGps.gps;
+    if (!persistence || gps.status === "not-connected" || Date.parse(week) - Date.parse(matchWeek) !== 7 * 86400000) return null;
+    // The preceding week can supply exposure for this match across the calendar boundary.
+    const cached = { week: matchWeek, gps: null };
+    previousGps = cached;
+    void persistence.read(matchWeek).then((result) => {
+      if (previousGps !== cached) return;
+      cached.gps = createWeekGps(result.gpsActuals);
+      render();
+    }, () => {});
+    return null;
+  }
+
+  function setReviewMetric(value) {
+    if (current?.saving || !loadMetrics.some(({ key }) => key === value)) return false;
+    reviewMetric = value;
+    return true;
+  }
+
+  function setReviewEditing(value) {
+    if (current?.saving || (value && !selectActivity(value))) return false;
+    reviewEditing = Boolean(value);
+    return true;
+  }
+
+  function toggleGoals() {
+    if (current?.saving) return false;
+    goalsOpen = !goalsOpen;
+    return true;
+  }
+
+  function getTargetSource(activity, field) {
+    return targetSources.get(activityFormKey(activity))?.get(field);
   }
 
   function toggleGpsComparison() {
@@ -114,10 +190,35 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     teamInputs.set(key, values);
   }
 
+  function rememberTargetSource(key, name, source) {
+    const fields = targetSources.get(key) ?? new Map();
+    fields.set(name, source);
+    targetSources.set(key, fields);
+  }
+
+  function refreshReviewWeek(form) {
+    const review = form.closest(".pr-session-review");
+    if (!review) return;
+    const metric = loadMetrics.find(({ key }) => key === reviewMetric);
+    const roster = editablePlayers();
+    const { count, total } = trainingPlanAverage({ days: current.days, players: roster, draft, canEdit: true, readTeamInput }, metric);
+    review.querySelector("[data-pr-review-week-label]").textContent = "Training week plan avg · draft";
+    review.querySelector("[data-pr-review-week-avg]").textContent = formatGpsValue(count ? total / count : null, metric);
+    review.querySelector("[data-pr-review-week-count]").textContent = `${count} of ${roster.length} players planned`;
+  }
+
   function rememberTeamInput(input) {
     if (!input.form || mode !== "team" || !current?.canEdit || current.saving || !input.name) return null;
     const key = teamFormKey(input.form);
-    if (key) writeTeamInput(key, input.name, input.value);
+    if (key) {
+      writeTeamInput(key, input.name, input.value);
+      if (input.name.startsWith("player-")) {
+        rememberTargetSource(key, input.name, "Individual draft");
+        const sourceLabel = input.closest("td")?.querySelector("[data-pr-target-source]");
+        if (sourceLabel) sourceLabel.textContent = "Individual draft";
+        refreshReviewWeek(input.form);
+      }
+    }
     if (input.form.dataset.prLoadForm !== "team-week") return null;
 
     const row = input.closest("[data-pr-week-player]");
@@ -126,7 +227,9 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     const metric = loadMetrics.find(({ key }) => key === metricKey);
     if (!row || !activity || !metric) return null;
     const playerId = row.dataset.prWeekPlayer;
-    writeTeamInput(activityFormKey(activity), playerTargetInputPrefix(playerId) + metric.key, input.value);
+    const field = playerTargetInputPrefix(playerId) + metric.key;
+    writeTeamInput(activityFormKey(activity), field, input.value);
+    rememberTargetSource(activityFormKey(activity), field, "Individual draft");
     if (parseLoadInput(input.value, metric) === undefined) input.setAttribute("aria-invalid", "true");
     else input.removeAttribute("aria-invalid");
     if (!current.conflict && (feedbackForm !== "team-week" || status !== "Unsaved week changes.")) {
@@ -135,26 +238,46 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     return { row, totals: getTeamWeekTotals(playerId) };
   }
 
-  function fillTeamActivity(form) {
+  function fillTeamActivity(form, selectedOnly = false) {
     if (!form || !current?.canEdit || current.saving || current.conflict) return;
-    const { values, invalid } = readLoadTargets(new FormData(form), "bulk-");
+    const fields = new FormData(form);
+    const { values, invalid } = readLoadTargets(fields, "bulk-");
     markInvalid(form, invalid);
     if (invalid.length) return;
     if (!Object.keys(values).length) {
       setFormStatus(form, "Enter one or more targets to apply.");
       return;
     }
-    const team = editablePlayers();
-    for (const { id } of team) {
-      for (const { key, scale } of loadMetrics) {
-        if (values[key] == null) continue;
-        const input = form.elements.namedItem(playerTargetInputPrefix(id) + key);
-        input.value = String(values[key] / scale);
-        rememberTeamInput(input);
+    const selected = new Set(fields.getAll("selected-player"));
+    if (selectedOnly && !selected.size) {
+      setFormStatus(form, "Select the players whose targets you want to replace.");
+      return;
+    }
+    const key = teamFormKey(form);
+    const changed = new Set();
+    for (const { id } of editablePlayers()) {
+      if (selectedOnly && !selected.has(id)) continue;
+      for (const { key: metric, scale } of loadMetrics) {
+        if (values[metric] == null) continue;
+        const field = playerTargetInputPrefix(id) + metric;
+        const input = form.elements.namedItem(field);
+        if (!input || (!selectedOnly && (input.value.trim() || readTeamInput(key, field) !== undefined))) continue;
+        const value = String(values[metric] / scale);
+        if (input.value === value) continue;
+        input.value = value;
+        writeTeamInput(key, field, value);
+        const source = selectedOnly ? "Group draft" : "Team draft";
+        rememberTargetSource(key, field, source);
+        const sourceLabel = input.closest("td")?.querySelector("[data-pr-target-source]");
+        if (sourceLabel) sourceLabel.textContent = source;
         updateGpsDelta(input);
+        changed.add(id);
       }
     }
-    setFormStatus(form, `Targets applied to ${team.length} player rows. Save player targets to update the week.`);
+    if (changed.size) refreshReviewWeek(form);
+    setFormStatus(form, changed.size
+      ? `Draft targets updated for ${changed.size} players. Save player targets to update the plan.`
+      : selectedOnly ? "The selected players already have these values." : "All matching targets are already set.");
   }
 
   function selectFromEvent(event) {
@@ -169,6 +292,10 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
       const result = await persistence.read(state.week);
       if (current !== state) return;
       draft = createLoadPlanDraft({ records: result.records });
+      if (gpsWeek && gpsWeek !== state.week && gps.status === "ready") {
+        previousGps = { week: gpsWeek, gps };
+      }
+      gpsWeek = state.week;
       gps = createWeekGps(result.gpsActuals);
       state.canEdit = result.canEdit === true;
       const { playerIds, activityIds } = result.planningSources ?? {};
@@ -196,19 +323,37 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     const week = days[0].date;
     const key = JSON.stringify([week, players.map((player) => [player.id, planningRole(player)]), activities.map(({ id }) => id)]);
     if (current?.key !== key) {
-      if (current && current.week !== week) activityId = "";
+      if (current && current.week !== week) {
+        activityId = "";
+        reviewDate = "";
+        reviewActivityId = "";
+        reviewEditing = false;
+      }
       if (!activities.some(({ id }) => id === activityId)) activityId = "";
       teamInputs.clear();
-      current = { key, week, phase: persistence ? "loading" : "ready", canEdit: !persistence, saving: false, conflict: false };
+      targetSources.clear();
+      current = { key, week, days, phase: persistence ? "loading" : "ready", canEdit: !persistence, saving: false, conflict: false };
       status = "";
       feedbackForm = "";
       if (persistence) void load(current);
     }
+    if (reviewJump) {
+      reviewDate = reviewJump.date;
+      reviewActivityId = reviewJump.id;
+      reviewJump = null;
+    }
+    current.days = days;
+    const review = selectReviewSession(days, sources.events, overview.selected.date, reviewDate, reviewActivityId, current.activityIds);
+    const teamPlayers = editablePlayers();
+    const reviewReady = current.phase === "ready" && mode === "team" && teamView === "review" && review.activity;
+    const recommendation = reviewReady ? sources.getAvailability?.(review.day.date, teamPlayers) : null;
     return {
       days, players, selected, playerUnavailable, mode, referenceScope, status, draft, isSample, persisted: Boolean(persistence),
       phase: current.phase, canEdit: current.canEdit, retry: current.conflict,
-      week, activityId, feedbackForm, teamView, teamPlayers: editablePlayers(), editableActivity,
+      week, activityId, feedbackForm, teamView, teamPlayers, editableActivity,
       readTeamInput, getTeamWeekTotals, gps, showGps: gpsPreference ?? gps.hasRows,
+      review, reviewMetric, reviewEditing: reviewEditing && activityId === review.activity?.id,
+      recommendation, getTargetSource, goalsOpen, matchGps: reviewReady ? getMatchGps(review.match, week) : null,
     };
   }
 
@@ -260,7 +405,10 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
       const inputs = teamInputs.get(activityFormKey(activityId));
       if (!inputs) continue;
       const prefix = playerTargetInputPrefix(subjectKey.slice("player:".length));
-      for (const { key } of loadMetrics) inputs.delete(prefix + key);
+      for (const { key } of loadMetrics) {
+        inputs.delete(prefix + key);
+        targetSources.get(activityFormKey(activityId))?.delete(prefix + key);
+      }
     }
   }
 
@@ -272,10 +420,12 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     }[type];
     draft.applyRecords(records);
     teamInputs.delete(teamFormKey(form));
+    targetSources.delete(teamFormKey(form));
     if (type === "player") clearSavedPlayerInputs(records);
     if (type === "team-week") {
       for (const { id } of activities) {
         const inputs = teamInputs.get(activityFormKey(id));
+        targetSources.delete(activityFormKey(id));
         for (const key of inputs?.keys() ?? []) {
           if (key.startsWith("player-")) inputs.delete(key);
         }
@@ -303,7 +453,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
     }
     if (!persistence) return saveConfirmed(form, edit.records);
 
-    const controls = [...form.querySelectorAll("input, button")].filter((item) => !item.disabled);
+    const controls = [...form.querySelectorAll("input, button, select")].filter((item) => !item.disabled);
     controls.forEach((item) => { item.disabled = true; });
     state.saving = true;
     setFormStatus(form, "Saving…");
@@ -311,6 +461,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
       const result = await persistence.save(state.week, edit.records);
       if (current !== state) return;
       state.canEdit = result.canEdit === true;
+      state.saving = false;
       saveConfirmed(form, result.records);
     } catch (error) {
       if (current !== state) return;
@@ -325,7 +476,8 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   }
 
   return {
-    reset, selectFromEvent, selectReference, selectActivity, selectTeamView, toggleGpsComparison, setMode, getView, submit, fillTeamActivity, rememberTeamInput,
+    reset, selectFromEvent, selectReference, selectActivity, selectTeamView, toggleGpsComparison, setMode, getView, submit,
+    fillTeamActivity, rememberTeamInput, setReviewSelection, requestReviewJump, setReviewMetric, setReviewEditing, toggleGoals,
     reload() { current = null; },
     openPlayer(value) {
       requestedPlayerId = value;

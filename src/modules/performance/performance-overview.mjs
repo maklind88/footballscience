@@ -45,7 +45,7 @@ export const availabilityLabels = {
   unknown: "Not set",
 };
 
-function participationStatus(value) {
+export function participationStatus(value) {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100) return "unknown";
   if (value === 100) return "full";
   return value === 0 ? "unavailable" : "modified";

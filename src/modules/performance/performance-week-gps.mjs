@@ -28,7 +28,7 @@ export function formatGpsValue(value, metric) {
   return Number.isFinite(value) ? `${formatLoad(value, metric)} ${metric.unit}` : "—";
 }
 
-function deltaText(actual, planned, metric) {
+export function deltaText(actual, planned, metric) {
   if (!Number.isFinite(planned)) return "";
   const delta = actual - planned;
   const relative = formatLoad(Math.abs(delta), metric);

@@ -4,6 +4,7 @@ test("the load plan uses position references and updates the team week from indi
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/qa/performance-microcycle-preview.html");
   const workbench = page.locator(".pr-plan-workbench");
+  await workbench.getByRole("button", { name: "By activity", exact: true }).click();
   const teamTraining = workbench.getByRole("row", { name: /Wed 25 Nov.*Team training/ });
   await expect(teamTraining).toContainText("MD+2 · MD−3");
   await expect(teamTraining).toContainText("Moderate · 60 plan min");

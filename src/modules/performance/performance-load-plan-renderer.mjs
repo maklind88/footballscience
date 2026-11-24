@@ -1,6 +1,7 @@
 import { dateLabel } from "./performance-overview.mjs";
 import { activityInputPrefix, formatLoad, loadMetrics, planningRole, summarizePlayerWeek } from "./performance-load-plan.mjs";
 import { amountInput, dayAndActivity, metricHeader } from "./performance-load-plan-fields.mjs";
+import { formatGpsValue, gpsSummaryMetrics, renderGpsMetric } from "./performance-week-gps.mjs";
 import { renderTeamWeek } from "./performance-team-week-renderer.mjs";
 
 function rangeLabel(days) {
@@ -34,22 +35,30 @@ function referenceStrip(reference) {
   </dl>`;
 }
 
-function playerPlan({ escape, draft, selected, players, days, canEdit, playerUnavailable }) {
+function playerPlan({ escape, draft, selected, players, days, canEdit, playerUnavailable, gps }) {
   if (playerUnavailable) return `
     <p class="pr-placeholder">This Squad profile is unavailable for the selected week.</p>
     ${players.length ? playerSelector(players, null, escape) : ""}`;
   if (!selected) return '<p class="pr-placeholder">No Squad players available.</p>';
   const activities = days.flatMap((day) => day.activities);
   const totals = summarizePlayerWeek(draft, selected.id, activities);
+  const actual = (activityId) => gps.getActual(selected.id, activityId);
+  const hasActual = activities.some(({ id }) => actual(id));
+  const measured = hasActual ? summarizePlayerWeek({
+    getTargets: (_, activityId) => gpsSummaryMetrics(actual(activityId)),
+  }, selected.id, activities) : null;
   const rows = days.flatMap((day) => {
     if (!day.activities.length) {
       return [`<tr class="pr-plan-rest"><th scope="row">${dayAndActivity(day, null, escape)}</th><td colspan="3">—</td></tr>`];
     }
     return day.activities.map((activity) => {
       const targets = draft.getTargets(selected.id, activity.id);
-      return `<tr><th scope="row">${dayAndActivity(day, activity, escape)}</th>${loadMetrics.map((metric) =>
-        `<td>${amountInput(metric, activityInputPrefix(activity) + metric.key, targets?.[metric.key],
-          `${activity.title || activity.type} ${dateLabel(day.date)} ${metric.name}`, escape, canEdit)}</td>`).join("")}</tr>`;
+      return `<tr><th scope="row">${dayAndActivity(day, activity, escape)}</th>${loadMetrics.map((metric) => {
+        const plan = targets?.[metric.key];
+        const input = amountInput(metric, activityInputPrefix(activity) + metric.key, plan,
+          `${activity.title || activity.type} ${dateLabel(day.date)} ${metric.name}`, escape, canEdit);
+        return `<td>${hasActual ? renderGpsMetric(input, plan, actual(activity.id), metric) : input}</td>`;
+      }).join("")}</tr>`;
     });
   }).join("");
   return `<div class="pr-plan-context">${playerSelector(players, selected, escape)}${referenceStrip(draft.getReference(selected))}
@@ -59,6 +68,10 @@ function playerPlan({ escape, draft, selected, players, days, canEdit, playerUna
       <section><h3>Training planned</h3>${weeklyLoads(totals.training, "Player training totals")}</section>
       <section><h3>Match estimates</h3>${weeklyLoads(totals.matches, "Player match totals")}</section>
     </div>
+    ${measured ? `<div class="pr-player-gps-summary"><h3>Measured this week</h3>
+      <dl>${loadMetrics.map((metric) => `<div><dt>${metric.short}</dt><dd><strong>${formatGpsValue(measured.week[metric.key].total, metric)}</strong>
+        <small>${measured.week[metric.key].count} of ${activities.length} activities</small></dd></div>`).join("")}</dl>
+      <p>Totals include linked activities with confirmed definitions. Baselines above are separate references.</p></div>` : ""}
     <form data-pr-load-form="player" novalidate>
       <div class="pr-plan-table-wrap"><table class="pr-plan-table"><thead><tr><th scope="col">Activity · Periodization</th>${metricHeader()}</tr></thead>
       <tbody>${rows}</tbody></table></div>
@@ -113,14 +126,13 @@ export function renderLoadPlanning(context) {
   const panels = { team: renderTeamWeek, player: playerPlan, references: referencesView };
   return `<section class="pr-plan-workbench pr-panel">
     <header class="pr-plan-heading">
-      <div><p>${rangeLabel(days)}</p><h2>Microcycle Load Plan</h2></div>
-      <span class="pr-plan-draft">${label}</span>
+      <div><h2>Microcycle Load Plan</h2><p>${rangeLabel(days)} · <span>${label}</span></p></div>
+      <div class="pr-plan-switches pr-plan-mode-switches" role="group" aria-label="Load plan view">
+        ${[["team", "Team week"], ["player", "Player plan"], ["references", "Baselines"]].map(([id, label]) =>
+          `<button type="button" data-pr-action="plan-mode" data-pr-value="${id}" data-pr-focus="plan-mode:${id}"
+            aria-pressed="${mode === id}">${label}</button>`).join("")}
+      </div>
     </header>
-    <div class="pr-plan-switches" aria-label="Load plan view">
-      ${[["team", "Team week"], ["player", "Player plan"], ["references", "Baselines"]].map(([id, label]) =>
-        `<button type="button" data-pr-action="plan-mode" data-pr-value="${id}" data-pr-focus="plan-mode:${id}"
-          aria-pressed="${mode === id}">${label}</button>`).join("")}
-    </div>
     ${phase === "ready" ? panels[mode](context) : ""}
     <p class="pr-plan-status${inlineFeedback ? " pr-plan-status-inline" : ""}" role="status">${phase === "loading" ? "Loading saved plans…" : escape(status)}</p>
     ${persisted ? `<button type="button" class="pr-plan-reference-link" data-pr-action="plan-reload"${phase === "error" || retry ? "" : " hidden"}>Reload saved values</button>` : ""}

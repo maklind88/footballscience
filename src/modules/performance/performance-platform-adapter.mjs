@@ -46,7 +46,7 @@ export function createPerformancePlatformAdapter(context) {
       sessions: canRead("session-planner") ? getSessions()?.sessions ?? {} : {},
       players,
       playersFor,
-      getAvailability: (day) => getAvailability(day, players),
+      getAvailability: (day, roster = players) => getAvailability(day, roster),
       drills: includeDrills && canRead("session-planner") ? getDrillLibrary() : [],
     };
   }

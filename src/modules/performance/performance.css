@@ -1,3 +1,5 @@
+@import url("./performance-session-review.css");
+
 #performanceWorkspace.platform-module-shell {
   width: 100%;
   padding: clamp(8px, 1.15vw, 18px);
@@ -271,7 +273,6 @@
 }
 .pr-plan-heading h2 { font-size: clamp(24px, 2.7vw, 34px); letter-spacing: -.045em; }
 .pr-plan-heading p { color: var(--pr-muted); font-size: 12px; }
-.pr-plan-draft { color: var(--pr-muted); font-size: 12px; padding-bottom: 3px; }
 .pr-plan-switches {
   display: flex;
   gap: 3px;

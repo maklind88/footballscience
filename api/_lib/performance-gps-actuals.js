@@ -21,7 +21,10 @@ function projectActuals(rows, playerIds, activityIds) {
     const comparable = metricKeys.filter((metric) =>
       Object.hasOwn(metrics, metric) && Array.isArray(row.comparable) && row.comparable.includes(metric)
     );
-    seen.set(key, Object.keys(metrics).length ? { playerId, activityId, metrics, comparable } : null);
+    const duration = row.sessionDurationMinutes;
+    const timing = Number.isFinite(duration) && duration >= 0 && duration <= 1440
+      ? { sessionDurationMinutes: duration } : {};
+    seen.set(key, Object.keys(metrics).length ? { playerId, activityId, metrics, comparable, ...timing } : null);
   }
   return [...seen.values()].filter(Boolean);
 }

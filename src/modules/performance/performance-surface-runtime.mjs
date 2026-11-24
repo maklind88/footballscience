@@ -55,6 +55,7 @@ export function createPerformanceSurfaceRuntime({
         ...sources, root, canRead, isActive, openSource: openAuthorizedSource,
         loadPlanningEnabled: canRead("player-profiles") && canRead("schedule"),
         getLoadPlanToken: getAuth()?.isDevMode?.() === true ? null : getAuthToken,
+        openLoadPlan: new URLSearchParams(win.location?.search).get("performancePlan") === "team-week",
         initialLoadPlanPlayer: () => new URLSearchParams(win.location?.search).get("performancePlayer"),
         getScope: () => JSON.stringify([getUser()?.id, getUser()?.role, getScope()]),
       });

@@ -21,11 +21,16 @@ export async function startSessionSaveBackend(timing, { seedSessions = true } = 
   const originalFetch = globalThis.fetch;
   const handlerPath = require.resolve('../../api/app-state.js');
   const actors = new Map();
+  const actorIds = new Map();
   const runId = randomUUID();
   let server, reject = false;
   const transport = receiptPostgresHttp(db, { resolveActor: authorization => actors.get(authorization), onReceipt: operationId => timing?.markCommit(operationId) });
   function actor(number, role = 'coach') {
-    const user = { id: id(number), email: `qa-${number}@example.invalid`, user_metadata: { firstName: 'Synthetic', lastName: `Editor ${number}` },
+    // Keep the same synthetic identity on reload within a case. A new
+    // backend represents new users and must have independent rate limits.
+    const actorId = actorIds.get(number) ?? randomUUID();
+    actorIds.set(number, actorId);
+    const user = { id: actorId, email: `qa-${number}@example.invalid`, user_metadata: { firstName: 'Synthetic', lastName: `Editor ${number}` },
       app_metadata: { role, status: 'active', organizationId: id(100), clubId: id(101), teamId: id(102) } };
     const token = `qa-set-pieces-token-${user.id}`;
     // Existing browser fixture uses the actor ID in its synthetic bearer.

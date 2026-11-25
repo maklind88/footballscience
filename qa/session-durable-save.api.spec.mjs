@@ -207,6 +207,9 @@ function harness(options = {}) {
       rows.set(rebased.change.id, copy(rebased));
     },
     remove: async (id) => { rows.delete(id); },
+    // This memory fixture tests domain/replay only. Atomic checkpoint durability
+    // is covered with real IndexedDB and process crashes in accepted-base tests.
+    acknowledge: async (row) => { if (state.failStore) throw new Error("Local storage full"); rows.delete(row.change.id); },
   };
   function client() {
     const result = createSessionSaveClient({ getScope: () => state.scope, store, makeId,

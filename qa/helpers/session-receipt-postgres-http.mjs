@@ -1,6 +1,6 @@
 // A local-only PostgREST boundary for exercising the real API and real SQL
 // together. Auth/Storage are synthetic; there is no fallback to network fetch.
-export function receiptPostgresHttp(db) {
+export function receiptPostgresHttp(db, { resolveActor, onReceipt = () => {} } = {}) {
   const objects = new Map();
   const user = { id: "receipt-coach", email: "receipt@example.invalid", user_metadata: { firstName: "QA", lastName: "Coach" },
     app_metadata: { role: "coach", status: "active" } };
@@ -17,7 +17,10 @@ export function receiptPostgresHttp(db) {
     async fetch(url, options = {}) {
       const parsed = new URL(url), method = options.method || "GET";
       if (parsed.hostname !== "example.supabase.co") throw new Error("External network is forbidden in this test");
-      if (parsed.pathname === "/auth/v1/user") return response(user);
+      if (parsed.pathname === "/auth/v1/user") {
+        const actor = resolveActor ? resolveActor(new Headers(options.headers).get("authorization")) : user;
+        return actor ? response(actor) : response({}, 401);
+      }
       if (parsed.pathname === "/storage/v1/bucket/footballscience-app-state") return response({ id: "footballscience-app-state" });
       const storagePrefix = "/storage/v1/object/footballscience-app-state/";
       if (parsed.pathname.startsWith(storagePrefix)) {
@@ -48,8 +51,10 @@ export function receiptPostgresHttp(db) {
         for (const column of ["organization_id", "state_key", "actor_id", "operation_id"]) {
           const value = parsed.searchParams.get(column);
           if (!value) continue;
-          if (!value.startsWith("eq.")) throw new Error("Unsupported local filter");
-          filters.push(`${column} = ${quote(value.slice(3))}`);
+          if (value.startsWith("eq.")) filters.push(`${column} = ${quote(value.slice(3))}`);
+          else if (table === "platform_app_state_records" && column === "state_key" && /^in\.\([\w,-]+\)$/.test(value)) {
+            filters.push(`${column} in (${value.slice(4, -1).split(",").map(quote).join(",")})`);
+          } else throw new Error("Unsupported local filter");
         }
         const order = table === "session_save_effects" ? "order by created_at desc" : "";
         const limit = Number(parsed.searchParams.get("limit") || 200);
@@ -63,6 +68,7 @@ export function receiptPostgresHttp(db) {
         const result = await query(`select public.commit_session_save(${json(b.p_entry)}, ${Number(b.p_base_revision)},
           ${quote(b.p_operation_id)}, ${quote(b.p_operation_hash)}, ${quote(b.p_session_date)}::date,
           ${quote(b.p_actor_id)}, ${json(b.p_effects)})`);
+        if (result?.status === "committed") onReceipt(b.p_operation_id);
         if (loseRpc) { loseRpc = false; throw new TypeError("Synthetic RPC reply lost after database commit"); }
         return response(result);
       }

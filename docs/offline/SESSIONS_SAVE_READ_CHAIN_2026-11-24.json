@@ -1,0 +1,438 @@
+{
+  "schema": "footballscience-save-read-chain-evidence-v1",
+  "date": "2026-11-24",
+  "base": "d490f2a26620b3dc7183a34edc8eab75ce805240",
+  "branch": "codex/sessions-save-read-chain-20261124",
+  "environment": {
+    "os": "macOS 26.2",
+    "node": "24.15.0",
+    "playwright": "1.59.1",
+    "postgresql": "17.12 Postgres.app, disposable socket-only cluster",
+    "database": "real SQL and product API handlers; synthetic Auth, PostgREST adapter and object storage",
+    "realUserData": false,
+    "production": false
+  },
+  "checks": {
+    "sessionsIntegrated": 10,
+    "medicalIntegrated": 2,
+    "sessionsFocusedContracts": 237,
+    "sessionsAdditionalBrowser": 20,
+    "sessionsApiSlice": 17,
+    "sessionsNativeReceiptTests": 8,
+    "medicalNativeRegression": 20,
+    "diagnosticsPrivacy": 1,
+    "qaStatic": "passed",
+    "releaseRules": "passed"
+  },
+  "sessions": {
+    "status": "passed",
+    "results": [
+      {
+        "test": "editor saves through authoritative SQL receipt and fresh client sees it despite cache failure",
+        "status": "passed",
+        "durationMs": 9217,
+        "evidence": [
+          {
+            "kind": "Sessions save chain metrics",
+            "result": {
+              "timings": [
+                {
+                  "commitToIndependentViewMs": 1876,
+                  "acknowledgementToIndependentViewMs": 1874,
+                  "committed": true,
+                  "acknowledged": true,
+                  "independentlyVisible": true
+                }
+              ],
+              "journal": {
+                "journal": "read",
+                "pendingCount": 0,
+                "oldestPendingAgeMs": null,
+                "unmeasurablePendingCount": 0,
+                "reviewCounts": {
+                  "centralConflict": 0,
+                  "earlierVersion": 0,
+                  "unknown": 0
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "test": "full localStorage keeps a durable pending change across browser crash and later sync",
+        "status": "passed",
+        "durationMs": 11912,
+        "evidence": [
+          {
+            "kind": "Sessions save chain metrics",
+            "result": {
+              "journal": {
+                "journal": "read",
+                "pendingCount": 1,
+                "oldestPendingAgeMs": 166,
+                "unmeasurablePendingCount": 0,
+                "reviewCounts": {
+                  "centralConflict": 0,
+                  "earlierVersion": 0,
+                  "unknown": 0
+                }
+              }
+            }
+          },
+          {
+            "kind": "Sessions save chain metrics",
+            "result": {
+              "timings": [
+                {
+                  "commitToIndependentViewMs": 2780,
+                  "acknowledgementToIndependentViewMs": 2778,
+                  "committed": true,
+                  "acknowledged": true,
+                  "independentlyVisible": true
+                }
+              ],
+              "journal": {
+                "journal": "read",
+                "pendingCount": 0,
+                "oldestPendingAgeMs": null,
+                "unmeasurablePendingCount": 0,
+                "reviewCounts": {
+                  "centralConflict": 0,
+                  "earlierVersion": 0,
+                  "unknown": 0
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "test": "when both browser stores reject writes, latest edit is visibly volatile and restart preserves prior server version",
+        "status": "passed",
+        "durationMs": 11365,
+        "evidence": [
+          {
+            "kind": "Browser quota faults",
+            "result": {
+              "actualIdbQuota": "QuotaExceededError",
+              "actualLocalQuota": "QuotaExceededError",
+              "journalWriteRejections": 1
+            }
+          }
+        ]
+      },
+      {
+        "test": "lost HTTP receipt reconciles the same operation once and preserves the later change across restart",
+        "status": "passed",
+        "durationMs": 28261,
+        "evidence": [
+          {
+            "kind": "Sessions save chain metrics",
+            "result": {
+              "timings": [
+                {
+                  "commitToIndependentViewMs": 15949,
+                  "acknowledgementToIndependentViewMs": null,
+                  "committed": true,
+                  "acknowledged": true,
+                  "independentlyVisible": true
+                },
+                {
+                  "commitToIndependentViewMs": 3249,
+                  "acknowledgementToIndependentViewMs": 3248,
+                  "committed": true,
+                  "acknowledged": true,
+                  "independentlyVisible": true
+                }
+              ],
+              "journal": {
+                "journal": "read",
+                "pendingCount": 0,
+                "oldestPendingAgeMs": null,
+                "unmeasurablePendingCount": 0,
+                "reviewCounts": {
+                  "centralConflict": 0,
+                  "earlierVersion": 0,
+                  "unknown": 0
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "test": "server acceptance is visible while the failed durable checkpoint retains its journal",
+        "status": "passed",
+        "durationMs": 10352,
+        "evidence": [
+          {
+            "kind": "Sessions save chain metrics",
+            "result": {
+              "timings": [
+                {
+                  "commitToIndependentViewMs": 3149,
+                  "acknowledgementToIndependentViewMs": 3148,
+                  "committed": true,
+                  "acknowledged": true,
+                  "independentlyVisible": true
+                }
+              ],
+              "journal": {
+                "journal": "read",
+                "pendingCount": 0,
+                "oldestPendingAgeMs": null,
+                "unmeasurablePendingCount": 0,
+                "reviewCounts": {
+                  "centralConflict": 0,
+                  "earlierVersion": 0,
+                  "unknown": 0
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "test": "two editors merge independent changes and a fresh third user sees both",
+        "status": "passed",
+        "durationMs": 10313,
+        "evidence": [
+          {
+            "kind": "Sessions save chain metrics",
+            "result": {
+              "timings": [
+                {
+                  "commitToIndependentViewMs": 3266,
+                  "acknowledgementToIndependentViewMs": 3265,
+                  "committed": true,
+                  "acknowledged": true,
+                  "independentlyVisible": true
+                },
+                {
+                  "commitToIndependentViewMs": 2775,
+                  "acknowledgementToIndependentViewMs": 2772,
+                  "committed": true,
+                  "acknowledged": true,
+                  "independentlyVisible": true
+                }
+              ],
+              "journal": {
+                "journal": "read",
+                "pendingCount": 0,
+                "oldestPendingAgeMs": null,
+                "unmeasurablePendingCount": 0,
+                "reviewCounts": {
+                  "centralConflict": 0,
+                  "earlierVersion": 0,
+                  "unknown": 0
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "test": "two editors retain explicit review for same field",
+        "status": "passed",
+        "durationMs": 10069,
+        "evidence": [
+          {
+            "kind": "Sessions save chain metrics",
+            "result": {
+              "timings": [
+                {
+                  "commitToIndependentViewMs": 2960,
+                  "acknowledgementToIndependentViewMs": 2958,
+                  "committed": true,
+                  "acknowledged": true,
+                  "independentlyVisible": true
+                }
+              ],
+              "journal": {
+                "journal": "read",
+                "pendingCount": 0,
+                "oldestPendingAgeMs": null,
+                "unmeasurablePendingCount": 0,
+                "reviewCounts": {
+                  "centralConflict": 1,
+                  "earlierVersion": 0,
+                  "unknown": 0
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "test": "two editors retain explicit review for block deletion",
+        "status": "passed",
+        "durationMs": 11774,
+        "evidence": [
+          {
+            "kind": "Sessions save chain metrics",
+            "result": {
+              "timings": [
+                {
+                  "commitToIndependentViewMs": 3549,
+                  "acknowledgementToIndependentViewMs": 3547,
+                  "committed": true,
+                  "acknowledged": true,
+                  "independentlyVisible": true
+                }
+              ],
+              "journal": {
+                "journal": "read",
+                "pendingCount": 0,
+                "oldestPendingAgeMs": null,
+                "unmeasurablePendingCount": 0,
+                "reviewCounts": {
+                  "centralConflict": 1,
+                  "earlierVersion": 0,
+                  "unknown": 0
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "test": "full app cold navigation without network remains an explicit offline limitation",
+        "status": "passed",
+        "durationMs": 5959,
+        "evidence": [
+          {
+            "kind": "Full app cold start outcome",
+            "result": {
+              "fullAppOfflineReady": false,
+              "result": "browser-navigation-blocked",
+              "newBrowserProcess": true
+            }
+          }
+        ]
+      },
+      {
+        "test": "API distinguishes authorized absence from denied lookup without creating a baseline",
+        "status": "passed",
+        "durationMs": 1794,
+        "evidence": []
+      }
+    ]
+  },
+  "medical": {
+    "date": "2026-11-24",
+    "baseline": "d490f2a26620b3dc7183a34edc8eab75ce805240",
+    "probe": "medical-saved-recommendation-cross-view-visibility",
+    "backend": "Native isolated PostgreSQL 17.12, real application API handlers and SQL projector, synthetic Auth and PostgREST transport",
+    "browserHarness": "Playwright 1.59.1; independent synthetic signed-in contexts",
+    "verified": [
+      "Canonical acceptance and committed row",
+      "Coach-safe projection and privileged read separately",
+      "Both fresh opening orders",
+      "No false confirmed value during held read",
+      "Denied cache write with correct displayed recommendation",
+      "Unset on other date",
+      "Denied scout could open Sessions but lacked Medical navigation and recommendation",
+      "Medical data unchanged after browser reads"
+    ],
+    "timingBasis": "Elapsed local test time from accepted POST through sequential setup and independent view verification; descriptive measurements, no performance threshold",
+    "limitations": [
+      "App-state aggregate is global; role and declared team context verified but no cross-team row-isolation guarantee",
+      "API separates authorized absence from policy omission. Sessions UI lacks distinct messages for all pending, unavailable and denied states.",
+      "Synthetic Auth and PostgREST transport; no production or physical mobile checks"
+    ],
+    "firstBaselineRerun": {
+      "chromium": "passed",
+      "webkit": "failed; Medical response was not delivered to the browser",
+      "routeStartedResponseMs": 9321,
+      "routeCompletedMs": 9758,
+      "appRequestDeadlineMs": 10000,
+      "browserResponseStatus": null,
+      "visibleBucketCountAtFailure": 0,
+      "correction": "Test-only: run real DB while holding delivery, then verify browser response before checking rendering. No deadline increase.",
+      "implication": "The Sessions counts did not explain that the Medical read did not complete."
+    },
+    "runs": [
+      {
+        "browser": "confirmation-chromium",
+        "status": "passed",
+        "durationMs": 21931,
+        "measurements": [
+          {
+            "firstView": "medical",
+            "receiptToVisibleMs": 4283
+          },
+          {
+            "firstView": "sessions",
+            "receiptToVisibleMs": 9133
+          }
+        ],
+        "blockedUnrelatedWrites": 3
+      },
+      {
+        "browser": "confirmation-webkit",
+        "status": "passed",
+        "durationMs": 36636,
+        "measurements": [
+          {
+            "firstView": "medical",
+            "receiptToVisibleMs": 13295
+          },
+          {
+            "firstView": "sessions",
+            "receiptToVisibleMs": 23062
+          }
+        ],
+        "blockedUnrelatedWrites": 3
+      }
+    ],
+    "earlierNativeRegression": {
+      "baseline": "28498130b67fa7c964bbd955727150dcc26ec477",
+      "passed": 20,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "testEvidenceHashes": {
+    "fs-saving-chain-terminal.log": "7d03c3fa995465d3ed88a9adb57e714d87167051260deee8aab22f3904526f35",
+    "fs-saving-chain-medical-latest-corrected.log": "5f110abc91b3ae70041869bd95198f22821bea4fa7c1c3d664f136514f990c47",
+    "fs-saving-status-peer-contract.log": "d525313df0913d357e2933775860deef569a606243485c7277ca07e62ec45de5",
+    "fs-saving-status-peer-smoke.log": "149c69a86e2dfbc320fb5a1fc47218279ec0a5aa562fea183ccd63b47126890f",
+    "fs-saving-status-api.log": "56a30a3a5342705023954e00a9104726713e28ca89eb73cf930c666cd49b5ff6",
+    "fs-saving-status-native.log": "2f7a94789713f987dd9c85917dfe076d9a38dd1b9da4d46b2e5c92f43b72e09a",
+    "fs-saving-chain-medical-regression.log": "d75d5ab6867c1e8d3e2c38602b0169e70a34f316e4b1e1ee8b0b36e93313dea5",
+    "fs-saving-chain-exact-static.log": "c364ac8dcd41a31c56adc465b292f09efb31d8b5b20133715ccac4274c423861",
+    "fs-saving-chain-final-rules.log": "efb18ab4337265efb875d66fd2f56b82c24ed3ab70aee0c46cc11a731b702311"
+  },
+  "sourceHashes": {
+    ".github/workflows/medical-projection-native.yml": "6a0d0c8c0c43eb7e2d51469d4c3287b9ebec0b35d8bfa6a56b0932109994a920",
+    ".github/workflows/session-backup-native.yml": "5889be442ea50c225bae3f778d58678978ad7fc2954e710357edad0d6ffbfea8",
+    "platform-auth-boot.js": "556205f570f0f0065443b6bd6e6c80f215758b46763d63164ea3fe5baf8958f8",
+    "platform-feedback.css": "4dbd7abf0028b026d1d477e33af64757d4cb1a5fbf632e0ebdd0f9e3138a6f8a",
+    "qa/api-contracts.api.spec.mjs": "e1473b3b7a32dace147a793546cb331279b49e8d4531a9dd37e308a6eca804f4",
+    "qa/central-sync-runtime-service-contract.api.spec.mjs": "dd1a36b89be9d6254bbeb12e59779466ffd3077f6393221398a57df7b1c824f2",
+    "qa/helpers/medical-confirmation-postgres.mjs": "8152e940133ab18e1c9dd7fd85d6cce40ea6452339c1fac707da41f40879bcf1",
+    "qa/helpers/session-receipt-postgres-http.mjs": "d4fb2e12b3e54b8321c8033f3b5d0775d1f7c172512314140d8dae43dcf4611b",
+    "qa/helpers/session-save-chain-backend.mjs": "ce045bc1a26f935ae6d590f1a57d86998b0555844bfe143007bba52f30999a8e",
+    "qa/helpers/session-save-chain-diagnostics.mjs": "5c47a4e254b7bacfb25a1f2807ab6d703c3cf5d50b653c918b081607234973ba",
+    "qa/helpers/session-save-chain-profile.mjs": "4092f95fa8334f4bf7632244a0a36d78eeb81db4cd95961853cbaf0dd649b0f3",
+    "qa/helpers/session-save-chain-reporter.mjs": "c036cf3429c45447fb91822b0c4b60723bc04fe0eab923fee08ccc5ebc0137ba",
+    "qa/medical-saving-chain.native-browser.spec.mjs": "c83d3ab815af3366ef803a619a83d987ca180fa80a2665eabbc19cd8240d1548",
+    "qa/playwright.medical-confirmation.config.mjs": "987db14276bc40047c48a0a2ede9b4937b51da4477a047330c84607af41f545c",
+    "qa/playwright.session-saving-chain.config.mjs": "fa81be842161912253f1b0a9cbd52640b58451ad67e1b6cc3783a6cb4b81f342",
+    "qa/session-accepted-base.smoke.spec.mjs": "7c71bede91cf7c09371b8775f49a2ca645e437ba98cb04191801c613a2c4d4e6",
+    "qa/session-browser-crash.smoke.spec.mjs": "592fc1a39611ada8419bc8e817441a5b571863ade261b6ecb9ee08a82658a112",
+    "qa/session-durable-save.api.spec.mjs": "dcb166bf5e28c48fe32ceb607a24e82eaf8d78d60ec313bf768f1031c8343554",
+    "qa/session-planner-module-contract.api.spec.mjs": "13b36361a2cd095a192046e393896e3cbcd612e29109390edeb2522f93af0fb3",
+    "qa/session-replay-coalescing.api.spec.mjs": "08c789dbfd6a4815625e403f554bc0a55cc80738b3209fd0a084594c5b242caf",
+    "qa/session-save-chain-diagnostics.smoke.spec.mjs": "71207030198acff2763c4cd0646d1ad83eedce6241799c66c1761db41d8d0089",
+    "qa/session-save-chain.native-browser.spec.mjs": "8c010466b09b1b0f663c3fd707fbd8025b185db29bc8f494326ae8c86f8a5098",
+    "qa/session-save-receipts-integration-native.test.mjs": "10f97ada005eacc514a8ca349a7b80c52f61a278d21bfd7ede13d10dfe9e8a15",
+    "src/core/central-sync-runtime-service.mjs": "379b1f6a20f8b9bb5fd5316137707aedf8e5b182211e37eee14ebbe1712f7036",
+    "src/core/platform-autosave-status.mjs": "4e067e221012a1352cd09e60e7ae10ac3637acccfe80f4d708984780531cde3e",
+    "src/modules/session-planner/session-accepted-base.mjs": "b2976965f05cd05c42c855b456fb4e40c7bb489f939aab8ae80bad2da5b6c3fb",
+    "src/modules/session-planner/session-planner-autosave.mjs": "badd734e9b55fa05b6f28014c77e292f7b5248e8e5ed943e2dc3df7a9d4a38c9",
+    "src/modules/session-planner/session-save-client.mjs": "862cdde9b73d903b251ca7ae6d0873deca9a0c95bf150a3bd0b692ce8054c612",
+    "src/modules/session-planner/session-save-store.mjs": "184790138a6c12e8b369ba6cb17a219b7af0e508d9145f13af6e37116074b00d"
+  }
+}

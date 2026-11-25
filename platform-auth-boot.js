@@ -941,6 +941,7 @@ async function getActiveAccessToken() {
       durable: options.durable !== false,
       serverBacked: Boolean(options.serverBacked),
       ...(options.sessionViewToken ? { sessionViewToken: options.sessionViewToken } : {}),
+      ...(options.sessionOnlyPendingOperationId !== undefined ? { sessionOnlyPendingOperationId: options.sessionOnlyPendingOperationId } : {}),
       ...(options.readScope ? { readScope: options.readScope } : {}),
       ...(options.allowExplicitWrite ? { allowExplicitWrite: true } : {}),
     });
@@ -1839,7 +1840,7 @@ async function getActiveAccessToken() {
             if (cached.source === "session-journal-pending" && !cached.sessionViewToken) return;
             const projectedValue = preserveSessionSaveLocalUi(sessionView.value, window.localStorage.getItem(key) || "{}");
             setCentralCachedValue(key, projectedValue, { source: "session-journal-pending", durable: false,
-              serverBacked: false, sessionViewToken: sessionView.draftToken });
+              serverBacked: false, sessionViewToken: sessionView.draftToken, sessionOnlyPendingOperationId: sessionView.solePendingOperationId });
             return;
           }
         }
@@ -2184,11 +2185,10 @@ async function getActiveAccessToken() {
           result.value = preserveSessionSaveLocalUi(result.value, String(value));
         }
         if (result.metadata?.revision) centralState.metadata[key] = { ...centralState.metadata[key], ...result.metadata };
-        centralState.lastWriteError = result.ok ? "" : result.reason;
-        if (result.ok) {
-          centralState.lastSyncedAt = new Date().toISOString();
-          centralState.lastSavedAt = centralState.lastSyncedAt;
-        }
+        const serverConfirmed = result.ok || result.centralAcknowledged === true;
+        centralState.lastWriteError = serverConfirmed ? "" : result.reason;
+        if (serverConfirmed) centralState.lastSyncedAt = new Date().toISOString();
+        if (result.ok) centralState.lastSavedAt = centralState.lastSyncedAt;
         return result;
       }
       if (key === SET_PIECES_ROOM_STATE_KEY && !options.removed) {

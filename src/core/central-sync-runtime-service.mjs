@@ -385,19 +385,13 @@ export function createCentralSyncRuntimeService(deps = {}) {
   }
 
   function finishAcknowledgedWrite(write, result) {
-    if (write.journalOnlyReplay && getCentralStateBridge()?.getSessionWorkingCopy?.()) {
+    if (write.key === sessionPlannerStorageKey && getCentralStateBridge()?.getSessionWorkingCopy?.()) {
       const issue = "Newer training changes are not saved on this device. Keep this page open and retry.";
       reportSyncStatus(write.key, "issue", issue);
       return issue;
     }
     write = reconcileScheduleAcknowledgementOrder(write);
-    const cached = getCentralStateBridge()?.getCachedValueInfo?.(write.key);
-    // A read projection can refresh unrelated server fields without creating a
-    // new edit. Only that exact draft generation may accept this receipt.
-    if (write.key === sessionPlannerStorageKey && write.sessionViewToken &&
-        cached?.sessionViewToken === write.sessionViewToken && cached.source === "session-journal-pending") {
-      write = { ...write, value: cached.value };
-    }
+    write = useCurrentSessionProjection(write);
     advanceQueuedWriteBaseRevision(write.key, result);
     const successorIssue = centralStateWriteQueue.get(write.key)?.predecessorAckRevision ? successorPersistenceIssue : "";
     if (successorIssue) reportSyncStatus(write.key, "issue", successorIssue);
@@ -407,9 +401,24 @@ export function createCentralSyncRuntimeService(deps = {}) {
     // Refresh callbacks can create a newer edit. Never acknowledge it with A's receipt.
     if (currentBeforeApply && isCentralStateWriteGenerationCurrent({ ...write, value: applied?.appliedValue ?? write.value })) {
       if (!write.journalOnlyReplay) setCentralSyncPendingState(write.key, false, write.removed);
-      reportSyncStatus(write.key, applied?.issue ? "issue" : "saved", applied?.issue || "Saved");
+      const label = write.key === sessionPlannerStorageKey && result.centralAcknowledged === true ? "Saved centrally" : "Saved";
+      reportSyncStatus(write.key, applied?.issue ? "issue" : "saved", applied?.issue || label);
     }
     return applied?.issue || successorIssue;
+  }
+
+  function useCurrentSessionProjection(write) {
+    const cached = getCentralStateBridge()?.getCachedValueInfo?.(write.key);
+    // Hydration can update the projection without creating a new local edit.
+    if (write.key === sessionPlannerStorageKey && write.sessionViewToken &&
+        cached?.sessionViewToken === write.sessionViewToken && cached.source === "session-journal-pending") {
+      return { ...write, value: cached.value };
+    }
+    return write;
+  }
+
+  function isLatestSessionWrite(write, bridge) {
+    return isCentralStateWriteGenerationCurrent(useCurrentSessionProjection(write)) && !bridge.getSessionWorkingCopy?.();
   }
 
   function persistCentralStateServerRevision(key, result = {}) {
@@ -728,8 +737,28 @@ export function createCentralSyncRuntimeService(deps = {}) {
       if (write.readAcknowledged) continue;
       if (result?.staleContext) continue;
       if (bridge.getCachedValueInfo?.(write.key)?.source === "central-readonly-baseline") continue;
+      if (write.key === sessionPlannerStorageKey && result?.centralAcknowledged === true && result.localCheckpointPending === true) {
+        // The server accepted the edit; the original journal is still the retry
+        // source. Do not treat this as a conflict or finalize a local save.
+        if (isLatestSessionWrite(write, bridge)) {
+          const projectedOperation = bridge.getCachedValueInfo?.(write.key)?.sessionOnlyPendingOperationId;
+          // The tab's draft token can also identify a projection that includes
+          // peer journal entries. Match the operation, not the rendered bytes.
+          const exactProjection = projectedOperation === undefined || projectedOperation === result.acknowledgedOperationId;
+          const confirmedLatest = result.allPendingAcknowledged && exactProjection;
+          flushIssue = result.allPendingAcknowledged && !exactProjection
+            ? "A change was saved centrally. The offline copy could not be updated. Check other changes for pending sync."
+            : result.reason;
+          reportSyncStatus(write.key, confirmedLatest ? "checkpoint-pending" : "issue", flushIssue);
+        }
+        write.retryAfterFailure = true;
+        if (!centralStateWriteQueue.has(write.key)) centralStateWriteQueue.set(write.key, write);
+        retryBlocked = true;
+        continue;
+      }
       if (!result?.ok) {
         if (result?.reviewRequired) {
+          if (write.key === sessionPlannerStorageKey && !isLatestSessionWrite(write, bridge)) continue;
           flushIssue = result.reason;
           if (!write.journalOnlyReplay) setCentralSyncPendingState(write.key, true, false);
           queueCentralStateStatus(result.reason);
@@ -778,8 +807,11 @@ export function createCentralSyncRuntimeService(deps = {}) {
           // is not a receipt: retain durable retry/recovery intent for a later
           // explicit edit or external recovery event after access is restored.
           if (write.key === sessionPlannerStorageKey && result.durablePending) {
+            if (!isLatestSessionWrite(write, bridge)) continue;
             if (!write.journalOnlyReplay) setCentralSyncPendingState(write.key, true, false);
-            flushIssue = result.reason || "Local changes retained; access denied.";
+            flushIssue = "Saved locally. Access to central saving was denied.";
+            reportSyncStatus(write.key, "issue", flushIssue);
+            continue;
           } else if (isCentralStateWriteGenerationCurrent(write)) {
             setCentralSyncPendingState(write.key, true, write.removed);
           }
@@ -788,12 +820,17 @@ export function createCentralSyncRuntimeService(deps = {}) {
         }
         // Retain this failed generation, but let other verified modules finish.
         // A failed pass must not schedule itself again; external recovery can retry.
+        const supersededSessionWrite = write.key === sessionPlannerStorageKey && result?.durablePending && !isLatestSessionWrite(write, bridge);
         write.retryAfterFailure = true;
         if (!centralStateWriteQueue.has(write.key)) centralStateWriteQueue.set(write.key, write);
         retryBlocked = true;
-        flushIssue ||= result?.reason || "Sync failed.";
+        if (supersededSessionWrite) continue;
+        const failedMessage = result?.reason || "Sync failed.";
+        const message = write.key === sessionPlannerStorageKey && result?.durablePending
+          ? `Saved locally. Central save not confirmed. ${failedMessage}` : failedMessage;
+        flushIssue ||= message;
         queueCentralStateStatus(flushIssue);
-        reportSyncStatus(write.key, "issue", result?.reason || "Sync failed.");
+        reportSyncStatus(write.key, "issue", message);
         continue;
       }
       flushIssue = finishAcknowledgedWrite(write, result) || flushIssue;

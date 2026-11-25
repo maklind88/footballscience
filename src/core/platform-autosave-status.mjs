@@ -1,7 +1,8 @@
-const supportedAutosaveStates = new Set(["saved", "saving", "issue", "conflict"]);
+const supportedAutosaveStates = new Set(["saved", "saving", "issue", "conflict", "checkpoint-pending"]);
 
 export function getPlatformAutosaveStatusLabel(state = "saved") {
   if (state === "saving") return "Saving";
+  if (state === "checkpoint-pending") return "Saved centrally";
   if (state === "issue" || state === "conflict") return "Sync issue";
   return "Saved";
 }

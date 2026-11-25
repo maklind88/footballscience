@@ -1237,7 +1237,8 @@ for (const database of [false, true]) {
       };
       let loseReceipt = true;
       const client = createSessionSaveClient({ getScope: () => "synthetic-coach-scope",
-        store: { list: async () => structuredClone([...journal.values()]), put: async (record) => journal.set(record.change.id, structuredClone(record)), remove: async (id) => journal.delete(id) },
+        store: { list: async () => structuredClone([...journal.values()]), put: async (record) => journal.set(record.change.id, structuredClone(record)), remove: async (id) => journal.delete(id),
+          acknowledge: async (row) => journal.delete(row.change.id) }, // Memory transport fixture; real IDB checkpoint has separate coverage.
         send: async (...args) => {
           const result = await post(...args);
           if (loseReceipt && result.ok) { loseReceipt = false; return { ok: false, status: 0, payload: { reason: "Synthetic response lost after commit" } }; }

@@ -923,6 +923,7 @@ test("an external retry resumes a timed-out queued Sessions save without losing 
   expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
   expect(h.rawValues.get(key)).toBe(value);
   expect(h.autosaveStatuses.some(([, status]) => status === "saved")).toBe(false);
+  expect(h.autosaveStatuses.at(-1)).toEqual([key, "issue", "Saved locally. Central save not confirmed. Request timed out. Try again."]);
 
   await h.service.retryCentral(() => h.manifest);
   await h.service.retryCentral(() => h.manifest);
@@ -934,6 +935,73 @@ test("an external retry resumes a timed-out queued Sessions save without losing 
   expect(h.autosaveStatuses.at(-1)).toEqual([key, "saved", "Saved"]);
   expect(h.timers.size).toBe(0);
 });
+
+for (const mode of ["current", "newer-in-memory", "other-pending"]) {
+  test(`an accepted Sessions write with a failed local checkpoint reports only its own generation (${mode})`, async () => {
+    const key = "football-session-planner-v1";
+    const local = "local training";
+    const issue = mode === "other-pending"
+      ? "Some changes were saved centrally. The offline copy could not be updated, and other changes still await sync."
+      : "Offline recovery copy could not be updated.";
+    const h = createServiceHarness({ syncResults: [
+      { ok: false, centralAcknowledged: true, localCheckpointPending: true, durablePending: true,
+        allPendingAcknowledged: mode !== "other-pending", reason: issue, metadata: { revision: 8 } },
+      { ok: true, centralAcknowledged: true, value: local, metadata: { revision: 8 } },
+    ] });
+    const bridge = h.win.footballScienceCentralState;
+    let working = null;
+    bridge.getSessionWorkingCopy = () => working;
+    bridge.stageSessionWrite = async () => ({ ok: true });
+    h.rawValues.set(key, local);
+    h.service.queueCentralStateWrite(key, local);
+    if (mode === "newer-in-memory") working = { value: "a different latest edit" };
+    const fire = () => {
+      expect(h.timers.size).toBe(1);
+      const [id, run] = [...h.timers][0];
+      h.timers.delete(id);
+      return run();
+    };
+    await fire();
+    expect(h.timers.size).toBe(0);
+    expect(h.rawValues.get(key)).toBe(local);
+    expect(h.handledKeys).toEqual([]);
+    expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+    expect(h.autosaveStatuses.at(-1)).toEqual(mode === "newer-in-memory" ? [key, "saving", "Saving"]
+      : [key, mode === "current" ? "checkpoint-pending" : "issue", issue]);
+    if (mode !== "newer-in-memory") {
+      await h.service.retryCentral(() => h.manifest);
+      await fire();
+      expect(h.syncCalls).toHaveLength(2);
+      expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
+      expect(h.autosaveStatuses.at(-1)).toEqual([key, "saved", "Saved centrally"]);
+    }
+  });
+}
+
+for (const projectedOperationId of ["op-a", null, "op-b"]) {
+  test(`checkpoint status matches the pending operation behind a session projection (${projectedOperationId})`, async () => {
+    const key = "football-session-planner-v1";
+    const cachedInfo = { source: "session-journal-pending", sessionViewToken: "draft-a", value: "original training" };
+    const h = createServiceHarness({ cachedInfo, syncKey: () => {
+      // Hydration retains A's tab token in both cases, even when a peer row
+      // entered the projection after the save client checked its journal.
+      cachedInfo.value = "updated training projection";
+      cachedInfo.sessionOnlyPendingOperationId = projectedOperationId;
+      h.rawValues.set(key, cachedInfo.value);
+      return { ok: false, centralAcknowledged: true, localCheckpointPending: true, allPendingAcknowledged: true,
+        acknowledgedOperationId: "op-a", reason: "Offline recovery copy could not be updated." };
+    } });
+    h.rawValues.set(key, cachedInfo.value);
+    h.service.queueCentralStateWrite(key, cachedInfo.value);
+    await h.service.flushCentralStateWrites();
+    expect(h.manifest.entries[key].pendingCentralSync).toBe(true);
+    expect(h.rawValues.get(key)).toBe("updated training projection");
+    expect(h.handledKeys).toEqual([]);
+    expect(h.autosaveStatuses.at(-1)).toEqual(projectedOperationId === "op-a"
+      ? [key, "checkpoint-pending", "Offline recovery copy could not be updated."]
+      : [key, "issue", "A change was saved centrally. The offline copy could not be updated. Check other changes for pending sync."]);
+  });
+}
 
 test("external recovery drains the real Sessions journal after a lost reply with server revision checks", async () => {
   const key = "football-session-planner-v1", date = "2026-09-14", scope = "qa-coach:qa-org:qa-team";
@@ -950,6 +1018,7 @@ test("external recovery drains the real Sessions journal after a lost reply with
       list: async (owner) => [...rows.values()].filter((row) => row.scope === owner).map((row) => structuredClone(row)),
       put: async (row) => { rows.set(row.change.id, structuredClone(row)); },
       remove: async (rowId) => { rows.delete(rowId); },
+      acknowledge: async (row) => { rows.delete(row.change.id); }, // Memory transport fixture; IDB covered separately.
     },
     send: async (change, baseRevision) => {
       posts.push({ change: structuredClone(change), baseRevision });
@@ -997,7 +1066,7 @@ test("external recovery drains the real Sessions journal after a lost reply with
   expect(rows.size).toBe(0);
   expect(await client.isSettled()).toBe(true);
   expect(h.manifest.entries[key].pendingCentralSync).toBe(false);
-  expect(h.autosaveStatuses.at(-1)).toEqual([key, "saved", "Saved"]);
+  expect(h.autosaveStatuses.at(-1)).toEqual([key, "saved", "Saved centrally"]);
   expect(h.timers.size).toBe(0);
 });
 

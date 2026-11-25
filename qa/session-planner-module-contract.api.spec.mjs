@@ -572,6 +572,11 @@ test("Session Planner saved feedback only appears around a real save lifecycle",
   controller.set("issue", "Sync needs attention");
   expect(statusElement.classList.contains("is-idle")).toBe(false);
   expect(statusElement.innerHTML).toContain("Sync needs attention");
+
+  controller.set("checkpoint-pending", "Offline recovery copy could not be updated.");
+  expect(statusElement.classList.contains("is-checkpoint-pending")).toBe(true);
+  expect(statusElement.innerHTML).toContain("<strong>Saved centrally</strong>");
+  expect(statusElement.innerHTML).toContain("<small>Offline recovery copy could not be updated.</small>");
 });
 
 test("Session Planner autosave boundary only surfaces active session writes and sync issues", () => {

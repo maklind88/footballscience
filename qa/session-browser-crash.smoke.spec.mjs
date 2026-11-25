@@ -132,10 +132,10 @@ for (const committed of [false, true]) {
     expect(journal).toHaveLength(2);
     if (committed) {
       await page.evaluate(() => {
-        const remove = window.saveStore.remove;
+        const acknowledge = window.saveStore.acknowledge;
         window.retired = false;
-        window.saveStore.remove = async id => {
-          await remove(id); window.retired = true;
+        window.saveStore.acknowledge = async (...args) => {
+          await acknowledge(...args); window.retired = true;
           await new Promise(() => {});
         };
       });

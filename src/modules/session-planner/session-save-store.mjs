@@ -1,4 +1,5 @@
 import { createLocalDatabaseConnection } from "../../core/local-database-connection.mjs";
+import { createSessionAcceptedBase } from "./session-accepted-base.mjs";
 
 const prefix = "session-save:";
 
@@ -16,6 +17,7 @@ export function createSessionSaveStore({ indexedDB = globalThis.indexedDB } = {}
     });
   }
   return {
+    ...createSessionAcceptedBase({ open }),
     async archiveLocal(value, context) {
       if (!context?.scope || typeof value !== "string") return;
       const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))), (byte) => byte.toString(16).padStart(2, "0")).join("");

@@ -13,12 +13,16 @@ function deferred() {
 
 function harness() {
   const rows = new Map();
-  const state = { value: initial(), revision: 10, scope: "coach:org:team", calls: [], respond: null };
+  const state = { value: initial(), revision: 10, scope: "coach:org:team", calls: [], respond: null, failCheckpoint: false };
   let id = 0;
   const store = {
     list: async (scope) => [...rows.values()].filter((row) => row.scope === scope).map(copy),
     put: async (row) => { rows.set(row.change.id, copy(row)); },
     remove: async (key) => { rows.delete(key); },
+    acknowledge: async (row) => {
+      if (state.failCheckpoint) throw new Error("Local checkpoint unavailable");
+      rows.delete(row.change.id);
+    }, // Domain scheduling fixture, not a durability proof.
   };
   const client = createSessionSaveClient({ store, getScope: () => state.scope, makeId: () => `op-${++id}`,
     send: async (change, baseRevision, scope) => {
@@ -199,6 +203,28 @@ test("a replay arriving during a send rereads peer journal rows before reporting
   expect(h.state.value.sessions[date]).toMatchObject({ title: "A", blocks: [{ title: "Peer B" }] });
 });
 
+test("a failed checkpoint does not confirm a peer row staged after the drain snapshot", async () => {
+  const h = harness(), entered = deferred(), release = deferred();
+  await h.stage("A");
+  expect(await h.client.project()).toMatchObject({ solePendingOperationId: "op-2" });
+  h.state.failCheckpoint = true;
+  h.state.respond = async () => { entered.resolve(); await release.promise; };
+  const first = h.client.replay(); await entered.promise;
+  const peer = initial(); peer.sessions[date].blocks[0].title = "Peer B";
+  const change = createSessionDateChanges(initial(), peer, () => "peer-b")[0];
+  h.rows.set(change.id, { change, scope: h.state.scope, writer: "peer", status: "pending", createdAt: Date.now() });
+  const projection = await h.client.project();
+  expect(projection.solePendingOperationId).toBeNull();
+  expect(JSON.parse(projection.value).sessions[date]).toMatchObject({ title: "A", blocks: [{ title: "Peer B" }] });
+  const original = [...h.rows.values()].map(copy);
+  release.resolve();
+  expect(await first).toMatchObject({ ok: false, centralAcknowledged: true, allPendingAcknowledged: false,
+    localCheckpointPending: true, acknowledgedOperationId: "op-2" });
+  expect([...h.rows.values()]).toEqual(original);
+  expect(h.state.calls.map((call) => call.change.id)).toEqual(["op-2"]);
+  expect(h.state.value.sessions[date]).toMatchObject({ title: "A", blocks: [{ title: "Press" }] });
+});
+
 test("shared delivery does not share mutable receipt objects between callers", async () => {
   const h = harness(); await h.stage("A");
   const [a, b] = await Promise.all([h.client.replay(), h.client.replay()]);
@@ -216,7 +242,8 @@ test("an empty journal recheck retains metadata from the exact confirmed revisio
   h.state.respond = async () => { entered.resolve(); await release.promise; };
   const first = h.client.replay(); await entered.promise;
   const duplicate = h.client.replay(); release.resolve();
-  expect((await first).metadata).toEqual({ revision: 11, hash: "hash-11" });
-  expect((await duplicate).metadata).toEqual({ revision: 11, hash: "hash-11" });
+  const expected = { ok: true, centralAcknowledged: true, metadata: { revision: 11, hash: "hash-11" } };
+  expect(await first).toMatchObject(expected);
+  expect(await duplicate).toMatchObject(expected);
   expect(h.state.calls).toHaveLength(1);
 });

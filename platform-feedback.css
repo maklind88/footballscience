@@ -111,6 +111,11 @@
   box-shadow: 0 0 0 0.18rem #d92d2024;
 }
 
+.platform-autosave-status.is-checkpoint-pending .platform-autosave-status-dot {
+  background: #b66b0b;
+  box-shadow: 0 0 0 0.18rem #b66b0b24;
+}
+
 .platform-autosave-status.is-idle {
   opacity: 0;
   transform: translateY(-0.35rem);

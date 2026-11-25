@@ -93,34 +93,38 @@ export function createSessionSaveClient({ getScope, getWorkingScope = getScope, 
       for (const change of localDrafts.flatMap((draft) => draft.changes)) {
         visible = applySessionDateChange(visible, change, { preferLocalOnConflict: true }).state;
       }
-      return { value: JSON.stringify(visible), revision, pending: Boolean(pending.length || localDrafts.length),
+      const solePendingOperationId = pending.length === 1 && pending[0].status === "pending" && !localDrafts.length
+        ? pending[0].change.id : null;
+      return { value: JSON.stringify(visible), revision, pending: Boolean(pending.length || localDrafts.length), solePendingOperationId,
         draftToken: draftTokens.get(expected) || `${writer}:initial`, scope: expected, version };
     }
     return null;
   }
 
   async function drain(expected) {
-    const rows = await store.list(expected);
+    const owner = getWorkingScope();
+    const ownerIsCurrent = () => Boolean(current(expected) && owner && owner === getWorkingScope());
+    const rows = (await store.list(expected)).filter((row) => row.status !== "archived");
+    if (!ownerIsCurrent()) return failure("Account or team changed. Local changes were retained.");
     const blocked = [];
     let metadata = { revision };
     let issue = "";
-    for (const row of rows) {
-      if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
-      if (row.status === "archived") continue;
+    for (const [index, row] of rows.entries()) {
+      if (!ownerIsCurrent()) return failure("Account or team changed. Local changes were retained.");
       if (row.status === "review" || blocked.some((change) => sessionChangesOverlap(change, row.change))) {
         if (row.status !== "review") await store.put({ ...row, status: "review", conflicts: ["An earlier local version needs review."] });
         blocked.push(row.change); issue = "Local changes need review"; continue;
       }
       let result = await send(row.change, revision, expected);
-      if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+      if (!ownerIsCurrent()) return failure("Account or team changed. Local changes were retained.");
       // Retry a database CAS race once with the same immutable change, never a rebased edit.
       if (!result.ok && result.status === 409 && !result.payload?.conflicts?.length) result = await send(row.change, result.payload?.currentRevision || revision, expected);
-      if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+      if (!ownerIsCurrent()) return failure("Account or team changed. Local changes were retained.");
       if (!result.ok) {
         if (result.status === 409 && result.payload?.conflicts?.length) {
           // A fresh read updates the view; it never authorizes overwriting a colleague.
           const latest = typeof getLatest === "function" ? await getLatest(expected).catch(() => null) : null;
-          if (!current(expected)) return failure("Account or team changed. Local changes were retained.");
+          if (!ownerIsCurrent()) return failure("Account or team changed. Local changes were retained.");
           const freshRevision = Number(latest?.metadata?.revision);
           if (typeof latest?.value === "string" && Number.isInteger(freshRevision) && freshRevision >= 1 &&
               freshRevision >= Number(result.payload.currentRevision) && freshRevision >= revision) {
@@ -133,21 +137,41 @@ export function createSessionSaveClient({ getScope, getWorkingScope = getScope, 
         if (!result.ok) return failure(result.payload?.reason || "Saved locally; central sync pending", { status: result.status, durablePending: true });
       }
       const receipt = result.payload?.sessionChange;
-      if (receipt?.id !== row.change.id || receipt?.date !== row.change.date || !receipt?.value?.session || !result.payload?.metadata?.revision) {
+      const receiptRevision = Number(result.payload?.metadata?.revision);
+      if (receipt?.id !== row.change.id || receipt?.date !== row.change.date || !receipt?.value?.session ||
+          !Number.isSafeInteger(receiptRevision) || receiptRevision < 1) {
         return failure("Central save was not confirmed. Local changes were retained.", { durablePending: true });
       }
-      if (Number(result.payload.metadata.revision) >= revision) baseline = replaceSessionDate(baseline, receipt.date, receipt.value);
-      metadata = { ...result.payload.metadata, revision: Math.max(revision, Number(result.payload.metadata.revision)) };
+      if (receiptRevision >= revision) baseline = replaceSessionDate(baseline, receipt.date, receipt.value);
+      metadata = { ...result.payload.metadata, revision: Math.max(revision, receiptRevision) };
       revision = Math.max(revision, Number(metadata.revision));
-      // Remove only this acknowledged generation; a later edit has its own immutable row.
-      await store.remove(row.change.id);
       viewVersion++;
+      // Central acceptance and durable local recovery are separate outcomes.
+      // Never discard the journal unless the exact accepted date is committed.
+      try {
+        await store.acknowledge(row, receipt, result.payload.metadata, { owner, isCurrent: ownerIsCurrent });
+      } catch {
+        if (!ownerIsCurrent()) return failure("Account or team changed. Local changes were retained.");
+        // A peer tab can stage more work while the receipt or IDB commit is held.
+        // A failed read cannot establish that the receipt covers all pending work.
+        const retained = !issue && index === rows.length - 1 ? await store.list(expected).catch(() => null) : null;
+        if (!ownerIsCurrent()) return failure("Account or team changed. Local changes were retained.");
+        const unresolved = retained?.filter((item) => item.status !== "archived");
+        const allPendingAcknowledged = unresolved?.length === 1 && unresolved[0].status === "pending" && unresolved[0].change.id === row.change.id;
+        let reason = "Offline recovery copy could not be updated.";
+        if (issue) reason = "Local changes need review. A separate edit was saved centrally, but its offline copy could not be updated.";
+        else if (!allPendingAcknowledged) reason = "A change was saved centrally. The offline copy could not be updated. Check other changes for pending sync.";
+        return failure(reason,
+          { centralAcknowledged: true, allPendingAcknowledged, localCheckpointPending: true, durablePending: true,
+            acknowledgedOperationId: row.change.id, value: JSON.stringify(baseline), metadata });
+      }
+      if (!ownerIsCurrent()) return failure("Account or team changed. Local changes were retained.");
     }
     if (issue) {
       onReview();
       return failure(issue, { reviewRequired: true, durablePending: true, value: JSON.stringify(baseline), metadata });
     }
-    return { ok: true, value: JSON.stringify(baseline), metadata, revision };
+    return { ok: true, value: JSON.stringify(baseline), metadata, revision, ...(rows.length ? { centralAcknowledged: true } : {}) };
   }
 
   function stage(value, options = {}) {
@@ -215,6 +239,7 @@ export function createSessionSaveClient({ getScope, getWorkingScope = getScope, 
         const next = await drain(expected);
         if (result?.metadata && result.metadata.revision === next.metadata?.revision) {
           next.metadata = { ...result.metadata, ...next.metadata };
+          if (next.ok && result.centralAcknowledged) next.centralAcknowledged = true;
         }
         result = next;
         // A joined trigger may represent another tab's newly durable row.
@@ -286,7 +311,13 @@ export function createSessionSaveClient({ getScope, getWorkingScope = getScope, 
     serial = work.then(() => {});
     return work;
   }
-  return { observe, stage, replay, save, pendingState, reviews, resolve, isSettled, rememberDraft, workingCopy, project,
+  async function readAcceptedBase() {
+    const expected = getScope(), owner = getWorkingScope();
+    if (!expected || !owner) return null;
+    const value = await store.readAcceptedBase(expected, owner);
+    return expected === getScope() && owner === getWorkingScope() ? value : null;
+  }
+  return { observe, stage, replay, save, pendingState, reviews, resolve, isSettled, rememberDraft, workingCopy, project, readAcceptedBase,
     isProjectionCurrent: (view) => Boolean(view && current(view.scope) && view.version === viewVersion),
     isReady: () => Boolean(current(getScope()) && baseline),
     centralValue: () => current(getScope()) && baseline ? JSON.stringify(baseline) : null,

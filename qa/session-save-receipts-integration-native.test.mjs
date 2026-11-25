@@ -52,6 +52,7 @@ test("actual Sessions client/API with atomic PostgreSQL receipts", { timeout: 12
           if (lostAt === "RPC") http.loseNextRpcReply();
           const client = createSessionSaveClient({ getScope: () => "synthetic-scope", store: {
             list: async () => structuredClone([...rows.values()]), put: async (row) => rows.set(row.change.id, structuredClone(row)), remove: async (id) => rows.delete(id),
+            acknowledge: async (row) => rows.delete(row.change.id), // Browser tests prove the local atomic transaction.
           }, send: async (...args) => { const result = await post(...args); if (drop && result.ok) { drop = false; return { ok: false, status: 0 }; } return result; } });
           client.observe(JSON.stringify(initial), { revision: 1 });
           const a = structuredClone(initial); a.sessions[date].blocks[0].title = "Accepted A";

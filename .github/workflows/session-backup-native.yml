@@ -9,6 +9,20 @@ on:
       - 'supabase/migrations/**'
       - 'qa/session-save-*.mjs'
       - 'qa/helpers/session-receipt-postgres-http.mjs'
+      - 'qa/helpers/session-save-chain-*.mjs'
+      - 'qa/playwright.session-saving-chain.config.mjs'
+      - 'qa/playwright.config.mjs'
+      - 'qa/static-server.mjs'
+      - 'qa/helpers/session-full-app-storage-fixture.mjs'
+      - 'qa/helpers/set-pieces-central-fixture.mjs'
+      - 'src/modules/session-planner/**'
+      - 'src/core/central-sync-runtime-service.mjs'
+      - 'src/core/platform-autosave-status.mjs'
+      - 'platform-auth-boot.js'
+      - 'app-runtime.js'
+      - 'index.html'
+      - 'platform-feedback.css'
+      - 'api/app-state.js'
       - 'qa/helpers/relations-permissions-postgres.mjs'
       - 'scripts/lib/data-content-recovery-*.mjs'
       - '.github/workflows/session-backup-native.yml'
@@ -21,6 +35,20 @@ on:
       - 'supabase/migrations/**'
       - 'qa/session-save-*.mjs'
       - 'qa/helpers/session-receipt-postgres-http.mjs'
+      - 'qa/helpers/session-save-chain-*.mjs'
+      - 'qa/playwright.session-saving-chain.config.mjs'
+      - 'qa/playwright.config.mjs'
+      - 'qa/static-server.mjs'
+      - 'qa/helpers/session-full-app-storage-fixture.mjs'
+      - 'qa/helpers/set-pieces-central-fixture.mjs'
+      - 'src/modules/session-planner/**'
+      - 'src/core/central-sync-runtime-service.mjs'
+      - 'src/core/platform-autosave-status.mjs'
+      - 'platform-auth-boot.js'
+      - 'app-runtime.js'
+      - 'index.html'
+      - 'platform-feedback.css'
+      - 'api/app-state.js'
       - 'qa/helpers/relations-permissions-postgres.mjs'
       - 'scripts/lib/data-content-recovery-*.mjs'
       - '.github/workflows/session-backup-native.yml'
@@ -31,7 +59,7 @@ permissions:
 jobs:
   backup-postgres:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -55,3 +83,17 @@ jobs:
         env:
           FS_RECOVERY_PG_BIN: /usr/lib/postgresql/17/bin
         run: node --test --test-concurrency=1 qa/session-save-backup-pages-native.test.mjs qa/session-save-receipts-native.test.mjs qa/session-save-receipts-integration-native.test.mjs
+      - name: Prepare isolated browser
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Prove save and independent read through the Sessions editor and PostgreSQL
+        env:
+          FS_RECOVERY_PG_BIN: /usr/lib/postgresql/17/bin
+        run: npx playwright test --config=qa/playwright.session-saving-chain.config.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: session-saving-chain
+          path: test-results/session-saving-chain.json
+          if-no-files-found: ignore

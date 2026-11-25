@@ -38,7 +38,7 @@ export function createSessionPlannerAutosaveBoundary(options = {}) {
       return false;
     }
     const normalizedState = String(state || "");
-    if (normalizedState === "issue") {
+    if (normalizedState === "issue" || normalizedState === "checkpoint-pending") {
       return true;
     }
     // A verified "saved" outcome must resolve a surfaced saving/issue state
@@ -57,7 +57,7 @@ export function createSessionPlannerAutosaveBoundary(options = {}) {
     }
     setStatus(state, message);
     const normalizedState = String(state || "");
-    if (normalizedState === "saving" || normalizedState === "issue") {
+    if (normalizedState === "saving" || normalizedState === "issue" || normalizedState === "checkpoint-pending") {
       hasPendingResolution = true;
     } else if (normalizedState === "saved") {
       hasPendingResolution = false;

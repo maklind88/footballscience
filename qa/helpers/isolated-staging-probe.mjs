@@ -1,3 +1,5 @@
+import { setTimeout as waitForPropagation } from "node:timers/promises";
+
 const productionOrigin = "https://footballscience.xyz";
 const stagingOrigin = "https://staging.footballscience.xyz";
 const productionRef = "bustidorxevacosqhkcz";
@@ -8,6 +10,7 @@ export async function createIsolatedStagingProbe({
   env = process.env,
   expectedBuild = env.SCHEDULE_QA_EXPECTED_BUILD,
   fetchImpl = fetch,
+  wait = waitForPropagation,
 } = {}) {
   if (env.STAGING_QA_BASE_URL?.replace(/\/$/, "") !== stagingOrigin ||
       env.STAGING_SUPABASE_PROJECT_REF !== stagingRef || env.SUPABASE_PROJECT_REF !== productionRef) {
@@ -21,7 +24,9 @@ export async function createIsolatedStagingProbe({
 
   async function readIdentity(origin) {
     try {
-      const response = await fetchImpl(origin + "/api/client-config", {
+      const url = new URL("/api/client-config", origin);
+      url.searchParams.set("qaProbe", crypto.randomUUID());
+      const response = await fetchImpl(url.href, {
         cache: "no-store",
         redirect: "error",
         signal: AbortSignal.timeout(20000),
@@ -35,11 +40,18 @@ export async function createIsolatedStagingProbe({
   }
 
   async function identity() {
-    const [staging, production] = await Promise.all([readIdentity(stagingOrigin), readIdentity(productionOrigin)]);
-    if (staging.backend !== backendUrl(stagingRef) + "/" || production.backend !== backendUrl(productionRef) + "/" ||
-        staging.build !== expectedBuild || production.build === staging.build) {
-      throw new Error("Staging backend isolation or exact build identity is unverified.");
+    const attempts = 12;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const [staging, production] = await Promise.all([readIdentity(stagingOrigin), readIdentity(productionOrigin)]);
+      if (staging.backend !== backendUrl(stagingRef) + "/" || production.backend !== backendUrl(productionRef) + "/") {
+        throw new Error("Staging backend isolation is unverified.");
+      }
+      if (staging.build === expectedBuild && production.build !== staging.build) return;
+      // A stale build may be served by another edge shortly after alias assignment.
+      // All retries are public reads, and a backend mismatch always aborts.
+      if (attempt + 1 < attempts) await wait(2_000);
     }
+    throw new Error("Staging exact build identity is unverified.");
   }
 
   await identity();

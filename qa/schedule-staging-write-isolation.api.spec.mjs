@@ -42,7 +42,9 @@ test("Schedule staging isolation proves live and staging config before authorizi
   expect(requests).toEqual([]);
   const probe = await createIsolatedStagingProbe({ env, fetchImpl });
   await probe.identity();
-  expect(requests).toEqual([stage, live, stage, live].map(origin => origin + "/api/client-config"));
+  expect(requests.map(url => new URL(url).origin)).toEqual([stage, live, stage, live]);
+  expect(requests.every(url => new URL(url).pathname === "/api/client-config")).toBe(true);
+  expect(new Set(requests.map(url => new URL(url).searchParams.get("qaProbe"))).size).toBe(4);
   expect(probe.origin).toBe(stage);
   expect(probe.expectedBuild).toBe(expectedBuild);
 });
@@ -56,8 +58,31 @@ test("staging aliases pointing to production, stale builds and noncanonical back
     const fetchImpl = url => Response.json(url.startsWith(stage)
       ? { ok: true, buildId: expectedBuild, url: `https://${stageRef}.supabase.co`, ...body }
       : { ok: true, buildId: "1".repeat(40), url: `https://${liveRef}.supabase.co` });
-    await expect(createIsolatedStagingProbe({ env, fetchImpl })).rejects.toThrow("isolation or exact build");
+    await expect(createIsolatedStagingProbe({ env, fetchImpl, wait: async () => {} }))
+      .rejects.toThrow(/(isolation|exact build identity) is unverified/);
   }
+});
+
+test("rechecks wait for an intermittent stale build only on the configured staging backend", async () => {
+  let stagingReads = 0;
+  let waits = 0;
+  let stageBackend = stageRef;
+  const fetchImpl = url => {
+    const isStage = url.startsWith(stage);
+    if (isStage) stagingReads += 1;
+    return Response.json({
+      ok: true,
+      buildId: isStage && stagingReads !== 2 ? expectedBuild : "3".repeat(40),
+      url: `https://${isStage ? stageBackend : liveRef}.supabase.co`,
+    });
+  };
+  const probe = await createIsolatedStagingProbe({ env, fetchImpl, wait: async () => { waits += 1; } });
+  await probe.identity();
+  expect(waits).toBe(1);
+
+  stageBackend = liveRef;
+  await expect(probe.identity()).rejects.toThrow("backend isolation is unverified");
+  expect(waits).toBe(1);
 });
 
 const date = "2090-04-18";

@@ -1,0 +1,44 @@
+.idp-gm-field {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--idp-line);
+  border-radius: 8px;
+}
+.idp-gm-field summary {
+  padding: 6px 0;
+  color: var(--idp-teal);
+  cursor: pointer;
+  font-weight: 650;
+}
+.idp-gm-selectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-block: 10px;
+}
+.idp-gm-selectors label, .idp-gm-selectors select { min-width: 0; }
+.idp-gm-choices, .idp-gm-choice { display: grid; gap: 8px; }
+.idp-gm-choice {
+  padding: 12px;
+  border: 1px solid var(--idp-line);
+  border-radius: 8px;
+}
+.idp-action-dialog .idp-gm-field p,
+.idp-gm-summary p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+.idp-gm-field button { justify-self: start; }
+.idp-gm-field [data-idp-gm-remove] { margin-top: 8px; }
+.idp-gm-field [hidden] { display: none; }
+.idp-gm-summary { margin-bottom: 8px; }
+.idp-gm-summary dl { display: grid; gap: 6px; margin: 8px 0 0; }
+.idp-gm-summary dl div { display: grid; grid-template-columns: 3.5em minmax(0, 1fr); gap: 8px; }
+.idp-gm-summary dt { font-weight: 650; }
+.idp-gm-summary dd { margin: 0; overflow-wrap: anywhere; }
+.idp-focus-card-detail .idp-gm-summary { grid-column: 1 / -1; }
+.idp-action-dialog [data-idp-focus-save-error] { color: var(--idp-red); font-weight: 650; letter-spacing: normal; text-transform: none; }

@@ -1,3 +1,5 @@
+import { handleGameModelChange, handleGameModelClick } from "./game-model/action-controller.mjs";
+import { saveIdpFocusForm } from "./idp-focus-controls.mjs";
 import { createIdpActions } from "./idp-actions.mjs";
 import { createIdpStore } from "./idp-state.mjs";
 import { renderIdpWorkspace as renderMarkup } from "./idp-renderer.mjs";
@@ -380,6 +382,7 @@ export function handleInput(event) {
 }
 
 export function handleChange(event) {
+  if (handleGameModelChange(event)) return;
   if (handleIdpPlayerBoardChange(event, runtime)) return;
   const target = event?.target;
   const scoutingMetricToggle = target?.closest?.("[data-player-profile-scouting-metric-toggle]");
@@ -426,6 +429,11 @@ export function handleChange(event) {
 }
 
 export function handleClick(event) {
+  if (event?.target?.closest?.("[data-idp-action-layer]")?.querySelector?.('[data-idp-create-focus][data-saving="true"]')) {
+    event.preventDefault();
+    return;
+  }
+  if (handleGameModelClick(event)) return;
   if (handleIdpPlayerBoardClick(event, runtime)) return;
   const deletePlayerBoardTrigger = event?.target?.closest?.("[data-idp-board-delete]");
   if (deletePlayerBoardTrigger) {
@@ -742,10 +750,11 @@ export function handleSubmit(event) {
     return;
   }
   event.preventDefault();
-  const formData = new FormData(form);
   if (form.matches("[data-idp-create-focus]")) {
-    runAction(() => runtime?.actions.createFocus(formData));
+    if (canEdit(runtime?.context)) saveIdpFocusForm(form, (formData) => runtime.actions.createFocus(formData));
+    return;
   }
+  const formData = new FormData(form);
   if (form.matches("[data-idp-add-evidence]")) {
     runAction(() => runtime?.actions.addEvidence(formData));
   }

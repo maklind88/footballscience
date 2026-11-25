@@ -12,6 +12,7 @@ const {
   selectRows,
 } = require("./idp-database-core.js");
 const { enrichClipBankItems } = require("./idp-clip-bank-metadata.js");
+const { gameModelActionMetadata } = require("./idp-game-model-action.js");
 const { clipsShareIdpMoment } = require("./idp-clip-bank-moments.js");
 
 const IDP_SCHEMA = "footballscience-idp-v1";
@@ -689,6 +690,8 @@ async function createFocus(payload, actor) {
   const playerId = normalizeText(payload.playerId || payload.player_id, 160);
   const title = normalizeText(payload.title, 180);
   if (!playerId || !title) return { ok: false, status: 400, reason: "playerId and title are required." };
+  const gameModel = await gameModelActionMetadata(payload);
+  if (!gameModel.ok) return gameModel;
   const profileResult = await ensureProfile(scope, playerId, payload);
   if (!profileResult.ok) return profileResult;
   const focusResult = await insertRow("idp_focuses", {
@@ -711,6 +714,7 @@ async function createFocus(payload, actor) {
     review_date: dateOrNull(payload.reviewDate || payload.review_date),
     created_by: scope.actorId,
     updated_by: scope.actorId,
+    ...(gameModel.metadata ? { metadata: gameModel.metadata } : {}),
   });
   if (!focusResult.ok) return focusResult;
   const focus = focusResult.payload?.[0] || null;
@@ -739,6 +743,8 @@ async function updateFocus(payload, actor) {
   const current = await requireOwnedFocus(scope, playerId, focusId);
   if (!current.ok) return current;
   if (Number(current.payload.row_version) !== rowVersion) return { ok: false, status: 409, reason: "Focus changed elsewhere. Reload and try again." };
+  const gameModel = await gameModelActionMetadata(payload, current.payload.metadata);
+  if (!gameModel.ok) return gameModel;
   const params = buildTeamParams(scope);
   params.set("id", `eq.${focusId}`);
   params.set("player_id", `eq.${playerId}`);
@@ -757,6 +763,7 @@ async function updateFocus(payload, actor) {
   if ("evidenceStatus" in payload || "evidence_status" in payload) {
     patch.evidence_status = normalizeText(payload.evidenceStatus || payload.evidence_status, 80);
   }
+  if (gameModel.metadata) patch.metadata = gameModel.metadata;
   const result = await patchRows("idp_focuses", params, patch);
   if (!result.ok) return result;
   const focus = result.payload?.[0] || null;

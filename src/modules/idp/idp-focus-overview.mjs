@@ -1,3 +1,4 @@
+import { renderLinkedGameModelAction } from "./game-model/action-renderer.mjs";
 import { activeFocusStatuses, availableFocusLevels, focusLevel, focusLevels, orderedFocuses } from "./domain/idp-focus-selection.mjs";
 
 function escape(value = "") {
@@ -36,6 +37,7 @@ function renderCard(focus, detail, selectedId, expandedId, canEdit, summary) {
       <span class="idp-focus-card-footer"><span>${escape(focus.category || "")}${historical ? ` &middot; ${escape(focus.status)}` : ""}</span><span class="idp-focus-disclosure">${expanded ? "Less" : "Details"} <span aria-hidden="true">${expanded ? "&#8722;" : "+"}</span></span></span>
     </button>
     <div class="idp-focus-card-detail" id="idp-focus-detail-${id}" ${expanded ? "" : "hidden"}>
+      ${renderLinkedGameModelAction(focus.gameModelAction)}
       ${renderLinkedGroup("Goals", goals, (item) => item.title || "Untitled goal")}
       ${renderLinkedGroup("Observations", observations, (item) => item.note || item.evidenceType || "Observation")}
       ${renderLinkedGroup("Exercises", exercises, (item) => item.title || "Individual exercise")}

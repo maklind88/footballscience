@@ -317,6 +317,21 @@ export function normalizeIdpProfile(value = {}) {
   };
 }
 
+function normalizeGameModelAction(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const snapshot = {
+    actionId: normalizeText(value.actionId, 180),
+    positionId: normalizeText(value.positionId, 20),
+    positionLabel: normalizeText(value.positionLabel, 30),
+    phase: normalizeText(value.phase, 80),
+    subPhase: normalizeText(value.subPhase, 80),
+    title: normalizeText(value.title, 180),
+    when: normalizeText(value.when, 240),
+    detail: normalizeText(value.detail, 400),
+  };
+  return Object.values(snapshot).every(Boolean) ? snapshot : null;
+}
+
 export function normalizeIdpFocus(value = {}) {
   return {
     rowVersion: normalizeNumber(value.rowVersion || value.row_version, 1),
@@ -326,6 +341,7 @@ export function normalizeIdpFocus(value = {}) {
     description: normalizeText(value.description || value.focusAreas, 1200),
     category: pickOption(value.category, idpDevelopmentCategories, "Tactical"),
     focusLevel: normalizeText(value.focusLevel || value.focus_level || "main", 40),
+    gameModelAction: normalizeGameModelAction(value.gameModelAction || value.metadata?.game_model_action),
     linkedPhase: normalizeText(value.linkedPhase || value.linked_phase, 80),
     linkedSubPhase: normalizeText(value.linkedSubPhase || value.linked_sub_phase, 80),
     teamPrincipleId: normalizeText(value.teamPrincipleId || value.team_principle_id, 120),

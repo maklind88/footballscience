@@ -53,9 +53,6 @@ jobs:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
       LIVE_QA_EXPECT_ADMIN: "1"
       LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
-      LIVE_QA_PEER_PASSWORD: ${{ secrets.LIVE_QA_PEER_PASSWORD }}
-      LIVE_QA_PEER_USERNAME: ${{ secrets.LIVE_QA_PEER_USERNAME }}
-      LIVE_QA_REQUIRE_PEER_CHAT: ${{ vars.LIVE_QA_REQUIRE_PEER_CHAT || '1' }}
       LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
       LEADERBOARD_LIVE_QA_PASSWORD: ${{ secrets.LEADERBOARD_LIVE_QA_PASSWORD }}
       LEADERBOARD_LIVE_QA_TEAM_ID: ${{ vars.LEADERBOARD_LIVE_QA_TEAM_ID }}
@@ -131,25 +128,19 @@ jobs:
           EXPECTED_CANDIDATE_SHA: ${{ inputs.expected_candidate_sha }}
           EXPECTED_LIVE_BUILD_ID: ${{ inputs.expected_live_build_id }}
         run: node scripts/verify-dm-schedule-review-target.mjs
-      - name: Run Schedule and two-account DM diagnostics
+      - name: Run read-only Schedule and Chat diagnostics
         env:
           LIVE_QA_BASE_URL: https://footballscience.xyz
           LIVE_QA_EXPECT_ADMIN: '1'
-          LIVE_QA_REQUIRE_PEER_CHAT: '1'
           LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
           LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
-          LIVE_QA_PEER_USERNAME: ${{ secrets.LIVE_QA_PEER_USERNAME }}
-          LIVE_QA_PEER_PASSWORD: ${{ secrets.LIVE_QA_PEER_PASSWORD }}
         run: |
           node --input-type=module <<'NODE'
           for (const name of ['LIVE_QA_USERNAME', 'LIVE_QA_PASSWORD']) {
             if (!process.env[name]?.trim()) throw new Error(`Missing ${name}`);
           }
-          if (Boolean(process.env.LIVE_QA_PEER_USERNAME?.trim()) !== Boolean(process.env.LIVE_QA_PEER_PASSWORD?.trim())) {
-            throw new Error('Both peer credentials must be configured together.');
-          }
           NODE
-          npm run qa:live -- qa/production.live.spec.mjs --grep 'production test account can save and reload a schedule record|production peer accounts prove DM unread state and read receipt end-to-end'
+          npm run qa:live -- qa/production.live.spec.mjs --grep 'production test account can open Schedule|production Chat is reachable for authenticated QA without product writes'
 
   fs-player-tracking-review:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/fs-player-two-player-distance-20261119' && inputs.tracking_review && inputs.review_action == 'monitor'

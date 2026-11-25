@@ -34,7 +34,7 @@ export async function verifyRecoveryDraftLive(page) {
     const auth = window.platformAuthStore, user = auth.getCurrentUser();
     return { role: user.role, status: user.status, dev: auth.isDevMode() };
   })).toEqual({ role: 'admin', status: 'active', dev: false });
-  await page.route('**/api/**', route => ['GET', 'HEAD'].includes(route.request().method()) ? route.continue() : route.abort());
+  await page.route('**/api/**', route => ['GET', 'HEAD'].includes(route.request().method()) ? route.fallback() : route.abort());
   const scope = await page.evaluate(() => window.footballScienceCentralState.getReadScope());
   expect(scope).toBeTruthy();
   const rows = [0, 1].map(i => {

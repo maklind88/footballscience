@@ -3,27 +3,17 @@ import { verifyRecoveryDraftLive } from "./helpers/recovery-draft-live-probe.mjs
 import { verifyAuthenticatedHistory } from "./helpers/history-live-probe.mjs";
 import { verifyStorageGrowthLive } from "./helpers/storage-growth-live-probe.mjs";
 import { createLiveReadinessProbe } from "./helpers/live-readiness-probe.mjs";
-import { expect, test } from "@playwright/test";
+import { createStagingChatProbe, installStagingChatBrowserGuard, trackStagingChatPeer } from "./helpers/staging-chat-probe.mjs";
+import { test } from "./helpers/live-browser-readonly.mjs";
+import { expect, test as stagingChatTest } from "@playwright/test";
 import { openScoutingDatabaseTab, startScoutingDatabaseLoad } from "./helpers/scouting-database-readiness.mjs";
-import { createScheduleProbeFixture, installScheduleDialogHandler, showScheduleDateInPlanner } from "./helpers/live-schedule-probe.mjs";
-import { readScheduleSaveDiagnostics } from "./helpers/schedule-save-diagnostics.mjs";
-import { observeScheduleWrite } from "./helpers/schedule-write-observer.mjs";
 
-const scheduleKey = "football-schedule-v1";
 const primaryLiveCredentials = {
   username: String(process.env.LIVE_QA_USERNAME || "").trim(),
   password: String(process.env.LIVE_QA_PASSWORD || "").trim(),
 };
-const peerLiveCredentials = {
-  username: String(process.env.LIVE_QA_PEER_USERNAME || "").trim(),
-  password: String(process.env.LIVE_QA_PEER_PASSWORD || "").trim(),
-};
 const hasLiveCredentials = Boolean(primaryLiveCredentials.username && primaryLiveCredentials.password);
-const hasPeerLiveCredentials = Boolean(peerLiveCredentials.username && peerLiveCredentials.password);
 const expectsAdminCredentials = process.env.LIVE_QA_EXPECT_ADMIN === "1";
-const dynamicPeerEmail = String(process.env.LIVE_QA_DYNAMIC_PEER_EMAIL || "live-chat-peer@footballscience.qa").trim().toLowerCase();
-const dynamicPeerUsername = String(process.env.LIVE_QA_DYNAMIC_PEER_USERNAME || "live.chat.peer").trim().toLowerCase();
-const canCreateDynamicPeerLiveAccount = expectsAdminCredentials;
 
 // Authenticated production artifacts can contain session data or saved history.
 // Worker-scoped options must be declared at file level, not inside describe.
@@ -119,13 +109,14 @@ async function waitForCentralStateReady(page, options = {}) {
 }
 
 async function establishServerBackedSession(page, credentials = primaryLiveCredentials) {
-  const endpointBase = new URL("/", page.url()).origin;
+  const endpointBase = new URL(getLiveBaseUrl()).origin;
+  expect(new URL(page.url()).origin).toBe(endpointBase);
   const loginResponse = await page.request.post(`${endpointBase}/api/client-config`, {
     data: {
       email: credentials.username,
       password: credentials.password,
     },
-    timeout: 75_000,
+    timeout: 75_000, maxRedirects: 0,
   });
   const loginPayload = await loginResponse.json().catch(() => ({}));
   expect(
@@ -143,7 +134,7 @@ async function establishServerBackedSession(page, credentials = primaryLiveCrede
       headers: {
         Authorization: `Bearer ${session.access_token}`,
       },
-      timeout: 15_000,
+      timeout: 15_000, maxRedirects: 0,
     }
   );
   const centralPayload = await centralResponse.json().catch(() => ({}));
@@ -266,133 +257,40 @@ async function getLiveAccessToken(page) {
   return page.evaluate(async () => String((await window.platformAuthStore?.getAccessToken?.()) || ""));
 }
 
-async function requestLiveChat(page, token, query = "threadId=team&threadType=team&limit=80") {
-  const endpointBase = new URL("/", page.url()).origin;
-  const response = await page.request.get(`${endpointBase}/api/chat?${query}`, {
+async function requestStagingChat(page, staging, token, query = "threadId=team&threadType=team&limit=80") {
+  await staging.identity();
+  const response = await page.request.get(`${staging.origin}/api/chat?${query}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       "x-footballscience-chat-active": "active",
     },
-    timeout: 45_000,
+    timeout: 45_000, maxRedirects: 0,
   });
   const payload = await response.json().catch(() => ({}));
   expect(
     response.ok(),
-    `Live chat read failed: ${response.status()} ${payload?.reason || payload?.message || "no reason"}`
+    `Staging Chat read failed: ${response.status()}`
   ).toBeTruthy();
-  expect(payload.ok, "Live chat read did not return ok=true.").toBe(true);
+  expect(payload.ok, "Staging Chat read did not return ok=true.").toBe(true);
   return payload;
 }
 
-async function postLiveChatAction(page, token, data, label) {
-  const endpointBase = new URL("/", page.url()).origin;
-  const response = await page.request.post(`${endpointBase}/api/chat`, {
+async function postStagingChatAction(page, staging, token, data, label) {
+  await staging.identity();
+  const response = await page.request.post(`${staging.origin}/api/chat`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
     data,
-    timeout: 45_000,
+    timeout: 45_000, maxRedirects: 0,
   });
   const payload = await response.json().catch(() => ({}));
   expect(
     response.ok(),
-    `${label} failed: ${response.status()} ${payload?.reason || payload?.message || "no reason"}`
+    `${label} failed: ${response.status()}`
   ).toBeTruthy();
   expect(payload.ok, `${label} did not return ok=true.`).toBe(true);
   return payload;
-}
-
-function generateLiveQaPassword() {
-  return `LiveQa-${crypto.randomBytes(12).toString("base64url")}!7`;
-}
-
-async function requestLiveAdminUsers(page, token, options = {}) {
-  const endpointBase = new URL("/", page.url()).origin;
-  const method = String(options.method || "GET").toUpperCase();
-  const requestOptions = {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    timeout: 45_000,
-  };
-  if (options.data) {
-    requestOptions.data = options.data;
-  }
-
-  const url = `${endpointBase}/api/admin-users${options.query || ""}`;
-  const response =
-    method === "POST"
-      ? await page.request.post(url, requestOptions)
-      : method === "PUT"
-        ? await page.request.put(url, requestOptions)
-        : method === "DELETE"
-          ? await page.request.delete(url, requestOptions)
-          : await page.request.get(url, requestOptions);
-  const payload = await response.json().catch(() => ({}));
-  expect(
-    response.ok(),
-    `Live admin users ${method} failed: ${response.status()} ${payload?.reason || payload?.message || "no reason"}`
-  ).toBeTruthy();
-  expect(payload.ok, `Live admin users ${method} did not return ok=true.`).toBe(true);
-  return payload;
-}
-
-async function ensureLivePeerCredentials(page, token, primaryUser = {}) {
-  if (hasPeerLiveCredentials) {
-    return {
-      credentials: peerLiveCredentials,
-      source: "secrets",
-      user: null,
-    };
-  }
-
-  expect(canCreateDynamicPeerLiveAccount, "Dynamic peer live QA needs LIVE_QA_EXPECT_ADMIN=1.").toBe(true);
-
-  const usersPayload = await requestLiveAdminUsers(page, token);
-  const users = Array.isArray(usersPayload.users) ? usersPayload.users : [];
-  const existingPeer = users.find((user) => {
-    const email = String(user?.email || "").trim().toLowerCase();
-    const username = String(user?.username || "").trim().toLowerCase();
-    return email === dynamicPeerEmail || username === dynamicPeerUsername;
-  });
-  const password = generateLiveQaPassword();
-  const teamName = primaryUser.teamName || primaryUser.team || "North Carolina Courage";
-  const peerPayload = {
-    email: dynamicPeerEmail,
-    password,
-    username: dynamicPeerUsername,
-    firstName: "Live",
-    lastName: "Chat QA",
-    role: "coach",
-    title: "QA Peer",
-    department: "Football",
-    status: "active",
-    clubId: primaryUser.clubId || "club-ncc",
-    clubName: primaryUser.clubName || "North Carolina Courage",
-    teamId: primaryUser.teamId || "team-ncc-first",
-    teamName,
-    team: teamName,
-  };
-  const payload = existingPeer?.id
-    ? await requestLiveAdminUsers(page, token, {
-        method: "PUT",
-        query: `?userId=${encodeURIComponent(existingPeer.id)}`,
-        data: peerPayload,
-      })
-    : await requestLiveAdminUsers(page, token, {
-        method: "POST",
-        data: peerPayload,
-      });
-  const user = payload.user || existingPeer || {};
-
-  return {
-    credentials: {
-      username: String(user.email || dynamicPeerEmail),
-      password,
-    },
-    source: existingPeer?.id ? "dynamic-existing" : "dynamic-created",
-    user,
-  };
 }
 
 function getLiveChatMessageText(message = {}) {
@@ -407,29 +305,30 @@ function findLiveChatMessageInPayload(payload, text) {
   return (Array.isArray(payload?.messages) ? payload.messages : []).find((message) => getLiveChatMessageText(message) === text) || null;
 }
 
-async function findLiveChatMessageByText(page, token, text) {
-  const payload = await requestLiveChat(page, token);
+async function findStagingTeamChatMessage(page, staging, token, text) {
+  const payload = await requestStagingChat(page, staging, token);
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
   return messages.find((message) => getLiveChatMessageText(message) === text) || null;
 }
 
-async function deleteLiveChatMessage(page, token, messageId) {
+async function deleteStagingChatMessage(page, staging, token, messageId) {
   if (!messageId) {
     return false;
   }
-  await postLiveChatAction(
+  await postStagingChatAction(
     page,
+    staging,
     token,
     {
       action: "deleteMessage",
       messageId,
     },
-    "Live chat cleanup"
+    "Staging Chat message cleanup"
   );
   return true;
 }
 
-async function openTeamChat(page) {
+async function openChatWidget(page) {
   await dismissDashboardModal(page);
   const alreadyOpen = await page.locator(".dashboard-chat-widget.is-open").count();
   if (!alreadyOpen) {
@@ -439,6 +338,10 @@ async function openTeamChat(page) {
   }
 
   await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible({ timeout: 20_000 });
+}
+
+async function openTeamChat(page) {
+  await openChatWidget(page);
   const teamThread = page.locator('[data-dashboard-chat-thread="team"]').first();
   if ((await teamThread.count()) > 0) {
     await teamThread.click();
@@ -453,186 +356,6 @@ async function openLiveChatThread(page, threadId) {
   const activeThread = page.locator(`[data-dashboard-chat-list][data-dashboard-chat-active-thread="${threadId}"]`);
   await expect(activeThread).toBeVisible({ timeout: 20_000 });
   return activeThread;
-}
-
-async function expectStorageContains(page, key, text) {
-  try {
-    await expect
-      .poll(
-        async () =>
-          page.evaluate(
-            ({ storageKey, expectedText }) => window.localStorage.getItem(storageKey)?.includes(expectedText) ?? false,
-            { storageKey: key, expectedText: text }
-          ),
-        { timeout: 15_000 }
-      )
-      .toBe(true);
-  } catch (cause) {
-    const diagnostics = await readScheduleSaveDiagnostics(page, key, text);
-    throw new Error(`Schedule local save verification failed: ${JSON.stringify(diagnostics)}`, { cause });
-  }
-}
-
-async function expectStorageExcludes(page, key, text) {
-  await expect
-    .poll(
-      async () =>
-        page.evaluate(
-          ({ storageKey, expectedText }) => !window.localStorage.getItem(storageKey)?.includes(expectedText),
-          { storageKey: key, expectedText: text }
-        ),
-      { timeout: 15_000 }
-    )
-    .toBe(true);
-}
-
-async function expectCentralSyncContains(page, key, text, options = {}) {
-  const endpointBase = new URL("/", page.url()).origin;
-  const token = await getLiveAccessToken(page);
-  let lastProbe = null;
-
-  try {
-    await expect
-      .poll(
-        async () => {
-          const localProbe = await page.evaluate(
-            ({ storageKey, expectedText }) => {
-              const localValue = window.localStorage.getItem(storageKey) || "";
-              const bridgeStatus = window.footballScienceCentralState?.getStatus?.() || {};
-              let manifestEntry = {};
-              try {
-                const manifest = JSON.parse(window.localStorage.getItem("football-data-safety-v1") || "{}");
-                manifestEntry = manifest?.entries?.[storageKey] || {};
-              } catch {}
-              return {
-                localContains: localValue.includes(expectedText),
-                bridge: {
-                  hydrated: Boolean(bridgeStatus.hydrated),
-                  hydrating: Boolean(bridgeStatus.hydrating),
-                  lastError: String(bridgeStatus.lastError || ""),
-                  lastWriteError: String(bridgeStatus.lastWriteError || ""),
-                },
-                manifest: {
-                  pendingCentralSync: Boolean(manifestEntry.pendingCentralSync),
-                  removed: Boolean(manifestEntry.removed),
-                  serverRevision: Number(manifestEntry.serverRevision) || 0,
-                },
-              };
-            },
-            { storageKey: key, expectedText: text }
-          );
-          const centralResponse = await page.request.get(
-            `${endpointBase}/api/app-state?fresh=1&keys=${encodeURIComponent(key)}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "x-footballscience-fresh-state": "1",
-              },
-              timeout: 75_000,
-            }
-          );
-          const centralPayload = await centralResponse.json().catch(() => ({}));
-          lastProbe = {
-            ...localProbe,
-            centralStatus: centralResponse.status(),
-            centralReason: String(centralPayload?.reason || centralPayload?.message || ""),
-            centralRevision: Number(centralPayload?.metadata?.[key]?.revision) || 0,
-            centralContains: String(centralPayload?.entries?.[key] || "").includes(text),
-          };
-          return lastProbe.localContains && centralResponse.ok() && lastProbe.centralContains;
-        },
-        { timeout: 45_000, intervals: [500, 1_000, 2_000, 3_000] }
-      )
-      .toBe(true);
-  } catch (error) {
-    throw new Error(
-      `Central sync verification failed: ${JSON.stringify({
-        key,
-        lastProbe,
-        writes: Array.isArray(options.writes) ? options.writes.slice(-8) : [],
-      })}`,
-      { cause: error }
-    );
-  }
-}
-
-async function expectCentralSyncExcludes(page, key, text) {
-  const endpointBase = new URL("/", page.url()).origin;
-  const token = await getLiveAccessToken(page);
-
-  await expect
-    .poll(
-      async () => {
-        const localValue = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey) || "", key);
-        if (localValue.includes(text)) {
-          return false;
-        }
-        const centralResponse = await page.request.get(
-          `${endpointBase}/api/app-state?fresh=1&keys=${encodeURIComponent(key)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "x-footballscience-fresh-state": "1",
-            },
-            timeout: 75_000,
-          }
-        );
-        if (!centralResponse.ok()) {
-          return false;
-        }
-        const centralPayload = await centralResponse.json().catch(() => ({}));
-        return !String(centralPayload?.entries?.[key] || "").includes(text);
-      },
-      { timeout: 45_000, intervals: [500, 1_000, 2_000, 3_000] }
-    )
-    .toBe(true);
-}
-
-async function removeScheduleEventIfPresent(page, title, targetDate) {
-  const localContainsTitle = await page.evaluate(
-    ({ key, expectedTitle }) => window.localStorage.getItem(key)?.includes(expectedTitle) ?? false,
-    { key: scheduleKey, expectedTitle: title }
-  );
-  if (!localContainsTitle) {
-    await expectCentralSyncExcludes(page, scheduleKey, title);
-    return false;
-  }
-
-  await openWorkspace(page, "schedule");
-  await showScheduleDateInPlanner(page, targetDate);
-  const targetDay = page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`);
-  const eventChip = targetDay.locator(".schedule-planner-event-chip").filter({ has: page.getByText(title, { exact: true }) });
-  await expect(eventChip).toHaveCount(1);
-  await expect(eventChip).toBeVisible();
-  await eventChip.click();
-  await expect(eventChip).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("Delete");
-  const confirmDialog = page.locator(".platform-confirm-dialog");
-  await expect(confirmDialog.locator("h2")).toHaveText("Delete plan?");
-  await confirmDialog.locator("[data-platform-confirm-ok]").click();
-  await expect(page.locator("#schedulePlannerGrid")).not.toContainText(title);
-  await expectStorageExcludes(page, scheduleKey, title);
-  await expectCentralSyncExcludes(page, scheduleKey, title);
-  return true;
-}
-
-async function findEmptySchedulePlannerDay(page, maxWindowShifts = 24) {
-  for (let attempt = 0; attempt <= maxWindowShifts; attempt += 1) {
-    const emptyDay = page.locator(".schedule-planner-day:not(.has-events)").first();
-    if ((await emptyDay.count()) > 0) {
-      return emptyDay;
-    }
-
-    const firstVisibleDate = await page.locator(".schedule-planner-day").first().getAttribute("data-schedule-date");
-    await page.locator("#scheduleNextMonthButton").click();
-    await expect
-      .poll(() => page.locator(".schedule-planner-day").first().getAttribute("data-schedule-date"), {
-        timeout: 15_000,
-      })
-      .not.toBe(firstVisibleDate);
-  }
-
-  throw new Error(`No empty schedule day was found after ${maxWindowShifts} planner window shifts.`);
 }
 
 test.describe('authenticated saved-copy history', () => {
@@ -716,20 +439,58 @@ test("production test account can open the unified Scouting database", async ({ 
     .toMatch(/^(ready|terminal-error)$/);
 });
 
-test("production test account can send, reload, and clean up a chat message", async ({ page }) => {
-  const messageText = `QA Live Chat ${Date.now()}`;
-  let token = "";
-  let messageId = "";
+test("production Chat is reachable for authenticated QA without product writes", async ({ page }) => {
+  const origin = "https://footballscience.xyz";
+  test.skip(new URL(getLiveBaseUrl()).href !== `${origin}/`, "Production-only Chat read boundary.");
+
+  // Active Chat GETs can bootstrap a scope. Only the inactive read boundary is
+  // forwarded by this probe; opening the widget must never send a message or receipt.
+  await page.route(url => url.origin === origin && url.pathname === "/api/chat", route => route.abort("blockedbyclient"));
+  const endpoint = `${origin}/api/chat`;
+  const anonymous = await page.request.get(endpoint, { maxRedirects: 0 });
+  expect(anonymous.status()).toBe(401);
 
   await signIn(page);
+  const token = await getLiveAccessToken(page);
+  const inactive = await page.request.get(endpoint, {
+    headers: { Authorization: `Bearer ${token}` }, maxRedirects: 0,
+  });
+  expect(inactive.status()).toBe(429);
+  const payload = await inactive.json();
+  expect({ code: payload.code, retryable: payload.retryable }).toEqual({ code: "chat_read_inactive", retryable: true });
+  await openChatWidget(page);
+});
+
+async function requireStagingChat() {
+  const staging = await createStagingChatProbe({ browserOrigin: getLiveBaseUrl() });
+  if (primaryLiveCredentials.username !== staging.username.trim() || primaryLiveCredentials.password !== staging.password.trim()) {
+    throw new Error("Chat fixture login differs from the verified staging QA account");
+  }
+  return staging;
+}
+
+stagingChatTest("staging test account can send, reload, and clean up a chat message", async ({ page }) => {
+  test.skip(!process.env.CHAT_QA_EXPECTED_BUILD, "Chat write probe requires a verified isolated staging build.");
+  const staging = await requireStagingChat();
+  const messageText = `QA Staging Chat ${crypto.randomUUID()}`;
+  let token = "";
+  let messageId = "";
+  let attemptedSend = false;
+
+  await installStagingChatBrowserGuard(page.context(), staging);
+  await signIn(page);
+  const author = await getLiveCurrentUser(page);
   token = await getLiveAccessToken(page);
 
   try {
     await openTeamChat(page);
-    const initialPayload = await requestLiveChat(page, token);
-    expect(Array.isArray(initialPayload.messages), "Live chat response must include messages.").toBe(true);
+    const initialPayload = await requestStagingChat(page, staging, token);
+    expect(Array.isArray(initialPayload.messages), "Staging Chat response must include messages.").toBe(true);
+    expect(findLiveChatMessageInPayload(initialPayload, messageText)).toBeNull();
 
+    await staging.identity();
     await page.locator("[data-dashboard-chat-input]").fill(messageText);
+    attemptedSend = true;
     await page.locator("[data-dashboard-chat-form] button[type='submit']").click();
     await expect(page.locator("[data-dashboard-chat-input]")).toHaveValue("");
     await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
@@ -737,7 +498,8 @@ test("production test account can send, reload, and clean up a chat message", as
     await expect
       .poll(
         async () => {
-          const message = await findLiveChatMessageByText(page, token, messageText);
+          const message = await findStagingTeamChatMessage(page, staging, token, messageText);
+          if (message) expect(String(message.authorId || message.author_id || "")).toBe(author.id);
           messageId = String(message?.id || message?.messageId || "");
           return Boolean(messageId);
         },
@@ -747,96 +509,120 @@ test("production test account can send, reload, and clean up a chat message", as
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await signIn(page);
+    expect((await getLiveCurrentUser(page)).id).toBe(author.id);
     token = await getLiveAccessToken(page);
     await openTeamChat(page);
     await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
 
-    await deleteLiveChatMessage(page, token, messageId);
+    await deleteStagingChatMessage(page, staging, token, messageId);
     await expect
       .poll(
         async () => {
-          const message = await findLiveChatMessageByText(page, token, messageText);
+          const message = await findStagingTeamChatMessage(page, staging, token, messageText);
           return Boolean(message);
         },
         { timeout: 30_000, intervals: [750, 1_500, 3_000] }
       )
       .toBe(false);
     messageId = "";
+    attemptedSend = false;
   } finally {
-    if (!messageId && token) {
-      const message = await findLiveChatMessageByText(page, token, messageText).catch(() => null);
-      messageId = String(message?.id || message?.messageId || "");
-    }
-    if (messageId && token) {
-      await deleteLiveChatMessage(page, token, messageId).catch(() => {});
+    if (attemptedSend) {
+      const message = await findStagingTeamChatMessage(page, staging, token, messageText);
+      if (message) {
+        expect(String(message.authorId || message.author_id || "")).toBe(author.id);
+        await deleteStagingChatMessage(page, staging, token, String(message.id || message.messageId || ""));
+      }
     }
   }
 });
 
-test("production peer accounts prove DM unread state and read receipt end-to-end", async ({ browser, page }) => {
-  test.skip(
-    !hasPeerLiveCredentials && !canCreateDynamicPeerLiveAccount,
-    "Set LIVE_QA_PEER_USERNAME/LIVE_QA_PEER_PASSWORD or run with LIVE_QA_EXPECT_ADMIN=1 for dynamic peer live smoke."
-  );
+const stagingChatWithPeer = stagingChatTest.extend({
+  provisionPeer: [async ({}, use) => {
+    let peer;
+    try {
+      await use(async (options) => {
+        peer = await trackStagingChatPeer(options);
+        return peer.create();
+      });
+    } finally {
+      await peer?.cleanup();
+    }
+  }, { timeout: 90_000 }],
+});
 
-  const messageText = `QA Live DM ${Date.now()}`;
+stagingChatWithPeer("staging peer accounts prove DM unread state and read receipt end-to-end", async ({ browser, page, provisionPeer }) => {
+  test.skip(!process.env.CHAT_QA_EXPECTED_BUILD, "Chat write probe requires a verified isolated staging build.");
+  test.setTimeout(180_000);
+  const staging = await requireStagingChat();
+  const messageText = `QA Staging DM ${crypto.randomUUID()}`;
   let primaryToken = "";
-  let messageId = "";
-  let threadId = "";
-  let peerContext = null;
+  let attemptedCreate = false;
+  let attemptedSend = false;
 
+  await installStagingChatBrowserGuard(page.context(), staging);
   await signIn(page);
   primaryToken = await getLiveAccessToken(page);
   const primaryUser = await getLiveCurrentUser(page);
-  const peerAccount = await ensureLivePeerCredentials(page, primaryToken, primaryUser);
+  const peerAccount = await provisionPeer({ staging, token: primaryToken, primaryUser });
+  const threadId = `dm:${[primaryUser.id, peerAccount.id].sort().join(":")}`;
+  const threadQuery = `threadId=${encodeURIComponent(threadId)}&threadType=dm&limit=80`;
 
-  peerContext = await browser.newContext({
-    baseURL: getLiveBaseUrl(),
+  const peerContext = await browser.newContext({
+    baseURL: staging.origin,
+    serviceWorkers: "block",
     storageState: { cookies: [], origins: [] },
   });
-  const peerPage = await peerContext.newPage();
-  await signIn(peerPage, peerAccount.credentials);
-  const peerToken = await getLiveAccessToken(peerPage);
-  const peerUser = await getLiveCurrentUser(peerPage);
-
-  expect(peerUser.id, "Peer account must be a different live user.").not.toBe(primaryUser.id);
 
   try {
-    const createPayload = await postLiveChatAction(
+    await installStagingChatBrowserGuard(peerContext, staging);
+    const peerPage = await peerContext.newPage();
+    await signIn(peerPage, peerAccount.credentials);
+    const peerToken = await getLiveAccessToken(peerPage);
+    const peerUser = await getLiveCurrentUser(peerPage);
+
+    expect(peerUser.id, "Peer sign-in must resolve to the fixture account.").toBe(peerAccount.id);
+    const baseline = await requestStagingChat(peerPage, staging, peerToken, "limit=80");
+    expect(findLiveChatThreadById(baseline, threadId)).toBeNull();
+
+    attemptedCreate = true;
+    const createPayload = await postStagingChatAction(
       page,
+      staging,
       primaryToken,
       {
         action: "createThread",
-        threadId: `dm:${primaryUser.id}:${peerUser.id}`,
+        threadId,
         type: "dm",
         title: "Direct message",
         visibility: "private",
         participantIds: [primaryUser.id, peerUser.id],
       },
-      "Create peer live DM"
+      "Create staging peer DM"
     );
-    threadId = String(createPayload?.thread?.threadId || createPayload?.thread?.legacyThreadId || createPayload?.thread?.metadata?.legacyThreadId || "");
-    expect(threadId, "Live DM create did not return a logical threadId.").toBeTruthy();
+    expect(String(createPayload?.thread?.threadId || createPayload?.thread?.legacyThreadId || createPayload?.thread?.metadata?.legacyThreadId || ""),
+      "Staging DM must use the fixture pair's exact logical thread.").toBe(threadId);
 
-    const sendPayload = await postLiveChatAction(
+    attemptedSend = true;
+    const sendPayload = await postStagingChatAction(
       page,
+      staging,
       primaryToken,
       {
         action: "sendMessage",
         threadId,
         threadType: "dm",
         text: messageText,
-        clientMessageId: `live-dm-${Date.now()}`,
+        clientMessageId: `qa-staging-dm-${crypto.randomUUID()}`,
       },
-      "Send peer live DM"
+      "Send staging peer DM"
     );
-    messageId = String(sendPayload?.message?.id || sendPayload?.message?.messageId || "");
-    expect(messageId, "Live DM send did not return a message id.").toBeTruthy();
+    expect(String(sendPayload?.message?.id || sendPayload?.message?.messageId || ""), "Staging DM send did not return a message id.").toBeTruthy();
 
     await expect
       .poll(
         async () => {
-          const peerInbox = await requestLiveChat(peerPage, peerToken, "limit=80");
+          const peerInbox = await requestStagingChat(peerPage, staging, peerToken, "limit=80");
           const peerThread = findLiveChatThreadById(peerInbox, threadId);
           return {
             hasThread: Boolean(peerThread),
@@ -846,10 +632,11 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
         },
         { timeout: 45_000, intervals: [750, 1_500, 3_000] }
       )
-      .toMatchObject({ hasThread: true, unreadCount: 1 });
+      .toEqual({ hasThread: true, unreadCount: 1, preview: messageText });
 
     await peerPage.reload({ waitUntil: "domcontentloaded" });
     await signIn(peerPage, peerAccount.credentials);
+    expect((await getLiveCurrentUser(peerPage)).id).toBe(peerAccount.id);
     await openTeamChat(peerPage);
     const peerThreadButton = peerPage.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
     await expect(peerThreadButton).toBeVisible({ timeout: 45_000 });
@@ -860,7 +647,7 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
     await expect
       .poll(
         async () => {
-          const primaryThreadPayload = await requestLiveChat(page, primaryToken, `threadId=${encodeURIComponent(threadId)}&threadType=dm&limit=80`);
+          const primaryThreadPayload = await requestStagingChat(page, staging, primaryToken, threadQuery);
           const message = findLiveChatMessageInPayload(primaryThreadPayload, messageText);
           return Array.isArray(message?.readBy) && message.readBy.includes(peerUser.id);
         },
@@ -870,93 +657,53 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await signIn(page);
+    expect((await getLiveCurrentUser(page)).id).toBe(primaryUser.id);
     primaryToken = await getLiveAccessToken(page);
     await openTeamChat(page);
     const primaryActiveThread = await openLiveChatThread(page, threadId);
     await expect(primaryActiveThread).toContainText(messageText, { timeout: 45_000 });
     const readReceiptStatus = page.locator('[data-dashboard-chat-message-delivery-status="read"]').last();
     await expect(readReceiptStatus).toHaveAttribute("title", /Read by 1/, { timeout: 45_000 });
-
-    await deleteLiveChatMessage(page, primaryToken, messageId);
-    messageId = "";
   } finally {
-    if (messageId && primaryToken) {
-      await deleteLiveChatMessage(page, primaryToken, messageId).catch(() => {});
+    try {
+      if (attemptedCreate) {
+        const inbox = await requestStagingChat(page, staging, primaryToken, "limit=80");
+        if (findLiveChatThreadById(inbox, threadId)) {
+          if (attemptedSend) {
+            const thread = await requestStagingChat(page, staging, primaryToken, threadQuery);
+            const message = findLiveChatMessageInPayload(thread, messageText);
+            if (message) {
+              expect(String(message.authorId || message.author_id || "")).toBe(primaryUser.id);
+              await deleteStagingChatMessage(page, staging, primaryToken, String(message.id || message.messageId || ""));
+              const cleaned = await requestStagingChat(page, staging, primaryToken, threadQuery);
+              expect(findLiveChatMessageInPayload(cleaned, messageText)).toBeNull();
+            }
+          }
+          await postStagingChatAction(page, staging, primaryToken, {
+            action: "setThreadUserState", operation: "delete", threadType: "dm", threadId,
+          }, "Hide the fixture DM for the staging QA account");
+        }
+      }
+    } finally {
+      await peerContext.close();
     }
-    await peerContext?.close().catch(() => {});
   }
 });
 
-const scheduleTest = test.extend({
-  scheduleProbe: createScheduleProbeFixture({ signIn, getCurrentUser: getLiveCurrentUser, removeRecord: removeScheduleEventIfPresent }),
-});
+test.describe("authenticated Schedule", () => {
+  test.use({ serviceWorkers: "block" });
 
-scheduleTest("production test account can save and reload a schedule record", async ({ page, scheduleProbe }) => {
-  const lastDialogType = installScheduleDialogHandler(page);
+  test("production test account can open Schedule", async ({ page }) => {
+    await page.context().route(
+      url => url.pathname === "/api/app-state",
+      route => ["GET", "HEAD", "OPTIONS"].includes(route.request().method())
+        ? route.continue()
+        : route.abort("blockedbyclient"),
+    );
 
-  const title = `QA Live ${Date.now()}-${crypto.randomUUID()}`;
-  const scheduleWrites = [];
-  let targetDate = "";
-
-  page.on("response", async (response) => {
-    const request = response.request();
-    if (!/\/api\/app-state(?:\?|$)/.test(response.url()) || !["POST", "DELETE"].includes(request.method())) {
-      return;
-    }
-    let requestBody = {};
-    try {
-      requestBody = request.postDataJSON?.() || {};
-    } catch {}
-    if (String(requestBody?.key || "") !== scheduleKey) {
-      return;
-    }
-    const responseBody = await response.json().catch(() => ({}));
-    scheduleWrites.push({
-      status: response.status(),
-      requestContainsRecord: String(requestBody?.value || "").includes(title),
-      baseRevision: Number(requestBody?.baseRevision ?? requestBody?.metadata?.baseRevision) || 0,
-      responseKey: String(responseBody?.key || ""),
-      reason: String(responseBody?.reason || ""),
-      currentRevision: Number(responseBody?.currentRevision) || 0,
-      revision: Number(responseBody?.revision ?? responseBody?.metadata?.revision) || 0,
-    });
-  });
-
-  await test.step("Schedule: authenticate and hydrate", () => signIn(page));
-  const user = await getLiveCurrentUser(page);
-
-  await test.step("Schedule: create a run-owned record and verify central save", async () => {
+    await signIn(page);
     await openWorkspace(page, "schedule");
-    await page.locator("#scheduleTodayButton").click();
-    const targetDay = await findEmptySchedulePlannerDay(page);
-    targetDate = (await targetDay.getAttribute("data-schedule-date")) || "";
-    expect(targetDate).toBeTruthy();
-    await targetDay.dblclick();
-    const addInput = page.locator(`[data-schedule-planner-add-date="${targetDate}"] [name="plannerTitle"]`);
-    await expect(addInput).toBeFocused();
-    await addInput.fill(title);
-    const stopObserving = await observeScheduleWrite(page, scheduleKey);
-    try {
-      scheduleProbe.arm({ title, targetDate, user });
-      await addInput.press("Enter");
-      await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
-      await expectStorageContains(page, scheduleKey, title);
-      await expectCentralSyncContains(page, scheduleKey, title, { writes: scheduleWrites });
-    } finally {
-      await stopObserving();
-    }
-  });
-
-  await test.step("Schedule: reload and return to the saved date", async () => {
-    try {
-      await page.reload({ waitUntil: "domcontentloaded", timeout: 20_000 });
-    } catch (cause) {
-      throw new Error(`Schedule reload failed; last dialog type: ${lastDialogType()}`, { cause });
-    }
-    await expect(page.locator("#hubShell")).toBeVisible();
-    await openWorkspace(page, "schedule");
-    await showScheduleDateInPlanner(page, targetDate);
-    await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
-    await expectStorageContains(page, scheduleKey, title);
+    await expect(page.locator("#schedulePlannerGrid")).toBeVisible();
+    await expect(page.locator("#schedulePlannerGrid .schedule-planner-day").first()).toBeVisible();
   });
 });

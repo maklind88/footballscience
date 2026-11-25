@@ -3,6 +3,7 @@ import { id } from './helpers/relations-permissions-postgres.mjs';
 import { medicalConfirmationPostgres } from './helpers/medical-confirmation-postgres.mjs';
 import { installSetPiecesCentralFixture } from './helpers/set-pieces-central-fixture.mjs';
 import { medicalKey, sessionsKey } from './helpers/save-acceptance-staging.mjs';
+import { guardSavedWorkLoopback } from './helpers/saved-work-loopback-browser.mjs';
 
 const day = '2026-10-05';
 const emptyDay = '2026-10-06';
@@ -71,8 +72,7 @@ test('committed Medical recommendation is visible in either cold-open order unde
   async function open(user, workspace, { quota = false, pause = false } = {}) {
     const context = await browser.newContext({ serviceWorkers: 'block' });
     contexts.push(context);
-    await context.route('**/*', route => new URL(route.request().url()).origin === baseURL
-      ? route.continue() : route.abort('blockedbyclient'));
+    await guardSavedWorkLoopback(context, baseURL);
     const page = await context.newPage();
     const auth = await installSetPiecesCentralFixture(page);
     auth.actor = user;

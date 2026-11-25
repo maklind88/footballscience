@@ -1,4 +1,5 @@
-import {test,expect} from '@playwright/test';
+import {expect} from '@playwright/test';
+import {test} from './helpers/live-browser-readonly.mjs';
 
 // Existing QA credentials in a disposable authenticated browser profile only.
 // No draft creation, import, activation, recovery, acknowledgement or deletion.
@@ -8,7 +9,7 @@ test('mobile upgrade guide is reachable live without compact activation or centr
  const compactRequests=[];let blockedWrites=0;
  page.on('request',r=>{if(r.url().includes('/src/core/snapshot-compact-archive.mjs'))compactRequests.push(r.url());});
  await page.route('**/api/app-state**',route=>{
-   if(['GET','HEAD'].includes(route.request().method()))return route.continue();
+   if(['GET','HEAD'].includes(route.request().method()))return route.fallback();
    blockedWrites++;return route.abort('blockedbyclient');
  });
  await page.goto('/');

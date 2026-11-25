@@ -4,6 +4,7 @@ import { readJournal } from './helpers/session-full-app-storage-fixture.mjs';
 import { startSessionSaveBackend, date, sessionKey } from './helpers/session-save-chain-backend.mjs';
 import { isolatedProfile, exhaustOrigin } from './helpers/session-save-chain-profile.mjs';
 import { createSessionSaveChainTiming, attachSessionSaveChainEvidence } from './helpers/session-save-chain-diagnostics.mjs';
+import { guardSavedWorkLoopback } from './helpers/saved-work-loopback-browser.mjs';
 import transport from '../api/_lib/session-state-transport.js';
 
 const test = base.extend({ seedSessions: [true, { option: true }] });
@@ -33,7 +34,7 @@ async function launch(number, { profile, quotaBytes, failCache = false, failChec
   else {
     context = await activeBrowser.newContext({ baseURL: appOrigin, serviceWorkers: 'block' });
     cleanup.push(() => context.close());
-    await context.route('**/*', route => new URL(route.request().url()).origin === appOrigin ? route.continue() : route.abort('blockedbyclient'));
+    await guardSavedWorkLoopback(context, appOrigin);
     page = await context.newPage();
   }
   // Fixed calendar date without a frozen monotonic clock for pending-age evidence.

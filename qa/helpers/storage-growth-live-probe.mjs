@@ -4,7 +4,7 @@ import { expect } from '@playwright/test';
 // module values. The restore fault uses an isolated in-memory Storage instance.
 export async function verifyStorageGrowthLive(page) {
   expect(await page.evaluate(() => window.platformAuthStore?.getCurrentUser?.()?.role)).toBe('admin');
-  await page.route('**/api/**', route => ['GET', 'HEAD'].includes(route.request().method()) ? route.continue() : route.abort());
+  await page.route('**/api/**', route => ['GET', 'HEAD'].includes(route.request().method()) ? route.fallback() : route.abort());
   const id = 'qa-live-growth-' + crypto.randomUUID();
   const before = await page.evaluate(async id => {
     const { createDataSafetyRuntimeService } = await import('/src/core/data-safety-runtime-service.mjs');

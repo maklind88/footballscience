@@ -20,7 +20,9 @@ test("staging smoke binds the read-only Leaderboard proof to staging", () => {
   const runner = fs.readFileSync(path.join(rootDir, "scripts/run-staging-live-qa.mjs"), "utf8");
   expect(runner).toContain("LEADERBOARD_READONLY_EXPECTED_ORIGIN: new URL(stagingBaseUrl).origin");
   expect(runner).toContain("LEADERBOARD_READONLY_EXPECTED_SUPABASE_REF: process.env.STAGING_SUPABASE_PROJECT_REF");
-  expect(runner).toContain("LEADERBOARD_READONLY_DENIED_SUPABASE_REF: process.env.SUPABASE_PROJECT_REF");
+  expect(runner).toContain("LEADERBOARD_READONLY_DENIED_SUPABASE_REF: proof?.liveRef || process.env.SUPABASE_PROJECT_REF");
+  expect(runner).toContain('LIVE_QA_PEER_USERNAME: ""');
+  expect(runner).toContain('LIVE_QA_PEER_PASSWORD: ""');
 });
 
 test("staging Leaderboard uses an explicit fixture team even with multiple memberships", () => {

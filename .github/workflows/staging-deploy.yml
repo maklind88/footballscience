@@ -77,6 +77,9 @@ jobs:
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
       - run: npx --yes vercel@53.2.0 pull --yes --environment=preview --git-branch=staging --token="$VERCEL_TOKEN"
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+      - name: Require atomic database writes for staging fixtures
+        if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+        run: node scripts/verify-staging-write-target.mjs >> "$GITHUB_ENV"
       - name: Carry reviewed staging Medical mode into runtime
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
         run: |
@@ -89,7 +92,7 @@ jobs:
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
         shell: bash
         run: |
-          npx --yes vercel@53.2.0 deploy --prebuilt --target=preview --env "MEDICAL_STORAGE_MODE=$STAGING_MEDICAL_STORAGE_MODE" --meta githubCommitRef=staging --token="$VERCEL_TOKEN" | tee deployment-url.txt
+          npx --yes vercel@53.2.0 deploy --prebuilt --target=preview --env "MEDICAL_STORAGE_MODE=$STAGING_MEDICAL_STORAGE_MODE" --env "APP_STATE_DATABASE_MODE=$STAGING_APP_STATE_DATABASE_MODE" --meta scheduleQaDatabaseMode="$STAGING_APP_STATE_DATABASE_MODE" --meta githubCommitRef=staging --meta githubCommitSha="$GITHUB_SHA" --token="$VERCEL_TOKEN" | tee deployment-url.txt
           deployment_url="$(grep -Eo 'https://[^[:space:]]+\.vercel\.app' deployment-url.txt | tail -n 1)"
           if [ -z "$deployment_url" ]; then
             echo "Could not resolve staging deployment URL from Vercel output."
@@ -168,6 +171,10 @@ jobs:
 
           throw new Error(`Staging alias did not expose the Leaderboard API within 90 seconds (last status: ${lastStatus || "no response"}).`);
           NODE
+
+      - name: Isolated Schedule and Chat write, reload, and cleanup proofs
+        if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+        run: node scripts/run-staging-live-qa.mjs --required --release-fixtures
 
       - name: Authenticated staging smoke
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}

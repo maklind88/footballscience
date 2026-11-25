@@ -1,4 +1,5 @@
-import { expect, request, test } from "@playwright/test";
+import { expect, request } from "@playwright/test";
+import { test } from "./helpers/live-browser-readonly.mjs";
 import { assertSupabaseUrl, sanitizedApiRequest } from "../scripts/lib/leaderboard-production-release-security.mjs";
 
 const liveBaseUrl = String(process.env.LIVE_QA_BASE_URL || "https://footballscience.xyz").trim();
@@ -124,7 +125,7 @@ test("Leaderboard is authenticated, tenant-bound, internally consistent, and rea
       await route.abort("blockedbyclient");
       return;
     }
-    await route.continue();
+    await route.fallback();
   });
   page.on("response", (response) => {
     const responseUrl = new URL(response.url());

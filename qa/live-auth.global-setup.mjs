@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
+import { installProductionBrowserReadGuard } from "./helpers/live-browser-readonly.mjs";
 
 const qaDir = path.dirname(fileURLToPath(import.meta.url));
 const authStatePath = path.resolve(qaDir, "..", ".playwright", "auth", "live.json");
@@ -23,12 +24,12 @@ function writeAuthState(state) {
 }
 
 async function loginWithApiBackedSession(page, baseURL) {
-  const response = await page.request.post(`${baseURL}/api/client-config`, {
+  const response = await page.request.post(new URL("/api/client-config", baseURL).href, {
     data: {
       email: process.env.LIVE_QA_USERNAME,
       password: process.env.LIVE_QA_PASSWORD,
     },
-    timeout: 75_000,
+    timeout: 75_000, maxRedirects: 0,
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok() || !payload?.session?.access_token) {
@@ -74,7 +75,8 @@ export default async function globalSetup() {
   }
 
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ baseURL });
+  const context = await browser.newContext({ baseURL, serviceWorkers: "block" });
+  await installProductionBrowserReadGuard(context, baseURL);
   const page = await context.newPage();
 
   try {

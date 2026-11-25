@@ -9,20 +9,20 @@ import os from "node:os";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("production Schedule smoke confirms deletion and proves central cleanup", () => {
-  const source = fs.readFileSync(path.join(rootDir, "qa/production.live.spec.mjs"), "utf8");
+test("Schedule mutation and verified cleanup run outside the production suite", () => {
+  const live = fs.readFileSync(path.join(rootDir, "qa/production.live.spec.mjs"), "utf8");
+  const staging = fs.readFileSync(path.join(rootDir, "qa/schedule-write.staging.spec.mjs"), "utf8");
 
-  expect(source).toContain('await expect(eventChip).toHaveAttribute("aria-pressed", "true")');
-  expect(source).toContain('confirmDialog.locator("[data-platform-confirm-ok]").click()');
-  expect(source).toContain("await expectStorageExcludes(page, scheduleKey, title)");
-  expect(source).toContain("await expectCentralSyncExcludes(page, scheduleKey, title)");
-  expect(source).toContain("if (!centralResponse.ok())");
-  expect(source).toContain("removeRecord: removeScheduleEventIfPresent");
-  expect(source).not.toContain("removeScheduleEventIfPresent(page, title).catch");
-  expect(source).toContain('await expect(eventChip).toHaveCount(1)');
-  expect(source).toContain('if (!localContainsTitle) {\n    await expectCentralSyncExcludes(page, scheduleKey, title)');
-  expect(source).toMatch(/scheduleProbe\.arm\(\{ title, targetDate, user \}\);\s+await addInput\.press\("Enter"\)/);
-  expect(source).toContain('await openWorkspace(page, "schedule");\n    await showScheduleDateInPlanner(page, targetDate)');
+  expect(live).toContain('production test account can open Schedule');
+  expect(live).toContain('["GET", "HEAD", "OPTIONS"].includes(route.request().method())');
+  expect(live).not.toContain("createScheduleProbeFixture");
+  expect(live).not.toContain("scheduleProbe.arm");
+  expect(staging).toContain('await expect(eventChip).toHaveAttribute("aria-pressed", "true")');
+  expect(staging).toContain('confirmDialog.locator("[data-platform-confirm-ok]").click()');
+  expect(staging).toContain("await visibleLocalEvent(page, record, false)");
+  expect(staging).toContain("await assertCentralEvent(qa, page, record, false)");
+  expect(staging).toContain('await expect(eventChip).toHaveCount(1)');
+  expect(staging).toContain("await showScheduleDateInPlanner(reopened, record.date)");
 });
 
 const record = {

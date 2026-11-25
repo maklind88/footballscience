@@ -2,6 +2,7 @@ import { chromium } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { guardSavedWorkLoopback, savedWorkIsolationProxy } from './saved-work-loopback-browser.mjs';
 
 export async function isolatedProfile(baseURL) {
   const profile = await mkdtemp(join(tmpdir(), 'fs-save-chain-'));
@@ -10,8 +11,9 @@ export async function isolatedProfile(baseURL) {
     profile,
     async open({ offline = false, quotaBytes, serviceWorkers = 'block' } = {}) {
       if (context) throw new Error('Previous proof browser is still open');
+      const proxy = process.env.SAVED_WORK_ASSETS_LOOPBACK ? savedWorkIsolationProxy(baseURL) : undefined;
       context = await chromium.launchPersistentContext(profile, { headless: true, baseURL,
-        viewport: { width: 1365, height: 900 }, serviceWorkers });
+        viewport: { width: 1365, height: 900 }, serviceWorkers, proxy });
       await context.setOffline(offline);
       if (quotaBytes !== undefined) {
         // Apply before ANY IndexedDB use: Chromium caches the initial bucket
@@ -19,9 +21,7 @@ export async function isolatedProfile(baseURL) {
         const quotaSession = await context.newCDPSession(context.pages()[0]);
         await quotaSession.send('Storage.overrideQuotaForOrigin', { origin: new URL(baseURL).origin, quotaSize: quotaBytes });
       }
-      // Remote HTTP is denied; the explicit synthetic auth routes may override it.
-      await context.route('**/*', route => new URL(route.request().url()).origin === new URL(baseURL).origin
-        ? route.continue() : route.abort('blockedbyclient'));
+      await guardSavedWorkLoopback(context, baseURL);
       return { context, page: context.pages()[0] };
     },
     async crash() {

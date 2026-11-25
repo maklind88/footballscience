@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: footballscience-production-edge-release
@@ -24,9 +25,6 @@ jobs:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
       LIVE_QA_EXPECT_ADMIN: "1"
       LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
-      LIVE_QA_PEER_PASSWORD: ${{ secrets.LIVE_QA_PEER_PASSWORD }}
-      LIVE_QA_PEER_USERNAME: ${{ secrets.LIVE_QA_PEER_USERNAME }}
-      LIVE_QA_REQUIRE_PEER_CHAT: ${{ vars.LIVE_QA_REQUIRE_PEER_CHAT || '1' }}
       LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
       LEADERBOARD_LIVE_QA_PASSWORD: ${{ secrets.LEADERBOARD_LIVE_QA_PASSWORD }}
       LEADERBOARD_LIVE_QA_TEAM_ID: ${{ vars.LEADERBOARD_LIVE_QA_TEAM_ID }}
@@ -68,6 +66,11 @@ jobs:
 
       - name: Verify production safety gate
         run: npm run release:safety
+
+      - name: Require successful isolated staging writes for this commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-staging-write-target.mjs --completed-proof
 
       - run: npx --yes vercel@53.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
 

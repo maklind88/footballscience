@@ -32,7 +32,7 @@ export async function showScheduleDateInPlanner(page, targetDate, maxWindowShift
 
 // A test-scoped fixture has a teardown budget separate from a timed-out test body.
 // Use a fresh context: the original page may already have been closed on timeout.
-export function createScheduleProbeFixture({ signIn, getCurrentUser, removeRecord }) {
+export function createScheduleProbeFixture({ signIn, getCurrentUser, removeRecord, createContext = browser => browser.newContext() }) {
   return [async ({ browser }, use) => {
     let record;
     await use({
@@ -47,7 +47,7 @@ export function createScheduleProbeFixture({ signIn, getCurrentUser, removeRecor
     if (!record) return;
     const { title, targetDate } = record;
     console.info(`Schedule probe cleanup started: ${JSON.stringify({ title, targetDate })}`);
-    const context = await browser.newContext();
+    const context = await createContext(browser);
     try {
       const page = await context.newPage();
       await signIn(page);

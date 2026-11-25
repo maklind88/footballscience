@@ -3375,6 +3375,15 @@ test(`a replacement Medical draft is never adopted after an organization switch 
     store.entries[medicalTeamStateKey] = otherValue;
     store.metadataEntries[medicalTeamStateKey] = createMetadata(10, otherValue);
     await tab.page.reload({ waitUntil: "domcontentloaded" });
+    // DOM readiness can precede auth and the protected storage hooks. Check
+    // the replacement only once the new organization has actually hydrated.
+    await tab.page.waitForFunction(() => {
+      const bridge = window.footballScienceCentralState;
+      const scope = bridge?.getReadScope?.();
+      if (!scope || !bridge.isHydrated() || bridge.getStatus().hydrating) return false;
+      const [userId, organizationId] = JSON.parse(scope);
+      return userId === "new-org-actor" && organizationId === "org-b";
+    }, undefined, { timeout: 15_000 });
     await expect.poll(() => tab.page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}").records?.map((record) => record.id), medicalTeamStateKey)).toEqual(["org-b-central"]);
     await expect.poll(() => tab.page.evaluate(() => window.footballScienceCentralState.getStatus().hydrating)).toBe(false);
     if (manifestQuota) expect(await tab.page.evaluate((key) => window.footballScienceCentralState.getCachedValueInfo(key).source, medicalTeamStateKey)).toBe("central-readonly-baseline");

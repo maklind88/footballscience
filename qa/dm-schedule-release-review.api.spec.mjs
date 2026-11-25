@@ -89,8 +89,10 @@ test("review workflow exposes only QA credentials after the protected job and ne
   expect(job.indexOf("node scripts/verify-dm-schedule-review-target.mjs")).toBeLessThan(job.indexOf("${{ secrets."));
   expect(job.indexOf("node scripts/ci-install.mjs")).toBeLessThan(job.indexOf("${{ secrets."));
   expect(job.match(/\$\{\{ secrets\.[A-Z_]+ \}\}/g)).toEqual([
-    "${{ secrets.LIVE_QA_USERNAME }}", "${{ secrets.LIVE_QA_PASSWORD }}", "${{ secrets.LIVE_QA_PEER_USERNAME }}", "${{ secrets.LIVE_QA_PEER_PASSWORD }}",
+    "${{ secrets.LIVE_QA_USERNAME }}", "${{ secrets.LIVE_QA_PASSWORD }}",
   ]);
+  expect(job).toContain("production test account can open Schedule|production Chat is reachable for authenticated QA without product writes");
+  expect(job).not.toMatch(/LIVE_QA_PEER|--release-fixtures/);
   expect(job).not.toMatch(/VERCEL_TOKEN|CRON_SECRET|upload-artifact|continue-on-error|git push|npm run deploy/);
   const ship = fs.readFileSync(new URL("../scripts/release-ship.mjs", import.meta.url), "utf8");
   expect(ship).toContain('requireManualReleaseReview(options, "safe");\n  run("git", ["push", "origin", "HEAD:main"]);');

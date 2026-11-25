@@ -1,3 +1,4 @@
+import { renderGameModelActions } from "./game-model/action-renderer.mjs";
 import {
   idpDevelopmentCategories,
   idpEvidenceTypes,
@@ -1357,6 +1358,7 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
   const hasSavedFocus = Boolean(focus?.id && !String(focus.id).startsWith("legacy-focus-"));
   const copy = {
     "new-focus": ["Add development focus", ""],
+    "game-model": ["Choose an individual action", ""],
     ownership: ["Assign IDP Coach", "Choose who owns this player's development follow-up."],
     focus: hasSavedFocus
       ? ["Update focus", "Change the player's current development priority, status, and review date."]
@@ -1370,7 +1372,9 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
     review: ["Complete review", "Close the current review loop and set the next action."],
   };
   const [title, description] = copy[mode] || copy.focus;
-  const form = mode === "edit-evidence" && !editingEvidence
+  const form = mode === "game-model"
+    ? renderGameModelActions(state)
+    : mode === "edit-evidence" && !editingEvidence
     ? `<div class="idp-empty-signal">Observation no longer available.</div>`
     : mode === "ownership"
     ? renderOwnershipForm(state.playerDetail, focus, options)
@@ -1400,8 +1404,8 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
         </header>
         <div class="idp-action-context" aria-label="Action context">
           <span><small>Player</small><strong>${escapeHtml(profile.playerName || "Player")}</strong></span>
-          <span><small>Current Focus</small><strong>${escapeHtml(focus?.title || "No active focus")}</strong></span>
-          <span><small>IDP Coach</small><strong>${escapeHtml(formatStaffName(ownerId, options))}</strong></span>
+          ${mode === "game-model" ? "" : `<span><small>Current Focus</small><strong>${escapeHtml(focus?.title || "No active focus")}</strong></span>
+          <span><small>IDP Coach</small><strong>${escapeHtml(formatStaffName(ownerId, options))}</strong></span>`}
         </div>
         ${form}
       </article>

@@ -1,3 +1,4 @@
+import { handleGameModelChange, handleGameModelClick, handleGameModelSubmit, bindGameModelKeyboard } from "./game-model/action-controller.mjs";
 import { createIdpActions } from "./idp-actions.mjs";
 import { createIdpStore } from "./idp-state.mjs";
 import { renderIdpWorkspace as renderMarkup } from "./idp-renderer.mjs";
@@ -203,6 +204,7 @@ function restoreSearchFocus(activeRuntime = runtime, focusState = null) {
 function paint(activeRuntime = runtime) {
   const root = getRoot(activeRuntime?.context);
   if (!root) return;
+  bindGameModelKeyboard(activeRuntime, root);
   ensureClipBankStyles(activeRuntime);
   ensureIdpProfileStyles(activeRuntime);
   const searchFocus = captureSearchFocus(activeRuntime);
@@ -380,6 +382,7 @@ export function handleInput(event) {
 }
 
 export function handleChange(event) {
+  if (handleGameModelChange(event, runtime)) return;
   if (handleIdpPlayerBoardChange(event, runtime)) return;
   const target = event?.target;
   const scoutingMetricToggle = target?.closest?.("[data-player-profile-scouting-metric-toggle]");
@@ -426,6 +429,7 @@ export function handleChange(event) {
 }
 
 export function handleClick(event) {
+  if (handleGameModelClick(event, runtime)) return;
   if (handleIdpPlayerBoardClick(event, runtime)) return;
   const deletePlayerBoardTrigger = event?.target?.closest?.("[data-idp-board-delete]");
   if (deletePlayerBoardTrigger) {
@@ -737,6 +741,7 @@ export function handleClick(event) {
 }
 
 export function handleSubmit(event) {
+  if (handleGameModelSubmit(event, runtime)) return;
   const form = event?.target;
   if (!form?.matches?.("[data-idp-create-focus], [data-idp-add-evidence], [data-idp-update-evidence], [data-idp-complete-review], [data-idp-assign-owner], [data-idp-save-goal], [data-idp-add-goal-checkin]")) {
     return;

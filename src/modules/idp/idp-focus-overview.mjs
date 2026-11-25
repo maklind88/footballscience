@@ -51,6 +51,7 @@ export function renderFocusOverview(detail, { selectedId = "", expandedId = "", 
   const card = (focus) => renderCard(focus, detail, selectedId, expandedId, canEdit && !inactive, summary);
   return `<section class="idp-focus-overview idp-current-focus-card" aria-label="Development focuses">
     <header class="idp-focus-overview-head"><h2>Development focuses <span>${active.length}</span></h2>
+      ${canEdit && !inactive ? '<button type="button" class="idp-game-model-entry" data-idp-action="game-model">Choose individual action</button>' : ""}
       ${canEdit && !inactive && availableFocusLevels(detail).length ? '<button type="button" data-idp-action="new-focus"><span aria-hidden="true">+</span> Add focus</button>' : ""}
     </header>
     ${active.length ? `<div class="idp-focus-card-grid">${active.map(card).join("")}</div>` : `<p class="idp-focus-empty">${inactive ? "No active IDP" : "No active focus yet"}</p>`}

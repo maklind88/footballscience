@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { setTimeout as waitForPropagation } from "node:timers/promises";
 import { parseEnv } from "node:util";
 import { deploymentIdOf, normalizeHttpsOrigin } from "./lib/production-promotion.mjs";
 import { supabaseRefFromConfig } from "./lib/vercel-protected-read.mjs";
@@ -19,7 +20,7 @@ export function verifyStagingWriteBuildEnvironment(source) {
   return "STAGING_APP_STATE_DATABASE_MODE=database";
 }
 
-export async function verifyStagingWriteTarget({ env = process.env, request = fetch } = {}) {
+export async function verifyStagingWriteTarget({ env = process.env, request = fetch, wait = waitForPropagation } = {}) {
   requireProof(env.STAGING_QA_BASE_URL === stagingOrigin, "The isolated staging hostname is required.");
   requireProof(env.VERCEL_TOKEN && env.VERCEL_ORG_ID && env.VERCEL_PROJECT_ID,
     "Verified staging deployment metadata requires the release credentials.");
@@ -38,10 +39,8 @@ export async function verifyStagingWriteTarget({ env = process.env, request = fe
     url.searchParams.set("teamId", env.VERCEL_ORG_ID);
     return read(url, { Authorization: `Bearer ${env.VERCEL_TOKEN}` });
   }
-  const [deployment, alias, staging, production] = await Promise.all([
+  const [deployment, production] = await Promise.all([
     inspect(deployed),
-    inspect(stagingOrigin),
-    read(new URL("/api/client-config", stagingOrigin)),
     read(new URL("/api/client-config", productionOrigin)),
   ]);
   requireProof((deployment.projectId || deployment.project?.id) === env.VERCEL_PROJECT_ID
@@ -49,15 +48,27 @@ export async function verifyStagingWriteTarget({ env = process.env, request = fe
     && deployment.meta?.githubCommitRef === "staging" && deployment.meta?.githubCommitSha === env.GITHUB_SHA
     && deployment.meta?.scheduleQaDatabaseMode === "database", "Staging deployment is not the approved database-backed preview for this release.");
   const deploymentId = deploymentIdOf(deployment);
-  requireProof(/^dpl_[A-Za-z0-9]+$/.test(deploymentId) && deploymentIdOf(alias) === deploymentId
-    && staging.ok && [deploymentId, env.GITHUB_SHA].includes(staging.buildId),
-    "The staging alias must serve the exact staging deployment before fixture writes.");
+  requireProof(/^dpl_[A-Za-z0-9]+$/.test(deploymentId), "Staging deployment is missing its immutable Vercel identity.");
   const liveRef = supabaseRefFromConfig(production);
   requireProof(production.ok && (!env.SUPABASE_PROJECT_REF || env.SUPABASE_PROJECT_REF === liveRef),
     "The production backend identity changed.");
-  requireProof(supabaseRefFromConfig(staging) === env.STAGING_SUPABASE_PROJECT_REF && env.STAGING_SUPABASE_PROJECT_REF !== liveRef,
-    "Staging fixture writes require the configured backend separate from production.");
-  return { buildId: staging.buildId, liveRef };
+
+  // Alias assignment can be visible in Vercel before the edge serves the new build.
+  // Never retry a backend mismatch, and do not send the application’s QA credentials during the wait.
+  const attempts = 12;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const [alias, staging] = await Promise.all([
+      inspect(stagingOrigin),
+      read(new URL("/api/client-config", stagingOrigin)),
+    ]);
+    requireProof(staging.ok && supabaseRefFromConfig(staging) === env.STAGING_SUPABASE_PROJECT_REF
+      && env.STAGING_SUPABASE_PROJECT_REF !== liveRef, "Staging fixture writes require the configured backend separate from production.");
+    if (deploymentIdOf(alias) === deploymentId && [deploymentId, env.GITHUB_SHA].includes(staging.buildId)) {
+      return { buildId: staging.buildId, liveRef };
+    }
+    if (attempt + 1 < attempts) await wait(4_000);
+  }
+  throw new Error("The staging alias must serve the exact staging deployment before fixture writes.");
 }
 
 export async function verifyCompletedStagingWriteProof({ env = process.env, request = fetch } = {}) {

@@ -6,6 +6,7 @@ import {
 } from "../scripts/verify-staging-write-target.mjs";
 
 const sha = "1".repeat(40);
+const noWait = async () => {};
 const stageRef = "pokrksgempkuraueglpu";
 const liveRef = "bustidorxevacosqhkcz";
 const deploymentId = "dpl_TestStage4567890123";
@@ -40,11 +41,28 @@ test("staging database mode must be known before any fixture can write", () => {
 });
 
 test("staging write gate allows only the aliased exact-commit preview with a distinct database", async () => {
-  await expect(verifyStagingWriteTarget({ env, request: simulate() })).resolves.toEqual({ buildId: deploymentId, liveRef });
-  await expect(verifyStagingWriteTarget({ env, request: simulate({ alias: { ...metadata, id: "dpl_StaleAlias" } }) })).rejects.toThrow(/exact staging deployment/);
-  await expect(verifyStagingWriteTarget({ env, request: simulate({ staging: config(liveRef, deploymentId) }) })).rejects.toThrow(/separate from production/);
-  await expect(verifyStagingWriteTarget({ env, request: simulate({ deployment: { ...metadata, target: "production" } }) })).rejects.toThrow(/approved database-backed preview/);
-  await expect(verifyStagingWriteTarget({ env, request: simulate({ staging: config(stageRef, "stale-build") }) })).rejects.toThrow(/exact staging deployment/);
+  await expect(verifyStagingWriteTarget({ env, wait: noWait, request: simulate() })).resolves.toEqual({ buildId: deploymentId, liveRef });
+  await expect(verifyStagingWriteTarget({ env, wait: noWait, request: simulate({ alias: { ...metadata, id: "dpl_StaleAlias" } }) })).rejects.toThrow(/exact staging deployment/);
+  await expect(verifyStagingWriteTarget({ env, wait: noWait, request: simulate({ staging: config(liveRef, deploymentId) }) })).rejects.toThrow(/separate from production/);
+  await expect(verifyStagingWriteTarget({ env, wait: noWait, request: simulate({ deployment: { ...metadata, target: "production" } }) })).rejects.toThrow(/approved database-backed preview/);
+  await expect(verifyStagingWriteTarget({ env, wait: noWait, request: simulate({ staging: config(stageRef, "stale-build") }) })).rejects.toThrow(/exact staging deployment/);
+});
+
+test("staging waits through propagation only while staging still uses the approved backend", async () => {
+  let waits = 0;
+  const old = simulate({ alias: { ...metadata, id: "dpl_StaleAlias" }, staging: config(stageRef, "stale-build") });
+  const current = simulate();
+  await expect(verifyStagingWriteTarget({
+    env,
+    wait: async () => { waits += 1; },
+    request: (url, options) => (waits ? current : old)(url, options),
+  })).resolves.toEqual({ buildId: deploymentId, liveRef });
+  expect(waits).toBe(1);
+  await expect(verifyStagingWriteTarget({
+    env,
+    wait: async () => { throw new Error("Wrong backend must not be retried"); },
+    request: simulate({ staging: config(liveRef, "stale-build") }),
+  })).rejects.toThrow(/separate from production/);
 });
 
 test("production gate refuses a successful staging workflow if the write proofs were skipped", async () => {

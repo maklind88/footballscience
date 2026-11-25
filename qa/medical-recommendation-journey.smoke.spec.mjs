@@ -102,7 +102,8 @@ async function createJourney(browser, mode) {
       return route.fulfill({ json: { ok: true, stored: true, canonicalStored: true, processingStatus: 'processed',
         eventId: 'qa-event', revision, duplicate } });
     });
-    await page.goto('/?workspace=medical-team'); await openMedicalJourney(page);
+    await page.goto('/?workspace=medical-team');
+    if (actor === 'author') await openMedicalJourney(page);
     if (actor === 'author' && ['lost-response-revision-race', 'newer-failed'].includes(mode)) {
       // Unrelated background traffic must not gate a Medical save acknowledgement.
       await page.route('**/qa/medical-background-poll', async route => {
@@ -126,6 +127,9 @@ async function createJourney(browser, mode) {
 
 for (const mode of ['normal', 'unlisted-history', 'cache-full', 'generic-failed', 'lost-response', 'lost-response-late-generic', 'lost-response-revision-race', 'canonical-failed', 'both-failed']) {
   test(`new Medical recommendation traced through both write paths and a cold peer: ${mode}`, async ({ browser }) => {
+    // The full journey opens and reloads two isolated browsers. Keep each
+    // assertion's timeout while giving the combined journey its own budget.
+    test.setTimeout(120_000);
     const journey = await createJourney(browser, mode);
     try {
       const author = await journey.open('author');
@@ -166,16 +170,19 @@ for (const mode of ['normal', 'unlisted-history', 'cache-full', 'generic-failed'
       expect(journey.server.effects).toBe(1);
       expect(journey.ledger.some(e => e.stage === 'canonical-receipt' && e.recordId === recordId)).toBe(true);
       const peer = await journey.open('peer');
-      const peerView = await verifyJourneyViews(peer, recordId);
+      const [peerView, authorView] = await Promise.all([
+        verifyJourneyViews(peer, recordId),
+        verifyJourneyViews(author, recordId),
+      ]);
       journey.ledger.push({ stage: 'visible-in-both-modules', actor: 'peer', ...peerView });
-      expect(journey.ledger.some(e => e.stage === 'read' && e.actor === 'peer' && e.recordIds.includes(recordId))).toBe(true);
-      const authorView = await verifyJourneyViews(author, recordId);
       journey.ledger.push({ stage: 'visible-in-both-modules', actor: 'author', ...authorView });
+      expect(journey.ledger.some(e => e.stage === 'read' && e.actor === 'peer' && e.recordIds.includes(recordId))).toBe(true);
       expect(authorView.scope).not.toBe(peerView.scope);
-      await peer.reload(); await verifyJourneyViews(peer, recordId);
-      const previousReads = journey.ledger.filter(e => e.stage === 'read' && e.actor === 'author').length;
-      await author.reload(); await verifyJourneyViews(author, recordId);
-      expect(journey.ledger.filter(e => e.stage === 'read' && e.actor === 'author').length).toBeGreaterThan(previousReads);
+      const authorReads = () => journey.ledger.filter(e => e.stage === 'read' && e.actor === 'author').length;
+      const previousReads = authorReads();
+      await Promise.all([peer.reload(), author.reload()]);
+      await Promise.all([verifyJourneyViews(peer, recordId), verifyJourneyViews(author, recordId)]);
+      expect(authorReads()).toBeGreaterThan(previousReads);
       if (mode === 'lost-response') expect(journey.ledger.filter(e => e.stage === 'canonical-receipt')[0].duplicate).toBe(true);
       if (mode === 'cache-full') expect(await author.evaluate(() => window.__journeyQuotaFailures)).toBeGreaterThan(0);
     } finally {

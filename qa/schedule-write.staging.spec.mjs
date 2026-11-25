@@ -81,6 +81,7 @@ async function guardedContextRoute(route, { qa, guard, operation, report }) {
     return route.abort("blockedbyclient");
   }
 
+  let phase = "staging authentication";
   try {
     if (method === "POST" && (stageAuth && url.pathname.endsWith("/token") ||
         url.origin === qa.origin && url.pathname === "/api/client-config" && !url.search)) {
@@ -92,10 +93,20 @@ async function guardedContextRoute(route, { qa, guard, operation, report }) {
     if (method !== "POST" || url.origin !== qa.origin || url.pathname !== centralPath || url.search || !operation()) {
       return route.abort("blockedbyclient");
     }
+    phase = "Schedule request envelope";
+    const body = request.postDataJSON();
+    if (body?.key !== scheduleStorageKey) {
+      report.blockedUnrelated += 1;
+      return route.abort("blockedbyclient");
+    }
+    phase = "Schedule target identity";
     await qa.identity();
+    phase = "Schedule central revision";
     const authorization = await request.headerValue("authorization");
     const current = await centralSchedule(qa, authorization);
-    const payload = guard.prepare(request.postDataJSON(), current, operation());
+    phase = "owned Schedule change";
+    const payload = guard.prepare(body, current, operation());
+    phase = "Schedule database response";
     report.forwarded += 1;
     const response = await route.fetch({ postData: payload, maxRedirects: 0, timeout: 45000 });
     if (response.status() >= 300 && response.status() < 400) throw new Error();
@@ -104,7 +115,7 @@ async function guardedContextRoute(route, { qa, guard, operation, report }) {
     }
     return route.fulfill({ response });
   } catch {
-    report.refused += 1;
+    report.refused.push(phase);
     return route.abort("blockedbyclient");
   }
 }
@@ -134,7 +145,7 @@ const scheduleTest = test.extend({
     const qa = await createIsolatedStagingProbe();
     const guard = createScheduleStagingWriteGuard();
     let operation = "";
-    const report = { forwarded: 0, databaseReceipts: 0, refused: 0 };
+    const report = { forwarded: 0, databaseReceipts: 0, refused: [], blockedUnrelated: 0 };
     const handle = route => guardedContextRoute(route, { qa, guard, operation: () => operation, report });
     const signIn = page => authenticate(qa, page, handle);
     const getCurrentUser = page => page.evaluate(() => {
@@ -175,7 +186,8 @@ const scheduleTest = test.extend({
       closeCreation() { operation = ""; },
     }));
     await qa.identity();
-    expect(report).toEqual({ forwarded: 2, databaseReceipts: 2, refused: 0 });
+    expect(report).toMatchObject({ forwarded: 2, databaseReceipts: 2, refused: [] });
+    console.log(`Schedule QA blocked ${report.blockedUnrelated} unrelated background writes.`);
     console.log("Schedule QA isolation: staging database accepted exactly one owned create and cleanup.");
   }, { timeout: 270_000 }],
 });
@@ -201,7 +213,8 @@ scheduleTest("isolated staging account saves, reopens, and removes one synthetic
     stagingSchedule.openCreation();
     try {
       await addInput.press("Enter");
-      await expect(day.getByText(record.title, { exact: true })).toBeVisible();
+      const savedDay = page.locator(`.schedule-planner-day[data-schedule-date="${record.date}"]`);
+      await expect(savedDay.getByText(record.title, { exact: true })).toBeVisible();
       await visibleLocalEvent(page, record, true);
       await assertCentralEvent(qa, page, record, true);
     } finally {

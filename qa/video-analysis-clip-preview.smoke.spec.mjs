@@ -135,7 +135,7 @@ for (const [width, height] of [[1470, 844], [1280, 720], [1920, 1080], [844, 390
 
 function fieldLocator(page, name) { return page.locator(field(name)); }
 
-test("editing pauses a shuttle and saving returns to the same video without resetting its position", async ({ page }) => {
+test("editing pauses a shuttle and Done returns to the same video without resetting position", async ({ page }) => {
   await open(page);
   const video = page.locator(preview);
   await page.locator("[data-clip-preview-seek]").fill("1000");
@@ -155,6 +155,8 @@ test("editing pauses a shuttle and saving returns to the same video without rese
   await expect(page.locator(popup)).toBeVisible();
   await expect(page.locator("[data-clip-edit-open]")).toBeFocused();
   expect(await video.evaluate(el => el.currentTime)).toBe(position);
+  await page.locator("[data-playlist-save]").click();
+  await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
   await page.getByRole("button", { name: "Play clip", exact: true }).click();
   await expect.poll(() => video.evaluate(el => !el.paused)).toBe(true);
   await page.keyboard.press("Escape");
@@ -180,6 +182,8 @@ test("clip preview reconnects from the modal and preserves unsaved fields across
   const writes = await page.evaluate(() => window.__videoAnalysisRequests.filter(r => r.action === "save-clip"));
   expect(writes).toHaveLength(0);
   await expect(fieldLocator(page, "note")).toHaveValue("Keep my draft");
+  await expect(page.locator("[data-playlist-status]")).toHaveText("Unsaved");
+  await page.locator("[data-playlist-save]").click();
   await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
 });
 

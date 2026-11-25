@@ -109,7 +109,7 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
       <footer>
         <button type="button" data-clip-edit-back>Back</button>
         ${canEdit ? '<button type="button" class="video-analysis-clip-editor__delete" data-video-analysis-clip-editor-delete>Remove</button>' : ""}
-        ${canEdit ? '<button type="submit" class="video-analysis-clip-editor__save" data-video-analysis-timeline-edit-save>Save playlist</button>' : ""}
+        ${canEdit ? '<button type="submit" class="video-analysis-clip-editor__save" data-video-analysis-timeline-edit-save>Done</button>' : ""}
       </footer>
       </dialog>
       ${renderClipPrinciples(clip, canEdit)}

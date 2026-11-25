@@ -95,6 +95,9 @@ test("saved playlist preserves ordering and local edits after reopening without 
   await field(page, "tags").fill("presentation, coaching");
   await field(page, "startMs").fill("0:00:00.500");
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await expect(page.locator("[data-playlist-status]")).toHaveText("Unsaved");
+  expect(await writes(page)).toEqual([]);
+  await page.locator("[data-playlist-save]").click();
   await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
   expect(await writes(page)).toHaveLength(1);
   expect(await page.evaluate(() => window.__videoAnalysisRequests.filter(request => request.action === "save-clip"))).toEqual([]);
@@ -240,7 +243,7 @@ test("read-only review does not expose playlist writes", async ({ page }) => {
   await expect(page.locator("[data-playlist-name]")).toBeDisabled();
 });
 
-test("saving from the editor freezes controls, rejects duplicate submits and retains a failed draft", async ({ page }) => {
+test("saving the playlist freezes controls, rejects duplicate submits and retains a failed draft", async ({ page }) => {
   await setup(page);
   await row(page, "High Press").dblclick();
   await page.locator("[data-playlist-name]").fill("Team review");
@@ -258,19 +261,25 @@ test("saving from the editor freezes controls, rejects duplicate submits and ret
   await page.getByRole("button", { name: "Edit clip", exact: true }).click();
   await field(page, "note").fill("Retain this draft");
   const editor = page.locator("#video-analysis-clip-edit-dialog");
-  await editor.getByRole("button", { name: "Save playlist", exact: true }).click();
-  await expect(field(page, "note")).toBeDisabled();
-  await expect(editor.getByRole("button", { name: "Save playlist", exact: true })).toBeDisabled();
-  await page.locator("[data-video-analysis-timeline-editor]").dispatchEvent("submit");
+  await editor.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(editor).not.toBeVisible();
+  expect(await page.evaluate(() => window.__saveAttempts)).toBe(0);
+  const save = page.locator("[data-playlist-save]");
+  await save.click();
+  await expect(save).toBeDisabled();
+  await expect(page.locator("[data-playlist-name]")).toBeDisabled();
+  await save.dispatchEvent("click");
   await expect.poll(() => page.evaluate(() => window.__saveAttempts)).toBe(1);
   await page.evaluate(() => window.__finishFailedSave());
-  await expect(editor.getByRole("alert")).toHaveText("Save unavailable");
-  await expect(field(page, "note")).toBeEnabled();
+  await expect(page.locator("[data-review-playlist] [role=alert]")).toHaveText("Save unavailable");
+  await expect(save).toBeEnabled();
   await expect(field(page, "note")).toHaveValue("Retain this draft");
   await expect(page.locator("[data-playlist-status]")).toHaveText("Unsaved");
+  await page.getByRole("button", { name: "Edit clip", exact: true }).click();
   await field(page, "note").fill("Retried draft");
-  await editor.getByRole("button", { name: "Save playlist", exact: true }).click();
+  await editor.getByRole("button", { name: "Done", exact: true }).click();
   await expect(editor).not.toBeVisible();
+  await save.click();
   await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
   expect((await writes(page)).at(-1).body.timeline.rows[0].query.clipEdits[id(1)].note).toBe("Retried draft");
 });
@@ -297,6 +306,7 @@ test("a later invalid draft cannot partially apply earlier edits", async ({ page
   await page.getByRole("button", { name: "Edit clip", exact: true }).click();
   await field(page, "endMs").fill("0:00:02.600");
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await page.locator("[data-playlist-save]").click();
   await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
   expect((await writes(page))[0].body.timeline.rows[0].query.clipEdits[id(1)].note).toBe("First draft");
 });
@@ -397,4 +407,24 @@ test("saved library playback uses the existing video preview", async ({ page }) 
   await page.getByRole("button", { name: "Play clip", exact: true }).click();
   await expect.poll(() => preview.evaluate(video => video.currentTime)).toBeGreaterThan(1);
   await expect(page.getByRole("button", { name: "Pause clip", exact: true })).toBeVisible();
+});
+
+test("reconnecting video in a saved playlist returns to the same list entry", async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, "showOpenFilePicker", { value: undefined, configurable: true }));
+  await setup(page);
+  await row(page, "High Press").dblclick();
+  await page.locator("[data-playlist-name]").fill("Reconnect review");
+  await page.locator("[data-playlist-save]").click();
+  await expect(page.locator("[data-playlist-status]")).toHaveText("Saved");
+  await popup(page).getByRole("button", { name: "Close", exact: true }).click();
+  await openLibrary(page);
+  const entry = savedList(page, "Reconnect review");
+  await entry.click();
+  const chooser = page.waitForEvent("filechooser");
+  await popup(page).getByRole("button", { name: "Reconnect local file", exact: true }).click();
+  await (await chooser).setFiles(mediaPath);
+  await expect.poll(() => popup(page).locator("[data-video-analysis-clip-preview]").evaluate(video => video.readyState)).toBeGreaterThanOrEqual(2);
+  await popup(page).getByRole("button", { name: "Close", exact: true }).click();
+  await expect(entry).toBeFocused();
+  expect(await writes(page)).toHaveLength(1);
 });

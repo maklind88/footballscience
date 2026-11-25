@@ -11,6 +11,7 @@ const back = page => page.getByRole("button", { name: "Back to video", exact: tr
 const expectSaved = async page => {
   await expect(page.locator("#video-analysis-clip-edit-dialog")).not.toBeVisible();
   await expect(page.locator(popupSelector)).toBeVisible();
+  await page.locator("[data-playlist-save]").click();
   await expect(page.locator("[data-clip-review-notice]")).toHaveText("Saved");
 };
 
@@ -106,7 +107,7 @@ for (const width of [1470, 390]) {
     await timingToggle.click();
     await expect(field(page, "duration")).toHaveValue("16");
     await field(page, "note").fill("Unsaved note");
-    await page.locator("#video-analysis-clip-edit-dialog").getByRole("button", { name: "Save playlist", exact: true }).focus();
+    await page.locator("#video-analysis-clip-edit-dialog").getByRole("button", { name: "Done", exact: true }).focus();
     await page.keyboard.press("Tab");
     expect(await page.locator("#video-analysis-clip-edit-dialog").evaluate(el => el.contains(document.activeElement))).toBe(true);
     await page.keyboard.press("Escape");
@@ -192,7 +193,7 @@ test("clip popup rejects invalid ranges and cancelling never writes", async ({ p
   await edit(page);
   for (const [end, message] of [["0:99:00", "Enter a time"], ["0:01:00", "End must be after"], ["0:15:00", "End cannot exceed"]]) {
     await field(page, "endMs").fill(end);
-    await page.locator("#video-analysis-clip-edit-dialog").getByRole("button", { name: "Save playlist", exact: true }).click();
+    await page.locator("#video-analysis-clip-edit-dialog").getByRole("button", { name: "Done", exact: true }).click();
     await expect(popup.getByRole("alert")).toContainText(message);
     await expect(field(page, "endMs")).toBeVisible();
     await expect(field(page, "endMs")).toBeFocused();

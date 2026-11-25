@@ -322,8 +322,8 @@ function timelineClipEditor(context = {}) {
       getState: () => run.store.getState(),
       getRoot: () => getRoot(run.context || context),
       subscribe: listener => run.store.subscribe(listener),
-      reconnect: fileInput => openLocalVideoPicker(run.context || context, { fileInput }),
-      selectFile: file => handleFileSelection(file, run.context || context),
+      reconnect: fileInput => openLocalVideoPicker(run.context || context, { fileInput, keepAnalysisTab: true }),
+      selectFile: file => handleFileSelection(file, run.context || context, { keepAnalysisTab: true }),
       savePlaylist: draft => run.timelineWorkspaceRuntime.savePlaylist(draft),
       pause: () => {
         const video = videoElement(run.context || context);
@@ -1478,7 +1478,7 @@ async function openLocalVideoPicker(context = {}, options = {}) {
       const selection = await pickLocalVideoFile(win);
       run.store.setState(capabilities);
       if (selection?.file) {
-        await handleFileSelection(selection.file, context, { handle: selection.handle });
+        await handleFileSelection(selection.file, context, { handle: selection.handle, keepAnalysisTab: options.keepAnalysisTab });
         return true;
       }
       return true;
@@ -3243,7 +3243,7 @@ async function handleFileSelection(file, context = {}, options = {}) {
       : localVideoStatusPatch(options.handle ? "restored" : "session-only", options.handle ? "Local file connected on this device" : sessionOnlyMessage);
     run.store.setState({
       view: "workspace",
-      activeAnalysisRoomTab: "fs-player",
+      activeAnalysisRoomTab: options.keepAnalysisTab ? run.store.getState().activeAnalysisRoomTab : "fs-player",
       videoRef: reference,
       playbackPreparation: { active: false, token: "" },
       status: playbackWarning ? "error" : "saving-source",

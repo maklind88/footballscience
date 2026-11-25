@@ -41,7 +41,7 @@ export function renderReviewPlaylist(review, playlist, activeId, canEdit) {
   </section>`;
 }
 
-export function bindReviewPlaylist({ dialog, review, playlist, getState, save, applyDrafts, busy, refresh, setPending, onError }) {
+export function bindReviewPlaylist({ dialog, review, playlist, getState, save, applyDrafts, busy, refresh, setPending }) {
   let dragId = "";
   let suppressClick = false;
   const item = target => target?.closest?.("[data-clip-review-select]");
@@ -117,8 +117,8 @@ export function bindReviewPlaylist({ dialog, review, playlist, getState, save, a
     if (event.target.closest("[data-playlist-save]")) await persist();
   }, true);
 
-  async function persist(fromEditor = false) {
-    if (playlist.pending || (!fromEditor && busy()) || !getState().canEdit) return false;
+  async function persist() {
+    if (playlist.pending || busy() || !getState().canEdit) return false;
     let saved = false;
     try {
       applyDrafts();
@@ -139,14 +139,13 @@ export function bindReviewPlaylist({ dialog, review, playlist, getState, save, a
       saved = true;
     } catch (error) {
       playlist.error = error.message || "Could not save playlist. Your changes are still here.";
-      onError?.(playlist.error);
     }
     finally {
       playlist.pending = false;
       setPending(false);
       if (dialog.isConnected) {
         refresh();
-        if (!fromEditor) dialog.querySelector("[data-playlist-save]")?.focus();
+        dialog.querySelector("[data-playlist-save]")?.focus();
       }
     }
     return saved;

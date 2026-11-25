@@ -73,7 +73,9 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
 
   function seekTo(ms) {
     if (!range || video.readyState < 1) return;
-    video.currentTime = Math.max(range.start, Math.min(range.end, ms)) / 1000;
+    const seconds = Math.max(range.start, Math.min(range.end, ms)) / 1000;
+    // Setting the same end time again can restart the seek before it has settled.
+    if (video.currentTime !== seconds) video.currentTime = seconds;
     updateTransport();
   }
 

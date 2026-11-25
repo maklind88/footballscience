@@ -963,6 +963,7 @@ test("Video Analysis Timeline keeps true scale, overlays clips, and undoes merge
   await page.locator('[data-video-analysis-timeline-edit-field="tags"]').fill("press, regain");
   await page.locator('[data-video-analysis-timeline-edit-field="note"]').fill("Corrected after review.");
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await page.locator("[data-playlist-save]").click();
   await expect(page.locator("[data-clip-review-notice]")).toHaveText("Saved");
   await expect(page.locator('[data-video-analysis-timeline-edit-field="note"]')).toHaveValue("Corrected after review.");
   expect(await page.evaluate(() => (window.__videoAnalysisRequests || []).filter(item =>

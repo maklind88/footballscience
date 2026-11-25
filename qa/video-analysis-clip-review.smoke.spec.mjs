@@ -159,7 +159,8 @@ test("row editing retains independent per-clip playlist drafts", async ({ page }
   await page.locator(select(2)).click();
   await expect(page.locator(field("phase"))).toHaveValue("In Possession");
   await edit(page);
-  await page.locator("#video-analysis-clip-edit-dialog").getByRole("button", { name: "Save playlist", exact: true }).click();
+  await page.locator("#video-analysis-clip-edit-dialog").getByRole("button", { name: "Done", exact: true }).click();
+  await page.locator("[data-playlist-save]").click();
   await expect(page.locator("[data-clip-review-notice]")).toHaveText("Saved");
   await expect(page.locator("[data-clip-review-select]")).toHaveCount(4);
   await expect(page.locator(select(2)).getByText("Unsaved", { exact: true })).toBeHidden();
@@ -252,6 +253,7 @@ test("row review can apply repeated edits without revising the original", async 
   await page.locator("[data-clip-review-keep]").click();
   await edit(page);
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await page.locator("[data-playlist-save]").click();
   await expect(page.locator("[data-clip-review-notice]")).toHaveText("Saved");
   await expect(page.locator("[data-clip-review-close-confirm]")).toBeHidden();
   await page.locator(select(2)).click();
@@ -260,6 +262,7 @@ test("row review can apply repeated edits without revising the original", async 
   await edit(page);
   await page.locator(field("note")).fill("Second revision");
   await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await page.locator("[data-playlist-save]").click();
   await expect(page.locator("[data-clip-review-notice]")).toHaveText("Saved");
   expect(await writes(page)).toEqual([]);
   await expect(page.locator(field("note"))).toHaveValue("Second revision");

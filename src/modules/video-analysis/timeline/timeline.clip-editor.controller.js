@@ -239,7 +239,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     showError();
   }
 
-  function values() {
+  function validateActiveClip() {
     const startMs = parseClipEditorTime(field("startMs").value);
     const endMs = parseClipEditorTime(field("endMs").value);
     const state = getState();
@@ -259,15 +259,6 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
       field("subPhase").focus();
       throw new Error("Choose a sub-phase.");
     }
-    return {
-      startMs, endMs,
-      phase: field("phase").value,
-      subPhase: field("subPhase").value,
-      outcome: field("outcome").value,
-      tags: field("tags").value,
-      note: field("note").value,
-      miniGamePrincipleIds: [...dialog.querySelectorAll("[data-video-analysis-timeline-edit-principle]:checked")].map(input => input.value),
-    };
   }
 
   function applyReviewDrafts() {
@@ -288,15 +279,15 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     baseline = readClipEditorDraft(dialog);
   }
 
-  async function submit(event) {
+  function submit(event) {
     event.preventDefault();
     if (pending || !editorOpen() || !getState().canEdit) return;
-    try { values(); } catch (error) { showError(error.message); return; }
     const principles = principlesDialog().open;
-    if (await saveReview(true) && dialog) {
-      dialog.querySelector("[data-clip-review-close-confirm]").hidden = true;
-      setEditingOpen(false, true, principles);
+    if (!principles) {
+      try { validateActiveClip(); } catch (error) { showError(error.message); return; }
     }
+    rememberDraft();
+    setEditingOpen(false, true, principles);
   }
 
   function open(clip, trigger, rowClips = null, savedPlaylist = null) {
@@ -321,7 +312,6 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     playlist = createReviewPlaylist(review, exactPlaylist ? row : null, getState());
     saveReview = bindReviewPlaylist({ dialog, review, playlist, getState, save: savePlaylist, applyDrafts: applyReviewDrafts,
       busy: () => pending || editorOpen(), refresh: refreshReviewNav,
-      onError: showError,
       setPending(value) {
         pending = value;
         if (value) {

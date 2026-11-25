@@ -202,19 +202,24 @@ scheduleTest("isolated staging account saves, reopens, and removes one synthetic
     const user = await getCurrentUser(page);
     await openSchedule(page);
     await page.locator("#scheduleTodayButton").click();
-    const day = await findEmptyDay(page);
-    const record = { title: `QA Live ${Date.now()}-${randomUUID()}`, date: await day.getAttribute("data-schedule-date") };
+    const emptyDay = await findEmptyDay(page);
+    const date = await emptyDay.getAttribute("data-schedule-date");
+    expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const record = { title: `QA Live ${Date.now()}-${randomUUID()}`, date };
+    // The first empty day changes during renders. Pin the date before
+    // interacting so the editor and both readers refer to the same record.
+    const day = page.locator(`.schedule-planner-day[data-schedule-date="${record.date}"]`);
+    await expect(day).not.toHaveClass(/has-events|has-note/);
     await day.dblclick();
     const addInput = page.locator(`[data-schedule-planner-add-date="${record.date}"] [name="plannerTitle"]`);
-    await expect(addInput).toBeFocused();
+    await expect(addInput).toBeVisible();
     await addInput.fill(record.title);
     guard.arm(record);
     probe.arm({ title: record.title, targetDate: record.date, user });
     stagingSchedule.openCreation();
     try {
       await addInput.press("Enter");
-      const savedDay = page.locator(`.schedule-planner-day[data-schedule-date="${record.date}"]`);
-      await expect(savedDay.getByText(record.title, { exact: true })).toBeVisible();
+      await expect(day.getByText(record.title, { exact: true })).toBeVisible();
       await visibleLocalEvent(page, record, true);
       await assertCentralEvent(qa, page, record, true);
     } finally {

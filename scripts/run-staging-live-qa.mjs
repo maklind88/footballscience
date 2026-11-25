@@ -54,13 +54,16 @@ function run(config) {
     env: testEnv,
     stdio: "inherit",
   });
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  return result.status ?? 1;
 }
 
 if (proof) {
   console.log(`Isolated staging write target verified for ${proof.buildId}.`);
-  run("qa/schedule-write.staging.config.mjs");
-  run("qa/chat-write.staging.config.mjs");
+  const scheduleResult = run("qa/schedule-write.staging.config.mjs");
+  const chatResult = run("qa/chat-write.staging.config.mjs");
+  // Each fixture rechecks the staging identity before its own requests.
+  // Report both results while requiring both to pass the production gate.
+  process.exitCode = scheduleResult || chatResult;
 } else {
-  run("qa/live.playwright.config.mjs");
+  process.exitCode = run("qa/live.playwright.config.mjs");
 }

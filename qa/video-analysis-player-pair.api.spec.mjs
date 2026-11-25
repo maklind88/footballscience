@@ -2,7 +2,8 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { containedVideoRect, pairPointerPoint, pairPromptBox, playerPairAt, verifiedPairDistance } from "../src/modules/video-analysis/timeline/timeline.player-pair.geometry.js";
 import { createPlayerPairCache, playerPairContext } from "../src/modules/video-analysis/timeline/timeline.player-pair.controller.js";
-import { createLocalVideoReference, revokeLocalVideoReference } from "../src/modules/video-analysis/services/localVideoBridgeService.js";
+import { createLocalVideoReference, getLocalVideoFile, localVideoIdentifierForFile, revokeLocalVideoReference } from "../src/modules/video-analysis/services/localVideoBridgeService.js";
+import { createClipReviewSources } from "../src/modules/video-analysis/timeline/timeline.clip-source.js";
 import { renderClipEditor } from "../src/modules/video-analysis/timeline/timeline.clip-editor.renderer.js";
 import { normalizePitchCalibration } from "../src/modules/video-analysis/domain/pitchCalibration.model.js";
 
@@ -121,4 +122,23 @@ test("the shared popup adds one tool and overlay without a second transport or d
   expect(markup.match(/data-clip-preview-play /g)).toHaveLength(1);
   const source = readFileSync(new URL("../src/modules/video-analysis/timeline/timeline.player-pair.controller.js", import.meta.url), "utf8");
   expect(source).not.toMatch(/savePlaylist|saveClip|localStorage|indexedDB|saveCalibration/);
+});
+
+test("a playlist's reconnected source can track its own file, never the workstation's wrong file", async () => {
+  const file = new File(["avc1"], "seattle.mp4", { type: "video/mp4", lastModified: 1000 });
+  const wrong = new File(["wrong"], "seattle.mp4", { type: "video/mp4", lastModified: 1000 });
+  const clip = { id: "clip", matchId: "match", videoId: "original", videoSourceIdentifier: await localVideoIdentifierForFile(file) };
+  const state = { match: { id: "match" }, video: { id: "original" },
+    videoRef: { objectUrl: "blob:wrong", localVideoIdentifier: await localVideoIdentifierForFile(wrong) } };
+  const range = { startMs: 20000, endMs: 30000 };
+  const sources = createClipReviewSources({ URL }, () => state, () => ({}));
+  try {
+    expect(playerPairContext(sources.playbackState(state, clip, true), clip.id, range)).toBeNull();
+    await expect(sources.connect(wrong, clip, () => true)).rejects.toThrow("not the source");
+    await sources.connect(file, clip, () => true);
+    const context = playerPairContext(sources.playbackState(state, clip, true), clip.id, range);
+    expect(context.file).toBe(file);
+    expect(getLocalVideoFile(context.reference)).toBe(file);
+    expect(context.sourceRange).toEqual({ start: 20000, end: 30000, duration: 10000 });
+  } finally { sources.dispose(); }
 });

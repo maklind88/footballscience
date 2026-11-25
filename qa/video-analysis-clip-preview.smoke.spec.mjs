@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import ffmpegPath from "ffmpeg-static";
+import { registeredMp4Source } from "./helpers/video-analysis-media.mjs";
 
 const matchId = "2a4e615e-f3e7-4fc7-bb70-a02db63c9152";
 const videoId = "26c70a43-5ee1-43f7-9e56-8e1c1be3a725";
@@ -22,10 +23,11 @@ test.beforeAll(() => {
 test.afterAll(() => { if (mediaPath) rmSync(path.dirname(mediaPath), { recursive: true, force: true }); });
 
 async function open(page, { media = true, canEdit = true } = {}) {
-  await page.addInitScript(({ matchId, videoId, canEdit }) => {
+  await page.addInitScript(({ matchId, videoId, canEdit, sourceIdentifier }) => {
     Object.defineProperty(window, "showOpenFilePicker", { value: undefined, configurable: true });
     window.__videoAnalysisSmokeClips = [{
       id: "preview-clip", revision: 3, match_id: matchId, video_id: videoId,
+      video_source_identifier: sourceIdentifier,
       start_ms: 1000, end_ms: 3000, phase: "Out of Possession", sub_phase: "High Press",
       outcome: "Neutral", players: [], tags: [], notes: [{ note: "Original note" }],
     }];
@@ -36,7 +38,7 @@ async function open(page, { media = true, canEdit = true } = {}) {
       videoRef: { durationMs: 5000 },
       timeline: { laneMode: "subPhase", selectedClipIds: [], zoom: 1, history: [] },
     };
-  }, { matchId, videoId, canEdit });
+  }, { matchId, videoId, canEdit, sourceIdentifier: registeredMp4Source(mediaPath) });
   await page.goto("/qa/video-analysis-browser-smoke.html?clip-preview=1");
   if (media) {
     await page.locator("[data-video-analysis-file]").setInputFiles(mediaPath);
@@ -232,7 +234,7 @@ test("preview shows a recoverable missing source and closes when the selected vi
       return Response.json(payload);
     };
   });
-  await page.locator("[data-clip-preview-file]").setInputFiles(mediaPath);
+  await page.locator("[data-video-analysis-file]").setInputFiles(mediaPath);
   await expect(page.locator(popup)).toHaveCount(0);
   expect(await page.evaluate(() => window.__videoAnalysisRequests.filter(r => r.action === "save-clip"))).toEqual([]);
 });

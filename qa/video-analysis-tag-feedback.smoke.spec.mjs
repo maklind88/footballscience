@@ -4,7 +4,9 @@ const panel = ".video-analysis-template-scroll";
 const buildUp = '[data-video-analysis-code-button="subPhase-build-up"]';
 const player = '[data-video-analysis-player-tag="p1"]';
 const outcome = '[data-video-analysis-outcome-tag="Development"]';
-const writes = page => page.evaluate(() => (window.__videoAnalysisRequests || []).filter(r => r.action === "save-clip"));
+const writes = page => page.evaluate(() => (window.__videoAnalysisRequests || []).filter(r => ["save-clip", "save-tag"].includes(r.action)));
+const taggedKinds = page => page.evaluate(async () => (await (await fetch("/api/video-analysis?action=clips")).json()).clips
+  .filter(clip => clip.start_ms === 121000).map(clip => clip.metadata?.clipKind));
 
 async function openPlayer(page) {
   await page.addInitScript(() => {
@@ -44,11 +46,12 @@ for (const width of [1470, 390]) {
     await page.locator(buildUp).click();
     await expectConfirmedThenNeutral(page, buildUp);
     const saved = await writes(page);
-    expect(saved.map(r => r.body.clip.metadata.clipKind)).toEqual(["subPhase", "phase"]);
+    expect(saved.map(r => r.action)).toEqual(["save-tag"]);
+    expect(await taggedKinds(page)).toEqual(["subPhase", "phase"]);
     expect(saved[0].body.clip).toMatchObject({ startMs: 121000, endMs: 136000, subPhase: "Build Up" });
     await page.locator(buildUp).click();
     await expectConfirmedThenNeutral(page, buildUp);
-    expect(await writes(page)).toHaveLength(2);
+    expect(await writes(page)).toHaveLength(1);
     await page.locator('[data-video-analysis-panel-mode="edit"]').click();
     await page.keyboard.press("Escape");
     await expect(page.locator(`${panel} .is-active`)).toHaveCount(0);
@@ -67,7 +70,7 @@ test("keyboard coding uses the same temporary confirmation", async ({ page }) =>
   await page.locator('.video-analysis-template-close').click();
   await page.keyboard.press("b");
   await expectConfirmedThenNeutral(page, buildUp);
-  expect(await writes(page)).toHaveLength(2);
+  expect(await writes(page)).toHaveLength(1);
   await expect(page.locator(`${panel} .is-active`)).toHaveCount(0);
 });
 
@@ -101,15 +104,22 @@ test("failed tag save does not show success or leave an active button", async ({
   await openPlayer(page);
   await page.evaluate(() => {
     const original = window.fetch;
-    window.fetch = async (...args) => String(args[0]).includes("action=save-clip")
-      ? Response.json({ ok: false, error: "Save unavailable" }, { status: 503 })
-      : original(...args);
+    let failNext = true;
+    window.fetch = async (...args) => {
+      if (!failNext || !String(args[0]).includes("action=save-tag")) return original(...args);
+      failNext = false;
+      return Response.json({ ok: false, error: "Save unavailable" }, { status: 503 });
+    };
   });
   await page.locator(buildUp).click();
   await expect(page.locator(".video-analysis-notifications")).toContainText("Clip request failed (503)");
   await expect(page.locator(".video-analysis-notifications")).not.toContainText("tagged");
   await expect(page.locator(`${panel} .is-active, ${panel} .video-analysis-tag-feedback`)).toHaveCount(0);
   expect(await writes(page)).toHaveLength(0);
+  expect(await taggedKinds(page)).toEqual([]);
+  await page.locator(buildUp).click();
+  await expectConfirmedThenNeutral(page, buildUp);
+  expect(await taggedKinds(page)).toEqual(["subPhase", "phase"]);
 });
 
 test("duration coding stays active only until the recording is finished", async ({ page }) => {
@@ -125,6 +135,6 @@ test("duration coding stays active only until the recording is finished", async 
   await expect(page.locator(`${panel} .video-analysis-tag-feedback`)).toHaveCount(0);
   await page.locator(buildUp).click();
   await expectConfirmedThenNeutral(page, buildUp);
-  expect(await writes(page)).toHaveLength(2);
+  expect(await writes(page)).toHaveLength(1);
   await expect(page.locator(`${panel} .is-active`)).toHaveCount(0);
 });

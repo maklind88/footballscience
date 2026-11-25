@@ -117,6 +117,11 @@ async function sha256(text) {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+export async function localVideoIdentifierForFile(file) {
+  const hash = await sha256([sanitizeDisplayName(file.name), file.size, file.lastModified, file.type].join("|"));
+  return `local-video-${hash.slice(0, 40)}`;
+}
+
 export async function createLocalVideoReference(file, win = window) {
   const extension = fileExtension(file?.name);
   const knownVideoExtension = ["mp4", "mov", "m4v", "webm", "avi", "mkv"].includes(extension);
@@ -124,12 +129,12 @@ export async function createLocalVideoReference(file, win = window) {
     throw new Error("Choose a video file.");
   }
   const displayName = sanitizeDisplayName(file.name);
-  const hash = await sha256([displayName, file.size, file.lastModified, file.type].join("|"));
+  const localVideoIdentifier = await localVideoIdentifierForFile(file);
   const playbackCompatibility = await detectPlaybackCompatibility(file, win);
   const objectUrl = win.URL.createObjectURL(file);
   const reference = normalizeVideoSource({
     displayName,
-    localVideoIdentifier: `local-video-${hash.slice(0, 40)}`,
+    localVideoIdentifier,
     durationMs: 0,
     fileSizeBytes: file.size,
     mimeType: String(file.type || ""),
@@ -142,6 +147,7 @@ export async function createLocalVideoReference(file, win = window) {
 }
 
 export function getLocalVideoFile(reference = {}) {
+  if (typeof File !== "undefined" && reference.file instanceof File) return reference.file;
   return localVideoFiles.get(reference.localVideoIdentifier) || null;
 }
 

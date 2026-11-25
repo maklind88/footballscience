@@ -491,7 +491,7 @@
         if (action === "save-share-targets") {
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", shareTargets: body.targets || [] });
         }
-        if (action === "save-clip") {
+        if (action === "save-clip" || action === "save-tag") {
           const input = body.clip || {};
           const existingClip = input.id ? clips.find((item) => item.id === input.id) : null;
           const clip = {
@@ -529,6 +529,14 @@
           };
           if (existingClip) Object.assign(existingClip, clip);
           else clips.push(clip);
+          if (action === "save-tag" && !clips.some(item => item.metadata?.clipKind === "phase"
+            && item.video_id === clip.video_id && item.start_ms === clip.start_ms && item.end_ms === clip.end_ms
+            && item.phase === clip.phase && item.metadata.momentKey === clip.metadata.momentKey)) {
+            clips.push({ ...clip, id: `clip-${clips.length + 1}`, sub_phase: clip.phase,
+              metadata: { ...clip.metadata, clipKind: "phase", labelOnly: true, source: "auto-phase-from-sub-phase" },
+              labels: [{ label_type: "phase", label_value: clip.phase, label_text: clip.phase }],
+              notes: [], tags: [], players: [], descriptors: [] });
+          }
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip });
         }
         if (action === "trim-clip") {

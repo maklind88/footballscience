@@ -14,7 +14,8 @@ export function clipPreviewRange(state, startMs, endMs, durationMs = 0) {
   return { start, end, duration: endMs - startMs };
 }
 
-export function createClipPreview({ dialog, getState, getRange, subscribe, reconnect, selectFile, onContextChange }) {
+export function createClipPreview({ dialog, getState, getPlaybackState, getRange, subscribe, reconnect, selectFile, onContextChange,
+  disconnectedMessage, canReconnect }) {
   const video = dialog.querySelector("[data-video-analysis-clip-preview]");
   const play = dialog.querySelector("[data-clip-preview-play]");
   const seek = dialog.querySelector("[data-clip-preview-seek]");
@@ -34,6 +35,7 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
   let disposed = false;
   let locked = false;
   let mediaError = false;
+  let connectError = "";
   let shuttle = null;
   const ready = () => Boolean(source && range && video.readyState >= 1 && !mediaError && !locked && !disposed);
 
@@ -101,7 +103,7 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
 
   function updateRange({ rewind = false } = {}) {
     if (disposed) return;
-    const state = getState();
+    const state = getPlaybackState();
     const draft = getRange();
     const actualDuration = Number.isFinite(video.duration) ? video.duration * 1000 : 0;
     const declaredDuration = activeMediaReference(state)?.durationMs || 0;
@@ -109,22 +111,23 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
     if (nextRange?.start !== range?.start || nextRange?.end !== range?.end) shuttle?.cancel();
     range = nextRange;
     empty.hidden = Boolean(source && range && !mediaError);
-    status.textContent = mediaError ? "Video unavailable" : source && !range ? "Clip outside available video" : "";
-    connect.hidden = Boolean(source && !mediaError);
+    status.textContent = connectError || (mediaError ? "Video unavailable" : source && !range ? "Clip outside available video" : !source ? disconnectedMessage : "");
+    connect.hidden = Boolean(source && !mediaError) || !canReconnect();
     if (!range) stop();
     else if (rewind || video.currentTime * 1000 < range.start || video.currentTime * 1000 > range.end) seekTo(range.start);
     updateTransport();
   }
 
-  function refresh() {
+  function refresh(retry = false) {
     if (disposed) return;
     const state = getState();
     if (identity(state) !== originalIdentity) { stop(); onContextChange(); return; }
-    const next = state.status === "saving-source" ? "" : String(activeMediaReference(state)?.objectUrl || "");
-    if (next !== source) {
+    const next = state.status === "saving-source" ? "" : String(activeMediaReference(getPlaybackState())?.objectUrl || "");
+    if (next !== source || (retry && next && mediaError)) {
       stop();
       source = next;
       mediaError = false;
+      connectError = "";
       if (source) video.src = source;
       else video.removeAttribute("src");
       video.load();
@@ -162,19 +165,21 @@ export function createClipPreview({ dialog, getState, getRange, subscribe, recon
   });
   listen(connect, "click", async () => {
     if (locked) return;
-    try { await reconnect(input); }
-    catch { if (!disposed) status.textContent = "Could not reconnect video"; }
+    try { await reconnect(input); refresh(true); }
+    catch (error) { connectError = error.message || "Could not reconnect video"; updateRange(); }
   });
   listen(input, "change", async () => {
     if (!input.files?.[0] || locked) return;
-    try { await selectFile(input.files[0]); }
-    catch { if (!disposed) status.textContent = "Could not reconnect video"; }
+    connectError = "";
+    try { await selectFile(input.files[0]); refresh(true); }
+    catch (error) { connectError = error.message || "Could not reconnect video"; updateRange(); }
   });
-  const unsubscribe = subscribe(refresh);
+  const unsubscribe = subscribe(() => refresh());
   refresh();
 
   return {
     updateRange,
+    refresh,
     setBusy(value) { locked = value; if (value) stop(); updateTransport(); },
     dispose() {
       disposed = true;

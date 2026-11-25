@@ -27,6 +27,8 @@ export function normalizeClipInstance(value = {}) {
     eventType: String(value.eventType || value.event_type || value.match?.eventType || value.match?.event_type || ""),
     opponent: String(value.opponent || value.match?.opponent || ""),
     videoTitle: String(value.videoTitle || value.video_title || value.video?.title || ""),
+    videoSourceIdentifier: String(value.videoSourceIdentifier || value.video_source_identifier || ""),
+    videoDurationMs: normalizeMs(value.videoDurationMs ?? value.video_duration_ms),
     startMs,
     endMs: Math.max(startMs + 1, endMs),
     period: String(value.period || ""),

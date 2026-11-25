@@ -8,6 +8,7 @@ import { playlistClipVersion } from "./timeline.playlist-clips.js";
 import { playlistRowFromTrigger } from "./timeline.playlist-rows.js";
 import { timelineReviewSelection } from "./timeline.selection.js";
 import { createPlayerPairCache, createPlayerPairController } from "./timeline.player-pair.controller.js";
+import { clipSourceDuration, createClipReviewSources } from "./timeline.clip-source.js";
 
 export function preserveTimelineViewport(root) {
   const ancestors = [];
@@ -29,7 +30,7 @@ export function preserveTimelineViewport(root) {
   };
 }
 
-export function createTimelineClipEditor({ getState, getRoot, getContext, savePlaylist, pause, subscribe, reconnect, selectFile }) {
+export function createTimelineClipEditor({ getState, getRoot, getContext, savePlaylist, pause, subscribe }) {
   let dialog = null;
   let activeClip = null;
   let pending = false;
@@ -38,6 +39,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
   let returnToRow = false;
   let returnPlaylistKey = "";
   let preview = null;
+  let reviewSources = null;
   let playerPair = null;
   const playerPairCache = createPlayerPairCache();
   let originalContext = "";
@@ -89,6 +91,8 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     playerPair = null;
     preview?.dispose();
     preview = null;
+    reviewSources?.dispose();
+    reviewSources = null;
     editDialog()?.close();
     principlesDialog()?.close();
     dialog.close();
@@ -187,8 +191,16 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
       });
     }
     rememberDraft();
+    const sources = reviewSources ||= createClipReviewSources(dialog.ownerDocument.defaultView, getState, getContext);
+    const getPlaybackState = () => sources.playbackState(getState(), clip, Boolean(playlist?.saved));
+    const element = dialog.querySelector("[data-video-analysis-clip-preview]");
+    const isCurrent = () => Boolean(dialog?.contains(element));
     preview = createClipPreview({
-      dialog, getState, subscribe, reconnect, selectFile,
+      dialog, getState, getPlaybackState, subscribe,
+      reconnect: input => sources.pick(clip, isCurrent, input),
+      selectFile: file => sources.connect(file, clip, isCurrent),
+      disconnectedMessage: clip.videoTitle ? `Connect ${clip.videoTitle}` : "Connect this clip's original video.",
+      canReconnect: () => sources.canConnect(clip),
       getRange: () => ({
         startMs: parseClipEditorTime(field("startMs").value),
         endMs: field("duration").valueAsNumber > 0 ? parseClipEditorTime(field("endMs").value) : NaN,
@@ -196,12 +208,15 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
       onContextChange: close,
     });
     playerPair = createPlayerPairController({
-      dialog, clipId: clip.id, getState, getContext, cache: playerPairCache,
+      dialog, clipId: clip.id, getState: getPlaybackState, getContext, cache: playerPairCache,
       getRange: () => ({
         startMs: parseClipEditorTime(field("startMs").value),
         endMs: parseClipEditorTime(field("endMs").value),
       }),
     });
+    sources.restore(clip, isCurrent).then(() => {
+      if (isCurrent()) preview.refresh();
+    }).catch(() => { /* An unavailable saved file can be reconnected from the picker. */ });
   }
 
   function selectReviewClip(id) {
@@ -244,7 +259,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     const endMs = parseClipEditorTime(field("endMs").value);
     const state = getState();
     if (contextKey() !== originalContext) throw new Error("The selected video has changed. Reopen this clip.");
-    const totalMs = Number(state.videoRef?.durationMs || state.video?.durationMs || state.video?.duration_ms || 0);
+    const totalMs = clipSourceDuration(state, activeClip);
     const invalidTime = (message, name) => {
       setEditingOpen(true);
       field(name).focus();
@@ -267,7 +282,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     const versions = review.entries.filter(entry => entry.draft).map(entry => {
       const fields = entry.draft.fields;
       const startMs = parseClipEditorTime(fields.startMs), endMs = parseClipEditorTime(fields.endMs);
-      const total = Number(getState().videoRef?.durationMs || getState().video?.durationMs || getState().video?.duration_ms || 0);
+      const total = clipSourceDuration(getState(), entry.clip);
       if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs || (total && endMs > total) || !(Number(fields.duration) > 0)) {
         throw new Error("Check the start and end times of the edited clips before saving.");
       }

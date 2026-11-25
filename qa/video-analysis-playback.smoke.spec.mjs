@@ -1606,13 +1606,13 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await page.keyboard.press("Space");
   await expect.poll(() => page.evaluate(() => window.__videoPlayCalls || 0)).toBe(1);
   await expect.poll(() => page.evaluate(() => {
-    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-tag").length;
   })).toBe(0);
 
   await page.locator('[data-video-analysis-code-button="subPhase-build-up"]').click();
   await expect.poll(() => {
     return page.evaluate(() => {
-      const request = (window.__videoAnalysisRequests || []).find((item) => item.action === "save-clip");
+      const request = (window.__videoAnalysisRequests || []).find((item) => item.action === "save-tag");
       return request?.body?.clip || null;
     });
   }).toMatchObject({
@@ -1623,13 +1623,11 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     codingMode: "instant",
     visibility: "private",
   });
-  await expect.poll(() => page.evaluate(() => {
-    const clips = (window.__videoAnalysisRequests || [])
-      .filter((item) => item.action === "save-clip" && item.body?.clip?.startMs === 83000)
-      .map((item) => item.body.clip);
-    if (clips.length < 2) return [];
+  await expect.poll(() => page.evaluate(async () => {
+    const { clips } = await (await fetch("/api/video-analysis?action=clips")).json();
     return clips
-      .map((clip) => `${clip.metadata?.clipKind || ""}:${clip.phase || ""}/${clip.subPhase || ""}:${clip.startMs}-${clip.endMs}`)
+      .filter(clip => clip.start_ms === 83000)
+      .map(clip => `${clip.metadata?.clipKind || ""}:${clip.phase}/${clip.sub_phase}:${clip.start_ms}-${clip.end_ms}`)
       .sort();
   })).toEqual([
     "phase:In Possession/In Possession:83000-98000",
@@ -1670,8 +1668,8 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   });
   await page.locator('[data-video-analysis-code-button="subPhase-build-up"]').click();
   await expect.poll(() => page.evaluate(() => {
-    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
-  })).toBeGreaterThanOrEqual(2);
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-tag").length;
+  })).toBe(2);
   const codeModeAfterSecondTag = await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
@@ -1862,7 +1860,7 @@ test("Video Analysis Tag Panel uses the red timeline playhead when video metadat
   await page.locator('[data-video-analysis-code-button="subPhase-high-press"]').click();
   await expect.poll(() => {
     return page.evaluate(() => {
-      const request = (window.__videoAnalysisRequests || []).find((item) => item.action === "save-clip");
+      const request = (window.__videoAnalysisRequests || []).find((item) => item.action === "save-tag");
       return request?.body?.clip || null;
     });
   }).toMatchObject({
@@ -1874,13 +1872,11 @@ test("Video Analysis Tag Panel uses the red timeline playhead when video metadat
     codingMode: "instant",
     visibility: "private",
   });
-  await expect.poll(() => page.evaluate(() => {
-    const clips = (window.__videoAnalysisRequests || [])
-      .filter((item) => item.action === "save-clip" && item.body?.clip?.startMs === 42000)
-      .map((item) => item.body.clip);
-    if (clips.length < 2) return [];
+  await expect.poll(() => page.evaluate(async () => {
+    const { clips } = await (await fetch("/api/video-analysis?action=clips")).json();
     return clips
-      .map((clip) => `${clip.metadata?.clipKind || ""}:${clip.phase || ""}/${clip.subPhase || ""}`)
+      .filter(clip => clip.start_ms === 42000)
+      .map(clip => `${clip.metadata?.clipKind || ""}:${clip.phase}/${clip.sub_phase}`)
       .sort();
   })).toEqual([
     "phase:Out of Possession/Out of Possession",
@@ -1891,7 +1887,7 @@ test("Video Analysis Tag Panel uses the red timeline playhead when video metadat
   await expect(page.locator('[data-video-analysis-timeline-category-label="High Press"]')).toContainText("High Press (1)");
   await expect(page.locator('[data-video-analysis-timeline-category-label="Out of Possession"]')).toHaveCount(0);
   const saveCountAfterHighPress = await page.evaluate(() => {
-    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-tag").length;
   });
   await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
@@ -1900,7 +1896,7 @@ test("Video Analysis Tag Panel uses the red timeline playhead when video metadat
   await page.locator('[data-video-analysis-code-button="subPhase-high-press"]').click();
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => {
-    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-tag").length;
   })).toBe(saveCountAfterHighPress);
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:00:42");
 });

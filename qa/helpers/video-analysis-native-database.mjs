@@ -30,7 +30,7 @@ export function createVideoAnalysisNativeDatabase() {
       create table platform_permission_matrix (module_id text, action text, roles text[], scope text,
         requires_organization_scope boolean, requires_team_scope boolean, description text,
         updated_at timestamptz, primary key (module_id, action));`);
-    for (const name of ["20260613000100_video_analysis_metadata_foundation.sql", "20260614004604_video_analysis_workstation_v2_metadata.sql", "20260824212110_video_analysis_elite_workstation_foundation.sql", "20260825014500_video_analysis_intelligence_facts.sql", "20261111232205_video_analysis_atomic_clip_update.sql"]) {
+    for (const name of ["20260613000100_video_analysis_metadata_foundation.sql", "20260614004604_video_analysis_workstation_v2_metadata.sql", "20260824212110_video_analysis_elite_workstation_foundation.sql", "20260825014500_video_analysis_intelligence_facts.sql", "20261111232205_video_analysis_atomic_clip_update.sql", "20261125033816_video_analysis_atomic_clip_create.sql"]) {
       sql(readFileSync(new URL(`../../supabase/migrations/${name}`, import.meta.url), "utf8"));
     }
     return { sql, sqlAsync, close };
@@ -47,12 +47,15 @@ export function videoAnalysisTestRest(db, calls) {
   return async (address, options = {}) => {
     const url = new URL(address);
     const method = options.method || "GET", body = options.body ? JSON.parse(options.body) : {};
-    if (url.origin === "https://fs-clip-test.invalid" && url.pathname === "/rest/v1/rpc/video_analysis_update_clip" && method === "POST") {
-      calls.push({ method, rpc: "video_analysis_update_clip", body });
+    const rpc = url.pathname.match(/^\/rest\/v1\/rpc\/(video_analysis_(?:update|create)_clip)$/)?.[1];
+    if (url.origin === "https://fs-clip-test.invalid" && rpc && method === "POST") {
+      calls.push({ method, rpc, body });
       try {
-        const args = [body.p_organization_id, body.p_team_id, body.p_actor_id, body.p_id,
-          body.p_expected_revision, body.p_clip, body.p_relations].map(literal).join(",");
-        return new Response(await db.sqlAsync(`begin; set local role service_role; select public.video_analysis_update_clip(${args}); commit;`), { status: 200 });
+        const scope = [body.p_organization_id, body.p_team_id, body.p_actor_id];
+        const clipArgs = rpc === "video_analysis_create_clip" ? [body.p_clip, body.p_relations, body.p_auto_phase]
+          : [body.p_id, body.p_expected_revision, body.p_clip, body.p_relations];
+        const args = [...scope, ...clipArgs].map(literal).join(",");
+        return new Response(await db.sqlAsync(`begin; set local role service_role; select public.${rpc}(${args}); commit;`), { status: 200 });
       } catch (error) { return databaseError(error); }
     }
     if (url.origin !== "https://fs-clip-test.invalid" || !/^\/rest\/v1\/video_[a-z_]+$/.test(url.pathname)) throw new Error("Unexpected test request");

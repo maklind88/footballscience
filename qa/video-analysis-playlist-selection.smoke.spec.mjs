@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import ffmpegPath from "ffmpeg-static";
+import { registeredMp4Source } from "./helpers/video-analysis-media.mjs";
 
 const matchId = "2a4e615e-f3e7-4fc7-bb70-a02db63c9152";
 const videoId = "26c70a43-5ee1-43f7-9e56-8e1c1be3a725";
@@ -29,9 +30,10 @@ test.beforeAll(() => {
 test.afterAll(() => { if (mediaPath) rmSync(path.dirname(mediaPath), { recursive: true, force: true }); });
 
 async function setup(page, { media = false, canEdit = true } = {}) {
-  await page.addInitScript(({ matchId, videoId, canEdit }) => {
+  await page.addInitScript(({ matchId, videoId, canEdit, sourceIdentifier }) => {
     window.__videoAnalysisSmokeClips = [1, 2, 3, 4].map(index => ({
       id: `36c70a43-5ee1-43f7-9e56-8e1c1be3a72${index}`, revision: 3, match_id: matchId, video_id: videoId,
+      video_source_identifier: sourceIdentifier,
       start_ms: index * 1000, end_ms: index * 1000 + 600,
       phase: index <= 2 ? "Out of Possession" : "In Possession", sub_phase: index <= 2 ? "High Press" : "Build Up",
       outcome: "Neutral", tags: ["original"], notes: [{ note: `Original ${index}` }],
@@ -42,7 +44,7 @@ async function setup(page, { media = false, canEdit = true } = {}) {
       source: { id: "source-1", match_id: matchId, video_id: videoId }, videoRef: { durationMs: 6000 },
       timeline: { laneMode: "all", selectedClipIds: [], history: [] },
     };
-  }, { matchId, videoId, canEdit });
+  }, { matchId, videoId, canEdit, sourceIdentifier: registeredMp4Source(mediaPath) });
   await page.goto("/qa/video-analysis-browser-smoke.html?playlist-selection=1");
   await expect(row(page, "High Press")).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__videoAnalysisRequests.some(request => request.action === "timelines"))).toBe(true);

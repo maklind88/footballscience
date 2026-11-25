@@ -37,11 +37,9 @@ import {
   applyCodingButtonToClip,
   buildClipPayload,
   buildOutcomeOnlyClipPayload,
-  buildPhaseOnlyClipPayload,
   buildPlayerOnlyClipPayload,
   buildUnitOnlyClipPayload,
   isMiniGamePrincipleOnlyClip,
-  isPhaseOnlyClip,
   toApiClipPayload,
 } from "./services/clipInstanceService.js";
 import {
@@ -178,7 +176,6 @@ const FS_PLAYER_HISTORY_GUARD_DEPTH = 3;
 const videoShuttleTimers = new WeakMap();
 const videoShuttleSessions = new WeakMap();
 const inFlightSubPhaseTagKeys = new Set();
-const inFlightAutoPhaseTagKeys = new Set();
 const pendingSubPhaseTagSaves = new Map();
 
 function normalizePlaybackRate(value = 1) {
@@ -322,8 +319,6 @@ function timelineClipEditor(context = {}) {
       getState: () => run.store.getState(),
       getRoot: () => getRoot(run.context || context),
       subscribe: listener => run.store.subscribe(listener),
-      reconnect: fileInput => openLocalVideoPicker(run.context || context, { fileInput, keepAnalysisTab: true }),
-      selectFile: file => handleFileSelection(file, run.context || context, { keepAnalysisTab: true }),
       savePlaylist: draft => run.timelineWorkspaceRuntime.savePlaylist(draft),
       pause: () => {
         const video = videoElement(run.context || context);
@@ -3319,13 +3314,13 @@ async function handleFileSelection(file, context = {}, options = {}) {
   }
 }
 
-async function saveDraftClip(context = {}, stateOverride = null) {
+async function saveDraftClip(context = {}, stateOverride = null, { autoPhase = false } = {}) {
   const run = ensureRuntime(context);
   const state = stateOverride || run.store.getState();
   try {
     const clip = buildClipPayload(state);
     run.store.setState({ status: "saving-clip", message: "", error: "" });
-    const payload = await run.clips.save(toApiClipPayload(clip));
+    const payload = await run.clips.save(toApiClipPayload(clip), { autoPhase });
     const savedClip = normalizeClipInstance(payload?.clip || clip);
     const nextDurationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
     run.store.update((current) => ({
@@ -3516,30 +3511,6 @@ function selectReusableSubPhaseClipState(current = {}, clip = {}, startMs = 0, m
     message,
     error: "",
   };
-}
-
-function autoPhaseTagActionKey(state = {}, phase = "", startMs = 0, endMs = 0, momentKey = "") {
-  return [
-    state.match?.id || "",
-    state.video?.id || "",
-    String(phase || "").trim(),
-    Math.max(0, Math.round(Number(startMs || 0))),
-    Math.max(0, Math.round(Number(endMs || 0))),
-    momentKey,
-  ].join(":");
-}
-
-function hasAutoPhaseTagForMoment(state = {}, phase = "", startMs = 0, endMs = 0, momentKey = "") {
-  const label = String(phase || "").trim();
-  const start = Math.max(0, Math.round(Number(startMs || 0)));
-  const end = Math.max(start + 1, Math.round(Number(endMs || start + 1)));
-  return (state.clips || []).some((clip) => (
-    isPhaseOnlyClip(clip)
-    && String(clip.phase || clip.phase_id || "").trim() === label
-    && Math.max(0, Math.round(Number(clip.startMs ?? clip.start_ms ?? 0))) === start
-    && Math.max(0, Math.round(Number(clip.endMs ?? clip.end_ms ?? 0))) === end
-    && (!momentKey || clipMomentKey(clip) === momentKey)
-  ));
 }
 
 async function saveButtonLabelOnClip(button = {}, action = {}, context = {}, state = {}, playheadMs = 0) {
@@ -4277,8 +4248,6 @@ async function applyCodeButton(buttonId = "", context = {}) {
     if (targetField === "subPhase") {
       const startMs = Math.max(0, Math.round(Number(action.nextDraft?.startMs ?? currentMs)));
       const endMs = Math.max(startMs + 1000, Math.round(Number(action.nextDraft?.endMs ?? startMs + 15000)));
-      const durationMs = endMs - startMs;
-      const resolvedPhase = phaseForSubPhase(action.nextDraft?.subPhase, action.nextDraft?.phase);
       const momentKey = momentKeyForTagAction(state, startMs);
       const subPhaseActionKey = subPhaseTagActionKey(state, button, startMs, endMs, momentKey);
       const reusableSubPhaseClip = reusableSubPhaseClipForTag(state, action.nextDraft?.subPhase, startMs, endMs);
@@ -4324,74 +4293,15 @@ async function applyCodeButton(buttonId = "", context = {}) {
           },
         },
       };
-      let phaseActionKey = "";
       try {
         run.store.update(() => subPhaseState);
-        const savedSubPhaseClip = await saveDraftClip(context, subPhaseState);
+        const savedSubPhaseClip = await saveDraftClip(context, subPhaseState, { autoPhase: true });
         pendingSave.resolve(savedSubPhaseClip || false);
-        if (!savedSubPhaseClip) return false;
-        const currentAfterSubPhase = run.store.getState();
-        phaseActionKey = autoPhaseTagActionKey(state, resolvedPhase, startMs, endMs, momentKey);
-        if (hasAutoPhaseTagForMoment(currentAfterSubPhase, resolvedPhase, startMs, endMs, momentKey)
-          || inFlightAutoPhaseTagKeys.has(phaseActionKey)) {
-          run.store.update((current) => ({
-            ...current,
-            status: "ready",
-            selectedClipId: savedSubPhaseClip.id || current.selectedClipId,
-            codingSession: {
-              ...(current.codingSession || {}),
-              lastClipId: savedSubPhaseClip.id || current.codingSession?.lastClipId || "",
-            },
-            timeline: {
-              ...(current.timeline || {}),
-              playheadMs: startMs,
-            },
-            message: `${button.label || "Sub-phase"} tagged.`,
-            error: "",
-          }));
-          return true;
-        }
-        inFlightAutoPhaseTagKeys.add(phaseActionKey);
-        const phaseClip = buildPhaseOnlyClipPayload(subPhaseState, resolvedPhase, startMs, durationMs, {
-          momentKey,
-          metadata: {
-            source: "auto-phase-from-sub-phase",
-            sourceSubPhase: action.nextDraft?.subPhase || "",
-          },
-        });
-        const payload = await run.clips.save(toApiClipPayload(phaseClip));
-        const savedPhaseClip = normalizeClipInstance(payload?.clip || phaseClip);
-        inFlightAutoPhaseTagKeys.delete(phaseActionKey);
-        run.store.update((current) => ({
-          ...replaceClipInState(current, savedPhaseClip),
-          status: "ready",
-          selectedClipId: savedSubPhaseClip.id || savedPhaseClip.id || current.selectedClipId,
-          codingSession: {
-            ...(current.codingSession || {}),
-            lastClipId: savedSubPhaseClip.id || current.codingSession?.lastClipId || "",
-          },
-          timeline: {
-            ...(current.timeline || {}),
-            playheadMs: startMs,
-          },
-          message: `${button.label || "Sub-phase"} tagged with ${resolvedPhase}.`,
-          error: "",
-        }));
-        await loadClips();
-      } catch (error) {
-        pendingSave.resolve(false);
-        run.store.setState({
-          status: "error",
-          message: "",
-          error: error.message || "Sub-phase was saved, but automatic phase tag could not be created.",
-        });
-        return false;
+        return Boolean(savedSubPhaseClip);
       } finally {
-        if (phaseActionKey) inFlightAutoPhaseTagKeys.delete(phaseActionKey);
         pendingSubPhaseTagSaves.delete(subPhaseActionKey);
         inFlightSubPhaseTagKeys.delete(subPhaseActionKey);
       }
-      return true;
     }
     run.store.update(() => nextState);
     return Boolean(await saveDraftClip(context, nextState));

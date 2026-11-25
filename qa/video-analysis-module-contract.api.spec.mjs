@@ -1226,7 +1226,9 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(templateApi).toContain("CANONICAL_CODING_TARGET_FIELDS");
   expect(templateApi).toContain('sub_phase: "subPhase"');
   expect(shell).toContain("momentKeyForTagAction");
-  expect(shell).toContain("buildPhaseOnlyClipPayload");
+  expect(clipRepository).toContain("save-tag");
+  expect(api).toContain("/rpc/video_analysis_create_clip");
+  expect(shell).not.toContain("buildPhaseOnlyClipPayload");
   expect(shell).not.toContain("playerIdsFromSameMomentClips");
   expect(shell).not.toContain("nextCodedClips");
   expect(shell).toContain("canonicalCodingTargetField(button.targetField || button.type || \"\")");

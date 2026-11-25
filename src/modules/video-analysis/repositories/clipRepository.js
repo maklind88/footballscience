@@ -32,10 +32,11 @@ export function createClipRepository(context = {}) {
         getAuthToken
       );
     },
-    save(clip = {}) {
+    save(clip = {}, { autoPhase = false } = {}) {
+      const action = autoPhase ? "save-tag" : "save-clip";
       return requestJson(
-        buildVideoAnalysisApiUrl("save-clip"),
-        { method: "POST", body: JSON.stringify({ action: "save-clip", clip: withCollaboration(clip) }) },
+        buildVideoAnalysisApiUrl(action),
+        { method: "POST", body: JSON.stringify({ action, clip: withCollaboration(clip) }) },
         getAuthToken
       );
     },

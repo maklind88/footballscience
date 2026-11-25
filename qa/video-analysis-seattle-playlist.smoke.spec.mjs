@@ -1,5 +1,11 @@
 import { performance } from "node:perf_hooks";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { expect, test } from "@playwright/test";
+import ffmpegPath from "ffmpeg-static";
+import { registeredMp4Source } from "./helpers/video-analysis-media.mjs";
 
 const media = process.env.FS_PLAYER_SEATTLE_SOURCE;
 const matchId = "2a4e615e-f3e7-4fc7-bb70-a02db63c9152";
@@ -29,11 +35,11 @@ test("Seattle High Press clips go from Timeline to one saved, playable playlist 
     window.__videoAnalysisInitialState = {
       view: "workspace", canEdit: true, activeAnalysisRoomTab: "fs-player",
       match: { id: matchId, title: "NCC vs Seattle - July 4" },
-      video: { id: videoId, match_id: matchId },
+    video: { id: videoId, match_id: matchId, local_video_identifier: originals[0].video_source_identifier },
       source: { id: "source-1", match_id: matchId, video_id: videoId },
       timeline: { laneMode: "all", selectedClipIds: [], history: [] },
     };
-  }, { originals, matchId, videoId });
+  }, { originals: originals.map(clip => ({ ...clip, video_source_identifier: registeredMp4Source(media) })), matchId, videoId });
   await page.goto("/qa/video-analysis-browser-smoke.html?playlist-selection=1", { waitUntil: "domcontentloaded" });
   const row = page.locator('[data-video-analysis-timeline-category-label="Sub-phase / High Press"]');
   const localFile = page.locator("[data-video-analysis-file]");
@@ -120,4 +126,74 @@ test("Seattle High Press clips go from Timeline to one saved, playable playlist 
   await expect(page.locator(".video-analysis-playlist-library__title").filter({ hasText: name })).toBeFocused();
   expect(await originalRows(page)).toEqual(before);
   expect(pageErrors).toEqual([]);
+});
+
+test("a saved Seattle playlist with two sources rejects the wrong file without changing any tags or playlist", async ({ page, context }) => {
+  test.skip(!media, "Set FS_PLAYER_SEATTLE_SOURCE to the private July 4 original file.");
+  const temp = mkdtempSync(join(tmpdir(), "fs-playlist-source-test-"));
+  try {
+    const alternate = join(temp, "Seattle QA second video.mp4");
+    execFileSync(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=red:size=320x180:rate=15",
+      "-t", "5", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-y", alternate]);
+    const label = "Seattle mixed sources QA";
+    const sourceClips = originals.map(clip => ({ ...clip, video_title: "Seattle July 4", video_source_identifier: registeredMp4Source(media) }));
+    const secondSource = {
+      ...sourceClips[1], video_id: "46c70a43-5ee1-43f7-9e56-8e1c1be3a725", video_title: "Seattle QA second video",
+      video_source_identifier: registeredMp4Source(alternate), start_ms: 1000, end_ms: 3500, video_duration_ms: 5000,
+    };
+    const clips = [sourceClips[0], secondSource, sourceClips[2]];
+    const timelines = [{ id: "9a4e615e-f3e7-4fc7-bb70-a02db63c9152", matchId, title: "Timeline",
+      rows: [{ id: "qa-mixed-sources", kind: "manual", label, clipIds: clips.map(clip => clip.id), query: { source: "fs-player-playlist", playlistKey: "qa-seattle-mixed" } }] }];
+    await context.route(/^https?:\/\/(?!127\.0\.0\.1[:/])/, route => route.abort());
+    await page.addInitScript(({ clips, timelines, matchId, videoId }) => {
+      Object.defineProperty(window, "showOpenFilePicker", { value: undefined, configurable: true });
+      window.__videoAnalysisSmokeClips = clips;
+      window.__videoAnalysisSmokeTimelines = timelines;
+      window.__videoAnalysisInitialState = {
+        view: "workspace", canEdit: true, activeAnalysisRoomTab: "fs-player",
+        match: { id: matchId, title: "NCC vs Seattle - July 4" },
+        video: { id: videoId, match_id: matchId, local_video_identifier: clips[0].video_source_identifier },
+        timeline: { laneMode: "all", selectedClipIds: [], history: [] },
+      };
+    }, { clips, timelines, matchId, videoId });
+    await page.goto("/qa/video-analysis-browser-smoke.html?playlist-selection=1");
+    await page.locator("[data-video-analysis-file]").setInputFiles(media);
+    const main = page.locator("[data-video-analysis-video]");
+    await expect.poll(() => main.evaluate(video => video.readyState)).toBeGreaterThanOrEqual(2);
+    const primary = await main.getAttribute("src");
+    const readTimelines = () => page.evaluate(async () => (await (await fetch("/api/video-analysis?action=timelines")).json()).timelines);
+    const before = [await originalRows(page), await readTimelines()];
+    await page.getByRole("button", { name: "Playlists", exact: true }).click();
+    await page.getByRole("button", { name: `Play ${label}`, exact: true }).click();
+    const review = page.locator("dialog.video-analysis-clip-editor");
+    const preview = review.locator("[data-video-analysis-clip-preview]");
+    const next = review.getByRole("button", { name: "Next clip", exact: true });
+    await expect(preview).toHaveAttribute("src", primary);
+    await expect.poll(() => preview.evaluate(video => video.currentTime)).toBeGreaterThan(177.6);
+    await next.click();
+    await expect(preview).not.toHaveAttribute("src", /.+/);
+    await expect(review.getByRole("button", { name: "Play clip", exact: true })).toBeDisabled();
+    const connect = async path => {
+      const choose = page.waitForEvent("filechooser");
+      await review.getByRole("button", { name: "Reconnect local file" }).click();
+      await (await choose).setFiles(path);
+    };
+    await connect(media);
+    await expect(review.locator("[data-clip-preview-status]")).toHaveText("This file is not the source for this clip.");
+    await expect(preview).not.toHaveAttribute("src", /.+/);
+    await connect(alternate);
+    await expect.poll(() => preview.evaluate(video => video.readyState)).toBeGreaterThanOrEqual(2);
+    expect(await preview.getAttribute("src")).not.toBe(primary);
+    expect(await preview.evaluate(video => video.duration)).toBe(5);
+    await next.click();
+    await expect(preview).toHaveAttribute("src", primary);
+    await expect.poll(() => preview.evaluate(video => video.currentTime)).toBeGreaterThan(554.1);
+    await review.getByRole("button", { name: "Previous clip", exact: true }).click();
+    await expect.poll(() => preview.evaluate(video => video.duration)).toBe(5);
+    await review.getByRole("button", { name: "Close", exact: true }).click();
+    expect([await originalRows(page), await readTimelines()]).toEqual(before);
+    expect(await page.evaluate(() => window.__videoAnalysisRequests.filter(request =>
+      /^(save|archive|delete|restore)-/.test(request.action)
+      || request.action === "create-local-video-source"))).toMatchObject([{ action: "create-local-video-source" }]);
+  } finally { rmSync(temp, { recursive: true, force: true }); }
 });

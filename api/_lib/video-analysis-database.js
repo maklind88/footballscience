@@ -418,6 +418,8 @@ function clipSourceMetadata(clip = {}, matchMap = new Map(), videoMap = new Map(
     event_type: inferredType,
     opponent: normalizeText(match.opponent || metadata.opponent, 180),
     video_title: normalizeText(video.title, 180),
+    video_source_identifier: normalizeText(video.local_video_identifier, 240),
+    video_duration_ms: asMs(video.duration_ms),
   };
 }
 
@@ -439,7 +441,7 @@ async function attachClipRelations(clips, scope) {
     selectRows("video_clip_labels", childParams("*")),
     selectRows("video_clip_descriptors", childParams("*")),
     selectSourceRows("video_matches", scope, clips.map((clip) => clip.match_id), "id,title,match_date,opponent,metadata"),
-    selectSourceRows("video_videos", scope, clips.map((clip) => clip.video_id), "id,title,match_id,duration_ms"),
+    selectSourceRows("video_videos", scope, clips.map((clip) => clip.video_id), "id,title,match_id,duration_ms,local_video_identifier"),
   ]);
   const byClip = (rows) => {
     const map = new Map();
@@ -539,8 +541,16 @@ async function syncClipPlayersToIdp(clip = {}, saved = {}, actor = {}) {
   };
 }
 
-async function saveClip(payload, actor) {
+const clipRelations = clip => ({
+  players: clip.players, tags: clip.tags, labels: clip.labels, descriptors: clip.descriptors, note: clip.note,
+});
+
+async function saveClip(payload, actor, { autoPhase = false } = {}) {
   const clip = normalizeClipPayload(payload, actor);
+  autoPhase ||= !clip.id && clip.metadata.clipKind === "subPhase" && clip.metadata.source === "sub-phase-button";
+  if (autoPhase && (payload.id || clip.metadata.clipKind !== "subPhase" || !clip.metadata.momentKey)) {
+    return { ok: false, status: 400, reason: "A new sub-phase tag and its moment are required." };
+  }
   const scope = { organizationId: clip.organizationId, teamId: clip.teamId };
   const existing = clip.id ? await findClipById(scope, clip.id) : null;
   if (clip.id && !existing) return { ok: false, status: 404, reason: "Clip could not be found." };
@@ -581,7 +591,7 @@ async function saveClip(payload, actor) {
         p_organization_id: clip.organizationId, p_team_id: clip.teamId, p_actor_id: clip.actorId,
         p_id: clip.id, p_expected_revision: clip.expectedRevision || Number(existing.revision || 1),
         p_clip: row,
-        p_relations: { players: clip.players, tags: clip.tags, labels: clip.labels, descriptors: clip.descriptors, note: clip.note },
+        p_relations: clipRelations(clip),
       },
     });
     if (!result.ok) {
@@ -600,65 +610,33 @@ async function saveClip(payload, actor) {
     const auditResult = await recordClipAnalysisOperation(clip, existing, saved, actor).catch(() => ({ ok: false }));
     return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations, idpClipBank, operationRecorded: auditResult.ok } };
   }
-  const clipResult = await insertRow("video_clip_instances", row);
-  if (!clipResult.ok) return clipResult;
-  const saved = clipResult.payload?.[0];
-  if (!saved?.id) return { ok: false, status: 500, reason: "Clip could not be saved." };
-  const childWrites = [];
-  for (const player of clip.players) {
-    childWrites.push(insertRow("video_clip_players", {
-      organization_id: clip.organizationId,
-      team_id: clip.teamId,
-      clip_instance_id: saved.id,
-      player_id: player.playerId,
-      player_label: player.playerLabel,
-      role: player.role,
-    }));
+  const result = await dbRequest("/rpc/video_analysis_create_clip", {
+    method: "POST",
+    body: {
+      p_organization_id: clip.organizationId, p_team_id: clip.teamId, p_actor_id: clip.actorId,
+      p_clip: row, p_relations: clipRelations(clip), p_auto_phase: autoPhase,
+    },
+  });
+  if (!result.ok) {
+    const code = result.payload?.code;
+    if (["PGRST202", "42883"].includes(code)) {
+      return { ok: false, status: 503, reason: "Clip saving needs a database update. Nothing was saved." };
+    }
+    const status = { "22023": 400, "42501": 403, P0002: 404 }[code];
+    return status ? { ...result, status } : result;
   }
-  for (const tag of clip.tags) {
-    childWrites.push(insertRow("video_clip_tags", {
-      organization_id: clip.organizationId,
-      team_id: clip.teamId,
-      clip_instance_id: saved.id,
-      tag,
-    }));
+  const saved = result.payload?.clip;
+  if (!saved?.id) return { ok: false, status: 500, reason: "The saved clip could not be verified. Reload before retrying." };
+  const withRelations = attachClipSharingState({ ...saved, ...clipSourceMetadata(saved,
+    new Map([[saved.match_id, result.payload.match]]), new Map([[saved.video_id, result.payload.video]])) });
+  if (result.payload.reused) return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations } };
+  const idpClipBank = await syncClipPlayersToIdp(clip, saved, actor).catch(() => ({ ok: false }));
+  const auditResult = await recordClipAnalysisOperation(clip, null, saved, actor).catch(() => ({ ok: false }));
+  const phase = result.payload.phaseClip;
+  if (phase) {
+    const phaseActorContext = { ...clip, subPhase: phase.sub_phase };
+    await recordClipAnalysisOperation(phaseActorContext, null, phase, actor).catch(() => ({ ok: false }));
   }
-  for (const label of clip.labels) {
-    childWrites.push(insertRow("video_clip_labels", {
-      organization_id: clip.organizationId,
-      team_id: clip.teamId,
-      clip_instance_id: saved.id,
-      label_type: label.type,
-      label_value: label.value,
-      label_text: label.label,
-      created_by: clip.actorId,
-    }));
-  }
-  for (const descriptor of clip.descriptors) {
-    childWrites.push(insertRow("video_clip_descriptors", {
-      organization_id: clip.organizationId,
-      team_id: clip.teamId,
-      clip_instance_id: saved.id,
-      descriptor_type: descriptor.type,
-      descriptor_value: descriptor.value,
-      descriptor_label: descriptor.label,
-      created_by: clip.actorId,
-    }));
-  }
-  if (clip.note) {
-    childWrites.push(insertRow("video_clip_notes", {
-      organization_id: clip.organizationId,
-      team_id: clip.teamId,
-      clip_instance_id: saved.id,
-      note: clip.note,
-      created_by: clip.actorId,
-    }));
-  }
-  const failed = (await Promise.all(childWrites)).find((entry) => !entry.ok && entry.status !== 409);
-  if (failed) return failed;
-  const idpClipBank = await syncClipPlayersToIdp(clip, saved, actor);
-  const [withRelations] = await attachClipRelations([saved], { organizationId: clip.organizationId, teamId: clip.teamId });
-  const auditResult = await recordClipAnalysisOperation(clip, existing, saved, actor);
   return {
     ok: true,
     payload: {
@@ -965,8 +943,8 @@ async function handleVideoAnalysisRequest(req, res, actor) {
       ? await createLocalVideoSource(body, actor)
       : action === "update-match-link"
         ? await updateMatchLink(body.match || body, actor)
-        : action === "save-clip"
-          ? await saveClip(body.clip || body, actor)
+        : action === "save-clip" || action === "save-tag"
+          ? await saveClip(body.clip || body, actor, { autoPhase: action === "save-tag" })
           : action === "trim-clip"
             ? await trimClip(body.clip || body, actor)
             : action === "archive-clip"

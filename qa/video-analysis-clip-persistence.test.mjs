@@ -20,6 +20,99 @@ async function request(body, method = "POST", user = actor) {
   return result;
 }
 
+test("creating a tag saves all its relations and the automatic phase or saves nothing", async t => {
+  const db = createVideoAnalysisNativeDatabase();
+  const previousFetch = global.fetch;
+  const oldUrl = process.env.SUPABASE_URL, oldKey = process.env.SUPABASE_SECRET_KEY;
+  const calls = [];
+  process.env.SUPABASE_URL = "https://fs-clip-test.invalid";
+  process.env.SUPABASE_SECRET_KEY = "synthetic-test-key";
+  global.fetch = videoAnalysisTestRest(db, calls);
+  const tag = {
+    matchId, videoId, startMs: 177515, endMs: 192515, phase: "Out of Possession", subPhase: "High Press",
+    codingMode: "instant", metadata: { clipKind: "subPhase", momentKey: `${videoId}:178000` },
+    tags: ["press"], labels: [{ type: "mini_game_principle", value: "trigger", label: "Trigger" }],
+    descriptors: [{ type: "unit", value: "Front Line", label: "Front Line" }], note: "Seattle QA",
+  };
+  try {
+    db.sql(`insert into video_matches (id, organization_id, team_id, title) values ('${matchId}', 'test-club', 'test-team', 'Seattle QA');
+      insert into video_videos (id, organization_id, team_id, match_id, title, local_video_identifier)
+        values ('${videoId}', 'test-club', 'test-team', '${matchId}', 'Seattle QA video', 'seattle-test-source');
+      insert into video_clip_instances (id, organization_id, team_id, match_id, video_id, start_ms, end_ms, phase, sub_phase)
+        values ('${clipId}', 'test-club', 'test-team', '${matchId}', '${videoId}', 298136, 313136, 'Out of Possession', 'High Press');
+      insert into video_clip_tags (organization_id, team_id, clip_instance_id, tag) values ('test-club', 'test-team', '${clipId}', 'keep');
+      create function public.test_reject_new_tag() returns trigger language plpgsql as $$begin
+        if new.label_type = 'phase' or new.label_value = 'reject' then raise exception 'Forced relation failure'; end if;
+        return new; end$$;
+      create trigger test_reject_new_tag before insert on video_clip_labels for each row execute function public.test_reject_new_tag();`);
+    const playlist = JSON.parse(db.sql(`select public.video_analysis_save_timeline('test-club', 'test-team', 'test-coach',
+      '{"title":"Match timeline","matchId":"${matchId}","rows":[{"id":"playlist-test","label":"Seattle Press","kind":"manual","clipIds":["${clipId}"],"query":{"source":"fs-player-playlist"}}]}'::jsonb,
+      'tag-create-preservation')`));
+    const original = () => db.sql(`select app_private.video_analysis_clip_snapshot('${clipId}', 'test-club', 'test-team')`);
+    const savedPlaylist = () => db.sql(`select app_private.video_analysis_timeline_snapshot('${playlist.id}', 'test-team')`);
+    const before = [original(), savedPlaylist()];
+    await t.test("a late phase-label error and a standalone relation error roll back every new row", async () => {
+      const failedPair = await request({ action: "save-tag", clip: tag });
+      assert.equal(failedPair.status, 400);
+      assert.match(failedPair.body.reason, /Forced relation failure/);
+      const failedSingle = await request({ action: "save-clip", clip: {
+        ...tag, startMs: 554000, endMs: 569000, labels: [{ type: "mini_game_principle", value: "reject" }],
+      } });
+      assert.match(failedSingle.body.reason, /Forced relation failure/);
+      assert.equal(db.sql(`select count(*) from video_clip_instances where id <> '${clipId}'`), "0");
+      for (const relation of relations) {
+        assert.equal(db.sql(`select count(*) from video_clip_${relation} where clip_instance_id <> '${clipId}'`), "0");
+      }
+      assert.deepEqual([original(), savedPlaylist()], before);
+    });
+    db.sql("drop trigger test_reject_new_tag on video_clip_labels");
+    await t.test("retry commits the whole tag, shares one phase for concurrent tags and preserves the saved records", async () => {
+      const [saved, other] = await Promise.all([
+        request({ action: "save-tag", clip: tag }),
+        request({ action: "save-tag", clip: { ...tag, subPhase: "Block Defending" } }),
+      ]);
+      assert.equal(saved.status, 200, JSON.stringify(saved.body));
+      assert.equal(other.status, 200, JSON.stringify(other.body));
+      assert.equal(saved.body.clip.notes[0].note, tag.note);
+      assert.equal(saved.body.clip.video_source_identifier, "seattle-test-source");
+      assert.deepEqual(saved.body.clip.tags, ["press"]);
+      assert.ok(saved.body.clip.labels.some(label => label.label_value === "trigger"));
+      assert.equal(saved.body.clip.descriptors[0].descriptor_value, "Front Line");
+      assert.equal(db.sql("select count(*) from video_clip_instances where metadata ->> 'clipKind' = 'phase'"), "1");
+      assert.equal(db.sql("select count(*) from video_clip_instances where metadata ->> 'clipKind' = 'subPhase'"), "2");
+      assert.equal(db.sql("select count(*) from video_clip_labels where label_type = 'phase'"), "1");
+      assert.deepEqual([original(), savedPlaylist()], before);
+      assert.equal(calls.filter(call => call.method === "POST" && call.table && call.table.startsWith('"video_clip_')).length, 0);
+    });
+    await t.test("the RPC cannot be called by browser roles and rejects other team/video pairs", async () => {
+      assert.equal(db.sql(`select has_function_privilege('authenticated',
+        'public.video_analysis_create_clip(text,text,text,jsonb,jsonb,boolean)', 'execute')`), "f");
+      assert.equal(db.sql(`select has_function_privilege('anon',
+        'public.video_analysis_create_clip(text,text,text,jsonb,jsonb,boolean)', 'execute')`), "f");
+      assert.equal((await request({ action: "save-tag", clip: tag }, "POST", { ...actor, teamId: "another-team" })).status, 404);
+      assert.equal((await request({ action: "save-tag", clip: { ...tag, videoId: clipId } })).status, 404);
+      assert.deepEqual([original(), savedPlaylist()], before);
+    });
+    await t.test("an older tab's two-message protocol creates the pair once", async () => {
+      const legacy = { ...tag, startMs: 554000, endMs: 569000, metadata: { ...tag.metadata,
+        source: "sub-phase-button", momentKey: `${videoId}:554000` } };
+      assert.equal((await request({ action: "save-clip", clip: legacy })).status, 200);
+      const phaseId = db.sql("select id from video_clip_instances where start_ms = 554000 and metadata ->> 'clipKind' = 'phase'");
+      assert.ok(phaseId);
+      const second = await request({ action: "save-clip", clip: { ...legacy, subPhase: legacy.phase,
+        metadata: { ...legacy.metadata, clipKind: "phase", source: "auto-phase-from-sub-phase" } } });
+      assert.equal(second.body.clip.id, phaseId);
+      assert.equal(db.sql("select count(*) from video_clip_instances where start_ms = 554000"), "2");
+      assert.deepEqual([original(), savedPlaylist()], before);
+    });
+  } finally {
+    global.fetch = previousFetch;
+    if (oldUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = oldUrl;
+    if (oldKey === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = oldKey;
+    db.close();
+  }
+});
+
 test("original clip edits are atomic, archived and tenant-scoped", async t => {
   const db = createVideoAnalysisNativeDatabase();
   const previousFetch = global.fetch;
@@ -213,8 +306,8 @@ test("original clip edits are atomic, archived and tenant-scoped", async t => {
       assert.equal(db.sql(`select count(*) from video_clip_labels where clip_instance_id='${relatedId}' and archived_at is not null`), "1");
     });
 
-    await t.test("new live tags still use the existing create path and return active metadata", async () => {
-      const rpcCount = calls.filter(call => call.rpc).length;
+    await t.test("new tags use a single create transaction and return active metadata", async () => {
+      const offset = calls.length;
       const original = snapshot();
       const result = await request({ action: "save-clip", clip: payload({ id: undefined, expectedRevision: undefined, note: "New tag" }) });
       assert.equal(result.status, 200, JSON.stringify(result.body));
@@ -222,7 +315,7 @@ test("original clip edits are atomic, archived and tenant-scoped", async t => {
       assert.equal(result.body.clip.revision, 1);
       assert.equal(result.body.clip.notes[0].note, "New tag");
       assert.deepEqual(result.body.clip.tags, ["new"]);
-      assert.equal(calls.filter(call => call.rpc).length, rpcCount);
+      assert.deepEqual(calls.slice(offset).filter(call => call.rpc).map(call => call.rpc), ["video_analysis_create_clip"]);
       assert.equal(snapshot(), original);
     });
   } finally {

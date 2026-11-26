@@ -434,3 +434,8 @@
 .pr-week-grid-compare .pr-gps-column-key { color: var(--pr-muted); margin-top: 4px; font-weight: 400; }
 .pr-week-row-totals .pr-week-gps-total { color: var(--pr-blue); margin-top: 4px; }
 .pr-week-gps-total small { display: block; color: var(--pr-muted); font-size: 10px; }
+
+.pr-gps-history-table :is(td, th):nth-child(2),
+.pr-gps-history-table :is(td, th):nth-child(3),
+.pr-gps-history-table :is(td, th):last-child { text-align: left; }
+.pr-gps-history-table :is(td, th) { padding-block: 9px; }

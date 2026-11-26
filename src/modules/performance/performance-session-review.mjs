@@ -62,6 +62,8 @@ function analysis(context, metric, comparison) {
     unavailable: "GPS source unavailable",
     ready: gps.sample ? "Example GPS data" : "Linked GPS data",
   };
+  const measured = comparison.rows.map(({ actual }) => actual).filter(Number.isFinite);
+  const measuredAverage = measured.length ? measured.reduce((total, value) => total + value, 0) / measured.length : null;
   const delta = comparison.count ? deltaText(comparison.actual, comparison.plan, metric) : "";
   return `<div class="pr-review-summary">
     <div class="pr-review-pair">
@@ -72,6 +74,7 @@ function analysis(context, metric, comparison) {
       <small>${comparison.count} of ${players.length} players comparable · ${sources[gps.status]}${reviewEditing ? " · Saved plan" : ""}</small>
     </div>
     <dl class="pr-review-plan-avg">
+      <div><dt>Session GPS avg</dt><dd>${formatGpsValue(measuredAverage, metric)}</dd><small>${measured.length} of ${players.length} players measured</small></div>
       <div><dt>Session plan avg</dt><dd>${formatGpsValue(planAverage, metric)}</dd><small>${planned.length} of ${players.length} players planned</small></div>
       <div><dt data-pr-review-week-label>Training week plan avg</dt><dd data-pr-review-week-avg>${formatGpsValue(weekAverage.count ? weekAverage.total / weekAverage.count : null, metric)}</dd><small data-pr-review-week-count>${weekAverage.count} of ${players.length} players planned</small></div>
     </dl>

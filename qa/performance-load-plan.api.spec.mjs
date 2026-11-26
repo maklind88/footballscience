@@ -25,10 +25,10 @@ function platformFixture(roles = ["performance"]) {
   };
 }
 
-async function send(handler, method, body, signedIn = true, requestedWeek = week) {
+async function send(handler, method, body, signedIn = true, requestedWeek = week, view = "") {
   const req = Readable.from(body === undefined ? [] : [JSON.stringify(body)]);
   req.method = method;
-  req.url = `/api/performance-load-plan?week=${requestedWeek}`;
+  req.url = `/api/performance-load-plan?week=${requestedWeek}&view=${view}`;
   req.headers = signedIn ? { authorization: "Bearer example" } : {};
   const headers = {};
   const res = {
@@ -151,7 +151,7 @@ test("Team week saves multiple player targets together and restricts team goals 
 
 test("weekly GPS reads project exact player and activity IDs, keep measured zero and reject duplicate summaries", async () => {
   const { handler } = fixture({ readActuals: async (scope) => {
-    expect(scope).toEqual({ organizationId, teamId, week, playerIds: ["squad-athlete", "second-athlete"], activityIds: [activityId] });
+    expect(scope).toEqual({ actorId, organizationId, teamId, week, playerIds: ["squad-athlete", "second-athlete"], activityIds: [activityId] });
     const row = { playerId: "squad-athlete", activityId, metrics: { distance: 5801.2, hsr: "450", sprint: 0, ignored: 18 },
       comparable: ["distance", "hsr", "sprint"], sessionDurationMinutes: 94.2, matchMinutes: 90 };
     const duplicate = { ...row, playerId: "second-athlete" };
@@ -187,4 +187,32 @@ test("a slow GPS source is canceled without blocking the saved plan", async () =
   expect(read.body).toMatchObject({
     records: [{ ...saved, revision: 1 }], gpsActuals: { status: "unavailable", rows: [] },
   });
+});
+
+test("GPS history is tenant-scoped and ships only reviewed fields for the selected week", async () => {
+  const requests = [];
+  const readActuals = async (scope) => {
+    requests.push(scope);
+    return { rows: [
+      { date: week, player: "Alex Example", type: "match", opponent: "Example FC", link: "unmatched-player",
+        recordId: "private-source-record", note: "private context",
+        metrics: { distance: 5100, sprint: 0, gpsMinutes: 72, wellness: 1, hsr: -5 } },
+      { date: "2026-11-30", player: "Out of range", type: "training", metrics: {} },
+    ] };
+  };
+  const { handler, calls } = fixture({ roles: ["coach"], readActuals });
+  const read = await send(handler, "GET", undefined, true, week, "gps-history");
+  expect(read.status).toBe(200);
+  expect(read.headers["cache-control"]).toBe("private, no-store");
+  expect(read.body.history).toEqual({ status: "ready", rows: [
+    { date: week, player: "Alex Example", type: "match", opponent: "Example FC", link: "unmatched-player",
+      metrics: { distance: 5100, sprint: 0, gpsMinutes: 72 } },
+  ] });
+  expect(calls).toEqual([]);
+  expect(requests).toEqual([{ actorId, organizationId, teamId, week, history: true }]);
+
+  expect((await send(handler, "GET", undefined, false, week, "gps-history")).status).toBe(401);
+  const other = fixture({ tenantMatch: false, readActuals });
+  expect((await send(other.handler, "GET", undefined, true, week, "gps-history")).status).toBe(403);
+  expect(requests).toHaveLength(1);
 });

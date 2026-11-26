@@ -1,7 +1,7 @@
 const { buildSupabaseKeyHeaders, getCurrentActor, parseJsonBody, readConfig, sendCorsHeaders, sendJson } = require("./_lib/supabase-admin.js");
 const { enforceApiPermission, guardApiRequest } = require("./_lib/platform-security.js");
 const { resolvePlatformActorScope } = require("./_lib/platform-identity.js");
-const { readWeekGpsActuals } = require("./_lib/performance-gps-actuals.js");
+const { readGpsHistory, readPublishedGpsWeek, readWeekGpsActuals } = require("./_lib/performance-gps-actuals.js");
 const { resolvePerformanceTeam, readPerformanceSources } = require("./_lib/performance-load-sources.js");
 
 const route = "/api/performance-load-plan";
@@ -83,7 +83,8 @@ function createPerformanceLoadPlanHandler({
       if (!guardApiRequest(req, res, { ...options, enforcePermission: false }).ok) return;
       const write = req.method === "POST";
       const body = write ? await parseJsonBody(req, { maxBytes: 384 * 1024 }) : null;
-      const week = write ? body?.week : new URL(req.url, "http://localhost").searchParams.get("week");
+      const params = new URL(req.url, "http://localhost").searchParams;
+      const week = write ? body?.week : params.get("week");
       const end = weekEnd(week);
       if (!end) return fail(400, "Choose the Monday of the plan week.");
 
@@ -92,6 +93,11 @@ function createPerformanceLoadPlanHandler({
       const scope = await resolveTeam(platform, write ? "write" : "read");
       if (!scope) return fail(403, "Performance planning is unavailable for this team.");
       if (!enforceApiPermission(req, res, { ...options, actor: scope.actor }).ok) return;
+
+      if (!write && params.get("view") === "gps-history") {
+        const history = await readGpsHistory(readActuals, scope, week, end);
+        return reply(200, { ok: true, week, history });
+      }
 
       const sources = await readSources(week, end);
       const weekKey = `week:${week}`;
@@ -125,5 +131,5 @@ function createPerformanceLoadPlanHandler({
   };
 }
 
-module.exports = createPerformanceLoadPlanHandler();
+module.exports = createPerformanceLoadPlanHandler({ readActuals: readPublishedGpsWeek });
 module.exports.createPerformanceLoadPlanHandler = createPerformanceLoadPlanHandler;

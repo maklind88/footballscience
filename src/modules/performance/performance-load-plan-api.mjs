@@ -23,5 +23,20 @@ export function createLoadPlanApi(getAuthToken, fetchImpl = globalThis.fetch) {
     return data;
   }
 
-  return { read: request, save: (week, records) => request(week, records) };
+  async function readGpsHistory(week, signal) {
+    const token = await getAuthToken();
+    if (!token) throw new Error("Sign in to open GPS history.");
+    const response = await fetchImpl(`/api/performance-load-plan?view=gps-history&week=${encodeURIComponent(week)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: AbortSignal.any([signal, AbortSignal.timeout(12000)]),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok || data.week !== week || !Array.isArray(data.history?.rows)) {
+      throw new Error("GPS history is unavailable. Try again.");
+    }
+    return data.history;
+  }
+
+  return { read: request, save: (week, records) => request(week, records), readGpsHistory };
 }

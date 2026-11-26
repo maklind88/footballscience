@@ -1,5 +1,6 @@
 import { scheduleEventTypes } from "../schedule/events.mjs";
 import { availabilityLabels, dateLabel } from "./performance-overview.mjs";
+import { renderGpsHistory } from "./performance-gps-history.mjs";
 import { renderLoadPlanning } from "./performance-load-plan-renderer.mjs";
 
 export const performanceViews = Object.freeze({
@@ -11,12 +12,13 @@ export const performanceViews = Object.freeze({
   testing: "Testing",
   drills: "Drill Library",
   data: "Data Review",
+  "gps-history": "GPS History",
 });
 
 const availabilityKeys = Object.keys(availabilityLabels);
 const gpsMetrics = ["Duration", "Total Distance", "High-Speed Running", "Sprint Distance", "Maximum Velocity", "Accelerations", "Decelerations"];
 const unavailableMetrics = {
-  gps: "GPS import not connected",
+  gps: "GPS coverage is shown in load planning",
   wellness: "Wellness feed not connected",
   rpe: "RPE collection not connected",
   testing: "Testing results not connected",
@@ -107,7 +109,7 @@ function dayChart(ctx) {
     ? `<div class="pr-axis" aria-hidden="true">${[1, .75, .5, .25, 0].map((tick) => `<span>${graphMax * tick}</span>`).join("")}</div>` : "";
   const weekLabel = `${dateLabel(days[0].date, { day: "numeric", month: "short" })} – ${dateLabel(days.at(-1).date, { day: "numeric", month: "short" })}`;
   return panel("Microcycle Progress", `<div class="pr-chart ${axis ? "pr-chart-axis" : ""}">${axis}<div class="pr-days">${chart}</div></div>
-       <div class="pr-chart-foot">${showMinutes ? `<span><i class="pr-legend-dot"></i> Planned minutes</span><span>Measured load unconnected</span>` : "<span>Physical load from Periodization</span>"}</div>`,
+       <div class="pr-chart-foot">${showMinutes ? `<span><i class="pr-legend-dot"></i> Planned minutes</span><span>Open load planning for measured GPS</span>` : "<span>Physical load from Periodization</span>"}</div>`,
     { className: "pr-microcycle", subtitle: weekLabel, control });
 }
 
@@ -294,6 +296,7 @@ export function renderPerformanceRoom(ctx) {
     testing: () => panel("Physical Testing", placeholder(`${unavailableMetrics.testing}. Speed, strength, CMJ and aerobic capacity will appear when a source is connected.`)),
     drills: () => drillLibrary(ctx),
     data: () => dataReview(ctx),
+    "gps-history": () => renderGpsHistory(ctx.history, escape),
   };
   return `<div class="pr-room" data-pr-screen="${view}">
     <header class="pr-header">
@@ -304,7 +307,7 @@ export function renderPerformanceRoom(ctx) {
         ` class="pr-next-match" data-pr-date="${match.date}"`) : ""}
     </header>
     <div class="pr-toolbar">
-      <nav class="pr-navigation" aria-label="Performance Room">${Object.entries(performanceViews).map(([key, label]) =>
+      <nav class="pr-navigation" aria-label="Performance Room">${Object.entries(performanceViews).filter(([key]) => key !== "gps-history" || ctx.gpsHistoryEnabled).map(([key, label]) =>
         action(escape, "view", key, label, key === activeNav ? ' aria-current="page"' : "")).join("")}</nav>
       <div class="pr-dates">
         ${action(escape, "week", "-1", "‹", ' aria-label="Previous week"')}

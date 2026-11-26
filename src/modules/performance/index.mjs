@@ -1,9 +1,10 @@
-import { createPerformanceOverview, isValidDate, shiftDate, summarizePlannedRange } from "./performance-overview.mjs";
+import { createPerformanceOverview, isValidDate, shiftDate, summarizePlannedRange, weekDates } from "./performance-overview.mjs";
 import { createPerformancePlatformAdapter } from "./performance-platform-adapter.mjs";
 import { renderPerformanceRoom, performanceViews } from "./performance-renderer.mjs";
 import { createLoadPlanApi } from "./performance-load-plan-api.mjs";
 import { createLoadPlanController } from "./performance-load-plan-controller.mjs";
 import { updateTeamWeekTotals } from "./performance-team-week-matrix.mjs";
+import { createGpsHistory } from "./performance-gps-history.mjs";
 import { updateGpsDelta } from "./performance-week-gps.mjs";
 
 export function createPerformanceSurface(context) {
@@ -13,6 +14,7 @@ export function createPerformanceSurface(context) {
   const loadPlan = context.loadPlanningEnabled
     ? createLoadPlanController(context.loadPlanSeed, context.isSampleLoadPlan, persistence, render)
     : null;
+  const gpsHistory = persistence ? createGpsHistory(persistence.readGpsHistory, render) : null;
   let scope;
   let date;
   let view;
@@ -23,19 +25,25 @@ export function createPerformanceSurface(context) {
   let focusKey;
 
   function render() {
-    if (!isActive()) return;
+    if (!isActive()) {
+      gpsHistory?.reset();
+      return;
+    }
     const activeScope = getScope();
     if (scope !== activeScope) {
       scope = activeScope;
-      date = getToday();
       const profileId = context.initialLoadPlanPlayer?.();
       view = loadPlan && (context.openLoadPlan || profileId) ? "load-plan" : "overview";
+      if (gpsHistory && context.openGpsHistory) view = "gps-history";
+      const requestedDate = context.initialLoadPlanDate;
+      date = ["load-plan", "gps-history"].includes(view) && isValidDate(requestedDate) ? requestedDate : getToday();
       playerId = "";
       metric = "minutes";
       range = "7";
       availabilityFilter = "all";
       focusKey = "";
       loadPlan?.reset();
+      gpsHistory?.reset();
       if (view === "load-plan" && profileId) loadPlan.openPlayer(profileId);
     }
     const sources = adapter.read(date, { includeDrills: view === "drills" });
@@ -43,6 +51,7 @@ export function createPerformanceSurface(context) {
     const summary = view === "season" ? summarizePlannedRange({ date, range, ...sources }) : null;
     const team = getTeam();
     const planning = view === "load-plan" ? loadPlan?.getView(overview, sources) : null;
+    const history = view === "gps-history" ? gpsHistory?.getWeek(weekDates(date)[0]) : null;
     const focus = focusKey || root.ownerDocument.activeElement?.dataset?.prFocus;
     const previousMatrix = root.querySelector(".pr-week-grid-wrap");
     const matrixScroll = previousMatrix ? { left: previousMatrix.scrollLeft, top: previousMatrix.scrollTop } : null;
@@ -50,7 +59,7 @@ export function createPerformanceSurface(context) {
       overview, sources, summary, date, today: getToday(), view, metric, range, playerId, availabilityFilter,
       canRead: context.isSampleLoadPlan ? () => false : canRead,
       escape: context.escapeHtml, teamName: getTeamName(), teamLogo: getLogo(team || {}),
-      planning, loadPlanningEnabled: Boolean(loadPlan), isSample: context.isSampleLoadPlan,
+      planning, history, gpsHistoryEnabled: Boolean(gpsHistory), loadPlanningEnabled: Boolean(loadPlan), isSample: context.isSampleLoadPlan,
     });
     if (matrixScroll) root.querySelector(".pr-week-grid-wrap")?.scrollTo(matrixScroll);
     if (focus) {
@@ -70,9 +79,15 @@ export function createPerformanceSurface(context) {
         openSource(prValue, isValidDate(prDate) ? prDate : undefined);
         return;
       case "view":
+        if (prValue === "gps-history" && !gpsHistory) return;
         if (prValue !== "session" && !(prValue === "load-plan" && loadPlan) && !Object.hasOwn(performanceViews, prValue)) return;
+        if (view === "gps-history" && prValue !== view) gpsHistory.reset();
         view = prValue;
         if (view === "players") availabilityFilter = "all";
+        break;
+      case "gps-history-retry":
+        if (view !== "gps-history") return;
+        gpsHistory.reset();
         break;
       case "day":
         if (!isValidDate(prValue)) return;
@@ -165,6 +180,9 @@ export function createPerformanceSurface(context) {
     if (!isActive()) return;
     if (event.target.matches("[data-pr-date-picker]") && isValidDate(event.target.value)) {
       date = event.target.value;
+      render();
+    } else if (view === "gps-history" && event.target.matches("[data-pr-gps-history-player]")) {
+      gpsHistory.selectPlayer(event.target.value);
       render();
     } else if (view === "load-plan" && loadPlan?.selectFromEvent(event)) {
       render();

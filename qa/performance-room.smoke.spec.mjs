@@ -83,7 +83,12 @@ async function attachLoadPlanRoutes(page, entries, backend) {
     const request = route.request();
     expect(request.headers().authorization).toBe("Bearer qa-load-plan-token");
     if (request.method() === "GET") {
-      const week = new URL(request.url()).searchParams.get("week");
+      const params = new URL(request.url()).searchParams;
+      const week = params.get("week");
+      if (params.get("view") === "gps-history") {
+        backend.historyReads?.push(week);
+        return route.fulfill({ json: { ok: true, week, history: { status: "ready", rows: backend.history?.[week] ?? [] } } });
+      }
       const planningSources = {
         playerIds: entries[squadKey].players.map(({ id }) => id),
         activityIds: entries[scheduleKey].events.filter(({ type }) => type !== "meeting").map(({ id }) => id),
@@ -164,7 +169,7 @@ test("Performance Room keeps unknown data distinct, updates from the owner cache
   await room.getByRole("button", { name: "14 days", exact: true }).click();
   await expect(room.getByText("80 min", { exact: true })).toBeVisible();
   await navigation.getByRole("button", { name: "Data Review" }).click();
-  await expect(room.getByText("GPS import not connected", { exact: true })).toBeVisible();
+  await expect(room.getByText("GPS coverage is shown in load planning", { exact: true })).toBeVisible();
   await expect(room.getByText("RPE collection not connected", { exact: true })).toBeVisible();
 
   await page.evaluate(({ sessionKey, day }) => {
@@ -553,4 +558,27 @@ test("Session review leads from match to training and saves only intentional pla
   await review.getByRole("button", { name: "Monday recovery", exact: true }).click();
   await expect(review.getByRole("heading", { name: "Monday recovery" })).toBeVisible();
   await expect(compare.getByRole("row", { name: /Alex Example/ })).toContainText("96 min");
+});
+
+test("GPS History loads one selected week on demand and filters source players without reloading", async ({ page }) => {
+  const historyReads = [];
+  const room = await boot(page, { backend: {
+    records: [], writes: [], canEdit: false, historyReads,
+    history: { "2026-11-23": [
+      { date: day, player: "Alex Example", type: "training", metrics: { distance: 5100, sprint: 0 }, link: "linked" },
+      { date: day, player: "Former Courage Player", type: "match", opponent: "Example FC", metrics: { distance: 8500 }, link: "unmatched-player" },
+    ] },
+  } });
+  expect(historyReads).toEqual([]);
+  await room.getByRole("button", { name: "GPS History", exact: true }).click();
+  const table = room.getByRole("table");
+  await expect(table.getByRole("row", { name: /Former Courage Player/ })).toContainText("Player needs a Squad link");
+  await expect(table.getByRole("row", { name: /Alex Example/ })).toContainText("5.1");
+  await expect(table.getByRole("row", { name: /Alex Example/ }).getByRole("cell", { name: "0", exact: true })).toBeVisible();
+  await room.getByRole("combobox", { name: "Player" }).selectOption("Former Courage Player");
+  await expect(table.getByRole("row", { name: /Alex Example/ })).toHaveCount(0);
+  expect(historyReads).toEqual(["2026-11-23"]);
+  await room.getByRole("button", { name: "Previous week" }).click();
+  await expect(room.getByRole("status")).toContainText("No workbook GPS entries for this week");
+  expect(historyReads).toEqual(["2026-11-23", "2026-11-16"]);
 });

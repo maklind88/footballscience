@@ -51,11 +51,14 @@ export function createPerformanceSurfaceRuntime({
       loader.loadStylesheet(id, "src/modules/performance/performance.css", { id: "performanceStylesheet", required: true }),
       loader.loadModule(id, () => import(`./index.mjs?v=${encodeURIComponent(assetVersion)}`)),
     ]).then(([, module]) => {
+      const params = new URLSearchParams(win.location?.search);
       surface = module.createPerformanceSurface({
         ...sources, root, canRead, isActive, openSource: openAuthorizedSource,
         loadPlanningEnabled: canRead("player-profiles") && canRead("schedule"),
         getLoadPlanToken: getAuth()?.isDevMode?.() === true ? null : getAuthToken,
-        openLoadPlan: new URLSearchParams(win.location?.search).get("performancePlan") === "team-week",
+        openLoadPlan: params.get("performancePlan") === "team-week",
+        openGpsHistory: params.get("performancePlan") === "gps-history",
+        initialLoadPlanDate: params.get("performanceDate"),
         initialLoadPlanPlayer: () => new URLSearchParams(win.location?.search).get("performancePlayer"),
         getScope: () => JSON.stringify([getUser()?.id, getUser()?.role, getScope()]),
       });

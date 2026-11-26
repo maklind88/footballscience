@@ -222,7 +222,7 @@ const platformPermissionMatrix = Object.freeze([
     admin: ["admin"],
     observe: ["admin", "performance"],
   }, {
-    routes: ["/api/performance-load-plan"],
+    routes: ["/api/performance-load-plan", "/api/performance-rpe"],
   }),
   moduleContract("medical-team", "Medical Team", "team", {
     read: medicalAccessRoles,
@@ -499,6 +499,12 @@ const apiRouteSecurity = Object.freeze({
     actions: Object.freeze({ GET: "read", POST: "write" }),
     rateLimits: Object.freeze({ read: 80, write: 30 }),
     enforcePermission: true,
+  }),
+  "/api/performance-rpe": Object.freeze({
+    moduleId: "performance-room",
+    actions: Object.freeze({ GET: "read", POST: "write" }),
+    rateLimits: Object.freeze({ read: 60, write: 20 }),
+    enforcePermission: false,
   }),
   "/api/rtp": Object.freeze({
     moduleId: "rtp",

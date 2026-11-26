@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow">
+  <title>My Performance · Football Science</title>
+  <link rel="stylesheet" href="./rpe-response.css">
+  <script type="module" src="./rpe-response.mjs"></script>
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <div><p class="brand">Football Science</p><h1>My Performance</h1></div>
+      <button id="signout" type="button" class="secondary" hidden>Sign out</button>
+    </header>
+    <form id="login">
+      <p>Sign in with your Football Science player account.</p>
+      <label>Email<input type="email" name="email" required maxlength="180" autocomplete="username"></label>
+      <label>Password<input type="password" name="password" required maxlength="256" autocomplete="current-password"></label>
+      <button type="submit">Sign in</button>
+    </form>
+    <p id="status" role="status"></p>
+    <div id="portal" hidden>
+      <nav class="week" aria-label="Check-in week">
+        <button type="button" class="secondary" id="prev" aria-label="Previous week">‹</button>
+        <label>Week of <input type="date" id="date" required></label>
+        <button type="button" class="secondary" id="next" aria-label="Next week">›</button>
+      </nav>
+      <section aria-labelledby="rpe-title"><h2 id="rpe-title">Session RPE</h2><div id="rpe"></div></section>
+      <section aria-labelledby="wellness-title"><h2 id="wellness-title">Wellness</h2><div id="wellness"></div></section>
+    </div>
+    <noscript>Enable JavaScript to open your check-ins.</noscript>
+  </main>
+</body>
+</html>

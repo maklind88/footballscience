@@ -4,6 +4,8 @@ const { resolvePlatformActorScope } = require("./_lib/platform-identity.js");
 const { readGpsHistory, readPublishedGpsWeek, readWeekGpsActuals } = require("./_lib/performance-gps-actuals.js");
 const { resolvePerformanceTeam, readPerformanceSources } = require("./_lib/performance-load-sources.js");
 
+const { handleStaffCheckins } = require("./_lib/performance-checkins.js");
+
 const route = "/api/performance-load-plan";
 const metrics = ["distance", "hsr", "sprint"];
 const unavailable = "Saved load plans are temporarily unavailable. Try again.";
@@ -68,7 +70,7 @@ function rpcRecord({ kind, subjectKey, activityId, revision, targets }) {
 
 function createPerformanceLoadPlanHandler({
   readActor = getCurrentActor, readScope = resolvePlatformActorScope, resolveTeam = resolvePerformanceTeam,
-  readSources = readPerformanceSources, rpc = callPerformanceRpc, readActuals,
+  readSources = readPerformanceSources, rpc = callPerformanceRpc, readActuals, checkins = handleStaffCheckins,
 } = {}) {
   return async function performanceLoadPlan(req, res) {
     sendCorsHeaders(res);
@@ -90,9 +92,11 @@ function createPerformanceLoadPlanHandler({
 
       const platform = await readScope(actor);
       if (!platform.ok) return fail(platform.status >= 500 ? 503 : 403, platform.status >= 500 ? unavailable : "Active team membership required.");
-      const scope = await resolveTeam(platform, write ? "write" : "read");
+      const checkinsView = params.get("view") === "checkins";
+      const scope = await resolveTeam(platform, write || checkinsView ? "write" : "read");
       if (!scope) return fail(403, "Performance planning is unavailable for this team.");
       if (!enforceApiPermission(req, res, { ...options, actor: scope.actor }).ok) return;
+      if (checkinsView && !scope.canEdit) return fail(403, "Individual check-ins require Performance staff access.");
 
       if (!write && params.get("view") === "gps-history") {
         const history = await readGpsHistory(readActuals, scope, week, end);
@@ -100,6 +104,10 @@ function createPerformanceLoadPlanHandler({
       }
 
       const sources = await readSources(week, end);
+      if (checkinsView) {
+        const result = await checkins({ scope, week, sources, body, write, playerId: params.get("player") });
+        return reply(result.status, result.payload);
+      }
       const weekKey = `week:${week}`;
       if (write && !validateRecords(body.records, sources, weekKey)) {
         return fail(400, "Check the targets and make sure the player and activities are saved in Squad and Schedule.");

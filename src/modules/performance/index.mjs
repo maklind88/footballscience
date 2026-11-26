@@ -4,6 +4,7 @@ import { renderPerformanceRoom, performanceViews } from "./performance-renderer.
 import { createLoadPlanApi } from "./performance-load-plan-api.mjs";
 import { createLoadPlanController } from "./performance-load-plan-controller.mjs";
 import { updateTeamWeekTotals } from "./performance-team-week-matrix.mjs";
+import { createPerformanceCheckins } from "./performance-checkins.mjs";
 import { createGpsHistory } from "./performance-gps-history.mjs";
 import { updateGpsDelta } from "./performance-week-gps.mjs";
 
@@ -15,6 +16,9 @@ export function createPerformanceSurface(context) {
     ? createLoadPlanController(context.loadPlanSeed, context.isSampleLoadPlan, persistence, render)
     : null;
   const gpsHistory = persistence ? createGpsHistory(persistence.readGpsHistory, render) : null;
+  const checkins = persistence ? createPerformanceCheckins(persistence, render) : null;
+  const canOpenCheckins = () => Boolean(checkins && (context.canUseCheckins?.() ?? true));
+  let checkinPlayer = "";
   let scope;
   let date;
   let view;
@@ -27,6 +31,7 @@ export function createPerformanceSurface(context) {
   function render() {
     if (!isActive()) {
       gpsHistory?.reset();
+      checkins?.reset();
       return;
     }
     const activeScope = getScope();
@@ -35,8 +40,10 @@ export function createPerformanceSurface(context) {
       const profileId = context.initialLoadPlanPlayer?.();
       view = loadPlan && (context.openLoadPlan || profileId) ? "load-plan" : "overview";
       if (gpsHistory && context.openGpsHistory) view = "gps-history";
+      if (canOpenCheckins() && context.openCheckins) view = "checkins";
+      checkinPlayer = view === "checkins" ? profileId || "" : "";
       const requestedDate = context.initialLoadPlanDate;
-      date = ["load-plan", "gps-history"].includes(view) && isValidDate(requestedDate) ? requestedDate : getToday();
+      date = ["load-plan", "gps-history", "checkins"].includes(view) && isValidDate(requestedDate) ? requestedDate : getToday();
       playerId = "";
       metric = "minutes";
       range = "7";
@@ -44,7 +51,12 @@ export function createPerformanceSurface(context) {
       focusKey = "";
       loadPlan?.reset();
       gpsHistory?.reset();
+      checkins?.reset();
       if (view === "load-plan" && profileId) loadPlan.openPlayer(profileId);
+    }
+    if (view === "checkins" && !canOpenCheckins()) {
+      checkins?.reset();
+      view = "overview";
     }
     const sources = adapter.read(date, { includeDrills: view === "drills" });
     const overview = createPerformanceOverview({ date, ...sources });
@@ -52,6 +64,7 @@ export function createPerformanceSurface(context) {
     const team = getTeam();
     const planning = view === "load-plan" ? loadPlan?.getView(overview, sources) : null;
     const history = view === "gps-history" ? gpsHistory?.getWeek(weekDates(date)[0]) : null;
+    const checkinView = view === "checkins" ? checkins.getView(weekDates(date)[0], date, checkinPlayer) : null;
     const focus = focusKey || root.ownerDocument.activeElement?.dataset?.prFocus;
     const previousMatrix = root.querySelector(".pr-week-grid-wrap");
     const matrixScroll = previousMatrix ? { left: previousMatrix.scrollLeft, top: previousMatrix.scrollTop } : null;
@@ -59,7 +72,7 @@ export function createPerformanceSurface(context) {
       overview, sources, summary, date, today: getToday(), view, metric, range, playerId, availabilityFilter,
       canRead: context.isSampleLoadPlan ? () => false : canRead,
       escape: context.escapeHtml, teamName: getTeamName(), teamLogo: getLogo(team || {}),
-      planning, history, gpsHistoryEnabled: Boolean(gpsHistory), loadPlanningEnabled: Boolean(loadPlan), isSample: context.isSampleLoadPlan,
+      planning, history, checkinView, checkinsEnabled: canOpenCheckins(), gpsHistoryEnabled: Boolean(gpsHistory), loadPlanningEnabled: Boolean(loadPlan), isSample: context.isSampleLoadPlan,
     });
     if (matrixScroll) root.querySelector(".pr-week-grid-wrap")?.scrollTo(matrixScroll);
     if (focus) {
@@ -80,10 +93,12 @@ export function createPerformanceSurface(context) {
         return;
       case "view":
         if (prValue === "gps-history" && !gpsHistory) return;
+        if (prValue === "checkins" && !canOpenCheckins()) return;
         if (prValue === "load-plan" && !loadPlan?.setMode("team")) return;
         if (prValue !== "session" && !(prValue === "load-plan" && loadPlan) && !Object.hasOwn(performanceViews, prValue)) return;
         if (view === "gps-history" && prValue !== view) gpsHistory.reset();
         view = prValue;
+        if (view === "checkins") checkinPlayer = "";
         if (view === "players") availabilityFilter = "all";
         break;
       case "open-compare":
@@ -92,6 +107,17 @@ export function createPerformanceSurface(context) {
         focusKey = "detail-title";
         render();
         return;
+      case "player-checkins":
+        if (!canOpenCheckins() || !prValue) return;
+        checkinPlayer = prValue;
+        view = "checkins";
+        focusKey = "detail-title";
+        render();
+        return;
+      case "checkins-refresh":
+        if (view !== "checkins") return;
+        checkins.reset({ keepActivity: true });
+        break;
       case "gps-history-retry":
         if (view !== "gps-history") return;
         gpsHistory.reset();
@@ -177,6 +203,7 @@ export function createPerformanceSurface(context) {
         return;
     }
     focusKey = control.dataset.prFocus;
+    if (view !== "checkins") checkins?.reset();
     if (["availability", "player", "plan-mode"].includes(prAction) || (prAction === "view" && !control.closest(".pr-navigation"))) {
       focusKey = "detail-title";
     }
@@ -191,6 +218,13 @@ export function createPerformanceSurface(context) {
     } else if (view === "gps-history" && event.target.matches("[data-pr-gps-history-player]")) {
       gpsHistory.selectPlayer(event.target.value);
       render();
+    } else if (view === "checkins" && event.target.matches("[data-pr-checkin-player]")) {
+      checkinPlayer = event.target.value;
+      render();
+    } else if (view === "checkins" && event.target.matches("[data-pr-checkin-activity]")) {
+      if (checkins.selectActivity(event.target.value)) render();
+    } else if (view === "checkins" && event.target.matches("[data-pr-rpe-all]")) {
+      for (const input of event.target.form.querySelectorAll('input[name="playerId"]')) input.checked = event.target.checked;
     } else if (view === "load-plan" && loadPlan?.selectFromEvent(event)) {
       render();
     }
@@ -216,7 +250,13 @@ export function createPerformanceSurface(context) {
   });
 
   root.addEventListener("submit", (event) => {
-    if (view !== "load-plan" || !isActive() || !event.target.matches("[data-pr-load-form]")) return;
+    if (!isActive()) return;
+    if (view === "checkins" && event.target.matches("[data-pr-rpe-form], [data-pr-account-form]")) {
+      event.preventDefault();
+      void checkins.save(event.target);
+      return;
+    }
+    if (view !== "load-plan" || !event.target.matches("[data-pr-load-form]")) return;
     event.preventDefault();
     void loadPlan.submit(event.target);
   });

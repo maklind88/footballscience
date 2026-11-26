@@ -82,8 +82,11 @@ async function attachLoadPlanRoutes(page, entries, backend) {
   await page.route("**/api/performance-load-plan**", async (route) => {
     const request = route.request();
     expect(request.headers().authorization).toBe("Bearer qa-load-plan-token");
+    const params = new URL(request.url()).searchParams;
+    if (params.get("view") === "checkins" && backend.checkins) {
+      return route.fulfill({ json: { ok: true, week: params.get("week"), ...backend.checkins(request, params, entries) } });
+    }
     if (request.method() === "GET") {
-      const params = new URL(request.url()).searchParams;
       const week = params.get("week");
       if (params.get("view") === "gps-history") {
         backend.historyReads?.push(week);
@@ -623,4 +626,90 @@ test("Team week compares measured players and Squad units on the same activity",
   await expect(comparison.getByText("1 of 3 players with linked GPS", { exact: false })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await room.evaluate((root) => root.scrollWidth - root.clientWidth)).toBeLessThanOrEqual(1);
+});
+
+test("staff follow up Wellness by Squad profile and open RPE for selected linked players", async ({ page }) => {
+  const requests = [];
+  const responses = [];
+  const backend = {
+    canEdit: true, records: [], writes: [],
+    checkins(request, params, entries) {
+      if (request.method() === "POST") {
+        const data = request.postDataJSON();
+        requests.push(data);
+        responses.push(...data.playerIds.map((playerId) => ({
+          playerId, activityId: data.activityId, date: day, rating: null,
+        })));
+        return { opened: data.playerIds };
+      }
+      const player = params.get("player");
+      requests.push(player);
+      return {
+        canManageAccounts: true,
+        linkedPlayerIds: ["qa-player-a"],
+        players: entries[squadKey].players,
+        activities: entries[scheduleKey].events.filter(({ type }) => type !== "meeting"),
+        wellness: [{ playerId: "qa-player-a", date: day, score: 82.5, sleepQuality: "Normal" }],
+        rpe: responses,
+      };
+    },
+  };
+  const room = await boot(page, { backend });
+  expect(requests).toEqual([]);
+  await room.getByRole("button", { name: "Wellness & RPE", exact: true }).click();
+  await expect(room.getByText("1 of 3 players recorded")).toBeVisible();
+  await expect(room.getByRole("link", { name: /My Performance/ })).toHaveAttribute("href", "/src/modules/performance/rpe-response.html");
+  await expect(room.getByRole("cell", { name: "Account not linked" })).toHaveCount(2);
+  await room.getByRole("checkbox", { name: "Open RPE for Alex Example" }).check();
+  await room.getByRole("button", { name: "Open RPE for completed session" }).click();
+  await expect(room.getByText("Awaiting response")).toBeVisible();
+  expect(requests.at(-1)).toMatchObject({ action: "open-rpe", activityId: "qa-training", playerIds: ["qa-player-a"] });
+  responses[0].rating = 0;
+  await room.getByRole("button", { name: "Refresh responses" }).click();
+  await expect(room.getByRole("row", { name: /Alex Example/ }).filter({ hasText: "0 / 10" })).toBeVisible();
+
+  await room.getByRole("button", { name: "Players", exact: true }).click();
+  await room.getByRole("button", { name: /Alex Example/ }).click();
+  await room.getByRole("button", { name: /Wellness & RPE/ }).last().click();
+  await expect(room.getByRole("combobox", { name: "Player" })).toHaveValue("qa-player-a");
+  await expect(room.getByText("Linked to this Squad profile")).toBeVisible();
+  expect(requests.at(-1)).toBe("qa-player-a");
+});
+
+test("a signed-in player on mobile sees their own records and submits a zero RPE", async ({ page }) => {
+  const week = "2026-11-23";
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.setFixedTime(new Date(`${day}T20:00:00Z`));
+  await page.route("**/api/client-config", (route) => {
+    expect(route.request().postDataJSON().email).toBe("player@example.test");
+    return route.fulfill({ json: { ok: true, session: { access_token: "qa-player-token" } } });
+  });
+  let saved = null;
+  await page.route("**/api/performance-rpe**", (route) => {
+    const request = route.request();
+    expect(request.headers().authorization).toBe("Bearer qa-player-token");
+    if (request.method() === "POST") {
+      expect(request.postDataJSON()).toEqual({ week, activityId: "qa-training", rating: 0 });
+      saved = 0;
+      return route.fulfill({ json: { ok: true, rating: saved } });
+    }
+    return route.fulfill({ json: { ok: true, week,
+      rpe: [{ activityId: "qa-training", date: day, title: "Midweek training", rating: saved }],
+      wellness: [{ date: day, score: 82.5, sleepQuality: "Normal" }],
+    } });
+  });
+
+  await page.goto("/src/modules/performance/rpe-response.html");
+  await expect(page.getByRole("heading", { name: "My Performance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Wellness" })).toBeHidden();
+  await page.getByLabel("Email").fill("player@example.test");
+  await page.getByLabel("Password").fill("fixture-password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("82.5 / 100")).toBeVisible();
+  await page.getByRole("radio", { name: "0", exact: true }).check();
+  await page.getByRole("button", { name: "Send response" }).click();
+  await expect(page.getByText("Submitted · 0 / 10")).toBeVisible();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByText("82.5 / 100")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
 });

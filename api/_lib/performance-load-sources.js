@@ -85,13 +85,14 @@ async function readPerformanceSources(week, end, readState = readSnapshot) {
   const roleKeys = players.map(({ position, roleGroup }) => position || roleGroup)
     .filter((role) => typeof role === "string" && role.trim() && role.length <= 195)
     .map((role) => `role:${role}`);
-  const activityIds = uniqueById(schedule.events)
+  const activities = uniqueById(schedule.events)
     .filter(({ id, date, type, archivedAt, deletedAt }) =>
       id.length <= 180 && activityTypes.has(type) && typeof date === "string" &&
       /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= week && date < end && !archivedAt && !deletedAt
-    ).map(({ id }) => id);
+    );
+  const activityIds = activities.map(({ id }) => id);
 
-  return { subjectKeys: new Set(["team", ...playerKeys, ...roleKeys]), activityIds: new Set(activityIds) };
+  return { players, activities, subjectKeys: new Set(["team", ...playerKeys, ...roleKeys]), activityIds: new Set(activityIds) };
 }
 
 module.exports = { resolvePerformanceTeam, readPerformanceSources };

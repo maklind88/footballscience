@@ -1,0 +1,39 @@
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0b1220;
+  color: #f5f7fc;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; padding: 24px; }
+main { max-width: 630px; margin: clamp(20px, 9dvh, 90px) auto 40px; }
+.page-header, .week { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { color: #9bb3d0; font-size: .9rem; margin: 0 0 6px; }
+h1 { font-size: clamp(32px, 7vw, 46px); letter-spacing: -.045em; line-height: 1.08; margin: 0; }
+h2 { font-size: 1.2rem; margin: 18px 0 10px; }
+h3 { font-size: 1rem; margin: 0 0 4px; }
+#status, article p, dt, .anchors, #login p { color: #c2cfe3; line-height: 1.45; }
+#status:empty { display: none; }
+#login { display: grid; width: min(100%, 370px); gap: 13px; margin-top: 16px; }
+#login p { margin: 2px 0; }
+#login label { display: grid; gap: 7px; }
+input:not([type=radio]) { min-height: 42px; background: #141e30; color: inherit; border: 1px solid #405778; border-radius: 8px; padding: 7px 10px; font: inherit; }
+.week { justify-content: flex-start; margin: 22px 0; }
+.week label { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+article { border-top: 1px solid #344662; padding: 14px 0; }
+article p { margin: 4px 0; }
+fieldset { padding: 10px 0 0; border: 0; margin: 13px 0; min-inline-size: 0; }
+legend { color: #c2cfe3; }
+.scale { display: grid; grid-template-columns: repeat(auto-fit, minmax(41px, 1fr)); gap: 6px; }
+.scale label { position: relative; display: grid; place-items: center; min-height: 46px; }
+.scale input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.scale span { width: 100%; display: grid; min-height: 46px; place-items: center; border: 1px solid #405778; border-radius: 8px; font-size: 17px; }
+.scale input:checked + span { background: #a4caff; color: #0b1220; border-color: #a4caff; font-weight: 700; }
+.scale input:focus-visible + span, button:focus-visible, input:focus-visible { outline: 2px solid #a4caff; outline-offset: 3px; }
+.anchors { display: flex; justify-content: space-between; font-size: 13px; }
+button { min-height: 44px; background: #a4caff; color: #0b1220; border: 0; border-radius: 8px; font: inherit; font-weight: 650; padding: 8px 14px; cursor: pointer; }
+button.secondary { color: #dce9fc; background: #1a2b44; }
+button:disabled { opacity: .6; cursor: default; }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 10px 0 0; font-size: .9rem; }
+dd { margin: 0; }

@@ -35,7 +35,7 @@ function referenceStrip(reference) {
   </dl>`;
 }
 
-function playerPlan({ escape, draft, selected, players, days, canEdit, playerUnavailable, gps }) {
+function playerPlan({ escape, draft, selected, players, days, canEdit, playerUnavailable, gps, checkinsEnabled }) {
   if (playerUnavailable) return `
     <p class="pr-placeholder">This Squad profile is unavailable for the selected week.</p>
     ${players.length ? playerSelector(players, null, escape) : ""}`;
@@ -63,6 +63,7 @@ function playerPlan({ escape, draft, selected, players, days, canEdit, playerUna
   }).join("");
   return `<div class="pr-plan-context">${playerSelector(players, selected, escape)}${referenceStrip(draft.getReference(selected))}
       <button type="button" data-pr-action="plan-reference" data-pr-value="${escape(`player:${selected.id}`)}" class="pr-plan-reference-link">${canEdit ? "Edit player baselines" : "View player baselines"}</button>
+      ${checkinsEnabled ? `<button type="button" class="pr-source" data-pr-action="player-checkins" data-pr-value="${escape(selected.id)}">Wellness &amp; RPE ›</button>` : ""}
     </div>
     <div class="pr-plan-week-totals">
       <section><h3>Training planned</h3>${weeklyLoads(totals.training, "Player training totals")}</section>

@@ -1,5 +1,6 @@
 import { scheduleEventTypes } from "../schedule/events.mjs";
 import { availabilityLabels, dateLabel } from "./performance-overview.mjs";
+import { renderPerformanceCheckins } from "./performance-checkins.mjs";
 import { renderGpsHistory } from "./performance-gps-history.mjs";
 import { renderLoadPlanning } from "./performance-load-plan-renderer.mjs";
 
@@ -9,6 +10,7 @@ export const performanceViews = Object.freeze({
   microcycle: "Microcycle",
   season: "Season Monitoring",
   players: "Players",
+  checkins: "Wellness & RPE",
   positions: "Positions",
   testing: "Testing",
   drills: "Drill Library",
@@ -23,7 +25,7 @@ const unavailableMetrics = {
   rpe: "RPE collection not connected",
   testing: "Testing results not connected",
 };
-const primaryViews = new Set(["overview", "load-plan", "players", "microcycle"]);
+const primaryViews = new Set(["overview", "load-plan", "players", "microcycle", "checkins"]);
 const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const minutes = (value) => value == null ? "—" : `${number.format(value)} min`;
 
@@ -187,6 +189,7 @@ function playerDetail(ctx) {
     <div><dt>Availability recommendation</dt><dd class="pr-tone-${player.availability}">${availabilityLabels[player.availability]}</dd></div>
     </dl>
     <div class="pr-source-links">${ctx.loadPlanningEnabled ? action(ctx.escape, "plan-player", player.id, "Open player's load plan ›", ' class="pr-source"') : ""}
+    ${ctx.checkinsEnabled ? action(ctx.escape, "player-checkins", player.id, "Wellness &amp; RPE ›", ' class="pr-source"') : ""}
     ${sourceLink(ctx, "player-profiles", "Squad")}${sourceLink(ctx, "idp", "Player Development")}</div>`, { subtitle: dateLabel(ctx.date) });
 }
 
@@ -234,7 +237,7 @@ function dataReview(ctx) {
     <div><dt>Periodization load focus</dt><dd>${ctx.canRead("periodization") ? ctx.escape(selected.physicalLoad || "Not set") : "Access restricted"}</dd></div>
     <div><dt>Session Planner blocks</dt><dd>${ctx.canRead("session-planner") ? selected.plan?.blocks.length || 0 : "Access restricted"}</dd></div>
     <div><dt>Medical recommendations recorded</dt><dd>${ctx.canRead("medical-team") ? `${squad.length - counts.unknown} of ${squad.length}` : "Access restricted"}</dd></div>
-    ${Object.entries(unavailableMetrics).map(([key, value]) => `<div><dt>${{ gps: "External load", wellness: "Wellness", rpe: "Internal load", testing: "Physical Testing" }[key]}</dt><dd>${value}</dd></div>`).join("")}
+    ${Object.entries(unavailableMetrics).map(([key, value]) => `<div><dt>${{ gps: "External load", wellness: "Wellness", rpe: "Internal load", testing: "Physical Testing" }[key]}</dt><dd>${ctx.checkinsEnabled && ["wellness", "rpe"].includes(key) ? action(ctx.escape, "view", "checkins", "Open check-ins ›", ' class="pr-link"') : value}</dd></div>`).join("")}
     <div><dt>Official player match minutes</dt><dd>No connected source</dd></div></dl>`, { subtitle: "Source coverage for the selected date" });
 }
 
@@ -248,7 +251,7 @@ export function renderPerformanceRoom(ctx) {
       <div class="pr-overview-squad">${availabilitySummary(ctx)}${individualFollowUp(ctx)}</div>`,
     microcycle: () => `${ctx.loadPlanningEnabled ? action(escape, "view", "load-plan", "Open load planning ›", ' class="pr-link"') : ""}
       <div class="pr-microcycle-grid">${dayChart(ctx)}${weekLoad(ctx)}</div>${sessionDetails(ctx)}`,
-    "load-plan": () => renderLoadPlanning({ ...ctx.planning, escape }),
+    "load-plan": () => renderLoadPlanning({ ...ctx.planning, escape, checkinsEnabled: ctx.checkinsEnabled }),
     session: () => sessionDetails(ctx),
     season: () => seasonMonitoring(ctx),
     players: () => players(ctx),
@@ -257,10 +260,12 @@ export function renderPerformanceRoom(ctx) {
     testing: () => panel("Physical Testing", placeholder(`${unavailableMetrics.testing}. Speed, strength, CMJ and aerobic capacity will appear when a source is connected.`)),
     drills: () => drillLibrary(ctx),
     data: () => dataReview(ctx),
+    checkins: () => renderPerformanceCheckins(ctx.checkinView, escape),
     "gps-history": () => renderGpsHistory(ctx.history, escape),
   };
   const navigation = Object.entries(performanceViews).filter(([key]) =>
-    (key !== "gps-history" || ctx.gpsHistoryEnabled) && (key !== "load-plan" || ctx.loadPlanningEnabled));
+    (key !== "gps-history" || ctx.gpsHistoryEnabled) &&
+    (key !== "checkins" || ctx.checkinsEnabled) && (key !== "load-plan" || ctx.loadPlanningEnabled));
   const renderNav = (items) => items.map(([key, label]) => action(escape, "view", key, label,
     `${key === activeNav ? ' aria-current="page"' : ""}${key === "load-plan" ? ' aria-label="Open Team week"' : ""}`)).join("");
   return `<div class="pr-room" data-pr-screen="${view}">

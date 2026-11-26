@@ -1,4 +1,5 @@
 const id = "performance-room";
+const checkinStaffRoles = new Set(["admin", "club-admin", "team-admin", "performance"]);
 
 export function createPerformanceSurfaceRuntime({
   root, win, loader, assetVersion, getAuth, getUser, getActiveWorkspace, getWorkspace,
@@ -30,6 +31,7 @@ export function createPerformanceSurfaceRuntime({
   function render() {
     if (!root) return;
     if (!isSelected()) {
+      surface?.render();
       if (root.firstChild) root.replaceChildren();
       return;
     }
@@ -57,6 +59,8 @@ export function createPerformanceSurfaceRuntime({
         loadPlanningEnabled: canRead("player-profiles") && canRead("schedule"),
         getLoadPlanToken: getAuth()?.isDevMode?.() === true ? null : getAuthToken,
         openLoadPlan: params.get("performancePlan") === "team-week",
+        canUseCheckins: () => checkinStaffRoles.has(getUser()?.role),
+        openCheckins: params.get("performancePlan") === "checkins",
         openGpsHistory: params.get("performancePlan") === "gps-history",
         initialLoadPlanDate: params.get("performanceDate"),
         initialLoadPlanPlayer: () => new URLSearchParams(win.location?.search).get("performancePlayer"),

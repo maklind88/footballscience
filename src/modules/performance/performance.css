@@ -418,3 +418,14 @@
 .pr-gps-history-table :is(td, th):nth-child(3),
 .pr-gps-history-table :is(td, th):last-child { text-align: left; }
 .pr-gps-history-table :is(td, th) { padding-block: 9px; }
+
+.pr-checkin-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.pr-checkin-toolbar .pr-plan-select { min-width: min(100%, 200px); }
+.pr-checkin-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; gap: 14px; }
+.pr-checkin-section strong small { display: block; color: var(--pr-muted); font-weight: 400; }
+.pr-checkin-section .pr-plan-select { width: min(100%, 320px); margin-bottom: 10px; }
+.pr-checkin-table.pr-table :is(th, td) { padding: 9px 7px; }
+.pr-checkin-section [data-pr-rpe-form] .pr-plan-primary { margin-top: 12px; }
+.pr-checkin-toolbar a.pr-source { text-decoration: none; }
+.pr-checkin-section [type=email] { width: 100%; border: 1px solid var(--pr-border); border-radius: 6px; background: var(--pr-bg); color: var(--pr-text); padding: 8px; }
+@media (max-width: 1120px) { .pr-checkin-layout { grid-template-columns: minmax(0, 1fr); } }

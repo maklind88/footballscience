@@ -1,0 +1,49 @@
+.video-analysis-clip-drawing {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  fill: none;
+  stroke: #ffdf65;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px #000);
+}
+.video-analysis-clip-drawing .is-spotlight { fill: #ffdf6545; }
+.video-analysis-clip-drawing.is-drawing { pointer-events: auto; touch-action: none; cursor: crosshair; }
+.video-analysis-clip-drawing__tools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #c3cfc7;
+  border-radius: 5px;
+  background: #fff;
+}
+.video-analysis-clip-editor .video-analysis-clip-drawing__tools button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+}
+.video-analysis-clip-drawing__tools button[aria-pressed="true"] {
+  color: #124a32;
+  background: #d9eee2;
+}
+.video-analysis-review-playlist__presenting {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.video-analysis-clip-editor.is-presenting .video-analysis-clip-editor__tools > :not(.video-analysis-clip-editor__close) {
+  display: none;
+}
+@media (max-width: 600px) {
+  .video-analysis-clip-editor__tools [data-clip-review-notice] { display: none; }
+}

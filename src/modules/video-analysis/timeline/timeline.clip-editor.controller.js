@@ -4,11 +4,12 @@ import { phaseForSubPhase } from "../services/footballLanguageService.js";
 import { createClipReview, readClipEditorDraft, renderClipReview } from "./timeline.clip-review.js";
 import { bindClipPrincipleSearch, updateClipPrincipleCount } from "./timeline.clip-principles.js";
 import { createReviewPlaylist, renderReviewPlaylist, bindReviewPlaylist, reviewPlaylistDirty, updateReviewPlaylistStatus } from "./timeline.playlist.controller.js";
-import { playlistClipVersion } from "./timeline.playlist-clips.js";
+import { normalizePlaylistEdits, playlistClipVersion } from "./timeline.playlist-clips.js";
 import { playlistRowFromTrigger } from "./timeline.playlist-rows.js";
 import { timelineReviewSelection } from "./timeline.selection.js";
 import { createPlayerPairCache, createPlayerPairController } from "./timeline.player-pair.controller.js";
 import { clipSourceDuration, createClipReviewSources } from "./timeline.clip-source.js";
+import { createClipDrawing } from "./timeline.clip-drawing.controller.js";
 
 export function preserveTimelineViewport(root) {
   const ancestors = [];
@@ -38,9 +39,12 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
   let returnLane = "";
   let returnToRow = false;
   let returnPlaylistKey = "";
+  let returnClipId = "";
   let preview = null;
   let reviewSources = null;
   let playerPair = null;
+  let drawing = null;
+  let presenting = false;
   const playerPairCache = createPlayerPairCache();
   let originalContext = "";
   let review = null;
@@ -52,6 +56,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
   let restoreViewport = null;
   const contextKey = () => `${getState().match?.id || ""}:${getState().video?.id || ""}`;
   const field = name => dialog?.querySelector(`[data-video-analysis-timeline-edit-field="${name}"]`);
+  const disablePairOverlay = () => dialog?.querySelector('[data-player-pair-toggle][aria-pressed="true"]')?.click();
 
   function showError(message = "") {
     for (const error of dialog?.querySelectorAll(".video-analysis-clip-editor__edit-dialog > [role=alert]") || []) {
@@ -72,6 +77,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     button.setAttribute("aria-expanded", String(open));
     if (open) {
       if (principles ? editDialog().open : principlesDialog().open) setEditingOpen(false, false, !principles);
+      drawing?.dismiss();
       preview?.setBusy(true);
       dialog.querySelector("[data-clip-review-close-confirm]").hidden = true;
       if (!panel.open) panel.showModal();
@@ -86,7 +92,9 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
 
   function close() {
     if (!dialog || pending) return;
-    const clipId = activeClip?.id;
+    drawing?.dispose();
+    drawing = null;
+    presenting = false;
     playerPair?.dispose();
     playerPair = null;
     preview?.dispose();
@@ -116,7 +124,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
       if (row) { row.focus({ preventScroll: true }); return; }
     }
     const targets = [...(root?.querySelectorAll(".video-analysis-clip-block[data-video-analysis-seek]") || [])];
-    const matching = targets.filter(button => button.dataset.videoAnalysisSeek === clipId);
+    const matching = targets.filter(button => button.dataset.videoAnalysisSeek === returnClipId);
     const target = matching.find(button => button.closest(".video-analysis-lane")?.querySelector("[data-video-analysis-timeline-category-label]")?.dataset.videoAnalysisTimelineCategoryLabel === returnLane) || matching[0];
     (target || root?.querySelector("[data-video-analysis-timeline-lane-select]"))?.focus({ preventScroll: true });
   }
@@ -125,6 +133,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     if (!dialog || pending) return;
     const dirty = playlist ? reviewPlaylistDirty(review, playlist) : review?.hasDrafts();
     if (!dirty) { close(); return; }
+    drawing?.dismiss();
     preview?.setBusy(true);
     const confirmation = dialog.querySelector("[data-clip-review-close-confirm]");
     confirmation.hidden = false;
@@ -135,7 +144,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
   function refreshReviewNav() {
     if (!dialog) return;
     const panel = dialog.querySelector("[data-review-playlist]");
-    if (panel) panel.outerHTML = renderReviewPlaylist(review, playlist, activeClip.id, getState().canEdit);
+    if (panel) panel.outerHTML = renderReviewPlaylist(review, playlist, activeClip.id, getState().canEdit, presenting);
     else dialog.querySelector("[data-clip-review-nav]").outerHTML = renderClipReview(review, activeClip.id, activeClip);
     rememberDraft();
     dialog.querySelector('[data-clip-review-select][aria-pressed="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -162,13 +171,15 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
   }
 
   function renderCurrentClip(clip) {
+    drawing?.dispose();
+    drawing = null;
     playerPair?.dispose();
     preview?.dispose();
     editDialog()?.close();
     principlesDialog()?.close();
     activeClip = structuredClone(clip);
     dialog.setAttribute("data-video-analysis-clip-editor", clip.id);
-    dialog.innerHTML = renderClipEditor(clip, { laneMode: getState().timeline?.laneMode, canEdit: getState().canEdit, title: editorTitle, review, playlist, returnToLibrary: Boolean(returnPlaylistKey) });
+    dialog.innerHTML = renderClipEditor(clip, { laneMode: getState().timeline?.laneMode, canEdit: getState().canEdit, title: editorTitle, review, playlist, returnToLibrary: Boolean(returnPlaylistKey), presenting });
     baseline = readClipEditorDraft(dialog);
     restoreDraft(review?.entries.find(entry => entry.clip.id === clip.id)?.draft);
     bindClipPrincipleSearch(dialog);
@@ -206,6 +217,8 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
         endMs: field("duration").valueAsNumber > 0 ? parseClipEditorTime(field("endMs").value) : NaN,
       }),
       onContextChange: close,
+      nextPausePoint: (from, to) => presenting ? drawing?.nextPausePoint(from, to) : undefined,
+      onFinish: advancePresentation,
     });
     playerPair = createPlayerPairController({
       dialog, clipId: clip.id, getState: getPlaybackState, getContext, cache: playerPairCache,
@@ -214,20 +227,67 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
         endMs: parseClipEditorTime(field("endMs").value),
       }),
     });
+    const pairToggle = dialog.querySelector("[data-player-pair-toggle]");
+    const currentEntry = () => review.entries.find(entry => entry.clip.id === clip.id);
+    drawing = createClipDrawing({
+      dialog,
+      getSourceId() {
+        // A drawing belongs to the registered original, not an alternate angle or a replay/proxy URL.
+        const original = sources.playbackState(getState(), clip, true).videoRef;
+        return original?.objectUrl === element.currentSrc ? original.localVideoIdentifier : "";
+      },
+      getRange: preview.range,
+      getDrawings: () => currentEntry().clip.playlistEdits?.drawings || [],
+      changeDrawings(drawings) {
+        const entry = currentEntry();
+        entry.clip.playlistEdits = normalizePlaylistEdits({ ...entry.clip.playlistEdits, drawings });
+        updateReviewPlaylistStatus(dialog, review, playlist);
+      },
+      canDraw: () => getState().canEdit && !pending && !presenting && !editorOpen()
+        && dialog.querySelector("[data-clip-review-close-confirm]").hidden,
+      onStart: disablePairOverlay,
+      pause: preview.pause,
+    });
+    pairToggle?.addEventListener("click", () => drawing?.dismiss());
     sources.restore(clip, isCurrent).then(() => {
       if (isCurrent()) preview.refresh();
     }).catch(() => { /* An unavailable saved file can be reconnected from the picker. */ });
   }
 
-  function selectReviewClip(id) {
+  function selectReviewClip(id, focus = true) {
     if (pending || editorOpen() || !review || id === activeClip.id) return;
     const entry = review.entries.find(item => item.clip.id === id);
     if (!entry) return;
     rememberDraft();
     renderCurrentClip(entry.clip);
     const button = [...dialog.querySelectorAll("[data-clip-review-select]")].find(item => item.dataset.clipReviewSelect === id);
-    button?.focus({ preventScroll: true });
+    if (focus) button?.focus({ preventScroll: true });
     button?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  function setPresenting(value) {
+    if (pending || editorOpen() || (value && (!playlist.saved || reviewPlaylistDirty(review, playlist)))) return;
+    drawing?.dismiss();
+    if (value) disablePairOverlay();
+    presenting = value;
+    dialog.classList.toggle("is-presenting", value);
+    if (value) {
+      const first = review.entries[0].clip.id;
+      if (first === activeClip.id) { drawing?.resetPresentation(); preview.restart(); }
+      else selectReviewClip(first, false);
+    } else preview.pause();
+    refreshReviewNav();
+    dialog.querySelector(value ? "[data-playlist-end-presentation]" : "[data-playlist-present]")?.focus({ preventScroll: true });
+  }
+
+  function advancePresentation() {
+    if (!presenting) return;
+    const index = review.entries.findIndex(entry => entry.clip.id === activeClip.id);
+    const next = review.entries[index + 1]?.clip.id;
+    if (next) {
+      selectReviewClip(next, false);
+      dialog.querySelector("[data-playlist-end-presentation]")?.focus({ preventScroll: true });
+    } else setPresenting(false);
   }
 
   function timingChanged(event) {
@@ -313,6 +373,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     returnLane = trigger?.closest(".video-analysis-lane")?.querySelector("[data-video-analysis-timeline-category-label]")?.dataset.videoAnalysisTimelineCategoryLabel || "";
     returnToRow = Boolean(trigger?.matches("[data-video-analysis-timeline-category]"));
     returnPlaylistKey = trigger?.dataset.playlistLibraryOpen || "";
+    returnClipId = clip.id;
     const doc = getRoot().ownerDocument;
     dialog = doc.createElement("dialog");
     const selectedClips = savedPlaylist ? rowClips || [clip] : timelineReviewSelection(getState(), rowClips || [clip]);
@@ -326,7 +387,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     review.title = editorTitle || "Clips";
     playlist = createReviewPlaylist(review, exactPlaylist ? row : null, getState());
     saveReview = bindReviewPlaylist({ dialog, review, playlist, getState, save: savePlaylist, applyDrafts: applyReviewDrafts,
-      busy: () => pending || editorOpen(), refresh: refreshReviewNav,
+      busy: () => pending || editorOpen(), presenting: () => presenting, refresh: refreshReviewNav,
       setPending(value) {
         pending = value;
         if (value) {
@@ -339,6 +400,8 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
           disabledControls.clear();
         }
         preview?.setBusy(value || editorOpen());
+        if (value) drawing?.dismiss();
+        else drawing?.refresh();
         if (!value && contextKey() !== originalContext) close();
       },
     });
@@ -351,6 +414,8 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
       event.preventDefault();
       event.stopPropagation();
       if (editorOpen()) setEditingOpen(false, true, principlesDialog().open);
+      else if (drawing?.dismiss()) dialog.querySelector("[data-clip-drawing-toggle]")?.focus();
+      else if (presenting) setPresenting(false);
       else requestClose();
     });
     dialog.addEventListener("input", timingChanged);
@@ -358,6 +423,8 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
     dialog.addEventListener("click", async event => {
       if (event.target.closest("[data-video-analysis-timeline-edit-cancel]")) { requestClose(); return; }
       if (pending) return;
+      if (event.target.closest("[data-playlist-present]")) { setPresenting(true); return; }
+      if (event.target.closest("[data-playlist-end-presentation]")) { setPresenting(false); return; }
       if (event.target.closest("[data-clip-review-save-close]")) {
         if (await saveReview()) close();
         return;
@@ -370,6 +437,7 @@ export function createTimelineClipEditor({ getState, getRoot, getContext, savePl
       if (event.target.closest("[data-clip-review-keep]")) {
         dialog.querySelector("[data-clip-review-close-confirm]").hidden = true;
         preview?.setBusy(false);
+        drawing?.refresh();
       }
       const clipButton = event.target.closest("[data-clip-review-select]");
       if (clipButton) selectReviewClip(clipButton.dataset.clipReviewSelect);

@@ -9,6 +9,7 @@ import { renderClipReview } from "./timeline.clip-review.js";
 import { renderClipPrinciples, renderClipPrincipleTool } from "./timeline.clip-principles.js";
 import { renderReviewPlaylist } from "./timeline.playlist.controller.js";
 import { renderPlayerPairTool, renderPlayerPairOverlay } from "./timeline.player-pair.view.js";
+import { renderClipDrawToggle, renderClipDrawingOverlay } from "./timeline.clip-drawing.controller.js";
 
 export function formatClipEditorTime(ms = 0) {
   const value = Math.max(0, Math.round(ms));
@@ -34,7 +35,7 @@ export function clipEditorSubPhaseOptions(phase, current = "") {
   return `<option value="">Choose sub-phase</option>${optionList(choices, current)}`;
 }
 
-export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false, title = "", review = null, playlist = null, returnToLibrary = false } = {}) {
+export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false, title = "", review = null, playlist = null, returnToLibrary = false, presenting = false } = {}) {
   const start = getClipStartMs(clip);
   const end = getClipEndMs(clip);
   const subPhase = clip.subPhase || clip.sub_phase || "";
@@ -45,6 +46,7 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
       <div><span>Clip</span><h2 id="video-analysis-clip-editor-title">${escapeHtml(title || getClipPrimaryLabel(clip, laneMode) || "Selected clip")}${review?.entries.length > 1 ? ` (${review.entries.length})` : ""}</h2></div>
       <div class="video-analysis-clip-editor__tools">
         <span class="video-analysis-clip-review__notice" data-clip-review-notice role="status"></span>
+        ${canEdit ? renderClipDrawToggle() : ""}
         ${renderPlayerPairTool()}
         ${renderClipPrincipleTool(clip)}
         <button type="button" ${canEdit ? "data-clip-edit-open" : "data-clip-details-open"} aria-label="${canEdit ? "Edit clip" : "Clip details"}" title="${canEdit ? "Edit clip" : "Clip details"}" aria-haspopup="dialog" aria-expanded="false" aria-controls="video-analysis-clip-edit-dialog">${playerHeaderIcon(canEdit ? "pencil" : "info")}</button>
@@ -57,6 +59,7 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
         <div class="video-analysis-clip-editor__screen">
           <video data-video-analysis-clip-preview playsinline preload="metadata" tabindex="0" aria-label="Selected clip" aria-keyshortcuts="Space"></video>
           ${renderPlayerPairOverlay()}
+          ${renderClipDrawingOverlay(canEdit)}
           <div class="video-analysis-clip-editor__media-state" data-clip-preview-empty>
             <span data-clip-preview-status role="status"></span>
             <button type="button" data-clip-preview-reconnect>Reconnect local file</button>
@@ -114,6 +117,6 @@ export function renderClipEditor(clip = {}, { laneMode = "all", canEdit = false,
       </dialog>
       ${renderClipPrinciples(clip, canEdit)}
     </form>
-    ${playlist ? renderReviewPlaylist(review, playlist, clip.id, canEdit) : ""}
+    ${playlist ? renderReviewPlaylist(review, playlist, clip.id, canEdit, presenting) : ""}
   `;
 }

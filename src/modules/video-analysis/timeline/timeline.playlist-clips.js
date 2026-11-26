@@ -1,4 +1,5 @@
 import { replaceMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
+import { normalizeClipDrawings } from "./timeline.clip-drawing.model.js";
 
 export function normalizePlaylistEdits(value = {}) {
   const edits = {};
@@ -14,6 +15,8 @@ export function normalizePlaylistEdits(value = {}) {
       .map(tag => String(tag).trim().slice(0, 120)).filter(Boolean))].slice(0, 100);
   }
   if (Array.isArray(value.miniGamePrincipleIds)) edits.miniGamePrincipleIds = [...new Set(value.miniGamePrincipleIds.map(String))].slice(0, 100);
+  const drawings = normalizeClipDrawings(value.drawings);
+  if (drawings.length) edits.drawings = drawings;
   return edits;
 }
 

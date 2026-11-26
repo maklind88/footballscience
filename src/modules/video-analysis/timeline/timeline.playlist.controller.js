@@ -26,27 +26,32 @@ export function updateReviewPlaylistStatus(dialog, review, playlist) {
   for (const element of dialog.querySelectorAll("[data-playlist-status], [data-clip-review-notice]")) {
     element.textContent = saveStatus(review, playlist);
   }
+  const present = dialog.querySelector("[data-playlist-present]");
+  if (present) present.disabled = playlist.pending || reviewPlaylistDirty(review, playlist);
 }
 
-export function renderReviewPlaylist(review, playlist, activeId, canEdit) {
+export function renderReviewPlaylist(review, playlist, activeId, canEdit, presenting = false) {
   return `<section class="video-analysis-review-playlist" data-review-playlist aria-label="Playlist">
     <div class="video-analysis-review-playlist__tools">
+      ${presenting ? `<strong class="video-analysis-review-playlist__presenting">${escapeHtml(playlist.label)}</strong>
+      <button type="button" data-playlist-end-presentation>Exit presentation</button>` : `
       <input type="text" data-playlist-name aria-label="Playlist name" maxlength="120" value="${escapeHtml(playlist.label)}" ${!canEdit || playlist.pending ? "disabled" : ""}>
       <span role="status" data-playlist-status>${saveStatus(review, playlist)}</span>
       ${canEdit ? `<button type="button" data-playlist-copy ${playlist.pending ? "disabled" : ""}>Copy playlist</button>
-      <button type="button" data-playlist-save ${playlist.pending || !review.entries.length ? "disabled" : ""}>Save playlist</button>` : ""}
+      <button type="button" data-playlist-save ${playlist.pending || !review.entries.length ? "disabled" : ""}>${playlist.saved ? "Save playlist" : "Add to playlist"}</button>` : ""}
+      ${playlist.saved ? `<button type="button" data-playlist-present ${playlist.pending || reviewPlaylistDirty(review, playlist) ? 'disabled title="Save the playlist before presenting"' : ""}>Present</button>` : ""}`}
     </div>
     ${renderClipReview(review, activeId)}
     <p class="video-analysis-clip-editor__error" role="alert" ${playlist.error ? "" : "hidden"}>${escapeHtml(playlist.error)}</p>
   </section>`;
 }
 
-export function bindReviewPlaylist({ dialog, review, playlist, getState, save, applyDrafts, busy, refresh, setPending }) {
+export function bindReviewPlaylist({ dialog, review, playlist, getState, save, applyDrafts, busy, presenting, refresh, setPending }) {
   let dragId = "";
   let suppressClick = false;
   const item = target => target?.closest?.("[data-clip-review-select]");
   const move = (id, targetId, after) => {
-    if (busy() || !getState().canEdit || !review.move(id, targetId, after)) return;
+    if (busy() || presenting() || !getState().canEdit || !review.move(id, targetId, after)) return;
     refresh();
     const button = [...dialog.querySelectorAll("[data-clip-review-select]")].find(element => element.dataset.clipReviewSelect === id);
     button?.focus({ preventScroll: true });
@@ -55,7 +60,7 @@ export function bindReviewPlaylist({ dialog, review, playlist, getState, save, a
   dialog.addEventListener("dragstart", event => {
     const button = item(event.target);
     if (!button) return;
-    if (busy() || !getState().canEdit) { event.preventDefault(); return; }
+    if (busy() || presenting() || !getState().canEdit) { event.preventDefault(); return; }
     dragId = button.dataset.clipReviewSelect;
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", dragId);

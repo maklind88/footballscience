@@ -15,7 +15,7 @@ export function clipPreviewRange(state, startMs, endMs, durationMs = 0) {
 }
 
 export function createClipPreview({ dialog, getState, getPlaybackState, getRange, subscribe, reconnect, selectFile, onContextChange,
-  disconnectedMessage, canReconnect }) {
+  disconnectedMessage, canReconnect, nextPausePoint, onFinish }) {
   const video = dialog.querySelector("[data-video-analysis-clip-preview]");
   const play = dialog.querySelector("[data-clip-preview-play]");
   const seek = dialog.querySelector("[data-clip-preview-seek]");
@@ -37,6 +37,8 @@ export function createClipPreview({ dialog, getState, getPlaybackState, getRange
   let mediaError = false;
   let connectError = "";
   let shuttle = null;
+  let previousTime = null;
+  let finished = false;
   const ready = () => Boolean(source && range && video.readyState >= 1 && !mediaError && !locked && !disposed);
 
   function cancelFrame() {
@@ -81,22 +83,32 @@ export function createClipPreview({ dialog, getState, getPlaybackState, getRange
     updateTransport();
   }
 
-  function enforceRange() {
+  function enforceRange(playing = false) {
     if (disposed || !range) return;
-    if (video.currentTime * 1000 >= range.end) { stop(); seekTo(range.end); }
-    else if (video.currentTime * 1000 < range.start - 2) seekTo(range.start);
+    const time = video.currentTime * 1000;
+    if (playing && !video.seeking && !shuttle?.isActive() && previousTime !== null) {
+      const cue = nextPausePoint?.(previousTime, Math.min(time, range.end));
+      if (Number.isFinite(cue)) { stop(); seekTo(cue); return; }
+    }
+    previousTime = playing && !video.seeking ? time : null;
+    if (time >= range.end) {
+      stop();
+      seekTo(range.end);
+      if (playing && !finished) { finished = true; onFinish?.(); }
+    } else if (time < range.start - 2) seekTo(range.start);
     updateTransport();
   }
 
   function tick() {
     frame = null;
-    enforceRange();
+    enforceRange(!video.paused && !video.seeking && !shuttle?.isActive());
     if (!disposed && !video.paused) frame = win.requestAnimationFrame(tick);
   }
 
   async function start() {
     if (disposed || locked || !source || !range || video.readyState < 1 || mediaError) return;
     if (video.currentTime * 1000 >= range.end - 2 || video.currentTime * 1000 < range.start) seekTo(range.start);
+    finished = false;
     try { await video.play(); } catch { /* A blocked autoplay leaves the explicit Play control available. */ }
     if (disposed || locked) video.pause();
   }
@@ -126,6 +138,8 @@ export function createClipPreview({ dialog, getState, getPlaybackState, getRange
     if (next !== source || (retry && next && mediaError)) {
       stop();
       source = next;
+      previousTime = null;
+      finished = false;
       mediaError = false;
       connectError = "";
       if (source) video.src = source;
@@ -143,11 +157,16 @@ export function createClipPreview({ dialog, getState, getPlaybackState, getRange
   }
   const listen = (element, type, callback) => element.addEventListener(type, callback, { signal: events.signal });
   listen(video, "loadedmetadata", () => { updateRange({ rewind: true }); void start(); });
-  listen(video, "play", () => { cancelFrame(); tick(); });
+  listen(video, "play", () => {
+    previousTime = range && !video.seeking ? Math.max(range.start, video.currentTime * 1000) : null;
+    cancelFrame();
+    tick();
+  });
   listen(video, "pause", () => { cancelFrame(); updateTransport(); });
-  listen(video, "ended", () => { cancelFrame(); updateTransport(); });
-  listen(video, "timeupdate", enforceRange);
-  listen(video, "seeking", enforceRange);
+  listen(video, "ended", () => { cancelFrame(); enforceRange(true); });
+  listen(video, "timeupdate", () => enforceRange(!video.paused && !video.seeking && !shuttle.isActive()));
+  listen(video, "seeking", () => enforceRange());
+  listen(video, "seeked", () => { if (!video.paused && range) previousTime = Math.max(range.start, video.currentTime * 1000); });
   listen(video, "error", () => { mediaError = true; stop(); updateRange(); });
   listen(play, "click", toggle);
   listen(surface, "keydown", event => {
@@ -180,6 +199,9 @@ export function createClipPreview({ dialog, getState, getPlaybackState, getRange
   return {
     updateRange,
     refresh,
+    pause: stop,
+    restart() { stop(); if (range) { seekTo(range.start); void start(); } },
+    range: () => range,
     setBusy(value) { locked = value; if (value) stop(); updateTransport(); },
     dispose() {
       disposed = true;

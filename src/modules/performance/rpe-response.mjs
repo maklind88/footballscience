@@ -123,7 +123,9 @@ async function load(confirmation = "") {
     if (controller.signal.aborted) return;
     byId("rpe").replaceChildren(...renderRpe(data.rpe, week));
     byId("wellness").replaceChildren(...renderWellness(data.wellness));
-    status.textContent = confirmation;
+    status.textContent = data.demo
+      ? [confirmation, "Practice account · responses are separate from team data."].filter(Boolean).join(" ")
+      : confirmation;
   } catch (error) {
     if (controller.signal.aborted) return;
     if ([401, 403].includes(error.status)) clearSession(error.message);

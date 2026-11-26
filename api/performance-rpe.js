@@ -5,6 +5,7 @@ const { callCheckinRpc, checkinWeekEnd, currentCourageActivity, projectWellness 
 const { readPerformanceSources } = require("./_lib/performance-load-sources.js");
 
 const route = "/api/performance-rpe";
+const demoActivityId = "performance-qa-session";
 const unavailable = "No active player profile is linked to this account. Contact your team administrator.";
 
 function createRpeResponseHandler({
@@ -32,9 +33,19 @@ function createRpeResponseHandler({
       const portal = await rpc("read_performance_player_portal", { p_user_id: actor.id, p_week: week });
       if (!portal) return fail(403, unavailable);
       if (!Array.isArray(portal.rpe) || !Array.isArray(portal.wellness)) throw new Error("Invalid player portal payload.");
-      const sources = await readSources(week, end);
-      if (!sources.subjectKeys.has(`player:${portal.playerId}`)) return fail(403, unavailable);
-      const activities = new Map(sources.activities.map((activity) => [activity.id, activity]));
+      const demo = portal.demo === true;
+      let activities;
+      if (demo) {
+        if (portal.playerId !== `performance-qa-${actor.id}`) return fail(403, unavailable);
+        const fixture = portal.rpe.find(({ activityId, date }) => activityId === demoActivityId && date >= week && date < end);
+        activities = fixture ? new Map([[demoActivityId, {
+          id: demoActivityId, date: fixture.date, title: "RPE practice session",
+        }]]) : new Map();
+      } else {
+        const sources = await readSources(week, end);
+        if (!sources.subjectKeys.has(`player:${portal.playerId}`)) return fail(403, unavailable);
+        activities = new Map(sources.activities.map((activity) => [activity.id, activity]));
+      }
       const currentTime = now();
       const rpe = portal.rpe.flatMap((entry) => {
         const activity = activities.get(entry.activityId);
@@ -49,7 +60,7 @@ function createRpeResponseHandler({
         const playerIds = new Set([portal.playerId]);
         const wellness = projectWellness(portal.wellness.map((row) => ({ ...row, playerId: portal.playerId })), playerIds, dates)
           .map(({ playerId, ...row }) => row);
-        return sendJson(res, 200, { ok: true, week, rpe, wellness });
+        return sendJson(res, 200, { ok: true, week, rpe, wellness: demo ? [] : wellness, ...(demo ? { demo: true } : {}) });
       }
 
       const assignment = rpe.find(({ activityId }) => activityId === body.activityId);

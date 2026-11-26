@@ -41,6 +41,11 @@ create table public.performance_player_accounts (
   linked_at timestamptz not null default now(),
   revoked_at timestamptz,
   revoked_by uuid,
+  demo_until timestamptz,
+  check (
+    (demo_until is null and player_id not like 'performance-qa-%') or
+    (demo_until is not null and player_id = 'performance-qa-' || user_id::text)
+  ),
   primary key (organization_id, team_id, player_id, user_id),
   foreign key (team_id, organization_id) references public.platform_teams(id, organization_id) on delete restrict
 );
@@ -229,7 +234,8 @@ returns jsonb language sql stable security invoker
 set search_path = '' as $$
   select jsonb_build_object(
     'playerId', account.player_id,
-    'wellness', coalesce((
+    'demo', account.demo_until is not null,
+    'wellness', case when account.demo_until is not null then '[]'::jsonb else coalesce((
       select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
         'date', day.day, 'score', day.score, 'sleepDuration', day.sleep_duration, 'sleepQuality', day.sleep_quality,
         'stress', day.stress, 'fatigue', day.fatigue, 'soreness', day.soreness
@@ -238,7 +244,7 @@ set search_path = '' as $$
       join public.performance_wellness_days day using (organization_id, team_id, dataset_sha256)
       where version.organization_id = account.organization_id and version.team_id = account.team_id
         and version.is_current and day.day >= p_week and day.day < p_week + 7 and day.player_id = account.player_id
-    ), '[]'::jsonb),
+    ), '[]'::jsonb) end,
     'rpe', coalesce((
       select jsonb_agg(jsonb_build_object('activityId', response.activity_id, 'date', response.activity_date,
         'rating', response.rating) order by response.activity_date, response.activity_id)
@@ -251,6 +257,7 @@ set search_path = '' as $$
   join public.platform_teams team on team.id = account.team_id and team.organization_id = account.organization_id
   join public.platform_organizations organization on organization.id = team.organization_id
   where account.user_id = p_user_id and account.revoked_at is null and app_private.performance_eligible_account(p_user_id)
+    and (account.demo_until is null or account.demo_until > now())
     and team.status = 'active' and team.deleted_at is null
     and organization.status = 'active' and organization.deleted_at is null
     and team.metadata ->> 'legacyTeamId' = 'team-north-carolina-courage'
@@ -271,6 +278,7 @@ begin
   join public.platform_teams team on team.id = account.team_id and team.organization_id = account.organization_id
   join public.platform_organizations organization on organization.id = team.organization_id
   where account.user_id = p_user_id and account.revoked_at is null and app_private.performance_eligible_account(p_user_id)
+    and (account.demo_until is null or account.demo_until > now())
     and response.activity_id = p_activity_id and response.activity_date = p_activity_date
     and team.status = 'active' and team.deleted_at is null
     and organization.status = 'active' and organization.deleted_at is null
@@ -285,6 +293,7 @@ begin
     set rating = p_rating, answered_at = now(), answered_by = p_user_id
   from public.performance_player_accounts account
   where account.user_id = p_user_id and account.revoked_at is null and app_private.performance_eligible_account(p_user_id)
+    and (account.demo_until is null or account.demo_until > now())
     and (response.organization_id, response.team_id, response.player_id) = (account.organization_id, account.team_id, account.player_id)
     and response.activity_id = p_activity_id and response.activity_date = p_activity_date and response.rating is null;
   return case when found then 'saved' else 'unavailable' end;

@@ -104,3 +104,29 @@ test("staff can review Wellness and open RPE for a completed Schedule pass while
   expect((await write(link, { ...scope, actor: { id: user, role: "team-admin" } })).payload.linked).toBe(true);
   expect(calls.at(-1).fields.p_email).toBe("player@example.test");
 });
+
+test("the expiring practice account can answer its fixture without accessing live Squad data", async () => {
+  const writes = [];
+  const handler = playerEndpoint.createRpeResponseHandler({
+    readActor: async () => ({ id: user, role: "guest", status: "active" }),
+    readSources: async () => { throw new Error("Practice account reached live owner sources."); },
+    now,
+    rpc: async (name, fields) => {
+      if (name === "submit_performance_rpe") {
+        writes.push(fields);
+        return "saved";
+      }
+      return { demo: true, playerId: `performance-qa-${user}`, wellness: [validWellness], rpe: [
+        { activityId: "performance-qa-session", date: session.date, rating: null },
+        { activityId: session.id, date: session.date, rating: 8 },
+      ] };
+    },
+  });
+  const result = await send(handler, "GET");
+  expect(result.body).toEqual({ ok: true, week, demo: true, wellness: [], rpe: [
+    { activityId: "performance-qa-session", date: session.date, title: "RPE practice session", rating: null },
+  ] });
+  expect((await send(handler, "POST", { week, activityId: session.id, rating: 9 })).status).toBe(404);
+  expect((await send(handler, "POST", { week, activityId: "performance-qa-session", rating: 9 })).status).toBe(200);
+  expect(writes).toEqual([{ p_user_id: user, p_activity_id: "performance-qa-session", p_activity_date: session.date, p_rating: 9 }]);
+});

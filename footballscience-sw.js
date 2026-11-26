@@ -1,3 +1,5 @@
+importScripts("/src/core/sessions-offline-code-worker.js");
+
 self.addEventListener("install", () => {
   self.skipWaiting();
 });

@@ -125,6 +125,7 @@
   let sessionSaveClientPromise = null;
   let sessionSaveClient = null;
   let sessionBaselineReadScope = "";
+  let reconcilePreparedSessionsOwner;
   let setPiecesSaveClientPromise = null;
 
   function getSessionSaveScope() {
@@ -132,6 +133,32 @@
     if (!user?.id || !authState.session?.access_token || !canCurrentUserAutomaticallyWriteCentralStateKey(SESSION_PLANNER_STATE_KEY)) return "";
     // The queue remains stable when a new central record first receives organization metadata.
     return JSON.stringify(["sessions-actor-team-v1", user.id, user.clubId || "", user.teamId || ""]);
+  }
+
+  function getSessionsOfflineOwner() {
+    return !authState.devMode && getSessionSaveScope() ? getCentralReadScope() : "";
+  }
+  async function prepareSessionsOffline(date, contextIsCurrent) {
+    const owner = getSessionsOfflineOwner();
+    const isCurrent = () => Boolean(owner && owner === getSessionsOfflineOwner() && contextIsCurrent?.());
+    if (!isCurrent() || window.navigator.onLine === false) throw new Error("Connect to prepare the current session.");
+    const [{ prepareSessionsOfflineCode }, access, { trustedSessionsOfflineKeys }] = await Promise.all([
+      import("./src/core/sessions-offline-code-prep.mjs"),
+      import("./src/core/sessions-offline-access/access.mjs"),
+      import("./src/core/sessions-offline-access/trust.mjs"),
+    ]);
+    if (!Object.keys(trustedSessionsOfflineKeys).length) throw new Error("Offline preparation is unavailable.");
+    reconcilePreparedSessionsOwner = access.reconcileSessionsOfflineOwner;
+    await prepareSessionsOfflineCode();
+    if (!isCurrent()) throw new Error("Account, team or date changed during preparation.");
+    return access.prepareSessionsOfflineAccess({
+      owner, date, isCurrent, requestGrant: async ({ owner: preparedOwner, date: preparedDate }) => {
+        const query = new URLSearchParams({ sessionOfflineGrant: "1", owner: preparedOwner, date: preparedDate });
+        const result = await apiRequest(API_APP_STATE + "?" + query, { method: "GET", isCurrent });
+        if (!result.ok) throw new Error(result.payload?.reason || "Offline permission could not be verified.");
+        return result.payload.grant;
+      },
+    });
   }
 
   async function getSessionSaveClient() {
@@ -470,6 +497,7 @@
     );
   }
   function notifyAuthChange(user) {
+    reconcilePreparedSessionsOwner?.(user ? getSessionsOfflineOwner() : "").catch(() => {});
     window.platformSession = user;
     window.dispatchEvent(new CustomEvent("platform:user-change", { detail: { user } }));
   }
@@ -3342,6 +3370,8 @@ async function getActiveAccessToken() {
     });
   }
   window.platformAuthStore = {
+    getSessionsOfflineOwner,
+    prepareSessionsOffline,
     createUser: adminCreateUser,
     updateUser: adminUpdateUser,
     uploadProfileImage,
@@ -3486,5 +3516,17 @@ async function getActiveAccessToken() {
   };
   window.footballScienceAudit={record:recordAuditEvent};
   window.footballScienceMedicalDatabase={record:recordMedicalDatabaseEvent};
-  window.platformAuthReadyPromise=bootAuth();
+  window.platformAuthReadyPromise=(async () => {
+    const preparationKey = "football-science-sessions-offline-preparation-v1";
+    try {
+      if (window.localStorage.getItem(preparationKey) !== null) {
+        const { reconcileSessionsOfflineOwner } = await import("./src/core/sessions-offline-access/access.mjs");
+        reconcilePreparedSessionsOwner = reconcileSessionsOfflineOwner;
+      }
+    } catch {
+      // This permission marker is separate from the Sessions work stores.
+      try { window.localStorage.removeItem(preparationKey); } catch {}
+    }
+    return bootAuth();
+  })();
 })();

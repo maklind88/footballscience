@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Session Planner · Football Science</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="session-planner-overrides.css">
+  <link rel="stylesheet" href="src/modules/session-planner/session-planner-offline.css">
+  <script type="module" src="src/modules/session-planner/session-planner-offline-boot.mjs"></script>
+</head>
+<body class="is-authenticated session-offline-shell">
+  <main id="hubShell" aria-label="Football Science">
+    <section class="workspace-view platform-session-view is-active" data-workspace-view="session-planner">
+      <div id="sessionPlannerWorkspace" class="session-planner-workspace platform-module-shell"
+           data-session-offline-readonly aria-busy="true">
+        <header class="session-planner-hero"><h1>Session Planner</h1></header>
+        <p role="status">Checking offline access…</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

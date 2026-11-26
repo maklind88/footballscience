@@ -3604,6 +3604,37 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
   };
 }
 
+async function sendSessionsOfflineGrant(req, res) {
+  res.setHeader("Cache-Control", "no-store");
+  const { issueSessionsOfflineGrant, readSessionsOfflineActor } = require("./_lib/sessions-offline-grant.js");
+  try {
+    const authorization = req.headers?.authorization || req.headers?.Authorization;
+    const actor = await readSessionsOfflineActor(authorization);
+    if (!actor) return sendJson(res, 401, { ok: false, reason: "Sign in online to prepare Sessions." });
+    if (!guardApiRequest(req, res, {
+      route: "/api/app-state", moduleId: "app-state", actor, enforcePermission: false,
+    }).ok) return;
+    const result = await issueSessionsOfflineGrant({
+      authorization, owner: req.query?.owner, date: req.query?.date,
+    }, {
+      readActor: () => actor,
+      canRead: async currentActor => {
+        // Read only the existing policy record. The ordinary endpoint may seed
+        // defaults or initialize backup storage, so preparation exits before it.
+        const data = isAppStateDatabaseEnabled() ? await readAppStateRecord(WORKSPACE_HUB_KEY) : null;
+        if (data && !data.ok) throw new Error("Workspace access unavailable.");
+        const entry = data ? data.entry : await readStorageStateObject(WORKSPACE_HUB_KEY, { fresh: true });
+        return Boolean(entry?.value && !entry.removed && Object.hasOwn(filterStateEntriesForActor(currentActor, {
+          [WORKSPACE_HUB_KEY]: entry.value, [SESSION_PLANNER_KEY]: "{}",
+        }), SESSION_PLANNER_KEY));
+      },
+    });
+    return sendJson(res, result.ok ? 200 : result.status, result);
+  } catch {
+    return sendJson(res, 503, { ok: false, reason: "Offline access could not be verified." });
+  }
+}
+
 module.exports = async (req, res) => {
   sendCorsHeaders(res);
 
@@ -3612,6 +3643,8 @@ module.exports = async (req, res) => {
     res.end();
     return;
   }
+
+  if (req.method === "GET" && req.query?.sessionOfflineGrant === "1") return sendSessionsOfflineGrant(req, res);
 
   const measure = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)
     ? createAppStateWriteTiming(res).measure

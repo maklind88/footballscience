@@ -1,0 +1,32 @@
+body.session-offline-shell {
+  overflow: auto;
+  min-height: 100dvh;
+}
+
+.session-offline-shell .platform-session-view {
+  display: block;
+  padding: clamp(12px, 3vw, 36px);
+  max-width: 1040px;
+  margin-inline: auto;
+}
+
+.session-offline-shell .session-offline-date,
+.session-offline-shell .session-offline-block {
+  margin-block: 12px;
+}
+
+.session-offline-shell .session-offline-block > summary,
+.session-offline-shell .session-offline-version > summary {
+  cursor: pointer;
+  padding: 8px;
+}
+
+.session-offline-shell .session-offline-content {
+  padding: 16px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.session-offline-shell .session-builder-fields {
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+}

@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import { test as base, expect } from '@playwright/test';
 import { installSetPiecesCentralFixture } from './helpers/set-pieces-central-fixture.mjs';
 import { readJournal } from './helpers/session-full-app-storage-fixture.mjs';
@@ -309,19 +310,55 @@ for (const operation of ['same field', 'block deletion']) test(`two editors reta
   await attachSessionSaveChainEvidence(info, { timing, page: a.page });
 });
 
-// A distinct result for the full app shell, with its current production worker.
-test('full app cold navigation without network remains an explicit offline limitation', async ({}, info) => {
-  const disk = await profile();
-  const { page } = await launch(1, { profile: disk, serviceWorkers: 'allow' });
+// The root worker may report an explicit unavailable state when no preparation exists.
+test('an unprepared profile cannot open Sessions after a cold start without network', async ({}, info) => {
+  // A per-process browser network toggle does not always affect the worker's
+  // network. Stop its actual origin while keeping the app fixture available
+  // for the rest of the suite and the released-asset verifier.
+  const workerFiles = new Set(["/footballscience-sw.js", "/src/core/sessions-offline-code-worker.js"]);
+  const server = createServer(async (req, res) => {
+    try {
+      if (workerFiles.has(req.url)) {
+        const upstream = await fetch(appOrigin + req.url);
+        res.writeHead(upstream.status, { "Content-Type": "text/javascript" });
+        res.end(await upstream.text());
+      } else {
+        res.writeHead(200, { "Content-Type": "text/html" });
+        res.end("<!doctype html><title>Unprepared Sessions test profile</title>");
+      }
+    } catch {
+      res.writeHead(502).end();
+    }
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const origin = "http://127.0.0.1:" + server.address().port;
+  const stop = () => new Promise(resolve => {
+    if (!server.listening) return resolve();
+    server.close(resolve);
+    server.closeAllConnections();
+  });
+  cleanup.push(stop);
+  const disk = await isolatedProfile(origin);
+  cleanup.push(() => disk.dispose());
+  const { page } = await disk.open({ serviceWorkers: "allow" });
+  await page.goto("/");
   await page.evaluate(async () => {
-    await navigator.serviceWorker.register('/footballscience-sw.js');
+    await navigator.serviceWorker.register("/footballscience-sw.js");
     await navigator.serviceWorker.ready;
   });
   await disk.close();
-  const offline = await disk.open({ offline: true, serviceWorkers: 'allow' });
-  await expect(offline.page.goto('/?workspace=session-planner', { timeout: 10000 })).rejects.toThrow(/ERR_INTERNET_DISCONNECTED/);
+  await stop();
+  await expect(fetch(origin, { signal: AbortSignal.timeout(2000) })).rejects.toThrow();
+  const offline = await disk.open({ serviceWorkers: "allow" });
+  const response = await offline.page.goto('/?workspace=session-planner', { timeout: 10000 });
+  expect(response?.status()).toBe(503);
+  await expect(offline.page.locator('body')).toContainText('Reconnect to prepare this browser.');
+  await expect(offline.page.locator('[data-workspace-view="session-planner"]')).toHaveCount(0);
   await info.attach('Full app cold start outcome', { contentType: 'application/json', body: Buffer.from(JSON.stringify({
-    fullAppOfflineReady: false, result: 'browser-navigation-blocked', newBrowserProcess: true,
+    fullAppOfflineReady: false, result: 'unprepared-offline-navigation-unavailable', newBrowserProcess: true,
   })) });
 });
 

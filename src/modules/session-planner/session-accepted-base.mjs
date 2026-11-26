@@ -3,7 +3,7 @@ import { canonicalSessionValue, replaceSessionDate, sameSessionValue } from "./s
 const schema = "sessions-accepted-date-v1";
 const prefix = "session-accepted-date:";
 const ownerPrefix = (scope, owner) => `${prefix}${encodeURIComponent(JSON.stringify([scope, owner]))}:`;
-const keyFor = (scope, owner, date) => `${ownerPrefix(scope, owner)}${date}`;
+export const sessionAcceptedDateKey = (scope, owner, date) => `${ownerPrefix(scope, owner)}${date}`;
 const digest = async (value) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",
   new TextEncoder().encode(JSON.stringify(value)))), (byte) => byte.toString(16).padStart(2, "0")).join("");
 
@@ -15,11 +15,11 @@ function payload(record) {
       !value?.session || typeof value.session !== "object" || Array.isArray(value.session) ||
       (value.session.date !== undefined && value.session.date !== date) ||
       !value.tombstones || typeof value.tombstones !== "object" || Array.isArray(value.tombstones) ||
-      record.id !== keyFor(scope, owner, date)) throw new Error("Accepted Sessions base is invalid.");
+      record.id !== sessionAcceptedDateKey(scope, owner, date)) throw new Error("Accepted Sessions base is invalid.");
   return canonicalSessionValue({ schema, scope, owner, date, revision, operationId, value });
 }
 
-async function verify(record) {
+export async function verifySessionAcceptedDate(record) {
   const content = payload(record);
   if (record.hash !== await digest(content)) throw new Error("Accepted Sessions base failed integrity verification.");
   return record;
@@ -47,13 +47,13 @@ export function createSessionAcceptedBase({ open }) {
   async function acknowledge(original, receipt, metadata, { owner, isCurrent = () => true } = {}) {
     if (!original?.scope || original.status !== "pending" || receipt?.id !== original.change?.id ||
         receipt?.date !== original.change?.date) throw new Error("Sessions receipt identity mismatch.");
-    const id = keyFor(original.scope, owner, receipt.date);
+    const id = sessionAcceptedDateKey(original.scope, owner, receipt.date);
     const record = { id, schema, scope: original.scope, owner, date: receipt.date,
       revision: Number(metadata?.revision), operationId: receipt.id, value: canonicalSessionValue(receipt.value) };
     record.hash = await digest(payload(record));
     // Verify outside the write transaction; inside it CAS checks the exact bytes.
     const previous = await readStored(id);
-    if (previous) await verify(previous);
+    if (previous) await verifySessionAcceptedDate(previous);
     if (!isCurrent()) throw new Error("Account or team changed before checkpoint.");
     const db = await open();
     await new Promise((resolve, reject) => {
@@ -94,7 +94,7 @@ export function createSessionAcceptedBase({ open }) {
     let state = { sessions: {}, blockDeletionTombstones: {} };
     const revisions = {};
     for (const record of records.sort((a, b) => a.date.localeCompare(b.date))) {
-      await verify(record);
+      await verifySessionAcceptedDate(record);
       state = replaceSessionDate(state, record.date, record.value);
       revisions[record.date] = record.revision;
     }

@@ -16,6 +16,18 @@ function defaultFormatDateValue(date) {
   return new Date(date).toISOString().slice(0, 10);
 }
 
+export function renderSessionPlannerBuilderFields(renderField, block, periodizationOptionLibrary = {}) {
+  return `
+${renderField(block, "phase", "Phase", { long: false, listOptions: periodizationOptionLibrary.matchPhases })}
+${renderField(block, "subPhase", "Sub Phase", { long: false, listOptions: periodizationOptionLibrary.subPhases })}
+${renderField(block, "objective", "Objective", { rows: 3 })}
+${renderField(block, "why", "Why", { rows: 3 })}
+${renderField(block, "organization", "Organization", { rows: 3 })}
+${renderField(block, "material", "Measure & Material", { rows: 2 })}
+${renderField(block, "principles", "Principles & Coaching Points", { rows: 5 })}
+  `;
+}
+
 export function createSessionPlannerWorkspaceRenderer({
   escapeHtml = defaultEscapeHtml,
   formatDateValue = defaultFormatDateValue,
@@ -247,6 +259,20 @@ export function createSessionPlannerWorkspaceRenderer({
     `;
   };
 
+  function renderWorkspaceHeader(dateControls = "") {
+    return `<header class="session-planner-hero">
+      <div>
+        <p class="placeholder-tag">Sessions</p>
+        <h1>Session Planner</h1>
+      </div>
+      ${dateControls}
+    </header>`;
+  }
+
+  function renderOfflineWorkspace({ status, content }) {
+    return `${renderWorkspaceHeader()}${status}${content}`;
+  }
+
   const renderWorkspace = ({
     addMenuOpen = false,
     block = null,
@@ -255,6 +281,7 @@ export function createSessionPlannerWorkspaceRenderer({
     leaderboardAwardAction = {},
     selectedDate = "",
     selectedDateLabel = "",
+    offlinePreparation = false,
     session = {},
     sessionMatchDayLabel = "",
     sessionTitle = "Session",
@@ -265,11 +292,7 @@ export function createSessionPlannerWorkspaceRenderer({
       sessionTitleLength > 28 ? " is-very-long" : sessionTitleLength > 16 ? " is-long" : "";
 
     return `
-    <header class="session-planner-hero">
-      <div>
-        <p class="placeholder-tag">Sessions</p>
-        <h1>Session Planner</h1>
-      </div>
+    ${renderWorkspaceHeader(`
       <div class="session-date-controls" aria-label="Session date navigation">
         <button type="button" class="session-date-nav-button" data-session-scroll-dates="-1" aria-label="Previous dates">&larr;</button>
         <div class="session-date-strip" aria-label="Session date selector">
@@ -278,7 +301,7 @@ export function createSessionPlannerWorkspaceRenderer({
         <button type="button" class="session-date-nav-button" data-session-scroll-dates="1" aria-label="Next dates">&rarr;</button>
         <button type="button" class="session-date-today-button" data-session-today>Today</button>
       </div>
-    </header>
+    `)}
     <section class="session-planner-grid">
       <aside class="session-card session-blocks-card">
         <div class="session-card-head">
@@ -295,6 +318,10 @@ export function createSessionPlannerWorkspaceRenderer({
           </div>
           <div class="session-card-actions">
             <button type="button" class="session-print-open-button" data-session-open-print>Print</button>
+            ${offlinePreparation ? `<div>
+              <button type="button" class="session-print-open-button" data-session-prepare-offline>Prepare offline access</button>
+              <span role="status" data-session-offline-status></span>
+            </div>` : ""}
             ${renderLeaderboardAwardAction(leaderboardAwardAction)}
             ${
               isAdmin
@@ -381,13 +408,7 @@ ${
 <section class="session-builder-main">
 <article class="session-detail-card session-detail-card-full">
 <div class="session-builder-fields">
-${renderSessionPlannerEditableField(block, "phase", "Phase", { long: false, listOptions: periodizationOptionLibrary.matchPhases })}
-${renderSessionPlannerEditableField(block, "subPhase", "Sub Phase", { long: false, listOptions: periodizationOptionLibrary.subPhases })}
-${renderSessionPlannerEditableField(block, "objective", "Objective", { rows: 3 })}
-${renderSessionPlannerEditableField(block, "why", "Why", { rows: 3 })}
-${renderSessionPlannerEditableField(block, "organization", "Organization", { rows: 3 })}
-${renderSessionPlannerEditableField(block, "material", "Measure & Material", { rows: 2 })}
-${renderSessionPlannerEditableField(block, "principles", "Principles & Coaching Points", { rows: 5 })}
+${renderSessionPlannerBuilderFields(renderSessionPlannerEditableField, block, periodizationOptionLibrary)}
 </div>
 </article>
 ${renderSessionPlannerPostSessionNotesCard(block)}
@@ -414,5 +435,7 @@ ${renderSessionPlannerPostSessionNotesCard(block)}
     renderMedicalAvailability,
     renderToolsPanel,
     renderWorkspace,
+    renderOfflineWorkspace,
+    escapeText: escapeHtml,
   };
 }

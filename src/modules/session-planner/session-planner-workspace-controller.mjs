@@ -1,3 +1,4 @@
+import { bindSessionsOfflinePreparation } from "./session-planner-offline-preparation.mjs";
 import { createSessionPlannerPlayerBoardTidyHelpers } from "./session-planner-player-board-tidy-helpers.mjs";
 import { createSessionPlannerTacticalFramesController } from "./session-planner-tactical-frames-controller.mjs";
 import { createSessionPlannerTacticalPlaybackController } from "./session-planner-tactical-playback-controller.mjs";
@@ -2773,6 +2774,7 @@ block,
 historyContext: getSessionPlannerHistoryPanelContext(),
 isAdmin,
 leaderboardAwardAction,
+offlinePreparation: Boolean(win.platformAuthStore?.getSessionsOfflineOwner?.()),
 selectedDate: local.sessionPlannerState.selectedDate,
 selectedDateLabel,
 session,
@@ -2780,6 +2782,7 @@ sessionMatchDayLabel,
 sessionTitle,
 sessionTotalMinutes,
 });
+bindSessionsOfflinePreparation(ui.sessionPlannerWorkspace, win, local.sessionPlannerState.selectedDate);
 if (retainedTacticalOverlay) {
 ui.sessionPlannerWorkspace.querySelector("[data-session-tacticalboard-overlay]")?.replaceWith(retainedTacticalOverlay);
 retainedTacticalFocus?.focus({ preventScroll: true });

@@ -2,7 +2,7 @@ import { availabilityLabels, dateLabel, participationStatus } from "./performanc
 import { activityFormKey, averageLoad, loadMetrics, parseLoadInput, planningRole, playerTargetInputPrefix, summarizeLoadTargets, summarizeSquadWeek } from "./performance-load-plan.mjs";
 import { amountInput, dayAndActivity, metricHeader } from "./performance-load-plan-fields.mjs";
 import { pairedSquadWeeks } from "./performance-session-review-data.mjs";
-import { matchExposure, renderSessionReview } from "./performance-session-review.mjs";
+import { matchExposure, renderSessionComparison, renderSessionReview } from "./performance-session-review.mjs";
 import { renderTeamWeekMatrix } from "./performance-team-week-matrix.mjs";
 import { formatGpsValue, gpsSummaryMetrics, renderGpsAvailability, renderGpsMetric } from "./performance-week-gps.mjs";
 
@@ -164,21 +164,22 @@ export function renderTeamWeek(context) {
   const plannedWeeks = summarizeSquadWeek(players, activities, draft.getTargets);
   const getActual = (playerId, activityId) => gpsSummaryMetrics(gps.getActual(playerId, activityId));
   const actualWeeks = showGps && teamView === "activities" ? summarizeSquadWeek(players, activities, getActual) : null;
+  const editLayout = teamView === "activities" || teamView === "players";
   const paired = actualWeeks && gps.hasRows ? pairedSquadWeeks(players, activities, draft.getTargets, gps) : null;
   return `<div class="pr-team-view-tools">
       <div class="pr-plan-switches" role="group" aria-label="Team week layout">
-        ${[["review", "Session review"], ["activities", "By activity"], ["players", "By player"]].map(([id, label]) =>
+        ${[["review", "Session review"], ["compare", "Compare"], ["activities", "By activity"], ["players", "By player"]].map(([id, label]) =>
           `<button type="button" data-pr-action="plan-team-view" data-pr-value="${id}" data-pr-focus="team-view:${id}" aria-pressed="${teamView === id}">${label}</button>`
         ).join("")}
       </div>
-      <button class="pr-plan-reference-link pr-review-goals-link" type="button" data-pr-action="plan-week-goals"
+      ${teamView !== "compare" ? `<button class="pr-plan-reference-link pr-review-goals-link" type="button" data-pr-action="plan-week-goals"
         data-pr-focus="week-goals" aria-expanded="${goalsOpen}" aria-controls="pr-week-goals-panel">
         ${goalsOpen ? "Hide goals" : canEdit && teamPlayers.length ? "Edit weekly goals" : "View weekly goals"}
-      </button>
-      ${teamView === "review" ? "" : `<button class="pr-team-secondary pr-team-gps-toggle" type="button" data-pr-action="plan-team-gps" data-pr-focus="team-gps" aria-pressed="${showGps}">Plan vs GPS</button>`}
+      </button>` : ""}
+      ${editLayout ? `<button class="pr-team-secondary pr-team-gps-toggle" type="button" data-pr-action="plan-team-gps" data-pr-focus="team-gps" aria-pressed="${showGps}">Plan vs GPS</button>` : ""}
     </div>
-    ${weekGoals(context, plannedWeeks.training)}
-    ${teamView !== "review" && showGps ? renderGpsAvailability(gps) : ""}
-    ${teamView === "review" ? renderSessionReview(context, activityEditor) : teamView === "players"
+    ${teamView !== "compare" ? weekGoals(context, plannedWeeks.training) : ""}
+    ${editLayout && showGps ? renderGpsAvailability(gps) : ""}
+    ${teamView === "review" ? renderSessionReview(context, activityEditor) : teamView === "compare" ? renderSessionComparison(context) : teamView === "players"
       ? renderTeamWeekMatrix(context) : renderActivitySummary(context, activities, plannedWeeks, actualWeeks, getActual, paired)}`;
 }

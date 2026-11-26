@@ -102,13 +102,13 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
   }
 
   function selectTeamView(value) {
-    if (mode !== "team" || current?.saving || !["review", "activities", "players"].includes(value)) return false;
+    if (mode !== "team" || current?.saving || !["review", "compare", "activities", "players"].includes(value)) return false;
     teamView = value;
     return true;
   }
 
   function setReviewSelection(value, byDay) {
-    if (mode !== "team" || teamView !== "review" || current?.saving) return false;
+    if (mode !== "team" || !["review", "compare"].includes(teamView) || current?.saving) return false;
     const activity = activities.find(({ id }) => id === value);
     const nextDate = byDay ? value : activity?.date;
     if (!current?.days.some(({ date }) => date === nextDate)) return false;
@@ -343,7 +343,10 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
       reviewJump = null;
     }
     current.days = days;
-    const review = selectReviewSession(days, sources.events, overview.selected.date, reviewDate, reviewActivityId, current.activityIds);
+    const reviewDays = teamView === "compare" && current.activityIds
+      ? days.map((day) => ({ ...day, activities: day.activities.filter(({ id }) => current.activityIds.has(id)) }))
+      : days;
+    const review = selectReviewSession(reviewDays, sources.events, overview.selected.date, reviewDate, reviewActivityId, current.activityIds);
     const teamPlayers = editablePlayers();
     const reviewReady = current.phase === "ready" && mode === "team" && teamView === "review" && review.activity;
     const recommendation = reviewReady ? sources.getAvailability?.(review.day.date, teamPlayers) : null;
@@ -352,7 +355,7 @@ export function createLoadPlanController(seed, isSample, persistence, render) {
       phase: current.phase, canEdit: current.canEdit, retry: current.conflict,
       week, activityId, feedbackForm, teamView, teamPlayers, editableActivity,
       readTeamInput, getTeamWeekTotals, gps, showGps: gpsPreference ?? gps.hasRows,
-      review, reviewMetric, reviewEditing: reviewEditing && activityId === review.activity?.id,
+      review, reviewDays, reviewMetric, reviewEditing: reviewEditing && activityId === review.activity?.id,
       recommendation, getTargetSource, goalsOpen, matchGps: reviewReady ? getMatchGps(review.match, week) : null,
     };
   }

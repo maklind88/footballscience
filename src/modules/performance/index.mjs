@@ -80,11 +80,18 @@ export function createPerformanceSurface(context) {
         return;
       case "view":
         if (prValue === "gps-history" && !gpsHistory) return;
+        if (prValue === "load-plan" && !loadPlan?.setMode("team")) return;
         if (prValue !== "session" && !(prValue === "load-plan" && loadPlan) && !Object.hasOwn(performanceViews, prValue)) return;
         if (view === "gps-history" && prValue !== view) gpsHistory.reset();
         view = prValue;
         if (view === "players") availabilityFilter = "all";
         break;
+      case "open-compare":
+        if (!loadPlan?.setMode("team") || !loadPlan.selectTeamView("compare")) return;
+        view = "load-plan";
+        focusKey = "detail-title";
+        render();
+        return;
       case "gps-history-retry":
         if (view !== "gps-history") return;
         gpsHistory.reset();
@@ -170,7 +177,7 @@ export function createPerformanceSurface(context) {
         return;
     }
     focusKey = control.dataset.prFocus;
-    if (["availability", "player"].includes(prAction) || (prAction === "view" && !control.closest(".pr-navigation"))) {
+    if (["availability", "player", "plan-mode"].includes(prAction) || (prAction === "view" && !control.closest(".pr-navigation"))) {
       focusKey = "detail-title";
     }
     render();

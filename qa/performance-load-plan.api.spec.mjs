@@ -152,7 +152,7 @@ test("Team week saves multiple player targets together and restricts team goals 
 test("weekly GPS reads project exact player and activity IDs, keep measured zero and reject duplicate summaries", async () => {
   const { handler } = fixture({ readActuals: async (scope) => {
     expect(scope).toEqual({ actorId, organizationId, teamId, week, playerIds: ["squad-athlete", "second-athlete"], activityIds: [activityId] });
-    const row = { playerId: "squad-athlete", activityId, metrics: { distance: 5801.2, hsr: "450", sprint: 0, ignored: 18 },
+    const row = { playerId: "squad-athlete", activityId, metrics: { distance: 5801.2, hml: 721, hsr: "450", sprint: 0, maxSpeed: 28.9, accelerations: 22, decelerations: -1, ignored: 18 },
       comparable: ["distance", "hsr", "sprint"], sessionDurationMinutes: 94.2, matchMinutes: 90 };
     const duplicate = { ...row, playerId: "second-athlete" };
     return { rows: [row, duplicate, { ...duplicate, metrics: { distance: 100 } },
@@ -161,7 +161,7 @@ test("weekly GPS reads project exact player and activity IDs, keep measured zero
   const read = await send(handler, "GET");
   expect(read.status).toBe(200);
   expect(read.body.gpsActuals).toEqual({ status: "ready", sample: false, rows: [{
-    playerId: "squad-athlete", activityId, metrics: { distance: 5801.2, sprint: 0 }, comparable: ["distance", "sprint"], sessionDurationMinutes: 94.2,
+    playerId: "squad-athlete", activityId, metrics: { distance: 5801.2, hml: 721, sprint: 0, maxSpeed: 28.9, accelerations: 22 }, comparable: ["distance", "sprint"], sessionDurationMinutes: 94.2,
   }] });
 });
 

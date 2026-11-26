@@ -6,7 +6,9 @@
 .pr-room .pr-plan-workbench { padding: clamp(10px, 1.4vw, 18px); }
 .pr-room .pr-plan-heading { align-items: center; padding-block-end: 10px; margin-block-end: 9px; border-bottom: 1px solid var(--pr-line); }
 .pr-room .pr-plan-heading h2 { font-size: clamp(19px, 2.2vw, 27px); }
-.pr-plan-workbench .pr-plan-mode-switches, .pr-plan-workbench .pr-team-view-tools .pr-plan-switches { margin: 0; }
+.pr-plan-workbench .pr-team-view-tools .pr-plan-switches { margin: 0; }
+.pr-plan-mode-switches { display: flex; flex-wrap: wrap; gap: 6px; }
+.pr-room .pr-plan-mode-switches .pr-source { margin: 0; }
 .pr-plan-workbench .pr-team-view-tools { align-items: center; margin: 0 0 9px; }
 .pr-room .pr-review-goals-link { margin-inline-start: auto; font-size: 12px; }
 .pr-plan-workbench .pr-team-goals { margin-bottom: 14px; padding-bottom: 8px; }
@@ -120,3 +122,18 @@
 .pr-review-editor .pr-plan-table-wrap { max-block-size: min(52svh, 520px); overflow: auto; }
 .pr-review-edit-table thead th { position: sticky; inset-block-start: 0; z-index: 2; }
 .pr-review-edit-table tbody th[scope="row"] { position: sticky; inset-inline-start: 0; background: var(--pr-bg); }
+
+.pr-session-comparison { min-width: 0; }
+.pr-comparison-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 10px 20px; margin: 18px 0 12px; }
+.pr-comparison-toolbar strong { display: block; font-size: 18px; letter-spacing: -.02em; }
+.pr-comparison-toolbar small, .pr-comparison-table small { color: var(--pr-muted); font-size: 11px; }
+.pr-comparison-toolbar select { min-width: 160px; max-width: 100%; }
+.pr-comparison-scroll { overflow-x: auto; border: 1px solid var(--pr-line); border-radius: 10px; }
+.pr-comparison-scroll:focus-visible { outline: 2px solid var(--pr-blue); outline-offset: 2px; }
+.pr-comparison-table { font-size: 13px; }
+.pr-comparison-table.pr-table :is(th, td) { padding: 10px 12px; white-space: nowrap; }
+.pr-comparison-table tr > :first-child { position: sticky; left: 0; background: #111c2e; }
+.pr-comparison-table td small { display: block; }
+.pr-comparison-table td strong { color: var(--pr-text); font-weight: 600; }
+.pr-comparison-table tr:last-child :is(th, td) { border-bottom: 0; }
+.pr-comparison-player { background: #152944; }

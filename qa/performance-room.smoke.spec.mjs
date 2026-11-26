@@ -582,3 +582,45 @@ test("GPS History loads one selected week on demand and filters source players w
   await expect(room.getByRole("status")).toContainText("No workbook GPS entries for this week");
   expect(historyReads).toEqual(["2026-11-23", "2026-11-16"]);
 });
+
+test("Team week compares measured players and Squad units on the same activity", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 950 });
+  const room = await boot(page, { backend: {
+    records: [], writes: [], canEdit: false,
+    gpsActuals: { status: "ready", sample: true, rows: [
+      { playerId: "qa-player-a", activityId: "qa-training", sessionDurationMinutes: 62,
+        metrics: { distance: 5000, hml: 890, hsr: 303, sprint: 0, accelerations: 18, decelerations: 27, maxSpeed: 27.2 },
+        comparable: ["distance"] },
+      { playerId: "qa-player-b", activityId: "qa-training", sessionDurationMinutes: 58,
+        metrics: { distance: 4000, hml: 610, hsr: 230, accelerations: 22, decelerations: 26, maxSpeed: 25.4 },
+        comparable: ["distance"] },
+      { playerId: "qa-player-c", activityId: "qa-training", sessionDurationMinutes: 60,
+        metrics: { distance: 5500, hml: 700, accelerations: 16, decelerations: 20, maxSpeed: 28 },
+        comparable: ["distance"] },
+      { playerId: "qa-player-a", activityId: "qa-next", metrics: { distance: 8300 }, comparable: ["distance"] },
+    ] },
+  } });
+  await expect(room.locator(".pr-kpi")).toHaveCount(0);
+  await room.getByRole("button", { name: "Open Team week" }).click();
+  await room.getByRole("button", { name: "Compare", exact: true }).click();
+  const comparison = room.getByRole("region", { name: "Squad GPS comparison" });
+  await expect(comparison.getByRole("columnheader", { name: "Midfielders" })).toBeVisible();
+  const comparePlayer = comparison.getByRole("combobox", { name: "Compare player" });
+  await comparePlayer.selectOption("qa-player-a");
+  const hml = comparison.getByRole("row", { name: /^HML/ }).getByRole("cell");
+  await expect(hml.nth(0)).toHaveText("890");
+  await expect(hml.nth(1)).toContainText("733");
+  await expect(hml.nth(2)).toContainText("610");
+  await expect(hml.nth(3)).toContainText("795");
+  await expect(hml.nth(3).getByTitle("2 of 2 measured")).toHaveText("2 / 2");
+  await expect(comparison.getByRole("row", { name: /^Sprint distance/ }).getByRole("cell", { name: "0", exact: true })).toBeVisible();
+  await expect(comparison.getByRole("row", { name: /^High-speed running/ }).getByTitle("1 of 2 measured")).toHaveText("1 / 2");
+  await room.screenshot({ path: testInfo.outputPath("performance-compare.png") });
+  await comparePlayer.selectOption("qa-player-b");
+  await expect(comparison.getByRole("row", { name: /^GPS time/ }).getByRole("cell", { name: "58", exact: true })).toBeVisible();
+  await comparison.getByRole("button", { name: /Sat.*28/ }).click();
+  await expect(comparison.getByText("Second match", { exact: true })).toBeVisible();
+  await expect(comparison.getByText("1 of 3 players with linked GPS", { exact: false })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await room.evaluate((root) => root.scrollWidth - root.clientWidth)).toBeLessThanOrEqual(1);
+});

@@ -124,13 +124,13 @@ export function renderLoadPlanning(context) {
     (teamView === "players" && feedbackForm === "team-week") ||
     (teamView === "activities" && canEdit && activityId && feedbackForm === "team-activity"));
   const panels = { team: renderTeamWeek, player: playerPlan, references: referencesView };
+  const modes = [["team", "Team week"], ["player", "Player plan"], ["references", "Baselines"]];
   return `<section class="pr-plan-workbench pr-panel">
     <header class="pr-plan-heading">
-      <div><h2>Microcycle Load Plan</h2><p>${rangeLabel(days)} · <span>${label}</span></p></div>
-      <div class="pr-plan-switches pr-plan-mode-switches" role="group" aria-label="Load plan view">
-        ${[["team", "Team week"], ["player", "Player plan"], ["references", "Baselines"]].map(([id, label]) =>
-          `<button type="button" data-pr-action="plan-mode" data-pr-value="${id}" data-pr-focus="plan-mode:${id}"
-            aria-pressed="${mode === id}">${label}</button>`).join("")}
+      <div><h2>${modes.find(([id]) => id === mode)[1]}</h2><p>${rangeLabel(days)} · <span>${label}</span></p></div>
+      <div class="pr-plan-mode-switches" role="group" aria-label="Load plan view">
+        ${modes.filter(([id]) => id !== mode).map(([id, label]) =>
+          `<button type="button" class="pr-source" data-pr-action="plan-mode" data-pr-value="${id}" data-pr-focus="plan-mode:${id}">${label}</button>`).join("")}
       </div>
     </header>
     ${phase === "ready" ? panels[mode](context) : ""}

@@ -1,6 +1,7 @@
 import { loadMetrics, planningRole, previewTeamTargets } from "./performance-load-plan.mjs";
 import { availabilityLabels, dateLabel, participationStatus } from "./performance-overview.mjs";
 import { createSessionComparison, trainingPlanAverage } from "./performance-session-review-data.mjs";
+import { renderComparisonTable } from "./performance-session-comparison.mjs";
 import { deltaText, formatGpsValue } from "./performance-week-gps.mjs";
 
 const title = (activity) => activity.title || (activity.type === "match" ? "Match" : "Training");
@@ -133,5 +134,19 @@ export function renderSessionReview(context, renderEditor) {
     ${reviewEditing
       ? renderEditor({ ...context, showGps: true, reviewMode: true })
       : players.length ? comparisonTable(context, metric, comparison) : '<p class="pr-review-empty">No Squad players for this week.</p>'}
+  </section>`;
+}
+
+export function renderSessionComparison(context) {
+  const { review: { activity, day }, reviewDays, escape, teamPlayers, selected } = context;
+  const strip = weekStrip({ ...context, days: reviewDays });
+  if (!activity) return `${strip}<p class="pr-review-empty">${dateLabel(day.date)} · No training or match scheduled.</p>`;
+  const activities = day.activities.length > 1 ? `<div role="group" aria-label="Sessions on selected day" class="pr-review-day-sessions">
+    ${day.activities.map((item) => item.id === activity.id ? `<strong>${escape(title(item))}</strong>` : activityButton(item, title(item), escape)).join("")}
+    </div>` : "";
+  return `<section class="pr-session-comparison" aria-label="Squad GPS comparison">
+    ${strip}${activities}${renderComparisonTable({
+      ...context, players: teamPlayers, selected: teamPlayers.find(({ id }) => id === selected?.id) ?? teamPlayers[0],
+    })}
   </section>`;
 }

@@ -2,6 +2,7 @@ import { dateLabel, shiftDate } from "./performance-overview.mjs";
 
 const archiveColumns = [
   ["distance", "Distance (km)", 1000, 2],
+  ["hml", "HML (m)", 1, 1],
   ["hsr", "HSR (m)", 1, 1],
   ["sprint", "Sprint (m)", 1, 1],
   ["gpsMinutes", "GPS time (min)", 1, 1],

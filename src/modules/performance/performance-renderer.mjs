@@ -5,6 +5,7 @@ import { renderLoadPlanning } from "./performance-load-plan-renderer.mjs";
 
 export const performanceViews = Object.freeze({
   overview: "Overview",
+  "load-plan": "Team week",
   microcycle: "Microcycle",
   season: "Season Monitoring",
   players: "Players",
@@ -16,13 +17,13 @@ export const performanceViews = Object.freeze({
 });
 
 const availabilityKeys = Object.keys(availabilityLabels);
-const gpsMetrics = ["Duration", "Total Distance", "High-Speed Running", "Sprint Distance", "Maximum Velocity", "Accelerations", "Decelerations"];
 const unavailableMetrics = {
   gps: "GPS coverage is shown in load planning",
   wellness: "Wellness feed not connected",
   rpe: "RPE collection not connected",
   testing: "Testing results not connected",
 };
+const primaryViews = new Set(["overview", "load-plan", "players", "microcycle"]);
 const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const minutes = (value) => value == null ? "—" : `${number.format(value)} min`;
 
@@ -57,31 +58,6 @@ function safeReport(value) {
   }
 }
 
-function availabilityBar(counts, total) {
-  if (!total) return "";
-  return `<div class="pr-availability-bar" aria-hidden="true">${availabilityKeys
-    .filter((key) => counts[key])
-    .map((key) => `<span class="pr-fill-${key}" style="flex-grow:${counts[key]}"></span>`).join("")}</div>`;
-}
-
-function kpis(ctx) {
-  const { escape, date, overview: { counts, squad, selected } } = ctx;
-  const confirmed = squad.length - counts.unknown;
-  const full = !confirmed ? "—" : counts.unknown
-    ? `${counts.full} <small>/ ${squad.length}</small>`
-    : `${Math.round(counts.full * 100 / squad.length)}<small>%</small>`;
-  const items = [
-    ["availability", "all", "Availability", full, confirmed ? `${counts.full} of ${squad.length} full training · ${counts.unknown} not set` : "No dated recommendations", availabilityBar(counts, squad.length)],
-    ["view", "data", "Wellness", "—", unavailableMetrics.wellness, ""],
-    ["view", "session", date === ctx.today ? "Today's Load" : "Selected Day Load", selected.plan?.minutes != null ? `${number.format(selected.plan.minutes)} <small>min</small>` : "—",
-      selected.plan?.minutes != null ? `Planned${selected.plan.hasUntimedBlocks ? " · timed blocks only" : " in Session Planner"}` : "No timed session plan", ""],
-    ["view", "data", "Session RPE", "—", unavailableMetrics.rpe, ""],
-  ];
-  return `<section class="pr-kpis" aria-label="Daily summary">${items.map(([type, value, label, big, detail, extra]) =>
-    action(escape, type, value, `<span class="pr-kpi-label">${label}</span><strong>${big}</strong><span class="pr-kpi-detail">${detail}</span>${extra}`,
-      ` class="pr-kpi" aria-label="${escape(`${label}. ${detail}`)}"`)).join("")}</section>`;
-}
-
 function dayChart(ctx) {
   const { escape, date, metric, overview: { days } } = ctx;
   const hasMinutes = days.some((day) => day.plan?.minutes != null);
@@ -109,7 +85,7 @@ function dayChart(ctx) {
     ? `<div class="pr-axis" aria-hidden="true">${[1, .75, .5, .25, 0].map((tick) => `<span>${graphMax * tick}</span>`).join("")}</div>` : "";
   const weekLabel = `${dateLabel(days[0].date, { day: "numeric", month: "short" })} – ${dateLabel(days.at(-1).date, { day: "numeric", month: "short" })}`;
   return panel("Microcycle Progress", `<div class="pr-chart ${axis ? "pr-chart-axis" : ""}">${axis}<div class="pr-days">${chart}</div></div>
-       <div class="pr-chart-foot">${showMinutes ? `<span><i class="pr-legend-dot"></i> Planned minutes</span><span>Open load planning for measured GPS</span>` : "<span>Physical load from Periodization</span>"}</div>`,
+       <div class="pr-chart-foot">${showMinutes ? `<span><i class="pr-legend-dot"></i> Planned minutes</span>${ctx.loadPlanningEnabled ? action(escape, "view", "load-plan", "View GPS in Team week ›", ' class="pr-link pr-chart-link"') : ""}` : "<span>Physical load from Periodization</span>"}</div>`,
     { className: "pr-microcycle", subtitle: weekLabel, control });
 }
 
@@ -128,7 +104,7 @@ function availabilitySummary(ctx) {
     <div class="pr-ring-labels">${availabilityKeys.map((key) =>
       action(escape, "availability", key, `<span><i class="pr-fill-${key}"></i>${availabilityLabels[key]}</span><strong>${total ? counts[key] : "—"}</strong>`)).join("")}</div>
     </div>${total ? "" : placeholder("No visible Squad players for this date.")}`,
-    { subtitle: "Medical recommendations" });
+    { subtitle: `${counts.full} of ${total} full training · ${counts.unknown} not set` });
 }
 
 function weekLoad(ctx) {
@@ -139,19 +115,11 @@ function weekLoad(ctx) {
   const details = [
     ["Timed session plans", timedDays.length],
     ["Matches scheduled", matches],
-    ["Measured GPS load", "—"],
+
   ];
   return panel("Training Load (Week)", `<div class="pr-week-load"><strong>${minutes(totalMinutes)}</strong><span>Planned block time</span></div>
     <dl class="pr-paired">${details.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("")}</dl>
     ${action(ctx.escape, "view", "season", "Open season monitoring <span aria-hidden=\"true\">›</span>", ' class="pr-link"')}`);
-}
-
-function gpsTable(ctx) {
-  const plan = ctx.overview.selected.plan;
-  return panel("Key GPS Metrics", `<div class="pr-table-wrap"><table class="pr-table">
-    <thead><tr><th scope="col">Metric</th><th scope="col">Actual</th><th scope="col">Plan</th></tr></thead>
-    <tbody>${gpsMetrics.map((label, index) => `<tr><th scope="row">${label}</th><td>—</td><td>${index === 0 ? minutes(plan?.minutes) : "—"}</td></tr>`).join("")}</tbody>
-    </table></div><p class="pr-footnote">${unavailableMetrics.gps}.${plan?.hasUntimedBlocks ? " Plan includes timed blocks only." : ""}</p>`);
 }
 
 function playerRow(ctx, player) {
@@ -170,13 +138,6 @@ function individualFollowUp(ctx) {
     ${limited.length ? "" : placeholder(counts.full ? "No recorded modified or unavailable players." : "No dated recommendations available.")}
     </div>${action(ctx.escape, "view", "players", "Open player list <span aria-hidden=\"true\">›</span>", ' class="pr-link"')}`,
     { subtitle: "Modified and unavailable players" });
-}
-
-function readiness(ctx) {
-  return panel("Readiness & Wellness", `<dl class="pr-paired">
-    ${["Wellness", "Sleep", "Fatigue", "Soreness"].map((metric) => `<div><dt>${metric}</dt><dd>—</dd></div>`).join("")}</dl>
-    <p class="pr-footnote">${unavailableMetrics.wellness}.</p>
-    ${action(ctx.escape, "view", "data", "View data sources <span aria-hidden=\"true\">›</span>", ' class="pr-link"')}`);
 }
 
 function selectedActivity(ctx) {
@@ -224,7 +185,7 @@ function playerDetail(ctx) {
   if (!player) return panel("Player", placeholder("This player is unavailable in the selected Squad view."));
   return panel(ctx.escape(player.name), `<dl class="pr-paired"><div><dt>Position</dt><dd>${ctx.escape(player.position || "—")}</dd></div>
     <div><dt>Availability recommendation</dt><dd class="pr-tone-${player.availability}">${availabilityLabels[player.availability]}</dd></div>
-    <div><dt>Measured load</dt><dd>—</dd></div><div><dt>Individual load target</dt><dd>—</dd></div></dl>
+    </dl>
     <div class="pr-source-links">${ctx.loadPlanningEnabled ? action(ctx.escape, "plan-player", player.id, "Open player's load plan ›", ' class="pr-source"') : ""}
     ${sourceLink(ctx, "player-profiles", "Squad")}${sourceLink(ctx, "idp", "Player Development")}</div>`, { subtitle: dateLabel(ctx.date) });
 }
@@ -238,7 +199,8 @@ function positionGroups(ctx) {
   }
   return panel("Positional Analysis", `<dl class="pr-paired">${Array.from(groups, ([label, count]) =>
     `<div><dt>${escape(label)}</dt><dd>${count} players</dd></div>`).join("")}</dl>
-    ${squad.length ? "" : placeholder("No visible Squad players.")}<p class="pr-footnote">Positional match demands require a connected match GPS dataset.</p>`);
+    ${squad.length ? "" : placeholder("No visible Squad players.")}
+    ${ctx.loadPlanningEnabled ? action(escape, "open-compare", "", "Compare GPS by unit ›", ' class="pr-link"') : ""}`);
 }
 
 function seasonMonitoring(ctx) {
@@ -278,13 +240,12 @@ function dataReview(ctx) {
 
 export function renderPerformanceRoom(ctx) {
   const { escape, date, teamName, teamLogo, view, overview } = ctx;
-  const activeNav = ["session", "load-plan"].includes(view) ? "microcycle" : view === "player" ? "players" : view;
+  const activeNav = view === "session" ? "microcycle" : view === "player" ? "players" : view;
   const match = overview.nextMatch;
-  const heading = performanceViews[view] || ({ session: "Session Details", "load-plan": "Load planning" }[view] ?? "Player Profile");
+  const heading = performanceViews[view] || (view === "session" ? "Session Details" : "Player Profile");
   const views = {
-    overview: () => `${kpis(ctx)}<div class="pr-middle">${dayChart(ctx)}${weekLoad(ctx)}${availabilitySummary(ctx)}</div>
-      <div class="pr-lower">${gpsTable(ctx)}${individualFollowUp(ctx)}${readiness(ctx)}</div>
-      ${selectedActivity(ctx)}`,
+    overview: () => `<div class="pr-overview-main">${dayChart(ctx)}${selectedActivity(ctx)}</div>
+      <div class="pr-overview-squad">${availabilitySummary(ctx)}${individualFollowUp(ctx)}</div>`,
     microcycle: () => `${ctx.loadPlanningEnabled ? action(escape, "view", "load-plan", "Open load planning ›", ' class="pr-link"') : ""}
       <div class="pr-microcycle-grid">${dayChart(ctx)}${weekLoad(ctx)}</div>${sessionDetails(ctx)}`,
     "load-plan": () => renderLoadPlanning({ ...ctx.planning, escape }),
@@ -298,6 +259,10 @@ export function renderPerformanceRoom(ctx) {
     data: () => dataReview(ctx),
     "gps-history": () => renderGpsHistory(ctx.history, escape),
   };
+  const navigation = Object.entries(performanceViews).filter(([key]) =>
+    (key !== "gps-history" || ctx.gpsHistoryEnabled) && (key !== "load-plan" || ctx.loadPlanningEnabled));
+  const renderNav = (items) => items.map(([key, label]) => action(escape, "view", key, label,
+    `${key === activeNav ? ' aria-current="page"' : ""}${key === "load-plan" ? ' aria-label="Open Team week"' : ""}`)).join("");
   return `<div class="pr-room" data-pr-screen="${view}">
     <header class="pr-header">
       <div class="pr-heading"><div class="pr-team">${teamLogo ? `<img src="${escape(teamLogo)}" alt="" width="26" height="26">` : ""}<span>${escape(teamName)}</span><span class="pr-team-year">${date.slice(0, 4)}</span></div>
@@ -307,8 +272,10 @@ export function renderPerformanceRoom(ctx) {
         ` class="pr-next-match" data-pr-date="${match.date}"`) : ""}
     </header>
     <div class="pr-toolbar">
-      <nav class="pr-navigation" aria-label="Performance Room">${Object.entries(performanceViews).filter(([key]) => key !== "gps-history" || ctx.gpsHistoryEnabled).map(([key, label]) =>
-        action(escape, "view", key, label, key === activeNav ? ' aria-current="page"' : "")).join("")}</nav>
+      <nav class="pr-navigation" aria-label="Performance Room">
+        <div>${renderNav(navigation.filter(([key]) => primaryViews.has(key)))}</div>
+        <div class="pr-nav-analysis">${renderNav(navigation.filter(([key]) => !primaryViews.has(key)))}</div>
+      </nav>
       <div class="pr-dates">
         ${action(escape, "week", "-1", "‹", ' aria-label="Previous week"')}
         <label class="pr-date-picker"><span class="pr-visually-hidden">Selected date</span><input type="date" data-pr-date-picker data-pr-focus="date-picker" value="${date}"></label>

@@ -23,7 +23,7 @@
   color: var(--pr-text);
   border: 1px solid var(--pr-border);
   border-radius: 20px;
-  padding: clamp(12px, 1.45vw, 24px);
+  padding: clamp(14px, 2vw, 30px);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
   line-height: 1.4;
@@ -86,7 +86,8 @@
   border-bottom: 1px solid var(--pr-border);
   margin-bottom: 14px;
 }
-.pr-navigation { display: flex; flex-wrap: wrap; gap: 0 15px; }
+.pr-navigation, .pr-navigation > div { display: flex; flex-wrap: wrap; gap: 0 15px; }
+.pr-nav-analysis { padding-inline-start: 15px; border-inline-start: 1px solid var(--pr-line); }
 .pr-navigation button {
   padding: 10px 0 9px;
   border-radius: 0;
@@ -108,34 +109,20 @@
 .pr-dates button:hover { border-color: var(--pr-blue); }
 .pr-date-picker input { background: transparent; border: 0; max-width: 141px; padding: 0; }
 
-.pr-content { display: grid; gap: 12px; }
-.pr-kpis, .pr-middle, .pr-lower, .pr-detail-grid, .pr-microcycle-grid { display: grid; gap: 12px; }
-.pr-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.pr-middle { grid-template-columns: minmax(0, 1.72fr) minmax(0, 1fr) minmax(0, .97fr); }
-.pr-lower { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.05fr) minmax(0, .96fr); }
-.pr-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.pr-content { display: grid; gap: 16px; }
+.pr-overview-main, .pr-overview-squad, .pr-detail-grid, .pr-microcycle-grid { display: grid; gap: 14px; align-items: start; }
+.pr-overview-main, .pr-overview-squad { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); }
+.pr-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pr-microcycle-grid { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); }
-.pr-panel, .pr-room .pr-kpi {
-  background: linear-gradient(145deg, #18253b, var(--pr-surface) 60%);
+.pr-panel {
+  background: var(--pr-surface);
   border: 1px solid var(--pr-border);
-  border-radius: 13px;
-  padding: 13px 15px;
+  border-radius: 12px;
+  padding: clamp(14px, 1.7vw, 24px);
   min-width: 0;
 }
-.pr-room .pr-kpi {
-  display: grid;
-  grid-template-rows: auto 1fr auto auto;
-  align-items: start;
-  gap: 2px;
-  min-height: 108px;
-}
-.pr-room .pr-kpi:hover { border-color: #5076a7; }
-.pr-kpi-label { font-weight: 610; }
-.pr-kpi strong, .pr-week-load strong { font-size: clamp(23px, 2.6vw, 36px); line-height: 1.15; font-weight: 690; letter-spacing: -.055em; }
-.pr-kpi strong small { color: var(--pr-muted); font-size: .5em; letter-spacing: 0; }
-.pr-kpi-detail, .pr-panel-head p, .pr-week-load span, .pr-chart-foot, .pr-footnote { font-size: 12px; color: var(--pr-muted); }
-.pr-availability-bar { display: flex; gap: 2px; height: 4px; border-radius: 4px; margin-top: 7px; overflow: hidden; }
-.pr-availability-bar span { border-radius: 3px; }
+.pr-week-load strong { font-size: 30px; line-height: 1.15; font-weight: 690; letter-spacing: -.045em; }
+.pr-panel-head p, .pr-week-load span, .pr-chart-foot, .pr-footnote { font-size: 12px; color: var(--pr-muted); }
 .pr-fill-full { background: var(--pr-full); }
 .pr-fill-modified { background: var(--pr-modified); }
 .pr-fill-unavailable { background: var(--pr-unavailable); }
@@ -168,6 +155,7 @@
 .pr-day-event { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; color: var(--pr-muted); font-size: 10px; }
 .pr-load-focus { min-height: 81px; display: grid; place-items: center; color: var(--pr-blue); font-size: 11px; overflow-wrap: anywhere; }
 .pr-chart-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 12px; padding-top: 7px; }
+.pr-room .pr-chart-link { margin: 0; padding: 0; }
 .pr-legend-dot { display: inline-block; background: var(--pr-blue); width: 7px; height: 7px; border-radius: 100%; margin-right: 3px; }
 
 .pr-week-load { display: grid; gap: 2px; margin-bottom: 8px; }
@@ -238,25 +226,16 @@
 .pr-source-links .pr-source { margin-top: 0; }
 .pr-room .pr-source:hover { background: #213b60; }
 
-@media (max-width: 1190px) {
-  .pr-middle { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .pr-middle .pr-microcycle { grid-column: 1 / -1; }
-  .pr-lower { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 @media (max-width: 780px) {
-  .pr-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pr-header { align-items: start; flex-direction: column; gap: 10px; }
-  .pr-microcycle-grid, .pr-detail-grid { grid-template-columns: minmax(0, 1fr); }
-  .pr-room .pr-kpi { min-height: 90px; }
+  .pr-overview-main, .pr-overview-squad, .pr-microcycle-grid, .pr-detail-grid { grid-template-columns: minmax(0, 1fr); }
   .pr-room .pr-next-match { align-self: stretch; }
+  .pr-nav-analysis { padding-inline-start: 0; border-inline-start: 0; }
 }
 
 @media (max-width: 520px) {
   .pr-room { border-radius: 13px; padding: 9px; }
-  .pr-middle, .pr-lower { grid-template-columns: minmax(0, 1fr); }
-  .pr-panel, .pr-room .pr-kpi { padding: 10px; }
-  .pr-navigation { gap: 0 10px; font-size: 12px; }
+  .pr-navigation > div { gap: 0 10px; font-size: 12px; }
   .pr-team { font-size: 13px; }
   .pr-plot { height: 77px; }
   .pr-axis { height: 81px; }

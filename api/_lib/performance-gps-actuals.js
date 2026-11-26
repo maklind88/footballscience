@@ -1,7 +1,19 @@
 const { buildSupabaseKeyHeaders, readConfig } = require("./supabase-admin.js");
 
-const metricKeys = ["distance", "hsr", "sprint"];
+const planMetrics = ["distance", "hsr", "sprint"];
+const sessionMetricLimits = {
+  distance: 1000000, hml: 1000000, hsr: 1000000, sprint: 1000000,
+  maxSpeed: 100, accelerations: 1000000, decelerations: 1000000,
+};
+const archiveMetricLimits = { ...sessionMetricLimits, gpsMinutes: 1440 };
 const readTimeoutMs = 1500;
+
+function projectMetrics(values, limits) {
+  return Object.fromEntries(Object.entries(limits).flatMap(([key, max]) => {
+    const value = values?.[key];
+    return Number.isFinite(value) && value >= 0 && value <= max ? [[key, value]] : [];
+  }));
+}
 
 function projectActuals(rows, playerIds, activityIds) {
   const players = new Set(playerIds);
@@ -16,11 +28,8 @@ function projectActuals(rows, playerIds, activityIds) {
       seen.set(key, null);
       continue;
     }
-    const metrics = Object.fromEntries(metricKeys.flatMap((metric) => {
-      const value = row.metrics?.[metric];
-      return Number.isFinite(value) && value >= 0 && value <= 1000000 ? [[metric, value]] : [];
-    }));
-    const comparable = metricKeys.filter((metric) =>
+    const metrics = projectMetrics(row.metrics, sessionMetricLimits);
+    const comparable = planMetrics.filter((metric) =>
       Object.hasOwn(metrics, metric) && Array.isArray(row.comparable) && row.comparable.includes(metric)
     );
     const duration = row.sessionDurationMinutes;
@@ -73,10 +82,6 @@ async function readWeekGpsActuals(reader, scope, week, sources) {
   }
 }
 
-const archiveMetrics = {
-  distance: 1000000, hsr: 1000000, sprint: 1000000, gpsMinutes: 1440,
-  maxSpeed: 100, accelerations: 1000000, decelerations: 1000000,
-};
 const archiveLinks = new Set(["linked", "unmatched-player", "unmatched-activity", "ambiguous-activity", "review"]);
 
 async function readGpsHistory(reader, scope, week, end) {
@@ -88,10 +93,7 @@ async function readGpsHistory(reader, scope, week, end) {
   const rows = result.rows.flatMap((row) => {
     if (typeof row?.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(row.date) || row.date < week || row.date >= end ||
         typeof row.player !== "string" || !row.player.trim() || !["training", "match"].includes(row.type)) return [];
-    const metrics = Object.fromEntries(Object.entries(archiveMetrics).flatMap(([key, max]) => {
-      const value = row.metrics?.[key];
-      return Number.isFinite(value) && value >= 0 && value <= max ? [[key, value]] : [];
-    }));
+    const metrics = projectMetrics(row.metrics, archiveMetricLimits);
     return [{
       date: row.date, player: row.player.slice(0, 160), type: row.type, metrics,
       opponent: typeof row.opponent === "string" ? row.opponent.slice(0, 160) : "",

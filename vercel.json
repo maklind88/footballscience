@@ -1,4 +1,6 @@
 {
+  "buildCommand": "node scripts/build-vercel-static.mjs",
+  "outputDirectory": ".vercel/footballscience-static",
   "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
   "functions": {
     "api/client-config.js": {

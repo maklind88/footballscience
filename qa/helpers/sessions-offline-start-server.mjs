@@ -25,7 +25,7 @@ export const qaGrantRequest = request => {
   return url.pathname === '/api/app-state' && url.searchParams.get('sessionOfflineGrant') === '1';
 };
 
-export async function startSessionsOfflineStartFixture() {
+export async function startSessionsOfflineStartFixture({ useLoopbackBrowserAuth = false, diagnoseOfflineWorker = false } = {}) {
   const actor = { id: qaCoach.id };
   const membership = {
     organizationId: 'set-pieces-org', clubId: 'club-ncc', teamId: 'team-ncc-first', role: 'admin',
@@ -34,6 +34,20 @@ export async function startSessionsOfflineStartFixture() {
   };
   const tokenClaims = Buffer.from(JSON.stringify({ sub: actor.id, exp: Math.floor(Date.now() / 1000) + 7200 })).toString('base64url');
   const token = `qa.${tokenClaims}.synthetic-offline-start`;
+  const browserAuth = ((session, loginKey) => {
+    window.__footballScienceQaForceCentralState = true;
+    const read = Storage.prototype.getItem;
+    window.__proofNativeLocalStorageRead = name => read.call(localStorage, name);
+    localStorage.setItem(loginKey, JSON.stringify(session));
+    window.supabase = { createClient: () => ({ auth: {
+      getSession: async () => ({ data: { session }, error: null }),
+      refreshSession: async () => ({ data: { session }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+    } }) };
+  }).toString();
+  const login = JSON.stringify({ access_token: token, user: qaCoach });
+  const onlineAuthMarkup = '<script>(' + browserAuth + ')(' + login + ',' + JSON.stringify(qaLoginKey) + ')</script>' +
+    '<script type="application/x-football-science-qa" src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>';
   const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   const keys = { 'qa-local': publicKey.export({ type: 'spki', format: 'der' }).toString('base64') };
   const trustBytes = Buffer.from(`export const trustedSessionsOfflineKeys = Object.freeze(${JSON.stringify(keys)});\n`);
@@ -123,6 +137,20 @@ export async function startSessionsOfflineStartFixture() {
       }
       const body = pathname === state.corruptAsset ? Buffer.from('Synthetic integrity mismatch') :
         built.files.get(pathname) ?? await readFile(root + pathname.slice(1));
+      if (diagnoseOfflineWorker && pathname === '/src/core/sessions-offline-code-worker.js') {
+        const source = body.toString();
+        const catchResponse = 'port.postMessage({ ok: false, reason });';
+        if (source.split(catchResponse).length !== 2) throw new Error('Diagnostic hook is unavailable');
+        const diagnosed = source.replace(catchResponse,
+          'port.postMessage({ ok: false, reason: reason + " [" + error?.name + ": " + error?.message + "]" });');
+        send(res, 200, 'text/javascript', diagnosed);
+        return;
+      }
+      if (useLoopbackBrowserAuth && pathname === '/index.html') {
+        res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; object-src 'none'");
+        send(res, 200, 'text/html', body.toString().replace('<head>', '<head>' + onlineAuthMarkup));
+        return;
+      }
       send(res, 200, mime[extname(pathname)] || 'application/octet-stream', body);
     } catch {
       send(res, 404, 'text/plain', 'Synthetic fixture unavailable');
@@ -149,7 +177,7 @@ export async function startSessionsOfflineStartFixture() {
       built = await buildSessionsOfflinePackage({ overrides: new Map([...overrides, [shellPath, modified], ...extraCode]) });
       return built.packageId;
     },
-    async resume(previous) {
+    async resume(previous, options) {
       if (!closed) throw new Error('Synthetic origin is already running');
       // Rebind the existing synthetic Sessions HTTP responses to the real
       // loopback server. WebKit can bypass page.route on worker-owned requests.
@@ -160,7 +188,7 @@ export async function startSessionsOfflineStartFixture() {
           const [pathname] = pattern.match(/\/api\/[a-z-]+/) ?? [];
           if (pathname) onlineRoutes.set(pathname, handler);
         },
-      });
+      }, options);
       Object.assign(resumed, previous, { reject: false, writes: [...previous.writes] });
       await listen(port);
       closed = false;

@@ -118,10 +118,22 @@
     }
     const chunks = [];
     let bytes = 0;
-    for await (const chunk of response.body) {
-      bytes += chunk.byteLength;
-      if (bytes > limit) throw new Error("A Sessions offline code asset exceeded its declared size.");
-      chunks.push(chunk);
+    // Safari versions without stream async iteration still support getReader().
+    const reader = response.body.getReader();
+    try {
+      let result = await reader.read();
+      while (!result.done) {
+        const chunk = result.value;
+        bytes += chunk.byteLength;
+        if (bytes > limit) {
+          await reader.cancel().catch(() => {});
+          throw new Error("A Sessions offline code asset exceeded its declared size.");
+        }
+        chunks.push(chunk);
+        result = await reader.read();
+      }
+    } finally {
+      reader.releaseLock();
     }
     const body = new Uint8Array(bytes);
     let offset = 0;

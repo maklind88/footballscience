@@ -5,12 +5,12 @@ import { installSetPiecesCentralFixture } from "./set-pieces-central-fixture.mjs
 import { applySessionDateChange, sessionDateValue } from "../../src/modules/session-planner/session-save-protocol.mjs";
 
 export const key = "football-session-planner-v3", day = "2026-10-14";
-export async function installSessionStorageFixture(page, { failManifest = false, failHistory = false } = {}) {
+export async function installSessionStorageFixture(page, { failManifest = false, failHistory = false, sessionDay = day } = {}) {
   // Reuse the established synthetic auth/HTTP fixture. No live account or data.
   await installSetPiecesCentralFixture(page);
-  await page.clock.setFixedTime(new Date(`${day}T12:00:00Z`));
+  await page.clock.setFixedTime(new Date(`${sessionDay}T12:00:00Z`));
   const server = { revision: 10, reject: true, writes: [], effects: 0,
-    value: { selectedDate: day, sessions: { [day]: { date: day, title: "Training", selectedBlockId: "a",
+    value: { selectedDate: sessionDay, sessions: { [sessionDay]: { date: sessionDay, title: "Training", selectedBlockId: "a",
       blocks: [{ id: "a", title: "Press", objective: "Central baseline", minutes: 20 }] } } } };
   await page.addInitScript(({ key, failManifest, failHistory }) => {
     window.__storageFault = { journal: false, manifest: failManifest, history: failHistory, cacheFailures: 0, journalFailures: 0, manifestFailures: 0, historyFailures: 0 };
@@ -39,8 +39,8 @@ export async function installSessionStorageFixture(page, { failManifest = false,
   }, { key, failManifest, failHistory });
   await page.route("**/api/app-state**", async route => {
     if (route.request().method() === "GET") {
-      const entries = { [key]: JSON.stringify(server.value), "football-schedule-v1": JSON.stringify({ selectedDate: day,
-        events: [{ id: "training", date: day, type: "training", title: "Training" }] }) };
+      const entries = { [key]: JSON.stringify(server.value), "football-schedule-v1": JSON.stringify({ selectedDate: sessionDay,
+        events: [{ id: "training", date: sessionDay, type: "training", title: "Training" }] }) };
       const keys = new URL(route.request().url()).searchParams.get("keys")?.split(",") || Object.keys(entries);
       return route.fulfill({ json: { ok: true, entries: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, entries[k]])),
         metadata: Object.fromEntries(keys.filter(k => k in entries).map(k => [k, { revision: server.revision, organizationId: "set-pieces-org" }])),
@@ -58,7 +58,7 @@ export async function installSessionStorageFixture(page, { failManifest = false,
     if (!result.ok) return route.fulfill({ status: 409, json: { ok: false, currentRevision: server.revision, conflicts: result.conflicts } });
     server.value = result.state; server.revision++; server.effects++;
     return route.fulfill({ json: { ok: true, metadata: { revision: server.revision, organizationId: "set-pieces-org" },
-      sessionChange: JSON.stringify({ id: body.sessionChange.id, date: day, value: sessionDateValue(server.value, day) }) } });
+      sessionChange: JSON.stringify({ id: body.sessionChange.id, date: sessionDay, value: sessionDateValue(server.value, sessionDay) }) } });
   });
   return server;
 }

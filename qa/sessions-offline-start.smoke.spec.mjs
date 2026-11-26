@@ -17,7 +17,36 @@ test.afterEach(async () => {
   await Promise.allSettled([profile?.dispose(), fixture?.stop()]);
 });
 
-async function openOffline({ crash = false, quotaBytes, expireAt } = {}) {
+async function captureOfflineBoundary(before) {
+  const witness = await context.newPage();
+  await witness.goto('/qa-sessions-offline-probe');
+  for (const page of context.pages()) {
+    if (page !== witness) await page.close();
+  }
+  let boundary = await readProtectedWork(witness);
+  await expect.poll(async () => {
+    const next = await readProtectedWork(witness);
+    const stable = JSON.stringify(boundary) === JSON.stringify(next);
+    boundary = next;
+    return stable;
+  }, { intervals: [100, 250, 500] }).toBe(true);
+  // Closing the ordinary online editor can append a scheduled history
+  // snapshot. Every existing row and the journal/checkpoint must survive.
+  const earlierSnapshotIds = new Set(before.snapshots.map(row => row.id));
+  const oldPointer = before.latest.find(row => row.id === 'latest');
+  const newPointer = boundary.latest.find(row => row.id === 'latest');
+  if (oldPointer?.sourceSnapshotId && oldPointer.sourceSnapshotId !== newPointer?.sourceSnapshotId) {
+    expect(boundary.snapshots.some(row => row.id === oldPointer.sourceSnapshotId)).toBe(true);
+  }
+  expectSameProtectedWork({
+    ...boundary, latest: boundary.latest.filter(row => row.id !== 'latest'),
+    snapshots: boundary.snapshots.filter(row => earlierSnapshotIds.has(row.id)),
+  }, { ...before, latest: before.latest.filter(row => row.id !== 'latest') });
+  return boundary;
+}
+
+async function openOffline({ before, crash = false, quotaBytes, expireAt }) {
+  const boundary = crash ? before : await captureOfflineBoundary(before);
   // Physically close the test's only TCP origin. The new browser reuses its
   // profile with no auth route, page bootstrap, or injected application files.
   await fixture.stop();
@@ -38,7 +67,7 @@ async function openOffline({ crash = false, quotaBytes, expireAt } = {}) {
   });
   await page.goto(workspace);
   expect(page.url()).toBe(fixture.origin + workspace);
-  return { page, privateRequests };
+  return { page, privateRequests, boundary };
 }
 
 async function expectLocked(page) {
@@ -50,14 +79,17 @@ async function expectLocked(page) {
   await expect(page.getByText(pendingText, { exact: false })).toHaveCount(0);
 }
 
-async function expectProtectedWork(page, before) {
+function expectSameProtectedWork(current, before) {
   expect(before.latest.some(row => row.id.startsWith('session-accepted-date:'))).toBe(true);
   expect(before.latest.some(row => row.id.startsWith('session-save:'))).toBe(true);
-  const current = await readProtectedWork(page);
   const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   for (const name of Object.keys(before)) {
     expect(digest(current[name]), 'Persisted Sessions section ' + name + ' changed').toBe(digest(before[name]));
   }
+}
+
+async function expectProtectedWork(page, before) {
+  expectSameProtectedWork(await readProtectedWork(page), before);
 }
 
 test('the regular Sessions URL cold-starts read-only and preserves accepted, pending and historical work', async ({ browserName }, info) => {
@@ -69,7 +101,7 @@ test('the regular Sessions URL cold-starts read-only and preserves accepted, pen
   const before = await readProtectedWork(app);
   expect(before.snapshots.some(row => row.id === 'qa-protected-session-offline-start-history')).toBe(true);
   const writesBefore = backend.writes.length;
-  const { page, privateRequests } = await openOffline();
+  const { page, privateRequests, boundary } = await openOffline({ before });
   await assertOfflineWork(page);
   const peer = await context.newPage();
   await peer.goto(workspace);
@@ -77,7 +109,7 @@ test('the regular Sessions URL cold-starts read-only and preserves accepted, pen
   await peer.evaluate(() => localStorage.setItem('qa-unrelated-sessions-ui-preference', 'unchanged-access'));
   await peer.close();
   await expect(page.locator('[data-session-offline-version="accepted"]')).toContainText(acceptedText);
-  await expectProtectedWork(page, before);
+  await expectProtectedWork(page, boundary);
   expect(privateRequests).toEqual([]);
   expect(backend.effects).toBe(1);
   expect(backend.writes).toHaveLength(writesBefore);
@@ -93,9 +125,9 @@ test('a durable review operation stays separate from the accepted checkpoint aft
   await makeSyntheticWork(app, fixture, { review: true });
   await prepareOffline(app);
   const before = await readProtectedWork(app);
-  const { page, privateRequests } = await openOffline();
+  const { page, privateRequests, boundary } = await openOffline({ before });
   await assertOfflineWork(page, { review: true });
-  await expectProtectedWork(page, before);
+  await expectProtectedWork(page, boundary);
   expect(privateRequests).toEqual([]);
 });
 
@@ -108,9 +140,9 @@ test('after a known server denial a cold restart cannot reopen the old permissio
   await prepareOffline(app, 'unavailable');
   expect(fixture.state.grantAttempts).toBe(2);
   expect(fixture.state.grantAccepted).toBe(1);
-  const { page, privateRequests } = await openOffline();
+  const { page, privateRequests, boundary } = await openOffline({ before });
   await expectLocked(page);
-  await expectProtectedWork(page, before);
+  await expectProtectedWork(page, boundary);
   expect(privateRequests).toEqual([]);
 });
 
@@ -124,9 +156,9 @@ test('a changed login cannot expose locally saved Sessions data', async () => {
   await other.evaluate(key => localStorage.setItem(key, JSON.stringify({
     access_token: 'qa.changed-login.synthetic', user: { id: 'synthetic-other-account' },
   })), qaLoginKey);
-  const { page, privateRequests } = await openOffline();
+  const { page, privateRequests, boundary } = await openOffline({ before });
   await expectLocked(page);
-  await expectProtectedWork(page, before);
+  await expectProtectedWork(page, boundary);
   expect(privateRequests).toEqual([]);
 });
 
@@ -144,9 +176,9 @@ test('the same account changing team disarms the earlier preparation', async () 
     return owner ? JSON.parse(owner)[3] === 'qa-other-team' : false;
   });
   expect(switched).toBe(true);
-  const { page, privateRequests } = await openOffline();
+  const { page, privateRequests, boundary } = await openOffline({ before });
   await expectLocked(page);
-  await expectProtectedWork(page, before);
+  await expectProtectedWork(page, boundary);
   expect(privateRequests).toEqual([]);
 });
 
@@ -155,10 +187,10 @@ test('another date does not substitute the prepared session', async () => {
   await makeSyntheticWork(app, fixture);
   await prepareOffline(app);
   const before = await readProtectedWork(app);
-  const { page, privateRequests } = await openOffline();
+  const { page, privateRequests, boundary } = await openOffline({ before });
   await page.goto(workspace + '&date=2026-10-15');
   await expectLocked(page);
-  await expectProtectedWork(page, before);
+  await expectProtectedWork(page, boundary);
   expect(privateRequests).toEqual([]);
 });
 
@@ -168,9 +200,9 @@ test('a naturally expired permission is locked after cold restart without deleti
   fixture.state.grantLifetimeMs = 5000;
   await prepareOffline(app);
   const before = await readProtectedWork(app);
-  const { page, privateRequests } = await openOffline({ expireAt: fixture.state.expiresAt });
+  const { page, privateRequests, boundary } = await openOffline({ before, expireAt: fixture.state.expiresAt });
   await expectLocked(page);
-  await expectProtectedWork(page, before);
+  await expectProtectedWork(page, boundary);
   expect(privateRequests).toEqual([]);
 });
 
@@ -185,10 +217,10 @@ test('an incomplete new build keeps the previous verified package usable after r
   fixture.state.corruptAsset = '/sessions-offline-shell.html';
   await prepareOffline(app, 'unavailable');
   expect(fixture.state.grantAttempts).toBe(1);
-  const { page } = await openOffline();
+  const { page, boundary } = await openOffline({ before });
   await assertOfflineWork(page);
   expect(new URL(await page.evaluate(() => document.baseURI)).pathname).toContain(previous);
-  await expectProtectedWork(page, before);
+  await expectProtectedWork(page, boundary);
 });
 
 test('returning online syncs the preserved operation once through the existing queue', async () => {
@@ -198,9 +230,9 @@ test('returning online syncs the preserved operation once through the existing q
   const before = await readProtectedWork(app);
   const pendingId = before.latest.find(row => row.status === 'pending')?.change?.id;
   expect(pendingId).toBeTruthy();
-  const { page, privateRequests } = await openOffline();
+  const { page, privateRequests, boundary } = await openOffline({ before });
   await assertOfflineWork(page);
-  await expectProtectedWork(page, before);
+  await expectProtectedWork(page, boundary);
 
   const resumed = await fixture.resume(backend);
   expect((await fetch(fixture.origin + '/qa-sessions-offline-probe')).ok).toBe(true);
@@ -227,6 +259,7 @@ test('a prepared Sessions view survives full origin storage and a browser crash'
 
   // Stabilize the test login on disk first. This case tests full-origin reads
   // after a crash, separately from initial login durability.
+  const beforeQuota = await captureOfflineBoundary(before);
   await profile.close();
   context = await profile.open();
   app = context.pages()[0];
@@ -234,9 +267,9 @@ test('a prepared Sessions view survives full origin storage and a browser crash'
   const pressure = await exhaustOrigin(app);
   expect(pressure.idb.error).toBe('QuotaExceededError');
   expect(pressure.local.error).toBe('QuotaExceededError');
-  const { page, privateRequests } = await openOffline({ crash: true, quotaBytes: 1 });
+  const { page, privateRequests, boundary } = await openOffline({ before: beforeQuota, crash: true, quotaBytes: 1 });
   await assertOfflineWork(page);
-  await expectProtectedWork(page, before);
+  await expectProtectedWork(page, boundary);
   expect(privateRequests).toEqual([]);
   expect(backend.effects).toBe(1);
   await info.attach('sessions-offline-quota-proof', { contentType: 'application/json', body: JSON.stringify({

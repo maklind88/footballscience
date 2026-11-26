@@ -539,19 +539,22 @@ stagingChatTest("staging test account can send, reload, and clean up a chat mess
 
 const stagingChatWithPeer = stagingChatTest.extend({
   provisionPeer: [async ({}, use) => {
-    let peer;
+    const peers = [];
     try {
       await use(async (options) => {
-        peer = await trackStagingChatPeer(options);
+        const peer = await trackStagingChatPeer(options);
+        peers.push(peer);
         return peer.create();
       });
     } finally {
-      await peer?.cleanup();
+      const cleanup = await Promise.allSettled(peers.map(peer => peer.cleanup()));
+      const errors = cleanup.filter(result => result.status === "rejected").map(result => result.reason);
+      if (errors.length) throw new AggregateError(errors, "Temporary staging Chat account cleanup failed.");
     }
   }, { timeout: 90_000 }],
 });
 
-stagingChatWithPeer("staging peer accounts prove DM unread state and read receipt end-to-end", async ({ browser, page, provisionPeer }) => {
+stagingChatWithPeer("staging peer accounts prove DM unread state and read receipt end-to-end", async ({ browser, page: adminPage, provisionPeer }) => {
   test.skip(!process.env.CHAT_QA_EXPECTED_BUILD, "Chat write probe requires a verified isolated staging build.");
   test.setTimeout(180_000);
   const staging = await requireStagingChat();
@@ -560,21 +563,30 @@ stagingChatWithPeer("staging peer accounts prove DM unread state and read receip
   let attemptedCreate = false;
   let attemptedSend = false;
 
-  await installStagingChatBrowserGuard(page.context(), staging);
-  await signIn(page);
-  primaryToken = await getLiveAccessToken(page);
-  const primaryUser = await getLiveCurrentUser(page);
-  const peerAccount = await provisionPeer({ staging, token: primaryToken, primaryUser });
-  const threadId = `dm:${[primaryUser.id, peerAccount.id].sort().join(":")}`;
+  await installStagingChatBrowserGuard(adminPage.context(), staging);
+  await signIn(adminPage);
+  const provisionOptions = {
+    staging, token: await getLiveAccessToken(adminPage), primaryUser: await getLiveCurrentUser(adminPage),
+  };
+  // The admin can have an existing first Chat membership that differs from
+  // its account profile. Fresh peers both bootstrap from the same fixture scope.
+  const primaryAccount = await provisionPeer(provisionOptions);
+  const peerAccount = await provisionPeer(provisionOptions);
+  expect(primaryAccount.id).not.toBe(peerAccount.id);
+  const threadId = `dm:${[primaryAccount.id, peerAccount.id].sort().join(":")}`;
   const threadQuery = `threadId=${encodeURIComponent(threadId)}&threadType=dm&limit=80`;
-
-  const peerContext = await browser.newContext({
-    baseURL: staging.origin,
-    serviceWorkers: "block",
-    storageState: { cookies: [], origins: [] },
-  });
+  const contextOptions = { baseURL: staging.origin, serviceWorkers: "block", storageState: { cookies: [], origins: [] } };
+  const primaryContext = await browser.newContext(contextOptions);
+  const peerContext = await browser.newContext(contextOptions);
+  const page = await primaryContext.newPage();
 
   try {
+    await installStagingChatBrowserGuard(primaryContext, staging);
+    await signIn(page, primaryAccount.credentials);
+    primaryToken = await getLiveAccessToken(page);
+    const primaryUser = await getLiveCurrentUser(page);
+    expect(primaryUser.id, "Sender sign-in must resolve to the fixture account.").toBe(primaryAccount.id);
+
     await installStagingChatBrowserGuard(peerContext, staging);
     const peerPage = await peerContext.newPage();
     await signIn(peerPage, peerAccount.credentials);
@@ -582,8 +594,15 @@ stagingChatWithPeer("staging peer accounts prove DM unread state and read receip
     const peerUser = await getLiveCurrentUser(peerPage);
 
     expect(peerUser.id, "Peer sign-in must resolve to the fixture account.").toBe(peerAccount.id);
-    const baseline = await requestStagingChat(peerPage, staging, peerToken, "limit=80");
-    expect(findLiveChatThreadById(baseline, threadId)).toBeNull();
+    const senderInbox = await requestStagingChat(page, staging, primaryToken, "limit=80");
+    const peerInbox = await requestStagingChat(peerPage, staging, peerToken, "limit=80");
+    const scopeOf = inbox => [inbox.scope?.organizationId, inbox.scope?.teamId];
+    expect(scopeOf(senderInbox).every(Boolean), "Chat must confirm the sender's organization and team.").toBe(true);
+    expect(scopeOf(peerInbox).every(Boolean), "Chat must confirm the receiver's organization and team.").toBe(true);
+    expect(JSON.stringify(scopeOf(peerInbox)) === JSON.stringify(scopeOf(senderInbox)),
+      "Both temporary staging accounts must share the same Chat scope before creating a DM.").toBe(true);
+    expect(findLiveChatThreadById(senderInbox, threadId)).toBeNull();
+    expect(findLiveChatThreadById(peerInbox, threadId)).toBeNull();
 
     attemptedCreate = true;
     const createPayload = await postStagingChatAction(
@@ -656,8 +675,8 @@ stagingChatWithPeer("staging peer accounts prove DM unread state and read receip
       .toBe(true);
 
     await page.reload({ waitUntil: "domcontentloaded" });
-    await signIn(page);
-    expect((await getLiveCurrentUser(page)).id).toBe(primaryUser.id);
+    await signIn(page, primaryAccount.credentials);
+    expect((await getLiveCurrentUser(page)).id).toBe(primaryAccount.id);
     primaryToken = await getLiveAccessToken(page);
     await openTeamChat(page);
     const primaryActiveThread = await openLiveChatThread(page, threadId);
@@ -673,7 +692,7 @@ stagingChatWithPeer("staging peer accounts prove DM unread state and read receip
             const thread = await requestStagingChat(page, staging, primaryToken, threadQuery);
             const message = findLiveChatMessageInPayload(thread, messageText);
             if (message) {
-              expect(String(message.authorId || message.author_id || "")).toBe(primaryUser.id);
+              expect(String(message.authorId || message.author_id || "")).toBe(primaryAccount.id);
               await deleteStagingChatMessage(page, staging, primaryToken, String(message.id || message.messageId || ""));
               const cleaned = await requestStagingChat(page, staging, primaryToken, threadQuery);
               expect(findLiveChatMessageInPayload(cleaned, messageText)).toBeNull();
@@ -681,11 +700,11 @@ stagingChatWithPeer("staging peer accounts prove DM unread state and read receip
           }
           await postStagingChatAction(page, staging, primaryToken, {
             action: "setThreadUserState", operation: "delete", threadType: "dm", threadId,
-          }, "Hide the fixture DM for the staging QA account");
+          }, "Hide the fixture DM for the synthetic sender");
         }
       }
     } finally {
-      await peerContext.close();
+      await Promise.all([primaryContext.close(), peerContext.close()]);
     }
   }
 });

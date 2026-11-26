@@ -49,6 +49,19 @@ async function assertCentralEvent(qa, page, record, present) {
   }, { timeout: 45000 }).toBe(present);
 }
 
+async function commitScheduleAction(page, action) {
+  const receipt = page.waitForResponse(response => {
+    const request = response.request();
+    if (request.method() !== "POST" || new URL(request.url()).pathname !== centralPath) return false;
+    try { return request.postDataJSON()?.key === scheduleStorageKey; }
+    catch { return false; }
+  }, { timeout: 45000 });
+  const [response] = await Promise.all([receipt, action()]);
+  expect(response.ok(), "Schedule write must return success to the browser.").toBe(true);
+  expect(await response.headerValue("server-timing"), "Schedule must receive its database receipt.")
+    .toMatch(/(?:^|,)\s*database;dur=/);
+}
+
 async function visibleLocalEvent(page, record, present) {
   // Read the disposable browser's local copy as well as the separately fetched server state.
   await expect.poll(() => page.evaluate(({ key, title, date }) => {
@@ -172,7 +185,7 @@ const scheduleTest = test.extend({
         await expect(confirmDialog.locator("h2")).toHaveText("Delete plan?");
         operation = "cleanup";
         try {
-          await confirmDialog.locator("[data-platform-confirm-ok]").click();
+          await commitScheduleAction(page, () => confirmDialog.locator("[data-platform-confirm-ok]").click());
           await visibleLocalEvent(page, record, false);
           await assertCentralEvent(qa, page, record, false);
         } finally {
@@ -218,7 +231,7 @@ scheduleTest("isolated staging account saves, reopens, and removes one synthetic
     probe.arm({ title: record.title, targetDate: record.date, user });
     stagingSchedule.openCreation();
     try {
-      await addInput.press("Enter");
+      await commitScheduleAction(page, () => addInput.press("Enter"));
       await expect(day.getByText(record.title, { exact: true })).toBeVisible();
       await visibleLocalEvent(page, record, true);
       await assertCentralEvent(qa, page, record, true);

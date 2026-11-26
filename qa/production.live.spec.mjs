@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { verifyRecoveryDraftLive } from "./helpers/recovery-draft-live-probe.mjs";
 import { verifyAuthenticatedHistory } from "./helpers/history-live-probe.mjs";
+import { verifyIdpGameModelForms } from "./helpers/idp-game-model-live-probe.mjs";
 import { verifyStorageGrowthLive } from "./helpers/storage-growth-live-probe.mjs";
 import { createLiveReadinessProbe } from "./helpers/live-readiness-probe.mjs";
 import { createStagingChatProbe, installStagingChatBrowserGuard, trackStagingChatPeer } from "./helpers/staging-chat-probe.mjs";
@@ -247,6 +248,12 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await dismissDashboardModal(page);
   await expect(page.locator(`[data-workspace-view="${viewId}"].is-active`)).toBeVisible();
 }
+
+test("IDP Game Model opens inside Add focus and Edit focus without writing data", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signIn(page);
+  await verifyIdpGameModelForms(page, () => openWorkspace(page, "idp"));
+});
 
 async function getLiveAccessToken(page) {
   await expect

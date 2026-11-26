@@ -144,6 +144,134 @@ test("editing a secondary focus leaves the main focus untouched and rejects stal
   } finally { mock.restore(); }
 });
 
+const gameModelSelection = {
+  gameModelActionId: "build-up-6-find-the-free-third-player",
+  gameModelPositionId: "CMF-6",
+};
+
+const gameModelSnapshot = {
+  actionId: gameModelSelection.gameModelActionId,
+  positionId: gameModelSelection.gameModelPositionId,
+  positionLabel: "CMF – 6",
+  phase: "In Possession",
+  subPhase: "Build Up",
+  title: "Find the free third player",
+  when: "You receive with pressure close to you.",
+  detail: "Adapt your first touch or first-time pass to the situation — FT3.",
+};
+
+test("creating a focus saves the canonical Game Model action alongside the coach's text", async () => {
+  const mock = installDatabaseMock();
+  try {
+    const result = await api.createFocus({
+      playerId: "p1",
+      title: "Receive under pressure",
+      description: "Keep the existing coaching vocabulary.",
+      focusLevel: "personal",
+      category: "Technical",
+      ...gameModelSelection,
+    }, actor);
+    expect(result.ok).toBe(true);
+    expect(result.payload.focus).toMatchObject({
+      player_id: "p1",
+      title: "Receive under pressure",
+      description: "Keep the existing coaching vocabulary.",
+      focus_level: "personal",
+      category: "Technical",
+      metadata: { game_model_action: gameModelSnapshot },
+    });
+    expect(mock.tables.idp_focuses).toHaveLength(4);
+  } finally { mock.restore(); }
+});
+
+test("linking an existing focus only adds Game Model metadata and keeps the original history", async () => {
+  const mock = installDatabaseMock();
+  try {
+    const focus = mock.tables.idp_focuses.find((item) => item.id === secondId);
+    Object.assign(focus, {
+      description: "Coach note with  original spacing.\nSecond line.",
+      category: "Technical",
+      status: "Reviewed",
+      evidence_status: "Has Evidence",
+      owner_id: "coach-2",
+      review_date: "2026-12-08",
+      linked_phase: "Legacy phase",
+      linked_sub_phase: "Legacy sub-phase",
+      mini_game_principle_id: "legacy-principle",
+      metadata: { imported: { source: "staff" } },
+    });
+    mock.tables.idp_focuses.push({
+      ...focus, id: randomUUID(), focus_level: "personal", title: "Personal focus",
+    });
+    const related = {
+      idp_development_goals: [{ id: randomUUID(), focus_id: secondId, title: "Linked goal" }],
+      idp_development_interventions: [{ id: randomUUID(), focus_id: secondId, board_state: { drawing: "Keep" } }],
+      idp_evidence: [{ id: randomUUID(), focus_id: secondId, note: "Keep this observation." }],
+      idp_reviews: [{ id: randomUUID(), focus_id: secondId, status: "complete" }],
+      idp_clip_bank_items: [{ id: randomUUID(), linked_focus_id: secondId, clip_id: "clip-1" }],
+    };
+    Object.assign(mock.tables, related);
+    const before = structuredClone(focus);
+    const relatedBefore = structuredClone(related);
+    const otherFocuses = structuredClone(mock.tables.idp_focuses.filter((item) => item.id !== secondId));
+
+    const linked = await api.updateFocus({ id: secondId, playerId: "p1", rowVersion: 1, ...gameModelSelection }, actor);
+    expect(linked.ok).toBe(true);
+    expect(linked.payload.focus).toMatchObject({
+      ...before,
+      row_version: 2,
+      metadata: { ...before.metadata, game_model_action: gameModelSnapshot },
+    });
+    expect(Object.fromEntries(Object.keys(related).map((table) => [table, mock.tables[table]]))).toEqual(relatedBefore);
+    expect(mock.tables.idp_focuses.filter((item) => item.id !== secondId)).toEqual(otherFocuses);
+    expect(mock.writes.map(({ table, method }) => [table, method])).toEqual([
+      ["idp_focuses", "PATCH"],
+      ["idp_audit_events", "POST"],
+    ]);
+    const [write] = mock.writes;
+    expect(write.params.get("id")).toBe(`eq.${secondId}`);
+    expect(write.params.get("row_version")).toBe("eq.1");
+    expect(write.params.get("player_id")).toBe("eq.p1");
+    expect(write.body).toEqual({
+      updated_by: actor.id,
+      metadata: { ...before.metadata, game_model_action: gameModelSnapshot },
+    });
+
+    const edited = await api.updateFocus({ id: secondId, playerId: "p1", rowVersion: 2, title: "Coach's edited focus title" }, actor);
+    expect(edited.ok).toBe(true);
+    expect(edited.payload.focus.metadata).toEqual(linked.payload.focus.metadata);
+
+    const unlinked = await api.updateFocus({
+      id: secondId, playerId: "p1", rowVersion: 3, gameModelActionId: "", gameModelPositionId: "",
+    }, actor);
+    expect(unlinked.ok).toBe(true);
+    expect(unlinked.payload.focus).toMatchObject({
+      ...before, title: "Coach's edited focus title", row_version: 4, metadata: before.metadata,
+    });
+    expect(unlinked.payload.focus.metadata).toEqual(before.metadata);
+  } finally { mock.restore(); }
+});
+
+test("invalid Game Model pairs and stale or foreign focus links do not write", async () => {
+  const mock = installDatabaseMock();
+  try {
+    const edit = { id: secondId, playerId: "p1", rowVersion: 1 };
+    for (const invalidSelection of [
+      { ...gameModelSelection, gameModelPositionId: "CB" },
+      { ...gameModelSelection, gameModelActionId: "unknown-action" },
+      { gameModelActionId: gameModelSelection.gameModelActionId },
+    ]) {
+      expect(await api.updateFocus({ ...edit, ...invalidSelection }, actor)).toMatchObject({ ok: false, status: 400 });
+    }
+    expect(await api.createFocus({
+      playerId: "p1", title: "Invalid action", ...gameModelSelection, gameModelPositionId: "CB",
+    }, actor)).toMatchObject({ ok: false, status: 400 });
+    expect(await api.updateFocus({ ...edit, ...gameModelSelection, rowVersion: 2 }, actor)).toMatchObject({ ok: false, status: 409 });
+    expect(await api.updateFocus({ ...edit, ...gameModelSelection, id: foreignId }, actor)).toMatchObject({ ok: false, status: 404 });
+    expect(mock.writes).toHaveLength(0);
+  } finally { mock.restore(); }
+});
+
 test("goal actions do not substitute the main focus when No focus was explicitly selected", async () => {
   const store = createIdpStore({ ui: { selectedPlayerId: "p1" }, playerDetail: { profile: { playerId: "p1" }, focuses: [{ id: mainId, title: "Crossing" }] } });
   const sent = [];

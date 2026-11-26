@@ -363,7 +363,13 @@ export function createIdpActions({ store, api, context = {} }) {
     const result = focusId && !String(focusId).startsWith("legacy-focus-")
       ? await api.updateFocus({ ...payload, id: focusId, playerId })
       : await api.createFocus({ ...payload, playerId });
-    store.setState({ ui: { actionMode: "", selectedFocusId: result?.focus?.id || focusId, message: "Focus saved." } });
+    const savedFocusId = result?.focus?.id || focusId;
+    store.setState({ ui: {
+      actionMode: "",
+      selectedFocusId: savedFocusId,
+      ...(payload.gameModelActionId ? { expandedFocusId: savedFocusId } : {}),
+      message: "Focus saved.",
+    } });
     await refreshSelectedPlayer();
   }
 

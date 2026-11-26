@@ -1,3 +1,4 @@
+import { renderGameModelField } from "./game-model/action-renderer.mjs";
 import {
   idpDevelopmentCategories,
   idpEvidenceTypes,
@@ -1151,6 +1152,7 @@ function renderFocusForm(focus = null, detail = {}) {
         <span>Focus areas</span>
         <textarea name="description" rows="4" placeholder="What should the player work on right now?">${escapeHtml(focus?.description || "")}</textarea>
       </label>
+      ${renderGameModelField(focus, detail.profile)}
       <label>
         <span>Status</span>
         <select name="status">${optionList(idpFocusStatuses, focus?.status || "Active", coachLabel)}</select>
@@ -1172,6 +1174,7 @@ function renderFocusForm(focus = null, detail = {}) {
           </div>
         </div>
       ` : ""}
+      <p class="idp-form-wide" role="alert" tabindex="-1" data-idp-focus-save-error hidden></p>
       <div class="idp-action-form-actions">
         <button type="button" class="idp-secondary-action" data-idp-close-action>Cancel</button>
         <button type="submit">Save focus</button>

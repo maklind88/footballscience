@@ -68,3 +68,35 @@ sparat eller osynkat arbete ingår.
 - Statiska kontroller och Git diff-kontroll godkända.
 - Testad worker SHA-256
   `b6b218fececfcac3e0b81ece8ed63844313ebd2e033757e8f637047341375b51`.
+
+## Full omstart med en beständig Safari-profil
+
+Den 25 november 2026 verifierades produktkandidaten
+`060d5310d0616fcabfa5948d32e5ed77e89e8613` i installerad Safari 26.2
+på macOS 26.2. Provet använde den separata vanliga profilen
+`FS Sessions Offline QA 1125` och en isolerad syntetisk loopback-server.
+Safari hade noll öppna fönster när profilen skapades. Den enda öppna
+Safari-vyn vid avslut var testprofilens passiva kontrollsida.
+
+| Kontroll | Observerat resultat |
+| --- | --- |
+| Förberedelse | Vanliga Sessions sparade syntetisk ändring A centralt och behöll ändring B osynkad. Förberedelsen utfärdade exakt en läsbehörighet för `team-ncc-first` och datumet 2026-11-25. |
+| Full Safari-omstart | Safaris menyval Avsluta Safari stängde PID `52968`. En oberoende processkontroll fann sedan noll Safari-processer. Nästa start gav PID `24883`. Profilmarkören visade samma testprofil före och efter. |
+| Nätbortfall | Testservern stängdes före den nya Safari-starten. TCP till testadressen gav `ECONNREFUSED` före navigering och efter verifieringen. Den ordinarie Sessions-adressen användes i den nya processen. |
+| Läsvy | Sessions visade rätt lag och datum, offline-läsläge och den kvitterade versionen. Den osynkade versionen gick att fälla ut separat. Appens tillgänglighetsträd hade noll redigeringsfält. |
+| Arbetsbevarande | Samma SHA-256 före och efter omstart. Kontrollsumman täcker den kvitterade kopian, journalen, lokala Sessions-data, tillhörande manifestpost och 24 historikposter. |
+| Versionsidentitet | Samma förberedda testpaket `49161e8e964ff3a6ede2e0e5a8d83ab9e9237ac3fb3706bbfba27b8ebdd84426`. |
+
+SHA-256 för skyddat syntetiskt arbete vid båda mättillfällena:
+`89b2a6d4e40b623dd79084f100ccecb2ee328a8dca22d4de1a811add6432753a`.
+
+Onlineförberedelsen använde samma syntetiska fixture som den tidigare
+Safari-körningen. Så snart editorn hade stängts lästes baslinjen från
+en passiv sida. Efter omstart öppnade Safari ordinarie Sessions utan
+injicerad startkod. Web Inspector användes därefter enbart för att
+göra skrivskyddade mätningar och markera deras resultat i testflikens
+titel. En separat UI-kontroll läste innehållet i Safaris
+tillgänglighetsträd. Provet använde varken SafariDriver eller
+användarens vanliga Safari-profiler. Den beständiga testprofilen
+lämnades kvar. Ingen produktkod, deploy, kompakt skrivning eller
+verkligt sparat eller osynkat arbete ändrades under uppföljningen.

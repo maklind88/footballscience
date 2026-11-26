@@ -1,6 +1,7 @@
 (() => {
   const entryPath = "/sessions-offline-shell.html";
   const manifestPath = "/sessions-offline-package.json";
+  const desktopLaunchMarker = '<meta name="sessions-offline-desktop-launch" content="supported">';
   const virtualRoot = "/__sessions-offline/";
   const databaseName = "football-science-sessions-offline-code-v1";
   const manifestLimit = 64 * 1024;
@@ -235,14 +236,20 @@
     return new Response(body, { headers });
   }
 
-  async function sessionsNavigation(request) {
+  async function sessionsNavigation(request, desktopLaunch) {
     try { return await fetch(request); } catch { /* an offline navigation may use a previously verified package */ }
     try {
       const { packageId } = await readHead() ?? {};
       if (!digestPattern.test(packageId || "")) return offlineUnavailable();
       const source = decoder.decode(await loadAsset(packageId, entryPath));
+      // Older packages can still serve their Sessions entry. Their boot code
+      // cannot display a Desktop landing without revealing the prepared date.
+      if (desktopLaunch && !source.includes(desktopLaunchMarker)) return offlineUnavailable();
+      const entry = desktopLaunch
+        ? source.replace(desktopLaunchMarker, '<meta name="sessions-offline-desktop-launch" content="active">')
+        : source;
       const base = virtualRoot + packageId + "/";
-      const html = source.replace(/<head(?:\s[^>]*)?>/i, head => head + '<base href="' + base +
+      const html = entry.replace(/<head(?:\s[^>]*)?>/i, head => head + '<base href="' + base +
         '"><meta name="sessions-offline-code-package" content="' + packageId + '">');
       return staticResponse(entryPath, html, base);
     } catch {
@@ -280,9 +287,10 @@
       event.respondWith(loadAsset(packageId, suffix).then(body => staticResponse(suffix, body), offlineUnavailable));
       return;
     }
-    if (request.mode === "navigate" && ["/", "/index.html"].includes(url.pathname) &&
-        url.searchParams.getAll("workspace").length === 1 && url.searchParams.get("workspace") === "session-planner") {
-      event.respondWith(sessionsNavigation(request));
-    }
+    if (request.mode !== "navigate") return;
+    const desktopLaunch = url.pathname === "/" && (url.search === "" || url.search === "?workspace=home");
+    const directSessions = ["/", "/index.html"].includes(url.pathname) &&
+      url.searchParams.getAll("workspace").length === 1 && url.searchParams.get("workspace") === "session-planner";
+    if (desktopLaunch || directSessions) event.respondWith(sessionsNavigation(request, desktopLaunch));
   });
 })();

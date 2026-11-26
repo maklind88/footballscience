@@ -25,7 +25,7 @@ export const qaGrantRequest = request => {
   return url.pathname === '/api/app-state' && url.searchParams.get('sessionOfflineGrant') === '1';
 };
 
-export async function startSessionsOfflineStartFixture({ useLoopbackBrowserAuth = false, diagnoseOfflineWorker = false } = {}) {
+export async function startSessionsOfflineStartFixture({ useLoopbackBrowserAuth = false, diagnoseOfflineWorker = false, webAppManifest } = {}) {
   const actor = { id: qaCoach.id };
   const membership = {
     organizationId: 'set-pieces-org', clubId: 'club-ncc', teamId: 'team-ncc-first', role: 'admin',
@@ -57,6 +57,8 @@ export async function startSessionsOfflineStartFixture({ useLoopbackBrowserAuth 
   let origin;
   let closed = false;
   const onlineRoutes = new Map();
+  const navigationStatus = new Map();
+  const manifestOverride = webAppManifest === undefined ? null : JSON.stringify(webAppManifest);
 
   function send(res, status, contentType, body) {
     res.writeHead(status, { 'Content-Type': contentType, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -66,6 +68,15 @@ export async function startSessionsOfflineStartFixture({ useLoopbackBrowserAuth 
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, origin);
+      const status = navigationStatus.get(url.pathname + url.search);
+      if (req.method === 'GET' && status) {
+        send(res, status, 'text/html', '<!doctype html><title>Synthetic HTTP ' + status + '</title>');
+        return;
+      }
+      if (req.method === 'GET' && manifestOverride !== null && url.pathname === '/manifest.webmanifest') {
+        send(res, 200, 'application/manifest+json', manifestOverride);
+        return;
+      }
       if (state.disconnectSessionNavigation && url.pathname === '/' &&
           url.searchParams.get('workspace') === 'session-planner') {
         req.socket.destroy();
@@ -170,7 +181,7 @@ export async function startSessionsOfflineStartFixture({ useLoopbackBrowserAuth 
   origin = `http://127.0.0.1:${port}`;
 
   return {
-    origin, token, state,
+    origin, token, state, navigationStatus,
     packageId: () => built.packageId,
     async offerNextVersion(extraCode = new Map()) {
       const modified = Buffer.concat([built.files.get(shellPath), Buffer.from('\n<!-- synthetic next build -->')]);

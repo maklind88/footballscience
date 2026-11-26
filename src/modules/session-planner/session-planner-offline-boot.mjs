@@ -6,6 +6,7 @@ const root = document.getElementById("sessionPlannerWorkspace");
 const onlineRoute = "/?workspace=session-planner";
 const openOnline = '<a href="' + onlineRoute + '">Open Sessions online</a>';
 const requestedDate = new URL(window.location.href).searchParams.get("date") ?? undefined;
+const desktopLaunch = Boolean(document.querySelector('meta[name="sessions-offline-desktop-launch"][content="active"]'));
 const renderer = createSessionPlannerRenderer();
 const workspace = createSessionPlannerWorkspaceRenderer();
 let generation = 0;
@@ -25,6 +26,16 @@ function sessionContents(session) {
       '<div class="session-builder-fields">' + fields + '</div>' +
       renderer.renderPostSessionNotesCard(block) + '</div></details>';
   }).join("");
+}
+
+function showDesktopLaunch(date) {
+  const query = new URLSearchParams({ workspace: "session-planner", date });
+  root.innerHTML = workspace.renderOfflineWorkspace({
+    status: '<p role="status">A prepared Sessions date is available in read-only mode.</p>',
+    content: '<a data-session-offline-open-prepared href="' + workspace.escapeText("/?" + query) +
+      '">Open prepared Sessions offline</a>',
+  });
+  root.setAttribute("aria-busy", "false");
 }
 
 function show(snapshot) {
@@ -63,7 +74,9 @@ async function open() {
   try {
     const snapshot = await readPreparedSessionsOffline({ date: requestedDate });
     if (request !== generation || document.hidden) return;
-    show(snapshot);
+    if (desktopLaunch) showDesktopLaunch(snapshot.date);
+    else show(snapshot);
+    clearTimeout(expiration);
     expiration = setTimeout(() => lock("Offline access expired. Connect to prepare Sessions again."),
       Math.max(0, snapshot.expiresAt - Date.now()));
   } catch {

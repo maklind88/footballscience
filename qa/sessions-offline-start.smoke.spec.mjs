@@ -1,10 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { day, readJournal } from './helpers/session-full-app-storage-fixture.mjs';
 import { exhaustOrigin } from './helpers/session-save-chain-profile.mjs';
 import { qaLoginKey, startSessionsOfflineStartFixture } from './helpers/sessions-offline-start-server.mjs';
 import { acceptedText, addSyntheticHistoricalVersion, assertOfflineWork, installSessionsReturnAuth, makeSyntheticWork, pendingText, prepareOffline, readProtectedWork,
   sessionsProofProfile, workspace } from './helpers/sessions-offline-start-browser.mjs';
+
+const desktopStart = '/?workspace=home';
+const preparedAction = { name: 'Open prepared Sessions offline', exact: true };
 
 let fixture, profile, context;
 test.beforeEach(async ({ browserName }) => {
@@ -45,7 +49,7 @@ async function captureOfflineBoundary(before) {
   return boundary;
 }
 
-async function openOffline({ before, crash = false, quotaBytes, expireAt }) {
+async function openOffline({ before, crash = false, quotaBytes, expireAt, path = workspace }) {
   const boundary = crash ? before : await captureOfflineBoundary(before);
   // Physically close the test's only TCP origin. The new browser reuses its
   // profile with no auth route, page bootstrap, or injected application files.
@@ -65,9 +69,9 @@ async function openOffline({ before, crash = false, quotaBytes, expireAt }) {
       privateRequests.push({ method: request.method(), path: new URL(request.url()).pathname });
     }
   });
-  await page.goto(workspace);
-  expect(page.url()).toBe(fixture.origin + workspace);
-  return { page, privateRequests, boundary };
+  const response = await page.goto(path);
+  expect(page.url()).toBe(fixture.origin + path);
+  return { page, privateRequests, boundary, response };
 }
 
 async function expectLocked(page) {
@@ -250,31 +254,186 @@ test('returning online syncs the preserved operation once through the existing q
   expect(resumed.value.sessions[day].blocks[0].objective).toBe(pendingText);
 });
 
-test('a prepared Sessions view survives full origin storage and a browser crash', async ({ browserName }, info) => {
-  test.skip(browserName !== 'chromium', 'Native quota override and Browser.crash require Chromium CDP.');
-  let app = context.pages()[0];
-  const backend = await makeSyntheticWork(app, fixture);
+for (const [title, path] of [['a prepared Sessions view', workspace], ['Desktop Home', desktopStart]]) {
+  test(title + ' survives full origin storage and a browser crash', async ({ browserName }, info) => {
+    test.skip(browserName !== 'chromium', 'Native quota override and Browser.crash require Chromium CDP.');
+    let app = context.pages()[0];
+    const backend = await makeSyntheticWork(app, fixture);
+    await prepareOffline(app);
+    const before = await readProtectedWork(app);
+
+    // Stabilize the test login on disk first. This case tests full-origin reads
+    // after a crash, separately from initial login durability.
+    const beforeQuota = await captureOfflineBoundary(before);
+    await profile.close();
+    context = await profile.open();
+    app = context.pages()[0];
+    await app.goto('/qa-sessions-offline-probe');
+    const pressure = await exhaustOrigin(app);
+    expect(pressure.idb.error).toBe('QuotaExceededError');
+    expect(pressure.local.error).toBe('QuotaExceededError');
+    const { page, privateRequests, boundary } = await openOffline({ before: beforeQuota, crash: true, quotaBytes: 1, path });
+    if (path === desktopStart) {
+      const open = page.getByRole('link', preparedAction);
+      await expect(open).toBeVisible();
+      await expectNeutralDesktop(page);
+      await open.click();
+    }
+    await assertOfflineWork(page);
+    await expectProtectedWork(page, boundary);
+    expect(privateRequests).toEqual([]);
+    expect(backend.effects).toBe(1);
+    await info.attach('sessions-offline-quota-proof', { contentType: 'application/json', body: JSON.stringify({
+      browserName, launchPath: path, processCrashed: true, physicalDiskFilled: false, quota: pressure.finalQuotaBytes,
+      indexedDbQuotaError: pressure.idb.error, localStorageQuotaError: pressure.local.error,
+      privateRequests: privateRequests.length, protectedWorkUnchanged: true,
+    }) });
+  });
+}
+
+async function expectNeutralDesktop(page) {
+  await expect(page.locator('[data-session-offline-version]')).toHaveCount(0);
+  await expect(page.getByText(acceptedText, { exact: false })).toHaveCount(0);
+  await expect(page.getByText(pendingText, { exact: false })).toHaveCount(0);
+  await expect(page.getByText('team-ncc-first', { exact: false })).toHaveCount(0);
+  await expect(page.locator('input,textarea,[contenteditable=true]')).toHaveCount(0);
+}
+
+for (const [description, path] of [['Home', desktopStart], ['legacy root', '/']]) {
+  test('Desktop ' + description + ' cold start reveals prepared work only after choosing Sessions', async ({ browserName }, info) => {
+    const app = context.pages()[0];
+    const backend = await makeSyntheticWork(app, fixture);
+    await prepareOffline(app);
+    await addSyntheticHistoricalVersion(app);
+    const before = await readProtectedWork(app);
+    expect(before.snapshots.some(row => row.id === 'qa-protected-session-offline-start-history')).toBe(true);
+    const { page, privateRequests, boundary, response } = await openOffline({ before, path });
+
+    expect(response?.status()).toBe(200);
+    expect(await response.headerValue('content-security-policy')).toContain("connect-src 'none'");
+    expect(await page.locator('meta[name="sessions-offline-code-package"]').getAttribute('content')).toBe(fixture.packageId());
+    const open = page.getByRole('link', preparedAction);
+    await expect(open).toBeVisible();
+    await expect(open).toHaveAttribute('href', workspace + '&date=' + day);
+    expect(page.url()).toBe(fixture.origin + path);
+    await expectNeutralDesktop(page);
+    await expectProtectedWork(page, boundary);
+
+    await open.click();
+    await expect(page).toHaveURL(fixture.origin + workspace + '&date=' + day);
+    await assertOfflineWork(page);
+    await expectProtectedWork(page, boundary);
+    expect(privateRequests).toEqual([]);
+    expect(backend.effects).toBe(1);
+    await info.attach('desktop-offline-routing-proof', { contentType: 'application/json', body: JSON.stringify({
+      browserName, launchPath: path, nativeAppShim: false, closedOrigin: true, newBrowserProcess: true,
+      offlineEntryWasNeutral: true, privateRequests: privateRequests.length, protectedWorkUnchanged: true,
+    }) });
+  });
+}
+
+for (const reason of ['known denial', 'changed login', 'expired permission']) {
+  test('Desktop Home keeps ' + reason + ' locked after restart without changing work', async () => {
+    const app = context.pages()[0];
+    await makeSyntheticWork(app, fixture);
+    if (reason === 'expired permission') fixture.state.grantLifetimeMs = 10000;
+    await prepareOffline(app);
+    const before = await readProtectedWork(app);
+
+    if (reason === 'known denial') {
+      fixture.state.denied = true;
+      await prepareOffline(app, 'unavailable');
+      expect(fixture.state.grantAttempts).toBe(2);
+      expect(fixture.state.grantAccepted).toBe(1);
+    }
+    if (reason === 'changed login') {
+      const other = await context.newPage();
+      await other.goto('/qa-sessions-offline-probe');
+      await other.evaluate(key => localStorage.setItem(key, JSON.stringify({
+        access_token: 'qa.changed-login.synthetic', user: { id: 'synthetic-other-account' },
+      })), qaLoginKey);
+    }
+
+    const expireAt = reason === 'expired permission' ? fixture.state.expiresAt : undefined;
+    const { page, privateRequests, boundary } = await openOffline({ before, path: desktopStart, expireAt });
+    await expect(page.getByText(/connect to open or prepare sessions/i)).toBeVisible();
+    await expect(page.getByRole('link', preparedAction)).toHaveCount(0);
+    await expectNeutralDesktop(page);
+    await expectProtectedWork(page, boundary);
+    expect(privateRequests).toEqual([]);
+  });
+}
+
+test('Desktop Home without a verified package stays neutral and preserves work', async () => {
+  const app = context.pages()[0];
+  await makeSyntheticWork(app, fixture);
+  fixture.state.corruptAsset = '/sessions-offline-shell.html';
+  await prepareOffline(app, 'unavailable');
+  expect(fixture.state.grantAttempts).toBe(0);
+  const before = await readProtectedWork(app);
+  const { page, boundary, response, privateRequests } = await openOffline({ before, path: desktopStart });
+  expect(response?.status()).toBe(503);
+  await expect(page.locator('body')).toContainText(/reconnect to prepare this browser/i);
+  await expect(page.getByRole('link', preparedAction)).toHaveCount(0);
+  await expectNeutralDesktop(page);
+  await expectProtectedWork(page, boundary);
+  expect(privateRequests).toEqual([]);
+});
+
+test('Desktop navigation keeps online Home and HTTP denials authoritative and excludes other offline URLs', async () => {
+  const app = context.pages()[0];
+  await makeSyntheticWork(app, fixture);
   await prepareOffline(app);
   const before = await readProtectedWork(app);
+  const entry = await context.newPage();
+  await entry.goto('/qa-sessions-offline-probe');
+  await expect.poll(() => entry.evaluate(() => navigator.serviceWorker.controller?.scriptURL))
+    .toBe(fixture.origin + '/footballscience-sw.js');
 
-  // Stabilize the test login on disk first. This case tests full-origin reads
-  // after a crash, separately from initial login durability.
-  const beforeQuota = await captureOfflineBoundary(before);
-  await profile.close();
-  context = await profile.open();
-  app = context.pages()[0];
-  await app.goto('/qa-sessions-offline-probe');
-  const pressure = await exhaustOrigin(app);
-  expect(pressure.idb.error).toBe('QuotaExceededError');
-  expect(pressure.local.error).toBe('QuotaExceededError');
-  const { page, privateRequests, boundary } = await openOffline({ before: beforeQuota, crash: true, quotaBytes: 1 });
+  fixture.navigationStatus.set(desktopStart, 401);
+  fixture.navigationStatus.set('/', 403);
+  for (const [path, status] of [[desktopStart, 401], ['/', 403]]) {
+    expect((await entry.goto(path))?.status()).toBe(status);
+    await expect(entry).toHaveTitle('Synthetic HTTP ' + status);
+    await expect(entry.getByRole('link', preparedAction)).toHaveCount(0);
+  }
+  fixture.navigationStatus.clear();
+  expect((await entry.goto(desktopStart))?.status()).toBe(200);
+  await expect(entry.locator('#hubShell')).toHaveCount(1);
+  await expect(entry.getByRole('link', preparedAction)).toHaveCount(0);
+
+  // Unauthenticated online Home may revoke the local grant. The test only
+  // requires the verified Desktop shell to be used on a transport failure.
+  const { page, boundary, privateRequests, response } = await openOffline({ before, path: desktopStart });
+  expect(response?.status()).toBe(200);
+  await expect(page.locator('meta[name="sessions-offline-desktop-launch"]')).toHaveAttribute('content', 'active');
+  await expectNeutralDesktop(page);
+  for (const otherPath of ['/?workspace=medical-team', '/?workspace=home&date=2026-10-15', '/?workspace=home&workspace=home']) {
+    const other = await context.newPage();
+    await expect(other.goto(otherPath)).rejects.toThrow();
+    await other.close();
+  }
+  await expectProtectedWork(page, boundary);
+  expect(privateRequests).toEqual([]);
+});
+
+test('Desktop Home does not disclose work from a verified older package', async () => {
+  const app = context.pages()[0];
+  await makeSyntheticWork(app, fixture);
+  const path = '/sessions-offline-shell.html';
+  const shell = await readFile(new URL('..' + path, import.meta.url), 'utf8');
+  const olderShell = shell.replace('<meta name="sessions-offline-desktop-launch" content="supported">', '');
+  expect(olderShell).not.toBe(shell);
+  await fixture.offerNextVersion(new Map([[path, Buffer.from(olderShell)]]));
+  await prepareOffline(app);
+  const before = await readProtectedWork(app);
+  const { page, boundary, response, privateRequests } = await openOffline({ before, path: desktopStart });
+
+  expect(response?.status()).toBe(503);
+  await expect(page.locator('body')).toContainText(/reconnect to prepare this browser/i);
+  await expectNeutralDesktop(page);
+  expect((await page.goto(workspace))?.status()).toBe(200);
   await assertOfflineWork(page);
   await expectProtectedWork(page, boundary);
   expect(privateRequests).toEqual([]);
-  expect(backend.effects).toBe(1);
-  await info.attach('sessions-offline-quota-proof', { contentType: 'application/json', body: JSON.stringify({
-    browserName, processCrashed: true, physicalDiskFilled: false, quota: pressure.finalQuotaBytes,
-    indexedDbQuotaError: pressure.idb.error, localStorageQuotaError: pressure.local.error,
-    privateRequests: privateRequests.length, protectedWorkUnchanged: true,
-  }) });
 });

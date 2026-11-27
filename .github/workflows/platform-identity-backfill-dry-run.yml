@@ -44,7 +44,7 @@ jobs:
       PLATFORM_BACKFILL_LINKS: ${{ secrets.PLATFORM_BACKFILL_LINKS }}
       PLATFORM_BACKFILL_ROLE_FILTER: ${{ inputs.role_filter }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v6
         with:
           node-version: 24

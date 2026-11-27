@@ -20,6 +20,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const targetRoot = resolve(packageRoot, "src-tauri", "target", "release");
 const artifactRoot = resolve(packageRoot, "artifacts", linux ? "linux" : "macos");
 const logRoot = resolve(artifactRoot, "logs");
+const appLogPath = resolve(logRoot, "packaged-app.log");
 const appName = "FS Desktop Architecture Spike.app";
 const appBinary = linux
   ? (linuxPackageRoot
@@ -33,6 +34,7 @@ const probePath = resolve(probeRoot, "fs-desktop-spike-hosted.json");
 const normalBuildId = publicEnvironment.releases.normal.buildId;
 const hangingBuildId = publicEnvironment.releases.hanging.buildId;
 mkdirSync(logRoot, { recursive: true });
+writeFileSync(appLogPath, "", "utf8");
 
 const evidence = {
   schema: linux ? "fs-desktop-linux-native-evidence-v1" : "fs-desktop-macos-packaged-evidence-v1",
@@ -86,7 +88,7 @@ function startServer(mode = "normal") {
 
 function startApp(profileName = "profile") {
   const profileRoot = resolve(probeRoot, `fs-desktop-test-${profileName}`);
-  const descriptor = openSync(resolve(logRoot, "packaged-app.log"), "a");
+  const descriptor = openSync(appLogPath, "a");
   const child = spawn(appBinary, [], {
     cwd: dirname(appBinary),
     env: {
@@ -195,7 +197,17 @@ function readFailureDiagnostics() {
   } catch {
     lastProbe = "unreadable";
   }
-  return { lastProbe, observedStages: Object.fromEntries(observedStages) };
+  const output = readFileSync(appLogPath, "utf8");
+  const graphicsErrors = {
+    webkitProcess: /WebKit(?:Web|Network)Process/i,
+    gtkCritical: /(?:Gtk|GLib|Gdk)-(?:ERROR|CRITICAL)/i,
+    graphicsDevice: /(?:failed to create GBM|failed to create EGL|DRI[23]|libEGL warning)/i,
+    sandbox: /(?:bubblewrap|bwrap:|failed to create sandbox)/i,
+    dbus: /(?:D-Bus|dbus)[^\n]*(?:error|fail|timeout)/i,
+  };
+  const stderrCategories = Object.entries(graphicsErrors)
+    .filter(([, pattern]) => pattern.test(output)).map(([category]) => category);
+  return { lastProbe, observedStages: Object.fromEntries(observedStages), stderrCategories };
 }
 
 let server = null;

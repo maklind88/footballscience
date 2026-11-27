@@ -122,4 +122,9 @@ jobs:
           test "${#debs[@]}" -eq 1
           package_root="$(mktemp -d)"
           dpkg-deb --extract "${debs[0]}" "$package_root"
-          xvfb-run -a dbus-run-session -- npm run verify:packaged:linux -- --linux-root="$package_root"
+          if xvfb-run -a dbus-run-session -- npm run verify:packaged:linux -- --linux-root="$package_root"; then
+            exit 0
+          fi
+          echo 'Diagnostic only: repeat with Xvfb software rendering. The default result remains failed.'
+          WEBKIT_DISABLE_COMPOSITING_MODE=1 xvfb-run -a dbus-run-session -- npm run verify:packaged:linux -- --linux-root="$package_root"
+          exit 1

@@ -30,7 +30,6 @@ const evidencePath = resolve(artifactRoot, linux ? "linux-native-evidence.json" 
 const publicEnvironment = JSON.parse(readFileSync(resolve(packageRoot, "generated", "test-release-public-env.json"), "utf8"));
 const probeRoot = mkdtempSync(resolve(tmpdir(), "fs-desktop-native-proof-"));
 const probePath = resolve(probeRoot, "fs-desktop-spike-hosted.json");
-const testDataRoot = resolve(probeRoot, "fs-desktop-test-profile");
 const normalBuildId = publicEnvironment.releases.normal.buildId;
 const hangingBuildId = publicEnvironment.releases.hanging.buildId;
 mkdirSync(logRoot, { recursive: true });
@@ -85,7 +84,8 @@ function startServer(mode = "normal") {
   return child;
 }
 
-function startApp(profileRoot = testDataRoot) {
+function startApp(profileName = "profile") {
+  const profileRoot = resolve(probeRoot, `fs-desktop-test-${profileName}`);
   const descriptor = openSync(resolve(logRoot, "packaged-app.log"), "a");
   const child = spawn(appBinary, [], {
     cwd: dirname(appBinary),
@@ -290,7 +290,7 @@ try {
   if (linux) {
     await stop(app);
     removeProbe();
-    app = startApp(resolve(probeRoot, "fs-desktop-repeat-update-profile"));
+    app = startApp("repeat-update-profile");
     validate(await waitForProbe((value) => expectedBoot(value, "online"), app), "online");
     removeProbe();
     await stop(server);
@@ -307,7 +307,7 @@ try {
     await waitForPort(false);
     const recoveryStage = "command desktop_recovery_status";
     const previous = readFailureDiagnostics().observedStages[recoveryStage] || 0;
-    app = startApp(resolve(probeRoot, "fs-desktop-recovery-profile"));
+    app = startApp("recovery-profile");
     await waitForProbe(
       (value) => (value.observedStages[recoveryStage] || 0) > previous,
       app,

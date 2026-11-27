@@ -85,14 +85,14 @@ function startServer(mode = "normal") {
   return child;
 }
 
-function startApp() {
+function startApp(profileRoot = testDataRoot) {
   const descriptor = openSync(resolve(logRoot, "packaged-app.log"), "a");
   const child = spawn(appBinary, [], {
     cwd: dirname(appBinary),
     env: {
       ...process.env,
       FS_DESKTOP_CI: "1",
-      FS_DESKTOP_TEST_DATA_ROOT: testDataRoot,
+      FS_DESKTOP_TEST_DATA_ROOT: profileRoot,
       TMPDIR: probeRoot,
     },
     stdio: ["ignore", descriptor, descriptor],
@@ -120,25 +120,27 @@ async function stop(child) {
   if (Number.isInteger(child.logDescriptor)) closeSync(child.logDescriptor);
 }
 
-async function waitForProbe(predicate, app, timeoutMs = 45_000) {
+function readProbe() {
+  return existsSync(probePath) ? JSON.parse(readFileSync(probePath, "utf8")) : null;
+}
+
+async function waitForProbe(predicate, app, timeoutMs = 45_000, readObservation = readProbe) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (app?.spawnError) throw app.spawnError;
     if (!running(app)) throw new Error(`Native application exited early (${app?.signalCode ?? app?.exitCode}).`);
-    if (existsSync(probePath)) {
-      try {
-        const value = JSON.parse(readFileSync(probePath, "utf8"));
-        if (predicate(value)) return value;
-      } catch {}
-    }
+    try {
+      const value = readObservation();
+      if (value && predicate(value)) return value;
+    } catch {}
     await delay(250);
   }
   throw new Error("Timed out waiting for native desktop probe evidence.");
 }
 
-function validate(probe, bootMode) {
+function validate(probe, bootMode, buildId = normalBuildId) {
   if (probe?.probe?.candidate !== "hosted" || probe.probe.bootMode !== bootMode) throw new Error(`Unexpected packaged boot mode: ${probe?.probe?.bootMode}`);
-  if (probe.probe.payloadBuildId !== normalBuildId || probe.nativeEvidence?.activeBuildId !== normalBuildId) throw new Error("Active signed generation changed unexpectedly.");
+  if (probe.probe.payloadBuildId !== buildId || probe.nativeEvidence?.activeBuildId !== buildId) throw new Error("Active signed generation changed unexpectedly.");
   if (probe.probe.cacheVersion !== "fs-desktop-native-shell-cache-v2") throw new Error("Native cache version mismatch.");
   if (probe.probe.serviceWorkerControlled !== false || probe.probe.unauthorizedCommandRejected !== true) throw new Error("WebView boundary evidence failed.");
   if (probe.nativeEvidence?.localSchemaVersion !== 3 || probe.nativeEvidence?.syncProtocolVersion !== 1) throw new Error("Local compatibility mismatch.");
@@ -149,10 +151,10 @@ function validate(probe, bootMode) {
   return probe;
 }
 
-function expectedBoot(value, bootMode) {
+function expectedBoot(value, bootMode, buildId = normalBuildId) {
   return value?.probe?.bootMode === bootMode
-    && value?.probe?.payloadBuildId === normalBuildId
-    && value?.nativeEvidence?.activeBuildId === normalBuildId;
+    && value?.probe?.payloadBuildId === buildId
+    && value?.nativeEvidence?.activeBuildId === buildId;
 }
 
 function pass(name, detail = {}) {
@@ -167,7 +169,7 @@ function readFailureDiagnostics() {
   const windowStage = /^(window build (?:started|completed) role=(?:Active|Candidate|Recovery|Bundled) label=(?:main|candidate|recovery))$/;
   const navigationStage = /^((?:navigation role=\w+ allowed=(?:true|false)|page load role=\w+ event=\w+)) url=/;
   const protocolStage = /^(protocol (?:active|candidate|recovery) label=(?:main|candidate|recovery)) path=/;
-  const commandStage = /^(command (?:desktop_bootstrap_status|desktop_prepare_shell_update(?: completed state=[a-z-]+| failed| task failed)?|desktop_candidate_status|record_spike_probe))(?= |$)/;
+  const commandStage = /^(command (?:desktop_bootstrap_status|desktop_prepare_shell_update(?: completed state=[a-z-]+| failed| task failed)?|desktop_candidate_status|desktop_candidate_confirm|desktop_candidate_report_failure|desktop_recovery_status|record_spike_probe))(?= |$)/;
   const preparationStage = /^(shell preparation (?:locks acquired|signed manifest verified|bundle extraction (?:started|verified)|generation (?:verification started|verified)))$/;
   const namedAsset = /^(protocol (?:active|candidate|recovery) label=(?:main|candidate|recovery) path=\/(?:bootstrap\/(?:index\.html|app\.js|tauri-invoke\.mjs)|active\/(?:index\.html|app-runtime\.js)|index\.html))$/;
   const stages = [runtimeStage, windowStage, navigationStage, namedAsset, protocolStage, commandStage, preparationStage];
@@ -179,18 +181,19 @@ function readFailureDiagnostics() {
     }
   }
   let lastProbe = "missing";
-  if (existsSync(probePath)) {
-    try {
-      const { probe, nativeEvidence } = JSON.parse(readFileSync(probePath, "utf8"));
+  try {
+    const value = readProbe();
+    if (value) {
+      const { probe, nativeEvidence } = value;
       const bootMode = probe?.bootMode;
       lastProbe = {
         bootMode: ["online", "offline", "compatibility-blocked"].includes(bootMode) ? bootMode : "other",
         expectedPayload: probe?.payloadBuildId === normalBuildId,
         expectedActiveGeneration: nativeEvidence?.activeBuildId === normalBuildId,
       };
-    } catch {
-      lastProbe = "unreadable";
     }
+  } catch {
+    lastProbe = "unreadable";
   }
   return { lastProbe, observedStages: Object.fromEntries(observedStages) };
 }
@@ -283,6 +286,36 @@ try {
   app = startApp();
   validate(await waitForProbe((value) => value?.probe?.bootMode === "online", app), "online");
   pass("offline to online recovery", { processRestart: true, activeGenerationUnchanged: true });
+
+  if (linux) {
+    await stop(app);
+    removeProbe();
+    app = startApp(resolve(probeRoot, "fs-desktop-repeat-update-profile"));
+    validate(await waitForProbe((value) => expectedBoot(value, "online"), app), "online");
+    removeProbe();
+    await stop(server);
+    await waitForPort(false);
+    server = startServer("rollback");
+    await waitForPort(true);
+    const rollbackBuildId = publicEnvironment.releases.rollback.buildId;
+    validate(await waitForProbe((value) => expectedBoot(value, "online", rollbackBuildId), app), "online", rollbackBuildId);
+    pass("repeated signed candidate activation in one Linux process");
+
+    await stop(app);
+    await stop(server);
+    server = null;
+    await waitForPort(false);
+    const recoveryStage = "command desktop_recovery_status";
+    const previous = readFailureDiagnostics().observedStages[recoveryStage] || 0;
+    app = startApp(resolve(probeRoot, "fs-desktop-recovery-profile"));
+    await waitForProbe(
+      (value) => (value.observedStages[recoveryStage] || 0) > previous,
+      app,
+      45_000,
+      readFailureDiagnostics,
+    );
+    pass("fresh Linux profile exposes read-only recovery without the release source");
+  }
   evidence.status = "passed";
 } catch (error) {
   evidence.status = "failed";

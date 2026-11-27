@@ -320,6 +320,7 @@ fn desktop_candidate_confirm(
     state: tauri::State<'_, DesktopState>,
 ) -> Result<BootstrapStatus, String> {
     require_window(&window, windows::WebviewRole::Candidate)?;
+    ci_trace::record("command desktop_candidate_confirm");
     let runtime = runtime(&state)?;
     let result = {
         let mut shell = runtime
@@ -343,6 +344,7 @@ fn desktop_candidate_report_failure(
     state: tauri::State<'_, DesktopState>,
 ) -> Result<bool, String> {
     require_window(&window, windows::WebviewRole::Candidate)?;
+    ci_trace::record("command desktop_candidate_report_failure");
     let runtime = runtime(&state)?;
     let result = {
         let mut shell = runtime
@@ -381,6 +383,7 @@ fn desktop_recovery_status(
         .authority
         .lock()
         .map_err(|_| "session authority lock poisoned".to_string())?;
+    ci_trace::record("command desktop_recovery_status");
     Ok(RecoveryStatus {
         schema: "fs-desktop-recovery-status-v1",
         read_only: true,

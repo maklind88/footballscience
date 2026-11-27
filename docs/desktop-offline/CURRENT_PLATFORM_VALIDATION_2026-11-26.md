@@ -15,6 +15,8 @@ Den ursprungliga Tauri-appen bygger det aktuella gemensamma webbgränssnittet so
 
 Testmatrisen omfattar Windows x64, macOS arm64 och Ubuntu 24.04 x64. Den kör JavaScript- och Rust-kontrakten, verifierar signerad frontend och provar omstart utan testserver. Windows-provet kör osignerade testbinärer. Linux-provet använder Xvfb och appfilen från ett extraherat testpaket. macOS-provet startar den paketerade körbara filen från en isolerad testmiljö. Kontraktet kräver att samtliga fyra fönsterroller omfattar alla tre operativsystem och endast tillåter sina lokala kommandon.
 
+På Linux kräver varje flyktigt WebKit-fönster egna registreringar av appens protokoll. Den lokala rättningen i den låsta Tauri-runtimeversionen behåller separat flyktig lagring, verifierad navigering och de befintliga kommandogränserna. Den första felfria verifieringen på Linux måste gå hela vägen från start till bekräftelse av den signerade versionen och omstart utan testserver.
+
 Ett grönt processprov visar att den signerade appversionen kan starta igen, att felaktiga kandidater avvisas och att en förifylld syntetisk Sessions-post kan läsas. Ett separat Mac-prov ändrade revisionen direkt i en tillfällig SQLite-fil och verifierade den nya revisionen efter processomstart utan testserver. Installation i ett användarkonto, verklig enhetsupplåsning, kallstart från ikonen efter OS-omstart och automatisk historik är andra godkännandepunkter.
 
 ## Provet för automatisk historik

@@ -13,6 +13,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  webkitgtk-control:
+    name: Ubuntu native WebKit control
+    if: github.repository == 'maklind88/footballscience'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install WebKitGTK and virtual display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential libwebkit2gtk-4.1-dev dbus-x11 xvfb xauth
+      - name: Compare persistent and ephemeral WebKitGTK views outside Tauri
+        shell: bash
+        run: |
+          qa_dir="$(mktemp -d)"
+          trap 'rm -rf "$qa_dir"' EXIT
+          export XDG_DATA_HOME="$qa_dir/data" XDG_CONFIG_HOME="$qa_dir/config" XDG_CACHE_HOME="$qa_dir/cache"
+          mkdir -m 700 "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
+          cc -std=c11 -Wall -Wextra -Werror desktop/fs-desktop-spike/tools/webkitgtk-context-probe.c \
+            -o "$qa_dir/probe" $(pkg-config --cflags --libs webkit2gtk-4.1)
+          xvfb-run -a dbus-run-session -- "$qa_dir/probe"
+
   native:
     name: ${{ matrix.name }}
     if: github.repository == 'maklind88/footballscience'

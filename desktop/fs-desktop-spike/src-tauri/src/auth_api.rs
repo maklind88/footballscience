@@ -1,6 +1,6 @@
 use crate::authority::{RefreshedCredentials, SessionAuthoritySnapshot, SessionProfile};
 use reqwest::Url;
-use reqwest::blocking::{Client, Response};
+use reqwest::blocking::{Client, ClientBuilder, Response};
 use reqwest::redirect::Policy;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
@@ -142,11 +142,11 @@ impl DesktopAuthApi {
 
     fn new(raw_origin: &str) -> Result<Self, String> {
         let origin = validate_origin(raw_origin)?;
-        Self::with_origin(origin)
+        Self::with_origin(origin, Client::builder())
     }
 
-    fn with_origin(origin: Url) -> Result<Self, String> {
-        let client = Client::builder()
+    fn with_origin(origin: Url, builder: ClientBuilder) -> Result<Self, String> {
+        let client = builder
             .redirect(Policy::none())
             .connect_timeout(Duration::from_secs(8))
             .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECONDS))
@@ -168,7 +168,7 @@ impl DesktopAuthApi {
         {
             return Err("desktop API test origin must be loopback HTTP".into());
         }
-        Self::with_origin(origin)
+        Self::with_origin(origin, Client::builder().no_proxy())
     }
 
     pub fn sign_in(&self, identifier: &str, password: &str) -> Result<ActivatedSession, String> {

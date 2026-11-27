@@ -1,9 +1,13 @@
 name: Production Monitor
-run-name: ${{ inputs.tracking_review && format('FS Player tracking release {0}', github.sha) || inputs.review_action && inputs.review_action != 'monitor' && format('DM/Schedule {0} {1}', inputs.review_action, github.sha) || 'Production Monitor' }}
+run-name: ${{ inputs.clip_draw_review && format('FS Player Draw and Present {0}', github.sha) || inputs.tracking_review && format('FS Player tracking release {0}', github.sha) || inputs.review_action && inputs.review_action != 'monitor' && format('DM/Schedule {0} {1}', inputs.review_action, github.sha) || 'Production Monitor' }}
 
 on:
   workflow_dispatch:
     inputs:
+      clip_draw_review:
+        description: Exact-commit approval for FS Player Draw and Present; never deploys
+        type: boolean
+        default: false
       tracking_review:
         description: Exact-commit approval for the Seattle tracking release; never deploys
         type: boolean
@@ -39,12 +43,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ inputs.tracking_review && 'fs-player-tracking-review' || inputs.review_action && inputs.review_action != 'monitor' && 'dm-schedule-review' || 'production-monitor' }}
+  group: ${{ inputs.clip_draw_review && 'fs-player-clip-draw-review' || inputs.tracking_review && 'fs-player-tracking-review' || inputs.review_action && inputs.review_action != 'monitor' && 'dm-schedule-review' || 'production-monitor' }}
   cancel-in-progress: false
 
 jobs:
   monitor:
-    if: github.ref == 'refs/heads/main' && (!inputs.review_action || inputs.review_action == 'monitor') && !inputs.tracking_review
+    if: github.ref == 'refs/heads/main' && (!inputs.review_action || inputs.review_action == 'monitor') && !inputs.tracking_review && !inputs.clip_draw_review
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
@@ -77,6 +81,29 @@ jobs:
           BACKUP_EXPECTED_BUILD_ID: ${{ inputs.expected_backup_build_id }}
         run: node scripts/verify-fresh-app-state-backup.mjs
       - run: npm run release:monitor
+
+  fs-player-clip-draw-review:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/fs-player-clip-draw' && inputs.clip_draw_review && !inputs.tracking_review && inputs.review_action == 'monitor'
+    name: FS Player Draw and Present review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: fs-player-clip-draw-review
+      url: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+    steps:
+      - name: Checkout exact reviewed commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.15.0
+      - name: Check the candidate SHA and current production build
+        env:
+          EXPECTED_CANDIDATE_SHA: ${{ inputs.expected_candidate_sha }}
+          EXPECTED_LIVE_BUILD_ID: ${{ inputs.expected_live_build_id }}
+        run: node scripts/verify-fs-player-clip-draw-review-target.mjs
 
   dm-schedule-review:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/dm-reload-race-20261113' && (inputs.review_action == 'diagnostics' || inputs.review_action == 'release')

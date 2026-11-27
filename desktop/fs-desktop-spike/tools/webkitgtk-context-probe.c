@@ -6,6 +6,7 @@ typedef struct {
     const char *name;
     gboolean ephemeral;
     gboolean visible;
+    gboolean register_late;
     WebKitWebContext *context;
     GtkWidget *window;
     GMainLoop *loop;
@@ -90,29 +91,35 @@ static void scheme_requested(WebKitURISchemeRequest *request, gpointer data) {
     webkit_uri_scheme_request_finish(request, body, strlen(content), type);
 }
 
-static gboolean run_probe(Probe *probe) {
-    probe->context = probe->ephemeral ? webkit_web_context_new_ephemeral() : webkit_web_context_new();
+static void register_scheme(Probe *probe) {
     WebKitSecurityManager *security = webkit_web_context_get_security_manager(probe->context);
     webkit_security_manager_register_uri_scheme_as_secure(security, "fs-probe");
     webkit_web_context_register_uri_scheme(probe->context, "fs-probe", scheme_requested, probe, NULL);
+}
+
+static gboolean run_probe(Probe *probe) {
+    probe->context = probe->ephemeral ? webkit_web_context_new_ephemeral() : webkit_web_context_new();
+    if (!probe->register_late) register_scheme(probe);
 
     GtkWidget *widget = webkit_web_view_new_with_context(probe->context);
     WebKitWebView *view = WEBKIT_WEB_VIEW(widget);
     probe->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_container_add(GTK_CONTAINER(probe->window), widget);
+    probe->loop = g_main_loop_new(NULL, FALSE);
     g_signal_connect(view, "load-changed", G_CALLBACK(load_changed), probe);
     g_signal_connect(view, "load-failed", G_CALLBACK(load_failed), probe);
     g_signal_connect(view, "web-process-terminated", G_CALLBACK(process_terminated), probe);
     g_signal_connect(view, "notify::title", G_CALLBACK(title_changed), probe);
     if (probe->visible) gtk_widget_show_all(probe->window);
+    if (probe->register_late) register_scheme(probe);
 
     gboolean ephemeral = webkit_web_view_is_ephemeral(view);
     g_print("%s ephemeral=%d visible=%d\n", probe->name, ephemeral, probe->visible);
     if (ephemeral != probe->ephemeral) {
         probe->done = TRUE;
+        g_main_loop_unref(probe->loop);
         return FALSE;
     }
-    probe->loop = g_main_loop_new(NULL, FALSE);
     probe->deadline = g_timeout_add_seconds(12, timed_out, probe);
     webkit_web_view_load_uri(view, "fs-probe://localhost/index.html");
     if (ephemeral) g_clear_object(&probe->context);
@@ -130,6 +137,7 @@ int main(int argc, char **argv) {
         {.name = "persistent-main-control", .visible = TRUE},
         {.name = "ephemeral-candidate", .ephemeral = TRUE},
         {.name = "ephemeral-recovery", .ephemeral = TRUE, .visible = TRUE},
+        {.name = "ephemeral-candidate-late-scheme", .ephemeral = TRUE, .register_late = TRUE},
     };
     gboolean passed = TRUE;
     for (guint i = 0; i < G_N_ELEMENTS(probes); i++) {

@@ -5266,6 +5266,15 @@ You may have it installed on another user account, but it is not available for t
   }
   .map_err(|e| Error::CreateWebview(Box::new(e)))?;
 
+  #[cfg(target_os = "linux")]
+  if webview_attributes.incognito
+    && option_env!("FS_DESKTOP_TEST_BUILD") == Some("1")
+    && std::env::var("FS_DESKTOP_CI").as_deref() == Ok("1")
+    && matches!(label.as_str(), "candidate" | "recovery")
+  {
+    trace_ephemeral_gtk_webview(&webview.webview(), &label);
+  }
+
   if kind == WebviewKind::WindowContent {
     #[cfg(any(
       target_os = "linux",
@@ -5379,6 +5388,29 @@ You may have it installed on another user account, but it is not available for t
     },
     bounds: Arc::new(Mutex::new(webview_bounds)),
   })
+}
+
+#[cfg(target_os = "linux")]
+fn trace_ephemeral_gtk_webview(view: &webkit2gtk::WebView, label: &str) {
+  use webkit2gtk::WebViewExt;
+
+  eprintln!(
+    "FS_GTK role={label} attached ephemeral={} loading={}",
+    view.is_ephemeral(), view.is_loading()
+  );
+  let load_label = label.to_owned();
+  view.connect_load_changed(move |_, event| {
+    eprintln!("FS_GTK role={load_label} load={event:?}");
+  });
+  let failure_label = label.to_owned();
+  view.connect_load_failed(move |_, event, _, _| {
+    eprintln!("FS_GTK role={failure_label} load_failed={event:?}");
+    false
+  });
+  let termination_label = label.to_owned();
+  view.connect_web_process_terminated(move |_, reason| {
+    eprintln!("FS_GTK role={termination_label} terminated={reason:?}");
+  });
 }
 
 /// Create a wry ipc handler from a tauri ipc handler.

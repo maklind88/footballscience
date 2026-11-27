@@ -21,11 +21,15 @@ Ett grönt processprov visar att den signerade appversionen kan starta igen, att
 
 Det fristående WebKitGTK-provet laddar HTML och en JavaScript-modul från ett lokalt protokoll i tre fönster i samma process. Det kontrollerar huvudfönstret, ett dolt flyktigt kandidatfönster och ett synligt flyktigt återställningsfönster. [Utfall för Ubuntu-kontrollen](https://github.com/maklind88/footballscience/actions/runs/45931138195/job/140283778124)
 
+Att begära första navigeringen efter Tauri-registreringen öppnade fortfarande inget innehåll i den paketerade Ubuntu-appen. Den försöksändringen är borttagen. Diagnostiken jämför nu även sen protokollregistrering i råprovet och fångar WebKits egna laddningssignaler i Linux-testbygget. [Utfall för paketerad Ubuntu-start](https://github.com/maklind88/footballscience/actions/runs/45931623739/job/140285414082)
+
 ## Native sparning vid processomstart
 
 Två separata Rust-testprocesser använder samma tillfälliga SQLite-databas och ett filvalv med syntetiska uppgifter. Den första processen sparar en ändring och sänder den till Desktop-prototypens lokala HTTP-server. Servern tillämpar ändringen och stänger anslutningen före kvittot. Den andra processen återställer läsbehörigheten, läser tillbaka samma revision och behåller den osynkade posten tills nya synkuppgifter finns. Återsändningen ger kvittot `already-applied`. Servern verifierar två anrop, en tillämpning och en oförändrad revision efter det andra anropet.
 
 Provet körs med `cargo test --manifest-path desktop/fs-desktop-spike/src-tauri/Cargo.toml --lib --locked authority::race_tests::native_process_restart_replays_one_operation_under_restored_authority -- --exact` efter `npm ci` i `desktop/fs-desktop-spike`. Det använder prototypens testtabeller i disponibel PGlite. Paketerad Sessions-UI, operativsystemets nyckellager och produktens ordinarie `/api/app-state` återstår i det sammanhängande provet.
+
+Den separata webbsuiten `qa/playwright.session-saving-chain.config.mjs` gav 10 godkända med PostgreSQL 17.12 i en tillfällig Unix-socketbaserad testmiljö. Den kör den ordinarie Sessions-vyn, API-hanteraren och SQL-kvittenserna. Provet fastställer en jämförelse för Desktop-kopplingen.
 
 ## Provet för automatisk historik
 

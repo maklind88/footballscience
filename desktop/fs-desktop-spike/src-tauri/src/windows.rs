@@ -161,8 +161,24 @@ fn build_window<R: Runtime>(
     visible: bool,
     incognito: bool,
 ) -> Result<tauri::WebviewWindow<R>, String> {
+    // Let Linux attach the isolated WebView before asking its new context to navigate.
+    let deferred_navigation = match &url {
+        WebviewUrl::CustomProtocol(target) if cfg!(target_os = "linux") && incognito => {
+            Some(target.clone())
+        }
+        _ => None,
+    };
+    let initial_url = if deferred_navigation.is_some() {
+        WebviewUrl::External(
+            "about:blank"
+                .parse::<Url>()
+                .map_err(|error| error.to_string())?,
+        )
+    } else {
+        url
+    };
     ci_trace::record(format!("window build started role={role:?} label={label}"));
-    let window = WebviewWindowBuilder::new(app, label, url)
+    let window = WebviewWindowBuilder::new(app, label, initial_url)
         .title(title)
         .inner_size(1000.0, 720.0)
         .min_inner_size(760.0, 540.0)
@@ -191,6 +207,15 @@ fn build_window<R: Runtime>(
     ci_trace::record(format!(
         "window build completed role={role:?} label={label}"
     ));
+    if let Some(target) = deferred_navigation {
+        ci_trace::record(format!(
+            "window deferred navigation role={role:?} label={label}"
+        ));
+        if let Err(error) = window.navigate(target) {
+            let _ = window.close();
+            return Err(error.to_string());
+        }
+    }
     Ok(window)
 }
 
@@ -288,6 +313,7 @@ mod tests {
                 role,
                 &"https://accounts.google.com/".parse().unwrap()
             ));
+            assert!(!navigation_allowed(role, &"about:blank".parse().unwrap()));
         }
     }
 }

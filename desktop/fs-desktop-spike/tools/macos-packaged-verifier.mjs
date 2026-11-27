@@ -168,7 +168,7 @@ function readFailureDiagnostics() {
   const tracePath = resolve(probeRoot, "fs-desktop-runtime-trace.log");
   const observedStages = new Map();
   const runtimeStage = /^(runtime run entered|setup entered|desktop runtime initialized|desktop runtime installed|main window created)$/;
-  const windowStage = /^(window build (?:started|completed) role=(?:Active|Candidate|Recovery|Bundled) label=(?:main|candidate|recovery))$/;
+  const windowStage = /^(window (?:build (?:started|completed)|deferred navigation) role=(?:Active|Candidate|Recovery|Bundled) label=(?:main|candidate|recovery))$/;
   const navigationStage = /^((?:navigation role=\w+ allowed=(?:true|false)|page load role=\w+ event=\w+)) url=/;
   const protocolStage = /^(protocol (?:active|candidate|recovery) label=(?:main|candidate|recovery)) path=/;
   const commandStage = /^(command (?:desktop_bootstrap_status|desktop_prepare_shell_update(?: completed state=[a-z-]+| failed| task failed)?|desktop_candidate_status|desktop_candidate_confirm|desktop_candidate_report_failure|desktop_recovery_status|record_spike_probe))(?= |$)/;

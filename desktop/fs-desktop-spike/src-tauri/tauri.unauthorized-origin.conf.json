@@ -1,0 +1,14 @@
+{
+  "build": {
+    "frontendDist": "../candidates"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [],
+    "security": {
+      "capabilities": ["bundled"],
+      "csp": null,
+      "freezePrototype": true
+    }
+  }
+}

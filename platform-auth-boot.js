@@ -27,6 +27,16 @@
   const ONLINE_APP_URL = "https://footballscience.xyz/";
   const DEV_AUTH_SESSION_KEY = "football-science-dev-auth-session-v1";
   const DEV_AUTH_PASSWORD = "courage";
+  const desktopLocation = window.location;
+  const desktopEnvironment = window.__FOOTBALL_SCIENCE_DESKTOP__;
+  const desktopAuthSurface = /^fs-(active|candidate|recovery):$/.test(desktopLocation.protocol) ||
+    /^fs-(active|candidate|recovery)\.localhost$/.test(desktopLocation.hostname) ||
+    desktopEnvironment?.schema === "fs-desktop-platform-environment-v1";
+  const activeDesktopOrigin = !desktopLocation.port && desktopLocation.pathname?.startsWith("/active/") && (
+    (desktopLocation.protocol === "fs-active:" && desktopLocation.hostname === "localhost") ||
+    (desktopLocation.protocol === "http:" && desktopLocation.hostname === "fs-active.localhost")
+  );
+  const DESKTOP_AUTH_MARKER = "desktop-native-session-v1";
   const WORKSPACE_HUB_STATE_KEY = "football-workspace-hub-v3";
   const PLATFORM_STRUCTURE_STATE_KEY = "football-platform-structure-v1";
   const SESSION_PLANNER_STATE_KEY = "football-session-planner-v3";
@@ -136,7 +146,7 @@
   }
 
   function getSessionsOfflineOwner() {
-    return !authState.devMode && getSessionSaveScope() ? getCentralReadScope() : "";
+    return !desktopAuthSurface && !authState.devMode && getSessionSaveScope() ? getCentralReadScope() : "";
   }
   async function prepareSessionsOffline(date, contextIsCurrent) {
     const owner = getSessionsOfflineOwner();
@@ -286,6 +296,87 @@
   let postAuthHydrationRunId = 0;
   let pendingCentralHydration = null;
   let volatileMedicalRecoveryMarker = "";
+  let desktopAuthGeneration = 0;
+  let desktopLeaseTimer = 0;
+  let desktopSignInRequest = null;
+
+  function getDesktopAuthBridge() {
+    if (!activeDesktopOrigin || desktopEnvironment?.schema !== "fs-desktop-platform-environment-v1" ||
+        desktopEnvironment.nativeBridgeAvailable !== true) return null;
+    const bridge = window.__FOOTBALL_SCIENCE_DESKTOP_AUTH__;
+    return bridge?.schema === "fs-desktop-auth-bridge-v1" && bridge.opaqueAccessMarker === DESKTOP_AUTH_MARKER &&
+      ["getSession", "signIn", "refreshSession", "signOut", "resetPassword"].every(method => typeof bridge[method] === "function")
+      ? bridge : null;
+  }
+
+  function clearDesktopSession() {
+    desktopAuthGeneration += 1;
+    window.clearTimeout(desktopLeaseTimer);
+    clearAuthState();
+  }
+
+  function expireDesktopSession() {
+    clearDesktopSession();
+    showLogin();
+    toFormError("Offline access expired. Reconnect to verify this desktop session.", true);
+  }
+
+  function installDesktopSession(result) {
+    const { session, snapshot } = result || {};
+    if (session?.access_token !== DESKTOP_AUTH_MARKER || session.token_type !== "native" ||
+        snapshot?.canReadOffline !== true || snapshot.profile?.status !== "active" ||
+        typeof snapshot.actorId !== "string" || !snapshot.actorId || snapshot.actorId !== session.user?.id ||
+        ![snapshot.organizationId, snapshot.tenantId, snapshot.teamId].every(id => typeof id === "string" && id) ||
+        !DEFAULT_ROLES.includes(snapshot.profile.role) ||
+        !Number.isSafeInteger(snapshot.authEpoch) || snapshot.authEpoch < 0 ||
+        !Number.isSafeInteger(snapshot.offlineLeaseExpiresAtUnixMs) ||
+        snapshot.offlineLeaseExpiresAtUnixMs <= Date.now()) return false;
+    const expiry = snapshot.offlineLeaseExpiresAtUnixMs;
+    const current = {
+      // This marker is only an in-memory generation for the existing UI contracts.
+      access_token: `${DESKTOP_AUTH_MARKER}:${snapshot.authEpoch}`,
+      desktopLeaseExpiresAt: expiry,
+      user: {
+        id: snapshot.actorId,
+        email: session.user.email,
+        app_metadata: { role: snapshot.profile.role, status: "active", organizationId: snapshot.organizationId },
+        user_metadata: { ...session.user.user_metadata, clubId: snapshot.tenantId, teamId: snapshot.teamId },
+      },
+    };
+    authState.session = current;
+    setCurrentUserFromSession(current.user);
+    window.clearTimeout(desktopLeaseTimer);
+    const checkExpiry = () => {
+      if (authState.session !== current) return;
+      const remaining = expiry - Date.now();
+      if (remaining <= 0) expireDesktopSession();
+      else desktopLeaseTimer = window.setTimeout(checkExpiry, Math.min(remaining, 2147483647));
+    };
+    checkExpiry();
+    return true;
+  }
+
+  async function bootDesktopAuth() {
+    const bridge = getDesktopAuthBridge();
+    showLogin();
+    if (!bridge) {
+      toFormError("Desktop authentication could not be initialized. Reopen the installed app.", true);
+      return;
+    }
+    const generation = desktopAuthGeneration;
+    try {
+      const result = await withTimeout(bridge.getSession(), 8000, "Desktop session lookup timed out.");
+      if (generation !== desktopAuthGeneration) return;
+      if (installDesktopSession(result)) showPlatform(authState.currentUser);
+      else if (result?.configured !== true) {
+        toFormError("Desktop authentication is not connected to a test environment yet.");
+      } else if (result.session) {
+        toFormError("Desktop access could not be verified. Reconnect and sign in.", true);
+      }
+    } catch {
+      if (generation === desktopAuthGeneration) toFormError("Desktop authentication could not be initialized.", true);
+    }
+  }
   function normalizeRoleForAuth(rawRole, fallback = "coach") {
     if (Array.isArray(rawRole)) {
       return normalizeRoleForAuth(rawRole.find((entry) => typeof entry === "string" && entry.trim()) || "", fallback);
@@ -298,6 +389,7 @@
     return DEFAULT_ROLES.includes(mapped) ? mapped : fallback;
   }
   function canCurrentUserAutomaticallyWriteCentralStateKey(key) {
+    if (desktopAuthSurface) return false;
     const allowedRoles = CENTRAL_STATE_AUTOMATIC_WRITE_ROLES.get(String(key || ""));
     if (!allowedRoles) {
       return true;
@@ -624,6 +716,7 @@
     }
   }
 async function getActiveAccessToken() {
+  if (desktopAuthSurface && authState.session?.desktopLeaseExpiresAt <= Date.now()) expireDesktopSession();
   if (authState.session?.access_token) {
     return authState.session.access_token;
   }
@@ -650,6 +743,28 @@ async function getActiveAccessToken() {
     return String(token || "").length > MAX_AUTH_ACCESS_TOKEN_LENGTH;
   }
   async function refreshAccessToken() {
+    if (desktopAuthSurface) {
+      const bridge = getDesktopAuthBridge();
+      if (!bridge || !authState.session || authState.isSigningOut) return null;
+      if (authRefreshTokenPromise) return authRefreshTokenPromise;
+      const generation = desktopAuthGeneration;
+      authRefreshTokenPromise = withTimeout(bridge.refreshSession(), 12000, "Desktop session refresh took too long.")
+        .then(result => {
+          if (desktopAuthGeneration !== generation) return null;
+          if (installDesktopSession(result)) return authState.session.access_token;
+          expireDesktopSession();
+          return null;
+        })
+        .catch(async () => {
+          try {
+            const result = await withTimeout(bridge.getSession(), 4000, "Desktop access check timed out.");
+            if (desktopAuthGeneration === generation && !installDesktopSession(result)) expireDesktopSession();
+          } catch {}
+          return null;
+        })
+        .finally(() => { authRefreshTokenPromise = null; });
+      return authRefreshTokenPromise;
+    }
     if (!authState.supabase) {
       return null;
     }
@@ -685,12 +800,21 @@ async function getActiveAccessToken() {
   }
   async function apiRequest(path, options = {}) {
     const { timeoutMs = 15000, skipAuth = false, isCurrent, ...fetchOptions } = options || {};
+    if (desktopAuthSurface && (!getDesktopAuthBridge() || String(fetchOptions.method || "GET").toUpperCase() !== "GET")) {
+      return { ok: false, status: 0, payload: { reason: "This request is unavailable in the desktop preview." } };
+    }
     let accessToken = skipAuth ? null : await getActiveAccessToken();
+    const desktopSession = desktopAuthSurface ? authState.session : null;
+    if (desktopAuthSurface && !accessToken) {
+      return { ok: false, status: 401, payload: { reason: "Sign in to access this desktop view." } };
+    }
+    const requestIsCurrent = () => (!isCurrent || isCurrent()) && (!desktopAuthSurface ||
+      desktopSession === authState.session && desktopSession.desktopLeaseExpiresAt > Date.now());
     if (!skipAuth && accessToken && isAuthTokenOversized(accessToken)) {
       const refreshedToken = await refreshAccessToken();
       accessToken = refreshedToken || accessToken;
     }
-    if (isCurrent && !isCurrent()) return { ok: false, status: 0, payload: { reason: "Account or team changed. Local changes were retained." } };
+    if (!requestIsCurrent()) return { ok: false, status: 0, payload: { reason: "Account or team changed. Local changes were retained." } };
     if (!skipAuth && accessToken && isAuthTokenOversized(accessToken)) {
       await signOut();
       return {
@@ -702,7 +826,7 @@ async function getActiveAccessToken() {
       };
     }
     const headers = new Headers(fetchOptions.headers || {});
-    if (accessToken) {
+    if (accessToken && !desktopAuthSurface) {
       headers.set("Authorization", `Bearer ${accessToken}`);
     }
     if (!headers.has("Content-Type")) {
@@ -740,9 +864,9 @@ async function getActiveAccessToken() {
         window.clearTimeout(timeoutId);
       }
     }
-    if (isCurrent && !isCurrent()) return { ok: false, status: 0, payload: { reason: "Account or team changed. Local changes were retained." } };
+    if (!requestIsCurrent()) return { ok: false, status: 0, payload: { reason: "Account or team changed. Local changes were retained." } };
     const payload = await readJsonResponse(response);
-    if (isCurrent && !isCurrent()) return { ok: false, status: 0, payload: { reason: "Account or team changed. Local changes were retained." } };
+    if (!requestIsCurrent()) return { ok: false, status: 0, payload: { reason: "Account or team changed. Local changes were retained." } };
     if (response.status === 401 && authState.currentUser) {
       await signOut();
     }
@@ -921,6 +1045,9 @@ async function getActiveAccessToken() {
     return centralStateValues.has(normalizedKey) ? centralStateValues.get(normalizedKey) : undefined;
   }
   function getCentralReadScope() {
+    // The native runtime owns its scope and outbox. Do not hydrate its WebView
+    // with the browser cache or start the browser replay pipeline.
+    if (desktopAuthSurface) return "";
     const user = authState.currentUser;
     const claims = authState.session?.user?.app_metadata || {};
     const organizationId = claims.organizationId || claims.organization_id || user?.organizationId || "";
@@ -2513,6 +2640,25 @@ async function getActiveAccessToken() {
     return authState.currentUser;
   }
   async function signInWithIdentifier(identifier, password) {
+    if (desktopAuthSurface) {
+      const bridge = getDesktopAuthBridge();
+      if (!bridge || authState.isSigningOut || desktopSignInRequest) {
+        return { ok: false, reason: "Desktop authentication is not ready." };
+      }
+      const cleanIdentifier = String(identifier || "").trim().toLowerCase();
+      if (!cleanIdentifier || typeof password !== "string" || !password.length) {
+        return { ok: false, reason: "Username and password are required." };
+      }
+      const generation = ++desktopAuthGeneration;
+      const request = Promise.resolve().then(() => bridge.signIn(cleanIdentifier, password))
+        .finally(() => { desktopSignInRequest = null; });
+      desktopSignInRequest = request;
+      try {
+        const result = await withTimeout(request, 25000, "Desktop sign-in has timed out.");
+        if (generation === desktopAuthGeneration && installDesktopSession(result)) return { ok: true };
+      } catch {}
+      return { ok: false, reason: "Desktop sign-in failed. Check your account and connection." };
+    }
     if (authState.devMode) return signInWithDevAuth(identifier, password);
     if (!authState.supabase) return { ok: false, reason: "Authentication is not ready. Open footballscience.xyz." };
     const cleanIdentifier = String(identifier || "").trim().toLowerCase();
@@ -2568,6 +2714,17 @@ async function getActiveAccessToken() {
     }
   }
   async function resetPasswordFor(identifier) {
+    if (desktopAuthSurface) {
+      const bridge = getDesktopAuthBridge();
+      const cleanIdentifier = String(identifier || "").trim().toLowerCase();
+      if (!cleanIdentifier) return { ok: false, reason: "Enter a username or email." };
+      try {
+        if (bridge && (await withTimeout(bridge.resetPassword(cleanIdentifier), 12000, "Password reset timed out."))?.ok) {
+          return { ok: true };
+        }
+      } catch {}
+      return { ok: false, reason: "We could not send a reset link." };
+    }
     if (authState.devMode) {
       return { ok: true, localDev: true };
     }
@@ -3008,6 +3165,24 @@ async function getActiveAccessToken() {
     } catch {}
   }
   async function signOut(options = {}) {
+    if (desktopAuthSurface) {
+      const bridge = getDesktopAuthBridge();
+      const shouldSignOut = bridge && options.remote !== false && !authState.isSigningOut;
+      if (shouldSignOut) authState.isSigningOut = true;
+      clearDesktopSession();
+      setProfileMenuOpen(false);
+      showLogin();
+      if (!shouldSignOut) return;
+      try {
+        await desktopSignInRequest?.catch(() => {});
+        await bridge.signOut();
+      } catch {
+        toFormError("Desktop sign-out could not be confirmed.", true);
+      } finally {
+        authState.isSigningOut = false;
+      }
+      return;
+    }
     const shouldSignOutRemote = options.remote !== false && authState.supabase && !authState.isSigningOut;
     const remoteSignOut = shouldSignOutRemote
       ? (async () => {
@@ -3163,7 +3338,7 @@ async function getActiveAccessToken() {
       return;
     }
     await ensureDomReady();
-    purgeLegacyLocalAccountStorage();
+    if (!desktopAuthSurface) purgeLegacyLocalAccountStorage();
     const loginForm = document.getElementById("loginForm");
     const usernameInput = document.getElementById("loginUsername");
     const passwordInput = document.getElementById("loginPassword");
@@ -3285,6 +3460,13 @@ async function getActiveAccessToken() {
       }
     });
     attachSharedAuthUiHandlers();
+    if (desktopAuthSurface) {
+      await bootDesktopAuth();
+      authState.isReady = true;
+      window.clearTimeout(loginInitSafetyTimer);
+      setLoginBusy(false);
+      return;
+    }
     if (isLocalDevelopmentSurface()) {
       initializeDevAuth();
       setLoginBusy(false);
@@ -3389,12 +3571,19 @@ async function getActiveAccessToken() {
     getSupabaseClient: () => authState.supabase,
     isDevMode: () => Boolean(authState.devMode),
     writeUsers: (users) => {
+      if (desktopAuthSurface) return authState.users.slice();
       authState.users = Array.isArray(users) ? users : [];
       return authState.users;
     },
     getCurrentUser: () => authState.currentUser,
-    setCurrentUser: setCurrentUserById,
+    setCurrentUser: (userId) => {
+      if (!desktopAuthSurface) setCurrentUserById(userId);
+    },
     clearCurrentUser: () => {
+      if (desktopAuthSurface) {
+        void signOut();
+        return;
+      }
       authState.currentUser = null;
       authState.users = [];
       authState.session = null;
@@ -3519,7 +3708,7 @@ async function getActiveAccessToken() {
   window.platformAuthReadyPromise=(async () => {
     const preparationKey = "football-science-sessions-offline-preparation-v1";
     try {
-      if (window.localStorage.getItem(preparationKey) !== null) {
+      if (!desktopAuthSurface && window.localStorage.getItem(preparationKey) !== null) {
         const { reconcileSessionsOfflineOwner } = await import("./src/core/sessions-offline-access/access.mjs");
         reconcilePreparedSessionsOwner = reconcileSessionsOfflineOwner;
       }

@@ -1,0 +1,137 @@
+{
+  "schema": "fs-desktop-conflict-recovery-windows-checkpoint-v1",
+  "runId": 35947051993,
+  "url": "https://github.com/maklind88/footballscience/actions/runs/35947051993",
+  "commit": "f2e08cc3f2252786e2cfd0dcc4276b65f4418cfe",
+  "conclusion": "failure",
+  "environment": {
+    "schema": "fs-desktop-windows-environment-v1",
+    "runnerImage": "win25-vs2026",
+    "osCaption": "Microsoft Windows Server 2025 Datacenter",
+    "osVersion": "10.0.26100",
+    "architecture": "AMD64",
+    "webView2RegistryVersions": [
+      "152.0.4191.66"
+    ],
+    "runtimeProbeRequired": true,
+    "physicalWindowsHardware": false
+  },
+  "webQaJobsPassed": 6,
+  "desktopContracts": {
+    "passed": 62,
+    "failed": 0
+  },
+  "nativeTests": {
+    "passed": 72,
+    "failed": 0,
+    "ignored": 1
+  },
+  "runtimeChecksPassed": [
+    {
+      "name": "Candidate B bundled startup",
+      "result": "passed",
+      "nativeBridge": "two typed commands",
+      "unauthorizedCommandRejected": true,
+      "networkDependency": false
+    },
+    {
+      "name": "Candidate A signed custom-protocol activation",
+      "result": "passed",
+      "activeBuildId": "hosted-test-normal-s21-ba8a1d837063",
+      "releaseSequence": 21,
+      "candidateIsolationProof": "fs-desktop-candidate-isolation-v1",
+      "fullPlatformRuntimeLoaded": true,
+      "privateSigningKeyAvailableToApp": false
+    },
+    {
+      "name": "Native active generation and SQLite projection survive process restart",
+      "result": "passed",
+      "processRestart": true,
+      "physicalWindowsRestart": false
+    },
+    {
+      "name": "Invalid detached signature rejected",
+      "result": "passed",
+      "rejectedBuildId": "hosted-test-normal-s21-ba8a1d837063",
+      "activeGeneration": "hosted-test-normal-s21-ba8a1d837063",
+      "candidatePromoted": false
+    },
+    {
+      "name": "Unknown signing key rejected",
+      "result": "passed",
+      "rejectedBuildId": "hosted-test-unknown-key-s24-ba8a1d837063",
+      "activeGeneration": "hosted-test-normal-s21-ba8a1d837063",
+      "candidatePromoted": false
+    },
+    {
+      "name": "Post-signing asset modification rejected",
+      "result": "passed",
+      "rejectedBuildId": "hosted-test-modified-asset-s25-ba8a1d837063",
+      "activeGeneration": "hosted-test-normal-s21-ba8a1d837063",
+      "candidatePromoted": false
+    },
+    {
+      "name": "Incompatible candidate rejected",
+      "result": "passed",
+      "rejectedBuildId": "hosted-test-incompatible-s22-ba8a1d837063",
+      "activeGeneration": "hosted-test-normal-s21-ba8a1d837063",
+      "candidatePromoted": false
+    }
+  ],
+  "runtimeBlocker": {
+    "step": "hanging candidate staging evidence",
+    "timeoutMs": 30000,
+    "rootCause": "not established",
+    "notVerified": [
+      "candidate timeout/quarantine/backoff",
+      "quarantined restart",
+      "offline cold start",
+      "offline restart",
+      "online recovery",
+      "unauthorized-origin runtime probe"
+    ]
+  },
+  "artifact": {
+    "id": 10787622599,
+    "name": "fs-desktop-windows-architecture-35947051993",
+    "bytes": 19982446,
+    "expiresAt": "2026-10-08T02:43:00Z",
+    "archiveDigest": "sha256:5f8432518955dd853b386b23369794510d836709ca1f52d948a5fddf1d72758f",
+    "executables": [
+      {
+        "candidate": "bundled",
+        "file": "fs-desktop-bundled.exe",
+        "bytes": 17650176,
+        "sha256": "b29fd1704d7b08120e2334378b257c37eb3d8b8bce563104ccac502ce86a700f"
+      },
+      {
+        "candidate": "hosted",
+        "file": "fs-desktop-hosted.exe",
+        "bytes": 17728000,
+        "sha256": "48c32ec16fd554ebc4f71847dedd3251407895d3279ba8177f7445df7d3ef9fa"
+      },
+      {
+        "candidate": "unauthorized-origin",
+        "file": "fs-desktop-unauthorized-origin.exe",
+        "bytes": 17649664,
+        "sha256": "9c58f013b68aa820e47e57270254964831359f986a9884c891726e42488ab93b"
+      }
+    ],
+    "downloadedExecutableChecksumsVerified": true,
+    "ciArtifactNameGuard": "skipped after runtime failure; equivalent local name check passed"
+  },
+  "limitations": [
+    "GitHub-hosted runner evidence is not physical Windows hardware verification.",
+    "Installer UX, SmartScreen, sleep/wake, update installation UX, physical restart, and real adapter switching were not tested.",
+    "The Windows Credential Manager backend compiled and its in-memory lifecycle contracts ran; no claim is made that a physical Credential Manager round trip was verified.",
+    "Network transitions were simulated by starting and stopping a loopback-only synthetic release source, not by switching a physical network adapter.",
+    "Process restart was exercised; operating-system restart was not.",
+    "The verified release cache is native app-data storage, isolated from browser/PWA Cache Storage."
+  ],
+  "productionCredentialsUsed": false,
+  "productionDataUsed": false,
+  "remoteSupabaseModified": false,
+  "mainMerged": false,
+  "deployed": false,
+  "installerPublished": false
+}

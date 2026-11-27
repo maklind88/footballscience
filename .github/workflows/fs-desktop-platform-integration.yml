@@ -1,0 +1,125 @@
+name: FS Desktop integration QA
+
+on:
+  push:
+    branches:
+      - codex/desktop-platform-integration-20261126
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fs-desktop-integration-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: ${{ matrix.name }}
+    if: github.repository == 'maklind88/footballscience'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64 WebView2
+            runner: windows-2025
+            os: windows
+            arch: x64
+          - name: macOS arm64 WebKit
+            runner: macos-15
+            os: macos
+            arch: arm64
+          - name: Ubuntu 24.04 x64 WebKitGTK
+            runner: ubuntu-24.04
+            os: linux
+            arch: x64
+    defaults:
+      run:
+        working-directory: desktop/fs-desktop-spike
+    env:
+      CI: "true"
+      FS_DESKTOP_CI: "1"
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+    steps:
+      - name: Check out the QA commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+
+      - name: Install Linux build and window-server dependencies
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential libayatana-appindicator3-dev libdbus-1-dev librsvg2-dev libssl-dev libwebkit2gtk-4.1-dev libxdo-dev dbus-x11 xvfb xauth
+
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+
+      - name: Check runner architecture
+        run: node -e "if (process.arch !== process.argv[1]) throw new Error('Unexpected runner architecture ' + process.arch)" "${{ matrix.arch }}"
+
+      - name: Install isolated Desktop dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run synthetic JavaScript and HTTP contracts
+        run: npm test
+
+      - name: Verify the shared frontend's native authentication boundary
+        working-directory: .
+        run: node --test qa/desktop-auth-runtime-boundary.test.mjs
+
+      - name: Check native Rust formatting
+        working-directory: desktop/fs-desktop-spike/src-tauri
+        run: cargo +1.98.0 fmt --all -- --check
+
+      - name: Check native Rust lints
+        working-directory: desktop/fs-desktop-spike/src-tauri
+        run: cargo +1.98.0 clippy --all-targets --locked -- -D warnings
+
+      - name: Run native storage, authorization, and sync tests
+        working-directory: desktop/fs-desktop-spike/src-tauri
+        run: cargo +1.98.0 test --lib --locked
+
+      - name: Build unsigned Windows test executables
+        if: matrix.os == 'windows'
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.0
+        run: npm run ci:build:windows
+
+      - name: Verify Windows WebView2 startup and process restart
+        if: matrix.os == 'windows'
+        run: npm run ci:verify:windows
+
+      - name: Build the macOS test app bundle
+        if: matrix.os == 'macos'
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.0
+        run: npm run tauri:package:hosted:macos
+
+      - name: Verify signed frontend and restart in the macOS test app
+        if: matrix.os == 'macos'
+        run: npm run verify:packaged:macos
+
+      - name: Build the Ubuntu test package
+        if: matrix.os == 'linux'
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.0
+        run: npm run tauri:package:hosted:linux
+
+      - name: Extract the Linux test package and verify native restart
+        if: matrix.os == 'linux'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          debs=(src-tauri/target/release/bundle/deb/*.deb)
+          test "${#debs[@]}" -eq 1
+          package_root="$(mktemp -d)"
+          dpkg-deb --extract "${debs[0]}" "$package_root"
+          xvfb-run -a dbus-run-session -- npm run verify:packaged:linux -- --linux-root="$package_root"

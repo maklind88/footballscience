@@ -1,0 +1,109 @@
+[[permission]]
+identifier = "allow-runtime-info"
+description = "Allows the frontend to read versioned desktop runtime metadata."
+commands.allow = ["desktop_runtime_info"]
+
+[[permission]]
+identifier = "allow-record-probe"
+description = "Allows the architecture spike to write one sanitized result record to the temporary directory."
+commands.allow = ["record_spike_probe"]
+
+[[permission]]
+identifier = "allow-bootstrap-status"
+description = "Allows the verified shell to read native compatibility and generation state."
+commands.allow = ["desktop_bootstrap_status"]
+
+[[permission]]
+identifier = "allow-bootstrap-update"
+description = "Allows a fixed-origin, native-controlled shell update check with no caller-provided URL."
+commands.allow = ["desktop_prepare_shell_update"]
+
+[[permission]]
+identifier = "allow-candidate-status"
+description = "Allows only the isolated candidate window to read compatibility status and its native nonce."
+commands.allow = ["desktop_candidate_status"]
+
+[[permission]]
+identifier = "allow-candidate-confirm"
+description = "Allows only the isolated candidate window to submit bounded initialization evidence."
+commands.allow = ["desktop_candidate_confirm"]
+
+[[permission]]
+identifier = "allow-candidate-failure"
+description = "Allows only the isolated candidate window to report a sanitized bounded failure code."
+commands.allow = ["desktop_candidate_report_failure"]
+
+[[permission]]
+identifier = "allow-open-recovery"
+description = "Allows the active shell to request the native read-only recovery surface."
+commands.allow = ["desktop_open_recovery"]
+
+[[permission]]
+identifier = "allow-recovery-status"
+description = "Allows the recovery surface to read credential-free recovery state."
+commands.allow = ["desktop_recovery_status"]
+
+[[permission]]
+identifier = "allow-recovery-read"
+description = "Allows the recovery surface to read only the already-authorized selected-session projection."
+commands.allow = ["desktop_recovery_read_selected_session"]
+
+[[permission]]
+identifier = "allow-session-authority"
+description = "Allows the shell to read a credential-free native session and offline-lease snapshot."
+commands.allow = ["desktop_session_authority"]
+
+[[permission]]
+identifier = "allow-auth-status"
+description = "Allows the active signed shell to read a credential-free native authentication view."
+commands.allow = ["desktop_auth_status"]
+
+[[permission]]
+identifier = "allow-auth-sign-in"
+description = "Allows the active signed shell to submit bounded credentials directly to native authentication."
+commands.allow = ["desktop_auth_sign_in"]
+
+[[permission]]
+identifier = "allow-auth-refresh"
+description = "Allows the active signed shell to request native-owned session refresh without receiving credentials."
+commands.allow = ["desktop_auth_refresh"]
+
+[[permission]]
+identifier = "allow-auth-reset-password"
+description = "Allows the active signed shell to request a bounded non-enumerating password recovery email."
+commands.allow = ["desktop_auth_reset_password"]
+
+[[permission]]
+identifier = "allow-auth-sign-out"
+description = "Allows the active signed shell to clear the current native session and secure credential."
+commands.allow = ["desktop_auth_sign_out"]
+
+[[permission]]
+identifier = "allow-api-request"
+description = "Allows the active signed shell to call only native allowlisted Football Science API routes."
+commands.allow = ["desktop_api_request"]
+
+[[permission]]
+identifier = "allow-session-read"
+description = "Allows a compatible authorized shell to read the one selected normalized Session Planner projection."
+commands.allow = ["desktop_read_selected_session"]
+
+[[permission]]
+identifier = "allow-session-operation"
+description = "Allows only versioned Session Planner domain operations with native partition and revision validation."
+commands.allow = ["desktop_apply_session_operation"]
+
+[[permission]]
+identifier = "allow-session-sync-status"
+description = "Allows a compatible authorized shell to read only bounded Session Planner synchronization state."
+commands.allow = ["desktop_session_sync_status"]
+
+[[permission]]
+identifier = "allow-session-sync"
+description = "Allows one native-owned queued operation to a build-gated loopback test server; no caller URL or payload."
+commands.allow = ["desktop_sync_selected_session"]
+
+[[permission]]
+identifier = "allow-session-conflict"
+description = "Allows bounded conflict review and explicit local rebase in the loopback-only experiment."
+commands.allow = ["desktop_session_conflict"]

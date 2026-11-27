@@ -1,0 +1,14 @@
+{
+  "schema": "fs-desktop-session-sync-request-v1",
+  "syncProtocolVersion": 1,
+  "clientInstanceId": "00000000-0000-4000-8000-000000005001",
+  "authEpoch": 2,
+  "operation": {
+    "operationId": "00000000-0000-4000-8000-000000006001",
+    "operationType": "session.rename",
+    "operationVersion": 1,
+    "sessionId": "00000000-0000-4000-8000-000000001001",
+    "baseRevision": 7,
+    "payload": { "title": "Offline revision 8" }
+  }
+}

@@ -170,7 +170,7 @@ export function renderPerformanceCheckins(view, escape) {
         <option value="">All players</option>
         ${view.players.map(({ id, name }) => `<option value="${escape(id)}"${view.playerId === id ? " selected" : ""}>${escape(name)}</option>`).join("")}
       </select></label>
-    <a class="pr-source" href="/src/modules/performance/rpe-response.html" target="_blank" rel="noopener">My Performance ↗</a>
+    <a class="pr-source" href="/player" target="_blank" rel="noopener">Player Profile ↗</a>
     <button type="button" class="pr-source" data-pr-action="checkins-refresh" data-pr-focus="checkins-refresh">Refresh responses</button>
   </div>
   <p class="pr-footnote" role="status">${escape(view.saving ? "Saving…" : view.message)}</p>

@@ -230,6 +230,9 @@ module.exports = async (req, res) => {
         return sendJson(res, 401, { ok: false, reason: "You must be signed in." });
       }
 
+      if (actor.playerOnly) {
+        return sendJson(res, 403, { ok: false, reason: "Staff access required." });
+      }
       const users = await listAllAuthUsers();
       if (actor.role !== "admin") {
         return sendJson(res, 200, {
@@ -318,7 +321,10 @@ module.exports = async (req, res) => {
       return sendJson(res, 403, { ok: false, reason: "This user is outside your admin scope." });
     }
 
-    const nextPayload = sanitizeUserPayloadForActor(actor, body, target);
+    const nextPayload = actor.playerOnly && targetId === actor.id
+      ? Object.fromEntries(["firstName", "lastName", "password"].filter((key) =>
+        typeof body[key] === "string").map((key) => [key, body[key]]))
+      : sanitizeUserPayloadForActor(actor, body, target);
     const hasRole = Object.prototype.hasOwnProperty.call(nextPayload, "role");
     const hasStatus = Object.prototype.hasOwnProperty.call(nextPayload, "status");
     const nextRole = hasRole ? String(nextPayload.role || "").trim() : "";

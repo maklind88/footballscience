@@ -14,6 +14,7 @@ const {
 const { enrichClipBankItems } = require("./idp-clip-bank-metadata.js");
 const { gameModelActionMetadata } = require("./idp-game-model-action.js");
 const { clipsShareIdpMoment } = require("./idp-clip-bank-moments.js");
+const { handleIdpPlayerPublication } = require("./idp-player-publication.js");
 
 const IDP_SCHEMA = "footballscience-idp-v1";
 const CATEGORIES = new Set(["Technical", "Tactical", "Physical", "Psychological", "Leadership"]);
@@ -1660,6 +1661,13 @@ function statusPayload(actor) {
 
 async function handleIdpRequest(req, res, actor) {
   const url = new URL(req.url || "/api/idp", "https://footballscience.local");
+  if (url.searchParams.get("action") === "player-publication") {
+    if (!["GET", "POST"].includes(req.method)) return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
+    res.setHeader("Cache-Control", "private, no-store");
+    const body = req.method === "POST" ? await parseJsonBody(req, { maxBytes: 12 * 1024 }) : {};
+    const result = await handleIdpPlayerPublication({ actor, playerId: url.searchParams.get("playerId"), body });
+    return sendJson(res, result.status, result.payload);
+  }
   if (req.method === "GET") {
     const action = normalizeText(url.searchParams.get("action") || "dashboard", 40);
     const query = Object.fromEntries(url.searchParams.entries());

@@ -658,7 +658,7 @@ test("staff follow up Wellness by Squad profile and open RPE for selected linked
   expect(requests).toEqual([]);
   await room.getByRole("button", { name: "Wellness & RPE", exact: true }).click();
   await expect(room.getByText("1 of 3 players recorded")).toBeVisible();
-  await expect(room.getByRole("link", { name: /My Performance/ })).toHaveAttribute("href", "/src/modules/performance/rpe-response.html");
+  await expect(room.getByRole("link", { name: /Player Profile/ })).toHaveAttribute("href", "/player");
   await expect(room.getByRole("cell", { name: "Account not linked" })).toHaveCount(2);
   await room.getByRole("checkbox", { name: "Open RPE for Alex Example" }).check();
   await room.getByRole("button", { name: "Open RPE for completed session" }).click();
@@ -676,7 +676,7 @@ test("staff follow up Wellness by Squad profile and open RPE for selected linked
   expect(requests.at(-1)).toBe("qa-player-a");
 });
 
-test("a signed-in player on mobile sees their own records and submits a zero RPE", async ({ page }) => {
+test("a signed-in player on mobile sees their own records and submits a 1-10 RPE", async ({ page }, testInfo) => {
   const week = "2026-11-23";
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.setFixedTime(new Date(`${day}T20:00:00Z`));
@@ -689,26 +689,52 @@ test("a signed-in player on mobile sees their own records and submits a zero RPE
     const request = route.request();
     expect(request.headers().authorization).toBe("Bearer qa-player-token");
     if (request.method() === "POST") {
-      expect(request.postDataJSON()).toEqual({ week, activityId: "qa-training", rating: 0 });
-      saved = 0;
+      expect(request.postDataJSON()).toEqual({ week, activityId: "qa-training", rating: 7 });
+      saved = 7;
       return route.fulfill({ json: { ok: true, rating: saved } });
     }
     return route.fulfill({ json: { ok: true, week,
       rpe: [{ activityId: "qa-training", date: day, title: "Midweek training", rating: saved }],
+      profile: { id: "player-id", name: "Example Player", firstName: "Example", lastName: "Player", email: "player@example.test", team: "North Carolina Courage" },
+      development: { focus: "Scan before receiving", nextStep: "Check both shoulders" },
+      gps: [{ date: day, title: "Midweek training", distance: 6370, hsr: 280, maxSpeed: 28.4 }],
       wellness: [{ date: day, score: 82.5, sleepQuality: "Normal" }],
     } });
   });
 
   await page.goto("/src/modules/performance/rpe-response.html");
-  await expect(page.getByRole("heading", { name: "My Performance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Player Profile" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Wellness" })).toBeHidden();
   await page.getByLabel("Email").fill("player@example.test");
-  await page.getByLabel("Password").fill("fixture-password");
+  await page.getByLabel("Password", { exact: true }).fill("fixture-password");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByText("82.5 / 100")).toBeVisible();
-  await page.getByRole("radio", { name: "0", exact: true }).check();
+  await expect(page.getByRole("heading", { name: "My Development" })).toBeVisible();
+  await expect(page.getByText("Scan before receiving")).toBeVisible();
+  await expect(page.getByRole("radio")).toHaveCount(10);
+  await expect(page.getByRole("radio", { name: "0", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("player-development-mobile.png") });
+  await page.getByRole("radio", { name: "7", exact: true }).check();
   await page.getByRole("button", { name: "Send response" }).click();
-  await expect(page.getByText("Submitted · 0 / 10")).toBeVisible();
+  await expect(page.getByText("Response saved.")).toBeVisible();
+  await page.getByRole("button", { name: "My Performance" }).click();
+  await expect(page.getByText("Submitted · 7 / 10")).toBeVisible();
+  await expect(page.getByText("82.5 / 100")).toBeVisible();
+  await expect(page.getByText("28.4 km/h")).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.screenshot({ path: testInfo.outputPath("player-performance-desktop.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "My Profile" }).click();
+  await expect(page.getByLabel("First name")).toHaveValue("Example");
+  await expect(page.getByText("player@example.test", { exact: true })).toBeVisible();
+  await page.route("**/api/admin-users", (route) => {
+    expect(route.request().method()).toBe("PATCH");
+    expect(route.request().postDataJSON()).toEqual({ id: "player-id", firstName: "Updated", lastName: "Player" });
+    return route.fulfill({ json: { ok: true, user: { firstName: "Updated", lastName: "Player" } } });
+  });
+  await page.getByLabel("First name").fill("Updated");
+  await page.getByRole("button", { name: "Save name" }).click();
+  await expect(page.getByText("Updated Player")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByText("82.5 / 100")).toBeHidden();
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();

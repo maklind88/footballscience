@@ -12,6 +12,10 @@
   },
   "rewrites": [
     {
+      "source": "/player",
+      "destination": "/src/modules/performance/rpe-response.html"
+    },
+    {
       "source": "/api/medical-recovery-save",
       "destination": "/api/app-state?medicalRecoveryRetry=1"
     },
@@ -21,6 +25,12 @@
     }
   ],
   "headers": [
+    {
+      "source": "/player",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
     {
       "source": "/src/modules/presentation-mode/(.*)",
       "headers": [

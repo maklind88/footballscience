@@ -29,6 +29,7 @@ import {
   toggleClipBankSelection,
 } from "./idp-clip-preview-controller.mjs";
 import { createIdpApiService } from "./services/idp-api-service.mjs";
+import { loadPlayerPublication, savePlayerPublication } from "./idp-player-publication.mjs";
 
 let runtime = null;
 const IDP_SYNC_INTERVAL_MS = 30000;
@@ -429,6 +430,11 @@ export function handleChange(event) {
 }
 
 export function handleClick(event) {
+  const publicationButton = event?.target?.closest?.("[data-idp-publication-load]");
+  if (publicationButton && runtime && canEdit(runtime.context)) {
+    void loadPlayerPublication(publicationButton, runtime.api);
+    return;
+  }
   if (event?.target?.closest?.("[data-idp-action-layer]")?.querySelector?.('[data-idp-create-focus][data-saving="true"]')) {
     event.preventDefault();
     return;
@@ -746,6 +752,13 @@ export function handleClick(event) {
 
 export function handleSubmit(event) {
   const form = event?.target;
+  if (form?.matches?.("[data-idp-player-publication]")) {
+    event.preventDefault();
+    if (runtime && canEdit(runtime.context)) {
+      void savePlayerPublication(form, event.submitter?.value || "publish", runtime.api);
+    }
+    return;
+  }
   if (!form?.matches?.("[data-idp-create-focus], [data-idp-add-evidence], [data-idp-update-evidence], [data-idp-complete-review], [data-idp-assign-owner], [data-idp-save-goal], [data-idp-add-goal-checkin]")) {
     return;
   }

@@ -5,14 +5,17 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex,nofollow">
-  <title>My Performance · Football Science</title>
-  <link rel="stylesheet" href="./rpe-response.css">
-  <script type="module" src="./rpe-response.mjs"></script>
+  <title>Player Profile · Football Science</title>
+  <link rel="stylesheet" href="/src/modules/performance/rpe-response.css">
+  <script type="module" src="/src/modules/performance/rpe-response.mjs"></script>
 </head>
 <body>
   <main>
     <header class="page-header">
-      <div><p class="brand">Football Science</p><h1>My Performance</h1></div>
+      <div class="identity">
+        <img src="/assets/football-science-mark.png" width="48" height="48" alt="" />
+        <div><p class="brand">Football Science</p><h1>Player Profile</h1></div>
+      </div>
       <button id="signout" type="button" class="secondary" hidden>Sign out</button>
     </header>
     <form id="login">
@@ -22,14 +25,56 @@
       <button type="submit">Sign in</button>
     </form>
     <p id="status" role="status"></p>
+    <button id="retry" type="button" class="secondary" hidden>Try again</button>
     <div id="portal" hidden>
-      <nav class="week" aria-label="Check-in week">
-        <button type="button" class="secondary" id="prev" aria-label="Previous week">‹</button>
-        <label>Week of <input type="date" id="date" required></label>
-        <button type="button" class="secondary" id="next" aria-label="Next week">›</button>
+      <div class="player-name" id="identity"></div>
+      <nav class="player-nav" aria-label="Player profile">
+        <button type="button" data-view="development" aria-controls="development-view" aria-pressed="true">My Development</button>
+        <button type="button" data-view="performance" aria-controls="performance-view" aria-pressed="false">My Performance</button>
+        <button type="button" data-view="profile" aria-controls="profile-view" aria-pressed="false">My Profile</button>
       </nav>
-      <section aria-labelledby="rpe-title"><h2 id="rpe-title">Session RPE</h2><div id="rpe"></div></section>
-      <section aria-labelledby="wellness-title"><h2 id="wellness-title">Wellness</h2><div id="wellness"></div></section>
+      <div class="portal-grid">
+        <div id="development-view" class="development-view">
+          <section class="player-panel rpe-panel" aria-labelledby="rpe-title" id="rpe-panel" hidden>
+            <h2 id="rpe-title">Session RPE</h2><div id="rpe"></div>
+          </section>
+          <section class="player-panel" aria-labelledby="development-title">
+            <h2 id="development-title">My Development</h2><div id="development"></div>
+          </section>
+        </div>
+        <div id="performance-view" hidden>
+          <div class="week" aria-label="Performance week">
+            <label for="date">Week of</label>
+            <button type="button" class="secondary" id="prev" aria-label="Previous week">&lsaquo;</button>
+            <input type="date" id="date" required>
+            <button type="button" class="secondary" id="next" aria-label="Next week">&rsaquo;</button>
+          </div>
+          <div class="performance-panels">
+            <section class="player-panel" aria-labelledby="gps-title"><h2 id="gps-title">GPS</h2><div id="gps"></div></section>
+            <section class="player-panel" aria-labelledby="wellness-title"><h2 id="wellness-title">Wellness</h2><div id="wellness"></div></section>
+            <section class="player-panel" aria-labelledby="rpe-history-title"><h2 id="rpe-history-title">RPE history</h2><div id="rpe-history"></div></section>
+          </div>
+        </div>
+        <section id="profile-view" class="player-panel" aria-labelledby="profile-title" hidden>
+          <h2 id="profile-title">My Profile</h2>
+          <p id="profile-email"></p>
+          <form id="profile-form" class="account-form">
+            <label>First name<input name="firstName" autocomplete="given-name" maxlength="80" required></label>
+            <label>Last name<input name="lastName" autocomplete="family-name" maxlength="80" required></label>
+            <button type="submit">Save name</button>
+          </form>
+          <form id="photo-form" class="account-form">
+            <label>Profile photo<input type="file" name="photo" accept="image/png,image/jpeg,image/webp" required></label>
+            <button type="submit">Upload photo</button>
+          </form>
+          <form id="password-form" class="account-form">
+            <label>New password<input type="password" name="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+            <label>Confirm new password<input type="password" name="confirm" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+            <button type="submit">Change password</button>
+          </form>
+          <p id="profile-status" role="status"></p>
+        </section>
+      </div>
     </div>
     <noscript>Enable JavaScript to open your check-ins.</noscript>
   </main>

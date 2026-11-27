@@ -6,7 +6,7 @@ const focuses = [
   { id: "personal-focus", rowVersion: 2, focusLevel: "personal", category: "Leadership", status: "Active", title: "Organise the first line of pressure", description: "Communicate the trigger and bring teammates into the press." },
 ];
 
-async function mount(page, { rows = focuses, canEdit = true } = {}) {
+async function mount(page, { rows = focuses, canEdit = true, courageCoach = false } = {}) {
   const writes = [];
   const detail = {
     profile: { playerId: "p1", playerName: "Player One", position: "Forward" },
@@ -25,14 +25,15 @@ async function mount(page, { rows = focuses, canEdit = true } = {}) {
     return route.fulfill({ json: new URL(route.request().url()).searchParams.get("action") === "dashboard" ? { players: [{ profile: detail.profile }] } : detail });
   });
   await page.goto("/__idp-overview-test");
-  await page.evaluate(async (editable) => {
+  await page.evaluate(async ({ editable, courage }) => {
     const module = await import("/src/modules/idp/index.mjs");
     const root = document.getElementById("idpWorkspace");
     root.addEventListener("click", module.handleClick);
     root.addEventListener("change", module.handleChange);
     root.addEventListener("submit", module.handleSubmit);
-    module.render({ ui: { idpWorkspace: root }, win: window, canEdit: () => editable });
-  }, canEdit);
+    module.render({ ui: { idpWorkspace: root }, win: window, canEdit: () => editable,
+      ...(courage ? { teamName: "North Carolina Courage", currentUser: { role: "coach" } } : {}) });
+  }, { editable: canEdit, courage: courageCoach });
   await page.locator('[data-idp-player="p1"]').click();
   await expect(page.locator(".idp-focus-overview")).toBeVisible();
   return { writes, detail, initial };
@@ -110,4 +111,27 @@ test("draft focus stays visible rather than being treated as history", async ({ 
   await mount(page, { rows: [{ ...focuses[0], status: "Draft" }] });
   await expect(page.locator('[data-idp-select-focus="main-focus"]')).toBeVisible();
   await expect(page.locator(".idp-focus-history")).toHaveCount(0);
+});
+
+test("a Courage coach can publish and withdraw a player-facing focus", async ({ page }) => {
+  await mount(page, { courageCoach: true });
+  let publication = null;
+  await page.route("**/api/idp?action=player-publication&playerId=p1", (route) => {
+    const request = route.request();
+    if (request.method() === "POST") {
+      const { operation, revision, focus, nextStep, feedback } = request.postDataJSON();
+      expect(revision).toBe(publication?.revision || 0);
+      publication = { focus, nextStep, feedback, published: operation === "publish", revision: revision + 1 };
+    }
+    return route.fulfill({ json: { ok: true, publication } });
+  });
+  await page.getByRole("button", { name: "Load player view" }).click();
+  await expect(page.getByLabel("Shared focus")).toHaveValue(focuses[0].title);
+  await page.getByLabel("Next step", { exact: true }).fill("Scan both shoulders.");
+  await page.getByRole("button", { name: "Publish to player" }).click();
+  await expect(page.getByText("Visible to the player.", { exact: true })).toBeVisible();
+  expect(publication).toEqual({ focus: focuses[0].title, nextStep: "Scan both shoulders.", feedback: "", published: true, revision: 1 });
+  await page.getByRole("button", { name: "Withdraw", exact: true }).click();
+  await expect(page.getByText("Focus withdrawn.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Withdraw", exact: true })).toBeHidden();
 });

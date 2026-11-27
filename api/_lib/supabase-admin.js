@@ -555,6 +555,24 @@ async function migrateLegacyProfileImageForRawUser(rawUser) {
   return result.ok ? result.data?.user || result.data || rawUser : rawUser;
 }
 
+async function scopeGuestActor(actor) {
+  if (actor.role !== "guest") return actor;
+  const { url, serviceRoleKey } = readConfig();
+  if (!url || !serviceRoleKey) return { ...actor, playerOnly: true };
+  const params = new URLSearchParams({ select: "user_id", user_id: `eq.${actor.id}`, limit: "1" });
+  try {
+    // Keep revoked players out of staff surfaces too. Only a known empty result grants legacy Guest access.
+    const response = await fetch(`${url}/rest/v1/performance_player_accounts?${params}`, {
+      headers: buildSupabaseKeyHeaders(serviceRoleKey),
+      signal: supabaseTimeoutSignal(2500),
+    });
+    const links = response.ok ? await parseResponseJson(response) : null;
+    return { ...actor, playerOnly: !Array.isArray(links) || links.length > 0 };
+  } catch {
+    return { ...actor, playerOnly: true };
+  }
+}
+
 async function getCurrentActor(authHeader) {
   const token = parseBearer(authHeader);
   if (!token) {
@@ -563,7 +581,7 @@ async function getCurrentActor(authHeader) {
 
   const cachedActor = readCurrentActorCache(token);
   if (cachedActor) {
-    return cachedActor;
+    return scopeGuestActor(cachedActor);
   }
 
   const { url, anonKey } = readConfig();
@@ -599,7 +617,7 @@ async function getCurrentActor(authHeader) {
   const migratedUser = needsLegacyImageMigration ? await migrateLegacyProfileImageForRawUser(user) : null;
   const actor = normalizePlatformUser(migratedUser || user);
   writeCurrentActorCache(token, actor);
-  return actor;
+  return scopeGuestActor(actor);
 }
 
 async function listAllAuthUsers(perPage = 200) {

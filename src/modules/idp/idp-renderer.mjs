@@ -16,6 +16,7 @@ import { renderIdpPlayerBoardPage } from "./idp-player-board-renderer.mjs";
 import { selectIdpFocus } from "./domain/idp-focus-selection.mjs";
 import { renderFocusSelect, renderFocusLevelSelect } from "./idp-focus-controls.mjs";
 import { renderFocusOverview } from "./idp-focus-overview.mjs";
+import { renderPlayerPublication } from "./idp-player-publication.mjs";
 
 const defaultUiState = Object.freeze({
   selectedPlayerId: "",
@@ -1807,6 +1808,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       <section class="idp-development-board is-focus-only">
         ${renderFocusOverview(detail, { selectedId: focus?.id, expandedId: state.ui?.expandedFocusId, canEdit, inactive: idpInactive, summary: buildFocusAreaSummary, strengths })}
       </section>
+      ${canEdit && !idpInactive ? renderPlayerPublication(profile.playerId, focus?.title, options, escapeHtml) : ""}
       <section class="idp-workflow-board">
         ${renderProfileSignalStream(detail, canEdit && !idpInactive)}
         ${renderLatestGoalPanel(detail, canEdit && !idpInactive, options)}

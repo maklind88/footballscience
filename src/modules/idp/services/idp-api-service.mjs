@@ -34,6 +34,10 @@ export function createIdpApiService(context = {}) {
   }
 
   return {
+    loadPlayerPublication: (playerId) =>
+      request(`/api/idp?action=player-publication&playerId=${encodeURIComponent(playerId)}`),
+    savePlayerPublication: (playerId, body) =>
+      request(`/api/idp?action=player-publication&playerId=${encodeURIComponent(playerId)}`, { method: "POST", body }),
     loadDashboard: () => request("/api/idp?action=dashboard"),
     loadPlayer: (playerId) => request(`/api/idp?action=player&playerId=${encodeURIComponent(playerId)}`),
     loadSync: (playerId = "") =>

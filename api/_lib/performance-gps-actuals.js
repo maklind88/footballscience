@@ -103,4 +103,4 @@ async function readGpsHistory(reader, scope, week, end) {
   return { status: "ready", rows };
 }
 
-module.exports = { readGpsHistory, readPublishedGpsWeek, readWeekGpsActuals };
+module.exports = { projectActuals, readGpsHistory, readPublishedGpsWeek, readWeekGpsActuals };

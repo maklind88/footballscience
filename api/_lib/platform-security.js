@@ -183,6 +183,8 @@ function sendSecurityJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+const playerAccountRoutes = new Set(["/api/performance-rpe", "/api/profile-image", "/api/admin-users"]);
+
 function guardApiRequest(req, res, options = {}) {
   const route = normalizeRoute(options.route || req?.url || "");
   const routeConfig = getApiRouteSecurityConfig(route) || {};
@@ -231,6 +233,11 @@ function guardApiRequest(req, res, options = {}) {
     });
     sendSecurityJson(res, 401, { ok: false, reason: "You must be signed in." });
     return { ok: false, status: 401, reason: "auth_required" };
+  }
+
+  if (options.actor?.playerOnly && !playerAccountRoutes.has(route)) {
+    sendSecurityJson(res, 403, { ok: false, reason: "Use Player Profile to access your account." });
+    return { ok: false, status: 403, reason: "player_account_only" };
   }
 
   const shouldEnforcePermission = options.enforcePermission ?? routeConfig.enforcePermission === true;

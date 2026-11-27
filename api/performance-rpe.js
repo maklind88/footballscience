@@ -3,6 +3,7 @@ const { guardApiRequest } = require("./_lib/platform-security.js");
 const { isUuid } = require("./_lib/leaderboard-contract.js");
 const { callCheckinRpc, checkinWeekEnd, currentCourageActivity, projectWellness } = require("./_lib/performance-checkins.js");
 const { readPerformanceSources } = require("./_lib/performance-load-sources.js");
+const { projectPlayerProfile, projectPlayerModules } = require("./_lib/player-profile.js");
 
 const route = "/api/performance-rpe";
 const demoActivityId = "performance-qa-session";
@@ -22,12 +23,14 @@ function createRpeResponseHandler({
       if (!isUuid(actor?.id) || actor.role !== "guest" || actor.status !== "active") return fail(403, unavailable);
       const write = req.method === "POST";
       const body = write ? await parseJsonBody(req, { maxBytes: 2048 }) : null;
-      const week = write ? body?.week : new URL(req.url, "http://localhost").searchParams.get("week");
+      const params = new URL(req.url, "http://localhost").searchParams;
+      const includeProfile = params.get("view") === "profile";
+      const week = write ? body?.week : params.get("week");
       const end = checkinWeekEnd(week);
       if (!end) return fail(400, "Choose the Monday of the week.");
-      if (write && (!Number.isInteger(body.rating) || body.rating < 0 || body.rating > 10 ||
+      if (write && (!Number.isInteger(body.rating) || body.rating < 1 || body.rating > 10 ||
           typeof body.activityId !== "string" || !body.activityId.length || body.activityId.length > 180)) {
-        return fail(400, "Choose an activity and a rating from 0 to 10.");
+        return fail(400, "Choose an activity and a rating from 1 to 10.");
       }
 
       const portal = await rpc("read_performance_player_portal", { p_user_id: actor.id, p_week: week });
@@ -35,6 +38,7 @@ function createRpeResponseHandler({
       if (!Array.isArray(portal.rpe) || !Array.isArray(portal.wellness)) throw new Error("Invalid player portal payload.");
       const demo = portal.demo === true;
       let activities;
+      let player;
       if (demo) {
         if (portal.playerId !== `performance-qa-${actor.id}`) return fail(403, unavailable);
         const fixture = portal.rpe.find(({ activityId, date }) => activityId === demoActivityId && date >= week && date < end);
@@ -44,6 +48,7 @@ function createRpeResponseHandler({
       } else {
         const sources = await readSources(week, end);
         if (!sources.subjectKeys.has(`player:${portal.playerId}`)) return fail(403, unavailable);
+        player = sources.players.find(({ id }) => id === portal.playerId);
         activities = new Map(sources.activities.map((activity) => [activity.id, activity]));
       }
       const currentTime = now();
@@ -60,7 +65,17 @@ function createRpeResponseHandler({
         const playerIds = new Set([portal.playerId]);
         const wellness = projectWellness(portal.wellness.map((row) => ({ ...row, playerId: portal.playerId })), playerIds, dates)
           .map(({ playerId, ...row }) => row);
-        return sendJson(res, 200, { ok: true, week, rpe, wellness: demo ? [] : wellness, ...(demo ? { demo: true } : {}) });
+        const result = { ok: true, week, rpe, wellness: demo ? [] : wellness, ...(demo ? { demo: true } : {}) };
+        if (!includeProfile) return sendJson(res, 200, result);
+        const fields = { p_user_id: actor.id, p_week: week };
+        const profile = projectPlayerProfile(actor, player);
+        if (demo) return sendJson(res, 200, { ...result, profile, development: null, gps: [] });
+        const modules = await rpc("read_courage_player_profile_modules", fields).catch(() => undefined);
+        if (modules === null) return fail(403, unavailable);
+        if (modules === undefined) return sendJson(res, 200, { ...result, profile, modulesUnavailable: true });
+        const projection = projectPlayerModules(modules, portal.playerId, activities);
+        if (!projection) return fail(503, "Your profile is temporarily unavailable. Try again.");
+        return sendJson(res, 200, { ...result, profile, ...projection });
       }
 
       const assignment = rpe.find(({ activityId }) => activityId === body.activityId);

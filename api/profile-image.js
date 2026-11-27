@@ -353,7 +353,7 @@ module.exports = async (req, res) => {
     }
 
     const result = await updateAuthUser(targetId, {
-      ...buildProfilePatch(body),
+      ...(actor.playerOnly ? {} : buildProfilePatch(body)),
       profileImageUrl: upload.publicUrl,
     });
     if (!result.ok) {

@@ -14,10 +14,10 @@ const sources = { players, subjectKeys: new Set(players.map(({ id }) => `player:
 const validWellness = { date: session.date, score: 82, sleepDuration: "7-8", privateNotes: "exclude" };
 const scope = { actor: { id: user, role: "performance" }, canEdit: true, organizationId: "org", teamId: "team" };
 
-async function send(handler, method, body, token = "valid") {
+async function send(handler, method, body, token = "valid", view = "") {
   const req = Readable.from(body ? [JSON.stringify(body)] : []);
   req.method = method;
-  req.url = `/api/performance-rpe?week=${week}&player=athlete-b`;
+  req.url = `/api/performance-rpe?week=${week}&player=athlete-b&view=${view}`;
   req.headers = token ? { authorization: `Bearer ${token}` } : {};
   const headers = {};
   const res = {
@@ -28,7 +28,7 @@ async function send(handler, method, body, token = "valid") {
   return { status: res.statusCode, body: res.body, headers };
 }
 
-function playerFixture({ status = "saved", roster = sources, linked = true } = {}) {
+function playerFixture({ status = "saved", roster = sources, linked = true, modules, historicalRating = null } = {}) {
   const calls = [];
   const handler = playerEndpoint.createRpeResponseHandler({
     readActor: async (auth) => auth ? {
@@ -39,8 +39,9 @@ function playerFixture({ status = "saved", roster = sources, linked = true } = {
     rpc: async (name, fields) => {
       calls.push({ name, fields });
       if (name === "submit_performance_rpe") return status;
+      if (name === "read_courage_player_profile_modules") return modules;
       return linked ? { playerId: players[0].id,
-        rpe: [{ activityId: session.id, date: session.date, rating: null },
+        rpe: [{ activityId: session.id, date: session.date, rating: historicalRating },
           { activityId: future.id, date: future.date }, { activityId: "removed", date: session.date }],
         wellness: [validWellness, { date: "2026-11-19", score: 70 }],
       } : null;
@@ -65,17 +66,48 @@ test("the player portal requires a linked sign-in and projects only its week and
   expect((await send(playerFixture({ roster: { ...sources, subjectKeys: new Set() } }).handler, "GET")).status).toBe(403);
 });
 
-test("RPE accepts zero and uses only the server's player and activity binding", async () => {
+test("RPE accepts 1 to 10 and uses only the server's player and activity binding", async () => {
   const { handler, calls } = playerFixture();
-  const submit = { week, activityId: session.id, rating: 0, userId: "other-user", playerId: "athlete-b", date: "forged" };
-  expect((await send(handler, "POST", { ...submit, rating: 0.5 })).status).toBe(400);
+  const submit = { week, activityId: session.id, rating: 1, userId: "other-user", playerId: "athlete-b", date: "forged" };
+  for (const rating of [0, 1.5, 11]) {
+    expect((await send(handler, "POST", { ...submit, rating })).status).toBe(400);
+  }
   expect((await send(handler, "POST", { ...submit, activityId: future.id })).status).toBe(404);
   expect(calls.every(({ name }) => name === "read_performance_player_portal")).toBe(true);
-  expect((await send(handler, "POST", submit)).body).toEqual({ ok: true, rating: 0 });
+  expect((await send(handler, "POST", submit)).body).toEqual({ ok: true, rating: 1 });
   expect(calls.at(-1)).toEqual({ name: "submit_performance_rpe", fields: {
-    p_user_id: user, p_activity_id: session.id, p_activity_date: session.date, p_rating: 0,
+    p_user_id: user, p_activity_id: session.id, p_activity_date: session.date, p_rating: 1,
   } });
+  expect((await send(handler, "POST", { ...submit, rating: 10 })).status).toBe(200);
   expect((await send(playerFixture({ status: "answered" }).handler, "POST", submit)).status).toBe(409);
+});
+
+test("the player profile projects only published development and unambiguous GPS from the current binding", async () => {
+  const modules = {
+    playerId: players[0].id,
+    development: { focus: "Scan before receiving", nextStep: "Check both shoulders", staffNotes: "private" },
+    gps: [
+      { playerId: players[1].id, activityId: session.id, metrics: { distance: 9000 } },
+      { playerId: players[0].id, activityId: session.id, metrics: { distance: 0, hsr: 20, maxSpeed: 23, sprint: 300 } },
+      { playerId: players[0].id, activityId: future.id, metrics: { distance: 700 } },
+      { playerId: players[0].id, activityId: future.id, metrics: { distance: 701 } },
+      { playerId: players[0].id, activityId: "unknown", metrics: { distance: 99 } },
+    ],
+  };
+  const { handler, calls } = playerFixture({ modules, historicalRating: 0 });
+  const response = await send(handler, "GET", undefined, "valid", "profile");
+  expect(response.status).toBe(200);
+  expect(response.body.profile).toMatchObject({ id: user, name: "Example A", team: "North Carolina Courage" });
+  expect(response.body.development).toEqual({
+    focus: "Scan before receiving", nextStep: "Check both shoulders", feedback: "", publishedAt: "",
+  });
+  expect(response.body.gps).toEqual([{ activityId: session.id, title: session.title, date: session.date,
+    distance: 0, hsr: 20, maxSpeed: 23 }]);
+  expect(response.body.rpe[0].rating).toBe(0);
+  expect(calls.at(-1)).toEqual({ name: "read_courage_player_profile_modules", fields: { p_user_id: user, p_week: week } });
+  expect((await send(playerFixture({ modules: null }).handler, "GET", undefined, "valid", "profile")).status).toBe(403);
+  expect((await send(playerFixture({ modules: { ...modules, playerId: players[1].id } }).handler,
+    "GET", undefined, "valid", "profile")).status).toBe(503);
 });
 
 test("staff can review Wellness and open RPE for a completed Schedule pass while account links require an admin", async () => {

@@ -1,3 +1,5 @@
+import { createGameModelCatalogClient } from "../modules/game-model/catalog-client.mjs";
+import { createGameModelWorkspaceRuntime } from "../modules/game-model/workspace-runtime.mjs";
 import { createLeaderboardSurfaceRuntime } from "./leaderboard-surface-runtime.mjs";
 
 export function createWorkspaceModuleRuntimeController(deps = {}) {
@@ -22,6 +24,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     canDeleteGameplan = () => false,
     canEditVideoAnalysis = () => false,
     canEditIdp = () => false,
+    canEditGameModel = () => false,
     canViewLeaderboard = () => false,
     canEditLeaderboard = () => false,
     getAuthToken = () => "",
@@ -61,6 +64,19 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
   let scoutingWorkspaceModulePromise = null;
   let scoutingWorkspaceModule = null;
   let scoutingMenuPreloadTimer = 0;
+  const gameModelCatalog = createGameModelCatalogClient({
+    request: (...args) => win.fetch(...args),
+    getAuthToken,
+    getCurrentUser,
+    getActiveTeam: getActivePlatformTeam,
+  });
+  const gameModelRuntime = createGameModelWorkspaceRuntime({
+    root: ui.gameModelWorkspace,
+    loader: platformModuleLoader,
+    getAssetVersion,
+    catalog: gameModelCatalog,
+    canEdit: canEditGameModel,
+  });
   const leaderboardRuntime = createLeaderboardSurfaceRuntime({
     ui,
     win,
@@ -213,6 +229,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
       getAuthToken,
       getPlayerProfilesState: getPlayerProfilesStateForIdp,
       getExerciseLibrary: getExerciseLibraryForIdp,
+      getGameModelCatalog: gameModelCatalog.getSnapshot,
       renderPlayerProfileScoutingSpider,
       canEdit: canEditIdp,
     };
@@ -435,6 +452,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     }
     if (viewId === "periodization") {
       hydrateState.periodization?.();
+      gameModelCatalog.getCatalog().catch(() => {});
       return;
     }
     if (viewId === "session-planner") {
@@ -451,6 +469,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     }
     if (viewId === "idp") {
       hydrateState.idp?.();
+      gameModelCatalog.getCatalog().catch(() => {});
       return;
     }
     if (viewId === "scouting") {
@@ -552,6 +571,8 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     queueWorkspaceModulePreload,
     renderAnalysisRoomWorkspace,
     renderGameplanWorkspace,
+    renderGameModelWorkspace: gameModelRuntime.render,
+    getGameModelCatalogSnapshot: gameModelCatalog.getSnapshot,
     renderIdpWorkspace,
     unmountLeaderboardHome: leaderboardRuntime.unmountHome,
     renderScoutingWorkspace,

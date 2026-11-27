@@ -217,6 +217,17 @@ export const platformModules = Object.freeze([
     consumes: Object.freeze(["schedule.event-updated", "profile.updated", "gameplan.updated"]),
   }),
   Object.freeze({
+    id: "game-model",
+    label: "Game Model",
+    stage: "module",
+    storageKeys: Object.freeze([]),
+    futureTables: Object.freeze(["game_model_items"]),
+    viewRoles: staffRoles,
+    editRoles: managerRoles,
+    emits: Object.freeze([]),
+    consumes: Object.freeze([]),
+  }),
+  Object.freeze({
     id: "idp",
     label: "IDP",
     stage: "module",

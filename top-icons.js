@@ -2,6 +2,7 @@ const paths = {
 home: '<path d="M3 11.2 12 3l9 8.2M5.5 10.4V21h4.2v-5.6h4.6V21h4.2V10.4"/>',
 "game-simulator": '<path d="M6 11h4M8 9v4M15 12h.01M18 10h.01M17.3 5H6.7a4 4 0 0 0-4 3.5L2 14.3a3 3 0 0 0 5.1 2.4L9.8 14h4.4l2.7 2.7a3 3 0 0 0 5.1-2.4l-.7-5.8a4 4 0 0 0-4-3.5Z"/>',
 schedule: '<path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>',
+"game-model": '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/><circle cx="12" cy="12" r="3"/><path d="M8 4v3h8V4M8 20v-3h8v3"/>',
 gameplan: '<rect x="4" y="3" width="16" height="18" rx="2.2"/><path d="M8 7h8M8 11h8M8 15h4M15 15l1.4 1.4L19 13.5"/>',
 periodization: '<path d="M21 12a9 9 0 0 0-15.5-6.2L3 8M3 3v5h5M3 12a9 9 0 0 0 15.5 6.2L21 16M21 21v-5h-5"/><circle cx="12" cy="12" r="2.5"/>',
 "performance-room": '<path d="M3 13h4l3-7 4 12 3-7h4"/>',

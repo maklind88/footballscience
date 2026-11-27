@@ -62,6 +62,7 @@ export const platformModuleImplementationStages = Object.freeze({
   chat: "database-backed-module",
   schedule: "hybrid-adapter",
   gameplan: "lazy-module",
+  "game-model": "database-primary",
   "exercise-library": "partial-extraction",
   "session-planner": "partial-extraction",
   periodization: "partial-extraction",

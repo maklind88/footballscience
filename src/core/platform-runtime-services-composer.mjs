@@ -303,6 +303,7 @@ export function createPlatformRuntimeServices(deps = {}) {
     },
     canEditVideoAnalysis: () => canCurrentUserEditWorkspace("analysis-room"),
     canEditIdp: () => canCurrentUserEditWorkspace("idp"),
+    canEditGameModel: () => canCurrentUserEditWorkspace("game-model"),
     canViewLeaderboard: () => Boolean(getCurrentPlatformUser()?.id),
     canEditLeaderboard: () => currentUserHasLeaderboardRole("editRoles"),
     getAuthToken: getPlatformApiAccessToken,

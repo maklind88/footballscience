@@ -25,6 +25,7 @@ test("Workspace defaults expose stable hub workspaces and navigation order", () 
   expect(platformSidebarPrimaryOrder).toEqual([
     "player-profiles",
     "schedule",
+    "game-model",
     "periodization",
     "performance-room",
     "medical-team",

@@ -27,6 +27,15 @@ export const defaultHubState = {
       icon: "□",
     },
     {
+      id: "game-model",
+      kind: "game-model",
+      title: "Game Model",
+      meta: "Playing identity",
+      description: "How the team plays and what each position does.",
+      status: "Active",
+      icon: "▦",
+    },
+    {
       id: "gameplan",
       kind: "gameplan",
       title: "Gameplan",
@@ -171,6 +180,7 @@ export const defaultHubState = {
 export const topIconMenuOrder = [
   "schedule",
   "gameplan",
+  "game-model",
   "periodization",
   "performance-room",
   "session-planner",
@@ -188,6 +198,7 @@ export const topIconMenuOrder = [
 export const platformSidebarPrimaryOrder = [
   "player-profiles",
   "schedule",
+  "game-model",
   "periodization",
   "performance-room",
   "medical-team",

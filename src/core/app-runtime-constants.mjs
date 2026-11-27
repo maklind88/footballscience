@@ -46,6 +46,7 @@ export const maxProfileImageUrlLength = 1800;
 export const maxProfileImageUploadDataUrlLength = 900000;
 
 export const defaultWorkspaceAccess = {
+  "game-model": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
   gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
@@ -65,6 +66,7 @@ export const defaultWorkspaceAccess = {
 };
 
 export const defaultWorkspaceEditAccess = {
+  "game-model": ["admin", "club-admin", "team-admin", "coach"],
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach"],
   gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],

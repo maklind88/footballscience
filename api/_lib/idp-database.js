@@ -690,7 +690,7 @@ async function createFocus(payload, actor) {
   const playerId = normalizeText(payload.playerId || payload.player_id, 160);
   const title = normalizeText(payload.title, 180);
   if (!playerId || !title) return { ok: false, status: 400, reason: "playerId and title are required." };
-  const gameModel = await gameModelActionMetadata(payload);
+  const gameModel = await gameModelActionMetadata(payload, {}, actor);
   if (!gameModel.ok) return gameModel;
   const profileResult = await ensureProfile(scope, playerId, payload);
   if (!profileResult.ok) return profileResult;
@@ -743,7 +743,7 @@ async function updateFocus(payload, actor) {
   const current = await requireOwnedFocus(scope, playerId, focusId);
   if (!current.ok) return current;
   if (Number(current.payload.row_version) !== rowVersion) return { ok: false, status: 409, reason: "Focus changed elsewhere. Reload and try again." };
-  const gameModel = await gameModelActionMetadata(payload, current.payload.metadata);
+  const gameModel = await gameModelActionMetadata(payload, current.payload.metadata, actor);
   if (!gameModel.ok) return gameModel;
   const params = buildTeamParams(scope);
   params.set("id", `eq.${focusId}`);

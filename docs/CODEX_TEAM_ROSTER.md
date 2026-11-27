@@ -30,6 +30,7 @@ The user may speak directly with any specialist chat or ask the Project Lead for
 | My Team / Staff Directory | Team/staff directory, membership presentation and staff-facing profile summaries | Admin/Auth owns credentials, role/permission changes and account lifecycle; Squad Room owns player roster records |
 | Meddelande / Chat | Staff Chat UI, `/api/chat`, `chat_*`, unread, receipts, reactions, attachments, presence, notifications | Home and shell may expose entry points but do not own Chat state |
 | Schedule | Calendar, events, daily/season planning, Schedule persistence | Periodization and Sessions consume public Schedule contracts without owning its writes |
+| Game Model | Shared methodology, phases, principles, position actions and catalog editing | IDP owns player links and snapshots. Periodization owns training plans and uses the shared methodology for its choices. |
 | Periodization | Macrocycle, microcycle, training-day planning and its Sessions bridge | Does not own Schedule events or Session exercise content |
 | Sessions | Session Planner, session blocks, session state and session workflow | Does not own Tacticalboard drawing internals or Exercise Library records |
 | Tacticalboard | Session exercise board, drawing tools, pitch objects and board interaction | Must preserve Sessions integration and existing saved board data |

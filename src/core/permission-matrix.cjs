@@ -163,6 +163,17 @@ const platformPermissionMatrix = Object.freeze([
   }, {
     routes: ["/api/video-analysis"],
   }),
+  moduleContract("game-model", "Game Model", "team", {
+    read: staffRoles,
+    write: managerRoles,
+    delete: scopedAdminRoles,
+    export: scopedAdminRoles,
+    restore: scopedAdminRoles,
+    admin: scopedAdminRoles,
+    observe: managerRoles,
+  }, {
+    routes: ["/api/game-model"],
+  }),
   moduleContract("idp", "IDP", "team", {
     read: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
     write: ["admin", "club-admin", "team-admin", "coach", "analyst"],
@@ -442,6 +453,12 @@ const apiRouteSecurity = Object.freeze({
     moduleId: "video-analysis",
     actions: Object.freeze({ GET: "read", POST: "write", PUT: "write", PATCH: "write", DELETE: "delete" }),
     rateLimits: Object.freeze({ read: 120, write: 60, delete: 12 }),
+    enforcePermission: true,
+  }),
+  "/api/game-model": Object.freeze({
+    moduleId: "game-model",
+    actions: Object.freeze({ GET: "read", POST: "write" }),
+    rateLimits: Object.freeze({ read: 90, write: 30 }),
     enforcePermission: true,
   }),
   "/api/idp": Object.freeze({

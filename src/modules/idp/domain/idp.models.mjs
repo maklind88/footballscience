@@ -326,8 +326,8 @@ function normalizeGameModelAction(value) {
     phase: normalizeText(value.phase, 80),
     subPhase: normalizeText(value.subPhase, 80),
     title: normalizeText(value.title, 180),
-    when: normalizeText(value.when, 240),
-    detail: normalizeText(value.detail, 400),
+    when: normalizeText(value.when, 400),
+    detail: normalizeText(value.detail, 1200),
   };
   return Object.values(snapshot).every(Boolean) ? snapshot : null;
 }

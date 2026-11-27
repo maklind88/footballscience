@@ -185,6 +185,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     if (activeViewId === "idp") deps.renderIdpWorkspace();
     if (activeViewId === "scouting") deps.renderScoutingWorkspace();
     if (activeViewId === "gameplan") deps.renderGameplanWorkspace();
+    if (activeViewId === "game-model") deps.renderGameModelWorkspace();
     if (activeViewId === "transfer-room") deps.renderTransferRoomWorkspace();
     if (activeViewId === "analysis-room") deps.renderAnalysisRoomWorkspace();
     if (activeViewId === "schedule") deps.renderScheduleWorkspace();

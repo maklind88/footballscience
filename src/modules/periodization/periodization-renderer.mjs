@@ -6,6 +6,13 @@ import {
   periodizationPhaseLibrary,
   periodizationTeamPrinciplesBySubPhase,
 } from "./periodization-state.mjs";
+import { gameModelSubPhases } from "../game-model/catalog.mjs";
+
+const subPhaseIdByLabel = new Map(gameModelSubPhases.map(({ id, label }) => [label, id]));
+const legacyCombinedSubPhases = new Map([
+  ["High Press vs GK & High Press", ["High Press vs GK", "High Press"]],
+  ["Throw Ins (Off & Def)", ["Throw Ins (Off)", "Throw Ins (Def)"]],
+]);
 
 function defaultEscapeHtml(value) {
   return String(value ?? "")
@@ -47,6 +54,7 @@ export function createPeriodizationRenderer(options = {}) {
   const formatDateValue = typeof options.formatDateValue === "function" ? options.formatDateValue : () => "";
   const parseDateValue = typeof options.parseDateValue === "function" ? options.parseDateValue : (dateValue) => new Date(dateValue);
   const getState = typeof options.getState === "function" ? options.getState : () => null;
+  const getGameModelCatalog = typeof options.getGameModelCatalog === "function" ? options.getGameModelCatalog : () => null;
   const getDay = typeof options.getDay === "function" ? options.getDay : () => ({});
   const canEdit = typeof options.canEdit === "function" ? options.canEdit : () => false;
   const isOffDay = typeof options.isOffDay === "function" ? options.isOffDay : () => false;
@@ -185,6 +193,12 @@ export function createPeriodizationRenderer(options = {}) {
       .filter(Boolean);
   }
 
+  function readCustomValues(value, selectedValues, optionSet) {
+    const savedValues = selectedValues.filter((item) => !optionSet.has(item));
+    if (value === undefined || value === savedValues.join(", ")) return savedValues;
+    return parseCustomValues(value).filter((item) => !optionSet.has(item));
+  }
+
   function getPrincipleSourceKeys(subPhases = []) {
     const keys = new Set(normalizePeriodizationMultiValue(subPhases));
     if (keys.has("High Press") || keys.has("High Press vs GK")) {
@@ -205,6 +219,20 @@ export function createPeriodizationRenderer(options = {}) {
   }
 
   function getPrincipleOptions(day, source) {
+    const kind = source === periodizationTeamPrinciplesBySubPhase ? "team-principle"
+      : source === periodizationMiniGamePrinciplesBySubPhase ? "mini-game-principle" : "";
+    const catalogItems = getGameModelCatalog()?.items;
+    if (kind && Array.isArray(catalogItems)) {
+      const subPhaseIds = new Set(normalizePeriodizationMultiValue(day.subPhases)
+        .flatMap((label) => legacyCombinedSubPhases.get(label) || [label])
+        .map((label) => subPhaseIdByLabel.get(label))
+        .filter(Boolean));
+      // Catalog entries already include the shared High Press and Throw Ins
+      // defaults. Keep a successfully loaded empty selection empty.
+      return [...new Set(catalogItems
+        .filter((item) => item.kind === kind && !item.archived && (!subPhaseIds.size || subPhaseIds.has(item.subPhaseId)))
+        .map((item) => item.title))];
+    }
     const keys = getPrincipleSourceKeys(day.subPhases);
     if (!keys.length) {
       return Object.values(source).flat();
@@ -245,10 +273,10 @@ export function createPeriodizationRenderer(options = {}) {
       ? checkboxOptions.filter((option) => option.checked).map((option) => option.value)
       : currentValues.filter((value) => staticOptionSet.has(value));
     const customInput = fieldContainer?.querySelector("[data-periodization-custom-field]");
-    const customValues = customInput
-      ? parseCustomValues(customInput.value)
-      : currentValues.filter((value) => !staticOptionSet.has(value));
-    return [...new Set([...selectedStaticValues, ...customValues.filter((value) => !staticOptionSet.has(value))])];
+    // When a catalog label changes it becomes a saved custom value. An untouched
+    // custom input must not split a historical label containing a comma.
+    const customValues = readCustomValues(customInput?.value, currentValues, staticOptionSet);
+    return [...new Set([...selectedStaticValues, ...customValues])];
   }
 
   function getCustomFieldValue(field, dateValue) {
@@ -266,12 +294,13 @@ export function createPeriodizationRenderer(options = {}) {
             .filter(Boolean)
         : getMultiFieldOptions(key, dateValue);
     const staticOptionSet = new Set(staticOptions);
+    const currentValues = normalizePeriodizationMultiValue(getDay(dateValue)?.[key]);
     const selectedStaticValues = checkboxOptions.length
       ? checkboxOptions.filter((option) => option.checked).map((option) => option.value)
       : select
         ? Array.from(select.selectedOptions).map((option) => option.value)
-        : normalizePeriodizationMultiValue(getDay(dateValue)?.[key]).filter((value) => staticOptionSet.has(value));
-    const customValues = parseCustomValues(field.value).filter((value) => !staticOptionSet.has(value));
+        : currentValues.filter((value) => staticOptionSet.has(value));
+    const customValues = readCustomValues(field.value, currentValues, staticOptionSet);
     return [...new Set([...selectedStaticValues, ...customValues])];
   }
 

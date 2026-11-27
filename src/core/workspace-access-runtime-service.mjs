@@ -339,6 +339,9 @@ return "scouting";
 if (workspace.kind === "schedule") {
 return "schedule";
 }
+if (workspace.kind === "game-model") {
+return "game-model";
+}
 if (workspace.kind === "gameplan") {
 return "gameplan";
 }

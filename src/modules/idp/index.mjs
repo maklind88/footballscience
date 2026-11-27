@@ -43,6 +43,7 @@ function normalizeContext(context = {}) {
     team: context.team || null,
     teamName: context.teamName || context.team?.name || context.currentUser?.teamName || context.currentUser?.team || "",
     teamLogoUrl: context.teamLogoUrl || context.team?.logoUrl || context.team?.logo_url || context.currentUser?.teamLogoUrl || "",
+    getGameModelCatalog: context.getGameModelCatalog,
     getAuthToken: typeof context.getAuthToken === "function" ? context.getAuthToken : () => "",
     getPlayerProfilesState:
       typeof context.getPlayerProfilesState === "function" ? context.getPlayerProfilesState : () => ({}),
@@ -382,7 +383,7 @@ export function handleInput(event) {
 }
 
 export function handleChange(event) {
-  if (handleGameModelChange(event)) return;
+  if (handleGameModelChange(event, runtime?.context.getGameModelCatalog?.())) return;
   if (handleIdpPlayerBoardChange(event, runtime)) return;
   const target = event?.target;
   const scoutingMetricToggle = target?.closest?.("[data-player-profile-scouting-metric-toggle]");
@@ -433,7 +434,7 @@ export function handleClick(event) {
     event.preventDefault();
     return;
   }
-  if (handleGameModelClick(event)) return;
+  if (handleGameModelClick(event, runtime?.context.getGameModelCatalog?.())) return;
   if (handleIdpPlayerBoardClick(event, runtime)) return;
   const deletePlayerBoardTrigger = event?.target?.closest?.("[data-idp-board-delete]");
   if (deletePlayerBoardTrigger) {

@@ -32,11 +32,14 @@ export function renderGameModelField(focus, profile = {}) {
   const savedPreview = renderLinkedGameModelAction(action);
   return `<section class="idp-form-wide idp-gm-field" data-idp-game-model
       data-saved-action="${escape(action?.actionId)}" data-saved-position="${escape(action?.positionId)}"
+      data-saved-copy="${escape(JSON.stringify([action?.title, action?.when, action?.detail]))}"
       data-edit-focus="${Boolean(focus?.id && !String(focus.id).startsWith("legacy-focus-"))}">
     <div data-idp-gm-preview aria-live="polite">${savedPreview}</div>
     <template data-idp-gm-saved-preview>${savedPreview}</template>
     <input type="hidden" name="gameModelActionId" disabled>
     <input type="hidden" name="gameModelPositionId" disabled>
+    <input type="hidden" name="gameModelTeamId" disabled>
+    <input type="hidden" name="gameModelItemRevision" disabled>
     <details data-idp-gm-picker>
       <summary>${action ? "Change Game Model action" : focus?.id ? "Link Game Model action" : "Use Game Model action"}</summary>
       <div class="idp-gm-selectors">

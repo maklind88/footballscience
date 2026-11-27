@@ -2,7 +2,7 @@
   "identifier": "active",
   "description": "Exact active signed-shell commands, scoped to the native active window only.",
   "windows": ["main"],
-  "platforms": ["macOS", "windows"],
+  "platforms": ["macOS", "windows", "linux"],
   "permissions": [
     "allow-runtime-info",
     "allow-bootstrap-status",

@@ -2,6 +2,6 @@
   "identifier": "recovery",
   "description": "Read-only last-known-good recovery surface without writes, synchronization or shell activation.",
   "windows": ["recovery"],
-  "platforms": ["macOS", "windows"],
+  "platforms": ["macOS", "windows", "linux"],
   "permissions": ["allow-recovery-status", "allow-recovery-read"]
 }

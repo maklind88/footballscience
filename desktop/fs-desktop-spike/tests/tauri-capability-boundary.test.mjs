@@ -24,6 +24,14 @@ async function text(path) {
   return readFile(new URL(path, packageRoot), "utf8");
 }
 
+test("every native window grants its local commands on all verified desktop targets", async () => {
+  for (const window of ["active", "bundled", "candidate", "recovery"]) {
+    const capability = JSON.parse(await text(`src-tauri/capabilities/${window}.json`));
+    assert.deepEqual(new Set(capability.platforms), new Set(["macOS", "windows", "linux"]), window);
+    assert.equal("remote" in capability, false, window);
+  }
+});
+
 test("permissions contain only the enumerated role-specific commands", async () => {
   const permissions = await text("src-tauri/permissions/fs-desktop-spike.toml");
   const commands = [...permissions.matchAll(/commands\.allow = \["([^"]+)"\]/g)]

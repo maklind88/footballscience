@@ -160,6 +160,41 @@ function pass(name, detail = {}) {
   console.log(`PASS ${name}`);
 }
 
+function readFailureDiagnostics() {
+  const tracePath = resolve(probeRoot, "fs-desktop-runtime-trace.log");
+  const observedStages = new Map();
+  const runtimeStage = /^(runtime run entered|setup entered|desktop runtime initialized|desktop runtime installed|main window created)$/;
+  const windowStage = /^(window build (?:started|completed) role=(?:Active|Candidate|Recovery|Bundled) label=(?:main|candidate|recovery))$/;
+  const navigationStage = /^((?:navigation role=\w+ allowed=(?:true|false)|page load role=\w+ event=\w+)) url=/;
+  const protocolStage = /^(protocol (?:active|candidate|recovery) label=(?:main|candidate|recovery)) path=/;
+  const commandStage = /^(command (?:desktop_bootstrap_status|desktop_prepare_shell_update(?: completed state=[a-z-]+| failed| task failed)?|desktop_candidate_status|record_spike_probe))(?= |$)/;
+  const preparationStage = /^(shell preparation (?:locks acquired|signed manifest verified|bundle extraction (?:started|verified)|generation (?:verification started|verified)))$/;
+  const namedAsset = /^(protocol (?:active|candidate|recovery) label=(?:main|candidate|recovery) path=\/(?:bootstrap\/(?:index\.html|app\.js|tauri-invoke\.mjs)|active\/(?:index\.html|app-runtime\.js)|index\.html))$/;
+  const stages = [runtimeStage, windowStage, navigationStage, namedAsset, protocolStage, commandStage, preparationStage];
+  if (existsSync(tracePath)) {
+    for (const line of readFileSync(tracePath, "utf8").split("\n")) {
+      const event = line.replace(/^\d+ /, "");
+      const stage = stages.map(pattern => pattern.exec(event)?.[1]).find(Boolean);
+      if (stage) observedStages.set(stage, (observedStages.get(stage) || 0) + 1);
+    }
+  }
+  let lastProbe = "missing";
+  if (existsSync(probePath)) {
+    try {
+      const { probe, nativeEvidence } = JSON.parse(readFileSync(probePath, "utf8"));
+      const bootMode = probe?.bootMode;
+      lastProbe = {
+        bootMode: ["online", "offline", "compatibility-blocked"].includes(bootMode) ? bootMode : "other",
+        expectedPayload: probe?.payloadBuildId === normalBuildId,
+        expectedActiveGeneration: nativeEvidence?.activeBuildId === normalBuildId,
+      };
+    } catch {
+      lastProbe = "unreadable";
+    }
+  }
+  return { lastProbe, observedStages: Object.fromEntries(observedStages) };
+}
+
 let server = null;
 let app = null;
 try {
@@ -253,6 +288,8 @@ try {
   evidence.status = "failed";
   evidence.failure = String(error?.stack || error).slice(0, 2_000);
   console.error(evidence.failure);
+  evidence.diagnostics = readFailureDiagnostics();
+  console.error("Synthetic native startup diagnostics", JSON.stringify(evidence.diagnostics));
   process.exitCode = 1;
 } finally {
   await stop(app);

@@ -2,7 +2,7 @@
 
 Utgångspunkt `4bdc62e7d53231ba17ccd89d6409564c8a7662f6` från main och Tauri-källan från `3034f17929223885cae537953b500aafd9e4bbad`. System och Säkerhet ansvarar för integrationsgränsen. FS Desktop APP äger distributionsskalet och dess OS-stöd. Platform Shell äger den gemensamma startytan. Sessions äger centrala uppgifter, revisioner och sparregler.
 
-Den ursprungliga Tauri-appen bygger det aktuella gemensamma webbgränssnittet som ett verifierat kodpaket. Operativsystemets skal och den befintliga lokala datamodellen ligger kvar bakom Tauri-bryggan. Testpaketen har ett eget app-ID och kör syntetiskt. Den gamla databaskatalogen och HTTP-hanterarna används endast i disponibla testmiljöer under `desktop/fs-desktop-spike/local-integration`. De ingår inte i projektets publika API eller migrationskatalog.
+Den ursprungliga Tauri-appen bygger det aktuella gemensamma webbgränssnittet som ett verifierat kodpaket. Operativsystemets skal och den befintliga lokala datamodellen ligger kvar bakom Tauri-bryggan. Testpaketen har ett eget app-ID och använder syntetisk identitet med ett minnesvalv. Den gamla databaskatalogen och HTTP-hanterarna används endast i disponibla testmiljöer under `desktop/fs-desktop-spike/local-integration`. De ingår inte i projektets publika API eller migrationskatalog.
 
 ## Säkerhetsgräns i kandidaten
 

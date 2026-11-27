@@ -284,9 +284,15 @@ fn expired_offline_lease_locks_reads_without_deleting_pending_work() {
     let mut connection = open(&path).unwrap();
     let operation = request(Uuid::new_v4().to_string());
     apply_operation(&mut connection, &operation, 10_000).unwrap();
-    let authority = SessionAuthority::new_os().unwrap();
+    let authority = SessionAuthority::new_isolated_lease_test().unwrap();
+    authority.validate(&operation.context).unwrap();
     authority.expire_offline_lease_for_test();
-    assert!(authority.validate(&operation.context).is_err());
+    assert!(
+        authority
+            .validate(&operation.context)
+            .unwrap_err()
+            .contains("expired")
+    );
     let pending: i64 = connection
         .query_row("SELECT count(*) FROM session_outbox", [], |row| row.get(0))
         .unwrap();

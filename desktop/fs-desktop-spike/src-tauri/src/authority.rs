@@ -4,6 +4,7 @@
 )]
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
@@ -99,6 +100,28 @@ pub trait CredentialVault: Send + Sync {
     fn delete(&self, account: &str) -> Result<(), String>;
 }
 
+#[derive(Default)]
+struct SyntheticCredentialVault(Mutex<HashMap<String, Zeroizing<Vec<u8>>>>);
+
+impl CredentialVault for SyntheticCredentialVault {
+    fn read(&self, account: &str) -> Result<Option<Vec<u8>>, String> {
+        let values = self.0.lock().map_err(|_| "synthetic vault lock poisoned")?;
+        Ok(values.get(account).map(|value| value.to_vec()))
+    }
+
+    fn write(&self, account: &str, secret: &[u8]) -> Result<(), String> {
+        let mut values = self.0.lock().map_err(|_| "synthetic vault lock poisoned")?;
+        values.insert(account.into(), Zeroizing::new(secret.to_vec()));
+        Ok(())
+    }
+
+    fn delete(&self, account: &str) -> Result<(), String> {
+        let mut values = self.0.lock().map_err(|_| "synthetic vault lock poisoned")?;
+        values.remove(account);
+        Ok(())
+    }
+}
+
 pub struct OsCredentialVault {
     service: String,
 }
@@ -191,12 +214,17 @@ pub struct SessionAuthority {
 
 impl SessionAuthority {
     pub fn new_os() -> Result<Self, String> {
-        let vault: Arc<dyn CredentialVault> = Arc::new(OsCredentialVault::production());
         let lease_policy = OfflineLeasePolicy::from_compile_time();
         if option_env!("FS_DESKTOP_SYNTHETIC_AUTH") == Some("1") {
-            return Self::new_synthetic(vault, lease_policy);
+            if option_env!("FS_DESKTOP_TEST_BUILD") != Some("1") {
+                return Err("synthetic credentials are restricted to test builds".into());
+            }
+            return Self::new_synthetic(
+                Arc::new(SyntheticCredentialVault::default()),
+                lease_policy,
+            );
         }
-        Self::restore_or_signed_out(vault, lease_policy)
+        Self::restore_or_signed_out(Arc::new(OsCredentialVault::production()), lease_policy)
     }
 
     fn signed_out_snapshot() -> SessionAuthoritySnapshot {
@@ -596,6 +624,11 @@ impl SessionAuthority {
     #[cfg(test)]
     pub(crate) fn new_sync_test(vault: Arc<dyn CredentialVault>) -> Result<Self, String> {
         Self::new_synthetic(vault, OfflineLeasePolicy::seconds(300))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_isolated_lease_test() -> Result<Self, String> {
+        Self::new_sync_test(Arc::new(SyntheticCredentialVault::default()))
     }
 
     #[cfg(test)]

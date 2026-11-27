@@ -38,7 +38,7 @@ jobs:
       SUPABASE_DB_POOLER_HOST: ${{ vars.SUPABASE_DB_POOLER_HOST }}
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v6
         with:
           node-version: 24

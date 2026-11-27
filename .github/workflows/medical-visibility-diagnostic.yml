@@ -16,7 +16,7 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v6
         with:
           node-version: 24

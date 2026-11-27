@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import { PGlite } from "@electric-sql/pglite";
 
 if (process.argv[2] !== "--native-sync-test-only") throw new Error("Explicit test-only argument required.");
+const restartProof = process.argv[3] === "--native-sync-restart-only";
 // Process-liveness guard includes WASM startup; transport retains its separate 30s timeout.
 const deadline = setTimeout(() => { process.stderr.write("Native sync fixture timed out.\n"); process.exit(1); }, 60_000);
 const require = createRequire(import.meta.url);
@@ -18,7 +19,8 @@ const actor = { id: "00000000-0000-4000-8000-000000000101", organizationId: "000
   teamId: "00000000-0000-4000-8000-000000000401", status: "active", role: "coach" };
 let responses = 0;
 const handler = createDesktopSessionSyncHandler({
-  getCurrentActor: async (header) => header === "Bearer synthetic-access-only-001" ? actor : null,
+  getCurrentActor: async (header) => header === (restartProof && responses === 1
+    ? "Bearer synthetic-access-after-restart-002" : "Bearer synthetic-access-only-001") ? actor : null,
   guardApiRequest: () => ({ ok: true, context: { requestId: `native-local-${responses + 1}` } }),
   sendCorsHeaders: () => {},
   readSnapshot: async (value) => {
@@ -54,6 +56,17 @@ const handler = createDesktopSessionSyncHandler({
       const applied = await database.query("select title, row_version from public.session_planner_sessions");
       assert.equal(applied.rows[0].title, "Offline revision 8");
       assert.equal(applied.rows[0].row_version, 8);
+      if (restartProof) {
+        const receipts = await database.query("select count(*)::integer as count from app_private.session_planner_desktop_operations");
+        assert.equal(receipts.rows[0].count, 1);
+        res.writeHead(status, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(body));
+        process.stdout.write(`${JSON.stringify({ requests: responses, serverApplications: receipts.rows[0].count, revision: applied.rows[0].row_version })}\n`);
+        server.close();
+        await database.close();
+        clearTimeout(deadline);
+        return;
+      }
       // A second synthetic writer moves the authoritative revision before the next offline push.
       await database.exec("update public.session_planner_sessions set row_version = 9, title = 'Another writer'");
     }

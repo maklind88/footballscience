@@ -19,6 +19,14 @@ På Linux kräver varje flyktigt WebKit-fönster egna registreringar av appens p
 
 Ett grönt processprov visar att den signerade appversionen kan starta igen, att felaktiga kandidater avvisas och att en förifylld syntetisk Sessions-post kan läsas. Ett separat Mac-prov ändrade revisionen direkt i en tillfällig SQLite-fil och verifierade den nya revisionen efter processomstart utan testserver. Installation i ett användarkonto, verklig enhetsupplåsning, kallstart från ikonen efter OS-omstart och automatisk historik är andra godkännandepunkter.
 
+Det fristående WebKitGTK-provet laddar HTML och en JavaScript-modul från ett lokalt protokoll i tre fönster i samma process. Det kontrollerar huvudfönstret, ett dolt flyktigt kandidatfönster och ett synligt flyktigt återställningsfönster. [Utfall för Ubuntu-kontrollen](https://github.com/maklind88/footballscience/actions/runs/45931138195/job/140283778124)
+
+## Native sparning vid processomstart
+
+Två separata Rust-testprocesser använder samma tillfälliga SQLite-databas och ett filvalv med syntetiska uppgifter. Den första processen sparar en ändring och sänder den till Desktop-prototypens lokala HTTP-server. Servern tillämpar ändringen och stänger anslutningen före kvittot. Den andra processen återställer läsbehörigheten, läser tillbaka samma revision och behåller den osynkade posten tills nya synkuppgifter finns. Återsändningen ger kvittot `already-applied`. Servern verifierar två anrop, en tillämpning och en oförändrad revision efter det andra anropet.
+
+Provet körs med `cargo test --manifest-path desktop/fs-desktop-spike/src-tauri/Cargo.toml --lib --locked authority::race_tests::native_process_restart_replays_one_operation_under_restored_authority -- --exact` efter `npm ci` i `desktop/fs-desktop-spike`. Det använder prototypens testtabeller i disponibel PGlite. Paketerad Sessions-UI, operativsystemets nyckellager och produktens ordinarie `/api/app-state` återstår i det sammanhängande provet.
+
 ## Provet för automatisk historik
 
 För att godkänna Desktop för vanligt arbete måste samma test köras med riktiga klientvägar och syntetiska arbetsdata på varje erbjuden plattform:

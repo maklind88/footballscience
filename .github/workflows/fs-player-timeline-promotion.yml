@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 3
+          fetch-depth: 4
           persist-credentials: false
       - name: Verify only the review harness differs from the requested main commit
         env:
@@ -36,19 +36,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 3
+          fetch-depth: 4
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24.15.0
-      - name: Verify isolation before promotion
-        run: npm run release:staging-isolation
       - name: Verify and promote only the reviewed existing Vercel deployment
         env:
           GITHUB_TOKEN: ${{ github.token }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: node scripts/promote-fs-player-timeline-once.mjs
-      - name: Verify isolation and production health without data writes
-        run: |
-          npm run release:staging-isolation
-          npm run release:postdeploy
+      - name: Verify production health without data writes
+        run: npm run release:postdeploy

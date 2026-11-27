@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { assertProductionDeployment } from "./lib/production-promotion.mjs";
 import { supabaseRefFromConfig } from "./lib/vercel-protected-read.mjs";
 
@@ -12,6 +12,7 @@ const deploymentId = "dpl_HrsbnBZgknCderqU51DxjP1nTTJT";
 const previousLiveId = "dpl_DWYvMvk3ebRPmaEajSjHvjVkDN7A";
 const deploymentHost = "footballscience-nf06v1sra-makattack.vercel.app";
 const liveHost = "footballscience.xyz";
+const stagingHost = "staging.footballscience.xyz";
 const supabaseRef = "bustidorxevacosqhkcz";
 const harness = [
   ".github/workflows/fs-player-timeline-promotion.yml",
@@ -40,7 +41,7 @@ async function preflight() {
   ensure(env.GITHUB_REPOSITORY === repository && env.GITHUB_REF === reviewRef && env.GITHUB_EVENT_NAME === "push",
     "This approval is only valid for the dedicated review branch.");
   ensure(!git("status", "--porcelain") && git("rev-parse", "HEAD") === env.GITHUB_SHA
-    && git("rev-parse", "HEAD^") === sha, "Checkout differs from the approved product commit and review harness.");
+    && git("merge-base", "HEAD", sha) === sha, "Checkout differs from the approved product commit and review harness.");
   ensure(git("diff", "--name-only", sha, "HEAD") === harness.join("\n"),
     "Only the one-off review harness may differ from the release candidate.");
   await assertMain();
@@ -64,32 +65,44 @@ async function inspect(path) {
 
 function protectedAsset(path) {
   // Keep credential flags before curl's argument separator.
-  ensure(process.env.VERCEL_TOKEN, "Vercel credential is unavailable after review.");
+  const credentials = process.env.VERCEL_TOKEN ? ["--token", process.env.VERCEL_TOKEN] : [];
   try {
     return execFileSync("npx", ["--yes", "vercel@53.2.0", "curl", path, "--deployment", deploymentId,
-      "--scope", teamId, "--token", process.env.VERCEL_TOKEN, "--", "--fail", "--silent", "--show-error",
+      "--scope", teamId, ...credentials, "--", "--fail", "--silent", "--show-error",
       "--max-time", "30", "--proto", "=https"], { timeout: 90_000, maxBuffer: 8 * 1024 * 1024 });
   } catch {
     throw new Error(`Could not verify the reviewed artifact at ${path}.`);
   }
 }
 
-async function liveDeployment() {
-  const alias = await inspect(`/v4/aliases/${liveHost}`);
-  ensure(alias.projectId === projectId, "Live alias belongs to the wrong Vercel project.");
+async function aliasDeployment(host) {
+  const alias = await inspect(`/v4/aliases/${host}`);
+  ensure(alias.projectId === projectId && alias.deploymentId, `Invalid Vercel alias for ${host}.`);
   return alias.deploymentId;
 }
 
-async function promote() {
-  ensure(process.env.VERCEL_TOKEN, "Protected promotion requires the existing Vercel credential.");
-  const candidate = await inspect(`/v13/deployments/${deploymentId}`);
-  ensure(assertProductionDeployment(candidate, { projectId }) === deploymentId && candidate.url === deploymentHost,
-    "Vercel deployment identity differs from the approved artifact.");
-  const commit = candidate.meta?.githubCommitSha || candidate.meta?.gitCommitSha || candidate.gitSource?.sha;
-  ensure(!commit || commit === sha, "Vercel reports an unexpected source commit.");
-  mkdirSync(".vercel", { recursive: true });
-  writeFileSync(".vercel/project.json", JSON.stringify({ projectId, orgId: teamId, projectName: "footballscience" }),
-    { flag: "wx" });
+function linkVercelProject() {
+  const file = ".vercel/project.json";
+  if (!existsSync(file)) {
+    mkdirSync(".vercel", { recursive: true });
+    writeFileSync(file, JSON.stringify({ projectId, orgId: teamId, projectName: "footballscience" }), { flag: "wx" });
+  }
+  const link = JSON.parse(readFileSync(file, "utf8"));
+  ensure(link.projectName === "footballscience" && link.projectId === projectId && link.orgId === teamId,
+    "Vercel checkout is linked to a different project.");
+}
+
+function assertStageIsolation() {
+  execFileSync("npm", ["run", "release:staging-isolation"], {
+    env: { ...process.env, VERCEL_ORG_ID: teamId, VERCEL_PROJECT_ID: projectId },
+    stdio: "inherit",
+    timeout: 120_000,
+  });
+}
+
+function verifyCandidateAssets() {
+  linkVercelProject();
+  assertStageIsolation();
   ensure(supabaseRefFromConfig(JSON.parse(protectedAsset("/api/client-config"))) === supabaseRef,
     "Reviewed artifact is not bound to production data.");
 
@@ -101,22 +114,38 @@ async function promote() {
     ensure(protectedAsset(`/${path}`).equals(readFileSync(path)), `Artifact mismatch: ${path}`);
   }
   console.log(`Verified ${paths.length} deployed assets against ${sha}.`);
-  await assertMain();
-  ensure(await liveDeployment() === previousLiveId, "Live changed; refusing to replace a different release.");
-  vercel("promote", `https://${deploymentHost}`, "--yes", "--timeout=5m");
+  return paths;
+}
 
-  for (let attempt = 0; attempt < 30 && await liveDeployment() !== deploymentId; attempt += 1) {
+async function promote() {
+  ensure(process.env.VERCEL_TOKEN, "Protected promotion requires the existing Vercel credential.");
+  const candidate = await inspect(`/v13/deployments/${deploymentId}`);
+  ensure(assertProductionDeployment(candidate, { projectId }) === deploymentId && candidate.url === deploymentHost,
+    "Vercel deployment identity differs from the approved artifact.");
+  const commit = candidate.meta?.githubCommitSha || candidate.meta?.gitCommitSha || candidate.gitSource?.sha;
+  ensure(!commit || commit === sha, "Vercel reports an unexpected source commit.");
+  const paths = verifyCandidateAssets();
+  await assertMain();
+  const stagingId = await aliasDeployment(stagingHost);
+  ensure(await aliasDeployment(liveHost) === previousLiveId, "Live changed; refusing to replace a different release.");
+  // A project-wide promotion could also retarget the unpinned staging domain.
+  vercel("alias", "set", deploymentHost, liveHost);
+
+  for (let attempt = 0; attempt < 30 && await aliasDeployment(liveHost) !== deploymentId; attempt += 1) {
     await new Promise(resolve => setTimeout(resolve, 2000));
   }
-  ensure(await liveDeployment() === deploymentId, "The reviewed deployment does not own the production alias.");
+  ensure(await aliasDeployment(liveHost) === deploymentId, "The reviewed deployment does not own the production alias.");
+  ensure(await aliasDeployment(stagingHost) === stagingId, "The staging alias changed unexpectedly.");
   for (const path of paths) {
     const url = new URL(`/${path}?fs-timeline-release=${sha}`, `https://${liveHost}`);
     const received = Buffer.from(await (await read(url)).arrayBuffer());
     ensure(received.equals(readFileSync(path)), `Live asset mismatch: ${path}`);
   }
+  assertStageIsolation();
   console.log(`Promoted and verified ${deploymentId} on https://${liveHost}.`);
 }
 
 await preflight();
 if (process.argv.includes("--preflight")) console.log(`Approval scope verified: ${sha} -> ${deploymentId}.`);
+else if (process.argv.includes("--verify-only")) verifyCandidateAssets();
 else await promote();
